@@ -3,9 +3,6 @@
 //  VibeTests
 //
 
-// The real bare-key handler, with constructed events and duck collaborators.
-// No native windows, audio engine, or posted input are needed.
-
 #import <XCTest/XCTest.h>
 
 #import "TransportKeyMonitor.h"

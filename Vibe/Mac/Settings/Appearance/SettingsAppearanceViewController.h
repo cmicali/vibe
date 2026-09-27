@@ -7,39 +7,27 @@
 
 @interface SettingsAppearanceViewController : SettingsPaneViewController
 
-// Pushes the theme editor page for the active theme — the System
-// Settings-style sub-page this pane swaps to in place. View > Theme > Edit
-// Themes… lands here through SettingsWindowController.showThemeEditor.
 // A built-in is first copied, including its unsaved waveform changes.
 - (void)showThemeEditorForActiveTheme;
 
-// The toolbar navigation control's model: back pops the editor to the theme
-// list; forward, armed by a pop, re-opens the editor. The window controller
-// reads the two flags for the control's enablement whenever the pane
-// re-resolves its pages.
+// The toolbar navigation pill's model: back pops the editor; forward, armed
+// by a pop, re-opens it.
 @property (readonly, nonatomic) BOOL canGoBack;
 @property (readonly, nonatomic) BOOL canGoForward;
 - (void)navigateBack;
 - (void)navigateForward;
 
-// The titlebar toggle's model, and outside the pane for the same reason the
-// two above are: a TEMPORARY light/dark preview of the main window, written to
-// the transient preview style rather than to the stored setting, so a visit
-// leaves the app looking the way it found it. viewDidDisappear drops it, which
-// makes leaving the pane and closing the window one revert.
+// A TEMPORARY preview of the main window, written to the transient preview
+// style, never the stored setting; viewDidDisappear drops it.
 - (void)previewAppearanceDark:(BOOL)dark;
 
-// The toolbar's two dice, outside the pane for the same reason: each rolls
-// the active theme (AppTheme's randomizeSettingsWithWaveformStyles: and
-// randomizeColors) and applies the whole result. Only on the editor page
-// over a user theme — a built-in cannot be edited — which canRandomize
-// reports for the control's enablement.
+// The toolbar's dice: each rolls the active theme and applies it whole. Only
+// on the editor page over a user theme.
 @property (readonly, nonatomic) BOOL canRandomize;
 - (void)randomizeThemeSettings;
 - (void)randomizeThemeColors;
-// The store's theme history, shared by the toolbar arrows and Edit > Undo
-// and Redo on both pages: backward is undo, forward redo. A restore applies
-// the restored theme whole.
+// The store's theme history, for the toolbar arrows and Edit > Undo/Redo on
+// both pages. A restore applies the theme whole.
 - (BOOL)canRestoreThemeHistoryForward:(BOOL)forward;
 - (void)restoreThemeHistoryForward:(BOOL)forward;
 

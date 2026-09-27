@@ -51,7 +51,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)knowsOutputDeviceIsAbsent:(NSInteger)deviceId;
 
 // Resolves against the first successful device snapshot without blocking the
-// caller. UID wins; name is the compatibility fallback for older settings.
+// caller, by deviceForUID:modelUID:name:inDevices:'s rule.
 // If setup is temporarily unavailable, the request remains pending until a
 // later refresh succeeds. Completion runs on the manager's refresh queue.
 - (void)resolveOutputDeviceForUID:(NSString *)uid
@@ -65,8 +65,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable AudioDevice *)outputDeviceForId:(NSInteger)deviceId;
 
 // The published snapshot, or nil when none exists yet — WITHOUT waiting on
-// listener setup, unlike outputDevices and publishedOutputDevices. For the
-// player queue, which must never block on the HAL: an unavailable coreaudiod
+// listener setup, unlike outputDevices. For the player queue, which must never block on the HAL: an unavailable coreaudiod
 // answers nil here rather than stalling playback for the setup ceiling.
 - (nullable NSArray<AudioDevice *> *)cachedOutputDevices;
 

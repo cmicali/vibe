@@ -2,8 +2,7 @@
 //  MainPlayerController+DebugPlayerSurface.m
 //  Vibe
 //
-//  See MainPlayerController+DebugPlayerSurface.h — thin forwards onto the
-//  controller's existing surface, and nothing else.
+//  Thin forwards onto the controller's existing surface.
 //
 
 #import "DebugInternal.h"
@@ -34,8 +33,7 @@
 }
 
 - (void)debugPlayIndex:(NSUInteger)index {
-    // What a double-click on a row does, minus the hit-testing: set the row,
-    // then play it.
+    // A row double-click minus the hit-testing.
     if (index >= self.playlistController.count) {
         return;
     }
@@ -45,15 +43,14 @@
 
 - (void)debugSeekToSeconds:(NSTimeInterval)seconds {
     [self.audioPlayer seekToPosition:seconds];
-    // The tick would land it eventually; refreshing here means the reply the
-    // verb writes already describes the new position.
+    // So the verb's reply already describes the new position.
     [self debugRefreshUI];
 }
 
 - (void)debugOpenPath:(NSString *)path {
-    // Direct expand-and-play: a directory is walked and unsupported files are
-    // dropped, but this bypasses AppDelegate's open funnel — no burst
-    // coalescing, no open supersession. Use file_drag_drop to exercise the funnel.
+    // Expands and plays directly, bypassing AppDelegate's open funnel (no
+    // burst coalescing, no supersession). file_drag_drop and append exercise
+    // the funnel.
     [NSURLUtil expandAndFilterList:@[[NSURL fileURLWithPath:path]]
                           sortedBy:AppSettings.sharedInstance.folderOpenSort
                         completion:^(NSArray<NSURL *> *expanded, NSUInteger folderCount) {
@@ -64,8 +61,8 @@
 }
 
 - (void)debugAppendPath:(NSString *)path {
-    // Enters the actual deliberate-open funnel. The shared `open` verb
-    // intentionally bypasses it so it can serve both shells.
+    // The real deliberate-open funnel, which the shared `open` verb bypasses
+    // so it can serve both shells.
     AppDelegate *delegate = (AppDelegate *)NSApp.delegate;
     if (![delegate isKindOfClass:AppDelegate.class]) {
         LogWarn(@"debugAppendPath: the app delegate is not ready");

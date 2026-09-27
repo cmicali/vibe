@@ -1,50 +1,29 @@
 #!/usr/bin/env bash
 #
-# Build universal and arm64-only distributable Vibe apps and disk images:
-# generate -> archive (Release) -> export signed with Developer ID -> notarize
-# -> staple -> disk image -> notarize -> staple. Each architecture gets its own
-# archive and trust chain; scripts/github-release.sh publishes all four DMG/zip
-# assets, with each published DMG named for its architecture.
+# Developer ID release of the macOS app: a universal and an arm64-only build,
+# each archived, exported, notarized and stapled, then shipped as a signed,
+# notarized disk image. scripts/github-release.sh publishes the results.
 #
-# This is NOT scripts/release-appstore.sh. The two release paths are different
-# products:
+# Not scripts/release-appstore.sh: an App Store-signed app is rejected by
+# Gatekeeper when handed out directly, so only this path makes a shareable
+# build. The app embeds no frameworks or helpers, so the export signs it whole.
 #
-#   release.sh           Developer ID + notarize + staple  -> universal and
-#                        arm64-only .dmgs you host yourself. Anyone can
-#                        download and run the matching build.
-#   release-appstore.sh  Apple Distribution + App Store profile -> a .pkg
-#                        uploaded to App Store Connect. An App Store-signed app
-#                        is rejected by Gatekeeper if handed out directly, so
-#                        that pipeline cannot produce a shareable build.
-#
-# The app embeds no frameworks/helpers (see the empty Embed Frameworks phase),
-# so there is no nested code to sign — the archive/export handles everything.
-#
-# ---------------------------------------------------------------------------
-# One-time prerequisites (this script only checks for them, it can't create them):
-#
-#   1. An active Apple Developer Program membership on team $TEAM_ID.
-#
-#   2. An App Store Connect API key with the ADMIN role, in .release-env.
-#      See scripts/asc-auth-lib.sh — the same key signs, notarizes and uploads
-#      for both release paths.
-#
-#   3. A "Developer ID Application" certificate in the keychain. Unlike the
-#      App Store path, this one MUST be made by hand — Apple gates
-#      DEVELOPER_ID_APPLICATION_MANAGED to the team's Account Holder, a person
-#      role no API key can hold, so -allowProvisioningUpdates cannot mint it
-#      (an Admin key that signs App Store builds still gets 403).
-#        Xcode -> Settings -> Accounts -> (sign in) -> select the team ->
+# Prerequisites (checked, not created):
+#   1. Apple Developer Program membership on team $TEAM_ID.
+#   2. An App Store Connect API key with the ADMIN role, in .release-env
+#      (scripts/asc-auth-lib.sh).
+#   3. A "Developer ID Application" certificate in the keychain, made by hand:
+#      Apple gates it to the Account Holder, a person role no API key can hold,
+#      so -allowProvisioningUpdates gets 403 even with an Admin key.
+#        Xcode -> Settings -> Accounts -> select the team ->
 #        Manage Certificates -> (+) -> Developer ID Application
-#      Apple caps these at 5 per account, so keep the one you make.
-#      (An "Apple Development" cert is NOT accepted for notarization.)
+#      Apple caps these at 5 per account, so keep the one you make. An "Apple
+#      Development" cert is not accepted for notarization.
 #
-# ---------------------------------------------------------------------------
 # Usage: scripts/release.sh
-# Environment overrides:
-#   DEVELOPER_ID    signing identity (default: the sole "Developer ID
-#                   Application" in the keychain)
-#   TEAM_ID         team id used for the Developer ID export (default: 4UEV752JH4)
+#   DEVELOPER_ID  signing identity (default: the first "Developer ID
+#                 Application" in the keychain)
+#   TEAM_ID       team id for the export (default: 4UEV752JH4)
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -76,18 +55,14 @@ ARM64_DMG="$ARM64_BUILD_DIR/$PRODUCT.dmg"
 ARM64_DMG_STAGE="$ARM64_BUILD_DIR/dmg"
 VOLNAME="$PRODUCT"
 
-# ---------------------------------------------------------------------------
-# Preflight — fail early with actionable messages.
-# ---------------------------------------------------------------------------
 asc_require_xcodegen
 
 asc_require_translations
 
 asc_resolve_credentials
 
-# The certificate must already be in the keychain — cloud signing cannot supply
-# a Developer ID cert (see prerequisite 3), so checking here turns a failure
-# that would otherwise surface after a full archive into an instant one.
+# Cloud signing cannot supply a Developer ID cert, so a missing one fails here
+# rather than after a full archive.
 if [[ -z "${DEVELOPER_ID:-}" ]]; then
     DEVELOPER_ID=$(security find-identity -v -p codesigning \
         | sed -n 's/.*"\(Developer ID Application:[^"]*\)".*/\1/p' | head -1)
@@ -114,13 +89,8 @@ echo "🔊 signing identity : $DEVELOPER_ID"
 echo "🔊 api key          : $ASC_KEY_ID (issuer $ASC_ISSUER_ID)"
 echo "🔊 team id          : $TEAM_ID"
 
-# ---------------------------------------------------------------------------
-# Generate + archive + export — shared mechanics in asc-build-lib.sh, which
-# documents why the archives carry no signing overrides. Architecture is an
-# explicit archive input: thinning an exported app would invalidate its code
-# signature and notarization, and a second archive keeps the arm64 product a
-# first-class signed build.
-# ---------------------------------------------------------------------------
+# Architecture is an archive input, never a post-export thinning: thinning a
+# signed app invalidates its signature and notarization.
 write_developer_id_export_options() {
     local path="$1"
     cat > "$path" <<PLIST
@@ -147,10 +117,9 @@ asc_export_archive "Developer ID, universal" developer-id
 asc_require_binary_architectures \
     "$UNIVERSAL_APP/Contents/MacOS/$PRODUCT" arm64 x86_64
 
-# asc_generate_and_archive deliberately wipes BUILD_DIR, so the second archive
-# uses asc_archive directly and lives under the already-clean release tree.
-# Give it its own BUILD_DIR during export too: that keeps its options and export
-# log beside the archive without disturbing the universal products above.
+# asc_generate_and_archive wipes BUILD_DIR, so the arm64 archive calls
+# asc_archive directly, under its own BUILD_DIR so its export options and log do
+# not overwrite the universal ones.
 mkdir -p "$ARM64_BUILD_DIR"
 BUILD_DIR="$ARM64_BUILD_DIR"
 ARCHIVE="$ARM64_ARCHIVE"
@@ -162,22 +131,15 @@ write_developer_id_export_options "$BUILD_DIR/ExportOptions.plist"
 asc_export_archive "Developer ID, arm64-only" developer-id
 asc_require_binary_architectures "$ARM64_APP/Contents/MacOS/$PRODUCT" arm64
 
-# ---------------------------------------------------------------------------
-# Notarize + staple each app, then package, sign and notarize its disk image.
-# A notarization ticket is bound to the submitted code, so the universal and
-# arm64-only products cannot share either the app or image submission.
-# ---------------------------------------------------------------------------
-# The disk images are what humans should download. A zip expands wherever the
-# browser drops it, which for Safari is ~/Downloads, and a quarantined app
-# launched from there runs TRANSLOCATED — a read-only random mount point that
-# vanishes on quit. That is not cosmetic for this app: Settings > Set Vibe as
-# Default Music Player registers with Launch Services from its running path, so
-# a translocated registration points somewhere that ceases to exist. Dragging
-# out of a disk image onto its /Applications alias clears translocation.
+# A notarization ticket is bound to the submitted code, so each product is
+# submitted on its own.
 #
-# Deliberately plain: no background or icon placement. Those require driving
-# Finder over AppleScript to write a .DS_Store, which needs Automation
-# permission and is the flakiest step in a DMG build; two icons carry the point.
+# The disk image is what people download. A quarantined app launched from where
+# the browser unzipped it runs translocated, from a random read-only mount that
+# vanishes on quit, and Settings > General > Default music player registers the
+# running path with Launch Services. Dragging out of the image onto its
+# /Applications alias clears translocation. No background or icon layout: that
+# means scripting Finder over AppleScript, which needs Automation permission.
 notarize_and_package() {
     local label="$1"
     local app="$2"
@@ -195,7 +157,6 @@ notarize_and_package() {
     echo "🔊 $label: staple + validate app"
     xcrun stapler staple "$app"
     xcrun stapler validate "$app"
-    # The real test: what Gatekeeper says about the app a recipient receives.
     spctl -a -vvv --type exec "$app"
 
     # The published zip must carry the staple added after the submission zip.
@@ -205,8 +166,8 @@ notarize_and_package() {
     echo "🔊 $label: disk image"
     rm -rf "$dmg_stage" "$dmg"
     mkdir -p "$dmg_stage"
-    # ditto reproduces the signed bundle exactly. The staple rides along in
-    # Contents/CodeResources, so the app dragged from the image verifies offline.
+    # ditto keeps the staple (Contents/CodeResources), so the app dragged out
+    # of the image verifies offline.
     ditto "$app" "$dmg_stage/$PRODUCT.app"
     ln -s /Applications "$dmg_stage/Applications"
     hdiutil create -quiet -volname "$VOLNAME" -srcfolder "$dmg_stage" \

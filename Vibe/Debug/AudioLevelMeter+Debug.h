@@ -3,9 +3,8 @@
 //  Vibe
 //
 //  The render suite's seam for a meter callback stalled between its entry
-//  and its publication. The implementation stays beside the meter, whose
-//  struct is private to it; this declaration lives in Debug so the shipping
-//  tap API stays minimal.
+//  and its publication. Implemented in AudioLevelMeter.m, beside the meter's
+//  private struct.
 //
 
 #if DEBUG

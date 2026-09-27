@@ -59,9 +59,9 @@ VibeAudioSessionOutputRouteKindForRouteKind(VibeOutputRouteKind kind) {
 // Default names keep the product name in English in every locale but move the
 // possessive ("AirPods de Chris", "ChrisのAirPods", a German "#2" suffix), so the
 // match is a substring anywhere, never an English pattern, and each probe runs
-// before the one it contains. A renamed or unrecognised device draws "some
-// external box", as every Bluetooth route did before the guess, and the name
-// label beside it carries the truth — so the guess is never worse than that.
+// before the one it contains. A renamed or unrecognised device draws the
+// generic external glyph, and the name label beside it carries the truth — so
+// a wrong guess is never worse than no guess.
 static inline NSString *VibeOutputRouteBluetoothSymbolName(NSString *_Nullable deviceName) {
     if ([deviceName containsString:@"AirPods Max"]) {
         return @"airpodsmax";

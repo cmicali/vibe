@@ -2,15 +2,9 @@
 //  PlayerScreenRules.h
 //  Vibe (iOS)
 //
-//  The player screen's display state and the resolution that picks one, as a
-//  function of the flags rather than of the view controller, so it can be
-//  reasoned about — and tested — on its own. Header-only, Foundation-only.
-//
-//  The mac twin is Vibe/Mac/MainWindow/TrackDisplayRules.h. The two enums are
-//  deliberately separate: this screen has no launch grace, and it parks tracks
-//  (a relaunch restore, the end of the playlist, a media-services reset) that
-//  the mac window has no equivalent of, so one shared enum would carry states
-//  neither platform resolves.
+//  The player screen's display state, tested from the macOS suite. Separate
+//  from the mac's TrackDisplayRules.h: no launch grace here, and parked tracks
+//  the mac has no equivalent of.
 //
 
 #import <Foundation/Foundation.h>
@@ -25,17 +19,11 @@ typedef NS_ENUM(NSInteger, VibePlayerScreenState) {
     VibePlayerScreenStateTrack,   // a live playhead: playing, or paused on real audio
 };
 
-// ORDER IS THE CONTRACT. After Empty come the two states that describe what
-// the PLAYER is holding — an open in flight, or nothing at all — because in
-// both the position and duration getters serve the outgoing track or zero, so
-// the times must render at rest whatever else is true. Error describes the
-// last *attempt* and is therefore the fallback for a track the player would
-// otherwise be running: a failure that lands on a parked track leaves the
-// park's resting times up, which is what the screen did before this rule
-// existed.
-//
-// playerDuration is the live getter, which reads 0 while Loading and while
-// nothing is open.
+// ORDER IS THE CONTRACT. Loading and Parked come before Error because in both
+// the player's getters serve the outgoing track or zero, so the times must
+// rest whatever else is true; a failure on a parked track keeps the park's
+// resting times. playerDuration reads 0 while Loading and while nothing is
+// open.
 static inline VibePlayerScreenState VibeResolvePlayerScreenState(
         NSUInteger trackCount,
         BOOL trackStartPending,
@@ -57,29 +45,20 @@ static inline VibePlayerScreenState VibeResolvePlayerScreenState(
     return VibePlayerScreenStateTrack;
 }
 
-// Whether the time labels and the waveform show the track at rest — 0:00 and
-// the full duration, progress pinned to zero — rather than a live playhead.
-// Loading: the player's getters still serve the OUTGOING track. Parked: it
-// holds nothing at all, so the duration has to come from metadata.
+// 0:00, the metadata's duration and zero progress rather than a playhead.
 static inline BOOL VibePlayerScreenRendersRestingTimes(VibePlayerScreenState state) {
     return state == VibePlayerScreenStateLoading || state == VibePlayerScreenStateParked;
 }
 
-// Whether the screen is describing a track at all — what the Now Playing card
-// publishes, and what the debug channel reports as the displayed track. Empty
-// has none, and a failed play describes no track either: the error text takes
-// the header, and the card must not keep advertising audio that did not start.
+// What Now Playing publishes. A failed play describes no track: Now Playing
+// must not advertise audio that did not start.
 static inline BOOL VibePlayerScreenDescribesTrack(VibePlayerScreenState state) {
     return state == VibePlayerScreenStateLoading
             || state == VibePlayerScreenStateParked
             || state == VibePlayerScreenStateTrack;
 }
 
-// Whether the mini player stands above the tab bar. It is the same question as
-// the one above — the strip is the card in one line, so it appears exactly
-// when there is a track to name and disappears with the playlist. Error is
-// deliberately excluded with it: a failed play describes no track, and a strip
-// naming audio that did not start is worse than no strip.
+// The strip is the card in one line, so the same question.
 static inline BOOL VibeMiniPlayerVisible(VibePlayerScreenState state) {
     return VibePlayerScreenDescribesTrack(state);
 }

@@ -41,12 +41,10 @@ waveform does; the view reads it once per mouse-down into the gesture's state,
 so a settings write cannot change a drag's meaning mid-flight.
 
 **TRAP: `mouseDownCanMoveWindow` is a constant NO.** AppKit caches the answer
-in the window's movable-background region when the view joins the window, so
-an answer derived from the setting or the loaded state goes stale the moment
-either changes — seek mode then scrubbed while the server-side background
-drag moved the window with it. Every mode that moves the window instead hands
-its gesture to `performWindowDragWithEvent:`, a per-gesture decision nothing
-caches.
+in the window's movable region when the view joins the window, so one derived
+from the setting or the loaded state goes stale — seek mode then scrubbed
+while the window moved. Moving the window is per gesture, via
+`performWindowDragWithEvent:`.
 
 - **`drag_window`** (the default): a stationary click seeks; a drag past the
   ~4pt hysteresis disarms the press and hands the rest of the gesture to

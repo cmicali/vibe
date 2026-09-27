@@ -25,7 +25,7 @@ A pending artwork press revalidates its file and drag payload at the first drag 
 - **`PitchFaderView`** — the fader itself, with its own delegate.
 - **`PitchControlPanel`** — the panel around it, and what the rest of the app talks to. **The fader inside is an implementation detail, so gestures are reported with the *panel* as the sender.** It vends `kPitchPanelWidth`, the width the main window grows by when the panel is revealed — see `MainWindow/CLAUDE.md` for why the reveal is the one resize the two `contentView` siblings must not follow.
 
-Both delegates fire `…DidEndAdjusting:` **once** when a pitch gesture ends — on the mouse-up after a click or drag, or on a double-click reset. That is the hook for work too heavy to run on every drag tick; the per-tick callback is the separate `didChangePitch:`.
+Both delegates fire `…DidEndAdjusting:` **once** when a pitch gesture ends — on the mouse-up after a click or drag, on a double-click reset, or after an accessibility step. That is the hook for work too heavy to run on every drag tick; the per-tick callback is the separate `didChangePitch:`.
 
 `VibeQuartzLockGreen(a)` is the quartz-lock green shared by the fader's zero LED and the panel's readout, parameterized by alpha so the LED glow can use a low-alpha variant.
 

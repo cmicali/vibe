@@ -2,17 +2,10 @@
 //  MainPlayerController+DebugPlayerSurface.h
 //  Vibe
 //
-//  The controller's VibeDebugPlayerSurface conformance, so the cross-platform
-//  verbs in Debug/DebugCommonVerbs.m and the shared consistency checks in
-//  Debug/DebugConsistency.m are written once for this controller and the
-//  iOS PlayerViewController alike.
-//
-//  A category of its own rather than part of (Debug), which is declaration-only
-//  by design: the outlets it re-declares are synthesized in
-//  MainPlayerController.m, so giving that category an @implementation would ask
-//  the compiler for every one of them here.
-//
-//  Debug builds only.
+//  The controller's VibeDebugPlayerSurface conformance. A category of its own
+//  because (Debug) is declaration-only: its accessors are implemented in
+//  MainPlayerController.m, so an @implementation of that category would have
+//  to define every one of them here.
 //
 
 #if DEBUG

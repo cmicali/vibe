@@ -16,14 +16,6 @@
 //  EqualizerAnimationMath.h in Controls; audio publishes targets and never
 //  knows how a view moves.
 //
-//  Why each piece exists, since raw magnitudes look wrong rather than merely
-//  unpolished: the fixed band edges give bass and low mids three of the five
-//  bars. Relative-activity mode gives each band its own reference so all five
-//  remain lively; shared-spectrum mode compares energy per octave against one
-//  reference; balanced spectrum keeps that comparison as its foundation while
-//  allowing supported activity to lift a weak band. Either reference decays
-//  rather than being fixed, so quiet tracks can still move the bars.
-//
 
 #import <CoreAudioTypes/CoreAudioBaseTypes.h>
 #import <Foundation/Foundation.h>
@@ -64,7 +56,7 @@ static const double kLevelAnalysisDecisionsPerSecond = 24.0;
 // How much rendered audio one publication summarizes: several analysis
 // windows. Relative activity retains their per-band peaks; shared spectrum
 // averages their energy per octave into one spectrum before normalization.
-// 100 ms is the tap-buffer length the levels were tuned on.
+// The levels were tuned at 100 ms.
 static const double kLevelPublicationSeconds = 0.1;
 
 // How far below the running reference reads as silence. Wider raises weaker
@@ -218,9 +210,8 @@ static inline float VibeLevelMeanChannelEnergy(const float *energies,
 // The half-open FFT bin range [*lowBin, *highBin) for `band`, following the
 // explicit bass-forward edges and contiguous with its neighbours.
 //
-// Bound from the sample rate the tap actually delivers, never from a constant:
-// the rate changes across route changes and media-services resets, and edges
-// computed for another rate put the bands in the wrong places quietly.
+// Bound from the meter's own sample rate, never a constant: edges computed for
+// another rate put the bands in the wrong places quietly.
 //
 // Every range is at least one bin wide, so a low sample rate — where the top
 // bands crowd together — cannot leave a bar permanently dark.

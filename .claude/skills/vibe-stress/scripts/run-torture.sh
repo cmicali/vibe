@@ -1,17 +1,14 @@
 #!/bin/bash
 # Launch one verified instance of a chosen build, cold its caches, and hand it
-# to torture.py. Use this rather than launch.sh whenever WHICH build runs has
-# to be certain — a fix-vs-pre-fix comparison, most of all.
+# to torture.py. Use this rather than launch.sh whenever WHICH build runs must
+# be certain, as in a fix-vs-pre-fix comparison.
 #
-# TRAP: `open -a <path>` resolves by BUNDLE ID, not path. Two builds of Vibe
-# share com.commonwealthrecordings.Vibe, so open -a launches whichever copy
-# LaunchServices has registered and silently ignores the path you gave it. A
-# comparison run that way tests one binary twice. Hence the direct exec below,
-# and the verification after it.
+# TRAP: `open -a <path>` resolves by BUNDLE ID, not path, so with two builds it
+# launches whichever LaunchServices registered and a comparison tests one
+# binary twice. Hence the direct exec and the verification after it.
 #
-# Direct exec cannot read argv paths under the sandbox, so the playlist folder
-# must already be granted — launch it once through vibe-debug's launch.sh with
-# that folder first, which is what creates the grant.
+# Direct exec cannot read argv paths under the sandbox: grant the playlist
+# folder first by launching it once through vibe-debug's launch.sh.
 set -u
 
 usage() {
@@ -23,15 +20,12 @@ usage() {
 [ -d "$1" ] || { echo "no app bundle at $1" >&2; exit 64; }
 [ -d "$2" ] || { echo "no playlist folder at $2" >&2; exit 64; }
 
-# Both absolutized: the app resolves an open against ITS cwd (/ for a GUI
-# process), so a relative playlist path opened nothing and failed the run as
-# "playlist never populated".
+# Absolute: the app resolves an open against its own cwd (/).
 APP="$(cd "$1" && pwd)"; PLAYLIST="$(cd "$2" && pwd)"; shift 2
 V="$APP/Contents/MacOS/Vibe"
 [ -x "$V" ] || { echo "no executable at $V" >&2; exit 64; }
 
-# The iOS Simulator's Vibe is also named Vibe and also matches pgrep -x, so
-# every instance check has to exclude it or it reads as a second mac instance.
+# The iOS Simulator's Vibe also matches pgrep -x.
 mac_instances() {
     for p in $(pgrep -x Vibe); do
         exe=$(ps -o comm= -p "$p" 2>/dev/null) || continue
@@ -40,13 +34,11 @@ mac_instances() {
     done
 }
 
-# One instance, strictly. A second one answers the channel too, and then every
-# result belongs to a build and a grant set you did not choose.
+# One instance, strictly: a second one answers the channel too.
 #
-# TRAP: this kills any Vibe you are running from Xcode. Ask before running it
-# on a machine someone is working on. `quit` first — it is the normal terminate
-# path, and it is what lets an attached debugger let go; SIGKILL is the last
-# resort and leaves a stale command file in the container tmp.
+# TRAP: this quits any running Vibe, Xcode's included; ask first on a machine
+# someone is using. `quit` through the channel lets a debugger let go; the
+# SIGTERM fallback only stops a debugged process, and the run then aborts.
 if [ -n "$(mac_instances)" ]; then
     "$V" --debug-cmd quit >/dev/null 2>&1
     sleep 2
@@ -58,13 +50,10 @@ for _ in 1 2 3; do
 done
 [ -z "$(mac_instances)" ] || { echo "ABORT: could not clear existing Vibe processes: $(mac_instances | tr '\n' ' ')" >&2; exit 2; }
 
-# Off the hardware by default, and honouring VIBE_AUDIBLE the same way
-# vibe-debug's launch.sh does — this script cannot use launch.sh (it must
-# direct-exec to be sure WHICH build came up), so the flag rules have to be
-# repeated here rather than inherited. Unset: manual rendering, no output
-# device ever opened. `silent`: the real device with final output buffers zeroed, which is
-# the only way to reach the HAL device layer and its rate and device-change
-# listeners. `1`: audible. Media focus needs VIBE_NOW_PLAYING=1 too.
+# VIBE_AUDIBLE and VIBE_NOW_PLAYING as in vibe-debug's launch.sh, repeated
+# because this must direct-exec. Unset: no output device. `silent`: the real
+# device with zeroed output, the only way to reach the HAL device layer. `1`:
+# audible.
 case "${VIBE_AUDIBLE:-}" in
     "")     AUDIO_FLAGS=(--no-audio-hw --silent) ;;
     silent) AUDIO_FLAGS=(--silent) ;;
@@ -72,17 +61,14 @@ case "${VIBE_AUDIBLE:-}" in
 esac
 [ "${VIBE_NOW_PLAYING:-0}" != "1" ] && AUDIO_FLAGS+=(--no-now-playing)
 echo "  audio: ${AUDIO_FLAGS[*]:-real hardware, audible}"
-# macOS ships bash 3.2, where `set -u` treats an EMPTY array expansion as an
-# unbound variable — so the audible case (no flags at all) aborts the script
-# unless the expansion is guarded.
+# bash 3.2 + set -u dies on an empty array expansion (audible with Now Playing).
 "$V" ${AUDIO_FLAGS[@]+"${AUDIO_FLAGS[@]}"} &
 ready=""
 for _ in $(seq 1 25); do
     sleep 1
     "$V" --debug-cmd dump_health >/dev/null 2>&1 && { ready=1; break; }
 done
-# Falling through silently is what turns a dead channel into a baffling
-# "playlist never populated" 25 lines later. Fail here instead.
+# Otherwise a dead channel surfaces later as "playlist never populated".
 [ -n "$ready" ] || { echo "ABORT: launched, but the debug channel never answered" >&2; exit 2; }
 
 pids=$(mac_instances)
@@ -94,9 +80,8 @@ echo "  exe: $exe"
 [ "$exe" = "$V" ] || { echo "ABORT: wrong binary running ($exe)" >&2; exit 2; }
 echo "  verified: intended binary"
 
-# Cold caches are load-bearing, not hygiene: the metadata-delivery races this
-# suite hunts only open when a scan is still in flight as playback starts, and
-# a warm cache closes that window before the first track ever plays.
+# Load-bearing: the delivery races this hunts need a scan still in flight as
+# playback starts, which a warm cache never has.
 "$V" --debug-cmd clear_caches >/dev/null 2>&1
 echo "  caches cleared (cold metadata scan for every track)"
 

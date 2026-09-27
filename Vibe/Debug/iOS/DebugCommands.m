@@ -35,8 +35,8 @@ static UIWindow *VibeDebugKeyWindow(void) {
     return nil;
 }
 
-// The shell, which is what adopts VibeDebugPlayerSurface: it is the one object
-// that can reach both the model and the card.
+// The shell adopts VibeDebugPlayerSurface: the one object that reaches both
+// the model and the card.
 static RootViewController *VibeDebugRootController(void) {
     for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
         if (![scene isKindOfClass:UIWindowScene.class]) {
@@ -103,10 +103,8 @@ static NSString *VibeViewTreeDump(void) {
     return VibeJSONString(@{@"windows": windows});
 }
 
-// In-process render of the key window's hierarchy. UIVisualEffectView blurs
-// render only approximately this way; `simctl io booted screenshot` is the
-// ground truth for real pixels, and this path is for a device or for reading
-// alongside dump_view_tree.
+// In-process render of the key window. Blurs render only approximately this
+// way; `simctl io booted screenshot` is the ground truth for pixels.
 static NSString *VibeScreenshotJSON(NSString *commandId) {
     UIWindow *window = VibeDebugKeyWindow();
     if (!window) {
@@ -130,9 +128,8 @@ static NSString *VibeScreenshotJSON(NSString *commandId) {
 
 #pragma mark Search scope
 
-// The whole search scope and the user's half of it. The roots are what the
-// search screen's walk will cover, composed by the model; the folders are the
-// rows Settings shows, which is the only part a user can change.
+// roots: what the search walk covers, composed by the model. folders: the rows
+// Settings shows, the only part a user can change.
 static NSDictionary *VibeSearchScopeDictionary(RootViewController *controller) {
     NSMutableArray<NSString *> *roots = [NSMutableArray array];
     for (NSURL *root in controller.playback.searchRoots) {
@@ -160,9 +157,7 @@ static NSDictionary *VibeFavoritesDictionary(void) {
 
 #pragma mark Command table
 
-// The UIKit-only verbs. Everything both platforms answer the same way is in
-// Debug/DebugCommonVerbs.m, over VibeDebugPlayerSurface; this table is
-// only what needs a UIView tree or a UIWindow render.
+// The iOS-only verbs; shared ones are in DebugCommonVerbs.m.
 static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
     static NSArray<NSDictionary *> *table;
     static dispatch_once_t once;
@@ -177,9 +172,8 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             VibeDebugCmd(@"dump_art", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 return VibeJSONString([controller debugArtDictionary]);
             }),
-            // The card presents and dismisses by gesture, and the channel
-            // cannot synthesize a touch; these are how it is driven without
-            // the XCUITest driver.
+            // The card presents and dismisses by gesture, which the channel
+            // cannot synthesize.
             VibeDebugCmd(@"expand_player", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 [controller expandPlayerAnimated:NO];
                 return VibeJSONString([controller debugActionSummary]);
@@ -188,10 +182,9 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 [controller minimizePlayerAnimated:NO];
                 return VibeJSONString([controller debugActionSummary]);
             }),
-            // The zoom pinch is the other gesture the channel cannot
-            // synthesize. Both numbers come back because they are allowed to
-            // differ: what is asked for is persisted, what is drawn is clamped
-            // to what this layout's settled bitmap can hold.
+            // Stands in for the pinch. Both numbers come back because they may
+            // differ: the request is persisted, the drawn zoom is clamped to
+            // what this layout's bitmap can hold.
             VibeDebugCmd(@"set_waveform_zoom <fraction>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 double fraction = 0;
                 if (tokens.count < 2 || !VibeParseDouble(tokens[1], &fraction)) {
@@ -205,24 +198,15 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                     @"waveformZoomEffective": ui[@"waveformZoomEffective"] ?: @0,
                 });
             }),
-            // The style picker lives in Settings, which the channel cannot
-            // drive — so this is the only way to put the scrubber into a named
-            // style. It ends on the SAME two lines the picker's onSelect does
-            // (the setting, then VibeNotifyDisplaySettingsChanged), because a
-            // write that skipped the notification would persist and redraw
-            // nothing, which looks exactly like the style not existing.
+            // Ends on the same two lines as the Settings picker's onSelect: a
+            // write without the notification persists and redraws nothing.
+            // Takes the persisted identifier, never the localized name, and
+            // refuses an unknown one, since the renderer's fallback would make
+            // a typo look like a style.
             //
-            // The identifier is the persisted one, never the display name:
-            // display names are localized and the registry's own rule is that
-            // the two are separate (root CLAUDE.md). An unknown identifier is
-            // refused with the list rather than silently falling back, since
-            // the fallback chain would otherwise make a typo look like a style.
-            //
-            // TRAP: the two wiggle identifiers read backwards. `wiggle` is
-            // displayed "Wiggle MC" (loops on a bottom baseline) and
-            // `wiggle_centered` is displayed "Wiggle" (a line about the
-            // midline). Asking for the one named after what you see gets the
-            // other, and both draw wiggles, so it looks like it worked.
+            // TRAP: the wiggle identifiers read backwards: `wiggle` is displayed
+            // "Wiggle MC" and `wiggle_centered` "Wiggle". Both draw wiggles, so
+            // asking for the wrong one looks like it worked.
             VibeDebugCmd(@"set_waveform_style <identifier>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSArray<NSString *> *available = [WaveformRendererRegistry availableIdentifiers];
                 if (tokens.count < 2) {
@@ -237,11 +221,9 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 VibeNotifyDisplaySettingsChanged();
                 return VibeJSONString(@{@"ok": @YES, @"waveformStyle": AppSettings.sharedInstance.waveformStyle});
             }),
-            // The search-folder list is granted through the system document
-            // picker, which the channel cannot drive at all — not even with the
-            // touch driver, since the picker is another process's UI. These three
-            // are how the scope is inspected and set up for a test; the real
-            // grant path is Settings, and only it can raise the picker.
+            // The real grant path is the system document picker, another
+            // process's UI that neither the channel nor the touch driver can
+            // drive; these three inspect and set up the scope for a test.
             //
             // TRAP: a folder added here is NOT security-scoped, so it survives
             // only the session. A test that relaunches must add it again.
@@ -272,10 +254,9 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 reply[@"ok"] = @YES;
                 return VibeJSONString(reply);
             }),
-            // The FX pad's touch is the third gesture the channel cannot
-            // synthesize: this drives the model's funnel the pad's delegate
-            // takes, so the audio can be checked without a finger. The pad
-            // itself does not draw for it.
+            // The pad's touch is a gesture the channel cannot synthesize; this
+            // drives the model's funnel the pad's delegate takes. The pad does
+            // not draw for it.
             VibeDebugCmd(@"set_fx_pad <x 0-1> <y 0-1> | off", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 if (tokens.count == 2 && [tokens[1] isEqualToString:@"off"]) {
                     [controller.playback setFXPadPosition:CGPointZero engaged:NO];
@@ -289,10 +270,9 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 }
                 return VibeJSONString(@{ @"ok": @YES, @"fx": [controller debugStateDictionary][@"fx"] ?: @{} });
             }),
-            // The simulator reports the built-in speaker and nothing else,
-            // and a route cannot be faked at the session — so this draws the
-            // indicator as a route for a look, leaving the model alone. The
-            // next real route event overwrites it.
+            // The simulator reports only the built-in speaker and a route
+            // cannot be faked at the session, so this draws the indicator
+            // alone; the next real route event overwrites it.
             VibeDebugCmd(@"set_output_route <none|speaker|receiver|wired|bluetooth|airplay|carplay|other> [name]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSDictionary<NSString *, NSNumber *> *kinds = @{
                     @"none": @(VibeOutputRouteKindNone),
@@ -308,9 +288,8 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 if (!kind) {
                     return VibeErrorJSON(@"usage: set_output_route <none|speaker|receiver|wired|bluetooth|airplay|carplay|other> [name]");
                 }
-                // tokens[0] is the verb and tokens[1] the kind, so the name is
-                // whatever follows — rejoined, since an unquoted device name is
-                // several tokens.
+                // The name is everything after the kind, rejoined, since an
+                // unquoted device name is several tokens.
                 NSArray<NSString *> *nameTokens = tokens.count > 2
                         ? [@[tokens[0]] arrayByAddingObjectsFromArray:
                                 [tokens subarrayWithRange:NSMakeRange(2, tokens.count - 2)]]
@@ -329,27 +308,23 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             VibeDebugCmd(@"dump_favorites", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 return VibeJSONString(VibeFavoritesDictionary());
             }),
-            // The star sits on the Playlist tab's navigation bar and the channel
-            // cannot synthesize the tap — the same reason expand_player and
-            // select_tab exist. It drives the real handler, so the toggle, the
-            // dedupe and the off-main bookmark mint are all the ones the tap
-            // gets; there is deliberately no add-a-path verb, which would have
-            // to record a bookmark with no security scope behind it and so a
-            // row that draws and cannot be opened.
+            // Drives the star's real handler. There is deliberately no
+            // add-a-path verb: it would record a bookmark with no security
+            // scope, a row that draws and cannot be opened.
             //
-            // TRAP: the ADD is asynchronous. ok:true means the handler ran, not
-            // that the row exists — poll dump_favorites for that.
+            // TRAP: the add is asynchronous (the bookmark is minted off main).
+            // ok:true means the handler ran, not that the row exists; poll
+            // dump_favorites.
             VibeDebugCmd(@"tap_favorite_star", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 if (![controller debugTapFavoriteStar]) {
                     return VibeErrorJSON(@"no open folder on the playlist tab to star");
                 }
                 return VibeJSONString(@{@"ok": @YES});
             }),
-            // Same reason as the star: the row is a touch the channel cannot
-            // make. It drives the screen's own didSelectRow:, so the resolve,
-            // the open and the unreachable-folder alert are the tap's.
-            // Requires the Favorites tab to have been selected once — the
-            // provider is lazy, so before that there is no screen to tap.
+            // Stands in for the row tap through the screen's own
+            // openFavorite:appending:, so the resolve, the open and the
+            // unreachable-folder alert are the tap's. The Favorites tab must
+            // have been selected once: its provider is lazy.
             VibeDebugCmd(@"open_favorite <index in dump_favorites.favorites>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSInteger index = tokens.count > 1 ? tokens[1].integerValue : -1;
                 if (index < 0) {
@@ -360,10 +335,7 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 }
                 return VibeJSONString(@{@"ok": @YES});
             }),
-            // The same row, ADDED instead of opened: it drives the screen's own
-            // openFavorite:appending:, so the resolve, the append and the
-            // unreachable-folder alert are the action's. Same lazy-provider
-            // caveat as open_favorite.
+            // open_favorite's row, appended instead of opened.
             VibeDebugCmd(@"append_favorite <index in dump_favorites.favorites>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSInteger index = tokens.count > 1 ? tokens[1].integerValue : -1;
                 if (index < 0) {
@@ -374,12 +346,10 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 }
                 return VibeJSONString(@{@"ok": @YES});
             }),
-            // The search field takes keystrokes, which neither the channel nor
-            // the touch driver can synthesize. These two are how a query and
-            // the row tap that follows it are driven; both go through the
-            // screen's own methods, so the matching, the exclusion set and the
-            // open are the ones a real search gets. `search` replies when the
-            // table settles, since the files half answers off a walk.
+            // Keystrokes neither the channel nor the touch driver can
+            // synthesize. Both verbs go through the screen's own methods, so
+            // the matching and the open are a real search's. `search` replies
+            // when the table settles, since the files half answers off a walk.
             VibeDebugCmd(@"search <query>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSString *query = tokens.count > 1 ? tokens[1] : @"";
                 BOOL started = [controller debugSearchQuery:query
@@ -389,7 +359,7 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 if (!started) {
                     return VibeErrorJSON(@"the search tab was never visited (select_tab search first)");
                 }
-                return nil;   // replies asynchronously
+                return nil;
             }),
             VibeDebugCmd(@"open_search_hit <index into search.sections[1].rows>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSInteger index = tokens.count > 1 ? tokens[1].integerValue : -1;

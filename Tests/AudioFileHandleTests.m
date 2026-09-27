@@ -152,8 +152,8 @@ static int VibeOpenDescriptorCount(void) {
     XCTAssertNil([[AudioFileHandle alloc] initForReading:url error:NULL]);
 }
 
-// CoreAudio's own open plays this file, so the hinted parse must come first:
-// probing by content alone refused it, and with it #47's Darkside.mp3.
+// CoreAudio's own open plays this file but sniffing alone refuses it, so the
+// hinted parse comes first.
 - (void)testMP3WithUndeclaredBytesAfterItsTagIsAccepted {
     NSURL *url = [self.fixtureDirectory URLByAppendingPathComponent:@"gap.mp3"];
     XCTAssertTrue([VibeTaggedMP3WithGap(1000) writeToURL:url atomically:YES]);
@@ -167,7 +167,6 @@ static int VibeOpenDescriptorCount(void) {
     XCTAssertEqual(buffer.frameLength, (AVAudioFrameCount)handle.length, @"the read runs to the declared end");
 }
 
-// A file named for the wrong type is judged by what it holds.
 - (void)testMislabeledFileOpensByContent {
     NSURL *url = [self writePCMNamed:@"actually-a-wav.mp3" frames:2048 channels:2 rate:48000];
     AudioFileHandle *handle = [self open:url];
@@ -184,8 +183,7 @@ static int VibeOpenDescriptorCount(void) {
     XCTAssertEqual(buffer.frameLength, 0u);
 }
 
-// A header that promises more than the file holds — the shape of a partial
-// download — reports the frames that are there, as CoreAudio's own reader does.
+// The shape of a partial download; CoreAudio's own reader reports the same.
 - (void)testAnOverdeclaredWAVReportsTheFramesItHolds {
     NSMutableData *samples = [NSMutableData dataWithLength:3000 * 4];
     NSURL *url = VibeWriteWAV([self.fixtureDirectory URLByAppendingPathComponent:@"overdeclared.wav"], samples, 48000, 2, 16, 20000 * 4);
@@ -287,9 +285,8 @@ static int VibeOpenDescriptorCount(void) {
     XCTAssertEqual(handle.framePosition, (AVAudioFramePosition)0);
 }
 
-// A wider file without a layout of its own gets a discrete one, which is what
-// a converter between more than two channels needs and what the bus's
-// mix map reads.
+// A converter between more than two channels needs a layout, and the bus's
+// mix map reads it.
 - (void)testAWiderFileWithoutALayoutDecodesDiscreteChannels {
     AudioFileHandle *handle = [self open:[self writePCMNamed:@"quad.wav" frames:512 channels:4 rate:48000]];
     XCTAssertEqual(handle.processingFormat.channelCount, 4u);
@@ -305,9 +302,8 @@ static int VibeOpenDescriptorCount(void) {
 
 #pragma mark - Ownership
 
-// Every open owns its descriptor and every close returns it, refusals
-// included: the leak the old URL-based open had on a failed open is what a
-// partial download in a real library turned into an exhausted process.
+// A descriptor leaked per refused open turns a library of partial downloads
+// into an exhausted process.
 - (void)testOpensAndRefusalsLeaveNoDescriptorBehind {
     NSURL *valid = [self writePCMNamed:@"owned.wav" frames:1024 channels:2 rate:44100];
     NSURL *invalid = [self.fixtureDirectory URLByAppendingPathComponent:@"refused.wav"];
@@ -344,10 +340,9 @@ static int VibeOpenDescriptorCount(void) {
     XCTAssertEqual(buffer.frameLength, 256u);
 }
 
-// A QuickTime container (.qta, what Voice Memos exports) reads only through a
-// URL: CoreAudio's callback open answers kAudio_UnimplementedError for it
-// whatever the header holds, and the handle takes the container's own reader.
-// AVAudioFile cannot write one, hence the asset writer.
+// A QuickTime container (.qta, what Voice Memos exports) has no callback open
+// in CoreAudio, so the handle opens it by URL. AVAudioFile cannot write one,
+// hence the asset writer.
 - (void)testQuickTimeContainerOpensThroughItsOwnReader {
     NSURL *url = [self.fixtureDirectory URLByAppendingPathComponent:@"memo.qta"];
     NSError *error = nil;

@@ -2,14 +2,11 @@
 //  AudioPlayer.h
 //  Vibe
 //
-//  The playback engine's one public surface, shared by both shells. The
-//  player is a transport — play, pause, seek, stop — over its own voice bus
-//  (AudioVoiceBus.h) and render pipeline (AudioPlayer+Pipeline.h). It
-//  publishes state the moment a verb lands and reports every outcome to its
-//  delegate on the main thread; the audio follows within a declick. Each
-//  platform's own half is declared beside its implementation:
-//  Mac/Devices/AudioPlayer+Devices.h (output devices, bit-perfect output) and
-//  iOS/AudioPlayer+Recovery.h (session verdicts).
+//  The playback engine's public surface, shared by both shells: a transport
+//  over its own voice bus and render pipeline. It publishes state the moment a
+//  verb lands and reports every outcome to its delegate on main; the audio
+//  follows within a declick. The platform halves are
+//  Mac/Devices/AudioPlayer+Devices.h and iOS/AudioPlayer+Recovery.h.
 //
 
 #import <Foundation/Foundation.h>
@@ -33,104 +30,70 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nullable, weak) id <AudioPlayerDelegate> delegate;
 
-// Readonly because the player is the single writer of both. currentTrack
-// flips on its own queue, and the requested device id changes only through
-// the init and device-switch paths. An external write would desync playback
-// state or blind device recovery.
+// The player is the single writer of both.
 @property (nullable, strong, readonly) AudioTrack* currentTrack;
 @property (atomic, readonly)    NSInteger currentlyRequestedAudioDeviceId;
 
-// Turntable-style pitch adjustment in percent, clamped to ±maxPitch. Speed
-// and pitch move together, as on a Technics fader; 0 is normal speed. It
-// persists across tracks, being a deck control rather than a track property.
+// Turntable pitch in percent, clamped to ±maxPitch: speed and pitch move
+// together; 0 is normal speed. Persists across tracks.
 @property (nonatomic) float pitch;
 
-// Fader range in percent, 8 by default. Shrinking it re-clamps the current
-// pitch.
+// Fader range in percent, 8 by default. Shrinking it re-clamps pitch.
 @property (nonatomic) float maxPitch;
 
-// Track-change crossfade length in milliseconds, 10 (the declick minimum) by
-// default. It applies only when a play replaces an audibly playing track —
-// first plays, and the pause, seek and stop declicks, always use the minimum
-// so transport stays instant. Atomic: the UI writes it, the player queue
-// reads it per crossfade. The write also keeps the gapless successor honest:
-// raising it past the minimum unqueues a successor already queued on the
-// current voice, and lowering it back re-queues the parked next track.
+// Track-change crossfade in milliseconds, default the 10 ms declick minimum.
+// Applies only when a play replaces an audibly playing track. Raising it past
+// the minimum unqueues a gapless successor; lowering it re-queues the park.
 @property (atomic) NSInteger crossfadeMilliseconds;
 
-// What a transport edge does: a play, seek, pause, resume, stop or track
-// change. YES, the default: a ≤10 ms declick ramp, touching only those
-// frames, so the body of the track and every gapless boundary stay
-// sample-exact. NO: a cut, leaving every sample untouched and letting the
-// edge click. A crossfade longer than the declick is the user's choice and
-// fades either way; bit-perfect output holds the crossfade at the declick,
-// so NO applies no gain at all there. Atomic: the UI writes it, the player
-// queue reads it per ramp.
+// What a transport edge does. YES (default): a ≤10 ms declick touching only
+// those frames. NO: a cut, every sample untouched. A longer crossfade fades
+// either way; under bit-perfect output the crossfade is held at the declick,
+// so NO applies no gain at all.
 @property (atomic) BOOL declick;
 
-// The sample-rate converter's quality, used when a file's rate differs from
-// the output's. Maximum by default, and always on macOS. iOS offers High as a
-// setting, and defaults to it: flat to 21 kHz with the same alias rejection
-// (below -150 dBFS), differing from Maximum only in how steeply it rolls off
-// between 21 and 22 kHz, for about half the CPU — on an iPhone 17 Pro the
-// resampler was 3.3% of a core at Maximum and 1.8% at High, measured, the
-// largest single cost of playback there. A change applies to conversions
-// begun after it: the next track, seek or re-voice. Atomic: the UI writes it.
+// The resampler's quality when a file's rate differs from the output's.
+// Always Maximum on macOS. iOS defaults to High: flat to 21 kHz with the same
+// alias rejection, for about half the CPU (1.8% vs 3.3% of a core on device).
+// Applies to conversions begun after the write.
 @property (atomic) VibeResamplingQuality resamplingQuality;
 
-// Whether the meter publishes band levels for active equalizer indicators.
-// Off by default and demand-driven. The shells enable it only for counted
-// indicator demand, modeled output audio and material presentation
-// visibility. Setting it applies or drops the render's meter stage on the
-// player queue (applyLevelMeterOnQueue), and a rate change re-applies it.
-//
-// Main thread only, like every other transport-facing setter here.
+// Whether the meter publishes band levels; the shells enable it only for
+// counted indicator demand, modeled output audio and material visibility.
+// Main thread only.
 @property (nonatomic) BOOL levelsEnabled;
 
-// The equalizer indicator's newest coherent band-level snapshot, 0..1. Fills
-// `out` with `count` values and returns NO — leaving `out` untouched — when no
-// tap is running, which a caller should read as "nothing to show", not as
-// silence. `sequence` is monotonic for this player's lifetime and advances for
-// every publication, even when the numeric levels did not change. Lock-free
-// for the main-thread snapshot poller.
+// The newest coherent band-level snapshot, 0..1. NO, `out` untouched, when no
+// meter session is publishing: "nothing to show", not silence. `sequence`
+// advances with every publication for the player's lifetime. Lock-free.
 - (BOOL)copyBandLevels:(float *)out count:(NSUInteger)count sequence:(uint64_t *)sequence;
 
-// The FX controls exist from init on both platforms so intent and tempo
-// survive live toggles. The units are hosted at the first connect and kept;
-// the segment is in the render only while wanted (setFXEnabled:, and on the
-// mac the bit-perfect mode that outranks it).
+// Exists from init on both platforms so intent and tempo survive toggles;
+// its units are hosted at the first connect, and the segment is in the
+// render only while wanted.
 @property (nonatomic, readonly) AudioFX *fx;
 
-// Whether the FX segment is wanted in the chain: the setting's live effect
-// on iOS. Off clears every effect's intent at submission, then reconnects
-// the pipeline with the output stopped and puts a playing track back as it
-// was, so a switch mid-hold cuts the effect and the music continues. The mac
-// applies the same setting through its device rebuild
-// (setBitPerfectOutput:exclusiveOutput:enableFX:allowAnyDevice:), which is
-// the one path there. Any thread.
+// The setting's live effect on iOS: off clears every stage's intent at
+// submission, then reconnects the pipeline with the output stopped and puts
+// a playing track back. The mac applies the same setting through its device
+// rebuild (setBitPerfectOutput:exclusiveOutput:enableFX:allowAnyDevice:).
+// Any thread.
 - (void)setFXEnabled:(BOOL)enabled;
 
-// The render chain as it stands, stage by stage from the source file to the
-// output device — each a dictionary with `stage` (source, decode, bus,
-// varispeed, fx, meter, output, and on macOS device), `present`, and that
-// stage's facts: rates, sample formats, channels, whether it is in the
-// render. One queue round trip; any thread but the player queue. What
-// Settings > Advanced lists and the debug report saves.
+// The render chain stage by stage (audioPathOnQueue). One queue round trip;
+// any thread but the player queue.
 - (NSArray<NSDictionary<NSString *, id> *> *)audioPathSnapshot;
 
-// deviceUID and deviceName name the persisted output device. Empty means follow
-// the system default; an unmatched saved device remains pending. Discovery is
-// asynchronous and never blocks the player's queue. A match is applied only
-// where VibeCanBindSavedOutputDevice allows — Stopped, or Loading while the
-// engine is not running; the rule and its trap live on that function
-// (AudioPlayer+Devices) — and only committed after the HAL bind succeeds;
-// later eligible transitions retry a pending match. enableFX selects the initial FX route; see fx.
+// deviceUID and deviceName name the persisted output device; empty follows
+// the system default, and an unmatched one stays pending. Discovery never
+// blocks the player queue; a match binds only where
+// VibeCanBindSavedOutputDevice (OutputFormatRules.h) allows, commits only
+// after the bind succeeds, and later eligible transitions retry it.
 - (instancetype)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName
                          enableFX:(BOOL)enableFX delegate:(id <AudioPlayerDelegate>)delegate;
 
-// The same, with the saved device's model UID, so a class-compliant interface
-// moved to another USB port (and so given a new device UID) is still found at
-// launch. macOS passes it; iOS has no saved device and uses the form above.
+// With the saved device's model UID, so an interface moved to another USB
+// port (a new device UID) is still found. macOS only.
 - (instancetype)initWithDeviceUID:(NSString *)deviceUID modelUID:(NSString *)modelUID
                              name:(NSString *)deviceName enableFX:(BOOL)enableFX
                          delegate:(id <AudioPlayerDelegate>)delegate;
@@ -138,126 +101,87 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
 
-// Replaces the immutable snapshot used by future opens and prefetch
-// decisions. An open already in flight keeps its timeout snapshot and active
-// work is never cancelled. Main-thread callers may use this as a synchronous
-// no-UI configuration seam.
+// For future opens and prefetch decisions; an open in flight keeps its
+// timeout snapshot.
 - (void)applyLoadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration;
 
 #pragma mark - Transport
 
 - (void)play:(AudioTrack *)track;
-// The user's transport action: toggles the state which exists when it reaches
-// the player queue, including an in-flight open's landing intent.
+// The user's toggle, of the state when it reaches the player queue,
+// including an in-flight open's landing intent.
 - (void)playPause;
-// Explicit system verdicts (audio-session and remote-command play/pause).
-// Idempotent on the player queue: duplicate notifications cannot accidentally
-// toggle playback back to the state the system just asked it to leave.
+// The system's verdicts: idempotent, so a duplicate notification cannot
+// toggle playback back.
 - (void)pause;
 - (void)resume;
 
-// Action-only queue barrier for a structural replacement: the position and
-// pause state the player would land in if nothing else arrived, including
-// Loading's pending seek and pause intent. Returns NO if stopped or a non-nil
-// requested row is no longer current; leaves intent untouched. Do not poll
-// it: ordinary UI reads remain lock-only.
+// A queue barrier for a structural replacement: the position and pause state
+// the player would land in, Loading's pending intent included. NO, intent
+// untouched, if stopped or a non-nil `track` is no longer current. Never
+// poll it.
 - (BOOL)getPlaybackIntent:(VibePendingPlaybackIntent *)intent forTrack:(nullable AudioTrack *)track;
 
-// Starts a track at position (file seconds, clamped), optionally parked:
-// with startPaused the track loads but nothing renders until playPause.
-// Used for Convert to FLAC's same-audio swap and a playlist replacement that
-// must land parked. It always declicks rather than crossfades: crossfading the
-// swap would only dip it, while a parked replacement should render nothing.
-// Everything else — delegate callbacks and prefetch — is an ordinary play:.
+// Starts a track at position (file seconds, clamped), optionally parked. For
+// Convert to FLAC's same-audio swap and a replacement that must land parked;
+// always declicks, never crossfades. Otherwise an ordinary play:.
 - (void)play:(AudioTrack *)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused;
 
-// Moves the playhead, playing or paused, in file seconds (clamped). The move
-// is a new voice at the target with the old one fading out beside it, so it
-// is instant and click-free; didFinishSeeking: settles it, including a seek
-// dropped because the track changed under it or nothing playable was loaded.
+// File seconds, clamped, playing or paused. didFinishSeeking: settles every
+// seek, one dropped because the track changed or nothing was loaded included.
 - (void)seekToPosition:(NSTimeInterval)position;
 
-// Stops playback and unloads the current track. Any in-flight open is
-// superseded, the voice fades to silence, and the player reports Stopped with
-// no currentTrack. It fires no transport or track-end callback: this is not a
-// track-end event, so it must not drive auto-advance, and the caller owns the
-// UI reset.
+// Unloads the current track, superseding any in-flight open. Fires no
+// transport or track-end callback, so it never drives auto-advance; the
+// caller owns the UI reset.
 - (void)stop;
 
-// Ends the current track as if it had played to its end: it stops output and
-// notifies the delegate through audioPlayer:didFinishPlaying:. That handler
-// drives auto-advance, or the end-of-playlist stop, so the caller needs no
-// knowledge of next against stop. Used when a forward skip lands at or past
-// the end. A no-op unless a track is playing or paused.
+// Ends the current track as if it had played out, through didFinishPlaying:,
+// which decides advance or stop. For a forward skip past the end; a no-op
+// unless a track is playing or paused.
 - (void)finishCurrentTrack;
 
-// Pre-opens the track's file so that a later play: of it starts without
-// paying for the open, which dominates auto-advance and skip latency. For a
-// cloud file it also starts the download early. Call it with the playlist's
-// next track whenever a track starts playing; nil drops the parked handle at
-// the end of the playlist. It is single-use, consumed by the next play: of
-// the same path.
-//
-// It is also the gapless point: with the crossfade at its minimum (and, under
-// bit-perfect output, the next file wanting the device's current format) the
-// parked file is queued on the current voice, which continues into it at the
-// boundary with no gap — see audioPlayer:didAutoAdvanceFromTrack:toTrack:.
-// The track passed here is the one that promote delivers, so it must always
-// be the playlist's own next-track object.
+// Pre-opens the playlist's next track so a later play: of its path skips the
+// open (and starts a cloud download early); nil drops the park. Single-use.
+// It is also the gapless point: when gapless is allowed the parked file is
+// queued on the current voice. The promote delivers this very object, so it
+// must be the playlist's own next track.
 - (void)prefetchTrack:(nullable AudioTrack *)track;
 
-// The provider reported the pending open's transfer MOVING. Extends that
-// open's abandon deadline, matched against the underlying open request's
-// unique identifier rather than its path. A same-row replay preserves that
-// identifier; a later open of the same URL gets a new one, so an old monitor
-// cannot extend it. Call only from the monitor's uncoalesced positive-movement
-// feed, never its whole-percent UI handler.
+// The pending open's transfer moved: extends its abandon deadline, matched by
+// open identifier, never path, so an old monitor cannot extend a later open.
+// Call only from the monitor's uncoalesced movement feed, never its UI handler.
 - (void)noteOpenProgressForOpenRequestIdentifier:(uint64_t)openRequestIdentifier;
 
 #pragma mark - Beta diagnostics
 
-// Records the first UI position beyond each published playing position in
-// betas (VIBE_VERBOSE_LOGGING); a no-op otherwise. Main thread.
+// Beta builds only (VIBE_VERBOSE_LOGGING); a no-op otherwise. Main thread.
 - (void)noteDisplayedPosition:(NSTimeInterval)position forTrack:(nullable AudioTrack *)track;
 
 @end
 
-// Everything a caller off the player queue may ask the player about itself,
-// implemented in AudioPlayer+State.m. It is a category only so the file split
-// compiles cleanly; to callers it is simply part of AudioPlayer.
-//
-// None of these makes a player-queue round trip. Each takes the state lock,
-// copies what it needs, and computes off the lock — which is what lets the
-// update timer call position several times a second and the refresh funnels
-// call the rest on every pass. They are short locked snapshots, not lock-free
-// reads: acquiring that lock can briefly wait. They read and never drive:
-// nothing here touches the engine or the graph.
+// None of these makes a player-queue round trip: each is a short snapshot
+// under the state lock, which can briefly wait.
 @interface AudioPlayer (State)
 
-// Playhead in file seconds: what the current voice has rendered, so it holds
-// its value across an engine stop and is readable while the player queue is
-// busy. Reads 0 while Stopped or Loading.
+// File seconds the current voice has rendered, so it holds across an output
+// stop. 0 while Stopped or Loading.
 @property (readonly) NSTimeInterval position;
 
-// Whether the next track is queued on the current voice for a gapless
-// continuation at the boundary. Observability (the debug channel).
+// Whether a gapless successor is queued on the current voice.
 @property (readonly, getter=isGaplessArmed) BOOL gaplessArmed;
 
-// Actual modeled output liveness, unlike isPlaying's transport intent:
-// Loading is false unless an outgoing crossfade is still audible, while a
-// playing voice and every voice still fading out are true. An FX tail
-// ringing after the last voice is not modeled here, and never with a timer.
+// Modeled output liveness, unlike isPlaying's intent: a playing voice or one
+// still fading out. An FX tail after the last voice is not modeled.
 @property (readonly) BOOL outputAudioActive;
 
-// Published transport state: exactly one of these three is true. During
-// Loading, isPlaying/isPaused reflect whether the open will land playing or
-// parked. A pause reports paused the moment it is requested. An action that
-// must order after pending transport uses getPlaybackIntent:forTrack:.
+// Exactly one is true. During Loading, whether the open will land playing or
+// parked. A pause reports paused the moment it is requested.
 - (BOOL)isPlaying;
 - (BOOL)isPaused;
 - (BOOL)isStopped;
-// File-open observability, orthogonal to the transport state above. Position
-// and duration read 0 during Loading, meaning unknown rather than zero.
+// Orthogonal to the three above. Position and duration read 0 (unknown)
+// during Loading.
 - (BOOL)isLoading;
 
 - (NSTimeInterval)duration;
@@ -270,19 +194,15 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)audioPlayerDidInitialize:(AudioPlayer *)audioPlayer;
 
-// Fires when a play request's file open is still pending after a short grace
-// period, as on a slow disk or a downloading cloud placeholder. Show a
-// loading state. It is followed by didStartPlaying:, by error:, or, when a
-// newer play supersedes the load, by the newer track's events. A superseded
-// load gets no terminal callback of its own.
+// A play's open is still pending after a short grace period. Followed by
+// didStartPlaying: or error:; a superseded load gets no terminal callback.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
      didBeginLoading:(AudioTrack *)track
 openRequestIdentifier:(uint64_t)openRequestIdentifier;
 
-// Fires when play/pause changes what an in-flight open will do when it lands,
-// and when a same-file rebind replaces its playlist row. No audio has started
-// or paused yet; use it only to refresh transport and Now Playing state, not
-// playback-time accounting.
+// Play/pause changed what an in-flight open will land as, or a same-file
+// rebind replaced its row. No audio has changed: refresh transport and Now
+// Playing only, never playback-time accounting.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeLoadingPaused:(BOOL)paused
                   forTrack:(AudioTrack *)track;
@@ -290,15 +210,13 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didPausePlaying:(AudioTrack *)track;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didResumePlaying:(AudioTrack *)track;
-// track is nil when a seek was requested with nothing playable loaded, as
-// right after a failed play. The seek is then a no-op, but the UI still gets
-// the callback so it can settle the waveform.
+// track is nil for a seek with nothing playable loaded; still delivered so
+// the UI can settle.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(nullable AudioTrack *)track;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track;
-// Playback advanced gaplessly into the queued next track: startedTrack — the
-// object the delegate handed to prefetchTrack: — is already sounding.
-// Advance the playlist index WITHOUT calling play:. A track's end fires
-// exactly one of didFinishPlaying: or this, never both.
+// startedTrack, the object handed to prefetchTrack:, is already sounding:
+// advance the playlist WITHOUT play:. A track's end fires exactly one of
+// didFinishPlaying: or this.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didAutoAdvanceFromTrack:(AudioTrack *)finishedTrack
                     toTrack:(AudioTrack *)startedTrack;
@@ -330,15 +248,13 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier;
           bitPerfectOutput:(BOOL *)bitPerfectOutput
            exclusiveOutput:(BOOL *)exclusiveOutput;
 
-// Main-thread delivery, only when actual modeled output crosses between active
-// and inactive. Read outputAudioActive for the current value when refreshing.
+// Main thread, only when outputAudioActive changes.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeOutputAudioActive:(BOOL)outputAudioActive;
 
-// macOS only, main-thread delivery, only when bitPerfectReport changed. The
-// report settles asynchronously after every toggle, play, pause, device
-// switch and volume move, so a caller that reads it right after a setter
-// sees the previous one; this is the edge to redraw from.
+// macOS, main thread, only when bitPerfectReport changed. The report settles
+// asynchronously, so a read right after a setter sees the previous one; redraw
+// from this edge.
 - (void)audioPlayerDidChangeBitPerfectReport:(AudioPlayer *)audioPlayer;
 
 @end

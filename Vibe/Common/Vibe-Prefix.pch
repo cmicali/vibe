@@ -33,14 +33,9 @@ static inline os_log_t VibeLog(void) {
 }
 
 #if DEBUG
-// --log-stderr: mirror every message to stderr as well as to os_log. It exists
-// for ONE case, a debug build on a real iPhone, where the unified log is out
-// of a script's reach — `log stream` has no device mode any more, and
-// syslog_relay (idevicesyslog) does not carry a third-party subsystem's
-// messages at all, however much it carries ABOUT the app from SpringBoard.
-// stderr comes straight back over `devicectl device process launch --console`.
-// Debug builds only, opt-in, and off by default, so the simulator and mac
-// loops keep reading the unified log exactly as before.
+// --log-stderr mirrors every message to stderr, for a debug build on a real
+// iPhone: `log stream` has no device mode and idevicesyslog drops a
+// third-party subsystem, but stderr comes back over `devicectl ... --console`.
 static inline BOOL VibeLogStderrEnabled(void) {
     static BOOL enabled;
     static dispatch_once_t once;
@@ -51,11 +46,9 @@ static inline BOOL VibeLogStderrEnabled(void) {
 }
 #endif
 
-// The enabled check is what makes disabled levels free: without it the
-// stringWithFormat: below runs unconditionally — info/debug are off-stream by
-// default, so every LogDebug on a hot path would pay full ObjC formatting for
-// a discarded message. The stderr mirror joins the test rather than sitting
-// under it, or a level os_log has switched off would never reach the mirror.
+// Skips the formatting for a level os_log discards. The stderr mirror joins
+// the test rather than sitting under it, or a disabled level would never
+// reach the mirror.
 static inline BOOL VibeLogWants(os_log_type_t type) {
 #if DEBUG
     if (VibeLogStderrEnabled()) {
@@ -65,14 +58,12 @@ static inline BOOL VibeLogWants(os_log_type_t type) {
     return os_log_type_enabled(VibeLog(), type);
 }
 
-// os_log requires a compile-time constant format string, so messages are
-// pre-formatted with NSString by the macro below. %{public} keeps them
-// readable in Console (os_log redacts dynamic strings by default).
+// os_log needs a constant format, so messages arrive pre-formatted; %{public}
+// stops os_log redacting them.
 static inline void VibeLogEmit(os_log_type_t type, NSString *message) {
 #if DEBUG
     if (VibeLogStderrEnabled()) {
-        // Stamped, because os_log's own timestamps do not come with the
-        // mirror and ordering IS the question this flag is usually asked.
+        // os_log's timestamps do not reach the mirror.
         struct timeval tv;
         gettimeofday(&tv, NULL);
         struct tm now;
@@ -95,12 +86,9 @@ static inline void VibeLogEmit(os_log_type_t type, NSString *message) {
 #define LogError(fmt, ...)  VibeLogAt(OS_LOG_TYPE_ERROR, fmt, ##__VA_ARGS__)
 #define LogWarn(fmt, ...)   VibeLogAt(OS_LOG_TYPE_DEFAULT, fmt, ##__VA_ARGS__)
 
-// VIBE_VERBOSE_LOGGING is the beta setting, and NOT tied to DEBUG: the builds
-// that need it most are the Release ones a user is running. Under it every
-// level is written at Default, the level the unified log keeps, so Save Debug
-// Info and `log show` retrieve what nobody was streaming when it happened —
-// info and debug are otherwise never stored. It costs formatting on every
-// LogDebug and fills the store faster, which a stable release does not want.
+// VIBE_VERBOSE_LOGGING is the beta setting, independent of DEBUG: it writes
+// every level at Default, the level the unified log persists, so Save Debug
+// Info retrieves info and debug from a Release build nobody was streaming.
 #if VIBE_VERBOSE_LOGGING
 #define LogInfo(fmt, ...)   VibeLogAt(OS_LOG_TYPE_DEFAULT, fmt, ##__VA_ARGS__)
 #define LogDebug(fmt, ...)  VibeLogAt(OS_LOG_TYPE_DEFAULT, fmt, ##__VA_ARGS__)
@@ -109,13 +97,9 @@ static inline void VibeLogEmit(os_log_type_t type, NSString *message) {
 #define LogDebug(fmt, ...)  VibeLogAt(OS_LOG_TYPE_DEBUG, fmt, ##__VA_ARGS__)
 #endif
 
-// A step of the playback path that was timed. `slow` is whether it crossed its
-// own threshold. Warn level either way, because these exist to be retrieved
-// with `log show` after the fact by someone who could not catch a stream.
-//
-// Under VIBE_VERBOSE_LOGGING every step is recorded, so a report that nothing
-// was logged can only mean the step did not happen — the ambiguity that cost a
-// round trip on #47. Without it only the slow ones are.
+// A timed playback step, at Warn so it persists; `slow` is whether it crossed
+// its threshold. Verbose builds log every step, so a missing line means the
+// step never ran; otherwise only slow steps are logged.
 #if VIBE_VERBOSE_LOGGING
 #define LogTiming(slow, fmt, ...)  LogWarn(fmt, ##__VA_ARGS__)
 #else
@@ -127,12 +111,11 @@ static inline void VibeLogEmit(os_log_type_t type, NSString *message) {
     } while (0)
 #endif
 
-// The audio thread's discipline. VIBE_REALTIME_CHECKED_BEGIN … VIBE_REALTIME_END
-// compiles the code between them under -Werror=function-effects, so a
-// CA_REALTIME_API function there cannot allocate, lock, log, dispatch or send
-// an Objective-C message. VIBE_REALTIME_UNCHECKED_BEGIN brackets the one-line
-// shims around the calls the checker cannot see — AudioUnitRender, the vDSP
-// FFT, the clock — each documented at its site; nothing else goes inside one.
+// VIBE_REALTIME_CHECKED_BEGIN … VIBE_REALTIME_END compiles its body under
+// -Werror=function-effects, so a CA_REALTIME_API function there cannot
+// allocate, lock, log, dispatch or message. VIBE_REALTIME_UNCHECKED_BEGIN
+// brackets only the one-line shims around calls the checker cannot see
+// (AudioUnitRender, the vDSP FFT, the clock), each documented at its site.
 #if defined(__has_warning) && __has_warning("-Wfunction-effects")
 #define VIBE_REALTIME_CHECKED_BEGIN   _Pragma("clang diagnostic push") _Pragma("clang diagnostic error \"-Wfunction-effects\"")
 #define VIBE_REALTIME_UNCHECKED_BEGIN _Pragma("clang diagnostic push") _Pragma("clang diagnostic ignored \"-Wfunction-effects\"")
@@ -143,19 +126,9 @@ static inline void VibeLogEmit(os_log_type_t type, NSString *message) {
 #define VIBE_REALTIME_END
 #endif
 
-// Frame-budget instrumentation — DEBUG ONLY, all of it.
-//
-// An interval lands in Instruments' Points of Interest track, which sits
-// directly under the Animation Hitches timeline — the only way to say WHICH
-// main-thread work a dropped frame was spent on, rather than that one was. Every
-// closed interval is also tallied by name (Vibe/Debug/VibeWorkTally.h), so a
-// rotation reduces to a count and a total with no Instruments at all, which is
-// the half that actually works reliably against a device.
-//
-// Nothing here reaches a shipping binary: the same rule the debug command
-// channel follows. Profiling an OPTIMIZED build would want a third
-// configuration — Release with tracing left in — rather than signposts smuggled
-// into Release itself. There is no such configuration today.
+// Frame-budget instrumentation, DEBUG only. An interval lands in Instruments'
+// Points of Interest track, under Animation Hitches, and is also tallied by
+// name (Vibe/Debug/VibeWorkTally.h) for a device with no Instruments attached.
 #if DEBUG
 
 #import <os/signpost.h>
@@ -174,13 +147,10 @@ static inline uint64_t VibeMonotonicNanos(void) {
     return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
 }
 
-// The tally lives under Vibe/Debug/ and is DECLARED here rather than imported:
-// the prefix header reaches every translation unit, and pulling a debug header
-// into all of them to reach three functions is the trade this avoids.
-//
-// TRAP: C linkage, spelled out. Half the waveform tree is .mm, so without this
-// those translation units emit mangled references to symbols a .m file defines
-// unmangled, and the link fails for the iOS target alone.
+// Declared rather than imported, so no debug header reaches every translation
+// unit.
+// TRAP: C linkage, spelled out: the waveform .mm files use these macros, and
+// without it they reference mangled names the .m never defines — a link error.
 __BEGIN_DECLS
 extern void VibeWorkTallyAdd(const char *name, uint64_t nanos);
 extern void VibeWorkTallyBeginWindow(const char *label);
@@ -190,11 +160,10 @@ __END_DECLS
 #define VibeWorkTallyBegin(label)  VibeWorkTallyBeginWindow(label)
 #define VibeWorkTallyEnd()         VibeWorkTallyEndWindow()
 
-// `name` is a bare identifier, used both as the signpost's name and to mint the
-// locals, so two intervals can nest in one scope without colliding. Begin and
-// end must sit in the same scope — place the begin AFTER any early-out guard
-// rather than reaching for a cleanup attribute, which cannot carry the literal
-// name os_signpost requires.
+// `name` is a bare identifier that names the signpost and its locals, so
+// intervals nest without colliding. Begin and End must share a scope: put
+// Begin after any early-out (a cleanup attribute cannot carry the literal name
+// os_signpost requires).
 #define VibeSignpostBegin(name)                                                     \
     os_signpost_id_t name##_spid = os_signpost_id_generate(VibeSignpostLog());      \
     uint64_t name##_t0 = VibeMonotonicNanos();                                      \
@@ -206,29 +175,22 @@ __END_DECLS
         VibeWorkTallyAdd(#name, VibeMonotonicNanos() - name##_t0);                  \
     } while (0)
 
-// For work whose COUNT is the question and whose body is too small to time —
-// a delegate callback the framework makes per item, an invalidation.
+// For work too small to time, where the count is the question.
 #define VibeSignpostCount(name)                                                     \
     do {                                                                            \
         os_signpost_event_emit(VibeSignpostLog(), OS_SIGNPOST_ID_EXCLUSIVE, #name); \
         VibeWorkTallyAdd(#name, 0);                                                 \
     } while (0)
 
-// The same count with NO trace event: the debug tally only.
-//
-// TRAP: a signpost is cheap but not free, and a call site hot enough — one per
-// item of a per-item delegate callback, one per displayed frame — emits
-// thousands of events across a gesture. With a recording tool attached that
-// perturbs the very thing being measured and can leave the trace itself with no
-// usable run data. Use this wherever the COUNT is the whole question and
-// Instruments has no use for the individual events.
+// The count with no trace event.
+// TRAP: a per-item or per-frame VibeSignpostCount emits thousands of events a
+// gesture, which perturbs the measurement and can leave the trace unusable. Use
+// this at such sites.
 #define VibeTallyCount(name)  VibeWorkTallyAdd(#name, 0)
 
-#else   // !DEBUG — the instrumentation compiles to nothing at all.
+#else   // !DEBUG
 
-// Statements, so a call site reads the same in both configurations. Begin
-// declares no locals here, which is also why an End without a matching Begin in
-// the same scope cannot compile in Debug and silently vanish in Release.
+// An End with no Begin in scope fails only the Debug build.
 #define VibeWorkTallyBegin(label)  ((void)0)
 #define VibeWorkTallyEnd()         ((void)0)
 #define VibeSignpostBegin(name)    ((void)0)
@@ -238,10 +200,8 @@ __END_DECLS
 
 #endif  // DEBUG
 
-// Marks a user-visible string deliberately NOT localized (format acronyms,
-// layout punctuation, product names, titles AppKit never draws). No runtime
-// effect: an unwrapped @"..." in UI code is either a bug or declared
-// intentional at the site.
+// Marks a user-visible string deliberately not localized (format acronyms,
+// punctuation, product names). An unwrapped @"..." in UI code is a bug.
 #define VibeNotLocalized(s) (s)
 
 #endif

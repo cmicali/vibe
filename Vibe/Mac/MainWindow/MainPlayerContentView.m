@@ -18,21 +18,11 @@
 #import "AppSettings+Mac.h"
 #import "VibeStrings.h"
 
-// The design-time size, kMainWindowContentWidth by kMainWindowDesignHeight
-// from MainWindowLayout.h, which is what the window opens at too. The controller
-// resizes the view to the window's restored frame after adding it, and the
-// autoresizing pass lays the subviews out at the real size. Both axes are
-// flexible at runtime, since the window is user-resizable, so every frame
-// below is authored at the design size and carries a mask saying how it
-// stretches from there.
-
 #pragma mark - Layout
 
-// All subview frames are absolute, and the numbers live here rather than
-// inline in buildSubviewsWithTarget:. Edge-reaching values derive from
-// kMainWindowContentWidth, the design width, and the autoresizing masks
-// stretch them in a wider window. Two bands split at kPlaylistHeight:
-// the header above, the playlist below.
+// Every frame is authored at the design size (kMainWindowContentWidth by
+// kMainWindowDesignHeight), and its mask says how it stretches to the user's
+// window. Two bands split at kPlaylistHeight: header above, playlist below.
 
 // The header band is the whole window in the small, playlist-collapsed layout.
 static const CGFloat kHeaderHeight = kMainWindowSmallHeight;
@@ -51,10 +41,8 @@ static const CGFloat kHeaderContentWidth =
         kMainWindowContentWidth - kHeaderContentX - kHeaderContentRightMargin;
 static const CGFloat kHeaderContentMaxX = kMainWindowContentWidth - kHeaderContentRightMargin;
 
-// An NSTextField draws its text ~2pt inside its frame (the cell's own
-// horizontal padding), while the waveform draws to its exact frame edges. So
-// every header text frame is pushed outward by this on its text-anchored side,
-// aligning the ink — not the frame — with the waveform's edges.
+// An NSTextField draws its text ~2pt inside its frame, so header text frames
+// push outward by this to align the ink with the waveform's edges.
 static const CGFloat kLabelInkInset = 2;
 static const CGFloat kHeaderTextX = kHeaderContentX - kLabelInkInset;
 static const CGFloat kHeaderTextMaxX = kHeaderContentMaxX + kLabelInkInset;
@@ -62,34 +50,24 @@ static const CGFloat kHeaderTextMaxX = kHeaderContentMaxX + kLabelInkInset;
 static const CGFloat kWaveformY = 215;
 static const CGFloat kWaveformHeight = 86;
 
-// The codec line, with the BPM line directly beneath it. Both are
-// right-aligned. They are declared before the title and artist lines, which
-// size themselves to stay clear of this corner.
+// The codec line and the BPM line beneath it, right-aligned. The title and
+// artist lines size themselves clear of this corner.
 static const CGFloat kCodecLabelWidth = 240;
 static const CGFloat kCodecLabelX = kHeaderTextMaxX - kCodecLabelWidth;
 static const CGFloat kCodecLabelY = 325;
 static const CGFloat kBPMLabelY = 307;
 
-// Neither header text line may run under that corner: they share one pane of
-// glass with it, so an overrun draws text over text rather than sliding behind
-// anything. The two stop at a different x, because they sit at a different
-// height. The title clears only the BPM line, the lower and far shorter of the
-// pair, and shrinks to fit within kTitleWidth, in setTitleLabelText:. The
-// artist line sits at the codec line's own height, so it truncates with an
-// ellipsis at that label's edge, kCodecColumnGutter clear of it.
-//
-// kArtistWidth reserves the codec label's whole column, which is the worst case
-// — a long codec string behind three FX symbols. Because that is rare and the
-// column is wide, the width is re-capped against the line's real text in
-// layoutArtistLineClearOfCodecLine, and this static value serves as the frame
-// the autoresizing pass starts from.
+// An overrun would draw text over text. The title clears only the shorter BPM
+// line and shrinks to fit kTitleWidth; the artist line, at the codec line's
+// height, truncates kCodecColumnGutter clear of its text. kArtistWidth
+// reserves the codec column's worst case, re-capped against the real text in
+// layoutArtistLineClearOfCodecLine.
 static const CGFloat kCodecColumnGutter = 12;
 static const CGFloat kArtistY = 293;
 static const CGFloat kArtistWidth = kCodecLabelX - kCodecColumnGutter - kHeaderTextX;
 static const CGFloat kArtistHeight = 48;
 static const CGFloat kTitleY = 292;
-// The width grows by the ink inset the x moved left by, so the right cap —
-// clearance against the BPM line's ink — stays where it was tuned.
+// Plus the ink inset the x moved left by, so the right cap stays put.
 static const CGFloat kTitleWidth = 415 + kLabelInkInset;
 static const CGFloat kTitleHeight = 30;
 
@@ -110,35 +88,24 @@ static const CGFloat kTrafficLightY = 313;
 static const CGFloat kCloseButtonX = 9;
 static const CGFloat kTrafficLightSpacing = 23;
 
-// The transport row. Spacing tighter than the button size overlaps the frames,
-// which is fine, because later siblings win hit testing. The row sits over the
-// album art's bottom edge, and ArtworkImageView refuses drag-out mouse-downs
-// within the art's bottom kArtworkTransportExclusionHeight, so presses here
-// read as buttons.
+// Overlapping frames are fine: later siblings win hit testing. The row sits in
+// the art's kArtworkTransportExclusionHeight, where drag-out is refused.
 static const CGFloat kTransportButtonSize = 50;
 static const CGFloat kTransportButtonY = 203;
 static const CGFloat kTransportRowX = 4;
 static const CGFloat kTransportButtonSpacing = 46;
-// The symbol point size inside those frames. SF Symbol glyphs draw at roughly
-// 0.8 times their point size, so this runs larger than the icon's real height.
+// Glyphs draw at roughly 0.8 times their point size.
 static const CGFloat kTransportSymbolSize = 31;
 
-// All the window's buttons sit hidden and fade in only while the cursor is
-// over the window. The reveal is a pure show and hide at full opacity, and
-// each button's resting dimness against its hover brightness lives in its
-// symbol colors, so a hovered traffic-light dot can reach full saturation like
-// the real macOS controls.
+// The hover reveal fades to full opacity; each button's resting dimness lives
+// in its symbol colors, so a hovered dot reaches full saturation.
 static const CFTimeInterval kControlFadeDur = 0.2;
 
-
-// One shadow recipe for every header label. The opacity itself is driven by
-// the appearance, in updateMaterialForAppearance: dark text on the light glass
-// needs no shadow, and light text on dark glass gets a strong one.
+// Light text on dark glass only; dark text needs no shadow.
 static const CGFloat kLabelShadowOpacityDark = 0.9;
 
-// A purely decorative overlay. It returns nil from hitTest, so the views it
-// covers — the album art's drag-out and the transport buttons — still receive
-// mouse events.
+// Decorative: hit-transparent, so the art's drag-out and the buttons get the
+// mouse.
 @interface VibePassthroughView : NSView
 @end
 
@@ -148,9 +115,7 @@ static const CGFloat kLabelShadowOpacityDark = 0.9;
 }
 @end
 
-// The same passthrough treatment for the header's glass panel. Clicks on the
-// empty header must fall through to the window, so it can be dragged to move,
-// and the waveform view above it does its own hit handling.
+// Clicks on the empty header fall through to the window's background drag.
 API_AVAILABLE(macos(26.0))
 @interface VibePassthroughGlassView : NSGlassEffectView
 @end
@@ -161,8 +126,6 @@ API_AVAILABLE(macos(26.0))
 }
 @end
 
-// The pre-26 frosted stand-in for the header glass, with the same
-// passthrough.
 @interface VibePassthroughFrostView : NSVisualEffectView
 @end
 
@@ -173,39 +136,30 @@ API_AVAILABLE(macos(26.0))
 @end
 
 @implementation MainPlayerContentView {
-    VibePassthroughView *_albumArtGradientView; // decorative darkening over the art; internal-only (no controller outlet)
-    NSView *_backgroundGlassView;               // header glass (frost before macOS 26); its tint rides in headerTintView
+    VibePassthroughView *_albumArtGradientView;
+    NSView *_backgroundGlassView;               // header glass (frost before macOS 26)
     NSVisualEffectView *_playlistFrostView;
-    NSView *_playlistDimView;
-    // Self-contained buttons, with their actions wired at build and their
-    // hover fade internal. They are not exposed in the header, because the
-    // controller never drives them.
+    NSView *_playlistDimView;                   // the background layer (applyPlaylistBackground)
+    // The controller never drives these.
     SymbolButton *_closeButton;
     SymbolButton *_minimizeButton;
     SymbolButton *_playlistToggleButton;
     NSTrackingArea *_windowHoverArea;
     __weak NSView *_windowHoverHost;
-    // AppSettings.showTrafficLights, as an input to the hover fade rather than
-    // a second writer of the same alpha. Seeded before the tracking area
-    // exists, so it defaults to the setting's own default.
+    // An input to the hover fade, not a second writer of the same alpha.
     BOOL _trafficLightsShown;
-    // The play button's state, kept so a theme re-apply can redraw it in the
-    // state the controller last asked for.
+    // Kept so a theme re-apply redraws the last requested state.
     BOOL _playShowsPause;
-    // Whether the art under the transport row reads as dark — the artwork
-    // controller's sample, seeded dark for the factory placeholder.
-    BOOL _transportBackdropDark;
+    BOOL _transportBackdropDark; // seeded dark for the factory placeholder
     BOOL _transportHasArtwork;
-    // The codec line's rendered text width, measured at the text edge
-    // (layoutArtistLineClearOfCodecLine) and reused on every geometry pass.
+    // Measured at the text edge, reused on every geometry pass.
     CGFloat _codecTextWidth;
 }
 
 - (instancetype)initWithTarget:(id)target {
     self = [super initWithFrame:NSMakeRect(0, 0, kMainWindowContentWidth, kMainWindowDesignHeight)];
     if (self) {
-        // Shown until told otherwise: a zero-filled ivar would mean a caller
-        // that forgot setTrafficLightsShown: silently loses the buttons.
+        // A zero-filled ivar would silently lose the buttons.
         _trafficLightsShown = YES;
         _transportBackdropDark = YES;
         self.wantsLayer = YES;
@@ -216,20 +170,13 @@ API_AVAILABLE(macos(26.0))
     return self;
 }
 
-// The window's glass backdrop adapts to the appearance on its own. Only the
-// playlist frost is appearance-dependent here.
 - (void)updateMaterialForAppearance {
     BOOL dark = self.isDark;
-    // Both modes use the translucent under-window material, so that the
-    // playlist keeps reading as glass; the light-mode WindowBackground
-    // material is effectively opaque paint. Dark mode needs no help. Light
-    // mode gets a white wash, brightening rather than dimming, which lifts row
-    // contrast for the dark text while letting the blur through.
+    // Both appearances: the light WindowBackground material is effectively
+    // opaque paint.
     _playlistFrostView.material = NSVisualEffectMaterialUnderWindowBackground;
     [self applyPlaylistBackground];
-    // The header-label shadows lift readability for light text on dark glass.
-    // Dark text on the bright light material needs none, and a dark shadow
-    // under dark text reads simply as smudge.
+    // A dark shadow under dark text reads as smudge.
     CGFloat shadowOpacity = dark ? kLabelShadowOpacityDark : 0.0;
     for (NSTextField *field in @[ _artistTextField, _titleTextField,
                                   _totalTimeTextField, _currentTimeTextField,
@@ -247,11 +194,8 @@ API_AVAILABLE(macos(26.0))
     }
 }
 
-// The rasterizing layers pin their scale, so re-stamp it from the window
-// whenever the backing scale can change — on attach, and when the window lands
-// on a display with a different scale — or the rasterized text renders soft.
-// Same pattern as SymbolButton. Construction runs windowless, so the layers
-// start on NSScreen.mainScreen's scale until the attach re-stamps them.
+// Rasterizing layers pin their scale, so re-stamp it whenever the backing
+// scale can change, or the text renders soft.
 - (void)updateRasterizationScales {
     CGFloat scale = self.window.backingScaleFactor;
     if (scale <= 0) {
@@ -272,24 +216,12 @@ API_AVAILABLE(macos(26.0))
 
 #pragma mark - The artist line's right edge
 
-// The one frame the autoresizing pass cannot place, because what it has to
-// clear is content rather than geometry: the artist line ends where the codec
-// line's *text* begins, and that text is right-aligned inside a label whose
-// column is sized for the worst case. Reserving the whole column costs the
-// artist line most of its width in a narrow window and a third of it at the
-// design width, for a codec string that is usually far shorter — so cap it
-// against what the line actually renders. The frame is authored at the
-// worst-case reservation (kArtistWidth), which is what this falls back to.
-//
-// Both inputs move: the geometry on every resize, hooked below, and the text on
-// every codec and FX change, hooked by TrackDisplayController.
-// TRAP: measure with the field's own font. The corner lines' attributed
-// strings carry color and kern but no font (TrackDisplayController's
-// cornerTextAttributes), so -size lays the metadata run out in the system
-// default 12pt instead of the themed info font — which under a 15pt or
-// monospaced face under-measures by tens of points, and the artist line then
-// runs under the codec text. The FX symbol runs carry a font of their own and
-// keep it.
+// The one frame that clears content, not geometry: the artist line ends where
+// the codec line's text begins. Both inputs move: the geometry (resize, below)
+// and the text (TrackDisplayController).
+// TRAP: measure with the field's own font. The codec run's attributes carry
+// no font (cornerTextAttributes), so -size measures it at the 12pt default and
+// under a larger themed face the artist line runs under the codec text.
 - (CGFloat)renderedCodecTextWidth {
     NSAttributedString *text = _fileMetadataTextField.attributedStringValue;
     NSFont *font = _fileMetadataTextField.font;
@@ -323,10 +255,8 @@ API_AVAILABLE(macos(26.0))
     }
 }
 
-// Runs on every frame change, live drag included, which the resize
-// notifications the controller listens to do not cover. The geometry edge
-// only: the codec text has not changed, so it is not laid out again — that
-// per-frame measure was 15% of the app's own resize work.
+// Every frame change, live drag included. Geometry only: the text is not
+// re-measured per frame.
 - (void)resizeSubviewsWithOldSize:(NSSize)oldSize {
     [super resizeSubviewsWithOldSize:oldSize];
     [self capArtistLineAtCodecText];
@@ -334,13 +264,11 @@ API_AVAILABLE(macos(26.0))
 
 #pragma mark - Hover reveal
 
-// The buttons, both the traffic lights and the transport row, fade in only
-// while the cursor is over the window. The tracking area is attached to the
-// window's content view, which also spans the pitch panel, rather than to this
-// 680-wide player body, so hovering any part of the window keeps them visible.
+// The tracking area is on the window's content view, so hovering the pitch
+// panel keeps the buttons up too.
 - (void)viewDidMoveToWindow {
     [super viewDidMoveToWindow];
-    [self updateRasterizationScales]; // the backing scale is only known once we have a window
+    [self updateRasterizationScales];
     if (_windowHoverArea) {
         [_windowHoverHost removeTrackingArea:_windowHoverArea];
         _windowHoverArea = nil;
@@ -357,8 +285,7 @@ API_AVAILABLE(macos(26.0))
                          NSTrackingMouseEnteredAndExited
                    owner:self userInfo:nil];
     [host addTrackingArea:_windowHoverArea];
-    // Entered and exited fire only on boundary crossings, so seed the initial
-    // state from where the cursor actually is right now.
+    // Entered and exited fire only on crossings; seed from the cursor.
     [self setControlsShown:[self isCursorOverWindow] animated:NO];
 }
 
@@ -373,9 +300,7 @@ API_AVAILABLE(macos(26.0))
 
 - (void)setTrafficLightsShown:(BOOL)shown {
     _trafficLightsShown = shown;
-    // Through the fade funnel, from where the cursor actually is: hidden and
-    // alpha are decided in one place, so a toggle while the pointer is over
-    // the window brings the lights back at the alpha the hover state calls for.
+    // Hidden and alpha are decided in one place, the fade funnel.
     [self setControlsShown:[self isCursorOverWindow] animated:NO];
 }
 
@@ -387,8 +312,8 @@ API_AVAILABLE(macos(26.0))
     [self setControlsShown:NO animated:YES];
 }
 
-// Fold the traffic-light and transport settings into hover visibility so
-// hidden buttons never fade to full alpha behind their hidden flags.
+// The one place button visibility is decided, so a hidden button never fades
+// to full alpha behind its hidden flag.
 - (void)setControlsShown:(BOOL)shown animated:(BOOL)animated {
     CGFloat traffic   = (shown && _trafficLightsShown) ? 1.0 : 0.0;
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
@@ -422,9 +347,8 @@ API_AVAILABLE(macos(26.0))
     }
 }
 
-// Applies the shared shadow recipe, kLabelShadowOpacityDark, which
-// updateMaterialForAppearance sets. Fields whose content changes every second
-// opt out of rasterization, because re-rastering would cost more than it saves.
+// updateMaterialForAppearance sets the opacity. A field that changes every
+// second opts out of rasterization.
 static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     field.wantsLayer = YES;
     field.layer.shadowColor = NSColor.blackColor.CGColor;
@@ -437,11 +361,9 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     }
 }
 
-// The whole UI hierarchy, in z-order: each helper adds its own subviews and
-// the call order below IS the stacking order, so moving a call moves the
-// layer. Every frame here is authored at the design size in MainWindowLayout.h and
-// stretched to the user's window by the autoresizing masks.
 #pragma mark - Subview construction
+
+// The call order below IS the z-order.
 
 - (void)buildSubviewsWithTarget:(id)target {
     [self buildHeaderBackdrop];
@@ -450,29 +372,19 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [self buildHeaderLabels];
     [self buildPlaylistPane];
     [self buildCornerReadouts];
-    // The one spelling of the themed fonts, label colors and transport looks;
-    // without this the labels would launch semantic-colored and re-style
-    // only when a live effect first fired.
     [self applyThemedLabelFonts];
     [self applyThemedLabelColors];
     [self applyThemedTransportButtons];
     [self applyWindowBackgroundStyle];
 }
 
-// The header panel under the theme's window background: the Regular glass
-// pane the labels and waveform sit on under glass and solid, and NO pane at
-// all under clear — the window's own Clear backdrop is the whole look, the
-// same sheet a transparent placeholder shows through the art. Hidden rather
-// than restyled Clear: a second Clear pane over the backdrop compounds into
-// a visibly lighter band, so the header would not match the art beside it.
+// Hidden under clear rather than restyled Clear: a second Clear pane over the
+// backdrop compounds into a visibly lighter band.
 - (void)applyWindowBackgroundStyle {
     _backgroundGlassView.hidden = [AppSettings.sharedInstance.currentTheme.windowBackgroundStyle
             isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR];
 }
 
-// The glass panel behind the waveform and header, the art-color tint over
-// it, and the waveform itself. First in, so everything else composites
-// above them.
 - (void)buildHeaderBackdrop {
     NSRect headerPanelFrame = NSMakeRect(kArtSize, kPlaylistHeight, kHeaderPanelWidth, kHeaderHeight);
     if (@available(macOS 26.0, *)) {
@@ -486,14 +398,12 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
         _backgroundGlassView = frost;
     }
     [MainPlayerContentView applyCornerRadius:0 toBackdrop:_backgroundGlassView];
-    // The height must not be flexible; see the playlist frost's note below.
+    // Fixed height: see the playlist frost's trap.
     _backgroundGlassView.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
     [self addSubview:_backgroundGlassView];
 
-    // The art-color tint over the glass. It is not the glass's tintColor,
-    // because AppKit kills that outright while the window is inactive, and the
-    // wash must not change with key state. ArtworkDisplayController drives the
-    // color.
+    // Not the glass's tintColor, which AppKit drops while the window is
+    // inactive.
     _headerTintView = [[VibePassthroughView alloc] initWithFrame:_backgroundGlassView.frame];
     _headerTintView.wantsLayer = YES;
     _headerTintView.autoresizingMask = _backgroundGlassView.autoresizingMask;
@@ -505,8 +415,6 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [self addSubview:_waveformView];
 }
 
-// The cover and the darkening gradient over its lower half, which is what
-// makes the transport row read against a bright cover.
 - (void)buildAlbumArt {
     _albumArtImageView = [[ArtworkImageView alloc] initWithFrame:
             NSMakeRect(0, kPlaylistHeight, kArtSize, kArtSize)];
@@ -524,10 +432,8 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _albumArtImageView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
     [self addSubview:_albumArtImageView];
 
-    // A darkening gradient over the album art: strong at the bottom, behind
-    // the transport buttons, and clear from the middle up, so that the button
-    // row reads against bright covers. It is always visible and does not join
-    // the hover fade.
+    // Darkens the art behind the transport row; visibility follows the
+    // theme's buttonGradient (setControlsShown:animated:).
     _albumArtGradientView = [[VibePassthroughView alloc] initWithFrame:
             NSMakeRect(0, kPlaylistHeight, kArtSize, kArtSize)];
     CAGradientLayer *artGradient = [[CAGradientLayer alloc] init];
@@ -537,8 +443,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
             (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0].CGColor
     ];
     artGradient.locations = @[@0.0, @0.35, @0.62];
-    // The layer-hosting contract: assign the layer before wantsLayer, or
-    // AppKit creates its own backing layer first and the view ends up
+    // Layer-hosting: the layer before wantsLayer, or the view ends up
     // layer-backed.
     _albumArtGradientView.layer = artGradient;
     _albumArtGradientView.identifier = @"buttonGradient";
@@ -547,11 +452,8 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [self addSubview:_albumArtGradientView];
 }
 
-// The traffic lights and the transport row, over the art's lower edge. All
-// five start at zero alpha and fade in together on hover; see
-// setControlsShown:animated:.
+// All five start at zero alpha; see setControlsShown:animated:.
 - (void)buildTransportControlsWithTarget:(id)target {
-    // Hidden until the window is hovered; see setControlsShown:animated:.
     _closeButton = [MainPlayerContentView transportButtonWithFrame:
                             NSMakeRect(kCloseButtonX, kTrafficLightY, kTrafficLightSize, kTrafficLightSize)
                                                         symbolName:@"circle.fill"
@@ -560,7 +462,6 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
                                                             target:target];
     _closeButton.alphaValue = 0.0;
     _closeButton.symbolPointSize = kTrafficLightSymbolSize;
-    // Dim at rest, lighting up to full salmon on hover.
     _closeButton.symbolNormalColor = [NSColor colorWithSRGBRed:0.945 green:0.420 blue:0.357 alpha:0.64];
     _closeButton.symbolHighlightColor = [NSColor colorWithSRGBRed:0.945 green:0.420 blue:0.357 alpha:1.0];
     [self addSubview:_closeButton];
@@ -574,12 +475,10 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
                                                                target:target];
     _minimizeButton.alphaValue = 0.0;
     _minimizeButton.symbolPointSize = kTrafficLightSymbolSize; // same dot as close
-    // Dim at rest, lighting up to full yellow on hover.
     _minimizeButton.symbolNormalColor = [NSColor colorWithSRGBRed:0.988 green:0.741 blue:0.180 alpha:0.64];
     _minimizeButton.symbolHighlightColor = [NSColor colorWithSRGBRed:0.988 green:0.741 blue:0.180 alpha:1.0];
     [self addSubview:_minimizeButton];
 
-    // Fades in with the traffic lights when the window is hovered.
     _playlistToggleButton = [MainPlayerContentView transportButtonWithFrame:
                                      NSMakeRect(kTransportRowX, kTransportButtonY,
                                                 kTransportButtonSize, kTransportButtonSize)
@@ -613,16 +512,13 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [self addSubview:_nextButton];
 }
 
-// The title and artist lines, the two time labels, and the empty-state drop
-// hint that spans the gap between them.
 - (void)buildHeaderLabels {
     NSColor *dimmedTextColor = [NSColor secondaryLabelColor];
 
     _artistTextField = [MainPlayerContentView labelWithFrame:
             NSMakeRect(kHeaderTextX, kArtistY, kArtistWidth, kArtistHeight)];
-    // Truncating, not the shared clipping default: this line takes whatever a
-    // file's artist tag holds, and long ones are common. Clipping cut a glyph
-    // mid-stroke at the label's edge and gave no sign the string went on.
+    // Truncating, not the clipping default: long artist tags are common, and
+    // clipping cuts a glyph mid-stroke with no sign the string goes on.
     _artistTextField.lineBreakMode = NSLineBreakByTruncatingTail;
     _artistTextField.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
     configureLabelShadow(_artistTextField, YES);
@@ -647,12 +543,10 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 
     // Left-anchored, unlike the right-aligned total time it pairs with.
     _currentTimeTextField.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
-    // No rasterization. This field's content changes every second, so
-    // rasterizing would merely force a re-raster on every update.
+    // Not rasterized: it changes every second.
     configureLabelShadow(_currentTimeTextField, NO);
     [self addSubview:_currentTimeTextField];
 
-    // The empty-state hint, spanning the gap between the two time labels.
     _dropHintTextField = [MainPlayerContentView labelWithFrame:
             NSMakeRect(kDropHintX, kTimeRowY, kDropHintWidth, kSmallLabelHeight)];
     _dropHintTextField.font = [Fonts font:13];
@@ -664,28 +558,22 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     // Long translations ellipsize.
     _dropHintTextField.lineBreakMode = NSLineBreakByTruncatingTail;
     _dropHintTextField.maximumNumberOfLines = 1;
-    // At half strength, like the rest of the empty state.
-    _dropHintTextField.alphaValue = 0.5;
+    _dropHintTextField.alphaValue = 0.5; // like the rest of the empty state
     _dropHintTextField.hidden = YES;
-    // It spans the gap between the two time labels, so it takes the extra
-    // width.
     _dropHintTextField.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
     configureLabelShadow(_dropHintTextField, YES);
     [self addSubview:_dropHintTextField];
 }
 
-// The playlist region, bottom to top: the frost panel, its light-mode dim
-// wash, the scroll view holding the table, and the drop zone over it.
+// Bottom to top: the frost, the background layer, the tint wash, the table,
+// and the drop zone.
 - (void)buildPlaylistPane {
-    // The frosted backdrop under the playlist. The window's Clear glass is too
-    // transparent to read row text over, so this panel frosts the playlist
-    // region alone. TRAP: it is an NSVisualEffectView rather than an
-    // NSGlassEffectView, because a height-sizable glass view's SwiftUI hosting
-    // internals fight the stretch from design height to window height, and the
-    // window then silently refuses to expand past the design height. It sits
-    // under the scroll view, since an NSClipView background does not composite
-    // semi-transparent colors over a backdrop, so it also covers the empty area
-    // below the last row. The wash layers directly above it.
+    // Row text is unreadable over the window's Clear glass, so the playlist
+    // gets its own frost. TRAP: an NSVisualEffectView, not an
+    // NSGlassEffectView: a glass view stretched from design height to window
+    // height fights the autoresizing (its SwiftUI hosting), and the window
+    // silently refuses to grow past the design height. Under the scroll view,
+    // since an NSClipView background does not composite translucent colors.
     _playlistFrostView = [[NSVisualEffectView alloc] initWithFrame:
             NSMakeRect(0, 0, kMainWindowContentWidth, kPlaylistHeight)];
     _playlistFrostView.blendingMode = NSVisualEffectBlendingModeBehindWindow;
@@ -693,31 +581,25 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _playlistFrostView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [self addSubview:_playlistFrostView];
 
-    // A sibling above the frost, never its child: the solid playlist style
-    // hides the frost and keeps the wash as the whole background, which a
-    // parented wash would vanish along with.
+    // A sibling, never the frost's child: the solid style hides the frost and
+    // keeps this as the whole background.
     _playlistDimView = [[NSView alloc] initWithFrame:_playlistFrostView.frame];
     _playlistDimView.wantsLayer = YES;
     _playlistDimView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [self addSubview:_playlistDimView];
 
-    // The themed tint wash above the background, below the table — the
-    // playlist's headerTintView. ArtworkDisplayController colors it.
+    // The playlist's headerTintView.
     _playlistTintView = [[NSView alloc] initWithFrame:_playlistFrostView.frame];
     _playlistTintView.wantsLayer = YES;
     _playlistTintView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [self addSubview:_playlistTintView];
 
-    // The table — its columns, row metrics and cell construction — belongs
-    // entirely to PlaylistTableView. Only the frame is placed here.
     NSScrollView *playlistScrollView = [PlaylistTableView scrollViewWithFrame:
             NSMakeRect(0, 0, kMainWindowContentWidth, kPlaylistHeight)];
     _playlistTableView = (PlaylistTableView *)playlistScrollView.documentView;
     [self addSubview:playlistScrollView];
 
-    // Above the table. The empty-state well takes the clicks, and the
-    // drag-over wells, with their blur, composite over the rows. When neither
-    // presentation is up, the zone is hit-transparent.
+    // Hit-transparent while neither presentation is up.
     _playlistDropZoneView = [[PlaylistDropZoneView alloc] initWithFrame:
             NSMakeRect(0, 0, kMainWindowContentWidth, kPlaylistHeight)];
     _playlistDropZoneView.hidden = YES;
@@ -725,39 +607,27 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [self addSubview:_playlistDropZoneView];
 }
 
-// The codec and BPM/key lines in the header's right corner. One visual
-// pair: they share a font, an alignment and a dimming rule, and drift
-// apart if built separately from each other.
+// One visual pair: a font, an alignment and a dimming rule.
 - (void)buildCornerReadouts {
     _fileMetadataTextField = [MainPlayerContentView labelWithFrame:
             NSMakeRect(kCodecLabelX, kCodecLabelY, kCodecLabelWidth, kSmallLabelHeight)];
     _fileMetadataTextField.alignment = NSTextAlignmentRight;
-    // Full alpha, because this field also carries the inline FX symbols, which
-    // read at the time labels' full-strength secondaryLabelColor while the
-    // codec text is a step dimmer. A field-wide 0.5 would dim both, so the
-    // text's own dimming rides in its foreground color instead; see
-    // TrackDisplayController's cornerTextAttributes.
+    // Full alpha: a field alpha would dim the inline FX symbols too, so the
+    // text dims in its color (cornerTextAttributes).
     _fileMetadataTextField.alphaValue = 1.0;
     _fileMetadataTextField.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
     configureLabelShadow(_fileMetadataTextField, YES);
     [self addSubview:_fileMetadataTextField];
 
-    // The BPM readout, directly below the codec line and styled to match.
     _bpmTextField = [MainPlayerContentView labelWithFrame:
             NSMakeRect(kCodecLabelX, kBPMLabelY, kCodecLabelWidth, kSmallLabelHeight)];
     _bpmTextField.alignment = NSTextAlignmentRight;
-    // Matches the codec label above it, with full alpha and the dimming in the
-    // text color. The two are one visual pair, and drift apart otherwise.
     _bpmTextField.alphaValue = 1.0;
     _bpmTextField.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
     configureLabelShadow(_bpmTextField, YES);
     [self addSubview:_bpmTextField];
 }
 
-// The shared configuration for the borderless icon buttons: close, playlist,
-// play and next. SymbolButton already draws a momentary, white-tinted SF
-// Symbol with a highlight fade of about 100ms, so only the symbol, the action
-// and the resizing behavior vary.
 + (SymbolButton *)transportButtonWithFrame:(NSRect)frame
                                 symbolName:(NSString *)symbolName
                                      label:(NSString *)label
@@ -780,14 +650,13 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _currentTimeTextField.font = [Fonts infoFontBold:YES];
     _fileMetadataTextField.font = [Fonts infoFontBold:NO];
     _bpmTextField.font = [Fonts infoFontBold:NO];
-    // A font change is a text edge too: the codec line's measure depends on it.
+    // A font change moves the codec line's measure too.
     [self layoutArtistLineClearOfCodecLine];
 }
 
 - (void)applyThemedLabelColors {
-    // The corner readouts' color rides their attributed strings
-    // (cornerTextAttributes); the drop hint stays unthemed with the rest of
-    // the empty state.
+    // The corner readouts' color rides their attributed strings; the drop hint
+    // stays unthemed.
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     _titleTextField.textColor = theme.resolvedTitleColor;
     _artistTextField.textColor = theme.resolvedArtistColor;
@@ -795,12 +664,10 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _currentTimeTextField.textColor = theme.resolvedTimeColor;
 }
 
-// A glyph this macOS has a symbol for, else the factory one — the free-text
-// glyph fields' resolve-time fallback, the way Fonts resolves an uninstalled
-// face. A button drawing nothing is never the answer.
+// A glyph this macOS has, else the factory one, as Fonts falls back from an
+// uninstalled face: a button drawing nothing is never the answer.
 static NSString *ResolvedGlyph(NSString *glyph, NSString *factory) {
-    // Whether this macOS has a symbol never changes within a run, and the
-    // probe allocates an image, so remember each name's answer.
+    // Fixed within a run, and the probe allocates an image.
     static NSMutableDictionary<NSString *, NSNumber *> *known;
     if (!known) {
         known = [NSMutableDictionary dictionary];
@@ -813,9 +680,6 @@ static NSString *ResolvedGlyph(NSString *glyph, NSString *factory) {
     return has.boolValue ? glyph : factory;
 }
 
-// One button's whole themed look: its picture for the art under it
-// (AppTheme.buttonImageForKey:, either side of the pair), else its glyph,
-// and the resting color the states derive from.
 static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *imageKey,
                                NSString *glyph, NSString *factoryGlyph,
                                NSString *colorBase, BOOL dark) {
@@ -831,8 +695,8 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *
             && (![theme.buttonGradient isEqualToString:SETTINGS_VALUE_BUTTON_GRADIENT_ARTWORK] || _transportHasArtwork);
 }
 
-// Hover gradients fade with the buttons, so enabled gradients give visible
-// buttons a dark backdrop; otherwise the image's own lower band decides.
+// An enabled gradient is under every visible button, so it reads dark;
+// otherwise the image's lower band decides.
 - (BOOL)transportBackdropIsDark {
     return self.transportGradientEnabled || _transportBackdropDark;
 }
@@ -861,13 +725,10 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *
     [self applyThemedTransportButtons];
 }
 
-// The play button dresses two states from one theme slot pair: the pause
-// glyph and image while playing, the play ones otherwise. Each image slot
-// falls back to its glyph on its own, so a theme with only a play image
-// still shows a pause glyph while playing rather than the play picture.
+// Each image slot falls back to its own glyph, so a theme with only a play
+// image still shows a pause glyph while playing.
 - (void)setPlayButtonShowsPause:(BOOL)showsPause {
-    // updateUI asks on every transport event; the dress is a CATransaction
-    // and three colors, so only a state change pays for it.
+    // updateUI asks on every transport event.
     if (showsPause == _playShowsPause) {
         return;
     }
@@ -886,9 +747,8 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *
                        kVibeThemeColorPlayButton, dark);
 }
 
-// The glass style's unthemed lift: clear in dark, a white brightening wash in
-// light that lifts row contrast for the dark text while letting the blur
-// through.
+// The glass style's unthemed lift: clear in dark, a white wash in light that
+// lifts row contrast while letting the blur through.
 + (NSColor *)defaultPlaylistBackgroundColorForDark:(BOOL)dark {
     return dark ? NSColor.clearColor : [NSColor colorWithWhite:1 alpha:0.35];
 }
@@ -900,13 +760,8 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *
             isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
     BOOL clear = [theme.playlistBackgroundStyle
             isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR];
-    // Solid removes the behind-window blur outright; the background layer then
-    // carries the whole background over whatever the window backdrop shows.
-    // Under glass it is the unthemed appearance lift — the theme's color pair
-    // belongs to the solid cover alone, and any themed color over glass is the
-    // playlist tint wash layered above (ArtworkDisplayController). Clear
-    // removes the blur and the lift both: the window's Clear backdrop is the
-    // whole background, readability being the theme's own call.
+    // Solid: no blur, the theme's color. Glass: the unthemed lift (a themed
+    // color over glass is the tint wash above). Clear: neither.
     _playlistFrostView.hidden = solid || clear;
     NSColor *background = solid
             ? [theme displayColorForBase:kVibeThemeColorPlaylistBackground dark:dark]
@@ -915,9 +770,6 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *
     _playlistDimView.layer.backgroundColor = background.CGColor;
 }
 
-// The one home of the pre/post-26 backdrop dichotomy: Liquid Glass takes a
-// layer radius, the frost fallback a regenerated mask (its blur region
-// ignores a layer radius).
 + (void)applyCornerRadius:(CGFloat)radius toBackdrop:(NSView *)backdrop {
     if (@available(macOS 26.0, *)) {
         if ([backdrop isKindOfClass:NSGlassEffectView.class]) {
@@ -931,9 +783,8 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *
     }
 }
 
-// A stretchable rounded-rect alpha mask, cap-inset so the corners never
-// scale. An NSVisualEffectView shapes its blur through maskImage — a layer
-// cornerRadius clips its tint but not the blur region.
+// Cap-inset so the corners never scale. A layer cornerRadius clips an
+// NSVisualEffectView's tint but not its blur.
 + (NSImage *)frostCornerMaskWithRadius:(CGFloat)radius {
     NSSize size = NSMakeSize(radius * 2 + 1, radius * 2 + 1);
     NSImage *mask = [NSImage imageWithSize:size flipped:NO drawingHandler:^BOOL(NSRect rect) {
@@ -946,7 +797,6 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *
     return mask;
 }
 
-// A borderless, non-editable static label with a transparent background.
 + (NSTextField *)labelWithFrame:(NSRect)frame {
     NSTextField *field = [[NSTextField alloc] initWithFrame:frame];
     field.editable = NO;

@@ -2,7 +2,7 @@
 //  DebugCommandTable.m
 //  Vibe
 //
-//  The verb table. One entry per command, with its usage string and client timeout.
+//  The mac verb table.
 //
 
 #import "DebugInternal.h"
@@ -29,35 +29,24 @@
 
 #pragma mark Command table
 
-// The undo and redo verbs. A conversion's file moves settle after the manager
-// call returns, so the reply waits on the controller's one-shot settled hook
-// rather than racing the Trash; a reply outliving the client's timeout writes
-// one orphan response and cannot fire on a later menu-driven undo. A
-// non-conversion undo — a playlist removal's restore — settles inside the
-// manager call and never fires that hook, so the post-call check answers it
-// synchronously instead of timing the client out.
-
 // The <on|off> argument every settings switch verb takes; NO for anything else.
 static BOOL VibeParseOnOff(NSArray<NSString *> *tokens, BOOL *on) {
     NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
     *on = [arg isEqualToString:@"on"];
     return *on || [arg isEqualToString:@"off"];
 }
-// The modes a set_output_device call asked for, applied once the selection it
-// submitted has settled. Their setters write the SAVED device's mode, so
-// applying one before the bind lands would name the device being left — the
-// same reason the pane disables both switches while a selection is pending.
-// Retried on main rather than waited for: the settlement needs this thread, so
-// blocking here would deadlock the thing being waited on. Gives up after
-// `attempts`, since a refused or failed switch settles too and the reply has
-// already told the caller to confirm with dump_state.
+// Applied once the submitted selection settles: the mode setters write the
+// SAVED device's mode, so applying one before the bind lands would name the
+// device being left (the pane disables both switches while pending for the
+// same reason). Retried on main rather than waited for, since the settlement
+// needs this thread. Gives up after `attempts`; the reply has already told the
+// caller to confirm with dump_state.
 static void VibeApplyOutputModesWhenSelectionSettles(MainPlayerController *controller,
                                                      NSNumber *bitPerfect,
                                                      NSNumber *exclusive,
                                                      NSInteger attempts) {
     if (attempts <= 0) {
-        // Never silently: a dropped mode looks exactly like a mode that was
-        // never asked for, and the caller has already been told "requested".
+        // Logged: a dropped mode looks exactly like one never asked for.
         LogWarn(@"set_output_device: gave up waiting for the selection to settle; "
                 @"bit-perfect=%@ exclusive=%@ NOT applied",
                 bitPerfect ?: @"-", exclusive ?: @"-");
@@ -83,6 +72,11 @@ static void VibeApplyOutputModesWhenSelectionSettles(MainPlayerController *contr
             bitPerfect ?: @"-", exclusive ?: @"-");
 }
 
+// A conversion's file moves settle after the undo manager call returns, so the
+// reply waits on the controller's one-shot settled hook rather than racing the
+// Trash; a reply outliving the client's timeout writes one orphan response and
+// cannot fire on a later menu-driven undo. A non-conversion undo settles inside
+// the call and never fires the hook, so the post-call check answers it.
 static NSString *VibeRunUndoRedoCommand(NSString *commandId, MainPlayerController *controller, BOOL redo) {
     NSUndoManager *undoManager = controller.window.undoManager;
     if (controller.isConversionUndoRedoInFlight) {
@@ -112,9 +106,8 @@ static NSString *VibeRunUndoRedoCommand(NSString *commandId, MainPlayerControlle
     else {
         [controller undo:nil];
     }
-    // The hook is one-shot and clears itself as it fires. Still installed with
-    // no conversion transaction running means this undo never was a
-    // conversion's: it settled synchronously, so fire the same reply now.
+    // The hook clears itself as it fires. Still installed with no conversion
+    // in flight means this undo was not a conversion's: reply now.
     if (controller.conversionUndoRedoSettledHandler
             && !controller.isConversionUndoRedoInFlight) {
         controller.conversionUndoRedoSettledHandler = nil;
@@ -124,7 +117,7 @@ static NSString *VibeRunUndoRedoCommand(NSString *commandId, MainPlayerControlle
 }
 
 // A theme by stable id or display name (case-insensitive); nil when it names
-// nothing. Shared by set_theme and dump_theme.
+// nothing.
 static NSString *VibeThemeIdentifierMatching(NSString *query) {
     for (NSString *identifier in AppSettings.sharedInstance.orderedThemeIdentifiers) {
         NSString *name = [AppSettings.sharedInstance displayNameForThemeIdentifier:identifier];
@@ -150,32 +143,26 @@ static double VibeProcessCPUSeconds(void) {
             + (usage.ru_utime.tv_usec + usage.ru_stime.tv_usec) / 1e6;
 }
 
-// The command set. Dispatch, the unknown-command usage reply and the client's
-// per-verb wait all derive from this table, so adding an entry here is the
-// entire app-side hookup. The usage docs live in the vibe-debug skill.
+// Dispatch, the unknown-command reply and the client's per-verb wait all
+// derive from this table, so an entry here is the entire app-side hookup.
 NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
     static NSArray<NSDictionary *> *table;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         table = @[
-            // The stress driver's two oracles; see DebugHealth.h. dump_health
-            // and check_consistency (shared table) both reach the player's
-            // serial queue for the hosted-unit and render counts, so a wedged queue times
-            // them out rather than letting them answer from stale state.
+            // See DebugHealth.h. Reads the player's counts on its serial
+            // queue, so a wedged queue times this out rather than answering
+            // from stale state.
             VibeDebugCmd(@"dump_health", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugHealthJSON(controller);
             }),
-            // The render counters are cumulative; this zeroes them so a
-            // measurement phase is read on its own rather than as a delta
-            // against the previous sample. Same queue reach as dump_health.
+            // Zeroes the cumulative render counters, so a measurement phase
+            // reads on its own rather than as a delta.
             VibeDebugCmd(@"clear_render_counters", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 [controller.audioPlayer debugClearRenderCounters];
                 return VibeJSONString(@{@"ok": @YES});
             }),
-            // Async: it closes the file and then polls for the pending
-            // counters to unwind, so the response arrives from the poll rather
-            // than from here. Sample dump_health right after it for a reading
-            // taken at rest instead of mid-decode.
+            // Sample dump_health right after it for a reading taken at rest.
             VibeDebugCmd(@"quiesce", 20, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 VibeDebugQuiesce(controller, ^(NSString *response) {
                     VibeWriteDebugResponse(commandId, response);
@@ -200,9 +187,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 return nil;
             }),
             VibeDebugCmd(@"dump_now_playing_artwork", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                // Which image Now Playing's artwork was drawn from, by identity:
-                // the displayed track's art or thumbnail, or a side of the
-                // theme's placeholder with the reference that side names.
+                // Which image Now Playing's artwork was drawn from, by identity.
                 NSImage *published = controller.nowPlayingController.debugPublishedArtwork;
                 AudioTrack *track = controller.debugDisplayedTrack;
                 AppTheme *theme = AppSettings.sharedInstance.currentTheme;
@@ -238,19 +223,14 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 return VibeJSONString(@{@"menu": VibeMenuArray(NSApp.mainMenu)});
             }),
             VibeDebugCmd(@"dump_screenshot [- | <label>]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                // The arguments are client-side. "-" streams the PNG bytes to
-                // stdout, and inside a script the reply carries the PNG as
-                // base64, with a label naming the decoded file; see
-                // run-script.sh.
+                // The arguments are the client's; see DebugClient.m.
                 NSString *path = VibeDebugScreenshotPathForCommand(commandId);
                 if (!VibeDumpWindowSnapshot(path)) {
                     return VibeErrorJSON(@"screenshot failed to render or write; see app log");
                 }
                 return VibeJSONString(@{@"path": path});
             }),
-            // The settings window: a second window the injection verbs below
-            // cannot reach, since they all post into the player's event
-            // stream. DebugSettingsUI.m addresses its controls by name.
+            // See DebugSettingsUI.h.
             VibeDebugCmd(@"settings_open [pane [light|dark|system]]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugSettingsOpen(tokens);
             }),
@@ -266,15 +246,11 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             VibeDebugCmd(@"settings_resize <width> <height>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugSettingsResize(tokens);
             }),
-            // Store-writing: many menu items write settings (appearance,
-            // theme, Show File Info), and a scripted click never runs the
-            // menu-tracking notification a real menu interaction refreshes
-            // the panes through.
             VibeDebugCmd(@"click_menu <identifier-or-title>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: click_menu <identifier-or-title>");
                 }
-                // The rest of the tokens, so exact titles with spaces work too.
+                // The rest of the tokens, so titles with spaces work unquoted.
                 return VibeClickMenuItem(VibeRestArgument(tokens));
             }),
             VibeTransportCmd(@"skip_forward", ^(MainPlayerController *controller) { [controller skipForward:nil]; }),
@@ -284,8 +260,8 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             VibeTransportCmd(@"skip_back_more", ^(MainPlayerController *controller) { [controller skipBackMore:nil]; }),
             VibeTransportCmd(@"skip_back_most", ^(MainPlayerController *controller) { [controller skipBackMost:nil]; }),
             VibeTransportCmd(@"toggle_pitch_panel", ^(MainPlayerController *controller) { [controller togglePitchPanel:nil]; }),
-            // Model-level FX drivers intentionally bypass audioFXEnabled; use
-            // injected key events to exercise the shipping input gates.
+            // These bypass audioFXAllowed; inject key events to exercise the
+            // shipping input gates.
             VibeTransportCmd(@"toggle_low_kill", ^(MainPlayerController *controller) { [controller toggleLowKill:nil]; }),
             VibeTransportCmd(@"reverb_send_on", ^(MainPlayerController *controller) { [controller setReverbSendActive:YES]; }),
             VibeTransportCmd(@"reverb_send_off", ^(MainPlayerController *controller) { [controller setReverbSendActive:NO]; }),
@@ -309,9 +285,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 return VibeJSONString(@{@"ok": @YES, @"controlsHover": @(shown)});
             }),
             VibeDebugCmd(@"set_loading <off | indeterminate | fraction>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                // Drives the loading indicator directly, so both of its modes
-                // can be captured without a real slow cloud open — which is
-                // otherwise the only way in, and is unreproducible by nature.
+                // Both indicator modes, without a real slow cloud open.
                 NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
                 double fraction = -1;
                 if ([arg isEqualToString:@"off"]) {
@@ -326,9 +300,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 return VibeJSONString(@{@"ok": @YES, @"fraction": @(fraction)});
             }),
             VibeDebugCmd(@"set_folder_art <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                // Writes the setting and applies it live, as the Settings >
-                // Files control does; the pane itself cannot be driven from
-                // here.
+                // Writes and applies the setting as the Files pane's control does.
                 BOOL on;
                 if (!VibeParseOnOff(tokens, &on)) {
                     return VibeErrorJSON(@"usage: set_folder_art <on|off>");
@@ -360,8 +332,8 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 if ([AppTheme isBuiltInIdentifier:match]) {
                     return VibeErrorJSON(@"built-in themes cannot be removed: %@", match);
                 }
-                // Removing the active theme applies vibe in the store; the
-                // apply effect makes that visible, as set_theme's does.
+                // Removing the active theme applies the built-in Vibe theme
+                // in the store; the apply effect makes that visible.
                 BOOL wasActive = [AppSettings.sharedInstance.activeThemeIdentifier
                         isEqualToString:match];
                 [AppSettings.sharedInstance removeUserThemeWithIdentifier:match fallingBackTo:nil];
@@ -372,9 +344,8 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                         @"activeTheme": AppSettings.sharedInstance.activeThemeIdentifier,
                         @"themeCount": @(AppSettings.sharedInstance.orderedThemeIdentifiers.count)});
             }),
-            // Inline JSON or a path the APP can read (the container, or a
-            // granted folder) — the sandboxed open panel this bypasses is the
-            // UI's business.
+            // Inline JSON or a path the app can read (the container, or a
+            // granted folder).
             VibeDebugCmd(@"import_theme <json|path>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: import_theme <json|path>");
@@ -416,9 +387,6 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                                                                        options:0 error:NULL];
                 return VibeJSONString(@{@"ok": @YES, @"id": match, @"theme": record});
             }),
-            // App-side, not a CLI-process prefs write: the key-label display
-            // lives on the current theme, an in-memory object a cross-process
-            // defaults write cannot reach.
             VibeDebugCmd(@"set_appearance <light|dark|system>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSDictionary<NSString *, NSString *> *values = @{
                     @"light": SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT,
@@ -434,6 +402,9 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 [controller applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
                 return VibeJSONString(@{@"ok": @YES, @"windowAppearance": tokens[1]});
             }),
+            // App-side, not a CLI prefs write: the key display lives on the
+            // current theme, an in-memory object a cross-process defaults
+            // write cannot reach.
             VibeDebugCmd(@"set_key_display <camelot|musical> <colors|plain>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSDictionary<NSString *, NSString *> *notations = @{
                     @"camelot": SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
@@ -454,22 +425,14 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                                         @"keyColors": @(colorsOn)});
             }),
 
-            // Addressed by UID, not device id. A HAL device id is transient —
-            // an unplug and replug can return the same hardware under a new
-            // one (108 -> 126 -> 111 observed across three cycles) — so an id
-            // is useless to the one test this verb exists for. UID is also
-            // what AppSettings keys the per-device modes by. Name is accepted
-            // as a fallback in the same order resolveOutputDeviceForUID:name:
-            // uses, because a human driving a test can type "Audient iD4" and
-            // cannot type RMEUSBDevice-205-24240711 from memory.
+            // By UID, not HAL device id, which an unplug and replug can
+            // change; UID is also what AppSettings keys per-device modes by.
+            // Name is the fallback, in resolveOutputDeviceForUID:name:'s
+            // order, because a human can type a name but not a UID.
             //
-            // The modes cannot be applied in this call: selection settles
-            // asynchronously and their setters write the SAVED device's mode,
-            // so writing them now would name the device being left. Blocking
-            // here would deadlock the settlement this thread has to return for.
-            // They are therefore requested on main once the selection clears,
-            // and the reply says requested, not applied — confirm with
-            // dump_state.player.bitPerfect like any other action verb.
+            // The modes are only requested here (see
+            // VibeApplyOutputModesWhenSelectionSettles); confirm with
+            // dump_state.player.bitPerfect.
             VibeDebugCmd(@"set_output_device <uid|name|system> [<bit-perfect on|off> [<exclusive on|off>]]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 if (tokens.count < 2 || tokens.count > 4) {
                     return VibeErrorJSON(@"usage: set_output_device <uid|name|system> [<bit-perfect on|off> [<exclusive on|off>]]");
@@ -544,13 +507,11 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 return VibeJSONString(@{@"ok": @YES});
             }),
             VibeDebugCmd(@"set_bit_perfect <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                // The pane's toggle, minus the pane's eligibility gate: the
-                // mode can be forced on over an ineligible device here, and
-                // the report then reads off — which is what a test of that
-                // gate wants to see. Like the pane it writes the SAVED
-                // device's mode, so it follows a device switch only once
-                // dump_state shows the new binding, and System Output, having
-                // no UID to remember it under, answers off.
+                // The pane's toggle minus its eligibility gate: forcing the
+                // mode on over an ineligible device, the report reads off,
+                // which is what a test of that gate wants. Like the pane it
+                // writes the SAVED device's mode, and System Output, with no
+                // UID to remember it under, answers off.
                 BOOL on;
                 if (!VibeParseOnOff(tokens, &on)) {
                     return VibeErrorJSON(@"usage: set_bit_perfect <on|off>");
@@ -566,8 +527,6 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 });
             }),
             VibeDebugCmd(@"set_declick <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                // The pane's switch without its gate: the choice is stored and
-                // pushed whatever the mode, and applies in every mode.
                 BOOL on;
                 if (!VibeParseOnOff(tokens, &on)) {
                     return VibeErrorJSON(@"usage: set_declick <on|off>");
@@ -614,8 +573,8 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     [window setFrame:frame display:YES];
                     return reply();
                 }
-                // Public AppKit frame changes, one per run-loop turn at 60 Hz.
-                // This exercises layout and rendering, not an NSEvent tracking loop.
+                // Frame changes at 60 Hz: layout and rendering, not an NSEvent
+                // tracking loop.
                 NSUInteger steps = (NSUInteger)ceil(seconds * 60);
                 __block NSUInteger step = 0;
                 NSTimer *timer = [NSTimer timerWithTimeInterval:seconds / steps repeats:YES block:^(NSTimer *timer) {
@@ -650,8 +609,8 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 MainWindow *window = (MainWindow *)controller.window;
                 NSRect originalFrame = window.frame;
                 [window setFrame:VibeWindowFrameForBodyWidth(window, minWidth) display:YES];
-                // Warm the first layout, then measure at display cadence without
-                // a command/response file round-trip on every frame.
+                // Warm the first layout, then measure at display cadence with
+                // no channel round trip per frame.
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                     NSMutableArray<NSNumber *> *durations = [NSMutableArray arrayWithCapacity:frames];
                     double cpuStart = VibeProcessCPUSeconds();
@@ -749,26 +708,21 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 if (tokens.count < 2 || !VibeParseDouble(tokens[1], &percent)) {
                     return VibeErrorJSON(@"usage: set_pitch <percent>");
                 }
-                // Through the panel first, so that the fader clamps to its
-                // range exactly as a drag would, and then the player takes the
-                // clamped value.
+                // Through the panel first, so the fader clamps as a drag would.
                 controller.pitchPanel.pitch = (float)percent;
                 controller.audioPlayer.pitch = controller.pitchPanel.pitch;
                 [controller debugRefreshUI];
                 return VibeJSONString(controller.debugActionSummary);
             }),
-            // These are normally never reached from the CLI, because the
-            // client runs scan_bpm and scan_key locally; see
-            // VibeDebugCommandClientMain. The entries exist for the usage
-            // listing and for callers that post the command file directly.
-            // They are the same core functions either way.
+            // The CLI client runs the scans locally, so these serve the usage
+            // listing and callers that post the command file directly.
             VibeDebugCmd(@"scan_bpm <file>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSString *errorJSON = nil;
                 NSString *path = VibeExistingFileArgument(tokens, &errorJSON);
                 if (!path) {
                     return errorJSON;
                 }
-                // A full-file decode, so keep it off the main thread.
+                // A full-file decode: off the main thread.
                 dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
                     VibeWriteDebugResponse(commandId, VibeDebugBPMScanJSON(path));
                 });
@@ -785,8 +739,8 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 });
                 return nil; // response written by the block above
             }),
-            // The write without its panel; the path must be writable by the
-            // sandboxed app (the container's tmp, or a granted folder).
+            // The path must be writable by the sandboxed app (the container's
+            // tmp, or a granted folder).
             VibeDebugCmd(@"save_playlist <path>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: save_playlist <path>");
@@ -806,13 +760,10 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 return VibeJSONString(controller.debugLastPlaylistDictionary);
             }),
             // The whole Convert to FLAC path on the current track, swap and
-            // disposal included. The optional keep|delete token writes Convert
-            // > Delete Original, as the menu item does, and leaves it written.
+            // disposal included. keep|delete writes Delete Original After
+            // Convert, as the menu item does, and leaves it written.
             // omit-trash-url is a one-shot fault for the ambiguous successful
-            // Trash result; applied only once the command will actually convert.
-            // The 120-second clientTimeout covers a long encode. Store-writing
-            // because [keep|delete] sets deleteOriginalAfterConvert, a Convert
-            // pane row.
+            // Trash result, armed only once the command will convert.
             VibeDebugCmd(@"convert_to_flac [keep|delete] [omit-trash-url]", 120, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSString *mode = tokens.count > 1 ? tokens[1].lowercaseString : nil;
                 NSString *fault = tokens.count > 2 ? tokens[2].lowercaseString : nil;
@@ -827,12 +778,11 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 if (!track) {
                     return VibeErrorJSON(@"no track to convert");
                 }
-                // Refuse before touching the one-shot fault. Command handlers
-                // may overlap while an earlier async conversion is running;
-                // clearing or arming its hook here would change that request's
-                // undo record. Mirror the converter's synchronous refusals so
-                // an unaccepted request never leaves a fault awaiting some
-                // later conversion either.
+                // Refuse before touching the one-shot fault: clearing or arming
+                // it while an earlier conversion runs would change that
+                // request's undo record. Mirroring the converter's synchronous
+                // refusals also keeps an unaccepted request from leaving a
+                // fault for some later conversion.
                 if (controller.fileConverter.isConverting) {
                     return VibeErrorJSON(@"conversion already in progress");
                 }
@@ -855,9 +805,8 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 NSString *sourcePath = track.url.path;
                 [controller convertTrackToFLAC:track
                                     completion:^(NSURL *outputURL, BOOL sourceDeleted, NSError *error) {
-                    // Source disposal normally consumes this before starting
-                    // its move. Cancel only if this request still owns a fault
-                    // left pending by an earlier conversion failure.
+                    // Source disposal normally consumes the fault; cancel it
+                    // only if this request's is still pending after a failure.
                     if (faultOwner) {
                         [controller.fileConverter
                                 debugCancelPendingSourceTrashURLFaultWithOwner:faultOwner];

@@ -12,10 +12,7 @@
 @interface AudioTrack ()
 @property(copy, readwrite) NSURL *url;
 @property(atomic, strong, nullable, readwrite) AudioTrackMetadata *metadata;
-// cacheKey's memo. It is atomic so that the lock-free fast-path read below is
-// race-free against the first store. A plain ivar read racing the
-// @synchronized writer is formally a torn read, even though an aligned pointer
-// store makes it benign in practice.
+// Atomic, so cacheKey's lock-free fast-path read cannot race the first store.
 @property (atomic, copy, nullable) NSString *memoizedCacheKey;
 @end
 
@@ -62,22 +59,14 @@
 }
 
 - (nullable NSString *)cacheKey {
-    // Double-checked, so the fast path avoids the monitor once the key is
-    // computed. The atomic property read makes it race-free; see the
-    // declaration.
     NSString *key = self.memoizedCacheKey;
     if (!key) {
-        // Compute outside the lock. The file-attribute stat can block
-        // indefinitely on a hung network mount or a dataless cloud file, and
-        // holding the monitor through it would wedge every other caller, since
-        // the metadata and waveform loaders both key off this. Concurrent
-        // callers may compute twice, but the results are identical and the
-        // first store wins, because the monitor makes the check-then-store
-        // atomic.
+        // Outside the monitor: the stat can block indefinitely on a hung
+        // mount or a dataless file, and would wedge every caller with it.
+        // Concurrent callers may compute twice; the first store wins.
         key = [self.url cacheKey];
         if (!key) {
-            // The stat failed; see NSURL+Hash. That is probably transient, so
-            // do not memoize, and the next call retries.
+            // Probably transient: not memoized, so the next call retries.
             return nil;
         }
         @synchronized (self) {
@@ -112,9 +101,6 @@
 }
 
 - (VibeImage *)cachedArt {
-    // Non-blocking on purpose, because the main thread reads it in updateUI
-    // and for the dock icon. Extraction that needs a file read happens in the
-    // background load MainPlayerController starts when artNeedsLoad.
     return self.metadata.cachedArt;
 }
 
@@ -128,17 +114,13 @@
 }
 
 - (VibeMusicalKey)key {
-    // The nil check is load-bearing: messaging a nil metadata returns 0 for
-    // NSInteger, and 0 is C major, not "no key".
+    // A message to nil metadata would answer 0, which is C major.
     AudioTrackMetadata *metadata = self.metadata;
     VibeMusicalKey tagged = metadata ? metadata.key : VibeMusicalKeyNone;
     return tagged >= 0 ? tagged : self.detectedKey;
 }
 
-// _duration is written from the player queue, where finishPlayOnQueue
-// publishes the decoded length, while the main thread reads it for cell
-// rendering. That is the same cross-thread shape as the atomic metadata
-// property, guarded here with the monitor the file already uses for cacheKey.
+// Written on the player queue (finishPlayOnQueueWithFile:), read on main.
 - (NSTimeInterval)duration {
     NSTimeInterval duration;
     @synchronized (self) {
@@ -161,10 +143,8 @@
     if (duration <= 0) {
         return @"";
     }
-    // Memoized per duration value, since this is a hot path during table cell
-    // rebuilds. Main thread only, unlike duration: Formatters has no
-    // documented thread safety, and the monitor guards only the memo pair, not
-    // the formatter.
+    // Main thread only: the monitor guards the memo pair, not Formatters,
+    // which is not documented thread-safe.
     @synchronized (self) {
         if (!_durationString || _durationStringDuration != duration) {
             _durationString = [[Formatters sharedInstance] durationStringFromTimeInterval:duration];
@@ -192,9 +172,8 @@
         return [NSString stringWithFormat:STR_LABEL_TRACK_ARTIST_TITLE, self.artist, self.title];
     }
     else {
-        // The title never carries an extension, since both fallbacks strip it,
-        // and re-stripping a real tagged title would mangle names like
-        // "Vol. 2".
+        // No extension to strip: both fallbacks already did, and stripping a
+        // tagged title would mangle "Vol. 2".
         return [self.title stringByReplacingOccurrencesOfString:@"_" withString:@" "];
     }
 }

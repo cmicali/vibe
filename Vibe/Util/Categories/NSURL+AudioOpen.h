@@ -9,8 +9,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface NSURL (AudioOpen)
 
-// YES when the path holds no bytes for a decoder to read: a zero-length file
-// or a directory. One stat, no opens — cheap enough for list filtering.
+// A zero-length file or a directory. One stat, no open; NO when the stat
+// fails, so the real open reports why.
 @property (nonatomic, readonly) BOOL isEmptyOrDirectory;
 
 @end

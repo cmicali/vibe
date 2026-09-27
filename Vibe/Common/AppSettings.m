@@ -2,11 +2,6 @@
 //  AppSettings.m
 //  Vibe
 //
-// Laid out like the header: what both targets compile, and an iOS-only block
-// for the loose appearance keys the mac theme migration consumed. The macOS
-// half is Mac/AppSettings+Mac.m, reached from here only through the guarded
-// hooks AppSettingsInternal.h declares.
-//
 
 #import "AppSettings.h"
 #import "AppSettingsInternal.h"
@@ -111,8 +106,8 @@ const size_t kVibeCrossfadePresetCount =
 #endif
 }
 
-// Versions before the styleIdentifier/displayName split stored the renderer's
-// English display name in this setting. Frozen list of every value ever written.
+// Old builds stored the renderer's English display name. Frozen: every value
+// ever written.
 static NSString *NormalizedWaveformStyle(NSString *stored) {
     static NSDictionary<NSString *, NSString *> *legacy;
     static dispatch_once_t once;
@@ -129,7 +124,6 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     return stored ? (legacy[stored] ?: stored) : nil;
 }
 
-// Migrate a legacy value in place, once at init, so the getter is a pure read.
 - (void)migrateLegacyWaveformStyle {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     NSString *stored = [defaults stringForKey:SETTING_WAVEFORM_STYLE];
@@ -148,9 +142,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     [[NSUserDefaults standardUserDefaults] setObject:identifier forKey:SETTING_WAVEFORM_STYLE];
 }
 
-// Absent OR empty reads as nil, "match the app": the picker writes nil for
-// that row, and an empty string from a hand-edited defaults plist must not
-// resolve to some arbitrary registered style.
+// Empty reads as nil too, so a hand-edited plist cannot name no style.
 - (NSString *)widgetWaveformStyle {
     NSString *identifier = [[NSUserDefaults standardUserDefaults]
             stringForKey:SETTING_WIDGET_WAVEFORM_STYLE];
@@ -168,9 +160,6 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 }
 #endif
 
-// The style/theme split left existing Sonic Cirrus users' orange to this
-// one-time write; after it a theme key always exists. Runs before
-// registerDefaults — see init.
 - (void)migrateWaveformTheme {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     NSString *migrated = VibeMigratedWaveformTheme([defaults stringForKey:SETTING_WAVEFORM_THEME],

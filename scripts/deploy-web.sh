@@ -1,39 +1,26 @@
 #!/usr/bin/env bash
 #
-# Publish Assets/Web to Cloudflare Pages.
+# Publish Assets/Web to Cloudflare Pages, which serves vibeplayer.app.
 #
 #   scripts/deploy-web.sh [--dry-run] [--skip-link-check] [--skip-branch-check]
 #                         [--wrangler-login]
 #
-# The site is static — no build step on either host — so this uploads the
-# directory as it stands. GitHub Pages is not deployed from here: its workflow
-# (.github/workflows/pages.yml) triggers on a push to main touching
-# Assets/Web/**, so committing is what updates that copy. Cloudflare serves the
-# canonical URL and is deployed on purpose, at release time, which is why this
-# is a script and not a second push trigger.
+#   --dry-run            list what would upload; needs no credentials
+#   --skip-link-check    deploy even if the page's .dmg link is not a 200
+#   --skip-branch-check  deploy even if Assets/Web differs from origin/main
+#   --wrangler-login     authenticate with this machine's `wrangler login`
+#                        instead of CLOUDFLARE_API_TOKEN
 #
-# LOCAL ONLY, deliberately. This step needs a Cloudflare API token, and that
-# token is not going into CI: a repository secret is readable by any workflow
-# change, and the whole point of a static site is that publishing it needs no
-# standing credential in a shared place. The token lives in the gitignored
-# .release-env on the machine that cuts releases, beside the App Store Connect
-# keys, and the script refuses to run in CI so that a later "just add it to a
-# workflow" has to be a deliberate act rather than a passing convenience.
+# The site is static: this uploads the directory as it stands. GitHub Pages is
+# the other copy, published by .github/workflows/pages.yml on a push to main.
 #
-# GitHub Pages is the copy CI is allowed to publish, precisely because it needs
-# no secret — .github/workflows/pages.yml deploys with the workflow's own OIDC
-# token and nothing else.
+# LOCAL ONLY, and it refuses to run in CI. The Cloudflare token lives in the
+# gitignored .release-env rather than in CI secrets, where any workflow change
+# could read it; GitHub Pages is the copy CI publishes because it needs none.
 #
-# Before uploading it checks three things. That Assets/Web matches origin/main,
-# because this uploads the working tree rather than a commit — being on the
-# wrong branch, or holding an uncommitted edit, would otherwise put something
-# on the canonical domain that is in no branch at all, and leave the two hosts
-# serving different sites. That the .dmg the page advertises actually resolves.
-# A page whose Download button 404s is worse than a stale one, and the link is
-# only correct because web-set-version.sh rewrote it — this is the check that
-# the rewrite and the release actually happened in that order. And that the
-# /download rules in _redirects still name that same file, since the branded
-# link is the half no page displays.
+# Before uploading it checks that Assets/Web matches origin/main, that the
+# asset stamps are current, that the page's .dmg link resolves, and that the
+# /download rules in _redirects name the same file.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -56,12 +43,8 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-# ---------------------------------------------------------------------------
-# Preflight.
-# ---------------------------------------------------------------------------
 [[ -f "$PAGE" ]] || { echo "error: $PAGE not found" >&2; exit 1; }
 
-# See the header: the Cloudflare token is a local credential on purpose.
 if [[ -n "${CI:-}${GITHUB_ACTIONS:-}${GITLAB_CI:-}${BUILDKITE:-}" ]]; then
     cat >&2 <<'MSG'
 error: deploy-web is local-only and will not run in CI.
@@ -85,10 +68,8 @@ command -v npx >/dev/null || {
 PROJECT="${CLOUDFLARE_PAGES_PROJECT:-vibe}"
 
 
-# What gets uploaded is the working tree, so "it is committed" is not enough —
-# it has to be committed to the branch GitHub Pages publishes, or the two hosts
-# diverge. Checked in two parts because they fail for different reasons and
-# want different fixes.
+# The upload is the working tree, so it must match what GitHub Pages publishes
+# or the two hosts diverge.
 if [[ "$CHECK_BRANCH" == 1 ]]; then
     git fetch -q origin main 2>/dev/null || \
         echo "warning: could not reach origin — comparing against a possibly stale origin/main" >&2
@@ -112,23 +93,18 @@ if [[ "$CHECK_BRANCH" == 1 ]]; then
     fi
 fi
 
-# A stylesheet whose hash does not match what the pages link is the one failure
-# that looks like the deploy did nothing: correct markup, cached old rules.
+# A stale stamp looks like a deploy that did nothing: new markup, cached assets.
 scripts/web-stamp-assets.sh --check
 
-# The button's href is the one thing on the page that can be wrong in a way a
-# visitor notices immediately.
 DMG_URL="$(perl -ne 'print $1 if /id="dmg-link"\s+href="([^"]+)"/' "$PAGE")"
 if [[ -z "$DMG_URL" ]]; then
     echo "error: no id=\"dmg-link\" href in $PAGE — has the button markup changed?" >&2
     exit 1
 fi
 
-# /download/latest is the URL external links use, so it is the one nobody here
-# would notice going stale — no page shows where it lands, and it answers 302
-# whatever it points at. Both come out of the same web-set-version.sh run, so a
-# disagreement means one of the two rewrites was undone by hand. Costs nothing,
-# so it runs even under --skip-link-check.
+# /download/latest is what external links use, and no page shows where it
+# lands. web-set-version.sh writes it and the button from one URL, so a
+# mismatch is a hand edit. Free, so it runs even under --skip-link-check.
 while read -r RULE TARGET CODE; do
     if [[ "$TARGET" != "$DMG_URL" ]]; then
         cat >&2 <<MSG
@@ -172,9 +148,6 @@ MSG
     fi
 fi
 
-# ---------------------------------------------------------------------------
-# Deploy.
-# ---------------------------------------------------------------------------
 if [[ -n "$DRY_RUN" ]]; then
     echo "🔊 dry run — would upload $(find "$DIR" -type f | wc -l | tr -d ' ') files ($(du -sh "$DIR" | cut -f1)) to Pages project '$PROJECT':"
     find "$DIR" -type f | sed 's|^|     |' | sort
@@ -184,11 +157,8 @@ fi
 
 PROJECT="${CLOUDFLARE_PAGES_PROJECT:-vibe}"
 
-# An interactive `wrangler login` on this machine is also a local-only
-# credential, so it is a legitimate alternative to the token — just a less
-# durable one, since the OAuth session expires. Opt in explicitly rather than
-# sniffing wrangler's cache, so a release never silently changes how it
-# authenticates.
+# Opt-in rather than sniffed from wrangler's cache, so a release never silently
+# changes how it authenticates.
 if [[ -n "$USE_LOGIN" ]]; then
     echo "🔊 using this machine's wrangler login rather than a token"
 elif [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
@@ -216,8 +186,7 @@ error: Cloudflare credentials not configured.
 MSG
     exit 1
 else
-    # The account id is only needed to disambiguate a token that can reach
-    # several accounts; wrangler resolves a single-account token by itself.
+    # The account id only disambiguates a token that reaches several accounts.
     export CLOUDFLARE_API_TOKEN
     [[ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]] && export CLOUDFLARE_ACCOUNT_ID
 fi

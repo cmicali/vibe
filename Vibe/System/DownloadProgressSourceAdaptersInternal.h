@@ -7,8 +7,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Construction boundaries only. Notifications, filtering, KVO and teardown
-// remain inside the production adapters under host-less tests.
+// Construction boundaries only; the rest stays production under tests.
 typedef NSMetadataQuery * _Nonnull (^DownloadMetadataQueryFactory)(void);
 typedef BOOL (^DownloadUbiquitousItemProbe)(NSURL *url);
 

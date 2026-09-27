@@ -12,16 +12,9 @@
 
 static const CGFloat kPlaybackPopUpWidth = 200;
 
-// Stable identifiers on the On track end items, never their localized titles,
-// so the debug channel can pick one by name.
+// Stable identifiers, so the debug channel can pick an item by name.
 static NSString *const kOnEndPlayNext = @"play_next";
 static NSString *const kOnEndPause = @"pause";
-
-// The preset values live beside their getters, which snap persisted values to
-// them: kVibeSkipBasePresets in AppSettings+Mac.h (the smallest skip's bar
-// count, the three sizes being the base, twice and four times it) and
-// kVibeCrossfadePresets in AppSettings.h (milliseconds, 10 the declick minimum
-// the engine always applies — effectively instant; iOS offers the same three).
 
 @implementation SettingsPlaybackViewController {
     NSPopUpButton *_onEndPopUp;
@@ -42,8 +35,7 @@ static NSString *const kOnEndPause = @"pause";
     [self addItem:STR_SETTINGS_ON_END_PLAY_NEXT value:kOnEndPlayNext to:_onEndPopUp];
     [self addItem:STR_SETTINGS_ON_END_PAUSE value:kOnEndPause to:_onEndPopUp];
 
-    // Radio buttons group by shared action, which is exactly what these two
-    // have.
+    // Radio buttons group by shared action.
     _pitchRange8 = [NSButton radioButtonWithTitle:STR_MENU_PITCH_RANGE_8
                                            target:self action:@selector(pitchRangeChanged:)];
     _pitchRange8.tag = 8;
@@ -74,8 +66,6 @@ static NSString *const kOnEndPause = @"pause";
 
     _enableFXSwitch = [self switchWithAction:@selector(toggleEnableFX:)];
     _detectBPMSwitch = [self switchWithAction:@selector(toggleDetectBPM:)];
-    // How the key is written and colored is Appearance's business; this pane
-    // only decides whether it is detected at all.
     _detectKeySwitch = [self switchWithAction:@selector(toggleDetectKey:)];
 
     _crossfadeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_CROSSFADE_LABEL control:_crossfadePopUp];
@@ -107,11 +97,8 @@ static NSString *const kOnEndPause = @"pause";
     [_skipStepsPopUp selectItemWithTag:AppSettings.sharedInstance.skipBaseBars];
     [_crossfadePopUp selectItemWithTag:AppSettings.sharedInstance.crossfadeMilliseconds];
     _enableFXSwitch.state = AppSettings.sharedInstance.audioFXEnabled ? NSControlStateValueOn : NSControlStateValueOff;
-    // Bit-perfect output outranks both: it holds the crossfade at the declick
-    // minimum and turns FX off, so neither control has anything to govern
-    // while it is on.
-    // The pane is remeasured by the caller of every refresh, so the captions'
-    // change answers go unread here.
+    // Bit-perfect output outranks both. The caller of every refresh
+    // remeasures the pane, so the captions' answers go unread.
     BOOL bitPerfect = AppSettings.sharedInstance.bitPerfectOutput;
     [SettingsRowView setControl:_crossfadePopUp enabled:!bitPerfect];
     [SettingsRowView setControl:_enableFXSwitch enabled:!bitPerfect];
@@ -123,9 +110,8 @@ static NSString *const kOnEndPause = @"pause";
 
 - (void)onEndChanged:(id)sender {
     AppSettings.sharedInstance.pauseAtTrackEnd = [_onEndPopUp.selectedItem.representedObject isEqual:kOnEndPause];
-    // TRAP: EndOfTrack must follow the write. It re-parks or drops the player's
-    // successor handle; without it a mid-track switch to Pause leaves an armed
-    // gapless splice that advances past the end anyway.
+    // TRAP: without EndOfTrack, a mid-track switch to Pause leaves the armed
+    // gapless successor, which advances anyway.
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
 }
 

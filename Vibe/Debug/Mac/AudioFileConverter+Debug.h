@@ -14,8 +14,8 @@ NS_ASSUME_NONNULL_BEGIN
 @interface AudioFileConverter (Debug)
 
 // Arms one accepted conversion to report a successful source Trash without a
-// resulting URL. The returned owner lets an async completion cancel only its
-// own still-pending fault.
+// resulting URL; nil when a fault is already armed. The returned owner lets an
+// async completion cancel only its own still-pending fault. Main thread.
 - (nullable id)debugArmOmitNextSourceTrashURL;
 - (void)debugClearPendingSourceTrashURLFault;
 - (void)debugCancelPendingSourceTrashURLFaultWithOwner:(id)owner;

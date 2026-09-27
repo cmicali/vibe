@@ -72,14 +72,12 @@ typedef struct {
 // inRender).
 struct VibeMasterBus {
     _Atomic int32_t gate;            // 1 while the output may render
-    // The pipeline's door: 1 while a render is inside, taken at the entry and
-    // released at the exit by that render alone. A second render finding it
-    // taken — an output unit's callback outlived its bounded stop and another
-    // output unit's began — renders silence and touches nothing, so no two
-    // renders are ever inside the same state, and the queue's evidence that
-    // one is inside is that render's own. TRAP: a flag any render could
-    // clear let the new output unit's first callback clear the stuck one's, and
-    // the drain then freed the bus that render was still mixing.
+    // The pipeline's door: 1 while a render is inside. A second render finding
+    // it taken (a callback outlived its unit's bounded stop while the next
+    // unit began) renders silence and touches nothing. TRAP: only the render
+    // that took the door releases it; a flag any render could clear lets the
+    // new unit's first callback clear the stuck one's, and the drain frees the
+    // bus that render is still mixing.
     _Atomic int32_t inRender;
     _Atomic uint64_t refusedRenders; // renders the door turned away; a soak holds it at zero
     _Atomic uint64_t frames;         // the output timeline: frames rendered
@@ -102,8 +100,7 @@ struct VibeMasterBus {
     _Atomic uint64_t varispeedHistoryWrites; // ring writes: none at zero pitch outside a transition
 #if DEBUG
     // A test's stuck render: while set, a render blocks inside the pipeline
-    // after it has read the bus — the schedule that freed a bus under a
-    // render — and rendersHeld counts the renders blocked there.
+    // after reading the bus; rendersHeld counts them.
     _Atomic int32_t holdRenderInside;
     _Atomic int32_t rendersHeld;
 #endif
@@ -133,8 +130,8 @@ static inline void VibeMasterBusHoldWait(void) CA_REALTIME_API {
 #endif
 VIBE_REALTIME_END
 
-// Everything the audio thread does. Plain memory and atomics, no call that
-// can block; the pragma makes the compiler hold that line.
+// Everything the audio thread does; the checked region makes a blocking call a
+// build error.
 VIBE_REALTIME_CHECKED_BEGIN
 static inline uint32_t VibeMasterBusChannels(const VibeMasterBus *master) CA_REALTIME_API {
     return atomic_load_explicit(&master->channels, memory_order_relaxed);
@@ -502,14 +499,11 @@ VIBE_REALTIME_END
 
 - (void)createOutputOnQueue {
 #if DEBUG
-    // --no-audio-hw, for testing: no output unit at all, on either platform. The
-    // pump stands in for the IO thread, calling the pipeline at real-time
-    // pace or, frame-driven, when a test asks. Starting the hardware IO —
-    // even muted — counts as the Mac playing audio, which is enough for
-    // macOS to yank auto-switching AirPods over from another device mid-test.
-    // --silent, for testing: the pipeline renders normally, the meter sees
-    // the signal, and the buffers are zeroed on their way to the device,
-    // which still gets opened and driven.
+    // --no-audio-hw: no output unit; the pump stands in for the IO thread, at
+    // real-time pace or frame-driven by a test. Even muted, hardware IO counts
+    // as playing, which lets macOS pull auto-switching AirPods mid-test.
+    // --silent: the device is driven, and the buffers are zeroed after the
+    // meter.
     VibeManualRenderPump *pump = _manualPump;
     BOOL noAudioHW = pump != nil || [NSProcessInfo.processInfo.arguments containsObject:@"--no-audio-hw"];
     atomic_store_explicit(&_masterBus->silent, [NSProcessInfo.processInfo.arguments containsObject:@"--silent"] ? 1 : 0,
@@ -550,12 +544,10 @@ VIBE_REALTIME_END
     };
 }
 
-// The unit stopped without being asked — unless a later start or stop, or
-// another unit, owns the output, which makes this moot. The output is
-// stopped either way, so the model follows at the edge. A stop the system
-// made (iOS, no error) is all: the session's verdict decides what the
-// transport does. A refused start also parks the current voice Paused where
-// it is and tells the owning play.
+// Moot when a later start or stop, or another unit, owns the output. A system
+// stop (iOS, no error) only stops the output: the session's verdict decides
+// the transport. A refusal also parks the current voice Paused and tells the
+// owning play.
 - (void)outputUnitFailedOnQueue:(NSError *)error runGeneration:(uint64_t)runGeneration bindRefused:(BOOL)bindRefused {
     if (_terminating || !_outputUnit || runGeneration != _outputUnit.runGeneration) {
         return;
@@ -696,9 +688,6 @@ VIBE_REALTIME_END
     BOOL wanted = _levelsWanted || self.signalProbeWanted;
     if (wanted) {
         if (!_levelMeter && _levelPublisher && _masterFormat) {
-            // The final output samples, the only place the bars can follow
-            // what is actually heard: after the FX returns re-enter, before
-            // --silent.
             _levelMeter = [[AudioLevelMeter alloc] initWithFormat:_masterFormat publisher:_levelPublisher
                                             normalizationMode:_levelNormalizationMode];
         }
@@ -731,13 +720,10 @@ VIBE_REALTIME_END
     [self afterRenderLeavesOnQueue:^{ (void)meter; }];
 }
 
-// The withdrawal was published before this is called: a render that read
-// the object set inRender before that store was seen, and finishes on its
-// own within a block's time, so a render seen outside guarantees none is
-// inside. TRAP: NO means the bound ran out with a render still inside, and
-// the caller must not free or reset what that render could be inside — the
-// timeout is a fact about the render, never permission; a withdrawal defers
-// its teardown through afterRenderLeavesOnQueue: instead.
+// Called after the withdrawal is published, so a render seen outside is
+// outside for good. TRAP: NO means a render is still inside; the caller must
+// not free or reset anything it could be inside — the timeout is never
+// permission. Teardowns go through afterRenderLeavesOnQueue:.
 - (BOOL)waitForRenderToLeaveOnQueue {
     VibeMasterBus *master = _masterBus;
     uint64_t frames = atomic_load_explicit(&master->frames, memory_order_relaxed);
@@ -791,13 +777,11 @@ VIBE_REALTIME_END
     }
     atomic_store_explicit(&_masterBus->mix, NULL, memory_order_seq_cst);
     // TRAP: the new voice takes the same AudioFileHandle, and the old bus's
-    // decoder may be inside a read of it — its queued turns retain the bus,
-    // not this player. Its reads are stopped, and every file it may be
-    // inside is withheld from the new bus's voices until it has left them
-    // (retiredDecoderLeftOnQueue:), so two decoders never move one file's
-    // cursor; without that the new voice ended early. Never joined here: a
-    // read on a stalled mount held the player queue, and every transport
-    // command behind it, for its whole stall.
+    // decoder may be inside a read of it (its queued turns retain the bus).
+    // Its files are withheld from the new bus until it leaves them
+    // (retiredDecoderLeftOnQueue:), so two decoders never move one cursor.
+    // Never joined: a read on a stalled mount would hold the player queue for
+    // the whole stall.
     NSSet<AudioFileHandle *> *files = old.filesInUse;
     for (AudioFileHandle *file in files) {
         [_retiredDecoderFiles addObject:file];
@@ -828,13 +812,10 @@ VIBE_REALTIME_END
 
 #if !TARGET_OS_OSX
 // The iOS media-services reset: every audio object is dead and must not be
-// messaged. The gate closes first, so a late render writes silence — the
-// unit is dead, but the guarantee costs nothing — and the bus and the
-// meter go with it, the voices' files having died with the media server.
-// The unit is released unstopped: its dealloc disposes the instance, which
-// is what the reset contract asks of an orphaned audio object. The park and the
-// pending open go too: the file handles they would produce are dead, and a
-// download without a consumer is waste. createOutputOnQueue rebuilds.
+// messaged. The player only releases the unit; its dealloc then stops,
+// uninitializes and disposes it, and the disposal is what the reset
+// contract asks. The park and pending open go too,
+// since their handles would be dead. createOutputOnQueue rebuilds.
 - (void)dropOutputBoundStateOnQueue {
     if (_drainTimer) {
         dispatch_source_cancel(_drainTimer);
@@ -1017,8 +998,8 @@ void VibeMasterBusFree(VibeMasterBus *master) {
         return YES;
     }
     // Every voice dies with the old segment; the callers made sure none was
-    // audible. The output must be stopped to rebuild. The bus pointer is
-    // written under the lock because the position getter reads it off it.
+    // audible. The bus pointer is written under the lock the position getter
+    // reads it under.
     [self stopOutputOnQueue];
     [self dropVoiceBusOnQueue];
     [self disposeVarispeedOnQueue];
@@ -1054,13 +1035,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     return YES;
 }
 
-// Makes the source segment what the mode and the output's format want, and
-// keeps the current track across a rebuild: the intent is read first, since
-// the rebuild kills the voice the position comes from, and a killed current
-// voice is started again at it — position, and playing or paused — with the
-// tuple published; the caller restarts the output for a playing one. A
-// Loading track's open starts itself; a Stopped one keeps its finished
-// track and is not resurrected.
+// A Loading track's open starts itself; a Stopped one is not resurrected.
 - (BOOL)reconcileSourceSegmentOnQueue {
     VibePendingPlaybackIntent intent = VibePendingPlaybackIntentMake(0, NO);
     AudioFileHandle *file = _file;
@@ -1140,9 +1115,9 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     }
     _outputIdleStopGeneration++; // playback is starting: cancel any pending idle stop
     if (![self renderingOnQueue]) {
-        // TRAP: only the manual pump may start without a production output unit.
-        // Otherwise Playing and didStartPlaying: had no render callback to
-        // advance the voice; the shell received neither audio nor an error.
+        // TRAP: only the manual pump may start without an output unit;
+        // otherwise Playing and didStartPlaying: publish with no callback to
+        // advance the voice, and the shell gets neither audio nor an error.
         atomic_store_explicit(&_masterBus->gate, 1, memory_order_seq_cst);
         NSError *error = nil;
         uint64_t startedAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
@@ -1202,10 +1177,9 @@ void VibeMasterBusFree(VibeMasterBus *master) {
         if (state != VibePlayerStateStopped && state != VibePlayerStatePaused) {
             return;
         }
-        // A send's tail is a sound the units are still making — the stages
-        // rest on the units' own declared tail times, not on a guess — so
-        // the stop waits for it, bounded by the longest tail so a send held
-        // through the pause cannot hold the device.
+        // A ringing send tail keeps the output, bounded by the longest
+        // declared tail so a send held through the pause cannot hold the
+        // device.
         AudioFX *fx = strongSelf.fx;
         if (fx.sendsActive && waited < fx.longestTailSeconds) {
             [strongSelf armOutputIdleStopOnQueueAfter:kOutputIdleStopTailIntervalSeconds generation:generation

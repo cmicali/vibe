@@ -1,17 +1,7 @@
-//
-// UIUpdateTimer: the two gates, and the settable rate that re-arms the
-// dispatch source in place — including on a suspended source, which is the
-// case a rate change lands in while playback is paused or the window is
-// occluded.
-//
-// These count real ticks over real time, so every assertion leans on the one
-// direction a loaded machine cannot break: it can starve the main queue and
-// dispatch will coalesce the missed fires, but nothing can invent ticks the
-// timer never asked for. So an upper bound is counted over a fixed window,
-// while a lower bound waits for a tick count with a deadline slack enough to
-// survive a CI runner an order of magnitude slow — and still tight enough
-// that the slower rate could not have reached it.
-//
+// Real ticks over real time. A loaded machine can starve the main queue, and
+// dispatch coalesces missed fires, but nothing invents ticks: an upper bound
+// counts over a fixed window, and a lower bound waits with a deadline slack
+// enough for a CI runner ten times slow yet too tight for the slower rate.
 
 #import <XCTest/XCTest.h>
 
@@ -20,11 +10,9 @@
 @interface UIUpdateTimerTests : XCTestCase
 @end
 
-// The tick counter is a file static rather than an ivar: the handler must not
-// capture the test case, or it would resurrect one the runner has finished
-// with, and a weak capture cannot be dereferenced under ARC. The target and
-// its expectation are touched only from the main queue, which is where both
-// the handler and the test method run.
+// File statics, not ivars: capturing the test case would resurrect one the
+// runner has finished with. Touched only on the main queue, where both the
+// handler and the test method run.
 static NSUInteger sTicks;
 static NSUInteger sTarget;
 static XCTestExpectation *sReachedTarget;
@@ -94,9 +82,8 @@ static XCTestExpectation *sReachedTarget;
     UIUpdateTimer *timer = [self timerAtHz:3];
     timer.wanted = YES;
     timer.windowVisible = YES;
-    // Three per second cannot produce ten ticks in a second and a half,
-    // whatever the leeway, so reaching ten inside that deadline is proof the
-    // faster rate took — and it asks for a twentieth of 50Hz.
+    // 3 Hz cannot produce ten ticks in 1.5 s, so reaching ten proves the faster
+    // rate took.
     XCTAssertFalse([self reachedTicks:10 within:1.5]);
     timer.hz = 50;
     XCTAssertEqual(timer.hz, (NSUInteger)50);

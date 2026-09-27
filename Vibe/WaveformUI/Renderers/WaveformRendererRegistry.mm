@@ -16,9 +16,8 @@ static NSString *const kWiggleMCIdentifier = @"wiggle";
 static NSString *const kWiggleIdentifier = @"wiggle_centered";
 static NSString *const kCupertinoBasicIdentifier = @"cupertino_basic";
 
-// The preview's synthetic sample, built once: the envelope carries fine
-// transients so the Detailed family's sampling differences survive a
-// thumbnail, and it depends on nothing the caller passes.
+// Fine transients, so the Detailed family's sampling differences survive a
+// thumbnail.
 static AudioWaveform *VibePreviewWaveform(void) {
     static AudioWaveform *waveform;
     static dispatch_once_t once;
@@ -53,9 +52,8 @@ static AudioWaveform *VibePreviewWaveform(void) {
                                  x2OversamplingDetailedAudioWaveformRenderer.class,
                                  x4OversamplingDetailedAudioWaveformRenderer.class,
                                  x8OversamplingDetailedAudioWaveformRenderer.class]) {
-            // A nil key raises, so the registry never takes one: the base class
-            // asserts on the missing override, and this keeps a Release build
-            // with an unoverridden subclass down to one missing style.
+            // A nil key raises; in Release an unoverridden subclass costs one
+            // style, not the registry.
             NSString *identifier = [renderer styleIdentifier];
             if (identifier.length == 0) {
                 LogError(@"Waveform renderer %@ has no style identifier; not registering it",
@@ -89,11 +87,8 @@ static AudioWaveform *VibePreviewWaveform(void) {
     return ![identifier isEqualToString:kCupertinoBasicIdentifier];
 }
 
-// The one offscreen bake, shared by the Settings preview and the home-screen
-// widget's published strip. It hosts the REAL renderer in a detached layer, so
-// what it produces is what the view would draw — the reason the preview was
-// written this way, and the reason the widget reuses it rather than growing a
-// second, simpler waveform drawer that would drift from the styles.
+// Hosts the REAL renderer in a detached layer, so the Settings preview and the
+// widget strip cannot drift from what the views draw.
 + (CGImageRef)newBakedImageForWaveform:(AudioWaveform *)waveform
                             identifier:(NSString *)identifier
                              pointSize:(CGSize)size scale:(CGFloat)scale
@@ -119,8 +114,7 @@ static AudioWaveform *VibePreviewWaveform(void) {
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     [renderer updateWaveform:bounds progress:progress waveform:waveform];
-    // Without this the bars are wherever the morph's first frame left them:
-    // there is no display link here to ease them to their targets.
+    // No display link here to ease the bars to their targets.
     [renderer settleMorphImmediately];
     [CATransaction commit];
     CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
@@ -146,12 +140,8 @@ static AudioWaveform *VibePreviewWaveform(void) {
                                  barWidth:barWidth normalize:normalize gainDB:gainDB];
 }
 
-// The ObjC-safe door onto the bake above: AudioWaveform is a C++ type, so a
-// plain .m caller (the widget publish, which lives beside the Now Playing one)
-// cannot name it, but it can hold the Codable wrapper the cache already hands
-// it. progress picks which side of the palette the whole envelope is drawn in
-// — the widget bakes 0 and 1 and reveals one over the other, which is what
-// lets its playhead move without re-rendering anything.
+// The ObjC-safe door onto the bake: a plain .m caller cannot name the C++
+// AudioWaveform, but can hold the Codable wrapper.
 + (CGImageRef)newImageForCodableWaveform:(CodableAudioWaveform *)waveform
                               identifier:(NSString *)identifier
                                pointSize:(CGSize)size scale:(CGFloat)scale

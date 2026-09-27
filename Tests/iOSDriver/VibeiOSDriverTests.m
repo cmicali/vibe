@@ -2,20 +2,16 @@
 //  VibeiOSDriverTests.m
 //  Vibe (iOS)
 //
-//  Not a test suite: an interactive touch driver in XCUITest clothing — the
-//  WebDriverAgent pattern. Touch synthesis on iOS is only available inside
-//  the XCUITest harness (XCUICoordinate's gestures ride the testmanagerd
-//  session the runner establishes; there is no public UITouch constructor,
-//  and replicating testmanagerd's HID injection is private API). So the one
-//  "test" here is a command loop: it polls the directory named by the
-//  VIBE_DRIVER_DIR environment variable (the app container's tmp, passed by
-//  drive-ios.sh as TEST_RUNNER_VIBE_DRIVER_DIR) for vibe-touch-*.json files
-//  in the debug channel's {id, args} format, performs the gesture, and
-//  replies to vibe-touch-response-<id>.txt. The distinct file prefixes keep
-//  the app's own debug-channel drain and launch sweep from touching them.
+//  Not a test suite: an interactive touch driver in XCUITest clothing (the
+//  WebDriverAgent pattern). Touch synthesis exists only inside the XCUITest
+//  harness; there is no public UITouch constructor. The one "test" polls
+//  VIBE_DRIVER_DIR (build/ios-driver/<UDID>, passed by drive-ios.sh as
+//  TEST_RUNNER_VIBE_DRIVER_DIR) for vibe-touch-*.json in the debug channel's
+//  {id, args} format and replies to vibe-touch-response-<id>.txt.
 //
-//  Coordinates are app-window POINTS, top-left origin — device pixels from
-//  `simctl io booted screenshot` divided by the screen scale.
+//  Coordinates are app-window POINTS, top-left origin: device pixels from
+//  `simctl io <UDID> screenshot` (the session's simulator, sim-udid.sh)
+//  divided by the screen scale.
 //
 
 #import <XCTest/XCTest.h>
@@ -55,13 +51,10 @@ static BOOL ParseDouble(NSString *token, double *out) {
 }
 
 // XCTest waits for the target to quiesce before AND after every synthesized
-// event, and Vibe's display link means a PLAYING app never idles — measured
-// cost: 60s timeout each side, ~2 minutes per gesture. Disabling the waits is
-// the standard move for interactive drivers (WebDriverAgent, Appium do
-// exactly this); it reaches XCTest internals, so everything is defensive —
-// if an Xcode update renames them, gestures still run, just slowly, and the
-// miss is logged rather than fatal. This is test-harness-only code: it never
-// ships in any app binary.
+// event, and a PLAYING app never idles (its display link): 60s timeout each
+// side, ~2 minutes per gesture. This reaches XCTest internals, as
+// WebDriverAgent and Appium do, so it is defensive — a renamed method only
+// makes gestures slow. Test-harness-only: it never ships in an app binary.
 static void ForceYesMethod(Class cls, NSString *name) {
     Method method = cls ? class_getInstanceMethod(cls, NSSelectorFromString(name)) : NULL;
     if (method) {
@@ -125,11 +118,9 @@ static void DisableQuiescenceWaits(void) {
         [XCUIDevice.sharedDevice pressButton:XCUIDeviceButtonHome];
         return JSONString(@{@"ok": @YES});
     }
-    // TRAP: the keyboard is NOT in the app's window — it lives in a
-    // UIRemoteKeyboardWindow of its own, so a coordinate tap aimed at a key
-    // lands on whatever the app is drawing BEHIND the keyboard instead, and
-    // looks for all the world like the key did nothing. Typing has to go
-    // through the responder chain, which is what typeText: does.
+    // TRAP: the keyboard lives in its own UIRemoteKeyboardWindow, so a
+    // coordinate tap on a key lands on the app behind it and looks like the
+    // key did nothing. Type through typeText:, which uses the responder chain.
     if ([verb isEqualToString:@"type"]) {
         if (tokens.count < 2) {
             return JSONString(@{@"error": @"type needs: <text>"});
@@ -204,11 +195,9 @@ static void DisableQuiescenceWaits(void) {
         }
         return JSONString(@{@"ok": @YES});
     }
-    // The one gesture with no coordinate form: XCUITest synthesizes multi-touch
-    // only through an ELEMENT (pinchWithScale:velocity:), never through
-    // XCUICoordinate. So this is the driver's only element query, and the
-    // waveform carries an accessibilityIdentifier purely to be findable here —
-    // see kWaveformScrubberIdentifier in WaveformScrubberView.mm.
+    // XCUITest synthesizes multi-touch only through an ELEMENT, so the waveform
+    // carries an accessibilityIdentifier purely to be findable here
+    // (kWaveformScrubberIdentifier, WaveformScrubberView.mm).
     //
     // Scale > 1 opens the fingers, which zooms IN (less of the track visible).
     // Velocity is scale-factors per second and must be negative to zoom out.

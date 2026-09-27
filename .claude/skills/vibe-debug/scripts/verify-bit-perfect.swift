@@ -1,22 +1,25 @@
 #!/usr/bin/env swift
-// Full-file PCM oracle. Start capture before playback; only the first 50 ms
-// (the measured player-volume settling interval) is excluded. The marker must
-// be non-silent and nonperiodic; use generate-test-audio.sh --render-tests.
+// Full-file PCM oracle over a loopback device. Capture starts before playback
+// and only the first 50 ms (the measured player-volume settling interval) is
+// excluded, so the alignment marker must be non-silent and nonperiodic: use
+// generate-test-audio.sh --render-tests fixtures.
 //
-// <file> <seconds> [device] [--set-rate] [--force-volume] [--play-app <binary>]
-// --self-test exercises the SAME comparator without any device or permission.
-// --compare <reference> <capture> checks saved captures without hardware.
-// --acceptance <fixture-directory> [device] --play-app <binary>
-//   [--force-volume] [--switch-device <other-device>] [--require-driver-fixtures]
-// runs the transport/toggle/restore matrix and quits/relaunches the app.
-// --blackhole-check uses the same arguments for only the driver/lifecycle cases.
-// --next-file <file> compares a same-format gapless join, including its seam.
-// --reference <wav> compares a lossless codec against its original PCM.
-// --idle-resume-at <seconds> captures a paused seek after the six-second idle stop.
-// --ordinary checks the dormant normal chain and reports its sample changes.
-// --device-check <file> <device> --play-app <binary> [--require-exclusive]
-// checks the live mode's negotiation, idle release and format restoration.
-// Hardware runs require an idle Debug app already routed to the named device.
+//   <file> <seconds> [device] [--play-app <binary>] [--set-rate] [--force-volume]
+//       [--next-file <file>] [--reference <file>] [--idle-resume-at <seconds>]
+//       [--ordinary] [--save-capture <path>]
+//   --acceptance <fixture-dir> [device] --play-app <binary> [--force-volume]
+//       [--switch-device <device>] [--require-driver-fixtures]
+//   --blackhole-check  (same arguments): only the driver and lifecycle cases
+//   --device-check <file> [device] --play-app <binary> [--require-exclusive]
+//   --self-test | --compare <reference> <capture>      (no hardware)
+//
+// device defaults to "BlackHole 2ch". --acceptance runs the transport, toggle
+// and restore matrix, quitting and relaunching the app. --next-file compares a
+// same-format gapless join, seam included; --reference a lossless codec against
+// its original PCM; --idle-resume-at a paused seek resumed after the 6 s idle
+// stop. --ordinary checks the dormant normal chain. --device-check checks the
+// live mode's negotiation, idle release and format restoration. Hardware runs
+// need an idle Debug app already routed to the device.
 
 import AudioToolbox
 import AppKit
@@ -175,7 +178,6 @@ func savePCM(_ url: URL, rate: Double, samples: [[Float]]) {
     for c in samples.indices {
         samples[c].withUnsafeBufferPointer { buffer.floatChannelData![c].update(from: $0.baseAddress!, count: frames) }
     }
-    // A float32 WAV, interleaved, carrying the discrete layout.
     var fileDescription = AudioStreamBasicDescription(mSampleRate: rate, mFormatID: kAudioFormatLinearPCM,
         mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked, mBytesPerPacket: UInt32(4 * samples.count),
         mFramesPerPacket: 1, mBytesPerFrame: UInt32(4 * samples.count), mChannelsPerFrame: UInt32(samples.count), mBitsPerChannel: 32, mReserved: 0)
@@ -199,11 +201,10 @@ func debug(_ binary: String, _ arguments: [String], required: Bool = true) -> [S
     let task = Process(), pipe = Pipe()
     task.executableURL = URL(fileURLWithPath: binary)
     task.arguments = ["--debug-cmd"] + arguments
-    // The failure fixtures hold the app's main thread for as long as CoreAudio
-    // waits out a dead device — measured 14 s, 29 s for the hung open — and a
-    // command that lands inside that window is answered late, not never; the
-    // client's 5 s default read it as an absent app and failed a matrix that
-    // had passed every case.
+    // The failure fixtures hold the app's main thread while CoreAudio waits
+    // out a dead device (measured 14 s; 29 s for the hung open). A command in
+    // that window is answered late, not never, so the client's 5 s default
+    // would report an absent app.
     task.environment = ProcessInfo.processInfo.environment.merging(["VIBE_DEBUG_TIMEOUT": "45"]) { $1 }
     task.standardOutput = pipe
     if !required { task.standardError = FileHandle.nullDevice }
@@ -390,12 +391,12 @@ let appBinary = option("--play-app").map { URL(fileURLWithPath: $0).standardized
 arguments.removeAll { ["--device-check", "--require-exclusive", "--acceptance", "--blackhole-check", "--ordinary", "--require-driver-fixtures"].contains($0) }
 if deviceCheck || acceptance || blackholeCheck { arguments.insert("8", at: min(1, arguments.count)) }
 let forceVolume = arguments.contains("--force-volume")
-// --set-rate: put the device at the file's rate ourselves and back at exit —
-// for measuring the everyday chain with the mode OFF, when Vibe does not.
+// --set-rate: set the device to the file's rate and back at exit — for the
+// everyday chain with the mode off, when Vibe does not set it.
 let setRate = arguments.contains("--set-rate")
 arguments.removeAll { $0 == "--force-volume" || $0 == "--set-rate" }
 guard (2...3).contains(arguments.count), let seconds = Double(arguments[1]), seconds.isFinite, seconds > 0, seconds <= 120 else {
-    fail("usage: verifier <file> <seconds> [device] [--play-app binary] [--force-volume] [--set-rate] [--next-file file] [--ordinary]; or --acceptance/--blackhole-check <fixtures> [device] --play-app binary [--require-driver-fixtures]; or --device-check <file> [device] --play-app binary [--require-exclusive]; or --self-test / --compare reference capture")
+    fail("usage: verify-bit-perfect <file> <seconds> [device] [--play-app binary] [--set-rate] [--force-volume] [--next-file file] [--reference file] [--idle-resume-at seconds] [--ordinary] [--save-capture path]; or --acceptance|--blackhole-check <fixtures> [device] --play-app binary [--force-volume] [--switch-device device] [--require-driver-fixtures]; or --device-check <file> [device] --play-app binary [--require-exclusive]; or --self-test; or --compare reference capture")
 }
 let fileURL = URL(fileURLWithPath: arguments[0])
 let deviceName = arguments.count >= 3 ? arguments[2] : "BlackHole 2ch"
@@ -427,7 +428,8 @@ func writeUInt32(_ object: AudioObjectID, _ selector: AudioObjectPropertySelecto
     var address = property(selector), data = value
     return AudioObjectSetPropertyData(object, &address, 0, nil, 4, &data) == noErr
 }
-// The fixture driver exposes CFNumbers through documented custom properties.
+// The fixture driver's custom CFNumber properties: 'vbtf' (0x76627466) the
+// leased fault mask, 'vbth' (0x76627468) the injected-operation count.
 func driverNumber(_ device: AudioDeviceID, _ selector: UInt32) -> UInt32? {
     var address = property(selector), value: Unmanaged<CFNumber>?
     var size = UInt32(MemoryLayout<Unmanaged<CFNumber>?>.size)
@@ -1266,7 +1268,6 @@ if deviceCheck {
 }
 // MARK: - Capture
 
-// --set-rate is for regular mode; it restores the original nominal rate.
 var restoreRate: Double? = nil
 cleanupActions.append {
     if let rate = restoreRate {

@@ -6,23 +6,18 @@
 #import <Foundation/Foundation.h>
 #import <QuartzCore/QuartzCore.h>
 #import "PlatformTypes.h"
-// AudioWaveform.h brings C++ types in, so import this header from .mm files
-// only.
+// C++ via AudioWaveform.h: import from .mm files only.
 #import "AudioWaveform.h"
 #import "WaveformTheme.h"
 #import "WaveformLevelMath.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-// One shared fallback for the backing scale before a real answer exists, as
-// for a view not yet in a window or a layer whose contentsScale is still
-// unset. 2 means Retina, which is overwhelmingly the common case.
+// The backing scale before a real answer exists (no window yet, contentsScale
+// unset). Every scale source goes through the clamp below, so the fallback
+// cannot drift between sites.
 static const CGFloat kVibeDefaultBackingScale = 2;
 
-// The rendering layer's scale sources — the mac view's window, the iOS view's
-// trait collection, and a layer a renderer has already stamped — all go
-// through the one clamp below, so the fallback cannot drift between sites,
-// which is the whole reason they live together.
 static inline CGFloat VibeBackingScaleOrDefault(CGFloat scale) {
     return scale > 0 ? scale : kVibeDefaultBackingScale;
 }
@@ -30,11 +25,9 @@ static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
     return VibeBackingScaleOrDefault(layer.contentsScale);
 }
 
-// The block-quantization rules shared by the discrete-block styles — Sonic
-// Cirrus's bar layers and Basic's blocks: which block sits under a view x,
-// and how many whole blocks a progress fraction fills, each block flipping at
-// its midpoint. Presentation only — the seek a hover or click reports stays
-// continuous.
+// The block styles' quantization: the block under a view x, and how many whole
+// blocks a progress fills, each flipping at its midpoint. Presentation only —
+// the reported seek stays continuous.
 static inline NSInteger VibeBlockIndexForX(CGFloat x, CGFloat width, NSInteger count) {
     NSInteger index = (NSInteger)(x / width * (CGFloat)count);
     return clampRange(index, (NSInteger)0, count - 1);
@@ -44,32 +37,22 @@ static inline NSInteger VibeBlockBoundaryForProgress(CGFloat progress, NSInteger
     return clampRange(boundary, (NSInteger)0, count);
 }
 
-// The level a bar draws at is VibeWaveformBarLevel (WaveformLevelMath.h):
-// its energy column's RMS against the fill's full-scale reference
-// (VibeWaveformFullScaleRMSForWaveform below), through the renderer's gainDB.
-//
-// The level's energy is averaged over a column no finer than 1/1024 of the
-// track — 8 source chunks, ~0.4s of a typical track, the momentary-loudness
-// scale — however fine the bars. RMS over a window shorter than a beat
-// converges back to peak, which re-pegged the fixed-count oversampling
-// styles: their bars cover as little as one ~50ms chunk, so every kick read
-// as a full-height bar and the upper envelope was the old solid block again.
-// Only the level is floored; the min/max shape keeps per-bar resolution.
+// A bar's level averages energy over a column no finer than 1/1024 of the
+// track (~0.4s, the momentary-loudness scale), however fine the bars: RMS over
+// less than a beat converges back to peak, and the oversampling styles'
+// one-chunk bars would peg on every kick. Only the level is floored; the
+// min/max shape keeps per-bar resolution.
 static const NSUInteger kVibeWaveformEnergyColumns = 1024;
 
-// Which energy column bar i of count belongs to. Split from the accessor
-// below because a renderer caching per column keys on the index and must not
-// re-derive it: the two spellings would drift, and a bar scaled by its
-// neighbour's level looks like nothing in particular.
+// Split from the accessor below so a renderer caching per column keys on this
+// index rather than re-deriving it.
 static inline NSUInteger VibeWaveformEnergyColumnIndexForBar(NSUInteger i, NSUInteger count) {
     return count > kVibeWaveformEnergyColumns
             ? i * kVibeWaveformEnergyColumns / count : i;
 }
 
-// The energy column bar i of count draws its level from. Every bar-level
-// consumer maps through this rather than reading its own chunk's energy, so
-// a renderer with bars finer than the column cannot re-peg to sub-beat RMS —
-// nothing at a call site otherwise hints at the floor.
+// Every bar-level consumer maps through this, never its own chunk's energy,
+// so bars finer than the column cannot re-peg to sub-beat RMS.
 static inline AudioWaveformCacheChunk VibeWaveformEnergyColumnForBar(AudioWaveform *waveform,
                                                                      NSUInteger i,
                                                                      NSUInteger count) {
@@ -90,11 +73,8 @@ static inline float VibeWaveformFullScaleRMSForWaveform(AudioWaveform * _Nullabl
     return loudest > 0 ? fminf(loudest, kVibeWaveformFullScaleRMS) : kVibeWaveformFullScaleRMS;
 }
 
-// Snap a hover/seek column to the device-pixel grid. A fractional origin or
-// width leaves half-lit edge pixels, and the column is supposed to be the
-// crispest thing in the waveform. x and the returned rect are in the caller's
-// local (bounds-relative) space; x may overshoot either edge — the clamp
-// keeps the column inside.
+// Pixel-snapped, since half-lit edge pixels blur the crispest thing in the
+// waveform. Bounds-relative; x may overshoot either edge.
 static inline CGRect VibeSnappedColumnRect(CGFloat x, CGFloat columnWidth,
                                            CGFloat boundsWidth, CGFloat height, CGFloat scale) {
     CGFloat width = MAX(round(columnWidth * scale), 1) / scale;
@@ -103,9 +83,8 @@ static inline CGRect VibeSnappedColumnRect(CGFloat x, CGFloat columnWidth,
     return CGRectMake(left, 0, width, height);
 }
 
-// Re-stamps a manually built layer tree at a new backing scale, masks and all.
-// Both views own their trees rather than letting the framework manage them, so
-// both need this on a display change; it lives here rather than twice.
+// Both views own their layer trees, so a display change re-stamps them here,
+// masks and all.
 static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat scale) {
     if (!layer) {
         return;
@@ -127,21 +106,14 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 
 @property (assign) BOOL isDark;
 
-// The palette the family derives its gradient alphas from. The view resolves
-// it (settings + appearance + artwork color) and must call updateColors:
-// after setting it; init defaults it to the monochrome White answer for
-// isDark, so a view that never resolves — the pre-theme call sites — draws
-// exactly what it always drew. isDark stays separate because renderers still
-// branch on it for non-palette decisions.
+// The view resolves it and must call updateColors: after setting it; init
+// defaults it to Mono for isDark. isDark stays separate for non-palette
+// decisions.
 @property (strong) WaveformTheme *theme;
 
-// Settings > Appearance > Waveform's Normalize and Gain, handed over by the
-// view as the theme is; the init defaults — off, 0 dB — are the plain
-// mapping. Every fill measures its bars against
-// VibeWaveformFullScaleRMSForWaveform and passes the gain to
-// VibeWaveformBarLevel. Either setter invalidates the optional morph engine's
-// target, so a change refills from the same waveform and the bars ease to their new
-// heights rather than staying where the last fill put them.
+// Normalize and Gain, handed over by the view; off and 0 dB are the plain
+// mapping. Either setter invalidates the morph target, so the bars ease to
+// their new heights rather than keeping the last fill's.
 @property (nonatomic) BOOL normalizesLevels;
 @property (nonatomic) float gainDB;
 
@@ -177,45 +149,32 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 
 - (void)updateColors:(BOOL)isDark;
 
-// The vertical band, in view coordinates, a click must land in to count as a
-// seek. AudioWaveformView queries it on mouseDown, and it is computed from the
-// given bounds alone: a pure function rather than per-draw mutable state, so
-// each renderer has exactly one band definition, derived from its drawn
-// extent. Every renderer must override it; the base only asserts.
+// The vertical band a click must land in to seek, from the bounds alone. Every
+// renderer must override it; the base only asserts.
 - (CGRect)seekHitBandForBounds:(CGRect)bounds;
 
 - (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 
-// The window moved to a display with a different backing scale. Rebuild the
-// optional morph engine's geometry, whose device-pixel
-// snapping baked in the old scale and which a same-size updateWaveform: pass
-// skips.
+// Rebuilds the morph geometry, whose pixel snapping baked in the old scale and
+// which a same-size updateWaveform: skips.
 - (void)backingScaleDidChange;
 
-// The Convert to FLAC sweep: collapse the bars in the x-fraction span
-// [from, to) to the midline and let the shared morph ease them back. A no-op
-// for a renderer with no morph engine.
+// The Convert to FLAC sweep: dip the bars in [from, to) to the midline and let
+// the morph ease them back. No-op without a morph engine.
 - (void)dipBarsFromFraction:(double)from toFraction:(double)to;
 
-// Land the in-flight morph on its target in one rebuild rather than easing
-// there — see WaveformMorphEngine.settleImmediately for when that is worth
-// doing. A no-op for a renderer with no morph engine.
+// See WaveformMorphEngine.settleImmediately. No-op without a morph engine.
 - (void)settleMorphImmediately;
 
-// The hover scrubbing affordance: light the waveform's own column at view x to
-// full brightness. No separate playhead is drawn, because the waveform is the
-// affordance. A negative x clears it. Renderers keep the x, so that a resize
-// or a morph rebuild can reposition the highlight; the base implementation
-// stores it and does nothing else.
+// Lights the waveform's own column at view x; negative clears. Kept so a
+// resize or morph rebuild can reposition it; the base only stores it.
 - (void)setHoverHighlightX:(CGFloat)x;
 @property (readonly) CGFloat hoverHighlightX; // < 0 when not hovering
 
-// Whether the settled envelope can be baked into a bitmap pixel-identical to
-// this renderer's live tree (the Detailed family's envelope-image API, used by
-// the iOS scrubber's fast path). The base answers NO; a subclass that changes
-// its gradient aim or played-fill quantization must answer for its own bake —
-// which is why Basic overrides this back to NO despite subclassing Detailed.
+// Whether the envelope bake is pixel-identical to the live tree. A subclass
+// that changes its gradient aim or played-fill quantization must answer for
+// itself — why Basic answers NO despite subclassing Detailed.
 @property (readonly) BOOL supportsEnvelopeBake;
 
 @end

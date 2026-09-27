@@ -1,33 +1,21 @@
 #!/usr/bin/env bash
 #
-# Point the marketing page's Download button at a specific release.
+# Point the web page's Download button at a release.
 #
 #   scripts/web-set-version.sh <version>        # e.g. 1.10
 #
-# Rewrites the four places in Assets/Web/index.html that name a version: the
-# button's href and the label under it, and the softwareVersion and downloadUrl
-# of the JSON-LD block that search engines and agents read. github-release.sh calls this with
-# the version it just published, so the number the page advertises and the file
-# it hands you can never disagree.
+# From one URL, rewrites Assets/Web/index.html's button href and version label,
+# its JSON-LD softwareVersion and downloadUrl, and the /download rules in
+# Assets/Web/_redirects (vibeplayer.app/download/latest), so the page, the
+# branded link and the file cannot disagree. github-release.sh runs it.
 #
-# It rewrites the /download rules in Assets/Web/_redirects from that same URL,
-# which is what makes vibeplayer.app/download/latest a stable link anyone may
-# publish. Same URL, one source: the branded link and the button cannot come
-# to name different builds.
+# A direct .dmg URL, not /releases/latest/download: the asset name carries the
+# version, and that shortcut only redirects to a fixed filename. So the link is
+# correct only while something rewrites it.
 #
-# The page hardcodes a direct .dmg URL rather than /releases/latest because the
-# asset name carries the architecture and version —
-# Vibe-macOS-universal-<version>.dmg — and GitHub's
-# latest/download shortcut only redirects for a filename that never changes.
-# The arm64 DMG is a GitHub alternate, not the site's Apple-silicon-and-Intel
-# default. A direct link is therefore correct exactly as long as something
-# rewrites it, which is this script's whole job.
-#
-# The edits key on element ids and JSON property names, not on the markup
-# around them, so restyling the button or reordering the JSON does not silently
-# stop the rewrite. Any one failing to match is an error, never a silent no-op:
-# a page that advertises one version and links another is worse than a stale
-# one, and the JSON-LD is the copy no human proofreads.
+# Edits key on element ids and JSON property names, and any one that fails to
+# match is an error: a page that advertises one version and links another is
+# worse than a stale one.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -82,10 +70,8 @@ grep -q "\"downloadUrl\": \"$URL\"" "$PAGE" || {
     exit 1
 }
 
-# The /download* rules in _redirects. Keyed on the path column and the 302,
-# so the target may be swapped without the rule text being reproduced here;
-# the count is asserted because a rule that stopped matching would leave the
-# branded link pointing at the previous release while the button moved on.
+# Keyed on the path column and the 302. The count is asserted: a rule that
+# stopped matching would leave the branded link on the previous release.
 perl -0pi -e "s{^(/download\\S*\\s+)\\S+\\s+302\$}{\${1}$URL   302}mg" "$REDIRECTS"
 
 FOUND="$(grep -c "^/download.*[[:space:]]$URL[[:space:]]*302\$" "$REDIRECTS" || true)"

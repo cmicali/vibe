@@ -2,22 +2,12 @@
 //  SettingsAppearanceViewController.m
 //  Vibe
 //
-// The overview holds the current theme's quick waveform edit, the theme
-// library and common display preferences. The editor swaps in as a sibling
-// of that section stack; opening a built-in first copies its working record.
+//  The list page, the page swap and the theme file actions (import, export,
+//  the drop target). The editor page is the Editor category; the state they
+//  share is SettingsAppearanceViewControllerInternal.h.
 //
-// The editor deliberately never joins the shared pane-size settlement: it
-// scrolls inside whatever size the panes settled at, because its ~20 rows
-// would otherwise grow every pane. The
-// page swap is therefore size-neutral, and the editor's conditional rows
-// reflow only their own scrolled stack.
-//
-// The editor page's controls and actions are the Editor category
-// (SettingsAppearanceViewController+Editor.m); this file is the list page,
-// the page swap between the two, and the theme FILE actions — import,
-// export and the drop target — which act on the list rather than on any
-// one field. The state the two files share is the class extension in
-// SettingsAppearanceViewControllerInternal.h.
+//  The editor swaps in beside the section stack and scrolls inside whatever
+//  height the panes settled at, so its rows never grow every pane.
 //
 
 #import "SettingsAppearanceViewController.h"
@@ -35,29 +25,21 @@
 #import "Formatters.h"
 #import "VibeStrings.h"
 
-// Ten rows: the two group headers, the built-ins, and room for a handful of
-// the user's own before it scrolls.
 static const NSUInteger kThemeListRowCount = 10;
 static NSString *const kThemeCellIdentifier = @"themeCell";
 static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
-// The gain slider's magnetic detent: within this many dB of 0 snaps onto the
-// plain mapping — the reset, without a button.
+// Within this many dB of 0 the gain slider snaps to 0.
 static const double kWaveformGainDetentDB = 0.75;
 
 @implementation SettingsAppearanceViewController {
-    // The list page.
     NSPopUpButton *_appearancePopUp;
     NSSwitch *_trafficLightsSwitch;
     NSTableView *_themeTable;
     NSButton *_removeThemeButton;
-    // The themes in store order: built-ins first, then user themes. The table
-    // shows a group header above each run, so a row is one past the headers
-    // before it rather than an index into this — see identifierForRow:.
+    // Store order, built-ins first. Rows include group headers (identifierForRow:).
     NSArray<NSString *> *_themeIdentifiers;
-    // The pane's own sections, kept so the editor swap can hide them — the
-    // stack itself is the base class's.
     NSArray<NSView *> *_listSections;
-    // The list page's shortcut to the same theme field as _waveformPopUp.
+    // The same theme field as the editor's _waveformPopUp.
     NSPopUpButton *_listWaveformPopUp;
     NSSwitch *_waveformNormalizeSwitch;
     SettingsRowView *_appearanceRow, *_currentThemeRow;
@@ -65,15 +47,14 @@ static const double kWaveformGainDetentDB = 0.75;
     NSButton *_waveformLevelsDisclosure, *_editThemeButton, *_revertThemeButton;
     NSMutableArray<NSImageView *> *_waveformPreviews;
     NSArray *_waveformPreviewKey;
-    NSSlider *_waveformGainSlider; // a VibeDetentSlider, typed by what is read of it
+    NSSlider *_waveformGainSlider; // a VibeDetentSlider
     NSTextField *_waveformGainValue;
     BOOL _editorShown;
-    // Armed by a Back pop; the toolbar's forward half re-opens the editor.
+    // Armed by a Back pop.
     BOOL _editorForwardAvailable;
-    // TRAP: reentrancy guard. reloadData and the programmatic reselect both
-    // post selection-changed, and the delegate treating those as user
-    // activations recursed refreshFromSettings into a stack overflow.
-    // Observed, not hypothetical.
+    // TRAP: reloadData and the programmatic reselect both post
+    // selection-changed; treated as activations, they recurse
+    // refreshFromSettings into a stack overflow.
     BOOL _refreshingThemeList;
 }
 
@@ -129,10 +110,7 @@ static const double kWaveformGainDetentDB = 0.75;
     buttons.spacing = 8;
     SettingsRowView *buttonRow = [SettingsRowView rowWithContentView:buttons];
 
-    // The waveform style is a THEME field surfaced on the list page: it
-    // follows every theme switch, and editing it here goes through the same
-    // working-record funnel as the editor's row — over a built-in it lands
-    // in the divergence key rather than dirtying the theme.
+    // A THEME field: over a built-in, an edit lands in the divergence key.
     _listWaveformPopUp = [self waveformStylePopUpButton];
 
     _waveformNormalizeSwitch = [self switchWithAction:@selector(toggleWaveformNormalize:)];
@@ -177,16 +155,14 @@ static const double kWaveformGainDetentDB = 0.75;
             _waveformLevelRows[0], _waveformLevelRows[1],
         ]],
     ];
-    // The sunk list's edge is the divider above the buttons; the hairline the
-    // section stamps would double it.
+    // The list is its own divider; the section's hairline would double it.
     buttonRow.showsTopSeparator = NO;
 }
 
 #pragma mark - Page swap
 
-// Size-neutral by design: the editor never joins the shared-size settlement
-// (naturalPaneSize measures only the base section stack), so no
-// paneContentDidChange pass is needed — nothing about the window moves.
+// Size-neutral: the shared height is the base stack's, and the hidden editor
+// already holds its width, so nothing is remeasured.
 - (void)applyEditorVisibility {
     _detailContainer.hidden = !_editorShown;
     for (NSView *section in _listSections) {
@@ -195,12 +171,8 @@ static const double kWaveformGainDetentDB = 0.75;
     [self applyEditorTitle];
 }
 
-// The editor page retitles the window the way a pane switch would: the pane
-// sets only its own title, and updateThemeNavigation re-pushes the
-// pane-title chain (the host owns the container nesting). The sidebar label
-// reads the tab ITEM, so it keeps saying Appearance. While the Name field is
-// being edited the title follows the keystrokes; the stored name — deduped
-// or fallback-named on commit — takes over when editing ends.
+// Sets only the pane's title; updateThemeNavigation pushes it to the window.
+// The sidebar reads the tab item, so it keeps saying Appearance.
 - (void)applyEditorTitle {
     NSString *name = nil;
     if (_editorShown) {
@@ -218,8 +190,6 @@ static const double kWaveformGainDetentDB = 0.75;
             && ![AppTheme isBuiltInIdentifier:AppSettings.sharedInstance.activeThemeIdentifier];
 }
 
-// A roll is one edit of the whole theme, so it rides ThemeApply like a
-// theme switch, then the page re-reads every control.
 - (void)randomizeThemeSettings {
     if (!self.canRandomize) {
         return;
@@ -241,7 +211,6 @@ static const double kWaveformGainDetentDB = 0.75;
 
 #pragma mark - Undo and redo
 
-// The store owns history; the pane applies the restored theme whole.
 - (BOOL)canRestoreThemeHistoryForward:(BOOL)forward {
     AppSettings *settings = AppSettings.sharedInstance;
     return forward ? settings.canRedoThemeEdit : settings.canUndoThemeEdit;
@@ -294,14 +263,11 @@ static const double kWaveformGainDetentDB = 0.75;
             dark ? SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK
                  : SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT;
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
-    // Re-reads the toggle from what the window ended up at, so a caller that
-    // is not the toggle itself — the debug channel — leaves it honest too.
+    // For callers other than the toggle (the debug channel).
     [(SettingsWindowController *)self.view.window.windowController updateThemeNavigation];
 }
 
-// The preview is the page's, not a setting, so it ends with the page: leaving
-// the pane and closing the window are one event here, which is the only reason
-// there is one place to drop it.
+// Leaving the pane and closing the window both end the preview here.
 - (void)viewDidDisappear {
     [super viewDidDisappear];
     [self closeEditorPanels];
@@ -313,8 +279,6 @@ static const double kWaveformGainDetentDB = 0.75;
 
 #pragma mark - State
 
-// An unknown persisted style identifier renders as the default style — the
-// waveform view's own fallback — so show that rather than misreport.
 - (void)selectWaveformStyle:(NSString *)identifier in:(NSPopUpButton *)popUp {
     [self selectValue:identifier in:popUp];
     if (popUp.indexOfSelectedItem < 0) {
@@ -326,7 +290,6 @@ static const double kWaveformGainDetentDB = 0.75;
     AppSettings *settings = AppSettings.sharedInstance;
     AppTheme *theme = settings.currentTheme;
 
-    // The common cards, plus the list page's waveform style shortcut.
     [self selectValue:settings.windowAppearanceStyle in:_appearancePopUp];
     _trafficLightsSwitch.state = StateForBOOL(settings.showTrafficLights);
     [self selectWaveformStyle:theme.waveformStyle in:_listWaveformPopUp];
@@ -346,8 +309,6 @@ static const double kWaveformGainDetentDB = 0.75;
     [_currentThemeRow setRowTitle:modified ? [NSString stringWithFormat:STR_SETTINGS_THEME_MODIFIED, name] : name];
     _revertThemeButton.hidden = !modified;
 
-    // The theme list. Selection mirrors activation, so reselect the active
-    // row after every reload.
     NSString *active = settings.activeThemeIdentifier;
     _themeIdentifiers = settings.orderedThemeIdentifiers;
     _refreshingThemeList = YES;
@@ -356,9 +317,8 @@ static const double kWaveformGainDetentDB = 0.75;
     if (activeRow >= 0) {
         [_themeTable selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)activeRow]
                  byExtendingSelection:NO];
-        // A programmatic selection does not scroll, and the user group sits
-        // past the fold once a few themes exist — so an added or imported
-        // theme would land selected and invisible.
+        // A programmatic selection does not scroll; an imported theme would
+        // land selected past the fold.
         [_themeTable scrollRowToVisible:activeRow];
     }
     _refreshingThemeList = NO;
@@ -367,20 +327,15 @@ static const double kWaveformGainDetentDB = 0.75;
     [SettingsRowView setControl:_removeThemeButton enabled:!builtIn];
 
     [self refreshWaveformPreviews];
-    // The editor page's wells, image checks and control walk are refreshed
-    // only while it is the page shown; every way onto it refreshes through
-    // here with _editorShown already set.
+    // Every way onto the editor refreshes through here with _editorShown set.
     if (_editorShown) {
         [self refreshEditorFromSettings];
     }
     [self resolveLayoutStateFromSettings];
 }
 
-// The pane's themed rows all funnel here after writing their currentTheme
-// field: persist the working record, then request the row's live effect. A
-// continuous control's tick — the corner-radius slider, a color well
-// tracking its panel — says so, and the store folds the gesture into one
-// undo entry.
+// continuous: a slider or color well mid-gesture; the store folds the gesture
+// into one undo entry.
 - (void)themeFieldDidChange:(VibeSettingsLiveEffect)effect {
     [self themeFieldDidChange:effect continuous:NO];
 }
@@ -391,8 +346,7 @@ static const double kWaveformGainDetentDB = 0.75;
     if (effect & (VibeSettingsLiveEffectWaveformStyle | VibeSettingsLiveEffectWaveformTheme)) {
         [self refreshWaveformPreviews];
     }
-    // The undo arrow follows the stack this edit just pushed onto — the
-    // toolbar alone, so a drag's ticks never re-read the page under it.
+    // The toolbar alone, so a drag's ticks never re-read the page under it.
     [(SettingsWindowController *)self.view.window.windowController updateThemeNavigation];
 }
 
@@ -412,7 +366,7 @@ static const double kWaveformGainDetentDB = 0.75;
     AppTheme *theme = settings.currentTheme;
     BOOL dark = self.view.isDark;
     NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:theme.waveformStyle];
-    // The synthetic sample carries no artwork, so album_art resolves to Mono's answer.
+    // No artwork, so album_art resolves to Mono's answer.
     WaveformTheme *palette = [WaveformTheme themeForAppTheme:theme isDark:dark artworkColor:nil];
     NSArray *key = @[style, @(dark), palette.playedColor, palette.unplayedColor,
             @(palette.flatFill), @(theme.waveformBarDensity), @(theme.waveformBarWidth),
@@ -430,9 +384,6 @@ static const double kWaveformGainDetentDB = 0.75;
     }
 }
 
-// The style popup, built once per surface — the editor's row and the list
-// page's shortcut. Identifiers travel in representedObject, localized names
-// in the titles — a display name must never reach the store.
 - (NSPopUpButton *)waveformStylePopUpButton {
     NSPopUpButton *popUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
                                                action:@selector(waveformStyleChanged:)];
@@ -461,18 +412,15 @@ static const double kWaveformGainDetentDB = 0.75;
 #pragma mark - Theme list
 
 // Row 0 is the Built-in header and the User header sits one past the last
-// built-in, so every row-to-theme hop is arithmetic over the built-in count
-// rather than a second array to keep in step with the store's order.
+// built-in; row-to-theme is arithmetic over the built-in count.
 
-// -1 while the user has no themes: the group does not exist rather than
-// standing empty.
+// -1 while the user has no themes: the group is omitted, not empty.
 - (NSInteger)userGroupRow {
     NSInteger builtIns = (NSInteger)AppTheme.builtInThemeIdentifiers.count;
     return (NSInteger)_themeIdentifiers.count > builtIns ? builtIns + 1 : -1;
 }
 
-// nil for a group header, and for no row at all — which is what makes a
-// header unselectable and keeps selection-IS-activation off them.
+// nil for a group header or no row, which keeps headers unselectable.
 - (nullable NSString *)identifierForRow:(NSInteger)row {
     NSInteger userHeader = [self userGroupRow];
     if (row <= 0 || row == userHeader) {
@@ -494,9 +442,8 @@ static const double kWaveformGainDetentDB = 0.75;
     return (NSInteger)_themeIdentifiers.count + ([self userGroupRow] >= 0 ? 2 : 1);
 }
 
-// A header is an ordinary row the delegate refuses to select, NOT an AppKit
-// group row: that style tacks a section gap above each header and its own row
-// height onto a list whose whole budget is ten rows.
+// Not an AppKit group row: that style adds a gap and its own row height to a
+// ten-row budget.
 - (BOOL)tableView:(NSTableView *)tableView shouldSelectRow:(NSInteger)row {
     return [self identifierForRow:row] != nil;
 }
@@ -529,7 +476,6 @@ static const double kWaveformGainDetentDB = 0.75;
     return [SettingsRowView listRowViewForRow:row];
 }
 
-// A header row: the label alone, small and secondary above the names.
 - (NSTableCellView *)groupCellInTableView:(NSTableView *)tableView title:(NSString *)title {
     NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:kThemeGroupCellIdentifier
                                                         inTableView:tableView imagePosition:NSNoImage];
@@ -539,9 +485,7 @@ static const double kWaveformGainDetentDB = 0.75;
     return cell;
 }
 
-// Selection IS activation: one concept instead of a selection-vs-checkbox
-// split, an instant whole-app preview, and the same semantics as the View >
-// Theme menu.
+// Selection IS activation, as in View > Theme.
 - (void)tableViewSelectionDidChange:(NSNotification *)notification {
     if (_refreshingThemeList) {
         return;
@@ -560,9 +504,8 @@ static const double kWaveformGainDetentDB = 0.75;
 
 #pragma mark - Dropping theme files in
 
-// Theme files only — the Import… panel's two types — asked of the pasteboard
-// rather than the file system, for the Files pane's reasons: validation runs
-// per mouse move, and a stat can block on an unreachable mount.
+// Asked of the pasteboard, never the file system: validation runs on main per
+// mouse move, and a stat can block on an unreachable mount.
 + (NSDictionary<NSPasteboardReadingOptionKey, id> *)themeFileReadingOptions {
     return @{
         NSPasteboardURLReadingFileURLsOnlyKey: @YES,
@@ -571,9 +514,7 @@ static const double kWaveformGainDetentDB = 0.75;
     };
 }
 
-// Retargeted onto the list as a whole: an import lands in the user group
-// wherever the drop points, so an insertion point would promise a position
-// the store cannot honor.
+// Retargeted onto the whole list: an import lands in the user group.
 - (NSDragOperation)tableView:(NSTableView *)tableView
                 validateDrop:(id<NSDraggingInfo>)info
                  proposedRow:(NSInteger)row
@@ -626,15 +567,12 @@ static const double kWaveformGainDetentDB = 0.75;
     [self activateThemeWithIdentifier:identifier];
 }
 
-// Removal shares the theme undo history, including its custom images.
 - (void)removeTheme:(id)sender {
     NSString *selected = [self selectedThemeIdentifier];
     if (!selected || [AppTheme isBuiltInIdentifier:selected]) {
         return;
     }
-    // Land on the neighbor, not the first row: the next theme takes the
-    // removed row's index, and removing the last row falls back to the row
-    // before it. Selection IS activation, so the store applies the neighbor.
+    // Land on the neighbor: the next theme, else the one before.
     NSUInteger index = [_themeIdentifiers indexOfObject:selected];
     NSString *neighbor = nil;
     if (index != NSNotFound) {
@@ -647,14 +585,11 @@ static const double kWaveformGainDetentDB = 0.75;
 }
 
 - (void)editTheme:(id)sender {
-    // A double-click on a group header or the empty area below the rows names
-    // no theme, and opening the active theme's editor from there would be an
-    // activation the click never made.
+    // A double-click on a header or below the rows names no theme.
     if (sender == _themeTable && [self identifierForRow:_themeTable.clickedRow] == nil) {
         return;
     }
-    // Opening a theme's page activates it first — selection already did on a
-    // click; this covers the double-click's row change landing late.
+    // Covers a double-click's row change landing late.
     NSString *selected = [self selectedThemeIdentifier];
     if (selected &&
         ![selected isEqualToString:AppSettings.sharedInstance.activeThemeIdentifier]) {
@@ -677,17 +612,9 @@ static const double kWaveformGainDetentDB = 0.75;
     }];
 }
 
-// One import funnel for the Import… panel and the theme list's drop, both of
-// which hand over a LIST: the same sanitize-and-store gate either way.
-//
-// Activation happens once, after the whole list. Activating per file would
-// re-apply every live effect N times to land on the last one regardless, and
-// a file that fails in the middle would leave the previous file's theme
-// active — the same place a clean run ends, so the failure would not show.
-//
-// Read mapped: the size gate inside AppTheme rejects an over-cap archive, but
-// only after the bytes exist, and a mistakenly picked multi-gigabyte file
-// must not be pulled into memory to be told it is too big.
+// The Import… panel's and the drop's one funnel. Activates once, after the
+// whole list. Reads mapped, so AppTheme's size gate refuses a huge pick
+// without loading it.
 - (BOOL)importThemesFromURLs:(NSArray<NSURL *> *)urls {
     NSString *lastImported = nil;
     NSMutableArray<NSString *> *failed = [NSMutableArray array];
@@ -716,9 +643,7 @@ static const double kWaveformGainDetentDB = 0.75;
     return lastImported != nil;
 }
 
-// The names are data, not copy, so they carry the detail and the localized
-// line above them carries none — which is also why the plural form states no
-// count: no language then needs plural agreement for it.
+// The plural form states no count, so no language needs plural agreement.
 - (void)presentThemeImportFailedAlertForFiles:(NSArray<NSString *> *)files {
     NSAlert *alert = [[NSAlert alloc] init];
     alert.messageText = files.count > 1 ? STR_SETTINGS_THEME_IMPORT_FAILED_SOME
@@ -733,12 +658,8 @@ static const double kWaveformGainDetentDB = 0.75;
         return;
     }
     NSString *name = [AppSettings.sharedInstance displayNameForThemeIdentifier:selected] ?: selected;
-    // An image — the placeholder, the app icon, a button's — travels beside
-    // the JSON, so those themes export as a ZIP; everything else stays a plain
-    // JSON file. WHICH it is comes from the record's own references, because
-    // the images themselves are read only once the user has confirmed the
-    // save — a theme's images run to megabytes, and a cancelled panel must
-    // not have paid for them.
+    // ZIP when the record references images, decided from the references
+    // alone: the images are read only after the panel confirms.
     NSDictionary *record = [AppSettings.sharedInstance recordForThemeIdentifier:selected];
     BOOL carriesImages = NO;
     for (NSString *key in AppTheme.imageFieldKeys) {
@@ -755,18 +676,13 @@ static const double kWaveformGainDetentDB = 0.75;
         if (response != NSModalResponseOK || !panel.URL) {
             return;
         }
-        // The archive can still come back nil — an image deleted while the
-        // panel was up — and the theme is worth more than its images, so the
-        // JSON goes out rather than nothing.
+        // nil when an image vanished while the panel was up: send the JSON.
         NSData *payload = carriesImages ? [AppTheme archiveDataForRecord:record name:name] : nil;
         payload = payload ?: [AppTheme JSONDataForRecord:record name:name];
         NSError *error = nil;
         if (payload && [payload writeToURL:panel.URL options:NSDataWritingAtomic error:&error]) {
             return;
         }
-        // A failed write has to say so: a panel that just closes is
-        // indistinguishable from a saved file. The system's own message names
-        // the reason — a full disk, a read-only volume — better than ours.
         [[NSAlert alertWithError:error ?: [NSError errorWithDomain:NSCocoaErrorDomain
                                                               code:NSFileWriteUnknownError
                                                           userInfo:nil]]
@@ -797,8 +713,7 @@ static const double kWaveformGainDetentDB = 0.75;
 }
 
 - (void)waveformGainChanged:(id)sender {
-    // A magnetic detent at 0 dB — the reset, without a button. The getter
-    // answers the half-dB ladder; the knob re-syncs to what actually landed.
+    // The getter snaps to the half-dB ladder; the knob re-syncs to it.
     double gainDB = _waveformGainSlider.doubleValue;
     if (fabs(gainDB) < kWaveformGainDetentDB) {
         gainDB = 0;
@@ -815,8 +730,7 @@ static const double kWaveformGainDetentDB = 0.75;
             [Formatters.sharedInstance signedDecimalString:AppSettings.sharedInstance.waveformGainDB]];
 }
 
-// The stored choice, which also ends any titlebar preview (the store drops it
-// on the write) — so the toggle is re-read from what the window ended up at.
+// The store drops any titlebar preview on this write.
 - (void)appearanceChanged:(id)sender {
     AppSettings.sharedInstance.windowAppearanceStyle =
             _appearancePopUp.selectedItem.representedObject;

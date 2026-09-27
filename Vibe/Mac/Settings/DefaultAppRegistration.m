@@ -7,9 +7,8 @@
 #import "DocumentTypes.h"
 #import <AppKit/AppKit.h>
 
-// App URLs come back from different sources, our own bundle and Launch
-// Services, so compare resolved paths rather than URLs: trailing slashes and
-// symlinked prefixes differ where the location does not.
+// Our bundle and Launch Services spell one location differently (trailing
+// slashes, symlinked prefixes).
 static NSString *ResolvedPath(NSURL *_Nullable url) {
     return url.URLByResolvingSymlinksInPath.URLByStandardizingPath.path;
 }
@@ -24,8 +23,7 @@ static void AddResolvedPath(NSMutableSet<NSString *> *paths, NSURL *_Nullable ur
 @implementation DefaultAppRegistration
 
 + (void)checkIsDefaultAppForAllFileTypes:(void (^)(BOOL isDefault))completion {
-    // Off the main thread: URLForApplicationToOpenContentType: is a
-    // synchronous Launch Services XPC lookup, and the walk makes one per type.
+    // URLForApplicationToOpenContentType: is a synchronous XPC lookup per type.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         BOOL isDefault = [self isDefaultAppForAllFileTypes];
         run_on_main_thread({
@@ -37,17 +35,12 @@ static void AddResolvedPath(NSMutableSet<NSString *> *paths, NSURL *_Nullable ur
 + (BOOL)isDefaultAppForAllFileTypes {
     NSArray<UTType *> *types = DocumentTypes.declaredFileTypes;
     if (types.count == 0) {
-        return NO; // nothing declared: never claim to be the default
+        return NO;
     }
-    // Which on-disk locations count as us: the running copy, plus whichever
-    // copy Launch Services prefers for our bundle identifier. Launch Services
-    // registers by identifier and answers with its preferred copy, so right
-    // after a successful registration it regularly names a different path from
-    // the running one — a build directory against /Applications — and
-    // comparing bundleURL alone reports "not the default" moments after the
-    // system said yes. Comparing identifiers directly is not an option
-    // instead, since that means reading a foreign bundle's Info.plist, which
-    // the App Sandbox denies.
+    // Launch Services registers by identifier and answers with its preferred
+    // copy, which may not be the running one, so both count. Comparing
+    // identifiers would mean reading a foreign Info.plist, which the sandbox
+    // denies.
     NSMutableSet<NSString *> *ourLocations = [NSMutableSet new];
     AddResolvedPath(ourLocations, NSBundle.mainBundle.bundleURL);
     AddResolvedPath(ourLocations, [NSWorkspace.sharedWorkspace
@@ -68,12 +61,8 @@ static void AddResolvedPath(NSMutableSet<NSString *> *paths, NSURL *_Nullable ur
 
 #pragma mark - Private
 
-// One type at a time, recursively. A request can raise its own system
-// confirmation panel, and firing all eight at once would stack eight panels on
-// the user. The first failure ends the walk, because the likeliest error is
-// the user declining that panel, and re-asking for the remaining types would
-// be nagging. The new default takes a moment to show up in
-// URLForApplicationToOpenContentType: after the system reports success.
+// One type at a time: each request can raise its own confirmation panel, and
+// they must not stack. The first failure, likeliest a refusal, ends the walk.
 + (void)setDefaultAppForTypes:(NSArray<UTType *> *)types atIndex:(NSUInteger)index {
     if (index >= types.count) {
         return;

@@ -3,10 +3,7 @@
 //  VibeTests
 //
 
-// The About window's mail link. What is asserted here is the contract a
-// VoiceOver or keyboard-only user actually meets — role, name, URL, press,
-// focusability — plus the geometry all three input paths share, and the
-// no-author fallback where the copyright line names nobody.
+// The About window's mail link, as a VoiceOver or keyboard-only user meets it.
 
 #import <XCTest/XCTest.h>
 

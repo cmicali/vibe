@@ -1,11 +1,6 @@
 //
 //  MetadataScanOrderRulesTests.m
 //
-//  The scan materialization lane's pick order: already-local files, then
-//  deferred state, neighborhood rank, playlist index.
-//  Because the lane is serial, this comparator is the whole of what decides
-//  which file downloads next.
-//
 
 #import <XCTest/XCTest.h>
 
@@ -38,26 +33,20 @@
 }
 
 - (void)testNeighborhoodRankBeatsPlaylistIndex {
-    // The next track (rank 0) goes ahead of an earlier row outside the
-    // neighborhood, however small that row's index is.
     XCTAssertTrue(VibeMetadataScanOrderedBefore(NO, NO, 0, 7, NO, NO, NSNotFound, 0));
     XCTAssertFalse(VibeMetadataScanOrderedBefore(NO, NO, NSNotFound, 0, NO, NO, 0, 7));
-    // Within the neighborhood the stated order holds: next, second-next,
-    // previous.
+    // Ranks 0, 1, 2 are next, second-next, previous.
     XCTAssertTrue(VibeMetadataScanOrderedBefore(NO, NO, 0, 9, NO, NO, 1, 2));
     XCTAssertTrue(VibeMetadataScanOrderedBefore(NO, NO, 1, 9, NO, NO, 2, 2));
 }
 
 - (void)testEqualRankFollowsPlaylistIndex {
-    // The tail — everything past the neighborhood — is stable playlist order,
-    // never stage-1 completion order.
+    // Past the neighborhood: playlist order, never stage-1 completion order.
     XCTAssertTrue(VibeMetadataScanOrderedBefore(NO, NO, NSNotFound, 3, NO, NO, NSNotFound, 4));
     XCTAssertFalse(VibeMetadataScanOrderedBefore(NO, NO, NSNotFound, 4, NO, NO, NSNotFound, 3));
 }
 
 - (void)testDeferredSortsLastWhateverTheNeighborhoodSays {
-    // A deferred retry has already failed once; even rank 0 cannot promote it
-    // past a track that has not tried at all.
     XCTAssertTrue(VibeMetadataScanOrderedBefore(NO, NO, NSNotFound, 99, NO, YES, 0, 0));
     XCTAssertFalse(VibeMetadataScanOrderedBefore(NO, YES, 0, 0, NO, NO, NSNotFound, 99));
     // Two deferred entries keep rank-then-index order among themselves.
@@ -66,9 +55,8 @@
 }
 
 - (void)testLocalLeadsEveryOtherKey {
-    // A local file's materialization is a no-op, so it beats the neighborhood's
-    // best download — and a local deferred retry still beats an untried
-    // download, because retrying it costs nothing either.
+    // A local deferred retry costs nothing either, so it still beats an
+    // untried download.
     XCTAssertTrue(VibeMetadataScanOrderedBefore(YES, NO, NSNotFound, 99, NO, NO, 0, 0));
     XCTAssertFalse(VibeMetadataScanOrderedBefore(NO, NO, 0, 0, YES, NO, NSNotFound, 99));
     XCTAssertTrue(VibeMetadataScanOrderedBefore(YES, YES, NSNotFound, 99, NO, NO, 0, 0));
@@ -154,10 +142,6 @@
 }
 
 #pragma mark - The priority slot's own pick
-
-// Phase 1's regression guard: the priority-slot picker was inline loader code
-// with no host-less coverage while its predecessors broke three times. The
-// decision now lives here, where every branch is pinned.
 
 - (MetadataScanCandidateFake *)priorityCandidateAtIndex:(NSUInteger)index
                                                     url:(NSURL *)url

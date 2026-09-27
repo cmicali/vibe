@@ -17,31 +17,17 @@
 
 #include <vector>
 
-// The core of the `scan_bpm` and `scan_key` debug commands. Each decodes the
-// file and runs its analyzer in the calling process, returning one JSON
-// object. The decode mirrors the waveform loader's — interleaved float32,
-// with the shared mono mix — so the result is exactly what an in-app load
-// would detect.
-//
-// They touch no app state and no caches, which is why the debug CLI client in
-// DebugClient.m runs these verbs locally rather than doing the channel
-// round-trip: they work with no app running. The same functions back the
-// app-side table entries for any caller that posts the command file directly.
-//
-// Sandbox note: whichever process runs this is sandboxed, so <file> must sit
-// somewhere it can read, in practice the app container's tmp. The clients'
-// stdin forms (`scan_bpm -`, `scan_key -`) stage the bytes there; see
-// scan-bpm.sh and scan-key.sh.
+// See DebugUtil.h for the contract. The decode mirrors the waveform loader's
+// — interleaved float32 through the shared mono mix — so the result is what
+// an in-app load would detect.
 
 static NSString *VibeScanJSONForDictionary(NSDictionary *reply) {
     NSData *data = [NSJSONSerialization dataWithJSONObject:reply options:0 error:nil];
     return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
 }
 
-// Decodes the whole file, feeding each buffer's shared mono mix to `consume`,
-// and returns nil on success or the error-reply JSON. The two nanosecond
-// counters split the decode from the analyzer work, so a validation run can
-// report both accuracy and cost from one pass.
+// Returns nil on success or the error-reply JSON. The two nanosecond counters
+// split decode from analysis, so one pass reports both accuracy and cost.
 static NSString *VibeScanDecode(NSString *rawPath, double *outSampleRate,
                                 uint64_t *outDecodeNanos, uint64_t *outAnalyzeNanos,
                                 void (^prepare)(double sampleRate),
@@ -81,7 +67,7 @@ static NSString *VibeScanDecode(NSString *rawPath, double *outSampleRate,
             });
         }
         if (buffer.frameLength == 0) {
-            break; // defensive: a truncated file must not spin forever
+            break; // a truncated file must not spin forever
         }
         const float *mono = AudioWaveformMonoMix(buffer.floatChannelData[0], monoScratch.data(),
                                                  buffer.frameLength, numChannels);
@@ -93,9 +79,8 @@ static NSString *VibeScanDecode(NSString *rawPath, double *outSampleRate,
     return nil;
 }
 
-// The shared reply tail: the phase split plus the audio length it covers.
 // decodeSeconds here includes the mono downmix, which dump_timing's in-app
-// entries count under chunkSeconds instead — the two reports agree on the
+// entries count under chunkSeconds instead: the two reports agree on the
 // total, not bucket by bucket.
 static NSDictionary *VibeScanTiming(double sampleRate, AVAudioFramePosition frames,
                                     uint64_t decodeNanos, uint64_t analyzeNanos, uint64_t finishNanos) {
@@ -157,8 +142,6 @@ NSString *VibeDebugKeyScanJSON(NSString *rawPath) {
         uint64_t finishStart = VibeLoadClockNow();
         VibeMusicalKey key = [analyzer finish];
         uint64_t finishNanos = VibeLoadClockNow() - finishStart;
-        // Empty strings and index -1 mean no confident key, mirroring
-        // scan_bpm's bpm 0.
         return VibeScanJSONForDictionary(@{
             @"ok": @YES,
             @"key": VibeMusicalKeyMusicalName(key),

@@ -7,10 +7,8 @@
 
 
 @implementation ScaledImageView {
-    // Dedupes a repeat setImage: with the same source. The visible image is a
-    // scale-to-fill wrapper, so super's own dedupe never fires. A strong
-    // reference is free, because the wrapper's drawing handler retains the
-    // source anyway.
+    // Dedupes setImage: by source: the visible image is a wrapper, so super's
+    // dedupe never fires. Strong is free; the wrapper retains the source.
     NSImage *_currentImage;
 }
 
@@ -40,8 +38,7 @@
 
 - (void)setImageScaling:(NSImageScaling)newScaling
 {
-    // Ignore the requested scaling: the scale-to-fill wrapper works only with
-    // NSImageScaleAxesIndependently.
+    // The scale-to-fill wrapper needs NSImageScaleAxesIndependently.
     [super setImageScaling:NSImageScaleAxesIndependently];
 }
 

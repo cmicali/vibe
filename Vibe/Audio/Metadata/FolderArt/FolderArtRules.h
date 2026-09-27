@@ -2,9 +2,8 @@
 //  FolderArtRules.h
 //  Vibe
 //
-//  What a cover beside an audio file may be called, and which name wins.
-//  FolderArtResolver applies these rules to real folders; NSURLUtil's folder
-//  walk applies the same matching to entries it is already visiting.
+//  What a cover may be called and which name wins, shared by the resolver and
+//  NSURLUtil's folder walk.
 //
 
 #import <Foundation/Foundation.h>
@@ -13,36 +12,22 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - Where a cover is looked for
 
-// **Beside the audio file, and only beside it.** No parent is consulted, ever.
-// Known cost, accepted: a multi-disc album with Album/cover.jpg and audio in
-// Album/CD1 shows no art. Walking up would have to pick a depth — one level is
-// arbitrary, more turns a Music folder's stray cover.jpg into a whole library's
-// artwork — and costs a probe per level on folders that mostly have nothing.
+// Beside the audio file only, never a parent: accepted cost, Album/CD1 misses
+// Album/cover.jpg. Any depth is arbitrary, and a Music folder's stray cover
+// would become a whole library's art.
 
 #pragma mark - What a cover is called
 
-// How many candidates are worth a stat when there is no directory listing in
-// hand — one file opened on its own. The list is ordered so these three are the
-// spellings actually found in the wild; the rest are only matched against a
-// listing, where they cost nothing.
+// Candidates worth a blind stat (a lone file, no listing); the rest match only
+// against a listing.
 static const NSUInteger kVibeFolderArtStatProbeCount = 3;
 
-// Best first, ordered by how common the spelling is: .jpg for every stem before
-// any .png, because a folder holding both cover.png and folder.jpg almost
-// always got the .png from a download and the .jpg from the ripper that wrote
-// the audio.
-//
-// The six stems are what the ecosystem agrees on: `cover` (Picard, beets),
-// `folder` (Windows Media Player, Explorer), `front` and `album` (foobar2000),
-// `albumart` (Plex, Navidrome), `art` (beets' fallback). Deliberately absent:
-// `thumb`, small by definition and soft at the 1024px header size; `poster` and
-// `default`, video-library conventions that match unrelated images here; and
-// AlbumArt_{GUID}_Large.jpg, which needs prefix matching this whole-name rule
-// does not do.
-//
-// Lower case only. macOS volumes are case-insensitive by default, so a stat for
-// cover.jpg finds Cover.JPG; a listing goes through VibeFolderArtCandidateRank,
-// which folds case explicitly.
+// Best first: .jpg for every stem before any .png, since a folder holding
+// both usually got the .jpg from the ripper. The stems are the ecosystem's
+// (Picard, beets, WMP, foobar2000, Plex). Absent on purpose: `thumb` (too
+// small), `poster` and `default` (video conventions), AlbumArt_{GUID}_*.jpg
+// (needs prefix matching). Lower case: a stat on a case-insensitive volume
+// finds Cover.JPG, and VibeFolderArtCandidateRank folds case for listings.
 static inline NSArray<NSString *> *VibeFolderArtCandidateFilenames(void) {
     static NSArray<NSString *> *candidates;
     static dispatch_once_t once;
@@ -61,9 +46,8 @@ static inline NSArray<NSString *> *VibeFolderArtCandidateFilenames(void) {
     return candidates;
 }
 
-// Where this filename sits in the list above, or NSNotFound when it is not a
-// cover. Case-insensitive, and matches the *whole* name, so scan-cover.jpg and
-// folder art.png are not covers.
+// NSNotFound when not a cover. Case-insensitive, whole-name: scan-cover.jpg
+// is not a cover.
 static inline NSUInteger VibeFolderArtCandidateRank(NSString *_Nullable filename) {
     static NSDictionary<NSString *, NSNumber *> *ranks;
     static NSUInteger longestCandidate;
@@ -81,9 +65,8 @@ static inline NSUInteger VibeFolderArtCandidateRank(NSString *_Nullable filename
         ranks = byName;
         longestCandidate = longest;
     });
-    // Length first: free, and it rejects essentially every filename in a music
-    // folder without allocating the lower-cased copy the lookup needs. This
-    // runs on every entry of a dropped folder.
+    // Length first rejects nearly every entry of a dropped folder without
+    // allocating a lower-cased copy.
     if (filename.length == 0 || filename.length > longestCandidate) {
         return NSNotFound;
     }
@@ -91,10 +74,8 @@ static inline NSUInteger VibeFolderArtCandidateRank(NSString *_Nullable filename
     return rank != nil ? rank.unsignedIntegerValue : NSNotFound;
 }
 
-// The one comparison every caller makes, so "a better cover" cannot come to
-// mean two things. NSNotFound means "not a cover" on the left and "nothing yet"
-// on the right — and it is NSIntegerMax, not NSUIntegerMax, so it must be
-// tested rather than compared.
+// NSNotFound is "not a cover" on the left and "nothing yet" on the right. It
+// is NSIntegerMax, not NSUIntegerMax, so it must be tested, not compared.
 static inline BOOL VibeFolderArtRankBeats(NSUInteger rank, NSUInteger incumbentRank) {
     if (rank == NSNotFound) {
         return NO;
@@ -102,8 +83,7 @@ static inline BOOL VibeFolderArtRankBeats(NSUInteger rank, NSUInteger incumbentR
     return incumbentRank == NSNotFound || rank < incumbentRank;
 }
 
-// The cover among a directory's filenames, or nil when it holds none. Returns
-// the caller's own spelling, since that is what has to be opened.
+// Returns the caller's own spelling, which is what must be opened.
 static inline NSString *_Nullable VibeFolderArtBestCandidate(NSArray<NSString *> *_Nullable filenames) {
     NSString *best = nil;
     NSUInteger bestRank = NSNotFound;
@@ -117,9 +97,7 @@ static inline NSString *_Nullable VibeFolderArtBestCandidate(NSArray<NSString *>
     return best;
 }
 
-// The streaming form, for a caller walking a tree entry by entry rather than
-// holding one directory's listing: keeps the best cover seen so far per
-// directory, in the two dictionaries it is given.
+// The streaming form for a tree walk: the best cover so far per directory.
 static inline void VibeFolderArtNoteCandidate(NSString *_Nullable directory,
                                               NSString *_Nullable filename,
                                               NSMutableDictionary<NSString *, NSString *> *artByDirectory,

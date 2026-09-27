@@ -2,9 +2,8 @@
 //  SearchFolderStoreInternal.h
 //  Vibe (iOS)
 //
-//  The retained security-scope grant handed from search to FolderSession.
-//  SearchFolderStore keeps removed entries alive until every such grant ends.
-//  Do not import this outside SearchFolderStore.m and FolderSession.m.
+//  The grant FolderSession retains; a removed entry's scope stops only when
+//  every grant ends. Only SearchFolderStore.m and FolderSession.m import it.
 //
 
 #import "SearchFolderStore.h"
@@ -22,8 +21,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface SearchFolderStore (Internal)
 
-// Retains the live persistent grant whose root covers url. nil means the URL
-// is covered only by FolderSession's transient root or the app container.
+// Nil when only a transient root or the app container covers url.
 - (nullable SearchFolderGrant *)grantCoveringURL:(NSURL *)url;
 
 @end

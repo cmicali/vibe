@@ -7,17 +7,12 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Perceptual, OKLCH clamping for artwork-derived colors. OKLab lightness is
-// hue-independent, unlike HSB brightness: a yellow and a blue at the same HSB
-// brightness differ wildly in perceived lightness. That is exactly the failure
-// mode when clamping the header wash beneath the waveform and track text.
+// OKLCH clamping for artwork-derived colors: OKLab lightness is hue-independent,
+// where a yellow and a blue at one HSB brightness differ wildly.
 @interface NSColor (OKLCH)
 
-// Converts to OKLCh, clamps L into [minL, maxL] and C to at most maxC, then
-// converts back at `alpha`. A clamped result outside the sRGB gamut reduces
-// chroma until it fits, because hue and lightness are what the clamp promises
-// to preserve. It returns the receiver, at `alpha`, if the color cannot be
-// read as RGB.
+// Clamps L into [minL, maxL] and C to maxC. Out of gamut, chroma gives way,
+// never hue or lightness. The receiver at `alpha` if it has no RGB reading.
 - (NSColor *)vibe_colorByClampingOKLCHLightnessMin:(CGFloat)minL
                                       lightnessMax:(CGFloat)maxL
                                          chromaMax:(CGFloat)maxC

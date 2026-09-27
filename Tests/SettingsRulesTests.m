@@ -199,7 +199,6 @@
     XCTAssertTrue(settings.bitPerfectOutput);
 }
 
-// Declick is one choice for every device and every mode, on by default.
 - (void)testDeclickDefaultsOnForEveryDevice {
     AppSettings *settings = [self freshSettings];
     XCTAssertTrue(settings.declick);
@@ -238,9 +237,7 @@
     XCTAssertEqualObjects(VibeNormalizedDockIcon(@"App Icon"), @"album_art");
 }
 
-// The editor's glyph menus offer only symbols this macOS draws, and every
-// play pick has a pause partner that is also a real symbol; a play glyph
-// outside the table pairs with the factory pause, never with itself.
+// A play glyph outside the table pairs with the factory pause, never itself.
 - (void)testGlyphChoicesAreRealSymbolsWithPausePartners {
     for (NSString *glyph in [VibePlaylistButtonGlyphs() arrayByAddingObjectsFromArray:VibeNextButtonGlyphs()]) {
         XCTAssertNotNil([NSImage imageWithSystemSymbolName:glyph accessibilityDescription:nil], @"%@", glyph);
@@ -351,9 +348,8 @@
     XCTAssertFalse(VibeSettingsAreAtDefaults(@{@"color": @"#FF8800"}, registered, nullable));
 }
 
-// The Advanced pane's Audio group, hidden in a Release build, is revealed by
-// seven quick clicks on the Version row: a click counts only within the gap of
-// the one before it, and a slower click starts the count over.
+// Release hides the Advanced pane's Audio group until quick clicks on the
+// Version row reveal it; a slower click starts the count over.
 - (void)testTheAudioGroupRevealCountsQuickSuccessiveClicksOnly {
     XCTAssertEqual(kVibeAudioPathRevealClicks, 7u);
     NSUInteger count = VibeAudioPathRevealClickCount(0, 1e9); // the first click, however long after launch

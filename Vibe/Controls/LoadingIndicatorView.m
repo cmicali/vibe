@@ -45,10 +45,9 @@
     return self.window ? self.window.backingScaleFactor : 2;
 #else
     // displayScale is 0 until the view joins a hierarchy; the window scene's
-    // screen is the next-best context. 2 matches the mac fallback above —
-    // every current device is at least 2x, and a wrong guess here only lasts
-    // until didMoveToWindow redraws. UIScreen.mainScreen is deprecated on
-    // iOS 26 and wrong on iPad multi-window anyway.
+    // screen is the next-best context, then 2, the floor of every current
+    // device. Not UIScreen.mainScreen: deprecated, and wrong on iPad
+    // multi-window.
     CGFloat scale = self.traitCollection.displayScale;
     if (scale > 0) {
         return scale;
@@ -77,9 +76,7 @@
         }
     }
     else {
-        // Never endSweepKeepingFill — that exists for the waveform's "data
-        // landed while the download continues" case, which has no row
-        // equivalent.
+        // Never endSweepKeepingFill: a row has no "data landed mid-download".
         [_indicator removeFromHost];
         _indicator = nil;
         _progress = -1;

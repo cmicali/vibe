@@ -2,9 +2,8 @@
 //  ArtworkDisplayController+Debug.h
 //  Vibe
 //
-//  Declaration-only inspection of the main header's live artwork state. The
-//  implementation stays with ArtworkDisplayController, and the shipping
-//  header remains limited to rendering actions.
+//  Declaration-only inspection of the header's live artwork state, for the
+//  artwork ownership checks; implemented in ArtworkDisplayController.m.
 //
 
 #if DEBUG

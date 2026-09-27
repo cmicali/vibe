@@ -49,7 +49,7 @@ One full-screen page: blurred art (a baked image, `Util/iOS/CLAUDE.md`), header,
 
 **The time row is pulled up into the waveform view's bottom** (`kCellTimeWaveformOverlap`): the scrubber reserves headroom around the envelope, and the eye measures from the drawn waveform. It hangs off the waveform so tightening it cannot push the waveform down. Landscape keeps a plain gap, since its transport rides the time row's centerline.
 
-**A page shows full-size art or the vinyl placeholder, never the 128px thumbnail.** The **art window** in `+Pager` decodes the current page and its neighbors ahead and holds their art (`_artHeldPages`) to a byte budget — **but never releases a page with a live cell**, whose image view pins the bitmap anyway. `renderHeaderForTrack:` moves the window, and a metadata delivery re-runs it: before metadata lands, the art dispatch is a message to nil. **The commit path discards nothing**, since the departing page is usually the arriving one's neighbor.
+**A page shows full-size art or the vinyl placeholder, never the 128px thumbnail.** The **art window** in `+Pager` decodes the current page and its neighbors ahead and holds their art (`_artHeldPages`) to a byte budget — **but never releases a page inside the window or with a live cell**, whose image view pins the bitmap anyway. `renderHeaderForTrack:` moves the window, and a metadata delivery re-runs it: before metadata lands, the art dispatch is a message to nil. **The commit path discards nothing**, since the departing page is usually the arriving one's neighbor.
 
 ## PageWaveformCoordinator
 

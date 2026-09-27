@@ -33,9 +33,8 @@
 @end
 #endif
 
-// Descriptions are NOT localized: every consumer is a log site. The UI status
-// comes from VibeStatusForPlayError (AudioErrorRules.h), which maps the error
-// code and localizes there, once for both platforms.
+// Descriptions are for logs, never localized; the UI's line is
+// VibeStatusForPlayError (AudioErrorRules.h).
 NSError *VibeAudioError(VibeAudioErrorCode code, NSString *description, NSError *underlying) {
     NSMutableDictionary *info = [NSMutableDictionary new];
     if (underlying) {
@@ -48,8 +47,7 @@ NSError *VibeAudioError(VibeAudioErrorCode code, NSString *description, NSError 
     return [NSError errorWithDomain:kVibeAudioErrorDomain code:code userInfo:info];
 }
 
-// Play-path variant: stamps the failing track's URL so the delegate can drop
-// a delivery a track change has outrun (see kVibeAudioErrorTrackURLKey).
+// Stamps the failing track's URL (kVibeAudioErrorTrackURLKey).
 NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, NSError *underlying, NSURL *trackURL) {
     NSError *error = VibeAudioError(code, description, underlying);
     if (!trackURL) {
@@ -62,14 +60,12 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
 
 // An open still pending after this long is worth a visible loading state.
 static const NSTimeInterval kSlowOpenIndicatorDelaySeconds = 0.5;
-// An open taking this long is worth recording, separately from the indicator
-// delay above, which is a UI choice.
+// An open taking this long is logged, apart from the indicator's UI delay.
 static const NSTimeInterval kSlowOpenLogThresholdSeconds = 0.25;
 // Default pitch fader range in percent: ±8%, matching a stock SL-1200.
 static const float kDefaultMaxPitchPercent = 8.0f;
 
-// Queue-specific key marking _queue, so synchronous helpers can tell whether
-// they already run on this exact player's queue.
+// Marks _queue, so runSyncOnQueue: can tell it is already on this player's.
 static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 @implementation AudioPlayer {
@@ -79,9 +75,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // replaced an audibly playing track, the declick minimum otherwise.
     uint64_t                _incomingFadeMilliseconds;
 
-    // ---- The pending open: its token, and the abandon deadline in monotonic
-    // uptime. A new underlying open snapshots its configuration; a same-row
-    // replay preserves that open identifier and snapshot.
+    // ---- The pending open: its token and abandon deadline, in monotonic
+    // uptime. A same-row replay keeps the open identifier and its snapshot.
     AudioFileOpenToken      *_playOpenToken;
     uint64_t                _playOpenRequestId;
     NSTimeInterval          _openSubmittedUptime;
@@ -121,25 +116,21 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         _prefetchRequestState = VibeAudioPrefetchRequestStateMake();
         _levelNormalizationMode = kLevelDefaultNormalizationMode;
         _levelPublisher = [[AudioLevelPublisher alloc] init];
-        // Meaningful before the async init block resolves the saved device:
-        // -1 means follow the system default, rather than a bogus device id 0.
+        // -1 follows the system default until the saved device resolves.
         self.currentlyRequestedAudioDeviceId = -1;
-        // Default QoS, not user-initiated: this queue waits on the output
-        // unit's own Default-QoS queue (waitUntilIdle); a higher class would
-        // invert. The latency-critical work — the file open and the decode —
-        // runs on its own lanes.
+        // Default QoS: this queue waits on the output unit's Default-QoS queue
+        // (waitUntilIdle), and a higher class would invert. The open and the
+        // decode run on their own lanes.
         _queue = dispatch_queue_create("com.vibe.audioplayer",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, 0));
         dispatch_queue_set_specific(_queue, kAudioPlayerQueueKey, (__bridge void *)self, NULL);
         _manualPump = pump;
-        // The bus exists for the player's life; every queue-side reader
-        // dereferences it. TRAP: allocated in the async init below instead,
-        // the render stall watcher's first tick, due at once on the queue,
-        // ran first on a loaded machine and read the gate through NULL.
+        // TRAP: allocated here, never in the async init block below: every
+        // queue-side reader and the dealloc dereference it unchecked, and
+        // queue work can run before that block.
         _masterBus = VibeMasterBusCreate();
-        // The controls and the BPM feed exist from init, whatever the setting,
-        // so intent survives a live toggle; the FX units themselves are hosted
-        // only at the first connect.
+        // Both platforms keep the controls and BPM feed across toggles; the
+        // units are hosted at the first connect.
         _fxEnabled = enableFX;
         __weak AudioPlayer *weakPlayer = self;
         _fx = [[AudioFX alloc] initWithQueue:_queue scheduler:^(NSTimeInterval seconds, dispatch_block_t block) {
@@ -160,8 +151,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 #endif
         self.delegate = delegate;
         if (!pump) {
-            // The production player only: the render suites drive their own
-            // clock and hold the queue on purpose.
+            // Not under the pump: the render suites hold the queue on purpose.
             [self startStallWatchers];
         }
         dispatch_async(_queue, ^{
@@ -193,7 +183,6 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     return _manualPump == nil; // under the pump there is no output unit on either platform
 }
 
-// The one home for the same-queue guard every synchronous accessor needs.
 - (void)runSyncOnQueue:(NS_NOESCAPE dispatch_block_t)block {
     if (dispatch_get_specific(kAudioPlayerQueueKey) == (__bridge void *)self) {
         block();
@@ -242,17 +231,11 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         }
     }
 #endif
-    // Pipeline mutation belongs on _queue, as everywhere else. dispatch_sync
-    // from here cannot deadlock against in-flight queue work: a queued block
-    // either holds a strongSelf, in which case dealloc is not running, or
-    // resolves its weakSelf to nil and returns. The one remaining hazard is
-    // dealloc itself running on _queue, when a queued block releases the last
-    // reference, so that case tears down inline. The output unit stops before the
-    // pipeline is freed and the bus released with the rest of the ivars, so
-    // no render is in flight — and one still inside leaks all of it, since
-    // nothing a render is inside may be freed. Locals, not self: the open
-    // tokens outlive the player otherwise, pulling a whole file down for a
-    // play that can never land.
+    // On _queue, inline when dealloc itself runs there; a queued block either
+    // holds a strongSelf or finds its weakSelf nil, so the sync cannot
+    // deadlock. The output unit stops before the pipeline is freed, and a
+    // render still inside leaks all of it. Locals, not self: captured through
+    // self, the open tokens would outlive the player and keep downloading.
     AudioLevelMeter *levelMeter = _levelMeter;
     _levelMeter = nil;
     AudioVoiceBus *voiceBus = _voiceBus;
@@ -302,20 +285,15 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     [self playTrack:track atPosition:0 startPaused:NO declick:NO];
 }
 
-// Convert resumes the same audio in place; playlist removal uses this to land
-// a replacement parked. Both declick rather than crossfade: the first would
-// only dip identical audio, and the second should render nothing until resume.
 - (void)play:(AudioTrack *)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused {
     [self playTrack:track atPosition:position startPaused:startPaused declick:YES];
 }
 
 - (void)playTrack:(AudioTrack *)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused declick:(BOOL)declick {
     VibePendingPlaybackIntent intent = VibePendingPlaybackIntentMake(position, startPaused);
-    // TRAP: identifier minting and queue admission are one ordering edge.
-    // Media-reset receipt takes the same lock around its queue admission, so
-    // a play cannot be identified on one side of the reset and execute on the
-    // other. The queue block may briefly wait for this lock to be released;
-    // it never holds the queue while asking another thread to acquire it.
+    // TRAP: minting and queue admission are one edge under _stateLock, as the
+    // media-reset receipt's admission is, so a play cannot be identified on
+    // one side of the reset and run on the other.
     os_unfair_lock_lock(&_stateLock);
     uint64_t submittedPlayIdentifier = ++_nextSubmittedPlayIdentifier;
     _lastSubmittedPlayIdentifier = submittedPlayIdentifier;
@@ -328,19 +306,13 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     os_unfair_lock_unlock(&_stateLock);
 }
 
-// One play submission, as the ordered phases it is: retire the superseded
-// successor request, try to rebind an identical in-flight play, retire the
-// current voice, commit to Loading, supersede the previous open, then either
-// consume a prefetched handle or admit a new one. The order is the
-// correctness, so the constraints BETWEEN the phases are commented here,
-// where the call sites are next to each other.
+// The phases' order is the correctness; each constraint is commented at its
+// call.
 - (void)playOnQueue:(AudioTrack *)track intent:(VibePendingPlaybackIntent)intent declick:(BOOL)declick
 submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     if (_terminating) return;
     NSString *path = track.url.path;
-    // Every explicit play submission retires the successor request belonging
-    // to the playback context it superseded. This precedes the rebind, which
-    // returns early but is still a newer submission.
+    // Before the rebind, which returns early but is still a newer submission.
     [self terminallyRetirePrefetchRequestOnQueue];
     // A parked play is a pause outcome: cut any older crossfade tail before
     // the same-path Loading rebind can return without touching the bus.
@@ -352,29 +324,21 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         return;
     }
     _activeSubmittedPlayIdentifier = 0;
-    // Before the state flips to Loading below: the retire's crossfade decision
-    // asks whether it is replacing an AUDIBLY playing track, which Loading
-    // would answer NO to.
+    // Before Loading is published: the crossfade decision asks whether an
+    // audibly playing track is being replaced.
     [self retireCurrentVoiceOnQueueWithDeclick:declick];
     self.currentTrack = nil;
     LogDebug(@"play file: %@", path);
     uint64_t openId = [_pendingRequest beginWithTrack:track path:path intent:intent
                                  submittedPlayIdentifier:submittedPlayIdentifier];
-    // Enter the loading state: no voice or file yet, but a play is committed,
-    // so the UI stops showing a stale duration and position for up to the
-    // full open timeout. publishState: mirrors the request and retires the
-    // pre-Loading handoff a seek would otherwise still aim at.
+    // Also mirrors the request and retires the pre-Loading handoff a seek
+    // would otherwise still aim at.
     [self publishState:VibePlayerStateLoading voice:0 file:nil startSeconds:0 baseFrames:0];
-    // Detach the previous play from its path claim and cancel any still-
-    // abortable materialization. A park from the previous playlist
-    // neighborhood must not compete with the foreground provider transfer; a
+    // An unrelated park must not compete with the foreground transfer; a
     // same-path park stays.
     [self cancelPlayOpenOnQueue];
     [self retirePrefetchOnQueueAtPoint:VibeAudioPrefetchAtPlaySubmission playPath:path];
-    // A parked handle for this exact path skips the open entirely: ownership
-    // passes to the normal settlement with a fresh open id, and no timeout or
-    // loading-indicator timers ever exist. Loading is published above either
-    // way, so the fast path lands in the same state the slow one does.
+    // A parked handle for this path skips the open and its timers.
     if (_prefetchedFile && [path isEqualToString:_prefetchedPath]) {
         AudioFileHandle *prefetchedFile = _prefetchedFile;
         [self clearPrefetchOnQueue];
@@ -384,12 +348,10 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     [self submitOpenOnQueueForTrack:track openRequestId:openId];
 }
 
-// Attempted only inside Loading, because rebindTrack: MUTATES the request it
-// matches. YES means this play is fully handled: this exact file is already
-// loading, with its open in flight, and starting another would strand a
-// second blocked worker and, on a slow file, flash a spurious timeout error
-// before the first completes. The delivery is rebound to the new track
-// object, since a re-drop replaces the playlist with fresh instances.
+// Only inside Loading, since rebindTrack: mutates the request it matches. YES:
+// this file's open is already in flight, and a second would strand a blocked
+// worker. The delivery moves to the new row object (a re-drop makes fresh
+// instances).
 - (BOOL)rebindLoadingPlayOnQueueForTrack:(AudioTrack *)track path:(NSString *)path
                                   intent:(VibePendingPlaybackIntent)intent
                  submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
@@ -414,23 +376,17 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     return YES;
 }
 
-// The outgoing voice fades on its own while the incoming one fades in beside
-// it — a true crossfade on one bus, with nothing rewired. Whether this play
-// replaces an audibly playing track is the only case the user's crossfade
-// length applies to; everything else fades at the declick minimum.
 - (void)retireCurrentVoiceOnQueueWithDeclick:(BOOL)declick {
     BOOL replacingAudibleTrack = _voice != 0 && [self renderingOnQueue] && _state == VibePlayerStatePlaying;
-    // A device's mode lands before main applies its dependent settings.
+    // The mode can land before main holds the crossfade at the declick.
     declick |= [self bitPerfectOnQueue];
     _incomingFadeMilliseconds = VibeIncomingFadeMilliseconds(self.crossfadeMilliseconds, replacingAudibleTrack, declick);
     VibeVoiceID voice = [self unpublishVoiceOnQueue];
     [self retireVoiceOnQueue:voice milliseconds:_incomingFadeMilliseconds];
 }
 
-// Open through the bounded interactive lane, and arm the two timers that bound
-// it. The request id pairs the logical open with its deadline; the coordinator
-// owns the underlying standardized-path claim until an uncancellable OS call
-// really returns.
+// The request id pairs the logical open with its deadline; the coordinator
+// owns the path claim until an uncancellable OS call returns.
 - (void)submitOpenOnQueueForTrack:(AudioTrack *)track openRequestId:(uint64_t)openId {
     NSURL *openURL = track.url;
     _playOpenRequestId = openId;
@@ -441,9 +397,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     _playOpenToken = [[AudioFileMaterializationCoordinator sharedCoordinator]
             openURL:openURL purpose:VibeAudioFileOpenPurposePlayback completionQueue:_queue
             completion:^(AudioFileHandle *file, NSError *error, NSTimeInterval openSeconds) {
-        // How long the provider took is the one number that explains a slow
-        // start. Warn level so it persists for `log show`; always logged, so
-        // "nothing appeared" can only mean the open did not happen.
+        // Always logged, so a missing line means the open never happened.
         if (!file) {
             LogWarn(@"AudioPlayer: open of %@ abandoned after %.3fs (%@)",
                     openURL.lastPathComponent, openSeconds, error.localizedDescription);
@@ -472,20 +426,16 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     });
 }
 
-// The settlement: the file is open, the play still current. The source
-// segment is made to fit the file, a voice starts fading in from silence,
-// and the output runs unless the play was parked.
 - (void)finishPlayOnQueueWithFile:(AudioFileHandle *)file error:(NSError *)error openRequestId:(uint64_t)openId {
     VibePlaybackRequest *request = [_pendingRequest consumeRequest:openId];
     if (!request) {
         return; // Superseded by a newer play, or already timed out.
     }
-    // The prefetch worker can win this request while its dedicated play claim
-    // is still open. Whichever completion wins consumes the request and
-    // detaches that claim; an identifier guard protects a newer play.
+    // The prefetch can win this request while the play's claim is open; the
+    // winner detaches it, and the identifier guard protects a newer play.
     [self cancelPlayOpenForRequest:openId];
-    // If the interactive open won its same-path prefetch race, retire the
-    // loser before a late result can make the new current track its successor.
+    // Retire a losing same-path prefetch before a late result can make the
+    // current track its own successor.
     [self retirePrefetchOnQueueAtPoint:VibeAudioPrefetchAtPlaySettlement playPath:request.path];
     AudioTrack *track = request.track;
     VibePendingPlaybackIntent startIntent = request.intent;
@@ -497,8 +447,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                forSubmittedPlay:request.submittedPlayIdentifier];
         return;
     }
-    // A unit made late, or a route that moved while nothing played, brings
-    // its rate before the segment below is built at a stale one.
+    // Before the segment is built at a stale rate.
     if (![self followOutputRateOnQueue]) {
         return; // the follow reset the player and said why
     }
@@ -520,9 +469,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                                       fadeMilliseconds:(_incomingFadeMilliseconds ?: kFadeDurationMilliseconds)
                                                 paused:startIntent.paused];
     if (startIntent.paused) {
-        // A parked voice renders nothing until resumed. Paused is idle: the
-        // output may be running from the track this one replaced, and nothing
-        // else will stop it.
+        // Paused is idle: the output may still run from the replaced track.
         [self publishState:VibePlayerStatePaused voice:voice file:file
               startSeconds:(NSTimeInterval)startFrame / sampleRate baseFrames:0];
         [self scheduleOutputIdleStopOnQueue];
@@ -550,11 +497,8 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     else {
         [self terminallyRetirePrefetchRequestOnQueue];
     }
-    // Dropped for a superseded submission, for the same reason its error is:
-    // the shell's own guard compares the track, and a replay of the SAME row
-    // is the same AudioTrack, so a start that belongs to the previous play
-    // reads as current and re-runs didStartPlaying:'s whole tail, the
-    // successor prefetch included.
+    // Matched by submission, not track: a same-row replay is the same
+    // AudioTrack, so the previous play's start would pass the shell's guard.
     uint64_t settledPlay = request.submittedPlayIdentifier;
     uint64_t deliveredAt = [self deliveryStamp];
     run_on_main_thread({
@@ -568,12 +512,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     });
 }
 
-// One logical deadline: the firing checks the effective deadline against the
-// progress the open has shown, re-arms itself for the remainder when a sample
-// has pushed it out, and abandons only when genuinely due. Progress can only
-// extend (AudioFileOpenTimeoutMath.h), and a stale firing for a superseded or
-// landed open fails the identifier check before it can read another
-// request's stamps.
+// One logical deadline, re-armed for the remainder while progress has pushed
+// it out (AudioFileOpenTimeoutMath.h). A stale firing fails the identifier
+// check before reading another request's stamps.
 - (void)fileOpenDeadlineDueForRequest:(uint64_t)openId {
     if (![_pendingRequest isCurrentRequest:openId]) {
         return; // The open landed in time, or a newer play superseded it.
@@ -593,9 +534,8 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         return;
     }
     [self cancelPlayOpenForRequest:openId];
-    // If materialization was still running it is cancelled. If the worker had
-    // entered AudioFileHandle, its path claim stays registered until that call
-    // returns, and a same-path retry rebinds to it.
+    // A worker already inside AudioFileHandle keeps its path claim until the
+    // call returns, and a same-path retry joins it.
     AudioTrack *track = request.track;
     BOOL madeProgress = _openLastPositiveMovementUptime > _openSubmittedUptime;
     LogError(@"Timed out opening %@ (progress seen: %@)", track.url.path, madeProgress ? @"yes" : @"no");
@@ -667,9 +607,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     });
 }
 
-// Explicit desired-state transport: duplicate calls are no-ops, and the
-// decision is made beside the mutable state rather than from a caller's stale
-// snapshot.
+// A desired state: duplicates are no-ops.
 - (void)pauseOnQueue {
     if (_state == VibePlayerStateLoading) {
         [self applyEditedLoadingRequest:[_pendingRequest setPausedIfChanged:YES]];
@@ -680,23 +618,19 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     }
     [self pauseCurrentVoiceOnQueue];
 #if TARGET_OS_OSX
-    // The first moment a pause is silent, and so the first moment a wanted
-    // device that came back while audio was playing may be adopted.
+    // The first silent moment, when a returned saved device may be adopted.
     [self resolvePendingSavedOutputDeviceOnQueue];
 #endif
 }
 
-// The voice fades to silence and stops consuming on the exact landing frame;
-// the state is Paused now. Under a stopped output nothing renders, so the
-// pause is a cut, which lands at the first render after any restart, before
-// audio. A pause silences a crossfade's outgoing tail too.
+// Under a stopped output the pause is a cut, landing at the first render
+// after any restart.
 - (void)pauseCurrentVoiceOnQueue {
     uint64_t milliseconds = [self renderingOnQueue] ? kFadeDurationMilliseconds : 0;
     [_voiceBus setRamp:[self rampOnQueueToGain:0 milliseconds:milliseconds action:VibeVoiceActionPause] forVoice:_voice];
     [self cutRetiringVoicesToDeclickOnQueue];
     [self publishState:VibePlayerStatePaused voice:_voice file:_file startSeconds:_voiceStartSeconds baseFrames:_promotedBaseFrames];
-    // Paused is idle: without this the output renders silence and holds the
-    // output device for as long as the user stays paused.
+    // Or the output holds the device for as long as the user stays paused.
     [self scheduleOutputIdleStopOnQueue];
     AudioTrack *track = self.currentTrack;
     run_on_main_thread({
@@ -713,18 +647,14 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         return;
     }
     uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
-    // The output unit's rate may have moved while it was stopped (the iOS route,
-    // a mac unit made late); the pipeline follows it first, re-voicing paused
-    // in place, so the start below runs at that rate and the output converts
-    // nothing.
+    // The rate may have moved while stopped (the iOS route, a mac unit made
+    // late); follow it before the start.
     if (![self followOutputRateOnQueue]) {
         return; // the follow reset the player and said why
     }
     NSError *startError = nil;
     if (![self startOutputOnQueue:&startError]) {
-        // startOutputOnQueue cancelled the pending idle stop at entry; the
-        // state stays Paused, so re-arm it or a running output holds the
-        // output device forever.
+        // The start cancelled the idle stop; still Paused, so re-arm it.
         [self scheduleOutputIdleStopOnQueue];
         [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed, @"Could not resume playback", startError)
                forSubmittedPlay:owningSubmittedPlayIdentifier];
@@ -765,21 +695,16 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 
 #pragma mark - Seek
 
-// A seek is a new voice at the target and the old one fading out beside it:
-// the one shape for playing and paused, with no reschedule and nothing to
-// wait for. The caller computed the position against the track that is
-// current NOW; a gapless boundary can promote the next track before the block
-// below runs, so the intent is snapshotted and the seek dropped if the track
-// moved on.
+// A gapless boundary can promote the next track before the block runs, so the
+// intended track is snapshotted here and the seek dropped if it moved on.
 - (void)seekToPosition:(NSTimeInterval)position {
     uint64_t submittedAt = [self noteSubmittedAction:@"seek" position:position];
     AudioTrack *intendedTrack = self.currentTrack;
     uint64_t intendedSubmittedPlayIdentifier = 0;
     os_unfair_lock_lock(&_stateLock);
     if (self.lastSubmittedPlayTrack) {
-        // A play is queued but has not reached the player queue yet, so
-        // currentTrack still names the outgoing track. Aim at the play the
-        // user just started — the row they are looking at.
+        // A play not yet admitted: currentTrack still names the outgoing
+        // track, so aim at the one the user just started.
         intendedTrack = self.lastSubmittedPlayTrack;
         intendedSubmittedPlayIdentifier = self.lastSubmittedPlayIdentifier;
     }
@@ -817,8 +742,8 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     BOOL paused = _state == VibePlayerStatePaused;
     [self revoiceOnQueueAtPosition:position];
     if (!paused) {
-        // Playing can carry a stopped output for the moment between the
-        // system stopping the iOS unit and its recovery.
+        // Playing can carry a stopped output between an iOS system stop and
+        // its recovery.
         NSError *startError = nil;
         if (![self startOutputOnQueue:&startError]) {
             [self pauseCurrentVoiceOnQueue];
@@ -833,8 +758,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     [self notifySeekFinishedOnQueue:track reason:@"intent updated" submittedPlay:owningSubmittedPlayIdentifier];
 }
 
-// Every seek settles didFinishSeeking:, including a dropped one: the header
-// promises it, and Control Center resyncs off it.
+// Every seek settles, a dropped one included: Control Center resyncs off it.
 - (void)notifySeekFinishedOnQueue:(AudioTrack *)track reason:(NSString *)reason submittedPlay:(uint64_t)play {
     [self noteSettled:@"seek" reason:reason];
     uint64_t deliveredAt = [self deliveryStamp];
@@ -857,25 +781,19 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     [self resetToStoppedStateOnQueue];
 }
 
-// Marks playback fully stopped after a failure or a stop, so that isPlaying
-// and duration report reality and the play button can recover. The current
-// voice goes with it, at the declick minimum, never the crossfade length: a
-// stop lands immediately.
+// Every stop and failure lands here. The voice retires at the declick, never
+// the crossfade length.
 - (void)resetToStoppedStateOnQueue {
     VibeVoiceID voice = [self unpublishVoiceOnQueue];
     [self retireVoiceOnQueue:voice milliseconds:kFadeDurationMilliseconds];
-    // Invalidate any in-flight open: after an unrelated failure resets to
-    // Stopped, a still-pending open must not land later and start playback
-    // out of an errored or stopped UI. The identifier makes every late
-    // delivery a no-op.
+    // A pending open must not land later and start playback out of a stopped
+    // UI.
     [_pendingRequest invalidate];
     _activeSubmittedPlayIdentifier = 0;
     [self cancelPlayOpenOnQueue];
     [self retirePrefetchOnQueueAtPoint:VibeAudioPrefetchAtAbandonment playPath:nil];
     [self clearSuccessorOnQueue];
-    // Stop and every failure path land here — a crossfade whose incoming open
-    // failed included — so the outgoing fade must not ring on for up to the
-    // full crossfade length.
+    // A crossfade whose incoming open failed must not ring on.
     [self cutRetiringVoicesToDeclickOnQueue];
     [self publishState:VibePlayerStateStopped voice:0 file:nil startSeconds:0 baseFrames:0];
 #if TARGET_OS_OSX
@@ -885,15 +803,12 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
         dispatch_async(_queue, ^{ [self resolvePendingSavedOutputDeviceOnQueue]; });
     }
 #endif
-    // Release the output device once genuinely idle. A quick follow-up play,
-    // such as auto-advance past a bad file, reuses the running output.
+    // Deferred, so a quick follow-up play reuses the running output.
     [self scheduleOutputIdleStopOnQueue];
 }
 
-// Ends the current track as if it had played to its end. A gapless boundary
-// can promote the next track before the block runs, and finishing then would
-// end the track the skip meant to REACH — one skip landing two tracks ahead —
-// so the intent is snapshotted on main.
+// Snapshotted on main: a boundary promoting before the block runs would
+// otherwise end the track the skip meant to reach, two tracks ahead.
 - (void)finishCurrentTrack {
     AudioTrack *intendedTrack = self.currentTrack;
     dispatch_async(_queue, ^{
@@ -940,8 +855,8 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
         NSError *failure = [_voiceBus errorOfVoice:voice failedFile:&failedFile];
         NSURL *failedURL = failure.userInfo[NSURLErrorKey];
         if (failedFile && failedFile != _file) {
-            // The predecessor finished; a successor that never became current
-            // cannot reset its submission or report an error against its row.
+            // A successor that never became current cannot reset the play or
+            // report an error against the row.
             [self clearSuccessorOnQueue];
             [self finishPlaybackOnQueue];
             return;
@@ -957,12 +872,9 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     [self finishPlaybackOnQueue];
 }
 
-// The shared terminus for "the current track is done": the natural end, whose
-// voice has already died and so retires as a no-op, and finishCurrentTrack,
-// whose voice may be at full volume and fades. It marks the player Stopped and
-// notifies the delegate, whose handler drives auto-advance or the
-// end-of-playlist stop. The output stop is deferred so that the auto-advance
-// play, which arrives within milliseconds, reuses the running output.
+// The natural end (the voice already dead) and finishCurrentTrack (it may be
+// at full volume, and fades). The output stop is deferred so the auto-advance
+// play reuses the running output.
 - (void)finishPlaybackOnQueue {
     AudioTrack *track = self.currentTrack;
     uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
@@ -973,8 +885,6 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     [self resolvePendingSavedOutputDeviceOnQueue];
 #endif
     [self scheduleOutputIdleStopOnQueue];
-    // Snapshot before dispatching: if the track has changed by the time the
-    // block runs on main, this end event is stale and must be dropped.
     _activeSubmittedPlayIdentifier = 0;
     uint64_t deliveredAt = [self deliveryStamp];
     run_on_main_thread({
@@ -989,12 +899,10 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 
 #pragma mark - Voices
 
-// The one gain rule. Bit-perfect output ramps at most the declick: the
-// crossfade setting is already held at the minimum under the mode, but a play
-// submitted before the mode landed carries the length it was retired with,
-// so the clamp lives here, at the funnel. With Declick off a declick-length
-// ramp — every transport edge — is a cut, in either mode; a longer one is
-// the user's crossfade, and fades.
+// The one gain rule. Bit-perfect output ramps at most the declick, clamped
+// here because a play submitted before the mode landed carries a longer
+// length. With Declick off every declick-length ramp is a cut; a longer one
+// is the user's crossfade, and fades.
 - (VibeVoiceRamp)rampOnQueueToGain:(float)gain milliseconds:(uint64_t)milliseconds action:(VibeVoiceAction)action {
     if ([self bitPerfectOnQueue]) {
         milliseconds = MIN(milliseconds, kFadeDurationMilliseconds);
@@ -1018,15 +926,11 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     return voice;
 }
 
-// A new voice for the current file at `position`, the old one retiring at
-// the declick beside it: the seek's shape, shared with an unqueue the decoder
-// won, where only a new voice discards the successor frames already in the
-// ring, and with a rebuild's restore, where there is no old voice left.
-// Playing or paused alike; the published tuple moves with the voice.
-// TRAP: the old voice retires before the new one starts. Both read the same
-// AudioFileHandle, whose cursor the new voice's first decode turn positions; a
-// turn of the old voice queued between the two calls reads after that and
-// the new voice's next chunk starts 4096 frames late.
+// The seek's shape, shared with an unqueue the decoder won (only a new voice
+// discards successor frames already in the ring) and a rebuild's restore.
+// TRAP: the old voice retires, its reads stopped, before the new one starts:
+// both read one AudioFileHandle, and an old turn after the new voice
+// positions the cursor starts its next chunk 4096 frames late.
 - (void)revoiceOnQueueAtPosition:(NSTimeInterval)position {
     AudioFileHandle *file = _file;
     double sampleRate = file.processingFormat.sampleRate;
@@ -1039,15 +943,11 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     [self publishState:_state voice:voice file:file startSeconds:(NSTimeInterval)startFrame / sampleRate baseFrames:0];
 }
 
-// An audible voice fades out for `milliseconds` and dies; one that cannot be
-// heard — not yet live, paused, cut with Declick off, or under a stopped
-// output — is killed outright, since silence cannot click, and is silent at
-// once, so only fading voices join _retiringVoices. The voice's own state
-// decides, never the player's: finishPlaybackOnQueue has published Stopped
-// by the time it retires the voice a skip past the end found at full volume,
-// and a pause still fading is audible too. A declick-length retire, fading
-// or cut, reads no more of its file, so the file may be handed to the next
-// voice; a crossfade-length one keeps reading its own, never its successor.
+// A voice that cannot be heard (not live, paused, cut, or under a stopped
+// output) is killed; only fading voices join _retiringVoices. The voice's
+// own state decides, never the player's, which may already read Stopped. A
+// declick-length retire reads no more of its file, so the file may be handed
+// on; a crossfade-length one keeps reading its own.
 - (void)retireVoiceOnQueue:(VibeVoiceID)voice milliseconds:(uint64_t)milliseconds {
     if (!voice) {
         return;
@@ -1071,9 +971,8 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     [self refreshOutputAudioActiveOnQueue];
 }
 
-// Stop, pause, a parked play and the failure reset must not leave an outgoing
-// track audible for up to the full crossfade. Skips never call this, so rapid
-// skips keep the full fade-out.
+// For stop, pause, a parked play and the failure reset; skips never call it,
+// so rapid skips keep the full fade-out.
 - (void)cutRetiringVoicesToDeclickOnQueue {
     for (NSNumber *voice in _retiringVoices) {
         [_voiceBus setRamp:[self rampOnQueueToGain:0 milliseconds:kFadeDurationMilliseconds action:VibeVoiceActionRetire]
@@ -1083,9 +982,6 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 
 #pragma mark - Crossfade and pitch
 
-// Manual accessors so the write can keep the queued successor honest: raising
-// the setting past the declick minimum unqueues it (the user now wants
-// overlapped transitions), and lowering it back re-arms the park.
 @synthesize crossfadeMilliseconds = _crossfadeMilliseconds;
 
 - (NSInteger)crossfadeMilliseconds {
@@ -1109,8 +1005,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     });
 }
 
-// Manual accessors so the write reaches the bus, whose converters read it as
-// they are made; a bus built later takes it from here (ensureSourceSegmentOnQueueRebuilt:).
+// A bus built later takes it from here (ensureSourceSegmentOnQueueRebuilt:).
 @synthesize resamplingQuality = _resamplingQuality;
 
 - (VibeResamplingQuality)resamplingQuality {
@@ -1161,8 +1056,6 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     pitch = clampRange(pitch, -_maxPitch, _maxPitch);
     _pitch = pitch;
     os_unfair_lock_unlock(&_stateLock);
-    // The rate is an AU parameter, but touch the unit only on the player's
-    // owning queue, as with every other graph mutation.
     dispatch_async(_queue, ^{
         [self applyPitchOnQueue:pitch];
     });
@@ -1193,8 +1086,6 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
         return;
     }
     _levelsEnabled = levelsEnabled;
-    // The intent crosses to the queue as a captured value rather than as a
-    // read of the main-thread property from the block.
     dispatch_async(_queue, ^{
         self->_levelsWanted = levelsEnabled;
         [self applyLevelMeterOnQueue];
@@ -1207,9 +1098,8 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 
 #pragma mark - The open slot and the loading mirror
 
-// The play token slot is queue-confined. The request-specific form is what
-// completion and timeout use: a delayed terminus must never detach a newer
-// play's waiter.
+// Completion and timeout use the request-specific form: a delayed terminus
+// must never detach a newer play's waiter.
 - (void)cancelPlayOpenOnQueue {
     [_playOpenToken cancel];
     _playOpenToken = nil;
@@ -1269,12 +1159,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 
 #pragma mark - The published tuple
 
-// The writer model, in one place. The player queue owns every transition;
-// _stateLock protects only the snapshot the main-thread getters read. This is
-// the FULL-TUPLE publisher: state, voice, file, and the position's origin in
-// one acquisition, so a getter never observes a torn combination. The two
-// unpublish variants below are the only partial writers, and they are safe
-// because they never move the position's origin.
+// One acquisition, so a getter never sees a torn tuple.
 - (void)publishState:(VibePlayerState)state voice:(VibeVoiceID)voice file:(AudioFileHandle *)file
         startSeconds:(NSTimeInterval)startSeconds baseFrames:(uint64_t)baseFrames {
     VibePlaybackRequest *request = state == VibePlayerStateLoading ? _pendingRequest.currentRequest : nil;
@@ -1296,8 +1181,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     [self refreshOutputAudioActiveOnQueue];
 }
 
-// Partial writer 1 of 2: clears the voice alone, and with it the successor
-// that belonged to it. Hands the voice back for the caller to retire.
+// Clears the voice and its successor; the caller retires the voice.
 - (VibeVoiceID)unpublishVoiceOnQueue {
     os_unfair_lock_lock(&_stateLock);
     VibeVoiceID voice = _voice;
@@ -1307,9 +1191,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     return voice;
 }
 
-// Partial writer 2 of 2: state and voice together, one acquisition, because a
-// state that disagrees with the published voice is exactly what the
-// full-tuple publisher exists to prevent.
+// State and voice in one acquisition, so they never disagree.
 - (VibeVoiceID)unpublishVoiceOnQueueEnteringTerminalState:(VibePlayerState)state {
     os_unfair_lock_lock(&_stateLock);
     _state = state;
@@ -1320,10 +1202,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     return voice;
 }
 
-// Output liveness is deliberately narrower than transport intent: Loading is
-// inactive unless a retiring voice is still fading; a paused voice is
-// inactive the moment the pause is published. AudioFX does not expose wet-tail
-// lifetime, so claiming one here would be a timer-shaped guess.
+// No FX tail is modeled: it would be a timer-shaped guess.
 - (void)refreshOutputAudioActiveOnQueue {
     BOOL active = [self renderingOnQueue]
             && ((_state == VibePlayerStatePlaying && _voice != 0) || _retiringVoices.count > 0);
@@ -1332,9 +1211,8 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     _outputAudioActive = active;
     os_unfair_lock_unlock(&_stateLock);
 #if TARGET_OS_OSX
-    // Every state publication and voice end funnels here, which makes it the
-    // edge that keeps the bit-perfect report's "a track is playing" input
-    // honest without a hook in each publisher. Off, it returns at once.
+    // Every publication and voice end funnels here: the bit-perfect report's
+    // "a track is playing" edge.
     [self publishBitPerfectReportOnQueue];
 #endif
     if (!changed) {
@@ -1357,15 +1235,9 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     });
 }
 
-// Whether a submission is still the newest one. Delivery sites call it on main
-// from inside their delivery block, because what matters there is whether a
-// newer play had been submitted by the time the callback actually ran.
-//
-// TRAP: the counter is _nextSubmittedPlayIdentifier, which only ever
-// increments, and NOT _lastSubmittedPlayIdentifier, which looks like the same
-// thing and is not — that one is the pre-Loading handoff, cleared to 0 the
-// moment its play reaches Loading, so comparing against it reports EVERY
-// settlement as superseded.
+// TRAP: against _nextSubmittedPlayIdentifier, which only increments, never
+// _lastSubmittedPlayIdentifier: that is the pre-Loading handoff, cleared to 0
+// once its play reaches Loading, so every settlement would read superseded.
 - (BOOL)submittedPlayIsCurrent:(uint64_t)submittedPlayIdentifier {
     os_unfair_lock_lock(&_stateLock);
     uint64_t newest = _nextSubmittedPlayIdentifier;
@@ -1384,15 +1256,10 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     });
 }
 
-// TRAP: the delegate cannot make this judgement itself, and its existing
-// guards look like they can. A play failure is published as Stopped and its
-// error hops to main; if the user re-plays the SAME row in the window before
-// that hop lands, the shell sees a matching URL and a player that has not yet
-// published Loading for the replacement, so every guard it has says the error
-// is current — and it tears down state the newer play had just set up. The
-// identifier is exact: a re-drop of a file already loading REBINDS its
-// request and adopts the new submission's identifier, so a rebound request
-// still matches and its error is still delivered.
+// TRAP: only the player can judge this. Replay the same row before a failure's
+// error hops to main, and the shell sees a matching URL and no Loading yet,
+// so the old error tears down the newer play. A rebind adopts the new
+// submission's identifier, so its error is still delivered.
 - (void)sendDelegateError:(NSError *)error forSubmittedPlay:(uint64_t)submittedPlayIdentifier {
     LogError(@"AudioPlayer Error: %@", error.localizedDescription);
     [self deliverOnMainForSubmittedPlay:submittedPlayIdentifier named:@"error" block:^{
@@ -1464,8 +1331,6 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 }
 
 - (NSDictionary<NSString *, NSNumber *> *)debugRenderCounts {
-    // Reading these off the queue would race every voice start and retire,
-    // which is exactly the code these numbers are meant to audit.
     __block NSDictionary *counts = nil;
     [self runSyncOnQueue:^{
         VibeVoiceSnapshot snapshot = [self->_voiceBus snapshotOfVoice:self->_voice];

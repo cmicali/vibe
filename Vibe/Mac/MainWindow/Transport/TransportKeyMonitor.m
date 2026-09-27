@@ -14,10 +14,8 @@
 #import "MainPlayerController+Transport.h"
 #import "MainWindow.h"
 
-// The dual-mode performance-effect keys. Each flips its effect at keyDown, and
-// keyUp decides what the press meant: a tap, shorter than
-// kEffectTapMaxDuration, latches the flip like a toggle, while a hold reverts
-// to the pre-press state, making the press momentary.
+// Each flips its effect at keyDown; keyUp decides: a tap latches the flip, a
+// hold reverts to the pre-press state.
 typedef NS_ENUM(NSInteger, VibeEffectKey) {
     VibeEffectKeyLowKill = 0,       // Q
     VibeEffectKeyLowKillBoost,      // W
@@ -27,9 +25,8 @@ typedef NS_ENUM(NSInteger, VibeEffectKey) {
     VibeEffectKeyCount
 };
 
-// The longest press that still counts as a tap. It is long enough that a lazy
-// tap does not revert by accident, and short enough that a deliberate
-// momentary stab, held and released over a beat, never latches.
+// Long enough that a lazy tap does not revert, short enough that a stab held
+// over a beat never latches.
 static const NSTimeInterval kEffectTapMaxDuration = 0.35;
 
 static NSInteger VibeEffectKeyForChars(NSString *chars) {
@@ -53,9 +50,8 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
     id                              _windowMoveObserver;
     __weak MainPlayerController    *_controller;
 
-    // The tap-against-hold state, indexed by VibeEffectKey. isDown gates the
-    // keyUp side: a keyUp whose keyDown we never handled — typed into a text
-    // view, or pressed with a modifier down — must pass through untouched.
+    // Indexed by VibeEffectKey. isDown gates keyUp: a release whose keyDown we
+    // never handled must pass through untouched.
     BOOL                            _effectKeyIsDown[VibeEffectKeyCount];
     NSTimeInterval                  _effectKeyDownTime[VibeEffectKeyCount];
     BOOL                            _effectStateBeforeDown[VibeEffectKeyCount];
@@ -66,17 +62,13 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
     if (self) {
         _controller = controller;
         __weak TransportKeyMonitor *weakSelf = self;
-        // keyUp too, because Q, W, E, R and T toggle on a tap and are
-        // momentary on a hold, so their releases matter, unlike other keys'.
         _monitor = [NSEvent addLocalMonitorForEventsMatchingMask:(NSEventMaskKeyDown | NSEventMaskKeyUp)
                                                           handler:^NSEvent *(NSEvent *event) {
             TransportKeyMonitor *strongSelf = weakSelf;
             return strongSelf ? [strongSelf handleKeyEvent:event inWindow:event.window] : event;
         }];
-        // If the window resigns key while an effect key is held, through
-        // Cmd-Tab or a panel stealing focus, the release lands elsewhere and
-        // the flip would stick. Revert every held key to its pre-press state.
-        // Latched effects, turned on by a tap, are deliberate and persist.
+        // Resigning key mid-hold sends the release elsewhere, so the flip
+        // would stick: revert held keys. Latched effects persist.
         _resignKeyObserver = [[NSNotificationCenter defaultCenter]
                 addObserverForName:NSWindowDidResignKeyNotification
                             object:nil
@@ -88,10 +80,8 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
                 [strongSelf revertHeldEffectKeys];
             }
         }];
-        // Nested event-tracking loops also swallow the release: menu tracking,
-        // and a window drag through movableByWindowBackground. The keyUp never
-        // reaches the monitor, so a momentary hold would stay flipped with the
-        // isDown state stale. Treat the loop's start like losing key status.
+        // Nested tracking loops (a menu, a window drag) also swallow the
+        // release.
         _menuTrackingObserver = [[NSNotificationCenter defaultCenter]
                 addObserverForName:NSMenuDidBeginTrackingNotification
                             object:nil
@@ -152,8 +142,7 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
     }
 }
 
-// Focus left mid-press. Treat every held key as a hold release, and revert it,
-// however long it was down: no keyUp is coming to decide.
+// No keyUp is coming to decide, so every held key reverts.
 - (void)revertHeldEffectKeys {
     MainPlayerController *controller = _controller;
     if (!controller) {
@@ -169,36 +158,30 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
 
 #pragma mark - Event handling
 
-// The single character of a bare keypress, or 0 for anything longer. None of
-// the keys below is NUL, so 0 matches nothing.
+// 0 for anything but one character; no key below is NUL.
 static unichar VibeBareKeyChar(NSString *chars) {
     return chars.length == 1 ? [chars characterAtIndex:0] : 0;
 }
 
-// Return and the keypad's Enter both mean "play the selected row".
 - (BOOL)isPlaySelectionKey:(NSString *)chars {
     unichar c = VibeBareKeyChar(chars);
     return c == NSCarriageReturnCharacter || c == NSEnterCharacter;
 }
 
-// Backspace and Forward Delete both mean "remove the selected row". The Edit
-// menu advertises Backspace alone; Forward Delete is a physical-key twin, not a
-// second shortcut, so only this monitor knows about it.
+// The Edit menu advertises Backspace alone; only this monitor knows Forward
+// Delete.
 - (BOOL)isRemoveSelectionKey:(NSString *)chars {
     unichar c = VibeBareKeyChar(chars);
     return c == NSDeleteCharacter || c == NSDeleteFunctionKey;
 }
 
-// The up and down arrows, which are the table's own moveUp:/moveDown:.
 - (BOOL)isSelectionMoveKey:(NSString *)chars {
     unichar c = VibeBareKeyChar(chars);
     return c == NSUpArrowFunctionKey || c == NSDownArrowFunctionKey;
 }
 
-// Everything whose meaning is the playlist's, and so is dead while it is
-// collapsed. Composed from the three above rather than re-listing their
-// characters: a key added to one of them must be swallowed here too, or it
-// falls through to the focused table with the pane closed.
+// Composed from the three above, so a key added to one is swallowed here too
+// rather than reaching the focused table with the pane closed.
 - (BOOL)isPlaylistKey:(NSString *)chars {
     return [self isPlaySelectionKey:chars]
             || [self isRemoveSelectionKey:chars]
@@ -212,23 +195,19 @@ static unichar VibeBareKeyChar(NSString *chars) {
         return event;
     }
     if (event.type == NSEventTypeKeyUp) {
-        // This runs before the modifier guard, because a modifier pressed
-        // mid-hold must not make the release invisible and leave the effect
-        // stuck flipped.
+        // Before the modifier guard: a modifier pressed mid-hold must not hide
+        // the release.
         NSInteger effectKey = VibeEffectKeyForChars(event.charactersIgnoringModifiers.lowercaseString);
         if (effectKey >= 0 && _effectKeyIsDown[effectKey]) {
             _effectKeyIsDown[effectKey] = NO;
             if (event.timestamp - _effectKeyDownTime[effectKey] >= kEffectTapMaxDuration) {
-                // Held, so momentary: restore the state the keyDown flipped.
                 [self setEffect:effectKey active:_effectStateBeforeDown[effectKey] controller:controller];
             }
-            // Tapped, so the keyDown's flip stays latched, like a toggle.
             return nil;
         }
         return event;
     }
-    // Leave anything that is not a bare keypress alone: menu shortcuts, and
-    // any future text editing in a field editor.
+    // Menu shortcuts and field editors keep their keys.
     NSEventModifierFlags mods = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
     if (mods & (NSEventModifierFlagCommand | NSEventModifierFlagControl |
                 NSEventModifierFlagOption | NSEventModifierFlagShift)) {
@@ -255,8 +234,8 @@ static unichar VibeBareKeyChar(NSString *chars) {
         return nil;
     }
 #if VIBE_VERBOSE_LOGGING
-    // Beta instrumentation (#47): M marks the moment a tester hears the
-    // problem, so the log lines up what they perceived with what happened.
+    // Beta instrumentation: M marks the moment a tester hears a problem.
+    // keyCode 46 is the physical M under any layout.
     if ([chars isEqualToString:@"m"] || event.keyCode == 46) {
         if (event.isARepeat) return nil;
         static NSUInteger marks;
@@ -269,10 +248,8 @@ static unichar VibeBareKeyChar(NSString *chars) {
         return nil;
     }
 #endif
-    // The playlist keys, dead while the playlist is collapsed: the table keeps
-    // focus off screen, and moving a selection nobody can see is not
-    // navigation. Swallowed rather than passed on, because an unhandled key
-    // reaching the focused table wedges its input context.
+    // Dead while collapsed, and swallowed: the table keeps focus off screen,
+    // and an unhandled key reaching it wedges its input context.
     if ([self isPlaylistKey:chars]) {
         if (!((MainWindow *)controller.window).isPlaylistShown) {
             return nil;
@@ -282,9 +259,7 @@ static unichar VibeBareKeyChar(NSString *chars) {
             return nil;
         }
         if ([self isRemoveSelectionKey:chars]) {
-            // Repeat downs are swallowed: a held delete key must take one row,
-            // not walk the playlist. The transport and skip keys below honor
-            // repeat deliberately; a structural edit cannot.
+            // A held delete takes one gesture's rows, not the playlist.
             if (!event.isARepeat) {
                 [controller removeSelectedPlaylistTracks:nil];
             }
@@ -292,16 +267,9 @@ static unichar VibeBareKeyChar(NSString *chars) {
         }
         return event;   // the arrows are the table's own moveUp:/moveDown:
     }
-    // For the effect keys, flip the effect right at keyDown, so that both
-    // meanings of the press get an instant response. The keyUp branch above
-    // decides whether the flip latches, on a tap, or reverts, on a hold.
-    // Key-repeat downs are swallowed without touching the state machine.
-    // Graph availability is fixed for the app's lifetime, but its controls
-    // follow the stored setting immediately. With either half off, this
-    // monitor leaves Q/W/E/R/T alone; the menu builder removes its fallback
-    // equivalents and validation disables the items. The keyUp side needs no
-    // twin guard — a keyDown never handled leaves _effectKeyIsDown clear, and
-    // that branch already yields.
+    // Flipped at keyDown for an instant response; repeats are swallowed. With
+    // no controls or FX disallowed, Q–T pass through. The keyUp side needs no
+    // twin guard: an unhandled keyDown leaves _effectKeyIsDown clear.
     NSInteger effectKey = VibeEffectKeyForChars(chars);
     if (effectKey >= 0 && controller.audioPlayer.fx != nil
             && AppSettings.sharedInstance.audioFXAllowed) {
@@ -314,15 +282,8 @@ static unichar VibeBareKeyChar(NSString *chars) {
         }
         return nil;
     }
-    // Transport, navigation, skip and size keys deliberately honor hardware
-    // repeat. Only the effect keys above suppress it because they carry
-    // keyDown-to-keyUp state.
-    //
-    // Skip seek. A, S and D go forward by the configured base bar count,
-    // twice it and four times it; Z, X and C go back the same, or 10, 30 and
-    // 60 seconds when the track has no BPM. The six bindings form a two-by-three
-    // grid, forward on top and back below; the further the key, the longer the
-    // skip.
+    // Everything below honors hardware repeat. A/S/D skip forward, Z/X/C back:
+    // the further the key, the longer the skip.
     if ([chars isEqualToString:@"a"]) {
         [controller skipForward:nil];
         return nil;
@@ -347,9 +308,6 @@ static unichar VibeBareKeyChar(NSString *chars) {
         [controller skipBackMost:nil];
         return nil;
     }
-    // Tab is also a menu key equivalent, installed by MainMenuBuilder, but
-    // that path fires only as a fallback after the focused view declines the
-    // event. Handle it here, like the other bare keys.
     if ([chars isEqualToString:@"\t"]) {
         [controller toggleSize:nil];
         return nil;

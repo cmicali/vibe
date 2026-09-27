@@ -1,9 +1,5 @@
-//
-// The Now Playing republish position rule: natural playback advance must not
-// count as dirty, because the system extrapolates elapsed time itself from
-// the last publish; only a jump the extrapolation cannot explain — a seek, a
-// pitch rescale — forces a republish.
-//
+// The system extrapolates elapsed time from the last publish, so only a jump
+// the extrapolation cannot explain (a seek, a pitch rescale) is dirty.
 
 #import <XCTest/XCTest.h>
 
@@ -62,11 +58,9 @@ static BOOL Dirty(double publishedRate, BOOL wasPlaying, NSTimeInterval position
 }
 
 - (void)testToleranceBoundary {
-    // Exactly at the tolerance is still natural advance; beyond it is a jump.
     XCTAssertFalse(Dirty(1.0, YES, 41.0));
     XCTAssertTrue(Dirty(1.0, YES, 41.001));
 }
-
 
 - (void)setUp {
     [super setUp];

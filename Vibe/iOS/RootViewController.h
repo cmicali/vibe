@@ -2,20 +2,15 @@
 //  RootViewController.h
 //  Vibe (iOS)
 //
-//  The scene's root: Playlist and Files tabs, UIKit's separate search tab, the
-//  mini player in the tab bar's bottomAccessory, and the full-screen
-//  now-playing card above them. The scene owns playback; this container borrows
-//  it and owns only presentation.
+//  The scene's root: the tabs, the mini player in their bottomAccessory, and
+//  the now-playing card above them. It owns presentation only.
 //
-//  A CONTAINER, NOT A UITabBarController SUBCLASS. The card has to sit above
-//  the tab bar controller's whole view so the underlying screen can scale back
-//  behind it, Apple Music-style, and a subclass cannot transform its own view
-//  without dragging the card along with it.
+//  A container, not a UITabBarController subclass: the tabs' whole view scales
+//  back behind the card, and a subclass cannot transform its own view without
+//  moving the card too.
 //
-//  THE CARD IS BUILT ONCE AND NEVER TORN DOWN. Minimizing translates it off
-//  the bottom; it is not presented and not dismissed. Its pager, art window
-//  and waveform snapshots have to survive a minimize, or every expand pays a
-//  re-read and a re-decode of the art that is already in memory.
+//  The card is built once and never torn down; minimizing translates it off
+//  the bottom, so its pager, art and waveform snapshots survive.
 //
 
 #import <UIKit/UIKit.h>
@@ -33,9 +28,7 @@ NS_ASSUME_NONNULL_BEGIN
                          bundle:(nullable NSBundle *)bundle NS_UNAVAILABLE;
 - (nullable instancetype)initWithCoder:(NSCoder *)coder NS_UNAVAILABLE;
 
-// Foreground-active, supplied by the scene delegate. The root combines this
-// with presentation visibility for the Library, and forwards the exact same
-// fact to the card's display-link gate.
+// Foreground-active, from the scene delegate; forwarded to the card.
 @property (nonatomic, getter=isSceneActive) BOOL sceneActive;
 
 @end

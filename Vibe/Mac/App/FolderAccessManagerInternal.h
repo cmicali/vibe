@@ -11,12 +11,10 @@ FOUNDATION_EXPORT const NSInteger VibeFolderAccessRestoreConcurrencyLimit;
 
 @interface FolderAccessManager (Internal)
 
-// Background thread. The declaration is shared with the host-less scheduler
-// coverage test; production callers use restoreGrantedAccessWithCompletion:.
+// Background thread. For the scheduler tests.
 - (nullable NSDictionary *)resolveStoredEntry:(NSDictionary *)stored;
 
-// Main thread. Shared only with the coverage tests that exercise reactivation
-// racing launch restoration.
+// Main thread. For the tests of reactivation racing launch restoration.
 - (void)mergeAdditions:(NSArray<NSDictionary *> *)additions;
 
 @end

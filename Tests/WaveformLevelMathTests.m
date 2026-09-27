@@ -18,8 +18,6 @@ static float MeanSquareAtFraction(float fraction) {
     return rms * rms;
 }
 
-// 0 dB is the mapping every style drew before the setting existed: RMS
-// against the full-scale reference, clamped at 1.
 - (void)testZeroGainIsThePlainMapping {
     XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(MeanSquareAtFraction(0.5f), kVibeWaveformFullScaleRMS, 0), 0.5f, 1e-6f);
     XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(MeanSquareAtFraction(0.1f), kVibeWaveformFullScaleRMS, 0), 0.1f, 1e-6f);
@@ -29,8 +27,6 @@ static float MeanSquareAtFraction(float fraction) {
     XCTAssertEqual(VibeWaveformBarLevel(-1, kVibeWaveformFullScaleRMS, 0), 0);
 }
 
-// Up grows a bar into the ceiling, down shrinks it, and the clamp holds at
-// every gain.
 - (void)testGainScalesTheLevelAndClampsAtFullScale {
     float quiet = MeanSquareAtFraction(0.1f);
     XCTAssertGreaterThan(VibeWaveformBarLevel(quiet, kVibeWaveformFullScaleRMS, 6), VibeWaveformBarLevel(quiet, kVibeWaveformFullScaleRMS, 0));
@@ -40,10 +36,8 @@ static float MeanSquareAtFraction(float fraction) {
     XCTAssertLessThanOrEqual(VibeWaveformBarLevel(MeanSquareAtFraction(4), kVibeWaveformFullScaleRMS, -12), 1.0f);
 }
 
-// The second half of the setting: the ratio between a loud bar and one 6 dB
-// under it is 2 at 0 dB, wider with the gain down (expansion) and narrower
-// with it up (compression) — measured below the clamp so only the curve
-// speaks.
+// A bar to one 6 dB under it is 2 at 0 dB, measured below the clamp so only
+// the curve speaks.
 - (void)testGainDownExpandsAndGainUpCompressesTheRange {
     float loud = MeanSquareAtFraction(0.2f);
     float softer = MeanSquareAtFraction(0.1f);

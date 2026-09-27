@@ -201,9 +201,8 @@ static void VibeEqualizerDebugDisplayLinkStopped(void) {
         return;
     }
     _audioOutputActive = audioOutputActive;
-    // Only a light dim when paused: the collapse to dots is what says "not
-    // playing" now, and dimming a row of dots as hard as it dimmed full-height
-    // bars left almost nothing to see.
+    // Only a light dim when paused: the collapse to dots already says "not
+    // playing", and a hard dim leaves a row of dots almost invisible.
 #if TARGET_OS_OSX
     self.alphaValue = audioOutputActive ? 1.0 : 0.8;
 #else

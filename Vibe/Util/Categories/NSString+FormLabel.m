@@ -8,7 +8,7 @@
 @implementation NSString (FormLabel)
 
 - (NSString *)vibeFormLabel {
-    // whitespaceCharacterSet covers the no-break space French puts before it.
+    // whitespaceCharacterSet includes French's no-break space.
     if ([self hasSuffix:@":"] || [self hasSuffix:@"："]) {
         return [[self substringToIndex:self.length - 1]
                 stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];

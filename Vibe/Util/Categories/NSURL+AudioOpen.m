@@ -9,10 +9,9 @@
 
 @implementation NSURL (AudioOpen)
 
-// TRAP: st_size, never st_blocks or NSURLFileAllocatedSizeKey. An evicted
-// iCloud or Dropbox file is dataless — true logical size, zero allocated
-// blocks — so an allocation-based test would reject every cloud-hosted track.
-// stat() reads that metadata locally and never materializes the file.
+// TRAP: st_size, never st_blocks or NSURLFileAllocatedSizeKey: a dataless
+// cloud file has its true size but zero allocated blocks, so an allocation
+// test would reject every cloud track. stat() never materializes the file.
 - (BOOL)isEmptyOrDirectory {
     if (!self.isFileURL) {
         return NO;

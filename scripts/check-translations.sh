@@ -1,36 +1,21 @@
 #!/bin/bash
 #
-# Fail if any catalog key is missing a translation. Covers every catalog in
-# the CATALOGS list below — Localizable, InfoPlist and ThemeNames. Required
-# before either release path — see release.sh / release-appstore.sh.
+# Fail if any key in any catalog (CATALOGS below) is missing a catalog
+# language. Both release paths run it.
 #
-# InfoPlist.xcstrings fails the same silent way and is easier to forget: its
-# keys are the bundle name, the copyright and the CFBundleTypeName values, so
-# a missing one means Launch Services shows an English document-type name in
-# that locale — visible in the Finder's Get Info and Open With, and nowhere in
-# the app to notice while testing.
+# Nothing else catches this. `make check-strings` only asks whether the catalog
+# matches the source, and sync never writes a language other than en; the
+# build's `xcstringstool compile` exits 0 on a partial key, which then renders
+# English in that locale only (1.9 shipped 8 keys as English in 29 locales).
+# InfoPlist.xcstrings is the easy one to forget: a missing document-type name
+# shows in English only in the Finder.
 #
-# Nothing else catches this. `make check-strings` is a round-trip diff: it
-# re-runs sync+normalize on a copy and diffs, so it answers "does the catalog
-# match the source", and sync never writes a language other than en — a key
-# with only an en unit round-trips byte-identically and passes. The build is no
-# better: `xcstringstool compile` exits 0 on a partial key and just emits an
-# xx.lproj without it, so the lookup misses at runtime and falls through to the
-# macro's default value, rendering English in that locale only. Silent in both
-# directions, which is how 1.9 shipped 8 keys as English in 29 locales.
+# The test is "missing any catalog language", NOT "has only en": a key
+# spike-translated into a few languages to check layout must not pass.
 #
-# The test is "missing any catalog language", NOT "has only en". A key
-# spike-translated into el/de/ru to check layout (Greek and German are the
-# expansion-heavy ones) passes an only-en test while the other 26 languages
-# never get written — the worse failure, because the key looks done.
-#
-# The language set is the union across all keys (catalog-languages.sh), so it
-# defines itself: the first key translated into a new language makes that
-# language required everywhere. The converse is the blind spot — a language
-# deleted from EVERY key leaves the union and the check goes quiet. Accepted:
-# the repo has no other source of truth for the list (knownRegions is
-# (Base, en) and gates nothing), and losing a language wholesale is a
-# deliberate act, not the drift this is guarding against.
+# The language set is the union across all keys (catalog-languages.sh), so a
+# language deleted from EVERY key silently stops being required. Accepted: no
+# other source lists the languages, and that loss is deliberate, not drift.
 #
 # Usage:
 #   scripts/check-translations.sh            fail on any missing translation
@@ -52,11 +37,8 @@ esac
 LANGS=$("$ROOT/scripts/catalog-languages.sh" | jq -Rn '[inputs]')
 LANG_COUNT=$(jq -r 'length' <<<"$LANGS")
 
-# One pass over both catalogs, rendered two ways below. Both the human list and
-# the CI annotations come off this JSON rather than off each other's text — a
-# report mode that re-parsed the human output would break silently the next
-# time it is reworded. Each entry carries its catalog, because "which file" is
-# the first thing you need in order to fix one.
+# One pass over every catalog, rendered two ways below, so the CI annotations
+# never re-parse the human text.
 REPORT=$(jq -sc --argjson all "$LANGS" '
     [.[] | .file as $file | .doc.strings | to_entries[]
      | {catalog: $file, key: .key,
@@ -70,11 +52,8 @@ LIST=$(jq -r '.[] | "  \(.catalog)  \(.key)  missing: \(.missing | join(", "))"'
 
 if [[ -n "$LIST" ]]; then
     if (( GITHUB_MODE )); then
-        # Warn, never fail. Untranslated keys are the expected state between a
-        # feature landing and the translation batch at the release cut, so a
-        # hard failure here would leave main red for that whole window and
-        # train everyone to ignore it. The release scripts are the gate; CI
-        # only keeps the worklist visible.
+        # Warn, never fail: untranslated keys are expected between a feature
+        # landing and the release-cut batch. The release scripts are the gate.
         echo "untranslated keys (pending the release-cut translation batch):"
         echo "$LIST"
         jq -r '.[] | "::warning title=Untranslated key::\(.catalog) \(.key) is missing \(.missing | join(", "))"' \
@@ -105,8 +84,7 @@ MSG
 fi
 
 # needs_review is not a failure: a reworded English default flips every other
-# language to needs_review by design, and those units still compile and ship
-# the old translation. Worth surfacing, never worth blocking a release on.
+# language to it, and those units still ship the old translation.
 REVIEW=$(jq -s -r '
     [.[] | .strings | to_entries[]
      | select((.value.localizations // {}) | to_entries[]

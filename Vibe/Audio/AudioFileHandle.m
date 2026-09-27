@@ -23,11 +23,9 @@
     BOOL _writing;
 }
 
-// The read side of the parse. Short reads are answered as such and a read at
-// or past EOF is the end-of-file status, the shape CoreAudio's own file reader
-// gives its parsers; verdict parity with AudioFileOpenURL was measured per
-// format (WAV, AIFF, FLAC, ALAC, MP3, MP2, AAC, M4A) on accepting, refusing,
-// truncated and mislabeled files.
+// Short reads answered as such, and a read at or past EOF as the end-of-file
+// status: the shape CoreAudio's own file reader gives its parsers, which keeps
+// the verdicts AudioFileOpenURL would give.
 static OSStatus VibeHandleRead(void *clientData, SInt64 position, UInt32 requestCount, void *buffer, UInt32 *actualCount) {
     AudioFileHandle *handle = (__bridge AudioFileHandle *)clientData;
     ssize_t got = pread(handle->_descriptor, buffer, requestCount, position);
@@ -46,9 +44,8 @@ static SInt64 VibeHandleSize(void *clientData) {
 // The type CoreAudio registers for an extension: the hint AudioFileOpenURL
 // takes from a path. 0 when none is registered.
 static AudioFileTypeID VibeFileTypeForExtension(NSString *extension) {
-    // A strong local, not a bridged temporary: ARC frees an unretained
-    // expression result at the end of its statement, and the registry lookup
-    // below then compared against freed memory.
+    // A strong local, not a bridged temporary: ARC frees that at the end of
+    // its statement, leaving the lookup below reading freed memory.
     NSString *lowered = extension.lowercaseString;
     CFStringRef key = (__bridge CFStringRef)lowered;
     UInt32 size = 0;
@@ -94,8 +91,8 @@ static AVAudioChannelLayout *VibeFileChannelLayout(ExtAudioFileRef reader) {
 }
 
 #if VIBE_VERBOSE_LOGGING
-// Beta instrumentation (#47): a refusal names both statuses and how the file
-// starts, so a report says why without the file itself.
+// A refusal names both statuses and how the file starts, so a report says why
+// without the file itself.
 static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFileTypeID hint, OSStatus hinted, OSStatus sniffed) {
     unsigned char head[16] = {0};
     ssize_t got = pread(descriptor, head, sizeof(head), 0);
@@ -134,11 +131,9 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         return [self failWithError:error status:kAudioFileUnsupportedFileTypeError
                        description:[NSString stringWithFormat:@"%@ is not a file", name]];
     }
-    // TRAP: nonblocking, so a FIFO with no writer — a path a playlist or a
-    // restored session can name — returns at once for fstat to refuse below
-    // rather than parking an uncancellable open worker until a writer comes.
-    // A regular file is never made to wait by the flag: pread on one does
-    // not block on readiness.
+    // TRAP: nonblocking, so a FIFO with no writer returns at once for fstat
+    // to refuse, instead of parking an uncancellable open worker. A regular
+    // file's pread ignores the flag.
     _descriptor = open(url.fileSystemRepresentation, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
     if (_descriptor < 0) {
         int code = errno;
@@ -154,12 +149,10 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
                        description:[NSString stringWithFormat:@"%@ holds no audio data", name]];
     }
     _size = info.st_size;
-    // TRAP: parse as the type the extension claims first, as AudioFileOpenURL
-    // does. Sniffing the content alone refuses an MP3 with ANY undeclared
-    // bytes between its ID3 tag and the first frame, a defect taggers leave
-    // behind, while the hinted parse plays it: #47's Darkside.mp3 was lost
-    // that way. A refusal under the hint falls back to sniffing, so a file
-    // named for the wrong type is still judged by what it holds.
+    // TRAP: parse as the extension's type first, as AudioFileOpenURL does:
+    // sniffing alone refuses an MP3 with stray bytes between its ID3 tag and
+    // first frame, which the hinted parse plays. A refusal falls back to
+    // sniffing, so a misnamed file is judged by what it holds.
     AudioFileTypeID hint = VibeFileTypeForExtension(url.pathExtension);
     void *context = (__bridge void *)self;
     OSStatus hinted = hint ? AudioFileOpenWithCallbacks(context, VibeHandleRead, NULL, VibeHandleSize, NULL, hint, &_parser)
@@ -170,14 +163,11 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         status = AudioFileOpenWithCallbacks(context, VibeHandleRead, NULL, VibeHandleSize, NULL, 0, &_parser);
     }
     if (status != noErr && (status == kAudio_UnimplementedError || hinted == kAudio_UnimplementedError)) {
-        // TRAP: CoreAudio's QuickTime reader (file type MooV, the container
-        // Voice Memos exports as .qta) implements no callback open at all: it
-        // answers kAudio_UnimplementedError whatever the header holds, so the
-        // parse goes through the URL and the parser's own descriptor. Measured
-        // on macOS 27: a URL open of a nonempty regular file that the parser
-        // then refuses leaks nothing (the leak the callbacks path exists to
-        // avoid is on empty files and directories, refused above), and iOS
-        // has no QuickTime reader, so this branch never runs there.
+        // TRAP: CoreAudio's QuickTime reader (MooV, Voice Memos' .qta) has no
+        // callback open and answers kAudio_UnimplementedError, so this parse
+        // goes through the URL. Safe: the URL open leaks only on the empty
+        // files and directories already refused above. iOS has no such
+        // reader.
         [self closeParser];
         close(_descriptor);
         _descriptor = -1;
@@ -281,8 +271,8 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         status = ExtAudioFileSetProperty(_codec, kExtAudioFileProperty_ClientChannelLayout, VibeLayoutSize(layout), layout);
     }
     if (status != noErr) {
-        // A create that fails after the container exists leaves it; the
-        // caller's temp lands where it would otherwise, and is removed with it.
+        // The container already exists and is left; the caller removes its
+        // temp.
         return [self failWithError:error status:status
                        description:[NSString stringWithFormat:@"No encoder from that format into %@ (%d)", name, (int)status]];
     }
@@ -294,8 +284,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     if (error) {
         *error = VibeHandleError(status, description);
     }
-    // Nothing is retained past a failed init: dealloc releases the descriptor
-    // and whatever parser the last attempt left.
+    // dealloc releases the descriptor and whatever parser was left.
     return nil;
 }
 
@@ -366,10 +355,8 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 
 #pragma mark - Reading
 
-// The mode, then the buffer's format against the processing format: every
-// consumer sizes its buffer from processingFormat, so the identity test is
-// the usual answer and the field comparison serves a successor read through
-// an equal format of its own.
+// Identity is the usual match; the field comparison serves a successor read
+// through an equal format of its own.
 - (BOOL)accepts:(AVAudioPCMBuffer *)buffer writing:(BOOL)writing error:(NSError **)error {
     NSString *refusal = nil;
     AVAudioFormat *format = buffer.format;

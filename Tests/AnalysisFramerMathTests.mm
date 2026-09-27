@@ -1,12 +1,5 @@
-//
-// The stream framer both analyzers run their DSP behind: that the buffer sizes
-// the decoder happens to hand an analyzer never reach its result.
-//
-// The two analyzer suites pin that end to end, through a real decode; this one
-// pins the arithmetic directly, at the buffer sizes a decoder is unlikely to
-// produce but a caller may — one sample at a time, exactly a frame, a boundary
-// landing inside a frame — plus the precondition the function fails closed on.
-//
+// The analyzer suites pin buffer-size independence end to end; this pins the
+// arithmetic at sizes a decoder is unlikely to produce but a caller may.
 
 #import <XCTest/XCTest.h>
 
@@ -24,10 +17,8 @@ static std::vector<float> RampSamples(size_t count) {
     return samples;
 }
 
-// Runs a whole ramp through the framer in fixed-size buffers and returns every
-// frame it produced. Because the stream is a ramp from 0, frame[0] IS the
-// frame's start offset — so comparing two chunkings' results compares the
-// framing and nothing else.
+// Over a ramp from 0, frame[0] IS the frame's start offset, so comparing two
+// chunkings compares the framing and nothing else.
 static std::vector<std::vector<float>> FramesForChunking(const std::vector<float> &stream,
                                                          size_t bufferSize,
                                                          size_t frameSize, size_t hopSize) {
@@ -60,9 +51,8 @@ static std::vector<float> FrameStarts(const std::vector<std::vector<float>> &fra
 
 #pragma mark - The guarantee: framing is independent of buffer size
 
-// The whole point of the file. 1, 2 and 3 are the pathological cases, where
-// every frame straddles a boundary; 7 is coprime with the hop; 8 is exactly
-// the frame; 41 is the whole stream in one call.
+// 1, 2 and 3: every frame straddles a boundary; 7 is coprime with the hop;
+// 8 is exactly the frame; 41 is the whole stream in one call.
 - (void)testFramingIsIdenticalWhateverTheBufferSize {
     const size_t frameSize = 8, hopSize = 4;
     std::vector<float> stream = RampSamples(41);
@@ -133,9 +123,8 @@ static std::vector<float> FrameStarts(const std::vector<std::vector<float>> &fra
     XCTAssertEqual(pending.back(), 6.0f);
 }
 
-// The documented bound on the carry, checked after every call rather than at
-// the end: it is what lets the owner reserve twice the frame and be sure the
-// splice never reallocates.
+// Checked after every call: the bound is what lets the owner reserve twice
+// the frame and be sure the splice never reallocates.
 - (void)testCarryStaysBelowOneFrameAtEveryBoundary {
     const size_t frameSize = 8, hopSize = 4;
     std::vector<float> stream = RampSamples(101);
@@ -166,10 +155,9 @@ static std::vector<float> FrameStarts(const std::vector<std::vector<float>> &fra
 
 #pragma mark - The precondition
 
-// 0 < hopSize <= frameSize. Past it the in-place base can exceed the buffer and
-// the final assign becomes a reversed range — an overread, not an empty one —
-// so the framer fails closed instead. This is the exact shape that reaches it:
-// a carried remainder, then a buffer shorter than the hop.
+// 0 < hopSize <= frameSize, or the final assign becomes a reversed range — an
+// overread, not an empty one. This is the shape that reaches it: a carried
+// remainder, then a buffer shorter than the hop.
 - (void)testAHopLargerThanTheFrameProducesNothing {
     std::vector<float> pending = RampSamples(3);
     pending.reserve(16);

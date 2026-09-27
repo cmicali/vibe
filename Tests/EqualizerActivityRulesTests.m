@@ -13,8 +13,8 @@
 @implementation EqualizerActivityRulesTests
 
 - (void)testOnlyTheCompleteActivityStateRuns {
-    // Exercise every combination so adding or accidentally weakening one gate
-    // cannot leave an untested path that spends CPU while inactive.
+    // Every combination, so weakening one gate cannot leave an untested path
+    // that spends CPU while inactive.
     for (NSUInteger mask = 0; mask < 32; mask++) {
         VibeEqualizerActivityState state = {
             .audioOutputActive = (mask & (1 << 0)) != 0,

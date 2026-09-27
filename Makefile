@@ -8,67 +8,49 @@ RESULT_BUNDLE ?= build/TestResults.xcresult
 
 .PHONY: test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress release github-release deploy-web web-set-version appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
 
-# Install the dev-tool dependencies (xcodegen, jq) from the Brewfile.
+# Install the dev-tool dependencies (xcodegen, jq, gh) from the Brewfile.
 setup:
 	brew bundle
 
 # Generate Vibe.xcodeproj from project.yml (requires xcodegen — `make setup`).
-#
-# Under the build lock: several agent sessions share one checkout, and
-# rewriting the project file while another session's xcodebuild has it open
-# fails that build or, worse, feeds it a half-written one. The lock is taken
-# per command, so this waits for a build in flight and releases before the next
-# recipe runs — see scripts/build-lock.sh.
+# Under the build lock (scripts/build-lock.sh), taken per command: sessions
+# share one checkout, and rewriting the project under another session's
+# xcodebuild fails that build or feeds it a half-written project.
 project:
 	scripts/build-lock.sh xcodegen generate
 
-# Build the app. Regenerates the project first via the `project` prerequisite,
-# so build.sh is told to skip its own generate. Override with: make build CONFIG=Debug
+# The macOS app. `project` has already regenerated, so build.sh skips its own.
 build: project
 	SKIP_GENERATE=1 scripts/build.sh $(CONFIG)
 
 # Unsigned by default, which is what CI wants: no credentials, no keychain.
 #
-# TRAP: unsigned means NO ENTITLEMENTS, and without
-# com.apple.security.application-groups the shared container is never created.
-# containerURLForSecurityApplicationGroupIdentifier then returns nil, the app
-# publishes no widget snapshot, and the home-screen widget stays empty however
-# you drive it — which looks exactly like a broken widget rather than a
-# build-flag consequence. VIBE_SIGN_SIM=1 ad-hoc signs the simulator build WITH
-# its entitlements, the only way to exercise or screenshot the widget on a
-# simulator. Ad-hoc is enough because the simulator validates no provisioning
-# profile; it still needs no credentials, so this is a local convenience, not
-# a second signing path.
+# TRAP: unsigned means NO ENTITLEMENTS, so no app-group container: the app
+# publishes no widget snapshot and the home-screen widget stays empty, which
+# looks like a broken widget. VIBE_SIGN_SIM=1 ad-hoc signs the simulator build
+# with its entitlements; the simulator validates no profile, so it still needs
+# no credentials.
 IOS_SIM_SIGN = CODE_SIGNING_ALLOWED=NO
 ifeq ($(VIBE_SIGN_SIM),1)
 IOS_SIM_SIGN = CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=-
 endif
 
-# The iOS app, simulator slice — what CI's build-ios job runs, and the check
-# that catches an AppKit leak into a shared directory. The destination is
-# generic, so nothing has to be booted. CI passes CONFIG=Debug; the default
-# stays Release to match `build`.
-# Locked too: this and `drive-ios.sh start` build into the same products
-# directory, and the simulator app the touch driver installs from is the one
-# they both write.
+# The iOS simulator slice — CI's build-ios job, in both configurations, and the
+# check that catches an AppKit leak into a shared directory. Locked: this and
+# `drive-ios.sh start` write the products directory the touch driver installs
+# from.
 build-ios: project
 	scripts/build-lock.sh xcodebuild -project Vibe.xcodeproj -scheme VibeiOS -configuration $(CONFIG) \
 	    -destination 'generic/platform=iOS Simulator' \
 	    -derivedDataPath build/DerivedData $(IOS_SIM_SIGN) build
 
-# The iOS app built for a paired physical device, signed, and installed over
-# the CoreDevice tunnel. Needs a development certificate and a profile for the
-# bundle ID — build-ios above is the unsigned simulator slice and installs
-# nothing. The single paired device is picked automatically; with more than one
-# connected, name it: make install-ios DEVICE="cmicali iPhone"
+# Signed for a paired device and installed over the CoreDevice tunnel; needs a
+# development certificate and profile. With more than one device paired, name
+# it: make install-ios DEVICE="cmicali iPhone"
 install-ios: project
 	SKIP_GENERATE=1 scripts/install-ios.sh $(CONFIG)
 
-# Run the unit tests (Tests/, VibeTests target). Always Debug — the suite is
-# host-less deterministic logic and machinery, so it needs no window server,
-# audio hardware, permissions, or running Vibe instance. Anything requiring
-# the running app belongs in the vibe-debug skill's command channel instead.
-#
+# The host-less unit tests (VibeTests) plus the cloud-runner oracle tests.
 # The rm matters: xcodebuild refuses to write over an existing result bundle.
 test: project check-cloud-scenarios
 	rm -rf $(RESULT_BUNDLE)
@@ -87,8 +69,9 @@ build/verify-bit-perfect: .claude/skills/vibe-debug/scripts/verify-bit-perfect.s
 	@mkdir -p build
 	@swiftc -O $< -o $@
 
-# Live acceptance: launch the Debug app on this explicit loopback first.
-# See vibe-debug/references/test-audio.md for grants and restoration checks.
+# Opt-in live acceptance, never CI: the test drivers from build-test-blackhole,
+# and the Debug app already running on VibeBlackHole 16ch. See
+# vibe-debug/references/test-audio.md.
 .PHONY: build-test-blackhole
 build-test-blackhole:
 	@.claude/skills/vibe-debug/scripts/generate-test-audio.sh --blackhole-drivers
@@ -128,40 +111,33 @@ test-audio-device: build/verify-bit-perfect
 	build/verify-bit-perfect --device-check \
 	    "$(AUDIO_FILE)" "$(AUDIO_DEVICE)" --play-app "$(AUDIO_APP)" $(ARGS)
 
-# The live cloud suite needs a Debug app and a window, but its trace matching,
-# span assembly, exact-order projection and selector validation are pure Python.
-# Keep those in CI so a broken oracle cannot make the expensive live run green.
+# The live cloud suite needs the app, but its oracles are pure Python: run them
+# in CI so a broken oracle cannot make the live run green.
 check-cloud-scenarios:
 	python3 -m unittest discover -s .claude/skills/vibe-stress/tests -p 'test_*.py'
 
-# Pass/fail counts and failure messages from the last `make test`, as a
-# markdown table. CI appends it to the run summary; run it by hand after a
-# local `make test` for the same table on stdout.
+# The last `make test` as a markdown pass/fail table; CI appends it to the run
+# summary.
 test-summary:
 	scripts/test-summary.sh $(RESULT_BUNDLE)
 
-# Run clang's static analyzer over BOTH app targets and FAIL on any finding
-# outside ThirdParty/. project.yml turns the analyzer's checks on
-# (CLANG_ANALYZER_NONNULL, CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION), and this
-# is what makes them a gate rather than a setting nobody runs. Vendored code is
-# other authors' and is excluded, as it is from every other check here.
+# clang's static analyzer over both app targets; fails on any finding outside
+# ThirdParty/. Findings are configuration-dependent, and CI checks Release.
 analyze:
 	scripts/analyze.sh $(CONFIG)
 
-# Stress/fuzz the RUNNING app against a folder of real audio files. Seeded and
-# reproducible; it checks check_consistency and dump_health between batches and
-# writes an NDJSON journal a failure can be shrunk from. Needs a Debug build
-# (the whole debug channel compiles out of Release). See the vibe-stress skill.
+# Seeded stress/fuzz of the Debug app against a folder of real audio files, with
+# oracles between batches and an NDJSON journal a failure can be shrunk from.
+# See the vibe-stress skill.
 #   make stress CORPUS=~/Music/big
 #   make stress CORPUS=~/Music/big ARGS="--profile loading --duration 3600"
 stress:
 	@test -n "$(CORPUS)" || { echo "usage: make stress CORPUS=<folder of audio files>"; exit 64; }
 	.claude/skills/vibe-stress/scripts/stress.py --corpus "$(CORPUS)" $(ARGS)
 
-# The other shape: ONE large playlist with transport hammered, so track changes
-# outrun the metadata scan and the waveform load. The wrapper asserts a single
-# verified instance and cold caches first — both are load-bearing, see the
-# vibe-stress skill. APP defaults to the Debug build.
+# ONE large playlist with transport hammered, so track changes outrun the
+# metadata scan and the waveform load. The wrapper asserts a single verified
+# instance and cold caches first; both are load-bearing (vibe-stress skill).
 #   make torture PLAYLIST=~/Music/big
 #   make torture PLAYLIST=~/Music/big ARGS="--rounds 40 --burst 40"
 torture: APP ?= build/DerivedData/Build/Products/Debug/Vibe.app
@@ -169,10 +145,8 @@ torture:
 	@test -n "$(PLAYLIST)" || { echo "usage: make torture PLAYLIST=<folder of audio files> [APP=<Vibe.app>]"; exit 64; }
 	.claude/skills/vibe-stress/scripts/run-torture.sh "$(APP)" "$(PLAYLIST)" $(ARGS)
 
-# Build (Release by default) then copy the app into /Applications, replacing
-# any existing copy. The rm matters: BSD cp -R copies INTO an existing
-# destination directory, so without it a second install produces
-# /Applications/Vibe.app/Vibe.app.
+# The rm matters: BSD cp -R copies INTO an existing destination directory, so
+# without it a second install produces /Applications/Vibe.app/Vibe.app.
 install: build
 	@echo "🔊 installing to /Applications/Vibe.app"
 	rm -rf /Applications/Vibe.app
@@ -184,21 +158,15 @@ install: build
 release:
 	scripts/release.sh
 
-# Publish what `make release` produced as a GitHub release: tags HEAD as
-# v<MARKETING_VERSION>, attaches universal and arm64 DMG/zip artifacts, and
-# uses notes from the App Store whats-new.txt. The website points to the
-# architecture-named universal DMG. See scripts/github-release.sh.
-# ARGS reaches the script's [--draft|--prerelease]; without it a beta silently
-# publishes as Latest and repoints the website at a test build.
+# Publish what `make release` produced as a GitHub release, tagged v<version>.
+# See scripts/github-release.sh. ARGS reaches its [--draft|--prerelease];
+# without it a beta publishes as Latest and repoints the website at it.
 github-release:
 	scripts/github-release.sh $(ARGS)
 
-# Publish Assets/Web to Cloudflare Pages, which serves the canonical
-# vibeplayer.app. Local-only on purpose: the API token stays
-# out of CI secrets, and the script refuses to run there. GitHub Pages is the
-# copy CI publishes, from a workflow that needs no credential. Refuses to
-# upload a page whose Download button does not resolve; ARGS="--dry-run" lists
-# what would go, and needs no credentials.
+# Publish Assets/Web to Cloudflare Pages (the canonical vibeplayer.app).
+# Local-only: the token stays out of CI secrets and the script refuses to run
+# there. ARGS="--dry-run" lists what would go and needs no credentials.
 deploy-web:
 	scripts/deploy-web.sh $(ARGS)
 
@@ -217,16 +185,13 @@ appstore-build:
 appstore-upload-signed-build:
 	scripts/release-appstore.sh --upload
 
-# The same two steps for the iOS app: an arm64 .ipa with the widget embedded,
-# signed for the iOS App Store. Both platforms ship under one bundle id, so
-# these upload to the SAME app record as the two targets above — a separate
-# version train on it, whose version string must already match the number in
-# project.yml. The script's header has the prerequisites.
+# The same two steps for the iOS app (.ipa with the widget embedded). Both
+# platforms share one bundle id, so these upload to the SAME app record, on a
+# separate version train. The script's header has the prerequisites.
 appstore-build-ios:
 	scripts/release-appstore.sh --platform ios
 
-# Same, then actually upload the build to App Store Connect (TestFlight sees
-# it as soon as processing finishes).
+# Same, then upload; TestFlight sees it once processing finishes.
 appstore-upload-signed-build-ios:
 	scripts/release-appstore.sh --platform ios --upload
 
@@ -245,19 +210,16 @@ run:
 	scripts/run.sh $(CONFIG)
 
 # Regenerate the README screenshots in Assets/ (debug build + real screen
-# capture; needs Screen Recording permission for the terminal).
+# capture). Needs Screen Recording and Accessibility for the terminal, and
+# ALLOW_GLOBAL_INPUT=1 per run: it moves the real pointer.
 screenshots:
 	scripts/generate-readme-screenshots.sh
 
-# Regenerate the App Store screenshots (2880x1800) by compositing the window
-# captures `screenshots` leaves in Assets/ onto generated backgrounds — the
-# captures show nothing localized, so every language shares them. This is the
-# path the shipped shots use. It needs no app, no debug build and no
-# permissions — only those captures, so run `screenshots` first if the UI has
-# changed. LOCALE deliberately, not LANG or LANGUAGE — both are real
-# environment variables make would silently import.
-# This target composites the macOS shots; the iOS canvases come from the script
-# directly: scripts/appstore-generate-store-screenshots.sh --platform ios [LOCALE].
+# The shipped App Store screenshots (2880x1800): the captures `screenshots`
+# leaves in Assets/ composited onto generated backgrounds. Needs no app, only
+# those captures; rerun `screenshots` first if the UI changed. LOCALE, not LANG
+# or LANGUAGE, which make would silently import from the environment. macOS
+# only; for iOS: scripts/appstore-generate-store-screenshots.sh --platform ios [LOCALE].
 #   make appstore-generate-store-screenshots               # English → Assets/app-store/screenshots/en/macos/
 #   make appstore-generate-store-screenshots LOCALE=de     # copy/de/macos captions → screenshots/de/macos/
 appstore-generate-store-screenshots:
@@ -267,17 +229,14 @@ appstore-generate-store-screenshots:
 appstore-generate-store-screenshots-all:
 	scripts/appstore-generate-store-screenshots.sh --all
 
-# Fail unless every catalog language has complete App Store copy in
-# Assets/app-store/copy/<lang>/<platform>/, within ASC limits, and every
-# caption fits the screenshot layout. Both platforms are required. For
-# review/CI.
+# Fail unless every catalog language has complete App Store copy for both
+# platforms in Assets/app-store/copy/<lang>/<platform>/, within ASC limits,
+# with every caption fitting the screenshot layout.
 appstore-validate-copy:
 	scripts/appstore-validate-copy.sh
 
-# Upload the localized App Store copy and screenshots to App Store Connect
-# (the editable version's product page on ONE platform — no build is
-# involved). Runs appstore-validate-copy first. See
-# scripts/appstore-upload-metadata.sh for flags:
+# Upload the localized copy and screenshots to the editable version's product
+# page on ONE platform; no build is involved. Flags are the script's:
 #   make appstore-upload-metadata                          # everything, macOS
 #   make appstore-upload-metadata ARGS="--dry-run"
 #   make appstore-upload-metadata ARGS="--locales de,fr --skip-screenshots"
@@ -286,40 +245,34 @@ appstore-upload-metadata: appstore-validate-copy
 	scripts/appstore-upload-metadata.sh $(ARGS)
 
 # The other App Store path: photograph the window over a staged desktop, so the
-# Liquid Glass shows a real backdrop rather than a composited one. Honest, but
-# it can only show the window at its captured size, which leaves the UI small
-# on a 2880x1800 canvas — hence `appstore-generate-store-screenshots` above. Same
-# permissions as `screenshots`. BACKGROUND is one background for all three
-# shots, or three (player, playlist, pitch); it is word-split, so run the
-# script directly for paths with spaces.
+# Liquid Glass shows a real backdrop; the window stays small on the canvas,
+# hence the composited path above. Same permissions as `screenshots`.
+# BACKGROUND is one image for all three shots or three (player, playlist,
+# pitch); it is word-split, so run the script directly for paths with spaces.
 #   make appstore-capture-app-screenshots BACKGROUND=path/to/background.png
 appstore-capture-app-screenshots:
 	scripts/appstore-capture-app-screenshots.sh $(BACKGROUND)
 
-# Re-extract UI strings into Resources/Localizable.xcstrings. Run after
-# touching any UI string (no build-time extraction exists for ObjC; see script).
+# Re-extract UI strings into Resources/Localizable.xcstrings after touching any
+# UI string; nothing extracts ObjC strings at build time.
 strings:
 	scripts/extract-strings.sh
 
-# Fail if the catalog doesn't match the source. For review/CI.
+# Fail if the catalog doesn't match the source.
 check-strings:
 	scripts/extract-strings.sh --check
 
-# Fail if a name breaks CLAUDE.md's Vocabulary section: a bare generation
-# counter, 'claim' used for OS role registration, or a header-only seam whose
-# suffix does not say whether it returns a decision or a number. For review/CI.
+# Fail on a break of CLAUDE.md's mechanical vocabulary rules, listed in the
+# script.
 check-vocabulary:
 	scripts/check-vocabulary.sh
 
-# Fail if the tree stops matching CLAUDE.md's layout rule: a feature-named
-# exclude, a platform path in the wrong target, a shared subsystem missing from
-# one of them, a new top-level directory nothing names, or a shared source
-# importing a header only one platform's tree has. For review/CI.
+# Fail if the tree breaks CLAUDE.md's layout rule; the script's header states
+# the four assertions.
 check-layout:
 	scripts/check-layout.sh
 
-# Fail if any key is missing a catalog language. Distinct from check-strings,
-# which compares the catalog to the source and cannot see coverage at all.
-# Both release paths run this; see the script for why nothing else catches it.
+# Fail if any key is missing a catalog language; check-strings compares the
+# catalog to the source and cannot see coverage. Both release paths run this.
 check-translations:
 	scripts/check-translations.sh

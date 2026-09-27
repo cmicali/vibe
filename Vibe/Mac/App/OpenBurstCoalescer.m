@@ -8,11 +8,8 @@
 @implementation OpenBurstCoalescer {
     NSMutableArray<NSURL *> *_queue;
     BOOL _started;
-    // A batch has already played, and further batches belong with it, so they
-    // append rather than replace. Cleared when the quiet period elapses.
+    // A batch has played; later ones append until the quiet period elapses.
     BOOL _burstActive;
-    // Superseded quiet-period timers become no-ops by generation check, since
-    // a scheduled block cannot be recalled.
     NSUInteger _timerGeneration;
     NSTimeInterval _quietPeriod;
     OpenBurstScheduler _scheduler;
@@ -74,22 +71,21 @@
 
 - (void)openDeliberateURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append {
     [_queue addObjectsFromArray:urls];
-    _burstActive = NO; // a deliberate open ends any burst
+    _burstActive = NO;
     if (!_started || _queue.count == 0) {
-        return; // pre-start: the launch drain picks the queue up
+        return;
     }
     [self drainAppending:append];
 }
 
 #pragma mark - Private
 
-// The timer is touched before the started/empty guard, matching the burst
-// entry point's original shape: even an event with nothing to drain extends
-// the quiet period it belongs to.
+// Touched before the guard: even an event with nothing to drain extends its
+// quiet period.
 - (void)burstDrain {
     [self touchQuietTimer];
     if (!_started || _queue.count == 0) {
-        return; // pre-launch: startAndDrainQueue drains the queue
+        return;
     }
     BOOL append = _burstActive;
     _burstActive = YES;

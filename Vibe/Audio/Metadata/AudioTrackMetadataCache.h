@@ -17,51 +17,33 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)loadMetadata:(NSArray<AudioTrack *> *)tracks;
 
-// Cancels the playlist-wide scan and releases its loader, which strongly holds
-// every track it queued, including each thumbnail's compact bytes. Decoded
-// thumbnail pixels are held separately by a bounded shared cache. Call it on
+// Cancels the scan and releases its loader, which holds every queued track.
 // File > Close. Main thread only.
 - (void)cancelScan;
 
-// A jump-the-queue load for the track the user has just started. The
-// playlist-wide scan must not delay the current track's header tags and art. A
-// cache hit publishes immediately at user-initiated QoS. A miss takes a
-// MetadataPriority materialization claim, atomically joining a same-path
-// foreground open, then queues its parse on the priority workers. It is a no-op
-// for already-parsed tracks, so it is cheap to call on every track start. Main
-// thread only, like loadMetadata:.
+// The track the user just started, ahead of the scan: a cache hit publishes
+// at user-initiated QoS; a miss takes a MetadataPriority claim, joining a
+// same-path foreground open. A no-op once parsed, so cheap on every start.
+// Main thread only.
 - (void)loadMetadataNow:(AudioTrack *)track;
 
-// Drops one departed row's queued scan work — the pending materialization that
-// would download its file, and the identity marks that would block a later
-// re-queue. For the shell's removal of a playlist row: a removed row must not
-// spend a provider transfer, and its restoration (undo of the removal)
-// re-requests through loadMetadataNow:. Work already in flight settles
-// normally; the receivers drop its delivery for a row no longer in the
-// playlist. Main thread only.
+// A removed row's queued scan work, so it spends no transfer; an undo
+// re-requests through loadMetadataNow:. In-flight work settles and the
+// receivers drop its delivery. Main thread only.
 - (void)abandonQueuedTrack:(AudioTrack *)track;
 
-// The same ranking, expressed as a playlist position — which is what a shell
-// actually has at hand. The offset table lives here rather than in each shell,
-// so there is one of it rather than one per platform: both shells call this
-// from their single current-index funnel, and the shell left to compute its
-// own ended up not calling at all. Main thread only.
-//
-// It takes the playlist itself rather than an array of tracks because it reads
-// exactly three rows: handing it `playlist.tracks` cost a defensive copy of
-// the whole list — one atomic retain per track — on every play, skip and
-// auto-advance, which is the funnel this is called from.
+// Ranks the pending scan around the track at index (next, second-next,
+// previous). Both shells call it from their current-index funnel. Takes the
+// playlist, not an array: it reads three rows, and the mac `tracks` getter
+// copies the whole list. Main thread only.
 - (void)setNeighborhoodAroundIndex:(NSUInteger)index
                           inTracks:(id<AudioTrackIndexedSource>)tracks;
 
-// Empties the disk cache. The completion fires on the cache's internal queue
-// once the entries are gone. A parse already in flight cannot repopulate it:
-// a cache-generation check drops its disk write, though its UI delivery
-// still happens.
+// The completion fires on the cache's internal queue. A parse in flight
+// cannot repopulate it, though its UI delivery still happens.
 - (void)invalidateWithCompletion:(nullable dispatch_block_t)completion;
 
-// The backing store's entry count and total bytes on disk, enumerated off the
-// calling thread; the completion runs on the main thread.
+// Enumerated off the calling thread; the completion runs on main.
 - (void)diskUsageWithCompletion:(void (^)(NSUInteger fileCount, unsigned long long totalBytes))completion;
 
 @end

@@ -1,23 +1,18 @@
 #!/usr/bin/env python3
 """Build a corpus of files the open path is entitled to refuse, mixed with real ones.
 
-The other two corpus builders make files that WORK. This one makes the cases a
-real folder hands the app by accident — a half-finished download, a rip that
-died, a cover that is a directory — and mixes real tracks in among them, so the
-run keeps changing tracks between a file that decodes and one that cannot. A
-corpus of only broken files tests one error branch repeatedly; the interesting
-failures are in the transition.
+Broken files a real folder hands the app by accident (a half-finished download,
+a rip that died, a cover that is a directory) interleaved with real tracks, so
+the run keeps changing tracks between a file that decodes and one that cannot:
+the interesting failures are in the transition.
 
-Why the real half is HARD LINKED rather than copied: the source library is the
-user's own music and can be tens of gigabytes. A hard link costs no space, and
-a path inside the corpus root keeps the sandbox grant working, which a symlink
-pointing outside the granted folder would not.
+The real half is HARD LINKED: no space cost, and a path inside the corpus root
+keeps the sandbox grant working where a symlink out of it would not.
 
     make-hostile-corpus.py --source ~/Music/big [--out build/hostile-corpus] [--real 60]
 
-Nothing here writes to --source. Every op profile excludes convert_to_flac, the
-only verb that writes beside a source file, so a run over this corpus cannot
-reach the originals either.
+Nothing here writes to --source, and no op profile includes convert_to_flac,
+the only verb that writes beside a source file.
 """
 
 import argparse
@@ -63,12 +58,8 @@ def truncate_copy(src: pathlib.Path, dest: pathlib.Path, keep_bytes):
 
 
 def corrupt_copy(src: pathlib.Path, dest: pathlib.Path, rng, keep_bytes=4 * 1024 * 1024):
-    """Header intact, frames scrambled — the decoder gets in and then fails.
-
-    A file with a broken header is refused at the first parse; one whose frames
-    go wrong halfway is accepted, started, and fails mid-decode, which is a
-    different path and the one that has a track already playing off it.
-    """
+    """Header intact, frames scrambled: accepted and started, then failing
+    mid-decode with a track already playing off it."""
     with open(src, "rb") as fh:
         data = bytearray(fh.read(keep_bytes))
     if len(data) > 40000:
@@ -115,8 +106,7 @@ def main():
             os.link(src, dest)
             linked += 1
         except OSError:
-            # A different volume, or a filesystem without hard links: fall back
-            # to a copy rather than dropping the file, and let the size stand.
+            # A different volume, or no hard links: copy instead.
             shutil.copy2(src, dest)
             linked += 1
 
@@ -152,9 +142,8 @@ def main():
                   b"data" + struct.pack("<I", 0x7FFFFF00) + os.urandom(8192))
     made.append(p)
 
-    # An ID3v2 header announcing a 200 MB tag on a 4 KB file: the size is a
-    # synchsafe integer, so a parser that reads it as a plain one is off by a
-    # factor of two before it even allocates.
+    # An ID3v2 header announcing a ~256 MB synchsafe tag on a 4 KB file; read
+    # as a plain integer the size is ~2 GB.
     tag_size = bytes([0x7F, 0x7F, 0x7F, 0x7F])
     p = broken / "enormous-id3-tag.mp3"
     p.write_bytes(b"ID3\x04\x00\x00" + tag_size + os.urandom(4096))
@@ -169,9 +158,7 @@ def main():
     for index, src in enumerate(picks[10:14]):
         corrupt_copy(src, broken / f"scrambled-frames-{index}{src.suffix}", rng)
 
-    # A directory that looks like a track, and a self-referential symlink that
-    # looks like one: both reach the open funnel's path handling rather than any
-    # decoder.
+    # Both reach the open funnel's path handling rather than any decoder.
     (broken / "actually-a-directory.flac").mkdir()
     (broken / "actually-a-directory.flac" / "inside.txt").write_text("not audio\n")
     try:
@@ -189,8 +176,7 @@ def main():
         'REM this is not really a cue sheet\nFILE "missing.wav" WAVE\n'
         "  TRACK 01 AUDIO\n    INDEX 01 99:99:99\n" + "X" * 4096 + "\n")
     if sources:
-        # A cue naming a file that IS there, so the entry rescues run against a
-        # real target rather than always failing at the first rung.
+        # A cue naming a file that IS there, so entry resolution can succeed.
         real = good / f"000 {sources[0].name}"
         (good / "real.cue").write_text(
             f'FILE "{real.name}" WAVE\n  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n'
@@ -234,8 +220,8 @@ def main():
             except OSError:
                 pass
         if len(albums) > 4:
-            # 64 MB of JPEG-headed noise: the bounded decode's job is to refuse
-            # it without the resolver ever holding it in memory.
+            # 64 MB of JPEG-headed noise: the bounded decode must refuse it
+            # without holding it in memory.
             with open(albums[4] / "folder.jpg", "wb") as fh:
                 fh.write(b"\xff\xd8\xff\xe0")
                 for _ in range(64):

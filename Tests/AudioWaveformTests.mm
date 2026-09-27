@@ -1,9 +1,3 @@
-//
-// AudioWaveform: the chunk-combining math every renderer reads through, the
-// NaN sanitizing that keeps corrupt decodes out of the cache, and the shared
-// mono downmix, plus the host-less resize/content morph transitions.
-//
-
 #import <XCTest/XCTest.h>
 
 #import "AudioWaveform.h"
@@ -448,9 +442,8 @@
 }
 
 - (void)testBothCombinePathsAgree {
-    // The <16 plain loop and the >=16 vDSP reduction must be the same
-    // function. 64→5 (12.8 chunks/column) exercises the loop, 64→3 (21.3) the
-    // vDSP path; both are checked against an independent scalar reduction.
+    // 64→5 (12.8 chunks/column) takes the <16 plain loop, 64→3 (21.3) the vDSP
+    // path; both against an independent scalar reduction.
     AudioWaveform *w = [self waveform];
     for (NSUInteger size : {(NSUInteger)5, (NSUInteger)3}) {
         for (NSUInteger i = 0; i < size; i++) {
@@ -464,10 +457,9 @@
 }
 
 - (void)testColumnsTileTheSourceWithoutSkippingChunks {
-    // The reason columns are [start(i), start(i+1)) rather than a floored
-    // fixed width: at a fractional ratio the latter skips a source chunk on
-    // most steps, and a transient peak living there vanishes at that width.
-    // A spike must survive at EVERY view width.
+    // Why columns are [start(i), start(i+1)) rather than a floored fixed width:
+    // at a fractional ratio the latter skips source chunks, and a transient
+    // there vanishes at that view width.
     for (NSUInteger size = 1; size <= 64; size++) {
         for (NSUInteger spikeAt : {(NSUInteger)0, (NSUInteger)37, (NSUInteger)63}) {
             std::vector<AudioWaveformCacheChunk> chunks(64, AudioWaveformCacheChunk());
@@ -507,8 +499,7 @@
 }
 
 - (void)testWaveformBuiltFromNullChunksReadsAsEmpty {
-    // The failed-alloc / null-source guard: numChunks collapses to 0 and
-    // every read is a safe no-op rather than a NULL dereference.
+    // The failed-alloc / null-source guard.
     AudioWaveform *w = new AudioWaveform(64, nullptr);
     XCTAssertEqual(w->getNumChunks(), (NSUInteger)0);
     AudioWaveformCacheChunk c = w->getChunkAtIndex(0, 8);
@@ -620,8 +611,7 @@
 
 - (void)testColumnsCombineEnergyOnBothCombinePaths {
     // Chunk i carries meanSquare i over one frame, so a column's meanSquare is
-    // the average of its chunk indexes — checkable on the <16 plain loop
-    // (8 chunks per column) and the vDSP path (16 per column) alike.
+    // the mean of its chunk indexes. 8 per column is the plain loop, 16 vDSP.
     std::vector<AudioWaveformCacheChunk> chunks(64, AudioWaveformCacheChunk());
     for (NSUInteger i = 0; i < 64; i++) {
         chunks[i].set(0, 0, (float)i, 1.0f);

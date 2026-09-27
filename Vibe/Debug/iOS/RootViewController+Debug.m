@@ -2,20 +2,15 @@
 //  RootViewController+Debug.m
 //  Vibe (iOS)
 //
-//  See RootViewController+Debug.h. It composes: the model's handles come from
-//  PlaybackController (Debug), the chrome and the art window from
-//  PlayerViewController (Debug), and the shell's own state — which tab, and
-//  whether the card is up — from here.
-//
-//  The mac twin is Debug/Mac/Introspection/MainPlayerController+DebugPlayerSurface.m.
+//  Composes the model's handles (PlaybackController+Debug), the chrome and art
+//  window (PlayerViewController+Debug) and the shell's own tab and card state.
 //
 
 #import "RootViewController+Debug.h"
 
 #if DEBUG
 
-// The search screen's own section order; it owns the enum, and this is the one
-// place outside it that has to name a section.
+// The search screen's section order, whose enum is private to it.
 static const NSInteger VibeDebugSearchFilesSection = 1;
 
 #import "PlaybackController+Debug.h"
@@ -38,38 +33,30 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
 @implementation RootViewController (Debug)
 
 - (NSDictionary *)debugStateDictionary {
-    // The player, currentTrack and playlist blocks are the shared ones; the
-    // two below are this app's own.
     NSMutableDictionary *state = VibeDebugCommonStateDictionary(self);
     PlaybackController *playback = self.playback;
     NSMutableDictionary *ui = [[self.player debugChromeDictionary] mutableCopy];
     ui[@"screenState"] = @(playback.screenState);
     ui[@"parked"] = @(playback.debugParked);
     ui[@"trackStartPending"] = @(playback.debugTrackStartPending);
-    // A seek in flight and its target — including one parked on a metadata
-    // delivery (seekToProgress:), which nothing else on screen shows.
+    // Including a seek parked on a metadata delivery, which nothing on screen
+    // shows.
     ui[@"seekInFlight"] = @(playback.seekInFlight);
     ui[@"pendingSeekProgress"] = @(playback.pendingSeekProgress);
     ui[@"error"] = playback.errorText ?: @"";
-    // The model's answer beside the indicator's drawn one, so the publish path
-    // is checkable end to end.
+    // Beside the indicator's drawn route, so the publish path is checkable end
+    // to end.
     ui[@"outputRoute"] = @{
         @"kind": @(playback.outputRouteKind),
         @"name": playback.outputRouteName ?: @"",
     };
-    // The shell: which tab is up, whether the strip is showing, and whether
-    // the card is up over both.
     ui[@"playerPresentation"] = self.isPlayerExpanded ? @"full" : @"minimized";
     ui[@"miniPlayerShown"] = @(self.isMiniPlayerShown);
     ui[@"selectedTab"] = self.selectedTabIdentifier;
-    // The library's content-unavailable state stands exactly where the
-    // player screen's open hint used to.
     ui[@"libraryEmpty"] = @(playback.playlist.count == 0);
     state[@"ui"] = ui;
-    // The FX intent as the model holds it — the pad's three numbers and the
-    // tempo the taps follow — beside what the chain has done. Off main, the
-    // getters are the lock-guarded ones. No analyzeKey: key analysis is
-    // macOS-only, so that setting does not exist here.
+    // The FX intent the model holds, through the lock-guarded getters (this
+    // runs on main). No analyzeKey: key analysis is macOS-only.
     AudioFX *fx = playback.debugPlayer.fx;
     state[@"fx"] = @{
         @"lowKillCutoffHz": @(fx.lowKillCutoffHz),
@@ -84,13 +71,12 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
         @"waveformTheme": AppSettings.sharedInstance.waveformTheme,
         @"folderOpenSort": VibeFolderOpenSortIdentifier(AppSettings.sharedInstance.folderOpenSort),
         @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
-        // The stored choice, which iOS pushes to the player as is.
         @"crossfadeMilliseconds": @(AppSettings.sharedInstance.crossfadeMilliseconds),
         @"audioFXEnabled": @(AppSettings.sharedInstance.audioFXEnabled),
         @"analyzeBPM": @(AppSettings.sharedInstance.analyzeBPM),
     };
-    // Whether the publisher believes a widget is placed — the gate on every
-    // write to the shared container, so a widget test asserts it first.
+    // The gate on every write to the shared container, so a widget test
+    // asserts it first.
     state[@"widget"] = @{ @"placed": @(playback.debugWidgetPlaced) };
     return state;
 }
@@ -100,8 +86,7 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
 }
 
 - (BOOL)debugTapFavoriteStar {
-    // No library means the Playlist tab was never resolved, so its bar — and
-    // the star on it — does not exist to tap.
+    // No library means the Playlist tab, and its star, was never built.
     LibraryViewController *library = self.library;
     if (!library || !self.playback.folderURL) {
         return NO;
@@ -110,11 +95,9 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
     return YES;
 }
 
-// The files half answers off a walk and a background match, so there is no
-// synchronous moment to read. Rather than guess a delay, this re-reads the
-// table until its row counts stop moving — the same thing a human watching the
-// list does — bounded so a stalled provider ends the command instead of the
-// timeout.
+// The files half answers off a walk and a background match, so this re-reads
+// the table until its row counts stop moving, bounded so a stalled provider
+// ends the command rather than the client timeout.
 - (BOOL)debugSearchQuery:(NSString *)query
               completion:(void (^)(NSDictionary *result))completion {
     SearchViewController *screen = self.searchScreen;
@@ -178,8 +161,7 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
     }
     return @{@"ok": @YES,
              @"query": query,
-             // Without this an empty files section reads as "no matches" when it
-             // really means "the files half never ran".
+             // Tells an empty files section's "never ran" from "no matches".
              @"materiallyVisible": @(screen.isMateriallyVisible),
              @"filesWalkRunning": @(screen.isBuildingFileIndex),
              @"sections": sections};
@@ -202,8 +184,7 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
     return YES;
 }
 
-// The screen's own opening path, which its row tap and both Add actions all
-// take, so the resolve and the unreachable-folder alert are the real ones.
+// The screen's own opening path, which its row tap and Add actions take.
 - (BOOL)debugOpenFavoriteAtIndex:(NSUInteger)index appending:(BOOL)appending {
     FavoritesViewController *favorites = self.favorites;
     NSArray<FavoriteFolder *> *rows = FavoritesStore.shared.favorites;
@@ -248,16 +229,14 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
 }
 
 - (void)debugPlayIndex:(NSUInteger)index {
-    // Exactly what tapping a library row does; selectTrackAtIndex: range-checks.
+    // What tapping a library row does; selectTrackAtIndex: range-checks.
     [self.playback selectTrackAtIndex:index];
 }
 
 - (void)debugSeekToSeconds:(NSTimeInterval)seconds {
-    // The player's duration is 0 while it holds nothing — a parked track — and
-    // that is precisely the case worth being able to drive: a scrub there
-    // opens the file at the scrubbed position. Falling back to the track's own
-    // duration is what the scrubber itself effectively does, since it works in
-    // progress rather than seconds.
+    // A parked track has no player duration, and a scrub there opens the file
+    // at the scrubbed position; the scrubber works in progress, so the track's
+    // own duration stands in.
     NSTimeInterval duration = self.playback.duration;
     if (duration <= 0) {
         duration = self.playback.currentTrack.duration;
@@ -317,8 +296,7 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
     return self.playback.screenState == VibePlayerScreenStateLoading;
 }
 
-// No pitch control on iOS, so the varispeed never leaves 1.0 — the same
-// constant the Now Playing publish sends.
+// No pitch control on iOS; the same constant Now Playing publishes.
 - (double)debugPlaybackRate {
     return 1.0;
 }

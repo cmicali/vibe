@@ -2,8 +2,6 @@
 //  DebugConsistency.m
 //  Vibe
 //
-//  See DebugConsistency.h.
-//
 
 #import "DebugConsistency.h"
 #import "AudioFileMaterializationCoordinatorInternal.h"
@@ -34,17 +32,14 @@ void VibeDebugViolation(NSMutableArray<NSDictionary *> *violations, NSString *id
     [violations addObject:@{@"id": identifier, @"detail": detail}];
 }
 
-// A generous ceiling, not a tight one. The pipeline hosts one varispeed and
-// the FX chain's ten units, created once and kept across a burst of track
-// changes, so this is headroom over the whole set. A leak is unbounded and
-// blows past it either way; the sensitive detector is the stress driver
-// diffing the same number against its own baseline.
+// Headroom over the varispeed and the FX chain's ten units, which are created
+// once and kept. A leak blows past it; the sensitive detector is the stress
+// driver diffing the count against its baseline.
 static const NSUInteger kVibeMaxReasonableHostedUnits = 16;
 
-// How long a track may render before its metadata not having been attempted
-// counts as a fault rather than a race. Generous on purpose: the parse itself
-// is milliseconds on a local file, and the only thing this needs to clear is
-// the window between the open landing and the priority lane's op running.
+// How long a track may render with no metadata parse attempted before it is a
+// fault rather than a race. Generous: the parse is milliseconds once the file
+// is open.
 static const NSTimeInterval kVibeMetadataDeadlineSeconds = 5.0;
 
 static BOOL VibeIsFiniteNonNegative(double value) {
@@ -61,8 +56,6 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
     NSUInteger count = surface.debugPlaylistCount;
     NSUInteger index = surface.debugPlaylistCurrentIndex;
     BOOL isLoading = surface.debugIsLoading;
-
-    // ---- Playlist ----
 
     checked++;
     if (count == 0) {
@@ -84,8 +77,6 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
                 current.url.lastPathComponent ?: @"(nil)", (unsigned long)index,
                 atIndex.url.lastPathComponent ?: @"(nil)");
     }
-
-    // ---- Player ----
 
     checked++;
     if (!VibeIsFiniteNonNegative(player.duration)) {
@@ -130,8 +121,8 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
                 @"%lu units hosted by the pipeline", (unsigned long)units);
     }
 
-    // The pipeline admits one render at a time; a refusal means an output unit's
-    // callback found a stuck one inside, which nothing in a healthy run does.
+    // The pipeline admits one render at a time; a refusal means a render found a
+    // stuck one inside, which never happens in a healthy run.
     checked++;
     NSUInteger refusals = engine[@"renderRefusals"].unsignedIntegerValue;
     if (refusals > 0) {
@@ -139,10 +130,9 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
                 @"%lu renders refused by the pipeline", (unsigned long)refusals);
     }
 
-    // The barrier above drains the player queue, not callbacks waiting on main:
-    // a gapless promotion can still be one valid transient ahead of the
-    // playlist. Re-checking after settlement clears it; any persistent non-nil
-    // mismatch is bad state. A real Loading state has cleared currentTrack.
+    // debugRenderCounts drains the player queue, not callbacks waiting on main,
+    // so a gapless promotion can be one valid transient ahead of the playlist;
+    // the re-check clears it. Loading has cleared currentTrack.
     checked++;
     AudioTrack *playerTrack = player.currentTrack;
     if (playerTrack && playerTrack != current) {
@@ -153,8 +143,6 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
                 current.url.lastPathComponent ?: @"(nil)",
                 (__bridge void *)current);
     }
-
-    // ---- Equalizer producer and renderer ----
 
     NSDictionary *equalizer = [player debugEqualizerState];
     NSUInteger activeLinks =
@@ -179,8 +167,8 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
     }
 
     checked++;
-    // Beta builds also hold the meter for each start's bounded signal capture.
-    // The meter object is kept across demand; its installation is what follows.
+    // Beta builds also hold the meter for each start's signal capture. The meter
+    // object is kept across demand; its installation is what follows it.
     if (meterInstalled && !queueRequested && !signalProbe) {
         VibeDebugViolation(v, @"equalizer.meter_follows_demand",
                 @"installed=%d, meter object=%d, requested=%d, signal probe=%d",
@@ -195,21 +183,11 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
                 (unsigned long)activeLinks, meterInstalled);
     }
 
-    // ---- Track: the now-playing track's metadata actually arrives ----
-
-    // The whole point of the current-track lane is that the playing track's
-    // tags and art never wait behind the playlist sweep. Nothing observed
-    // whether they arrived, and the one time that lane silently stopped
-    // working — a stale NSURL resource value freezing the dataless test, so
-    // every retry skipped the parse — the symptom was art appearing half a
-    // minute late, from the background sweep, and no check anywhere noticed.
-    //
-    // Nil metadata is the signal, and it means "no parse was ever attempted":
-    // a parse that ran and FAILED leaves a non-nil object with parsedOK NO,
-    // which is legitimate and stays legitimate. Audio rendering past the
-    // deadline means the file opened, so it is local, so the priority lane's
-    // parse is milliseconds of work it has had seconds to do. The rare
-    // in-flight window is what the caller's settle-and-re-check filters.
+    // The playing track's tags must not wait behind the sweep, and when that
+    // lane silently fails the only symptom is art arriving late. Nil metadata
+    // means no parse was attempted; a failed parse leaves parsedOK NO, which is
+    // legitimate. Past the deadline the file has opened, so it is local and the
+    // priority lane has had seconds for milliseconds of work.
     checked++;
     if (current && player.isPlaying && !surface.debugIsLoading
             && player.position > kVibeMetadataDeadlineSeconds && !current.metadata) {
@@ -218,13 +196,9 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
                 current.url.lastPathComponent, player.position);
     }
 
-    // ---- Track: tag-over-analysis precedence ----
-
     if (current) {
-        // One snapshot of the atomic metadata, because AudioTrack's own
-        // accessors re-read it; a delivery landing between the two reads is a
-        // real (and rare) source of a disagreement that the caller's re-check
-        // will not reproduce.
+        // One snapshot: AudioTrack's accessors re-read the atomic metadata, and
+        // a delivery between two reads would disagree without a real fault.
         AudioTrackMetadata *metadata = current.metadata;
 
         checked++;
@@ -245,9 +219,8 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
                     (long)current.key, (long)taggedKey, (long)current.detectedKey);
         }
 
-        // Guards the zero-fill trap from the other side: a key that is neither
-        // a valid 0-23 nor exactly VibeMusicalKeyNone is uninitialized memory
-        // or a bad parse, and 0 reads as tagged C major wherever it came from.
+        // Neither 0-23 nor VibeMusicalKeyNone is uninitialized memory or a bad
+        // parse (and a zero-fill reads as tagged C major).
         checked++;
         if (!VibeMusicalKeyIsValid(current.key) && current.key != VibeMusicalKeyNone) {
             VibeDebugViolation(v, @"track.key_in_range", @"resolved key is %ld", (long)current.key);
@@ -259,20 +232,11 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
         }
     }
 
-    // ---- The cloud lane ----
-    //
-    // The foreground hold is asserted at play submission and released by
-    // exactly one settlement — the successor prefetch's claim acknowledgement,
-    // the error path, or Close. Every one of those edges either has a pending
-    // open behind it or ends playback, so a hold that outlives a stopped,
-    // not-loading player is an edge that was lost. That is the only symptom a
-    // lost release produces until the sweep visibly never runs, and it is
-    // invisible to every other check here.
-    //
-    // The state settles on the player queue while the hold is taken
-    // synchronously on main, so a sample taken between the two reads as a
-    // violation. The caller's settle-and-re-check is what filters that, the
-    // same way it filters an in-flight metadata parse above.
+    // The hold is derived from the coordinator's foreground claims, so with the
+    // player stopped and nothing loading it must read NO; otherwise a claim was
+    // never settled and the sweep is suspended for good. The player's state
+    // settles on its queue, so a mid-transition sample can disagree until the
+    // re-check.
     checked++;
     if ([surface.debugMetadataCache debugBackgroundMaterializationHeld]
             && player.isStopped && !isLoading) {
@@ -280,16 +244,11 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
                 @"cloud lane held with the player stopped and no open in flight");
     }
 
-    // The generalisation of the check above, and the reason it is here rather
-    // than in the one scenario that stages it: the comment above says a lost
-    // release is invisible "until the sweep visibly never runs", and a stranded
-    // handle open is a second, unrelated cause of exactly that. It holds
-    // admission capacity that is never given back — an AudioFileHandle call cannot
-    // be cancelled — so with the player stopped and nothing loading, a nonzero
-    // count is not work in flight but work that will never finish.
-    //
-    // Same settle-and-re-check caveat: an open that was superseded moments ago
-    // is still returning, and that is not a strand.
+    // A stranded handle open starves the sweep too: an AudioFileHandle call
+    // cannot be cancelled, so it holds admission capacity for good. With the
+    // player stopped and nothing loading, a nonzero count is work that will
+    // never finish; an open superseded moments ago is still returning, which
+    // the re-check filters.
     checked++;
     uint64_t strandedOpens =
             [AudioFileMaterializationCoordinator.sharedCoordinator handleOpensInFlight];
@@ -300,19 +259,10 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
                 strandedOpens);
     }
 
-    // What the fake provider can see and nothing else can, checked only while
-    // it is installed. All three are silent in every other counter: a run whose
-    // transfers all completed looks identical whether or not more of them ran
-    // at once than the provider had slots, the metadata lane downloaded a file
-    // another role was already downloading, or it began a download inside the
-    // user's own.
-    //
-    // The counters are cumulative for the life of the install, so one
-    // occurrence keeps failing until the next re-arm rather than being filtered
-    // away by the caller's re-check. Deliberate: unlike the churn that re-check
-    // exists to absorb, none of these is ever transiently true. Each re-arm
-    // resets them, which is what keeps a churn run scoring the current install
-    // rather than the whole session.
+    // What only the fake provider can see; silent in every other counter.
+    // Cumulative per install, so one occurrence keeps failing until the next
+    // re-arm rather than being filtered by the re-check: none is ever
+    // transiently true.
     NSDictionary *fake = [VibeFakeCloud statistics];
     if ([fake[@"installed"] boolValue]) {
         NSUInteger capacity = [fake[@"capacity"] unsignedIntegerValue];
@@ -330,11 +280,9 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
                     fake[@"metadataOverlapTransfers"]);
         }
 
-        // The hold's whole job, as a number. A background download that BEGAN
-        // while the user's own was still running says the lane was open when
-        // it should have been closed, whichever release edge lost it — which
-        // is why this is checked here rather than only in the scenario that
-        // stages one particular way of losing it.
+        // The hold's job as a number: a background download that began while
+        // the user's own ran means the lane was open when it should have been
+        // closed.
         checked++;
         if ([fake[@"foregroundContentionStarts"] unsignedIntegerValue] > 0) {
             VibeDebugViolation(v, @"cloud.foreground_outranks_background",
@@ -343,15 +291,10 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
         }
     }
 
-    // ---- System Now Playing against what it was published from ----
-    //
-    // Every check is gated on nowPlayingInfo being non-nil, which is also what
-    // --no-audio-hw's suppressed publish leaves it as, so a suppressed launch
-    // simply checks nothing here. Elapsed is deliberately not compared: the
-    // system extrapolates it from the last publish, so it is expected to run
-    // ahead of the published value. These share the render-lag caveat in the
-    // header — the publish rides the UI funnel, so a transition republishes a
-    // tick later.
+    // System Now Playing against its source. Gated on nowPlayingInfo, which a
+    // --no-audio-hw launch leaves nil. Elapsed is not compared: the system
+    // extrapolates it. The publish rides the UI funnel, so a transition
+    // republishes a tick later (the header's re-check caveat).
     MPNowPlayingInfoCenter *center = MPNowPlayingInfoCenter.defaultCenter;
     NSDictionary *published = center.nowPlayingInfo;
 
@@ -363,8 +306,8 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
     }
 
     if (published && displayed) {
-        // Derived exactly as NowPlayingController publishes them: displayTitle
-        // and displayArtist, where a nil displayArtist publishes no artist key.
+        // As NowPlayingController publishes them: a nil displayArtist publishes
+        // no artist key.
         checked++;
         NSString *publishedTitle = published[MPMediaItemPropertyTitle] ?: @"";
         NSString *expected = displayed.displayTitle ?: @"";
@@ -382,9 +325,8 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
         }
 
 #if TARGET_OS_OSX
-        // playbackState is macOS-only API. isPaused before isPlaying, the
-        // order the publish resolves them in: during Loading the two are
-        // decided by the pending start intent.
+        // macOS-only API. isPaused before isPlaying, the publish's order: during
+        // Loading the pending start intent decides both.
         checked++;
         MPNowPlayingPlaybackState expectedState =
                 player.isPaused ? MPNowPlayingPlaybackStatePaused
@@ -397,9 +339,8 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
         }
 #endif
 
-        // Wall-clock, like the app's own labels: the published duration is the
-        // file duration divided by the varispeed rate, so a pitch change that
-        // never republished shows up here.
+        // Wall-clock, like the app's labels, so a pitch change that never
+        // republished shows up here.
         checked++;
         NSNumber *publishedDuration = published[MPMediaItemPropertyPlaybackDuration];
         double rate = surface.debugPlaybackRate;

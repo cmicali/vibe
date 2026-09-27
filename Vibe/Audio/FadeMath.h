@@ -2,17 +2,11 @@
 //  FadeMath.h
 //  Vibe
 //
-//  Every fade exists for one reason: a gain step at a non-zero sample clicks.
-//  Two curves, split by fade length. The declick — the ≤10 ms edge every
-//  transport action rides — is linear in amplitude, which is inaudible at that
-//  length and keeps the per-sample step small enough at every rate. A
-//  crossfade-length fade is equal-power, so the two sides of a track change
-//  sum to ~constant power instead of dipping at the midpoint.
-//
-//  The voice bus evaluates the curves per frame on the audio thread
-//  (VibeFadeGainAtFrame). AudioFX's send gates step them on the player queue
-//  and keep the older multiplicative (log) curve, which sounds right for a
-//  gate opening onto a wet return.
+//  Every fade exists because a gain step at a non-zero sample clicks. The
+//  ≤10 ms declick is linear, which keeps its per-sample step small at every
+//  rate; a longer fade is equal-power, so the two sides of a crossfade do not
+//  dip at the midpoint. The voice bus evaluates both per frame on the audio
+//  thread; AudioFX's send gates step a log curve on the player queue instead.
 //
 
 #import <Foundation/Foundation.h>
@@ -37,9 +31,8 @@ static inline uint32_t VibeFadeFramesForMilliseconds(uint64_t milliseconds, doub
     return (uint32_t)llround((double)milliseconds * sampleRate / 1000.0);
 }
 
-// The gain at `frame` of a from-to fade over `frames`. Computed from the
-// frame index rather than accumulated, so the ramp lands on `to` exactly and
-// a landed voice mixes at precisely its target. Audio-thread safe: pure math.
+// Computed from the frame index, not accumulated, so the ramp lands on `to`
+// exactly.
 static inline float VibeFadeGainAtFrame(VibeFadeCurve curve, float from, float to,
                                         uint32_t frame, uint32_t frames) CA_REALTIME_API {
     if (frames == 0 || frame >= frames) {
@@ -53,19 +46,11 @@ static inline float VibeFadeGainAtFrame(VibeFadeCurve curve, float from, float t
     return from + (to - from) * t;
 }
 
-// The length BOTH sides of a track change ride — the outgoing voice's retire
-// and the incoming voice's fade-in — which is why it is one rule rather than
-// two tests at two call sites. The user's crossfade applies to exactly one
-// case, a play replacing an *audibly playing* track; everything else takes
-// the declick minimum so transport stays instant:
-//
-//   replacingAudibleTrack  a first play, or one from pause or stop, has no
-//                          outgoing audio to fade against
-//   declick                the convert swap replaces a track with its OWN
-//                          audio, which a crossfade would only dip
-//
-// The floor matters as much as the ceiling: a setting below the declick
-// minimum would fade faster than the minimum that exists to stop the click.
+// The length both sides of a track change ride. The user's crossfade applies
+// only to a play replacing an audibly playing track, without `declick` (the
+// convert swap replaces a track with its own audio, which a crossfade would
+// only dip); everything else takes the declick minimum, which is also the
+// floor.
 static inline uint64_t VibeIncomingFadeMilliseconds(NSInteger crossfadeMilliseconds,
                                                     BOOL replacingAudibleTrack,
                                                     BOOL declick) {
@@ -75,9 +60,8 @@ static inline uint64_t VibeIncomingFadeMilliseconds(NSInteger crossfadeMilliseco
     return (uint64_t)MAX(crossfadeMilliseconds, (NSInteger)kFadeDurationMilliseconds);
 }
 
-// Whether the crossfade setting permits arming a gapless splice: only at the
-// declick minimum, which the UI presents as crossfade off. A longer setting
-// asks for overlapped transitions, and auto-advance then crossfades instead.
+// Gapless arms only at the declick minimum, which the UI presents as
+// crossfade off; a longer setting crossfades auto-advance instead.
 static inline BOOL VibeGaplessArmAllowed(NSInteger crossfadeMilliseconds) {
     return crossfadeMilliseconds <= (NSInteger)kFadeDurationMilliseconds;
 }
@@ -88,9 +72,8 @@ static const int kFadeSteps = 10;
 static const uint64_t kFadeStepMicroseconds = kFadeDurationMilliseconds * 1000 / kFadeSteps;
 static const float kFadeFloor = 0.001f; // -60 dB
 
-// Log curve: the volume at `step` of a from-to fade over `totalSteps`, in
-// equal multiplicative steps. It lands exactly on `to` at the final step, and
-// the floor keeps the log interpolation defined through silence.
+// Equal multiplicative steps, landing exactly on `to`; the floor keeps the
+// log interpolation defined through silence.
 static inline float VibeFadeVolumeOverSteps(float from, float to, int step, int totalSteps) {
     if (step >= totalSteps) {
         return to;

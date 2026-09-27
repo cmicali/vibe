@@ -45,7 +45,6 @@
     NSImage *cropped = [[self coverWithSize:NSMakeSize(400, 100)] squareCroppedImage];
     XCTAssertEqualWithAccuracy(cropped.size.width, 100, 0.5);
     XCTAssertEqualWithAccuracy(cropped.size.height, 100, 0.5);
-    // Every corner comes from the discarded-band-free center square.
     [self assertMagenta:[self colorAt:NSMakePoint(1, 1) in:cropped] at:@"bottom-left"];
     [self assertMagenta:[self colorAt:NSMakePoint(98, 98) in:cropped] at:@"top-right"];
     [self assertMagenta:[self colorAt:NSMakePoint(50, 50) in:cropped] at:@"center"];
@@ -79,9 +78,8 @@
     XCTAssertNotEqual(raster.representations.firstObject, source.representations.firstObject);
 }
 
-// The transport buttons read the art under them: a cover dark along its
-// bottom asks for the light-on-dark colors, one light along its bottom for
-// the dark-on-light ones, whatever the rest of the picture holds.
+// The transport buttons pick their colors from the art under them, whatever
+// the rest of the picture holds.
 - (void)testLowerBandDarknessFollowsTheBottomOfTheImage {
     NSImage *(^split)(NSColor *, NSColor *) = ^(NSColor *top, NSColor *bottom) {
         return [NSImage imageWithSize:NSMakeSize(64, 64) flipped:NO drawingHandler:^BOOL(NSRect rect) {

@@ -6,22 +6,10 @@
 #   scripts/extract-strings.sh            update the catalog in place
 #   scripts/extract-strings.sh --check    fail if the catalog is out of date
 #
-# NOT a build phase, deliberately. Two reasons:
-#
-#   1. There IS no build-time String Catalog sync for Objective-C. The only
-#      xcstrings task in the build system is `xcstringstool compile`; the
-#      extract side rides on .stringsdata files, which clang emits for Swift
-#      only (SWIFT_EMIT_LOC_STRINGS). So the build compiles the catalog but can
-#      never populate it — that has to happen here.
-#   2. A phase that rewrote a checked-in file on every build would dirty the
-#      tree, including flipping the VIBE_GIT_DIRTY flag that
-#      generate-git-info.sh stamps into the startup log.
-#
-# Run it by hand after touching UI strings: `make strings` (and `make
-# check-strings` in review to catch a catalog someone forgot to regenerate).
-#
-# The repo root comes from SRCROOT when Xcode runs it, else from this script's
-# own location, so it works from any directory.
+# NOT a build phase, deliberately: the build has no String Catalog extraction
+# for Objective-C (clang emits .stringsdata for Swift only; the only xcstrings
+# build task is `compile`), and a phase rewriting a checked-in file would flip
+# VIBE_GIT_DIRTY on every build.
 
 set -euo pipefail
 
@@ -35,17 +23,11 @@ trap 'rm -rf "$WORK"' EXIT
 # ---------------------------------------------------------------------------
 # 1. Expand the registry through the C preprocessor.
 #
-# VibeStrings.h declares its entries as NSLS(key, value, comment) — a three-argument
-# shape the extractor cannot see: xcstringstool matches localization macros by
-# name AND arity, and even `-s NSLS` only teaches it the stock shapes
-# ((key, comment), (key, tbl, comment), (key, tbl, bundle, val, comment)). A
-# three-argument macro matches none, and extraction silently yields zero keys.
-#
-# So hand it the expansion instead of the source. Building a throwaway
-# translation unit that references every STR_* and running `clang -E` gives the
-# real preprocessor's answer — exact, and it fails loudly on a malformed entry,
-# where a regex over the header would quietly mis-parse. The only pattern
-# matched here is the macro NAME on a #define line, never string content.
+# xcstringstool matches localization macros by name AND arity, and the
+# three-argument NSLS(key, value, comment) fits no stock shape, even with
+# `-s NSLS`: extraction silently yields zero keys. So extract from `clang -E` of
+# a throwaway TU referencing every STR_*, which is exact and fails loudly on a
+# malformed entry where a regex over the header would quietly mis-parse.
 {
     printf '#import "%s"\n' "$REGISTRY"
     printf 'static id vibe_registry_[] = {\n'
@@ -58,24 +40,17 @@ if ! grep -q 'STR_' "$WORK/registry.m"; then
     exit 1
 fi
 
-# VIBE_STRINGS_EXTRACTION keeps VibeStrings.h from importing Foundation:
-# NSLocalizedStringWithDefaultValue is itself a Foundation macro, and with
-# Foundation in the TU the preprocessor would expand every entry past the
-# shape the extractor matches, yielding zero keys.
+# VIBE_STRINGS_EXTRACTION keeps Foundation out of the TU; otherwise
+# NSLocalizedStringWithDefaultValue, itself a Foundation macro, expands past
+# the shape the extractor matches, yielding zero keys.
 xcrun clang -E -P -x objective-c -DVIBE_STRINGS_EXTRACTION=1 "$WORK/registry.m" > "$WORK/registry-expanded.m"
 
 # ---------------------------------------------------------------------------
 # 2. Extract.
 #
-# The expanded registry supplies every real key. Every other first-party source
-# is still swept so a stray inline NSLocalizedString outside the registry can't
-# hide from the catalog — VibeStrings.h itself is excluded because its unexpanded
-# NSLS lines only produce "non-literal key" warnings.
-#
-# ThirdParty/ is vendored (not ours to restyle) and Debug/ is the
-# debug-build-only command channel, whose strings are JSON keys and CLI replies
-# — never localized. Paths are NUL-separated so a directory with a space in it
-# cannot split a filename. (No mapfile: macOS ships bash 3.2.)
+# Every other first-party source is swept too, so a stray inline
+# NSLocalizedString cannot hide; VibeStrings.h itself would only warn
+# "non-literal key". Debug/ is never localized. (No mapfile: bash 3.2.)
 SOURCES=("$WORK/registry-expanded.m")
 while IFS= read -r -d '' file; do
     SOURCES+=("$file")
@@ -84,37 +59,24 @@ done < <(find "$REPO_ROOT/Vibe" \( -name '*.m' -o -name '*.mm' -o -name '*.h' \)
              -not -path "$REGISTRY" -print0 | sort -z)
 SOURCES+=("$REPO_ROOT/main.m")
 
-# --legacy-localizable-strings is the genstrings-compatible mode: NSLocalizedString
-# and its siblings, which is what NSLS expands to.
+# The genstrings-compatible mode: NSLocalizedString and its siblings.
 xcrun xcstringstool extract "${SOURCES[@]}" \
     --legacy-localizable-strings \
     --output-directory "$WORK"
 
-# extract writes one .stringsdata per table; with a single Localizable table
-# that is one file, but glob for all of them so adding a table can't silently
-# drop keys.
+# One .stringsdata per table; globbed so a new table cannot drop keys.
 if ! ls "$WORK"/*.stringsdata >/dev/null 2>&1; then
     echo "error: no .stringsdata produced — extraction found nothing" >&2
     exit 1
 fi
 
-# The "manual" shield, and why sync runs between two jq passes.
-#
-# TRAP: an Xcode build emits no .stringsdata for ObjC (see the header), so
-# Xcode's own build-time catalog pass sees every key as unreferenced, flags
-# each one as stale — one warning apiece, 87 at last count — and WRITES the
-# stale marks into the checked-in catalog. extractionState "manual" is the
-# escape hatch: it declares a key externally managed, and Xcode then leaves it
-# alone entirely (InfoPlist.xcstrings, all manual, has never been touched).
-#
-# But xcstringstool sync ALSO honors manual — it skips such keys wholesale: no
-# comment updates from source, no staleness when the define disappears.
-# So the shield would break this script's own sync. Hence the
-# sandwich: unshield() strips the manual marks so sync treats every key as
-# extraction-managed, sync updates comments / adds keys / marks dead keys
-# stale, and normalize() re-shields every key that is not stale. A stale key
-# (its VibeStrings.h entry was deleted) stays visible — in --check diffs and as a
-# single honest Xcode warning — until someone deletes it from the catalog.
+# TRAP: an Xcode build emits no .stringsdata for ObjC, so Xcode's catalog pass
+# sees every key as unreferenced and WRITES stale marks into the checked-in
+# catalog. extractionState "manual" makes Xcode leave a key alone, but sync
+# skips manual keys too. Hence the sandwich: unshield() strips the marks, sync
+# updates comments, adds keys and marks dead ones stale, and normalize()
+# re-shields every key that is not stale. A stale key stays visible (in --check
+# diffs and as one Xcode warning) until it is deleted from the catalog.
 unshield() {
     local file="$1" tmp="$1.tmp"
     jq --indent 2 '
@@ -124,31 +86,19 @@ unshield() {
     ' "$file" > "$tmp" && mv "$tmp" "$file"
 }
 
-# The extracted English defaults, key → value, for the en enforcement below.
-# sync only stamps a key's en value on FIRST sight — rewording the default in
-# VibeStrings.h afterwards changes nothing in the catalog, so runtime
-# would keep serving the old English forever while the macro fallback never
-# fires. normalize() closes that hole by copying the extracted value over the
-# catalog's en unit whenever they differ.
+# The extracted English defaults, key → value. sync stamps a key's en value
+# only on FIRST sight, so without normalize() copying these over a reworded
+# default the catalog would serve the old English forever.
 jq -s '[.[].tables.Localizable // [] | .[]] | map({(.key): .value}) | add // {}' \
     "$WORK"/*.stringsdata > "$WORK/envalues.json"
 
-# sync marks freshly extracted source-language values "new", and the XCStrings
-# compiler emits a .strings file only for units marked "translated" — so
-# without this the app would ship no en.lproj/Localizable.strings at all and
-# every lookup would fall through to the macro's default value. The English
-# here IS the reviewed source (it was written by hand in VibeStrings.h), so promote
-# it and let the catalog be authoritative at runtime too — including on a
-# reword: en is overwritten from the extraction, and every OTHER language is
-# flipped to "needs_review" so the drift lands in front of a translator
-# instead of shipping silently. needs_review units still compile,
-# so the 22 translations keep shipping while they await review.
+# sync marks new source-language units "new", and the compiler emits .strings
+# only for "translated" ones, so en is promoted: without it the app ships no
+# en.lproj/Localizable.strings. On a reword en is overwritten and every other
+# language flips to "needs_review", which still compiles and ships.
 #
-# Both the write and the check path run the same unshield/sync/normalize
-# sequence, so the formatting jq imposes is identical on both sides and
-# --check compares like with like. Re-shielding every non-stale key subsumes
-# the old drop of the transient "extracted_with_value" marker: either way a
-# freshly added key converges to "manual" in one run.
+# The write and --check paths run the same unshield/sync/normalize sequence,
+# so jq's formatting is identical on both sides.
 normalize() {
     local file="$1" tmp="$1.tmp"
     jq --indent 2 --slurpfile src "$WORK/envalues.json" '
@@ -164,12 +114,9 @@ normalize() {
                               if .key == "en" then .
                               else .value.stringUnit.state = "needs_review" end))
                    else . end)
-                # Delete-then-append, never update in place: sync mints a new
-                # key with extractionState in alphabetical position, and jq
-                # assignment would keep it there, while the --check round trip
-                # (unshield deletes it, this re-adds it) appends it — same
-                # content, different key order, spurious diff on every fresh
-                # key.
+                # Delete-then-append, never update in place: sync places the
+                # extractionState of a new key alphabetically, while the --check
+                # round trip appends it, a spurious diff on every fresh key.
                 | .extractionState as $st
                 | del(.extractionState)
                 | (if $st == "stale"
@@ -182,14 +129,12 @@ normalize() {
 
 # ---------------------------------------------------------------------------
 # The widget's subset. The extension resolves strings against its own bundle
-# (the TRAP in Vibe/iOS/Widget/VibeWidgetIntents.swift), so it carries
-# VibeWidget/Localizable.xcstrings: the widget.* keys and nothing else, DERIVED
-# from the main catalog here and never authored — translations flow down, and
-# the same basename keeps the table name so no lookup changes. Not a
-# check-translations catalog: every key in it is in the main one and would
-# report twice. The subset is prefix-defined, so the prefix is a checked rule:
-# a widget source reaching for any other key would fall back to English in the
-# widget alone, silently.
+# (the TRAP in Vibe/iOS/Widget/VibeWidgetIntents.swift), so
+# VibeWidget/Localizable.xcstrings carries the widget.* keys, DERIVED here and
+# never authored; the same basename keeps the table name. Not a
+# check-translations catalog, since every key would report twice. A widget
+# source reaching for any other key would fall back to English silently, so
+# the prefix is checked.
 WIDGET_CATALOG="$REPO_ROOT/VibeWidget/Localizable.xcstrings"
 widget_subset() {
     jq --indent 2 '.strings |= with_entries(select(.key | startswith("widget.")))' "$1" > "$2"
@@ -204,10 +149,8 @@ if [ -n "$STRAY" ]; then
 fi
 
 if [ "${1:-}" = "--check" ]; then
-    # The copy MUST keep the catalog's filename: xcstringstool matches a
-    # catalog to its .stringsdata by table name, which comes from the file's
-    # basename. A copy named anything else looks like an empty table and sync
-    # strips every key. Hence a subdirectory rather than a renamed file.
+    # The copy MUST keep the catalog's basename, which names its table: under
+    # any other name sync sees an empty table and strips every key.
     mkdir -p "$WORK/check"
     cp "$CATALOG" "$WORK/check/"
     COPY="$WORK/check/$(basename "$CATALOG")"

@@ -46,18 +46,15 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Both main thread only, like the delegate deliveries they gate.
 - (void)loadWaveformForTrack:(AudioTrack *)track;
-// Supersedes the in-flight load, if there is one, so there are no further
-// waveform deliveries until the next loadWaveformForTrack:. The decode is NOT
-// aborted: it detaches, runs to completion in the background, and persists,
-// so the next request for that file is a disk hit — a skip-ahead or a pager
-// peek no longer throws the decode away. Up to two detached decodes run at
-// once; beyond that the oldest loader is genuinely cancelled. Its
-// uncancellable stat/open worker remains the standardized-path claim until it
-// returns, so a same-file request waits and restarts once rather than adding a
-// stranded worker. Pending work is app-owned and bounded, never pre-dispatched
-// behind those workers. A live detached decode is reattached in place. BPM and
-// key from a detached decode are still delivered, tagged with their URL for
-// the receiver to match against its playlist.
+// Supersedes the in-flight load: no further waveform deliveries until the
+// next loadWaveformForTrack:. The decode is NOT aborted: it detaches, runs to
+// completion and persists, so the next request for that file is a disk hit.
+// Up to two detached decodes run at once; beyond that the oldest is
+// cancelled, and its uncancellable stat/open worker keeps the path's claim
+// until it returns, so a same-file request waits and restarts once rather
+// than adding a stranded worker. A live detached decode is reattached in
+// place. BPM and key from a detached decode are still delivered, tagged with
+// their URL for the receiver to match against its playlist.
 - (void)cancelLoad;
 
 @end

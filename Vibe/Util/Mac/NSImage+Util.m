@@ -37,10 +37,8 @@ accessibilityDescription:(NSString *)description {
                                                          colorSpaceName:NSCalibratedRGBColorSpace
                                                             bytesPerRow:0
                                                            bitsPerPixel:0];
-    // Retag the rep, with no pixel conversion, since the buffer is still
-    // empty, so that the draw below color-matches into sRGB. Leaving the rep
-    // calibrated, as generic RGB, shifts the gamma and saturation of sRGB and
-    // P3 sources.
+    // Retag (the buffer is still empty) so the draw color-matches into sRGB;
+    // generic RGB would shift the gamma and saturation of sRGB and P3 sources.
     rep = [rep bitmapImageRepByRetaggingWithColorSpace:NSColorSpace.sRGBColorSpace];
     if (!rep) {
         return nil;
@@ -75,8 +73,6 @@ accessibilityDescription:(NSString *)description {
         return nil;
     }
     CGFloat side = MIN(size.width, size.height);
-    // Sub-point differences are invisible once drawn, and re-rendering a
-    // square cover would cost a full bitmap for nothing.
     if (fabs(size.width - size.height) < 1.0) {
         return self;
     }
@@ -90,8 +86,6 @@ accessibilityDescription:(NSString *)description {
 }
 
 - (NSColor *)dominantColor {
-    // The algorithm is shared with iOS — one hue histogram, in CoreGraphics
-    // terms, so the two platforms cannot drift on what a cover's color is.
     return VibeDominantColorOfImage(self);
 }
 

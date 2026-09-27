@@ -2,18 +2,10 @@
 //  MusicalKey.h
 //  Vibe
 //
-//  The musical-key representation shared by the key analyzer, the tagged-key
-//  parser, the header label and the Settings notation choice. Header-only
-//  static inlines, like FLACConvertRules.h, so the unit tests compile it
-//  without the analyzer or TagLib.
-//
-//  A key is one NSInteger: pitch class 0-11 (C..B) for a major key, 12 +
-//  pitch class for a minor one, VibeMusicalKeyNone when unknown. The compact
-//  encoding rides the waveform cache archive, so it must stay stable.
-//
-//  Display names are notation, not prose: they use the spellings DJ software
-//  standardized around the Camelot wheel (Db major but C#m, Eb/Ab/Bb
-//  elsewhere) and are deliberately not localized.
+//  A key is one NSInteger: pitch class 0-11 (C..B) for major, 12 + pitch
+//  class for minor, VibeMusicalKeyNone when unknown. The encoding is archived
+//  in the waveform cache, so it must stay stable. Display names are DJ
+//  notation around the Camelot wheel and deliberately not localized.
 //
 
 #import <Foundation/Foundation.h>

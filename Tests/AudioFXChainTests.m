@@ -2,11 +2,8 @@
 //  AudioFXChainTests.m
 //  VibeTests
 //
-//  The FX chain hosted and rendered on its own, over the debug pump's
-//  frame-driven clock — the same virtual clock the render suite drives the
-//  whole player on: an idle chain renders no unit and passes the signal
-//  exactly, a held send echoes at its tap and rests after its tail, the low
-//  kill cuts and rests exactly, and a chain follows a rate change.
+//  The FX chain hosted on its own and rendered over the debug pump's
+//  frame-driven clock, the one the render suite drives the whole player on.
 //
 
 #import <XCTest/XCTest.h>
@@ -58,8 +55,7 @@ static double VibeTestRMS(NSData *capture, int channel, NSUInteger from, NSUInte
     _queue = dispatch_queue_create("com.vibe.test.fx-chain", DISPATCH_QUEUE_SERIAL);
     __weak AudioFXChainTests *weakSelf = self;
     // The scheduler is the pump's virtual clock, as the player's is under the
-    // pump; the chain renders on the test thread, so there is no render to
-    // wait out.
+    // pump; the chain renders on the test thread, so no render is left to wait out.
     _fx = [[AudioFX alloc] initWithQueue:_queue scheduler:^(NSTimeInterval seconds, dispatch_block_t block) {
         AudioFXChainTests *strongSelf = weakSelf;
         [strongSelf->_pump scheduleAfter:seconds block:block];
@@ -147,9 +143,8 @@ static double VibeTestRMS(NSData *capture, int channel, NSUInteger from, NSUInte
     XCTAssertEqual(mismatches, 0u, @"%lu of %lu samples changed", (unsigned long)mismatches, (unsigned long)frames * 2);
 }
 
-// A unit whose render fails ends the chain's render with its status: the
-// EQ's on the dry path, and a return's, whose stale scratch would otherwise
-// have been summed into the current audio with the failure unreported.
+// Units 0 and 1: the EQ on the dry path, and the reverb, whose stale scratch
+// would otherwise be summed into the audio with the failure unreported.
 - (void)testAFailedUnitRenderReturnsItsStatus {
     for (NSNumber *unit in @[@0, @1]) {
         [self connectAt:kRate];
@@ -218,12 +213,10 @@ static double VibeTestRMS(NSData *capture, int channel, NSUInteger from, NSUInte
     XCTAssertEqual(VibeTestRMS(silence, 1, 0, 48000), 0.0);
 }
 
-// The sends tap the dry signal independently: with both delay sends held,
-// the response to an impulse is the dry impulse plus what each send returns
-// on its own. A return mixed in before the next send's gate would be echoed
-// by that send — the reverb's was, by the delays — and the deferral is one
-// path for every return. The delays are deterministic, so the captures
-// compare to float rounding.
+// With both delay sends held, the impulse response is the dry impulse plus
+// each send's return on its own: a return mixed in before a later send's gate
+// would be echoed by it. The delays are deterministic, so the captures compare
+// to float rounding.
 - (void)testSendsTapTheDrySignalIndependently {
     NSMutableData *captures[3];
     for (int phase = 0; phase < 3; phase++) {
@@ -257,10 +250,9 @@ static double VibeTestRMS(NSData *capture, int channel, NSUInteger from, NSUInte
     XCTAssertGreaterThan(VibeTestRMS(captures[0], 0, 12000 - 64, 256), 0.005, @"the 1/8-note send's first echo");
 }
 
-// Disconnected with the reverb and a delay still ringing out, the chain does
-// nothing: every stage is at rest, so even a render still pointed at it
-// renders no unit and changes no sample, and the tails' pending rests fire
-// without touching a unit. (The player withdraws the pointer as well.)
+// Every stage is at rest, so even a render still pointed at the chain renders
+// no unit and changes no sample, and the tails' pending rests fire without
+// touching a unit. (The player also withdraws the pointer.)
 - (void)testADisconnectedChainWithRingingTailsRendersNothing {
     [self connectAt:kRate];
     _fx.delayTapBPM = 120;
@@ -288,11 +280,10 @@ static double VibeTestRMS(NSData *capture, int channel, NSUInteger from, NSUInte
     XCTAssertEqual(_fx.unitRenders, rested);
 }
 
-// The returns sum: with the reverb and the 1/8-note delay held together, the
-// response to an impulse is the dry impulse plus each return on its own, and
-// that holds after both sends are released, while their tails overlap. The
-// reverb's two hostings can differ by float rounding, so the tolerance is
-// well above that and well below an echo.
+// With the reverb and the 1/8-note delay held, the impulse response is the dry
+// impulse plus each return on its own, through the release too. The reverb's
+// two hostings differ by float rounding, so the tolerance sits well above that
+// and well below an echo.
 - (void)testCombinedReturnsSumWithOverlappingTails {
     NSMutableData *captures[3];
     for (int phase = 0; phase < 3; phase++) {

@@ -8,7 +8,6 @@
 #import "Formatters.h"
 #import "VibeStrings.h"
 
-// The slot and knob geometry, in points.
 static const CGFloat kSlotWidth       = 6;
 static const CGFloat kKnobWidth       = 40;
 static const CGFloat kKnobHeight      = 22;
@@ -17,14 +16,13 @@ static const CGFloat kTickGap         = 6;  // gap between slot and ticks
 static const CGFloat kLabelGap        = 4;  // gap between ticks and labels
 // Dragging inside this band snaps to exactly 0: the center detent.
 static const float   kDetentPercent   = 0.35f;
-// The ±% the fader spans until an owner sets one. Every geometry method
-// divides by it, so it must never reach 0 — hence the guard in setMaxPitch:.
+// Every geometry method divides by maxPitch, so setMaxPitch: never lets it
+// reach 0.
 static const float   kDefaultMaxPitch = 8;
 
 @implementation PitchFaderView {
     BOOL    _dragging;
-    // The offset between the mouse-down point and the knob center, so that
-    // grabbing the knob by its edge does not make it jump.
+    // So grabbing the knob by its edge does not make it jump.
     CGFloat _dragOffsetY;
 }
 
@@ -37,15 +35,11 @@ static const float   kDefaultMaxPitch = 8;
 }
 
 - (BOOL)isFlipped {
-    // Flipped so that y grows downward, which maps pitch directly from minus
-    // at the top to plus at the bottom.
-    return YES;
+    return YES; // minus at the top
 }
 
 - (BOOL)mouseDownCanMoveWindow {
-    // The window is movable by its background and this view is non-opaque, so
-    // without this a fader drag would drag the whole window along too.
-    return NO;
+    return NO; // non-opaque: a fader drag would also drag the window
 }
 
 - (void)setMaxPitch:(float)maxPitch {
@@ -111,9 +105,8 @@ static const float   kDefaultMaxPitch = 8;
 }
 
 - (void)drawScaleAroundCenterX:(CGFloat)centerX {
-    // drawRect: runs on every drag tick, so build the immutable pieces once.
-    // That is safe because the fader is hardware-styled and nothing follows
-    // the effective appearance. Only the geometry is computed per draw.
+    // Built once: drawRect: runs every drag tick, and nothing follows the
+    // appearance.
     static NSColor *tickColor;
     static NSColor *minorTickColor;
     static NSDictionary *labelAttributes;
@@ -132,8 +125,7 @@ static const float   kDefaultMaxPitch = 8;
         };
     });
 
-    // Adapt the density to the travel. The short, playlist-hidden window has
-    // only a few points per percent, where the full Technics scale turns to mush.
+    // The collapsed window has only a few points per percent.
     CGFloat pointsPerPercent = (self.travelBottom - self.travelTop) / (2 * _maxPitch);
     int tickStep = pointsPerPercent >= 4 ? 1 : 2;
     int labelStep = 2;
@@ -172,9 +164,7 @@ static const float   kDefaultMaxPitch = 8;
         }
     }
 
-    // Minus above, plus below the scale on the right side (Technics layout:
-    // slide down/toward you to speed up). Scale glyphs, not prose, like the
-    // digits above.
+    // Scale glyphs, not prose, like the digits.
     NSString *minus = VibeNotLocalized(@"−");
     NSSize minusSize = [minus sizeWithAttributes:signAttributes];
     [minus drawAtPoint:NSMakePoint(centerX + tickInnerX + kTickLength + kLabelGap,
@@ -321,9 +311,8 @@ static const float   kDefaultMaxPitch = 8;
         pitch = 0; // center detent
     }
     pitch = roundf(pitch * 10) / 10; // 0.1% steps
-    // Clamp before the dedupe: past the travel ends pitchForY: keeps growing,
-    // and comparing the unclamped value would fire the delegate with the same
-    // clamped pitch on every mouse move.
+    // Clamp before the dedupe: past the ends pitchForY: keeps growing, and
+    // the unclamped value would re-fire the same pitch on every move.
     pitch = MAX(-_maxPitch, MIN(_maxPitch, pitch));
     if (pitch == _pitch) {
         return;
@@ -334,13 +323,9 @@ static const float   kDefaultMaxPitch = 8;
 
 #pragma mark - Accessibility
 
-// The fader is a slider and nothing else, so it says so: without this it was
-// an unlabelled group and pitch was unreachable with VoiceOver.
-//
-// A step of 0.5%, not the 0.1% a drag quantizes to: a drag crosses the range
-// in one movement, while stepping it at 0.1% would take 160 presses to reach
-// either end. Half a percent divides both ranges (8 and 16) evenly, so
-// stepping always lands back on exactly 0 rather than skipping the detent.
+// Without these the fader is an unlabelled group, unreachable with VoiceOver.
+// 0.5%, not a drag's 0.1% (160 presses to an end): it divides both ranges
+// evenly, so stepping lands on exactly 0.
 static const float kPitchAccessibilityStep = 0.5f;
 
 - (BOOL)isAccessibilityElement {
@@ -355,8 +340,7 @@ static const float kPitchAccessibilityStep = 0.5f;
     return STR_A11Y_PITCH_FADER;
 }
 
-// The same signed reading the panel draws, so what VoiceOver speaks and what
-// the readout shows are one string.
+// The readout's own string.
 - (id)accessibilityValue {
     return [Formatters.sharedInstance signedPercentString:_pitch];
 }
@@ -369,9 +353,8 @@ static const float kPitchAccessibilityStep = 0.5f;
     return [self adjustPitchForAccessibilityByDelta:-kPitchAccessibilityStep];
 }
 
-// Through userSetPitch:, so a stepped change carries the detent, the rounding
-// and the delegate call a dragged one does — and then the end-of-gesture
-// callback, since one press IS the whole gesture.
+// Through userSetPitch: like a drag, then the end-of-gesture callback: one
+// press IS the gesture.
 - (BOOL)adjustPitchForAccessibilityByDelta:(float)delta {
     float before = _pitch;
     [self userSetPitch:_pitch + delta];

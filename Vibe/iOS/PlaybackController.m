@@ -2,16 +2,14 @@
 //  PlaybackController.m
 //  Vibe (iOS)
 //
-//  The coordination: the collaborators it owns, the broadcast, the transport
-//  entry points, and the playlist, folder-session and audio-session delegates.
-//  The player callbacks and the Now Playing bridge are categories — see
-//  PlaybackControllerInternal.h for the surface they share.
+//  The player callbacks and the Now Playing bridge are categories sharing
+//  PlaybackControllerInternal.h.
 //
 
 #import "PlaybackControllerInternal.h"
 #import "WidgetPublisher.h"
 #import "PlaybackController+NowPlaying.h"
-#import "PlaybackController+PlayerEvents.h"   // AudioPlayerDelegate, adopted by the category
+#import "PlaybackController+PlayerEvents.h"
 
 #import "AppSettings.h"
 #import "AudioFX.h"
@@ -28,16 +26,13 @@
 #import "SearchFolderStore.h"
 #import "UIUpdateTimer.h"
 
-// Fixed, unlike the mac's playhead-speed-scaled rate (Util/UIUpdateMath.h):
-// there the timer is what moves the playhead, here a display link owns it on
-// the screen that draws one. This tick only feeds the time labels, which
-// change once a second, and the Now Playing publish.
+// Fixed, unlike the mac's (Util/UIUpdateMath.h): a display link moves the
+// playhead here; this tick feeds only the time labels and Now Playing.
 static const NSUInteger kUIUpdateHz = 3;
 
 @implementation PlaybackController {
-    // Weakly held: an observer is a view or a view controller, and every one
-    // of them outlives its registration only by accident. NSPointerArray
-    // keeps the public registration-order guarantee that NSHashTable cannot.
+    // Weak: an observer is a view or view controller. NSPointerArray keeps
+    // registration order, which NSHashTable cannot.
     NSPointerArray *_observers;
 }
 
@@ -55,12 +50,10 @@ static const NSUInteger kUIUpdateHz = 3;
         _nowPlaying = [[NowPlayingController alloc] initWithDelegate:self];
         _widgetPublisher = [[WidgetPublisher alloc] init];
         _launchOpenWaiters = [NSMutableArray array];
-        // The setting as is: no bit-perfect mode here to outrank it. The
-        // card's FX pad drives the segment through setFXPadPosition:engaged:.
+        // The setting as is: no bit-perfect mode here to outrank it.
         _player = [[AudioPlayer alloc] initWithDeviceUID:@"" name:@""
                                                 enableFX:AppSettings.sharedInstance.audioFXEnabled
                                                 delegate:self];
-        // The stored choice as is: no bit-perfect mode here to hold it down.
         _player.crossfadeMilliseconds = AppSettings.sharedInstance.crossfadeMilliseconds;
         [self applyResamplingSetting];
 
@@ -68,12 +61,10 @@ static const NSUInteger kUIUpdateHz = 3;
         _updateTimer = [[UIUpdateTimer alloc] initWithHz:kUIUpdateHz handler:^{
             [weakSelf notifyDidTick];
         }];
-        // Fail closed until VibeiOSSceneDelegate reports foreground-active.
-        // A controller may be constructed while its scene is still inactive.
+        // Fail closed until the scene delegate reports foreground-active.
         _updateTimer.windowVisible = NO;
-        // The media-reset receipt is delivered on its notification thread, so
-        // session observation starts only after every collaborator it can
-        // reach is ready and with its delegate installed atomically at init.
+        // Last: the media-reset notification arrives on its own thread, so
+        // everything it can reach must exist before observation starts.
         _audioSession = [[AudioSessionController alloc] initWithDelegate:self];
         [NSNotificationCenter.defaultCenter addObserver:self
                                                selector:@selector(thumbnailDidLoad:)
@@ -121,8 +112,7 @@ static const NSUInteger kUIUpdateHz = 3;
     }
 }
 
-// Snapshotted: a handler may add or drop an observer without changing the
-// recipients or registration order of the delivery already in progress.
+// A handler may add or drop an observer mid-delivery.
 - (NSArray<id<PlaybackObserver>> *)observerSnapshot {
     NSMutableArray<id<PlaybackObserver>> *snapshot =
             [NSMutableArray arrayWithCapacity:_observers.count];
@@ -191,17 +181,9 @@ static const NSUInteger kUIUpdateHz = 3;
 
 #pragma mark - Equalizer levels
 
-// The meter exists to feed indicators, so it runs only while an indicator is
-// actually reading it, the scene is active, and the graph is producing audio.
-//
-// _levelConsumers is the final demand declared by indicators after their shell
-// has combined card, tab, controller-appearance and row-intersection facts.
-// Count zero therefore means no equalizer is materially visible.
-//
-// RootViewController and LibraryViewController jointly decide presentation
-// visibility before an indicator can declare demand. The scene and audio facts
-// remain here as fail-closed producer gates, so a stale view cannot spend FFT
-// work on its own.
+// _levelConsumers is demand the shells already folded over visibility. The
+// scene and audio facts stay here as fail-closed gates, so a stale view cannot
+// spend FFT work on its own.
 - (void)syncLevelsEnabled {
     _player.levelsEnabled = _levelConsumers > 0 && _sceneActive
             && _player.outputAudioActive;
@@ -216,7 +198,7 @@ static const NSUInteger kUIUpdateHz = 3;
     [AudioPlayer noteSceneActive:sceneActive];
     [self syncLevelsEnabled];
     if (sceneActive) {
-        // The one moment a widget can have been removed — see WidgetPublisher.h.
+        // The one moment a widget can have been removed (WidgetPublisher.h).
         [_widgetPublisher refreshPlaced];
         [self notifyDidTick];
     }
@@ -230,9 +212,8 @@ static const NSUInteger kUIUpdateHz = 3;
     return _player.outputAudioActive;
 }
 
-// Counted rather than a flag: cell reuse hands the model to a new indicator
-// before the old one lets go, so the count is briefly two and must not read as
-// "nobody". EqualizerIndicatorView guarantees one NO per YES, dealloc included.
+// Counted: cell reuse briefly holds two consumers. EqualizerIndicatorView
+// guarantees one NO per YES, dealloc included.
 - (void)equalizerLevelsWanted:(BOOL)wanted {
     if (wanted) {
         _levelConsumers++;
@@ -318,8 +299,6 @@ static const NSUInteger kUIUpdateHz = 3;
 
 #pragma mark - Display state
 
-// Gathers the rule's inputs, sampling the player once so the whole state
-// resolves against one consistent view of it.
 - (VibePlayerScreenState)screenState {
     return VibeResolvePlayerScreenState(_playlist.count, _trackStartPending,
                                         _parked, _errorText != nil,
@@ -364,11 +343,11 @@ static const NSUInteger kUIUpdateHz = 3;
     _errorText = nil;
     _parked = NO;
     _seekInFlight = NO;
-    // Before the render, so the first draw already shows the track at rest.
+    // Before the render, so the first draw shows the track at rest.
     _trackStartPending = YES;
-    // Submitted before the repaint and the metadata kick, as the mac's play
-    // funnel does, so the open does not wait behind either. The session comes
-    // first: a parked file settles inline and starts RemoteIO at once.
+    // The play is submitted before the repaint and the metadata kick so the
+    // open waits behind neither; the session first, because a parked file
+    // settles inline and starts the output unit at once.
     [_audioSession activate];
     [_player play:track];
     [self notifyDidRenderCurrentTrack];
@@ -377,26 +356,21 @@ static const NSUInteger kUIUpdateHz = 3;
     [self notifyDidChangePlayState];
 }
 
-// The iOS twin of the mac's closeFile:, in its order and for its reasons.
-// TRAP: stop fires no transport or track-end callback, so nothing here
-// auto-advances — and the stale-track guards in +PlayerEvents drop any
-// callback already in flight, since the playlist it names is gone.
+// The twin of the mac's closeFile:. TRAP: stop fires no transport or
+// track-end callback, so this method owns the reset; +PlayerEvents' stale-track
+// guards drop any callback already in flight.
 - (void)clearPlaylist {
     [_player stop];
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
     _downloadMonitorOpenRequestIdentifier = 0;
     // TRAP: the session goes BEFORE the model. Clearing the model fires
-    // playlistDidReplaceAllTracks:, and that one event is what rebuilds the
-    // chrome — so everything it reads has to be final by the time it lands.
-    // Clearing the session afterwards left the observer looking at a live
-    // folderURL: the playlist emptied and the plus went, but the bar kept the
-    // old folder's title and its star.
+    // playlistDidReplaceAllTracks:, which rebuilds the chrome; cleared after,
+    // the session still answers folderURL and the bar keeps the old title and
+    // star.
     [_folderSession clearSession];
     [_playlist clear];
-    // Nothing will play to start the sweep later, so cancel the armed fallback
-    // and release the scan. The generation bump is what makes an in-flight
-    // timer a no-op rather than a sweep over an empty playlist.
+    // Disarms the sweep's fallback timer.
     _metadataLoadPending = NO;
     _metadataLoadGeneration++;
     [_metadataCache cancelScan];
@@ -406,29 +380,18 @@ static const NSUInteger kUIUpdateHz = 3;
     _trackStartPending = NO;
     _updateTimer.wanted = NO;
     [_audioSession deactivateWhenIdle];
-    // The card and the strip render from the now-absent current track. No
-    // playbackDidOpenNewFolder: — nothing was opened, and that event means
-    // "show what just opened", which would bring the card up over an empty
-    // playlist.
+    // Not playbackDidOpenNewFolder:, which would raise the card over nothing.
     [self notifyDidRenderCurrentTrack];
     [self notifyDidChangePlayState];
     [self notifyDidTick];
-    // LAST, and it has to be last. Clearing during a launch restore supersedes
-    // that restore, so none of the four delegate methods that would settle the
-    // launch waiters ever fires — and _launchOpenSettled is a LATCH, so the
-    // miss is permanent: every later performWhenLaunchOpenSettled: parks too,
-    // and they all fire at once against whatever playlist exists whenever some
-    // later open settles. A widget transport intent presents that as the app
-    // skipping a track for no reason. A clear settles the launch open the same
-    // way a restore that found nothing does: there is nothing more to wait for.
-    //
-    // At the END for the reason the chrome rebuild sits where it does — a
-    // waiter runs arbitrary work, a widget intent driving transport among it,
-    // so it must not see a half-reset controller.
+    // LAST. A clear during a launch restore supersedes it, so nothing else
+    // settles the launch waiters, and the settle is a latch: missed, every
+    // later waiter parks and they all fire at some later open — a widget
+    // intent skipping a track for no reason. Last because a waiter runs
+    // arbitrary work and must not see a half-reset controller.
     [self settleLaunchOpen];
 }
 
-// Parks a restored track: everything renders, nothing plays.
 - (void)parkCurrentTrack {
     AudioTrack *track = _playlist.currentTrack;
     if (!track) {
@@ -448,15 +411,13 @@ static const NSUInteger kUIUpdateHz = 3;
         [_player playPause];
     }
     else if (_player.isPaused || _player.isLoading) {
-        // Loading here is a parked landing (a pause verdict mid-load, or the
-        // media-reset re-park): playPause flips the landing back to playing
-        // without a fresh play:, which would restart the open and lose the
-        // re-park's captured position. Same verdict as audioSessionShouldResume.
+        // Loading here is a parked landing (a pause mid-load, or the
+        // media-reset re-park). playPause flips it to playing; a fresh play:
+        // would restart the open and lose the re-park's position.
         [_audioSession activate];
         [_player playPause];
     }
     else {
-        // Stopped: a parked restore, a finished playlist, or a failed track.
         [self playCurrentTrack];
     }
 }
@@ -488,9 +449,8 @@ static const NSUInteger kUIUpdateHz = 3;
 
 - (void)applyTrackTransitionSettings {
     _player.crossfadeMilliseconds = AppSettings.sharedInstance.crossfadeMilliseconds;
-    // Re-park the successor, or drop it: prefetchTrack: with nil unschedules
-    // an armed splice, which is what keeps a mid-track switch to Pause from
-    // advancing anyway. Same shape as the mac's applyEndOfTrackAction.
+    // prefetchTrack:nil unschedules an armed splice, so a mid-track switch to
+    // Pause does not advance anyway.
     [_player prefetchTrack:self.successorPrefetchTrack];
 }
 
@@ -500,8 +460,8 @@ static const NSUInteger kUIUpdateHz = 3;
 }
 
 - (void)applyFXSetting {
-    // The player clears every effect's intent itself when it is switched
-    // off, so a pad still held has nothing to leave behind.
+    // Off clears every stage's intent in the player, so a held pad has
+    // nothing to leave behind.
     [_player setFXEnabled:AppSettings.sharedInstance.audioFXEnabled];
 }
 
@@ -517,10 +477,9 @@ static const NSUInteger kUIUpdateHz = 3;
     fx.delaySendLevel = VibeFXPadDelayLevel((float)position.x);
 }
 
-// The delay taps follow the current track's tempo — the tag over the
-// analysis, AudioTrack.bpm's rule — and 0 when neither is known, which the
-// FX read as the default tempo. There is no pitch fader here, so the track's
-// own tempo is the tempo as heard. The setter no-ops on the same value.
+// The tag over the analysis (AudioTrack.bpm), 0 when neither is known, which
+// the FX read as the default. No pitch fader here, so the track's tempo is
+// the tempo as heard. The setter no-ops on the same value.
 - (void)refreshTempoFeed {
     _player.fx.delayTapBPM = _playlist.currentTrack.bpm;
 }
@@ -528,16 +487,14 @@ static const NSUInteger kUIUpdateHz = 3;
 - (void)noteDetectedBPM:(float)bpm forURL:(NSURL *)url {
     [_playlist stampTracksWithURL:url usingBlock:^(AudioTrack *track) {
         track.detectedBPM = bpm;
-        // The same event a tag landing sends: the page redraws its codec
-        // line from AudioTrack.bpm either way.
+        // The event a tag landing sends: the page redraws its codec line.
         [self notifyDidLoadMetadataForTrack:track];
     }];
     [self refreshTempoFeed]; // a no-op unless the current track's tempo moved
 }
 
-// Clamped because a list's rows can be stale — an external "Open in Vibe"
-// replaces the playlist underneath an open screen, and Playlist.setCurrentIndex
-// does not range-check, so a stale index would strand the cursor past the end.
+// A list's rows can be stale (an external open replaced the playlist), and
+// Playlist.setCurrentIndex does not range-check.
 - (void)selectTrackAtIndex:(NSUInteger)index {
     if (index >= _playlist.count) {
         return;
@@ -555,12 +512,9 @@ static const NSUInteger kUIUpdateHz = 3;
         [_player seekToPosition:duration * progress];
         return;
     }
-    // Parked with nothing open — a relaunch restore, or the end of the
-    // playlist — or an open still in flight. The player holds no file, so its
-    // duration is 0 and there is nothing to seek IN; the metadata knows the
-    // length, so the file is opened AT the scrubbed position instead, and
-    // opened PAUSED. A scrub is a request to move the playhead and nothing
-    // else. Anything else has no open for a seek to land in.
+    // Parked, or an open still in flight: the player holds no file, so the
+    // metadata's duration opens it AT the target, paused — a scrub moves the
+    // playhead and nothing else.
     AudioTrack *track = _playlist.currentTrack;
     if (!track || !(_parked || _player.isLoading)) {
         return;
@@ -568,18 +522,13 @@ static const NSUInteger kUIUpdateHz = 3;
     _pendingSeekProgress = progress;
     _seekInFlight = YES;
     if (track.duration <= 0) {
-        // Before the metadata landed. A widget seek on a cold launch arrives
-        // here every time: the launch open settles the moment the track is
-        // parked, and its tags are still on the metadata lane. The target is
-        // kept — the card already draws an in-flight seek at its target — and
-        // didLoadMetadata: re-enters with the duration in hand. A play before
-        // then starts from 0 and clears it, like any track event.
+        // No duration yet (a widget seek on a cold launch lands here every
+        // time). The target is kept and didLoadMetadata: re-enters.
         return;
     }
     if (_parked) {
-        // Holds the waveform on the target through the parked open. play:
-        // rebinds an existing same-file request, so a second seek updates its
-        // landing intent without starting another open or settling early.
+        // Holds the waveform on the target through the open. A second seek
+        // rebinds the same-file request rather than opening again.
         _trackStartPending = YES;
         [self notifyDidChangePlayState];
         [_player play:track atPosition:track.duration * progress startPaused:YES];
@@ -594,14 +543,11 @@ static const NSUInteger kUIUpdateHz = 3;
         duration = _playlist.currentTrack.duration;
     }
     if (duration > 0) {
-        // The same funnel as an on-screen scrub is what opens a restored,
-        // parked track paused at the requested absolute position.
         [self seekToProgress:(float)(position / duration)];
         return;
     }
     if (_player.isLoading) {
-        // Duration metadata can still be pending, but AudioPlayer can update
-        // the open request with an absolute file position already.
+        // No duration yet, but the open request takes an absolute position.
         _seekInFlight = YES;
         [_player seekToPosition:MAX(position, 0)];
     }
@@ -615,41 +561,30 @@ static const NSUInteger kUIUpdateHz = 3;
 
 #pragma mark - What the sweep does first
 
-// The ranking itself — which neighbors, in what order — is the cache's, so
-// both shells send the same one; see setNeighborhoodAroundIndex:inTracks:. It
-// only matters on the scan lane, where each parse may pull a whole file down
-// a wire and the sweep would otherwise work through the folder in filename
-// order however far that is from where the user actually is. Re-sent on every
-// current-index change, which is the one funnel every play, skip and
-// auto-advance passes through.
+// Re-sent on every current-index change, the funnel every play, skip and
+// auto-advance passes through; the ranking is the cache's.
 - (void)updateMetadataNeighborhood {
     [_metadataCache setNeighborhoodAroundIndex:_playlist.currentIndex inTracks:_playlist];
 }
 
 #pragma mark - Transport follow-ups
 
-// TRAP: the Stopped gate is load-bearing. A parked restored track is Stopped
-// and holds no file, and prefetching over a mere list edit would open one — on
-// a cloud folder, a download the user never asked for. A new play re-prefetches
-// at start anyway; same rule as the mac's reconcileAfterPlaylistStructureEdit.
+// TRAP: the Stopped gate is load-bearing. A parked track holds no file, and
+// prefetching over a list edit would open one — on a cloud folder, an unasked
+// download. A new play prefetches at start anyway.
 - (void)prefetchSuccessor {
     if (_player.isStopped) {
         return;
     }
-    // Through successorPrefetchTrack, never around it: that is the single
-    // home of the On track end = Pause rule, and a bypass would splice past a
-    // track end the setting says to park on (root CLAUDE.md).
+    // Never around successorPrefetchTrack: it holds On track end = Pause.
     [_player prefetchTrack:self.successorPrefetchTrack];
 }
 
 #pragma mark - The deferred metadata sweep
 
-// The playlist-wide sweep waits for the track the user picked to settle. Four
-// workers reading every file in the folder starve the player's own open — on a
-// file-provider folder they starve it for as long as the provider takes to
-// materialize a file each, which is the difference between a track starting in
-// a second and starting in a minute. The fallback covers an open that never
-// settles at all. Its mac twin is MainPlayerController.scheduleDeferredMetadataLoad.
+// The sweep waits for the picked track to settle: its workers would starve the
+// player's open, on a provider folder for as long as each file takes to
+// materialize. The fallback covers an open that never settles.
 static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 
 - (void)scheduleDeferredMetadataLoad {
@@ -680,10 +615,9 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     [_folderSession presentPickerFromViewController:presenter];
 }
 
-// One external open at a time: a share can mix in-place URLs with inbox
-// copies, which open differently. The filename-sorted first is deterministic,
-// unlike NSSet's anyObject, and when a folder grant covers its parent the
-// expansion pulls the siblings in anyway.
+// One URL: a share can mix in-place URLs with inbox copies, which open
+// differently. Filename order is deterministic, unlike anyObject, and a covering
+// grant pulls the siblings in anyway.
 - (void)handleOpenURLContexts:(NSSet<UIOpenURLContext *> *)contexts {
     UIOpenURLContext *context = [contexts.allObjects
             sortedArrayUsingComparator:^NSComparisonResult(UIOpenURLContext *a, UIOpenURLContext *b) {
@@ -724,12 +658,8 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     [_folderSession bookmarkFolderURL:folderURL completion:completion];
 }
 
-// The whole search scope, composed here and nowhere else: the session's own
-// transient roots — the base folder and every added folder — ahead of the
-// persistent ones, which are the folders added in Settings plus the ones
-// starred on the Favorites tab.
-// Nesting among them is FileSearchIndex's to prune, so a folder that is both
-// starred and added is walked once.
+// The only composition of the search scope: transient roots, then persistent
+// ones. FileSearchIndex prunes the nesting.
 - (NSArray<NSURL *> *)searchRoots {
     return [[_folderSession.searchRoots
             arrayByAddingObjectsFromArray:SearchFolderStore.shared.searchRoots]
@@ -776,8 +706,7 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     [self scheduleDeferredMetadataLoad];
 
     if (selectedURL) {
-        // A file pick that expanded to its directory: play the picked file,
-        // not the folder's first.
+        // A file pick that expanded to its directory plays the picked file.
         NSString *selectedPath = selectedURL.URLByStandardizingPath.path;
         NSArray<AudioTrack *> *tracks = _playlist.tracks;
         for (NSUInteger i = 0; i < tracks.count; i++) {
@@ -791,13 +720,10 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     if (restored) {
         NSString *remembered = session.persistedTrackPath;
         if (!selectedURL && remembered) {
-            // Two tiers, exact path first. TRAP: the path alone is not enough —
-            // a provider can hand the same file back under a different absolute
-            // path, and the simulator's data-container UUID rotates on every
-            // reinstall — so the filename remains the fallback, which is also
-            // what restores a bare filename left by an older build. The scan
-            // runs on: an exact hit anywhere outranks a filename hit, which is
-            // the whole point once the playlist spans folders.
+            // TRAP: the path alone is not enough — a provider can hand the file
+            // back under a different path, and the simulator's container UUID
+            // rotates on reinstall — so the filename is the fallback tier. An
+            // exact hit anywhere outranks it, since the playlist spans folders.
             NSString *rememberedName = remembered.lastPathComponent;
             NSArray<AudioTrack *> *tracks = _playlist.tracks;
             NSUInteger match = NSNotFound;
@@ -816,11 +742,8 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
             }
         }
         [self parkCurrentTrack];
-        // A park opens nothing, so there is no open for the sweep to starve
-        // and no didStartPlaying: coming to start it. Left to the fallback, a
-        // relaunch showed the parked track and its neighbors at once and every
-        // other row two seconds later, all together — measured on device, the
-        // sweep's cache pass then took 65 ms for 78 tracks.
+        // A park opens nothing to starve and no didStartPlaying: will start
+        // the sweep; left to the fallback, rows fill in two seconds late.
         [self startPendingMetadataLoad];
     }
     else {
@@ -831,15 +754,13 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
             }
         }
     }
-    // After the park or the play, so a waiter finds a track to drive.
+    // After the park or play, so a waiter finds a track to drive.
     [self settleLaunchOpen];
 }
 
-// iOS has no remove UI, so a double Add would be permanent: files already in
-// the playlist are skipped, by standardized path like the selectedURL match
-// above — Playlist's own URL index is NSURL isEqual:, which a picker URL and a
-// listing URL of the same file need not satisfy. A shell decision; the model
-// keeps allowing duplicates for the mac.
+// iOS has no remove UI, so a double Add would be permanent. Deduped by
+// standardized path: a picker URL and a listing URL of one file need not be
+// isEqual:. The model allows duplicates for the mac.
 - (void)folderSession:(FolderSession *)session didAppendTracks:(NSArray<NSURL *> *)urls {
     NSMutableSet<NSString *> *present = [NSMutableSet set];
     for (AudioTrack *track in _playlist.tracks) {
@@ -848,33 +769,28 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     NSMutableArray<NSURL *> *fresh = [NSMutableArray array];
     for (NSURL *url in urls) {
         NSString *path = url.URLByStandardizingPath.path;
-        // One delivery already names each file once (FolderSession); the insert
-        // keeps this loop correct on its own terms rather than on that promise.
         if (![present containsObject:path]) {
             [present addObject:path];
             [fresh addObject:url];
         }
     }
     if (fresh.count == 0) {
-        return;                              // nothing new: no event, no sweep restart
+        return;
     }
     [_playlist appendURLs:fresh];
-    // The mac's re-queue; already-parsed tracks are skipped when it fires. No
-    // cancelScan — that belongs to a replacement.
+    // No cancelScan: that belongs to a replacement.
     [self scheduleDeferredMetadataLoad];
     [self updateMetadataNeighborhood];
-    // A playing last row now has a successor: this arms the auto-advance into
-    // the addition.
+    // A playing last row may now have a successor.
     [self prefetchSuccessor];
-    // Publishes Now Playing (hasNext may have flipped) and then ticks; the 3 Hz
-    // timer is off while parked or paused.
+    // hasNext may have flipped, and the timer is off while parked or paused.
     [self notifyDidTick];
 }
 
 - (void)folderSessionDidOpenEmptyFolder:(FolderSession *)session {
     [self settleLaunchOpen];
     if (_playlist.count > 0) {
-        return;   // a good playlist is never wiped by a bad pick
+        return;   // a bad pick never wipes a good playlist
     }
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {
         if ([observer respondsToSelector:@selector(playbackDidOpenEmptyFolder:)]) {
@@ -893,8 +809,7 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 #pragma mark - PlaylistObserver
 
 - (void)playlistDidReplaceAllTracks:(Playlist *)playlist {
-    // A replacement resets the index to 0 without moving it, so the
-    // index-change hook below never fires for the first track of a new folder.
+    // A replacement resets the index without the index-change event.
     [self updateMetadataNeighborhood];
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {
         if ([observer respondsToSelector:@selector(playbackDidReplacePlaylist:)]) {
@@ -928,10 +843,7 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 - (void)playlist:(Playlist *)playlist didInsertTracksAtIndexes:(NSIndexSet *)indexes {
 }
 
-// iOS exposes no reorder UI either. A move is transport-safe at the model
-// boundary — the current object survives — but a future caller still goes
-// through this controller and adds the screen reconciliation its feature
-// needs; no speculative PlaybackObserver event until then.
+// No reorder UI either; a future one adds its own observer event.
 - (void)playlist:(Playlist *)playlist
         didMoveTracksFromIndexes:(NSIndexSet *)sourceIndexes
                        toIndexes:(NSIndexSet *)destinationIndexes {
@@ -959,16 +871,13 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 - (void)didLoadMetadata:(AudioTrack *)track {
     [self notifyDidLoadMetadataForTrack:track];
     if ([_playlist isCurrentTrack:track]) {
-        // The tag outranks the analysis, so a BPM tag landing moves the taps.
-        [self refreshTempoFeed];
-        // A seek that arrived parked before this delivery (seekToProgress:)
-        // lands now, through the same funnel. !_trackStartPending is what says
-        // it has not already opened: the parked open sets it.
+        [self refreshTempoFeed]; // a BPM tag outranks the analysis
+        // A parked seek that arrived before the duration lands now;
+        // _trackStartPending says its open already started.
         if (_seekInFlight && _parked && !_trackStartPending && track.duration > 0) {
             [self seekToProgress:_pendingSeekProgress];
         }
-        // The full tick, not just the publish: a parked track's time labels
-        // render from this delivery's duration.
+        // A parked track's time labels render from this duration.
         [self notifyDidTick];
     }
 }
@@ -977,18 +886,17 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 
 - (BOOL)audioSessionShouldPause:(AudioSessionController *)controller {
     BOOL wasPlaying = _player.isPlaying;
-    // The player decides beside its queue-confined state. While Loading this
-    // requests a parked landing; duplicate route/interruption verdicts remain
-    // parked rather than toggling it back to playing.
+    // While Loading this requests a parked landing; a duplicate verdict stays
+    // parked rather than toggling back to playing.
     [_player pause];
     return wasPlaying;
 }
 
 - (void)audioSessionShouldResume:(AudioSessionController *)controller {
     [_player resume];
-    // If Ended raced the short pause fade, resume dissolves the pending pause
-    // while the state still reads Playing. Follow it with the idempotent health
-    // check so an output the interruption stopped is started again too.
+    // An Ended that raced the pause fade still reads Playing, so resume alone
+    // would leave an output the interruption stopped; recoverOutput is
+    // idempotent.
     [_player recoverOutput];
 }
 
@@ -1001,9 +909,8 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 }
 
 - (void)audioSessionDidReceiveMediaServicesReset:(AudioSessionController *)controller {
-    // Notification-thread edge: do not touch main-confined shell state here.
-    // The player establishes the reset/play queue ordering now and hands the
-    // pre-reset track plus its position back on main.
+    // On the notification thread: no main-confined state here. The completion
+    // runs on main.
     __weak PlaybackController *weakSelf = self;
     [_player beginMediaServicesResetWithCompletion:
             ^(AudioTrack *resetTrack, NSTimeInterval position) {
@@ -1015,8 +922,8 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
         strongSelf->_updateTimer.wanted = NO;
         strongSelf->_trackStartPending = NO;
         AudioTrack *track = strongSelf->_playlist.currentTrack;
-        // A model-only restore can replace the row without submitting a play.
-        // It owns its parked state; this older reset must not open its file.
+        // A restore may have replaced the row without a play; it owns its
+        // parked state, and this older reset must not open its file.
         if (resetTrack && track == resetTrack) {
             strongSelf->_parked = YES;
             strongSelf->_trackStartPending = YES;
@@ -1027,8 +934,7 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
         else if (!track) {
             strongSelf->_parked = NO;
         }
-        // The reset's Stopped state is now authoritative. Publish it (or the
-        // paused re-park's pending state) before its async open can settle.
+        // Published before the re-park's open can settle.
         [strongSelf notifyDidChangePlayState];
         [strongSelf notifyDidTick];
     }];

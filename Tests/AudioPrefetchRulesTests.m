@@ -78,10 +78,6 @@
                    VibeAudioPrefetchDispositionStartClaim);
 }
 
-// The request lifecycle that outlived the acknowledgement machinery: identity
-// (a stale identifier changes nothing) and suppression-resume (a different-
-// path prefetch requested mid-open is retained; the play's success resumes
-// that exact target, its failure or supersession drops it).
 - (void)testSuppressedRequestResumesAfterPlaySuccess {
     VibeAudioPrefetchRequestState state = VibeAudioPrefetchRequestStateMake();
     state = VibeAudioPrefetchRequestBegin(state).state;

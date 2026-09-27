@@ -20,9 +20,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setSmallSize:(BOOL)animate;
 - (void)setLargeSize:(BOOL)animate;
 
-// The player body's width: the window minus the pitch panel's slice. This is
-// what the View > Size presets set and what their checkmarks compare against,
-// so the number means the same thing whether or not the panel is out.
+// The window minus the pitch panel's slice: what View > Size sets and checks.
 @property (readonly) CGFloat contentWidth;
 - (void)setContentWidth:(CGFloat)width animate:(BOOL)animate;
 
@@ -32,21 +30,17 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (IBAction)toggleSize:(id)sender;
 
-// The height a drag-resize is allowed to rest at, given the one it is asking
-// for. The controller, as the window delegate, funnels windowWillResize:
-// through this; the rule lives here with the rest of the frame geometry.
+// The height a drag may rest at; the delegate's windowWillResize: applies it.
 - (CGFloat)restingHeightForDraggedHeight:(CGFloat)height;
 
-// The slide-out pitch panel. The window grows by kPitchPanelWidth to the right
-// to reveal the panel view the controller parked past the content's right edge.
+// The window grows by kPitchPanelWidth to reveal the panel parked past its
+// right edge.
 - (BOOL)isPitchPanelShown;
 - (void)setPitchPanelShown:(BOOL)shown animate:(BOOL)animate;
 
-// The shape a first launch would have: both panes hidden, the design width,
-// the collapsed height. The frame half of Factory reset — call
-// MainPlayerController.resetWindowToDefaultShape instead, which follows it
-// with the sibling frames; this alone leaves the pitch panel on screen at the
-// new width, since its right-anchored mask rides the shrinking edge.
+// The first-launch shape. Call MainPlayerController.resetWindowToDefaultShape
+// instead: alone, this leaves the pitch panel on screen, its right-anchored
+// mask riding the shrinking edge.
 - (void)resetToDefaultShape;
 
 @end
@@ -54,17 +48,12 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol FileDropDelegate <NSObject>
 @optional
 
-// Whether a drop at this point — NSDraggingInfo.draggingLocation, in window
-// coordinates — appends rather than replaces, which the playlist's empty-state
-// wells decide. Answered synchronously, at drop time, because the wells are
-// geometry and the URLs then travel the app's ordinary open funnel, which knows
-// only append-or-replace.
+// Whether a drop at this window point appends rather than replaces, which the
+// empty-state wells decide. Answered synchronously, at drop time.
 - (BOOL)mainWindow:(MainWindow *)mainWindow dropAppendsAtLocation:(NSPoint)location;
 
-// Drag-over tracking for the empty-state wells, again in window coordinates.
-// The updated callback fires on every entered and updated event. The ended
-// callback fires both on exit and after a drop, and receivers treat it as an
-// instruction to leave the drag-over presentation.
+// Drag-over tracking for the wells, in window coordinates. Ended fires on exit
+// and after a drop.
 - (void)mainWindow:(MainWindow *)mainWindow fileDraggingUpdatedAtLocation:(NSPoint)location;
 - (void)mainWindowFileDraggingEnded:(MainWindow *)mainWindow;
 

@@ -2,19 +2,13 @@
 //  CloudTransferRegistry.h
 //  Vibe
 //
-//  The coordinator's publication surface for "which files are on the wire":
-//  AudioFileMaterializationCoordinator publishes begin/end here only when its
-//  accepted initial or start-refresh classification says the file is dataless.
-//  A local file — whose operation is a no-op coordinated read — publishes
-//  nothing, and a claim merely queued behind lane capacity publishes nothing
-//  either. Lane capacity
-//  therefore bounds the indicators as well as the transfers: dropping a large
-//  cloud folder marks the one to three files actually downloading and leaves
-//  every other row its number.
+//  Which files are on the wire. AudioFileMaterializationCoordinator publishes
+//  begin/end only when its accepted classification says the file is dataless;
+//  a local file and a claim queued behind lane capacity publish nothing, so
+//  the lanes bound the row indicators as they bound the transfers.
 //
-//  Main thread only, like DownloadProgressMonitor and the delegate paths it
-//  feeds. The registry names no rows and knows no UI; the observer re-reads
-//  whatever rows it is showing.
+//  Main thread only. The registry names no rows; the observer re-reads the
+//  rows it shows.
 //
 
 #import <Foundation/Foundation.h>
@@ -32,28 +26,21 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (instancetype)sharedRegistry;
 
-// ONE weak observer, because each shell has exactly one row list
-// (PlaylistController on macOS, LibraryViewController on iOS). A second
-// observer means upgrading this to counted registration, not silently
-// replacing whoever registered first.
+// One observer: each shell has one row list (PlaylistController on macOS,
+// LibraryViewController on iOS). A second needs counted registration, not
+// replacement.
 @property (nonatomic, weak, nullable) id<CloudTransferRegistryObserver> observer;
 
 // YES only while a provider transfer is running for url's standardized path.
 - (BOOL)isTransferringURL:(NSURL *)url;
 
-// <0 when the transfer is running but no fraction is known yet — which is the
-// indeterminate case, and on iOS against a third-party provider is the whole
-// story. See DownloadProgressMonitor.h for why. Also <0 when nothing is
-// transferring at all; isTransferringURL: is the gate. A provider's zero
-// sample is status rather than progress and never leaves indeterminate: the
-// row shows a determinate fill only once real, non-zero movement arrives.
+// <0 while no fraction is known (always, on iOS against a third-party
+// provider; DownloadProgressMonitor.h) and when nothing is transferring;
+// isTransferringURL: is the gate. A zero sample stays indeterminate.
 - (float)progressForURL:(NSURL *)url;
 
-// The foreground open reports through the shell's OWN monitor, which is tied
-// to the open-request identifier and also feeds the player's timeout
-// extension. Routing that fraction in here stops the registry minting a
-// second monitor — a second NSMetadataQuery and File Provider subscription —
-// for a file already being watched.
+// The shell's own monitor for the foreground open feeds this, so the registry
+// cancels its own and never watches that file twice.
 - (void)noteProgress:(float)fraction forURL:(NSURL *)url;
 
 @end

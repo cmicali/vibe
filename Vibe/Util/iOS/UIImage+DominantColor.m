@@ -2,8 +2,6 @@
 //  UIImage+DominantColor.m
 //  Vibe (iOS)
 //
-//  See UIImage+DominantColor.h.
-//
 
 #import "UIImage+DominantColor.h"
 

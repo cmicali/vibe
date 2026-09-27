@@ -2,8 +2,6 @@
 
 `AppSettings+Mac` is the `(Mac)` category on `AppSettings` (`../CLAUDE.md`): every mac-only preference with its identifiers and preset ladders, and the theme store. **A macOS reader imports `AppSettings+Mac.h` explicitly beside `AppSettings.h`**; the shared `AppSettings.m` reaches this half only through the hooks `AppSettingsInternal.h` declares, whose class extension holds the ivars a category cannot. The theme *record* — `AppTheme`, its sanitization gate, colors, images, archive and dice — is `Theme/CLAUDE.md`.
 
-**TRAP: a stored key never follows a rename of its macro.** `SETTING_FOLDER_ART` is still `@"Audio.folderArtwork"`; changing the string resets every user's setting. The key list at the top of `AppSettings+Mac.m` is where the next one would be renamed.
-
 ## The theme store
 
 **Three keys.** `Appearance.userThemes` holds the user themes as flat records plus `id`/`name`; `Appearance.activeTheme` names the theme the working state derives from (registered default `vibe`, snapped to `vibe` when it names nothing); `Appearance.currentTheme` is the persisted **working record**, present only while it diverges from the active theme's own record. `currentTheme` materializes once and is mutated in place.

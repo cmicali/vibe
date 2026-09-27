@@ -2,14 +2,9 @@
 //  MainPlayerController+Window.h
 //  Vibe
 //
-//  The window itself: building the content hierarchy into it, the two
-//  content-view sibling frames, the resize and occlusion rules, and the menu
-//  actions that change the window's shape or appearance — size presets, the
-//  pitch-panel reveal, always-on-top and the light/dark choice.
-//
-//  Pure AppKit geometry and lifecycle. The one place it reaches into the
-//  player's world is the update timer's occlusion gate, which is a visibility
-//  question rather than a playback one.
+//  The window: the content build, the two content-view siblings, the resize,
+//  lock and occlusion rules, and the actions that change its shape or
+//  appearance.
 //
 
 #import "MainPlayerController.h"
@@ -20,72 +15,55 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface MainPlayerController (Window) <NSWindowDelegate, NSWindowRestoration>
 
-// Builds the content hierarchy into the window and adopts its subviews as the
-// controller's outlets. Runs from init, before windowDidLoad.
+// Adopts the built subviews as outlets. Runs from init, before windowDidLoad.
 - (void)buildContentInWindow:(MainWindow *)window;
 
-// The window's two content-view siblings in the resizable steady state: the
-// player body fills everything left of the pitch panel's fixed-width slice,
-// and the panel hugs the right edge — parked just past it while hidden.
+// The steady-state sibling frames: the body fills everything left of the
+// panel's fixed slice; the panel hugs the right edge, parked past it while
+// hidden.
 - (NSRect)playerBodyFrame;
 - (NSRect)pitchPanelFrame;
 
-// Installs the pitch panel as the second contentView sibling. Runs from
-// windowDidLoad, after buildContentInWindow: has built the body it sits
-// beside.
+// Runs from windowDidLoad, after buildContentInWindow:.
 - (void)buildPitchPanel;
 
-// Factory reset's window half (Settings > Advanced): the shipping shape, both
-// panes closed. The window owns the frame, but the two siblings are this
-// controller's to place, so the reset cannot be driven from the window alone —
-// see the implementation.
+// Factory reset's window half: the shipping shape, both panes closed. The
+// controller places the siblings, so the window cannot reset alone.
 - (void)resetWindowToDefaultShape;
 
-// The playlist reveal: ⇥ and View > Show Playlist. It is a window height
-// change, hence a window action.
+// The playlist reveal: a height change, hence a window action.
 - (IBAction)toggleSize:(nullable id)sender;
-// View > Size. The presets set body widths only; the height belongs to the
-// playlist toggle and the user's drag.
+// Body widths only; the height belongs to the playlist toggle and the drag.
 - (IBAction)setWindowSize:(id)sender;
-// The body width each View > Size preset means. It lives next to
-// setWindowSize:, because the Size checkmarks in +Menus must resolve the same
-// identifier-to-width mapping the action does.
+// Shared with the Size checkmarks in +Menus.
 + (CGFloat)contentWidthForSizeIdentifier:(NSString *)identifier;
 
-// The pitch panel's reveal, which is the window's right edge sweeping past a
-// stationary panel rather than a subview sliding in.
+// The window's right edge sweeps past a stationary panel.
 - (IBAction)togglePitchPanel:(nullable id)sender;
 
+// Each apply* below pushes a stored setting, at construction and from its
+// live effect, so the setting is read in one place.
 - (IBAction)toggleAlwaysOnTop:(nullable id)sender;
-// Pushes AppSettings.sharedInstance.alwaysOnTop to the window's level. Used at
-// construction and by the settings live-effect mapping.
 - (void)applyAlwaysOnTop;
 
 - (IBAction)toggleWindowPositionLock:(nullable id)sender;
-// Pushes AppSettings.sharedInstance.windowPositionLocked to the window's
-// movable flag, the lock's only state. Same two callers.
+// Sets movable, the lock's only state.
 - (void)applyWindowLock;
 
-// Pushes AppSettings.sharedInstance.showTrafficLights to the content view's
-// hover fade. Same two callers, so the setting is read in one place.
 - (void)applyTrafficLights;
 
-// Pushes the theme's app icon — the bundle's, or its custom image — into the
-// application and re-decides the Dock tile from the theme's dockIcon choice.
-// Used at construction and by the AppIcon live effect.
+// The theme's app icon, then the Dock tile re-decided from its dockIcon.
 - (void)applyAppIcon;
 
-// The themed window shape and background — the WindowChrome live effect's
-// whole body. applyWindowBackground alone is the appearance-flip half: the
-// overlay's color pair resolves per appearance and its layer color is not
-// dynamic.
+// The WindowChrome effect's body. applyWindowBackground alone is the
+// appearance-flip half: the overlay's layer color is not dynamic.
 - (void)applyWindowChrome;
 - (void)applyWindowBackground;
 
-// Applies the already-stored appearance without writing it.
+// Never writes the setting.
 - (void)applyStoredAppearance;
 
-// YES while the window is unoccluded. The update timer's visibility gate.
+// The update timer's visibility gate: YES while unoccluded.
 - (BOOL)isWindowVisible;
 
 @end

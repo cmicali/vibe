@@ -2,14 +2,9 @@
 //  PlayerViewController+Delivery.h
 //  Vibe (iOS)
 //
-//  Where the pager's asynchronous results land: waveform snapshots, and the
-//  scrubber's seek. Both implement the one cross-directory guarantee about
-//  deliveries racing track changes, which is why they are one file. The mac
-//  twin is MainPlayerController+Delivery.
-//
-//  Metadata is not here: it is the model's delivery, not the pager's, so
-//  PlaybackController takes it and the screen sees it as a PlaybackObserver
-//  event.
+//  Where the pager's asynchronous results land: waveform snapshots and the
+//  scrubber's events, each matched against the current track first. Metadata
+//  is the model's delivery, a PlaybackObserver event.
 //
 
 #import "PlayerViewController.h"
@@ -23,19 +18,14 @@ NS_ASSUME_NONNULL_BEGIN
 @interface PlayerViewController (Delivery) <PageWaveformCoordinatorDelegate,
         WaveformScrubberViewDelegate>
 
-// The waveform zoom is one value for the whole pager, and the scrubber's
-// didChangeVisibleFraction: is what writes it — so its persistence lives here
-// too, and the defaults key has exactly one home.
-
-// Holds the pager still for the length of a scrub, a pinch or an FX pad
-// hold, and releases it — matched against the view that took it, never the
-// bound page (the trap on _pagerHoldView). Every hold and release goes
-// through here.
+// Holds the pager still for a scrub, a pinch or an FX pad hold, and releases
+// it, matched against the view that took it (the trap on _pagerHoldView).
 - (void)setPagerHeld:(BOOL)held byView:(UIView *)view;
 
-// Read the persisted zoom into _waveformZoom. Setup only.
+// The pager's one zoom lives here beside its only writer,
+// didChangeVisibleFraction:. Setup only.
 - (void)restoreWaveformZoom;
-// Push the shared zoom onto one page's scrubber; a no-op when it matches.
+// A no-op when it matches.
 - (void)applyWaveformZoomToCell:(TrackPageCell *)cell;
 
 @end

@@ -1,7 +1,3 @@
-//
-// Convert-to-FLAC disposal outcomes and location bookkeeping.
-//
-
 #import <XCTest/XCTest.h>
 #import <objc/runtime.h>
 
@@ -81,7 +77,6 @@ BOOL VibeCopyTagsToFLAC(NSString *source, NSString *output, VibeUncompressedCont
     XCTAssertFalse(VibeFLACMayDisposeExpectedPath(
             VibeFLACFileLocationUnknownTrashURL));
 }
-
 
 - (void)setUp {
     [super setUp];
@@ -288,10 +283,6 @@ BOOL VibeCopyTagsToFLAC(NSString *source, NSString *output, VibeUncompressedCont
 
 #pragma mark - The encode itself
 
-// The encode through the production converter, source to FLAC and back
-// through the handle: exact integer round trips at 16 and 24 bits with the
-// declared depth to match, the float-to-24-bit policy measured, a final
-// partial packet kept, and a source that ends early refused.
 @interface FLACEncodeRoundTripTests : XCTestCase
 @end
 

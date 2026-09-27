@@ -1,32 +1,21 @@
 #!/usr/bin/env python3
 """Does bit-perfect output SETTLE, track after track, and put the device back?
 
-`make test-bit-perfect` already answers "are the samples unchanged" through a
-BlackHole loopback. This answers a different question: across many track
-changes, rate boundaries, mode toggles and device switches, does the mode reach
-Active every time, drive the device to each file's own rate, hold exclusive
-access when asked, and restore the device's format when it lets go.
+`make test-bit-perfect` checks the samples are unchanged. This checks that
+across track changes, rate boundaries, mode toggles and device switches the
+mode reaches Active, drives the device to each file's rate, holds exclusive
+access when asked, and restores the device's format when it lets go.
 
-WHY THIS IS NOT A TORTURE PHASE. torture.py exists to outrun everything async,
-and it does — measured at 10-70 ops/s. A bit-perfect format switch needs about
-a second to confirm, so under torture the switch never completes before the next
-track change arrives: the mode sits in `switchFailed` for the whole run and,
-because exclusive only acquires once bit-perfect confirms, hog is never taken at
-all. A torture run with both settings enabled therefore tests NEITHER, and
-reports "PASSED, no violations" while doing it. Measured, not theorised.
+Settle-paced on purpose, not a torture phase: a format switch needs about a
+second to confirm, and torture's 10-70 ops/s leaves the mode in `switchFailed`
+and the hog never taken while still reporting PASSED.
 
-So this driver is settle-paced on purpose. It is slower than every other suite
-here and that is the point: the thing under test is whether the mode settles,
-and you cannot observe settling by refusing to let it settle.
+REQUIRES a device the mode can drive (`VibeBitPerfectDeviceEligible`: never
+Bluetooth, AirPlay or System Output) and a corpus of mixed sample rates, or the
+rate-follow assertion proves nothing.
 
-REQUIRES a device the mode can drive (`VibeBitPerfectDeviceEligible`: built-in,
-PCI, USB, FireWire, Thunderbolt, HDMI, DisplayPort, AVB, virtual — never
-Bluetooth, AirPlay or System Output) and a corpus whose files differ in sample
-rate, or the rate-follow assertion proves nothing.
-
-TRAP: exclusive output takes hog mode, and taking the device that is the system
-default MOVES the default elsewhere for as long as it is held. That is expected
-and documented; the run releases it, but a SIGKILL mid-run leaves it taken.
+TRAP: exclusive output hogs the device, and hogging the system default MOVES
+the default elsewhere while held. The run releases it; a SIGKILL leaves it.
 
     bitperfect-soak.py --corpus Assets/test_audio_files/rates --device 110
     bitperfect-soak.py --corpus <dir> --device 110 --no-exclusive --rounds 3
@@ -47,8 +36,7 @@ REPO = HERE.parents[3]
 HELPER_SRC = HERE / "device-flap.swift"
 DEFAULT_APP = REPO / "build/DerivedData/Build/Products/Debug/Vibe.app"
 
-# How long to let a track settle before judging it. A rate change relocks the
-# DAC; measured at ~1s on real interfaces, so this is deliberate headroom.
+# A rate change relocks the DAC in ~1 s on real interfaces; this is headroom.
 SETTLE_SECONDS = 5.0
 
 
@@ -62,8 +50,8 @@ def run(binary, *argv, timeout=60):
 
 
 def file_format(path):
-    """(rate, depth) from afinfo — an INDEPENDENT source. Asserting the device
-    rate against the app's own idea of the file's rate would be circular."""
+    """(rate, depth) from afinfo: asserting the device against the app's own
+    idea of the file's rate would be circular."""
     try:
         out = subprocess.run(["afinfo", str(path)], capture_output=True, text=True,
                              timeout=30).stdout
@@ -91,9 +79,8 @@ def device_rate(helper, device):
 
 
 def device_volume(helper, device, writes=None):
-    """{element: scalar} for every SETTABLE output volume — each element, and "v"
-    for the virtual main volume the app's own volumeScaled check reads — after
-    applying `writes` ({element: scalar}) if given. Empty for a device with none."""
+    """{element: scalar} for every settable output volume ("v" is the virtual
+    main volume), after applying `writes` if given."""
     extra = [",".join(f"{e}:{v!r}" for e, v in writes.items())] if writes else []
     return helper_json(helper, "volume", device, *extra).get("elements", {})
 
@@ -108,16 +95,14 @@ def build_helper(out):
 
 
 def device_rates(helper, device):
-    """The rates the device can actually run at. Without this, a DAC that simply
-    lacks a rate is indistinguishable from a failure to switch to it — the FiiO
-    DAC-E10 has no 88.2 kHz, and reporting rateUnsupported there is CORRECT."""
+    """The rates the device offers, so a correct rateUnsupported (the FiiO
+    DAC-E10 lacks 88.2 kHz) is told apart from a failed switch."""
     d = helper_json(helper, "rates", device)
     return {r["min"] for r in d.get("ranges", [])} if d.get("ok") else None
 
 
 def check_track(report, want_rate, want_exclusive, device, label, failures,
                 supported=None):
-    """Every assertion the settled report has to satisfy for one track."""
     def bad(why):
         failures.append(f"{label}: {why}")
 
@@ -134,8 +119,7 @@ def check_track(report, want_rate, want_exclusive, device, label, failures,
         return
     if want_rate and abs((report.get("sampleRate") or 0) - want_rate) > 1:
         bad(f"device at {report.get('sampleRate')} Hz, file is {want_rate:.0f} Hz")
-    # All three equal is the bit-perfect shape; any difference means the graph
-    # resamples somewhere, which is the whole thing the mode exists to prevent.
+    # Bus and output unit at different rates means the graph resamples.
     rates = {report.get("busRate"), report.get("outputUnitRate")}
     if len(rates) != 1:
         bad(f"graph rates disagree: {sorted(r for r in rates if r is not None)}")
@@ -166,10 +150,10 @@ def main():
                          "needed because that list shows names, not ids")
     ap.add_argument("--also-device", action="append", default=[], metavar="ID:NAME",
                     help="another eligible device to rotate onto between rounds, "
-                         "e.g. '122:Audient iD4'. Repeatable. Switching devices "
-                         "with the mode armed is where the documented traps are")
+                         "e.g. '122:Audient iD4'; repeatable")
     ap.add_argument("--no-exclusive", action="store_true")
-    ap.add_argument("--settle", type=float, default=SETTLE_SECONDS)
+    ap.add_argument("--settle", type=float, default=SETTLE_SECONDS,
+                    help=f"seconds per track before judging it (default {SETTLE_SECONDS:g})")
     args = ap.parse_args()
     also = []
     for spec in args.also_device:
@@ -204,11 +188,9 @@ def main():
             print(f"  note: corpus has rates this device lacks {missing} — those "
                   f"tracks must report rateUnsupported", flush=True)
 
-    # TRAP: a DAC whose own volume sits below unity makes every track report
-    # volumeScaled — a TRUE report, since the device scales the samples — and the
-    # soak then reads as a run of failures that says nothing about the mode (a
-    # FiiO at the user's 0.877 did exactly that). Hold every target at unity for
-    # the run and put the user's exact levels back on every exit path.
+    # TRAP: a DAC below unity volume makes every track truthfully report
+    # volumeScaled (a FiiO at 0.877 failed 10/10). Hold every target at unity and
+    # restore the exact levels on every exit path but SIGKILL.
     saved_volumes = {d: device_volume(helper, d) for d in [args.device, *(d for d, _ in also)]}
     saved_volumes = {d: v for d, v in saved_volumes.items() if v}
 
@@ -225,8 +207,7 @@ def main():
     launch = (REPO / ".claude/skills/vibe-debug/scripts/launch.sh").resolve()
     subprocess.run([str(launch), str(args.corpus)], capture_output=True, text=True,
                    # TRAP: without VIBE_APP, launch.sh starts the default Debug build and
-                   # --app reaches only the channel client, so a missing or stale default
-                   # build ran the whole soak against the wrong app.
+                   # --app reaches only the channel client: the soak tests the wrong app.
                    env={**__import__("os").environ, "VIBE_AUDIBLE": "silent",
                         "VIBE_APP": str(args.app.resolve())})
     deadline = time.monotonic() + 45
@@ -235,21 +216,15 @@ def main():
 
     failures, checked = [], 0
 
-    # Arm the mode on the chosen device. Modes belong to the device UID, so the
-    # device has to be selected BEFORE the toggles mean anything.
     run(binary, "settings_open", "audio"); time.sleep(0.6)
     ui = run(binary, "dump_settings_ui")
     rows = next((c.get("rows", []) for c in ui.get("controls", [])
                  if c.get("kind") == "table" and c.get("name") == "Output"), [])
-    # TRAP: the Output list shows NAMES, not ids, so --device alone cannot pick
-    # the row. Falling back to a guess silently armed the wrong device and then
-    # reported every track as "hog is on 110, expected 999999" — the oracle
-    # caught it, but the run had already wasted its time on the wrong device.
-    # TRAP: the System Output row EMBEDS the current default device's name, so
-    # "Fireface 802 (24240711)" matches "System Output (Fireface 802 (24240711))"
-    # first. That row is the -1 policy and is never eligible, so the mode simply
-    # refuses to arm and the run dies looking like a device problem. Exclude it,
-    # and prefer an exact row match over a substring.
+    # TRAP: the Output list shows NAMES, not ids, so --device cannot pick the
+    # row; a guessed row arms the wrong device for the whole run. No match exits.
+    # TRAP: the System Output row EMBEDS the default device's name, so a
+    # substring match hits it first; that row never arms and the run dies
+    # looking like a device fault. Exclude it and prefer an exact match.
     needle = args.device_name or str(args.device)
     concrete = [(i, r) for i, r in enumerate(rows) if not r.startswith("System Output")]
     row = next((i for i, r in concrete if r == needle), None)
@@ -261,8 +236,7 @@ def main():
                  + f"\n\nPass --device-name with text from the right row, and make "
                    f"sure --device {args.device} is that device's CURRENT id.")
     def arm_on(row_index):
-        """Select a device and arm the mode on it. Modes belong to the device
-        UID, so the selection has to land BEFORE the toggles mean anything."""
+        """Modes belong to the device UID, so select the row BEFORE the toggles."""
         run(binary, "settings_click", "Output", str(row_index)); time.sleep(3)
         run(binary, "set_bit_perfect", "on"); time.sleep(2)
         if not args.no_exclusive:
@@ -276,8 +250,7 @@ def main():
     if armed.get("status") in (None, "off"):
         sys.exit("bit-perfect did not arm on this device — is it eligible?")
 
-    # Each entry is (device id, row index, supported rates). The primary is
-    # first; --also-device adds the rest.
+    # (device id, row index, supported rates), primary first.
     targets = [(args.device, row, supported)]
     for did, dname in also:
         cand = [(i, r) for i, r in enumerate(rows) if not r.startswith("System Output")]
@@ -294,9 +267,7 @@ def main():
     for rnd in range(1, args.rounds + 1):
         device, row_i, supported = targets[(rnd - 1) % len(targets)]
         if len(targets) > 1 and rnd > 1:
-            # Switching devices with the mode armed: the switch must prepare and
-            # hog the DESTINATION before committing, and must not strand the old
-            # device's format. Re-arm because modes are per device UID.
+            # Modes are per device UID, so re-arm on the destination.
             armed_now = arm_on(row_i)
             if armed_now.get("status") in (None, "off"):
                 failures.append(f"round {rnd}: mode did not arm on device {device}")
@@ -317,7 +288,7 @@ def main():
                   f"got {report.get('sampleRate')} Hz  status={report.get('status')} "
                   f"excl={report.get('exclusive')}", flush=True)
 
-        # A mid-run toggle must return to Active, not strand the mode.
+        # A toggle must release the hog and return to Active or Idle.
         run(binary, "set_bit_perfect", "off"); time.sleep(2)
         off = run(binary, "dump_state").get("player", {}).get("bitPerfect", {})
         if off.get("status") != "off":
@@ -335,8 +306,7 @@ def main():
         failures.append(f"consistency: {viol}")
     q = run(binary, "quiesce", timeout=40)
 
-    # Leave no trace: the mode is per device UID and would persist into the next
-    # run, and a held hog would persist for every other app on the machine.
+    # The mode persists per device UID, and a held hog blocks every other app.
     run(binary, "set_bit_perfect", "off"); time.sleep(1.5)
     run(binary, "settings_click", "Output", "0"); time.sleep(2)
     run(binary, "settings_close")

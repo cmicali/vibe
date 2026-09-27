@@ -13,81 +13,50 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The main window's whole UI. It builds the artwork, waveform, transport
-// buttons, track labels and playlist table, and exposes them for the
-// controller to drive. The view itself is transparent: the window's backdrop
-// — Liquid Glass on macOS 26, the frosted fallback below before it — that
-// MainPlayerController installs behind this view provides the background.
-// Button and menu actions are sent to `target`, the controller. The view is
-// width- and height-sizable, following the user-resizable window; only the
-// pitch panel's reveal swaps in a pinned mask, for the duration of that
-// animation (MainPlayerController+Window).
+// The main window's body: it builds the views and exposes them for the
+// controller to drive. Transparent; the controller's window backdrop is the
+// background. Actions go to `target`. Only the pitch-panel reveal pins its
+// resizable mask, for the animation (MainPlayerController+Window).
 @interface MainPlayerContentView : NSView
 
 - (instancetype)initWithTarget:(id)target;
 
-// The pre/post-26 backdrop dichotomy in one place: glass takes a layer
-// radius, frost a regenerated mask. Shared by both build paths and the
-// controller's applyWindowChrome.
+// Glass takes a layer radius; the pre-26 frost a regenerated mask.
 + (void)applyCornerRadius:(CGFloat)radius toBackdrop:(NSView *)backdrop;
 
-// Shows or hides the header glass panel for the theme's window background:
-// present under glass and solid, gone under clear, where the window's own
-// backdrop is the whole look. The controller's applyWindowBackground runs it
-// beside the solid cover.
+// The header glass panel is hidden under the theme's clear window background.
 - (void)applyWindowBackgroundStyle;
 
-// Re-resolve the header labels' themed fonts and colors, split so a
-// color-only edit does not reset fonts (which would force the title's
-// shrink-to-fit — TrackDisplayController owns the fit — and a text
-// re-measure per color-well drag tick). The corner readouts' color rides
-// their attributed strings.
+// Split so a color drag does not reset fonts, which forces a title re-fit.
 - (void)applyThemedLabelFonts;
 - (void)applyThemedLabelColors;
 
-// Re-resolves the three transport buttons' themed look — glyph or custom
-// image, color — and the gradient behind them; the TransportButtons live
-// effect's body.
+// The TransportButtons live effect's body.
 - (void)applyThemedTransportButtons;
 
-// Which side of the buttons' color pair draws: the pair is keyed Dark/Light
-// by what is UNDER the buttons, not by the appearance. The artwork controller
-// samples the installed image's lower band and pushes the answer here; with
-// a visible gradient the backdrop is dark, whatever the art. hasArtwork
-// distinguishes a track's cover from the theme's default image.
+// The buttons' Dark/Light pair is keyed by what is UNDER them, not by the
+// appearance; a visible gradient is dark whatever the art. hasArtwork tells a
+// track's cover from the theme's default.
 - (void)setTransportBackdropDark:(BOOL)dark hasArtwork:(BOOL)hasArtwork;
 
-// The play button's state, drawn through the theme's play/pause glyph and
-// image pair. The controller's updateUI is the one caller.
+// The controller's updateUI is the one caller.
 - (void)setPlayButtonShowsPause:(BOOL)showsPause;
 
-// Re-resolves the themed wash over the playlist frost; also runs on every
-// appearance change (updateMaterialForAppearance).
+// The background under the rows: the glass lift, the solid cover, or none
+// under clear. Also runs on every appearance change.
 - (void)applyPlaylistBackground;
 
-// Fires from the effective-appearance funnel, after the view's own material
-// and tint updates, so that appearance-dependent state owned elsewhere — the
-// header art tint, in ArtworkDisplayController — can re-derive itself.
+// Fires after the view's own appearance updates, for state owned elsewhere.
 @property (nonatomic, copy, nullable) void (^appearanceChangedHandler)(void);
 
-// Only the buttons the controller drives, through their symbol and enabled
-// state, are exposed. The traffic lights and the playlist toggle keep their
-// actions and hover fade internal, so they stay private to the view.
 @property (readonly) SymbolButton *playButton;
 @property (readonly) SymbolButton *nextButton;
 
-// Applies the persisted visibility of the custom close and minimize buttons.
 - (void)setTrafficLightsShown:(BOOL)shown;
 
-// The tint wash over the header's glass panel. The artwork controller sets its
-// layer background to the current track's dominant art color. It is a plain
-// view rather than the glass's own tintColor, because NSGlassEffectView drops
-// its tint entirely while the window is inactive, and the wash must not change
-// with key state; see ArtworkDisplayController.
+// Plain views the artwork controller washes: the glass's own tintColor is
+// dropped while the window is inactive.
 @property (readonly) NSView *headerTintView;
-// The playlist's counterpart: the tint wash over the playlist background —
-// frost or solid cover — under the table, driven by the same controller from
-// the theme's playlistTint.
 @property (readonly) NSView *playlistTintView;
 @property (readonly) ArtworkImageView *albumArtImageView;
 @property (readonly) AudioWaveformView *waveformView;
@@ -96,23 +65,17 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) NSTextField *titleTextField;
 @property (readonly) NSTextField *totalTimeTextField;
 @property (readonly) NSTextField *currentTimeTextField;
-// The empty-state hint, "Drop a file or press ⌘O", shown only while no track
-// is loaded.
 @property (readonly) NSTextField *dropHintTextField;
 @property (readonly) NSTextField *fileMetadataTextField;
 @property (readonly) NSTextField *bpmTextField;
 
 @property (readonly) PlaylistTableView *playlistTableView;
-// The drop-target UI spanning the playlist pane: the empty-state hint and the
-// drag-over wells. It is built hidden. The controller drives it from the
-// updateUI funnel, on playlistEmpty and the launch grace, and forwards the
+// Built hidden; the controller drives it from updateUI and forwards the
 // window's drag-over events.
 @property (readonly) PlaylistDropZoneView *playlistDropZoneView;
 
-// Re-caps the artist line's width so that it truncates clear of the codec
-// line's text rather than running under it. The view calls this itself on every
-// resize; TrackDisplayController calls it whenever the codec line's content
-// changes, since the clearance depends on how wide that text renders.
+// Truncates the artist line clear of the codec line's text. The view re-caps
+// on resize itself; TrackDisplayController calls this on every text change.
 - (void)layoutArtistLineClearOfCodecLine;
 
 @end

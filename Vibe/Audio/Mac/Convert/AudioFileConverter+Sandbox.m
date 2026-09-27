@@ -55,10 +55,9 @@
     return [self moveTemp:tempURL toRelatedItem:destinationURL ofPrimary:sourceURL];
 }
 
-// Rung 2; see the header. TRAP: a successful presenter is kept for the
-// session, because the sandbox extension lives exactly as long as the
-// registration — unregistering after the move leaves a file the app has just
-// written and can no longer read (a permission error from the open).
+// Rung 2. TRAP: a successful presenter is kept for the session: the sandbox
+// extension lives exactly as long as the registration, and unregistering
+// leaves a file the app just wrote and can no longer read.
 - (nullable NSURL *)moveTemp:(NSURL *)tempURL
                toRelatedItem:(NSURL *)destinationURL
                    ofPrimary:(NSURL *)primaryURL {

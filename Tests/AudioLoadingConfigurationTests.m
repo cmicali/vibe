@@ -19,8 +19,8 @@
     XCTAssertEqual(configuration.maximumBackgroundMaterializations, 1u);
     XCTAssertEqual(configuration.localMetadataParseConcurrency, 4u);
     XCTAssertEqual(configuration.prefetchDepth, 1u);
-    // Handle-run admission is independent (spec J8); changing foreground
-    // transfer concurrency would be a separate policy decision.
+    // The handle-run ceiling is the coordinator's own, not derived from these
+    // (docs/file-loading-spec.md J8).
     XCTAssertEqual(configuration.maximumInteractiveMaterializations, 3u);
     XCTAssertEqual(configuration.maximumInteractivePendingMaterializations, 1u);
     XCTAssertEqual(configuration.maximumBackgroundPendingMaterializations, 6u);

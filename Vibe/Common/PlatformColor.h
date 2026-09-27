@@ -2,10 +2,8 @@
 //  PlatformColor.h
 //  Vibe
 //
-//  #RRGGBB hex ↔ VibeColor, the persisted form of a stored color setting —
-//  inspectable, cross-platform, `defaults write`-able. Free functions rather
-//  than a category because the constructed class differs per platform, the
-//  PlatformImage.h precedent.
+//  #RRGGBB[AA] hex ↔ VibeColor, the persisted form of a stored color. Free
+//  functions because the class differs per platform.
 //
 
 #import <Foundation/Foundation.h>
@@ -13,8 +11,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// C linkage: unlike PlatformImage.h, this header is included from the .mm
-// renderer files.
+// C linkage: the .mm renderers include this header.
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -27,9 +24,8 @@ VibeColor *_Nullable VibeColorFromHexString(NSString *_Nullable hex);
 // reading.
 NSString *_Nullable VibeHexStringFromColor(VibeColor *_Nullable color);
 
-// A linear sRGB blend, `fraction` of the way toward `toward`, at full alpha —
-// the cross-platform counterpart of NSColor's blendedColorWithFraction:.
-// Falls back to `color` itself when either has no RGB reading.
+// A linear sRGB blend `fraction` of the way toward `toward`, at full alpha;
+// `color` itself when either has no RGB reading.
 VibeColor *VibeColorBlended(VibeColor *color, VibeColor *toward, CGFloat fraction);
 
 // The color at `fraction` of its own alpha, hue untouched.

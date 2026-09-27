@@ -11,33 +11,23 @@
 #import "NSImage+Util.h"
 #endif
 
-// Whatever the artwork request handler returns is serialized to the media
-// daemon, so handing back the full 1024px original ships megabytes on every
-// publish and the card visibly fills in after the window has. This is the side
-// the system actually draws — Control Center, the lock screen, the mini player
-// — with room to spare.
-
-// TRAP: this must run on the main thread, and its result must be the ONLY
-// thing the request handler hands back. The handler is invoked on the media
-// daemon's threads, and `artwork` is the live NSImage the header, the dock
-// tile and the playlist cells are drawing from — NSImage is not safe to draw
-// concurrently from two threads, so drawing inside the handler races the UI.
-// Rasterizing once, here, also costs one redraw per track rather than one per
-// surface the system asks about.
+// TRAP: this must run on main, and its result must be the only thing the
+// request handler returns. The handler runs on MediaPlayer's threads, and
+// `artwork` is the live NSImage the UI is drawing; NSImage is not safe to draw
+// from two threads at once. Capped at 512px: the handler's result is
+// serialized to the media daemon on every publish.
 static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
 #if TARGET_OS_OSX
     NSCAssert(NSThread.isMainThread, @"Now Playing artwork must be rasterized on main");
     static const CGFloat kPublishedArtworkMaxSide = 512;
     CGSize source = artwork.size;
     if (source.width <= 0 || source.height <= 0) {
-        // resizedImage: clamps these dimensions to one pixel. Drawing may
-        // still recover a representation whose logical NSImage size is bad.
+        // Drawing may still recover a rep whose logical size is bad.
         return [artwork resizedImage:NSMakeSize(1, 1)];
     }
     CGFloat scale = MIN(1.0, MIN(kPublishedArtworkMaxSide / source.width,
                                 kPublishedArtworkMaxSide / source.height));
-    // Even an already-small thumbnail is redrawn. The different NSImage and
-    // bitmap rep are the ownership boundary between AppKit UI and MediaPlayer.
+    // Always redrawn, even when small: the private copy is the boundary.
     return [artwork resizedImage:NSMakeSize(round(source.width * scale),
                                             round(source.height * scale))];
 #else
@@ -48,23 +38,17 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
 @implementation NowPlayingController {
     __weak id<NowPlayingControllerDelegate> _delegate;
 #if DEBUG
-    // Debug launches can leave system media focus alone. See the initializer.
     BOOL _suppressed;
 #endif
 
-    // Vibe must not claim the system Now Playing slot before anything has
-    // played: the shells publish a nil track at launch, and a restored session
-    // parks a track that never sounded. Publishing even a cleared or paused
-    // state would evict the user's current Now Playing app.
+    // Publishing even a cleared or paused state before the first play would
+    // evict the user's current Now Playing app.
     BOOL _hasPublished;
     NSTimeInterval (^_clock)(void);
     void (^_publish)(NSDictionary *, NowPlayingPlaybackState);
     void (^_commandAvailability)(BOOL, BOOL);
 
-    // The last published snapshot, for the dirty check in updateWithTrack:....
-    // updateUI runs several times back to back on a track transition, and only
-    // the first pass with new content should touch MPNowPlayingInfoCenter. A
-    // nil _publishedURL means cleared, or never published.
+    // The dirty check's snapshot; nil _publishedURL is cleared or never published.
     NSString *_publishedURL;
     NSString *_publishedTitle;
     NSString *_publishedArtist;
@@ -74,15 +58,11 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
     NSTimeInterval _publishedPosition;
     CFAbsoluteTime _publishedAt;
 
-    // The last applied command availability, which registerCommands enables
-    // for both, so that the MPRemoteCommand .enabled properties are written
-    // only on a change.
+    // Written to MPRemoteCommand only on a change.
     BOOL _publishedHasNext;
     BOOL _publishedHasPrevious;
 
-    // The MPMediaItemArtwork wrapper is reused for as long as the caller hands
-    // back the same decoded image. The wrapper's request handler retains the
-    // image either way, so caching it here adds no lifetime.
+    // Reused while the caller hands back the same image.
     VibeImage *_publishedArtworkImage;
     MPMediaItemArtwork *_publishedArtworkWrapper;
 }
@@ -107,9 +87,8 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
     if (self) {
         _delegate = delegate;
 #if DEBUG
-        // TRAP: publishing Now Playing can pull AirPods from another device
-        // even when rendering to a virtual output. Hardware loopback tests
-        // need suppression independently of the manual-rendering flag.
+        // TRAP: see the header. --no-now-playing suppresses this alone,
+        // keeping hardware rendering for loopback tests.
         NSArray<NSString *> *arguments = NSProcessInfo.processInfo.arguments;
         _suppressed = [arguments containsObject:@"--no-audio-hw"]
                 || [arguments containsObject:@"--no-now-playing"];
@@ -139,9 +118,8 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
 
 #pragma mark - Remote commands
 
-// MediaPlayer does not document a delivery queue for command handlers.
-// Capture the weak delegate while the command is accepted, then put every
-// controller/UI mutation behind the main queue contract.
+// MediaPlayer documents no delivery queue for command handlers, so every
+// delivery hops to main.
 - (MPRemoteCommandHandlerStatus)deliverRemoteCommand:(NSString *)name
         to:(void (^)(id<NowPlayingControllerDelegate> delegate))delivery {
 #if VIBE_VERBOSE_LOGGING
@@ -162,15 +140,9 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
     return MPRemoteCommandHandlerStatusSuccess;
 }
 
-// Enables the transport commands we implement, which is what routes the
-// hardware media keys, Control Center and Bluetooth remotes to us, and
-// disables the rest, so that the system does not offer controls we cannot
-// service.
-//
-// MPRemoteCommandCenter retains the handler blocks process-wide, so each one
-// must tolerate outliving this controller. The strongSelf nil checks are
-// load-bearing: `nil->_delegate` is a NULL-plus-offset dereference, not a
-// harmless nil-message send.
+// The handlers are retained process-wide and can outlive this controller; the
+// strongSelf nil checks are load-bearing, since `nil->_delegate` dereferences
+// NULL plus an offset.
 - (void)registerCommands {
     MPRemoteCommandCenter *center = [MPRemoteCommandCenter sharedCommandCenter];
     __weak NowPlayingController *weakSelf = self;
@@ -208,8 +180,7 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
         }];
     }];
 
-    // Enabled here, so that a command is never registered but dead. Every
-    // updateWithTrack: re-tracks them against the playlist boundaries.
+    // Enabled until updateWithTrack: tracks the playlist's boundaries.
     center.nextTrackCommand.enabled = YES;
     _publishedHasNext = YES;
     [center.nextTrackCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
@@ -247,8 +218,7 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
         }];
     }];
 
-    // Commands the app does not model. Keep them off, so that the transport UI
-    // shows only the controls we handle.
+    // Off, so the system offers only controls the app handles.
     NSArray<MPRemoteCommand *> *unsupported = @[
         center.stopCommand,
         center.seekForwardCommand,
@@ -283,22 +253,18 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
         return;
     }
 #endif
-    // Availability changes apply even before the first publication and while
-    // metadata is unchanged; enabling commands does not claim Now Playing.
+    // Before the first publish too: enabling a command claims nothing.
     if (hasNext != _publishedHasNext || hasPrevious != _publishedHasPrevious) {
         _commandAvailability(hasNext, hasPrevious);
         _publishedHasNext = hasNext;
         _publishedHasPrevious = hasPrevious;
     }
 
-    // Nothing until the first track PLAYS; see _hasPublished. Command
-    // availability above still follows the playlist.
     if (!_hasPublished && state != NowPlayingPlaybackStatePlaying) {
         return;
     }
 
     if (!track) {
-        // A nil track clears the published state exactly once.
         if (_publishedURL == nil) {
             return;
         }
@@ -309,31 +275,15 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
         return;
     }
 
-    // Use the same tagged-title-or-filename rule as every in-app track label.
     NSString *title = track.displayTitle ?: @"";
     NSString *artist = track.displayArtist;
-    // cachedArt is the already-decoded image, or nil, and never blocks: it does
-    // no file read and no decode. While it is still nil the caller refreshes
-    // once the art resolves, so the card fills in a moment later rather than
-    // stalling here.
-    //
-    // The 128px thumbnail stands in for that gap. A fresh parse decodes it on
-    // its metadata worker; after shared-cache eviction this read returns nil
-    // and queues a bounded off-main decode instead. Without the thumbnail the
-    // card shows the placeholder while the window shows a cover, which reads
-    // as Now Playing lagging the app when both are in fact published in the
-    // same pass. The identity check below promotes either recovered thumbnail
-    // or full art when the next publish sees it.
-    //
-    // The placeholder is rasterized like any art, so it must already be the
-    // side the app's appearance shows: here the current drawing appearance is
-    // the system's, not the window's.
+    // Non-blocking. The thumbnail covers the gap until full art decodes, or
+    // the card would show the placeholder beside a window showing a cover;
+    // the identity check promotes whichever arrives. The placeholder must
+    // already match the app's appearance: the drawing appearance here is the
+    // system's.
     VibeImage *artwork = track.cachedArt ?: track.cachedThumbnail ?: placeholderArt;
 
-    // The elapsed time is never republished at 3 Hz, because the system
-    // extrapolates it from the last publish at the published rate. Natural
-    // advance since that publish must therefore not count as dirty; the rule
-    // is VibeNowPlayingPositionIsDirty in NowPlayingRules.h.
     if (_publishedURL != nil) {
         BOOL unchanged = [_publishedURL isEqualToString:track.url.absoluteString]
                 && [title isEqualToString:_publishedTitle]
@@ -360,21 +310,15 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
         info[MPMediaItemPropertyPlaybackDuration] = @(duration);
     }
     info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = @(MAX(0.0, position));
-    // The rate is how fast `position` advances in real time. It drives the
-    // system's between-update interpolation of the progress bar, and 0, when
-    // paused or stopped, freezes it. The caller chooses position's time base
-    // and the matching rate; Vibe reports wall-clock time, which advances at
-    // 1x.
+    // How fast `position` advances in real time; 0 freezes the system's
+    // interpolation.
     info[MPNowPlayingInfoPropertyPlaybackRate] = @(state == NowPlayingPlaybackStatePlaying ? rate : 0.0);
     info[MPNowPlayingInfoPropertyDefaultPlaybackRate] = @(1.0);
 
     if (artwork) {
         if (artwork != _publishedArtworkImage || _publishedArtworkWrapper == nil) {
-            // Rasterized once, here on the main thread, and captured. The handler
-            // itself must do no drawing — see VibeArtworkForPublishing — so it
-            // returns the same image whatever size the system asks for, which
-            // MediaPlayer scales on its side. boundsSize advertises what that
-            // image actually is, so nothing asks for more than exists.
+            // The handler draws nothing (VibeArtworkForPublishing): the same
+            // image at any requested size, and boundsSize says what it is.
             VibeImage *published = VibeArtworkForPublishing(artwork);
             if (published) {
                 _publishedArtworkWrapper =

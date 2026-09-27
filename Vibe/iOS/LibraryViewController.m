@@ -2,8 +2,7 @@
 //  LibraryViewController.m
 //  Vibe (iOS)
 //
-//  See LibraryViewController.h. The row is LibraryTrackCell, at the bottom of
-//  this file: it is drawn nowhere else, so it needs no header.
+//  LibraryTrackCell, at the bottom, is drawn nowhere else, so it has no header.
 //
 
 #import "LibraryViewController.h"
@@ -21,39 +20,26 @@
 #import "VibeStrings.h"
 
 static NSString *const kTrackCellIdentifier = @"track";
-// Apple Music's proportions: a roomy row, artwork most of its height, and the
-// text block two lines deep beside it.
+// Apple Music's proportions.
 static const CGFloat kEstimatedRowHeight = 64;
-// Measured off the Apple Music screenshot this row is modelled on: 44pt
-// artwork with a 14pt gap to the text. The row is taller than that shot's 59pt
-// because these rows carry two lines of text where those carry one.
 static const CGFloat kArtSide = 44;
 static const CGFloat kNumberColumnWidth = 26;
 static const CGFloat kArtTextGap = 14;
 
 #pragma mark - The row
 
-// The mac playlist table's four columns in one iOS row. The number column
-// carries the app's live equalizer bars on the playing row instead of its index —
-// the very same EqualizerIndicatorView the mac table draws, which is why it
-// lives in the shared Vibe/Controls/.
+// The mac playlist table's four columns in one row.
 @interface LibraryTrackCell : UITableViewCell
-// Where the indicator's bars get their audio. Set at dequeue rather than in
-// build, because the cell is minted by the table and never sees the model;
-// a reused cell already carries it.
+// Set at dequeue: the table mints the cell and it never sees the model.
 @property (nonatomic, weak, nullable) id<EqualizerLevelSource> levelSource;
 @property (nonatomic) BOOL equalizerAudioOutputActive;
 @property (nonatomic) BOOL equalizerPresentationVisible;
-// The number gutter's loading bar: YES while a provider transfer is really
-// running for this row's file. Loading outranks playing in the gutter —
-// while the open is in flight there is no output audio, so the equalizer
-// would be a row of collapsed dots; the loading bar says more.
+// YES while a provider transfer is running for this row's file. Outranks
+// playing: mid-open there is no output audio for the equalizer to show.
 @property (nonatomic, getter=isLoading) BOOL loading;
 @property (nonatomic) float loadingProgress;
-// Answers whether the row's height can have moved — the artist line appearing
-// or leaving is the only thing here that changes it. A caller rendering in
-// place owes the table a height recompute when it does; see
-// refreshVisibleRowAtIndex:.
+// YES when the row's height can have moved; a caller rendering in place then
+// owes the table a height pass (refreshVisibleRowAtIndex:).
 - (BOOL)renderTrack:(AudioTrack *)track
              number:(NSUInteger)number
             playing:(BOOL)playing;
@@ -67,20 +53,14 @@ static const CGFloat kArtTextGap = 14;
 @implementation LibraryViewController {
     PlaybackController *_playback;
     Playlist           *_playlist;
-    // The last pick found no audio. It changes what the empty state says, and
-    // it is cleared by the next open that does find something.
+    // Changes what the empty state says until the next open finds audio.
     BOOL               _lastPickWasEmpty;
-    // UIKit appearance handles tab switches and navigation pushes. The root's
-    // separate surface fact handles the card, which moves over this view
-    // without causing an appearance transition.
+    // Appearance covers tabs and pushes; the root's surface fact covers the
+    // card, which moves over this view without an appearance transition.
     BOOL               _viewPresentationVisible;
     BOOL               _equalizerSurfaceVisible;
-    // A track change while another tab, Settings, or the full-screen card owns
-    // the pixels. Hidden tables do not animate toward it; the next reveal parks
-    // once at the newest index.
+    // A hidden track change, parked at once on the next reveal.
     NSUInteger         _pendingScrollIndex;
-    // Kept because refreshChrome rebuilds the bar's items whenever the star
-    // comes and goes, and the gear is the constant beside it.
     UIBarButtonItem    *_settingsItem;
     UIBarButtonItem    *_addItem;
 }
@@ -97,10 +77,8 @@ static const CGFloat kArtTextGap = 14;
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    // A menu, not a direct push: Settings first, then Clear Playlist alone in
-    // a destructive inline group at the bottom — the same construction the
-    // Favorites long-press menu uses for Remove from Favorites, so the two
-    // menus in this app read the same way.
+    // Clear Playlist alone in a destructive inline group, as the Favorites
+    // long-press menu builds Remove.
     __weak LibraryViewController *weakSelf = self;
     UIAction *settings = [UIAction actionWithTitle:STR_SETTINGS_TITLE
                                              image:[UIImage systemImageNamed:@"gearshape"]
@@ -125,9 +103,6 @@ static const CGFloat kArtTextGap = 14;
                                               menu:[UIMenu menuWithTitle:@""
                                                                children:@[settings, destructive]]];
     _settingsItem.accessibilityLabel = STR_A11Y_PLAYLIST_MENU;
-    // A plain plus, not the Files tab's text.badge.plus: that symbol named the
-    // thing being added TO, which a file browser needs and the playlist screen
-    // does not — here the list is the screen.
     _addItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"plus"]
                                                 style:UIBarButtonItemStylePlain
                                                target:self
@@ -138,7 +113,7 @@ static const CGFloat kArtTextGap = 14;
 
     self.tableView.rowHeight = UITableViewAutomaticDimension;
     self.tableView.estimatedRowHeight = kEstimatedRowHeight;
-    // The rule starts at the title, past the artwork, as Apple Music's does.
+    // The rule starts at the title.
     self.tableView.separatorInset =
             UIEdgeInsetsMake(0, 12 + kNumberColumnWidth + 8 + kArtSide + kArtTextGap, 0, 0);
     [self.tableView registerClass:LibraryTrackCell.class forCellReuseIdentifier:kTrackCellIdentifier];
@@ -149,8 +124,7 @@ static const CGFloat kArtTextGap = 14;
                                            selector:@selector(thumbnailDidLoad:)
                                                name:AudioTrackMetadataThumbnailDidLoadNotification
                                              object:nil];
-    // Unstarring on the Favorites tab has to empty the star here, and the
-    // star's own add lands asynchronously — both arrive as this one delivery.
+    // An unstar elsewhere and the star's own asynchronous add both arrive here.
     [NSNotificationCenter.defaultCenter addObserver:self
                                            selector:@selector(refreshChrome)
                                                name:VibeFavoritesDidChangeNotification
@@ -163,10 +137,7 @@ static const CGFloat kArtTextGap = 14;
 }
 
 - (void)thumbnailDidLoad:(NSNotification *)notification {
-    // Visible rows only. A prepared (not-yet-visible) cell whose decode lands
-    // now is deliberately left stale: willDisplayCell re-renders it at the
-    // moment it scrolls in, which is the one edge covering every way a
-    // prepared cell can go stale.
+    // Visible rows only: willDisplayCell re-renders a prepared cell.
     for (NSIndexPath *path in self.tableView.indexPathsForVisibleRows) {
         NSUInteger index = (NSUInteger)path.row;
         if (index < _playlist.count &&
@@ -190,9 +161,8 @@ static const CGFloat kArtTextGap = 14;
 
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
-    // Stop hidden table work at the start of a tab/navigation transition. An
-    // interactive cancellation comes back through viewWillAppear: and applies
-    // the newest pending destination once the surface settles.
+    // At the start of a transition; a cancelled one comes back through
+    // viewWillAppear:.
     _viewPresentationVisible = NO;
     [self syncCurrentEqualizerActivity];
 }
@@ -239,44 +209,32 @@ static const CGFloat kArtTextGap = 14;
     }
 }
 
-// Adding is an action on the PLAYLIST, which is why it lives on the playlist's
-// bar and not in the file browser: a button inside a browser that opens a
-// second browser does not read. Same picker, same appending mode the Files
-// tab's button presented — this moved, it did not change.
 - (void)addTapped {
     [_playback presentPickerFromViewController:self];
 }
 
-// The Files tab, not the modal picker. The app already has a whole surface
-// whose job is finding something to play, it is ours — our actions, our Add
-// and Add to Favorites on every row — and it leaves the user somewhere they
-// can keep looking, which a modal that dismisses itself does not.
+// The Files tab, not the modal picker: it carries our row actions and leaves
+// the user somewhere to keep looking.
 - (void)openTapped {
     if (_openFilesHandler) {
         _openFilesHandler();
     }
 }
 
-// No confirmation sheet. Nothing leaves the disk — this unloads what is
-// queued — and the playlist is rebuilt by reopening the folder, which is how
-// clearing a queue behaves elsewhere on the platform. The destructive styling
-// on the item carries the warning instead.
+// No confirmation: nothing leaves the disk, and reopening rebuilds it.
 - (void)clearTapped {
     [_playback clearPlaylist];
 }
 
-// Pushed rather than presented: the mini strip and the tabs stay up, and the
-// settings on it are all things the strip and the card behind it draw.
+// Pushed, not presented, so the strip and the card stay up.
 - (void)settingsTapped {
     [self.navigationController pushViewController:[[SettingsViewController alloc] initWithPlayback:_playback]
                                          animated:YES];
 }
 
-// Title, star and empty state all follow "what is open", so they move together
-// and from one place.
+// Title, star and empty state all follow what is open.
 - (void)refreshChrome {
-    // navigationItem, not self.title: the latter is also the tab bar item's
-    // title, and the open folder's name is not what the tab is called.
+    // Not self.title, which is also the tab's title.
     self.navigationItem.title = _playback.folderDisplayName ?: STR_TAB_PLAYLIST;
     [self refreshBarButtons];
     if (_playlist.count > 0) {
@@ -302,19 +260,9 @@ static const CGFloat kArtTextGap = 14;
 
 #pragma mark - The star
 
-// rightBarButtonItems is right-to-left, so the gear stays where it has always
-// been and the star takes the place beside it. The star is absent, not
-// disabled, when the playlist is a single file or nothing at all: there is no
-// folder to name, so there is nothing the control could act on.
-//
-// The plus goes on the LEADING side rather than joining them: three trailing
-// items crowd the large title, and the two sides then read as what they are —
-// the trailing pair acts on the folder that is open, the plus acts on the
-// playlist. It follows the star's absent-not-disabled rule for the same
-// reason: with an empty playlist there is nothing to add to, and the empty
-// state's own Open button already owns that moment. Two roads to "find
-// something to play" on one screen, one a modal picker and the other the Files
-// tab, is worse than the one the empty state already draws.
+// The star and the plus are absent, not disabled, when there is nothing for
+// them to act on; the empty state's Open owns the empty playlist. The plus is
+// leading: three trailing items crowd the large title.
 - (void)refreshBarButtons {
     self.navigationItem.leftBarButtonItem = _playlist.count > 0 ? _addItem : nil;
     NSURL *folderURL = _playback.folderURL;
@@ -332,10 +280,8 @@ static const CGFloat kArtTextGap = 14;
     self.navigationItem.rightBarButtonItems = @[_settingsItem, star];
 }
 
-// The star fills when the mint lands rather than on the tap. The alternative is
-// a favorite row with no bookmark behind it, which draws and cannot be opened —
-// and only FolderSession can mint one, since it holds the folder's scope.
-// A second tap before the first lands needs no guard: addFolderURL: dedupes.
+// The star fills when the mint lands, never on the tap: a row without a
+// bookmark cannot be opened. A second tap needs no guard; addFolderURL: dedupes.
 - (void)favoriteTapped {
     NSURL *folderURL = _playback.folderURL;
     if (!folderURL) {
@@ -377,13 +323,10 @@ static const CGFloat kArtTextGap = 14;
   willDisplayCell:(UITableViewCell *)cell
 forRowAtIndexPath:(NSIndexPath *)indexPath {
     if ([cell isKindOfClass:LibraryTrackCell.class]) {
-        // TRAP: a prepared cell rendered while still outside the viewport can
-        // be stale by the time it scrolls in — the thumbnail notification and
-        // the metadata refresh both repaint indexPathsForVisibleRows, which a
-        // prepared cell is not in, and UIKit displays it without re-running
-        // cellForRowAtIndexPath:. This edge is the one moment "about to be
-        // seen" is knowable, so re-render here; the art read is a non-blocking
-        // cache lookup.
+        // TRAP: UIKit displays a prepared cell without re-running
+        // cellForRowAtIndexPath:, and the thumbnail and metadata refreshes
+        // repaint only visible rows, so a prepared cell can arrive stale.
+        // Re-render here; the art read is a non-blocking cache lookup.
         NSUInteger index = (NSUInteger)indexPath.row;
         if (index < _playlist.count) {
             [(LibraryTrackCell *)cell renderTrack:[_playlist trackAtIndex:index]
@@ -402,7 +345,6 @@ didEndDisplayingCell:(UITableViewCell *)cell
         LibraryTrackCell *trackCell = (LibraryTrackCell *)cell;
         trackCell.equalizerPresentationVisible = NO;
         trackCell.equalizerAudioOutputActive = NO;
-        // An off-screen row must not hold a live sweep animation.
         trackCell.loading = NO;
     }
 }
@@ -411,9 +353,8 @@ didEndDisplayingCell:(UITableViewCell *)cell
     [self syncCurrentEqualizerActivity];
 }
 
-// Window attachment alone includes UITableView's prepared-cell buffer. This
-// intersection is the narrower fact the control needs: some part of the
-// current row is actually inside both the table viewport and the window.
+// Window attachment includes the prepared-cell buffer; this asks whether the
+// row is actually inside the viewport and the window.
 - (BOOL)isCellMateriallyVisible:(LibraryTrackCell *)cell {
     UIWindow *window = cell.window;
     if (!window || !_equalizerSurfaceVisible || !_viewPresentationVisible) {
@@ -432,8 +373,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     NSIndexPath *path = [self.tableView indexPathForCell:cell];
     BOOL current = path && _playlist.count > 0
             && (NSUInteger)path.row == _playlist.currentIndex;
-    // A loading row's gutter belongs to the loading bar; the hidden equalizer
-    // must not keep a demand-declaring poller behind it.
+    // A hidden equalizer behind the loading bar must not hold a poller.
     BOOL eligible = current && !cell.isLoading;
     cell.equalizerAudioOutputActive = eligible && _playback.audioOutputActive;
     cell.equalizerPresentationVisible = eligible && [self isCellMateriallyVisible:cell];
@@ -447,8 +387,8 @@ didEndDisplayingCell:(UITableViewCell *)cell
     cell.loadingProgress = loading ? [registry progressForURL:track.url] : -1;
 }
 
-// Reconfigure the visible rows in place — never reload, which would rebuild
-// the playing row's EqualizerIndicatorView and disturb its demand balancing.
+// In place, never a reload, which would rebuild the playing row's indicator
+// and disturb its demand balancing.
 - (void)cloudTransferRegistryDidChange:(CloudTransferRegistry *)registry {
     for (UITableViewCell *cell in self.tableView.visibleCells) {
         if (![cell isKindOfClass:LibraryTrackCell.class]) {
@@ -495,10 +435,9 @@ didEndDisplayingCell:(UITableViewCell *)cell
                                   number:index + 1
                                  playing:playing];
     [self syncEqualizerActivityForCell:cell];
-    // TRAP: rendering in place does NOT re-run an automatic-dimension row's
-    // height. The artist line arriving with metadata grows the text stack, and
-    // at accessibility sizes that no longer fits the height the row was given —
-    // so an empty update pass is what asks the table to measure it again.
+    // TRAP: rendering in place does NOT re-measure an automatic-dimension row.
+    // An artist line arriving with metadata outgrows the row at accessibility
+    // sizes; the empty update pass re-measures it.
     if (heightMoved) {
         [self.tableView performBatchUpdates:nil completion:nil];
     }
@@ -526,9 +465,8 @@ didEndDisplayingCell:(UITableViewCell *)cell
         didChangeCurrentIndexFromIndex:(NSUInteger)previousIndex {
     [self refreshVisibleRowAtIndex:previousIndex];
     [self refreshVisibleRowAtIndex:playback.currentIndex];
-    // The mac scrolls the playing row into view on every visible track change.
-    // Offscreen, retain only the newest destination: animated table work behind
-    // the player or another tab cannot be seen and competes with that surface.
+    // Hidden, keep only the newest destination: unseen animated table work
+    // competes with the surface in front.
     if (playback.currentIndex < _playlist.count) {
         if ([self isSurfaceMateriallyVisible]) {
             _pendingScrollIndex = NSNotFound;
@@ -543,7 +481,6 @@ didEndDisplayingCell:(UITableViewCell *)cell
     }
 }
 
-// Only the playing row draws the play state, and only on its bars.
 - (void)playbackDidChangePlayState:(PlaybackController *)playback {
     [self refreshVisibleRowAtIndex:playback.currentIndex];
 }
@@ -572,8 +509,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     UILabel                 *_numberLabel;
     EqualizerIndicatorView  *_indicatorView;
     LoadingIndicatorView    *_loadingView;
-    // No ivar for levelSource: it forwards straight to the indicator, so the
-    // cell keeps no second copy to fall out of step with it.
+    // levelSource forwards to the indicator; no second copy.
     UIImageView *_artView;
     UILabel     *_titleLabel;
     UILabel     *_artistLabel;
@@ -601,10 +537,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
 - (void)build {
     UIView *content = self.contentView;
 
-    // The row number and the duration are the artist line's size, exactly:
-    // same text style, so they scale together under Dynamic Type rather than
-    // agreeing only at the default size. Monospaced digits so the two columns
-    // of numbers stay in line down the list.
+    // The artist line's text style, so the columns scale together.
     UIFont *numbers = [[UIFontMetrics metricsForTextStyle:UIFontTextStyleFootnote]
             scaledFontForFont:[UIFont monospacedDigitSystemFontOfSize:13
                                                                weight:UIFontWeightRegular]];
@@ -619,16 +552,11 @@ didEndDisplayingCell:(UITableViewCell *)cell
     _numberLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [content addSubview:_numberLabel];
 
-    // The mac's five live bars, literally: the same retained pill layers and
-    // compositor-driven response to the latest level targets.
     _indicatorView = [[EqualizerIndicatorView alloc] initWithFrame:CGRectZero];
     _indicatorView.hidden = YES;
     _indicatorView.translatesAutoresizingMaskIntoConstraints = NO;
     [content addSubview:_indicatorView];
 
-    // The loading bar shares the gutter: one EQ-bar's weight, appearance-
-    // derived colour (iOS keeps the shared control's default, unlike the mac's
-    // forced white).
     _loadingView = [[LoadingIndicatorView alloc] initWithFrame:CGRectZero];
     _loadingView.translatesAutoresizingMaskIntoConstraints = NO;
     [content addSubview:_loadingView];
@@ -653,9 +581,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     _artistLabel.textColor = UIColor.secondaryLabelColor;
     _artistLabel.lineBreakMode = NSLineBreakByTruncatingTail;
 
-    // Title over artist, the way Apple Music stacks them. Negative spacing for
-    // the same reason as the mini player's: a label's height carries its
-    // font's leading, so zero already reads as a gap.
+    // Negative: a label's height carries its font's leading.
     UIStackView *text = [[UIStackView alloc] initWithArrangedSubviews:@[_titleLabel, _artistLabel]];
     text.axis = UILayoutConstraintAxisVertical;
     text.alignment = UIStackViewAlignmentLeading;
@@ -685,7 +611,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
 
         [_indicatorView.centerXAnchor constraintEqualToAnchor:_numberLabel.centerXAnchor],
         [_indicatorView.centerYAnchor constraintEqualToAnchor:content.centerYAnchor],
-        // The mac draws it 16x14 in a 28pt row; the same proportions here.
+        // The mac's size.
         [_indicatorView.widthAnchor constraintEqualToConstant:16],
         [_indicatorView.heightAnchor constraintEqualToConstant:14],
 
@@ -754,7 +680,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     _loadingView.progress = loadingProgress;
 }
 
-// The gutter's three states in precedence: loading bar, equalizer, number.
+// Precedence: loading bar, equalizer, number.
 - (void)resolveGutter {
     _loadingView.active = _loading;
     _numberLabel.hidden = _loading || _playing;
@@ -770,9 +696,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     _artView.image = track.cachedThumbnail ?: [UIImage imageNamed:@"record-bg"];
     _durationLabel.text = track.durationString;
     _titleLabel.text = track.displayTitle ?: @"";
-    // A nil displayArtist means there is no second line to draw, not an empty
-    // one — the cross-directory rule AudioTrack is the single home of. Hidden
-    // rather than blank, so the title centres on its own.
+    // Hidden rather than blank, so the title centres on its own.
     NSString *artist = track.displayArtist;
     BOOL hidden = artist.length == 0;
     BOOL heightMoved = hidden != _artistLabel.isHidden;

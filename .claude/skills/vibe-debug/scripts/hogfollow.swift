@@ -1,22 +1,19 @@
-// The measurement behind the output-unit follow that taking the system default
-// causes, and the HAL output unit that avoids it (Audio/Mac/Devices/CLAUDE.md).
-// Run it against
-// the device that IS the default, or let it make one the default for the run:
+// Measures whether hogging the system default output drags an output unit off
+// the device it was bound to (Audio/Mac/Devices/CLAUDE.md). Run it against the
+// device that IS the default, or pass --make-default for the run:
 //
-//   hogfollow <deviceID> [engine|hal] [--make-default]
+//   swift hogfollow.swift <deviceID> [engine|hal] [--make-default]
 //
-// `engine` (the default) is AVAudioEngine's own output node, a default output
-// unit whatever device it was pinned to. `hal` is an explicitly hosted
-// HALOutput unit, which Vibe now uses. This probe renders silence
-// without the app’s pipeline. Both count IO cycles, because `running`
-// alone is not success — a unit started while a follow is in flight reports
-// running and then never gets an IO cycle.
+// `engine` (default): AVAudioEngine's output node, a default output unit
+// whatever device it is pinned to. `hal`: a hosted HALOutput unit, as Vibe
+// uses. Both render silence outside the app and count IO cycles, because
+// `running` is not success — a unit started mid-follow reports running and
+// never gets an IO cycle.
 //
-// Phase 1, running: does hogging the default move the default, and does the
-// unit follow it off the device it was bound to? Does a re-bind stick while
-// the hog is held, and what does the release do? Phase 2, stopped: after a hog
-// and a re-bind, does the first start apply a pending follow, does a second
-// start stick, and (engine only) does prepare() before the start absorb it?
+// Phase 1, running: does the hog move the default, does the unit follow, does
+// a re-bind stick under the hog, what does the release do? Phase 2, stopped:
+// after a hog and a re-bind, does the first start apply a pending follow, does
+// a second stick, and (engine only) does prepare() before the start absorb it?
 import AVFoundation
 import AudioToolbox
 import CoreAudio
@@ -59,8 +56,7 @@ func nominalRate() -> Double {
 var renders: Int64 = 0
 var rendersAtLastLine: Int64 = 0
 
-// The engine path: its output node, pinned to the device, fed by a silent
-// source node so every IO cycle is counted.
+// A silent source node, so the engine path counts every IO cycle.
 let engine = AVAudioEngine()
 let source = AVAudioSourceNode { _, _, frameCount, audioBufferList -> OSStatus in
     renders += 1
@@ -70,7 +66,6 @@ let source = AVAudioSourceNode { _, _, frameCount, audioBufferList -> OSStatus i
     return noErr
 }
 
-// The HAL path: an explicitly hosted HALOutput unit.
 var halUnit: AudioUnit? = nil
 let halCallback: AURenderCallback = { _, ioActionFlags, _, _, _, ioData in
     renders += 1

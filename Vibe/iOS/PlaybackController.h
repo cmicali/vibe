@@ -2,29 +2,21 @@
 //  PlaybackController.h
 //  Vibe (iOS)
 //
-//  Everything the iOS app plays, and nothing that draws it: the engine, the
-//  playlist, the metadata cache, the audio session, the folder session, the
-//  Now Playing bridge and the position timer, plus the display state those
-//  resolve to (PlayerScreenRules.h). It is the model half of what the mac's
-//  MainPlayerController is; the view half is PlayerViewController and the
-//  screens beside it.
+//  Everything the iOS app plays and nothing that draws it; the model half of
+//  the mac's MainPlayerController.
 //
-//  IT BROADCASTS, where the rest of the app uses a single weak delegate. That
-//  is deliberate and it is the reason this class exists: three views describe
-//  the same playback at once — the library's playing row, the mini player and
-//  the full-screen card — and Playlist has exactly one observer slot, so the
-//  fan-out had to live somewhere. Observers are held weakly and delivered
-//  synchronously on the main thread, in registration order.
+//  It broadcasts, where the rest of the app uses one weak delegate: three
+//  views describe one playback and Playlist has one observer slot. Observers
+//  are held weakly and called synchronously, in registration order.
 //
-//  Main thread only. Every callback below lands there, and every method here
-//  is called from there.
+//  Main thread only.
 //
 
 #import <UIKit/UIKit.h>
 
 #import "EqualizerLevelSource.h"
-#import "OutputRouteRules.h"         // VibeOutputRouteKind, republished below
-#import "PlayerScreenRules.h"        // VibePlayerScreenState, returned below
+#import "OutputRouteRules.h"
+#import "PlayerScreenRules.h"
 
 @class AudioTrack;
 @class PlaybackController;
@@ -46,27 +38,21 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark The current track
 
-// The cursor arrived on a track the player is about to run: scroll to it, load
-// its waveform. Always preceded by playbackDidRenderCurrentTrack:, except on a
-// gapless splice, where the render follows with the rest of the start.
+// The cursor arrived on a track the player is about to run. Preceded by
+// playbackDidRenderCurrentTrack:, except on a gapless splice, where it follows.
 - (void)playbackDidMoveToCurrentTrack:(PlaybackController *)playback animated:(BOOL)animated;
 
-// The current track's presentation is stale and must be drawn afresh: a new
-// play, a park, a start landing, a failure.
+// The current track must be drawn afresh.
 - (void)playbackDidRenderCurrentTrack:(PlaybackController *)playback;
 
-// Playing, paused, parked, empty — anything the transport glyph, the chrome or
-// a display link keys off.
 - (void)playbackDidChangePlayState:(PlaybackController *)playback;
 
-// The position tick: time labels and progress. Fires at 3 Hz while playing and
-// once for every event that moves the playhead.
+// 3 Hz while playing, and once for every event that moves the playhead.
 - (void)playbackDidTick:(PlaybackController *)playback;
 
 #pragma mark The output route
 
-// The system moved the audio to a different output. Read outputRouteKind and
-// outputRouteName; the event carries no payload.
+// Read outputRouteKind and outputRouteName; no payload.
 - (void)playbackDidChangeOutputRoute:(PlaybackController *)playback;
 
 #pragma mark The current track's open
@@ -80,9 +66,8 @@ NS_ASSUME_NONNULL_BEGIN
 #pragma mark Deliveries and the folder session
 
 - (void)playback:(PlaybackController *)playback didLoadMetadataForTrack:(AudioTrack *)track;
-// A deliberate open landed and is playing. A relaunch restore does NOT send
-// this: it parks, and nothing was asked for. The shell presents the
-// full-screen card on this and on nothing else.
+// A deliberate open landed and is playing; never sent for a relaunch restore.
+// The only event that presents the card.
 - (void)playbackDidOpenNewFolder:(PlaybackController *)playback;
 // The picked location held no audio files.
 - (void)playbackDidOpenEmptyFolder:(PlaybackController *)playback;
@@ -91,9 +76,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
-// It is the app's EqualizerLevelSource as well: the library row's indicator
-// draws the audio this object is playing, and this is the only thing that
-// holds the player.
+// The EqualizerLevelSource too: it alone holds the player.
 @interface PlaybackController : NSObject <EqualizerLevelSource>
 
 #pragma mark - Observers
@@ -111,189 +94,143 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - Display state
 
-// Resolved in one place: every screen reads this rather than re-deriving it.
-// The rule is VibeResolvePlayerScreenState, beside the enum it returns.
+// Every screen reads this rather than re-deriving it.
 @property (nonatomic, readonly) VibePlayerScreenState screenState;
 // The track the screens are describing — nil in the empty and error states.
 @property (nonatomic, readonly, nullable) AudioTrack *displayedTrack;
-// An inline playback error, shown on the artist line until the next track
-// event.
+// Shown on the artist line until the next track event.
 @property (nonatomic, readonly, nullable) NSString *errorText;
 
 #pragma mark - The player, non-blocking reads
 
-// Set by the scene delegate from activation callbacks. Foreground-inactive is
-// deliberately false: Control Center and the app switcher leave views attached
-// to a window even though none of their animation is visible.
+// Set by the scene delegate. Foreground-inactive is NO: Control Center and the
+// app switcher leave views attached though nothing of them is visible.
 @property (nonatomic, getter=isSceneActive) BOOL sceneActive;
 
-// Actual modeled graph output: a playing source or tracked outgoing fade.
-// Unlike isPlaying, this is false while a requested track is merely Loading.
+// Modeled output: a playing source or a tracked outgoing fade. Unlike
+// isPlaying, NO while a requested track is Loading.
 @property (nonatomic, readonly) BOOL audioOutputActive;
 
 @property (nonatomic, readonly) BOOL isPlaying;
 @property (nonatomic, readonly) NSTimeInterval position;
 @property (nonatomic, readonly) NSTimeInterval duration;
 
-// seekToPosition: fades down before rescheduling, so position briefly reports
-// the pre-seek value; holding the target until didFinishSeeking: keeps a
-// waveform from snapping back for those frames.
+// Position reports the pre-seek value until didFinishSeeking:; a waveform
+// holds the target meanwhile rather than snapping back.
 @property (nonatomic, readonly) BOOL seekInFlight;
 @property (nonatomic, readonly) float pendingSeekProgress;
 
-// What the audio is coming out of, straight from the session controller — the
-// card's route indicator is the only reader. None before the first activation,
-// which is a real answer there: nothing has claimed the output yet.
+// None before the first activation: nothing has claimed the output yet.
 @property (nonatomic, readonly) VibeOutputRouteKind outputRouteKind;
 @property (nonatomic, readonly, nullable) NSString *outputRouteName;
 
 #pragma mark - Transport
 
-// Every surface — the screens, the lock screen, the debug channel — comes
-// through these, so no two can take different paths to the same action.
+// Every surface — screens, lock screen, widget, debug channel — comes through
+// these.
 - (void)playCurrentTrack;
 - (void)playPause;
 - (void)next;
 - (void)previous;
-// The one selection funnel. Clamped: a list's rows can be stale, and
-// Playlist.setCurrentIndex does not range-check.
+// Ignores an out-of-range index: a list's rows can be stale.
 - (void)selectTrackAtIndex:(NSUInteger)index;
 - (void)seekToProgress:(float)progress;
 - (void)seekToPosition:(NSTimeInterval)position;
 
 #pragma mark - Settings
 
-// Settings > Playback > Track transitions were written. The store never
-// applies effects (Common/CLAUDE.md), so the writer calls this — the iOS
-// spelling of the mac's EndOfTrack and Crossfade live effects: the crossfade
-// is pushed to the player, and the prefetched successor is re-parked or
-// dropped through the rule the track-end path reads, which is what keeps a
-// mid-track switch to Pause from advancing through an armed splice.
+// A Track transitions writer calls this (the store applies no effects): it
+// pushes the crossfade and re-parks or drops the successor, so a mid-track
+// switch to Pause does not advance through an armed splice.
 - (void)applyTrackTransitionSettings;
 
-// Settings > Playback > Resampling was written: pushes the quality to the
-// player, which uses it from the next conversion it starts (the next track
-// or seek), so a change never interrupts what is playing.
+// The Resampling writer calls this. It takes effect from the next track or
+// seek, never interrupting what is playing.
 - (void)applyResamplingSetting;
 
-// Settings > Playback > Enable audio effects was written: pushes it to the
-// player, which connects or disconnects the FX segment with the output
-// stopped and puts a playing track back as it was. Off also releases the
-// pad, so a switch mid-hold cuts the effect. The card hides its pad from the
+// Settings > Playback > Enable audio effects was written: the player connects
+// or disconnects the FX segment with the output stopped and puts a playing
+// track back; off also releases the pad. The card hides its pad from the
 // display notification the same write posts.
 - (void)applyFXSetting;
 
 #pragma mark - Effects and tempo
 
-// The card's FX pad, and the debug channel's stand-in for it: the one funnel
-// every surface takes. `position` is the pad's normalized point, x 0..1 left
-// to right and y 0..1 bottom to top; `engaged` NO is the release, every
-// effect back to off with its tail ringing out, whatever the position. The
-// mapping is AudioFXMath.h's: y the low kill's cutoff, x the reverb's level
-// and, past the onset, the 1/8-note delay's on top of it.
+// The one funnel every surface drives the effects through — the card's pad,
+// the debug channel. `position` is the pad's normalized point, x 0..1 left to
+// right and y 0..1 bottom to top; `engaged` NO is the release. The mapping is
+// AudioFXMath.h's: y the low kill's cutoff, x the reverb's level and, past
+// the onset, the 1/8-note delay's.
 - (void)setFXPadPosition:(CGPoint)position engaged:(BOOL)engaged;
 
-// The waveform decode pass detected a tempo for `url`. Stamped on every
-// playlist track with that URL (Playlist.stampTracksWithURL:usingBlock:),
-// each redrawn, and the delay taps refed. The delivery can race a track
-// change, which the URL match closes.
+// The decode pass detected a tempo for `url`: stamped on every row holding
+// it (Playlist.stampTracksWithURL:usingBlock:), each redrawn, the delay taps
+// refed. The URL match closes the race with a track change.
 - (void)noteDetectedBPM:(float)bpm forURL:(NSURL *)url;
 
-// The priority metadata lane, for a screen that needs one track's tags before
-// the playlist-wide scan would reach them — the pager's art prefetch, whose
-// dispatch hangs off the metadata object. A no-op once the track is parsed.
+// The priority metadata lane, for one track's tags ahead of the sweep. A
+// no-op once the track is parsed.
 - (void)loadMetadataNowForTrack:(nullable AudioTrack *)track;
 
 #pragma mark - Opening
 
-// The system document picker: multi-selection, appending, one caller — the
-// Playlist tab's plus. The empty state's Open brings the Files tab forward
-// rather than presenting this, which is what left the picker a single mode.
+// The document picker: multi-selection, appending. The Playlist tab's plus is
+// the one caller.
 - (void)presentPickerFromViewController:(UIViewController *)presenter;
 
-// "Open in Vibe" from Files or the share sheet, forwarded by the scene
-// delegate.
+// "Open in Vibe" from Files or the share sheet.
 - (void)handleOpenURLContexts:(NSSet<UIOpenURLContext *> *)contexts;
 
-// Runs the block once the launch's one open has settled — the persisted
-// session restored, or found nothing to restore, or a cold "Open in Vibe"
-// landed — and at once if it already has. A waiter: parked, delivered exactly
-// once, on main. The widget's intents wait on this: a background launch has
-// no scene, the foreground continuation connects one, and its controller has
-// an empty playlist until the restore lands, so an action driven before then
-// does nothing.
+// A waiter: runs the block once, on main, when the launch's one open has
+// settled (restored, nothing to restore, or a cold "Open in Vibe" landed), at
+// once if it has. The widget's intents wait on it: before the restore lands
+// the playlist is empty and an action does nothing.
 - (void)performWhenLaunchOpenSettled:(void (^)(void))block
         NS_SWIFT_NAME(performWhenLaunchOpenSettled(_:));
 
-// URLs adopted from outside the picker: the Files tab's browser, a share
-// sheet, or a favorite whose bookmark just resolved. In pick order; one is the
-// common case. openInPlace mirrors UIOpenURLContext.options — YES means the
-// real files, so the security scopes cover the folders they came from and the
-// usual expand-to-directory applies.
+// URLs from outside the picker, in pick order. openInPlace mirrors
+// UIOpenURLContext.options: YES means the real files, so their scopes and the
+// expand-to-directory apply.
 - (void)openURLs:(NSArray<NSURL *> *)urls openInPlace:(BOOL)openInPlace;
 
-// Unloads everything and returns to the empty state: the iOS twin of the mac's
-// File > Close. Stops the player, drops the parked successor, clears the model,
-// cancels the deferred sweep and the scan, and clears the session — scopes,
-// base, additions and the persisted bookmarks with them, so the next launch
-// restores nothing.
-//
-// Safe where a partial edit would not be BECAUSE it is the whole playlist:
-// there is no surviving cursor to strand and no row for the player to be
-// sounding afterwards. AudioPlayer.stop fires no transport or track-end
-// callback, so nothing auto-advances and this method owns the UI reset.
+// Unloads everything, the twin of the mac's File > Close: the player, the
+// session with its scopes and persisted bookmarks (the next launch restores
+// nothing), the model, the sweep. Safe where a partial edit is not because it
+// is the whole playlist: no cursor survives to strand.
 - (void)clearPlaylist;
 
-// Appends without touching playback, the tab or the card: the Playlist tab's
-// plus, the Files tab's long-press action and a Favorites row's. Lands in
-// folderSession:didAppendTracks:, the iOS twin of the mac's
-// MainPlayerController.addURLs:. The empty-playlist case is FolderSession's:
-// an Add onto nothing is an Open.
+// Appends without touching playback, the tab or the card. An Add onto nothing
+// is an Open (FolderSession).
 - (void)addURLs:(NSArray<NSURL *> *)urls;
 
-// Both FolderSession's, unchanged: a caller with asynchronous work of its own
-// before it has a URL takes the token when the USER asks and hands it back
-// with the URLs, so a request a replace has since superseded is dropped rather
-// than landing on the new playlist. Favorites is the one caller.
+// For a caller with asynchronous work before it has a URL: take the token when
+// the USER asks, so an Add a replace has since superseded is dropped.
 - (uint64_t)addRequestToken;
 - (void)addURLs:(NSArray<NSURL *> *)urls token:(uint64_t)token;
 
-// The open folder, or nil for a single-file playlist and before anything was
-// opened. The Playlist tab's star draws from it: there is nothing to favorite
-// when the playlist is not a folder.
+// Nil for a single-file playlist and before anything was opened.
 @property (nonatomic, readonly, nullable) NSURL *folderURL;
 
-// Mints a bookmark that reopens the folder above, for FavoritesStore — the
-// session owns the security scope, so it is the only thing that can. Off main,
-// completion on main, both arguments nil when there is no folder or the mint
-// failed. See FolderSession.
+// Mints a bookmark for folderURL; only the session holds its scope.
+// Completion on main, both nil when there is no folder or the mint failed.
 - (void)bookmarkOpenFolderWithCompletion:(void (^)(NSURL *_Nullable folderURL,
                                                    NSData *_Nullable bookmark))completion;
 
-// The same mint for a folder the session does not own — the Files tab starring
-// a browser-picked folder without opening it. Off main, completion on main,
-// bookmark nil when the mint failed. See FolderSession.
+// The same mint for a folder the session does not own (a Files-tab star).
+// Completion on main, nil when the mint failed.
 - (void)bookmarkFolderURL:(NSURL *)folderURL
                completion:(void (^)(NSData *_Nullable bookmark))completion;
 
-// The file trees the search screen may walk, composed in one place: the
-// session's transient roots (FolderSession.searchRoots — the base folder and
-// every added folder) plus the persistent ones (SearchFolderStore.searchRoots —
-// the folders the user added in Settings, and the app's own Documents
-// directory — and FavoritesStore.searchRoots, the starred folders, once that
-// store has resolved them). Nesting among them is FileSearchIndex's to prune,
-// so a folder both starred and added is walked once.
+// Every tree the search screen may walk: the session's, then Settings' and
+// Documents, then resolved favorites. FileSearchIndex prunes nesting.
 @property (nonatomic, readonly) NSArray<NSURL *> *searchRoots;
 
-// A file the search screen found under one of searchRoots. Its own directory
-// becomes the playlist with it selected, so observers see a new folder open —
-// the card presents, exactly as any other open does.
+// Opens the hit's directory with it selected, like any other open.
 - (void)openSearchResultURL:(NSURL *)url;
 
-// Restores the persisted folder session. The scene delegate calls exactly one
-// of this and handleOpenURLContexts: at launch — a cold "Open in Vibe" must
-// not pay for (and then discard) a full restore. With nothing to restore, or
-// on a failed one, observers get playbackHasNothingToRestore:.
+// The scene delegate calls exactly one of this and handleOpenURLContexts: at
+// launch. Nothing to restore, or a failed restore, sends
+// playbackHasNothingToRestore:.
 - (void)restorePersistedSession;
 
 @end

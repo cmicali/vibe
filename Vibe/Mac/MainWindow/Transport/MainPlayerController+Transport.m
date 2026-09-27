@@ -17,12 +17,7 @@
 #import "TrackDisplayController.h"
 #import "TransportMath.h"
 
-// The skip distances. When the track's tempo is known, through AudioTrack.bpm,
-// a skip moves by whole bars of four beats, which is a fixed span of *file*
-// time, so the jump stays on the musical grid at any pitch. The bar counts
-// are the settings' base (4, 8 or 16), twice it and four times it. Without a
-// tempo the fallback is a fixed wall-clock distance that does not scale with
-// the base.
+// Without a tempo: fixed wall-clock distances that ignore the bar base.
 static const NSTimeInterval kSkipSeconds = 10.0;
 static const NSTimeInterval kSkipMoreSeconds = 30.0;
 static const NSTimeInterval kSkipMostSeconds = 60.0;
@@ -34,8 +29,6 @@ static double SkipBaseBars(void) {
     return base > 0 ? (double)base : 8.0;
 }
 
-// The arithmetic is VibeSkipFileSeconds in TransportMath.h; this supplies the
-// track's tempo and the current rate.
 - (NSTimeInterval)skipFileSecondsForBars:(double)bars fallbackWallClockSeconds:(NSTimeInterval)wallSeconds {
     return VibeSkipFileSeconds(bars,
                                self.playlistController.currentTrack.bpm,
@@ -68,10 +61,8 @@ static double SkipBaseBars(void) {
 }
 
 - (void)skipByFileSeconds:(NSTimeInterval)fileDelta {
-    // When Stopped, at the end of the playlist or after an error, the finished
-    // file stays open, so duration alone looks seekable with no voice left to
-    // seek. Menu validation mirrors this, and the guard here covers the bare
-    // keys, which bypass it.
+    // Stopped leaves the finished file open, so duration alone looks seekable
+    // with no voice. Validation mirrors this; the bare keys bypass validation.
     if (!self.playlistController.currentTrack || self.audioPlayer.isStopped) {
         return;
     }
@@ -81,9 +72,7 @@ static double SkipBaseBars(void) {
     }
     NSTimeInterval target = self.audioPlayer.position + fileDelta;
     if (target >= duration) {
-        // Past the end, so finish the track as a natural end would. The
-        // delegate's didFinishPlaying: advances to the next track, or stops at
-        // the end of the playlist.
+        // As a natural end would, through didFinishPlaying:.
         [self.audioPlayer finishCurrentTrack];
         return;
     }
@@ -95,9 +84,8 @@ static double SkipBaseBars(void) {
 
 #pragma mark - Performance effects (bare-key taps/holds; see TransportKeyMonitor)
 
-// The FX menu's toggles. They are written against the pass-throughs below
-// rather than against AudioFX directly, so that a menu toggle and a bare-key
-// tap are the same flip.
+// Written against the pass-throughs, so a menu toggle and a bare-key tap are
+// the same flip.
 
 - (IBAction)toggleLowKill:(nullable id)sender {
     self.lowKillActive = !self.lowKillActive;
@@ -164,9 +152,8 @@ static double SkipBaseBars(void) {
     [self updateFXIndicators];
 }
 
-// Read back from AudioFX rather than from the caller's intent. The FX object
-// enforces its own coupling — clearing lowKillEnabled also clears
-// lowKillBoostActive — so only the live flags describe what is actually on.
+// The live flags, not the caller's intent: AudioFX couples them (clearing
+// lowKillEnabled clears lowKillBoostActive).
 - (void)updateFXIndicators {
     AudioFX *fx = self.audioPlayer.fx;
     VibeBitPerfectReport report = self.audioPlayer.bitPerfectReport;
@@ -185,8 +172,6 @@ static double SkipBaseBars(void) {
     [self.trackDisplay renderBitPerfectToolTip:(bitPerfect == 1 ? [self bitPerfectStatusText] : nil)];
 }
 
-// One sentence per status, shared by the header's tooltip and the Settings
-// caption so the two cannot disagree about why.
 - (NSString *)bitPerfectStatusText {
     VibeBitPerfectReport report = self.audioPlayer.bitPerfectReport;
     Formatters *formatters = [Formatters sharedInstance];

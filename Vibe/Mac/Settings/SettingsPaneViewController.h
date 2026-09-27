@@ -2,12 +2,10 @@
 //  SettingsPaneViewController.h
 //  Vibe
 //
-//  Shared scaffolding for the settings panes: the pane sizing, the grouped
-//  section stack, and the refresh contract. A pane subclass builds its
-//  sections (SettingsFormViews.h) in loadView, hands them to
-//  loadPaneWithSections:, and reloads control state in refreshFromSettings,
-//  which the base runs for the selected pane on every appearance, whenever
-//  the window regains key, and after any menu-bar interaction ends.
+//  A pane subclass builds its sections (SettingsFormViews.h) in loadView,
+//  hands them to loadPaneWithSections:, and reloads control state in
+//  refreshFromSettings, which the base runs for the selected pane on
+//  appearance, on regaining key, and after menu tracking ends.
 //
 
 #import <Cocoa/Cocoa.h>
@@ -17,27 +15,20 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The design width of a pane; the shared width grows to the widest pane's
-// section stack when a localization needs more.
+// Minimum width; a localization that needs more widens every pane.
 static const CGFloat kSettingsPaneWidth = 480;
 
-// No pane is ever shorter than this (content-layout height, below the
-// titlebar), so the settings window holds one roomy System Settings-like
-// size instead of hugging its panes' content.
+// Minimum content-layout height, below the titlebar.
 static const CGFloat kSettingsPaneMinHeight = 480;
 
-// The shared height stops growing here; a longer pane scrolls instead of
-// pushing every pane's floor up with it.
+// A taller pane scrolls rather than raising every pane's floor.
 static const CGFloat kSettingsPaneMaxHeight = 620;
 
-// The content inset every pane page uses — the base section stack and the
-// Appearance pane's editor page alike.
+// Shared by the section stack and the Appearance pane's editor page.
 static const CGFloat kPanePadding = 20;
 
-// The panes' host — the tab controller — owns the window's size. A pane carries
-// no size constraints at all (loadPaneWithSections: says why), so nothing on
-// the pane side can move the window; this is how a size change made while the
-// window is open reaches the frame.
+// The tab controller. A pane carries no size constraints
+// (loadPaneWithSections:), so this is the only way its size reaches the window.
 @protocol SettingsPaneSizeHost <NSObject>
 - (void)settingsPaneSizeDidChange;
 @end
@@ -46,70 +37,51 @@ static const CGFloat kPanePadding = 20;
 
 @property (weak, readonly, nullable) MainPlayerController *playerController;
 
-// The one size every pane presents — the largest pane's, applied by
-// settleSharedSizeForPanes:. TRAP: deliberately NOT preferredContentSize.
-// macOS 26.5 turns a nonzero preferredContentSize into active equality
-// constraints on the pane's view at priority 501 — one above
-// NSLayoutPriorityWindowSizeStayPut — which fully determines the window's
-// size: no resize cursor at all, and every programmatic resize snapped back.
+// The largest pane's natural size, shared by every pane.
+// TRAP: deliberately NOT preferredContentSize. macOS 26.5 turns a nonzero one
+// into priority-501 equalities on the pane's view, one above
+// NSLayoutPriorityWindowSizeStayPut, which pin the window's size.
 @property (readonly, nonatomic) NSSize sharedPaneSize;
 
 - (instancetype)initWithPlayerController:(MainPlayerController *)playerController;
 
-// Builds the pane's root view: the sections stacked top-down, at least the
-// design size, grown to fit them. The size the pane finally presents is the
-// shared one below, not this measurement. Entries are normally
-// SettingsSectionViews; a plain view stacks the same, full width, for content
-// that sits outside any card (the About pane's identity block).
+// Entries are normally SettingsSectionViews; a plain view stacks full width,
+// outside any card (the About pane's identity block).
 - (void)loadPaneWithSections:(NSArray<__kindof NSView *> *)sections;
 
-// Loads every pane, resolves only the state that affects its layout, and sizes
-// them all to the largest — the one size the window then holds, so a pane
-// switch resizes nothing. Full refreshes remain selected-pane work.
+// Loads every pane, resolves only its layout state (no refresh work), and
+// sizes them all to the largest, so a pane switch resizes nothing.
 + (void)settleSharedSizeForPanes:(NSArray<__kindof NSViewController *> *)panes;
 
-// The System Settings inline dropdown — borderless, the value beside an
-// always-drawn chevron badge that grows into a rounded bezel around the value
-// while the mouse is over it, value hugging the row's trailing edge; width
-// caps a runaway title. Pass NULL for a popup whose items carry their own
-// targets.
+// The System Settings inline dropdown. width caps a runaway title rather than
+// sizing the popup. Pass NULL for a popup whose items carry their own targets.
 - (NSPopUpButton *)popUpButtonWithWidth:(CGFloat)width action:(nullable SEL)action;
 
-// One popup item: title shown, stable identifier on representedObject — the
-// pairing every settings popup uses, so a mis-paired title/value cannot
-// happen one line at a time.
+// Localized title shown, stable identifier on representedObject.
 - (void)addItem:(NSString *)title value:(nullable id)value to:(NSPopUpButton *)popUp;
 
-// The read half: selects the item carrying value on representedObject, or
-// none when no item does.
+// Selects the item whose representedObject is value, or none.
 - (void)selectValue:(nullable id)value in:(NSPopUpButton *)popUp;
 
-// The iOS-style toggle every boolean row uses; reads and writes exactly like
-// the checkbox it replaced (NSControlStateValueOn/Off).
+// Reads and writes NSControlStateValueOn/Off, like a checkbox.
 - (NSSwitch *)switchWithAction:(SEL)action;
 
-// Resolves only state that changes the pane's measured layout. Override when
-// settings hide or reveal rows; the eager shared-size pass calls this for all
-// panes and must not start refresh work.
+// Resolves only state that changes the pane's measured layout (rows hidden or
+// revealed). The shared-size pass calls it on every pane, so it must not start
+// refresh work.
 - (void)resolveLayoutStateFromSettings;
 
-// Reloads every control from AppSettings and live state. The base invokes it
-// only for the selected pane; the eager shared-size pass never calls it.
+// Reloads every control. Only ever called for the selected pane.
 - (void)refreshFromSettings;
 
-// Remeasures every pane against the rows it is actually showing and re-sizes
-// them all to the largest, which is what the settings window sizes itself to.
-// The remeasurement, the stack layout and the window frame land in one
-// animated transaction while the window is visible, so the rows cannot jump
-// ahead of the window. The base selected-pane refresh path runs it after
-// refreshing; a pane that hides or shows a row at any other moment must call
-// it, or the window keeps the size it was last measured at.
+// Remeasures this pane and, when its natural size moved, re-sizes every pane
+// to the largest in one animated transaction with the window frame. No-op
+// while the window is hidden. A pane that hides or shows a row outside
+// refreshSettingsAndPaneSize must call it, or the window keeps a stale size.
 - (void)paneContentDidChange;
 
-// The three steps above as one refresh — what every selected-pane trigger
-// (appearance, window-key regain, menu-tracking end) runs. The debug
-// channel's store-writing verbs run it too, so a scripted write is followed
-// by the same refresh a user gesture gets.
+// The three steps above; every selected-pane trigger and the debug channel's
+// store-writing verbs run it.
 - (void)refreshSettingsAndPaneSize;
 
 @end

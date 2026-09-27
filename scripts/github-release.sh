@@ -4,35 +4,21 @@
 #
 #   scripts/github-release.sh [--draft|--prerelease]
 #
-# Takes the universal and arm64-only products from `make release`, verifies
-# every app/image staple and exact binary architecture, tags HEAD as v<version>
-# and attaches four assets:
+# Verifies every staple and exact architecture set in `make release`'s
+# products, tags HEAD as v<version> and attaches:
+#   Vibe-macOS-universal-<version>.dmg/.zip   the website's download
+#   Vibe-macOS-arm64-<version>.dmg/.zip       Apple silicon only
 #
-#   Vibe-macOS-universal-<version>.dmg   universal, website default
-#   Vibe-macOS-universal-<version>.zip   universal bare bundle
-#   Vibe-macOS-arm64-<version>.dmg       Apple silicon only
-#   Vibe-macOS-arm64-<version>.zip       Apple silicon bare bundle
+# Separate from release.sh because publishing is irreversible: a deleted
+# release leaves its tag and download links behind.
 #
-# Deliberately a separate step from release.sh: building+notarizing is
-# repeatable, publishing is not — a deleted release leaves the tag and any
-# download links behind — so the irreversible half only runs when asked.
+# The version is the built app's, never git's, so the tag names what the image
+# contains. Notes are Assets/app-store/copy/en/macos/whats-new.txt, which the
+# Mac App Store upload also takes, so the two channels cannot drift.
 #
-# The version comes from the built app's Info.plist (MARKETING_VERSION via
-# project.yml), never from git, so the tag always names what the image actually
-# contains. Release notes are Assets/app-store/copy/en/macos/whats-new.txt —
-# the same file the Mac App Store upload requires per release — so the two
-# channels cannot drift. The macOS notes specifically: this release IS the
-# macOS direct download, and iOS has one of its own under copy/en/ios/.
-#
-# --draft creates the release unpublished, for a final look in the web UI.
-#
-# --prerelease publishes a beta. It marks the release so GitHub does not call it
-# "Latest", and — the load-bearing half — it does NOT repoint the marketing page.
-# A beta must never become vibeplayer.app's default download: web-set-version.sh
-# rewrites the button and the /download/latest redirect, and a beta landing there
-# would hand every visitor a test build. The v1.12-beta* releases predate this
-# flag and were marked by hand in the web UI, which is exactly the step that is
-# easy to forget once and hard to notice.
+#   --draft        create it unpublished; the web page is left alone.
+#   --prerelease   publish a beta: not marked Latest, and the web page is not
+#                  repointed, so vibeplayer.app never hands out a test build.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -58,9 +44,6 @@ case "${1:-}" in
     *) echo "usage: scripts/github-release.sh [--draft|--prerelease]" >&2; exit 64 ;;
 esac
 
-# ---------------------------------------------------------------------------
-# Preflight — fail early with actionable messages.
-# ---------------------------------------------------------------------------
 command -v gh >/dev/null || {
     echo "error: gh (GitHub CLI) is not installed — brew bundle installs it (see Brewfile)" >&2
     exit 1
@@ -81,11 +64,9 @@ gh auth status >/dev/null 2>&1 || {
     exit 1
 }
 
-# Verify each image exactly as a recipient gets it. The image and its app are
-# notarized separately, and either missing staple forces an online Gatekeeper
-# check. The zip holds another copy made only after the app was stapled, so it
-# is unpacked and checked independently. This also refuses mislabeled payloads:
-# lipo's architecture assertion compares the exact slice set, not containment.
+# Verify each variant as a recipient gets it. The app and the image are
+# notarized separately and either missing staple forces an online Gatekeeper
+# check; the zip is its own copy, made after stapling, so it is checked too.
 verify_release_variant() (
     local label="$1"
     local app="$2"
@@ -191,11 +172,7 @@ if gh release view "$TAG" >/dev/null 2>&1; then
     echo "error: release $TAG already exists — bump MARKETING_VERSION in project.yml and rebuild" >&2
     exit 1
 fi
-# ---------------------------------------------------------------------------
-# Publish.
-# ---------------------------------------------------------------------------
-# Every asset names its verified architecture. The website and its stable
-# /download redirect point to this same universal asset name.
+# The universal DMG's name must match the URL web-set-version.sh writes.
 ASSET_UNIVERSAL_DMG="$BUILD_DIR/Vibe-macOS-universal-$VERSION.dmg"
 ASSET_UNIVERSAL_ZIP="$BUILD_DIR/Vibe-macOS-universal-$VERSION.zip"
 ASSET_ARM64_DMG="$BUILD_DIR/Vibe-macOS-arm64-$VERSION.dmg"
@@ -205,26 +182,11 @@ cp "$UNIVERSAL_ZIP" "$ASSET_UNIVERSAL_ZIP"
 cp "$ARM64_DMG" "$ASSET_ARM64_DMG"
 cp "$ARM64_ZIP" "$ASSET_ARM64_ZIP"
 
-# ---------------------------------------------------------------------------
-# Repoint the marketing page, and land it BEFORE the tag.
-# ---------------------------------------------------------------------------
-# The page advertises a direct .dmg URL, and so do the /download rules in
-# _redirects that make vibeplayer.app/download/latest stable; both are only
-# correct because this runs, and web-set-version.sh has the why. It happens
-# here rather than after publishing so the tag names a tree whose website
-# already points at this release — checking out v<version> gets the page that
-# goes with it.
-#
-# Commit just those two files by explicit pathspec, so a dirty tree cannot
-# ride along. Unlike every other step here this one moves main, and it does so
-# before anything irreversible: the release is created from HEAD immediately
-# after, so a failed commit or push has to be fatal — a tag on an unpushed
-# commit would dangle, and the release does not exist yet to be inconsistent
-# with.
-#
-# A draft is skipped entirely. Its download is not public, so the page would
-# advertise a 404; a draft also creates no tag until it is published, so there
-# is no ordering to preserve.
+# Repoint the web page and push it BEFORE the tag, so v<version> names a tree
+# whose page links that release. Only the two web files are committed, so a
+# dirty tree cannot ride along, and a failed commit or push is fatal: the tag
+# would dangle. A draft is skipped: its download is not public, and it creates
+# no tag until published.
 if [[ -n "$DRAFT" ]]; then
     echo "🔊 draft — leaving the web page pointing at the previous release"
     echo "   once published: scripts/web-set-version.sh $VERSION && make deploy-web"
@@ -248,7 +210,7 @@ else
     fi
 fi
 
-# Authoritative only now that HEAD has stopped moving.
+# Checked only now that HEAD has stopped moving.
 if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null \
         && [[ "$(git rev-parse "refs/tags/$TAG^{commit}")" != "$(git rev-parse HEAD)" ]]; then
     echo "error: tag $TAG exists and does not point at HEAD" >&2

@@ -12,9 +12,9 @@ The `MPRemoteCommandCenter` / `MPNowPlayingInfoCenter` bridge: publishing what i
 
 `initWithClock:publish:commandAvailability:` runs the same publication path without registering remote commands. Host-less tests inject the clock and OS writes to cover first-play gating, clearing, dirty detection, command changes and artwork promotion; actual system registration remains a live-app check.
 
-The republish position rule is header-only in `NowPlayingRules.h`, tested — beside the controller that is its only caller, and on this side of the platform boundary because both platforms' publishes run through it.
+The republish rules are header-only in `NowPlayingRules.h`, tested, on this side of the platform boundary because both platforms publish through them; the iOS widget publisher shares its string comparison.
 
-**TRAP: the published artwork must be privately rasterized on the main thread, and that result must be the only thing the `MPMediaItemArtwork` request handler hands back.** The handler is invoked on the media daemon's threads, and the source is the live `NSImage` the header, dock tile and playlist cells are drawing from — `NSImage` is not safe to draw concurrently, so drawing it inside the handler races the UI. `VibeArtworkForPublishing` always redraws even an already-small thumbnail, caps larger art at 512px, and gives the daemon a private `NSImage` and bitmap representation.
+**TRAP: the published artwork must be privately rasterized on the main thread, and that result must be the only thing the `MPMediaItemArtwork` request handler hands back.** The handler runs on MediaPlayer's threads, and the source is the live `NSImage` the UI is drawing; `NSImage` is not safe to draw from two threads at once. `VibeArtworkForPublishing` always redraws, even a small thumbnail, caps art at 512px, and hands over a private copy (macOS; iOS passes the image through).
 
 **A track with no decoded art publishes the shell's placeholder**, which the driver hands in as `placeholderArt:` because only the shell knows it: the current theme's `defaultArtworkImageForAppearance:` for the main window's effective appearance on macOS — Vibe's own light/dark choice, its Settings preview or a single-mode theme's pin, not the system's, since the rasterization runs where the drawing appearance is the system's — and `record-bg` (the pager's) on iOS. It goes through the same rasterization. The dirty check compares identity and each side is one cached image, so a theme change or a window appearance flip republishes (the window's appearance hook calls `updateNowPlaying`) and nothing else does.
 
@@ -56,7 +56,7 @@ Its sole production caller is `AudioFileMaterializationCoordinator` in `Vibe/Aud
 
 **Cancellation has exactly one spelling here**, `VibeMaterializationCancelledError` (`NSCocoaErrorDomain` / `NSUserCancelledError`, which is also what `NSFileCoordinator` returns for its own `-cancel`). Above this primitive, the central coordinator's result enum — Ready, Yielded, AdmissionExhausted or Failed — is the policy surface; callers do not infer retry behavior from this underlying error.
 
-**A fresh `NSFileCoordinator` per download** — cancelling poisons one for good, so reusing it would turn the first abort into a permanent refusal to download anything. `AudioFileMaterializationCoordinator` enforces that lifetime by creating a fresh `CloudFileMaterializer` operation for each admitted run.
+**A fresh `NSFileCoordinator` per download** — cancelling poisons one for good, so reusing it would turn the first abort into a permanent refusal to download anything. `materializeURL:` builds one per call, and `AudioFileMaterializationCoordinator` a fresh `CloudFileMaterializer` per admitted run.
 
 **TRAP: cancelling stops *us* waiting.** Whether the provider abandons the transfer is its own business — a replicated extension's `fetchContents` gets an `NSProgress` the system *may* cancel once nothing waits on it, but nothing promises that. It frees the lane and the thread at once; it does not promise to free the bandwidth.
 

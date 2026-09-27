@@ -7,27 +7,20 @@
 
 #include <cmath>
 
-// The time constant of the exponential ease toward the target samples. Each
-// frame the displayed bars cover a dt-scaled fraction of the remaining
-// distance, settling to about 95% in roughly 3τ, or 0.2s.
+// The ease's time constant: ~95% settled in 3τ, about 0.2s.
 static const CFTimeInterval kMorphTau = 0.07;
 // The convergence threshold, in the caller's normalized sample units.
 static const float kMorphEpsilon = 0.002f;
 static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
 
 @implementation WaveformMorphEngine {
-    // What is on screen against where it is heading, in the caller's sample
-    // layout.
     std::vector<float> _displayedSamples;
     std::vector<float> _targetSamples;
-    // Swapped with _targetSamples when the target moves; holds the stale
-    // target until the next fill overwrites it.
+    // Holds the stale target after a swap, until the next fill.
     std::vector<float> _scratchSamples;
     CGSize _size;
     BOOL _hasWaveform;   // NO = the zero target means "empty", drawn as nothing rather than hairline bars
-    // What the current target was built from, and its length: the fast-path
-    // gate in updateTargetForSize:. The pointer is compare-only and may dangle
-    // once the caller's waveform is released.
+    // The fast-path gate. Compare-only; may dangle.
     const void *_lastTargetIdentity;
     NSUInteger _lastTargetCount;
     BOOL _targetInvalidated;
@@ -50,24 +43,20 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
 }
 
 - (void)dealloc {
-    // The timer's firing block holds the engine weakly. Without this it would
-    // keep firing on the run loop forever.
+    // The block holds the engine weakly; the timer would fire forever.
     [_morphTimer invalidate];
 }
 
-// The declaration documents the rationale for each branch.
 - (void)updateTargetForSize:(CGSize)size
                    identity:(const void *)identity
                       count:(NSUInteger)count
                        fill:(void (^)(std::vector<float> &target))fill {
-    // Resampling a settled picture for a new width is layout, not new audio.
-    // Starting an ease here doubles the rebuilds throughout a resize and
-    // leaves a timer repainting after the window has stopped moving.
+    // A settled picture resampled for a new width is layout, not new audio:
+    // easing it doubles a resize's rebuilds and repaints after it stops.
     BOOL animate = _targetInvalidated || identity != _lastTargetIdentity || _morphTimer != nil;
     if (!_targetInvalidated && identity == _lastTargetIdentity && count == _lastTargetCount) {
-        // The target is unchanged, so do not touch the scratch: after a commit
-        // it holds the stale target, and comparing against it would morph back
-        // to it. Only a geometry change matters here.
+        // Leave the scratch alone: it holds the stale target, and comparing
+        // against it would morph back to it.
         BOOL geometryChanged = !CGSizeEqualToSize(size, _size);
         _size = size;
         if (geometryChanged) {
@@ -104,8 +93,8 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     double count = (double)_displayedSamples.size();
     size_t start = (size_t)MAX(floor(from * count), 0.0);
     size_t end = (size_t)MIN(ceil(to * count), count);
-    // Round outward to bar boundaries: an odd edge index in the Detailed
-    // family's interleaved layout would zero only half of the edge bar.
+    // Outward to bar boundaries, or a Detailed [min, max] edge bar is
+    // half-zeroed.
     size_t stride = MAX(_samplesPerBar, (NSUInteger)1);
     start -= start % stride;
     end = MIN(end + (stride - end % stride) % stride, _displayedSamples.size());
@@ -119,8 +108,7 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     if (!dipped) {
         return;
     }
-    // Draw the notch this frame — the timer's first tick would otherwise ease
-    // it partway back before it was ever seen at zero.
+    // Now, or the first tick eases the notch back before it is seen at zero.
     [self runRebuild];
     [self startMorphTimer];
 }
@@ -137,9 +125,7 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     return _morphTimer == nil;
 }
 
-// updateTargetForSize:'s slow path; the branch rationale lives on that
-// declaration. This is internal, and the scratch must be freshly filled before
-// it runs, because after a commit it holds the stale target.
+// updateTargetForSize:'s slow path; the scratch must be freshly filled.
 - (void)commitTargetForSize:(CGSize)size hasWaveform:(BOOL)hasWaveform animate:(BOOL)animate {
     BOOL geometryChanged = !CGSizeEqualToSize(size, _size);
     _size = size;
@@ -159,20 +145,16 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     }
     if (_displayedSamples.size() != _targetSamples.size()) {
         if (_displayedSamples.empty()) {
-            // The first build starts collapsed, so the waveform grows out of
-            // the midline.
+            // The first build grows out of the midline.
             _displayedSamples.assign(_targetSamples.size(), 0.0f);
         } else {
-            // A bar-count change mid-picture is a resize — the renderers
-            // derive their count from the width — so carry the on-screen
-            // shape over rather than collapsing it to the midline every few
-            // points of drag.
+            // A count change mid-picture is a resize: carry the shape over
+            // rather than collapsing it every few points of drag.
             [self resampleDisplayedToCount:_targetSamples.size()];
         }
         geometryChanged = YES;
     }
-    // A hasWaveform flip on its own. The samples are identical, so no morph
-    // will run, but the hairline floor has changed, so redraw in place.
+    // A bare hasWaveform flip: no morph, but the hairline floor changed.
     if (geometryChanged || (hasWaveformChanged && !targetChanged)) {
         [self runRebuild];
     }
@@ -181,10 +163,8 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     }
 }
 
-// Nearest-bar carry-over of the displayed samples to a new bar count, in
-// samplesPerBar strides so a Detailed [min, max] pair travels together. The
-// result approximates the old picture, and the morph then eases the small
-// remainder toward the freshly filled target.
+// Nearest-bar, in samplesPerBar strides so a [min, max] pair travels
+// together.
 - (void)resampleDisplayedToCount:(NSUInteger)count {
     size_t stride = MAX(_samplesPerBar, (NSUInteger)1);
     size_t oldBars = _displayedSamples.size() / stride;
@@ -220,16 +200,12 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     }
 }
 
-// Eases the displayed samples toward the target, converging in about 3τ. It
-// runs on the main run loop's common modes, so that morphs do not freeze
-// during menu tracking or a live resize.
+// Common modes, so morphs do not freeze during menu tracking or live resize.
 - (void)startMorphTimer {
     if (_morphTimer) {
         return; // already easing — the updated target just bends the motion
     }
-    // Which rebuilds are the 60 Hz ease and which are one-shot settles is not
-    // answerable from the renderer's own count, and getting it wrong sends an
-    // optimization at the wrong path.
+    // The renderer's rebuild count cannot tell eases from one-shot settles.
     VibeSignpostCount(morph_started);
     _lastMorphTick = CACurrentMediaTime();
     __weak __typeof__(self) weakSelf = self;
@@ -241,8 +217,7 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
 
 - (void)morphTick {
     CFTimeInterval now = CACurrentMediaTime();
-    // Clamp dt. After a stall — a debugger pause, an occluded window — one
-    // huge step would snap the morph rather than ease it.
+    // After a stall one huge step would snap rather than ease.
     CFTimeInterval dt = clampRange(now - _lastMorphTick, 0, 0.1);
     _lastMorphTick = now;
     float k = (float)(1.0 - exp(-dt / kMorphTau));
@@ -259,9 +234,8 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
         [self runRebuild]; // final settle always draws the exact target
         return;
     }
-    // Each rebuild is a full-view repaint, and the exponential tail spends
-    // many frames moving imperceptibly, so skip frames until the fastest bar
-    // has accumulated about a quarter of a pixel of motion.
+    // A rebuild is a full-view repaint and the tail moves imperceptibly: skip
+    // frames until the fastest bar has moved about a quarter pixel.
     CGFloat vscale = _vscale ? _vscale(_size.height) : _size.height;
     _pendingRebuildPx += (float)(maxDistance * k * vscale);
     if (_pendingRebuildPx >= 0.25f) {

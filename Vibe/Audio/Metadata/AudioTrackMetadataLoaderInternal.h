@@ -2,12 +2,10 @@
 //  AudioTrackMetadataLoaderInternal.h
 //  Vibe
 //
-//  The worker behind AudioTrackMetadataCache: one sweep over one playlist,
-//  with the current track carried as a priority-flagged record in the same
-//  pending list and dispatched through its priority slot. A loader lives until the next
-//  loadMetadata: replaces it, and everything it holds — records, tracks,
-//  in-flight priority work — dies with it, which is what makes playlist
-//  replacement drop the old playlist's downloads by construction.
+//  One sweep over one playlist; the current track is a priority record in
+//  the same pending list. Everything a loader holds dies with it when the
+//  cache replaces or cancels it, which is what drops the old playlist's
+//  downloads.
 //
 
 #import <Foundation/Foundation.h>
@@ -34,11 +32,8 @@ NS_ASSUME_NONNULL_BEGIN
                      delegate:(id <AudioTrackMetadataCacheDelegate>)delegate
          loadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration;
 
-// Host-less orchestration seam. The real queue, stage-1 barrier, scan records,
-// materialization slots, parse claims, installation, publication and
-// cancellation path stay in play. Tests inject a real coordinator configured
-// at its provider-operation boundary; cache reads and file parsing are the
-// other replaceable boundaries.
+// Host-less seam: a coordinator faked at its provider-operation boundary, and
+// replaceable cache reads and parsing.
 - (instancetype)initWithOwner:(AudioTrackMetadataCache *)owner
                      delegate:(nullable id <AudioTrackMetadataCacheDelegate>)delegate
          loadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration
@@ -50,33 +45,22 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
 
-// Stage 1 of the playlist sweep; see the directory's CLAUDE.md for the map.
 - (void)load:(NSArray<AudioTrack *> *)tracks;
-// Marks (or creates) the track's record as priority: materialized through its
-// own slot ahead of the sweep's, exempt from the stage-1 barrier, submitted
-// even while the foreground rule is in force (a same-path playback claim
-// serves it for free), and parsed at user-initiated QoS. Main thread.
-// A repeat edge reactivates one priority submission. That lets metadata join a
-// newly active same-path playback/prefetch claim instead of waiting for the
-// bounded gate clock. The record still owns its retry budget. The foreground/
-// background rule itself is the materialization coordinator's: the sweep asks
-// isForegroundTransferActive before submitting dataless records and re-asks on
-// a bounded 1s clock while gated.
+// Marks (or creates) the track's record as priority: its own slot, exempt from
+// the stage-1 barrier, submitted even under the foreground rule, parsed
+// user-initiated. A repeat edge reactivates one submission, so it can join a
+// new same-path foreground claim without waiting for the gate clock. Main
+// thread.
 - (void)prioritizeTrack:(AudioTrack *)track;
 
-// Drops the not-yet-picked queued work for one departed row — the pending or
-// delayed scan entry that would start a provider transfer, and, when nothing
-// is in flight for the track, the identity marks that would otherwise block a
-// later prioritizeTrack: from rebuilding a fresh record. Work already picked
-// settles through the ordinary path, whose delivery the shells drop for a row
-// no longer in the playlist. Main thread, like prioritizeTrack:.
+// Drops one departed row's not-yet-picked records and, when nothing is in
+// flight for it, its identity marks, so a later prioritizeTrack: rebuilds it.
+// Picked work settles normally. Main thread.
 - (void)abandonQueuedTrack:(AudioTrack *)track;
 
-// Re-ranks pending scan materializations so these URLs go first, in the order
-// given; everything else falls to the back of the sweep.
+// These URLs go first, in order.
 - (void)setNeighborhoodURLs:(nullable NSArray<NSURL *> *)urls;
-// The gated clock's action, shared with host-less tests so the release edge
-// can be judged without sleeping for the production one-second cadence.
+// The gate clock's tick, exposed so tests need not sleep.
 - (void)recheckForegroundGate;
 - (void)cancel;
 

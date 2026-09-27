@@ -2,9 +2,6 @@
 //  AudioLoadTiming.m
 //  Vibe
 //
-//  See AudioLoadTiming.h. Debug-only: the whole implementation sits inside the
-//  same guard as the interface.
-//
 
 #import "AudioLoadTiming.h"
 
@@ -70,7 +67,6 @@ static os_unfair_lock sLock = OS_UNFAIR_LOCK_INIT;
         @"keyFinishSeconds": @(seconds(n.keyFinish)),
         // Progress snapshots and delivery, plus anything else in the pass.
         @"otherSeconds": @(seconds(n.total > accounted ? n.total - accounted : 0)),
-        // How many seconds of audio each second of decode covers.
         @"realtimeFactor": @(n.total > 0 ? self.audioSeconds / seconds(n.total) : 0),
     };
 }

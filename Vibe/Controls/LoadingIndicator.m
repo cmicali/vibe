@@ -2,9 +2,7 @@
 //  LoadingIndicator.m
 //  Vibe
 //
-//  See the header for what the control is. This file is the geometry, the
-//  sweep and the palette — ported from the mac view's loading category, which
-//  is where both traps below were found. The style-dependent numbers live in
+//  See the header for what the control is. The style-dependent numbers live in
 //  LoadingIndicatorMath.h; nothing here branches on style directly.
 //
 
@@ -49,19 +47,15 @@ static const CFTimeInterval kPulseHalfPeriod = 0.9;
         _progress = -1;
         _lastProgressAt = 0;
 
-        // The control's body: one track, spanning the whole width. The filled
-        // head and the shimmer are both read against it, which is what makes
-        // the determinate and indeterminate modes one control rather than
-        // two — indeterminate is simply nothing filled yet.
+        // Fill and shimmer are both read against the one full-width track,
+        // which is what makes the two modes one control.
         _track = [CALayer layer];
         _track.contentsScale = contentsScale;
         _track.backgroundColor = [self inertTrackColor];
         [hostLayer addSublayer:_track];
 
-        // The row style builds no shimmer at all — its indeterminate motion
-        // is the whole-pill pulse instead. Every later touch of these layers
-        // is a message to nil there, which is the same nil-tolerance
-        // endSweepKeepingFill already relies on.
+        // The row style builds no shimmer; every later touch of these layers
+        // is a message to nil, the nil-tolerance endSweepKeepingFill relies on.
         if (VibeLoadingIndicatorMetricsForStyle(style, 0).hasShimmer) {
             // TRAP: the band sweeps in from before its span and out past the
             // end, and the host layer does not mask to bounds, so the shimmer
@@ -185,13 +179,11 @@ static const CFTimeInterval kPulseHalfPeriod = 0.9;
 }
 
 // duration > 0 eases the parts that track the download's progress; the rest is
-// always instant. Resize and state changes pass 0.
+// always instant.
 //
 // The ORIGIN is honored, not just the size: the iOS scrubber hands this the
-// span the track's own content occupies rather than its whole width, since
-// there the playhead is pinned at the view's center and a track at its start
-// covers only the right half. The other two sites pass their full bounds, so
-// for them minX is 0 and this reads exactly as it did.
+// span the track's own content occupies, since there the playhead is pinned
+// at the view's center and a track at its start covers only the right half.
 //
 // Every layer here may legitimately be nil: endSweepKeepingFill leaves only
 // the fill behind, and messages to nil no-op, so this places whatever is left.
@@ -200,10 +192,8 @@ static const CFTimeInterval kPulseHalfPeriod = 0.9;
     CGFloat minX = bounds.origin.x;
     CGFloat midY = CGRectGetMidY(bounds);
     VibeLoadingIndicatorMetrics metrics = VibeLoadingIndicatorMetricsForStyle(_style, width);
-    // The shimmer sweeps the *unfilled* remainder only: it is the "still
-    // working on this part" half of one control, and the fill is the "this
-    // part is done" half. Indeterminate fills nothing, so the sweep spans the
-    // whole width exactly as it always has.
+    // The shimmer sweeps the unfilled remainder only; indeterminate fills
+    // nothing, so it spans the whole width.
     CGFloat fillEnd = _progress > 0 ? width * MIN(1.0f, _progress) : 0;
     CGFloat remainder = MAX(width - fillEnd, 0);
     CGFloat bandWidth = MIN(metrics.bandWidth, MAX(remainder, 1));
@@ -335,7 +325,7 @@ static const CFTimeInterval kPulseHalfPeriod = 0.9;
         [_fill removeFromSuperlayer];
         _fill = nil;
         _lastProgressAt = 0;
-        [self layoutInBounds:bounds]; // hand the whole width back to the shimmer
+        [self layoutInBounds:bounds];
         return;
     }
     if (!_fill) {

@@ -9,13 +9,11 @@
 
 - (void)setLinkURL:(NSURL *)linkURL {
     _linkURL = [linkURL copy];
-    // Only a label carrying a link draws a ring, and AppKit draws it from
-    // drawFocusRingMask below rather than around the full-width frame.
+    // The ring comes from drawFocusRingMask, not the full-width frame.
     self.focusRingType = linkURL ? NSFocusRingTypeExterior : NSFocusRingTypeNone;
 }
 
-// The text is a single centered line, so measuring the whole string and the
-// part before the link places it without a layout manager.
+// One centered line, so two measurements place it without a layout manager.
 - (NSRect)linkRect {
     NSAttributedString *text = self.attributedStringValue;
     if (!self.linkURL || self.linkRange.length == 0
@@ -51,9 +49,7 @@
     }
 }
 
-// Claim the down rather than forwarding to super — only a claimed down routes
-// the matching mouseUp here — and open on the up, with the cursor still over
-// the link, like any standard link.
+// Claimed, so the matching mouseUp routes here; the link opens on the up.
 - (void)mouseDown:(NSEvent *)event {
 }
 
@@ -84,7 +80,6 @@
     return [super resignFirstResponder];
 }
 
-// The ring follows the glyphs, not the full-width frame the label occupies.
 - (void)drawFocusRingMask {
     NSRect rect = self.linkRect;
     if (!NSIsEmptyRect(rect)) {
@@ -108,9 +103,8 @@
 
 #pragma mark - Accessibility
 
-// The whole visible line is the element's name, so nothing a reader could hear
-// from the plain label is lost by its becoming a link; the actionable part of
-// it is the underlined name, which is what the frame below covers.
+// Named by the whole visible line, so nothing the plain label said is lost;
+// the frame covers only the underlined name.
 - (BOOL)isAccessibilityElement {
     return self.linkURL != nil ? YES : [super isAccessibilityElement];
 }

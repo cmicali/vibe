@@ -2,9 +2,8 @@
 //  PlaylistM3UStressTests.m
 //  VibeTests
 //
-//  Pathological M3U playlists: corrupt structure, hostile URLs, absurd scale.
-//  The contract under all of it — never crash, never hang, and never emit an
-//  entry the resolver cannot treat as a path.
+//  Pathological M3U playlists must never crash, hang, or emit an entry the
+//  resolver cannot treat as a path.
 //
 
 #import <XCTest/XCTest.h>
@@ -20,15 +19,12 @@
 - (void)assertResolvable:(NSArray<NSString *> *)entries from:(NSString *)what {
     for (NSString *entry in entries) {
         XCTAssertGreaterThan(entry.length, 0u, @"empty entry from %@", what);
-        // No blanket rule against a leading '#': it marks a comment only on a
-        // raw line, and a file:// URL reduces to a path that may legitimately
-        // start with one, since #track.mp3 is a filename. The directive tests
-        // pin that rule on the inputs where it applies.
+        // No rule against a leading '#': a file:// URL's path may legitimately
+        // start with one.
         XCTAssertEqual([entry rangeOfString:@"\\"].location, (NSUInteger)NSNotFound,
                        @"backslash survived from %@: %@", what, entry);
-        // Only a scheme separator makes a line a URL. Corruption that removes
-        // it leaves a nonsense relative path, which resolution discards — the
-        // rule here is the parser's, not "no line may start with http".
+        // Only a scheme separator makes a line a URL; without one, "http..." is
+        // a nonsense relative path that resolution discards.
         if ([entry rangeOfString:@"://"].location != NSNotFound) {
             for (NSString *scheme in @[@"http:", @"https:", @"rtsp:", @"mms:", @"ftp:"]) {
                 XCTAssertFalse([entry.lowercaseString hasPrefix:scheme],
@@ -226,9 +222,8 @@
 
 #pragma mark - Fuzz
 
-// Seeded mutations of a valid playlist: corrupt bytes, split lines, inject the
-// comment marker and the scheme separator, which are the two characters that
-// change how a line is read.
+// Injects '#' and ':' because they are the characters that change how a line
+// is read.
 - (void)testFuzzedMutationsOfAValidPlaylist {
     NSString *valid =
             @"#EXTM3U\n"
@@ -268,13 +263,10 @@
     }
 }
 
-
 #pragma mark - Resolution
 
-// The parser's output is not the end of the line: resolvedFileURLsForPlaylistAtURL:
-// turns every entry into a URL, and an entry that is not a usable path
-// component must be dropped there rather than reaching NSURL and coming back
-// nil.
+// resolvedFileURLsForPlaylistAtURL: must drop an entry that is not a usable
+// path component rather than let NSURL answer nil for it.
 - (NSURL *)writePlaylist:(NSData *)data named:(NSString *)name {
     NSURL *dir = [[NSURL fileURLWithPath:NSTemporaryDirectory()]
             URLByAppendingPathComponent:[NSString stringWithFormat:@"M3UStress-%@", NSUUID.UUID.UUIDString]];
@@ -317,11 +309,10 @@
     }
 }
 
-
 - (void)testBomlessUTF16WithFewNULsStillDecodes {
-    // Long CJK filenames carry NULs on about a fifth of their code units — far
-    // under the density test — so the catch after a failed UTF-8 decode is the
-    // only thing standing between them and Latin-1 mojibake.
+    // CJK names put NULs on about a fifth of the code units, under the strict
+    // test's majority, so only the NUL fallback after a failed UTF-8 decode
+    // keeps them from single-byte mojibake.
     NSString *source = @"日本語のとても長いファイル名前です第一曲.mp3\n日本語のとても長いファイル名前です第二曲.mp3\n";
     NSData *data = [source dataUsingEncoding:NSUTF16LittleEndianStringEncoding];
     NSString *text = [PlaylistFile textFromData:data];

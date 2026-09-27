@@ -6,49 +6,35 @@
 #import "NSDockTile+Util.h"
 #import "NSImage+Util.h"
 
-// A monotonic ticket, so that a slow background icon composition cannot
-// overwrite a newer icon or a reset. Both entry points are main-thread UI
-// calls, so no locking is needed: the async completion re-checks it back on
-// the main thread.
+// So a slow composition cannot overwrite a newer icon or a reset. Main thread
+// only, so unlocked.
 static NSUInteger VibeDockIconGeneration = 0;
 
 static const CGFloat kVibeDockIconCanvasSize = 512;
 
-// TRAP: clearing the tile's contentView back to nil and later installing a
-// view again leaks a 256KB dock-tile context per transition. AppKit maps a
-// fresh one in _createDockTileContext and never releases the one the nil
-// orphaned, so a library mixing art-bearing and artless tracks grows without
-// bound — measured at 788MB across 3,154 mapped regions over a 42-minute
-// soak. So the view is installed exactly once and only its image is swapped;
-// the tile never sees nil again. The Dock draws contentView instead of the
-// app icon whenever one is set, which is why the reset has to draw the icon
-// itself rather than stand the view down.
+// TRAP: setting the tile's contentView to nil and installing a view again
+// leaks a 256KB dock-tile context per transition (788MB over a 42-minute
+// soak). So one view is installed and only its image swaps; the tile never
+// sees nil again, which is why the reset draws the icon into it.
 static NSImageView *VibeDockIconView = nil;
 static NSImage *VibeDockAppIcon = nil;
 
 static NSImageView *VibeInstalledDockIconView(void) {
     if (!VibeDockIconView) {
-        // Read before the first setContentView:, so it is the untouched icon.
-        // TRAP: applicationIconImage is nil before the app finishes launching
-        // — the player controller is built in applicationWillFinishLaunching:
-        // — and a cached nil painted a transparent tile for the whole session.
-        // The install is reached only from setDockIcon: (a reset with no view
-        // installed leaves the Dock's own rendering alone), so this normally
-        // runs post-launch; imageNamed: covers any earlier call.
+        // TRAP: applicationIconImage is nil before launch finishes (the
+        // player controller is built in applicationWillFinishLaunching:), and
+        // a cached nil paints a transparent tile all session; imageNamed:
+        // covers it.
         VibeDockAppIcon = [NSApp applicationIconImage]
                 ?: [NSImage imageNamed:NSImageNameApplicationIcon];
         VibeDockIconView = [[NSImageView alloc] initWithFrame:
                             NSMakeRect(0, 0, kVibeDockIconCanvasSize, kVibeDockIconCanvasSize)];
-        // TRAP: the default scaling is proportionally-DOWN, which will not
-        // enlarge. The app icon's largest representation is 512px but reports
-        // 256pt at 2x, so under the default it would draw at half the canvas
-        // and the reset would show a visibly small icon.
+        // TRAP: the default scaling never enlarges, and the app icon reports
+        // 256pt (512px at 2x), so it would draw at half the canvas.
         VibeDockIconView.imageScaling = NSImageScaleProportionallyUpOrDown;
     }
-    // TRAP: assigning NSApp.applicationIconImage — a custom app icon landing
-    // or clearing — redraws the tile from the app icon and drops the content
-    // view, so a later image on a detached view shows nothing. Re-attach on
-    // every install rather than trusting the first setContentView:.
+    // TRAP: assigning NSApp.applicationIconImage drops the content view, so an
+    // image on a detached view shows nothing. Re-attach on every install.
     if ([NSApp dockTile].contentView != VibeDockIconView) {
         [[NSApp dockTile] setContentView:VibeDockIconView];
     }
@@ -58,48 +44,33 @@ static NSImageView *VibeInstalledDockIconView(void) {
 @implementation NSDockTile (Util)
 
 + (void) resetToAppIcon {
-    VibeDockIconGeneration++; // invalidate any in-flight composition
-    // No contentView installed means the Dock is still drawing the real app
-    // icon — the exact state a reset wants. Installing the view here would
-    // replace it with a copy, and at launch (before NSApp has an icon to
-    // copy) with nothing at all. The empty-state reset at startup lands here.
+    VibeDockIconGeneration++;
+    // No view yet means the Dock still draws the real icon; installing one at
+    // launch would show nothing.
     if (!VibeDockIconView) {
         return;
     }
-    // Read live rather than from the install-time capture: a theme's custom
-    // app icon lands in applicationIconImage after the view exists, and
-    // clearing it restores the bundle's. The capture stays the fallback for
-    // the pre-launch nil.
+    // Live, so a theme's custom icon reads through; the capture covers nil.
     VibeInstalledDockIconView().image = [NSApp applicationIconImage] ?: VibeDockAppIcon;
     [[NSApp dockTile] display];
 }
 
-// Composes the artwork into a dock-icon canvas that matches the system icon
-// grid. The Dock renders the tile's contentView edge to edge, and real app
-// icons carry built-in transparent margins: the rounded-rect content of a
-// standard macOS icon spans 824 of its 1,024-point canvas, with a corner
-// radius of about 22.5%, or 185 of 824. Anything with a smaller margin reads
-// visibly larger than every neighboring icon in the Dock and the switcher.
-//
-// It draws through NSImage+Util's shared sRGB bitmap-context helper (one
-// point per pixel: the Dock scales it itself) and returns nil if there is no
-// context.
+// The system icon grid: content spans 824 of 1,024 points with a 185-point
+// corner radius. The Dock draws a contentView edge to edge, so anything with
+// less margin reads larger than its neighbors. nil when there is no context.
 static NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvasSize) {
 
     CGFloat size = canvasSize * (824.0 / 1024.0);
     CGFloat margin = (canvasSize - size) / 2;
     CGFloat cornerRadius = size * (185.0 / 824.0);
-    // The rim-light band width: about 1.5 device pixels at Dock size, like the
-    // bevel on neighboring icons.
+    // About 1.5 device pixels at Dock size.
     CGFloat rimWidth = size * 0.015;
     CGFloat shadowBlur = size * 0.06;
     CGFloat shadowOffsetY = -size * 0.03;
 
     return [NSImage imageWithSize:NSMakeSize(canvasSize, canvasSize) drawnBy:^{
 
-        // The content rect, centered on the icon grid. The grid margin comfortably
-        // contains the shadow, since the blur plus the offset comes to about 0.09
-        // times the size, well under the margin.
+        // The margin contains the shadow (blur plus offset is ~0.09 × size).
         NSRect drawingRect = NSMakeRect(margin, margin, size, size);
 
         NSBezierPath *clipPath = [NSBezierPath bezierPathWithRoundedRect:drawingRect
@@ -114,11 +85,9 @@ static NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvas
         [shadow setShadowColor:[[NSColor blackColor] colorWithAlphaComponent:1]];
         [shadow set];
     
-        // Filling the path triggers the shadow drawing.
         [[NSColor clearColor] setFill];
         [clipPath fill];
 
-        // Restore the graphics state to remove the shadow.
         [NSGraphicsContext restoreGraphicsState];
 
         [clipPath addClip];
@@ -138,12 +107,8 @@ static NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvas
                  respectFlipped:YES
                           hints:nil];
 
-        // A Liquid Glass-style rim light: a thin inner stroke that is brightest
-        // along the top edge and fades toward the bottom, approximating the
-        // bevel the system renders on real (Icon Composer) icons — without it
-        // the artwork tile reads flat next to every neighboring icon. Stroking
-        // the clip path at double width while clipped to the icon shape leaves
-        // exactly the inner rimWidth-wide band visible.
+        // A rim light approximating the system bevel on Icon Composer icons.
+        // A double-width stroke clipped to the shape leaves the inner band.
         CGContextRef ctx = [NSGraphicsContext currentContext].CGContext;
         CGContextSaveGState(ctx);
         CGPathRef rimPath = CGPathCreateWithRoundedRect(drawingRect, cornerRadius, cornerRadius, NULL);
@@ -151,11 +116,9 @@ static NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvas
         CGContextSetLineWidth(ctx, rimWidth * 2);
         CGContextReplacePathWithStrokedPath(ctx);
         CGContextClip(ctx);
-        // Mostly uniform with a brighter top, matching the system bevel (which
-        // stays visible along an icon's bottom edge too).
         NSGradient *rim = [[NSGradient alloc] initWithStartingColor:[NSColor colorWithWhite:1 alpha:0.28]
                                                         endingColor:[NSColor colorWithWhite:1 alpha:0.55]];
-        [rim drawInRect:drawingRect angle:90]; // 90° = bottom → top: brightest on top
+        [rim drawInRect:drawingRect angle:90]; // brightest on top
         CGPathRelease(rimPath);
         CGContextRestoreGState(ctx);
 
@@ -165,31 +128,27 @@ static NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvas
 + (void)setDockIcon:(NSImage*)image shaped:(BOOL)shaped {
     CGFloat size = kVibeDockIconCanvasSize;
     NSUInteger generation = ++VibeDockIconGeneration;
-    // The picture as it is, or the composition this very image already had:
-    // every theme apply re-installs the tile, and the art view hands back
-    // one instance per install, so a hit assigns with no hop.
+    // Every theme apply re-installs the same instance, so reuse its
+    // composition with no hop.
     static NSImage *composedFrom = nil, *composed = nil;
     if (!shaped || image == composedFrom) {
         VibeInstalledDockIconView().image = shaped ? composed : image;
         [[NSApp dockTile] display];
         return;
     }
-    // Copy before hopping queues: the caller's instance is also being drawn
-    // by the artwork views on the main thread, and NSImageRep's first-draw
-    // caching is not documented thread-safe.
+    // Copy before hopping queues: the artwork views draw the caller's
+    // instance on main, and NSImageRep's first-draw caching is not documented
+    // thread-safe.
     NSImage *imageCopy = [image copy];
-    // Compose off the main thread: the 512px rounded-rect + shadow render
-    // (drawing from up-to-1024px art) is a several-ms hitch that would land
-    // exactly at track start, alongside waveform hydration and the artwork
-    // cross-fades. Only the dock-tile assignment happens on main.
+    // Off main: a several-ms render that would land at track start.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         NSImage *customIcon = CreateMacStyleIconFromImage(imageCopy, size);
         if (!customIcon) {
-            return; // no context — leave whatever icon is showing
+            return;
         }
         run_on_main_thread({
             if (generation != VibeDockIconGeneration) {
-                return; // a newer icon (or a reset to the app icon) won
+                return;
             }
             composedFrom = image;
             composed = customIcon;
@@ -200,22 +159,15 @@ static NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvas
 }
 
 + (void)setAppIcon:(NSImage *)image shaped:(BOOL)shaped {
-    // Composed on the same grid as the artwork tile, so a square picture
-    // reads as an icon beside its Dock neighbors rather than a bare tile —
-    // unless the theme wants the picture as it is; nil is the property's
-    // own reset to the bundle icon (null_resettable). Memoized on the
-    // source: the theme's image cache hands back one instance per
-    // reference, and every theme apply re-requests this.
+    // Memoized on the source instance: every theme apply re-requests this.
     static NSImage *composedFrom = nil, *composed = nil, *assigned = nil;
     if (image && shaped && image != composedFrom) {
         composed = CreateMacStyleIconFromImage(image, kVibeDockIconCanvasSize);
         composedFrom = image;
     }
     NSImage *icon = !image ? nil : shaped ? composed : image;
-    // Assigned only on a change: every theme apply comes through here, and
-    // each assignment redraws the Dock tile from the app icon (see
-    // VibeInstalledDockIconView), which the art tile would then have to win
-    // back.
+    // Only on a change: each assignment drops the art tile's content view
+    // (VibeInstalledDockIconView).
     if (icon != assigned) {
         assigned = icon;
         NSApp.applicationIconImage = icon;

@@ -2,10 +2,9 @@
 //  MainPlayerController+Convert.h
 //  Vibe
 //
-//  Convert to FLAC's controller half: the funnel both menu items share, the
-//  playlist swap that puts the FLAC into its source's rows, and the undo
-//  round trip. The engine — encode, sandbox rungs, tag copy, disposal
-//  primitives — is AudioFileConverter, in Audio/Mac/Convert/.
+//  Convert to FLAC's controller half: the shared funnel, the swap into the
+//  source's rows, and the undo round trip. The engine is AudioFileConverter
+//  (Audio/Mac/Convert/).
 //
 
 #import "MainPlayerController.h"
@@ -16,37 +15,29 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface MainPlayerController (Convert)
 
-// Convert > Convert to FLAC, acting on the current track; the window body's
-// context-menu item shares it. Declared here, as the Transport actions are,
-// so the compiler checks the implementation in this file.
+// On the current track; the window body's context menu shares it.
 - (IBAction)convertCurrentTrackToFLAC:(nullable id)sender;
 
-// Convert > Cancel Conversion: the same menu item, re-aimed by validation
-// while a conversion runs. The converter's cancel is a no-op once none is,
-// so a click landing after the conversion settles does nothing.
+// The same item, re-aimed by validation while converting. A click after the
+// conversion settles does nothing.
 - (IBAction)cancelConversion:(nullable id)sender;
 
-// Edit > Undo and Redo, forwarding to the window's NSUndoManager. Two actions
-// register on it: a conversion (whose round trip moves files through the
-// Trash and never re-encodes) and a playlist row removal
-// (MainPlayerController.m's reinsert funnel, which moves no files at all).
+// The window's NSUndoManager, gated on conversionUndoRedoInFlight. A
+// conversion's round trip moves files through the Trash and never re-encodes;
+// a removal or reorder moves no files.
 - (IBAction)undo:(nullable id)sender;
 - (IBAction)redo:(nullable id)sender;
 
-// YES from the moment NSUndoManager invokes a conversion inverse until its
-// final file move settles. The menu and debug channel use the same gate as the
-// actions, so an asynchronous inverse cannot be re-entered.
+// YES from a conversion inverse's invocation until its last file move settles,
+// so the async inverse cannot be re-entered.
 @property (nonatomic, readonly, getter=isConversionUndoRedoInFlight)
         BOOL conversionUndoRedoInFlight;
 
-// Convert > Delete Original, the checkmarked preference, persisted in
-// AppSettings; a running conversion keeps the value it was accepted with.
+// A running conversion keeps the value it was accepted with.
 - (IBAction)toggleDeleteOriginalAfterConvert:(nullable id)sender;
 
-// The shared terminus of both Convert to FLAC menu items, swap included. The
-// completion runs after the swap *and* the disposal settle, reporting what
-// the disposal actually did — the convert_to_flac verb answers for the
-// original without racing the Trash. The menu items pass nil.
+// completion runs after the swap and the disposal settle, reporting what the
+// disposal did, so the convert_to_flac verb does not race the Trash.
 - (void)convertTrackToFLAC:(AudioTrack *)track
                 completion:(void (^_Nullable)(NSURL *_Nullable outputURL,
                                               BOOL sourceDeleted,

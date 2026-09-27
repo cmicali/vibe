@@ -14,9 +14,8 @@ The weighted score is the mean of those; "correct" alone is the exact-match
 rate. Both are reported, since a detector can score well on the weighted
 metric purely by landing on relatives.
 
-`scan_key` runs inside the CLI client's own process: no app instance, no
-window, no caches, and a running Vibe is left alone. That also makes the run
-parallelisable, since each file is an independent process.
+`scan_key` runs inside the CLI client's own process (no app instance, no
+caches, a running Vibe left alone), so files scan in parallel.
 
     scripts/validate-key.py --limit 10              # a quick sample
     scripts/validate-key.py --jobs 8 --csv out.csv  # the whole set
@@ -39,9 +38,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 DEFAULT_APP = REPO / "build/DerivedData/Build/Products/Debug/Vibe.app"
 
-# Vibe's own encoding, matching MusicalKey.h: 0-11 major by pitch class,
-# 12-23 minor, -1 unknown. The harness scores in the same space, so a reply's
-# "index" needs no translation.
+# MusicalKey.h's encoding (0-11 major by pitch class, 12-23 minor, -1 none), so
+# a reply's "index" needs no translation.
 NONE = -1
 PITCH_CLASSES = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11, "H": 11}
 
@@ -88,8 +86,7 @@ def score(detected: int, reference: int):
     if det_minor == ref_minor and (det_pitch - ref_pitch) % 12 == 7:
         return 0.5, "fifth"
     if det_minor != ref_minor:
-        # The relative key: minor is 9 semitones above its major, major 3
-        # above its minor.
+        # A relative minor is 9 semitones above its major; a relative major 3.
         if not ref_minor and (det_pitch - ref_pitch) % 12 == 9:
             return 0.3, "relative"
         if ref_minor and (det_pitch - ref_pitch) % 12 == 3:

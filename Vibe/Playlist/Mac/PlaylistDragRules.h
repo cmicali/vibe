@@ -2,11 +2,8 @@
 //  PlaylistDragRules.h
 //  Vibe
 //
-//  The internal drag-reorder arithmetic, kept out of the AppKit delegate so
-//  host-less tests own its off-by-ones: what a proposed insertion slot means
-//  for a set of dragged rows, and which single-row table moves realize an
-//  accepted drop. Pure functions of their arguments; nothing here mutates the
-//  playlist or imports AppKit.
+//  The drag-reorder arithmetic, AppKit-free so host-less tests own its
+//  off-by-ones.
 //
 
 #import <Foundation/Foundation.h>
@@ -17,17 +14,12 @@ static inline BOOL VibePlaylistIndexesAreContiguous(NSIndexSet *indexes) {
     return indexes.lastIndex - indexes.firstIndex + 1 == indexes.count;
 }
 
-// Converts an AppKit insertion slot (0..count, from an NSTableViewDropAbove
-// validation) into the model's landing set: the contiguous FINAL positions the
-// dragged rows would occupy. The downward off-by-one is solved here once — the
-// dragged rows vacate their positions above the slot, so the landing starts at
-// the slot minus however many sources precede it. nil when no move should be
-// offered: malformed input (an empty or out-of-range source set, a slot
-// outside 0..count), or a slot that would leave the order unchanged — a
-// contiguous block dropped onto or immediately beside itself, or every row
-// dragged at once. A non-contiguous set is never a no-op: gathering it moves
-// the survivors between its members wherever it lands. sourceIndexes are the
-// dragged rows in current coordinates; count is the row count before the move.
+// Converts an AppKit insertion slot (0..count, NSTableViewDropAbove) into the
+// contiguous FINAL positions the dragged rows land at: the slot minus the
+// sources above it, the downward off-by-one solved once. nil for malformed
+// input or a no-op — a contiguous block dropped onto or beside itself, or
+// every row at once; a non-contiguous set is never a no-op. count is the row
+// count before the move.
 static inline NSIndexSet *_Nullable
 VibePlaylistDropDestinationForSlot(NSIndexSet *_Nullable sourceIndexes,
                                    NSInteger proposedSlot,
@@ -46,20 +38,17 @@ VibePlaylistDropDestinationForSlot(NSIndexSet *_Nullable sourceIndexes,
     return [NSIndexSet indexSetWithIndexesInRange:NSMakeRange(destination, moving)];
 }
 
-// The gather half of the sequence arithmetic: the single-row (from, to) moves
-// that land the rows at sourceIndexes contiguously with the first at
-// finalDestination. Each pair is in EVOLVING coordinates: apply one before
-// computing against the next. Rows above the insertion line move down to sit
-// just above it, each extraction shifting the sources still to come; rows
-// below keep their original position — everything extracted before them
-// re-landed above — and stack under the line in order. Callers use
-// VibePlaylistMoveSequenceEnumerate below, which dispatches here.
+// The single-row (from, to) moves that gather sourceIndexes contiguously at
+// finalDestination, in EVOLVING coordinates: apply one before the next. Rows
+// above the line sink to just above it, each extraction shifting the sources
+// still to come; rows below stack under it in order. Callers use
+// VibePlaylistMoveSequenceEnumerate.
 static inline void
 VibePlaylistGatherSequenceEnumerate(NSIndexSet *_Nullable sourceIndexes,
                                     NSUInteger finalDestination,
                                     void (NS_NOESCAPE ^enumerator)(NSUInteger from, NSUInteger to)) {
-    // Recover the insertion slot the destination was derived from: the unique
-    // slot whose preceding-source count subtracts back to finalDestination.
+    // The unique slot whose preceding-source count subtracts back to
+    // finalDestination.
     __block NSUInteger slot = finalDestination;
     [sourceIndexes enumerateIndexesUsingBlock:^(NSUInteger source, BOOL *stop) {
         if (source < slot) {
@@ -88,17 +77,11 @@ VibePlaylistGatherSequenceEnumerate(NSIndexSet *_Nullable sourceIndexes,
     }];
 }
 
-// Emits, in application order, the single-row (from, to) moves that transform
-// a list so the rows at sourceIndexes occupy destinationIndexes — the model's
-// remove-at-A-insert-at-B semantics, realized as the moveRowAtIndex:toIndex:
-// calls a table applies so row views survive. Pairs are in EVOLVING
-// coordinates. One side is always contiguous, because every move is a gather
-// or a gather's undo: a contiguous destination is the drag collecting its
-// selection, and a contiguous source scattering outward is that move with its
-// sets swapped, derived as the inverse of the gather that would collect the
-// destinations back into the block — each moveRow's inverse swaps its
-// coordinates, so the inverse sequence is the gather's pairs reversed and
-// swapped. Emits nothing for inputs the model would refuse.
+// The moveRowAtIndex:toIndex: calls, in order and EVOLVING coordinates, that
+// realize the model's move of sourceIndexes to destinationIndexes. One side is
+// always contiguous: a gather (the drag) or its undo, a scatter, which is the
+// reverse gather's pairs reversed and swapped. Emits nothing for input the
+// model would refuse.
 static inline void
 VibePlaylistMoveSequenceEnumerate(NSIndexSet *_Nullable sourceIndexes,
                                   NSIndexSet *_Nullable destinationIndexes,

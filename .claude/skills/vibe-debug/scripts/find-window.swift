@@ -1,7 +1,6 @@
-// Prints one line per on-screen Vibe window (front to back):
+// Print one line per on-screen Vibe window, front to back:
 //   windowID pid x y width height
-// Usage: swift find-window.swift [pid]
-// Pass a pid to filter when multiple Vibe instances are running.
+// Usage: swift find-window.swift [pid]   (pid filters to one instance)
 import CoreGraphics
 import Foundation
 

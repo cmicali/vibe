@@ -1,7 +1,6 @@
 //
-// Asynchronous open expansion may finish out of order, and may not finish at
-// all. These tests pin the coordinator's burst ordering, its
-// replacement-supersession rule, and how it gives up on a straggler.
+// Open expansion may finish out of order, or never: burst ordering,
+// replacement supersession, and giving up on a straggler.
 //
 
 #import <XCTest/XCTest.h>
@@ -22,8 +21,7 @@
     _coordinator = [[OpenRequestCoordinator alloc] init];
 }
 
-// Every request records what it delivered, so the assertions read as the
-// playlist-facing sequence rather than as coordinator internals.
+// Records deliveries so assertions read as the playlist-facing sequence.
 - (OpenRequestToken *)beginAppending:(BOOL)append tagged:(NSString *)tag {
     NSMutableArray<NSString *> *deliveries = _deliveries;
     return [_coordinator beginRequestAppending:append
@@ -90,9 +88,8 @@ static NSArray<NSURL *> *OpenFiles(NSUInteger count) {
     XCTAssertEqualObjects(_deliveries, (@[@"fresh:append:1:0"]));
 }
 
-// The first batch's folder walk hangs on a mount that never answers. Without
-// the deadline every later batch in the burst would buffer unseen, and a
-// multi-file open would produce nothing at all.
+// The first batch's walk hangs on a mount that never answers; without the
+// deadline every later batch in the burst would buffer unseen.
 - (void)testAStragglerIsAbandonedRatherThanHoldingItsBurst {
     OpenRequestToken *wedged = [self beginAppending:NO tagged:@"wedged"];
     OpenRequestToken *second = [self beginAppending:YES tagged:@"second"];
@@ -104,14 +101,11 @@ static NSArray<NSURL *> *OpenFiles(NSUInteger count) {
     [_coordinator abandonStalledRequests];
     XCTAssertEqualObjects(_deliveries, (@[@"second:append:2:0", @"third:append:3:0"]));
 
-    // And if it does eventually answer, it is dropped rather than reordering
-    // the playlist behind the user.
+    // A late answer is dropped rather than reordering the playlist.
     [_coordinator finishRequest:wedged files:OpenFiles(9) folderCount:1];
     XCTAssertEqualObjects(_deliveries, (@[@"second:append:2:0", @"third:append:3:0"]));
 }
 
-// The deadline gives up on the wedged walk it fired for, not on the merely
-// slow one behind it: that one still delivers when it answers.
 - (void)testASlowWalkBehindAWedgedOneStillDelivers {
     OpenRequestToken *wedged = [self beginAppending:NO tagged:@"wedged"];
     OpenRequestToken *slow = [self beginAppending:YES tagged:@"slow"];
@@ -124,14 +118,12 @@ static NSArray<NSURL *> *OpenFiles(NSUInteger count) {
     [_coordinator finishRequest:slow files:OpenFiles(2) folderCount:0];
     XCTAssertEqualObjects(_deliveries, (@[@"slow:append:2:0", @"third:append:3:0"]));
 
-    // The abandoned one is still dropped whenever it answers.
     [_coordinator finishRequest:wedged files:OpenFiles(9) folderCount:1];
     XCTAssertEqual(_deliveries.count, 2u);
 }
 
-// Two of the four walks hang, so one deadline is not enough: the second batch
-// sits behind a gap of its own once the first has been abandoned, and nothing
-// but a re-armed deadline ever frees it.
+// Once the first gap is abandoned, the second wedged walk is a gap of its own
+// that only a re-armed deadline frees.
 - (void)testASecondStragglerGetsItsOwnDeadline {
     _coordinator.stragglerDeadline = 0.02;
     OpenRequestToken *wedged = [self beginAppending:NO tagged:@"wedged"];
@@ -151,10 +143,8 @@ static NSArray<NSURL *> *OpenFiles(NSUInteger count) {
     XCTAssertEqual(_deliveries.count, 2u);
 }
 
-// A replacement arriving while an older generation's deadline is still armed
-// must not inherit its arming: the older timer exits on the generation
-// mismatch, so a straggler in the new generation would wait for a deadline
-// that never comes.
+// The older timer exits on the generation mismatch, so a replacement that
+// inherited its arming would wait for a deadline that never comes.
 - (void)testAReplacementGetsItsOwnDeadlineWhileAnOlderOneIsArmed {
     _coordinator.stragglerDeadline = 0.02;
     [self beginAppending:NO tagged:@"oldWedged"];
@@ -169,9 +159,7 @@ static NSArray<NSURL *> *OpenFiles(NSUInteger count) {
     XCTAssertEqualObjects(_deliveries, (@[@"newSecond:append:5:0"]));
 }
 
-// A gap that drains before its deadline leaves the old timer in flight. A
-// later gap in the same burst must get a full deadline of its own rather than
-// being abandoned when that old timer fires.
+// A gap that drains before its deadline leaves the old timer in flight.
 - (void)testALaterGapDoesNotInheritADrainedGapsDeadline {
     _coordinator.stragglerDeadline = 0.3;
     OpenRequestToken *first = [self beginAppending:NO tagged:@"first"];
@@ -222,13 +210,10 @@ static NSArray<NSURL *> *OpenFiles(NSUInteger count) {
     OpenRequestToken *only = [self beginAppending:NO tagged:@"only"];
     [_coordinator abandonStalledRequests];
     XCTAssertEqual(_deliveries.count, 0u);
-    // The request is untouched, so it still delivers when it finishes.
     [_coordinator finishRequest:only files:OpenFiles(1) folderCount:0];
     XCTAssertEqualObjects(_deliveries, (@[@"only:replace:1:0"]));
 }
 
-// An append arriving before any replacement is a genuine append, not a
-// silently rewritten replacement.
 - (void)testAFirstAppendIsNotRewrittenIntoAReplacement {
     OpenRequestToken *append = [self beginAppending:YES tagged:@"first"];
     [_coordinator finishRequest:append files:OpenFiles(1) folderCount:0];

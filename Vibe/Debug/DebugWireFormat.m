@@ -13,9 +13,8 @@ NSString *VibeDebugTmpPath(NSString *name) {
     return [NSTemporaryDirectory() stringByAppendingPathComponent:name];
 }
 
-// Per-command files, as on the response side. One fixed command path loses a
-// command when two clients write back to back, because the second write
-// replaces the first before the app reads it.
+// Per-command, like the response: one fixed command path loses a command when
+// two clients write back to back.
 NSString *VibeDebugCommandPath(NSString *commandId) {
     return VibeDebugTmpPath([NSString stringWithFormat:@"vibe-command-%@.json", commandId]);
 }
@@ -28,8 +27,7 @@ NSString *VibeDebugScreenshotPathForCommand(NSString *commandId) {
     return VibeDebugTmpPath([NSString stringWithFormat:@"vibe-screenshot-%@.png", commandId]);
 }
 
-// Every debug command replies with exactly one JSON object. An error is
-// {"error": "..."}, which the client maps to exit code 2.
+// Every reply is one JSON object; {"error": ...} maps to client exit code 2.
 NSString *VibeJSONString(NSDictionary *dict) {
     NSData *data = [NSJSONSerialization dataWithJSONObject:dict
                                                    options:NSJSONWritingPrettyPrinted | NSJSONWritingSortedKeys

@@ -43,9 +43,7 @@ static const CGFloat kDragHysteresis = 3;
 
     CGPoint dragPosition = [self convertPoint:[event locationInWindow] fromView:nil];
 
-    // Do not allow a drag near the buttons: the band where
-    // MainPlayerContentView lays the transport SymbolButtons over the bottom
-    // of the art.
+    // Not in the band under the transport buttons.
     if (dragPosition.y < kArtworkTransportExclusionHeight) {
         return;
     }
@@ -81,11 +79,9 @@ static const CGFloat kDragHysteresis = 3;
     // Read once here: the mode must not change under an in-flight drag.
     NSString *action = AppSettings.sharedInstance.artworkDragAction;
 
-    // What the drop receives, and the ghost's label under the art icon. Only
-    // the file payload is read by the receiver after the drop, so only it
-    // needs the security scope held open past this method. The path mode keeps
-    // the filename label: the full path would draw a ghost the width of the
-    // screen.
+    // Only the file payload is read after the drop, so only it holds the
+    // security scope open. The path mode keeps the filename label: a full path
+    // draws a screen-wide ghost.
     id<NSPasteboardWriting> writer = fileURL;
     NSString *labelText = fileURL.path.lastPathComponent;
     BOOL wantsSecurityScope = YES;
@@ -101,17 +97,14 @@ static const CGFloat kDragHysteresis = 3;
         labelText = self.trackDisplayName;
         wantsSecurityScope = NO;
     }
-    // A close or playback failure can clear the displayed file after
-    // mouseDown but before the first drag event. A nil pasteboard payload
-    // (or the label built from its path) raises inside AppKit.
+    // Close or a playback failure can clear the file after mouseDown, and a
+    // nil payload or label raises inside AppKit.
     if (!fileURL || !writer || labelText.length == 0) {
         return;
     }
 
-    // Record for the drag-end stop only when the start took. The stop must
-    // balance a successful start, since an unbalanced stop over-releases the
-    // sandbox extension. A NO here, meaning the URL is not security-scoped,
-    // still drags fine.
+    // Recorded only when the start took: an unbalanced stop over-releases the
+    // sandbox extension. NO (not security-scoped) still drags.
     if (wantsSecurityScope && [fileURL startAccessingSecurityScopedResource]) {
         _securityScopedURL = fileURL;
     }
@@ -127,8 +120,6 @@ static const CGFloat kDragHysteresis = 3;
         image.frame = imageRect;
         image.contents = self.image;
 
-        // Names what the drop will produce; positions itself below the icon in
-        // the item's space.
         NSDraggingImageComponent *label = [NSDraggingImageComponent labelWithString:labelText imageRect:imageRect];
 
         return @[image, label];
@@ -143,10 +134,8 @@ static const CGFloat kDragHysteresis = 3;
                                   event:event
                                  source:self];
 
-    // Note that the security-scoped access is deliberately *not* stopped here.
-    // The drag is async, and stopping now would revoke the URL before the
-    // receiving app had finished reading it. Access is released in
-    // draggingSession:endedAtPoint:operation: below.
+    // The scope stays open: the drag is async, and the receiver is still
+    // reading. draggingSession:endedAtPoint:operation: releases it.
 }
 
 - (NSDragOperation)draggingSession:(NSDraggingSession *)session sourceOperationMaskForDraggingContext:(NSDraggingContext)context {

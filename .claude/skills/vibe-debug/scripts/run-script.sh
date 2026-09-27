@@ -1,19 +1,18 @@
 #!/bin/bash
-# Run a vibe-debug command script, save its replies/screenshots, and check JSON.
+# Run a debug command script (`Vibe --debug-cmd script -`; stdin when no file),
+# saving its replies and screenshots.
 #
 # Usage: run-script.sh [--assert '<jq predicate>'] <output-dir> [script-file]
 #
-# Wraps `Vibe --debug-cmd script -`. Script replies are one JSON object per
-# line; dump_screenshot replies carry the PNG base64-encoded (the sandboxed
-# CLI client owns the app container, so only IT can read the snapshot file —
-# the inherited stdout fd is the sanctioned sandbox crossing). This wrapper
-# decodes each one to <output-dir>/shot-NN[-label].png in command order and
-# prints {"ok":true,"screenshot":"<path>"} in its place; every other reply
-# passes through. replies.jsonl saves that same stream, including on failure.
-# --assert runs AFTER all commands succeed, with the replies slurped as an
-# array. Every result must be true, and at least one result is required.
-# Exit: native script status; 1 for artifact errors; 2 for assertion failures;
-# 64 for usage. Use a fresh directory per run to keep its artifacts together.
+# Inside a script, dump_screenshot replies carry the PNG as base64: only the
+# sandboxed client can read the container, and stdout is the sanctioned
+# crossing. Each is decoded to <output-dir>/shot-NN[-label].png and replaced by
+# {"ok":true,"screenshot":"<path>"}; other replies pass through. The stream is
+# saved to replies.jsonl, also on failure. --assert runs only after every
+# command succeeds, over the replies slurped as an array; it needs at least one
+# result, all true.
+# Exit: the script's status; 1 artifact error; 2 assertion failed; 64 usage.
+# Use a fresh directory per run.
 set -uo pipefail
 
 ASSERTION=

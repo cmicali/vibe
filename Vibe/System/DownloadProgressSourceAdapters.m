@@ -10,8 +10,7 @@
 
 static const NSTimeInterval kPollIntervalSeconds = 0.25;
 
-// The provider's first-poll diagnostic. Read once because NSURL memoizes
-// resource values, so a per-tick read would keep answering the first value.
+// First poll only: NSURL memoizes resource values, so later reads repeat it.
 static NSString *VibeDownloadingStatus(NSURL *url) {
     id status = nil;
     [url getResourceValue:&status forKey:NSURLUbiquitousItemDownloadingStatusKey error:NULL];
@@ -81,8 +80,9 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
         }
 
         double fraction = MIN(1.0, (double)allocated / (double)logical);
-        // TRAP: clear SF_DATALESS alone is not proof of materialization. Some
-        // providers never set it, so allocated blocks must agree.
+        // TRAP: a clear SF_DATALESS is not proof: some providers never set it,
+        // which would read a transfer not yet begun as a motionless 100%.
+        // Allocated blocks must agree.
         BOOL materialized = !dataless && allocated >= logical;
         if (materialized) {
             fraction = 1.0;
@@ -210,9 +210,9 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
     }
     [query enableUpdates];
 
-    // TRAP: NSURLIsUbiquitousItemKey is not an iCloud test — every File
-    // Provider item answers YES, a Dropbox file included. Gathering is what
-    // proves that iCloud does not index this particular item.
+    // TRAP: NSURLIsUbiquitousItemKey is not an iCloud test: every File
+    // Provider item, Dropbox's included, answers YES. Only gathering proves
+    // iCloud does not index the item, so stop there.
     if (!matched && [note.name isEqualToString:NSMetadataQueryDidFinishGatheringNotification]) {
         LogInfo(@"Download progress: %@ is not an indexed iCloud item — poll only",
                 _path.lastPathComponent);
@@ -289,9 +289,7 @@ static void *kFileProviderFractionContext = &kFileProviderFractionContext;
     __weak DownloadFileProviderProgressSource *weakSelf = self;
     _subscriberToken = _subscriber(_url,
             ^NSProgressUnpublishingHandler(NSProgress *progress) {
-        // The publishing handler arrives on an arbitrary thread; _active and
-        // _publishedProgress are main-confined (cancel, isActive), so attach on
-        // main. The cancelled check moves inside the hop for the same reason.
+        // Arbitrary thread; the state is main-confined, so attach on main.
         run_on_main_thread({
             DownloadFileProviderProgressSource *source = weakSelf;
             if (!source || source->_cancelled) {

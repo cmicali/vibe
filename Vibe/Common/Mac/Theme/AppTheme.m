@@ -21,10 +21,7 @@ static const CGFloat kCornerRadiusMin = 0;
 NSString *const kVibeThemeRecordNameKey = @"name";
 NSString *const kVibeThemeRecordIdentifierKey = @"id";
 
-// The record field keys ARE the accessor names — the stored form under
-// Appearance.userThemes and the working record. A theme JSON carries the
-// same values nested under the editor's section names; ThemeJSONGroups()
-// is the whole mapping. Never renamed: they are persisted.
+// The record keys are the accessor names. Persisted: never renamed.
 static NSString *const kFieldWaveformStyle = @"waveformStyle";
 static NSString *const kFieldMode = @"mode";
 static NSString *const kFieldWaveformTheme = @"waveformTheme";
@@ -67,8 +64,6 @@ static NSString *const kFieldPlayButtonGlyph = @"playButtonGlyph";
 static NSString *const kFieldPauseButtonGlyph = @"pauseButtonGlyph";
 static NSString *const kFieldNextButtonGlyph = @"nextButtonGlyph";
 
-// The image fields' keys, exported: the editor's previews, the archive and
-// the sweep address a slot by these.
 NSString *const kVibeThemeImageDefaultArtworkDark  = @"defaultArtworkDark";
 NSString *const kVibeThemeImageDefaultArtworkLight = @"defaultArtworkLight";
 NSString *const kVibeThemeImageAppIcon = @"appIcon";
@@ -81,7 +76,6 @@ NSString *const kVibeThemeImagePauseButtonLight = @"pauseButtonImageLight";
 NSString *const kVibeThemeImageNextButtonDark = @"nextButtonImageDark";
 NSString *const kVibeThemeImageNextButtonLight = @"nextButtonImageLight";
 
-// The color pairs' base names; Dark/Light is appended per appearance.
 NSString *const kVibeThemeColorWaveformPlayed = @"waveformPlayedColor";
 NSString *const kVibeThemeColorWaveformUnplayed = @"waveformUnplayedColor";
 NSString *const kVibeThemeColorWindowTint = @"windowTintColor";
@@ -109,10 +103,7 @@ static NSString *PlaylistColorEnabledKey(NSString *base) {
     return [base stringByAppendingString:kEnabledSuffix];
 }
 
-// The transport buttons' pairs are keyed by the art under them, not the
-// appearance, so single mode — one color per APPEARANCE — leaves both sides
-// live; every other pair collapses to its dark slot. See
-// kVibeThemeColorPlaylistButton.
+// Keyed by the art under them, so single mode leaves both sides live.
 static BOOL VibeIsArtKeyedColorBase(NSString *base) {
     return [base isEqualToString:kVibeThemeColorPlaylistButton]
             || [base isEqualToString:kVibeThemeColorPlayButton]
@@ -147,13 +138,9 @@ static NSString *_Nullable TrimmedCappedString(id _Nullable raw) {
     return trimmed.length > 64 ? [trimmed substringToIndex:64] : trimmed;
 }
 
-// One row per field: the record key (the accessor name), its JSON home — the
-// editor section and the section-local key — the default, and the sanitizer
-// for its kind. Every other table here derives from the rows, so a field is
-// added in one place and cannot lack a JSON home or a clamp. The defaults are
-// today's hardcoded look, which is what keeps the empty record — the built-in
-// Vibe theme — pixel-identical to the app before themes existed; color pairs
-// default by absence.
+// One row per field: record key, JSON home (section and section-local key),
+// default and sanitizer. Every other table derives from the rows, so a field
+// cannot lack a JSON home or a clamp. Color pairs default by absence.
 typedef id _Nullable (^FieldSanitizer)(id _Nullable raw);
 
 static NSString *const kSpecKey = @"key";
@@ -165,10 +152,8 @@ static NSString *const kSpecInheritsBase = @"inheritsBase";
 static NSString *const kSpecArchiveEntry = @"archiveEntry";
 static NSString *const kSpecSanitize = @"sanitize";
 
-// The kinds — the one gate's rules. A raw value comes out normalized, clamped
-// and typed, or nil: dropped, so the default takes over. Bools are numbers
-// only, never strings; numbers must be finite; colors must round-trip as
-// hex; identifiers snap to their ladders.
+// The gate's kinds: a raw value comes out normalized and typed, or nil
+// (dropped, so the default takes over).
 static FieldSanitizer BoolField(void) {
     return ^id(id raw) {
         return [raw isKindOfClass:NSNumber.class] ? @([raw boolValue]) : nil;
@@ -207,11 +192,6 @@ static BOOL VibeMatchesShape(NSString *_Nullable value, NSRegularExpression *sha
                                                          range:NSMakeRange(0, value.length)] == 1;
 }
 
-// The two shapes an image reference takes. custom: names a container file by
-// its content hash — which is what makes imageForReference:'s lifetime cache
-// safe: a changed image is a new key. bundled: names an image shipped beside
-// the built-in theme JSONs in Resources/Themes/, immutable for a build, so
-// the same cache holds it. "" is the slot's factory image.
 static BOOL VibeIsValidImageReference(NSString *_Nullable value) {
     static NSRegularExpression *shape;
     static dispatch_once_t once;
@@ -230,10 +210,7 @@ static FieldSanitizer ImageField(void) {
     };
 }
 
-// An SF Symbol name's shape — lowercase letters, digits and dots — and
-// nothing about whether this macOS has the symbol: the draw site falls back
-// to the factory glyph for a name it cannot resolve, the way an uninstalled
-// font face resolves, so a JSON may name any symbol.
+// Shape only: the draw site falls back for a symbol this macOS lacks.
 static FieldSanitizer SymbolNameField(void) {
     return ^id(id raw) {
         static NSRegularExpression *shape;
@@ -256,9 +233,8 @@ static NSMutableDictionary *Field(NSString *key, NSString *group, NSString *json
     return spec;
 }
 
-// An image field: "" by default, and the slot-named archive entry its bytes
-// travel as (AppTheme+Archive). The JSON key is the record key — every image
-// field sits under the group its surface belongs to with no scope to drop.
+// An image field's JSON key is its record key; archiveEntry is the slot name
+// its bytes travel as (AppTheme+Archive).
 static NSMutableDictionary *ImageFieldSpec(NSString *key, NSString *group, NSString *archiveEntry) {
     NSMutableDictionary *spec = Field(key, group, key, @"", ImageField());
     spec[kSpecArchiveEntry] = archiveEntry;
@@ -276,9 +252,8 @@ static void AddColorPair(NSMutableArray *rows, NSString *base, NSString *group, 
     }
 }
 
-// A playlist column's switch, then its pair: playlist.numberColorEnabled
-// beside playlist.numberColorDark/Light. The label pair the column draws
-// while the switch is off, or a side is unset, rides the pair's rows.
+// A playlist column's switch, then its pair, whose rows carry the label pair
+// it inherits.
 static void AddSwitchedColorPair(NSMutableArray *rows, NSString *base, NSString *group,
                                  NSString *jsonBase, NSString *inheritsBase) {
     [rows addObject:Field(PlaylistColorEnabledKey(base), group,
@@ -307,12 +282,9 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
         [rows addObject:Field(kFieldWindowTint, window, @"tint", SETTINGS_VALUE_WINDOW_TINT_ARTWORK,
                               LadderField(VibeNormalizedWindowTint))];
         AddColorPair(rows, kVibeThemeColorWindowTint, window, @"tintColor");
-        // Whole points: the editor's px readout is integral, so a stored
-        // fraction would draw a radius no surface can display. Rounding in
-        // the gate heals imports and pre-round stored records alike; the
-        // slider merely re-syncs to what landed. The switch's row follows
-        // the radius's: its off is kept only beside a stored radius
-        // (storeSanitized:), so a record's radius must land first.
+        // Whole points, matching the editor's integral readout. The switch's
+        // row must follow: its off is kept only beside a stored radius
+        // (storeSanitized:).
         [rows addObject:Field(kFieldWindowCornerRadius, window, @"cornerRadius",
                               @(kVibeThemeCornerRadiusDefault),
                               NumberField(kCornerRadiusMin, kVibeThemeCornerRadiusMax, YES))];
@@ -322,8 +294,7 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
                               LadderField(VibeNormalizedDockIcon))];
         [rows addObject:Field(kFieldAppIconShape, window, @"appIconShape", @YES, BoolField())];
 
-        // The placeholder pair's entry names predate the other image fields
-        // and are what every exported archive already carries.
+        // front/back rather than dark/light: exported archives carry these.
         [rows addObject:ImageFieldSpec(kVibeThemeImageDefaultArtworkDark, player, @"artwork_default_front")];
         [rows addObject:ImageFieldSpec(kVibeThemeImageDefaultArtworkLight, player, @"artwork_default_back")];
         [rows addObject:Field(kFieldPlaylistButtonGlyph, player, @"playlistButtonGlyph",
@@ -348,14 +319,13 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
         [rows addObject:Field(kFieldShowTransportButtons, player, @"showTransportButtons", @YES, BoolField())];
         [rows addObject:Field(kFieldButtonGradient, player, @"buttonGradient",
                 SETTINGS_VALUE_BUTTON_GRADIENT_ALWAYS, ^id(id raw) {
-            // The field was a switch before the hover and artwork choices;
-            // a stored or exported BOOL keeps the look it had.
+            // A legacy BOOL from when the field was a switch.
             if ([raw isKindOfClass:NSNumber.class]) {
                 return [raw boolValue] ? SETTINGS_VALUE_BUTTON_GRADIENT_ALWAYS : SETTINGS_VALUE_BUTTON_GRADIENT_NONE;
             }
             return LadderField(VibeNormalizedButtonGradient)(raw);
         })];
-        // The font clamps are narrow on purpose: the labels sit in fixed frames.
+        // Narrow font clamps: the labels sit in fixed frames.
         [rows addObject:Field(kFieldTitleFontFace, player, @"titleFontFace", @"", TextField())];
         [rows addObject:Field(kFieldTitleFontSize, player, @"titleFontSize",
                               @(kVibeThemeTitleFontBaseSize), NumberField(20, 26, NO))];
@@ -452,9 +422,6 @@ static NSArray<NSString *> *KnownFieldKeys(void) {
     return [FieldSpecs() valueForKey:kSpecKey];
 }
 
-// The image fields in the table's order, and their archive entry stems by
-// key — both derived, so a field cannot name a file without an entry to
-// travel as.
 static NSArray<NSString *> *ImageFieldKeys(void) {
     static NSArray<NSString *> *keys;
     static dispatch_once_t once;
@@ -475,9 +442,8 @@ static id _Nullable SanitizedFieldValue(NSString *key, id _Nullable raw) {
     return sanitize ? sanitize(raw) : nil;
 }
 
-// base → [darkKey, lightKey], built once: every color read — each row draw,
-// each corner-line recomposition — goes through a key, and none should
-// allocate one.
+// base → [darkKey, lightKey], built once so a per-draw color read allocates
+// no key.
 static NSDictionary<NSString *, NSArray<NSString *> *> *ColorFieldKeysByBase(void) {
     static NSDictionary<NSString *, NSArray<NSString *> *> *keys;
     static dispatch_once_t once;
@@ -498,9 +464,7 @@ static NSString *ColorFieldKey(NSString *base, BOOL isDark) {
     return ColorFieldKeysByBase()[base][isDark ? 0 : 1];
 }
 
-// The playlist columns' pairs mapped to the label pair each inherits, from
-// the rows; nil for every other base, which is how the fallback code tells
-// a column apart.
+// Column pair → the label pair it inherits; nil for every other base.
 static NSDictionary<NSString *, NSString *> *PlaylistColorFallbackBases(void) {
     static NSDictionary<NSString *, NSString *> *bases;
     static dispatch_once_t once;
@@ -517,16 +481,11 @@ static NSDictionary<NSString *, NSString *> *PlaylistColorFallbackBases(void) {
 }
 
 @implementation AppTheme {
-    // Only sanitized values differing from the defaults — the sparse record.
     NSMutableDictionary<NSString *, id> *_fields;
-    // Parsed colors keyed by their hex VALUE, so the cache can never go
-    // stale and needs no invalidation hook — an edited field is a new hex.
-    // Rows read their fills per draw; without this every draw re-parses.
+    // Keyed by hex VALUE, so it never goes stale. Rows read fills per draw.
     NSMutableDictionary<NSString *, VibeColor *> *_parsedColors;
 }
 
-// A per-appearance override pair over a semantic fallback, as one dynamic
-// color: a nil override resolves to the fallback in that appearance.
 static VibeColor *DynamicColor(VibeColor *dark, VibeColor *light, VibeColor *fallback) {
     if (!dark && !light) {
         return fallback;
@@ -536,9 +495,8 @@ static VibeColor *DynamicColor(VibeColor *dark, VibeColor *light, VibeColor *fal
     }];
 }
 
-// The fallback pinned to one side, for displayColorForBase:dark:: a dynamic
-// semantic color resolves under whatever appearance is current, which for an
-// editor well is the pane's, not the side's.
+// A dynamic color resolves under the current appearance, which for an editor
+// well is the pane's, not the side's.
 static VibeColor *ResolvedForDark(VibeColor *color, BOOL isDark) {
     __block NSColor *resolved = color;
     NSAppearance *appearance = [NSAppearance appearanceNamed:
@@ -549,11 +507,7 @@ static VibeColor *ResolvedForDark(VibeColor *color, BOOL isDark) {
     return resolved ?: color;
 }
 
-// The four label pairs' semantic fallbacks — title over labelColor, artist
-// and time over secondaryLabelColor, info over tertiaryLabelColor — spelled
-// once, so the resolved accessors and the editor's wells cannot disagree
-// about a slot's fallback. nil for every other pair, whose unset slot draws a
-// constant instead.
+// nil for a pair that is not a label pair.
 static NSColor *_Nullable SemanticFallbackForBase(NSString *base) {
     if ([base isEqualToString:kVibeThemeColorTitle]) {
         return NSColor.labelColor;
@@ -567,14 +521,8 @@ static NSColor *_Nullable SemanticFallbackForBase(NSString *base) {
     return nil;
 }
 
-// What an unset slot draws as, spelled once per pair. The solid covers are a
-// near-opaque neutral in each appearance's register; the custom washes
-// neutral grays in the middle of each appearance's clamp band, at the alpha
-// the artwork wash uses there — a starting point to pick a hue from; the row
-// fills white in dark and black in light at low opacity, a quiet lift over
-// the playlist frost independent of key state like the rest of the window
-// chrome; the custom waveform pair Mono's resting levels, the played hue the
-// appearance's own base.
+// What an unset slot draws as — the one home, so a surface, its editor well
+// and a popup's seed cannot disagree.
 static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
     NSColor *semantic = SemanticFallbackForBase(base);
     if (semantic) {
@@ -594,9 +542,7 @@ static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
             || [base isEqualToString:kVibeThemeColorPlaylistSelectedRow]) {
         return [(isDark ? NSColor.whiteColor : NSColor.blackColor) colorWithAlphaComponent:0.09];
     }
-    // The art-keyed pairs: the dark slot is the factory white over the
-    // darkened lower edge (0.55 is SymbolButton's resting strength), the
-    // light slot its black counterpart for a bright cover with the gradient off.
+    // 0.55 is SymbolButton's resting strength.
     if (VibeIsArtKeyedColorBase(base)) {
         return [NSColor colorWithWhite:isDark ? 1 : 0 alpha:0.55];
     }
@@ -619,8 +565,6 @@ static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
     return @[kVibeThemeImagePlaylistButtonDark, kVibeThemeImagePlaylistButtonLight];
 }
 
-// A play pick writes both of the pair — the pause glyph from the pair table
-// — so the two states never draw the same glyph.
 - (void)setGlyph:(NSString *)glyph forButtonImageKey:(NSString *)key {
     if ([key isEqualToString:kVibeThemeImagePlayButtonDark]) {
         self.playButtonGlyph = glyph;
@@ -650,8 +594,7 @@ static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
     if (color) {
         return color;
     }
-    // A playlist column's unset side shows what it draws: the label pair it
-    // inherits, itself an override or that pair's semantic fallback.
+    // A column's unset side shows the label pair it inherits.
     NSString *inherited = PlaylistColorFallbackBases()[base];
     return inherited ? [self displayColorForBase:inherited dark:isDark]
                      : DefaultColorForBase(base, isDark);
@@ -677,12 +620,8 @@ static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
 
 #pragma mark Built-ins
 
-// The built-ins ship as Resources/Themes/<identifier>.json — the filename
-// stem is the stable identifier, the name key the English display name, and
-// the fields go through the same recordFromJSONData: gate as an import, so a
-// bundled theme is held to the import's clamps. Adding a built-in is adding
-// a file; testBundledThemesAreValid is the gate a theme PR runs against.
-// Order: vibe pinned first, the rest alphabetical by identifier.
+// Resources/Themes/<identifier>.json through the import gate; vibe first,
+// the rest alphabetical.
 static NSArray<NSString *> *builtInOrder;
 static NSDictionary<NSString *, NSDictionary *> *builtInRecords;
 static NSDictionary<NSString *, NSString *> *builtInNames;
@@ -715,8 +654,8 @@ static void VibeLoadBuiltInThemes(void) {
             records[identifier] = record;
             names[identifier] = name;
         }
-        // vibe is the store's snap-back anchor (unknown ids, deleted-active
-        // themes) and must never dangle, whatever happened to the bundle.
+        // vibe is the store's snap-back anchor and must exist whatever the
+        // bundle holds.
         if (records[kVibeThemeIdentifierVibe]) {
             [order removeObject:kVibeThemeIdentifierVibe];
         } else {
@@ -759,14 +698,11 @@ static void VibeLoadBuiltInThemes(void) {
     return FieldSpecsByKey()[key][kSpecArchiveEntry];
 }
 
-// The container directory keeps its original name: it is where every
-// existing install's images already are.
+// Never renamed: every install's images are already there.
 static NSString *VibeCustomImageDirectory(void) {
 #if DEBUG
-    // A test seam: the host-less suite is unsandboxed, so without a redirect
-    // it would write into the developer's real ~/Library. make test always
-    // builds Debug; Release compiles the seam out with the rest of the debug
-    // surface.
+    // Test seam: the unsandboxed host-less suite would otherwise write into
+    // the real ~/Library.
     const char *override = getenv("VIBE_THEME_ART_DIR");
     if (override) {
         return [NSString stringWithUTF8String:override];
@@ -774,17 +710,12 @@ static NSString *VibeCustomImageDirectory(void) {
 #endif
     NSString *support = NSSearchPathForDirectoriesInDomains(
             NSApplicationSupportDirectory, NSUserDomainMask, YES).firstObject;
-    // Under the app's own identifier, the Application Support convention.
-    // Sandboxed that sits inside the container either way, but an unsandboxed
-    // run — the host-less suite — would otherwise drop a bare "ThemeArt"
-    // beside every other app's folder in the real ~/Library.
     return [[support stringByAppendingPathComponent:
             NSBundle.mainBundle.bundleIdentifier ?: @"Vibe"]
             stringByAppendingPathComponent:@"ThemeArt"];
 }
 
-// The file name after either prefix — the archive entry's base name, the
-// container file, the bundled resource — or nil for "" and anything else.
+// The file name after either prefix, or nil.
 static NSString *_Nullable VibeImageFileName(NSString *_Nullable reference) {
     for (NSString *prefix in @[@"custom:", @"bundled:"]) {
         if ([reference hasPrefix:prefix]) {
@@ -794,7 +725,6 @@ static NSString *_Nullable VibeImageFileName(NSString *_Nullable reference) {
     return nil;
 }
 
-// The container path a custom: reference names, or nil for any other value.
 static NSString *_Nullable VibeCustomImagePath(NSString *_Nullable reference) {
     if (![reference hasPrefix:@"custom:"]) {
         return nil;
@@ -802,10 +732,9 @@ static NSString *_Nullable VibeCustomImagePath(NSString *_Nullable reference) {
     return [VibeCustomImageDirectory() stringByAppendingPathComponent:VibeImageFileName(reference)];
 }
 
-// The Resources/Themes URL a bundled: reference names, or nil for any other
-// value and for a name THIS build ships no image for — which is what lets an
-// archive's own copy stand in. Callers pass a sanitized value: the shape gate
-// is what keeps a crafted name out of the bundle lookup.
+// nil also for a name THIS build does not ship, which lets an archive's copy
+// stand in. Callers pass a sanitized value: the shape gate keeps a crafted
+// name out of the bundle lookup.
 static NSURL *_Nullable VibeBundledImageURL(NSString *_Nullable reference) {
     if (![reference hasPrefix:@"bundled:"]) {
         return nil;
@@ -816,8 +745,7 @@ static NSURL *_Nullable VibeBundledImageURL(NSString *_Nullable reference) {
              withExtension:file.pathExtension subdirectory:@"Themes"];
 }
 
-// JPEG or PNG by magic, square by pixel counts, bounded in bytes and pixels.
-// Returns the extension, or nil with the failed expectation in outReason.
+// Returns the extension, or nil with the reason.
 static const NSInteger kImagePixelCap = 4096;
 static const NSInteger kImagePixelFloor = 64;
 
@@ -909,9 +837,8 @@ static NSString *VibeValidatedImageExtension(NSData *data, NSString **outReason)
     }
 }
 
-// The bytes a bundled: reference names in this build's Resources/Themes, or
-// a custom: one in the container; nil for "", a name nothing holds, and any
-// other value. The one read behind the image cache and the archive.
+// The one read behind the image cache and the archive; nil when nothing
+// holds the name.
 + (NSData *)dataForReference:(NSString *)reference {
     NSURL *bundled = VibeBundledImageURL(reference);
     if (bundled) {
@@ -937,44 +864,33 @@ static NSMutableDictionary<NSString *, NSImage *> *ImageCache(void) {
             return cached;
         }
     }
-    // The read and the bounded decode (Common/PlatformImage.h — 10-100ms) run
-    // OUTSIDE the lock, so a first decode never stalls every other consumer
-    // of the cache behind it. The draw sites are the header panel, the dock
-    // tile, the transport buttons and the editor's previews, and a 4096px
-    // original must never be materialized into a lifetime-cached full
-    // bitmap. The synchronous once-per-key cost on the calling thread is
-    // deliberate: the sites need an image to draw NOW, and the lifetime
-    // cache makes it a one-time price.
+    // Read and decode outside the lock, so a first decode stalls no other
+    // consumer. Synchronous on purpose: the caller needs an image now, once
+    // per key. Bounded to the mac's display-art size, so a 4096px original is
+    // never pinned full-size for the app's lifetime.
     NSData *data = [self dataForReference:key];
-    // The mac's display-art bound (Common/PlatformImage.h): the header
-    // draws at most ~525px, so the 1024px cross-platform bound would pin a
-    // bitmap 2.5x larger than anything on screen for the app's lifetime.
     NSImage *image = data ? VibeDecodedImageWithData(data, kVibeArchivedDisplayArtDimension) : nil;
     if (!image && key.length) {
-        // TRAP: the named image is gone, or will not decode — fall back, but
-        // never cache the fallback under ITS key. Container files are
-        // content-hash-named, so re-storing the same image later reuses the
-        // name that is now poisoned, and the theme would keep drawing the
-        // factory record until the next launch.
+        // TRAP: never cache the fallback under the missing image's key. Names
+        // are content hashes, so re-storing that image reuses the key and the
+        // theme would draw the factory record until relaunch.
         return [self imageForReference:@""];
     }
-    // The factory record image; the blank square is for the host-less
-    // test bundle, which carries no asset catalog.
+    // The blank square is for the host-less tests, which have no asset
+    // catalog.
     image = image ?: [NSImage imageNamed:@"record-bg"]
             ?: [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
     @synchronized (cache) {
-        // Double-checked: a concurrent first decode of the same key must not
-        // mint a second instance — consumers compare pointer identity to skip
+        // Double-checked: consumers compare pointer identity to skip
         // reinstalling an unchanged placeholder.
         NSImage *raced = cache[key];
         if (raced) {
             return raced;
         }
         if ([key hasPrefix:@"custom:"]) {
-            // A theme's live set is at most one custom image per image
-            // field; auditioned predecessors would otherwise stay pinned by
-            // their content-hash keys. A custom-referencing composite goes
-            // with the entries it wraps.
+            // A live theme needs at most one custom image per field; past
+            // that, drop them (and composites wrapping them) so auditioned
+            // images are not pinned forever.
             NSUInteger customs = 0;
             for (NSString *held in cache) {
                 customs += [held hasPrefix:@"custom:"] ? 1 : 0;
@@ -993,12 +909,8 @@ static NSMutableDictionary<NSString *, NSImage *> *ImageCache(void) {
     }
 }
 
-// The two sides as ONE image — the dynamic-color pattern for pixels: the
-// wrapper draws whichever side the current drawing appearance asks for, so
-// every consumer stays appearance-correct with no per-site dark flag. Cached,
-// because consumers compare pointer identity to skip reinstalling an
-// unchanged placeholder; same-valued sides skip the wrapper entirely, which
-// keeps a single-mode theme (and the factory look) a plain image.
+// Cached, because consumers compare pointer identity; identical sides skip
+// the wrapper, keeping single mode and the factory look a plain image.
 + (NSImage *)imageForDefaultArtworkDark:(NSString *)darkValue light:(NSString *)lightValue {
     NSImage *dark = [self imageForReference:darkValue];
     NSImage *light = [self imageForReference:lightValue];
@@ -1054,13 +966,7 @@ static NSMutableDictionary<NSString *, NSImage *> *ImageCache(void) {
 
 #pragma mark JSON
 
-// The theme JSON is nested: version, then name, then one object per editor
-// section — window, player, info, waveform, playlist, the editor's order —
-// with the section's scope dropped from each key, so windowCornerRadius
-// travels as window.cornerRadius and showPlaylistArtworkColumn as
-// playlist.showArtworkColumn. The flat field keys stay the stored record's
-// form; each field row names its JSON home, and both directions derive
-// from that.
+// group → {json key → field key}, the import side.
 static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *ThemeJSONGroups(void) {
     static NSDictionary *groups;
     static dispatch_once_t once;
@@ -1078,9 +984,7 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *ThemeJS
     return groups;
 }
 
-// The export's group order: the groups as the field rows first name them,
-// which is the editor's section order. Derived, so a group a new row opens
-// exports as surely as it imports.
+// The editor's section order, as the rows first name the groups.
 static NSArray<NSString *> *ThemeJSONGroupOrder(void) {
     return [NSOrderedSet orderedSetWithArray:[FieldSpecs() valueForKey:kSpecGroup]].array;
 }
@@ -1099,14 +1003,11 @@ static NSDictionary<NSString *, NSArray<NSString *> *> *ThemeJSONFieldLocations(
     return locations;
 }
 
-// Far above any real theme, low enough that a mispicked video file fails
-// before the parser sees it.
+// Far above any real theme; a mispicked video fails before the parser.
 static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 
-// The image fields as WRITTEN in a theme JSON — trimmed, not sanitized — so
-// a bare entry name an archive references survives here where the record's
-// gate has already dropped it. Empty and absent are omitted; a root or group
-// that is not an object reads as absent.
+// Trimmed, not sanitized, so a bare archive entry name survives where the
+// gate drops it.
 + (NSDictionary<NSString *, NSString *> *)rawImageReferencesInJSONData:(NSData *)json {
     NSDictionary *root = [NSJSONSerialization JSONObjectWithData:json options:0 error:NULL];
     NSMutableDictionary<NSString *, NSString *> *references = [NSMutableDictionary dictionary];
@@ -1146,9 +1047,7 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
     if (outName && [parsed[kVibeThemeRecordNameKey] isKindOfClass:NSString.class]) {
         *outName = parsed[kVibeThemeRecordNameKey];
     }
-    // The fields sit under their group objects. Anything else — an unknown
-    // group, a stray key inside one, a flat pre-group key — drops, the same
-    // tolerance as an unknown field.
+    // Anything outside a known group key drops, like an unknown field.
     NSMutableDictionary *flat = [NSMutableDictionary dictionary];
     NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *groups = ThemeJSONGroups();
     for (NSString *group in groups) {
@@ -1190,9 +1089,7 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
                 ?: (grouped[location[0]] = [NSMutableDictionary dictionary]);
         sub[location[1]] = fields[fieldKey];
     }
-    // Hand-assembled because NSJSONSerialization cannot order an object's
-    // keys, and the file should read version, name, then the sections in the
-    // editor's order. Each group still serializes through it.
+    // Hand-assembled: NSJSONSerialization cannot order top-level keys.
     NSMutableString *out = [NSMutableString stringWithString:@"{\n  \"version\" : 1"];
     NSData *nameData = [NSJSONSerialization dataWithJSONObject:(name ?: @"")
             options:NSJSONWritingFragmentsAllowed error:NULL];
@@ -1232,10 +1129,8 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
     for (NSString *key in KnownFieldKeys()) {
         [self storeSanitized:record[key] forKey:key];
     }
-    // The custom-radius switch postdates the radius: a record naming a
-    // radius with no word on the switch — a stored theme or an exported
-    // file from before it — chose that shape, so it reads as custom. Decided
-    // here, at the one place a record is read, so the setters stay plain.
+    // The switch postdates the radius: a record naming a radius but not the
+    // switch chose that shape, so it reads as custom.
     if (_fields[kFieldWindowCornerRadius]
             && !SanitizedFieldValue(kFieldCustomCornerRadius, record[kFieldCustomCornerRadius])) {
         _fields[kFieldCustomCornerRadius] = @YES;
@@ -1250,11 +1145,9 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
     return [_fields copy];
 }
 
-// Sanitize, then keep only a value that differs from the default — the
-// record stays sparse whatever a setter or file hands it. The one exception
-// is the custom-radius switch's off beside a stored radius: dropped as the
-// default, the bare radius left behind would read back as custom
-// (replaceWithRecord:), so off would not survive a reload or an export.
+// Keeps only a value differing from the default — except the custom-radius
+// switch's off beside a stored radius, which dropped would read back as
+// custom (replaceWithRecord:).
 - (void)storeSanitized:(id)raw forKey:(NSString *)key {
     id value = SanitizedFieldValue(key, raw);
     BOOL keep = [key isEqualToString:kFieldCustomCornerRadius]
@@ -1397,10 +1290,7 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 - (CGFloat)playlistDurationFontSize { return [self floatForKey:kFieldPlaylistDurationFontSize]; }
 - (void)setPlaylistDurationFontSize:(CGFloat)v { [self storeSanitized:@(v) forKey:kFieldPlaylistDurationFontSize]; }
 
-// Exhaustive, no default: a new slot unhandled here must fail the build, not
-// silently edit the title. None names no slot, so it yields no keys — it
-// must never read as the title, which is what an unset control tag or a
-// zero-filled ivar holds.
+// Exhaustive, no default: an unhandled new slot must fail the build.
 static void FontSlotKeys(VibeFontSlot slot, NSString **faceKey, NSString **sizeKey) {
     switch (slot) {
         case VibeFontSlotTitle:
@@ -1440,8 +1330,6 @@ static void FontSlotKeys(VibeFontSlot slot, NSString **faceKey, NSString **sizeK
     [self storeSanitized:@(size) forKey:sizeKey];
 }
 
-// The placeholder's light slot is the one image key single mode redirects,
-// the color pairs' rule; every other image field is one slot.
 - (NSString *)imageKeyForKey:(NSString *)key {
     if (self.isSingleMode && [key isEqualToString:kVibeThemeImageDefaultArtworkLight]) {
         return kVibeThemeImageDefaultArtworkDark;
@@ -1537,9 +1425,6 @@ static id RandomPick(NSArray *choices) {
     self.showPlaylistNumberColumn = RandomChance(75);
     self.showPlaylistArtworkColumn = RandomChance(75);
     self.showPlaylistDurationColumn = RandomChance(75);
-    // One face for the text, at the factory sizes; the small numeric slots
-    // go monospace half the time, the way the built-ins pair a text face
-    // with a numbers face.
     NSString *face = RandomPick(AppTheme.randomizableFontFaces);
     NSString *numbers = RandomChance(50) ? kRandomMonoFontFace : face;
     [self setFontFace:face size:kVibeThemeTitleFontBaseSize forSlot:VibeFontSlotTitle];
@@ -1549,9 +1434,8 @@ static id RandomPick(NSArray *choices) {
     [self setFontFace:numbers size:kVibeThemePlaylistDurationFontBaseSize forSlot:VibeFontSlotPlaylistDuration];
 }
 
-// One hue as a color for each side: a bright pastel over the dark
-// appearance, a deeper shade over light, so a roll reads on both. The hue
-// wraps, so a complement or a neighbor is plain addition.
+// A pastel for dark, a deeper shade for light. The hue wraps, so a
+// complement is plain addition.
 static NSColor *HueColor(CGFloat hue, BOOL dark, CGFloat alpha) {
     hue = fmod(hue + 1, 1);
     return dark ? [NSColor colorWithHue:hue saturation:0.55 brightness:0.95 alpha:alpha]
@@ -1562,10 +1446,8 @@ static NSColor *HueColor(CGFloat hue, BOOL dark, CGFloat alpha) {
     [self setHue:hue darkAlpha:alpha lightAlpha:alpha forBase:base];
 }
 
-// A hue on both sides of a pair — or on the one slot the pair has: under
-// single mode every appearance-keyed pair reads and writes its dark slot
-// from either side, and the window is pinned dark, so the light write would
-// land its deeper shade on top of the pastel the window then draws.
+// Under single mode both sides share the dark slot, and the light write would
+// overwrite the pastel the pinned-dark window draws.
 - (void)setHue:(CGFloat)hue darkAlpha:(CGFloat)darkAlpha lightAlpha:(CGFloat)lightAlpha
        forBase:(NSString *)base {
     [self setColor:HueColor(hue, YES, darkAlpha) forBase:base dark:YES];
@@ -1575,9 +1457,6 @@ static NSColor *HueColor(CGFloat hue, BOOL dark, CGFloat alpha) {
 }
 
 - (void)randomizeColors {
-    // A fresh palette every roll, over the defaults: every pair back to
-    // unset, every column switch off, and a custom choice an earlier roll
-    // switched on back to its plain one.
     for (NSDictionary *spec in FieldSpecs()) {
         if (spec[kSpecColorBase]) {
             [_fields removeObjectForKey:spec[kSpecKey]];
@@ -1650,6 +1529,8 @@ static NSColor *HueColor(CGFloat hue, BOOL dark, CGFloat alpha) {
 
 #pragma mark Color pairs
 
+// Single mode reads and writes the dark slot from either side; the light
+// halves stay dormant, so flipping back to dual restores them.
 - (NSString *)colorKeyForBase:(NSString *)base dark:(BOOL)isDark {
     return ColorFieldKey(base, (self.isSingleMode && !VibeIsArtKeyedColorBase(base)) ? YES : isDark);
 }
@@ -1665,10 +1546,7 @@ static NSColor *HueColor(CGFloat hue, BOOL dark, CGFloat alpha) {
         if (!_parsedColors) {
             _parsedColors = [NSMutableDictionary dictionary];
         } else if (_parsedColors.count > 64) {
-            // Value-keyed, so entries never go stale — but a color-well drag
-            // mints a new hex per tick, and without a bound the dead ones
-            // accumulate for the theme's lifetime. A reset re-parses at most
-            // the two dozen live fields.
+            // A color-well drag mints a new hex per tick.
             [_parsedColors removeAllObjects];
         }
         _parsedColors[hex] = color;
@@ -1676,11 +1554,6 @@ static NSColor *HueColor(CGFloat hue, BOOL dark, CGFloat alpha) {
     return color;
 }
 
-// Single mode has ONE color per field, used whatever the appearance is. The
-// dark-keyed half is its canonical slot: reads and writes from either side
-// land there, and the light-keyed halves lie dormant — preserved, so a theme
-// flipped to single and back to dual keeps its second palette. The
-// art-keyed pairs are the exception (VibeIsArtKeyedColorBase).
 - (BOOL)isSingleMode {
     return [self.mode isEqualToString:SETTINGS_VALUE_THEME_MODE_SINGLE];
 }

@@ -1,48 +1,29 @@
 #!/usr/bin/env python3
-"""Device-flap soak: does playback survive an output device disappearing?
+"""Device-flap soak: does playback survive the output device vanishing?
 
-The question this answers is a NAMED GUARANTEE, not something random driving can
-state: playback must survive the output device going away and coming back. It is
-the same reason cloud-scenarios.py exists separately from the fuzz profiles.
+Not a stress profile: flapping the system default moves audio for every app,
+so this is run deliberately, and it restores the default when it stops.
 
-WHY THIS IS NOT A STRESS PROFILE. `stress.py` deliberately excludes device
-changes along with the other OS-facing actions, and rightly: flapping the system
-default moves audio for EVERY app on the machine, and an unattended multi-hour
-soak has no business doing that. This driver is run deliberately, by someone who
-knows the machine's audio will move, and it restores the default when it stops.
+It hunts a silent stop seen once in 15 physical power-cycles: `stopped` at
+position 0, no resume, nothing logged. Neither a new AudioDeviceID nor the
+`could not read output channels` warning explains it, so it needs volume.
 
-WHAT IT IS HUNTING. A silent stop observed once in 15 physical device
-power-cycles: playback went to `stopped` at position 0, did not resume, and
-logged nothing at any level. Two mechanisms were proposed and both falsified —
-it is not a new AudioDeviceID (the device returned as a different id with
-playback intact) and it is not the `could not read output channels` warning
-(fired twice with no stop). Rare, silent, no error signature: it needs volume,
-not another hypothesis.
+A clean run clears Vibe's rebind path, not the hardware path: `vanish`
+destroys a software aggregate that returns in microseconds, while a real DAC
+waking from sleep takes seconds. Only physical power-cycling tests that.
 
-WHAT A CLEAN RUN PROVES, AND WHAT IT DOES NOT. `vanish` destroys a software
-aggregate, so the "device" returns in microseconds. A real DAC waking from sleep
-takes seconds to become usable, and that latency is exactly where the delay in
-#47 lives. A clean run here means Vibe's own rebind path survives; it cannot
-clear the hardware path. Physical power-cycling remains the only way to test
-that, and it cannot be automated.
-
-Oracles per flap: playback state, position advancing, check_consistency, the app
-alive. Plus dump_health against a baseline every --health-every flaps, and a
-quiesce at the end requiring every pending counter at zero.
+Oracles per flap: playing before and after with a moving position,
+check_consistency, the app alive; dump_health against a baseline every
+--health-every flaps; a final quiesce with every pending counter at zero.
 
 TRAP: JUDGE THE HEAP AT REST, NOT WHILE RUNNING. A running sample counts
-allocations in flight, so a flap soak reads as steady growth that is not growth:
-the first version of this driver sampled only the running heap and reported
-~5 KB/flap, which looked like a small leak. Sampling through quiesce instead
-showed the live heap FALLING from ~21 MB to ~9.7 MB and then sitting flat, and a
-control condition — same playback, same pacing, no flapping at all — grew at the
-same rate (+317 vs +469 bytes/iteration over the second half). There is no
-per-flap leak; there was a measurement that could not have found one. So the
-at-rest series every --rest-every flaps is the one to read, and the summary
-prints both precisely so the running series cannot be quoted on its own.
+allocations in flight: it read ~5 KB/flap of growth while the at-rest heap fell
+from ~21 MB to ~9.7 MB and stayed flat, and a no-flap control grew as fast.
+Read the --rest-every series; the summary prints both so the running one is
+never quoted alone.
 
-    device-flap.py --corpus ~/Music/big --flaps 200
-    device-flap.py --corpus ~/Music/big --flaps 500 --mode move --gone-ms 800
+    device-flap.py --corpus ~/Music/big --device <id> --flaps 200
+    device-flap.py --corpus ~/Music/big --device <id> --device-b <id> --mode move --gone-ms 800
 """
 
 import argparse
@@ -57,64 +38,44 @@ REPO = HERE.parents[3]
 HELPER_SRC = HERE / "device-flap.swift"
 DEFAULT_APP = REPO / "build/DerivedData/Build/Products/Debug/Vibe.app"
 
-# Metrics worth watching across a flap soak, as dotted paths into dump_health.
-# Each rebind rebinds the hosted output unit and rebuilds the source segment,
-# so a leak here would be a leak per device event — invisible in a run that
-# never flaps. footprintBytes is deliberately absent: it is the allocator's
-# high-water mark, wanders hundreds of MB in both directions at rest, and
-# mallocLiveBytes is the sensitive metric that actually means something.
+# Dotted paths into dump_health. footprintBytes is absent: it is the
+# allocator's high-water mark and wanders hundreds of MB at rest.
 HEALTH_KEYS = (
     "process.mallocLiveBytes",
     "process.fileDescriptors",
     "process.threads",
     "process.machPorts",
     "app.hostedUnits",
-    # Cumulative silence cycles from the hosted output unit: a zero baseline,
-    # so any dropout across the soak is reported.
+    # Cumulative, so their baseline is zero, which the growth check skips:
+    # these two are printed, not scored. Read them.
     "app.outputDropouts",
-    # Renders the pipeline refused because a stuck one was still inside when
-    # the next output unit's callback came: a rebind is exactly where two
-    # output units meet, and a zero baseline makes any refusal a finding.
     "app.renderRefusals",
     "ui.views",
     "ui.layers",
 )
-# A single sample over the limit means nothing: the opening decode peaks far
-# above resting and retiring voices swing widely as crossfade pairs drain. Baseline
-# is the element-wise minimum of the first three samples, and a metric is only
-# reported after this many consecutive breaches.
+# One sample over the limit means nothing (the opening decode peaks, and
+# retiring voices swing as crossfade pairs drain): the baseline is the minimum
+# of the first samples, and only consecutive breaches fail.
 BASELINE_SAMPLES = 3
 CONSECUTIVE_BREACHES = 3
 GROWTH_FACTOR = 3.0
 
 # TRAP: VANISH MODE DEGRADES coreaudiod, AND THE DAMAGE OUTLIVES THIS SCRIPT.
-# Each vanish publishes and destroys a system-wide aggregate. Around 400 of them
-# in an afternoon left the daemon unable to start IO on ANY device: a fresh Vibe
-# launch logged "node play threw (player did not see an IO cycle.); retrying"
-# and then "Could not start audio engine", and a standalone AVAudioEngine in an
-# unrelated process hung for 15s on the built-in speakers. Nothing was hogged,
-# no aggregates were stranded and no test process survived — the device layer
-# was clean and the daemon was not. It took `sudo killall coreaudiod` to clear,
-# which needs a password this script cannot supply.
+# Each vanish publishes and destroys a system-wide aggregate. ~400 in an
+# afternoon left the daemon unable to start IO on any device for any process
+# (the Vibe of the day logged "Could not start audio engine"; an unrelated
+# AVAudioEngine hung 15 s), with nothing hogged or stranded, until
+# `sudo killall coreaudiod`. The threshold moves and was never bisected: on
+# macOS 27, ~935 in batches of 250 with these pauses stayed healthy and ~990
+# wedged, AudioComponentInstanceNew hanging while property reads still
+# answered. Hence the opt-in cap and the pauses, and a health check between
+# batches must make an output unit, not read a property.
 #
-# So: a large run is opt-in, and a long one pauses to let the daemon breathe.
-# These numbers are judgement, not measurement — 400 broke it and 300 did not,
-# and nobody has bisected the threshold. It moves: on macOS 27 (Mac Studio,
-# 2026-09-25) ~935 aggregates in batches of 250 with these pauses left the
-# daemon healthy, and it wedged at ~990 — a fresh process could no longer make
-# an output unit (AudioComponentInstanceNew hung in HALC_ProxyObject::HasProperty)
-# while reading the default device still answered in 0.14 s. So a health check
-# between batches must make an output unit, not just read a property, and the
-# cap stays.
-#
-# TRAP: A LOCKED MAC CAN LOOK LIKE THIS DAMAGE. Overnight (macOS 27,
-# 2026-09-27), after the lock screen raised its password prompt, no process
-# got a render callback on any device, afplay included, while making,
-# starting and stopping a unit all succeeded; a coreaudiod restart changed
-# nothing, and waking and unlocking the screen brought it straight back.
-# Locked with the display dark earlier the same evening it still rendered, so
-# the trigger is not the lock alone. Only a render callback proves the output
-# works, which is why a start must reach a moving position below.
+# TRAP: A LOCKED MAC CAN LOOK LIKE THIS DAMAGE. With the lock screen's
+# password prompt up, no process got a render callback on any device while
+# units made, started and stopped cleanly; unlocking fixed it, a coreaudiod
+# restart did not. Only a render callback proves output, hence a start must
+# reach a moving position below.
 MAX_UNCAPPED_FLAPS = 250
 RECOVER_EVERY = 20.0      # seconds of quiet
 RECOVER_BATCH = 100       # ...every this many flaps
@@ -144,11 +105,8 @@ class App:
             return {}
 
     def wait_for_channel(self, seconds=45):
-        """The process existing is not the channel answering. launch.sh polls
-        for it, but a relaunch racing a dying instance can return before the new
-        one is listening — and then the first verb reads as an empty reply, which
-        looks exactly like the app refusing to play. An unattended run must not
-        die two seconds in for that."""
+        """A relaunch racing a dying instance can return before the new one
+        listens, and an empty first reply reads as a refusal to play."""
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
             if self.json("dump_state", timeout=10).get("player"):
@@ -171,13 +129,10 @@ class App:
         return s.get("state"), s.get("position")
 
     def reload(self, corpus):
-        """TRAP: quiesce empties the playlist, and play_index on an empty one is
-        a no-op. Without this reopen every flap after the first at-rest sample
-        ran against an idle player, and the silent-stop oracle — which needs
-        `playing` before the flap — passed them all vacuously. The launch
-        grant covers the folder, so the channel's open reaches it. Absolute:
-        the app's working directory is not the shell's, so a relative corpus
-        is "no file or directory" there."""
+        """TRAP: quiesce empties the playlist and play_index on an empty one is
+        a no-op, so without this reopen every later flap runs against an idle
+        player and the silent-stop oracle passes vacuously. Absolute, because
+        the app's working directory is not the shell's."""
         self.json("open", str(Path(corpus).resolve()))
         for _ in range(20):
             if (self.json("dump_state").get("playlist") or {}).get("count"):
@@ -218,8 +173,8 @@ def main():
     ap.add_argument("--app", type=Path, default=DEFAULT_APP)
     ap.add_argument("--flaps", type=int, default=200)
     ap.add_argument("--i-know-this-degrades-coreaudiod", action="store_true",
-                    help=f"permit more than {MAX_UNCAPPED_FLAPS} flaps in one "
-                         "run; see the trap on coreaudiod in the docstring")
+                    help=f"permit more than {MAX_UNCAPPED_FLAPS} vanish flaps in one "
+                         "run; see the coreaudiod TRAP in this script")
     ap.add_argument("--recover-every", type=int, default=RECOVER_EVERY,
                     help="pause this many seconds every --recover-batch flaps "
                          "to let coreaudiod settle; 0 disables")
@@ -231,7 +186,8 @@ def main():
     ap.add_argument("--device", type=int, required=True,
                     help="AudioDeviceID to wrap (vanish) or flap from (move)")
     ap.add_argument("--device-b", type=int, default=0, help="move mode only")
-    ap.add_argument("--gone-ms", type=float, default=1500)
+    ap.add_argument("--gone-ms", type=float, default=1500,
+                    help="how long the helper holds after the device vanishes or moves")
     ap.add_argument("--settle-ms", type=float, default=800,
                     help="wait after a flap before judging playback")
     ap.add_argument("--health-every", type=int, default=25)
@@ -266,8 +222,7 @@ def main():
     subprocess.run([str(launch.resolve()), str(args.corpus)],
                    capture_output=True, text=True,
                    # TRAP: without VIBE_APP, launch.sh starts the default Debug build and
-                   # --app reaches only the channel client, so a missing or stale default
-                   # build ran the whole soak against the wrong app.
+                   # --app reaches only the channel client: the soak tests the wrong app.
                    env={**__import__("os").environ, "VIBE_AUDIBLE": "silent",
                         "VIBE_APP": str(args.app.resolve())})
 
@@ -278,9 +233,7 @@ def main():
         sys.exit("app is running but its debug channel never answered — a "
                  "Release build, or a second instance holding the channel")
 
-    # Retry the start: the first play after launch can land while the metadata
-    # scan still has the file, and one empty reply is not a reason to abandon a
-    # run that was going to take an hour.
+    # One failed first play must not abandon an hour-long run.
     for attempt in range(3):
         app.json("play_index", "0")
         time.sleep(2.0)
@@ -324,9 +277,7 @@ def main():
             state, moved = app.playback()
             if state == "playing" and moved is not None and pos is not None and abs(moved - pos) < 0.05:
                 state = f"playing, stuck at {moved:.2f}s"
-        # The oracle. A track ending naturally also reads stopped, so require
-        # that the previous sample was NOT near the end of its track before
-        # calling it a silent stop.
+        # A natural track end also reads stopped.
         if before_state == "playing" and state != "playing":
             dur = app.json("dump_state").get("player", {}).get("duration") or 0
             natural = dur and before_pos and (dur - before_pos) < 3.0
@@ -334,7 +285,7 @@ def main():
                 stops.append((i, before_pos, state))
                 print(f"  flap {i}: *** SILENT STOP *** was playing at "
                       f"{before_pos:.1f}s, now {state}", flush=True)
-            app.reload(args.corpus)  # counted once here, not again as "not playing" at the next flap
+            app.reload(args.corpus)  # so the next flap does not count it again
 
         viol = app.json("check_consistency").get("violations") or []
         if viol:
@@ -374,9 +325,7 @@ def main():
             time.sleep(args.recover_every)
 
         if args.rest_every and i % args.rest_every == 0:
-            # Quiesce closes the file and unwinds pending work, so what remains
-            # is retained rather than in flight. It empties the playlist, hence
-            # the restart afterwards.
+            # After quiesce what remains is retained, not in flight.
             app.json("quiesce", timeout=40)
             rest = dig(app.json("dump_health"), "process.mallocLiveBytes")
             if rest:

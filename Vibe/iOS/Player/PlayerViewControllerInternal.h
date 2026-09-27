@@ -2,31 +2,19 @@
 //  PlayerViewControllerInternal.h
 //  Vibe (iOS)
 //
-//  The private surface shared between PlayerViewController.m and its
-//  categories: the class extension holding the pager and its bookkeeping, the
-//  chrome bindings, the state flags a category touches, and the internal
-//  methods the categories call. Do not use it outside the PlayerViewController
-//  implementation files; everything else goes through PlayerViewController.h.
-//
-//  Everything the screen DESCRIBES rather than draws — the engine, the
-//  playlist, the caches, the session, the display state — belongs to
-//  PlaybackController, which this reads through `_playback`.
-//
-//  The debug command channel is deliberately NOT here: its extra surface stays
-//  in Debug/iOS/PlayerViewController+Debug.h, so that no production file
-//  carries a declaration for a tool that does not ship.
-//
-//  This header is the cost of the split, so it is the thing to watch: a
-//  category that would push more state into it than it takes out of
+//  The private surface shared by PlayerViewController.m and its categories;
+//  no other file imports it. The debug surface is
+//  Debug/iOS/PlayerViewController+Debug.h. This header is the cost of the
+//  split: a category that pushes more state in here than it takes out of
 //  PlayerViewController.m is not worth making.
 //
 
 #import "PlayerViewController.h"
-#import "FXPadView.h"               // FXPadViewDelegate, adopted below
-#import "OutputRouteView.h"         // OutputRouteViewDelegate, adopted below
-#import "PlaybackController.h"      // PlaybackObserver, adopted below
-#import "PlayerDisplaySettings.h"   // the two display preferences, read below
-#import "PlayerScreenRules.h"       // VibePlayerScreenState, read below
+#import "FXPadView.h"
+#import "OutputRouteView.h"
+#import "PlaybackController.h"
+#import "PlayerDisplaySettings.h"
+#import "PlayerScreenRules.h"
 #import "Playlist.h"
 
 @class AudioTrack;
@@ -39,132 +27,87 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The right time label's text in whichever mode PlayerDisplaySettings holds.
-// Every render path — the tick, a page at rest, a scrub — goes through this,
-// so the three cannot disagree.
+// Every render path of the right time label goes through this.
 NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
 
-// These two conformances stay on the class because PlayerViewController.m
-// implements them. Every other one is declared on the category that implements
-// it, so the compiler checks each against the file that holds it.
+// Every other conformance is declared on the category that implements it.
 @interface PlayerViewController () <FXPadViewDelegate, OutputRouteViewDelegate,
         PlaybackObserver, UIGestureRecognizerDelegate> {
     PlaybackController      *_playback;
-    // Borrowed from _playback, which owns the one instance for the process.
-    // Held by name because the pager reads it on every data-source callback.
+    // _playback's, held because every data-source callback reads it.
     Playlist                *_playlist;
 
-    // The track pager, Photos-style: one full-screen cell per track (blurred
-    // art + header), interactively draggable to the neighbors. The chrome —
-    // waveform, transport, time, bottom bar — overlays it and never scrolls.
-    // The screen is forced dark so text and the waveform read over any art.
     UICollectionView        *_pagesView;
     UICollectionViewFlowLayout *_pagesLayout;
-    // A size transition (rotation, iPad window resize) is animating: the
-    // pager's offset is not page-aligned at the new width, so commits hold.
+    // Mid-resize the offset is not page-aligned, so commits hold.
     BOOL                    _windowResizeInFlight;
-    // A page swipe is in flight (dragging or decelerating). It holds the
-    // waveform machinery still for the duration — see the scroll hold in
-    // PlayerViewController+Pager.m — and gates the playhead's display link.
+    // Dragging or decelerating; takes the frame-budget hold (+Pager).
     BOOL                    _pagerScrolling;
-    // A visible programmatic page animation takes the same frame-budget hold.
-    // Minimized page moves snap and never set it.
+    // A visible programmatic page animation; minimized moves snap and never
+    // set it.
     BOOL                    _pagerProgrammaticScrolling;
-    // Tags each take of that hold, so the bounded release armed with it cannot
-    // lift a later one. See holdForProgrammaticPagerScrolling:.
+    // So a bounded release cannot lift a later take of the hold.
     uint64_t                _pagerProgrammaticScrollGeneration;
-    // The last root size the pager was laid out for; layout passes at an
-    // unchanged size skip the flow-layout invalidation.
     CGSize                  _lastLayoutSize;
 
-    // Every page cell carries its own waveform view; these are BINDINGS to
-    // the current page's views, rebound when the current cell appears or is
-    // recreated, so the live-update paths (and the debug channel) keep one
-    // stable name for "the playing track's waveform and time labels".
-    TrackPageCell           *_boundPage;        // the current page the chrome bindings point into
+    // BINDINGS to the current page's views, rebound when its cell appears or
+    // is recreated, so the live paths keep one stable name.
+    TrackPageCell           *_boundPage;
     WaveformScrubberView    *_waveformView;
     UILabel                 *_elapsedLabel;
     TrackPageTimeControl    *_remainingTimeControl;
-    UIView                  *_transportView;    // bound: the current page's transport row
-    OutputRouteView         *_routeView;        // bound: the current page's route indicator
-    TrackPageActionBarView  *_actionBar;        // bound: the current page's action bar
-    FXPadView               *_fxPadView;        // bound: the current page's FX pad
-    // Whichever view currently holds the pager still — a scrubber mid-scrub
-    // or mid-pinch, an FX pad under a finger — which is NOT always the bound
-    // page's: playback runs on through a hold, so a track ending mid-drag
-    // rebinds the chrome above while the finger is still down on the
-    // outgoing page. The release has to be honored from the view that took it.
+    UIView                  *_transportView;
+    OutputRouteView         *_routeView;
+    TrackPageActionBarView  *_actionBar;
+    FXPadView               *_fxPadView;
+    // The view holding the pager still — a scrubber mid-scrub or mid-pinch,
+    // an FX pad under a finger — NOT always the bound page's: a track ending
+    // mid-drag rebinds the chrome while the finger is down.
     __weak UIView           *_pagerHoldView;
 
-    // The waveform data and the pager's bookkeeping over it — the one load's
-    // target page, the per-page snapshots, the complete set — between the
-    // cache and the cells. Both are the pager's own, not the model's: nothing
-    // outside this screen draws a waveform.
+    // The pager's own, not the model's: nothing else draws a waveform.
     AudioWaveformCache      *_waveformCache;
     PageWaveformCoordinator *_waveformCoordinator;
 
-    // The pages whose full-size art is decoded and still held. The pager keeps
-    // art up to a byte budget and releases the furthest pages past it; this is
-    // the only record of what there is to release, since a page's art long
-    // outlives the fetch window that asked for it. Owned by +Pager.
+    // Pages whose full-size art is held, the only record of what there is to
+    // release: art outlives the window that asked for it. Owned by +Pager.
     NSMutableIndexSet       *_artHeldPages;
 
-    // Whether this exact scene is foreground-active. Core state, here because
-    // the debug channel's state dump reports it.
+    // Here because the debug state dump reports it.
     BOOL                    _sceneActive;
 
-    // The route indicator's system picker is up, which holds the playhead
-    // display link exactly as a sheet does.
-    //
-    // TRAP: AVKit does NOT reliably send the did-end edge — measured on the
-    // simulator, where there is no second route to offer, the begin edge
-    // arrives and the end edge never does. A stuck YES would freeze the
-    // waveform under correct time labels for the life of the process, which
-    // reads as a rendering bug rather than a stuck gate. The bounded deadline
-    // below is the release that does not depend on AVKit; the generation pairs
-    // each deadline with the presentation that armed it, so a later begin
-    // cannot be released by an earlier one's timer.
+    // The system route picker is up, which holds the playhead display link.
+    // TRAP: AVKit does NOT reliably send the end edge (on the simulator,
+    // never); stuck, the waveform freezes under correct labels for the life of
+    // the process. A generation-stamped deadline releases it, and the
+    // scene-active edge settles it sooner.
     BOOL                    _routePickerPresenting;
     uint64_t                _routePickerHoldGeneration;
 
-    // The whole second the time labels last rendered for a scrub. The scrub
-    // position arrives per frame of scroll and the labels show seconds, so
-    // this is what keeps a drag from formatting two strings at display rate.
-    // NSIntegerMin means "not scrubbing", so the first frame always renders.
+    // The second last rendered for a scrub, so a drag does not format at
+    // display rate. NSIntegerMin: not scrubbing.
     NSInteger               _scrubLabelSecond;
 
-    // The waveform zoom, shared by every page's scrubber — the pager carries
-    // one per cell, so a swipe would otherwise change it. This is the user's
-    // REQUEST (see WaveformScrubberView.visibleFraction), which is what gets
-    // persisted; each view applies its own geometry's floor to it.
+    // Shared by every page. The user's REQUEST, which is what persists; each
+    // view applies its own floor (WaveformScrubberView.visibleFraction).
     CGFloat                 _waveformZoom;
 }
 
 #pragma mark - The refresh funnel
 
-// Implemented in PlayerViewController.m, which carries their contracts.
-
-// The position tick: time labels and waveform progress.
 - (void)updatePlaybackUI;
-// The transport glyph's symbol and, through updateChrome, its visibility.
 - (void)updatePlayButton;
-// The transport row is up whenever there is something to play: only the empty
-// state hides it.
+// Only the empty state hides the transport, action bar and route control.
 - (CGFloat)chromeAlpha;
-// The display link runs only while playing in the active scene, and not while
-// the system route picker covers the card.
 - (void)updateScrollLinkState;
-// Redraws the route indicator from the model's current pair.
 - (void)updateOutputRoute;
-// The pager owns the header, art, and waveform; rendering the current track
-// means refreshing its page and rebinding the live chrome to it.
+// Refreshes the current page and rebinds the chrome to it.
 - (void)renderHeaderForTrack:(nullable AudioTrack *)track;
 
 #pragma mark - Resting time rendering
 
-// The at-rest time rendering shared by neighbor pages, a pending track start,
-// and a parked track the player has not opened: 0:00 elapsed, the full
-// duration once metadata knows it.
+// Neighbor pages, a pending start and a parked track: 0:00, and the duration
+// once metadata knows it.
 + (void)renderRestingTimesForTrack:(nullable AudioTrack *)track
                            elapsed:(UILabel *)elapsed
                          remaining:(TrackPageTimeControl *)remaining;
@@ -172,18 +115,13 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
 
 #pragma mark - Transport
 
-// The page transport's targets — the play glyph's is the screen tap's too.
-// All three forward to _playback, so every surface takes the one path.
 - (void)playPauseTapped;
 - (void)previousTapped;
 - (void)nextTapped;
 
-// The right time control flips total-vs-remaining and repaints every
-// visible page, since the mode is one setting rather than the tapped page's.
+// One setting for every page, so every visible page repaints.
 - (void)remainingTimeTapped;
 
-// The times on every visible page, in whichever mode is current. The bound
-// page is left to updatePlaybackUI, which is live.
 - (void)repaintTimesOnVisiblePages;
 
 @end

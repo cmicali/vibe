@@ -23,6 +23,4 @@
     return YES;
 }
 
-// Scene configuration comes from the Info.plist UIApplicationSceneManifest.
-
 @end

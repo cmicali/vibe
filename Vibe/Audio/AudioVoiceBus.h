@@ -26,9 +26,8 @@
 //    under the frame-driven test pump) reads the files and writes the rings.
 //    It is the only thing that touches an AudioFileHandle after startVoice.
 //  - The AUDIO THREAD runs VibeVoiceBusRender: plain memory and atomics, no
-//    lock, allocation, Objective-C or dispatch call — the compiler enforces
-//    that (-Wfunction-effects on the CA_REALTIME_API function). It never
-//    signals anyone; the queue polls.
+//    lock, allocation, Objective-C or dispatch call, enforced by the compiler.
+//    It never signals anyone; the queue polls.
 //
 //  A slot's state moves free → armed → live → dead → free. The queue does
 //  free→armed and armed→dead; the decoder does armed→live; ONLY the audio
@@ -100,8 +99,8 @@ static inline BOOL VibeChannelsMatch(AVAudioFormat *a, AVAudioFormat *b) {
             && (a.channelCount <= 2 || a.channelLayout == b.channelLayout || [a.channelLayout isEqual:b.channelLayout]);
 }
 
-// The same delivery: rate, sample format, and channels. What the bus reads a
-// file direct by, what the transport splices by, what the graph keeps a bus by.
+// The same delivery: rate, sample format, and channels. The one rule for
+// reading a file direct, splicing a successor and keeping a bus.
 static inline BOOL VibePCMFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
     return a.sampleRate == b.sampleRate && a.commonFormat == b.commonFormat && a.isInterleaved == b.isInterleaved
             && VibeChannelsMatch(a, b);
@@ -149,12 +148,9 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // Called on the queue when a voice goes live off the decode queue, so the
 // player can drain promptly rather than at its next poll.
 @property (nonatomic, copy, nullable) dispatch_block_t voiceWentLive;
-// The sample-rate converter's quality (a kAudioConverterQuality_* value) for
-// every converter made after the write; a stream already converting keeps
-// its converter, and so its quality, until its voice ends — a gapless
-// successor read through the same converter included.
-// kAudioConverterQuality_Max by default. Atomic: the player writes it on the
-// queue, and a successor's converter is made on the decode queue.
+// A kAudioConverterQuality_* value for every converter made after the write;
+// a stream already converting keeps its quality until its voice ends.
+// kAudioConverterQuality_Max by default. Atomic: read on the decode queue.
 @property (atomic) UInt32 converterQuality;
 
 // Starts rendering `file` from `frame` (file frames) at `gain`, with `ramp`
@@ -182,10 +178,9 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // — the turn inside a read finishes on its own, however long a stalled mount
 // makes that, and none after it reads — so the files may then be handed to a
 // replacement bus; at once when decoding inline. Nothing is asked of the bus
-// after it. TRAP: never a synchronous join: a read on a stalled mount held
-// the player queue, and every transport command behind it, for its whole
-// stall, and a bounded join would have handed the file's cursor to a second
-// decoder while the first was still inside it.
+// after it. TRAP: never joined synchronously: a read on a stalled mount holds
+// the player queue for the whole stall, and a bounded join hands the file's
+// cursor to a second decoder while the first is still inside it.
 - (void)stopReadingThen:(dispatch_block_t)decoderLeft;
 
 // Every file a decoder of this bus may still be inside: each voice's, each
@@ -231,10 +226,10 @@ typedef struct VibeVoiceMix VibeVoiceMix;
                        failedFile:(AudioFileHandle * _Nullable * _Nullable)file;
 
 // How the voice's file reaches the bus, for the audio-path report: nil when
-// it is read direct, else the rates and widths either side (`fromSampleRate`,
-// `toSampleRate`, `fromChannels`, `toChannels`), whether it was mixed by
-// layout (`mixed`) and resampled (`resampled`), and for a resample the
-// converter's `algorithm` and `quality` as read back. Any thread; a pending or unknown voice is nil.
+// read direct, else `fromSampleRate`, `toSampleRate`, `fromChannels`,
+// `toChannels`, `mixed`, `resampled`, and for a resample the converter's
+// `algorithm` and `quality` as read back. Any thread; nil for a pending or
+// unknown voice.
 - (nullable NSDictionary<NSString *, id> *)conversionOfVoice:(VibeVoiceID)voice;
 
 // Slots that are not free, pending voices included. The drain-timer gate.

@@ -48,8 +48,8 @@
 }
 
 - (void)testPlaybackSettlementAndFallbackCanConsumeMetadataOnlyOnce {
-    // Both deliveries call the same production gate. Their order must not
-    // matter, and the pending flag is cleared before the caller starts I/O.
+    // Settlement and the fallback timer share this gate; whichever arrives
+    // first consumes it.
     BOOL pending = YES;
     XCTAssertTrue(VibePlaybackConsumePendingMetadataLoad(&pending, 7, 7));
     XCTAssertFalse(pending);

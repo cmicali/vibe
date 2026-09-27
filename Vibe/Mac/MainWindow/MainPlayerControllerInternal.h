@@ -2,16 +2,10 @@
 //  MainPlayerControllerInternal.h
 //  Vibe
 //
-//  The private surface shared between MainPlayerController.m and its
-//  categories: the class extension holding the outlets, the collaborator
-//  handles, the ivars a category touches, and the internal methods the
-//  categories call. Outside those files only the debug command channel
-//  imports it, to read the outlets and state its dumps describe; everything
-//  else goes through MainPlayerController.h.
-//
-//  The channel's own additions are deliberately NOT here: they stay in
-//  Debug/Mac/Introspection/MainPlayerController+Debug.h, so that no production
-//  file carries a declaration for a tool that does not ship.
+//  The private surface MainPlayerController.m and its categories share. Only
+//  the debug channel imports it from outside; the channel's own additions stay
+//  in Debug/Mac/Introspection/MainPlayerController+Debug.h, so no production
+//  file declares a tool that does not ship.
 //
 
 #import "MainPlayerController.h"
@@ -32,40 +26,25 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// These conformances stay on the class because MainPlayerController.m
-// implements them. Every other one is declared on the category that implements
-// it, so the compiler checks each against the file that holds it.
-//
-// Only the state a category also touches lives here; the rest stays private to
-// MainPlayerController.m.
+// The conformances MainPlayerController.m implements; every other one is
+// declared on the category that implements it.
 @interface MainPlayerController () <FileDropDelegate, PitchControlPanelDelegate, EqualizerLevelSource> {
-    // The occlusion-gated position-update timer. It drives updatePlaybackUI
-    // only while playback wants updates and the window is unoccluded, at the
-    // rate syncUITimerRate scales to the playhead's on-screen speed. +Window
-    // feeds it the visibility gate.
     UIUpdateTimer*              _uiTimer;
-    // Polls (and on macOS subscribes to) a materializing cloud file's
-    // download progress while the loading shimmer is up; nil otherwise. The
-    // player events start and cancel it.
+    // Live only while the loading shimmer is up.
     DownloadProgressMonitor*    _downloadMonitor;
-    // The underlying playback open this monitor observes. A same-row replay
-    // preserves it; a later open of the same URL does not. Main-confined.
+    // The open this monitor observes. A same-row replay keeps it; a later
+    // open of the same URL does not.
     uint64_t                     _downloadMonitorOpenRequestIdentifier;
-    // A duration cache from didStartPlaying:. The live player duration
-    // reads 0 while a track is Loading, and updatePlaybackUI runs in that gap.
-    // It is cleared when playback goes idle, on an error or at the end of the
-    // playlist.
+    // From didStartPlaying:: the live duration reads 0 while Loading. Zeroed
+    // on Close, a play error and the end-of-track park.
     NSTimeInterval              _currentTrackDuration;
-    // The last track whose playlist row was fully rebuilt, so that a refresh
-    // for the same track does not rebuild it. Written by every path that has
-    // already rendered the row itself; nil forces the next rebuild.
+    // The last track whose row was rebuilt; a same-track refresh skips the
+    // rebuild. Written by every path that already rendered the row.
     __weak AudioTrack*          _lastReloadedTrack;
     PitchControlPanel*          _pitchPanel;
     ArtworkDisplayController*   _artworkController;
 }
 
-// The public collaborators' single assignment point is init's construction
-// path; they are readonly in MainPlayerController.h.
 @property (readwrite, strong) OutputDevicesMenuController *devicesMenuController;
 @property (readwrite, strong) AudioPlayer *audioPlayer;
 @property (readwrite, strong) PlaylistController *playlistController;
@@ -73,13 +52,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readwrite, strong) AudioWaveformCache *waveformCache;
 @property (readwrite, strong) AudioFileConverter *fileConverter;
 
-// The system Now Playing bridge. The publish and command-routing code lives in
-// MainPlayerController+NowPlaying.
 @property (strong) NowPlayingController *nowPlayingController;
-
-// The header and waveform rendering surface: the labels, times, codec and BPM
-// corner, and waveform states. This controller resolves the TrackDisplayState
-// and hands it what to draw.
 @property (strong) TrackDisplayController *trackDisplay;
 
 @property (weak) SymbolButton *nextButton;
@@ -87,47 +60,37 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (weak) PlaylistTableView *playlistTableView;
 @property (weak) MainPlayerContentView *playerContentView;
-// The full-window glass backdrop and the themed solid-background cover over
-// it, kept so applyWindowChrome can re-shape and re-color them live.
+// Kept so applyWindowChrome can re-shape and re-color them live.
 @property (weak) NSView *windowBackdropView;
 @property (weak) NSView *windowBackgroundOverlayView;
-// Kept alongside trackDisplay's rendering role. The controller wires the
-// view's delegate, style and appearance, the Menus category included, while
-// the per-track rendering states go through trackDisplay.
+// Per-track rendering goes through trackDisplay; this is for wiring.
 @property (weak) AudioWaveformView *waveformView;
 
-// The undo/redo settled hook MainPlayerController+Convert fires. The debug
-// channel is its only setter; in a shipping build it costs one always-nil
-// block pointer, which is what keeps an `#if DEBUG` out of a shipping header.
+// The debug channel is its only setter. An always-nil block pointer keeps
+// `#if DEBUG` out of this header.
 @property (copy, nullable) void (^conversionUndoRedoSettledHandler)(
         BOOL committed, NSString *_Nullable reason);
 
-// The convert swap's resume hint: the swapped-in track and the file-time
-// playhead its replay resumes at, so the Now Playing publish in the swap's
-// Loading gap carries the resume position instead of rewinding to 0. +Convert
-// writes it at the swap, +NowPlaying reads it gated on the track identity, and
-// didStartPlaying: clears it. Weak, like the other track marks, so a replaced
-// playlist dissolves the hint.
+// The convert swap's resume hint, so Now Playing in the swap's Loading gap
+// shows the resume position rather than 0. Written at the swap, read gated on
+// track identity, cleared by the per-track refresh. Weak, so a replaced
+// playlist dissolves it.
 @property (weak, nullable) AudioTrack *convertSwapResumeTrack;
 @property NSTimeInterval convertSwapResumePosition;
 
 #pragma mark - The refresh funnel
 
-// Implemented in MainPlayerController.m, which carries their contracts.
-
 // The whole-header refresh every state change funnels through.
 - (void)updateUI;
 // The position tick, and the refresh after a seek or a rate change.
 - (void)updatePlaybackUI;
-// Only the rate-dependent labels; far cheaper than updateUI, for fader ticks.
+// Only the rate-dependent labels, cheap enough for fader ticks.
 - (void)updateRateDependentUI;
 // Every effective-tempo and key change funnels through here.
 - (void)effectiveTempoDidChange;
-// The display state the header should render, resolved in one place, and the
-// track it should describe — nil while the empty or error state is up. A
-// caller rendering state and track TOGETHER must take one currentTrack
-// snapshot and use the ForTrack:/ForState: pair, so the two cannot describe
-// different instants; the no-argument forms are for lone reads.
+// The header's display state and the track it describes (nil while empty or
+// in error). Rendering both together takes one currentTrack read through the
+// ForTrack:/ForState: pair; the no-argument forms are for lone reads.
 - (TrackDisplayState)displayState;
 - (TrackDisplayState)displayStateForTrack:(nullable AudioTrack *)track;
 - (nullable AudioTrack *)displayedTrack;
@@ -136,8 +99,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - Settings live effects
 
-// Settings-effect implementations kept internal to MainPlayerController.
-// Pitch range and timer rate also have non-setting callers.
 - (void)applyPitchRange;
 - (void)applyEndOfTrackAction;
 - (void)applyReopenLastPlaylist;
@@ -158,37 +119,30 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - The download monitor
 
-// The one place the monitor and its open-request identifier reset; implemented
-// in MainPlayerController.m, which carries why the pair is inseparable.
+// The one reset of the monitor and its open-request identifier together.
 - (void)teardownDownloadMonitor;
 
 #pragma mark - The successor prefetch
 
-// The track every prefetch site parks, so that auto-advance and Next skip the
-// file open: the playlist's next track, or nil past its end. It is also the
-// ONE place Settings > Playback > On track end is enforced, because the parked
-// handle is the player's gapless arm point — under Pause it reads nil, so
-// nothing can splice at the boundary and a track end can only reach
-// didFinishPlaying:, which then parks instead of advancing.
+// The track every prefetch site parks: the next track, or nil past the end or
+// under On track end = Pause. The audio half of that setting: with nothing
+// parked nothing splices, and didFinishPlaying: re-reads it to park.
 - (nullable AudioTrack *)successorPrefetchTrack;
 
 #pragma mark - Saving the playlist
 
-// The whole playlist, in list order, as extended M3U at url, then noted in
-// Open Recent so it reopens with one click. Shared by savePlaylist: and the
-// save_playlist debug verb; the playlist is snapshotted here, at the write.
+// Extended M3U, noted in Open Recent; the playlist is snapshotted at the
+// write. Shared with the save_playlist debug verb.
 - (BOOL)writePlaylistToURL:(NSURL *)url error:(NSError **)error;
 
 #pragma mark - Deferred metadata load and the error mask
 
 - (void)startPendingMetadataLoad;
-// The only writers of the error-mask ivar pair, which stays private to
-// MainPlayerController.m.
+// The only writers of the error mask.
 - (void)setErrorMaskForTrack:(nullable AudioTrack *)track status:(nullable NSString *)status;
 - (void)clearErrorMask;
 
-// The right time label's click action, wired to a gesture recognizer by
-// +Window's content build.
+// The right time label's click.
 - (IBAction)toggleTimeDisplayMode:(nullable id)sender;
 
 @end

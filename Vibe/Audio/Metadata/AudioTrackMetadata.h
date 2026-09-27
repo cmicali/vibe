@@ -19,10 +19,8 @@ FOUNDATION_EXPORT NSNotificationName const AudioTrackMetadataThumbnailDidLoadNot
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
 
-// All nullable. A failed parse populates only the filename-derived title, a
-// tagless file carries no artist, audioProperties can be absent, leaving no
-// bitrate or sample rate, and a validated cache decode can hand back nil for
-// any field, since initWithCoder: treats them all as optional.
+// All nullable: a failed parse sets only the filename-derived title, and any
+// field can be absent from the file or the cache entry.
 @property (copy, nullable, readonly) NSString *title;
 @property (copy, nullable, readonly) NSString *artist;
 @property (copy, nullable, readonly) VibeAudioFileFormat fileType;
@@ -30,74 +28,48 @@ FOUNDATION_EXPORT NSNotificationName const AudioTrackMetadataThumbnailDidLoadNot
 @property (copy, nullable, readonly) NSNumber *sampleRate;
 @property (assign, readonly) NSTimeInterval duration;
 
-// The producer-tagged tempo, from ID3 TBPM, MP4 tmpo or Vorbis and FLAC BPM,
-// and 0 when the file carries none. A tagged value beats the decode-pass
-// analysis in AudioTrack.detectedBPM, because DJs curate their tags.
+// The tagged tempo (ID3 TBPM, MP4 tmpo, Vorbis/FLAC BPM); 0 when untagged.
 @property (assign, readonly) float bpm;
 
-// The producer-tagged musical key, parsed from ID3 TKEY, Vorbis and FLAC
-// INITIALKEY, or the MP4 initialkey freeform atom, in any of the notations
-// VibeMusicalKeyFromString reads. VibeMusicalKeyNone (-1) when the file
-// carries none or the tag is unparseable — the ivar default of 0 would read
-// as C major, so every init path must set it. A tagged value beats the
-// decode-pass analysis in AudioTrack.detectedKey, like bpm.
+// The tagged key (ID3 TKEY, Vorbis/FLAC INITIALKEY, the MP4 initialkey atom).
+// VibeMusicalKeyNone when untagged or unparseable; every init path must set
+// it, since the zero default is C major.
 @property (assign, readonly) VibeMusicalKey key;
 
-// YES only when TagLib actually opened the file and read its tag. NO means the
-// parse failed, on a dataless cloud placeholder or a transient I/O error, and
-// only the filename-derived title is populated. Such an instance must never be
-// persisted to the cache, or the empty entry shadows the real tags until the
-// cache key changes.
+// YES only when TagLib opened the file. A NO instance carries only the
+// filename title and must never be cached, or it shadows the real tags until
+// the cache key changes.
 @property (readonly) BOOL parsedOK;
 
-// Non-blocking: it returns the art only if it has already been decoded, and
-// never does decode work, since a full-resolution ImageIO decode is a 10-100ms
-// hitch on the main thread.
+// Non-blocking: already-decoded art or nil, never a decode.
 - (nullable VibeImage *)cachedArt;
 
-// YES when producing full-resolution art still needs background work: a file
-// read, which may block, or a decode of in-memory art bytes.
+// YES when full art still needs background work (a read or a decode).
 - (BOOL)artNeedsLoad;
 
-// Demotes a track no longer displayed at full resolution. It drops both the
-// decoded full-size image and the source bytes, keeps compact thumbnail bytes,
-// and re-arms the on-demand load so the art returns if the track becomes current
-// again. Without it, every track played in a session pins about 4MB of decoded
-// art for the playlist's lifetime. It also cancels parked work and detaches an
-// active materialization waiter. Main thread only.
+// For a track no longer shown at full size: drops the decoded image and the
+// source bytes, keeps the thumbnail bytes, cancels parked work and re-arms the
+// load. Without it every played track pins its decoded art. Main thread only.
 - (void)discardDecodedArt;
 
-// Whether this metadata object's one asynchronous full-art request is admitted.
-// Main-thread callers use it to distinguish unresolved work from artlessness.
+// Tells unresolved work from artlessness. Main thread.
 @property (nonatomic, readonly, getter=isArtLoadPending) BOOL artLoadPending;
 
-// Admits one bounded asynchronous full-art load when needed. The source file
-// first joins central metadata-priority materialization; blocking reads and
-// decodes run off main. stillWanted is checked on main at each cancellation
-// edge, and completion runs on main only for a current, still-wanted request.
+// Admits one bounded full-art load when needed. stillWanted is checked on main
+// at each cancellation edge; completion runs on main only for a current,
+// still-wanted request.
 - (void)loadArtIfNeededStillWanted:(BOOL (^)(void))stillWanted
                         completion:(void (^)(VibeImage *_Nullable art))completion;
 
-// A downscaled copy of the full art, suited to small table cells. This accessor
-// only reads already-decoded pixels and is safe while drawing. If compact
-// embedded bytes survived a shared-cache eviction, it admits one bounded
-// off-main decode and returns nil; AudioTrackMetadataThumbnailDidLoadNotification
-// asks visible callers to redraw when those pixels arrive. **The file's own
-// thumbnail — never a folder cover — is what gets serialized to the on-disk
-// cache**, so recovery never reopens the song.
+// The 128px row thumbnail; safe while drawing. On a miss with compact bytes
+// it admits one bounded off-main decode, returns nil, and posts
+// AudioTrackMetadataThumbnailDidLoadNotification when the pixels land. Only
+// the file's own thumbnail is archived, never a folder cover.
 - (nullable VibeImage *)cachedThumbnail;
 
-// The codec line both screens render: file type, bitrate (lossy only), sample
-// rate, joined with " | ". Each part is appended only when present — TagLib can
-// return no audioProperties even with a fileType set, and a rate it reports as
-// 0 is stored as nil — so it never reads "(null) kbps", "0 kbps" or "0.0 kHz",
-// and it is the empty string with no fileType at all.| ". Each part is appended only when present — TagLib can
-// return no audioProperties even with a fileType set — so it never reads
-// "(null) kbps" or "0.0 kHz", and it is the empty string with no fileType at
-// all. Whether to SHOW it is the caller's decision; how it reads is here, so
-// the two screens cannot drift.
-//
-// MAIN THREAD ONLY: it goes through Formatters.
+// The codec line both screens render: file type, bitrate (lossy only) and
+// sample rate, joined with " | ", each only when present (a zero rate is
+// stored as nil); empty with no fileType. Main thread only (Formatters).
 - (NSString *)fileInfoLine;
 
 @end

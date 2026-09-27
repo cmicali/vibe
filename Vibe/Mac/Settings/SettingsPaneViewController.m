@@ -9,14 +9,10 @@
 #import "WindowAnimation.h"
 
 
-// The System Settings inline dropdown: borderless, the value beside a chevron
-// badge, and while the mouse is over it the badge's circle grown into a
-// rounded bezel around the whole value — the macOS 26 reference's hover
-// treatment. AppKit draws a popup's arrows only with a bezel, so the badge,
-// the bezel and the value's placement are all drawn here, in width the
-// intrinsic size reserves for them. (A hover variant that switched the cell's
-// own bezel on fought the widened bounds and double drew; owning the whole
-// rendering is the stable form.)
+// Borderless, the value beside a chevron badge that grows into a rounded
+// bezel on hover. AppKit draws a popup's arrows only with a bezel, so the
+// badge, bezel and value placement are all drawn here; switching the cell's
+// own bezel on for hover double-draws against the widened bounds.
 @interface VibeInlinePopUpButton : NSPopUpButton
 @end
 
@@ -24,24 +20,19 @@
     BOOL _hovered;
 }
 
-// Measured off the reference's pixels: the chevrons sit in a filled circle
-// one lift-step above the card, 3.5 points in from the trailing edge, and
-// the hover bezel keeps that same margin above and below the circle. Both
-// fills are label-colored so they adapt to the appearance.
+// Measured off the System Settings reference.
 static const CGFloat kInlineBadgeDiameter = 19;
 static const CGFloat kInlineBadgeGap = 8;
 static const CGFloat kInlineEdgeInset = 3.5;
 static const CGFloat kInlineBezelHeight = kInlineBadgeDiameter + 2 * kInlineEdgeInset;
 static const CGFloat kInlineBezelRadius = 6;
-// Where the value starts, past the bezel's leading edge.
 static const CGFloat kInlineTitleInset = 10;
 
 - (instancetype)initWithFrame:(NSRect)frame pullsDown:(BOOL)flag {
     self = [super initWithFrame:frame pullsDown:flag];
     if (self) {
-        // One area following the frame by itself (InVisibleRect). Active in
-        // the app rather than the key window, so the hover still lands while
-        // the font or color panel holds key — the album-art badge's reason.
+        // ActiveInActiveApp: hover still lands while the font or color panel
+        // holds key.
         [self addTrackingArea:[[NSTrackingArea alloc]
                 initWithRect:NSZeroRect
                      options:(NSTrackingMouseEnteredAndExited | NSTrackingActiveInActiveApp
@@ -52,12 +43,8 @@ static const CGFloat kInlineTitleInset = 10;
     return self;
 }
 
-// The cell's own padding around the value, so it can be placed at an exact
-// inset from the bezel edge whatever the cell reserves around it. The value
-// is the item's image, when it carries one (the glyph popups), followed by
-// the title: the leading edge is then the image's, and the image's advance —
-// its width plus the cell's gap before the title — is what the title sits
-// past. Measured off the cell's own rects, so no gap is guessed.
+// The cell's own padding around the value (image, when the item has one, then
+// title), measured off its rects so the value lands at an exact inset.
 - (NSEdgeInsets)cellValuePadding {
     NSRect probe = NSMakeRect(0, 0, 200, kInlineBezelHeight);
     NSRect title = [self.cell titleRectForBounds:probe];
@@ -76,20 +63,16 @@ static const CGFloat kInlineTitleInset = 10;
     return NSMinX([self.cell titleRectForBounds:probe]) - NSMinX([self.cell imageRectForBounds:probe]);
 }
 
-// Sized to the DISPLAYED value, not the widest menu item — the badge stays
-// pinned at the row's trailing edge and the text hugs it, like the reference.
+// Sized to the DISPLAYED value, not the widest menu item.
 - (NSSize)intrinsicContentSize {
     NSString *title = self.selectedItem.title ?: @"";
     CGFloat text = ceil([title sizeWithAttributes:@{NSFontAttributeName: self.font}].width);
-    // An item's image draws ahead of the title; without its advance the cell
-    // truncates the value against the badge.
     return NSMakeSize(kInlineTitleInset + [self cellImageAdvance] + text + kInlineBadgeGap
                               + kInlineBadgeDiameter + kInlineEdgeInset,
                       MAX([super intrinsicContentSize].height, kInlineBezelHeight));
 }
 
-// Selection reaches the displayed title through here, for a user pick and
-// the programmatic selects alike — the moment the width's input changes.
+// Both user picks and programmatic selects pass through here.
 - (void)synchronizeTitleAndSelectedItem {
     [super synchronizeTitleAndSelectedItem];
     [self invalidateIntrinsicContentSize];
@@ -118,9 +101,8 @@ static const CGFloat kInlineTitleInset = 10;
     [self setHovered:NO];
 }
 
-// The menu tracks inside super's mouseDown:, and the tracking area's exit for
-// a mouse that left meanwhile is not guaranteed to follow it, so the state is
-// re-read from where the mouse actually is once the menu is gone.
+// The menu tracks inside super's mouseDown:, and no exit event is guaranteed
+// for a mouse that left meanwhile.
 - (void)mouseDown:(NSEvent *)event {
     [super mouseDown:event];
     NSPoint point = [self convertPoint:self.window.mouseLocationOutsideOfEventStream fromView:nil];
@@ -143,16 +125,13 @@ static const CGFloat kInlineTitleInset = 10;
         NSRect circle = [self backingAlignedRect:badge options:NSAlignAllEdgesNearest];
         [[NSBezierPath bezierPathWithOvalInRect:circle] fill];
     }
-    // The value, drawn by the cell in a frame placed by hand: the title starts
-    // at the inset and the frame ends short of the badge, the cell's own
-    // padding folded in on both sides so it never truncates its title.
     NSEdgeInsets padding = [self cellValuePadding];
     NSRect title = bounds;
     title.origin.x = kInlineTitleInset - padding.left;
     title.size.width = NSMinX(badge) - kInlineBadgeGap + padding.right - NSMinX(title);
     [self.cell drawWithFrame:title inView:self];
-    // Built per draw so the palette color resolves against the appearance the
-    // draw runs under — a template drawInRect: renders black, not tinted.
+    // Built per draw so the palette resolves against the current appearance;
+    // a template drawInRect: renders black.
     NSImage *chevrons = [NSImage symbolNamed:@"chevron.up.chevron.down"
                                    pointSize:9 weight:NSFontWeightBold
                                      palette:@[NSColor.labelColor]
@@ -173,8 +152,6 @@ static const CGFloat kInlineTitleInset = 10;
 
 @implementation SettingsPaneViewController {
     NSStackView *_sectionStack;
-    // What this pane last measured. The shared size is a MAXIMUM over panes,
-    // so a pane whose own natural size has not moved cannot have moved it.
     NSSize _lastNaturalSize;
     id _windowKeyObserver;
     id _menuTrackingObserver;
@@ -195,47 +172,26 @@ static const CGFloat kInlineTitleInset = 10;
     stack.alignment = NSLayoutAttributeLeading;
     stack.spacing = 20;
     stack.translatesAutoresizingMaskIntoConstraints = NO;
-    // TRAP: implicit layout animation only moves layer-backed views. Back the
-    // whole subtree or the cards animate while their section headers jump.
+    // TRAP: implicit layout animation moves only layer-backed views; without
+    // this the cards animate while their section headers jump.
     stack.wantsLayer = YES;
     for (NSView *section in sections) {
         [section.widthAnchor constraintEqualToAnchor:stack.widthAnchor].active = YES;
     }
     _sectionStack = stack;
-    // This pane's own measurement, which the shared pass below then replaces
-    // with the largest pane's. The design size is a minimum: a localization
-    // whose labels outgrow it widens the pane instead of clipping at the
-    // edges (Greek was the first to overflow the original fixed width).
     NSSize paneSize = [self naturalPaneSize];
 
-    // The pane's own backdrop: white in light mode — System Settings' light
-    // content area is white, not the window gray, with the cards a step
-    // DARKER — and nothing in dark, where the window background already
-    // matches.
+    // System Settings' light content area is white, the cards a step darker.
     SettingsFillView *view = [[SettingsFillView alloc]
             initWithFrame:NSMakeRect(0, 0, paneSize.width, paneSize.height)];
     view.darkColor = NSColor.clearColor;
     view.lightColor = NSColor.whiteColor;
-    // TRAP: the pane carries NO size constraints of its own — the view
-    // follows the tab view by autoresizing mask, the frame NSTabView hands
-    // every selected item view. It cannot lean on the host's constraints:
-    // the tab controller pins only the item selected before the window
-    // existed, and every later selection runs its transition path, which
-    // sets a frame and adds nothing — so a pane that opted out of the mask
-    // collapsed to its fitting size the moment it was selected second (zero
-    // height, the rows drawn hanging below it): no click landed inside it,
-    // and the theme editor, pinned to the pane's bottom, had no height. Any
-    // pane-side size constraint, equality or minimum, re-enters the
-    // fitting-size snap: the constraint engine re-sizes a
-    // contentViewController window to its content's fitting size after
-    // every layout pass, so a user's drag snapped straight back to the
-    // constrained answer (observed with both forms). That includes
-    // preferredContentSize itself: macOS 26.5 turns a nonzero one into
-    // equality constraints on this view at priority 501, which pinned the
-    // window (sharedPaneSize in the header). The shared size lives in that
-    // plain property alone; the tab controller turns it into the window's
-    // contentMinSize and grows an undersized window, and AppKit's own resize
-    // clamp holds the floor under a user drag.
+    // TRAP: no size constraints on the pane; it follows the tab view by
+    // autoresizing mask. The tab controller pins only the pane selected before
+    // the window existed, so a pane without the mask collapses to zero height
+    // when selected second. Any pane-side size constraint, preferredContentSize
+    // included, re-enters the window's fitting-size snap and fights the user's
+    // resize; the floor is the window's contentMinSize alone.
     view.translatesAutoresizingMaskIntoConstraints = YES;
     view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     _sharedPaneSize = paneSize;
@@ -243,9 +199,7 @@ static const CGFloat kInlineTitleInset = 10;
     NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSZeroRect];
     scroll.translatesAutoresizingMaskIntoConstraints = NO;
     scroll.hasVerticalScroller = YES;
-    // TRAP: AppKit's default is NO, which draws a scroller down a pane that
-    // has nothing to scroll — the settings window's bars under a legacy
-    // scroller style, where System Settings shows none.
+    // TRAP: AppKit's default NO draws a scroller down a pane with nothing to scroll.
     scroll.autohidesScrollers = YES;
     scroll.drawsBackground = NO;
     scroll.automaticallyAdjustsContentInsets = NO;
@@ -264,26 +218,15 @@ static const CGFloat kInlineTitleInset = 10;
     self.view = view;
 }
 
-// What this pane alone would take, floored at the design size: its own width,
-// the section stack's height.
-// TRAP: the width must be the PANE's, never the stack's. A page swapped in
-// beside the stack — the theme editor — keeps its required width while
-// hidden, so the pane cannot lay out narrower than that whatever the stack
-// asks for. A floor measured from the stack alone left the window able to sit
-// 67 points narrower than the pane it hosts: the pane then overflowed the tab
-// view and every trailing control was clipped, on every pane (#60). The
-// height stays the stack's, because a swapped-in page scrolls — twenty editor
-// rows must not grow every pane.
-// TRAP: `fittingSize` is a full Auto Layout solve, not a lookup, and this
-// takes two — the pane's subtree covers the stack's, but the height has
-// nowhere else to come from. Recording the answer here keeps each pane's last
-// measurement current wherever it was taken, including the shared pass, which
-// measures every loaded pane.
+// TRAP: the width must be the PANE's, never the stack's. The theme editor,
+// swapped in beside the stack, keeps its required width while hidden; a floor
+// from the stack alone let the window sit narrower than the pane, clipping
+// every trailing control on every pane. The height is the stack's, because
+// the swapped-in page scrolls.
+// TRAP: each fittingSize is a full Auto Layout solve, and this takes two.
 - (NSSize)naturalPaneSize {
     NSSize stack = _sectionStack.fittingSize;
-    // Before the view exists — the seed inside loadPaneWithSections: — the
-    // stack is all there is to measure; the shared pass remeasures once every
-    // pane is loaded.
+    // Not loaded: the seed inside loadPaneWithSections:.
     CGFloat width = self.isViewLoaded ? self.view.fittingSize.width
                                       : stack.width + 2 * kPanePadding;
     _lastNaturalSize = NSMakeSize(MAX(kSettingsPaneWidth, width),
@@ -291,8 +234,6 @@ static const CGFloat kInlineTitleInset = 10;
     return _lastNaturalSize;
 }
 
-// YES when the pane's size actually moved, which is what the host needs to
-// know: the window follows the panes, not the other way round.
 - (BOOL)applyPaneSize:(NSSize)size {
     if (!self.isViewLoaded) {
         return NO;
@@ -307,8 +248,6 @@ static const CGFloat kInlineTitleInset = 10;
 
 + (void)settleSharedSizeForPanes:(NSArray<__kindof NSViewController *> *)panes {
     for (NSViewController *pane in panes) {
-        // Loads the rows, then settles only the state that affects their
-        // measurement. Full refreshes belong to the selected pane.
         (void)pane.view;
         if ([pane isKindOfClass:SettingsPaneViewController.class]) {
             [(SettingsPaneViewController *)pane resolveLayoutStateFromSettings];
@@ -317,12 +256,9 @@ static const CGFloat kInlineTitleInset = 10;
     [self applySharedSizeToPanes:panes measure:YES];
 }
 
-// One size for every pane — the largest's — so switching panes resizes
-// nothing. Recomputed rather than kept as a high-water mark, so a revealed row
-// grows every pane and hiding it again gives the height back. The settle
-// measures every loaded pane afresh; a visible pane's own change (measure NO)
-// takes its siblings' last measurements, which a hidden pane cannot have
-// moved, so it costs that pane's solve alone instead of one per pane.
+// Recomputed, never a high-water mark, so hiding a row gives the height back.
+// measure NO takes each sibling's last measurement: a hidden pane cannot have
+// moved, so a visible pane's change costs one solve, not one per pane.
 + (void)applySharedSizeToPanes:(NSArray<__kindof NSViewController *> *)panes measure:(BOOL)measure {
     NSSize shared = NSMakeSize(kSettingsPaneWidth, kSettingsPaneMinHeight);
     for (NSViewController *pane in panes) {
@@ -341,16 +277,12 @@ static const CGFloat kInlineTitleInset = 10;
             changed |= [(SettingsPaneViewController *)pane applyPaneSize:shared];
         }
     }
-    // A pane carries no size constraints, so the new shared size cannot reach
-    // the window by itself — the host applies the matching frame.
     id host = panes.firstObject.parentViewController;
     if (changed && [host conformsToProtocol:@protocol(SettingsPaneSizeHost)]) {
         [(id<SettingsPaneSizeHost>)host settingsPaneSizeDidChange];
     }
 }
 
-// Siblings, not self alone: the size is shared, so one pane's change re-sizes
-// all of them.
 - (void)remeasurePanes {
     if (!_sectionStack) {
         return;
@@ -359,33 +291,23 @@ static const CGFloat kInlineTitleInset = 10;
     [SettingsPaneViewController applySharedSizeToPanes:panes.count > 0 ? panes : @[self] measure:NO];
 }
 
-// TRAP: loadView runs before resolveLayoutStateFromSettings, so the size first
-// measured there counts every row that later hides itself. The shared-size
-// pass resolves that layout state before taking its maximum, and the panes are
-// remeasured after each selected-pane refresh or direct row toggle.
+// TRAP: loadView runs before resolveLayoutStateFromSettings, so the first
+// measurement counts rows that later hide themselves. The shared-size pass
+// resolves layout state first; this remeasures after each refresh or toggle.
 - (void)paneContentDidChange {
     if (!_sectionStack) {
         return;
     }
-    // TRAP: a closed Settings window is not a cheap one. This used to fall
-    // through to the measurement and skip only the animation, so one visit to
-    // Settings loaded all six panes and then taxed every later content change
-    // with six Auto Layout solves for a window nobody was looking at. Nothing
-    // is on screen to resize, and showWindow: remeasures every pane, so the
-    // right amount of work here is none (#47).
+    // TRAP: a hidden window must do no work here. The panes outlive the
+    // window, so measuring would put Auto Layout solves on every later content
+    // change, audio events included, for nobody; showWindow: settles every pane.
     if (!self.view.window.isVisible) {
         return;
     }
-    // Capture the old arranged-view frames before hidden changes replace the
-    // stack's constraints. The layout pass inside the animation then moves the
-    // section headers and cards with the frame instead of jumping ahead of it.
+    // Capture the old frames before hidden changes replace the stack's
+    // constraints, so the animated pass below moves rows with the window.
     [self.view layoutSubtreeIfNeeded];
-    // Measure self before the siblings. A caption that kept its height never
-    // gets here (SettingsRowView.setCaption: measures that on the label), but a
-    // row reveal may still leave our size where it was; when ours has not
-    // moved the maximum cannot have either, so the resize animation is pure
-    // waste. When it has, the siblings' last measurements stand in for them
-    // (applySharedSizeToPanes:measure:), so a change costs this pane's solve.
+    // The shared size is a maximum over panes: if ours did not move, it did not.
     NSSize previous = _lastNaturalSize;
     if (NSEqualSizes([self naturalPaneSize], previous)) {
         return;
@@ -398,8 +320,6 @@ static const CGFloat kInlineTitleInset = 10;
     }];
 }
 
-// The width is a CAP for a runaway localized or device-named title, not a
-// fixed size — the value hugs the row's trailing edge.
 - (NSPopUpButton *)popUpButtonWithWidth:(CGFloat)width action:(SEL)action {
     NSPopUpButton *popUp = [[VibeInlinePopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
     if (action) {
@@ -407,9 +327,7 @@ static const CGFloat kInlineTitleInset = 10;
         popUp.action = action;
     }
     popUp.bordered = NO;
-    // A borderless popup still draws its own small arrows where the badge
-    // sits, and reserves title room for them; the badge is the only chevron
-    // treatment.
+    // A borderless popup still draws its own arrows and reserves room for them.
     ((NSPopUpButtonCell *)popUp.cell).arrowPosition = NSPopUpNoArrow;
     [popUp setContentHuggingPriority:NSLayoutPriorityDefaultHigh
                       forOrientation:NSLayoutConstraintOrientationHorizontal];
@@ -454,10 +372,9 @@ static const CGFloat kInlineTitleInset = 10;
     [self paneContentDidChange];
 }
 
-// Settings can change while the pane stays visible: through the menu bar —
-// which never moves key focus, hence the menu-tracking observer — or through
-// a system panel that took key, hence the key observer (the default-player
-// registration's confirmation, the converter's save panel).
+// Settings change under a visible pane through the menu bar, which never moves
+// key, and through system panels that take key (default-player confirmation,
+// the converter's save panel).
 - (void)viewDidAppear {
     [super viewDidAppear];
     __weak __typeof(self) weakSelf = self;
@@ -473,9 +390,8 @@ static const CGFloat kInlineTitleInset = 10;
                         object:NSApp.mainMenu
                          queue:NSOperationQueue.mainQueue
                     usingBlock:^(NSNotification *note) {
-                        // After the menu item's action has run, not between
-                        // tracking end and dispatch — and that action may have
-                        // been File > Close, so the queued refresh re-checks.
+                        // Queued past the item's action, which may have
+                        // been File > Close.
                         run_on_main_thread({
                             if (weakSelf.view.window.isVisible) {
                                 [weakSelf refreshSettingsAndPaneSize];

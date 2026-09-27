@@ -62,13 +62,11 @@ static BOOL srgbFromOKLab(VibeOKLab lab, double *outR, double *outG, double *out
     VibeOKLab lab = oklabFromSRGB(rgb.redComponent, rgb.greenComponent, rgb.blueComponent);
     double L = MIN((double)maxL, MAX((double)minL, lab.L));
     double C = MIN((double)maxC, hypot(lab.a, lab.b));
-    double hue = atan2(lab.b, lab.a); // radians; gray (C≈0) keeps whatever atan2 says — chroma 0 makes it moot
+    double hue = atan2(lab.b, lab.a); // moot for gray: its chroma is 0
 
     double r, g, b;
     if (!srgbFromOKLab((VibeOKLab){L, C * cos(hue), C * sin(hue)}, &r, &g, &b)) {
-        // Out of gamut at this lightness and hue, so binary-search the largest
-        // chroma that fits. A chroma of 0, pure gray, always fits at any L in
-        // [0,1].
+        // Binary-search the largest chroma that fits; 0 always does.
         double lo = 0, hi = C;
         for (int i = 0; i < 12; i++) {
             double mid = (lo + hi) / 2;

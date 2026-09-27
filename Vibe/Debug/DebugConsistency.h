@@ -2,15 +2,11 @@
 //  DebugConsistency.h
 //  Vibe
 //
-//  The consistency checks that hold on both platforms, behind
-//  VibeDebugPlayerSurface. `check_consistency` is these plus whatever the
-//  platform adds through debugCheckPlatform:.
-//
-//  A violation is a statement about state that should never be legal. A few
-//  checks compare published or rendered values against the state that should
-//  have produced them, and those can lag by a runloop turn — callers must
-//  re-check after a short settle and believe only what survives both samples,
-//  which is what the stress driver does.
+//  The consistency checks that hold on both platforms; check_consistency adds
+//  the platform's through debugCheckPlatform:. A violation is state that
+//  should never be legal, but a check comparing a published or rendered value
+//  against its source can lag a run-loop turn: believe only what survives a
+//  re-check after a short settle, as the stress driver does.
 //
 
 #if DEBUG
@@ -20,13 +16,12 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Runs the shared checks: appends one entry per violation and returns how many
-// checks ran.
+// Appends one entry per violation and returns how many checks ran.
 NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *violations,
                                 id<VibeDebugPlayerSurface> surface);
 
-// Records one violation. Platform check sets use it too, so every entry has
-// the same {"id", "detail"} shape.
+// Platform checks use it too, so every entry has the same {"id", "detail"}
+// shape.
 void VibeDebugViolation(NSMutableArray<NSDictionary *> *violations, NSString *identifier,
                         NSString *format, ...) NS_FORMAT_FUNCTION(3, 4);
 

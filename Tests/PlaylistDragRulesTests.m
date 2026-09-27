@@ -1,10 +1,5 @@
-//
-// The internal drag-reorder arithmetic: what an AppKit insertion slot means
-// for a set of dragged rows — the downward off-by-one, the no-op slots — and
-// the evolving-coordinate single-row move sequence that realizes an accepted
-// drop. Host-less on purpose: these off-by-ones are exactly what a pointer
-// drag cannot pin deterministically.
-//
+// Host-less on purpose: a pointer drag cannot pin these off-by-ones
+// deterministically.
 
 #import <XCTest/XCTest.h>
 
@@ -73,8 +68,6 @@ static NSArray<NSString *> *ApplySequence(NSArray<NSString *> *list,
 }
 
 - (void)testContiguousBlockNoOpSlotsSpanTheBlockAndBothEdges {
-    // Dragging rows 1-2 of 5: every slot from the block's first row through
-    // one past its last leaves the order unchanged, so no move is offered.
     NSIndexSet *source = RowSetOf(@[@1u, @2u]);
     XCTAssertEqualObjects(VibePlaylistDropDestinationForSlot(source, 0, 5), RowRange(0, 2));
     XCTAssertNil(VibePlaylistDropDestinationForSlot(source, 1, 5));
@@ -118,8 +111,6 @@ static NSArray<NSString *> *ApplySequence(NSArray<NSString *> *list,
 }
 
 - (void)testAllButOneRowMovesInBothDirections {
-    // Dragging rows 1-3 of 4 to slot 0: the block lands first. Rows 0-2 to
-    // slot 4: the block lands after the survivor.
     XCTAssertEqualObjects(VibePlaylistDropDestinationForSlot(RowSetOf(@[@1u, @2u, @3u]), 0, 4),
                           RowRange(0, 3));
     XCTAssertEqualObjects(VibePlaylistDropDestinationForSlot(RowSetOf(@[@0u, @1u, @2u]), 4, 4),
@@ -175,7 +166,6 @@ static NSArray<NSString *> *ApplySequence(NSArray<NSString *> *list,
         [pairs addObject:@[@(from), @(to)]];
     });
     XCTAssertEqualObjects(pairs, (@[@[@1u, @3u], @[@0u, @1u]]));
-    // Applied to the gathered list, it restores the original.
     XCTAssertEqualObjects(ApplySequence(@[@"B", @"D", @"A", @"C", @"E"],
                                         RowRange(0, 2), RowSetOf(@[@1u, @3u]), NULL),
                           (@[@"A", @"B", @"C", @"D", @"E"]));

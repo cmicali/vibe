@@ -48,9 +48,8 @@
     XCTAssertTrue([waiters containsObject:secondDuplicate]);
     XCTAssertEqual([coordinator completeClaim:claim].count, 0u);
 
-    // The next generation of this key starts clean. Were the waiter list not
-    // cleared alongside the holder, these two would be delivered a second
-    // time and republished onto rows that already have their metadata.
+    // The next claim on this key starts clean; a waiter list not cleared with
+    // the holder would deliver these two again, onto rows already filled.
     MetadataParseClaim *next = [coordinator claimParseForKey:key participant:firstDuplicate];
     XCTAssertTrue(next.isOwner);
     XCTAssertEqual([coordinator completeClaim:next].count, 0u);
@@ -70,13 +69,10 @@
     XCTAssertFalse(repeat.isOwner);
 
     XCTAssertEqual([coordinator completeClaim:repeat].count, 0u);
-    // Still held, and still holding its waiter.
     XCTAssertFalse([coordinator claimParseForKey:key participant:duplicate].isOwner);
     XCTAssertEqualObjects([coordinator completeClaim:claim], (@[duplicate]));
 }
 
-// The mixed case, alongside testReleasedWaiterDoesNotKeepAnOldPlaylistRowAlive:
-// one waiter dying must not take its surviving siblings out of the delivery.
 - (void)testASurvivingWaiterIsStillDeliveredWhenASiblingDies {
     MetadataParseCoordinator *coordinator = [MetadataParseCoordinator new];
     NSString *key = @"/private/tmp/shared.flac";
@@ -240,11 +236,10 @@
     XCTAssertEqual([coordinator completeClaim:newClaim].count, 0u);
 }
 
-// The dangerous window: rows still claiming while the holder completes. A
-// waiter that registers just after the holder snapshots its list, but before
-// the holder entry is removed, would be dropped — its row left bare with no
-// parse of its own coming. Every participant must be accounted for exactly
-// once, as an owner or as some owner's delivered waiter.
+// A waiter registering after the holder snapshots its list but before the
+// holder entry is removed would be dropped, its row left bare with no parse of
+// its own coming. Every participant is accounted for exactly once, as an owner
+// or as some owner's delivered waiter.
 - (void)testAWaiterRacingCompletionIsNeverLost {
     static const NSUInteger kRounds = 60;
     static const NSUInteger kContenders = 32;
@@ -305,7 +300,6 @@
                 }
             }
 
-            // Exactly once each: no contender lost, none delivered twice.
             XCTAssertEqual(accounted.count, kContenders, @"round %lu", (unsigned long)round);
             XCTAssertEqual([NSSet setWithArray:accounted].count, kContenders,
                            @"round %lu", (unsigned long)round);
@@ -361,11 +355,9 @@
 }
 
 #if DEBUG
-// The debug channel's dump_health reports these, and the stress driver holds
-// them to a growth limit of a few entries. A counter that silently always read
-// zero would look exactly like a clean run, so pin it here rather than trust a
-// live sample: an in-flight parse is over in microseconds and a poll from
-// outside the process almost never lands inside one.
+// dump_health reports these and the stress driver bounds them. A counter stuck
+// at zero reads exactly like a clean run, and a live sample almost never lands
+// inside a microseconds-long parse, so it is pinned here.
 - (void)testDebugPendingCountsTrackHoldersAndWaiters {
     MetadataParseCoordinator *coordinator = [MetadataParseCoordinator new];
     NSString *key = @"/private/tmp/counted.flac";
@@ -383,8 +375,6 @@
     XCTAssertEqualObjects([coordinator pendingCounts][@"holders"], @1);
     XCTAssertEqualObjects([coordinator pendingCounts][@"waiters"], @1);
 
-    // Completing the owner clears the holder and that key's whole waiter
-    // table: both halves have to return to zero, or a soak run accumulates.
     [coordinator completeClaim:claim];
     XCTAssertEqualObjects([coordinator pendingCounts][@"holders"], @0);
     XCTAssertEqualObjects([coordinator pendingCounts][@"waiters"], @0);

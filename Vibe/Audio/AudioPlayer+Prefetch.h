@@ -2,32 +2,20 @@
 //  AudioPlayer+Prefetch.h
 //  Vibe
 //
-//  The next track, from the moment it is named to the moment it is playing:
-//  the PARK — the file the player opens ahead of time so a later play of it
-//  starts without paying for the open — and the SUCCESSOR, the parked file
-//  queued on the current voice so the bus continues into it at the boundary
-//  with no gap.
+//  The PARK is the next file opened ahead of time; the SUCCESSOR is the park
+//  queued on the current voice, continuing at the boundary with no gap.
 //
-//  The park lives by three rules:
+//  - A generation fences each prefetch's open, so a superseded one cannot
+//    park a stale handle.
+//  - A parked handle holds an open fd: a file rewritten before the play plays
+//    the bytes as prefetched.
+//  - An open still in flight at play: is not adopted. A same-path play races
+//    it with its own open; an unrelated park is cancelled first; the winner
+//    clears the loser's park before a late delivery can make the current
+//    track its own successor.
 //
-//  - **The request id fences it.** Each prefetch pairs with its own async open,
-//    so a superseded prefetch cannot park a stale handle when it finally lands.
-//  - **A parked handle holds an open fd**, so a file rewritten between prefetch
-//    and play plays the bytes as prefetched, as a file rewritten mid-playback
-//    already does.
-//  - **An open still in flight at play: time is not adopted.** A same-path play
-//    races it with its own open; an unrelated park is cancelled before the
-//    foreground open; a winner clears the loser's park before a late delivery
-//    can make the now-current track its own successor.
-//
-//  The successor is the park itself: the bus's decoder is the only reader of
-//  a file after a voice starts, so no private second handle is needed. It is
-//  queued when the crossfade is at its minimum and, under bit-perfect output,
-//  when the next file wants the device's current format; the bus reports the
-//  boundary passing and the transport promotes the successor in place. The
-//  promote consumes the park, so a replay of the promoted row opens fresh.
-//
-//  All on the player queue except prefetchTrack:.
+//  The promote consumes the park, so a replay of the promoted row opens
+//  fresh. Player queue only.
 //
 
 #import "AudioPlayer.h"

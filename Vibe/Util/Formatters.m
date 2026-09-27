@@ -44,16 +44,11 @@
     _timeFormatter.unitsStyle = NSDateComponentsFormatterUnitsStylePositional;
     _timeFormatter.allowedUnits = NSCalendarUnitMinute | NSCalendarUnitSecond;
     _timeFormatter.zeroFormattingBehavior = NSDateComponentsFormatterZeroFormattingBehaviorNone;
-    // Hour-long files, such as DJ sets and live recordings, roll over to
-    // h:mm:ss rather than showing "90:00". A separate pre-configured formatter
-    // keeps the sub-hour rendering — m:ss, with no leading zero hours —
-    // exactly as it was.
+    // A separate formatter for an hour or more, so sub-hour times stay m:ss.
     _hourTimeFormatter = [[NSDateComponentsFormatter alloc] init];
     _hourTimeFormatter.unitsStyle = NSDateComponentsFormatterUnitsStylePositional;
     _hourTimeFormatter.allowedUnits = NSCalendarUnitHour | NSCalendarUnitMinute | NSCalendarUnitSecond;
-    // DropLeading renders "1:30:00" rather than "01:30:00". The hour is never
-    // zero here, because this formatter is chosen only for durations of an
-    // hour or more.
+    // "1:30:00", not "01:30:00".
     _hourTimeFormatter.zeroFormattingBehavior = NSDateComponentsFormatterZeroFormattingBehaviorDropLeading;
     _timeStrings = [[NSCache alloc] init];
     _timeStrings.countLimit = 512;
@@ -67,8 +62,8 @@
     _decimalFormatter.numberStyle = NSNumberFormatterDecimalStyle;
     _decimalFormatter.usesGroupingSeparator = NO;
 
-    // Multiplier 1: the value is already a percentage — percent style only
-    // places the % symbol per locale. minusSign matches the U+2212 on the fader.
+    // Multiplier 1: the value is already a percentage. U+2212 matches the
+    // fader's printed scale.
     _signedPercentFormatter = [[NSNumberFormatter alloc] init];
     _signedPercentFormatter.numberStyle = NSNumberFormatterPercentStyle;
     _signedPercentFormatter.multiplier = @1;
@@ -78,8 +73,6 @@
     _signedPercentFormatter.positivePrefix = [@"+" stringByAppendingString:_signedPercentFormatter.positivePrefix ?: @""];
     _signedPercentFormatter.minusSign = @"−";
 
-    // The gain readout's number: the signed percent's sign and minus over
-    // a plain decimal, with the fraction digit only when there is one.
     _signedDecimalFormatter = [[NSNumberFormatter alloc] init];
     _signedDecimalFormatter.numberStyle = NSNumberFormatterDecimalStyle;
     _signedDecimalFormatter.usesGroupingSeparator = NO;
@@ -88,20 +81,15 @@
     _signedDecimalFormatter.positivePrefix = [@"+" stringByAppendingString:_signedDecimalFormatter.positivePrefix ?: @""];
     _signedDecimalFormatter.minusSign = @"−";
 
-    // Default multiplier (100), unlike the signed one: this takes a 0-1
-    // fraction, which is what both sliders' progress already is.
+    // Default multiplier: this one takes a 0-1 fraction.
     _percentFormatter = [[NSNumberFormatter alloc] init];
     _percentFormatter.numberStyle = NSNumberFormatterPercentStyle;
     _percentFormatter.maximumFractionDigits = 0;
 
-    // Grouped whole numbers for counts, unlike _decimalFormatter, whose
-    // grouping is deliberately off for the kHz/BPM readouts.
     _countFormatter = [[NSNumberFormatter alloc] init];
     _countFormatter.numberStyle = NSNumberFormatterDecimalStyle;
     _countFormatter.maximumFractionDigits = 0;
 
-    // Two significant units keep any magnitude readable: seconds-only while
-    // small, "3 days, 4 hours" at the top end.
     _spelledDurationFormatter = [[NSDateComponentsFormatter alloc] init];
     _spelledDurationFormatter.unitsStyle = NSDateComponentsFormatterUnitsStyleFull;
     _spelledDurationFormatter.allowedUnits = NSCalendarUnitDay | NSCalendarUnitHour | NSCalendarUnitMinute | NSCalendarUnitSecond;
@@ -123,16 +111,14 @@
 }
 
 - (NSString *)durationStringFromTimeInterval:(NSTimeInterval)duration {
-    // stringFromTimeInterval: raises on a non-finite interval, and infinity
-    // reaches here from a zero sample rate the same way NaN reaches it from a
-    // failed open — isfinite covers both, plus -infinity.
+    // stringFromTimeInterval: raises on a non-finite interval (a zero sample
+    // rate, a failed open).
     if (!isfinite(duration) || duration < 0) {
         duration = 0;
     }
-    // Keyed by the whole second, which is exact: both formatters truncate the
-    // fraction (59.99 is "0:59"). The time labels ask several times a second
-    // and on every scrub frame, and NSDateComponentsFormatter was two-thirds
-    // of the iOS player's tick, measured.
+    // Keyed by the whole second, exact since both formatters truncate. The
+    // labels ask on every tick and scrub frame, and the formatter was
+    // two-thirds of the iOS player's tick.
     NSNumber *second = @(floor(duration));
     NSString *cached = [_timeStrings objectForKey:second];
     if (cached) {
@@ -173,8 +159,7 @@
     if (isnan(value)) {
         value = 0;
     }
-    // Exact zero reads "0.0%" and "0" with no sign — the readouts' neutral
-    // state.
+    // Zero is unsigned.
     if (value == 0) {
         NSString *zero = [formatter stringFromNumber:@0];
         if ([zero hasPrefix:@"+"]) {

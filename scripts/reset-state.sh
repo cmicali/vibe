@@ -4,11 +4,11 @@
 # the sandbox folder grants, the metadata and waveform disk caches, saved
 # window state, lifetime stats, the last playlist.
 #
-# macOS: everything lives inside the app sandbox container, because the app is
-# sandboxed in every configuration (project.yml sets ENABLE_APP_SANDBOX: YES on
-# the target, not per-config). Removing the container is therefore the whole
-# reset; the non-container paths below are only swept in case an older or
-# unsandboxed build left something behind.
+# macOS: the app is sandboxed in every configuration (ENABLE_APP_SANDBOX is set
+# on the target, not per configuration), so removing its container is the
+# whole reset. The other paths are swept only in case an older or unsandboxed
+# build left something behind; ByHost preferences are found by glob, since
+# they are keyed by machine UUID.
 #
 # TRAP: cfprefsd holds the preference domain in memory and rewrites the plist
 # on its own schedule, so deleting the container while the app — or cfprefsd's
@@ -20,7 +20,7 @@
 #
 # Usage: reset-state.sh [--mac] [--ios] [--both] [-n|--dry-run] [-y|--yes]
 #   --mac       the macOS container (default)
-#   --ios       this checkout's simulator (sim-udid.sh; VIBE_SIM_UDID pins one)
+#   --ios       this session's simulator (sim-udid.sh; VIBE_SIM_UDID pins one)
 #   --both      both
 #   -n          list what would be removed and exit
 #   -y          skip the confirmation prompt (required when stdin is not a tty)
@@ -43,6 +43,7 @@ while [[ $# -gt 0 ]]; do
         --both|--all)    DO_MAC=1; DO_IOS=1 ;;
         -n|--dry-run)    DRY_RUN=1 ;;
         -y|--yes)        ASSUME_YES=1 ;;
+        # Prints lines 3-26: the usage block must end on line 26.
         -h|--help)       sed -n '3,26p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *)               echo "reset-state: unknown option $1" >&2; exit 2 ;;
     esac
@@ -50,9 +51,7 @@ while [[ $# -gt 0 ]]; do
 done
 [[ $DO_MAC -eq 1 || $DO_IOS -eq 1 ]] || DO_MAC=1
 
-# Every place a macOS build could have written. Only the container is expected
-# to exist; the rest are swept so a pre-sandbox or test-harness leftover cannot
-# survive a "reset to defaults".
+# Only the container is expected to exist.
 MAC_PATHS=(
     "$HOME/Library/Containers/$BUNDLE_ID"
     "$HOME/Library/Application Scripts/$BUNDLE_ID"
@@ -66,7 +65,6 @@ MAC_PATHS=(
 
 present_mac_paths() {
     local path
-    # ByHost prefs are per-machine-UUID, so they can only be found by glob;
     # nullglob keeps an unmatched pattern from reaching the -e test as itself.
     shopt -s nullglob
     for path in "${MAC_PATHS[@]}" "$HOME/Library/Preferences/ByHost/$BUNDLE_ID."*.plist; do
@@ -76,8 +74,7 @@ present_mac_paths() {
     return 0
 }
 
-# The simulator this checkout's debug tooling uses. Never `booted`: a wipe must
-# name its device.
+# This session's simulator. Never `booted`: a wipe must name its device.
 sim_udid() {
     if [[ -n "${VIBE_SIM_UDID:-}" && "$VIBE_SIM_UDID" != "booted" ]]; then
         printf '%s\n' "$VIBE_SIM_UDID"
@@ -155,8 +152,8 @@ fi
 # --- iOS --------------------------------------------------------------------
 
 if [[ $DO_IOS -eq 1 ]]; then
-    # simctl refuses most container operations on a shut-down device, so a
-    # first failure earns one boot and a retry rather than a silent no-op.
+    # simctl refuses most container operations on a shut-down device: boot and
+    # retry once.
     if ! xcrun simctl uninstall "$UDID" "$BUNDLE_ID" 2>/dev/null; then
         xcrun simctl bootstatus "$UDID" -b >/dev/null
         xcrun simctl uninstall "$UDID" "$BUNDLE_ID"

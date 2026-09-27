@@ -2,11 +2,8 @@
 //  AudioWaveformView+Loading.mm
 //  Vibe
 //
-//  The view's two non-waveform presentations. The loading control itself is
-//  LoadingIndicator (Vibe/Controls/), shared with the iOS scrubber and the row
-//  gutters; what is left here is when to show it, and the empty state's static
-//  line — which is that same control at rest, so it takes its height and
-//  colour from LoadingIndicatorMath.h rather than restating them.
+//  When to show LoadingIndicator, and the empty line — that control at rest,
+//  so it reads its height and colour from LoadingIndicatorMath.h.
 //
 
 #import "AudioWaveformView+Loading.h"
@@ -20,7 +17,6 @@
         return;
     }
     [self hideEmptyPlaceholder];
-    // Collapse any previous track's waveform, so the shimmer stands alone.
     [self resetWaveformContentState];
     if (_currentWaveformRenderer) {
         [self drawWaveform];
@@ -33,8 +29,6 @@
     [self layoutLoadingLayer];
 }
 
-// The control's frame depends on the current bounds, so a helper keeps it in
-// sync when the window resizes, or the small-large layout toggles, mid-load.
 - (void)layoutLoadingLayer {
     [_loadingIndicator layoutInBounds:self.bounds];
 }
@@ -44,8 +38,6 @@
     _loadingIndicator = nil;
 }
 
-// Fed by DownloadProgressMonitor for a materializing cloud file; the control
-// owns the easing and the indeterminate revert. See LoadingIndicator.
 - (void)setLoadingProgress:(float)fraction {
     [_loadingIndicator setProgress:fraction inBounds:self.bounds];
 }
@@ -71,8 +63,6 @@
     [self layoutPlaceholderLayer];
 }
 
-// The same midline the loading indicator uses, full-width and static: the
-// empty state is that control at rest, so it shares the height and colour.
 - (void)layoutPlaceholderLayer {
     if (!_placeholderLayer) {
         return;
@@ -100,8 +90,6 @@
     _placeholderLayer = nil;
 }
 
-// Re-asserted when the window flips between light and dark. Unconditional: the
-// indicator re-colours whether or not one is currently up.
 - (void)updateLoadingColors {
     [_loadingIndicator updateColorsForDark:self.isDark];
 }

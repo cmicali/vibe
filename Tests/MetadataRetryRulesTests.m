@@ -82,14 +82,6 @@
     XCTAssertEqualWithAccuracy(VibeMetadataAdmissionRetryDelay(NSUIntegerMax), 2.0, 0.001);
 }
 
-// The priority record's yield triage, judged at delivery and re-judged on
-// every gated tick. A local file retries whether or not the rule holds: its
-// parse starts no transfer, and waiting it out was measured costing the
-// now-playing tags the length of the successor's whole prefetch. A dataless
-// record waits while the hold is up — re-picking would repeat the bounded
-// probe and yield when its answer lands — and demotes only once the foreground
-// settles with the file still dataless: the open failed, and re-downloading a
-// dead pick behind its error UI is the sweep's call to make, at its rank.
 - (void)testADatalessYieldWhileHeldWaitsForTheReleaseEdge {
     XCTAssertEqual(VibeMetadataPriorityAfterYield(YES, NO),
             VibeMetadataPriorityYieldWait);
@@ -107,10 +99,8 @@
             VibeMetadataPriorityYieldDemote);
 }
 
-// Priority failures spend the SAME shared budget the scan does — there is no
-// separate priority predicate. This pins the regression 925209b fixed: the
-// budget rule was correct and tested while the priority lane fed it no state,
-// so the tested decision was unreachable. One rule, one ledger, both slots.
+// The priority lane has no predicate of its own: its failures spend the scan's
+// budget through this one rule.
 - (void)testPriorityFailuresShareTheScanBudgetRule {
     XCTAssertEqual(VibeMetadataMaterializationRetryForResult(
             VibeAudioFileMaterializationResultFailed, 2, 3),

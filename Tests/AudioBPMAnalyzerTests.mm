@@ -8,11 +8,9 @@
 #include <vector>
 #include <cmath>
 
-// The analyzer is fed whatever frame counts the decoder hands the waveform
-// loader, and it frames the stream itself: analysis frames overlap, so most of
-// them straddle a buffer boundary. Anything that depends on where the caller's
-// buffers happen to split would make the tempo of a file depend on its codec's
-// packet size, so the tests below pin the result to the audio alone.
+// The analyzer frames the stream itself from whatever buffers the decoder
+// hands it; a result that depended on the split would make a file's tempo
+// depend on its codec's packet size.
 
 static const double kTestSampleRate = 44100.0;
 
@@ -52,9 +50,7 @@ static float VibeTestAnalyze(const std::vector<float> &audio, const std::vector<
     XCTAssertEqualWithAccuracy(bpm, 128.0f, 1.0f);
 }
 
-// The framing guarantee: the buffer sizes the caller happens to use must not
-// reach the result. Sizes below, around and above the 1024-sample analysis
-// frame all appear here, including ones that leave a straddling frame short.
+// Sizes below, around and above the 1024-sample analysis frame.
 - (void)testResultIsIndependentOfBufferSizes {
     std::vector<float> audio = VibeTestClickTrack(128.0, 30.0);
     float reference = VibeTestAnalyze(audio, {audio.size()});

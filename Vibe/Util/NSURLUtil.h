@@ -9,39 +9,21 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Asks the user to grant access to the folder a playlist file's entries live
-// in, and answers whether they did. Runs on an expansion worker, never the
-// main thread, and must block until it is answered.
-//
-// This layer knows *when* a grant is needed — it is the one holding the
-// unreadable entries — but not what asking looks like: the panel and the
-// bookmark are the app's sandbox-grant funnel, which is macOS-only and sits
-// well above a path utility. The app installs the handler at launch. Unset,
-// as in the tests, means no grant can be obtained and unreadable entries are
-// simply skipped.
+// Asks the user to grant the folder a playlist file's entries live in, and
+// answers whether they did. Runs on an expansion worker and must block until
+// answered. Unset (as in tests), unreadable entries are skipped.
 typedef BOOL (^VibePlaylistFolderGrantHandler)(NSURL *playlistURL);
 
-// What an expansion saw of the folders it touched. This layer *finds* these
-// facts — it walks the disk — but must not act on them: the consumer is the
-// folder-art resolver, an app singleton behind a user setting and a sandbox
-// grant, and a path utility that reached up to it could not be exercised
-// without one. Same shape as the playlist grant above, and for the same
-// reason — the tests install neither and get a pure walk. The app installs
-// these at launch; unset, an expansion throws the harvest away.
-//
-// Both are called on an expansion worker, never the main thread.
+// What an expansion saw of the folders it touched, for the folder-art
+// resolver. Unset, it is discarded. Both are called on an expansion worker.
 
-// A walk listed these directories and found these covers in them, keyed by
-// directory and spelled as on disk. Every directory named was seen *in full*,
-// so "no cover" is an answer rather than a gap. Called once per top-level
-// folder expanded.
+// Covers keyed by directory, spelled as on disk. Every directory was listed in
+// full, so "no cover" is an answer. Once per top-level folder expanded.
 typedef void (^VibeWalkedDirectoriesHandler)(NSSet<NSString *> *directories,
                                              NSDictionary<NSString *, NSString *> *artFilenameByDirectory);
 
-// The folders of the *loose files* in an open of more than one thing. Nothing
-// was listed, so nothing is known about their contents — only that the open was
-// bulk enough for a listing each to be a fair price, should anything ask.
-// Called once per expansion, and not at all for a single file.
+// The loose files' folders in a bulk open, unlisted: only that a listing each
+// is a fair price. Once per expansion; never for a single file.
 typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 
 
@@ -51,49 +33,28 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 + (void)setWalkedDirectoriesHandler:(nullable VibeWalkedDirectoriesHandler)handler;
 + (void)setBulkOpenDirectoriesHandler:(nullable VibeBulkOpenDirectoriesHandler)handler;
 
-// YES for a cloud placeholder whose data is not local — iCloud, Dropbox, any
-// File Provider. Reading one blocks until the provider materializes it, which
-// is why every background reader asks first, and why the scan routes on it.
-//
-// One stat: SF_DATALESS, the kernel's mark on a materialize-on-read
-// placeholder, measured present for the providers that matter. It materializes
-// nothing, so the check is always fast — about 2us, which it needs to be,
-// since the scan asks once per track. The implementation records what a second
-// signal cost when it was tried. It returns NO when the stat fails, since
-// unknown is not the same as dataless.
+// YES for a cloud placeholder whose data is not local. Reading one blocks
+// until the provider materializes it, so every background reader asks first.
+// One stat of SF_DATALESS, ~2us and materializing nothing; NO when the stat
+// fails, since unknown is not dataless.
 + (BOOL)isDatalessFile:(NSURL *)url;
 
-// Expands folders and top-level playlist files (the files a .cue/.m3u/.m3u8
-// lists, in list order, raising a folder-access grant when the sandbox
-// requires one), and filters to playable extensions. Expansions run on a
-// four-wide queue, so one dead folder cannot block an unrelated later open and
-// a burst of them cannot spawn a thread each; callers coordinate overlapping
-// result order (OpenRequestCoordinator). folderCount is how many of the
-// top-level URLs resolved as directories, counted here because the check stats
-// the file system and so belongs on the expansion queue, not the main-thread
-// caller. Completion runs on main.
+// Expands folders and top-level playlist files and filters to playable
+// extensions, on a four-wide queue; callers order overlapping results
+// (OpenRequestCoordinator). folderCount is how many top-level URLs were
+// directories. Completion runs on main.
 //
-// sort orders each expanded FOLDER's own audio, and nothing else: the
-// top-level URLs keep the order they were given, and a playlist file keeps its
-// list order, both of which the user chose explicitly. The caller reads the
-// setting — see audioFilesInDirectory:sortedBy:.
+// sort orders each expanded folder's audio only: top-level URLs and a playlist
+// file's entries keep the order the user gave.
 + (void)expandAndFilterList:(NSArray<NSURL *> *)list
                    sortedBy:(VibeFolderOpenSort)sort
                  completion:(void (^)(NSArray<NSURL *> *files, NSUInteger folderCount))completion;
 
-// Every playable extension, lowercase. Must cover every spelling the
-// CFBundleDocumentTypes claim admits; see the implementation's comment.
+// Common/PlayableExtensions' set.
 + (NSSet<NSString *> *)supportedExtensions;
 
-// The directory-as-playlist listing rule, in its single home: the folder's
-// non-empty audio files, non-recursive, hidden files and directories skipped,
-// in the order sort names. Synchronous — callers own the threading.
-//
-// The order is a PARAMETER because it comes from a setting, and this layer may
-// not read one (Util/CLAUDE.md): each shell reads AppSettings.folderOpenSort
-// on main, with the rest of its open snapshot, and hands the answer down. So
-// an open cannot straddle a Settings change, and the walk stays testable
-// without a defaults store.
+// The folder's non-empty audio files, non-recursive, hidden entries skipped.
+// Synchronous. sort is a parameter because this layer may not read a setting.
 + (NSArray<NSURL *> *)audioFilesInDirectory:(NSURL *)dir sortedBy:(VibeFolderOpenSort)sort;
 @end
 

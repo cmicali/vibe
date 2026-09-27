@@ -8,9 +8,6 @@
 #include <vector>
 #include <cmath>
 
-// Like AudioBPMAnalyzerTests: the analyzer frames the stream itself, so the
-// frame counts the decoder happens to hand it must not reach the result.
-
 static const double kTestSampleRate = 44100.0;
 
 // A sustained A minor triad — A3, C4, E4 — over a root-octave bass, which is
@@ -50,8 +47,7 @@ static VibeMusicalKey VibeTestAnalyzeKey(const std::vector<float> &audio,
     XCTAssertEqual(VibeTestAnalyzeKey(audio, {65536}), VibeMusicalKeyMake(9, 1)); // A minor
 }
 
-// The framing guarantee. The analysis frame here is 32768 samples with a
-// 16384 hop, so the sizes below run from far under one frame to well over it.
+// The analysis frame here is 32768 samples with a 16384 hop.
 - (void)testResultIsIndependentOfBufferSizes {
     std::vector<float> audio = VibeTestAMinorChord(20.0);
     VibeMusicalKey reference = VibeTestAnalyzeKey(audio, {audio.size()});
@@ -77,8 +73,6 @@ static VibeMusicalKey VibeTestAnalyzeKey(const std::vector<float> &audio,
     XCTAssertEqual(VibeTestAnalyzeKey(silence, {65536}), VibeMusicalKeyNone);
 }
 
-// An unusable sample rate leaves the analyzer inert rather than crashing on the
-// frame sizing, and appends into it are ignored.
 - (void)testInvalidSampleRateReportsNoKey {
     AudioKeyAnalyzer *analyzer = [[AudioKeyAnalyzer alloc] initWithSampleRate:0];
     std::vector<float> audio = VibeTestAMinorChord(20.0);

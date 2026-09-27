@@ -7,8 +7,7 @@
 
 @interface NSAppearance (DarkMode)
 
-// Whether this appearance resolves dark — the one spelling of the
-// Aqua/DarkAqua bestMatch fold.
+// The one spelling of the Aqua/DarkAqua bestMatch fold.
 - (BOOL)isDark;
 
 @end

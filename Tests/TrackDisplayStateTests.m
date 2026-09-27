@@ -31,15 +31,12 @@
 }
 
 - (void)testNoTrackDuringLaunchGraceIsBlankNotEmpty {
-    // A launch-time open may still be resolving; flashing the drop hint and
-    // then replacing it a moment later is the thing being avoided.
+    // A launch-time open may still be resolving; the drop hint must not flash.
     XCTAssertEqual(VibeResolveTrackDisplayState(nil, nil, nil, YES, YES, NO),
                    TrackDisplayStateLaunchGrace);
 }
 
 - (void)testLaunchGraceOutranksEveryPlayerFlag {
-    // With no track there is nothing to render regardless of what the player
-    // is doing, so the player flags must not leak into this branch.
     XCTAssertEqual(VibeResolveTrackDisplayState(nil, _otherTrack, _track, YES, NO, YES),
                    TrackDisplayStateLaunchGrace);
 }
@@ -52,8 +49,6 @@
 }
 
 - (void)testRetryingAnErroredTrackLiftsTheMaskImmediately {
-    // Gated on stopped precisely so the retry's Loading/Playing state clears
-    // the error text without waiting for anything else to reset it.
     XCTAssertEqual(VibeResolveTrackDisplayState(_track, _track, _track, NO, NO, YES),
                    TrackDisplayStateLoading);
     XCTAssertEqual(VibeResolveTrackDisplayState(_track, _track, _track, NO, NO, NO),
@@ -68,10 +63,8 @@
 #pragma mark - The track-change gap
 
 - (void)testPlayerStillOnThePreviousTrackRendersAsLoading {
-    // The change is queued on the player's serial queue: its currentTrack, and
-    // so its position and duration, still describe the previous file. Showing
-    // Track here would composite the new track's tags over the old file's
-    // times.
+    // The player's position and duration still describe the previous file;
+    // Track here would composite the new tags over the old times.
     XCTAssertEqual(VibeResolveTrackDisplayState(_track, _otherTrack, nil, NO, NO, NO),
                    TrackDisplayStateLoading);
 }
@@ -82,27 +75,22 @@
 }
 
 - (void)testEndOfPlaylistParkIsNotTheGap {
-    // A stopped player legitimately parks on the track it just finished, so
-    // the park always has playerTrack == currentTrack and never reads as the
-    // gap — no Stopped exemption needed.
+    // An idle player parks on the track it just finished, so the park has
+    // playerTrack == currentTrack and needs no Stopped exemption.
     XCTAssertEqual(VibeResolveTrackDisplayState(_track, _track, nil, NO, YES, NO),
                    TrackDisplayStateTrack);
 }
 
 - (void)testTrackChangeFromTheStoppedParkIsTheGap {
-    // Double-clicking a new row from the end-of-playlist park: the playlist
-    // notifies synchronously, while play flips the player's state on its
-    // serial queue, so the player still reads Stopped — on the OLD track,
-    // with the old file's duration. Stopped must not exempt the gap, or the
-    // new track's tags would render, and publish to Now Playing, with the
-    // finished file's times.
+    // The playlist notifies synchronously while play flips the player's state
+    // on its serial queue, so the player still reads Stopped on the old track.
+    // Exempting Stopped would render, and publish to Now Playing, the new tags
+    // with the finished file's times.
     XCTAssertEqual(VibeResolveTrackDisplayState(_track, _otherTrack, nil, NO, YES, NO),
                    TrackDisplayStateLoading);
 }
 
 - (void)testStoppedPlayerWithNoTrackOpenIsTheGap {
-    // Same rule with nothing open at all: a current track the stopped player
-    // has not reached yet is a queued change, not a settled header.
     XCTAssertEqual(VibeResolveTrackDisplayState(_track, nil, nil, NO, YES, NO),
                    TrackDisplayStateLoading);
 }
@@ -120,7 +108,6 @@
 }
 
 - (void)testStoppedOnTheCurrentTrackIsTheTrackState {
-    // Paused or stopped on the track it is actually on: still a normal header.
     XCTAssertEqual(VibeResolveTrackDisplayState(_track, _track, nil, NO, YES, NO),
                    TrackDisplayStateTrack);
 }
@@ -128,9 +115,7 @@
 #pragma mark - Precedence
 
 - (void)testErrorOutranksTheTrackChangeGap {
-    // Both conditions hold: the player is stopped on a different track AND
-    // this track errored. Error wins, so a failed open shows its message
-    // rather than a permanent spinner.
+    // So a failed open shows its message rather than a permanent spinner.
     XCTAssertEqual(VibeResolveTrackDisplayState(_track, _otherTrack, _track, NO, YES, NO),
                    TrackDisplayStateError);
 }

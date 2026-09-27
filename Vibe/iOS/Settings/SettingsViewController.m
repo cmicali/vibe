@@ -2,8 +2,6 @@
 //  SettingsViewController.m
 //  Vibe (iOS)
 //
-//  See SettingsViewController.h.
-//
 
 #import "SettingsViewController.h"
 
@@ -15,8 +13,7 @@
 
 typedef NS_ENUM(NSInteger, VibeSettingsSection) {
     VibeSettingsSectionGroups = 0,
-    // About is alone below the rule because it is the one screen here that
-    // changes nothing — it reports.
+    // Alone: it changes nothing.
     VibeSettingsSectionAbout,
     VibeSettingsSectionCount,
 };
@@ -58,9 +55,7 @@ static NSString *const kGroupCellIdentifier = @"group";
                                                                     : VibeSettingsGroupRowCount;
 }
 
-// The same words and the same symbols as the mac Settings window's sidebar
-// rows, so the two apps' settings read as one product — see
-// SettingsWindowController.
+// The mac Settings sidebar's words and symbols.
 - (NSString *)titleForRowAtIndexPath:(NSIndexPath *)indexPath {
     if ((VibeSettingsSection)indexPath.section == VibeSettingsSectionAbout) {
         return STR_SETTINGS_ABOUT;

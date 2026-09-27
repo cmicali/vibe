@@ -56,9 +56,7 @@ static inline VibeUncompressedContainer VibeUncompressedContainerForFile(
 }
 
 // True for the uncompressed containers only — anything else gains nothing.
-// The sniffed fileType wins when present. It is nil until the background scan
-// reaches a track, and the extension covers that window so fresh rows are not
-// disabled; it is never the converter's final content check.
+// Never the converter's final content check.
 static inline BOOL VibeTrackIsConvertibleToFLAC(VibeAudioFileFormat _Nullable fileType,
                                                 NSString *_Nullable ext) {
     return VibeUncompressedContainerForFile(fileType, ext) != VibeUncompressedContainerUnknown;

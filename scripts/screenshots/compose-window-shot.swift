@@ -3,23 +3,15 @@
 //   swift compose-window-shot.swift <window.png> <region.png> <out.png>
 //   swift compose-window-shot.swift --info <window.png>
 //
-// `window.png`  — screencapture -l<windowID>: the window's own buffer, so it
-//                 carries the transparent background, the real drop shadow and
-//                 the antialiased rounded corners. Its glass and
-//                 NSVisualEffectView materials, though, resolved against a
-//                 neutral backdrop instead of the actual screen.
-// `region.png`  — screencapture -R over EXACTLY the window's rect: the truly
-//                 composited pixels (translucency showing what is behind), but
-//                 an opaque rectangle with no shadow and square corners.
+// window.png  screencapture -l<windowID>: transparent background, real shadow
+//             and corners, but materials resolved against a neutral backdrop.
+// region.png  screencapture -R over EXACTLY the window rect: real translucency,
+//             but opaque, square and shadowless.
 //
-// The window's pixels sit inside window.png offset by the shadow padding, which
-// is NOT symmetric (macOS drops the shadow downward), so the offset is measured
-// rather than assumed: the window interior captures fully opaque while every
-// shadow pixel is partial, so the bounding box of alpha == 255 IS the window
-// rect. Region RGB is copied into that box wherever the window capture is fully
-// opaque; the partial-alpha edge and corner pixels keep their original color,
-// so the corner arcs stay clean instead of pulling in the backdrop, and
-// everything outside the box — the shadow — is left untouched.
+// The shadow padding is asymmetric, so the window rect is measured: the
+// interior captures fully opaque and every shadow pixel partial, so the
+// bounding box of alpha == 255 IS the window rect. Region RGB is copied only
+// into fully opaque pixels, so corner arcs and the shadow stay as captured.
 import CoreGraphics
 import Foundation
 import ImageIO
@@ -36,9 +28,8 @@ struct Bitmap {
     let colorSpace: CGColorSpace
     var bytesPerRow: Int { width * 4 }
 
-    // Normalize whatever the PNG happens to be into RGBA8 premultiplied. With
-    // alpha == 255 (every pixel this tool copies) premultiplied and straight
-    // color are the same bytes, so the copy needs no math.
+    // RGBA8 premultiplied. Every copied pixel has alpha 255, where
+    // premultiplied and straight are the same bytes.
     init(_ image: CGImage, colorSpace override: CGColorSpace? = nil) {
         width = image.width
         height = image.height

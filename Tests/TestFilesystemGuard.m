@@ -1,30 +1,19 @@
+// The suite is host-less and so unsandboxed (Tests/CLAUDE.md): a production
+// path that resolves a standard user directory answers with the developer's
+// real ~/Library. AppTheme's artwork store would land in ~/Library/Application
+// Support/<main bundle identifier>/ThemeArt — here the XCTest tool's
+// identifier. Installed at image load, not in a setUp, so no test class can
+// opt out of it.
 //
-// The suite is host-less and therefore UNSANDBOXED (Tests/CLAUDE.md) — which
-// is what lets it read fixtures straight from the repo, and is not going to
-// change. The cost is that any production path resolving a standard user
-// directory answers with the DEVELOPER'S real ~/Library rather than a
-// container: AppTheme's artwork store would create ~/Library/Application
-// Support/ThemeArt, a generically named folder that does not even say Vibe.
+// TRAP: a test that narrows VIBE_THEME_ART_DIR must restore the previous
+// value, never unsetenv it: unset, the store resolves the real ~/Library, and
+// the leak lands under whichever class runs next.
 //
-// So the redirect is installed here, at image load, before XCTest has built a
-// single case. It deliberately does NOT live in some test's setUp: a suite-
-// wide guarantee that each class opts into is one a new class silently opts
-// out of, which is exactly how the folder above got made.
-//
-// TRAP: a test that redirects the path for its own isolation must RESTORE
-// this value afterwards, never unsetenv it — unsetting hands every test that
-// runs later the real ~/Library, and the leak lands under whichever class
-// happened to run next rather than the one that caused it.
-//
-// The same applies to NSUserDefaults, for a subtler reason. The suite has no
-// bundle identifier of its own, so AppSettings writes land in the XCTEST
-// TOOL's domain — ~/Library/Preferences/com.apple.dt.xctest.tool.plist,
-// shared with every other XCTest run on the machine. Saving and restoring a
-// setting around a test does not help: reading an unset key answers the
-// REGISTERED default, so writing that value back materializes a key that was
-// never on disk. The domain is therefore snapshotted here and restored at
-// exit, which is the only place that can see "whatever any test wrote".
-//
+// AppSettings writes land in the XCTest tool's shared defaults domain. Saving
+// and restoring a setting around a test does not help: reading an unset key
+// answers the registered default, so writing it back materializes a key that
+// was never on disk. Only the exit-time domain restore sees what any test
+// wrote.
 
 #import <Foundation/Foundation.h>
 
@@ -39,8 +28,7 @@ static NSDictionary *gDefaultsSnapshot;
 
 static void VibeRestoreTestFilesystem(void) {
     [NSFileManager.defaultManager removeItemAtPath:gRoot error:NULL];
-    // Back to exactly what was on disk before the first test ran — including
-    // "no domain at all", which is what an empty snapshot restores.
+    // An empty snapshot restores "no domain at all".
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
     [defaults removePersistentDomainForName:gDefaultsDomain];
     if (gDefaultsSnapshot.count) {

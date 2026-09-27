@@ -1,9 +1,3 @@
-//
-// The directory-as-playlist listing rule (audioFilesInDirectory:sortedBy:):
-// extension filtering, hidden-file skipping, the non-recursive contract, and
-// all three folder-open orders.
-//
-
 #import <XCTest/XCTest.h>
 
 #import "NSURLUtil.h"
@@ -40,9 +34,8 @@
     return url;
 }
 
-// Modification dates are set by hand rather than by write order: a whole
-// listing is written inside one filesystem timestamp tick otherwise, and every
-// newest-first assertion would then be decided by the name tiebreak.
+// Set by hand: a whole listing is written inside one timestamp tick, and every
+// newest-first assertion would be decided by the name tiebreak.
 - (NSURL *)makeFile:(NSString *)name modifiedSecondsAgo:(NSTimeInterval)secondsAgo {
     NSURL *url = [self makeFile:name];
     NSDate *modified = [NSDate dateWithTimeIntervalSinceNow:-secondsAgo];
@@ -98,8 +91,7 @@
                           (@[@"newest.mp3", @"middle.mp3", @"oldest.mp3"]));
 }
 
-// A folder copied in one go shares one mtime, which is the common case and
-// the whole reason the tiebreak exists.
+// A folder copied in one go shares one mtime: the common case.
 - (void)testNewestFirstBreaksEqualDatesByName {
     [self makeFile:@"10 - ten.mp3" modifiedSecondsAgo:60];
     [self makeFile:@"2 - two.mp3" modifiedSecondsAgo:60];
@@ -108,8 +100,6 @@
                           (@[@"1 - one.mp3", @"2 - two.mp3", @"10 - ten.mp3"]));
 }
 
-// The order is the only thing the choice changes: filtering, hidden files and
-// the non-recursive contract are the listing rule and hold under all three.
 - (void)testEveryOrderListsTheSameFiles {
     [self makeFile:@"b.mp3" modifiedSecondsAgo:10];
     [self makeFile:@"a.flac" modifiedSecondsAgo:60];

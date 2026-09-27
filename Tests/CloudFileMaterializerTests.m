@@ -1,11 +1,10 @@
 //
 //  CloudFileMaterializerTests.m
 //
-//  These tests exercise the real local NSFileCoordinator wrapper and this
-//  app's token/cancellation ordering at an injected provider boundary. Actual
-//  provider-mediated coordination and cancellation remain integration work.
+//  The real NSFileCoordinator wrapper and token/cancellation ordering at an
+//  injected provider boundary; provider-mediated coordination stays
+//  integration work.
 //
-
 
 #import <XCTest/XCTest.h>
 
@@ -25,10 +24,7 @@
     [super tearDown];
 }
 
-// The two seams go in together, as VibeFakeCloud installs them. The transfer
-// provider is asked ahead of the probe and owns the "is this mine" decision:
-// it must answer 0 for a path whose transfer is not wanted, which is what
-// keeps a replayed file from re-downloading.
+// Both seams together, as VibeFakeCloud installs them.
 - (void)installFakeCloudCompleting:(NSMutableArray<NSNumber *> *)completions
                     chargingSeconds:(NSTimeInterval (^)(NSURL *url))charge {
     [NSURLUtil setDatalessProbe:^BOOL(NSURL *candidate) {
@@ -56,8 +52,6 @@
     XCTAssertEqualObjects(error.domain, NSCocoaErrorDomain);
     XCTAssertEqual(error.code, NSUserCancelledError);
 
-    // Cancellation is per token, not a latch: the reusable metadata lane can
-    // prepare its next call after a hold lifts and complete normally.
     CloudFileMaterializationToken *nextToken = [materializer prepareMaterialization];
     error = nil;
     XCTAssertTrue([materializer materializeURL:url token:nextToken error:&error]);
@@ -65,9 +59,6 @@
     XCTAssertEqualObjects(completions, (@[@NO, @YES]));
 }
 
-// The transfer provider owns "is this mine": a path it answers 0 for pays no
-// transfer, however the probe answers. VibeFakeCloud answers 0 for local and
-// already-materialized paths, which is what lets a replayed corpus settle.
 - (void)testAPathTheProviderDisownsPaysNoTransfer {
     NSURL *url = [NSURL fileURLWithPath:@"/fake/local-track.flac"];
     NSMutableArray<NSNumber *> *completions = [NSMutableArray array];
@@ -86,9 +77,8 @@
     XCTAssertEqual(completions.count, 0u);
 }
 
-// The unflagged-placeholder shape: the probe disowns the file — a provider
-// that never sets SF_DATALESS — while its transfer still costs. The fake is
-// asked ahead of the probe for exactly this, so the transfer runs anyway.
+// A provider that never sets SF_DATALESS: the probe disowns the file, but the
+// transfer provider is asked first.
 - (void)testAnUnflaggedPlaceholderStillCostsItsTransfer {
     NSURL *url = [NSURL fileURLWithPath:@"/fake/unflagged-track.flac"];
     NSMutableArray<NSNumber *> *completions = [NSMutableArray array];
@@ -124,9 +114,6 @@
     [NSFileManager.defaultManager removeItemAtURL:url error:NULL];
 }
 
-// A transfer cancelled while still queued for the shared provider slot ends
-// exactly as one cancelled mid-wait: NO, NSUserCancelledError, and a didFinish
-// saying it did not complete.
 - (void)testCancelWhileQueuedForTheSlotAbandonsTheTransfer {
     NSURL *url = [NSURL fileURLWithPath:@"/fake/queued-track.flac"];
     NSMutableArray<NSNumber *> *completions = [NSMutableArray array];

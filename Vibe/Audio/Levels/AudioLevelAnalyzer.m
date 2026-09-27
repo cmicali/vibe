@@ -138,8 +138,7 @@ BOOL VibeAudioLevelAnalyzerSetSampleRate(VibeAudioLevelAnalyzer *analyzer,
     return YES;
 }
 
-// The vDSP calls the compiler cannot check: Accelerate attributes them with
-// nothing, and they allocate nothing and block on nothing.
+// vDSP: realtime-safe, but carrying no attribute the checker can read.
 VIBE_REALTIME_UNCHECKED_BEGIN
 static void VibeAudioLevelAnalyzerMeasureFrame(
         VibeAudioLevelAnalyzer *analyzer,

@@ -400,8 +400,9 @@ static NSString *const kConvertTempPrefix = @"vibe-convert-";
            undoManager:(NSUndoManager *)undoManager
                   swap:(void (^)(NSURL *, NSURL *))swap
             completion:(void (^)(BOOL, NSString *, NSURL *, NSError *))completion {
-    // Register even a refused inverse, while the stack direction is still
-    // active. A failed restore must leave a recoverable Undo/Redo entry.
+    // TRAP: register the opposite first, synchronously, even for a refused
+    // inverse: NSUndoManager's stack direction is active only now, and a
+    // failed restore must leave a recoverable Undo/Redo entry.
     [self registerConversionInverse:record undo:!undo undoManager:undoManager swap:swap completion:completion];
     if (_undoRedoInFlight) return;
     _undoRedoInFlight = YES;

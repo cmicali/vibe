@@ -69,9 +69,8 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
 - (BOOL)deliveryStillWaiting;
 @end
 
-// Stage 2: one purpose's AudioFileHandle open for one standardized path, riding
-// the path's transfer claim. Lean on purpose: the run IS the old open
-// coordinator's claim, on the same state queue as the transfer it follows.
+// Stage 2: one purpose's AudioFileHandle open for one standardized path,
+// riding the path's stage-1 claim.
 @interface VibeAudioHandleRun : NSObject
 @property (nonatomic, copy) NSString *key;         // "purpose:path"
 @property (nonatomic, copy) NSString *path;
@@ -97,10 +96,8 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
 @implementation VibeAudioFileMaterializationWaiter
 @end
 
-// Probe attempts deliberately do not retain the coordinator. This separately
-// owned counter starts before a scheduler/worker handoff, so quiescence cannot
-// slip through the dispatch gap, and stays alive with a stranded body after
-// its claim leaves.
+// Owned apart from the coordinator, which probes do not retain. Counted before
+// the worker handoff so quiescence cannot slip through the dispatch gap.
 @interface VibeDatalessProbeActivity : NSObject
 - (void)beginAttempt;
 - (void)finishAttempt;
@@ -272,11 +269,7 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
     }
 }
 
-// Single-shot: a settle schedules exactly one delivery, and a cancel landing
-// before it runs suppresses the queued completion. The two-phase loop this
-// once was existed only to order the registered: callback ahead of the
-// completion; the registration concept left with the acknowledgement
-// machinery.
+// A settle schedules exactly one delivery; a cancel before it runs suppresses it.
 - (void)runDelivery {
     VibeAudioFileMaterializationCompletion completion = nil;
     NSError *error = nil;
@@ -335,9 +328,8 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
     [self.coordinator detachOpenToken:self];
 }
 
-// Whether a cancel has not yet detached this token. openURL's state-queue
-// block reads it so a token cancelled between creation and installation never
-// installs a run.
+// Read by openURL:'s state-queue block, so a token cancelled before it was
+// installed never installs a run.
 - (BOOL)deliveryStillWaiting {
     os_unfair_lock_lock(&_deliveryLock);
     BOOL waiting = _deliveryState == VibeAudioFileOpenDeliveryWaiting;
@@ -362,16 +354,13 @@ static void *VibeMaterializationStateQueueKey = &VibeMaterializationStateQueueKe
 static const NSUInteger kMaximumDatalessProbeRunningCount = 8;
 static const NSUInteger kMaximumDatalessProbePendingCount = 16;
 static const NSTimeInterval kDatalessProbePendingGrace = 5;
-// One production player has two queue-confined open sources: playback and
-// prefetch. Six conservatively leaves four stranded-call memberships beyond
-// that source bound while capping uncancellable workers.
-// The fuse is purpose-blind, so saturation can refuse playback. A new player,
-// source or multi-flight source requires re-deriving this ceiling.
+// One production player with two open sources (playback, prefetch), plus four
+// stranded calls. Purpose-blind, so saturation can refuse playback. A new
+// player, source or multi-flight source means re-deriving it.
 static const NSUInteger kMaximumHandleRunCount = 6;
 
 @implementation AudioFileMaterializationCoordinator {
-    // Claim state only. Blocks on this queue may not perform filesystem or
-    // provider I/O.
+    // Claim state only; no filesystem or provider I/O on it.
     dispatch_queue_t _stateQueue;
     AudioWorkScheduler *_datalessProbeScheduler;
     VibeDatalessProbeActivity *_datalessProbeActivity;
@@ -379,8 +368,8 @@ static const NSUInteger kMaximumHandleRunCount = 6;
     dispatch_queue_t _backgroundWorkerQueue;
     dispatch_source_t _pendingTimer;
     NSMutableDictionary<NSString *, VibeAudioFileMaterializationClaim *> *_claims;
-    // Stage 2, keyed "purpose:path". Membership is also the fixed admission:
-    // a run stays registered until its uncancellable AudioFileHandle call returns.
+    // Stage 2, keyed "purpose:path". Membership is the ceiling's count: a run
+    // stays until its uncancellable AudioFileHandle call returns.
     NSMutableDictionary<NSString *, VibeAudioHandleRun *> *_handleRuns;
     NSMutableArray<VibeAudioFileMaterializationClaim *> *_interactivePending;
     NSMutableArray<VibeAudioFileMaterializationClaim *> *_backgroundPending;
@@ -393,9 +382,7 @@ static const NSUInteger kMaximumHandleRunCount = 6;
     VibeAudioFileMaterializationDatalessProbe _datalessProbe;
     VibeAudioFileMaterializationClock _clock;
     VibeAudioFileOpener _fileOpener;
-    // Atomic because the health probe reads them without taking coordinator
-    // state. Written only on the state queue, so relaxed ordering on the write
-    // side would do; the default is not hot.
+    // Atomic for the health probe's lock-free read; written on the state queue.
     _Atomic uint64_t _handleOpensStarted;
     _Atomic uint64_t _handleOpensCompleted;
     uint64_t _requestsReady;
@@ -566,14 +553,9 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
     return NO;
 }
 
-// The C1 rule's single source, derived from the claim table rather than
-// counted: any live claim with a playback or prefetch waiter means the user
-// (or their successor) is waiting on a transfer, and background metadata
-// work must not compete for the provider. Claims leave the table exactly at
-// settlement, so there is no release edge to deliver — the same
-// drainPendingClaims every settlement path already runs is the reopening.
-// O(claims), and the table is small by construction (probe, running and
-// pending bounds plus the fixed caller-side admissions).
+// Derived from the claim table, never counted: claims leave at settlement, and
+// the drainPendingClaims every settlement runs is the release. O(claims), a
+// table bounded by the probe, lane and caller-side admissions.
 - (BOOL)foregroundTransferActiveLocked {
     for (VibeAudioFileMaterializationClaim *claim in _claims.objectEnumerator) {
         if (claim.waiters.count && [self claimHasNonMetadataWaiter:claim]) {
@@ -583,8 +565,6 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
     return NO;
 }
 
-// The stage-2 injection seam. Tests get theirs at init; the debug channel
-// needs to wrap the live shared coordinator's, which is what this is for.
 - (VibeAudioFileOpener)fileOpener {
     __block VibeAudioFileOpener opener;
     [self performStateSynchronously:^{
@@ -600,9 +580,7 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
     }];
 }
 
-// Lock-free by contract: see the ivar comment. The two counters are read
-// separately, so a concurrent open that starts between them reads as not yet
-// started — which understates, never overstates, the number of stranded calls.
+// Two separate loads: an open completing between them overstates by one.
 - (uint64_t)handleOpensInFlight {
     uint64_t completed = atomic_load(&_handleOpensCompleted);
     uint64_t started = atomic_load(&_handleOpensStarted);
@@ -621,21 +599,18 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
     return active;
 }
 
-// The rising edge: the first foreground waiter preempts every metadata-only
-// dataless claim, running ones included — the sweep's in-flight download is
-// cancelled, not waited out (C6). The path the foreground request is about
-// to join is exempt: one transfer per path is the load-bearing rule (A2),
-// and yielding the claim it is joining would cancel the very download it
-// came for. Local claims pass because they hold no transfer the rule
-// protects.
+// The rising edge yields every metadata-only dataless claim, running ones
+// included: the sweep's download is cancelled, not waited out (C6). The path
+// being joined is exempt, or the request would cancel the transfer it came
+// for (A2: one transfer per path).
 - (void)preemptMetadataClaimsForForegroundRiseExcludingPath:(NSString *)joinedPath {
     NSArray<VibeAudioFileMaterializationClaim *> *claims = _claims.allValues;
     for (VibeAudioFileMaterializationClaim *claim in claims) {
         if ([claim.path isEqualToString:joinedPath]) {
             continue;
         }
-        // Neither phase has entered a provider operation. Its probe settlement
-        // re-checks the foreground hold before it can do so.
+        // Not yet in a provider operation; the probe's settlement rechecks
+        // the hold before entering one.
         if (claim.state == VibeMaterializationClaimStateProbing
                 || claim.state == VibeMaterializationClaimStateRefreshing) {
             continue;
@@ -647,8 +622,8 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
     }
 }
 
-// The materializer's one spelling of cancellation (System/CLAUDE.md), which is
-// also what NSFileCoordinator's own -cancel returns.
+// VibeMaterializationCancelledError's spelling, which NSFileCoordinator's
+// -cancel also returns.
 static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     return [error.domain isEqualToString:NSCocoaErrorDomain]
             && error.code == NSUserCancelledError;
@@ -660,9 +635,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
                            userInfo:@{NSLocalizedDescriptionKey: description}];
 }
 
-// Every terminal outcome a caller can observe, counted in one place. A stage-1
-// claim four waiters joined settles four requests; a pre-stage-1 handle refusal
-// settles one. State-queue only, like everything else here.
+// Counts per waiter: a claim four waiters joined settles four requests.
 - (void)countSettledRequest:(VibeAudioFileMaterializationResult)result {
     switch (result) {
         case VibeAudioFileMaterializationResultReady: _requestsReady++; break;
@@ -776,11 +749,8 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
                 completionQueue:completionQueue completion:completion];
         [self expirePendingClaimsAtTime:self->_clock() drain:NO];
         VibeAudioFileMaterializationClaim *claim = self->_claims[path];
-        // The rule suspends provider transfers; a request for an already-local
-        // file starts none and passes through, which is what lets the playing
-        // track's tags parse the moment its open lands. Computed before this
-        // request joins the table, so a foreground registration sees the world
-        // it is preempting and a metadata one is judged against it.
+        // Sampled before this request joins the table. An already-local file
+        // passes: the rule suspends provider transfers, and it starts none.
         BOOL foregroundWasActive = [self foregroundTransferActiveLocked];
         BOOL suspendedMetadata = VibeMaterializationRoleIsMetadata(role)
                 && foregroundWasActive;
@@ -803,7 +773,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
         waiter.submittedAt = self->_clock();
         waiter.token = token;
         // Preempt only after this waiter is installed, so cancellation side
-        // effects already observe the foreground hold behind the rising edge.
+        // effects already see the hold.
         if (claim) {
             VibeAudioFileMaterializationRole oldRole = claim.effectiveRole;
             claim.waiters[@(identifier)] = waiter;
@@ -856,12 +826,9 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
         [self startClaim:claim classificationFresh:classificationFresh];
         return YES;
     }
-    // Lane capacity bounds concurrent provider transfers. A file already local
-    // starts none — its run is a no-op coordinated read — so it must not park
-    // behind real downloads: the playing track's metadata would wait out its
-    // whole admission grace behind the scan's transfer. A file evicted between
-    // classification and the run downloads outside the bound; that race is one
-    // transfer wide and self-corrects at the next admission.
+    // Lanes bound provider transfers; a local file starts none, so it must not
+    // park behind one. A file evicted after classification downloads outside
+    // the bound, one transfer wide.
     if (!claim.dataless) {
         [self startClaim:claim classificationFresh:classificationFresh];
         return YES;
@@ -873,11 +840,9 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     NSUInteger maximumPending = lane == VibeMaterializationLaneInteractive
             ? _configuration.maximumInteractivePendingMaterializations
             : _configuration.maximumBackgroundPendingMaterializations;
-    // No prefetch reservation or metadata eviction here anymore: while a
-    // foreground claim is live, known dataless metadata-only work yields at
-    // entry and unclassified metadata-only work yields if its probe reports
-    // dataless. Local work starts immediately, so no metadata-only claim can
-    // occupy a transfer-pending slot beside a prefetch.
+    // Needs no prefetch reservation: while a foreground claim is live,
+    // metadata-only dataless work yields at entry or at its probe, so none
+    // holds a pending slot beside a prefetch.
     if (!preserveExistingAdmission && pending.count >= maximumPending) {
         return NO;
     }
@@ -937,8 +902,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
             claim.runWasCancelled = YES;
             [claim.operation cancel];
         }
-        // Finish in this state-queue turn. A replacement waiter cannot attach
-        // to a Refreshing run after the decision and accidentally revive it.
+        // Finish in this turn, so no waiter can attach and revive the run.
         [self finishClaim:claim runGeneration:runGeneration ready:NO error:nil];
         return NO;
     }
@@ -961,7 +925,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     id<AudioFileMaterializationOperation> operation =
             _operationFactory(claim.url, claim.effectiveRole);
     if (!operation) {
-        // No operation entered Running, so no transfer begin exists to pair.
+        // Nothing entered Running, so there is no begin to pair.
         [self settleClaim:claim result:VibeAudioFileMaterializationResultFailed
                     error:[self missingFailureError]];
         return;
@@ -1043,10 +1007,8 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
         return;
     }
     BOOL classificationFresh = claim.state == VibeMaterializationClaimStateRefreshing;
-    // Running+dataless is the publication receipt. Refreshing has reserved its
-    // lane but has not queued begin or entered the operation. The restart paths
-    // below re-begin through startClaim:, and main-queue FIFO keeps the pair in
-    // order.
+    // Running+dataless means begin was published; Refreshing published
+    // nothing. A restart below re-begins, and main-queue FIFO keeps the order.
     if (claim.state == VibeMaterializationClaimStateRunning && claim.dataless) {
         NSString *transferPath = claim.path;
         run_on_main_thread({
@@ -1083,12 +1045,10 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     else if (!ready && claim.waiters.count
             && VibeMaterializationErrorIsCancellation(error)
             && claim.inheritedCancelRestarts < 2) {
-        // A cancellation this coordinator did not order (its own travel
-        // runWasCancelled) is the provider's dying fetch bleeding into a fresh
-        // coordinated read of the same file — a play landing milliseconds
-        // after a rising edge cancelled the sweep's transfer inherits it. Not
-        // a verdict on the file: restart, bounded so a provider that keeps
-        // answering cancelled still settles as Failed.
+        // A cancellation this coordinator did not order (ours set
+        // runWasCancelled) is a dying fetch, e.g. the sweep's just-yielded
+        // transfer, bleeding into a fresh read of the same file. Restart,
+        // bounded so a provider that keeps answering cancelled still fails.
         claim.inheritedCancelRestarts++;
         if (![self admitClaim:claim
                 preserveExistingAdmission:YES
@@ -1151,9 +1111,8 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
 }
 
 - (NSUInteger)bestPendingIndexInArray:(NSArray<VibeAudioFileMaterializationClaim *> *)pending {
-    // Belt over the rising-edge preemption: a metadata claim can sit pending
-    // across a foreground registration only through a detach interleaving,
-    // and it must not start while the rule is in force.
+    // Backs up the rising-edge preemption: a detach interleaving can leave a
+    // metadata claim pending under the rule, and it must not start.
     BOOL foregroundActive = [self foregroundTransferActiveLocked];
     NSUInteger best = NSNotFound;
     for (NSUInteger index = 0; index < pending.count; index++) {
@@ -1228,12 +1187,10 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
         }
         else {
             claim.effectiveRole = [self effectiveRoleForClaim:claim];
-            // A metadata-only dataless remainder yields when the rule is in
-            // force — and also when the departing waiter WAS the foreground:
-            // its metadata waiters were passengers on the user's transfer
-            // (C3's join), and a timed-out or superseded open must not leave
-            // them keeping the dead transfer alive with no deadline of their
-            // own. The abandoned pick returns to the sweep at its rank (B4).
+            // A metadata-only dataless remainder yields under the rule, and
+            // also when the foreground itself left: its passengers (C3) must
+            // not keep a dead open's transfer alive with no deadline of their
+            // own. The pick returns to the sweep at its rank (B4).
             BOOL metadataOnly = ![self claimHasNonMetadataWaiter:claim];
             BOOL probeOutstanding = claim.state == VibeMaterializationClaimStateProbing
                     || claim.state == VibeMaterializationClaimStateRefreshing;
@@ -1318,9 +1275,7 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
         }
         VibeAudioHandleRun *run = self->_handleRuns[key];
         if (run) {
-            // Same purpose, same path: the new request replaces the delivery
-            // binding without another handle open. The superseded token stays
-            // silent by never taking delivery.
+            // Rebind; the superseded token never takes delivery.
             run.waiter = token;
             return;
         }
@@ -1360,23 +1315,19 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
     dispatch_async(_stateQueue, ^{
         VibeAudioHandleRun *run = self->_handleRuns[token.key];
         if (run.waiter != token) {
-            return; // already rebound, completed, or detached
+            return;
         }
         run.waiter = nil;
-        // Marked abandoned in the same step that clears the waiter, and never
-        // separately: finishHandleRun: reads this to tell "the run produced
-        // nothing because nobody was waiting" from "the file genuinely would
-        // not open".
+        // Set with the waiter's removal, never apart: finishHandleRun: tells
+        // "nobody was waiting" from "the file would not open" by it.
         run.runWasCancelled = YES;
         if (run.materializationToken) {
-            // Still stage 1: nothing uncancellable has begun, so the run can
-            // simply end. The transfer detach settles its own accounting.
+            // Still stage 1: nothing uncancellable has begun.
             [run.materializationToken cancel];
             run.materializationToken = nil;
             [self->_handleRuns removeObjectForKey:run.key];
         }
-        // Stage 2 already dispatched: the AudioFileHandle call is uncancellable
-        // and keeps the run's fixed admission until it returns.
+        // Otherwise the handle open keeps its membership until it returns.
     });
 }
 
@@ -1449,20 +1400,15 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
 - (void)dispatchHandleOpenForRun:(VibeAudioHandleRun *)run
                     runGeneration:(uint64_t)runGeneration {
     if (!run.waiter) {
-        // Abandoned before the uncancellable call began: nothing to open.
         [self finishHandleRun:run runGeneration:runGeneration file:nil error:nil];
         return;
     }
     dispatch_queue_t workerQueue = run.purpose == VibeAudioFileOpenPurposePlayback
             ? _interactiveWorkerQueue : _backgroundWorkerQueue;
-    // Paired with the increment below rather than with finishHandleRun:, which
-    // also runs for runs that never dispatched an open. The difference is the
-    // count of AudioFileHandle calls the OS still owes an answer for.
+    // Paired with the completed increment below, not finishHandleRun:, which
+    // also runs for runs that never opened.
     atomic_fetch_add(&_handleOpensStarted, 1);
-    // Snapshotted here rather than read from the ivar on the worker: the opener
-    // is swappable (the debug channel's wedge injection), and a block read from
-    // another thread while it is being replaced is not safe. Same discipline as
-    // the open-timeout snapshot in AudioPlayer.
+    // Snapshotted on the state queue: the debug channel swaps the opener.
     VibeAudioFileOpener opener = _fileOpener;
     __weak AudioFileMaterializationCoordinator *weakSelf = self;
     dispatch_async(workerQueue, ^{
@@ -1489,9 +1435,8 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
         return;
     }
     AudioFileOpenToken *waiter = run.waiter;
-    // A waiter may have rebound after cancellation but before the abandoned
-    // stage returned. Give it a fresh run; never turn the old waiter's
-    // cancellation into the new waiter's open failure.
+    // A waiter rebound after a cancellation gets a fresh run, never the
+    // abandoned run's empty result.
     if (!file && waiter && run.runWasCancelled) {
         run.runWasCancelled = NO;
         [self startHandleRunStages:run];
@@ -1501,9 +1446,7 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
     if (!waiter) {
         return;
     }
-    // A completion is a result, so it always carries one: either a file or a
-    // reason there is none (VibeAudioFileOpenErrorAbandoned is the enforced
-    // backstop, reachable only if the abandoned-run path above were defeated).
+    // A completion always carries a file or a reason.
     NSError *reported = error;
     if (!file && !reported) {
         reported = [NSError errorWithDomain:VibeAudioFileOpenErrorDomain

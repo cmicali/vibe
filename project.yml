@@ -19,15 +19,10 @@ configs:
 # Shared between the app targets so a second platform cannot drift from the
 # first on where TagLib, PINCache and the generated git-info header live.
 settingGroups:
-  # THE version, for both apps. The two targets ship the same product under one
-  # bundle identifier, so they release together and must carry the same number;
-  # declared once here rather than once per target, which is how the iOS target
-  # sat at 1.0 (1) against the mac's 1.10 (110) with nothing to catch it.
-  #
-  # Bumping a release means editing these two lines and nothing else.
-  # release-appstore.sh and github-release.sh both read the number back out of
-  # the BUILT app rather than out of this file, so a scrape cannot pick the
-  # wrong target's copy.
+  # THE version, for every target: both apps ship under one bundle identifier,
+  # so they must carry the same number, and a per-target copy drifts silently.
+  # A release bumps these two lines and nothing else; the release scripts read
+  # the number back out of the BUILT app.
   vibe-version:
     MARKETING_VERSION: "1.14-beta1"
     CURRENT_PROJECT_VERSION: 124
@@ -96,20 +91,16 @@ settings:
     GCC_NO_COMMON_BLOCKS: YES
     # Set to 0 to omit exclusive output controls and CoreAudio hog access.
     VIBE_ENABLE_EXCLUSIVE_OUTPUT: 1
-    # 1 for betas: every log level is kept by the unified log, where Save Debug
-    # Info and `log show` can retrieve it, and every timed playback step is
-    # recorded, so a user reporting that nothing was logged can only mean the
-    # path was not taken (#47). 0 for a stable release: info and debug are
-    # stream-only again and only the steps that cross their threshold are
-    # recorded.
+    # 1 for betas: info, debug and warn are persisted at Default, so Save Debug
+    # Info retrieves them, and every timed playback step is recorded, so a
+    # report with nothing logged means the path was not taken. 0 for a stable
+    # release: info and debug are stream-only, and only steps over their
+    # threshold are recorded.
     VIBE_VERBOSE_LOGGING: 1
-    # Warnings are errors everywhere: the warning set was audited to zero
-    # (2026-08-21) and neither xcodebuild nor the analyze gate would otherwise
-    # fail on a compiler warning — the analyze script's filter deliberately
-    # matches only checker findings. ThirdParty compiles warning-free today; if
-    # a future toolchain warns on vendored code the repo does not restyle, give
-    # that file a per-file -Wno-* flag beside the PIN caches' entries rather
-    # than turning this off.
+    # Nothing else fails on a compiler warning: the analyze gate matches only
+    # checker findings. If a toolchain warns on vendored code, give that file a
+    # per-file -Wno-* flag beside the PIN caches' entries rather than turning
+    # this off.
     GCC_TREAT_WARNINGS_AS_ERRORS: YES
     GCC_WARN_64_TO_32_BIT_CONVERSION: YES
     GCC_WARN_ABOUT_RETURN_TYPE: YES_ERROR
@@ -139,13 +130,9 @@ settings:
       ONLY_ACTIVE_ARCH: YES
     Release:
       DEBUG_INFORMATION_FORMAT: "dwarf-with-dsym"
-      # STRIP_INSTALLED_PRODUCT is already YES and STRIP_STYLE `all`, but a
-      # `build` action leaves DEPLOYMENT_POSTPROCESSING off and an `archive`
-      # turns it on — so every shipped DMG and pkg was stripped while a local
-      # `make build CONFIG=Release` kept a 41k-entry symbol table, two products
-      # of one configuration 1.7x apart. Arming it here is what makes the local
-      # build and `make install` the thing that ships. Symbolication comes from
-      # the dSYM above either way.
+      # Only `archive` turns this on by itself, so without it a local Release
+      # `build` (and `make install`) keeps its symbol table and is not what
+      # ships. Symbolication comes from the dSYM either way.
       DEPLOYMENT_POSTPROCESSING: YES
       ENABLE_NS_ASSERTIONS: NO
       GCC_OPTIMIZATION_LEVEL: s
@@ -163,17 +150,13 @@ targets:
     platform: macOS
     sources:
       - path: main.m                          # repo root, outside Vibe/
-      # Recursive entries, one per top-level subsystem, rather than `- path:
-      # Vibe`, so adding a subsystem is a deliberate edit and per-subsystem
-      # build settings have somewhere to go. Nested feature directories are
-      # covered by their subsystem; a new top-level boundary needs a new entry.
+      # One recursive entry per top-level subsystem rather than `- path: Vibe`,
+      # so a new top-level boundary is a deliberate edit.
       #
-      # The tree is sorted by feature. THE DIRECTORY IS THE PLATFORM BOUNDARY:
-      # a shared subsystem keeps its shared code at the top level and its
-      # platform halves in Mac/ and iOS/ subdirectories, so neither target
-      # needs a per-file — or feature-named — exclude. Every shared entry
-      # carries "iOS/**" whether or not that half exists yet. See VibeiOS
-      # below, the root CLAUDE.md, and make check-layout.
+      # THE DIRECTORY IS THE PLATFORM BOUNDARY: platform halves live in Mac/
+      # and iOS/ subdirectories, so neither target needs a per-file or
+      # feature-named exclude. Every shared entry carries "iOS/**" whether or
+      # not that half exists yet. See the root CLAUDE.md and make check-layout.
       - path: Vibe/Audio
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/Common
@@ -188,9 +171,8 @@ targets:
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/Playlist
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
-      # Every source under here wraps its whole body in #if DEBUG, so a Release
-      # build compiles them to empty objects — the channel is in both targets'
-      # sources but ships in neither.
+      # Every source here wraps its body in #if DEBUG: in both targets, shipped
+      # in neither.
       - path: Vibe/Debug
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/ThirdParty
@@ -202,12 +184,10 @@ targets:
           - "**/LICENSE.MPL"                  # TagLib's MPL 1.1 text: same, but not a .txt
           - "**/PINDiskCache.m"               # re-added below with its per-file flags
           - "**/PINMemoryCache.m"             # same
-      # The NumberObjectConversion checker fires 8 times across the two PIN
-      # caches (NSNumber truthiness, PIN's own style). ThirdParty is excluded
-      # from the analyze gate, but the findings still printed in every CI log;
-      # vendored code is not restyled, so the checker is switched off for
-      # exactly these files instead. The -Xclang pair is inert in a normal
-      # compile and only takes effect under the analyzer.
+      # The NumberObjectConversion checker flags PIN's own NSNumber-truthiness
+      # style. The gate skips ThirdParty but the findings still print, and
+      # vendored code is not restyled, so the checker is off for exactly these
+      # files. The -Xclang pair only takes effect under the analyzer.
       - path: Vibe/ThirdParty/PINCache/PINDiskCache.m
         compilerFlags:
           - "-fobjc-arc-exceptions"
@@ -240,26 +220,23 @@ targets:
       - path: Resources/AppIcon.icon          # Icon Composer .icon (handled via options.fileTypes)
       - path: Resources/VectorBalls.metal.txt
         buildPhase: resources                 # runtime-compiled off-main; avoids optional Metal toolchain
-      # String Catalogs. The build only COMPILES these; keys are extracted by
-      # `make strings` (no build-time extraction exists for ObjC — see
-      # scripts/extract-strings.sh, deliberately not a build phase).
+      # The build only COMPILES the catalogs; `make strings` extracts keys
+      # (nothing extracts ObjC strings at build time).
       - path: Resources/Localizable.xcstrings
         buildPhase: resources
       - path: Resources/InfoPlist.xcstrings
         buildPhase: resources
-      # Built-in theme names' hand-managed catalog (table "ThemeNames") — not
-      # touched by extraction; covered by check-translations.
+      # Hand-managed (table "ThemeNames"): extraction never touches it;
+      # check-translations covers it.
       - path: Resources/ThemeNames.xcstrings
         buildPhase: resources
-      # A folder reference: every JSON dropped in Resources/Themes ships as a
-      # built-in theme with no project edit — the point of the directory.
+      # A folder reference: every JSON dropped in ships as a built-in theme.
       - path: Resources/Themes
         type: folder
         buildPhase: resources
     preBuildScripts:
-      # Writes build/generated/VibeGitInfo.h (commit/branch/dirty) for the
-      # startup log — see NSBundle+BuildInfo. Reading .git needs
-      # ENABLE_USER_SCRIPT_SANDBOXING: NO (already set below).
+      # build/generated/VibeGitInfo.h for the launch provenance block; reading
+      # .git needs ENABLE_USER_SCRIPT_SANDBOXING: NO (set below).
       - script: '"$SRCROOT/scripts/generate-git-info.sh"'
         name: Generate Git Info
         basedOnDependencyAnalysis: false
@@ -341,7 +318,7 @@ targets:
             LSItemContentTypes:
               - "org.xiph.flac"
 
-        # macOS has no system UTI for cue sheets — files come up as dyn.* — so
+        # macOS has no system UTI for cue sheets (they read as dyn.*).
         UTExportedTypeDeclarations:
           - UTTypeIdentifier: "com.commonwealthrecordings.cue-sheet"
             UTTypeDescription: "CUE Sheet"
@@ -360,14 +337,13 @@ targets:
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         CLANG_ENABLE_MODULES: YES
         CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/Vibe/Mac/App/Vibe.entitlements"
-        CODE_SIGN_IDENTITY: "-"             # Sign to Run Locally: no dev cert needed (empty
-                                            # entitlements, no profile); release.sh re-signs
-                                            # with Developer ID for distribution.
+        CODE_SIGN_IDENTITY: "-"             # Sign to Run Locally: no dev cert; the release
+                                            # scripts re-sign for distribution.
         CODE_SIGN_STYLE: Automatic
         COMBINE_HIDPI_IMAGES: YES
         ENABLE_APP_SANDBOX: YES
         ENABLE_HARDENED_RUNTIME: YES
-        ENABLE_USER_SCRIPT_SANDBOXING: NO           # target overrides project-level YES
+        ENABLE_USER_SCRIPT_SANDBOXING: NO           # generate-git-info.sh reads .git
         ENABLE_USER_SELECTED_FILES: readwrite
         EXCLUDED_ARCHS: ""
         LD_RUNPATH_SEARCH_PATHS:
@@ -382,28 +358,22 @@ targets:
       - sdk: ApplicationServices.framework
       - sdk: AudioToolbox.framework
       - sdk: CoreAudio.framework
-      - sdk: ImageIO.framework              # AudioTrackMetadata art decode, DebugUtil screenshots
+      - sdk: ImageIO.framework              # bounded art decode, debug screenshots
       - sdk: MediaPlayer.framework
       - sdk: Metal.framework                # VectorBallsView (About window)
       - sdk: MetalKit.framework             # VectorBallsView (About window)
       - sdk: QuartzCore.framework
-      - sdk: UniformTypeIdentifiers.framework  # AppDelegate file filtering, DebugUtil
+      - sdk: UniformTypeIdentifiers.framework  # file-type filtering
 
-  # The iOS app: the shared subset (every shared subsystem minus its Mac/
-  # half, plus ThirdParty) plus the UIKit app layer in Vibe/iOS. Same bundle ID as
-  # the mac app: two platforms may share one, and it is the prerequisite for
-  # App Store universal purchase.
+  # Every shared subsystem minus its Mac/ half, plus Vibe/iOS. Same bundle ID as
+  # the mac app: the prerequisite for App Store universal purchase.
   VibeiOS:
     type: application
     platform: iOS
     sources:
-      # THE DIRECTORY IS THE PLATFORM BOUNDARY. Every entry below is a whole
-      # shared directory whose AppKit half lives in a Mac/ subdirectory this
-      # target simply never names. So there are no per-file — or feature-named
-      # — excludes here to drift, and a new file in a shared directory joins
-      # this target automatically: it must be AppKit-free or
-      # TARGET_OS_OSX-guarded, which CI's build-ios job enforces. See the root
-      # CLAUDE.md and make check-layout.
+      # A new file in a shared directory joins this target automatically, so it
+      # must be AppKit-free or TARGET_OS_OSX-guarded; CI's build-ios job
+      # enforces it. See the Vibe target above.
       - path: Vibe/iOS
         excludes: ["**/.DS_Store", "**/*.md"]
       - path: Vibe/Audio
@@ -420,9 +390,6 @@ targets:
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/WaveformUI
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
-      # Every source under here wraps its whole body in #if DEBUG, so a Release
-      # build compiles them to empty objects — the channel is in both targets'
-      # sources but ships in neither.
       - path: Vibe/Debug
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/ThirdParty
@@ -484,9 +451,9 @@ targets:
         # windowing lets the user give the window any aspect.
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UIApplicationSceneManifest:
-          # One scene, deliberately: PlayerViewController owns the audio
-          # engine per-instance, so a second scene would spawn a second
-          # engine. The single scene is still freely resizable on iPadOS 26.
+          # One scene, deliberately: VibeiOSSceneDelegate owns the one
+          # PlaybackController and its AudioPlayer, so a second scene would
+          # create a second player. Still freely resizable on iPadOS 26.
           UIApplicationSupportsMultipleScenes: false
           UISceneConfigurations:
             UIWindowSceneSessionRoleApplication:
@@ -495,14 +462,9 @@ targets:
         # Files-app integration: open-in-place from Files/share sheet, and a
         # visible on-device Documents folder.
         #
-        # UIFileSharingEnabled is a product decision, not a debugging leftover.
-        # Vibe bundles no music and streams nothing, so every track arrives
-        # from somewhere the user put it, and the app's own Documents
-        # directory is a PERMANENT search root (SearchFolderStore: readable
-        # with no grant, so it is always a root and never a row). Turning this
-        # off would leave that root with no way to put anything in it. The app
-        # keeps no state there — settings are in NSUserDefaults and the caches
-        # are in Caches/ — so what the user sees is only what the user added.
+        # UIFileSharingEnabled is a product decision: the app's Documents
+        # directory is a permanent search root (SearchFolderStore), and this is
+        # the only way to put anything in it. The app keeps no state there.
         LSSupportsOpeningDocumentsInPlace: true
         UIFileSharingEnabled: true
         # Same key and UTIs as the mac target's "Audio Files" entry, so
@@ -661,16 +623,11 @@ targets:
         CODE_SIGN_STYLE: Automatic
         GCC_PREFIX_HEADER: ""               # no app pch; XCTest only
 
-  # Host-LESS logic tests: no TEST_HOST, so the suite never launches the app
-  # (which would boot the window, engine and caches on every run) and never
+  # Host-LESS: no TEST_HOST, so the suite never launches the app and never
   # inherits its sandbox (which would block reading fixtures from the repo).
-  # The tradeoff is that sources under test are compiled in rather than linked
-  # from the app — hence the curated list below, which is the point: the
-  # tested surface is a deliberate choice, not whatever the glob swept up.
-  #
-  # Tests live in /Tests, OUTSIDE Vibe/, because the app targets list whole
-  # subsystem directories and XcodeGen recurses each one — a test file dropped
-  # into any of them would be compiled into the shipping binaries.
+  # Sources under test are compiled in, so the list below is the deliberately
+  # chosen tested surface. Tests live outside Vibe/ because the app targets
+  # recurse whole subsystem directories.
   VibeTests:
     type: bundle.unit-test
     platform: macOS
@@ -685,7 +642,7 @@ targets:
           - "**/.DS_Store"
           - "**/*.md"
           - "iOSDriver/**"                    # VibeiOSDriver's XCUI sources: iOS-only API
-          - "AudioPlayerRenderTests.m"         # Dedicated hardware-free render suite
+          - "AudioPlayerRenderTests.m"         # VibeAudioTests' suite
       - path: Vibe/Audio/Analysis/AudioBPMAnalyzer.mm
       - path: Vibe/Audio/Analysis/AudioKeyAnalyzer.mm
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
@@ -808,9 +765,9 @@ targets:
           - "$(SRCROOT)/Vibe/Mac/Settings"
           # PINCache's angle-bracket self-import resolves from the vendored root.
           - "$(SRCROOT)/Vibe/ThirdParty"
-          # PlayerScreenRules.h only: header-only and Foundation-only, so the
-          # iOS screen's state machine is testable from this macOS suite. No
-          # source under Vibe/iOS is compiled here.
+          # PlayerScreenRules.h: header-only and Foundation-only, so the iOS
+          # screen's state machine is testable here. The iOS sources compiled in
+          # above are Foundation-only too.
           - "$(SRCROOT)/Vibe/iOS"
     dependencies:
       - sdk: MediaPlayer.framework

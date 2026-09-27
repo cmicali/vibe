@@ -20,7 +20,6 @@
 }
 
 - (void)testTheThreeSkipDistancesScaleWithBars {
-    // 8 / 16 / 32 bars at 128 BPM.
     double perBar = 4.0 * 60.0 / 128.0;
     XCTAssertEqualWithAccuracy(VibeSkipFileSeconds(8, 128.0f, 10, 1.0), 8 * perBar, 1e-9);
     XCTAssertEqualWithAccuracy(VibeSkipFileSeconds(16, 128.0f, 30, 1.0), 16 * perBar, 1e-9);
@@ -33,8 +32,7 @@
 }
 
 - (void)testBarDistanceIgnoresPitch {
-    // Bars are a span of FILE time, which is what keeps a skip on the musical
-    // grid whatever the varispeed rate is doing.
+    // Bars are file time, which keeps a skip on the grid at any varispeed rate.
     double atRest = VibeSkipFileSeconds(8, 128.0f, 10, 1.0);
     XCTAssertEqualWithAccuracy(VibeSkipFileSeconds(8, 128.0f, 10, 1.08), atRest, 1e-9);
     XCTAssertEqualWithAccuracy(VibeSkipFileSeconds(8, 128.0f, 10, 0.92), atRest, 1e-9);
@@ -54,16 +52,13 @@
 }
 
 - (void)testFallbackIsConvertedToFileTimeByTheRate {
-    // The stated distance is what the user reads off the time label, so the
-    // file-time jump has to be scaled by the varispeed rate for the displayed
-    // clock to advance by exactly that much.
+    // The stated distance is read off the time label, so the file-time jump is
+    // scaled by the rate for the displayed clock to move by exactly that much.
     XCTAssertEqualWithAccuracy(VibeSkipFileSeconds(8, 0.0f, 10, 1.08), 10.8, 1e-9);
     XCTAssertEqualWithAccuracy(VibeSkipFileSeconds(8, 0.0f, 10, 0.92), 9.2, 1e-9);
 }
 
 - (void)testNegativeTempoIsTreatedAsUnknown {
-    // bpm is only ever 0-or-positive in practice; this pins that a garbage
-    // value degrades to the fallback rather than producing a negative skip.
     XCTAssertEqualWithAccuracy(VibeSkipFileSeconds(8, -120.0f, 10, 1.0), 10.0, 1e-9);
 }
 

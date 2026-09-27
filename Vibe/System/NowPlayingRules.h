@@ -2,20 +2,13 @@
 //  NowPlayingRules.h
 //  Vibe
 //
-//  What to publish, and when — kept apart from NowPlayingController so that
-//  both are functions of the numbers alone: no info center, no player, no
-//  clock of their own.
 //
 
 #import <Foundation/Foundation.h>
 #import "NowPlayingController.h"     // NowPlayingPlaybackState
 
-// The player's two state questions, mapped to what the system distinguishes.
-// They are mutually exclusive by construction — during Loading it is the
-// pending start intent that decides which answers YES, not the state alone
-// (see AudioPlayer's isPlaying/isPaused) — so this is total and the branch
-// order carries no meaning. An ordinary load therefore reads Playing, a parked
-// one Paused, which is what the enum's own doc describes.
+// isPlaying and isPaused are exclusive (during Loading the intent decides), so
+// the branch order carries no meaning.
 static inline NowPlayingPlaybackState VibeNowPlayingStateForPlayer(BOOL isPlaying,
                                                                    BOOL isPaused) {
     if (isPlaying) {
@@ -27,24 +20,18 @@ static inline NowPlayingPlaybackState VibeNowPlayingStateForPlayer(BOOL isPlayin
     return NowPlayingPlaybackStateStopped;
 }
 
-// Whether two published lines are the same line. nil equals nil: a track
-// legitimately has no artist, and -isEqual: on nil would read two absences as
-// a change and republish on every tick. Both publishers — the lock screen's
-// and the widget's — compare through this, so they cannot drift.
+// nil equals nil, or an artistless track republishes every tick. Shared with
+// the iOS widget publisher.
 static inline BOOL VibeNowPlayingStringsEqual(NSString *_Nullable a, NSString *_Nullable b) {
     return a == b || (b && [a isEqualToString:b]);
 }
 
-// A published position further than this from what the system's own
-// extrapolation predicts is a jump, from a seek or a pitch rescale, and must
-// be republished. Anything inside it is natural playback advance, which the
-// system tracks without a republish.
+// Further than this from the system's extrapolation is a jump (a seek, a
+// pitch rescale) and republishes.
 static const NSTimeInterval kVibeNowPlayingRepublishTolerance = 1.0;
 
-// The system Now Playing UI extrapolates the elapsed time itself from the
-// last publish: position advances at the published rate while playing, and
-// holds while paused or stopped. Natural advance therefore must not count as
-// dirty — YES only for a jump the extrapolation cannot explain.
+// The system extrapolates elapsed time at the published rate while playing,
+// so natural advance is not dirty.
 static inline BOOL VibeNowPlayingPositionIsDirty(NSTimeInterval publishedPosition,
                                                  CFAbsoluteTime publishedAt,
                                                  double publishedRate,

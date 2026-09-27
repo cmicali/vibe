@@ -1,26 +1,12 @@
 #!/usr/bin/env bash
 #
-# Run clang's static analyzer over BOTH app targets and fail on any finding in
-# our own sources.
-#
-# Both, because "the analyzer is a gate" was macOS-only for as long as there
-# has been an iOS target: Vibe/iOS and the iOS halves of the shared subsystems
-# — a few thousand lines — were never analyzed at all, and CI's build-ios job
-# compiles them without analyzing.
+# Run clang's static analyzer over BOTH app targets and fail on any finding
+# outside ThirdParty/ (vendored code is not restyled). Both, because CI's
+# build-ios job compiles the iOS sources without analyzing them.
 #
 # Usage: scripts/analyze.sh [Debug|Release] [macos|ios|all]
-#   configuration defaults to Debug, which is what the Vibe scheme's analyze
-#   action uses; the leg defaults to all. CI runs Release with one leg per
-#   matrix job — each leg is a full analyzing build of its target, so running
-#   them serially in one job doubles that job's wall time for nothing.
-#
-# The analyzer's checks are turned on in project.yml (CLANG_ANALYZER_NONNULL,
-# CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION: YES_AGGRESSIVE). Without this script
-# nothing ran them, so they were a setting rather than a gate.
-#
-# ThirdParty/ is excluded: vendored TagLib, PINCache and PINOperation are other
-# authors' code, which the repo does not restyle and cannot fix. Every other
-# check here draws the same line.
+#   configuration defaults to Debug (the schemes' analyze action); the leg to
+#   all. CI runs Release, one leg per matrix job.
 set -euo pipefail
 
 CONFIGURATION="${1:-Debug}"
@@ -51,13 +37,9 @@ fi
 
 mkdir -p build
 
-# The analyzer's own findings go to stdout as warnings; CLANG_ANALYZER_OUTPUT
-# text keeps them there rather than writing .plist files nothing reads. The
-# build must still be allowed to fail on its own terms, hence the tee and the
-# PIPESTATUS check rather than `set -o pipefail` swallowing the status.
-#
-# The iOS leg needs a destination (there is no default device) and no signing;
-# a generic simulator destination analyzes without booting anything.
+# CLANG_ANALYZER_OUTPUT=text keeps findings in the log rather than in .plist
+# files nothing reads; PIPESTATUS keeps xcodebuild's own status through the tee.
+# The iOS leg needs a destination; a generic simulator one boots nothing.
 analyze_scheme() {   # analyze_scheme <scheme> <log-suffix> [extra xcodebuild args...]
     local scheme="$1" suffix="$2"
     shift 2
@@ -80,7 +62,6 @@ analyze_scheme() {   # analyze_scheme <scheme> <log-suffix> [extra xcodebuild ar
         exit "$build_status"
     fi
 
-    # grep returns 1 on no match under set -e, so it is guarded either way.
     local findings
     findings="$(grep -E '^/.*: (warning|error): .*\[[a-zA-Z]' "$log" | grep -v '/ThirdParty/' || true)"
     if [[ -n "$findings" ]]; then

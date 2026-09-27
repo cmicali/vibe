@@ -2,8 +2,6 @@
 //  WidgetPublisher.m
 //  Vibe (iOS)
 //
-//  See WidgetPublisher.h.
-//
 
 #import "WidgetPublisher.h"
 
@@ -13,78 +11,52 @@
 #import "AudioTrack.h"
 #import "NSURL+Hash.h"
 #import "NowPlayingRules.h"
-#import "PlatformColor.h"           // VibeHexStringFromColor, the palette signature
+#import "PlatformColor.h"
 #import "PlayerDisplaySettings.h"
 #import "UIImage+DominantColor.h"
-#import "Vibe-Swift.h"                 // VibeWidgetReloader; WidgetCenter has no ObjC API
+#import "Vibe-Swift.h"                 // WidgetCenter has no ObjC API
 #import "VibeWidgetState.h"
 #import "WaveformRendererRegistry.h"
 #import "WaveformTheme.h"
 
-// The floor between two timeline reloads (scheduleReload).
 static const uint64_t kWidgetReloadMinInterval = NSEC_PER_SEC;
 
-// How far the real playhead may drift from what the widget would extrapolate
-// before the snapshot is republished. It is a seek detector: playing straight
-// through never trips it, because the widget's own arithmetic is right. Looser
-// than the lock screen's, because a widget entry is minutes of wall clock.
+// A seek detector against the widget's own extrapolation; looser than the lock
+// screen's, since a widget entry spans minutes.
 static const NSTimeInterval kWidgetPositionTolerance = 2.0;
 
-// The published artwork's longest side, in pixels. The widget draws it at 67pt
-// and again blurred as the background, so 256 is generous at 3x.
+// Pixels; the widget draws it at 67pt.
 static const CGFloat kWidgetArtworkSide = 256;
 
-// The strip the widget draws, in points; it stretches to whatever the widget
-// gives it, so only the ASPECT and the bar count really matter here. Baked to
-// the medium widget's shape, which is the taller of the two — the small
-// family's thinner strip scales down cleanly, where the reverse would stretch
-// the envelope's amplitude up. 3x because that is every current iPhone.
+// Stretched to fit, so only the ASPECT matters: the medium widget's, the
+// taller, since scaling down is clean and scaling up stretches the amplitude.
 static const CGSize  kWidgetWaveformSize  = (CGSize){320, 64};
 static const CGFloat kWidgetWaveformScale = 3;
 
 @implementation WidgetPublisher {
-    // What the widget was last told. nil until the first update. Kept current
-    // whether or not anything is written, so the moment a widget appears the
-    // truth is in hand rather than a tick away — and a tick is not guaranteed
-    // in the background, where that moment usually comes.
+    // Kept current whether or not anything is written: a widget usually
+    // appears in the background, where no tick is guaranteed.
     VibeWidgetState      *_published;
-    // The track that snapshot describes, held only to compare identity on the
-    // 3 Hz tick. A pointer compare, deliberately: AudioTrack.cacheKey stats the
-    // file and hashes its path, and its failure path does not memoize — on a
-    // dropped mount that would be a blocking syscall three times a second.
+    // A pointer compare, deliberately: AudioTrack.cacheKey stats the file and
+    // does not memoize a failure, a blocking syscall at 3 Hz on a dropped mount.
     __weak AudioTrack    *_publishedTrack;
-    // Whether the published track's artwork has been written. Cleared on a
-    // track change, set once a decode has actually been written.
     BOOL                  _artworkOnDisk;
-    // The track the plist on disk names, so the sweep after the next commit
-    // can keep that track's images through one more publish.
+    // So the sweep after the next commit keeps this track's images once more.
     NSString             *_committedKey;
 
-    // The last complete envelope offered, and the track it came from, so a
-    // settings change can re-bake without the card being asked again.
     CodableAudioWaveform *_waveform;
     __weak AudioTrack    *_waveformTrack;
-    // Everything the bake reads. A settings change that does not move one of
-    // these is not a re-bake — which is what makes this safe to hang off
-    // VibeDisplaySettingsDidChangeNotification, whose posters include a
-    // continuous slider and a colour well.
+    // Everything the bake reads; see displaySettingsDidChange.
     NSString             *_bakedSignature;
-    // The bake not yet started, so the next request can cancel it. TRAP: the
-    // gain slider posts a distinct value per half-dB of a drag, and each is a
-    // new signature — without this a one-second drag queued dozens of bakes,
-    // all but the last thrown away after they ran.
+    // Not yet started, so the next request can cancel it.
     dispatch_block_t      _pendingBake;
-    // Queue-only: whether a reload is already enqueued behind the writes, and
-    // when the last one was sent (uptime nanos), for scheduleReload's throttle.
+    // Queue-only; scheduleReload's throttle (uptime nanos).
     BOOL                  _reloadQueued;
     uint64_t              _lastReloadAt;
 
-    // Whether at least one widget is on a Home screen, as last known. Two
-    // sources, because each can only be right about one direction: WidgetKit's
-    // own answer (refreshPlaced) is authoritative but asked only at launch and
-    // on foreground, so it is what turns this OFF; the extension's read signal
-    // arrives the instant a widget renders, wherever the app is, so it is what
-    // turns it ON. Nothing is written while NO — see updateWithTrack:.
+    // Two sources, each right about one direction: WidgetKit's answer, asked
+    // only at launch and foreground, turns it OFF; the extension's read
+    // signal, the instant a widget renders, turns it ON.
     BOOL                  _widgetPlaced;
     int                   _readToken;
 
@@ -94,18 +66,15 @@ static const CGFloat kWidgetWaveformScale = 3;
 - (instancetype)init {
     self = [super init];
     if (self) {
-        // Serial, and the only writer of the shared container: the widget
-        // reads a plist that names files, so an image must never land after
-        // the plist that describes it, and two bakes must never interleave
-        // writing the same two PNGs.
+        // Serial: an image must never land after the plist naming it, and two
+        // bakes must never interleave writing the same PNGs.
         _queue = dispatch_queue_create("com.commonwealthrecordings.Vibe.widget-publish",
                                        DISPATCH_QUEUE_SERIAL);
         [NSNotificationCenter.defaultCenter addObserver:self
                                                selector:@selector(displaySettingsDidChange)
                                                    name:VibeDisplaySettingsDidChangeNotification
                                                  object:nil];
-        // The extension's "a widget just read the snapshot", on main so it is
-        // ordered with everything else that touches _published.
+        // On main, ordered with everything that touches _published.
         __weak WidgetPublisher *weakSelf = self;
         _readToken = NOTIFY_TOKEN_INVALID;
         notify_register_dispatch(kVibeWidgetReadNotification, &_readToken,
@@ -144,16 +113,12 @@ static const CGFloat kWidgetWaveformScale = 3;
     }
 }
 
-// The gate has just opened. Everything a widget needs is already in hand —
-// the snapshot, the track's decoded art, the offered envelope — so it is
-// written as if the track had just changed, which from the widget's side is
-// exactly what happened. A widget added while a track plays in the background
-// renders once from whatever was on disk, its read lands here, and the next
-// render is current.
+// The gate just opened: write everything in hand as if the track had just
+// changed, which from the widget's side it has.
 - (void)republish {
     VibeWidgetState *state = _published;
     if (!state) {
-        return;     // nothing handed over yet; the first update publishes
+        return;
     }
     _bakedSignature = nil;
     [self commitState:state artwork:_publishedTrack.cachedArt writeArtwork:YES];
@@ -167,17 +132,11 @@ static const CGFloat kWidgetWaveformScale = 3;
                duration:(NSTimeInterval)duration
                 playing:(BOOL)playing
            startPending:(BOOL)startPending {
-    // TRAP: cachedArt is nil until the artwork DECODES, so a track change
-    // almost always arrives before there is any art to write — and writing nil
-    // deletes the file. Keyed on the track alone, a change therefore cleared
-    // the artwork and never wrote it back, because by the time the decode
-    // landed the track had stopped being new. _artworkOnDisk is the state that
-    // makes the write re-fire: nil art leaves it clear, and the next tick that
-    // sees decoded art writes it.
-    //
-    // The gate is folded in here rather than tested below so that a quiet tick
-    // with no widget placed stays allocation-free: republish writes the art
-    // fresh from the track when one appears, so nothing is owed meanwhile.
+    // TRAP: cachedArt is nil until the art DECODES, so a track change usually
+    // writes nil, which deletes the file. Keyed on the track alone, the art
+    // never comes back; _artworkOnDisk re-fires the write on the first tick
+    // with decoded art. The gate is folded in so a quiet unplaced tick stays
+    // allocation-free; republish writes the art when a widget appears.
     UIImage *artwork = track.cachedArt;
     BOOL trackChanged = (track != _publishedTrack);
     BOOL writeArtwork = _widgetPlaced && (trackChanged || (artwork && !_artworkOnDisk));
@@ -200,11 +159,8 @@ static const CGFloat kWidgetWaveformScale = 3;
     _published      = next;
     _publishedTrack = track;
     if (trackChanged) {
-        // The envelope is kept only if it was offered FOR the track being
-        // adopted. The card can offer before this call or after it — returning
-        // to an already-played track offers first, because the coordinator has
-        // the snapshot in hand and starts no load — so the pairing is checked
-        // rather than the order assumed.
+        // Kept only if offered FOR this track: a played track's offer arrives
+        // before this call, so the pairing is checked, not the order assumed.
         if (!track || _waveformTrack != track) {
             _waveform      = nil;
             _waveformTrack = nil;
@@ -213,25 +169,21 @@ static const CGFloat kWidgetWaveformScale = 3;
         _artworkOnDisk  = NO;
     }
     if (!_widgetPlaced) {
-        return;     // bookkeeping only: nobody is looking
+        return;     // bookkeeping only
     }
     [self commitState:next artwork:artwork writeArtwork:writeArtwork];
 
-    // An offer that arrived before its track was adopted bakes now; so does
-    // art that decoded after the offer, for the one theme that reads it — the
-    // signature decides, so for every other theme this is a compare and out.
+    // An early offer bakes now, as does art that decoded after it (album_art);
+    // the signature decides.
     if (_waveform && (trackChanged || writeArtwork)) {
         [self bakeWaveformIfNeeded];
     }
 }
 
 // The one place the plist is written. TRAP: the images must land before the
-// plist. The widget reads the plist first and loads the files it names, so a
-// plist that arrives first pairs the new title with no artwork for as long as
-// the encode takes. The images are named by track, so the plist can never
-// name another track's; the sweep runs LAST and spares the outgoing track's
-// set, so an extension that read the previous plist a moment ago still finds
-// the images it names.
+// plist, which the widget reads first; otherwise the new title shows with no
+// art for as long as the encode takes. The sweep runs LAST and spares the
+// outgoing track's images, which a just-read previous plist still names.
 - (void)commitState:(VibeWidgetState *)state artwork:(UIImage *)artwork
        writeArtwork:(BOOL)writeArtwork {
     if (writeArtwork) {
@@ -255,17 +207,10 @@ static const CGFloat kWidgetWaveformScale = 3;
     });
 }
 
-// On _queue. One reload per burst of writes: the first write to land enqueues
-// the reload behind everything already queued, and a write queued meanwhile
-// rides the same one. A track change with an envelope in hand is two writes
-// and was two reloads — each an extension launch rendering a whole timeline.
-//
-// And at most one a second: a reload that follows another inside the window
-// waits out its remainder, so a run of seeks or play/pause taps costs one
-// trailing reload, not one apiece (33 in a three-minute session, measured). The
-// first of a quiet period still goes at once — a lone pause from the lock
-// screen must not sit on a timer the app may be suspended before it fires —
-// and the trailing one always goes, carrying whatever was written last.
+// On _queue. One reload per burst of writes, each reload being an extension
+// launch, and at most one a second: a burst costs one trailing reload. The
+// first of a quiet period goes at once — the app may be suspended before a
+// timer fires — and the trailing one always goes.
 - (void)scheduleReload {
     if (_reloadQueued) {
         return;
@@ -285,10 +230,8 @@ static const CGFloat kWidgetWaveformScale = 3;
     }
 }
 
-// Republished on a structural change or a seek, never on the tick that merely
-// advanced the playhead — that one the widget computes for itself. Cheapest
-// tests first: the scalars and the pointer, then the two lines (a tagged
-// file's are stored strings), and the drift arithmetic last.
+// On a structural change or a seek, never a plain tick, which the widget
+// extrapolates itself. Cheapest tests first.
 - (BOOL)needsPublishForTrack:(AudioTrack *)track
                      playing:(BOOL)playing
                     duration:(NSTimeInterval)duration
@@ -304,18 +247,15 @@ static const CGFloat kWidgetWaveformScale = 3;
     if (fabs(last.duration - duration) > 0.5) {
         return YES;
     }
-    // A track whose tags land after it started playing keeps its identity but
-    // changes its lines; that is a publish, and it is the only reason the
-    // strings are read at all.
+    // Tags landing after the start change the lines, not the identity.
     if (!VibeNowPlayingStringsEqual(last.title, track.displayTitle)
             || !VibeNowPlayingStringsEqual(last.artist, track.displayArtist)) {
         return YES;
     }
     if (startPending) {
-        return NO;      // position is pinned at 0 while the open runs; not a seek
+        return NO;      // pinned at 0 while the open runs
     }
-    // The same seek test the lock screen uses, with its own tolerance — the
-    // parameter exists for exactly this second caller (System/NowPlayingRules.h).
+    // The lock screen's seek test, with this caller's tolerance.
     return VibeNowPlayingPositionIsDirty(last.position,
                                          CFDateGetAbsoluteTime((__bridge CFDateRef)last.positionDate),
                                          1.0, last.playing, position,
@@ -328,9 +268,8 @@ static const CGFloat kWidgetWaveformScale = 3;
     if (!waveform || !track) {
         return;
     }
-    // Kept whichever side of the adoption it lands on; only the bake waits for
-    // the track to be the published one, so an offer for a page the user is
-    // merely swiping past cannot overwrite the strip.
+    // Kept either side of the adoption; only the bake waits for the published
+    // track, so a page swiped past cannot overwrite the strip.
     _waveform      = waveform;
     _waveformTrack = track;
     if (track == _publishedTrack) {
@@ -338,12 +277,11 @@ static const CGFloat kWidgetWaveformScale = 3;
     }
 }
 
-// A settings change re-bakes only when it moved something the bake reads.
-// TRAP: the posters of this notification include the gain slider, which is
-// continuous and documents that it is deliberately unthrottled *because every
-// consumer compares equal and does nothing*. A bake is two renders, two PNG
-// encodes and two file writes, so this consumer has to honour that contract or
-// a one-second drag queues a hundred of them.
+// Re-bakes only when a setting moved something the bake reads.
+// TRAP: the Custom theme's colour wells post continuously while dragged, each a
+// new signature. A bake is two renders, two PNG encodes and two writes, so the
+// signature compare and the _pendingBake cancel keep a drag from queuing
+// dozens.
 - (void)displaySettingsDidChange {
     [self bakeWaveformIfNeeded];
 }
@@ -354,35 +292,27 @@ static const CGFloat kWidgetWaveformScale = 3;
         return;
     }
     if (!_widgetPlaced) {
-        return;     // before the signature is taken, so the bake is still owed
+        return;     // before the signature, so the bake is still owed
     }
     AppSettings *settings = AppSettings.sharedInstance;
-    // The widget's own style when the user picked one, else the app's. nil
-    // means "match app", and resolveStyleIdentifier: turns an unregistered or
-    // absent identifier into the default either way.
+    // nil widget style means "match app".
     NSString *style = [WaveformRendererRegistry
             resolveStyleIdentifier:settings.widgetWaveformStyle ?: settings.waveformStyle];
-    // The app's scrubber draws the normalized mapping with no gain — Normalize
-    // and Gain are macOS settings (AppSettings+Mac.h) — and the strip matches it.
+    // Matches the scrubber: Normalize and Gain are macOS-only.
     const BOOL normalize = YES;
     const float gainDB = 0;
     VibeColor *played = [settings waveformCustomPlayedColorForDark:YES];
     VibeColor *unplayed = [settings waveformCustomUnplayedColorForDark:YES];
 
-    // The widget's own background is always dark, so it resolves dark — there
-    // is no appearance to follow in a view this process does not own. The
-    // artwork colour is the cover's, memoized on the image by the page that
-    // installed it, so this read is free; nil until the art decodes, or for
-    // art too gray to read, and the album_art theme then resolves to Mono's
-    // until it does.
+    // Always dark: the widget's background is. The artwork colour is memoized
+    // on the image; nil (not decoded, or too gray) resolves album_art to Mono.
     WaveformTheme *theme = [WaveformTheme themeForIdentifier:settings.waveformTheme
                                                       isDark:YES
                                                 artworkColor:_publishedTrack.cachedArt.vibeDominantColor
                                                 customPlayed:played
                                               customUnplayed:unplayed];
-    // The signature is the RESOLVED palette, not the inputs: a cover arriving
-    // under a theme that ignores it changes nothing here and bakes nothing,
-    // while under album_art it moves both colours and bakes once more.
+    // The RESOLVED palette, not the inputs, so a cover arriving under a theme
+    // that ignores it bakes nothing.
     NSString *signature = [NSString stringWithFormat:@"%@|%@|%@|%d|%.4f|%p",
                            style, VibeHexStringFromColor(theme.playedColor) ?: @"",
                            VibeHexStringFromColor(theme.unplayedColor) ?: @"",
@@ -391,23 +321,19 @@ static const CGFloat kWidgetWaveformScale = 3;
         return;
     }
     _bakedSignature = signature;
-    // A bake still waiting behind the queue is superseded, not run. One that
-    // has started runs to completion; this one then lands after it.
+    // A queued bake is superseded; a started one completes first.
     if (_pendingBake) {
         dispatch_block_cancel(_pendingBake);
     }
     VibeWidgetState *state = _published;
     _pendingBake = dispatch_block_create(0, ^{
-        // 1 and 0: the whole envelope in each side's colours. The widget reveals
-        // the played one up to the playhead, which is what keeps a moving
-        // playhead free of a re-render.
+        // The whole envelope in each side's colours; the widget reveals the
+        // played one up to the playhead without a re-render.
         [self writeWaveformImage:waveform progress:1 style:style theme:theme
                        normalize:normalize gainDB:gainDB toURL:state.waveformPlayedURL];
         [self writeWaveformImage:waveform progress:0 style:style theme:theme
                        normalize:normalize gainDB:gainDB toURL:state.waveformUnplayedURL];
-        // The plist names nothing about the waveform, but the widget only
-        // re-renders when WidgetKit is told to, so the reload is the whole
-        // point of writing it.
+        // The widget re-renders only on a reload.
         [self scheduleReload];
     });
     dispatch_async(_queue, _pendingBake);
@@ -428,7 +354,7 @@ static const CGFloat kWidgetWaveformScale = 3;
     }
     UIImage *image = [UIImage imageWithCGImage:baked];
     CGImageRelease(baked);
-    NSData *png = UIImagePNGRepresentation(image);   // PNG, not JPEG: the strip is transparent
+    NSData *png = UIImagePNGRepresentation(image);   // transparent
     if (png) {
         [png writeToURL:url atomically:YES];
     }
@@ -436,10 +362,7 @@ static const CGFloat kWidgetWaveformScale = 3;
 
 #pragma mark - Artwork
 
-// The cover bounded to kWidgetArtworkSide on its longer edge, never enlarged.
-// Only a BOUND: the widget draws it scaledToFill and clipped, blurred or not,
-// so the square is cut where it is drawn and cutting it here too would only
-// throw pixels away twice.
+// Only a BOUND, never a crop: the widget crops where it draws.
 static UIImage *VibeWidgetBoundedArtwork(UIImage *artwork) {
     CGSize source = artwork.size;
     CGFloat longest = MAX(source.width, source.height);
@@ -449,7 +372,7 @@ static UIImage *VibeWidgetBoundedArtwork(UIImage *artwork) {
     CGFloat scale = MIN(1, kWidgetArtworkSide / longest);
     CGSize bounded = CGSizeMake(round(source.width * scale), round(source.height * scale));
     UIGraphicsImageRendererFormat *format = [UIGraphicsImageRendererFormat defaultFormat];
-    format.scale = 1;                 // the side is already in pixels
+    format.scale = 1;                 // the side is in pixels
     format.opaque = YES;
     UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:bounded
                                                                               format:format];
@@ -458,9 +381,8 @@ static UIImage *VibeWidgetBoundedArtwork(UIImage *artwork) {
     }];
 }
 
-// Removing the file for a track with no art is as load-bearing as writing one:
-// the widget draws whatever the plist names, and the file would otherwise
-// survive from an earlier decode of the same track.
+// Removing a file is as load-bearing as writing one, or an earlier decode's
+// art survives.
 - (void)writeArtwork:(UIImage *)artwork toURL:(NSURL *)url {
     if (!url) {
         return;

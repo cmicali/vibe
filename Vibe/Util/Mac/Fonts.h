@@ -6,10 +6,8 @@
 #import <Foundation/Foundation.h>
 #import "AppTheme.h" // VibeFontSlot, and the theme the slots are pushed from
 
-// The app's typography in one place: all text goes through font:/font:bold:
-// (Helvetica Neue), except digit displays (times, bitrate, pitch readout)
-// which use fontForNumbers: (monospaced-digit system font) so values don't
-// jitter as they change.
+// The app's typography: text is Helvetica Neue; digit displays use
+// fontForNumbers: (monospaced digits) so changing values do not jitter.
 @interface Fonts : NSObject
 
 + (NSFont *)font:(CGFloat)size;
@@ -17,14 +15,11 @@
 + (NSFont *)fontForNumbers:(CGFloat)size;
 + (NSFont *)fontForNumbers:(CGFloat)size bold:(BOOL)bold;
 
-// The five themed slots. Util may not read a setting, so the theme's choice
-// is PUSHED here (applyThemeFonts, which also drops the slot cache) and the
-// slot accessors resolve against it, at the theme's size for the slot; until
-// the first push they resolve the factory look. An empty face is the slot's
-// built-in font — font:/font:bold: for title and playlist, the
-// monospaced-digit system font for info. A face that is not installed falls
-// back the same way, so a slot accessor never returns nil. A named info face
-// gains the monospaced-digits feature, keeping times jitter-free.
+// The themed slots. Util may not read a setting, so the theme is PUSHED here;
+// until the first push the slots resolve the factory look. An empty or
+// uninstalled face falls back to font: (fontForNumbers: for info and
+// duration), so a slot never returns nil. A named info or duration face gains
+// monospaced digits.
 + (void)applyThemeFonts:(AppTheme *)theme;
 
 + (NSFont *)fontForSlot:(VibeFontSlot)slot bold:(BOOL)bold;

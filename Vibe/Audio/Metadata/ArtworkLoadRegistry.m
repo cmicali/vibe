@@ -2,9 +2,6 @@
 //  ArtworkLoadRegistry.m
 //  Vibe
 //
-//  See the header. Requests are registered on main; the blocking read runs on
-//  the shared scheduler and the completion hops back to main.
-//
 
 #import "ArtworkLoadRegistry.h"
 #import "AudioTrackArtworkInternal.h"
@@ -17,8 +14,6 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
 
 @interface ArtworkLoadRequest : NSObject
 @property (nonatomic, strong) AudioTrackArtwork *artwork;
-// A snapshot of the artwork's _artGeneration, per the vocabulary rule:
-// a mismatch at completion means superseded, drop it.
 @property (nonatomic) NSUInteger artGeneration;
 @property (nonatomic, copy) NSString *label;
 @property (nonatomic, copy) BOOL (^stillWanted)(void);
@@ -92,22 +87,18 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
     if (!request.workSubmitted || [request.workToken cancelIfPending]) {
         [self detachRequest:request];
     }
-    // A running read remains registered until it returns. It keeps one of the
-    // seven global entries and one scheduler slot, so repeated demotions cannot
-    // grow an orphaned tail behind an uncancellable provider read.
+    // A running read stays registered until it returns, holding its entry and
+    // slot, so repeated demotions cannot grow a tail behind a stuck read.
 }
 
-// Cancelled, demoted, or no longer wanted: this request's answer must not
-// reach its artwork or its completion.
 - (BOOL)requestIsMoot:(ArtworkLoadRequest *)request {
     return request.stale ||
             ![request.artwork isGenerationCurrent:request.artGeneration] ||
             !request.stillWanted();
 }
 
-// Deliberately narrower than requestIsMoot:: a stale request is already being
-// torn down, and a demoted-but-wanted one must reach finishRequest:'s retry
-// tail rather than be cancelled here.
+// Narrower than requestIsMoot: a demoted-but-wanted request must reach
+// finishRequest:'s retry rather than be cancelled here.
 - (void)pruneUnwantedRequests {
     for (ArtworkLoadRequest *request in [_requests copy]) {
         if (request.stale || request.stillWanted()) {
@@ -127,12 +118,8 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
     if (!stillWanted()) {
         return;
     }
-    // At capacity the request is simply dropped — BEFORE prepare, so the row
-    // never carries a pending mark for work that was never registered and the
-    // next redraw or thumbnail notification re-requests it cleanly. The
-    // scheduler's own pending queue is the only park (spec J6): the third
-    // parking layer that used to wait here defended a seven-surface pileup
-    // the app cannot produce.
+    // Dropped before prepare, so the row carries no pending mark and the next
+    // redraw re-requests it (J6).
     if (_requests.count >= kArtworkLoadMaximumActiveCount) {
         return;
     }
@@ -192,14 +179,10 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
                 [strongSelf submitWorkForRequest:request];
                 return;
             case VibeAudioFileMaterializationResultYielded:
-                // A foreground hold is not a file failure. Keep this request
-                // admitted and retry at a capped rate until the hold releases.
+                // Neither says anything about the file: retry, unspent.
                 [strongSelf scheduleAdmissionRetryForRequest:request];
                 return;
             case VibeAudioFileMaterializationResultAdmissionExhausted:
-                // Capacity pressure says nothing about this file. Keep the one
-                // wanted request admitted and retry it at the same bounded rate
-                // as a foreground yield.
                 [strongSelf scheduleAdmissionRetryForRequest:request];
                 return;
             case VibeAudioFileMaterializationResultFailed:
@@ -275,8 +258,7 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
             [strongSelf finishRequest:request image:nil];
             return;
         }
-        // Like central AdmissionExhausted, scheduler rejection is capacity,
-        // not an answer about whether the track has art.
+        // Capacity, not an answer about the art.
         [strongSelf scheduleAdmissionRetryForRequest:request];
     }];
 }
@@ -298,9 +280,8 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
     [self detachRequest:request];
 
     if (!generationCurrent) {
-        // An extraction already in progress kept its single-flight claim across
-        // demotion. Its return releases that claim before this retry, so a
-        // redisplay can start one fresh read but never overlap the old one.
+        // A read still running keeps its extraction claim across the
+        // demotion, so this retry never overlaps it.
         if (wanted) {
             [self loadArtwork:artwork label:label stillWanted:stillWanted
                    completion:completion];

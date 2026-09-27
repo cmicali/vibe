@@ -74,7 +74,6 @@
         XCTFail(@"the one pending slot was rejected");
     }];
 
-    // Delivery is on failureQueue, so count them there rather than inline.
     XCTestExpectation *allRejected = [self expectationWithDescription:@"all rejected"];
     __block NSUInteger rejected = 0;
     for (NSUInteger index = 0; index < 1000; index++) {
@@ -88,19 +87,16 @@
             }
         }];
     }
-    // The point is that none of the 1,000 is waiting on the blocked worker:
-    // they are all decided at submission and their failures drain on the main
-    // queue while that worker is still parked on its semaphore.
+    // All 1,000 are decided at submission: their failures drain while the
+    // worker is still parked.
     [self waitForExpectations:@[allRejected] timeout:2];
     XCTAssertEqual(rejected, 1000u);
     dispatch_semaphore_signal(releaseRunning);
     [self waitForExpectations:@[parkedRan] timeout:1];
 }
 
-// Every rejection arrives on failureQueue, whichever branch decided it. The
-// pending-limit refusal used to run inline on the submitting thread, so a
-// caller submitting from a serial queue could be re-entered by its own failure
-// block — and the two branches disagreed about which queue that block owned.
+// An inline refusal would re-enter a caller submitting from a serial queue
+// with its own failure block.
 - (void)testEveryRejectionIsDeliveredOnTheFailureQueue {
     AudioWorkScheduler *scheduler = [self schedulerWithPendingCount:1 grace:0.05];
     dispatch_queue_t failureQueue = dispatch_queue_create("com.vibe.tests.failure",
@@ -116,7 +112,6 @@
     [self waitForExpectations:@[runningStarted] timeout:1];
 
     // The parked one expires; the one past the bound is refused immediately.
-    // Both must land on failureQueue and neither inline.
     XCTestExpectation *expiredOnQueue = [self expectationWithDescription:@"expiry on failureQueue"];
     [scheduler submitWork:^{
         XCTFail(@"expired work ran");
@@ -188,22 +183,15 @@
       admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
         [rejected fulfill];
     }];
-    // The refusal is decided at submission, so it arrives while the slot's
-    // owner is still blocked rather than after it releases.
+    // Decided at submission, so it arrives while the slot's owner is blocked.
     [self waitForExpectations:@[rejected] timeout:1];
     dispatch_semaphore_signal(releaseRunning);
 }
 
-// A scheduler that goes away must take its armed expiry timer with it. The
-// source is resumed for the object's whole life, and releasing a resumed
-// source without cancelling it leaks the source and its handler.
-//
-// Note what this does NOT test, because it cannot happen: dealloc with pending
-// work. Pending work only exists while every slot is running, a running item's
-// dispatch block holds the scheduler strongly, and finishing it promotes the
-// pending item — so the last reference can never drop while anything is parked.
-// dealloc's drain is insurance for that unreachable state; this is the part
-// with a live path to it.
+// The expiry source stays resumed for the scheduler's whole life, and a
+// resumed source released uncancelled leaks. Dealloc with pending work is
+// unreachable, and so untested: a running item's block holds the scheduler, and
+// finishing it promotes the pending item.
 - (void)testDeallocatingWithAnArmedTimerIsClean {
     __weak AudioWorkScheduler *weakScheduler = nil;
     @autoreleasepool {

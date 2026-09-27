@@ -2,15 +2,9 @@
 //  PlaybackController+Debug.h
 //  Vibe (iOS)
 //
-//  What the debug command channel needs from the model that the shipping
-//  header has no reason to expose: the engine handle the shared consistency
-//  checks read, the caches the cache verbs clear, and the two display-state
-//  flags dump_state reports. It lives here, with its implementation beside it,
-//  so no production file carries a declaration for a tool that does not ship;
-//  the implementation reaches the state through PlaybackControllerInternal.h,
-//  the same private surface the controller's own categories share.
-//
-//  Debug builds only.
+//  What the debug channel needs from the model that the shipping header has no
+//  reason to expose. The implementation reaches the state through
+//  PlaybackControllerInternal.h.
 //
 
 #if DEBUG
@@ -26,8 +20,8 @@
 @property (nonatomic, readonly) AudioTrackMetadataCache *debugMetadataCache;
 @property (nonatomic, readonly) BOOL debugParked;
 @property (nonatomic, readonly) BOOL debugTrackStartPending;
-// WidgetPublisher.widgetPlaced: whether the app believes a widget is placed,
-// and so whether track changes are reaching the shared container at all.
+// WidgetPublisher.widgetPlaced: whether track changes reach the shared
+// container at all.
 @property (nonatomic, readonly) BOOL debugWidgetPlaced;
 
 - (void)debugOpenPath:(NSString *)path;

@@ -15,70 +15,46 @@
 
 #include <os/lock.h>
 
-// Everything below is touched from the metadata workers, the player's open
-// queue and the debug channel's main thread at once, so it all lives under one
-// lock. Contention is nil: the probe is a set lookup.
+// Touched from the metadata workers, the player's open queue and the channel's
+// main thread at once, so all of it lives under one lock.
 static os_unfair_lock sLock = OS_UNFAIR_LOCK_INIT;
 static BOOL sInstalled;
 static NSUInteger sPercent;
-// Paths whose download has run to term. A materialized file stops answering
-// the probe, or the same track would download forever and no run would ever
-// settle.
+// Paths whose download ran to term. They stop answering the probe, or a track
+// would download forever and no run would settle.
 static NSMutableSet<NSString *> *sMaterialized;
-// Counted at the transfer, never at the probe: the probe is consulted at
-// several sites that lead to no download at all — the loader's lane routing,
-// the priority lane's skip, the player's open — so probe hits are not attempts.
+// Counted at the transfer, never at the probe, which is consulted at sites
+// that download nothing.
 static NSUInteger sCompleted, sCancelled;
-// When each transfer in flight began, which is the whole of what the progress
-// side needs: how long a file takes is already a function of its path, so
-// elapsed-over-total is the fraction. Stamped when the transfer takes the
-// shared slot — a transfer queued for capacity has not begun — and dropped
-// when that download ends either way.
+// When each transfer in flight took its slot. A file's duration is a function
+// of its path, so this is all the progress side needs.
 static NSMutableDictionary<NSString *, NSNumber *> *sTransferStartedAt;
 // Which roles hold a slot for each path right now, and how many times a
-// METADATA transfer overlapped another transfer of the same file. That overlap
-// is the duplicate whole-file download the lane's stand-aside exists to
-// prevent, and it is invisible in every other counter here: both transfers
-// complete, so the tally reads as ordinary work.
-//
-// TRAP: a plain same-path overlap is NOT a defect. A prefetch already
-// materializing a file the user then plays is a designed race — purpose-keyed
-// claims, whichever open finishes first consumes the play request (Audio/
-// CLAUDE.md) — so counting every duplicate would fire on ordinary playback of
-// a prefetched cloud track. Only the metadata lane is supposed to stand aside.
+// METADATA transfer overlapped another transfer of the same file: the duplicate
+// download path-wide single-flight prevents, invisible in every other counter
+// because both transfers complete.
 static NSMutableDictionary<NSString *, NSMutableArray<NSString *> *> *sInFlightRolesByPath;
 static NSUInteger sMetadataOverlapTransfers;
-// How many transfers of each role are in flight across all paths, and how many
-// times a metadata transfer took a slot while a PLAYBACK or PREFETCH transfer
-// already held one. Both roles carry foreground waiters in the coordinator's
-// claim table, so both close the background lane. A background download
-// beginning inside either window means the hold was lost — whichever edge lost
-// it. It is the one symptom every lost-release bug shares, and no other counter
-// shows it.
-//
-// The reverse order is NOT counted and must not be: a metadata transfer already
-// running when a play is submitted is exactly what the hold cancels, and it is
-// still briefly in flight while that cancel travels.
+// Transfers in flight per role, and how many times a metadata transfer took a
+// slot while a playback or prefetch transfer held one. Both foreground roles
+// close the background lane, so such a start means the hold failed, which no
+// other counter shows. The reverse order is not counted: a metadata transfer
+// running when a play is submitted is what the hold cancels, and it stays in
+// flight while the cancel travels.
 static NSMutableDictionary<NSString *, NSNumber *> *sInFlightByRole;
 static NSUInteger sForegroundContentionStarts;
-// The contention culprits, kept whole. The trace ring rotates, and a churny
-// run evicts the one event the oracle fails on, leaving a cumulative counter
-// and no culprit. Bounded; oldest dropped.
+// The contention culprits, kept apart from the trace ring, which a churny run
+// rotates past the one event the oracle fails on. Bounded; oldest dropped.
 static NSMutableArray<NSDictionary *> *sContentionEvents;
 static NSTimeInterval sBaseSeconds;
-// Fault injection; see setStickyDataless:.
 static BOOL sSticky;
-// Transfers of this basename run to term and then FAIL — the provider-error
-// shape, for budget-exhaustion scenarios. nil injects no failures.
 static NSString *sFailBasename;
-// The provider's scarce resource; 0 is unlimited. See setTransferCapacity:.
-static NSUInteger sCapacity;
+static NSUInteger sCapacity; // 0 is unlimited
 static NSUInteger sExecuting, sQueued, sMaxObservedConcurrency;
-// Determinism switches; see the header.
 static BOOL sUniform;
 static VibeFakeCloudProgressMode sProgressMode;
 static BOOL sUnflagged;
-// The admission trace: a bounded ring of event dictionaries, oldest dropped.
+// Bounded; oldest dropped.
 static NSMutableArray<NSDictionary *> *sTrace;
 static NSUInteger sTraceSeq;
 static CFAbsoluteTime sInstalledAt;
@@ -102,9 +78,8 @@ static BOOL VibeFakeCloudRolesContainMetadata(NSArray<NSString *> *roles) {
     return NO;
 }
 
-// Stable across launches and across runs, so a seeded run picks the same files
-// as placeholders and gives them the same speeds. FNV-1a over the path: a hash
-// of convenience, not of quality.
+// Stable across launches, so a seeded run picks the same placeholders and
+// speeds. FNV-1a: convenience, not quality.
 static uint64_t VibePathHash(NSString *path) {
     uint64_t hash = 1469598103934665603ULL;
     const char *bytes = path.fileSystemRepresentation;
@@ -124,22 +99,17 @@ static BOOL VibePathIsCloud(NSString *path, NSUInteger percent) {
     return (VibePathHash(path) % 100) < percent;
 }
 
-// A real folder is not uniform, and the interesting cases live in its tail.
-// One in ten files is SLOW — long enough that a listener gives up and taps
-// something else, which is what puts a cancel in the middle of a transfer
-// rather than between two — and one in fifty is effectively STUCK, long enough
-// to outlast the player's own open deadline. Nothing else reaches that
-// deadline: it is the path where the request is abandoned while its worker is
-// still blocked, which is exactly the case the materializer was added to make
-// survivable.
+// The tail is the point. One file in ten is SLOW, so a listener gives up
+// mid-transfer and a cancel lands inside a download rather than between two;
+// one in fifty is STUCK past the player's open deadline, which nothing else
+// reaches: the request abandoned while its worker is still blocked.
 static const NSUInteger kSlowPercent = 10;
 static const NSUInteger kStuckPercent = 2;
 static const NSTimeInterval kSlowMultiplier = 18.0;
 static const NSTimeInterval kStuckSeconds = 600.0;
 
-// The file's own transfer time, spread around the base so that a folder has a
-// range rather than one speed. Uniform mode skips the whole spread; ordering
-// assertions must not fight the hash.
+// Uniform mode skips the spread, so ordering assertions need not fight the
+// hash.
 static NSTimeInterval VibeTransferSecondsForPath(NSString *path, NSTimeInterval base, BOOL uniform) {
     if (uniform) {
         return base;
@@ -152,25 +122,17 @@ static NSTimeInterval VibeTransferSecondsForPath(NSString *path, NSTimeInterval 
     if (bucket < kStuckPercent + kSlowPercent) {
         return base * kSlowMultiplier;
     }
-    // 0.5x to 2x, so the ordinary files still differ from each other.
+    // 0.5x to 2x.
     double spread = 0.5 + ((hash / 10000) % 150) / 100.0;
     return base * spread;
 }
 
-// How far a transfer that began elapsed seconds ago has got, in the default
-// Hashed mode. Two things it is deliberately not: smooth, and linear in the
-// time elapsed.
-//
-// Not smooth, because a real provider's fraction arrives as ~1 Hz steps and
-// the indicator eases between them (WaveformUI/CLAUDE.md) — a ramp fed a
-// per-tick 1% would exercise an easing production never sees. So the answer is
-// quantized to kProgressChunks.
-//
-// And a third of the corpus STALLS partway, because "the fill never runs past
-// what was reported, leaving a stall honest" is a rule with no other way to
-// test it: it needs a transfer that stops moving and then resumes. Which files
-// stall, and where, come off the path hash like everything else here, so a
-// file behaves the same on every run.
+// The Hashed mode's fraction. Quantized to kProgressChunks because a real
+// provider reports in ~1 Hz steps the indicator eases between (WaveformUI/
+// CLAUDE.md); a per-tick ramp would exercise easing production never sees. A
+// third of the corpus stalls partway and resumes, the only way to test that
+// the fill never runs past what was reported. Which files stall, and where,
+// come off the path hash.
 static const NSUInteger kProgressChunks = 12;
 static const NSUInteger kStallPercent = 33;
 static const double kStallShareOfTransfer = 0.3;
@@ -180,8 +142,8 @@ static double VibeHashedProgressForPath(NSString *path, NSTimeInterval elapsed, 
         return 0;
     }
     uint64_t hash = VibePathHash(path);
-    // Its own decimal window, so stalling is independent of the cloud draw and
-    // of the speed bucket.
+    // Its own decimal window, independent of the cloud draw and the speed
+    // bucket.
     NSUInteger bucket = (hash / 1000000) % 100;
     double stallSeconds = 0, stallAt = 0, moving = total;
     if (bucket < kStallPercent) {
@@ -252,10 +214,9 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
 
 @implementation VibeFakeCloud
 
-// The per-install configuration and its counters, back to their defaults. An
-// install describes a whole scenario, and a leftover mode from the previous
-// one would silently reshape it; after an uninstall a leftover would report a
-// config the fake no longer has. One list, so the two cannot drift. Caller
+// The per-install configuration and counters, back to their defaults: an
+// install describes a whole scenario, and a leftover mode would silently
+// reshape it. Shared by install and uninstall so the two cannot drift. Caller
 // holds sLock. The completed/cancelled tally deliberately survives both.
 static void VibeResetScenarioLocked(void) {
     sPercent = 0;
@@ -280,11 +241,8 @@ static void VibeResetScenarioLocked(void) {
     sInstalled = YES;
     sPercent = percent;
     sBaseSeconds = transferSeconds;
-    // Re-arming forgets what had materialized — that is the point of a churn,
-    // it puts the corpus back in the cloud — but deliberately NOT the tally.
-    // Resetting that made a run's final numbers cover only since the last
-    // re-arm, which read as "almost nothing downloaded" on a run that had
-    // downloaded plenty.
+    // Re-arming puts the corpus back in the cloud but keeps the tally, so a
+    // run's final numbers cover the whole run, not just since the last re-arm.
     sMaterialized = [NSMutableSet set];
     sTransferStartedAt = [NSMutableDictionary dictionary];
     sInFlightRolesByPath = [NSMutableDictionary dictionary];
@@ -301,9 +259,8 @@ static void VibeResetScenarioLocked(void) {
             return NO;
         }
         os_unfair_lock_lock(&sLock);
-        // Unflagged mode is the whole probe answering NO: the kernel flag a
-        // provider never set. The transfer side keeps working off the cloud
-        // draw, which is exactly the mismatch the mode exists to stage.
+        // Unflagged: the probe answers NO while the transfer side keeps
+        // working off the cloud draw, the mismatch the mode stages.
         BOOL dataless = !sUnflagged
                 && (sSticky || ![sMaterialized containsObject:path])
                 && VibePathIsCloud(path, sPercent);
@@ -317,10 +274,9 @@ static void VibeResetScenarioLocked(void) {
             return 0;
         }
         os_unfair_lock_lock(&sLock);
-        // A completed transfer answers 0, which is what keeps the fake-first
-        // ordering in materializeURL: from re-downloading a replayed file.
-        // Sticky deliberately re-downloads: the probe never clears, and the
-        // shape under test is exactly that nothing ever reads as local.
+        // A completed transfer answers 0, so materializeURL:'s fake-first
+        // ordering does not re-download a replayed file. Sticky re-downloads:
+        // under test is that nothing ever reads as local.
         BOOL wants = (sSticky || ![sMaterialized containsObject:path])
                 && VibePathIsCloud(path, sPercent);
         NSTimeInterval seconds = wants
@@ -361,16 +317,13 @@ static void VibeResetScenarioLocked(void) {
                 return NO;
             }
             if (sCapacity == 0 || sExecuting < sCapacity) {
-                // Reserve the slot, then re-ask the cancel question with no
-                // lock held before any of the bookkeeping below. The check at
-                // the top of the loop goes stale for the whole poll interval,
-                // and a cancel landing inside it let this take read as a
-                // metadata transfer starting against the hold — a contention
-                // verdict with no byte transferred. Production has no such
-                // window: its token check and its transfer start share one
-                // critical section. A cancel landing after this re-check is
-                // the transfer genuinely starting first, which a real
-                // provider produces too.
+                // Reserve the slot, then re-check cancel with no lock held
+                // before the bookkeeping. The loop-top check is a poll
+                // interval stale, and a cancel inside it would count as a
+                // metadata transfer starting against the hold with no byte
+                // moved; production's token check and transfer start share
+                // one critical section. A cancel after this re-check is the
+                // transfer genuinely starting first.
                 sQueued--;
                 sExecuting++;
                 os_unfair_lock_unlock(&sLock);
@@ -388,13 +341,10 @@ static void VibeResetScenarioLocked(void) {
                     return NO;
                 }
                 sMaxObservedConcurrency = MAX(sMaxObservedConcurrency, sExecuting);
-                // The transfer's clock starts when it takes the slot, never
-                // when it asked: a queued transfer has not begun, and the
-                // progress side must read it as motionless. First acquire
-                // wins: a second role joining a path already in transfer —
-                // the designed prefetch/playback overlap — must not restart
-                // the clock, or reported progress would regress mid-transfer,
-                // a shape no real provider produces.
+                // The clock starts at the slot, not the request: a queued
+                // transfer reads as motionless. Only the first acquire for a
+                // path stamps it, so an overlapping one cannot make reported
+                // progress regress.
                 if (!sTransferStartedAt[path]) {
                     sTransferStartedAt[path] = @(CFAbsoluteTimeGetCurrent());
                 }
@@ -429,9 +379,7 @@ static void VibeResetScenarioLocked(void) {
                     }];
                     VibeTraceLocked(@"contention", role, path,
                                     @{@"foregroundInFlight": @(foregroundInFlight)});
-                    // Warn level, because the bounded trace rotates: churny
-                    // runs evicted the one event the oracle fails on, leaving
-                    // a cumulative counter and no culprit.
+                    // Warn level: the trace ring may rotate this event out.
                     LogWarn(@"Fake cloud contention: %@ transfer of %@ started with %lu foreground transfer(s) in flight",
                             whose, path.lastPathComponent, (unsigned long)foregroundInFlight);
                 }
@@ -453,9 +401,8 @@ static void VibeResetScenarioLocked(void) {
         if (sExecuting > 0) {
             sExecuting--;
         }
-        // Paired with the acquire that stamped them, which is why both live
-        // here and not in didFinish: didFinish also fires for a transfer
-        // cancelled while still queued, which never took a slot.
+        // Here, not in didFinish, which also fires for a transfer cancelled
+        // while queued that never took a slot.
         NSString *whose = role ?: @"unlabeled";
         NSMutableArray<NSString *> *roles = sInFlightRolesByPath[path];
         NSUInteger which = [roles indexOfObject:whose];
@@ -490,11 +437,9 @@ static void VibeResetScenarioLocked(void) {
         os_unfair_lock_unlock(&sLock);
     }];
 
-    // The determinate half of the loading indicator. Negative is "not a file
-    // of ours", which sends the monitor to its real sources; zero is "mine,
-    // but nothing to report yet", which leaves the shimmer indeterminate —
-    // the distinction matters, because a real local file's poll answers an
-    // instant 100% and would fill the bar before the transfer had begun.
+    // Negative is "not ours", which sends the monitor to its real sources;
+    // zero is "ours, nothing yet", which leaves the shimmer indeterminate. A
+    // real source would read the local file as an instant 100%.
     [DownloadProgressMonitor setFakeProgressProvider:^float(NSURL *url) {
         NSString *path = url.path;
         if (!path) {
@@ -570,8 +515,8 @@ static void VibeResetScenarioLocked(void) {
     sInFlightByRole = nil;
     sContentionEvents = nil;
     sTrace = nil;
-    // The captured blocks bail on !sInstalled before touching any of these, so
-    // a transfer still in flight stops mutating stats here.
+    // The captured blocks bail on !sInstalled, so a transfer still in flight
+    // stops mutating stats here.
     VibeResetScenarioLocked();
     os_unfair_lock_unlock(&sLock);
 }

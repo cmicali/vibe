@@ -2,18 +2,13 @@
 //  PlayerViewController+Pager.m
 //  Vibe (iOS)
 //
-//  See PlayerViewController+Pager.h. The rule that governs the whole file:
-//  a page coming on screen loads its waveform but does NOT switch playback —
+//  A page coming on screen loads its waveform but does NOT switch playback;
 //  only the settled page commits, in commitVisiblePage.
 //
 
 #import "PlayerViewController+Pager.h"
 #import "PlayerViewControllerInternal.h"
-// willDisplayCell: makes self the scrubber's delegate, a conformance +Delivery
-// declares.
 #import "PlayerViewController+Delivery.h"
-// The art window republishes the lock-screen card when the current page's art
-// lands.
 #import "PlaybackController+NowPlaying.h"
 
 #import "AppSettings.h"
@@ -26,24 +21,17 @@
 #import "VibeStrings.h"
 #import "WaveformScrubberView.h"
 
-// How far either side of the current page art is loaded ahead. One would be
-// enough if a swipe waited for the last one to land — the pager moves a single
-// cell per gesture — but it does not, and each page's load is a file read and
-// an ImageIO decode, so at radius one a quick second swipe outran the fetch and
-// arrived on the placeholder. Two gives the fetch a whole extra commit of lead.
+// At one, a quick second swipe outruns the fetch (a file read and a decode)
+// and lands on the placeholder; two gives a whole extra commit of lead.
 static const NSUInteger kArtPrefetchRadius = 2;
 
-// What decoded art may occupy before the pages furthest from the current one
-// are released. Retention is deliberately NOT the prefetch radius: fetching far
-// ahead means file reads nobody asked for, while *keeping* what is already
-// decoded costs only memory, and dropping it means re-reading and re-decoding
-// the moment the user swipes back. At kVibeDisplayArtDimension a cover is about
-// 4MB, so this holds a dozen — more pages than one browsing pass covers.
+// Retention is deliberately wider than the prefetch radius: keeping a decode
+// costs only memory, dropping it costs a re-read on the swipe back. About a
+// dozen covers at kVibeDisplayArtDimension.
 static const NSUInteger kArtBudgetBytes = 48 * 1024 * 1024;
 
-// The ceiling on a programmatic page animation's frame-budget hold. UIKit's
-// paging animation runs well under half of this; it is a backstop for the end
-// callback that never arrives, not a duration anything waits out.
+// A backstop for an end callback that never arrives; the animation runs well
+// under half of it.
 static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
 
 @implementation PlayerViewController (Pager)
@@ -55,7 +43,6 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
             [NSIndexPath indexPathForItem:(NSInteger)index inSection:0]];
 }
 
-// Points the live-update bindings at the current page's views.
 - (void)bindChromeToCell:(TrackPageCell *)cell {
     if (!cell) {
         return;
@@ -68,9 +55,7 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     _routeView = cell.routeView;
     _actionBar = cell.actionBar;
     _fxPadView = cell.fxPadView;
-    // A rebind means a fresh (or reloaded) cell whose labels came back at
-    // their reuse defaults; while paused no timer tick will repopulate them,
-    // so refresh now — the play glyph's symbol and visibility included.
+    // A fresh cell's labels are at their defaults, and paused, no tick comes.
     [self updatePlaybackUI];
     [self updatePlayButton];
 }
@@ -78,28 +63,18 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
 - (void)requestWaveformForIndex:(NSUInteger)index {
     AudioTrack *track = [_playlist trackAtIndex:index];
     [_waveformCoordinator requestIndex:index track:track];
-    // TRAP: a page whose waveform is already complete starts no load and
-    // therefore DELIVERS NOTHING — the request is a no-op by design, since the
-    // snapshot in hand is what hydration draws. The widget's only publish hook
-    // is that delivery, and a track change clears its strip, so returning to an
-    // already-played track left it blank until the track changed again. The
-    // cached envelope is offered here for exactly the case the delivery cannot
-    // cover; the publisher drops it if it is not the track it is describing.
+    // TRAP: a page whose waveform is complete starts no load and DELIVERS
+    // NOTHING, and a track change clears the widget's strip, so returning to a
+    // played track would leave the widget blank. Offer the cached envelope; the
+    // publisher drops it if it is not the widget's track.
     if ([_waveformCoordinator isCompleteAtIndex:index]) {
         [_playback offerWaveformToWidget:[_waveformCoordinator snapshotAtIndex:index]
                                 forTrack:track];
     }
 }
 
-// Reloaded and recycled cells come back blank; the latest snapshot puts the
-// waveform straight back without waiting for a fresh decode. With no
-// snapshot in hand the page animates the loading line instead of sitting
-// blank — on a network folder the decode behind it is routinely slow — and
-// showWaveform: ends the line when data arrives.
-//
-// Never animated: hydration re-shows a shape this page has already drawn, so
-// the growing-bars morph would be a replay — and its per-frame rebuilds land
-// on whatever swipe brought the cell back.
+// Never animated: the morph would replay a shape this page already drew, on
+// whatever swipe brought the cell back.
 - (void)hydrateWaveformInCell:(TrackPageCell *)cell atIndex:(NSUInteger)index {
     CodableAudioWaveform *snapshot = [_waveformCoordinator snapshotAtIndex:index];
     if (snapshot) {
@@ -117,36 +92,26 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     return (NSInteger)_playlist.count;
 }
 
-// A page coming on screen: hydrate its waveform from the latest snapshot,
-// and start (or re-target) the load so a neighbor pulled into view arrives
-// with its own track's waveform loading. Playback does NOT switch here —
-// only the settled page commits, in commitVisiblePage.
-//
-// Mid-drag the coordinator's scroll hold drops that request: retargeting the
-// one load per page swiped past leaves every decode cancelled and none
-// finished. The page shows what it has until the scroll settles.
+// Playback does NOT switch here. Mid-drag the coordinator's hold drops the
+// request, or every page swiped past would cancel the one load.
 - (void)collectionView:(UICollectionView *)collectionView
        willDisplayCell:(UICollectionViewCell *)cell
     forItemAtIndexPath:(NSIndexPath *)indexPath {
     TrackPageCell *page = (TrackPageCell *)cell;
     NSUInteger index = (NSUInteger)indexPath.item;
 
-    // TRAP: dequeue is NOT the last word on a cell's content. The collection
-    // view prefetches, so a page can be configured while still off screen and
-    // then miss the refresh a metadata or art delivery sends — refreshPageAtIndex:
-    // only reaches live cells. Re-configuring here is what closes that window.
+    // TRAP: dequeue is NOT the last word. A prefetched page is configured off
+    // screen and misses deliveries, since refreshPageAtIndex: reaches only live
+    // cells.
     [self configurePage:page atIndex:index];
 
     if (page.waveformView.delegate != self) {
         page.waveformView.delegate = self;
-        // The pager yields horizontal drags on the waveform surface to the
-        // scrubber; page-drag starts anywhere else. With no waveform the
-        // scrubber's pan refuses to begin, so the swipe falls through here.
+        // With no waveform the scrubber's pan refuses to begin, so the swipe
+        // falls through to the pager.
         [_pagesView.panGestureRecognizer
                 requireGestureRecognizerToFail:page.waveformView.scrubPanRecognizer];
-        // And a zoom pinch on the waveform is never the start of a swipe. The
-        // pager's own one-touch limit already rules out a two-finger drag; this
-        // covers the pan that begins with one finger and becomes a pinch.
+        // A pan that begins with one finger and becomes a pinch.
         [_pagesView.panGestureRecognizer
                 requireGestureRecognizerToFail:page.waveformView.zoomPinchRecognizer];
         [page.previousButton addTarget:self action:@selector(previousTapped)
@@ -155,12 +120,8 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
                        forControlEvents:UIControlEventTouchUpInside];
         [page.nextButton addTarget:self action:@selector(nextTapped)
                   forControlEvents:UIControlEventTouchUpInside];
-        // Total time vs remaining, toggled from any page — the mode is one
-        // setting, so every page redraws, not just the tapped one.
         [page.remainingTimeControl addTarget:self action:@selector(remainingTimeTapped)
                            forControlEvents:UIControlEventTouchUpInside];
-        // The picker's sheet holds the playhead's display link, so the card
-        // hears about it from whichever page raised it.
         page.routeView.delegate = self;
         // The FX pad owns its touch from the press, the way the scrubber owns
         // a drag: the pager's pan waits for it to fail, and its positions
@@ -170,10 +131,8 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
                 requireGestureRecognizerToFail:page.fxPadView.pressRecognizer];
     }
 
-    // Unconditional, not part of the one-time block above: a recycled cell
-    // keeps the zoom and the style it was last shown at, both of which are
-    // stale the moment they change while it is off screen. Each no-ops when it
-    // already matches.
+    // Every time: a recycled cell keeps whatever it was last shown at. Each
+    // no-ops when it already matches.
     [self applyWaveformZoomToCell:page];
     [page.waveformView syncWaveformStyle];
     [page.waveformView syncWaveformTheme];
@@ -187,8 +146,6 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
         [self bindChromeToCell:page];
     }
     else {
-        // A neighbor at rest: track start, and the duration once metadata
-        // knows it.
         [PlayerViewController renderRestingTimesForTrack:[_playlist trackAtIndex:index]
                                                  elapsed:page.elapsedLabel
                                                remaining:page.remainingTimeControl];
@@ -199,11 +156,7 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     AudioTrack *track = [_playlist trackAtIndex:index];
     NSString *errorText = _playback.errorText;
     BOOL showError = index == _playlist.currentIndex && errorText != nil;
-    // Full-size art, and nothing standing in for it. The 128px thumbnail is
-    // fine under the blur but visibly soft in the art card, and installing it
-    // first only buys a swap to sharp a moment later; the art window is what
-    // makes the real thing arrive before the page does. Until then, and for a
-    // track with no art at all, the mac's vinyl placeholder.
+    // Full-size art or the placeholder, never the soft 128px thumbnail.
     [cell configureWithTitle:track.displayTitle
                   titleColor:[UIColor labelColor]
                       artist:(showError ? errorText : (track.displayArtist ?: @""))
@@ -211,12 +164,8 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
                                         : [UIColor secondaryLabelColor])
                     fileInfo:(VibeShowsFileInfo() ? [self fileInfoLineForTrack:track] : nil)
                          art:(track.cachedArt ?: [UIImage imageNamed:@"record-bg"])];
-    // Off the page's own index, not the playing one, so the last page arrives
-    // with next already dimmed. Playlist.hasNextTrack is the same test against
-    // the cursor — the one place the boundary is decided.
+    // The page's own index, so the last page arrives dimmed.
     [cell setNextEnabled:index + 1 < _playlist.count];
-    // One route for the whole app, so every page draws the same one — a
-    // recycled cell arrives holding whatever the previous page had.
     [cell.routeView setRouteKind:_playback.outputRouteKind
                       deviceName:_playback.outputRouteName];
     // The pad follows the setting, which the Playback screen's write carries
@@ -243,8 +192,6 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
             dequeueReusableCellWithReuseIdentifier:TrackPageCell.reuseIdentifier
                                       forIndexPath:indexPath];
     [self configurePage:cell atIndex:(NSUInteger)indexPath.item];
-    // Reuse hands back the transport at its resting look; stamp the live
-    // chrome state so a page never appears with the wrong visibility.
     cell.transportView.alpha = [self chromeAlpha];
     cell.routeView.alpha = [self chromeAlpha];
     cell.actionBar.alpha = [self chromeAlpha];
@@ -256,11 +203,8 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
 
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
-    // Page size follows the view, and the offset must stay page-aligned
-    // through the first layout after a restore. Only on a real size change:
-    // this runs on every root layout pass (sheet presentations, safe-area
-    // churn), and an unconditional invalidation re-prepares the whole layout
-    // each time.
+    // Only on a real size change: this runs on every root layout pass, and
+    // an invalidation re-prepares the whole layout.
     CGSize size = self.view.bounds.size;
     if (CGSizeEqualToSize(size, _lastLayoutSize)) {
         return;
@@ -274,29 +218,20 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     }
 }
 
-// Rotation and window resize: re-page alongside the transition so the
-// current page stays centered instead of the offset landing between pages at
-// the new width. The in-flight flag keeps commitVisiblePage from rounding a
-// mid-resize offset to a neighbor page — which would switch tracks.
+// Re-pages alongside the transition. The in-flight flag keeps
+// commitVisiblePage from rounding a mid-resize offset to a neighbor, which
+// would switch tracks.
 - (void)viewWillTransitionToSize:(CGSize)size
        withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
     [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
     _windowResizeInFlight = YES;
-    // Set once on the layout rather than answering the delegate once per track.
-    // It must land before invalidation while the collection view still has the
-    // old bounds.
+    // Before invalidation, while the collection view still has the old bounds.
     _pagesLayout.itemSize = size;
-    // The same hold a page swipe takes, and for a stronger reason: every
-    // scrubber tears its baked bitmap down on the bounds change, so the whole
-    // animation runs on the live renderer tree. Held, the ~10 Hz decode
-    // deliveries that would each retarget a 4,096-bar morph are recorded
-    // instead of painted, and the playhead's display link stops writing over
-    // a picture the rotation is already moving.
+    // Every scrubber's bake is down for the transition, so deliveries and the
+    // display link would each re-composite the live tree.
     [self applyFrameBudgetHold];
-    // The tally's window is the whole cost of one rotation, which outlives the
-    // animation: the scrubbers' re-bake is scheduled kEnvelopeBakeDelay after
-    // the LAST layout pass, so a window that closed with the transition would
-    // report the teardown and none of the work it causes.
+    // The window outlives the animation, to catch the scrubbers' re-bake
+    // after the last layout pass.
     VibeWorkTallyBegin("rotation");
     [coordinator animateAlongsideTransition:^(id<UIViewControllerTransitionCoordinatorContext> context) {
         VibeSignpostCount(pager_invalidate);
@@ -306,12 +241,8 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
         self->_windowResizeInFlight = NO;
         self->_pagesLayout.itemSize = self->_pagesView.bounds.size;
         [self scrollToCurrentPageAnimated:NO];
-        // Releasing the hold forwards whatever snapshot arrived during it, so
-        // the page repaints once here instead of ten times across the
-        // animation. The request is re-issued for the same reason
-        // commitVisiblePage re-issues one after a swipe: a request DROPPED by
-        // the hold is not replayed, and nothing else would ask again. It
-        // no-ops when this page is already the pipeline's target.
+        // A request the hold DROPPED is never replayed, so ask again; a no-op
+        // when this page is already the target.
         [self applyFrameBudgetHold];
         [self requestWaveformForIndex:self->_playlist.currentIndex];
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.2 * NSEC_PER_SEC)),
@@ -341,9 +272,7 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     }
 }
 
-// In place only. Off-screen cells are re-configured from current model state in
-// willDisplayCell:, so reloading them here does work now without making them
-// any fresher.
+// In place only; willDisplayCell: re-configures off-screen cells.
 - (void)refreshPageAtIndex:(NSUInteger)index {
     if (index >= _playlist.count) {
         return;
@@ -356,7 +285,6 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
 
 #pragma mark - The art window
 
-// The pages fetched ahead, clamped to the playlist.
 - (NSRange)artWindow {
     NSUInteger count = _playlist.count;
     if (count == 0) {
@@ -368,26 +296,21 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     return NSMakeRange(first, last - first + 1);
 }
 
-// A decode outlives the page that asked for it — it is a file read and an
-// ImageIO pass, and a commit or a playlist replacement can land in the middle
-// of either. Both halves matter: the page must still be in the window, and it
-// must still hold the track the load was started for.
+// A commit or a replacement can land mid-decode: the page must still be in the
+// window AND hold the track the load was started for.
 - (BOOL)artStillWantedForTrack:(AudioTrack *)track atIndex:(NSUInteger)index {
     return NSLocationInRange(index, [self artWindow]) &&
            [_playlist trackAtIndex:index] == track;
 }
 
-// Everything a page needs to arrive already drawn, in the order it is needed.
-// The metadata comes first and through the PRIORITY lane, not because the page
-// wants its tags sooner but because the art dispatch below hangs off the
-// metadata object: behind a playlist-wide scan of a cloud folder, a page's own
-// tags can be minutes away, and until they land its art cannot even start.
+// Metadata first, on the PRIORITY lane: the art dispatch hangs off the
+// metadata object, which behind a cloud folder's sweep can be minutes away.
 - (void)prefetchPageAtIndex:(NSUInteger)index {
     AudioTrack *track = [_playlist trackAtIndex:index];
     if (!track) {
         return;
     }
-    [_playback loadMetadataNowForTrack:track];   // no-op once parsed
+    [_playback loadMetadataNowForTrack:track];
     AudioTrackMetadata *metadata = track.metadata;
     __weak PlayerViewController *weakSelf = self;
     [metadata loadArtIfNeededStillWanted:^BOOL{
@@ -402,7 +325,7 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
         [self->_artHeldPages addIndex:index];
         [self refreshPageAtIndex:index];
         if ([self->_playlist isCurrentTrack:track]) {
-            [self->_playback publishNowPlaying];  // the card takes the art too
+            [self->_playback publishNowPlaying];
         }
     }];
 }
@@ -415,19 +338,13 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     [self releaseArtBeyondBudget];
 }
 
-// What one page's decoded art occupies. Zero for a page holding none, so a
-// stale entry — a page whose metadata object was replaced under its art — costs
-// nothing and drops out of the set here.
+// Zero for a stale entry, which then drops out of the set.
 - (NSUInteger)artBytesAtIndex:(NSUInteger)index {
     CGImageRef image = [_playlist trackAtIndex:index].cachedArt.CGImage;
     return image ? CGImageGetBytesPerRow(image) * CGImageGetHeight(image) : 0;
 }
 
-// Releases held art, furthest page from the current one first, until the rest
-// fits the budget. Distance is the eviction order rather than true recency
-// because in a pager they are the same thing: pages are reached one step at a
-// time, so the furthest page is the one longest since seen and the one furthest
-// from being seen again.
+// Furthest page first: in a pager, distance is recency.
 - (void)releaseArtBeyondBudget {
     NSRange window = [self artWindow];
     NSUInteger current = _playlist.currentIndex;
@@ -443,14 +360,12 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
         NSUInteger index = page.unsignedIntegerValue;
         NSUInteger bytes = [self artBytesAtIndex:index];
         if (bytes == 0) {
-            [_artHeldPages removeIndex:index];   // nothing there to release
+            [_artHeldPages removeIndex:index];
             continue;
         }
-        // A page still on screen keeps its art whatever the budget says: its
-        // image view holds the bitmap either way, so releasing it would free
-        // nothing while leaving the page one reconfigure away from dropping to
-        // the placeholder in full view. It stays in the set, and a later pass
-        // collects it once the cell is recycled.
+        // A page in the window or with a live cell keeps its art: its image
+        // view pins the bitmap anyway, and releasing it risks the placeholder
+        // in full view. A later pass collects it.
         if (NSLocationInRange(index, window) || [self cellAtIndex:index]) {
             continue;
         }
@@ -479,14 +394,10 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
 
 #pragma mark - Committing a page
 
-// The grab-and-pull commit, Photos semantics: whatever page the drag settles
-// on becomes the current track; pulling back to the same page changes
-// nothing.
+// Photos semantics: the settled page becomes the current track.
 - (void)commitVisiblePage {
     CGFloat width = _pagesView.bounds.size.width;
-    // Minimized, the card is still laid out and still reloads: a playlist
-    // replacement settles a scroll nobody performed, and committing it would
-    // change track under a user looking at the library.
+    // Minimized, a replacement settles a scroll nobody made.
     if (width <= 0 || _playlist.count == 0 || _windowResizeInFlight || !self.isPresented) {
         return;
     }
@@ -496,25 +407,16 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
         [_playback selectTrackAtIndex:page];
     }
     else if (_waveformCoordinator.targetIndex != page) {
-        // Pulled a neighbor into view and let go: the preview load retargeted
-        // the pipeline, so point it back at the current page (a no-op reload
-        // when its waveform had already fully arrived).
+        // A neighbor's preview retargeted the load; point it back.
         [self requestWaveformForIndex:page];
     }
 }
 
 #pragma mark - The frame-budget hold
 
-// A swipe is not the only moment the main thread has nothing to spare — a
-// visible programmatic scroll and a size transition take the same hold. A size
-// transition is the worst of the three, because every
-// scrubber has just torn its baked bitmap down and is carrying the animation on
-// the live renderer tree. So the hold is DERIVED from all three reasons rather
-// than owned by any one: while it is on, the coordinator holds deliveries and
-// requests (see its `held`) and the playhead's display link pauses.
-//
-// Each path has a matching end callback below; a user drag also takes ownership
-// from a programmatic scroll it interrupts.
+// DERIVED from a swipe, a visible programmatic scroll and a size transition,
+// owned by none: while on, the coordinator holds deliveries and requests and
+// the display link pauses.
 - (void)applyFrameBudgetHold {
     BOOL held = _pagerScrolling || _pagerProgrammaticScrolling || _windowResizeInFlight;
     _waveformCoordinator.held = held;
@@ -529,20 +431,14 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     [self applyFrameBudgetHold];
 }
 
-// TRAP: this hold is the one with no guaranteed end callback. A drag always
-// ends in one of the two settle paths and the transition coordinator always
-// runs its completion, but setContentOffset:animated: reports through
-// scrollViewDidEndScrollingAnimation:, which does not arrive for an animation
-// that was superseded — and a scroll that settles short of its target cannot be
-// told apart from one. Stranded, it freezes waveform deliveries AND the
-// playhead's display link until the next swipe, so every take arms a
-// generation-tagged release that bounds it.
+// TRAP: the one hold with no guaranteed end callback:
+// scrollViewDidEndScrollingAnimation: never arrives for a superseded animation.
+// Stranded, it freezes waveform deliveries AND the display link until the next
+// swipe, so every take arms a generation-tagged deadline.
 - (void)holdForProgrammaticPagerScrolling:(BOOL)scrolling {
     BOOL changed = _pagerProgrammaticScrolling != scrolling;
     _pagerProgrammaticScrolling = scrolling;
-    // Every request owns a fresh deadline, including a retarget while an older
-    // animation is still running. Reusing the old deadline can release the
-    // frame-budget hold in the middle of the newer animation.
+    // A fresh deadline per request, or an old one releases mid-retarget.
     uint64_t generation = ++_pagerProgrammaticScrollGeneration;
     if (changed) {
         [self applyFrameBudgetHold];
@@ -557,10 +453,7 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
         PlayerViewController *strongSelf = weakSelf;
         if (strongSelf && generation == strongSelf->_pagerProgrammaticScrollGeneration) {
             [strongSelf holdForProgrammaticPagerScrolling:NO];
-            // Requests made after setContentOffset:animated: took the hold are
-            // deliberately dropped by the coordinator. The ordinary end
-            // callback reissues this request; its deadline backstop must do the
-            // same when that callback never arrives.
+            // The end callback's reissue, since the hold dropped requests.
             if (strongSelf.isPresented) {
                 [strongSelf requestWaveformForIndex:strongSelf->_playlist.currentIndex];
             }
@@ -569,15 +462,13 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
 }
 
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView {
-    // Take the user hold before retiring the programmatic one, so its pending
-    // deliveries never flash through between the two. The setter also
-    // invalidates that animation's deadline.
+    // User hold first, so pending deliveries never flash through between.
     [self holdForPagerScrolling:YES];
     [self holdForProgrammaticPagerScrolling:NO];
 }
 
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView {
-    // Release before the commit: the settled page's request has to get through.
+    // Before the commit, so the settled page's request gets through.
     [self holdForPagerScrolling:NO];
     [self commitVisiblePage];
 }
@@ -594,7 +485,7 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     CGFloat width = _pagesView.bounds.size.width;
     CGFloat targetX = width * (CGFloat)_playlist.currentIndex;
     if (self.isPresented && fabs(_pagesView.contentOffset.x - targetX) > 0.5) {
-        return;   // completion for a programmatic scroll superseded in flight
+        return;   // a superseded animation
     }
     [self holdForProgrammaticPagerScrolling:NO];
     if (self.isPresented) {

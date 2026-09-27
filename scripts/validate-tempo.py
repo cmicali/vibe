@@ -8,9 +8,8 @@ results with the standard MIREX tempo metrics:
   Accuracy2  within TOLERANCE of the truth or of a metrical multiple of it
              (1/3, 1/2, 2, 3) — i.e. Accuracy1 plus forgiven octave errors
 
-`scan_bpm` runs inside the CLI client's own process: no app instance, no
-window, no caches, and a running Vibe is left alone. That also makes the run
-parallelisable, since each file is an independent process.
+`scan_bpm` runs inside the CLI client's own process (no app instance, no
+caches, a running Vibe left alone), so files scan in parallel.
 
     scripts/validate-tempo.py --limit 10             # a quick sample
     scripts/validate-tempo.py --jobs 8 --csv out.csv # the whole set
@@ -64,7 +63,7 @@ def parse_args():
 
 
 def load_dataset(dataset: Path, annotations: str):
-    """Pair each audio file with its reference tempo, newest annotations first."""
+    """Pair each audio file with its reference tempo from the chosen annotations."""
     audio_dir = dataset / "audio"
     ann_dir = dataset / ("annotations_v2/tempo" if annotations == "v2" else "annotations/tempo")
     if not audio_dir.is_dir() or not ann_dir.is_dir():

@@ -2,8 +2,6 @@
 //  FilesSettingsViewController.m
 //  Vibe (iOS)
 //
-//  See FilesSettingsViewController.h.
-//
 
 #import "FilesSettingsViewController.h"
 
@@ -15,14 +13,12 @@
 
 typedef NS_ENUM(NSInteger, VibeFilesSection) {
     VibeFilesSectionFolderSort = 0,
-    // Last, and deliberately: its footer needs the room a last section has.
+    // Last: its footer needs the room a last section has.
     VibeFilesSectionSearchFolders,
     VibeFilesSectionCount,
 };
 
-// The folder-open order's three choices, in the order the mac's popup lists
-// them. Deliberately not cast to VibeFolderOpenSort: a row index is a screen
-// position, and the mapping below is where the two meet.
+// Not a cast of VibeFolderOpenSort: a row index is a screen position.
 typedef NS_ENUM(NSInteger, VibeFolderSortRow) {
     VibeFolderSortRowName = 0,
     VibeFolderSortRowNewestFirst,
@@ -62,8 +58,7 @@ static NSString *const kActionCellIdentifier = @"action";
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.title = STR_SETTINGS_FILES;
-    // Adds, removals and independently restored launch bookmarks all take this
-    // one path, so the table's dynamic row count cannot drift from the store.
+    // The one path for every change, so the row count cannot drift.
     [NSNotificationCenter.defaultCenter addObserver:self
                                            selector:@selector(searchFoldersDidChange:)
                                                name:VibeSearchFoldersDidChangeNotification
@@ -85,8 +80,7 @@ static NSString *const kActionCellIdentifier = @"action";
     return VibeFilesSectionCount;
 }
 
-// The folder count, plus the Add row that is always last — so an empty list is
-// still one tappable row rather than a section that draws as nothing.
+// Plus the Add row, always last.
 - (NSInteger)folderRowCount {
     return (NSInteger)SearchFolderStore.shared.folderURLs.count + 1;
 }
@@ -106,9 +100,7 @@ static NSString *const kActionCellIdentifier = @"action";
             ? STR_SETTINGS_SECTION_SEARCH_FOLDERS : STR_SETTINGS_SECTION_FOLDER_SORT;
 }
 
-// The only footer on the screen, and it is load-bearing: without it an empty
-// list reads as a feature that does not work, rather than as one waiting to be
-// given a folder.
+// Load-bearing: without it an empty list reads as a broken feature.
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
     return (VibeFilesSection)section == VibeFilesSectionSearchFolders
             ? [NSString stringWithFormat:STR_SETTINGS_SEARCH_FOLDERS_FOOTER, VibeAppName()]
@@ -160,8 +152,6 @@ static NSString *const kActionCellIdentifier = @"action";
 
 #pragma mark - Search folders
 
-// Swipe to delete, on the folders and never on the Add row. Removing one gives
-// the grant up, so the footer's promise stays true.
 - (BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath {
     return (VibeFilesSection)indexPath.section == VibeFilesSectionSearchFolders
             && ![self isAddFolderRow:indexPath];
@@ -176,8 +166,7 @@ static NSString *const kActionCellIdentifier = @"action";
     [SearchFolderStore.shared removeFolderAtIndex:(NSUInteger)indexPath.row];
 }
 
-// Folders only — asCopy:NO, so the grant is to the real folder rather than to a
-// copy in our container, which is the whole point.
+// asCopy:NO: the grant must be to the real folder.
 - (void)presentFolderPicker {
     UIDocumentPickerViewController *picker =
             [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypeFolder]
@@ -194,8 +183,7 @@ static NSString *const kActionCellIdentifier = @"action";
         return;
     }
     if (![SearchFolderStore.shared addFolderURL:url]) {
-        // Silence would read as the pick having failed, when in fact there was
-        // nothing to do — a grant already reaches inside this folder.
+        // Silence would read as a failed pick.
         [self showAlreadyCoveredAlert];
     }
 }
@@ -216,15 +204,12 @@ static NSString *const kActionCellIdentifier = @"action";
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     if ((VibeFilesSection)indexPath.section == VibeFilesSectionSearchFolders) {
-        // A folder row is not a choice and not an open — the list is search
-        // scope. Only the Add row does anything.
         if ([self isAddFolderRow:indexPath]) {
             [self presentFolderPicker];
         }
         return;
     }
-    // Nothing on screen draws from it — the order governs the next folder open
-    // — so the checkmark moves and nothing is notified.
+    // Governs the next open, so nothing is notified.
     AppSettings.sharedInstance.folderOpenSort = FolderSortForRow(indexPath.row);
     [tableView reloadSections:[NSIndexSet indexSetWithIndex:VibeFilesSectionFolderSort]
              withRowAnimation:UITableViewRowAnimationNone];

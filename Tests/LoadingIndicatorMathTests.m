@@ -12,9 +12,8 @@
 
 @implementation LoadingIndicatorMathTests
 
-// The waveform style is a regression fence around "pixel-identical": these are
-// the numbers the control drew before the row style existed, at several
-// widths, so the extraction cannot have moved the waveform's line.
+// Pinned exactly: the track matches the unplayed waveform's brightness, and the
+// macOS empty-state line reads its height and alpha from here.
 - (void)testWaveformStyleReturnsTheHistoricalConstants {
     for (NSNumber *widthNumber in @[ @200, @480, @1024, @3000 ]) {
         CGFloat width = widthNumber.doubleValue;
@@ -30,8 +29,7 @@
     }
 }
 
-// The row style has no shimmer at all: a 16pt gutter has no room for a sweep
-// to read as motion rather than flicker. The waveform keeps its sweep.
+// A 16pt gutter has no room for a sweep to read as motion rather than flicker.
 - (void)testOnlyTheWaveformStyleSweeps {
     XCTAssertFalse(VibeLoadingIndicatorMetricsForStyle(
             VibeLoadingIndicatorStyleRow, 16).hasShimmer);
@@ -39,10 +37,9 @@
             VibeLoadingIndicatorStyleWaveform, 480).hasShimmer);
 }
 
-// Each style has exactly one indeterminate motion: the waveform's is its
-// sweep, the row's the whole-pill pulse — without one, indeterminate is
-// pixel-identical to a determinate fill parked at zero, which reads as stuck.
-// The pulse must peak above the resting track or it does not read at all.
+// Each style has exactly one indeterminate motion; without one, indeterminate
+// looks like a determinate fill stuck at zero. The pulse must peak above the
+// resting track to read at all.
 - (void)testOnlyTheRowStylePulses {
     VibeLoadingIndicatorMetrics row =
             VibeLoadingIndicatorMetricsForStyle(VibeLoadingIndicatorStyleRow, 16);
@@ -58,8 +55,7 @@
     XCTAssertLessThan(m.frontFadePoints, 16);
 }
 
-// A capsule tall enough that the round ends actually read: cornerRadius is
-// half the height, full pill ends, as layoutBars gives each EQ bar.
+// Tall enough that the round ends read; full pill ends, like each EQ bar's.
 - (void)testRowStyleIsARoundEndedPill {
     VibeLoadingIndicatorMetrics m =
             VibeLoadingIndicatorMetricsForStyle(VibeLoadingIndicatorStyleRow, 16);

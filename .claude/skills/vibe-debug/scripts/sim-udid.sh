@@ -1,18 +1,15 @@
 #!/bin/bash
-# Print the UDID of this session's dedicated iPhone simulator. The device is
-# named from the checkout path PLUS the Claude session id when present, so
-# concurrent agent sessions — even in the same checkout — each get their own
-# simulator (separate app container, debug channel, and touch driver) instead
-# of fighting over `booted`. Run outside Claude Code it falls back to one
-# stable device per checkout.
+# Print the UDID of this session's iPhone simulator, named from the checkout
+# path plus CLAUDE_CODE_SESSION_ID, so concurrent sessions — even in one
+# checkout — never share an app container, debug channel or touch driver.
+# Outside Claude Code: one device per checkout.
 #
 # Usage: sim-udid.sh [--create]
-#   --create   create the device if it does not exist (modeled on the first
-#              available iPhone's device type and runtime); does NOT boot it
-# Overrides: VIBE_SIM_UDID is printed as-is (the value `booted` restores the
-# old any-booted-device behavior); VIBE_SIM_NAME replaces the derived name.
-# Exits 1 with a message on stderr when the device does not exist and
-# --create was not given.
+#   --create   create the device if missing (the first available iPhone's
+#              device type and runtime); does not boot it
+# Overrides: VIBE_SIM_UDID is printed as-is (`booted` means any booted
+# device); VIBE_SIM_NAME replaces the derived name.
+# Exit 1 when the device does not exist and --create was not given.
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -27,12 +24,11 @@ JSON="$(xcrun simctl list devices available -j)"
 UDID="$(printf '%s' "$JSON" | jq -r --arg n "$NAME" \
         '[.devices[][] | select(.name == $n)][0].udid // empty')"
 
-# Session-scoped names mean ended sessions leave devices behind, each carrying
-# a multi-GB data dir: delete Vibe-* devices that are Shutdown, not this
-# session's, and untouched for 12h. Age-gating on the data dir keeps a
-# concurrent session's freshly created (not yet booted) device safe.
-# TRAP: -mmin, not -mtime +1 — that truncates to whole days, so it spares
-# anything under 48h and lets a week of sessions pile up.
+# Ended sessions leave multi-GB devices behind: delete Vibe-* devices that are
+# Shutdown, not this session's, and untouched for 12h. The age gate spares a
+# concurrent session's device created but not yet booted.
+# TRAP: -mmin, not -mtime: -mtime +1 truncates to whole days and spares
+# anything under 48h.
 printf '%s' "$JSON" | jq -r --arg n "$NAME" '.devices[][]
         | select((.name | startswith("Vibe-")) and .state == "Shutdown" and .name != $n)
         | [.udid, .dataPath] | @tsv' \

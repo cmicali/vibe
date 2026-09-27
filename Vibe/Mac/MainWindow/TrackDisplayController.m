@@ -25,25 +25,17 @@
     // the formatter truncates, so that is when its text can change. A value
     // of -1 poisons it, so the next tick always writes, even from position 0.
     NSTimeInterval           _lastPosition;
-    // The codec line's two independent inputs; see renderFXState:. They are
-    // kept so that either can be re-rendered without the other, and as the
-    // change guard: the composed string cannot be compared through
-    // stringValue, since every symbol attachment is the same
-    // object-replacement character.
+    // The codec line's two independent inputs, kept so either re-renders
+    // without the other, and as the change guard: every symbol attachment is
+    // the same object-replacement character in stringValue.
     NSString                *_fileMetadataText;
     VibeFXDisplayState       _fxState;
-    // The key the BPM line was last colored for, part of that line's change
-    // guard: the text alone is not enough, since toggling the color setting
-    // leaves it identical while the attributes must change. -1 is "uncolored".
+    // Part of the BPM line's change guard (see renderBPM:). -1 is uncolored.
     NSInteger                _lastKeyColorKey;
-    // The label width the title's shrink-to-fit was computed against. The
-    // label is width-flexible, so a window resize invalidates the fit; see
-    // refitTitleIfWidthChanged.
+    // The width the title's shrink-to-fit was computed against.
     CGFloat                  _titleFittedWidth;
-    // The corner lines' attributes, theme-colored; see cornerTextAttributes.
     NSDictionary            *_cornerTextAttributes;
-    // Held only for the artist line's re-cap: the width it may occupy depends
-    // on how wide the codec line renders, which is this class's own output.
+    // For the artist line's re-cap, which depends on the codec line's width.
     __weak MainPlayerContentView *_contentView;
 }
 
@@ -67,10 +59,9 @@
     return self;
 }
 
-// TRAP: NSTextField.stringValue raises on nil, and a nil here has crashed:
-// a message to a nil track returns a nil string that no isEqualToString:
-// early-out can catch, because a message to nil answers NO and falls through
-// to the assignment. Empty is what every nil string means on this header.
+// TRAP: setting NSTextField.stringValue to nil raises, and a message to a nil
+// track returns nil — which the isEqualToString: early-out cannot catch, since
+// a message to nil answers NO. Nil means empty here.
 static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     value = value ?: @"";
     if (![field.stringValue isEqualToString:value]) {
@@ -78,11 +69,7 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     }
 }
 
-// The codec corner's house style — right-aligned, with a tight kern — shared
-// by the file-metadata and BPM labels. It is change-guarded like
-// setStringValueIfChanged:, because both labels re-run on every render pass,
-// and the BPM label on every fader tick besides. Reading the text back off the
-// field keeps the guard here, in one place.
+// The codec corner's style, shared by the file-metadata and BPM labels.
 static NSDictionary *kernedRightAlignedAttributes(void) {
     NSMutableParagraphStyle *paragraph = [[NSParagraphStyle new] mutableCopy];
     paragraph.alignment = NSTextAlignmentRight;
@@ -92,23 +79,10 @@ static NSDictionary *kernedRightAlignedAttributes(void) {
     };
 }
 
-// The dimming for both corner labels, the codec line and the BPM line beneath
-// it. It lives in the text color rather than the fields' alphaValue, which is
-// 1.0 on both — see MainPlayerContentView — because the codec field also
-// carries the FX symbols, and a field-wide alpha would dim those too. The two
-// labels are a matched pair, so they take the same treatment or they visibly
-// drift apart.
-//
-// The color is the theme's resolvedInfoColor; its factory default,
-// tertiaryLabelColor, stands in for the old secondaryLabelColor under 50%
-// field alpha. Reproducing that exactly with a color is impossible:
-// colorWithAlphaComponent: replaces the alpha rather than scaling it, and
-// layer-level alpha composites rasterized glyphs rather than changing how they
-// rasterize. A resolved color would also go stale on a light-dark flip, since
-// these strings are rebuilt only on content changes.
-// Cached until resetRenderGuards, which the TrackDisplay effect runs exactly
-// when the theme's colors can have changed; the fader recomposes the BPM
-// line every tick and should not mint a dynamic color each time.
+// Both corner labels dim in the text color, not the field alpha: the codec
+// field also carries the FX symbols, which a field alpha would dim too. The
+// color must stay dynamic, since these strings rebuild only on content change.
+// Cached until resetRenderGuards; the fader recomposes the BPM line per tick.
 - (NSDictionary *)cornerTextAttributes {
     if (!_cornerTextAttributes) {
         NSMutableDictionary *attributes = [kernedRightAlignedAttributes() mutableCopy];
@@ -119,16 +93,10 @@ static NSDictionary *kernedRightAlignedAttributes(void) {
     return _cornerTextAttributes;
 }
 
-// The Camelot wheel's own colors: one hue per wheel number, stepping once
-// around the color wheel as the number steps around the Camelot wheel, and
-// anchored so that 1 is green — which is what puts 3 in teal, 5 in blue, 7 in
-// violet, 9 in red and 11 in yellow, close to the printed wheel. Keys one
-// step apart, the harmonically compatible ones, therefore land in neighboring
-// hues, and a relative major/minor pair (8A and 8B) shares a hue because it
-// shares a number. The hues approximate the published wheel rather than
-// sampling it. Saturation and brightness differ per appearance so the label
-// stays legible on both the light and the dark chrome; neither is taken to
-// full brightness, which reads as garish next to the dimmed corner text.
+// One hue per Camelot number, anchored so 1 is green, approximating the
+// printed wheel: compatible keys land in neighboring hues and a relative
+// major/minor pair shares one. Never full brightness, which reads as garish
+// beside the dimmed corner text.
 static const CGFloat kCamelotHueOfNumberOne = 1.0 / 3.0;
 
 static NSColor *camelotColor(NSInteger key) {
@@ -153,12 +121,9 @@ static NSColor *camelotColor(NSInteger key) {
     return palette[number];
 }
 
-// The FX indicator symbols, in menu order: Q, W, E, R and T. Low kill shows
-// the filled dial while its boost is latched, because the boost modifies that
-// filter rather than being an effect of its own, and so never gets a symbol of
-// its own. The boost runs the filter even while lowKill itself is off, so it
-// shows the filled dial alone too. Both delays can be latched at once, and
-// then both symbols show.
+// Menu order: Q, W, E, R, T. The boost modifies the low-kill filter, and runs
+// it even with lowKill off, so it shows as the filled dial, never a symbol of
+// its own.
 static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     NSMutableArray<NSString *> *names = [NSMutableArray new];
     if (state.lowKill || state.lowKillBoost) {
@@ -173,8 +138,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     if (state.shortDelay) {
         [names addObject:@"repeat.circle"];
     }
-    // Last, against the codec text it qualifies: closed while bit-perfect
-    // output is delivering the track, open while the mode is on but is not.
+    // Last, against the codec text it qualifies.
     if (state.bitPerfect == 2) {
         [names addObject:@"lock.fill"];
     }
@@ -184,16 +148,10 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     return names;
 }
 
-// Shrink-to-fit for the title. A long title reduces the font size, down to a
-// floor, so that it fits the label's capped width rather than running under
-// the codec and BPM labels, and anything still too long at the floor truncates
-// with an ellipsis. renderState re-runs on every transport event and metadata
-// delivery, once per track during the sweep, so re-fit only when the text has
-// changed.
+// Shrink-to-fit down to a floor, then truncate. Re-fit only on a text change:
+// renderState runs on every transport event and metadata delivery.
 - (void)setTitleLabelText:(NSString *)text {
-    // Same nil trap as setStringValueIfChanged: a nil text falls through the
-    // early-out (message to nil answers NO) into a raising assignment.
-    text = text ?: @"";
+    text = text ?: @""; // setStringValueIfChanged's nil trap
     if ([text isEqualToString:self.titleTextField.stringValue]) {
         return;
     }
@@ -201,11 +159,9 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     self.titleTextField.stringValue = text;
 }
 
-// The fit itself, always measured from the slot's unshrunk font, so that
-// re-running it on a widened label restores the font a narrower fit shrank.
+// Measured from the unshrunk font, so a widened label restores the size.
 - (void)fitTitleFontForText:(NSString *)text {
-    // The shrink floor scales with the themed size: 15/23 of the base, the
-    // pre-theme ratio.
+    // The shrink floor, as a fraction of the themed size.
     static const CGFloat kTitleMinRatio = 15.0 / 23.0;
     NSFont *font = [Fonts titleFont];
     CGFloat baseSize = font.pointSize;
@@ -213,10 +169,8 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     _titleFittedWidth = maxWidth;
     CGFloat width = [text sizeWithAttributes:@{NSFontAttributeName: font}].width;
     if (width > maxWidth) {
-        // Glyph advance scales linearly with point size, so one scale step
-        // lands on the fitting size. The 2% margin covers the rounding.
-        // Derive the shrunk font from the resolved font's own descriptor, so
-        // the fit math holds under any themed face.
+        // Advance scales linearly with point size, so one step fits; 2%
+        // covers rounding. The descriptor keeps any themed face.
         CGFloat fitted = baseSize * (maxWidth / width) * 0.98;
         CGFloat size = MAX(baseSize * kTitleMinRatio, floor(fitted * 2) / 2);
         font = [NSFont fontWithDescriptor:font.fontDescriptor size:size] ?: font;
@@ -224,15 +178,12 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     self.titleTextField.font = font;
 }
 
-// The Fonts live effect's hook: re-fit whatever the title shows under the
-// freshly pushed fonts.
 - (void)refitTitle {
     [self fitTitleFontForText:self.titleTextField.stringValue];
 }
 
-// A theme color change must repaint text whose string did not change; the
-// composed-line guards compare content, never color. The follow-up updateUI
-// pass recomposes both corner lines.
+// The composed-line guards compare content, never color, so a theme color
+// change must reset them before the next updateUI.
 - (void)resetRenderGuards {
     _fileMetadataText = nil;
     _cornerTextAttributes = nil;
@@ -266,21 +217,17 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         setStringValueIfChanged(self.artistTextField, track.displayArtist);
         [self setTitleLabelText:track.displayTitle];
         if (state == TrackDisplayStateLoading) {
-            // The open is still in flight, so the duration and position are
-            // unknown rather than zero. Show placeholders, not 0:00.
+            // Unknown, not zero, while the open is in flight.
             setStringValueIfChanged(self.totalTimeTextField, STR_LABEL_TIME_UNKNOWN);
             setStringValueIfChanged(self.currentTimeTextField, STR_LABEL_TIME_UNKNOWN);
             _lastPosition = -1;
         }
         else {
-            // -1 poisons the elapsed-label cache rather than naming a
-            // position, so render it as 0.
+            // -1 is the poisoned cache, not a position.
             [self renderRightTimeLabelWithDisplayPosition:MAX(0, _lastPosition)
                                                  duration:duration
                                                      rate:rate];
         }
-        // The line itself is AudioTrackMetadata's, shared with the iOS page
-        // header; the setting decides only whether it is shown.
         [self setFileMetadataText:(AppSettings.sharedInstance.currentTheme.showFileInfo ? track.metadata.fileInfoLine : @"")];
         break;
 
@@ -289,8 +236,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         [self setTitleLabelText:@""];
         setStringValueIfChanged(self.totalTimeTextField, @"");
         setStringValueIfChanged(self.currentTimeTextField, @"");
-        // Text only. Any latched FX symbols stay, because they are deck state
-        // rather than track state and apply to whatever plays next.
+        // Text only: latched FX symbols are deck state and stay.
         [self setFileMetadataText:@""];
         _dropHintTextField.hidden = YES;
         _lastPosition = -1;
@@ -298,15 +244,13 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
 
     case TrackDisplayStateEmpty:
     case TrackDisplayStateError: {
-        // The empty state, which also serves the play-error rendering: the
-        // error goes on the artist line, over the failed track's title.
+        // The error goes on the artist line, over the failed track's title.
         BOOL playError = (state == TrackDisplayStateError);
         setStringValueIfChanged(self.artistTextField,
                 playError ? (errorStatus ?: STR_ERROR_PLAYBACK_GENERIC) : @"");
         [self setTitleLabelText:playError ? track.singleLineTitle : @""];
-        // The whole empty state sits at half strength, and the title matches
-        // the waveform's placeholder line: 0.275 is half the shimmer's 0.55
-        // peak.
+        // Half strength; the title matches the waveform placeholder, half the
+        // shimmer's 0.55 peak.
         self.artistTextField.alphaValue = 0.5;
         self.titleTextField.alphaValue = 0.275;
         self.currentTimeTextField.alphaValue = 0.5;
@@ -314,8 +258,6 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         _dropHintTextField.hidden = NO;
         setStringValueIfChanged(self.totalTimeTextField, STR_LABEL_TIME_UNKNOWN);
         setStringValueIfChanged(self.currentTimeTextField, STR_LABEL_TIME_UNKNOWN);
-        // Poison the position cache, so that the first tick of the next track
-        // always overwrites the placeholder, even from position 0.
         _lastPosition = -1;
         [_waveformView showEmptyPlaceholder];
         [self setFileMetadataText:@""]; // see LaunchGrace: FX symbols persist
@@ -328,8 +270,6 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
               duration:(NSTimeInterval)duration
                   rate:(double)rate
                  state:(TrackDisplayState)state {
-    // Track and Loading only. In the empty and play-error states the position
-    // readout must keep showing --:--.
     if (state != TrackDisplayStateTrack && state != TrackDisplayStateLoading) {
         return;
     }
@@ -337,32 +277,22 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         _waveformView.progress = (float) position / (float) duration;
     }
     if (!VibeTrackTimeMayUpdate(state, duration, NO)) {
-        // The position reads 0 while the open is in flight, meaning unknown
-        // rather than zero. renderState shows --:-- for this state, so do not
-        // overwrite it.
-        return;
+        return; // keep renderState's --:--
     }
     NSTimeInterval displayPosition = position / rate;
     if (floor(displayPosition) != floor(_lastPosition)) {
         self.currentTimeTextField.stringValue = [[Formatters sharedInstance] durationStringFromTimeInterval:displayPosition];
         _lastPosition = displayPosition;
     }
-    // In remaining mode the right label counts down with the tick; in total
-    // mode this is a same-string no-op after the first render. It runs only
-    // with a known duration: at the end-of-playlist park the caller's duration
-    // cache is zeroed, and writing "-0:00" here would clobber the parked
-    // full-length value from resetPlayheadToStartWithDuration:rate: and
-    // renderState.
+    // Only with a known duration: the end-of-playlist park zeroes the caller's
+    // cache, and "-0:00" would clobber the parked full-length value.
     if (duration > 0) {
         [self renderRightTimeLabelWithDisplayPosition:displayPosition duration:duration rate:rate];
     }
 }
 
-// The right-hand time label: either the total duration or, per the persisted
-// setting, the minus-prefixed remaining time at the current position, such as
-// "-1:50". Both are wall-clock — file time divided by the varispeed rate, like
-// the elapsed label. displayPosition is already wall-clock, being position
-// divided by the rate.
+// Total or minus-prefixed remaining, both wall-clock; displayPosition already
+// is.
 - (void)renderRightTimeLabelWithDisplayPosition:(NSTimeInterval)displayPosition
                                        duration:(NSTimeInterval)duration
                                            rate:(double)rate {
@@ -372,10 +302,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
 }
 
 - (void)renderTotalDuration:(NSTimeInterval)duration rate:(double)rate state:(TrackDisplayState)state {
-    // Track only, like renderPosition:'s label writes. In the Loading, empty
-    // and error states the right label must keep showing --:--, and the
-    // duration guard stops a 0 rendering as 0:00 — the same clobber
-    // renderPosition: guards against.
+    // Track only, with a known duration; other states keep --:--.
     if (!VibeTrackTimeMayUpdate(state, duration, YES)) {
         return;
     }
@@ -384,8 +311,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
 
 - (void)renderBPM:(float)displayBPM keyText:(NSString *)keyText colorKey:(NSInteger)colorKey {
     if (!AppSettings.sharedInstance.currentTheme.showFileInfo) {
-        // Hidden along with the codec text above it; the FX symbols are deck
-        // state, not file info, and keep rendering.
+        // The FX symbols are deck state, not file info, and keep rendering.
         displayBPM = 0;
         keyText = @"";
         colorKey = -1;
@@ -393,15 +319,14 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     NSString *bpmText = displayBPM > 0 ? [[Formatters sharedInstance] bpmString:displayBPM] : @"";
     NSString *text;
     if (bpmText.length > 0 && keyText.length > 0) {
-        // Layout punctuation between two readouts, not prose — and the same
-        // rule the codec line above uses to separate its two fields.
+        // Layout punctuation, as on the codec line; not prose.
         text = [NSString stringWithFormat:VibeNotLocalized(@"%@ | %@"), bpmText, keyText];
     }
     else {
         text = bpmText.length > 0 ? bpmText : keyText;
     }
-    // The text alone cannot gate the redraw here: toggling the color setting
-    // leaves it identical while the attributes must change.
+    // TRAP: not the text alone — toggling key colors leaves it identical while
+    // the attributes change.
     if ([_bpmTextField.stringValue isEqualToString:text] && colorKey == _lastKeyColorKey) {
         return;
     }
@@ -412,7 +337,6 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
                                                   attributes:self.cornerTextAttributes];
     NSColor *keyColor = camelotColor(colorKey);
     if (keyColor && keyText.length > 0) {
-        // The key sits at the tail, after the separator when both are shown.
         NSRange range = NSMakeRange(text.length - keyText.length, keyText.length);
         [line addAttribute:NSForegroundColorAttributeName value:keyColor range:range];
         [line addAttribute:NSFontAttributeName value:[Fonts infoFontBold:YES] range:range];
@@ -441,11 +365,9 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     self.fileMetadataTextField.toolTip = toolTip;
 }
 
-// TRAP: nil is a live input, not a programmer error. A track whose metadata
-// scan has not landed — or failed outright, as on an unparseable file — has a
-// nil `metadata`, so the caller's `track.metadata.fileInfoLine` is a message to
-// nil. composeFileMetadataLabel feeds this straight to
-// -[NSAttributedString initWithString:], which raises on nil.
+// TRAP: nil is a live input: an unscanned or unparseable track has nil
+// metadata, so the caller's fileInfoLine is nil, and
+// -[NSAttributedString initWithString:] raises on nil.
 - (void)setFileMetadataText:(NSString *)text {
     text = text ?: @"";
     if ([_fileMetadataText isEqualToString:text]) {
@@ -455,12 +377,8 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     [self composeFileMetadataLabel];
 }
 
-// The codec line is one right-aligned run: the active FX symbols, then the
-// codec text. Inlining the symbols, rather than placing a separate view left
-// of the label, is what keeps them glued to the text, because the label is
-// right-aligned in a fixed frame and so its text's left edge moves with the
-// track's codec string. Each run carries its own color; see symbolRun and
-// cornerTextAttributes.
+// One right-aligned run, FX symbols then codec text: inline symbols stay glued
+// to text whose left edge moves with the codec string.
 - (void)composeFileMetadataLabel {
     NSArray<NSString *> *symbols = AppSettings.sharedInstance.currentTheme.showStatusIcons
             ? fxSymbolNames(_fxState) : @[];
@@ -476,41 +394,27 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     NSMutableAttributedString *line = [NSMutableAttributedString new];
     for (NSString *name in symbols) {
         [line appendAttributedString:symbolRun(name, font)];
-        // Wider than the gap the glyphs carry between themselves, so that a
-        // run of three still reads as three marks. It carries the font and
-        // nothing else — whitespace has no color to set — but it must carry
-        // that, since a run left on the default font would widen differently.
+        // The font is required: on the default font the gap widens differently.
         [line appendAttributedString:[[NSAttributedString alloc] initWithString:@"  "
                                                                      attributes:@{NSFontAttributeName: font}]];
     }
     [line appendAttributedString:[[NSAttributedString alloc] initWithString:_fileMetadataText
                                                                 attributes:self.cornerTextAttributes]];
-    // Right-align the whole line, symbols included. Only the kern and the
-    // paragraph style are set, so the per-run foreground colors above survive.
+    // Kern and paragraph style only, so the per-run colors survive.
     [line addAttributes:kernedRightAlignedAttributes() range:NSMakeRange(0, line.length)];
     self.fileMetadataTextField.attributedStringValue = line;
     [_contentView layoutArtistLineClearOfCodecLine];
 }
 
-// One SF Symbol as an inline attachment, centered vertically on the text's cap
-// height. An attachment's bounds are relative to the baseline, so without the
-// offset the glyph sits on the baseline and rides high.
-//
-// The per-symbol correction is optical, not geometric, and no metric yields
-// it. The dial glyphs spend much of their bounding box on the tick marks
-// ringing a small central dial, so at the row's shared box height they read
-// visibly smaller than the solid-stroke symbols beside them. Sizing their box
-// up evens the row out.
+// Optical, not metric: the dial glyphs spend their box on tick marks and read
+// small beside solid symbols at the same height.
 static CGFloat fxSymbolSizeMultiplier(NSString *symbolName) {
     return [symbolName hasPrefix:@"dial."] ? 1.3 : 1.0;
 }
 
 static NSAttributedString *symbolRun(NSString *symbolName, NSFont *font) {
     CGFloat height = round(font.pointSize * 0.85 * fxSymbolSizeMultiplier(symbolName));
-    // Bold weight, because at this size the default stroke is a hairline that
-    // reads as noise next to the text. The configuration's point size sets the
-    // weight's proportions, so it tracks the height the attachment draws at
-    // below; the drawn size itself stays the attachment's bounds.
+    // Bold: the default stroke is a hairline at this size.
     NSImageSymbolConfiguration *configuration =
             [NSImageSymbolConfiguration configurationWithPointSize:height
                                                             weight:NSFontWeightBold
@@ -520,20 +424,16 @@ static NSAttributedString *symbolRun(NSString *symbolName, NSFont *font) {
     if (!image) {
         return [[NSAttributedString alloc] initWithString:@""];
     }
-    // A template image. NSTextField tints the attachment with the run's
-    // foreground color, so the symbols follow secondaryLabelColor through
-    // appearance changes with no explicit color to keep in sync.
-    image.template = YES;
+    image.template = YES; // tinted with the run's foreground color
     NSSize size = image.size;
     CGFloat width = size.height > 0 ? round(height * size.width / size.height) : height;
     NSTextAttachment *attachment = [NSTextAttachment new];
     attachment.image = image;
+    // Bounds are baseline-relative; center on the cap height.
     attachment.bounds = CGRectMake(0, font.capHeight / 2 - height / 2, width, height);
     NSMutableAttributedString *run =
             [[NSAttributedString attributedStringWithAttachment:attachment] mutableCopy];
-    // Full-strength secondaryLabelColor: exactly the time labels' color at
-    // their full field alpha, and a step brighter than the codec text beside
-    // it; see cornerTextAttributes.
+    // A step brighter than the codec text, matching the time labels.
     [run addAttribute:NSForegroundColorAttributeName
                 value:NSColor.secondaryLabelColor
                 range:NSMakeRange(0, run.length)];
@@ -545,9 +445,7 @@ static NSAttributedString *symbolRun(NSString *symbolName, NSFont *font) {
     _lastPosition = 0;
     setStringValueIfChanged(self.currentTimeTextField,
             [[Formatters sharedInstance] durationStringFromTimeInterval:0]);
-    // In remaining mode the resting label shows the full track, such as
-    // "-3:45". The caller passes the track's own duration, because the
-    // player's is mid-teardown.
+    // The caller passes the track's own duration: the player's is mid-teardown.
     [self renderRightTimeLabelWithDisplayPosition:0 duration:duration rate:rate];
 }
 

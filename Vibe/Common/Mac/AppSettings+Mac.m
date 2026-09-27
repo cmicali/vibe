@@ -2,10 +2,6 @@
 //  AppSettings+Mac.m
 //  Vibe
 //
-//  The macOS half of the store: the mac-only keys and preset ladders, the
-//  theme store, and the macOS halves of the shared entry points AppSettings.m
-//  calls under TARGET_OS_OSX (AppSettingsInternal.h).
-//
 
 #import "AppSettings+Mac.h"
 #import "AppSettingsInternal.h"
@@ -49,10 +45,8 @@
 #define SETTING_WINDOW_TINT_CUSTOM_LIGHT            @"Appearance.windowTintCustomColorLight"
 #define SETTING_CONVERT_ASKS_WHERE_TO_SAVE          @"Convert.asksWhereToSave"
 #define SETTING_CONVERT_ENABLED                     @"Convert.enabled"
-// TRAP: the stored key is not the macro's name and must never follow a rename —
-// it is a persisted NSUserDefaults key, so changing the string silently resets
-// every existing user's setting to the default. It predates the folder-artwork
-// → folder-art vocabulary and stays as written.
+// TRAP: a stored key never follows a rename of its macro — changing the
+// string resets every user's setting. This one keeps "folderArtwork".
 #define SETTING_FOLDER_ART                          @"Audio.folderArtwork"
 #define SETTING_ACTIVE_THEME                        @"Appearance.activeTheme"
 #define SETTING_USER_THEMES                         @"Appearance.userThemes"
@@ -125,12 +119,9 @@ const size_t kVibeUIUpdateHzCapPresetCount =
 
 #pragma mark Themes
 
-// The pre-theme loose appearance settings, keyed by their AppTheme field
-// names. One-time: any stored active-theme key means it already ran, and a
-// successful run writes one. Runs before registerDefaults — the decision
-// keys on "no stored value" — and consumes the loose keys it migrates,
-// shared-named waveform keys included: this is the Mac store, and iOS is a
-// separate app over a separate one.
+// The pre-theme loose keys, by AppTheme field name. Runs once, before
+// registerDefaults (it keys on "no stored active theme"), and consumes every
+// key it reads, the shared-named waveform keys included: iOS has its own store.
 - (void)migrateLooseAppearanceSettingsToTheme {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     if ([defaults objectForKey:SETTING_ACTIVE_THEME]) {
@@ -172,8 +163,7 @@ const size_t kVibeUIUpdateHzCapPresetCount =
     }
 }
 
-// A stored user-theme entry is its sparse record plus id and name, flat —
-// the same shape a theme JSON carries, minus the version.
+// A stored user-theme entry: its sparse record plus id and name, flat.
 static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, NSString *name) {
     NSMutableDictionary *entry = [record mutableCopy];
     entry[kVibeThemeRecordIdentifierKey] = identifier;
@@ -181,9 +171,8 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     return entry;
 }
 
-// One side of a history entry: the whole user-theme list, the active
-// identifier and the working record. An edit, a rename and a removal each
-// move some of the three, so there is one entry kind and one restore.
+// One side of a history entry. An edit, a rename and a removal each move some
+// of the three, so there is one entry kind and one restore.
 static NSDictionary *ThemeStoreSnapshot(NSArray<NSDictionary *> *themes, NSString *active,
                                         NSDictionary *working) {
     return @{@"themes": [themes copy], @"active": active, @"working": [working copy]};
@@ -203,16 +192,10 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     return [change[@"before"][@"themes"] count] > [change[@"after"][@"themes"] count];
 }
 
-// Sanitized on read: an entry without a usable id and name is dropped, and
-// every entry's fields go back through AppTheme's gate, so an external
-// defaults write cannot smuggle in what an import would refuse. Memoized —
-// the sanitize pass costs a full record walk per theme and every identity
-// query funnels here. persistUserThemes: — the one RUNTIME writer; the
-// one-time migration above writes the key directly, before this memo can
-// have populated — installs what it wrote rather than dropping it: every
-// caller hands it entries built from this list and AppTheme's own output, so
-// they are already through the gate (no CLI-side verb writes this key, so
-// the cross-process prefs trap in Common/CLAUDE.md does not reach it).
+// Sanitized on read, so an external defaults write cannot smuggle in what an
+// import would refuse; an entry without a usable id and name is dropped.
+// Memoized: persistUserThemes: is the only runtime writer and installs what it
+// wrote, entries already through the gate. No CLI verb writes this key.
 - (NSArray<NSDictionary *> *)storedUserThemes {
     if (_storedUserThemesCache) {
         return _storedUserThemesCache;
@@ -260,8 +243,7 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
             [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_ACTIVE_THEME]];
 }
 
-// An identifier naming no built-in and no stored user theme — a deleted
-// theme, an external write — snaps to vibe.
+// An identifier naming no theme snaps to vibe.
 - (NSString *)resolvedThemeIdentifier:(NSString *)identifier {
     if ([AppTheme isBuiltInIdentifier:identifier] ||
         (identifier && [self storedUserThemeWithIdentifier:identifier])) {
@@ -279,10 +261,8 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
 }
 
 - (NSString *)displayNameForThemeIdentifier:(NSString *)identifier {
-    // A built-in's English name travels in its bundled JSON; the hand-managed
-    // ThemeNames catalog (keyed by identifier) overlays a translation where
-    // one exists, so a theme added by pull request needs no code and no
-    // catalog entry to ship.
+    // The ThemeNames catalog overlays a translation on the JSON's English
+    // name, so a new built-in ships with no catalog entry.
     NSString *builtInName = [AppTheme builtInNameForIdentifier:identifier];
     if (builtInName) {
         return [NSBundle.mainBundle localizedStringForKey:identifier
@@ -297,7 +277,6 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     for (NSString *identifier in [AppTheme builtInThemeIdentifiers]) {
         [names addObject:[self displayNameForThemeIdentifier:identifier]];
     }
-    // One store fetch for every user name, not one per identifier.
     for (NSDictionary *entry in [self storedUserThemes]) {
         [names addObject:entry[kVibeThemeRecordNameKey]];
     }
@@ -310,7 +289,6 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     }
     NSDictionary *entry = [self storedUserThemeWithIdentifier:identifier];
     if (entry) {
-        // Already through the gate in storedUserThemes; strip the entry keys.
         NSMutableDictionary *record = [entry mutableCopy];
         [record removeObjectsForKeys:@[kVibeThemeRecordIdentifierKey,
                                        kVibeThemeRecordNameKey]];
@@ -330,10 +308,8 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     return _currentTheme;
 }
 
-// Store-only activation: the working record becomes the named theme's, the
-// active key moves and the divergence key clears. A history restore and a
-// removal's fallback call this so the entries survive; the user's explicit
-// pick is applyThemeWithIdentifier:, which starts history afresh.
+// Activation that keeps history, for a restore and a removal's fallback;
+// applyThemeWithIdentifier: also clears it.
 - (void)activateThemeWithIdentifier:(NSString *)identifier {
     NSString *resolved = [self resolvedThemeIdentifier:identifier];
     [self.currentTheme replaceWithRecord:[self recordForThemeIdentifier:resolved]];
@@ -345,8 +321,7 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
 - (void)applyThemeWithIdentifier:(NSString *)identifier {
     [self activateThemeWithIdentifier:identifier];
     [self clearThemeHistory];
-    // Dropping the divergence record and the history can drop the last
-    // reference to a custom image picked while a built-in was active.
+    // Dropping the divergence record and history can orphan an image.
     [self sweepUnreferencedThemeImages];
 }
 
@@ -365,25 +340,22 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     NSDictionary *record = _currentTheme.dictionaryRepresentation;
     NSString *active = self.activeThemeIdentifier;
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    // What this write replaces: the divergence record or the stored record.
-    // Its artwork references against the new record's decide the sweep
-    // below, so a replaced or cleared placeholder image cannot strand its
-    // file — and a color drag, which changes no reference, never lists the
-    // container.
+    // Its image references against the new record's decide the sweep, so a
+    // color drag, which changes none, never lists the container.
     NSDictionary *previous = [defaults dictionaryForKey:SETTING_CURRENT_THEME]
             ?: [self recordForThemeIdentifier:active];
     NSDictionary *before = ThemeStoreSnapshot([self storedUserThemes], active, previous);
     if ([AppTheme isBuiltInIdentifier:active]) {
-        // A built-in stays pristine; the working record carries the
-        // divergence, and only while there is one.
+        // A built-in stays pristine; the divergence key exists only while
+        // there is one.
         if ([record isEqualToDictionary:[AppTheme builtInRecordForIdentifier:active]]) {
             [defaults removeObjectForKey:SETTING_CURRENT_THEME];
         } else {
             [defaults setObject:record forKey:SETTING_CURRENT_THEME];
         }
     } else {
-        // A user theme IS its working state: the record lands in the entry,
-        // from the same dictionary, so the two cannot drift.
+        // From the same dictionary, so the entry and working state cannot
+        // drift.
         NSMutableArray<NSDictionary *> *themes = [[self storedUserThemes] mutableCopy];
         for (NSUInteger i = 0; i < themes.count; i++) {
             if ([themes[i][kVibeThemeRecordIdentifierKey] isEqualToString:active]) {
@@ -413,7 +385,7 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     NSMutableArray *themes = [[self storedUserThemes] mutableCopy];
     [themes addObject:UserThemeEntry([AppTheme sanitizedRecord:record], identifier, deduped)];
     [self persistUserThemes:themes];
-    // Older store snapshots cannot preserve this unrecorded addition.
+    // An older snapshot would erase this unrecorded addition.
     [self clearThemeHistory];
     [self sweepUnreferencedThemeImages];
     return identifier;
@@ -442,12 +414,10 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     [themes removeObjectAtIndex:index];
     [self persistUserThemes:themes];
     if ([active isEqualToString:identifier]) {
-        // The successor resolves to vibe when it names nothing, the removed
-        // theme itself included.
         [self activateThemeWithIdentifier:successor ?: kVibeThemeIdentifierVibe];
     }
-    // The entry keeps everything the removal dropped, so only an eviction at
-    // the cap can retire an image here.
+    // The entry holds everything the removal dropped, so only an eviction at
+    // the cap can orphan an image.
     if ([self recordThemeChange:before
                      replacedBy:ThemeStoreSnapshot(themes, self.activeThemeIdentifier,
                                                    self.currentTheme.dictionaryRepresentation)
@@ -456,8 +426,6 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     }
 }
 
-// The divergence key is written exactly while the working record differs
-// from the active theme's own (currentThemeDidChangeContinuous:atTime:).
 - (BOOL)currentThemeIsModified {
     return [[NSUserDefaults standardUserDefaults] dictionaryForKey:SETTING_CURRENT_THEME] != nil;
 }
@@ -470,19 +438,16 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     return self.canRedoThemeEdit && ThemeHistoryChangeRemovesTheme(_themeHistory[_themeHistoryIndex]);
 }
 
-// Deletes every stored custom image no record names any more.
-// The files are content-hash-named and shared by reference
-// (AppTheme.storeCustomImageData:), so each store write that can drop the
-// last reference, including by discarding history, runs this after its write.
+// Deletes every custom image no stored record or history entry names. Files
+// are content-addressed and shared, so run it after any write that can drop a
+// last reference.
 - (void)sweepUnreferencedThemeImages {
     NSMutableArray<NSDictionary *> *records = [NSMutableArray array];
     for (NSString *identifier in [self orderedThemeIdentifiers]) {
         [records addObject:[self recordForThemeIdentifier:identifier]];
     }
-    // The persisted divergence record can name an image no theme's own record
-    // holds. The in-memory working record needs no read of its own: every
-    // caller sweeps after its store write, by which point that record has
-    // landed in a theme entry or the divergence key.
+    // The in-memory working record needs no read: every caller sweeps after
+    // its store write, so it is already in a theme entry or the divergence key.
     NSDictionary *diverged =
             [[NSUserDefaults standardUserDefaults] dictionaryForKey:SETTING_CURRENT_THEME];
     if (diverged) {
@@ -507,9 +472,7 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     return NO;
 }
 
-// A continuous gesture updates the latest after-state, keeping its first
-// before-state. A new edit drops the redo branch. Returns whether discarded
-// history held images, so callers sweep only when needed.
+// Returns whether discarded history held images, so callers sweep only then.
 - (BOOL)recordThemeChange:(NSDictionary *)before replacedBy:(NSDictionary *)after
                 continuous:(BOOL)continuous atTime:(NSTimeInterval)now {
     if ([before isEqualToDictionary:after]) return NO;
@@ -518,8 +481,8 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
         retiredImages |= [self themeHistoryChangeUsesImages:_themeHistory.lastObject];
         [_themeHistory removeLastObject];
     }
-    // What moved: the working record's keys, and the theme list as one key,
-    // so a rename or a removal never folds into the drag that follows it.
+    // The theme list counts as one key, so a rename or removal never folds
+    // into the drag after it.
     NSDictionary *from = before[@"working"], *to = after[@"working"];
     NSMutableSet<NSString *> *changed = [NSMutableSet set];
     for (NSString *key in [[NSSet setWithArray:from.allKeys] setByAddingObjectsFromArray:to.allKeys]) {
@@ -566,9 +529,8 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     NSUInteger index = forward ? _themeHistoryIndex : _themeHistoryIndex - 1;
     NSDictionary *snapshot = _themeHistory[index][forward ? @"after" : @"before"];
     _themeHistoryIndex = forward ? index + 1 : index;
-    // The restore is not itself an edit, and the next edit starts a fresh
-    // entry rather than coalescing onto the one just crossed. Nothing it puts
-    // back can be unreferenced — the entry still holds it — so no sweep.
+    // Not an edit: the next edit starts a fresh entry. No sweep: the entry
+    // still holds everything this puts back.
     _themeHistoryChangedKeys = nil;
     _themeHistoryRestoring = YES;
     [self persistUserThemes:snapshot[@"themes"]];
@@ -599,7 +561,6 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
         entry[kVibeThemeRecordNameKey] = deduped;
         themes[i] = entry;
         [self persistUserThemes:themes];
-        // A committed rename of the theme being edited is an edit of it.
         if ([identifier isEqualToString:self.activeThemeIdentifier]) {
             if ([self recordThemeChange:before replacedBy:ThemeStoreSnapshot(themes, identifier, working)
                              continuous:NO atTime:NSDate.timeIntervalSinceReferenceDate]) {
@@ -641,16 +602,12 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
 
 #pragma mark Window
 
-// The default is Auto — the window follows the OS. The pre-theme app pinned
-// dark by default; themes made the adaptive factory look the product's
-// default instead.
 - (NSString *)windowAppearanceStyle {
     return [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WINDOW_APPEARANCE_STYLE];
 }
 
 - (void)setWindowAppearanceStyle:(NSString *)name {
-    // An explicit choice ends any preview, so it cannot land under one and
-    // read as ignored.
+    // An explicit choice ends any preview, or it would read as ignored.
     _windowAppearancePreviewStyle = nil;
     [[NSUserDefaults standardUserDefaults] setObject:name forKey:SETTING_WINDOW_APPEARANCE_STYLE];
 }
@@ -664,8 +621,6 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
 }
 
 - (NSAppearance *)windowAppearance {
-    // A single-mode theme's one look outranks both the stored style and the
-    // preview; folded in here so every reader of the answer gets the pin.
     NSAppearance *required = self.currentTheme.requiredWindowAppearance;
     if (required) {
         return required;
@@ -677,7 +632,6 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     if ([value isEqualToString:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK]) {
         return [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
     }
-    // Auto: a nil window appearance tracks the OS light/dark setting.
     return nil;
 }
 
@@ -721,10 +675,8 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_TRAFFIC_LIGHTS];
 }
 
-#pragma mark Header labels
+#pragma mark Drag behavior
 
-
-// Not cached: read once per mouse-down on the waveform, not per frame.
 - (NSString *)waveformDragBehavior {
     return VibeNormalizedWaveformDragBehavior(
             [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WAVEFORM_DRAG_BEHAVIOR]);
@@ -734,7 +686,6 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     [[NSUserDefaults standardUserDefaults] setObject:behavior forKey:SETTING_WAVEFORM_DRAG_BEHAVIOR];
 }
 
-// Not cached: read once per drag start on the artwork, not per frame.
 - (NSString *)artworkDragAction {
     return VibeNormalizedArtworkDragAction(
             [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_ARTWORK_DRAG_ACTION]);
@@ -790,8 +741,6 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     [[NSUserDefaults standardUserDefaults] setBool:reopen forKey:SETTING_REOPEN_LAST_PLAYLIST];
 }
 
-// Read on every live-resize frame through syncUITimerRate; a CFPreferences
-// lookup is cheap enough uncached.
 - (NSInteger)uiUpdateHzCap {
     NSInteger stored = [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_UI_UPDATE_HZ_CAP];
     return VibeNearestPreset(stored, kVibeUIUpdateHzCapPresets, kVibeUIUpdateHzCapPresetCount);
@@ -809,10 +758,8 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     [NSUserDefaults.standardUserDefaults setBool:allowed forKey:SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE];
 }
 
-// Off is the absence of the mode, and a device with no mode on has no entry,
-// so the store names only devices the user turned something on for. An entry
-// outlives its device being unplugged: nothing here asks whether the UID is
-// present.
+// Off is absence, so the store names only devices with a mode on. An entry
+// outlives its device being unplugged.
 - (BOOL)outputMode:(NSString *)mode forDeviceUID:(NSString *)deviceUID {
     if (deviceUID.length == 0) {
         return NO;
@@ -825,7 +772,7 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
 - (void)setOutputMode:(NSString *)mode enabled:(BOOL)enabled {
     NSString *deviceUID = self.audioOutputDeviceUID;
     if (deviceUID.length == 0) {
-        return; // System Output is a policy, not a device
+        return; // System Output names no device
     }
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     NSMutableDictionary *devices = [[defaults dictionaryForKey:SETTING_OUTPUT_MODES_BY_DEVICE_UID] mutableCopy]
@@ -843,11 +790,8 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     }
 }
 
-// Main thread only, like every writer of this store: it is an unlocked
-// read-modify-write of one dictionary. Copies rather than moves, so the old
-// port keeps its entry and the device still finds its modes if moved back.
-// An existing entry under the destination wins — something already chose
-// modes for that exact unit, and a carry must never overwrite a choice.
+// Main thread only: an unlocked read-modify-write. Copies rather than moves,
+// so moving the device back finds its modes again.
 - (void)carryOutputModesFromDeviceUID:(NSString *)fromUID toDeviceUID:(NSString *)toUID {
     if (fromUID.length == 0 || toUID.length == 0 || [fromUID isEqualToString:toUID]) {
         return;

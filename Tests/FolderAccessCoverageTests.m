@@ -164,15 +164,14 @@
 - (void)testUnrelatedAndSiblingPathsAreNot {
     XCTAssertFalse([FolderAccessManager path:@"/Users/someone" isCoveredByAnyOf:_granted]);
     XCTAssertFalse([FolderAccessManager path:@"/Users/someone/Downloads" isCoveredByAnyOf:_granted]);
-    // A prefix match on the string, not on the path: AlbumsOld is its own folder.
+    // A path match, not a string prefix: AlbumsOld is its own folder.
     XCTAssertFalse([FolderAccessManager path:@"/Users/someone/AlbumsOld" isCoveredByAnyOf:_granted]);
     XCTAssertFalse([FolderAccessManager path:@"" isCoveredByAnyOf:_granted]);
 }
 
-// Deliberately NOT NSHomeDirectoryForUser: inside the sandbox that answers with
-// the container, so the rule under test would compare against a path no music
-// ever sits under — and this suite, being host-less and unsandboxed, would
-// still pass and hide it. getpwuid gives the same on-disk home in both.
+// Not NSHomeDirectoryForUser: sandboxed, that answers with the container, and
+// this unsandboxed suite would still pass. getpwuid gives the on-disk home in
+// both.
 static NSString *RealHome(void) {
     struct passwd *entry = getpwuid(getuid());
     return [NSFileManager.defaultManager stringWithFileSystemRepresentation:entry->pw_dir
@@ -273,9 +272,8 @@ static NSString *RealHome(void) {
     XCTAssertFalse([manager canReadInsideDirectory:path]);
 }
 
-// The bookmark blob is garbage, so restoration fails and the row must survive
-// it — reported as unavailable rather than dropped, since a grant is also
-// unresolvable while its volume is merely unplugged.
+// A grant is also unresolvable while its volume is merely unplugged, so a
+// failed restore must not drop the row.
 - (void)testFailedRestoreKeepsTheRowAndReportsItUnavailable {
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
     NSString *key = @"VibeGrantedFolders";

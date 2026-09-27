@@ -54,22 +54,19 @@
     }];
 }
 
-// Main thread. Swaps first, then disposes of the source — the swap is what
-// stops the row and the player from pointing at the file being deleted.
-// completion runs on every path once the disposal settles.
+// Swaps first, then disposes of the source: the swap stops the row and the
+// player pointing at the file about to go. completion runs on every path.
 - (void)didConvertTrack:(AudioTrack *)track
                   toURL:(NSURL *)outputURL
                   error:(NSError *)error
              completion:(void (^)(BOOL sourceDeleted))completion {
-    // Not while a conversion still runs: this call may be a busy-rejected
-    // request, and resetting the live sweep's front would make its next
-    // report re-dip everything swept so far.
+    // Not while one still runs: this may be a busy rejection, and a reset
+    // would re-dip everything the live sweep has covered.
     if (!self.fileConverter.isConverting) {
         [self.trackDisplay setConvertSweepFraction:0];
     }
     if (!outputURL) {
-        // A dismissed save panel is a decision, not a failure. Real failures
-        // beep and log; the house style has no alerts.
+        // A dismissed save panel is not a failure. Failures beep and log.
         if (!([error.domain isEqualToString:NSCocoaErrorDomain] && error.code == NSUserCancelledError)) {
             LogError(@"Convert to FLAC failed: %@", error.localizedDescription);
             NSBeep();
@@ -77,10 +74,9 @@
         completion(NO);
         return;
     }
-    // Pin to a plain path URL: a file-reference URL from a Finder drag
-    // re-resolves, and the undo record must mean the path the source is at
-    // now — not follow it into the Trash. A file-reference URL whose file
-    // vanished mid-encode has a nil path, and fileURLWithPath: throws on nil.
+    // Pinned to a plain path (MainWindow's file-reference trap): the undo
+    // record must not follow the source into the Trash. A vanished file's
+    // reference URL has a nil path, which fileURLWithPath: throws on.
     NSString *sourcePath = track.url.path;
     NSURL *sourceURL = sourcePath ? [NSURL fileURLWithPath:sourcePath] : track.url;
     if ([sourceURL.URLByStandardizingPath.path
@@ -93,8 +89,7 @@
     }
     [self swapConvertedTrack:track toURL:outputURL];
     [self.fileConverter refreshDestinationStateForTrack:self.playlistController.currentTrack];
-    // Runs whether or not the swap found a row: the FLAC is on disk either
-    // way, so the source is superseded even after a mid-encode re-drop.
+    // Whether or not the swap found a row: the FLAC supersedes the source.
     __weak MainPlayerController *weakSelf = self;
     [self.fileConverter trashSourceIfEnabled:sourceURL
                                  convertedTo:outputURL
@@ -116,21 +111,17 @@
     }];
 }
 
-// Puts the finished FLAC into the rows its source occupied, so the conversion
-// reads as the file changing format in place. Main thread.
 - (void)swapConvertedTrack:(AudioTrack *)track toURL:(NSURL *)outputURL {
-    // Follow the source URL even if the converting row was removed or the
-    // playlist replaced. Every surviving duplicate must move before disposal.
+    // By URL, even if the converting row was removed or the playlist replaced:
+    // every surviving duplicate must move before disposal.
     NSIndexSet *rows = [self.playlistController indexesOfTracksWithURL:track.url];
     if (rows.count == 0) {
         return;
     }
     NSUInteger currentRow = self.playlistController.currentIndex;
-    // Currency is the current row's, not the converted object's: mid-encode
-    // the user can make a same-URL duplicate row current, and deciding by
-    // object would swap that row out from under the player with no replay —
-    // the player left holding a track the playlist has dropped, every UI tick
-    // skipped by the promote guard.
+    // Currency is the current row's, not the converted object's: a same-URL
+    // duplicate made current mid-encode would otherwise be swapped out from
+    // under the player with no replay.
     BOOL wasCurrent = [rows containsIndex:currentRow];
     VibePendingPlaybackIntent intent;
     BOOL wasLoaded = wasCurrent && [self.audioPlayer getPlaybackIntent:&intent
@@ -144,18 +135,13 @@
         if (!replacement) {
             return;
         }
-        // Nothing else asks for the fresh track's metadata — the playlist
-        // sweep has long finished — and without it the row falls back to its
-        // filename. Just written locally, so it cannot block.
+        // Nothing else asks for the fresh track's metadata; the file is local.
         [self.metadataCache loadMetadataNow:replacement];
         if (row == currentRow) {
             converted = replacement;
         }
         if (row == nextRow) {
-            // The parked prefetch handle is path-keyed and still holds the
-            // source; re-arm it or the swapped-in FLAC pays a cold open. The
-            // accessor names this same row, and reads nil under On track end =
-            // Pause, where there was nothing parked to re-arm.
+            // The parked handle is path-keyed and still holds the source.
             [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
         }
     }];
@@ -164,27 +150,22 @@
     }
 
     if (wasLoaded) {
-        // The replay's open renders as the Loading gap, whose Now Playing
-        // publish would otherwise rewind Control Center's elapsed to 0 until
-        // didStartPlaying: republishes the live position.
+        // Or Now Playing rewinds to 0 through the replay's Loading gap.
         self.convertSwapResumeTrack = converted;
         self.convertSwapResumePosition = intent.position;
-        // Replay the identical audio under the new URL, same playhead, same
-        // play state. The entry is already swapped, so didStartPlaying:'s
-        // identity guard passes and the per-track refresh comes free.
+        // The entry is already swapped, so didStartPlaying:'s identity guard
+        // passes and the per-track refresh comes free.
         [self.audioPlayer play:converted atPosition:intent.position startPaused:intent.paused];
     }
     else if (wasCurrent) {
-        // Parked at the end of the playlist: nothing to replay, but the header
-        // still describes this row through displayedTrack.
+        // Parked: nothing to replay, but the header describes this row.
         [self updateUI];
     }
 }
 
 #pragma mark - Undo and redo
 
-// Explicitly the window's manager — its lazily created NSUndoManager is the
-// app's one undo stack.
+// The window's manager is the player's one undo stack.
 - (IBAction)undo:(id)sender {
     NSUndoManager *manager = self.window.undoManager;
     if (!self.isConversionUndoRedoInFlight && manager.canUndo) {
@@ -224,8 +205,7 @@
     }];
 }
 
-// Log and beep like a failed conversion, no alert — but a failed restore
-// strands the file in the Trash, so reveal it there.
+// A failed restore strands the file in the Trash, so reveal it there.
 - (void)revealFailedRestoreAt:(NSURL *)trashURL error:(NSError *)error {
     LogError(@"Undo could not put %@ back: %@",
             trashURL.lastPathComponent, error.localizedDescription);
@@ -235,14 +215,10 @@
     }
 }
 
-// A no-op in Release: the handler is debug-channel plumbing and nothing else
-// can set it.
 - (void)conversionUndoRedoDidSettleCommitted:(BOOL)committed
                                       reason:(nullable NSString *)reason {
-    // The debug channel's settled hook, if one is armed — nothing arms it in a
-    // shipping build, so this is an always-nil read there rather than a
-    // conditional. One shot, cleared before it runs: a handler a timed-out
-    // debug command left behind must not fire on a later menu-driven undo.
+    // Always nil in a shipping build. One shot, cleared before it runs: a
+    // timed-out debug command's handler must not fire on a later undo.
     void (^handler)(BOOL, NSString *_Nullable) = self.conversionUndoRedoSettledHandler;
     self.conversionUndoRedoSettledHandler = nil;
     if (handler) {
@@ -250,8 +226,6 @@
     }
 }
 
-// Convert > Delete Original. A preference, not an action: it takes effect on
-// the next conversion — a running one keeps the value it was accepted with.
 - (IBAction)toggleDeleteOriginalAfterConvert:(id)sender {
     AppSettings.sharedInstance.deleteOriginalAfterConvert = !AppSettings.sharedInstance.deleteOriginalAfterConvert;
 }

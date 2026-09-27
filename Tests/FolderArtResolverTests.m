@@ -199,9 +199,8 @@
     XCTAssertLessThanOrEqual(resolver.recordedDirectoryCount, 4096u);
 }
 
-// Eviction batches down to a floor rather than running once per new folder, so
-// the sort it costs is paid about once per (limit - floor) arrivals. Landing
-// exactly on the limit would mean a per-entry trim.
+// Batching down to a floor pays eviction's sort about once per
+// (limit - floor) arrivals; landing on the limit would trim per entry.
 - (void)testEvictionBatchesBelowTheLimit {
     FolderArtResolver *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
         return NO;
@@ -255,8 +254,6 @@
 
 #pragma mark - The setting
 
-// Off means off: every accessor answers nil and NOTHING touches the disk, so
-// the switch cannot cost a single syscall.
 - (void)testTheSettingOffAnswersNilAndTouchesNothing {
     __block BOOL enabled = NO;
     __block NSUInteger fileSystemCalls = 0;
@@ -288,9 +285,9 @@
     XCTAssertFalse([resolver needsBackgroundLoadForAudioFilePath:track]);
     XCTAssertEqual(fileSystemCalls, 0u);
 
-    // Switching it on gets the answer the walk recorded while it was off rather
-    // than starting from guesswork, which also proves folderArtSettingDidChange
-    // — the one call every writer of the setting makes — keeps settled answers.
+    // Switching on reuses the answer the walk recorded while off:
+    // folderArtSettingDidChange, which every writer of the setting calls, keeps
+    // settled answers.
     enabled = YES;
     [resolver folderArtSettingDidChange];
     XCTAssertEqualObjects([resolver displayImageForAudioFilePath:track], decoded);
@@ -300,7 +297,6 @@
 
 #pragma mark - The cost model
 
-// The bill every coverless folder in a library pays, once, ever.
 - (void)testACoverlessFolderIsProbedOnceAndNeverAgain {
     __block NSUInteger probes = 0;
     FolderArtResolver *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
@@ -320,8 +316,6 @@
     XCTAssertEqual(probes, (NSUInteger)kVibeFolderArtStatProbeCount);
 }
 
-// Per folder, never per track: an album of a thousand tracks reads its cover
-// once and shares it.
 - (void)testAThousandTracksInOneFolderCostOneRead {
     __block NSUInteger reads = 0;
     NSImage *decoded = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
@@ -364,9 +358,8 @@
     XCTAssertEqual(fileSystemCalls, 0u);
 }
 
-// Which strategy a folder gets is decided by how the user opened it: a bulk
-// open is already doing bulk I/O, so one listing buys every spelling; a lone
-// file has nothing to piggyback on and probes instead.
+// A bulk open is already doing bulk I/O, so one listing buys every spelling;
+// a lone file has nothing to piggyback on and probes instead.
 - (void)testABulkOpenListsWhereALoneFileProbes {
     __block NSUInteger listings = 0, probes = 0;
     NSImage *decoded = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
@@ -402,9 +395,8 @@
     XCTAssertEqual(listings, 1u, @"one listing, which finds front.png that no probe asks about");
 }
 
-// How the user opened a folder is a fact about the open, not a cached answer,
-// so a setting change leaves it alone — otherwise the toggle would silently
-// demote a bulk-opened folder to the lone file's guesswork.
+// How a folder was opened is a fact about the open, not a cached answer;
+// clearing it would demote a bulk-opened folder to the lone file's probes.
 - (void)testTheListingPreferenceOutlivesASettingChange {
     __block NSUInteger listings = 0;
     NSImage *decoded = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
@@ -461,11 +453,9 @@
     XCTAssertEqual(resolver.recordedDirectoryCount, (NSUInteger)(walkers * perWalker));
 }
 
-// What the resolve claim is for: two asks for the same UNRESOLVED folder must
-// not both walk it, since a bulk-opened folder resolves by listing and that
-// would list one directory twice. (A folder whose answer is already settled
-// decodes without the claim — see displayImageForAudioFilePath: — so two
-// simultaneous asks there may both decode, at the cost of one duplicate read.)
+// The resolve claim keeps two asks from listing one unresolved directory twice.
+// A settled folder decodes without the claim (displayImageForAudioFilePath:),
+// so two simultaneous asks there may both read.
 - (void)testTwoConcurrentAsksForOneUnresolvedFolderWalkItOnce {
     dispatch_semaphore_t probeStarted = dispatch_semaphore_create(0);
     dispatch_semaphore_t continueProbe = dispatch_semaphore_create(0);
@@ -542,8 +532,6 @@
                                                     resolveIfUnknown:NO], decoded);
 }
 
-// A cover replaced while its decode is in flight: the finished image belongs
-// to the old file and must not be cached against the new answer.
 - (void)testAReplacedCoverDoesNotCacheTheOldDecode {
     dispatch_semaphore_t decodeStarted = dispatch_semaphore_create(0);
     dispatch_semaphore_t continueDecode = dispatch_semaphore_create(0);
@@ -588,11 +576,9 @@
 
 #pragma mark - What a grant change may forget
 
-// Opening a folder harvests its cover from the walk for free, and the auto-add
-// posts a grant change milliseconds later. Answering that with a full
-// invalidate discards the harvest, leaving the re-resolve to the lone-file stat
-// probes, which know only three names — so on the FIRST open of any folder a
-// cover.png would silently not exist.
+// Opening a folder harvests its cover from the walk, and the auto-added grant
+// posts a grant change milliseconds later. A full invalidate there would leave
+// the re-resolve to the three .jpg stat probes, losing a cover.png on first open.
 - (void)testAGrantChangeKeepsACoverAlreadyFound {
     NSImage *decoded = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
     __block NSUInteger listings = 0;
@@ -604,8 +590,7 @@
         listings++;
         return @[];   // a re-resolve would find nothing, so a lost answer shows
     } fileInfo:^BOOL(NSString *path, unsigned long long *size) {
-        // Only the walked cover exists. The three stat probes are all .jpg, so
-        // a re-resolve after a wrongly-broad invalidate finds nothing.
+        // Only the walked cover exists; the stat probes are all .jpg.
         return [path.lastPathComponent isEqualToString:@"cover.png"];
     } dataReader:^NSData *(NSString *path) {
         return [NSData dataWithBytes:"x" length:1];
@@ -614,7 +599,6 @@
     }];
     NSString *directory = @"/Library/Albums/Walked";
     NSString *track = [directory stringByAppendingPathComponent:@"track.mp3"];
-    // A cover only the walk can know about: cover.png is not a stat probe.
     [resolver noteListedDirectories:[NSSet setWithObject:directory]
              artFilenameByDirectory:@{directory: @"cover.png"}];
 
@@ -730,7 +714,6 @@
     XCTAssertEqualObjects([resolver displayImageForAudioFilePath:track], decoded);
     XCTAssertEqual(reads, 1u);
     XCTAssertEqual(decodedSizes.count, 2u);
-    // The thumbnail is cached, so a row drawing now costs no read at all.
     XCTAssertEqualObjects([resolver cachedThumbnailForAudioFilePath:track resolveIfUnknown:NO], decoded);
     XCTAssertEqual(reads, 1u);
 }

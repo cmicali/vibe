@@ -28,7 +28,7 @@ The live scenarios own what host-less tests cannot honestly reproduce: the shell
 
 25 scenarios, S1–S21 with a/b/c variants; clean report `PASS=24 XFAIL=1`. Expected-fail scenarios are **run and reported, never skipped**, so the day one starts passing is visible. Only the scenario's explicit `ExpectedGap` evidence becomes `XFAIL`; setup failures and every other assertion remain `FAIL`.
 
-**S9** is the XFAIL: a provider that withholds `SF_DATALESS` is indistinguishable from a local file at the admission seam, so the local-file exemption can admit its metadata read during foreground playback. Unlimited fake capacity keeps that request visible instead of hiding it in a provider queue; a real-provider run still decides whether a named provider has this shape.
+**S9** is the XFAIL: a provider that withholds `SF_DATALESS` is indistinguishable from a local file at the admission seam, so the local-file exemption can admit its metadata read during foreground playback. Unlimited fake capacity lets that request start inside the open instead of waiting behind playback; a real-provider run still decides whether a named provider has this shape.
 
 **S20** checks that row loading follows live provider transfers. A gapless-specific wedge under that label is deliberately absent: basename-based live instrumentation cannot distinguish gapless from prefetch, so that purpose is pinned in XCTest.
 

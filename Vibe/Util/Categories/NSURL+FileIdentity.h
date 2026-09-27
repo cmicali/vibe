@@ -9,9 +9,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface NSURL (FileIdentity)
 
-// Whether two file URLs name the same standardized or symlink-resolved file
-// location, or currently resolve to the same filesystem object. Nil, non-file
-// and unestablishable pairs answer NO. This may block; call it off main.
+// Same standardized or symlink-resolved path, or the same inode. NO for nil,
+// non-file or unstattable pairs. May block: call it off main.
 - (BOOL)vibeRefersToSameFileAsURL:(nullable NSURL *)otherURL;
 
 @end

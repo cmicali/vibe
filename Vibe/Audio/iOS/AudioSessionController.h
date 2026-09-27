@@ -37,15 +37,12 @@ NS_ASSUME_NONNULL_BEGIN
 // has reactivated without clearing a newer route-loss or media-reset verdict.
 - (void)audioSessionShouldResume:(AudioSessionController *)controller;
 
-// The route moved — headphones or Bluetooth connected, an override, a
-// category change — without output being lost. Playback should continue on
-// the new route: route the verdict to the player's recoverOutput, which
-// follows the route's rate and restarts a stopped output while playing. The
-// controller classifies the previous and current output routes before
-// sending it, so external output falling back to built-in is a pause
-// instead, whatever reason the route change carried. Coalesced: a later
-// route change supersedes an undelivered earlier one, and an interruption,
-// route loss or media reset received before delivery blocks it.
+// The route moved without output being lost — a device connected, an
+// override, a category change. Route it to the player's recoverOutput.
+// External output falling back to built-in is a pause instead, whatever
+// reason the change carried. Coalesced: a later route change supersedes an
+// undelivered earlier one, and an interruption, route loss or media reset
+// received before delivery blocks it.
 - (void)audioSessionShouldRecoverOutput:(AudioSessionController *)controller;
 
 // Media services crashed and were relaunched: every live audio object is
@@ -74,11 +71,10 @@ NS_ASSUME_NONNULL_BEGIN
 + (instancetype)new NS_UNAVAILABLE;
 
 // Category Playback + setActive:YES, and cancels any pending idle
-// deactivation. Idempotent and cheap — call before every user play/resume
-// rather than at launch, so Vibe never claims audio it is not using (the same
-// rule NowPlayingController applies to the Now Playing card). The controller
-// handles interruption-ended automatic activation separately because that
-// system suggestion may not clear route-loss or media-reset ownership.
+// deactivation. Idempotent and cheap — call before every user play/resume,
+// never at launch, so Vibe never claims audio it is not using. Clears
+// route-loss and media-reset ownership, which the interruption-ended resume
+// never does.
 - (BOOL)activate;
 
 // Releases the session, with NotifyOthersOnDeactivation so the app Vibe

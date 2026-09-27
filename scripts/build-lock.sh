@@ -2,20 +2,13 @@
 # The checkout-wide build lock. Source it for the two functions, or run it as
 # `build-lock.sh <command> [args ...]` to hold the lock for one command.
 #
-# sim-udid.sh already gives each session its own simulator, so devices, app
-# containers, debug channels and driver command dirs are per-session. The build
-# tree is not: Vibe.xcodeproj, build/DerivedData, and the one
-# build/DerivedData/Build/Products/*/Vibe.app that every session installs from
-# are shared by every session in the checkout. Two concurrent `drive-ios.sh
-# start` runs therefore had xcodegen rewriting the project under a live
-# xcodebuild, two xcodebuilds clobbering one products dir — measured: a
-# documented 1-2 minute start stretched to twelve, with zero source files
-# compiled — and `simctl install` free to copy a bundle another session's
-# linker was midway through writing.
-#
-# Only the build is serialized. Gestures, screenshots and the debug channel
-# stay concurrent across sessions, which is the whole point of the per-session
-# device.
+# Each session has its own simulator (sim-udid.sh), but the build tree is
+# shared by every session in the checkout: Vibe.xcodeproj, build/DerivedData
+# and the products every session installs from. Unserialized, xcodegen rewrites
+# the project under a live xcodebuild, two xcodebuilds clobber one products dir
+# (a 1-2 minute start measured at twelve, compiling nothing), and `simctl
+# install` copies a bundle another session is still linking. Only the build is
+# serialized; gestures, screenshots and the channel stay concurrent.
 #
 # Sourced use, from a script that has ROOT set:
 #     . "$ROOT/scripts/build-lock.sh"
@@ -44,17 +37,14 @@ vibe_build_lock_acquire() {
         owner="$(cat "$VIBE_BUILD_LOCK_DIR/pid" 2>/dev/null || true)"
         if [ -n "$owner" ]; then
             unaccounted=0
-            # A named holder that is gone — a killed build, a session whose
-            # shell went away — left the directory behind with nobody to
-            # release it. Nothing ambiguous about it, so break it at once.
+            # A named holder that is gone left the lock behind: break it now.
             if ! kill -0 "$owner" 2>/dev/null; then
                 rm -rf "$VIBE_BUILD_LOCK_DIR"
             fi
         else
             # TRAP: the pid file is written just AFTER the mkdir that takes the
-            # lock, so a missing pid ALSO reads as "a holder a few milliseconds
-            # old" — the one case that must not be broken. Only this case waits
-            # out a grace period; a named dead holder above does not.
+            # lock, so a missing pid may be a holder milliseconds old. Only
+            # this case waits out a grace period before breaking the lock.
             unaccounted=$(( unaccounted + 1 ))
             if [ "$unaccounted" -ge 20 ]; then
                 rm -rf "$VIBE_BUILD_LOCK_DIR"

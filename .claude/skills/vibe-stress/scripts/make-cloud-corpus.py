@@ -1,27 +1,20 @@
 #!/usr/bin/env python3
-"""Build a corpus shaped like a real cloud music folder, for --profile cloud.
+"""Build a corpus shaped like a real cloud music folder, for stress.py's
+--profile cloud and for cloud-scenarios.py.
 
-The cloud profile needs three things the default test corpus cannot give it,
-and each one was learned by watching a run score nothing:
-
-  BIG FOLDERS. The scan is deferred until playback starts or two seconds pass,
-  and a replacement playlist drops the loader outright. Against a 19-file
-  folder the sweep finishes instantly, so the serial cloud lane — the thing the
-  profile exists to exercise — is never even populated.
+  BIG FOLDERS. The scan is deferred until the picked open settles or two
+  seconds pass, and a replacement playlist drops the loader outright; against
+  a small folder the sweep finishes instantly and the serial scan lane is
+  never populated.
 
   EMBEDDED ART AND REAL TAGS. Generated test tones carry neither, so the art
-  window, the thumbnail decode and the whole art-load path sit idle. That is
-  where the worst bug this machinery has had actually showed itself, so a
-  corpus without art cannot catch its like again. Files are stamped with
-  distinct titles and artists too, or every row in the playlist renders the
-  same and a mixed-up delivery would look correct.
+  path sits idle. Tags vary per file, or every row renders the same and a
+  mixed-up delivery would look correct.
 
-  A MIXTURE. Some files carry no art at all, which is a legitimate state the
-  app must handle rather than an absence to be avoided: on iOS there is no
-  folder-art fallback, so "this track simply has none" has to stay quiet.
+  A MIXTURE. Some files carry no art at all, a legitimate state the app must
+  handle quietly (iOS has no folder-art fallback).
 
-Real copies, not hard links: the tag rewrite would otherwise scribble on the
-sources in Assets/. ffmpeg stream-copies, so this is fast and lossless.
+ffmpeg stream-copies each source with new tags, so this is fast and lossless.
 
     make-cloud-corpus.py [--out build/stress-corpus] [--folders 12] [--per-folder 40]
 """
@@ -58,8 +51,7 @@ def main():
         sys.exit("ffmpeg not found — brew install ffmpeg")
 
     src_dir = here / "Assets/test_audio_files"
-    # The art-bearing sources cover both parsers deliberately: MP4 metadata and
-    # ID3v2 share no code path in TagLib, and a corpus of one would test one.
+    # Both tag parsers: MP4 metadata and ID3v2 share no code path in TagLib.
     with_art = [src_dir / n for n in
                 ("tone-art-red.m4a", "tone-art-blue.m4a", "tone-art-green.mp3")]
     without_art = [src_dir / n for n in ("tone.flac", "tone-cbr.mp3", "tone-long.wav")]
@@ -81,13 +73,11 @@ def main():
             artless = rng.randrange(100) < args.artless_percent
             src = rng.choice(without_art if artless else with_art)
             artist, title = rng.choice(ARTISTS), rng.choice(TITLES)
-            # The folder number is in the FILE name, not just the directory,
-            # because the fake provider's admission trace records a transfer by
-            # last path component alone — two folders holding a same-named track
-            # would be one file as far as any ordering assertion could tell.
+            # The folder number is in the FILE name: the fake's trace records a
+            # transfer by basename alone, so basenames must be corpus-unique.
             dest = folder / f"{artist} - {title} ({d + 1:02d}-{i:02d}){src.suffix}"
             # -c copy keeps the audio and, on these containers, the attached
-            # cover; only the tag frames are rewritten.
+            # cover; only the tags change.
             subprocess.run(
                 ["ffmpeg", "-nostdin", "-loglevel", "error", "-y", "-i", str(src),
                  "-c", "copy", "-metadata", f"title={title}",

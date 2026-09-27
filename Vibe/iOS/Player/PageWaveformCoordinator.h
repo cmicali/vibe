@@ -2,13 +2,10 @@
 //  PageWaveformCoordinator.h
 //  Vibe (iOS)
 //
-//  The track pager's waveform bookkeeping, between AudioWaveformCache and
-//  PlayerViewController: the cache runs ONE load at a time (its contract),
-//  and this object owns which page that load targets, the latest snapshot
-//  per page for re-hydrating reloaded cells, and which pages hold their full
-//  waveform. The cancel before a retarget is NOT the race guard — a decode can
-//  outlive it — so deliveries are matched on the URL they were loaded for
-//  (_targetURL, recorded beside _targetIndex) and dropped on the value.
+//  Between AudioWaveformCache, which runs ONE load at a time, and the pager:
+//  which page that load targets, the latest snapshot per page, and which pages
+//  are complete. The cancel before a retarget is NOT the race guard — a decode
+//  can outlive it — so deliveries are matched on the URL they were loaded for.
 //
 
 #import <Foundation/Foundation.h>
@@ -20,26 +17,21 @@ NS_ASSUME_NONNULL_BEGIN
 @class CodableAudioWaveform;
 @class PageWaveformCoordinator;
 
-// All on the main thread, like the cache's own delegate deliveries.
+// Main thread.
 @protocol PageWaveformCoordinatorDelegate <NSObject>
 
-// A progress or final delivery for the target page; the snapshot is already
-// recorded, so the receiver only paints.
+// The snapshot is already recorded; the receiver only paints.
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
            didUpdateWaveform:(CodableAudioWaveform *)waveform
                     forIndex:(NSUInteger)index;
 
-// The target page's load ended without a complete waveform. The receiver
-// settles its loading UI; the coordinator has already cleared the target so
-// a later request for the same page starts a fresh attempt.
+// The target is already cleared, so a later request retries.
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
       didFailWaveformForIndex:(NSUInteger)index;
 
-// The decode pass detected a tempo for `url`, forwarded as delivered: it is
-// matched by URL, not by page, since the same file can occupy several rows,
-// and it is never held — a tempo is a number the model stamps, not a paint.
-// The key delivery is not forwarded: key detection is macOS-only, so
-// nothing on this platform fires it.
+// A tempo for `url`, forwarded as delivered: matched by URL, not page, since
+// a file can occupy several rows, and never held — the model stamps it,
+// nothing repaints. No key: key detection is macOS-only.
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
               didDetectBPM:(float)bpm
                     forURL:(NSURL *)url;
@@ -54,52 +46,33 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
 
-// The page the one load is pointed at; NSNotFound after a reset. Deliveries
-// land on this index.
+// NSNotFound after a reset or a failure.
 @property (nonatomic, readonly) NSUInteger targetIndex;
 
-// The pager's scroll hold. Held, deliveries are still RECORDED but not
-// forwarded, failures are deferred, and requests are dropped rather than
-// issued; releasing forwards whatever arrived meanwhile, and the settle path
-// asks for the page it landed on. Both halves are there because a swipe is the
-// one moment the main thread has nothing to spare:
-//
-//   - a delivery repaints a scrubber, which tears its baked envelope down and
-//     restarts the morph's 60 Hz full-view path rebuilds — and a decode
-//     delivers about ten times a second, so the bake never re-lands and the
-//     expensive live tree is what the whole swipe composites;
-//   - a request cancels the ONE load the cache runs, so a swipe across N pages
-//     cancels N decodes and none of them ever finish — which is why the
-//     stutter is worst on an uncached folder and clears up once everything is
-//     on disk.
-//
-// The cost is that a page pulled into view mid-drag no longer starts its own
-// decode for the preview; it shows the snapshot it has, or the loading line.
+// The pager's frame-budget hold. Held, deliveries are RECORDED but not
+// forwarded (each repaint tears a scrubber's bake down), failures are
+// deferred, and requests are DROPPED (each cancels the one load, so a swipe
+// across N pages finishes no decode). Releasing forwards what arrived; the
+// caller re-requests the page it settled on.
 @property (nonatomic, getter=isHeld) BOOL held;
 
-// Retargets the single load at a page. A page it is already pointed at, still
-// holding the same FILE, is left ALONE — a load is in flight or has delivered,
-// and restarting it on every cell reload would keep killing the decode so no
-// waveform ever completes. The file is part of that test, not just the index:
-// the same page can come to hold a different track. A retargeted-back page
-// with its full snapshot in hand needs no reload at all; hydration shows it.
+// A page already targeted with the same FILE is left ALONE, or every cell
+// reload kills the decode. A page with its full snapshot in hand is not
+// reloaded.
 - (void)requestIndex:(NSUInteger)index track:(nullable AudioTrack *)track;
 
-// Snapshots exist to re-hydrate nearby pages instantly; distant ones reload
-// from the disk cache in milliseconds, so the window stays small instead of
-// growing one full waveform per track ever visited. The in-flight load's
-// target is kept wherever it is.
+// Distant pages reload from the disk cache in milliseconds, so the window
+// stays small. The target is kept wherever it is.
 - (void)pruneAroundIndex:(NSUInteger)index;
 
-// Forgets everything (a playlist replacement): the target goes to NSNotFound,
-// so a late delivery from the superseded load is dropped, deliberately
-// without cancelling it — the next request does that.
+// For a playlist replacement: a late delivery is dropped; the next request
+// cancels the load.
 - (void)reset;
 
-// The latest snapshot for a page, partial or full; nil when none is held.
+// Partial or full.
 - (nullable CodableAudioWaveform *)snapshotAtIndex:(NSUInteger)index;
 
-// YES once a page's full waveform has delivered (and until a prune or reset).
+// Until a prune or reset.
 - (BOOL)isCompleteAtIndex:(NSUInteger)index;
 
 @end

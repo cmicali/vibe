@@ -1,21 +1,16 @@
 #!/bin/bash
 # Relaunch the debug build (quitting any running Vibe) with optional audio
-# files, then wait until the app answers on the debug command channel and
-# print its `state` JSON. Replaces the open-then-guess-a-sleep dance.
+# files, wait until the debug channel answers, and print its dump_state JSON.
 #
 # Usage: launch.sh [audio-file ...]
 # App path: $VIBE_APP if set, else <repo>/build/DerivedData/Build/Products/Debug/Vibe.app
-# Audio is OFF-HARDWARE by default (launches with --no-audio-hw --silent), so
-# no output device is opened and macOS's automatic AirPods switching can't
-# trigger; set VIBE_AUDIBLE=1 to use real hardware and hear playback, or
-# VIBE_AUDIBLE=silent for real hardware with final output buffers zeroed (--silent only).
-# --no-audio-hw also suppresses the system Now Playing publish, because
-# registering as the active media app takes the AirPods on its own.
-# Now Playing stays suppressed on hardware too unless VIBE_NOW_PLAYING=1.
-# Testing it needs that opt-in plus VIBE_AUDIBLE=1 or =silent.
-# Set VIBE_LANGUAGE=de (a catalog code) to launch
-# the app in that language via -AppleLanguages — per-launch only, no prefs
-# reset needed.
+# Audio: --no-audio-hw --silent by default, so no output device opens and
+# AirPods auto-switching cannot trigger. VIBE_AUDIBLE=1 plays on real hardware;
+# VIBE_AUDIBLE=silent drives real hardware with the output zeroed (--silent).
+# Now Playing: suppressed (--no-now-playing) unless VIBE_NOW_PLAYING=1, since
+# registering as the active media app takes the AirPods; --no-audio-hw also
+# suppresses it, so testing it needs VIBE_AUDIBLE=1 or =silent too.
+# VIBE_LANGUAGE=de (a catalog code) launches in that language for this run only.
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -24,14 +19,11 @@ APP="${VIBE_APP:-$ROOT/build/DerivedData/Build/Products/Debug/Vibe.app}"
 V="$APP/Contents/MacOS/Vibe"
 [ -x "$V" ] || { echo "no app at $APP — build first, or set VIBE_APP" >&2; exit 1; }
 
-# Ending whatever is already running. A signal is the wrong tool when Xcode is
-# debugging the app: the debugger traps SIGTERM and stops the process instead
-# of ending it, so the pkill this used to be left it in the process table,
-# answering nothing, and every later --debug-cmd burned its full timeout. Ask
-# through the channel first — no signal, so a debugged instance quits cleanly
-# and Xcode ends the session — and never signal one that is being debugged.
-# TRAP: the iOS Simulator's app is also named Vibe, and another session may be
-# driving it. Matching it here quit-waited on it forever and then SIGKILLed it.
+# Quit through the channel first, and never signal an instance under a
+# debugger: the debugger traps SIGTERM and STOPS the process, which then keeps
+# its pid, answers nothing, and makes every later --debug-cmd burn its timeout.
+# TRAP: the iOS Simulator's app is also named Vibe and may be another session's.
+# The quit never reaches it, so matching it here would kill it; skip CoreSimulator.
 vibe_pids() {
     local p
     for p in $(pgrep -x Vibe 2>/dev/null); do
@@ -46,8 +38,7 @@ vibe_traced() {
     [ -n "$flags" ] && [ "$(( 0x$flags & 0x800 ))" -ne 0 ]
 }
 
-# A debugger holding the process at a stop. It cannot service the channel, so
-# no amount of waiting will get it to quit.
+# Stopped: it cannot service the channel, so waiting will never quit it.
 vibe_stopped() {
     case "$(ps -o stat= -p "$1" 2>/dev/null)" in T*) return 0 ;; *) return 1 ;; esac
 }
@@ -80,8 +71,7 @@ if [ -n "$(vibe_pids)" ]; then
     "$V" --debug-cmd quit >/dev/null 2>&1 || true
     if ! vibe_wait_gone 5; then
         for PID in $(vibe_pids); do
-            # SIGTERM here would only stop it under the debugger, which is the
-            # hang this whole dance exists to avoid.
+            # SIGTERM would only stop it under the debugger.
             vibe_traced "$PID" && vibe_xcode_bail "$PID" "and it did not answer the quit command."
         done
         kill $(vibe_pids) 2>/dev/null || true
@@ -92,16 +82,14 @@ if [ -n "$(vibe_pids)" ]; then
     fi
 fi
 
-# Each client call itself waits up to 5s; a command posted before the app's
-# hook installs is lost (the notification carries nothing), so retry. The
-# open is re-issued if the process isn't up — right after a rebuild the first
-# open can silently produce nothing (LaunchServices re-registering the bundle).
+# A command posted before the channel installs is swept, so retry (each call
+# waits up to 5s). Re-open when no process is up: right after a rebuild the
+# first open can silently do nothing while Launch Services re-registers.
 for _ in 1 2 3 4 5 6; do
     if [ -z "$(vibe_pids)" ]; then
-        # --args must come last; everything after it becomes the app's argv.
-        # The -AppleLanguages value must be one argv element shaped like a
-        # plist array: (de). bash 3.2 + set -u dies on "${ARGS[@]}" when the
-        # array is empty, hence the ${ARGS[@]+...} idiom.
+        # --args last: everything after it is argv. -AppleLanguages takes one
+        # element shaped like a plist array, (de). bash 3.2 with set -u dies on
+        # an empty "${ARGS[@]}", hence the ${ARGS[@]+...} idiom.
         ARGS=()
         [ "${VIBE_NOW_PLAYING:-0}" != "1" ] && ARGS+=(--no-now-playing)
         [ -n "${VIBE_LANGUAGE:-}" ] && ARGS+=(-AppleLanguages "(${VIBE_LANGUAGE})")
@@ -109,9 +97,9 @@ for _ in 1 2 3 4 5 6; do
             "")     ARGS+=(--no-audio-hw --silent) ;;
             silent) ARGS+=(--silent) ;;
         esac
-        # TRAP: under set -e a failing open ends the script before the retry
-        # loop, so a transient Launch Services refusal right after a quit leaves
-        # no app. Keep the error and let the loop try again.
+        # TRAP: under set -e a failing open would end the script, so a
+        # transient Launch Services refusal right after a quit leaves no app.
+        # Keep the error and let the loop retry.
         if [ "${#ARGS[@]}" -gt 0 ]; then
             OPEN_ERR="$(open -a "$APP" "$@" --args ${ARGS[@]+"${ARGS[@]}"} 2>&1)" || OPEN_ERR="open -a failed ($?): $OPEN_ERR"
         else
@@ -120,8 +108,8 @@ for _ in 1 2 3 4 5 6; do
         sleep 2
     fi
     if "$V" --debug-cmd dump_state 2>/dev/null; then
-        # Guard against LaunchServices having routed open -a to an
-        # Xcode-run instance of a different build.
+        # Launch Services may have routed open -a to an Xcode-run instance of
+        # another build.
         RUNNING="$(ps -o command= -p "$(vibe_pids | head -1)" 2>/dev/null || true)"
         case "$RUNNING" in
             "$V"*) ;;

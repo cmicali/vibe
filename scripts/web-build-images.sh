@@ -1,16 +1,10 @@
 #!/usr/bin/env bash
 #
-# Re-derive Assets/Web/img/ from the screenshots already in the repo.
+# Re-derive Assets/Web/img/'s screenshots from the captures in Assets/. --check
+# fails when a derivative no longer matches its source; nothing else notices.
 #
-# These used to be made by hand, and nothing re-made them when the captures
-# changed: the 1.12 screenshot rework regenerated every Assets/screenshot-*.png
-# and the website went on serving August's copies for a month, including on a
-# release deploy. --check fails when a derivative is stale, so the next time
-# only the captures move it is caught rather than noticed.
-#
-# The window captures carry their own rounded corners and a transparent margin,
-# which the page shadows with filter: drop-shadow — so alpha is preserved and
-# nothing is flattened onto a background.
+# The window captures carry their own rounded corners and transparent margin,
+# which the page shadows with drop-shadow, so alpha is kept, never flattened.
 #
 # Usage: scripts/web-build-images.sh [--check]
 set -euo pipefail
@@ -33,8 +27,8 @@ for pair in "${PAIRS[@]}"; do
     OUT="Assets/Web/img/$NAME"
     TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 
-    # ios is the odd one: a simulator capture is a plain rectangle, so it is
-    # given the rounded corners and margin the window shots already have.
+    # A simulator capture is a plain rectangle, so it gets the rounded corners
+    # and margin the window captures already carry.
     if [[ "$NAME" == ios ]]; then EXTRA=phone; else EXTRA=plain; fi
 
     python3 - "$SRC" "$TMP/$NAME" "$EXTRA" <<'PY'

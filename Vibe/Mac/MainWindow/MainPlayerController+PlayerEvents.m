@@ -36,9 +36,9 @@
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeOutputAudioActive:(BOOL)outputAudioActive {
     [self syncEqualizerActivity];
-    // Count rendered audio, including outgoing fades, rather than the play
-    // intent that stays true throughout a silent cloud open. Read the current
-    // snapshot: this delivery can be queued behind a newer transport action.
+    // Rendered audio, outgoing fades included, not play intent (true through
+    // a silent cloud open). The current snapshot: this delivery can queue
+    // behind a newer transport action.
     if (audioPlayer.outputAudioActive) {
         [AppStats.sharedInstance playbackStarted];
     }
@@ -50,28 +50,15 @@
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
      didBeginLoading:(AudioTrack *)track
 openRequestIdentifier:(uint64_t)openRequestIdentifier {
-    // Guarded like didStartPlaying:'s check: a stale delivery from a
-    // superseded open must not load metadata, paint loading UI, or clear an
-    // error mask for a track the playlist no longer points at.
     if (track != [self.playlistController currentTrack]) {
         return;
     }
     [self clearErrorMask];
-    // A slow cloud open is in flight, and the header can still show cached
-    // tags and art for the pending track while it materializes.
     [self.metadataCache loadMetadataNow:track];
-    // Show the pending track's title and artist, then put up the loading line.
-    // This callback is the player's slow-open threshold, so a fast local or
-    // prefetched play never flashes the indicator.
+    // This callback is the slow-open threshold, so a fast play never flashes
+    // the indicator, nor builds a monitor it would cancel moments later.
     [self updateUI];
     [self.trackDisplay showWaveformLoadingIndicator];
-    // This callback owns only the slow-open UI, and the monitor below — which
-    // deliberately stays here, so a fast local or prefetched play never
-    // constructs a metadata query and provider subscriber it would cancel
-    // moments later.
-    // Best-effort determinate fill while the provider materializes the file.
-    // The monitor drops a sample whose track has since changed; see
-    // monitorReplacing:forURL:currentURL:handler:.
     if (!_downloadMonitor
             || _downloadMonitorOpenRequestIdentifier != openRequestIdentifier) {
         __weak MainPlayerController *weakSelf = self;
@@ -89,8 +76,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         }];
         _downloadMonitorOpenRequestIdentifier = openRequestIdentifier;
     }
-    // This runs after updateUI, which shows the pending track's art if it is
-    // already resolved: the previous track's art must not outlive the shimmer.
+    // After updateUI: the previous track's art must not outlive the shimmer.
     [_artworkController showPlaceholderForSlowLoad];
 }
 
@@ -104,65 +90,44 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track  {
-    // A stale start from a just-replaced playlist, after a re-drop while the
-    // old play's open was in flight. Do nothing: acting would reset the new
-    // track's shimmer and waveform view, kick off a wasted decode and prefetch
-    // for the old one, and cache the wrong duration. The new play's own events
-    // drive the UI from here.
+    // Acting on a stale start would reset the new track's shimmer and
+    // waveform, start a wasted decode and prefetch, and cache the wrong
+    // duration.
     if (track != [self.playlistController currentTrack]) {
         return;
     }
     [self performPerTrackRefreshForStartedTrack:track];
 }
 
-// Everything a track start refreshes: artwork, recents, metadata, waveform,
-// the duration cache, the successor prefetch, the row mark, the Convert
-// cache, stats and the UI timer. Callers own didStartPlaying:'s identity
-// guard — the playlist must already point at the started track.
+// Callers own didStartPlaying:'s identity guard: the playlist must already
+// point at the started track.
 - (void)performPerTrackRefreshForStartedTrack:(AudioTrack *)track {
-    // The convert swap's Now Playing resume hint is spent: the live position
-    // republishes from here.
-    self.convertSwapResumeTrack = nil;
-    // Pre-open the likely-next file, so that auto-advance and Next skip the
-    // file open, which dominates transition latency. It is recomputed on every
-    // track start, since next, previous, a double-click and a re-drop all land
-    // here. Past the last track, nil drops the parked handle. First, so a
-    // quick second Next finds the park rather than waiting behind the rest of
-    // this refresh. The foreground/background rule needs no release here: the
-    // coordinator derives it from its own claim table, and the prefetch's
-    // registration preempts any background transfer that beat it to the lane.
+    self.convertSwapResumeTrack = nil; // the live position publishes from here
+    // First, so a quick second Next finds the park. nil past the end drops
+    // it. The prefetch's registration preempts any background transfer.
     [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
     [_artworkController trackDidStartPlaying:track];
     [self clearErrorMask];
     [self teardownDownloadMonitor];
     [self.trackDisplay hideWaveformLoadingIndicator];
     [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:track.url];
-    // The now-playing track jumps the scan queue: its header tags and art must
-    // not wait behind the playlist sweep, because a cloud-heavy folder keeps
-    // every scan worker blocked for minutes. This runs even when
-    // didBeginLoading: already asked, since that call skips the parse while
-    // the file is a dataless placeholder, and by now the open has materialized
-    // it.
+    // The playing track jumps the scan queue. Again after didBeginLoading:'s
+    // request, which skipped the parse while the file was dataless.
     [self.metadataCache loadMetadataNow:track];
     [self startPendingMetadataLoad];
     _currentTrackDuration = self.audioPlayer.duration;
     [self.trackDisplay prepareForWaveformLoad];
     [self.waveformCache loadWaveformForTrack:track];
-    // Whoever initiated this play has already fully rendered the row: play:'s
-    // reloadData, next and previous's two-row window, or doubleClick's pair.
-    // The mark keeps resumeUIUpdateTimer's updateUI from rebuilding it again;
-    // the row's equalizer adopts the new output state through
-    // syncEqualizerActivity.
+    // The initiator already rendered the row; the mark keeps
+    // resumeUIUpdateTimer's updateUI from rebuilding it.
     _lastReloadedTrack = track;
     // next and previous scroll at the click; this covers the other play paths.
     [self.playlistController scrollCurrentTrackToVisible];
-    // The Convert items name this track from here on; their validation reads
-    // a cache rather than statting on the main thread.
+    // Convert validation reads this cache rather than statting on main.
     [self.fileConverter refreshDestinationStateForTrack:track];
     [self resumeUIUpdateTimer];
-    // A track can start already parked — the convert swap of a paused track —
-    // and then no didPausePlaying: comes to stop the tick. The resume above
-    // still runs, for its updateUI and visibility-gate refresh.
+    // A track can start parked (the convert swap of a paused track), and no
+    // didPausePlaying: follows to stop the tick.
     if (!self.audioPlayer.isPlaying) {
         [self pauseUIUpdateTimer];
     }
@@ -180,17 +145,14 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     if (track != self.playlistController.currentTrack) {
         return;
     }
-    // A device-loss error can mask a track the player merely parked as Paused;
-    // see audioPlayer:error:. Resuming proves the mask wrong.
+    // A device-loss error can mask a merely parked track; resuming proves the
+    // mask wrong.
     [self clearErrorMask];
     [self resumeUIUpdateTimer];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track {
-    // A natural-end callback can be delivered just as the user replaces the
-    // playlist or double-clicks a new row. Auto-advance only if the finished
-    // track is still the playlist's current one; otherwise we would skip past
-    // the track the user has just chosen.
+    // A stale end would advance past the track the user just chose.
     if (track && track != [self.playlistController currentTrack]) {
         return;
     }
@@ -202,35 +164,24 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 // own didFinishPlaying:'s staleness guard.
 - (BOOL)advanceOrParkAtTrackEnd {
     [self pauseUIUpdateTimer];
-    // Whether this end advances at all. The end of the playlist must be read
-    // from the playlist before next:, because the play it starts is async on
-    // the player queue, so the player still reads Stopped right after an
-    // ordinary mid-playlist advance. Settings > Playback > On track end = Pause
-    // parks on the finished track exactly as the end of the playlist does;
-    // nothing has spliced, because successorPrefetchTrack parked nothing to
-    // arm. Both reads of the setting are load-bearing: this one decides from
-    // the playlist alone, so an unparked successor never reaches it.
+    // Read from the playlist before next:, whose play is async: the player
+    // still reads Stopped after an ordinary advance. Under Pause nothing has
+    // spliced, since successorPrefetchTrack parked nothing; this second read
+    // of the setting is load-bearing because it decides from the playlist.
     BOOL advances = VibePlaybackShouldAdvanceAtTrackEnd(
             self.playlistController.hasNextTrack, AppSettings.sharedInstance.pauseAtTrackEnd);
     if (advances) {
         [self next:self];
     }
-    // With nothing started, the cached duration would go stale against the
-    // idle player. When it does advance the cache must survive the Loading
-    // gap, because the live duration reads 0 there and updatePlaybackUI uses
-    // the cache to keep the waveform progress pinned rather than frozen.
+    // Advancing, the cached duration must survive the Loading gap.
     if (!advances) {
         _currentTrackDuration = 0;
-        // The full refresh, not a tick: only updateUI writes the transport
-        // icon and the Now Playing publish, which must both read parked, and
-        // its syncUITimerRate rests the tick rate off the zeroed duration.
+        // Not a tick: only updateUI writes the transport icon and Now
+        // Playing, and it rests the tick rate.
         [self updateUI];
-        // Pin the resting header deterministically, after updateUI: that
-        // refresh read the player mid-teardown, where its position and
-        // duration race the async stop, which could leave the waveform pinned
-        // at 100% while the elapsed label read 0:00. Park the finished track
-        // at its start, and let its metadata duration feed the resting right
-        // label, since the player's own duration is torn down by now.
+        // Then pin the resting header: updateUI read the player mid-teardown,
+        // which can leave the waveform at 100% beside 0:00. The metadata
+        // duration feeds the right label; the player's is torn down.
         [self.trackDisplay resetPlayheadToStartWithDuration:self.playlistController.currentTrack.duration
                                                        rate:self.playbackRate];
     }
@@ -240,74 +191,49 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didAutoAdvanceFromTrack:(AudioTrack *)finishedTrack
                     toTrack:(AudioTrack *)startedTrack {
-    // The player spliced into the pre-scheduled next track; audio never
-    // stopped. This handler's job is the bookkeeping half of an auto-advance:
-    // move the playlist index and run the per-track refresh, without play:.
-    // Same stale guard as didFinishPlaying:: a boundary that raced a re-drop
-    // or a double-click belongs to the operation that superseded it.
+    // The player spliced into the parked successor and audio never stopped:
+    // move the index and run the per-track refresh, without play:.
     if (finishedTrack != [self.playlistController currentTrack]) {
         return;
     }
-    // The playlist owns what "next" means. If its next row is no longer the
-    // track the player spliced into — a swap or re-target raced the boundary —
-    // correctness beats gaplessness: treat it as an ordinary track end, whose
-    // next: plays the real successor and replaces the spliced audio. The guard
-    // above already proved the finished track current, which is the staleness
-    // precondition the track-end handler leaves to its caller.
+    // If the playlist's next row is no longer the spliced track, correctness
+    // beats gaplessness: an ordinary track end replaces the spliced audio.
     if (![self.playlistController advanceFromTrack:finishedTrack toTrack:startedTrack]) {
         BOOL advanced = [self advanceOrParkAtTrackEnd];
-        // Advancing submits the real successor and retires the mismatched
-        // segment. With no advance, reload the finished row parked so the
-        // already-sounding segment is replaced and the player/UI agree again.
+        // With no advance, reload the finished row parked so the sounding
+        // segment is replaced.
         if (!advanced) {
             [self.playlistController playStartPaused:YES];
         }
         return;
     }
-    // The whole per-track refresh — metadata, waveform, duration cache,
-    // recents, prefetch of the new next (which re-arms the splice), stats and
-    // the UI timer — is exactly a start's. The advance above satisfies the
-    // refresh's precondition: the playlist now points at the started track.
     [self performPerTrackRefreshForStartedTrack:startedTrack];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error {
     if (VibePlayErrorIsBenign(error)) {
-        // A play-pause toggle raced a track ending, or nothing is loaded. It
-        // is harmless, so ignore it silently rather than popping a modal alert.
-        return;
+        return; // a play-pause toggle raced a track end, or nothing is loaded
     }
     LogError(@"%@", error.localizedDescription);
-    // Play-path errors carry the failing track's URL. A delivery can race a
-    // re-drop's track change, so an error for a departed track is dropped
-    // outright — the new track's own callbacks own the UI from here.
     if (!VibePlayErrorMatchesCurrentURL(error, self.playlistController.currentTrack.url)) {
         return;
     }
-    // Only a Stopped player takes the play-failure path below. That serves two
-    // purposes. It guards against staleness, because play-path errors are
-    // published as Stopped before delivery, so a stale error after a re-drop
-    // reads Loading or Playing. And it excludes device-loss errors for a track
-    // merely parked as Paused: masking a resumable track would render a false
-    // error screen later, and zeroing the duration cache would freeze the
-    // waveform progress after recovery. The park's didPausePlaying handles the
-    // UI, and a resume lifts any mask.
+    // Only Stopped takes the failure path. Play-path errors publish Stopped
+    // before delivery, so a stale one reads Loading or Playing; and a
+    // device-loss error for a parked track must not mask a resumable track or
+    // zero the duration cache.
     if (!self.audioPlayer.isStopped) {
         [self updateUI];
         return;
     }
     [self startPendingMetadataLoad];
     [self pauseUIUpdateTimer];
-    // Playback failed, so the duration cached at the last didStartPlaying no
-    // longer describes anything the player holds.
     _currentTrackDuration = 0;
     [self teardownDownloadMonitor];
     [self.trackDisplay hideWaveformLoadingIndicator];
-    // Errors present inline, with no modal and no auto-skip. A sheet on this
-    // borderless window breaks key status and the bare transport keys. The
-    // header shows the error state, the track stays in the playlist for a
-    // retry, and the errored mark stops late metadata, art, and waveform
-    // deliveries from repopulating the header.
+    // Inline, no auto-skip: a sheet on this borderless window breaks key
+    // status and the bare keys. The mask stops late deliveries repopulating
+    // the header.
     [self setErrorMaskForTrack:self.playlistController.currentTrack
                         status:VibeStatusForPlayError(error)];
     [self updateUI];
@@ -333,10 +259,8 @@ carriedModesFromUID:(NSString *)carriedModesUID {
     AppSettings *settings = AppSettings.sharedInstance;
     BOOL bitPerfectBefore = settings.bitPerfectOutput;
     if (newDeviceIndex == -1) {
-        // Only a System Output the user CHOSE forgets the device. One that
-        // vanished keeps it as the saved preference, which is what re-adopts
-        // it when it returns — in this session through the player's pending
-        // intent, after a relaunch through the ordinary launch resolution.
+        // Only a chosen System Output forgets the device; a vanished one stays
+        // the saved preference, so it is re-adopted when it returns.
         if (fallbackUID.length == 0 && fallbackName.length == 0) {
             settings.audioOutputDeviceName = @"";
             settings.audioOutputDeviceUID = @"";
@@ -345,12 +269,10 @@ carriedModesFromUID:(NSString *)carriedModesUID {
     }
     else {
         AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForId:newDeviceIndex];
-        // The device has gone by the time this fires, or the enumeration
-        // failed transiently. Keep the previous persisted choice rather than
-        // erasing it.
+        // nil: gone already, or a transient enumeration failure. Keep the
+        // persisted choice.
         if (device) {
-            // Persist only the carry the player actually applied. Manual
-            // selection and a destination with its own modes never carry.
+            // Only the carry the player applied.
             if (carriedModesUID.length) {
                 [settings carryOutputModesFromDeviceUID:carriedModesUID toDeviceUID:device.uid];
             }
@@ -359,8 +281,9 @@ carriedModesFromUID:(NSString *)carriedModesUID {
             settings.audioOutputDeviceModelUID = device.modelUID;
         }
     }
-    // TRAP: a later switch may already be queued or bound. This callback may
-    // refresh dependent controls, but must not send this device's modes back.
+    // TRAP: a later switch may already be queued or bound, so this refreshes
+    // dependent controls but never sends this device's modes back
+    // (updatingOutputModes:NO).
     SettingsWindowController *settingsWindow = [(AppDelegate *)NSApp.delegate settingsWindowController];
     if (settings.bitPerfectOutput != bitPerfectBefore) {
         [self applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply updatingOutputModes:NO];
@@ -369,27 +292,23 @@ carriedModesFromUID:(NSString *)carriedModesUID {
     [settingsWindow.audioPane refreshOutputDevice];
 }
 
-// The one edge the two report readouts redraw from: the header's lock glyph
-// with its tooltip, and the Settings caption while the Audio pane exists.
-// The player publishes the report on its own queue after every toggle,
-// play, pause, stop, device switch and volume move, so nothing may read it
-// right after a setter and expect the new one.
+// The one edge both report readouts (the header lock, the Audio pane caption)
+// redraw from. The player publishes on its own queue, so a read right after a
+// setter sees the previous report.
 - (void)audioPlayerDidChangeBitPerfectReport:(AudioPlayer *)audioPlayer {
     [self updateFXIndicators];
     [[(AppDelegate *)NSApp.delegate settingsWindowController].audioPane refreshBitPerfectRows];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(AudioTrack *)track {
-    // A real track carries the usual identity guard. Nil is the promised settle
-    // after a seek with nothing playable loaded; accept it only while the player
-    // is still stopped, not after a new load or play has superseded it.
+    // nil is the settle of a seek with nothing loaded, current only while the
+    // player is still Stopped.
     if (!VibePlaybackSeekSettlementIsCurrent(track, self.playlistController.currentTrack,
                                              audioPlayer.isStopped)) {
         return;
     }
     [self updatePlaybackUI];
     [self scheduleUpdateAtNextDisplayedSecond];
-    // The playhead jumped, so resync Control Center's elapsed time.
     [self updateNowPlaying];
 }
 

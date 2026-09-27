@@ -4,7 +4,7 @@
 //
 
 #import "AudioFX.h"
-#import "AudioFXMath.h" // the cutoff, tap and swell arithmetic, tested separately
+#import "AudioFXMath.h"
 #import "FadeMath.h"
 #import <AVFAudio/AVFAudio.h>
 #import <Accelerate/Accelerate.h>
@@ -12,56 +12,41 @@
 #import <os/lock.h>
 #include <stdatomic.h>
 
-// The low-kill cutoffs and the default tap tempo are in AudioFXMath.h, with
-// the functions that resolve them. The EQ runs two cascaded high-pass bands
-// swept together, 12 dB/oct each for 24 dB/oct in total — a resonant one
-// carrying a small DJ-filter bump at the cutoff, plus a plain 2nd-order
-// Butterworth.
+// The low kill is two cascaded high-pass bands swept together, 24 dB/oct in
+// total: a resonant one with a small DJ-filter bump, and a 2nd-order
+// Butterworth. Its cutoffs are AudioFXMath.h's.
 //
-// Resonance of the resonant band, as AUNBandEQ bandwidth in octaves, where
-// narrower is peakier. A touch of squelch at the cutoff, not a scream.
+// The resonant band's bandwidth in octaves; narrower is peakier.
 static const float kLowKillResonanceBandwidth = 0.7f;
-// Bandwidth of the parked bands. A 0 dB parametric band is an identity filter
-// whatever its bandwidth, so this only shapes how the old response's residue
-// dies after the swap: two octaves is a hair over critically damped, settling
-// in ~60ms without a ring. At the resonant bandwidth the residue rang at 20 Hz
-// for ~250ms instead.
+// Bandwidth of the parked bands, which only shapes how the old response's
+// residue dies after the swap: two octaves settles in ~60 ms without the
+// ~250 ms ring the resonant bandwidth gives.
 static const float kLowKillFlatBandwidth = 2.0f;
-// Sweep resolution, much finer than the volume fades. Coefficient jumps big
-// enough to hear as zipper or click need small steps, and a slightly longer
-// total sweep of about 80ms still reads as an instant kill.
+// Fine steps, so coefficient jumps never zipper; 80 ms in all still reads as
+// an instant kill.
 static const int kLowKillSweepSteps = 40;
 static const uint64_t kLowKillSweepStepMicroseconds = 2000;
-// A move of the engaged filter no larger than this ratio is written to the
-// unit directly instead of swept: the pad's frames arrive finer than the
-// sweep's own steps (a one-second full-height swipe moves about 7% a frame,
-// the toggle's sweep about 6% a step), so sweeping each would restart forty
-// timers per frame to move one step. A larger jump — a flick, the toggle —
-// still sweeps from wherever the filter sits.
+// A move of the engaged filter within this ratio is written to the unit
+// directly instead of swept: the pad's frames arrive finer than the sweep's
+// steps (about 7% a frame for a one-second full-height swipe, against 6% a
+// step), so sweeping each would restart forty timers per frame to move one
+// step. A larger jump (a flick, the toggle) still sweeps from where it sits.
 static const float kLowKillDirectMoveRatio = 1.12f;
-// How long a parked EQ keeps rendering after its sweep landed flat, for the
-// residue above to die out, before it is reset and skipped.
+// How long a parked EQ keeps rendering for that residue before it is reset
+// and skipped.
 static const NSTimeInterval kLowKillSettleSeconds = 0.25;
 
-// Momentary reverb send, on a held E key. The master signal is tapped
-// post-low-kill into a gated, 100%-wet parallel reverb return, so releasing
-// the key cuts the send while the tail rings out naturally. This gate level
-// while engaged is the wet-dry balance, since the dry path always runs at
-// unity, so anything below 0.5 keeps the verb sitting under the dry signal.
+// The reverb send's open gate level: the wet-dry balance, since the dry path
+// runs at unity; below 0.5 keeps the verb under the dry signal.
 static const float kReverbSendLevel = 0.3f;
-// High-pass on the reverb output, so the tail cannot muddy the bass.
-// Filtering the return rather than the send guarantees that even the ringing
-// tail is low-cut.
+// High-pass on the reverb return, not the send, so even the tail is low-cut.
 static const float kReverbTailLowCutHz = 550.0f;
 #if TARGET_OS_OSX
-// MatrixReverb tuning, applied on top of the Cathedral preset. TRAP: the
-// ranges documented in AudioUnitParameters.h are stale. The AU's real
-// LargeSize range, queried through kAudioUnitProperty_ParameterInfo, is
-// 0.005-0.15, not the header's "0.4->10.0 Secs", and an out-of-range value
-// asserts in the render thread through caulk CAVerboseAbort, killing the app
-// on first play. MatrixReverb has no decay-seconds knob at all, so the size,
-// mix and density maxed out below give the longest tail this engine does.
-// Cathedral ships at LargeSize 0.06 and mix 35.
+// MatrixReverb over the Cathedral preset. TRAP: AudioUnitParameters.h's
+// ranges are stale: the real LargeSize range (kAudioUnitProperty_ParameterInfo)
+// is 0.005-0.15, not "0.4->10.0 Secs", and an out-of-range value aborts the
+// render thread (caulk CAVerboseAbort) on first play. With no decay knob, the
+// size, mix and density below give the longest tail it has.
 static const float kReverbLargeSize = 0.15f;     // the real max: the tail knob
 static const float kReverbSmallLargeMix = 90.0f; // 0-100: mostly the large hall engine
 static const float kReverbLargeDensity = 0.9f;   // lush, smooth tail
@@ -77,49 +62,36 @@ static const float kReverb2MinDelaySeconds = 0.02f;      // the early reflection
 static const float kReverb2MaxDelaySeconds = 0.08f;
 #endif
 
-// Momentary delay echo sends, on held R and T keys, using the same gated
-// send-return pattern as the reverb. The tap is a fraction of a beat of the
-// effective, pitch-scaled tempo. The controller feeds delayTapBPM from the
-// same tagged or detected BPM the label shows, and with no tempo known the
-// default below applies. R and T are the same machine at different clock
-// divisions:
+// The delay sends' taps, in beats of the effective, pitch-scaled tempo:
 static const float kDelayTapBeats = 0.5f;       // R: 1/8 note, half a beat
 static const float kShortDelayTapBeats = 0.25f; // T: 1/16 note, a quarter beat
 static const float kDelaySendLevel = 0.3f;
-// Per-hop echo decay, where L->R counts as one hop. The ping-pong lanes run
-// at twice the tap period, as the topology comment explains, so each lane's
-// own feedback is this squared.
+// Per-hop echo decay (L->R is one hop); each lane's own feedback is this
+// squared, per the topology comment.
 static const float kDelayFeedbackPercent = 75.0f; // aggressive: a long trail of repeats
-// High-pass on the delay output. Every repeat re-exits through it, so the
-// echoes never pile up bass under the dry signal. AUDelay's own in-loop
-// filter is lowpass-only, so the cut lives on the return instead.
+// High-pass on the delay return, which every repeat re-exits through;
+// AUDelay's in-loop filter is lowpass-only.
 static const float kDelayEchoLowCutHz = 450.0f;
 // Ping-pong width: echoes alternate sides at half pan, not hard left and right.
 static const float kDelayPingPongPan = 0.5f;
 
-// After a send's fast open, it keeps swelling gently while the key stays held,
-// so the effect builds the longer it is ridden, like easing a send fader up.
-// The ratio multiplies the base level over six seconds, in steps small enough
-// — about 0.5% each — to be seamless. Releasing the key still closes fast, on
-// the normal fade cadence.
+// A held send keeps swelling after its fast open, by this ratio over six
+// seconds in ~0.5% steps; release still closes fast.
 static const float kReverbSwellRatio = 1.8f; // 0.3 -> 0.54
 static const float kDelaySwellRatio = 1.8f;  // 0.3 -> 0.54
 static const int kSendSwellSteps = 120;
 static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 
-// The slew a gate's gain moves at on the audio thread: full scale in about
-// 25 ms, what AVAudioMixerNode's volume measured through offline rendering,
-// so the queue's millisecond steps reach the output as they did through the
-// mixer.
+// A gate's gain slews full scale in 25 ms on the audio thread, smoothing the
+// queue's stepped ramps.
 static const double kGateSlewSeconds = 0.025;
 
 // One complete ping-pong delay send and return, built once per tap length, so
 // that the 1/8-note (R) and 1/16-note (T) echoes are the same machine at
-// different clock divisions. The classic cross-fed ping-pong is a feedback
-// cycle, which the engine graph this came from could not express; instead two
-// acyclic lanes run at twice the tap period T, with the left lane offset by
-// T, and they interleave into an exact alternating pattern. All delays are
-// 100% wet, with per-hop decay f:
+// different clock divisions. Instead of a cross-fed feedback cycle, two
+// acyclic lanes run at twice the tap period T, the left offset by T, and
+// interleave into an exact alternating pattern. All delays are 100% wet, with
+// per-hop decay f:
 //
 //   send -> half(T) -------------------> panLeft (-50%)   L: T
 //           half -> left(2T,f^2) ------> panLeft          L: 3T, 5T ...
@@ -127,18 +99,13 @@ static const double kGateSlewSeconds = 0.025;
 //                                                         R: 2T, 4T ...
 //   panLeft + panRight -> echoes -> lowCut -> out
 //
-// The pans and sums were mixers in the graph; here they are the arithmetic
-// in VibeFXChainRender, and the two sends' identical low-cuts are one filter
-// over their summed returns, which a linear filter cannot tell apart.
+// The pans and sums are arithmetic in VibeFXChainRender, and the two sends'
+// identical low-cuts are one linear filter over their summed returns.
 //
-// The non-geometric decay is deliberate. The left lane's echoes at 3T, 5T and
-// so on start at the lane's own first-tap level, because `left`'s first wet
-// tap emerges at unity and panLeft cannot compensate: its first input carries
-// the T tap, which must stay at unity. So every odd hop from 3 onwards lands
-// f^2 hotter than a strict per-hop trail, about 1.8x at f=0.75, giving
-// 1, f, 1, f^3, f^2, ... rather than 1, f, f^2, f^3, f^4. The result is a
-// left-leaning surge on every second repeat rather than a smooth fade. It was
-// auditioned and kept: it reads as bounce, not as a bug.
+// The non-geometric decay is deliberate: `left`'s first wet tap emerges at
+// unity and panLeft cannot compensate without dimming the T tap, so every odd
+// hop from 3 lands f^2 hotter (1, f, 1, f^3, f^2, ...). The left-leaning surge
+// reads as bounce, and is kept.
 
 #pragma mark - The chain
 
@@ -216,11 +183,8 @@ struct VibeFXChain {
 
 #pragma mark - The audio thread
 
-// The calls the compiler cannot check: AudioToolbox documents
-// AudioUnitRender as the render thread's own entry point and attributes it
-// with nothing, and Accelerate attributes its vector arithmetic, which
-// allocates nothing and blocks on nothing, with nothing either. Everything
-// around them is under the error pragma below.
+// The calls the compiler cannot check: AudioUnitRender and vDSP, realtime-safe
+// but carrying no attribute.
 VIBE_REALTIME_UNCHECKED_BEGIN
 static inline OSStatus VibeFXRenderUnit(VibeFXChain *chain, VibeFXUnit *unit, const AudioTimeStamp *timestamp,
                                         UInt32 frames, float *const out[2]) CA_REALTIME_API {
@@ -254,9 +218,8 @@ static inline void VibeFXAdd(float *const to[2], float *const from[2], UInt32 fr
     VibeFXVectorAdd(from[1], to[1], frames);
 }
 
-// The mixer's balance law, measured: the far side attenuates linearly with
-// the pan, the near side keeps its gain; `volume` is the mixer's own. The
-// panned lane lands in `out`, on top of what is there or in its place.
+// A balance law: the far side attenuates linearly with the pan, the near side
+// keeps its gain. Adds into `out`, or replaces it.
 static inline void VibeFXPanInto(float *const lane[2], float *const out[2], UInt32 frames, float pan, float volume,
                                  BOOL add) CA_REALTIME_API {
     float left = volume * (pan > 0 ? 1.0f - pan : 1.0f);
@@ -271,9 +234,7 @@ static inline void VibeFXPanInto(float *const lane[2], float *const out[2], UInt
     }
 }
 
-// The gate: the gain moves toward the queue's target at the mixer's slew,
-// evaluated per frame so a target written mid-block lands smoothly; settled
-// on its target it is one multiply, and closed it is silence.
+// Slewed per frame, so a target written mid-block lands smoothly.
 static inline void VibeFXGate(VibeFXStage *stage, float *const in[2], float *const out[2], UInt32 frames,
                               float slew) CA_REALTIME_API {
     float gain = stage->gain;
@@ -308,14 +269,11 @@ OSStatus VibeFXChainRender(VibeFXChain *chain, const AudioTimeStamp *timestamp, 
     }
     float *out[2] = { io->mBuffers[0].mData, io->mBuffers[1].mData };
     OSStatus status = noErr;
-    // The low kill, in place: the EQ pulls its input from the output buffers
-    // themselves — the unit copies them into its own buffer before it writes
-    // — so the dry path costs one copy. Parked and settled it is skipped, and
-    // the dry path is the bus sample for sample.
+    // The low kill, in place: the EQ's input callback copies the output
+    // buffers into its own before it writes them.
     // TRAP: every unit's status is read, and the first failure returns at
-    // once — a return whose render failed holds stale scratch, and summed in
-    // it would have played as the current audio; silently, since the failed
-    // status went nowhere.
+    // once: a failed return holds stale scratch, which would play as the
+    // current audio.
     if (atomic_load_explicit(&chain->stages[VibeFXStageLowKill].active, memory_order_seq_cst)) {
         VibeFXUnit *eq = &chain->units[VibeFXUnitEQ];
         eq->source[0] = out[0];
@@ -325,10 +283,8 @@ OSStatus VibeFXChainRender(VibeFXChain *chain, const AudioTimeStamp *timestamp, 
             return status;
         }
     }
-    // Every send taps the same post-low-kill signal, so the returns are
-    // summed apart and rejoin the dry path only once every send has read it
-    // — a return mixed in early would feed the sends after it. A stage
-    // renders while its gate is open or its tail rings.
+    // Every send taps the same post-low-kill signal, so the returns rejoin the
+    // dry path only after every send has read it.
     BOOL returns = NO;
     VibeFXStage *reverb = &chain->stages[VibeFXStageReverb];
     if (atomic_load_explicit(&reverb->active, memory_order_seq_cst)) {
@@ -408,8 +364,7 @@ BOOL VibeHostAudioUnit(AudioUnit *unit, OSType type, OSType subtype, const Audio
     if (status == noErr) {
         // TRAP: a directly hosted Apple unit defaults to 1156 frames per slice
         // and refuses the pipeline's 4096-frame slices with
-        // kAudioUnitErr_TooManyFramesToProcess; AVAudioEngine set this on
-        // every node for us.
+        // kAudioUnitErr_TooManyFramesToProcess.
         status = AudioUnitSetProperty(instance, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Global, 0, &frames, sizeof(frames));
     }
     if (status == noErr) {
@@ -448,13 +403,10 @@ double VibeAudioUnitSeconds(AudioUnit unit, AudioUnitPropertyID property) {
     return value;
 }
 
-// A unit's input: a copy of the scratch pair it was hosted over, into the
-// buffer the unit allocated for itself. TRAP: a unit told not to allocate
-// one (kAudioUnitProperty_ShouldAllocateBuffer = 0 on its input scope) is
-// handed the scratch itself and writes its output back into it — AUDelay
-// measured — so a lane reading that scratch after the unit reads the unit's
-// output, and the delay's own tap never reaches the sum. Every unit keeps
-// its input buffer.
+// Copies the scratch into the buffer the unit allocated for itself. TRAP:
+// never set kAudioUnitProperty_ShouldAllocateBuffer to 0: a unit handed the
+// scratch itself (AUDelay, measured) writes its output back into it, so a
+// lane reading that scratch after the unit reads the unit's output.
 static OSStatus VibeFXInput(void *refCon, AudioUnitRenderActionFlags *flags, const AudioTimeStamp *timestamp,
                             UInt32 bus, UInt32 frames, AudioBufferList *data) {
     VibeFXUnit *unit = refCon;
@@ -560,9 +512,7 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
 @implementation AudioFX {
     void (^_scheduler)(NSTimeInterval, dispatch_block_t);
     void (^_afterRenderLeaves)(dispatch_block_t);
-    // The player's serial queue, shared rather than owned. All hosting and
-    // parameter mutation runs here, as every other output touch in the app
-    // does.
+    // The player's queue: all hosting and parameter mutation.
     dispatch_queue_t        _queue;
     // Guards the intent flags and delayTapBPM. The ramp generations are
     // queue-confined and need no lock.
@@ -575,12 +525,9 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
     VibeFXChain             *_chain;
     BOOL                    _connected;
 
-    // Master-bus low-kill high-pass; the class comment gives its place in the
-    // chain. _lowKillEnabled and _lowKillBoostActive are lock-guarded and hold
-    // the UI-readable intent. The ramp generation is queue-confined and lets a
-    // re-toggle mid-sweep preempt the old sweep; the frequency and the flat
-    // flag shadow what the unit was last told, so a sweep starts where the
-    // filter sits.
+    // The intent is lock-guarded; the rest is queue-confined. The frequency
+    // and the flat flag shadow what the unit was last told, so a sweep starts
+    // where the filter sits.
     BOOL                    _lowKillEnabled;
     BOOL                    _lowKillBoostActive;
     float                   _lowKillCutoffHz;       // the one intent the apply reads; the toggles write it
@@ -588,8 +535,7 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
     float                   _lowKillFrequency;
     BOOL                    _lowKillFlat;
 
-    // The effective tempo both delay sends follow, lock-guarded. The sends'
-    // intent lives in their stages.
+    // Lock-guarded. The sends' intent lives in their stages.
     float                   _delayTapBPM;
 }
 
@@ -724,9 +670,8 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
     }
     NSParameterAssert(format.commonFormat == AVAudioPCMFormatFloat32 && !format.interleaved && format.channelCount == 2);
     if (self.hosted && (_chain->sampleRate != format.sampleRate || _chain->maxFrames != maximumFrameCount)) {
-        // Hosted at another rate: an effect cannot convert between its input
-        // and output, so the units are hosted again at the new one, and the
-        // recorded intent re-applied as at the first connect.
+        // An effect cannot convert between its input and output rates: host
+        // again, and re-apply the intent below.
         [self disconnectOnQueue];
         [self retireChain];
     }
@@ -738,8 +683,7 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
         return;
     }
     _connected = YES;
-    // Apply any intent recorded before the chain existed: a key or menu
-    // action racing the async init, or the controller's first BPM feed.
+    // Intent recorded before the chain existed.
     [self applyLowKillTargetOnQueue];
     [self applyDelayTapOnQueue];
     for (VibeFXStageIndex i = VibeFXStageReverb; i < VibeFXStageCount; i++) {
@@ -754,11 +698,9 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
     }
 }
 
-// The bypass: the player withdrew the chain from the render before this.
-// Every tail and unfinished sweep is taken out of the render at once, and
-// nothing — no parameter, no ramp step — is written to the units until the
-// next connect; the stages rest, so that connect starts clean, once a render
-// already inside has left.
+// The player withdrew the chain from the render first. Every tail and sweep
+// leaves at once, nothing is written to the units until the next connect,
+// and the stages rest once a render already inside has left.
 - (void)disconnectOnQueue {
     if (!_connected) {
         return;
@@ -791,11 +733,8 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
     _afterRenderLeaves(^{ VibeFXChainFree(chain); });
 }
 
-// Hosts every unit at `format` over a new chain's scratch, parked: the low
-// kill flat, the gates closed, no tempo yet (applyDelayTapOnQueue restates
-// the times from the real one the moment the controller feeds it). Nothing
-// renders a chain before the player publishes it; NO leaves the failed
-// hosting for retireChain.
+// Parked: the low kill flat, the gates closed, the default tempo. NO leaves
+// the failed hosting for retireChain.
 - (BOOL)hostUnitsWithFormat:(AVAudioFormat *)format maximumFrameCount:(UInt32)maximumFrameCount {
     VibeFXChain *chain = calloc(1, sizeof(VibeFXChain));
     if (!chain) {
@@ -821,10 +760,7 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
     const AudioStreamBasicDescription *asbd = format.streamDescription;
     VibeFXUnit *units = chain->units;
 
-    // The low kill: both bands stay live and un-bypassed for the chain's life
-    // (see kLowKillParkedHz); the controls sweep the cutoff and swap the band
-    // types through applyLowKillTargetOnQueue, and the parked state is the
-    // transparent one — and, settled, the whole unit is skipped.
+    // Both bands stay un-bypassed for the chain's life (kLowKillParkedHz).
     BOOL hosted = VibeFXHostUnit(&units[VibeFXUnitEQ], kAudioUnitType_Effect, kAudioUnitSubType_NBandEQ, asbd, maximumFrameCount, NULL,
                                  ^(AudioUnit instance) {
         UInt32 bands = 2;
@@ -839,11 +775,8 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
         }
     }
 
-    // The reverb, fully wet: the dry signal only ever travels the dry path,
-    // so opening the gate adds reverb on top. On the mac it is MatrixReverb,
-    // whose raw kReverbParam_* knobs push the Cathedral preset's tail out to
-    // the target length (see the constants); iOS has no MatrixReverb, so it
-    // hosts AUReverb2 tuned toward the same long wash.
+    // Fully wet: the dry signal only travels the dry path. MatrixReverb on
+    // the mac; iOS has none, so AUReverb2 tuned toward the same wash.
 #if TARGET_OS_OSX
     hosted = hosted && VibeFXHostUnit(&units[VibeFXUnitReverb], kAudioUnitType_Effect, kAudioUnitSubType_MatrixReverb, asbd, maximumFrameCount,
                                       chain->send, ^(AudioUnit instance) {
@@ -871,9 +804,7 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
     hosted = hosted && VibeFXHostLowCut(&units[VibeFXUnitReverbLowCut], asbd, maximumFrameCount, chain->wet, kReverbTailLowCutHz);
     hosted = hosted && VibeFXHostLowCut(&units[VibeFXUnitDelayLowCut], asbd, maximumFrameCount, chain->echoes, kDelayEchoLowCutHz);
 
-    // Two ping-pong delay returns, the same machine at different clock
-    // divisions; see the topology comment. Lane feedback is the per-hop decay
-    // squared, because each lane repeats every two hops.
+    // See the topology comment.
     float laneFeedbackPercent = VibeDelayLaneFeedbackPercent(kDelayFeedbackPercent);
     for (VibeFXStageIndex i = VibeFXStageDelay; i <= VibeFXStageShortDelay && hosted; i++) {
         float beatsPerTap = i == VibeFXStageDelay ? kDelayTapBeats : kShortDelayTapBeats;
@@ -984,8 +915,8 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
     return cutoff;
 }
 
-// The pad's writer: the cutoff itself, replacing whatever the toggles said.
-// Called on every drag frame, so only a real change touches the queue.
+// The pad's writer: the cutoff itself, replacing the toggles' answer. Called
+// every drag frame, so only a real change touches the queue.
 - (void)setLowKillCutoffHz:(float)cutoffHz {
     float target = MAX(cutoffHz, kLowKillParkedHz);
     os_unfair_lock_lock(&_stateLock);
@@ -1002,16 +933,11 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
     });
 }
 
-// Runs on _queue. It reads the one cutoff every writer resolves to — the mac's
-// toggles through VibeLowKillCutoffHz, the iOS pad directly — and sweeps
-// there from wherever the filter currently sits. A re-toggle, a release or the
-// next pad frame mid-sweep bumps the generation, preempting the old sweep, and
-// starts from the current frequency, so there is no jump. Bypass is never touched after
-// the host un-bypasses the bands once: flipping it dumps stale delay-line
-// state into the signal, an audible click (see kLowKillParkedHz). "Off" is
-// the cutoff swept down to the parked floor and then the bands swapped to
-// their flat type, which is what makes it colorless — and once the residue
-// has settled the unit is reset and skipped, which is what makes it free.
+// Sweeps from wherever the filter sits to the one cutoff every writer
+// resolves to; a re-toggle or the next pad frame preempts through the
+// generation and continues from there. "Off" sweeps to the floor, swaps the
+// bands flat (colorless), and once settled resets and skips the unit (free).
+// Bypass is never touched (kLowKillParkedHz).
 - (void)applyLowKillTargetOnQueue {
     if (!self.hosted || !_connected) {
         return; // Not hosted yet. The first connect re-applies this.
@@ -1038,14 +964,9 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
     [self stepLowKillRamp:1 from:_lowKillFrequency to:target generation:generation];
 }
 
-// The parked state is a 0 dB parametric band, an identity biquad — its
-// feedback and feed-forward coefficients are equal, so it passes the signal
-// bit-exact — rather than a high-pass at the frequency floor, which at 20 Hz
-// still lifted the sub-bass by up to 4 dB through the resonant band's peak.
-// Swapping the type changes coefficients under the retained filter state, so
-// the old response's residue decays at the band's own 20 Hz with no
-// discontinuity — unlike bypass, which clicks. Idempotent: a repeated swap to
-// the same type would restart that decay for nothing.
+// Flat is a 0 dB parametric band, an identity biquad. The swap keeps the filter
+// state, so the old response decays without a discontinuity. Idempotent: a
+// repeated swap would restart that decay.
 - (void)setLowKillBandsFlat:(BOOL)flat {
     if (flat == _lowKillFlat) {
         return;
@@ -1077,10 +998,8 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
     }
 }
 
-// The fade-loop pattern applied to the filter cutoff, stepped along a
-// log-frequency curve — multiplicative interpolation, as in the volume fades
-// — so each step is the same musical interval. A sweep that lands at the
-// floor parks the bands flat and, after the settle, rests the unit.
+// Log-frequency steps, each the same musical interval. Landing at the floor
+// parks the bands flat and, after the settle, rests the unit.
 - (void)stepLowKillRamp:(int)step from:(float)start to:(float)target generation:(uint64_t)generation {
     if (generation != _lowKillRampGeneration) {
         return; // A newer toggle owns the cutoff now.
@@ -1153,18 +1072,13 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
 - (BOOL)shortDelaySendEnabled { return [self sendEnabled:VibeFXStageShortDelay]; }
 - (void)setShortDelaySendEnabled:(BOOL)enabled { [self setSend:VibeFXStageShortDelay intent:enabled held:enabled]; }
 
-// Runs on _queue. Moves a send gate to `intent`, 0..1 of the level a held key
-// swells to. Opening from silence and closing to it are fast fades on the
-// volume-fade cadence — an instant full-level step clicks, whereas
-// kFadeDurationMilliseconds does not; a held key (`swell`) opens to the base
-// level instead and then, while the gate stays open, swells slowly up to
-// swellRatio times it. A pad level moving an OPEN gate is written to the
-// target directly: the audio thread slews the gain toward it at full scale
-// per 25 ms, which smooths a frame's step with no timers, where a ramp per
-// frame ran twenty and preempted them all. Closing cuts only the send: the
-// stage keeps rendering for its tail, which decays naturally, and only then
-// rests. A newer write mid-ramp preempts through the generation and continues
-// from the current gate level.
+// Opening from silence and closing to it are declick-length fades; a held key
+// (`swell`) opens to the base level, then swells slowly while held. A pad
+// level moving an OPEN gate is written to the target directly: the audio
+// thread slews the gain at full scale per 25 ms, which smooths a frame's step
+// with no timers. Closing cuts only the send: the stage renders its tail,
+// then rests. A newer write preempts through the generation from the current
+// level.
 - (void)applySendOnQueue:(VibeFXStage *)stage intent:(float)intent swell:(BOOL)swell {
     if (!self.hosted || !_connected) {
         return; // Not hosted yet. The first connect re-applies it.
@@ -1191,9 +1105,7 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
     __weak AudioFX *weakSelf = self;
     [self stepSendGateRamp:stage step:1 of:kFadeSteps stepMicroseconds:kFadeStepMicroseconds
                       from:from to:target generation:generation completion:swell ? ^{
-        // The same generation is used, so the release or re-press that would
-        // invalidate the swell bumps the generation and the first swell step
-        // drops out.
+        // Same generation, so a release preempts the swell too.
         [weakSelf stepSendGateRamp:stage step:1 of:kSendSwellSteps stepMicroseconds:kSendSwellStepMicroseconds
                               from:target to:full generation:generation completion:nil];
     } : nil];
@@ -1249,9 +1161,7 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
     });
 }
 
-// Runs on _queue. The delays sit post-varispeed, so tap time is wall-clock and
-// matches the effective, pitch-scaled tempo the controller provides. Each
-// lane's time is twice the tap, as the topology comment explains.
+// Post-varispeed, so tap time is wall-clock at the effective tempo.
 - (void)applyDelayTapOnQueue {
     if (!self.hosted || !_connected) {
         return; // Not in the chain. The next connect re-applies it.

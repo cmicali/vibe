@@ -11,9 +11,7 @@
 NSNotificationName const VibeSearchFoldersDidChangeNotification =
         @"VibeSearchFoldersDidChangeNotification";
 
-// An iOS app-layer key beside FolderSession's and PlayerDisplaySettings', not an
-// AppSettings property: the shared settings file stays untouched, and there is no
-// macOS counterpart to keep it in step with — the mac has FolderAccessManager.
+// iOS app-layer state, so not AppSettings.
 static NSString *const kSearchFolderBookmarksKey = @"VibeiOSSearchFolderBookmarks";
 static NSString *const kSearchFolderRestoreSuppressionsKey =
         @"VibeiOSSearchFolderRestoreSuppressions";
@@ -103,8 +101,8 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     NSUInteger _nextEntryOrdinal;
     BOOL _restoreStarted;
 
-    // Resolution is bounded and independent. Bookmark minting is separate so a
-    // provider stalled during launch restore cannot park a folder the user adds.
+    // Minting has its own queue, so a provider stalled in the launch restore
+    // cannot park a folder the user adds.
     NSOperationQueue *_restoreQueue;
     dispatch_queue_t _bookmarkQueue;
 }
@@ -204,8 +202,6 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         [_restoreQueue addOperationWithBlock:^{
             SearchFolderEntry *folder = [self resolveBookmark:bookmark];
             dispatch_async(dispatch_get_main_queue(), ^{
-                // Each bookmark owns one key, so independent completions cannot
-                // remove or publish one another's restoration.
                 PendingSearchFolderRestore *livePending = self->_pendingRestorations[key];
                 if (!livePending) {
                     [self retireScopeTree:folder];
@@ -259,8 +255,8 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     return paths.array;
 }
 
-// Restore queue only. Starts the scope, and re-mints a stale bookmark — which
-// needs the scope open, so it cannot be done before.
+// Restore queue only. A stale bookmark is re-minted after the scope starts,
+// since minting needs it open.
 - (SearchFolderEntry *)resolveBookmark:(NSData *)bookmark {
     BOOL stale = NO;
     NSError *error = nil;
@@ -276,15 +272,14 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     }
     SearchFolderEntry *folder = [[SearchFolderEntry alloc] init];
     folder.url = url;
-    // A NO return is not failure — the app's own container is not
-    // security-scoped. Record what was actually started, for the balanced stop.
+    // NO is not failure: the app's own container is not security-scoped.
     folder.scopeStarted = [url startAccessingSecurityScopedResource];
     folder.bookmark = stale ? ([self bookmarkForURL:url] ?: bookmark) : bookmark;
     return folder;
 }
 
-// iOS has no WithSecurityScope option: a default bookmark of a picker-granted
-// URL round-trips the scope by itself, provided that scope is open.
+// iOS has no WithSecurityScope option: a default bookmark of a granted URL
+// carries the scope, provided the scope is open.
 - (NSData *)bookmarkForURL:(NSURL *)url {
     NSError *error = nil;
     NSData *bookmark = [url bookmarkDataWithOptions:0
@@ -311,9 +306,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     [self mergeEntry:folder];
     [self persistAndNotify];
 
-    // The bookmark is minted independently of launch restoration. Until it
-    // lands the parent is searchable, while the replaced entries remain the
-    // durable relaunch state.
+    // Until the mint lands, the replaced entries remain the relaunch state.
     dispatch_async(_bookmarkQueue, ^{
         NSData *bookmark = [self bookmarkForURL:url];
         if (!bookmark) {
@@ -346,9 +339,8 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     [self persistAndNotify];
 }
 
-// The one bidirectional coverage merge for both live additions and async
-// restores. An existing ancestor absorbs the candidate; otherwise the
-// candidate replaces every descendant before being inserted by original order.
+// The one merge for additions and restores alike (FileSearchRules.h), inserting
+// by original order.
 - (BOOL)mergeEntry:(SearchFolderEntry *)candidate {
     NSString *candidatePath = candidate.url.URLByStandardizingPath.path;
     NSURL *documents = [SearchFolderStore containerDocumentsURL];
@@ -434,9 +426,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     return NO;
 }
 
-// Whether the app can already search url without being given anything: a row
-// already on the list, or the container's Documents directory. The transient
-// FolderSession root is deliberately absent because it is gone at the next open.
+// Never the transient FolderSession roots, which are gone at the next open.
 - (BOOL)isCoveredByAPersistentRoot:(NSURL *)url {
     return VibeSearchFolderCoveringRootIndex(
             [self persistentRootPaths], url.URLByStandardizingPath.path) != NSNotFound;
@@ -517,8 +507,8 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 }
 
 - (void)persistBookmarks {
-    // Restore completions can land out of order. Merge live and still-pending
-    // bookmarks by their original ordinal before writing the relaunch list.
+    // Completions land out of order, so live and pending bookmarks are merged
+    // by original ordinal.
     NSMutableDictionary<NSNumber *, NSData *> *bookmarksByOrdinal =
             [NSMutableDictionary dictionary];
     for (SearchFolderEntry *folder in _folders) {
@@ -570,9 +560,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     }
 }
 
-// A pending parent persists the entries it replaced. The live list stays
-// minimal while relaunch recovery remains transactional until the new grant is
-// durable.
+// A parent without its bookmark yet persists the entries it replaced.
 - (void)appendDurableBookmarksForFolder:(SearchFolderEntry *)folder
                            toDictionary:(NSMutableDictionary<NSNumber *, NSData *> *)bookmarksByOrdinal {
     if (folder.bookmark) {

@@ -2,11 +2,8 @@
 //  AppSettingsInternal.h
 //  Vibe
 //
-//  The private surface shared between AppSettings.m and Mac/AppSettings+Mac.m:
-//  the stored keys both halves read, the ivars the macOS half keeps, and the
-//  macOS halves of the shared store-wide entry points. Do not use it outside
-//  the AppSettings implementation files and their tests; other callers use
-//  AppSettings.h or AppSettings+Mac.h.
+//  The seam between AppSettings.m and Mac/AppSettings+Mac.m. Only those files
+//  and their tests import it.
 //
 
 #import "AppSettings.h"
@@ -31,36 +28,32 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class AppTheme;
 
-// A category cannot declare ivars, so the macOS half's state is declared here
-// for AppSettings.m's @implementation to synthesize.
+// The macOS half's ivars, which its category cannot declare.
 @interface AppSettings () {
     NSArray<NSDictionary *> *_storedUserThemesCache;
     AppTheme   *_currentTheme;
-    // Theme edits and removals, with the last changed keys for coalescing.
+    // Theme undo history, with the last changed keys for coalescing.
     NSMutableArray<NSDictionary *> *_themeHistory;
     NSUInteger _themeHistoryIndex;
     NSSet<NSString *> *_themeHistoryChangedKeys;
     NSTimeInterval _themeHistoryPushTime;
     BOOL _themeHistoryRestoring;
-    // The Settings window's temporary appearance preview: transient by
-    // design, so a window left open on the Appearance page at quit reverts.
+    // In memory only, so a preview left open at quit reverts.
     NSString   *_windowAppearancePreviewStyle;
 }
 @end
 
-// The macOS halves of the shared entry points — init, registerDefaults,
-// nullableSettingKeys, resetToDefaults and applicationDidFinishLaunching —
-// each called from AppSettings.m under TARGET_OS_OSX and implemented in
-// Mac/AppSettings+Mac.m. A named category rather than the extension above:
-// the compiler expects an extension's methods in the primary @implementation.
+// The macOS halves of the shared entry points, implemented in
+// Mac/AppSettings+Mac.m. A named category, since an extension's methods must
+// be in the primary @implementation.
 @interface AppSettings (MacInternal)
 - (void)migrateLooseAppearanceSettingsToTheme;
 - (void)registerMacDefaultsInto:(NSMutableDictionary *)defaults;
 - (void)addMacNullableSettingKeysTo:(NSMutableArray<NSString *> *)keys;
 - (void)resetMacThemeState;
 - (void)macApplicationDidFinishLaunching;
-// The production edit funnel with explicit time, so drag coalescing can be
-// exercised without sleeping or replacing the defaults/theme machinery.
+// The edit funnel with an explicit time, so tests exercise coalescing without
+// sleeping.
 - (void)currentThemeDidChangeContinuous:(BOOL)continuous atTime:(NSTimeInterval)time;
 @end
 

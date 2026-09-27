@@ -2,10 +2,8 @@
 //  PlatformTypes.h
 //  Vibe
 //
-//  Platform-neutral aliases for UI types that appear in otherwise portable
-//  model headers. VibeImage is NSImage on macOS and UIImage elsewhere, and
-//  VibeColor likewise NSColor or UIColor; implementation files construct the
-//  platform class directly.
+//  Aliases so a portable model header can carry an image or color;
+//  implementation files use the platform class directly.
 //
 
 #include <TargetConditionals.h>

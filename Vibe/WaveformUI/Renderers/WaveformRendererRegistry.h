@@ -1,8 +1,6 @@
 //
-// The renderer registry: persisted identifier → renderer, plus the style
-// resolution fallback chain. One home, shared by the macOS view and the iOS
-// scrubber, so the two platforms cannot drift on which styles exist or how an
-// unknown persisted identifier falls back.
+// Persisted identifier → renderer, and the fallback chain: one home, so the
+// platforms cannot drift on which styles exist.
 //
 
 #import <Foundation/Foundation.h>
@@ -36,11 +34,9 @@ NS_ASSUME_NONNULL_BEGIN
                                      barWidth:(CGFloat)barWidth
                                     normalize:(BOOL)normalize gainDB:(float)gainDB CF_RETURNS_RETAINED;
 
-// A REAL track's envelope, baked at an explicit size for a consumer that
-// cannot host a renderer — the home-screen widget, which is a second process.
-// It shares the preview's machinery, so a widget strip is the same style the
-// app draws rather than a second approximation of it. progress draws the whole
-// envelope in one side of the palette: bake 0 and 1, reveal one over the other.
+// A real track's envelope for a consumer that cannot host a renderer (the
+// widget, a second process). progress draws the whole envelope in one side of
+// the palette: bake 0 and 1, reveal one over the other.
 + (nullable CGImageRef)newImageForCodableWaveform:(CodableAudioWaveform *)waveform
                                        identifier:(NSString *)identifier
                                         pointSize:(CGSize)size scale:(CGFloat)scale

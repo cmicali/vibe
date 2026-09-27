@@ -2,16 +2,14 @@
 //  PlayerViewController+Debug.m
 //  Vibe (iOS)
 //
-//  See PlayerViewController+Debug.h.
-//
 
 #import "PlayerViewController+Debug.h"
 
 #if DEBUG
 
 #import "PlayerViewControllerInternal.h"
-#import "PlayerViewController+Delivery.h"   // the scrubber's didSeek: path
-#import "PlayerViewController+Pager.h"      // the art window, for dump_art
+#import "PlayerViewController+Delivery.h"
+#import "PlayerViewController+Pager.h"
 
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
@@ -30,8 +28,8 @@
         @"routeShown": @(_routeView.alpha > 0),
         @"routeSymbol": _routeView.symbolName ?: @"",
         @"routeNameShown": @(_routeView.showsDeviceName),
-        // The flag that freezes the playhead if it ever sticks; with
-        // waveformBaked it says which of the two ways a still waveform means.
+        // Freezes the playhead while set; beside waveformBaked it says why a
+        // waveform is still.
         @"routePickerUp": @(_routePickerPresenting),
         // The pad as drawn: whether the setting shows it, and whether a
         // finger holds it (which also holds the pager).
@@ -42,11 +40,8 @@
         @"waveformScrollGeom": _waveformView.scrollGeometry ?: @[],
         @"waveformBaked": @(_waveformView.isShowingBakedWaveform),
         @"isScrubbing": @(_waveformView.isScrubbing),
-        // Both, deliberately: the request is what is persisted and what a
-        // rotation must not touch, the effective one is what is drawn, and
-        // telling them apart is the only way to check the clamp from outside.
-        // Equal is the ordinary case; differing means this geometry could not
-        // afford the depth the user asked for.
+        // The request is persisted and survives rotation; the effective one
+        // is drawn. Differing means this geometry could not afford the depth.
         @"waveformZoomRequested": @(_waveformZoom),
         @"waveformZoomEffective": @(_waveformView.effectiveVisibleFraction),
         @"sceneActive": @(_sceneActive),
@@ -90,14 +85,12 @@
     [self waveformScrubberView:_waveformView didSeek:progress];
 }
 
-// Through the same delegate callback a released pinch takes, so the fan-out
-// across pages and the persistence behave exactly as a real gesture's.
 - (void)debugSetWaveformZoom:(CGFloat)fraction {
     if (!_waveformView) {
         return;     // no page bound: nothing to clamp the value against
     }
-    // Via the view's setter first, so what reaches the callback — and so the
-    // persisted value — is already held to the absolute range.
+    // The setter first, so the callback, and the persisted value, see it held
+    // to the absolute range.
     _waveformView.visibleFraction = fraction;
     [self waveformScrubberView:_waveformView
       didChangeVisibleFraction:_waveformView.visibleFraction];

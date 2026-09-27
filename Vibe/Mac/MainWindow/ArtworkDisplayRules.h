@@ -2,9 +2,8 @@
 //  ArtworkDisplayRules.h
 //  Vibe
 //
-//  What the header should do with the art it has — a pure function of four
-//  facts, so the policy can be tested without a window, a dock tile or a decode.
-//  ArtworkDisplayController is then only the plumbing that carries it out.
+//  What the header does with the art it has, as a pure function of four facts,
+//  testable without a window, a dock tile or a decode.
 //
 
 #import <Foundation/Foundation.h>
@@ -12,32 +11,25 @@
 NS_ASSUME_NONNULL_BEGIN
 
 typedef NS_ENUM(NSInteger, VibeArtworkDisplayAction) {
-    // There is art to show. The caller still checks identity before paying for
-    // the crop and the dominant-color pass.
+    // The caller still checks identity before paying for the crop.
     VibeArtworkDisplayActionInstall,
-    // Nothing to show YET. The previous track's art stays up, which is what
-    // keeps the record backdrop from flashing between two tracks that both
-    // have artwork.
+    // Nothing to show YET: keeping the previous art stops the backdrop
+    // flashing between two tracks that both have art.
     VibeArtworkDisplayActionKeepPrevious,
-    // Known to have no art at all: the backdrop replaces whatever is up.
     VibeArtworkDisplayActionShowDefault,
 };
 
-// TRAP: nil art is not proof of artlessness, which is why artResolved is an
-// input of its own rather than derived from hasArt. With the folder fallback, nil
-// can also mean "another worker holds this folder's resolve claim", and treating
-// that as artless flashes the backdrop over a cover that appears a moment later.
-// Only the metadata's own account of what is pending (`artNeedsLoad`,
-// `artLoadPending`) tells the two apart.
+// TRAP: nil art is not proof of artlessness, so artResolved is its own input.
+// nil can also mean another worker holds the folder's resolve claim; treated
+// as artless, the backdrop flashes over a cover arriving a moment later. Only
+// the metadata's `artNeedsLoad` and `artLoadPending` tell the two apart.
 //
-//  hasTrack    — a file is loaded at all. Nothing loaded is definitively
-//                artless, or closing a file would leave its art on screen.
-//  hasArt      — art is in hand right now.
-//  artResolved — nothing is pending: no load worth dispatching and none in
-//                flight, and the metadata exists to answer the question.
-//  initialized — the header has rendered at least once. Before that there is
-//                no "previous art" to keep, so an unresolved track must show
-//                the backdrop rather than an empty frame.
+//  hasTrack    — nothing loaded is definitively artless, or Close would
+//                leave its art on screen.
+//  artResolved — metadata exists, and no load is worth dispatching or in
+//                flight.
+//  initialized — the header has rendered once; before that there is no
+//                previous art to keep.
 static inline VibeArtworkDisplayAction VibeArtworkDisplayActionFor(BOOL hasTrack,
                                                                    BOOL hasArt,
                                                                    BOOL artResolved,
@@ -55,9 +47,8 @@ static inline VibeArtworkDisplayAction VibeArtworkDisplayActionFor(BOOL hasTrack
     return VibeArtworkDisplayActionShowDefault;
 }
 
-// A crop may finish after a rapid track or metadata replacement. Generation
-// orders renders for one target; both identities also matter when the
-// replacement is unresolved and therefore has not started a render of its own.
+// The generation orders renders for one target; the identities also matter
+// when an unresolved replacement has started no render of its own.
 static inline BOOL VibeArtworkRenderResultMayInstall(NSUInteger requestGeneration,
                                                       NSUInteger currentGeneration,
                                                       id _Nullable requestTrack,

@@ -2,9 +2,8 @@
 // AudioTrackArtwork.m
 // Vibe
 //
-// One row's embedded-art state. The bounded async load registry it drives is
-// ArtworkLoadRegistry. All per-row transitions use the artwork monitor; no
-// monitor spans I/O or decode.
+// One row's embedded-art state. Every transition takes the artwork monitor;
+// no monitor spans I/O or a decode.
 //
 
 #import "AudioTrackArtworkInternal.h"
@@ -14,53 +13,33 @@
 #import "FolderArtResolver.h"
 #import "PlatformImage.h"
 
-// Three consecutive read failures end the current display attempt rather than
-// letting updateUI dispatch forever. discardDecodedArt re-arms them when the
-// track leaves the header, so a later visit can recover after the file or its
-// provider becomes readable again.
+// Failed reads per display pass; discardDecodedArt re-arms them.
 static const NSUInteger kMaxEmbeddedArtExtractionFailures = 3;
 
-// And how long after a failed read the next attempt may start. The count alone
-// bounded how many reads a bad file cost but not how fast they were spent:
-// updateUI runs several times in quick succession at a track start (begin
-// loading, start playing, metadata, art), so all three attempts went back to
-// back, each blocking a user-initiated worker for however long the failing read
-// takes — and nothing about an unreachable provider changes between two calls
-// milliseconds apart. The delay is what makes the second and third attempts
-// worth making. It is not a poll: nothing schedules a retry, it only decides
-// whether the next pass that asks is allowed to try.
+// The gap after a failed read: a track start runs updateUI several times in
+// quick succession, which would spend every attempt back to back. Not a
+// poll; it only gates the next pass that asks.
 static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
 
-// The load-admission bounds live in ArtworkLoadRegistry.h, beside the
-// registry that enforces them.
-// Sized so a session's worth of scrolled rows stays decoded (spec H). Each
-// entry is a <=128x128 RGBA decode, ~64 KiB, so the worst case is ~1 GiB —
-// reachable only by displaying 16k distinct rows' thumbnails in one session.
-// iOS flushes the cache on a memory warning instead of carrying a byte cap
-// that would silently redefine this count.
+// A session's scrolled rows stay decoded (spec H): <=128px RGBA, ~64 KiB each,
+// ~1 GiB only at 16k distinct rows. iOS flushes it on a memory warning rather
+// than carrying a byte cap.
 static const NSUInteger kEmbeddedThumbnailCacheCount = 16384;
-// Test-only override: proving LRU eviction by decoding 16k real thumbnails
-// would cost the suite ~20s, so the eviction test shrinks the bound instead.
+// Test-only; 0 is the production bound.
 static NSUInteger sEmbeddedThumbnailCacheLimitOverride = 0;
 static NSUInteger VibeEmbeddedThumbnailCacheLimit(void) {
     return sEmbeddedThumbnailCacheLimitOverride
             ?: kEmbeddedThumbnailCacheCount;
 }
 static const NSUInteger kEmbeddedThumbnailDecodeRunningCount = 2;
-// Parked decode requests are visible rows awaiting pixels; the bound is app
-// memory for parked blocks, unrelated to the pixel cache's own count.
+// Parked blocks for visible rows, unrelated to the pixel cache's count.
 static const NSUInteger kEmbeddedThumbnailDecodePendingCount = 126;
 
-// What is conclusively known about the file's own embedded art, one fact
-// instead of the known/settled boolean cross-product it replaces. Unknown is
-// the zero value on purpose: a fresh row has determined nothing. The two
-// HasArt states split on whether the CURRENT display pass still needs a
-// source read for the full-size bytes — demotion moves Settled back to
-// NeedsRead without touching the fact that art exists. Two overlays stay
-// deliberately outside the enum: _embeddedExtractionInFlight is the
-// single-flight claim over a read already running (it survives demotion, a
-// documented trap), and _embeddedUndecodable is a permanent verdict about
-// bytes, not about whether art exists.
+// What is known about the file's own art; Unknown is the zero value. The
+// HasArt states split on whether this display pass still needs a source read,
+// and demotion moves Settled back to NeedsRead. Outside it:
+// _embeddedExtractionInFlight (a claim that survives demotion) and
+// _embeddedUndecodable (a verdict about bytes).
 typedef NS_ENUM(NSUInteger, VibeEmbeddedArtFact) {
     VibeEmbeddedArtFactUnknown = 0,      // never conclusively determined
     VibeEmbeddedArtFactArtless,          // conclusively carries none
@@ -73,19 +52,14 @@ static inline BOOL VibeEmbeddedArtFactHasArt(VibeEmbeddedArtFact fact) {
             || fact == VibeEmbeddedArtFactHasArtSettled;
 }
 
-// "No further source read wanted this pass": conclusively artless, or the
-// art-bearing pass already holds or freshly read its bytes.
+// No further source read wanted this pass.
 static inline BOOL VibeEmbeddedArtFactIsSettled(VibeEmbeddedArtFact fact) {
     return fact == VibeEmbeddedArtFactArtless
             || fact == VibeEmbeddedArtFactHasArtSettled;
 }
 
-// NSCache treats its limits as eviction suggestions. The row-art guarantee is
-// an actual bound, so keep the LRU explicit: every image is decoded at no more
-// than 128 x 128 pixels, and no more than kEmbeddedThumbnailCacheCount of them
-// are retained here.
-// In-flight decodes hold pixels outside the cache, bounded separately by the
-// decode scheduler's running count plus the metadata worker pool.
+// An explicit LRU: NSCache treats its limits as suggestions, and this bound
+// must hold.
 @interface EmbeddedThumbnailKey : NSObject <NSCopying>
 @end
 
@@ -96,13 +70,9 @@ static inline BOOL VibeEmbeddedArtFactIsSettled(VibeEmbeddedArtFact fact) {
 }
 @end
 
-// One entry, doubly linked into the recency list below.
-//
-// TRAP: _images is the sole owner of every node; the four link fields are
-// unowned on purpose, because a strong `older`/`newer` pair is a retain cycle
-// along the whole chain. That is safe only because unlinkNode: runs in the
-// same critical section as, and immediately before, the dictionary removal
-// that can free the node — never after it.
+// TRAP: _images is the sole owner of every node; the links are unowned (strong
+// ones would cycle along the chain). Safe only because every removal unlinks
+// the node first, in the same critical section.
 @interface EmbeddedThumbnailNode : NSObject
 @property (nonatomic, strong) VibeImage *image;
 @property (nonatomic, strong) EmbeddedThumbnailKey *key;
@@ -121,16 +91,9 @@ static inline BOOL VibeEmbeddedArtFactIsSettled(VibeEmbeddedArtFact fact) {
 @property (nonatomic, readonly) NSUInteger count;
 @end
 
-// A dictionary plus an intrusive recency list, so every operation is O(1).
-// It used to be a dictionary plus an NSMutableArray of keys, where each hit
-// paid removeObjectIdenticalTo: — a linear scan of up to
-// kEmbeddedThumbnailCacheCount entries whose worst case was the common one,
-// since a recently used key sits at the end and the scan starts at the front.
-// The callers are row draws (PlaylistController's art cell, the iOS library
-// and mini-player rows), so that scan ran per visible row per scroll step.
+// O(1) per operation: every row draw hits it.
 @implementation EmbeddedThumbnailCache {
     NSMutableDictionary<EmbeddedThumbnailKey *, EmbeddedThumbnailNode *> *_images;
-    // Head is the most recently used, tail the first to be evicted.
     __unsafe_unretained EmbeddedThumbnailNode *_mostRecent;
     __unsafe_unretained EmbeddedThumbnailNode *_leastRecent;
 }
@@ -180,14 +143,11 @@ static inline BOOL VibeEmbeddedArtFactIsSettled(VibeEmbeddedArtFact fact) {
     [self linkNodeAtHead:node];
 }
 
-// Unlink first, then drop the owning reference: that order is what makes the
-// unowned links above safe, and it is why the caller may pass _leastRecent
-// (itself unowned) — every dereference happens before the removal that frees.
-//
-// TRAP: the strong local for the key is load-bearing, not a style. The node
-// holds the only other reference to it (the dictionary's copyWithZone: returns
-// self), so without a local the removal would be hashing a key its own value
-// had just freed.
+// Unlink before the removal that frees, so a caller may pass the unowned
+// _leastRecent.
+// TRAP: the strong local is load-bearing. Once the row is gone the dictionary
+// and the node hold the key's only references (copyWithZone: returns self),
+// so the removal would otherwise hash a key its own value had just freed.
 - (void)evictNode:(EmbeddedThumbnailNode *)node {
     EmbeddedThumbnailKey *key = node.key;
     [self unlinkNode:node];
@@ -238,8 +198,7 @@ static inline BOOL VibeEmbeddedArtFactIsSettled(VibeEmbeddedArtFact fact) {
 
 - (void)removeAllImages {
     @synchronized (self) {
-        // The links die with the nodes; clearing the ends is what keeps the
-        // unowned head and tail from outliving them.
+        // The unowned ends must not outlive the nodes.
         _mostRecent = nil;
         _leastRecent = nil;
         [_images removeAllObjects];
@@ -261,9 +220,7 @@ static EmbeddedThumbnailCache *VibeEmbeddedThumbnailCache(void) {
     dispatch_once(&onceToken, ^{
         cache = [[EmbeddedThumbnailCache alloc] init];
 #if !TARGET_OS_OSX
-        // At 16k entries the decoded pixels are jetsam-relevant, and this
-        // explicit LRU has no NSCache-style pressure eviction. Dropping the
-        // decodes is always safe: visible rows re-request on demand.
+        // No pressure eviction of its own; visible rows re-request.
         [[NSNotificationCenter defaultCenter]
                 addObserverForName:UIApplicationDidReceiveMemoryWarningNotification
                             object:nil
@@ -334,9 +291,8 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
 }
 
 @implementation AudioTrackArtwork {
-    // The key is the one staleness fence for thumbnail pixels: every data
-    // transition replaces it (and clears the pending flag), so a decode is
-    // current exactly when its captured key is still installed.
+    // The one staleness fence for thumbnail pixels: every data transition
+    // replaces it and clears the pending flag.
     EmbeddedThumbnailKey *_thumbnailCacheKey;
     NSData *_encodedThumbnailData;
     AudioTrackThumbnailDecoder _thumbnailDecoder;
@@ -344,17 +300,13 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     VibeImage *_embeddedArt;
     NSData *_embeddedArtData;
     AudioTrackArchivedDisplayArtProvider _archivedDisplayArtProvider;
-    // Compaction's display-art rendition, parked for the one cache write.
     NSData *_archivedDisplayArtDataForStorage;
     AudioTrackArtworkExtractor _extractor;
-    // See VibeEmbeddedArtFact. A read failure leaves Unknown in place,
-    // keeping the folder fallback closed; a discard demotes Settled to
-    // NeedsRead — the bytes go, the fact that art exists does not.
+    // A read failure leaves Unknown, keeping the folder fallback closed.
     VibeEmbeddedArtFact _embeddedArtFact;
     BOOL _embeddedExtractionInFlight;
     NSUInteger _embeddedExtractionFailures;
-    // Monotonic seconds before which no further extraction may start, 0 for
-    // none. Set by a failed read, cleared by anything that re-arms the budget.
+    // Monotonic; 0 for none.
     NSTimeInterval _embeddedExtractionRetryNotBefore;
     BOOL _embeddedUndecodable;
     NSUInteger _artGeneration;
@@ -386,20 +338,15 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
 #if TARGET_OS_OSX
         _folderArt = FolderArtResolver.sharedInstance;
 #else
-        // Folder art is a macOS feature. Left nil, every folder-art accessor
-        // below is a message to nil: no cover image, and no background load
-        // scheduled, so iOS shows a file's embedded art alone and the resolver
-        // is never built.
+        // macOS-only: nil makes every folder-art accessor a no-op.
         _folderArt = nil;
 #endif
     }
     return self;
 }
 
-// The decoded thumbnail is keyed by this instance alone, so once it is gone
-// nothing can look the entry up again. Without this every playlist reload
-// stranded a fresh set of row thumbnails, and their pixels, until 16k newer
-// rows pushed them out. A decode in flight retains self, so none lands after.
+// Keyed by this instance alone, so nothing else can remove the entry. A
+// decode in flight retains self, so none lands after.
 - (void)dealloc {
     [VibeEmbeddedThumbnailCache() removeImageForKey:_thumbnailCacheKey];
 }
@@ -410,40 +357,29 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     copy.folderArt = self.folderArt;
     copy.clock = self.clock;
     @synchronized (self) {
-        // Every transition field belongs to the new holder. A copied
-        // art-bearing row carries only the thumbnail's compact bytes, matching
-        // a disk-cache hit, and re-reads full-size bytes on demand.
+        // Like a cache hit: compact bytes only, full art re-read on demand.
         copy->_encodedThumbnailData = [_encodedThumbnailData copy];
         copy->_thumbnailDecoder = [_thumbnailDecoder copy];
-        // Same file, same disk entry: the archived-rendition read is as valid
-        // for the copy. The storage stash deliberately does not transfer — the
-        // original's one cache write consumes it.
+        // Same disk entry. The storage stash stays with the original, whose
+        // one cache write consumes it.
         copy->_archivedDisplayArtProvider = _archivedDisplayArtProvider;
         copy->_embeddedUndecodable = _embeddedUndecodable;
-        // Known-and-decodable re-arms extraction, since the copy carries no
-        // full-size bytes; known-undecodable stays settled; unknown or artless
-        // inherits.
         copy->_embeddedArtFact = VibeEmbeddedArtFactHasArt(_embeddedArtFact)
                 ? (_embeddedUndecodable ? VibeEmbeddedArtFactHasArtSettled
                                         : VibeEmbeddedArtFactHasArtNeedsRead)
                 : _embeddedArtFact;
     }
-    // Deliberately no thumbnail transfer into the display LRU: only the
-    // display request path populates it, and copies are made on parse workers
-    // — a scan's duplicate rows must not evict visible rows' pixels. The
-    // copy's thumbnail decodes on demand through the bounded display path.
+    // No display-LRU entry: copies are made on parse workers, and a scan's
+    // duplicate rows must not evict visible pixels.
     return copy;
 }
 
-// Read before taking the monitor, never under it — it is cheap and never
-// blocks, but the injected form is arbitrary caller code.
+// Never under the monitor: the injected clock is arbitrary code.
 - (NSTimeInterval)nowSeconds {
     AudioTrackArtworkClock clock = self.clock;
     return clock ? clock() : NSProcessInfo.processInfo.systemUptime;
 }
 
-// _embeddedExtractionRetryNotBefore is 0 whenever no read has failed, so this
-// is also the answer for a track that has never been read at all.
 - (BOOL)retryBackoffHasElapsedLocked:(NSTimeInterval)now {
     return now >= _embeddedExtractionRetryNotBefore;
 }
@@ -465,8 +401,7 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         _thumbnailDecodePending = NO;
         _embeddedArtData = artData;
         _encodedThumbnailData = nil;
-        // A data transition orphans the archived rendition; the loader
-        // re-stamps the provider once the fresh entry is written.
+        // The loader re-stamps the provider once the fresh entry is written.
         _archivedDisplayArtProvider = nil;
         _archivedDisplayArtDataForStorage = nil;
         _embeddedArtFact = artData != nil ? VibeEmbeddedArtFactHasArtSettled
@@ -488,9 +423,6 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         _encodedThumbnailData = [encodedData copy];
         _archivedDisplayArtProvider = nil;
         _archivedDisplayArtDataForStorage = nil;
-        // An entry that knows of no art is artless: settled rather than
-        // re-reading the file for art that is not there. An art-bearing entry
-        // still needs a read, so the full-resolution image comes on demand.
         _embeddedArtFact = hasEmbeddedArt ? VibeEmbeddedArtFactHasArtNeedsRead
                                           : VibeEmbeddedArtFactArtless;
         _embeddedExtractionInFlight = NO;
@@ -589,8 +521,7 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     return VibeEmbeddedThumbnailCacheLimit();
 }
 
-// 0 restores the production bound. The override only shrinks what the next
-// setImage: keeps; the caller clears the cache around it.
+// Applies from the next setImage:; the caller clears the cache around it.
 + (void)setDecodedThumbnailCacheLimitForTesting:(NSUInteger)limit {
     sEmbeddedThumbnailCacheLimitOverride = limit;
 }
@@ -599,9 +530,7 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     [VibeEmbeddedThumbnailCache() removeAllImages];
 }
 
-// The file's own art, or the folder's cover when it has none. Blocking on both
-// paths; the folder side resolves its directory the first time any track in it
-// asks — see FolderArtResolver, which owns the cost rules.
+// The file's own art, or the folder's cover when it has none. Blocking.
 - (VibeImage *)loadArtBlocking {
     NSUInteger generation;
     @synchronized (self) {
@@ -628,10 +557,8 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     return [self.folderArt displayImageForAudioFilePath:path];
 }
 
-// Full-resolution art decodes lazily, so only the tracks actually displayed
-// pay the decode and memory cost. Cache-hit instances carry no art bytes,
-// which are not archived, and re-extract from the audio file on demand. Only
-// the current track ever takes that path.
+// Lazy: only displayed tracks pay the decode. Order: decoded art, in-memory
+// bytes, archived rendition, source-file extraction.
 - (VibeImage *)embeddedArtForExpectedGeneration:(NSUInteger)expectedGeneration
                            sourceFileReadAllowed:(BOOL)sourceFileReadAllowed {
     NSString *pathToExtract = nil;
@@ -642,9 +569,8 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     NSUInteger generation;
     NSTimeInterval now = [self nowSeconds];
     @synchronized (self) {
-        // This check and the source-extraction claim are one critical section.
-        // A demotion therefore lands wholly before the read (which never starts)
-        // or wholly after its claim (when it is legitimately uncancellable).
+        // One critical section with the extraction claim: a demotion lands
+        // wholly before the read or wholly after its claim.
         if (expectedGeneration != _artGeneration) {
             return nil;
         }
@@ -657,10 +583,8 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
             dataWasInMemory = YES;
         }
         else if (_archivedDisplayArtProvider) {
-            // The archived rendition beats a source-file re-read: no
-            // materialization, no TagLib, and on a dataless cloud file no
-            // transfer. It takes no extraction claim — a concurrent read is
-            // at worst redundant, and the store below is generation-fenced.
+            // No extraction claim: a concurrent read is at worst redundant,
+            // and the store is generation-fenced.
             providerToRead = _archivedDisplayArtProvider;
         }
         else if ([self canStartEmbeddedExtractionLockedAt:now]) {
@@ -670,25 +594,20 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
             _embeddedExtractionInFlight = YES;
             pathToExtract = _sourceFilePath;
         }
-        // A conclusive artless result is never re-read, while a failed read gets
-        // a small bounded retry budget, no faster than the backoff. Claim the
-        // call under the lock so concurrent callers do not double-extract.
         else {
             return nil;
         }
     }
-    // File I/O and the decode run outside the lock; see the discipline above.
+    // Outside the monitor: a provider read can block indefinitely.
     if (providerToRead) {
         dataToDecode = providerToRead();
         VibeImage *decodedProviderArt = dataToDecode
                 ? VibeDecodedImageWithData(dataToDecode, kVibeDisplayArtDimension)
                 : nil;
         if (!decodedProviderArt) {
-            // The sidecar is gone or corrupt; the file's own art may still be
-            // fine, so this must not mark the track undecodable. Drop the
-            // provider and take the demotion fence: the registry's
-            // finishRequest re-requests a still-wanted current row, and the
-            // fresh pass reaches extraction with proper materialization.
+            // Not undecodable: the file's own art may be fine. Drop the
+            // provider and take the demotion fence, so finishRequest
+            // re-requests a still-wanted row and the next pass extracts.
             @synchronized (self) {
                 if (_archivedDisplayArtProvider == providerToRead) {
                     _archivedDisplayArtProvider = nil;
@@ -701,9 +620,7 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
             return nil;
         }
         @synchronized (self) {
-            // Provider bytes are never re-pinned as _embeddedArtData; the
-            // decoded image alone is the win, and a discard re-reads the
-            // sidecar for pennies.
+            // Never re-pinned as _embeddedArtData; a re-read is cheap.
             if (generation == _artGeneration && !_embeddedArt) {
                 _embeddedArt = decodedProviderArt;
             }
@@ -721,18 +638,13 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     VibeImage *decoded = dataToDecode
             ? VibeDecodedImageWithData(dataToDecode, kVibeDisplayArtDimension)
             : nil;
-    // The injected test clock is sampled after the read. Production starts its
-    // relative timer here for the same reason: a blocked read has already given
-    // the condition time to change; an immediate failure needs the full gate.
+    // The backoff runs from completion: a read that blocked already waited.
     NSTimeInterval completedAt = [self nowSeconds];
     @synchronized (self) {
         if (pathToExtract) {
             _embeddedExtractionInFlight = NO;
             if (extractionResult == VibeEmbeddedArtExtractionReadFailed) {
-                // A demotion starts a fresh display pass. Its generation bump
-                // re-armed the budget, so an older read must not spend one of
-                // the new pass's attempts, or hold the new pass off behind a
-                // backoff, when it finally settles.
+                // A superseded read must not spend the new pass's budget.
                 if (generation == _artGeneration) {
                     _embeddedExtractionFailures = MIN(kMaxEmbeddedArtExtractionFailures,
                                                        _embeddedExtractionFailures + 1);
@@ -750,21 +662,16 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
             _embeddedArtFact = VibeEmbeddedArtFactHasArtSettled;
         }
         if (dataToDecode && !decoded) {
-            // The bytes exist but cannot be decoded, which is permanent for
-            // this file. Mark it and drop the bytes rather than pinning them.
+            // Permanent for this file; drop the bytes.
             _embeddedUndecodable = YES;
             _embeddedArtData = nil;
             return _embeddedArt; // still nil unless a concurrent store won
         }
-        // Store back only if no track-change discard ran mid-load. Otherwise
-        // return the result transiently, without re-pinning a demoted track's
-        // art. A racing discardArtData is fine, since it only wants the
-        // raw bytes gone.
+        // Store only if no demotion ran mid-load; otherwise return it
+        // transiently.
         if (generation == _artGeneration) {
-            // Cache the bytes only when they were freshly read from the file.
-            // Bytes that have gone from _embeddedArtData by now were dropped by
-            // discardArtData mid-decode, and restoring them would undo
-            // its memory release.
+            // Only freshly read bytes: in-memory ones gone by now were dropped
+            // by discardArtData, and restoring them would undo it.
             if (dataToDecode && !_embeddedArtData && !dataWasInMemory) {
                 _embeddedArtData = dataToDecode;
             }
@@ -773,9 +680,8 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
             }
         }
         else if (dataToDecode) {
-            // Nothing is stored, but the file demonstrably has art, so re-arm
-            // the on-demand re-read. This load claimed the attempt flag on
-            // entry, and the discard's early return left that claim in place.
+            // Superseded: nothing stored, but the file has art, so the new
+            // pass must read again.
             _embeddedArtFact = VibeEmbeddedArtFactHasArtNeedsRead;
         }
         return _embeddedArt ?: decoded;
@@ -784,9 +690,7 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
 
 // The gate on every folder-art fallback below. Call with the monitor held.
 - (BOOL)knownToCarryNoArtLocked {
-    // The fact covers what the held bytes cannot: a cache hit whose entry was
-    // written before the thumbnail was archived, and a parsed track whose
-    // bytes have been discarded, both of which have art without holding any.
+    // The fact covers rows that have art but hold no bytes.
     BOOL hasArtOfItsOwn = VibeEmbeddedArtFactHasArt(_embeddedArtFact) ||
                           _embeddedArt != nil ||
                           _embeddedArtData != nil || _encodedThumbnailData != nil;
@@ -799,11 +703,8 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     return _embeddedArtFact == VibeEmbeddedArtFactArtless;
 }
 
-// The file to ask the folder about, or nil when the folder must not be asked.
-// Every fallback below goes through this one line, so the guarantee that a
-// cover can never stand in front of a track's own art has exactly one home.
-// Call with the monitor held. nil is a contractual argument to every
-// FolderArtResolver accessor, so callers pass the result straight on.
+// The one home of "embedded beats folder": the file to ask the folder about,
+// or nil, which every FolderArtResolver accessor accepts. Monitor held.
 - (NSString *)folderFallbackPathLocked {
     return [self knownToCarryNoArtLocked] ? _sourceFilePath : nil;
 }
@@ -816,10 +717,7 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         }
         path = [self folderFallbackPathLocked];
     }
-    // No decode and no file access: this is the main thread's updateUI
-    // accessor, and both happen on the background loadArtBlocking path that
-    // artNeedsLoad asks for. The folder's cover comes back only if it is
-    // already decoded.
+    // No decode, no file access: the folder's cover only if already decoded.
     return [self.folderArt cachedDisplayImageForAudioFilePath:path];
 }
 
@@ -830,12 +728,8 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         if (_embeddedArt) {
             return NO;
         }
-        // Either there are in-memory bytes still to decode, an archived
-        // rendition to read, or the file has not been read. All are background
-        // work worth dispatching. The backoff is applied here as well as in
-        // embeddedArt, so a pass inside the window answers NO rather than
-        // dispatching a load that would take the pending marker and
-        // immediately no-op.
+        // The backoff applies here too, so a pass inside the window answers
+        // NO rather than dispatching a load that would no-op.
         BOOL canExtract = [self canStartEmbeddedExtractionLockedAt:now];
         if (!_embeddedUndecodable && (_embeddedArtData != nil ||
                 _archivedDisplayArtProvider != nil || canExtract)) {
@@ -843,10 +737,7 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         }
         path = [self folderFallbackPathLocked];
     }
-    // The file has no art of its own, or none that decodes. A load is still
-    // worth dispatching while the folder's cover is unsettled or undecoded, and
-    // FolderArtResolver answers NO for good once a folder is known to have none, so
-    // this cannot spin.
+    // Cannot spin: the resolver answers NO for good once a folder has none.
     return [self.folderArt needsBackgroundLoadForAudioFilePath:path];
 }
 
@@ -872,8 +763,8 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         BOOL hasArchivedRendition = _archivedDisplayArtProvider != nil;
         BOOL needsEmbeddedWork = !_embeddedUndecodable &&
                 (_embeddedArtData != nil || hasArchivedRendition || canExtract);
-        // No source URL while an archived rendition stands in: its read is a
-        // small cache hit, so the request must not materialize the song.
+        // No source URL while a rendition stands in: it must not materialize
+        // the song.
         *sourceURL = needsEmbeddedWork && canExtract && !_embeddedArtData &&
                 !hasArchivedRendition
                 ? [NSURL fileURLWithPath:_sourceFilePath] : nil;
@@ -907,32 +798,20 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     }
 }
 
-// Drops the full-size compressed art bytes once the thumbnail exists. Freshly
-// parsed instances otherwise pin 0.5-5MB per track for the whole session.
-// Afterwards the instance behaves like a cache hit: loadArtBlocking re-reads the
-// audio file on demand for the one track shown at full resolution.
+// Drops the original art bytes once the thumbnail exists; the row then
+// behaves like a cache hit.
 - (void)discardArtData {
     @synchronized (self) {
-        // There is deliberately no generation bump. This only wants the raw
-        // bytes released, not an in-flight decode of those same bytes thrown
-        // away.
+        // No generation bump: an in-flight decode of these bytes stays valid.
         if (!_embeddedArtData) {
-            // There is nothing to drop. Keep the settled flag: an artless
-            // track has it set to YES from the parse, and resetting it would
-            // trigger a full TagLib re-parse merely to rediscover that there
-            // is no art.
             return;
         }
-        // If thumbnail encoding failed, keep the source bytes. Otherwise a
-        // shared-cache eviction would make this row's list art unrecoverable.
+        // Without thumbnail bytes these are the row art's only source.
         if (VibeEmbeddedArtFactHasArt(_embeddedArtFact) && !_encodedThumbnailData) {
             return;
         }
         _embeddedArtData = nil;
         if (!_embeddedArt) {
-            // Art exists but is not yet decoded, so re-arm the on-demand
-            // re-read. Only art-bearing rows reach here with bytes to drop,
-            // so the demotion is HasArtSettled -> HasArtNeedsRead.
             if (VibeEmbeddedArtFactHasArt(_embeddedArtFact)) {
                 _embeddedArtFact = VibeEmbeddedArtFactHasArtNeedsRead;
             }
@@ -942,7 +821,6 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     }
 }
 
-// Called by the UI, on the main thread, when this track stops being current.
 - (void)discardDecodedArt {
     NSParameterAssert(NSThread.isMainThread);
     @synchronized (self) {
@@ -961,24 +839,22 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
 
 // Call with the monitor held.
 - (void)discardDecodedArtStateLocked {
-    // Bump before every early exit. This is both the store fence and the request
-    // identity presented under the extraction-claim lock.
+    // Before any early exit: the store fence and the request identity.
     _artGeneration++;
     _artLoadPending = NO;
     if (!VibeEmbeddedArtFactIsSettled(_embeddedArtFact) && !_embeddedUndecodable) {
         _embeddedExtractionFailures = 0;
         _embeddedExtractionRetryNotBefore = 0;
     }
-    // TRAP: _embeddedExtractionInFlight is deliberately NOT cleared here. It is
-    // the single-flight claim over a read already running outside the monitor.
+    // TRAP: _embeddedExtractionInFlight is not cleared: it claims a read still
+    // running outside the monitor, and clearing it would let the next pass
+    // start a second uncancellable read.
     if (!_embeddedArt && !_embeddedArtData) {
         return;
     }
     _embeddedArt = nil;
     _embeddedArtData = nil;
-    // Held art or bytes imply the fact is HasArt (every path that stores
-    // either sets it), so this demotion is HasArtSettled -> HasArtNeedsRead:
-    // the bytes go, the fact that art exists does not.
+    // Held art or bytes imply HasArt: the bytes go, the fact stays.
     _embeddedArtFact = VibeEmbeddedArtFactHasArtNeedsRead;
 }
 
@@ -996,13 +872,10 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     }
     NSString *path;
     @synchronized (self) {
-        // A track with its own art never asks the folder anything, so a fully
-        // tagged playlist never opens a cover file at all.
         path = [self folderFallbackPathLocked];
     }
-    // Non-blocking, so a playlist cell may call this while drawing: an
-    // unresolved folder resolves in the background, and the notification brings
-    // the row back to be redrawn.
+    // Non-blocking; an unresolved folder resolves in the background and its
+    // notification redraws the row.
     return [self.folderArt cachedThumbnailForAudioFilePath:path resolveIfUnknown:YES];
 }
 
@@ -1016,16 +889,11 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         return nil;
     }
     @synchronized (self) {
-        // adopt* may have rotated the key between the capture and the lookup;
-        // an identity mismatch means those pixels belong to departed data.
+        // adopt* may have rotated the key since the capture.
         return key == _thumbnailCacheKey ? cached : nil;
     }
 }
 
-// Metadata construction and archive encoding run on metadata workers and need
-// pixels once, to produce compact bytes. This never inserts into the shared
-// display cache, so a playlist-wide scan cannot evict visible rows' pixels.
-// UI paths use cachedThumbnail plus the bounded request below instead.
 - (VibeImage *)decodeThumbnailForArchiving {
     VibeImage *cached = [self cachedEmbeddedThumbnail];
     if (cached) {
@@ -1060,21 +928,18 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     return nil;
 }
 
-// _thumbnailCacheKey's monitor held. The bytes conclusively failed to decode:
-// drop them so redraws stop retrying, and rotate the key so any concurrent
-// decode of the departed bytes reads as stale.
+// Monitor held. Drops bytes that failed to decode, so redraws stop retrying,
+// and rotates the key so a concurrent decode of them reads as stale.
 - (void)markThumbnailDecodeFailureLockedForData:(NSData *)dataToDecode
                         decodingStoredThumbnail:(BOOL)decodingStoredThumbnail {
     if (decodingStoredThumbnail && [_encodedThumbnailData isEqual:dataToDecode]) {
-        // A corrupt archived thumbnail does not prove the source art is bad.
-        // Drop only the compact copy; full art can re-extract.
+        // A corrupt compact copy says nothing about the source art.
         _encodedThumbnailData = nil;
         _thumbnailCacheKey = [[EmbeddedThumbnailKey alloc] init];
         _thumbnailDecodePending = NO;
     }
     else if (!decodingStoredThumbnail && [_embeddedArtData isEqual:dataToDecode]) {
-        // The same undecodable marking as the full-resolution path.
-        // Otherwise every playlist cell redraw retries doomed bytes.
+        // As the full-resolution path marks it.
         _embeddedUndecodable = YES;
         _embeddedArtData = nil;
         _thumbnailCacheKey = [[EmbeddedThumbnailKey alloc] init];
@@ -1101,12 +966,8 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         }
         dataToDecode = _encodedThumbnailData ?: _embeddedArtData;
         if (!dataToDecode) {
-            // An entry that knows of art but archived no thumbnail bytes — a
-            // failed 128px re-encode at parse — would otherwise be a dead end:
-            // no request could ever produce its row art until a full-art load
-            // happened to repopulate the bytes. Recover through the archived
-            // display rendition, whose within-bound originals were stored
-            // verbatim and so cannot have failed the same re-encode.
+            // An art-bearing entry with no thumbnail bytes (the 128px
+            // re-encode failed) recovers through the archived rendition.
             archivedProvider = _archivedDisplayArtProvider;
             if (!archivedProvider) {
                 LogDebug(@"Thumb request %@: no bytes and no rendition — dead end",
@@ -1121,23 +982,18 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     }
 
     [VibeEmbeddedThumbnailDecodeScheduler() submitWork:^{
-        // The provider read is a blocking disk-cache hit, worker-safe here.
         NSData *bytes = dataToDecode ?: archivedProvider();
         VibeImage *thumbnail = !bytes ? nil : (decoder
                 ? decoder(bytes)
                 : VibeDecodedImageWithData(bytes, kVibeThumbnailArtDimension));
-        // Keep the scheduler slot until main has consumed the decoded result.
-        // Otherwise a busy main queue can accumulate a second, unbounded tail
-        // of pixel objects after the bounded worker says those jobs finished.
+        // Sync, keeping the slot until main consumes the pixels: async would
+        // let a busy main queue pile up an unbounded tail of them.
         dispatch_sync(dispatch_get_main_queue(), ^{
             BOOL current = NO;
             @synchronized (self) {
-                // Key identity is the whole staleness check. A match also
-                // proves the pending flag is this request's: rotation clears
-                // it, and only one request per key generation can set it. The store
-                // stays under this monitor so a rotation cannot land between
-                // the check and the insert and strand pixels under a departed
-                // key.
+                // Key identity is the staleness check, and a match proves the
+                // pending flag is this request's. The insert stays under the
+                // monitor so a rotation cannot strand pixels under a dead key.
                 current = cacheKey == self->_thumbnailCacheKey;
                 if (current) {
                     self->_thumbnailDecodePending = NO;
@@ -1149,10 +1005,7 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
                         [self markThumbnailDecodeFailureLockedForData:dataToDecode
                                               decodingStoredThumbnail:decodingStoredThumbnail];
                     }
-                    // A missing or undecodable archived rendition marks
-                    // nothing: the sidecar's loss says nothing about the
-                    // file's own art, and a later full-art load can still
-                    // repopulate the bytes this row lacks.
+                    // A failed rendition marks nothing about the file's art.
                 }
             }
             completion(current ? thumbnail : nil);

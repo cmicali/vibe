@@ -1,8 +1,7 @@
 //
-// The in-flight open's pending intent: whether the file that is still opening
-// should land playing or parked, and where it should start. A play/pause tap
-// or a seek arriving during Loading edits this rather than being dropped, so
-// the transport stays honest across an open that takes seconds.
+// The in-flight open's pending intent: whether the opening file lands playing
+// or parked, and where. A play/pause tap or a seek during Loading edits it
+// rather than being dropped.
 //
 
 #import <XCTest/XCTest.h>

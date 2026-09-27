@@ -1,10 +1,12 @@
-// Global CGEvents: only for explicit OS-input tests on a dedicated test Mac
-// or disposable macOS VM. Never use as a stress/replay recovery fallback.
-// App-local debug events already exercise key monitors and view handlers.
+// Global CGEvents, only for OS-input tests on a dedicated test Mac or a
+// disposable VM — never as a stress or replay recovery fallback. The debug
+// channel's app-local events already reach key monitors and view handlers.
 //
-// Usage: swift input.swift --isolated-desktop key|move|click|dblclick|drag ...
+// Usage: swift input.swift --isolated-desktop
+//          key <a-z|0-9|space|tab|return|esc> | move x y | click x y
+//          | dblclick x y | drag x1 y1 x2 y2 [steps 2-200, default 20]
 // Coordinates are global screen points, origin top-left. The flag asserts
-// isolation; it does not create it. Activation and bounds are not containment.
+// isolation, it does not create it: the events reach whatever is under them.
 import CoreGraphics
 import Foundation
 
@@ -52,11 +54,10 @@ case "key":
     post(CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: true))
     post(CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: false))
 
-// A plain cursor move — the only way to drive NSTrackingArea hover states
-// (mouseEntered/Exited): the window server computes those from real cursor
-// motion, so neither --debug-cmd's posted NSEvents nor a bare
-// CGWarpMouseCursorPosition reach them. Enter/exit fire on BOUNDARY crossings,
-// so move outside the target view first if the cursor may already be inside.
+// The only way to drive NSTrackingArea hover (mouseEntered/Exited): the window
+// server derives it from real cursor motion, which neither the channel's posted
+// NSEvents nor CGWarpMouseCursorPosition produce. Enter/exit fire on boundary
+// crossings, so move outside the view first if the cursor may be inside.
 case "move":
     post(mouse(.mouseMoved, point(2, 3)))
 

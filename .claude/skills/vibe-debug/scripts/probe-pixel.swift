@@ -1,8 +1,8 @@
-// Prints the RGBA of one or more pixels in an image file. Use to assert on
-// background tones and colors instead of eyeballing near-identical grays.
+// Print the RGBA of pixels in an image, to assert on tones instead of
+// eyeballing near-identical grays.
 //   Usage: swift probe-pixel.swift <image.png> <x> <y> [<x> <y> ...]
-// Coordinates are bitmap pixels with origin at the TOP-LEFT. Note that
-// screencapture output is 2x on retina displays (window point = pixel / 2).
+// Coordinates are bitmap pixels, origin top-left; a retina screencapture is 2x
+// (window point = pixel / 2).
 import AppKit
 
 let args = CommandLine.arguments

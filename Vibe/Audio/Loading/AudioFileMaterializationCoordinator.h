@@ -2,12 +2,10 @@
 //  AudioFileMaterializationCoordinator.h
 //  Vibe
 //
-//  Path-wide, role-aware ownership of an audio file's whole journey from
-//  dataless placeholder to usable handle: stage 1 is the one operation that
-//  makes the contents local, stage 2 the purpose-keyed AudioFileHandle opens
-//  riding it. A token owns delivery, not the underlying claim: detaching or
-//  cancelling a waiter never erases a path whose stat/open may still be
-//  blocked in the OS.
+//  One path-keyed claim from dataless placeholder to AudioFileHandle: stage 1
+//  makes the contents local, stage 2 is the purpose-keyed handle opens riding
+//  it. A token owns delivery, not the claim: cancelling a waiter never erases
+//  a path whose stat or open may still be blocked in the OS.
 //
 
 #import <Foundation/Foundation.h>
@@ -35,8 +33,7 @@ typedef NS_ENUM(NSUInteger, VibeAudioFileMaterializationRole) {
 
 typedef NS_ENUM(NSUInteger, VibeAudioFileMaterializationResult) {
     VibeAudioFileMaterializationResultReady = 0,
-    // The metadata request stood down for foreground work. This is not a file
-    // failure and must not consume a caller's retry budget.
+    // Stood down for foreground work: not a file failure, spends no retry.
     VibeAudioFileMaterializationResultYielded,
     VibeAudioFileMaterializationResultAdmissionExhausted,
     VibeAudioFileMaterializationResultFailed,
@@ -52,8 +49,8 @@ typedef void (^VibeAudioFileMaterializationCompletion)(
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
 
-// Detaches only this waiter. A same-path owner keeps running while any other
-// waiter remains, and a completion already queued but not begun is suppressed.
+// Detaches only this waiter; the claim runs on while others remain. A
+// completion queued but not begun is suppressed.
 - (void)cancel;
 
 @end
@@ -61,20 +58,17 @@ typedef void (^VibeAudioFileMaterializationCompletion)(
 FOUNDATION_EXPORT NSString * const VibeAudioFileOpenErrorDomain;
 
 typedef NS_ENUM(NSInteger, VibeAudioFileOpenErrorCode) {
-    // The request never entered its next stage: materialization admission or
-    // the fixed live handle-run ceiling was exhausted.
+    // Transfer admission or the handle-run ceiling refused it; the file never
+    // began.
     VibeAudioFileOpenErrorAdmissionExhausted = 1,
-    // A run that produced no file because it had been abandoned, delivered to a
-    // waiter that bound afterwards. It says nothing about the file; the caller
-    // may retry. Backstop only — the coordinator restarts such a claim rather
-    // than reporting it — so it exists to keep "a completion always carries a
-    // file or a reason" true by construction.
+    // Backstop: an abandoned run's empty result reached a later waiter. Says
+    // nothing about the file. The coordinator restarts such a run instead, so
+    // this only keeps "a completion carries a file or a reason" total.
     VibeAudioFileOpenErrorAbandoned,
-    // The central path-wide materialization request stood down. Playback and
-    // prefetch do not normally yield, but the outer completion remains total
-    // if a role policy changes.
+    // Stage 1 yielded. Playback and prefetch do not yield today; this keeps
+    // the completion total.
     VibeAudioFileOpenErrorMaterializationYielded,
-    // The central path-wide request failed before the handle open was attempted.
+    // Stage 1 failed; no handle open was attempted.
     VibeAudioFileOpenErrorMaterializationFailed,
 };
 
@@ -92,73 +86,56 @@ typedef void (^VibeAudioFileOpenCompletion)(AudioFileHandle * _Nullable file,
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
 
-// Stops this request from receiving a result whose completion-queue block has
-// not begun and detaches its path-wide materialization waiter. An AudioFileHandle
-// open which has already begun is not cancellable: its purpose-keyed claim
-// stays registered until the call returns, so a same-purpose/path retry binds
-// to it rather than multiplying an uncancellable handle open.
+// Suppresses a result whose completion block has not begun and detaches the
+// stage-1 waiter. A handle open already begun is uncancellable: its run stays
+// registered until the call returns, so a same-purpose/path retry binds to it
+// instead of starting another.
 //
-// There is deliberately no detach-without-cancel variant. Cancellation is also
-// what marks the run abandoned, which is how a claim whose waiter left and came
-// back knows to give the new waiter a fresh run instead of handing it the
-// abandoned one's empty result.
+// No detach-without-cancel variant: cancelling also marks the run abandoned,
+// which is how a rebound waiter gets a fresh run instead of the abandoned
+// one's empty result.
 - (void)cancel;
 
 @end
 
 @interface AudioFileMaterializationCoordinator : NSObject
 
-// The coherent snapshot applied most recently. Materialization limits affect
-// this coordinator immediately; other subsystems take their own snapshot at
-// their next loader, prefetch decision, retry, or file-open boundary.
+// The last snapshot applied. Its limits apply here at once; other subsystems
+// snapshot at their next loader, prefetch decision, retry or open.
 @property (nonatomic, copy, readonly) AudioLoadingConfiguration *currentConfiguration;
 
 + (instancetype)sharedCoordinator;
 
-// Applies one immutable snapshot. Raising a running limit admits pending work
-// immediately. Lowering a limit lets existing work drain and cancels nothing.
-// Lower pending limits retain already-admitted claims; grace changes apply only
-// to claims admitted afterwards.
+// Raising a running limit admits pending work at once; lowering any limit
+// cancels nothing. A grace change applies to claims admitted afterwards.
 - (void)applyConfiguration:(AudioLoadingConfiguration *)configuration;
 
-// The completion is asynchronous on completionQueue and always carries a
-// terminal result. Joining an existing same-path claim and creating a fresh
-// one are indistinguishable to the caller.
+// The completion is asynchronous on completionQueue and always terminal.
+// Joining a same-path claim and starting one look the same to the caller.
 - (AudioFileMaterializationRequestToken *)materializeURL:(NSURL *)url
                                                     role:(VibeAudioFileMaterializationRole)role
                                          completionQueue:(dispatch_queue_t)completionQueue
                                               completion:(VibeAudioFileMaterializationCompletion)completion;
 
-// Stage 2 of the same claim: one current AudioFileHandle waiter per purpose and
-// standardized path. A later request for that key replaces the delivery
-// binding without starting another handle open. Both purposes first ride
-// the path-wide transfer (joining any claim already moving those bytes).
-// Transfer capacity ends when stage 1 settles. A
-// separate private ceiling permits six live purpose/path handle runs per
-// coordinator. An existing key rebinds even at the ceiling, while a new
-// seventh key is refused immediately before materialization. The ceiling is
-// purpose-blind: saturation may refuse playback rather than start a seventh
-// worker. There is no handle-run queue, grace or configuration. Completions run
-// on completionQueue; either kind of admission failure uses
-// VibeAudioFileOpenErrorAdmissionExhausted, distinct from a file open which
-// began and hit the player's ordinary per-file timeout.
+// Stage 2: one current waiter per (purpose, standardized path); a later
+// request for that key rebinds delivery without another handle open. Both
+// purposes ride the path's stage-1 claim, whose transfer lane ends when it
+// settles. At most six handle runs live at once, purpose-blind: an existing
+// key rebinds even at the ceiling, a seventh is refused before stage 1, so
+// saturation can refuse playback. No queue, grace or configuration. Both
+// refusals are VibeAudioFileOpenErrorAdmissionExhausted, distinct from the
+// player's per-file open timeout.
 - (AudioFileOpenToken *)openURL:(NSURL *)url
                          purpose:(VibeAudioFileOpenPurpose)purpose
                  completionQueue:(dispatch_queue_t)completionQueue
                       completion:(VibeAudioFileOpenCompletion)completion;
 
-// YES while any live claim carries a playback or prefetch waiter whose
-// materialization has not settled. This is the C1 rule's single source: the
-// coordinator itself yields metadata-only dataless work while it reads YES —
-// a foreground claim's registration preempts running metadata transfers, and
-// its settlement is what reopens admission, so no external release edge
-// exists to be missed or doubled. A metadata waiter may still join a
-// same-path foreground claim because that starts no second transfer, and a
-// claim for an already-local file passes entirely: the rule suspends provider
-// transfers, which it never starts. Background pickers (the metadata sweep)
-// read this before submitting dataless work; it is a snapshot the moment it
-// returns, which is fine — a submission that races a rising edge is yielded
-// before it can enter a provider operation, spending nothing.
+// YES while any claim has a playback or prefetch waiter whose stage 1 has not
+// settled: the C1 rule's single source. While YES the coordinator yields
+// metadata-only dataless work itself, and settlement reopens admission, so
+// there is no release edge to miss. A metadata waiter may still join a
+// same-path foreground claim, and an already-local file is exempt. A snapshot:
+// a submission racing a rising edge is yielded before any provider operation.
 - (BOOL)isForegroundTransferActive;
 
 @end

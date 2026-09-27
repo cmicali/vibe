@@ -21,11 +21,9 @@
     return STR_WAVEFORM_STYLE_BASIC;
 }
 
-// Class-wise a Detailed subclass, but the bake paints Detailed's band-pinned
-// gradient, not this style's re-aimed fade, and crops the played side
-// continuously where this style's fill advances a whole block at a time. The
-// scrubber's gate used to test isKindOfClass:Detailed, which let this style
-// through and baked both wrong.
+// The bake paints Detailed's band-pinned gradient and a continuous played
+// crop; this style re-aims its fade and fills whole blocks. Never gate the
+// bake on isKindOfClass:Detailed.
 - (BOOL)supportsEnvelopeBake {
     return NO;
 }
@@ -39,12 +37,9 @@
                          pitch:width / count];
 }
 
-// Discrete blocks with gaps, so the fill and the hover quantize to whole
-// blocks exactly as Sonic Cirrus's bar layers do — a clip edge or a thin
-// column landing inside a block read as a lit sliver of it. Both span whole
-// pitch slots (index count is the one-past-the-end edge, exactly the width): the
-// shared bar mask clips the gap away, and stopping at the block's own right
-// edge risks leaving its last device pixel unlit.
+// Whole blocks, as Sonic Cirrus quantizes, or a clip edge or thin column lights
+// a sliver of one. Both span whole pitch slots: the mask clips the gap, and
+// stopping at the block's own edge can leave its last pixel unlit.
 - (CGFloat)playedClipWidthForProgress:(CGFloat)progress width:(CGFloat)width {
     NSUInteger count = [self numBarsForWidth:width];
     NSUInteger boundary = (NSUInteger)VibeBlockBoundaryForProgress(progress, (NSInteger)count);
@@ -63,14 +58,9 @@
 }
 
 - (void)configureGradient:(CAGradientLayer *)gradient {
-    // Keep the default vertical axis over the full view. Basic's four-stop
-    // colors below are designed against it, not against Detailed's
-    // band-pinned fade.
+    // The default full-view axis, which the four stops below are designed for.
 }
 
-// One four-stop shape for both sides — historically the unplayed stops were
-// the played stops halved, which is now the theme colors' levels doing the
-// halving.
 - (NSArray<VibeColor *> *)gradientColorsForColor:(VibeColor *)color isDark:(BOOL)isDark {
     if (self.theme.flatFill) {
         return @[color, color];

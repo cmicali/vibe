@@ -1,16 +1,12 @@
-// Uploads the localized App Store product-page metadata — promotional text,
-// description, keywords, what's new, the support URL, and screenshots — from
-// Assets/app-store/ to App Store Connect. Copy format and tree layout:
-// Assets/app-store/README.md. Run via scripts/appstore-upload-metadata.sh (or
-// `make appstore-upload-metadata`), which resolves the shared API key.
+// Uploads the localized App Store product page — promotional text,
+// description, keywords, what's new, the support, marketing and privacy URLs,
+// and screenshots — from Assets/app-store/ (layout: its README.md). Run through
+// scripts/appstore-upload-metadata.sh, which resolves the API key.
 //
-// Targets the one editable version on ONE platform — --platform macos (the
-// default) or ios — since ASC localizations hang off a version and versions are
-// per platform. Both apps share a bundle id (Universal Purchase), so the two
-// platforms are separate version trains on the same app record and upload
-// independently. Text fields are PATCHed only when they differ; each screenshot
-// set is replaced wholesale, ordered by file name. macOS has one set per
-// locale, iOS two (iPhone and iPad are separate sets, not two sizes of one).
+// Targets the one editable version on ONE platform (--platform macos, the
+// default, or ios): localizations hang off a version, and versions are per
+// platform. Text is PATCHed only when it differs; each screenshot set is
+// replaced wholesale, ordered by file name.
 
 import BagbutikAppStore
 import BagbutikAppStoreModels
@@ -18,9 +14,8 @@ import BagbutikCore
 import CryptoKit
 import Foundation
 
-// Catalog language → App Store Connect locale. The App Store has no Bulgarian
-// product page, so `bg` maps to nil and is skipped with a warning; the catalog
-// stays the source of which languages exist (CLAUDE.md).
+// Catalog language → ASC locale. nil: the App Store has no product page in
+// that language, so it is skipped. An unmapped language is an error.
 let ascLocale: [String: String?] = [
     "bg": nil,
     "cs": "cs", "da": "da", "de": "de-DE", "el": "el", "en": "en-US",
@@ -31,9 +26,9 @@ let ascLocale: [String: String?] = [
     "uk": "uk", "vi": "vi", "zh-Hans": "zh-Hans", "zh-Hant": "zh-Hant",
 ]
 
-// The AppInfo carrying the privacy policy URL has its own state enum, so the
-// editable set has to be spelled twice. An app normally has two AppInfos: the
-// live one (READY_FOR_DISTRIBUTION) and the one being prepared.
+// AppInfo (which carries the privacy policy URL) has its own state enum, so the
+// editable set is spelled twice. An app normally has two AppInfos: the live one
+// and the one being prepared.
 let editableAppInfoStates: Set<AppInfo.Attributes.State> = [
     .prepareForSubmission, .developerRejected, .rejected,
     .readyForReview, .waitingForReview,
@@ -45,24 +40,18 @@ let editableStates: Set<AppVersionState> = [
     .invalidBinary, .readyForReview, .waitingForReview,
 ]
 
-// Which version train to write to, and where its copy lives on disk.
-// copy/<lang>/<platform>/ exists because every file under it is an ASC
-// *version* field, and versions are per platform.
+// The version train written to; also names copy/<lang>/<platform>/.
 enum TargetPlatform: String {
     case macos, ios
 
     var asc: Platform { self == .macos ? .macOS : .iOS }
 
-    // The ASC screenshot sets this platform ships, and the subdirectory of
-    // screenshots/<lang>/<platform>/ each one's files come from. macOS has a
-    // single set and keeps its flat directory; iOS has two, because iPhone
-    // and iPad are separate sets rather than two sizes of one, and the iPad
-    // set is REQUIRED — TARGETED_DEVICE_FAMILY is 1,2.
+    // Each ASC screenshot set and its subdirectory of
+    // screenshots/<lang>/<platform>/. iPhone and iPad are separate sets, and
+    // the iPad one is required because TARGETED_DEVICE_FAMILY is 1,2.
     //
-    // APP_IPHONE_69 does not exist: a deliberately invalid POST made ASC
-    // enumerate its valid values, and 6.7" is still the largest iPhone type.
-    // Do not "fix" this by bumping Bagbutik — 24.0.3 is upstream's latest and
-    // has no such case either.
+    // There is no APP_IPHONE_69: ASC's own list of valid values, drawn out by a
+    // deliberately invalid POST, tops out at 6.7", so this is not a Bagbutik gap.
     var screenshotSets: [(dir: String, type: ScreenshotDisplayType)] {
         switch self {
         case .macos: return [(dir: "", type: .appDesktop)]
@@ -145,16 +134,14 @@ func loadCopy(root: URL, options: Options) throws -> [LocaleCopy] {
     let fm = FileManager.default
     let copyDir = root.appendingPathComponent("copy")
     let platformDir = options.platform.rawValue
-    // A language is one whose copy exists FOR THIS PLATFORM. Listing by
-    // <lang>/ alone would pick up languages that only have the other
-    // platform's copy and fail later, one field at a time.
+    // Only languages with copy FOR THIS PLATFORM; <lang>/ alone would admit
+    // one that has only the other platform's copy.
     let languages = try fm.contentsOfDirectory(atPath: copyDir.path).sorted()
         .filter { fm.fileExists(atPath: copyDir.appendingPathComponent($0).path
                                     + "/\(platformDir)/description.txt") }
 
-    // One support and one marketing URL for every locale. ASC requires the
-    // support URL per localization — a localization created without one blocks
-    // submission; the marketing URL is optional but kept uniform the same way.
+    // Shared by every locale. ASC requires a support URL on each localization,
+    // or submission is blocked.
     func sharedURL(_ name: String) throws -> String {
         let url = try String(contentsOf: copyDir.appendingPathComponent(name), encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -236,7 +223,6 @@ struct ASCUpload {
         let service = try BagbutikService(jwt: JWT(
             keyId: options.keyId, issuerId: options.issuerId, privateKey: privateKey))
 
-        // App, then its one editable version ON THE TARGET PLATFORM.
         let apps = try await service.request(.listAppsV1(
             filters: [.bundleId([options.bundleId])])).data
         guard let app = apps.first else { throw Fail("no app with bundle id \(options.bundleId)") }
@@ -269,14 +255,10 @@ struct ASCUpload {
         }
         print("app \(options.bundleId), version \(version.attributes?.versionString ?? version.id) (\(version.attributes?.appVersionState?.rawValue ?? "?"))\(options.dryRun ? " [dry run]" : "")")
 
-        // Release notes are not a field on a platform's FIRST version: App
-        // Store Connect answers "Attribute 'whatsNew' cannot be edited at this
-        // time", and it fails the whole run on the first locale. Nothing about
-        // the version record says so — the only signal is that the platform
-        // has no other version — so it is derived here rather than discovered
-        // 30 locales in. Vibe hit this shipping iOS for the first time against
-        // a mature macOS train, where the same version string had notes and
-        // the new platform could not.
+        // A platform's FIRST version takes no release notes: ASC answers
+        // "Attribute 'whatsNew' cannot be edited at this time" and fails the
+        // run. The version record does not say so; the only signal is that the
+        // platform has no other version.
         let acceptsWhatsNew = versions.contains { $0.id != version.id }
         if !acceptsWhatsNew {
             print("note: \(options.platform.rawValue) has no earlier version, so App Store Connect "
@@ -300,17 +282,10 @@ struct ASCUpload {
         print(options.dryRun ? "dry run complete — nothing was uploaded" : "done")
     }
 
-    /// The privacy policy URL is the one product-page field that does not live
-    /// on the version. It sits on appInfoLocalizations, per locale, beside the
-    /// app name and subtitle — which this tool still leaves alone, because they
-    /// rarely change and getting them wrong renames the app. The URL is
-    /// different: it is the same string in every locale, so setting it by hand
-    /// means the same edit 29 times in App Store Connect.
-    ///
-    /// Only existing localizations are patched. Creating one requires a `name`,
-    /// and inventing an app name per locale is exactly the mistake the
-    /// out-of-scope rule exists to prevent — a locale with no appInfoLocalization
-    /// is reported instead.
+    /// The privacy policy URL lives on appInfoLocalizations, not the version,
+    /// beside the app name and subtitle, which this tool leaves alone: a wrong
+    /// one renames the app. Only existing localizations are patched, since
+    /// creating one requires a `name`; a missing one is reported.
     static func syncPrivacyPolicyUrl(appId: String, copies: [LocaleCopy],
                                      service: BagbutikService, options: Options) async throws {
         guard let url = copies.first?.privacyPolicyUrl else { return }

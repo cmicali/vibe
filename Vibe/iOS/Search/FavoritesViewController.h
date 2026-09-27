@@ -2,14 +2,8 @@
 //  FavoritesViewController.h
 //  Vibe (iOS)
 //
-//  The Favorites tab: the folders the user starred on the Playlist tab, one
-//  row each, name over the folder that contains it. It draws FavoritesStore
-//  and owns no state of its own.
-//
-//  Tapping a row opens that folder exactly as picking it in the document
-//  picker would — it resolves the bookmark and hands the URL to the ordinary
-//  adoption path, so the grant, the listing order, the autoplay and the card
-//  are all the pick's, not this screen's.
+//  The Favorites tab. It draws FavoritesStore and owns no state. A tap resolves
+//  the bookmark and opens it through the ordinary pick path.
 //
 
 #import <UIKit/UIKit.h>

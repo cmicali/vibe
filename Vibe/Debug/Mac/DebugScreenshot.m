@@ -96,14 +96,12 @@ BOOL VibeDumpWindowSnapshot(NSString *path) {
             [CATransaction commit];
         }
         else {
-            // The presentation tree where available, which captures animations
-            // mid-flight.
+            // The presentation tree captures animations mid-flight.
             CALayer *presentation = layer.presentationLayer ?: layer;
             [presentation renderInContext:ctx];
         }
     }
     else {
-        // The non-layer-backed fallback: AppKit's drawing path.
         NSGraphicsContext *gc = [NSGraphicsContext graphicsContextWithCGContext:ctx flipped:NO];
         [NSGraphicsContext saveGraphicsState];
         [NSGraphicsContext setCurrentContext:gc];

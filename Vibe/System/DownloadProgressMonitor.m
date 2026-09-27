@@ -16,8 +16,8 @@
 // The fake matches the File Provider publication's measured cadence.
 static const NSTimeInterval kFakeProgressIntervalSeconds = 1.0;
 
-// TRAP: the debug driver writes this from its command path while monitors read
-// it on main. Copying a block races its release without the lock.
+// TRAP: the debug driver writes this from its command path while monitors
+// read it; copying a block races its release without the lock.
 static os_unfair_lock sFakeProgressLock = OS_UNFAIR_LOCK_INIT;
 static VibeFakeDownloadProgress sFakeProgress;
 
@@ -89,7 +89,7 @@ static VibeFakeDownloadProgress VibeFakeProgressHook(void) {
 
 #if DEBUG
     if ([self startFakeProgress]) {
-        return; // the fake replaces every real source; see +Debug.h
+        return; // replaces every real source (+Debug.h)
     }
 #endif
 
@@ -188,8 +188,7 @@ static VibeFakeDownloadProgress VibeFakeProgressHook(void) {
 
 #endif
 
-// Coalescing and movement are intentionally source-independent. A newly added
-// source cannot accidentally acquire a different liveness policy.
+// Source-independent, so no source gets its own liveness policy.
 - (void)reportFraction:(float)fraction {
     if (_cancelled) {
         return;

@@ -8,55 +8,37 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Every menu identifier MainPlayerController validates, and the domain that
-// decides it. Each identifier is spelled once, as a constant below: the builder
-// mints through it, validateMenuItem: dispatches on it and
-// contentWidthForSizeIdentifier: sizes the window from it, so a rename that
-// misses a site is a compile error rather than a silently unvalidated item. A
-// literal spelling of one anywhere else is exactly the bug this file prevents.
+// Every menu identifier MainPlayerController validates, and its domain. Each
+// is spelled once, as a constant, so a rename that misses a site fails the
+// build; a literal spelling anywhere else is the bug this file prevents.
 //
-// TRAP: an identifier that reaches Unknown is DISABLED, not enabled. The
-// validator's fall-through used to be YES, which let a mistyped or newly added
-// controller-targeted item skip validation with nothing to see. Adding a menu
-// item to this controller therefore means adding it here too.
+// TRAP: an identifier that reaches Unknown is DISABLED (and asserts), so a new
+// controller-targeted item must be added here or it never enables.
 //
-// Items other objects own are deliberately absent and land on Unknown without
-// ever being asked: the playlist's row menu is PlaylistController's, Output is
-// OutputDevicesMenuController's, and Settings/Quit target the app delegate.
+// Items other objects target are absent and never asked: the row menu, Output,
+// and the app delegate's items.
 typedef NS_ENUM(NSInteger, VibeMenuValidationDomain) {
     // Not this controller's to validate.
     VibeMenuValidationDomainUnknown = 0,
-    // Window and preference checkmarks. Never disabled — a preference is not
-    // an action, and there is nothing for it to be unavailable for — with one
-    // exception: Show Pitch Control, unavailable while bit-perfect output
-    // mints no varispeed for the fader to drive.
+    // Checkmarks, never disabled except Show Pitch Control under bit-perfect
+    // output, which has no varispeed.
     VibeMenuValidationDomainViewToggle,
-    // The width presets, checkmarked against the body's current width.
     VibeMenuValidationDomainWindowSize,
-    // Next/previous/play-selected/skip: the items that go unavailable at the
-    // ends of a playlist, with nothing loaded, or with the player stopped.
+    // Unavailable at the playlist's ends, with nothing loaded, or Stopped.
     VibeMenuValidationDomainTransport,
-    // Live FX mirroring. Never disabled — the effects are deck controls that
-    // outlive any single track.
+    // Checkmarks, disabled without an FX segment or while
+    // AppSettings.audioFXAllowed is off.
     VibeMenuValidationDomainFX,
     VibeMenuValidationDomainPitchRange,
-    // Play/Save Playlist/Close/Show in Finder: dynamic titles and symbols,
-    // and enablement, over the playlist.
     VibeMenuValidationDomainFile,
-    // Undo/Redo titles from NSUndoManager, the Copy items, and Remove from
-    // Playlist.
     VibeMenuValidationDomainEdit,
-    // Convert to FLAC — Cancel Conversion while one runs, see the identifier —
-    // and its preference. AudioFileConverter stays the authority for the idle
-    // item's enablement and retitling.
+    // AudioFileConverter owns the idle item's enablement and title.
     VibeMenuValidationDomainConvert,
     // menuNeedsUpdate: mints these and owns their state, title and target.
     VibeMenuValidationDomainTheme,
 };
 
-// The identifiers. The window-size family is derived from its preset and the
-// theme family from the theme's own identifier, both below, so neither is
-// spelled out here.
+// The window-size and theme families are derived below.
 static NSString *const kVibeMenuShowPlaylist = @"menu_show_playlist";
 static NSString *const kVibeMenuShowPitch = @"menu_show_pitch";
 static NSString *const kVibeMenuShowFileInfo = @"menu_show_file_info";
@@ -93,21 +75,19 @@ static NSString *const kVibeMenuEditCopyFile = @"menu_edit_copy_file";
 static NSString *const kVibeMenuEditCopyName = @"menu_edit_copy_name";
 static NSString *const kVibeMenuEditRemoveFromPlaylist = @"menu_edit_remove_from_playlist";
 
-// Also Cancel Conversion: one item whose title and action the controller swaps
-// in validation while a conversion runs, as menu_play swaps to Pause, so there
-// is deliberately no menu_convert_cancel.
+// Also Cancel Conversion, swapped in validation as menu_play swaps to Pause;
+// there is deliberately no menu_convert_cancel.
 static NSString *const kVibeMenuConvertToFLAC = @"menu_convert_to_flac";
 static NSString *const kVibeMenuConvertDeleteOriginal = @"menu_convert_delete_original";
 
-// The Theme submenu itself, which menuNeedsUpdate: recognizes; its items carry
-// the prefix, and its Edit tail is the app delegate's, not this controller's.
+// The Theme submenu; its items carry the prefix, and its Edit tail is the app
+// delegate's.
 static NSString *const kVibeMenuThemeSubmenu = @"view_theme";
 static NSString *const kVibeMenuThemePrefix = @"view_theme_";
 static NSString *const kVibeMenuEditThemes = @"menu_edit_themes";
 
-// The three width presets. The identifier is derived from the preset rather
-// than written out, so the builder, the checkmark and the width lookup cannot
-// disagree about a spelling.
+// Identifiers derive from the preset, so the builder, the checkmark and the
+// width lookup cannot disagree about a spelling.
 typedef NS_ENUM(NSInteger, VibeWindowSizePreset) {
     VibeWindowSizePresetSmall,
     VibeWindowSizePresetDefault,
@@ -123,8 +103,7 @@ static inline NSString *VibeWindowSizeMenuIdentifier(VibeWindowSizePreset preset
     return @"view_size_default";
 }
 
-// An identifier in the family but naming no preset answers Default, which is
-// what the width lookup has always done with one.
+// An identifier naming no preset answers Default.
 static inline VibeWindowSizePreset VibeWindowSizePresetForMenuIdentifier(NSString *_Nullable identifier) {
     if ([identifier isEqualToString:VibeWindowSizeMenuIdentifier(VibeWindowSizePresetSmall)]) {
         return VibeWindowSizePresetSmall;
@@ -135,10 +114,7 @@ static inline VibeWindowSizePreset VibeWindowSizePresetForMenuIdentifier(NSStrin
     return VibeWindowSizePresetDefault;
 }
 
-// The dynamic theme items carry the theme's own identifier as a suffix, so
-// the family is matched by prefix rather than enumerated. The tail's
-// menu_edit_themes is deliberately absent: it targets the app delegate, like
-// Settings and Quit.
+// Matched by prefix. menu_edit_themes is absent: it targets the app delegate.
 static inline NSString *VibeThemeMenuIdentifier(NSString *themeIdentifier) {
     return [kVibeMenuThemePrefix stringByAppendingString:themeIdentifier];
 }

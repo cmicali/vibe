@@ -49,7 +49,7 @@
     return MIN(width * self.barWidthScale, pitch);
 }
 
-// Subclasses override this to paint, and call super to record the position.
+// Subclasses paint and call super.
 - (void)setHoverHighlightX:(CGFloat)x {
     _hoverHighlightX = x;
 }
@@ -81,11 +81,8 @@
     }
 }
 
-// Abstract. Both are declared nonnull, and styleIdentifier is used as a
-// dictionary key by WaveformRendererRegistry, so a subclass that forgets
-// to override would otherwise raise deep inside -setup with nothing naming the
-// culprit. Assert here, where the class is known, and return a marker that
-// keeps a Release build registering something rather than crashing.
+// Abstract: assert where the class is known, and return a nonnull marker so
+// Release registers something rather than crashing.
 + (NSString *)styleIdentifier {
     NSAssert(NO, @"%@ must override +styleIdentifier", NSStringFromClass(self));
     return NSStringFromClass(self);

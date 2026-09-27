@@ -15,55 +15,36 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark
                        wiggle:(BOOL)wiggle centered:(BOOL)centered;
 
-// The subclass hooks. The Oversampling x2, x4 and x8 variants override the
-// count, and Basic overrides the count, geometry and gradient hooks below.
-// Everything else — the layer setup, hydration animation, progress clipping
-// and mask caching — is shared.
+// The subclass hooks: the oversampling variants override the count; Basic the
+// count, geometry and gradient.
 //
-// Here and in Basic the bar count follows the drawn width at the pitch the
-// style was designed at, so a resize adds or removes bars rather than
-// stretching them; the oversampling variants deliberately keep their fixed
-// counts, because their look is the sub-pixel overlap of more rects than
-// pixels, which a resize already preserves. The count is the rect count in
-// the single CAShapeLayer mask path, not a CALayer count: thousands of rects
-// in one path are cheap, whereas as many layers would not be.
+// The count follows the drawn width at the style's pitch; the oversampling
+// variants keep fixed counts, since their look is the sub-pixel overlap of
+// more rects than pixels. It counts rects in one mask path, not layers.
 - (NSUInteger)numBarsForWidth:(CGFloat)width;
 
-// The samples every bar is drawn from: count interleaved, normalized
-// [min, max] pairs into out. Here it is the energy-scaled peak envelope;
-// Cupertino overrides it to ±level, a bar mirrored about the midline. One
-// hook feeds both the live morph target and the envelope bake, which must
-// stay pixel-identical.
+// count interleaved, normalized [min, max] pairs: the energy-scaled envelope
+// here, ±level in Cupertino. The one hook behind both the live target and the
+// bake, which must stay pixel-identical.
 - (void)fillEnvelope:(float *)out barCount:(NSUInteger)count waveform:(AudioWaveform *)waveform;
 
-// The bar width. Every style spaces its bars evenly across the drawn width.
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count;
 
-// The gradient styling: its direction and extent, and the ramp's color stops.
-// color is the theme's played or unplayed color, carrying its side's resting
-// level in its alpha; the hook owns only the ramp shape, every stop scaled
-// relative to that level (VibeColorWithScaledAlpha). One hook serves both
-// sides — the played/unplayed difference is entirely the colors' levels.
+// color carries its side's resting level in its alpha; the hook owns only the
+// ramp shape, every stop scaled relative to it (VibeColorWithScaledAlpha).
 - (void)configureGradient:(CAGradientLayer *)gradient;
 - (NSArray<VibeColor *> *)gradientColorsForColor:(VibeColor *)color isDark:(BOOL)isDark;
 
-// The played-fill and hover presentation. Continuous here — the clip edge is
-// the playhead; Wiggle highlights a whole loop, other Detailed styles a thin
-// slice. Basic overrides both to whole-block quantization, matching Sonic Cirrus's
-// discrete bars; the seek itself stays continuous in every style.
+// Continuous here (Wiggle hovers a whole loop); Basic quantizes both to whole
+// blocks. The seek stays continuous in every style.
 - (CGFloat)playedClipWidthForProgress:(CGFloat)progress width:(CGFloat)width;
 - (CGRect)hoverColumnRectForX:(CGFloat)x bounds:(CGRect)bounds scale:(CGFloat)scale;
 
-// The iOS scrubber's settled fast path (see WaveformScrubberView): the whole
-// envelope rendered once into a bitmap — the settled bar geometry filled with
-// the played gradient, overall opacity included — so scrolling can translate
-// a texture instead of re-compositing the masked live tree every frame. While
-// the theme's unplayed hue is the played hue (unplayedSharesPlayedHue), the
-// unplayed presentation is that same bitmap at unplayedOverPlayedOpacity —
-// the ratio of the two colors' resting alphas, valid because both sides share
-// the ramp shape; a two-hue theme bakes the unplayed variant separately with
-// its own stops and shows it at full opacity. Extract samples on the main
-// thread; the bakes touch no layer state and may run on any queue.
+// The iOS scrubber's settled fast path: the whole envelope as one bitmap, so
+// scrolling translates a texture instead of re-compositing the masked tree.
+// While unplayedSharesPlayedHue the unplayed side is the played bitmap at
+// unplayedOverPlayedOpacity; otherwise it bakes its own. Extract samples on
+// main; the bakes touch no layer state and may run on any queue.
 - (NSData *)envelopeSamplesForWaveform:(AudioWaveform *)waveform;
 - (nullable CGImageRef)newEnvelopeImageForSize:(CGSize)size
                                          scale:(CGFloat)scale

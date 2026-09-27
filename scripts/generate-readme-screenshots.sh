@@ -1,24 +1,16 @@
 #!/bin/bash
-# Regenerate the README screenshots in Assets/.
+# Regenerate the README window captures in Assets/, which the App Store and
+# web images are also derived from.
 #
 #   scripts/generate-readme-screenshots.sh [shot ...]     # no args = all five
 #   shot names: basic pitch themes playlist playlist-pitch
 #
-# The App Store shots (2880x1800, composited onto a background image) are a
-# separate tool: scripts/appstore-capture-app-screenshots.sh. Both share
-# scripts/screenshots/screenshot-lib.sh, which documents the two permissions
-# this terminal needs (Screen Recording, Accessibility) and the debug build
-# requirement.
-#
-# It moves the mouse cursor around and leaves it parked outside the window.
-#
-# Track paths are hardcoded below — this is a one-off authoring tool, not a
-# test. Audio is off-hardware (--no-audio-hw --silent, via launch.sh) throughout.
-#
-# Side effects: pins the app's window appearance to $APPEARANCE (default dark)
-# so the shots match, and leaves the autosaved window frame wherever the last
-# shot left it. The app is quit at the end with the playlist and pitch panel
-# hidden again.
+# Needs a debug build, Screen Recording and Accessibility permission and
+# ALLOW_GLOBAL_INPUT=1 (screenshots/screenshot-lib.sh); moves the real pointer
+# and leaves it parked outside the window. Audio stays off the hardware
+# (launch.sh's default). Track paths are hardcoded: an authoring tool, not a
+# test. Pins the window appearance to $APPEARANCE (default dark) and quits with
+# the playlist and pitch panel hidden and the theme back at `vibe`.
 set -euo pipefail
 
 # shellcheck source=scripts/screenshots/screenshot-lib.sh
@@ -30,63 +22,42 @@ APPEARANCE="${APPEARANCE:-dark}"
 CAPTURE="${CAPTURE:-window}"
 # region only: points of screen kept around the window.
 MARGIN="${MARGIN:-40}"
-# Stage backdrop.swift behind the window — on by default for `merged`,
-# whose whole point is that the glass shows what is behind it. BACKDROP=0 to use
-# whatever is already on screen; BACKDROP=1 to force it on for the other paths.
+# Stage backdrop.swift behind the window: on by default for `merged`, whose
+# glass shows what is behind it. BACKDROP=0 keeps the real screen.
 BACKDROP="${BACKDROP:-$([ "$CAPTURE" = merged ] && echo 1 || echo 0)}"
-# Which on-screen window gets copied behind Vibe: an owning-app name (matched as
-# a case-insensitive substring), or "wallpaper" for the desktop picture. It is
-# captured once and redrawn full-screen by backdrop.swift, so the shots look like
-# Vibe sitting on top of that window without anything else being in the way.
-# WHATEVER THAT WINDOW IS SHOWING bleeds through the glass and the playlist
-# frost — look at it before publishing the shots. Falls back to the wallpaper if
-# no such window is on screen. BACKDROP_IMAGE overrides with a file instead.
+# The on-screen window captured and redrawn full-screen behind Vibe: an
+# owning-app name (case-insensitive substring) or "wallpaper", the fallback.
+# WHATEVER IT SHOWS bleeds through the glass and the playlist frost, so look
+# before publishing. BACKDROP_IMAGE uses a file instead.
 BACKDROP_WINDOW="${BACKDROP_WINDOW:-IntelliJ IDEA}"
 BACKDROP_IMAGE="${BACKDROP_IMAGE:-}"
-# Last-resort fallback: gradient stops, corner to corner. Keep a backdrop dark
-# and desaturated — a loud one bleeds through the header glass strongly enough to
-# fight the album-art tint, by an amount that depends on where on screen the
-# window happens to sit.
+# Last resort: gradient stops, corner to corner. Keep it dark and desaturated;
+# a loud one bleeds through the header glass and fights the album-art tint.
 BACKDROP_COLORS="${BACKDROP_COLORS:-1B1A6E 4A3AC8}"
 
-# One theme per App Store shot, so the four-shot set shows the theme system off
-# without any single shot having to be about it. Values are built-in theme
-# IDENTIFIERS, which are the Resources/Themes/ file stems (AppTheme.m) — the
-# debug channel's set_theme also accepts the display name.
+# Built-in theme identifiers: the Resources/Themes/ file stems.
 #
-# TRAP: a theme is a persisted setting, not window state, so it outlives the
-# app. Every shot sets its own and the cleanup at the bottom restores `vibe`;
-# a run that dies in between leaves the app themed, and the NEXT run's first
-# shot is captured under whatever was left until its own set_theme lands.
-# `Vibe --debug-cmd set_theme vibe` resets it by hand.
+# TRAP: a theme is a persisted setting, so it outlives the app. Every shot sets
+# its own and the end of the run restores `vibe`, but a run that dies in
+# between leaves the app themed: `Vibe --debug-cmd set_theme vibe` resets it.
 THEME_BASIC="${THEME_BASIC:-vibe}"
 THEME_PLAYLIST="${THEME_PLAYLIST:-snake}"
 THEME_THEMES="${THEME_THEMES:-sonic_cirrus}"
 THEME_PLAYLIST_PITCH="${THEME_PLAYLIST_PITCH:-technical}"
-# README-only — not part of the App Store set, so it keeps the default.
 THEME_PITCH="${THEME_PITCH:-vibe}"
 
-# The window is sized explicitly before every capture. It used to inherit
-# whatever frame was autosaved, so the same shot came out 1214px wide after a
-# single-file launch and 1452px after a folder one, and the App Store set ended
-# up carrying four different widths. These are the sizes the published shots
-# have; changing one re-crops that store screenshot.
-#
-# Body width EXCLUDES the pitch panel (ensure_body_width), which is why the
-# compact and pitch shots share a number. Heights are the window's own: 150 is
-# kMainWindowSmallHeight, the collapsed floor.
-# ONE body width for every shot — the published set has always been 680pt,
-# and the pitch shots are wider only because the panel adds to it. Heights are
-# the window's own: 150 is kMainWindowSmallHeight, the collapsed floor.
+# Every capture is sized explicitly: the autosaved frame differs between a
+# single-file and a folder launch. These are the published sizes; changing one
+# re-crops that store screenshot. The body width excludes the pitch panel, so
+# the pitch shots are wider by the panel. 150 is kMainWindowSmallHeight.
 BODY_WIDTH="${BODY_WIDTH:-680}"
 HEIGHT_COMPACT="${HEIGHT_COMPACT:-150}"
 HEIGHT_PLAYLIST="${HEIGHT_PLAYLIST:-400}"
 
 MUSIC="$HOME/Library/CloudStorage/Dropbox/music/Tracks"
 TRACK_BASIC="$MUSIC/2026-04/Jasper Tygner - Kashmer.flac"
-# Opened alongside TRACK_BASIC purely so the playlist has a next track and the
-# next button draws enabled. All sort AFTER Kashmer, so it can never end up
-# last however Launch Services orders the batch.
+# Opened only so the next button draws enabled. All sort after Kashmer, so it
+# is never last however Launch Services orders the batch.
 TRACK_BASIC_EXTRAS=(
     "$MUSIC/2026-04/Justin Jay, Eva - Do I Like You Like That.flac"
     "$MUSIC/2026-04/Louis The 4th - Ritual Issues.flac"
@@ -98,14 +69,13 @@ FOLDER_TRACK_PLAYLIST="The Mountain People - Memorandum.flac"
 FOLDER_TRACK_PITCH="Steve O'Sullivan - No Aura (Original Mix).aiff"
 FOLDER_TRACK_THEMES="DJ Tennis Carlita - Trouble Symphony.flac"
 
-# Fraction of the track the playhead sits at in each shot.
+# Playhead position as a fraction of the track.
 SEEK_BASIC=0.40
 SEEK_PITCH=0.35
 SEEK_FOLDER=0.40
 
-# Seconds to let the playlist metadata scan (artwork, titles, durations)
-# finish before capturing a folder shot. Cold, off Dropbox, 67 files takes
-# ~30s; a warm metadata cache is near-instant.
+# Seconds for the folder's metadata scan: ~30s for 67 files cold off Dropbox,
+# near-instant with a warm cache.
 SCAN_WAIT="${SCAN_WAIT:-30}"
 
 # --- setup ------------------------------------------------------------------
@@ -121,11 +91,9 @@ require_global_input
 require_debug_build
 mkdir -p "$OUT_DIR"
 pkill -x Vibe 2>/dev/null && sleep 1 || true
-# TRAP: --debug-cmd talks to a RUNNING app, and the pkill above just ended it,
-# so the appearance pin needs its own launch. Appearance and theme are both
-# persisted settings rather than window state, which is why they are pinned
-# once here instead of per shot — but that is also what makes it easy to
-# forget they need the app up to be written at all.
+# TRAP: --debug-cmd needs a RUNNING app and the pkill just ended it, so the
+# appearance pin needs this launch; without it the command times out and the
+# run exits.
 launch
 quiet set_appearance "$APPEARANCE"
 
@@ -157,14 +125,10 @@ fi
 
 # --- capture ----------------------------------------------------------------
 
-# Three capture paths, and they do NOT produce the same picture — `window` and
-# `merged` are screenshot-lib.sh's capture_window/capture_merged (which document
-# what each buffer does and doesn't carry), plus:
-#
-#   region — screencapture -R over the window's rect plus $MARGIN. The truly
-#       composited screen, so the translucency shows what is behind. Costs the
-#       alpha channel and the shadow, and it captures WHATEVER IS ON SCREEN
-#       around the window.
+# The three paths do NOT produce the same picture. `window` and `merged` are
+# screenshot-lib.sh's capture_window and capture_merged. `region` is the
+# composited screen over the window rect plus $MARGIN: real translucency, but
+# no alpha or shadow, and WHATEVER IS ON SCREEN around the window.
 capture() { # <output-name>
     local out="$OUT_DIR/$1" x y w h
     activate_vibe || echo "warning: Vibe window is not key — glass may look dimmed" >&2
@@ -198,8 +162,7 @@ shot_basic() {
     ensure_pitch 0
     ensure_body_width "$BODY_WIDTH" "$HEIGHT_COMPACT"
     quiet set_theme "$THEME_BASIC"
-    # Launch Services decides which of the batch plays first, so walk to the
-    # one this shot is about.
+    # Launch Services picks which of the batch plays first.
     play_track "$(basename "$TRACK_BASIC")"
     wait_loaded
     seek_fraction "$SEEK_BASIC"
@@ -221,9 +184,7 @@ shot_pitch() {
     capture screenshot-pitch.png
 }
 
-# The two folder shots share one launch: opening 67 files off Dropbox and
-# waiting out the metadata scan is the slow part, and the scan result is the
-# same for both.
+# The folder shots share one launch and one metadata scan, the slow part.
 shot_folder() { # <pitch 0|1> <track basename> <output> <theme>
     cursor_out
     ensure_playlist 1
@@ -238,9 +199,8 @@ shot_folder() { # <pitch 0|1> <track basename> <output> <theme>
     capture "$3"
 }
 
-# A FOLDER shot, not a single-file one: opened on one track the playlist panel
-# is a row and then half a frame of empty grey, which is no advertisement for
-# anything. It shares the folder launch with the two below.
+# A folder shot: on a single track the playlist panel is one row and empty
+# grey.
 shot_themes() {
     say "themes: 2026-05 folder, Trouble Symphony, $THEME_THEMES theme"
     shot_folder 0 "$FOLDER_TRACK_THEMES" screenshot-themes.png "$THEME_THEMES"
@@ -286,9 +246,6 @@ if [ "$needs_folder" = yes ]; then
     done
 fi
 
-# Leave the autosaved window state small again and the theme back at the
-# default, then quit. The theme is persisted, so skipping this would leave the
-# app wearing whichever shot ran last.
 ensure_pitch 0
 ensure_playlist 0
 quiet set_theme vibe

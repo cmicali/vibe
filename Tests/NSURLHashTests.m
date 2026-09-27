@@ -1,9 +1,3 @@
-//
-// The cache key both the metadata and waveform caches are stored under. It is
-// deliberately content-blind — file attributes only — so the interesting
-// behavior is exactly WHICH changes move it and which don't.
-//
-
 #import <XCTest/XCTest.h>
 
 #import "AudioTrack.h"
@@ -62,8 +56,6 @@
 #pragma mark - What moves the key
 
 - (void)testRewritingTheFileMovesTheKey {
-    // A documented miss: an edited file re-analyzes rather than serving a
-    // stale waveform.
     NSURL *file = [self writeFileNamed:@"a.mp3" contents:@"hello"];
     NSString *before = file.cacheKey;
 
@@ -72,8 +64,6 @@
 }
 
 - (void)testSameSizeRewriteStillMovesTheKeyViaMtime {
-    // Size alone is not the identity — the microsecond mtime is what catches
-    // an in-place edit that happens to preserve length.
     NSURL *file = [self writeFileNamed:@"a.mp3" contents:@"aaaaa"];
     NSString *before = file.cacheKey;
 
@@ -84,7 +74,6 @@
 }
 
 - (void)testMovingTheFileMovesTheKey {
-    // The other documented miss: the path is hashed, so a rename re-analyzes.
     NSURL *original = [self writeFileNamed:@"a.mp3" contents:@"hello"];
     NSString *before = original.cacheKey;
 
@@ -95,14 +84,12 @@
 }
 
 - (void)testIdenticalContentAtDifferentPathsKeysSeparately {
-    // Content-blind by design: two copies are two cache entries.
     NSURL *first = [self writeFileNamed:@"a.mp3" contents:@"same bytes"];
     NSURL *second = [self writeFileNamed:@"b.mp3" contents:@"same bytes"];
     XCTAssertNotEqualObjects(first.cacheKey, second.cacheKey);
 }
 
 - (void)testSymlinkResolvesToItsTargetsIdentity {
-    // Links key off the target so a link and the file itself share one entry.
     NSURL *target = [self writeFileNamed:@"real.mp3" contents:@"hello"];
     NSURL *link = [_dir URLByAppendingPathComponent:@"link.mp3"];
     [NSFileManager.defaultManager createSymbolicLinkAtURL:link
@@ -115,7 +102,7 @@
 #pragma mark - No identity
 
 - (void)testMissingFileHasNoKey {
-    // Every caller branches on this: no stable identity means don't cache.
+    // Callers read nil as "don't cache".
     NSURL *missing = [_dir URLByAppendingPathComponent:@"nope.mp3"];
     XCTAssertNil(missing.cacheKey);
 }
@@ -139,9 +126,8 @@
 }
 
 - (void)testTrackDoesNotMemoizeAFailedStat {
-    // A stat failure is treated as transient — memoizing nil would strand the
-    // track uncached for the rest of its life, e.g. a cloud file that lands a
-    // moment later.
+    // A stat failure is transient: memoizing nil would strand the track
+    // uncached, e.g. a cloud file that lands a moment later.
     NSURL *file = [_dir URLByAppendingPathComponent:@"late.mp3"];
     AudioTrack *track = [AudioTrack withURL:file];
     XCTAssertNil(track.cacheKey);

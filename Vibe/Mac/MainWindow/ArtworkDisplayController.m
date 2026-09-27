@@ -23,35 +23,22 @@
 #import "ArtworkDisplayController+Debug.h"
 #endif
 
-// The raw dominant color can be anything from neon to near-black. Pulling it
-// into an appearance-specific band keeps the tint recognizable as the art's
-// color without overpowering the glass or silhouetting the labels.
-//
-// The clamps are perceptual, in OKLCH through NSColor+OKLCH, rather than HSB.
-// The waveform must stay distinguishable from the wash over any artwork, and
-// HSB brightness is hue-blind: a yellow at B=0.39 is far lighter to the eye
-// than a blue at B=0.39, so an HSB cap lets bright-hued art wash the unplayed
-// waveform out.
-//
-// Dark glass carries a light waveform, so cap perceptual lightness low, at
-// 0.30 or less, with a floor so that near-black art still shows a hue. The
-// same values over the bright light material read as muddy paint, so light
-// mode, with its dark waveform, clamps lightness high instead: the same
-// contrast goal in the opposite direction. Chroma is capped moderately in both.
+// Per-appearance clamps keep the wash the art's color without swamping the
+// glass or the labels. OKLCH, not HSB: HSB brightness is hue-blind, so an HSB
+// cap lets bright hues wash out the unplayed waveform. Dark glass carries a
+// light waveform, so lightness is capped low (floored so near-black keeps a
+// hue); light mode's dark waveform clamps it high instead.
 static const CGFloat kTintAlphaDark          = 0.4;
 static const CGFloat kTintMinLightnessDark   = 0.16;
 static const CGFloat kTintMaxLightnessDark   = 0.30;
 static const CGFloat kTintMaxChromaDark      = 0.09;
-// The light-mode alpha is deliberately high. The light glass shows a warm blur
-// of whatever is behind the window, and a subtle wash loses to it: the wash has
-// to own the header's color for the pastel to read.
+// High: a subtle wash loses to the light glass's blur of what is behind.
 static const CGFloat kTintAlphaLight         = 0.55;
 static const CGFloat kTintMinLightnessLight  = 0.87;
 static const CGFloat kTintMaxLightnessLight  = 0.94;
 static const CGFloat kTintMaxChromaLight     = 0.10;
 
-// Inputs owned by one background render. The private image copy prevents the
-// worker from drawing an NSImage instance used by AppKit on the main thread.
+// The private image copy keeps the worker off any NSImage AppKit draws on main.
 @interface ArtworkRenderRequest : NSObject
 @property (nonatomic, strong, readonly) NSImage *sourceArt;
 @property (nonatomic, strong, readonly) NSImage *renderSource;
@@ -89,9 +76,7 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
 
 @end
 
-// The background render publishes one read-only product: the square bitmap and
-// the color sampled from that exact bitmap. Neither can get ahead of the other
-// at a track transition.
+// One product, so the bitmap and its color cannot get ahead of each other.
 @interface ArtworkDisplayResult : NSObject
 @property (nonatomic, strong, readonly) NSImage *squareImage;
 @property (nonatomic, strong, readonly, nullable) NSColor *dominantColor;
@@ -117,9 +102,8 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
 
 @end
 
-// The share of the art's height the transport row covers — the bottom
-// kArtworkTransportExclusionHeight of a kMainWindowSmallHeight square, with
-// the buttons' 50pt frames reaching a little above it.
+// The share of the art the transport row covers, its 50pt buttons reaching a
+// little above kArtworkTransportExclusionHeight.
 static const CGFloat kTransportBandFraction = 1.0 / 3;
 
 @interface ArtworkDisplayController ()
@@ -133,41 +117,31 @@ static const CGFloat kTransportBandFraction = 1.0 / 3;
     NSView                      *_headerTintView;
     NSView                      *_playlistTintView;
     NSColor                     *_dominantArtColor; // raw; clamps applied per-appearance at apply time
-    // The raw dominant color per source image, under weak keys so it dies with
-    // the decoded art. A shared folder cover is sampled once, while a replaced
-    // source cannot inherit the previous image's tint.
+    // Per source image, weak-keyed so it dies with the decoded art: a shared
+    // folder cover is sampled once, and a replaced source inherits no tint.
     NSMapTable<NSImage *, NSColor *> *_dominantColorByArt;
     __weak NSImage              *_displayedArt;
-    // What is actually installed, which _displayedArt cannot answer: it is
-    // weak, and a FOLDER cover's only strong owner is FolderArtResolver's image
-    // cache, so it self-nils the moment that cache drops the image while the
-    // cropped copy stays on screen.
+    // What is installed, which _displayedArt cannot answer: a folder cover's
+    // only strong owner is FolderArtResolver's cache, so the weak source can
+    // nil while its crop stays on screen.
     BOOL                         _showingDefaultArt;
-    // The track whose crop is actually installed. Unlike _displayedArt this
-    // survives the source image's weak reference disappearing, so ownership
-    // remains exact through a KeepPrevious transition.
+    // The installed crop's owner, exact through a KeepPrevious transition.
     __weak AudioTrack           *_displayedArtTrack;
     __weak AudioTrackMetadata   *_displayedArtMetadata;
-    // The source whose crop is in flight. Kept separately from _displayedArt:
-    // the latter must describe what the view actually shows, especially while
-    // the slow-load placeholder decides whether the pending track's art won.
+    // The source whose crop is in flight; _displayedArt describes only what
+    // the view shows.
     __weak NSImage              *_pendingArt;
-    // The track whose full-resolution art is currently held decoded. The
-    // reference is weak, so that if the playlist is replaced the track
-    // deallocates and takes its art with it.
+    // The track whose full-resolution art is held decoded. Weak, so a replaced
+    // playlist takes the art with it.
     __weak AudioTrack           *_artOwnerTrack;
-    // The exact track, metadata and source image the header currently
-    // describes. Changing any identity invalidates stale crops without
-    // replacing the installed image kept through an unresolved transition.
+    // What the header describes. Changing any identity invalidates stale crops
+    // without replacing the image kept through an unresolved transition.
     __weak AudioTrack           *_artworkTargetTrack;
     __weak AudioTrackMetadata   *_artworkTargetMetadata;
     __weak NSImage              *_artworkTargetArt;
-    // Pairs each async crop-and-color render with the request that owns both
-    // products. Neither a stale image nor its color may land over what
-    // superseded it.
     NSUInteger                  _artworkRenderGeneration;
-    // Main-confined admission for the serial utility lane. Only the running
-    // request is dispatched; rapid changes replace this one waiting request.
+    // Main-confined: one running render, and one waiting request that rapid
+    // changes replace.
     dispatch_queue_t            _artworkRenderQueue;
     ArtworkRenderRequest       *_queuedRenderRequest;
     BOOL                        _renderInFlight;
@@ -200,23 +174,10 @@ static const CGFloat kTransportBandFraction = 1.0 / 3;
     return self;
 }
 
-// Derives the on-screen washes from the theme and the raw dominant color,
-// applying the appearance clamps here, and pushes them to the header and the
-// playlist. It is also the public refresh hook for appearance changes. Each
-// wash is its view's own backgroundColor rather than the glass's tintColor,
-// because AppKit silently discards a glass tint whenever the window is not
-// key, and the window must look the same whether active or not.
-//
-// The appearance to clamp against is resolved from the window, not from
-// _headerTintView. This method's appearance-change caller is the content
-// view's own viewDidChangeEffectiveAppearance, and at that point a subview's
-// effectiveAppearance still reports the outgoing appearance, because AppKit
-// updates the tree top-down, one callback per view. Reading the tint view
-// there left both the wash and the accent a full appearance behind on every
-// live light-dark toggle, and a dark-band wash under the light appearance is
-// exactly the waveform-contrast failure the clamps exist to prevent. The
-// window's appearance is set before any of those callbacks, so it is never
-// stale.
+// TRAP: light/dark comes from the window, not _headerTintView. The
+// appearance-change caller is the content view's
+// viewDidChangeEffectiveAppearance, where subviews, updated top-down, still
+// report the outgoing appearance: the wash would lag a full toggle behind.
 - (NSAppearance *)windowAppearance {
     return _headerTintView.window.effectiveAppearance ?: _headerTintView.effectiveAppearance;
 }
@@ -229,12 +190,8 @@ static const CGFloat kTransportBandFraction = 1.0 / 3;
     return _dominantArtColor;
 }
 
-// The one home of the washes' resolution rules: the theme's tint choice over
-// the settled art color, for the header and the playlist alike. Only the
-// washes follow the setting — the color itself still settles, so the dock
-// icon and the album_art waveform theme look the same under every choice. A
-// custom color is used exactly as picked, alpha and all; the clamps exist to
-// tame a color nobody chose. Mono, and an unset custom color, are no wash.
+// The one home of the wash rules. A custom color is used exactly as picked:
+// the clamps tame only a color nobody chose. Mono or an unset custom: no wash.
 - (NSColor *)resolvedWashForTint:(NSString *)tint
                      customColor:(NSColor *)customColor
                           isDark:(BOOL)dark {
@@ -255,11 +212,8 @@ static const CGFloat kTransportBandFraction = 1.0 / 3;
                                                                  alpha:kTintAlphaLight];
 }
 
-// AppKit disables implicit actions on a view's backing layer, so the fade is
-// explicit: set the model value action-free, then animate from the
-// presentationLayer's current color, which retargets a fade already in
-// flight. "No tint" animates as clearColor rather than nil, so the fade-out
-// is a color ramp rather than an instant clear.
+// A backing layer has no implicit actions, so the fade is explicit, from the
+// presentation color so an in-flight fade retargets. nil fades as clear.
 static void FadeLayerToColor(CALayer *layer, NSColor *color) {
     CGColorRef newColor = (color ?: NSColor.clearColor).CGColor;
     CALayer *presentation = layer.presentationLayer ?: layer;
@@ -276,6 +230,8 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
     [layer addAnimation:fade forKey:@"tintFade"];
 }
 
+// Each wash is a plain view's background, never the glass tintColor, which
+// AppKit discards whenever the window is not key.
 - (void)refreshTintWashes {
     BOOL dark = [self isDarkAppearance];
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
@@ -287,12 +243,9 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
             [self resolvedWashForTint:theme.playlistTint
                           customColor:[theme playlistTintColorForDark:dark]
                                isDark:dark]);
-    // The placeholder pair is ONE dynamic image whose pixels follow the
-    // drawing appearance (AppTheme.imageForDefaultArtworkDark:light:), so
-    // the same pointer samples dark under Dark Aqua and light under Aqua:
-    // its lower band is read under the window's appearance — what the art
-    // view draws with — and again here on every flip. A track's crop is
-    // sampled once on the render worker instead; its pixels are fixed.
+    // The placeholder is one dynamic image whose pixels follow the drawing
+    // appearance, so it is re-sampled under the window's appearance on every
+    // flip. A track's crop is sampled once, on the worker.
     if (_showingDefaultArt) {
         NSImage *placeholder = _artworkView.image;
         __block BOOL bandIsDark = YES;
@@ -303,16 +256,11 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
     }
 }
 
-// Produces the square display bitmap and its dominant color together off-main.
-// The source copy belongs only to this worker: the original may be in Now
-// Playing while the result, once complete, belongs to the artwork view. No one
-// NSImage instance is therefore drawn concurrently across threads. The one
-// main-thread delivery starts the image and tint crossfades together.
+// The worker draws a private copy: NSImage's drawing cache is not documented
+// thread-safe, and the original may be drawn by Now Playing meanwhile.
 - (void)renderArt:(NSImage *)art
          forTrack:(AudioTrack *)track
          metadata:(AudioTrackMetadata *)metadata {
-    // Copy before hopping queues, matching the dock renderer's ownership rule.
-    // NSImage's per-instance drawing cache is not documented thread-safe.
     NSImage *renderSource = [art copy];
     if (!renderSource) {
         return;
@@ -356,8 +304,7 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
 
 - (void)completeRenderRequest:(ArtworkRenderRequest *)request
                         result:(ArtworkDisplayResult *)result {
-    // Cache even a stale color. It is still right for the source image that
-    // requested it, merely not for the current display.
+    // Even a stale color is right for its source image.
     if (result.dominantColor) {
         [_dominantColorByArt setObject:result.dominantColor
                                 forKey:request.sourceArt];
@@ -387,15 +334,9 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
     }
 }
 
-// The artwork display policy: new art replaces old art directly. While the new
-// track's art is still unresolved — metadata pending, a load worth
-// dispatching, or a load in flight — the previous track's art stays on screen,
-// so the default never flashes between tracks. The default backdrop is
-// installed only once the track is known to be artless.
 - (void)updateForTrack:(AudioTrack *)track {
-    // Snapshot before choosing the render target. A failed fallback may be
-    // replaced by successful metadata on the same AudioTrack, and one metadata
-    // object can acquire a new cached source after an asynchronous art load.
+    // One snapshot: the same track can gain new metadata, and one metadata a
+    // new cached source after an async load.
     AudioTrackMetadata *metadata = track.metadata;
     NSImage *art = metadata.cachedArt;
     if (_artworkTargetTrack != track || _artworkTargetMetadata != metadata ||
@@ -407,10 +348,8 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
         _pendingArt = nil;
         _queuedRenderRequest = nil;
     }
-    // The art view doubles as the track's drag-out source, and its payload —
-    // the URL, and the name the copy_artist_title action drags — follows the
-    // displayed track directly rather than the keep-previous art policy below:
-    // a drag during the unresolved gap must export the track the header names.
+    // The drag-out payload follows the displayed track, not the keep-previous
+    // art: a drag in the unresolved gap exports the track the header names.
     _artworkView.fileURL = track.url;
     _artworkView.trackDisplayName = track.singleLineTitle;
     // artLoadPending is cleared before a load completes, so here it means
@@ -428,33 +367,24 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
     }
     if (action == VibeArtworkDisplayActionInstall) {
         if (_displayedArt == art) {
-            // Adjacent files can share one folder-cover image. The installed
-            // crop is already exact; transfer its presentation identity rather
-            // than repeat the crop and color pass.
+            // A shared folder cover: the installed crop is exact, so only its
+            // owner transfers.
             _displayedArtTrack = track;
             _displayedArtMetadata = metadata;
             _showingDefaultArt = NO;
         }
         else if (_pendingArt != art) {
-            // Both surfaces frame art square and aspect-fit it, so the worker
-            // crops once rather than letterboxing a wide or tall cover in the
-            // header view and again in the dock tile. Both identity marks stay
-            // on the source image: the crop is a fresh object every time, and
-            // comparing it would re-render on every update while it is pending
-            // or after it lands.
-            //
-            // The crop is deliberately confined to these two. Now Playing
-            // publishes track.cachedArt itself (NowPlayingController), and must
-            // keep receiving the uncropped original — Control Center frames it
-            // on its own terms.
+            // The header and the Dock frame art square, so the worker crops
+            // once. Identity marks stay on the source: the crop is a fresh
+            // object every time. Now Playing keeps the uncropped original.
             [self renderArt:art forTrack:track metadata:metadata];
         }
         return;
     }
 
-    // A dead controller answers "not wanted", which demotes the decode rather
-    // than stranding it: a track that never started playing never becomes
-    // _artOwnerTrack, so nothing else would drop the 4-9MB this load pinned.
+    // A dead controller answers "not wanted", demoting the decode: a track
+    // that never played never becomes _artOwnerTrack, so nothing else would
+    // drop the 4-9MB this load pins.
     __weak ArtworkDisplayController *weakSelf = self;
     [metadata loadArtIfNeededStillWanted:^BOOL{
         ArtworkDisplayController *strongSelf = weakSelf;
@@ -463,8 +393,7 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
         return currentTrack == track && track.metadata == metadata;
     } completion:^(NSImage *loaded) {
         ArtworkDisplayController *strongSelf = weakSelf;
-        // The same rule the pass above applies, so a load's outcome and a plain
-        // refresh cannot disagree about when the backdrop wins.
+        // The same rule as above, so a load and a refresh cannot disagree.
         switch (VibeArtworkDisplayActionFor(YES, loaded != nil,
                                             !metadata.artNeedsLoad, YES)) {
             case VibeArtworkDisplayActionInstall:
@@ -476,19 +405,15 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
                 [strongSelf showDefaultArtwork];
                 break;
             case VibeArtworkDisplayActionKeepPrevious:
-                // The folder is still being resolved by another worker, so this
-                // nil is not artlessness. artNeedsLoad stays YES and the next
-                // pass retries.
+                // Another worker holds the folder's claim; the next pass
+                // retries.
                 break;
         }
     }];
 }
 
-// A slow cloud open is taking long enough to show the loading shimmer. The
-// keep-previous-art policy would hold the old track's art for up to the
-// 20-second open timeout, so show the empty-state default instead. If the
-// pending track's art has already resolved, updateForTrack: displayed it, so
-// keep that.
+// Keep-previous would hold the old art for as long as a slow open runs, so
+// show the default, unless the pending track's own art already landed.
 - (void)showPlaceholderForSlowLoad {
     AudioTrack *track = self.currentTrackProvider ? self.currentTrackProvider() : nil;
     AudioTrackMetadata *metadata = track.metadata;
@@ -497,28 +422,22 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
             _displayedArtMetadata == metadata) {
         return;
     }
-    // If this track's crop is already in flight, the placeholder is only its
-    // backdrop while it finishes; let that result replace the default. A render
-    // for any other source belongs to the departed track and is invalidated.
+    // This track's crop in flight still replaces the placeholder; any other
+    // render belongs to the departed track.
     BOOL currentCropPending = art && _pendingArt == art &&
             _artworkTargetTrack == track && _artworkTargetMetadata == metadata &&
             _artworkTargetArt == art;
     [self showDefaultArtworkInvalidatingRender:!currentCropPending];
 }
 
-// Installs the record-bg default art and clears the glass tint. An ordinary
-// default decision invalidates any pending render even when the visuals are
-// already correct; the slow-load placeholder can preserve the current track's
-// render so that its result still replaces the temporary backdrop.
+// Invalidates any pending render, even when the visuals are already right.
 - (void)showDefaultArtwork {
     [self showDefaultArtworkInvalidatingRender:YES];
 }
 
 - (void)refreshDefaultArtwork {
-    // The lifetime cache returns pointer-identical images, so an unchanged
-    // placeholder is one comparison — TrackDisplay fires for every
-    // info-display toggle, and re-installing would reset the dock tile and
-    // re-derive the tint washes for nothing.
+    // Pointer-identical when unchanged: TrackDisplay fires on every toggle,
+    // and a re-install would reset the Dock tile and washes for nothing.
     if (_showingDefaultArt && _artworkView.image !=
             AppSettings.sharedInstance.currentTheme.resolvedDefaultArtworkImage) {
         _showingDefaultArt = NO;
@@ -526,10 +445,7 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
     }
 }
 
-// The theme's dockIcon choice over what the header shows: the installed
-// crop while a track's art is up and the theme wants it, else the app icon.
-// Runs at every install and default, and from the AppIcon effect, so a
-// switch mid-track re-decides the tile without a track change.
+// Runs at every install and default, and from the AppIcon effect.
 - (void)applyDockIcon {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     BOOL wantsArt = [theme.dockIcon isEqualToString:SETTINGS_VALUE_DOCK_ICON_ALBUM_ART];
@@ -557,8 +473,7 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
     [self publishImage:nil lowerBandIsDark:YES];
 }
 
-// Image, color, transport contrast and Dock publication share the acceptance
-// gate above. The injected sink never creates a view or touches the Dock.
+// The injected sink never creates a view or touches the Dock.
 - (void)publishImage:(NSImage *)image lowerBandIsDark:(BOOL)dark {
     if (!_publication) {
         _artworkView.image = _showingDefaultArt
@@ -581,11 +496,7 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
 }
 
 - (void)trackDidStartPlaying:(AudioTrack *)track {
-    // Demote the previous track's full-resolution art: the decoded bitmap and
-    // the compressed bytes, some 4-9MB together. Without this, every track
-    // played in a session stays pinned for the playlist's lifetime. The
-    // thumbnail is kept, and the art reloads on demand if the track becomes
-    // current again.
+    // Or every played track pins its 4-9MB of art for the playlist's lifetime.
     if (_artOwnerTrack && _artOwnerTrack != track) {
         [_artOwnerTrack.metadata discardDecodedArt];
     }

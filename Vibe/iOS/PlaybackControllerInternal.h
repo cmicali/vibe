@@ -2,26 +2,17 @@
 //  PlaybackControllerInternal.h
 //  Vibe (iOS)
 //
-//  The private surface shared between PlaybackController.m and its categories:
-//  the class extension holding the collaborators and the display-state flags,
-//  and the notify helpers a category fires. Do not use it outside the
-//  PlaybackController implementation files; everything else goes through
-//  PlaybackController.h.
-//
-//  The debug command channel is deliberately NOT here: its extra surface stays
-//  in Debug/iOS/PlaybackController+Debug.h, so that no production file carries
-//  a declaration for a tool that does not ship.
-//
-//  This header is the cost of the split, so it is the thing to watch: a
-//  category that would push more state into it than it takes out of
-//  PlaybackController.m is not worth making.
+//  The private surface shared by PlaybackController.m and its categories; no
+//  other file imports it. The debug surface is Debug/iOS/PlaybackController+Debug.h.
+//  This header is the cost of the split: a category that pushes more state in
+//  here than it takes out of PlaybackController.m is not worth making.
 //
 
 #import "PlaybackController.h"
-#import "AudioSessionController.h"     // AudioSessionControllerDelegate, adopted below
-#import "AudioTrackMetadataCache.h"    // AudioTrackMetadataCacheDelegate, adopted below
-#import "FolderSession.h"              // FolderSessionDelegate, adopted below
-#import "Playlist.h"                   // PlaylistObserver, adopted below
+#import "AudioSessionController.h"
+#import "AudioTrackMetadataCache.h"
+#import "FolderSession.h"
+#import "Playlist.h"
 
 @class AudioPlayer;
 @class DownloadProgressMonitor;
@@ -31,10 +22,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// These four conformances stay on the class because PlaybackController.m
-// implements them. AudioPlayerDelegate and NowPlayingControllerDelegate are
-// declared on the categories that implement them, so the compiler checks each
-// against the file that holds it.
+// AudioPlayerDelegate and NowPlayingControllerDelegate are declared on the
+// categories that implement them, so the compiler checks each against its file.
 @interface PlaybackController () <PlaylistObserver, FolderSessionDelegate,
         AudioSessionControllerDelegate, AudioTrackMetadataCacheDelegate> {
     AudioPlayer             *_player;
@@ -44,11 +33,8 @@ NS_ASSUME_NONNULL_BEGIN
     AudioSessionController  *_audioSession;
     FolderSession           *_folderSession;
     UIUpdateTimer           *_updateTimer;
-    // Indicators currently consuming band levels. The tap is off at zero; see
-    // syncLevelsEnabled.
     NSInteger                _levelConsumers;
-    // Foreground-active, supplied by the scene delegate. Defaults false so a
-    // controller that has not joined an active scene cannot start UI work.
+    // Foreground-active, from the scene delegate; NO until it says otherwise.
     BOOL                     _sceneActive;
 
     float                   _pendingSeekProgress;
@@ -56,50 +42,37 @@ NS_ASSUME_NONNULL_BEGIN
     // Until didStartPlaying: lands, the player's getters still serve the
     // OUTGOING track, so the screens render the incoming track at rest.
     BOOL                    _trackStartPending;
-    // A restored track is parked: header, waveform and metadata are loaded,
-    // but nothing plays until the user asks.
+    // Header, waveform and metadata loaded; no file open, nothing playing.
     BOOL                    _parked;
     NSString                *_errorText;
 
-    // Polls a materializing cloud file's size while an open is in flight; nil
-    // otherwise.
+    // Non-nil only while an open of a materializing file is in flight.
     DownloadProgressMonitor *_downloadMonitor;
     uint64_t                 _downloadMonitorOpenRequestIdentifier;
 
-    // The home-screen widget's publisher, beside _nowPlaying because it is the
-    // same concern pointed at a second process. It owns every piece of state
-    // the widget needs, so this header carries the collaborator and none of it.
+    // Owns all widget state, so this header carries none of it.
     WidgetPublisher         *_widgetPublisher;
 
-    // performWhenLaunchOpenSettled:'s waiters, and whether the launch open has
-    // settled (settleLaunchOpen). An array, not one slot: two widget taps can
-    // land in the seconds the restore takes.
+    // An array: two widget taps can land in the seconds a restore takes.
     NSMutableArray<void (^)(void)> *_launchOpenWaiters;
     BOOL                     _launchOpenSettled;
 
-    // The deferred playlist-wide metadata sweep; see scheduleDeferredMetadataLoad.
-    // The generation pairs each open's fallback timer with its own playlist, so
-    // a timer armed by playlist A and firing after a replacement cannot start
-    // playlist B's sweep while B's first track is still opening.
+    // The generation keeps playlist A's fallback timer from starting playlist
+    // B's sweep while B's first track is still opening.
     BOOL                    _metadataLoadPending;
     NSUInteger              _metadataLoadGeneration;
 }
 
 #pragma mark - The broadcast
 
-// One per event in PlaybackObserver, so a category fires an event by name
-// rather than by re-deriving which observers implement it.
 - (void)notifyDidMoveToCurrentTrackAnimated:(BOOL)animated;
 - (void)notifyDidRenderCurrentTrack;
 - (void)notifyDidChangePlayState;
 - (void)notifyDidChangeOutputRoute;
-// Publishes the Now Playing card, then ticks the observers. The publish rides
-// along because every caller wants both and the card must never lag the
-// screens.
+// Publishes Now Playing first, so the lock screen never lags the screens.
 - (void)notifyDidTick;
 - (void)notifyDidBeginLoading;
-// Marks the launch open settled and delivers its waiters. Idempotent, since
-// every later pick reaches the same delegate methods.
+// Idempotent: every later pick reaches the same delegate methods.
 - (void)settleLaunchOpen;
 - (void)notifyDidUpdateLoadingProgress:(float)fraction;
 - (void)notifyDidFinishLoading;
@@ -107,25 +80,20 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - On track end
 
-// The playlist's next track, or nil at the end of the playlist and under
-// Settings > Playback > On track end = Pause. Every prefetchTrack: call site
-// asks this: the prefetch is the player's gapless arm point, so a bypass would
-// splice past a track end the setting says to park on (root CLAUDE.md).
+// Nil at the end of the playlist and under On track end = Pause. Every
+// prefetchTrack: call site asks this; a bypass splices past a track end the
+// setting says to park on (root CLAUDE.md).
 - (nullable AudioTrack *)successorPrefetchTrack;
 
 #pragma mark - Transport follow-ups
 
-// Re-parks the player's successor handle on whatever successorPrefetchTrack
-// answers, or drops it. Called from the append landing, whose addition may
-// have given a playing last row a successor. It decides WHETHER to re-arm;
-// successorPrefetchTrack decides WHAT to arm.
+// Re-arms the successor unless the player is Stopped; successorPrefetchTrack
+// decides what.
 - (void)prefetchSuccessor;
 
 #pragma mark - The deferred metadata sweep
 
-// Starts the playlist-wide sweep if one is still pending. The player-event
-// category calls it the moment the current track's own open settles, which is
-// the whole point of deferring it.
+// Starts the deferred sweep if one is still pending.
 - (void)startPendingMetadataLoad;
 
 @end

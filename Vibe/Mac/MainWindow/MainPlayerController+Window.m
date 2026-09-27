@@ -32,18 +32,11 @@
 
 - (void)buildContentInWindow:(MainWindow *)window {
     NSView *contentView = window.contentView;
-    // The backdrop, spanning the whole window with the pitch panel included;
-    // everything else composites over it. On macOS 26 it is Liquid Glass in
-    // the Control Center style, its corner radius matching the contentView
-    // layer mask so the rim lighting follows the window shape. Before macOS
-    // 26, where Liquid Glass does not exist, a frosted behind-window blur
-    // stands in, shaped by maskImage — the blur region ignores a layer radius.
+    // Spans the whole window, pitch panel included. Before macOS 26 a frosted
+    // blur stands in, shaped by maskImage: its blur ignores a layer radius.
     NSView *backdrop;
     if (@available(macOS 26.0, *)) {
         NSGlassEffectView *glass = [[NSGlassEffectView alloc] initWithFrame:contentView.bounds];
-        // Clear, rather than Regular, keeps the backdrop legible as glass
-        // rather than a frosted wall: more of what is behind the window shows
-        // through.
         glass.style = NSGlassEffectViewStyleClear;
         backdrop = glass;
     }
@@ -60,9 +53,7 @@
     [contentView addSubview:backdrop];
     self.windowBackdropView = backdrop;
 
-    // The themed solid background: a plain layer between the glass and the
-    // content, colored per appearance with its alpha as the opacity. Hidden
-    // under the default glass style, so the stock chrome is untouched.
+    // The themed solid background, hidden under the default glass style.
     NSView *backgroundOverlay = [[NSView alloc] initWithFrame:contentView.bounds];
     backgroundOverlay.wantsLayer = YES;
     backgroundOverlay.layer.masksToBounds = YES;
@@ -78,10 +69,7 @@
     self.playerContentView = content;
     [self applyTrafficLights];
     [contentView addSubview:content];
-    // The window already carries the restored, autosaved frame. Setting the
-    // body frame here runs the subview autoresizing pass at the real size,
-    // which is where the design-time frames in MainPlayerContentView stretch
-    // to the user's width.
+    // Stretches the design-size frames to the restored window.
     content.frame = [self playerBodyFrame];
 
     self.playButton = content.playButton;
@@ -89,24 +77,17 @@
     self.waveformView = content.waveformView;
     self.playlistTableView = content.playlistTableView;
 
-    // The header labels and the waveform's rendering states live behind the
-    // track display. This controller keeps only the outlets it drives itself.
     self.trackDisplay = [[TrackDisplayController alloc] initWithContentView:content];
 
-    // The right time label toggles between remaining and total on a click,
-    // persisted in AppSettings. It uses a gesture recognizer rather than a
-    // button, so the label stays a plain text field, styled with its row.
+    // A recognizer keeps the label a plain text field.
     NSClickGestureRecognizer *timeModeClick =
             [[NSClickGestureRecognizer alloc] initWithTarget:self
                                                       action:@selector(toggleTimeDisplayMode:)];
     [content.totalTimeTextField addGestureRecognizer:timeModeClick];
 
-    // A right-click menu on the whole window body. It is on the content view,
-    // so the responder chain carries it to the pitch panel too. Every item
-    // acts on the current track; the Copy and Convert items are the ones
-    // MainMenuBuilder vends for the main menu, so they share its identifiers
-    // and so their validation (and the Convert retitling).
-    // Menu title never drawn — a context menu shows only its items.
+    // On the content view, so it covers the pitch panel too; the playlist
+    // table's row menu shadows it. The vended items share the main menu's
+    // validation. The title is never drawn.
     NSMenu *contextMenu = [[NSMenu alloc] initWithTitle:VibeNotLocalized(@"Popup Menu")];
     [contextMenu addItem:[MainMenuBuilder symbolItemWithTitle:STR_MENU_SHOW_IN_FINDER
                                                    symbolName:@"folder"
@@ -119,12 +100,9 @@
     [contextMenu addItem:[NSMenuItem separatorItem]];
     [contextMenu addItem:[MainMenuBuilder convertToFLACItemWithTarget:self]];
     contentView.menu = contextMenu;
-    // PlaylistController installs the playlist table's own row context menu,
-    // which shadows this window-wide one, when the table is attached.
 }
 
-// The autoresizing masks reproduce both frames through a drag-resize; these
-// compute them outright for the build, and after a pitch-panel toggle.
+// The masks keep both frames through a drag; these compute them outright.
 - (NSRect)playerBodyFrame {
     NSRect frame = self.window.contentView.bounds;
     if (((MainWindow *)self.window).isPitchPanelShown) {
@@ -139,13 +117,8 @@
     return NSMakeRect(x, 0, kPitchPanelWidth, bounds.size.height);
 }
 
-// A contentView sibling of the player body rather than a child of
-// MainPlayerContentView: it is revealed by widening the window past the body,
-// and its size comes from the window's restored frame, not the design size.
-// It is right-anchored, with a fixed width and a flexible left margin, so a
-// drag-resize keeps it on the right edge, or, while hidden, keeps it parked
-// the same distance past it. heightSizable tracks the small-large layout
-// toggle.
+// A contentView sibling of the body, revealed by widening the window.
+// Right-anchored, so a drag keeps it on the edge, or parked past it.
 - (void)buildPitchPanel {
     NSView *contentView = self.window.contentView;
     _pitchPanel = [[PitchControlPanel alloc] initWithFrame:[self pitchPanelFrame]];
@@ -172,11 +145,7 @@
     [self syncEqualizerActivity];
 }
 
-// The window's own height rule, applied to drags only: the app's animated
-// resizes, the playlist toggle above all, must pass through untouched, and this
-// is the one place that can tell the two apart. Every height the app itself sets
-// is a fixed point of the rule anyway; the gate keeps an animation's
-// intermediate frames from being snapped mid-flight.
+// Drags only: an animated resize's intermediate frames must not be snapped.
 - (NSSize)windowWillResize:(NSWindow *)sender toSize:(NSSize)frameSize {
     if (sender.inLiveResize) {
         frameSize.height = [(MainWindow *)sender restingHeightForDraggedHeight:frameSize.height];
@@ -184,19 +153,13 @@
     return frameSize;
 }
 
-// The title's shrink-to-fit depends on the width of its width-flexible label.
-// Live-drag frames are skipped, so no text is measured per frame, and
-// windowDidEndLiveResize: covers the drop. The inLiveResize-false path catches
-// the app's own resizes, from the View > Size presets and the pitch-panel
-// toggle.
+// The title refit skips live-drag frames; windowDidEndLiveResize: covers the
+// drop.
 - (void)windowDidResize:(NSNotification *)notification {
-    // Unlike the title refit, live-drag frames are not skipped: a wider
-    // waveform is a faster playhead, and the re-arm is a no-op until the width
-    // crosses a whole-Hz boundary.
+    // Every frame: a wider waveform is a faster playhead.
     [self syncUITimerRate];
-    // Re-evaluate the playing row against the window's live clip. Programmatic
-    // collapse sets its final intent before the resize animation starts, but
-    // the indicator remains visible for part of that travel.
+    // A programmatic collapse sets its final intent before the animation, but
+    // the playing row stays visible for part of the travel.
     [self syncEqualizerActivity];
     if (!self.window.inLiveResize) {
         [self.trackDisplay refitTitleIfWidthChanged];
@@ -230,13 +193,9 @@
                     animate:YES];
 }
 
-// TRAP: shrinking the window does NOT hide the pitch panel. The panel is a
-// contentView sibling anchored to the right edge (NSViewMinXMargin), so a
-// resize slides it inward with the edge and it stays on screen at the new
-// width — which is why togglePitchPanel: below pins both siblings for its
-// animation and then re-asserts their frames. Nothing animates here, so the
-// landing frames are the whole job: take them from the window's post-reset
-// shown flags, which resetToDefaultShape has already cleared.
+// TRAP: shrinking the window does NOT hide the pitch panel: its right-anchored
+// mask rides the edge inward. So the frames are re-asserted from the window's
+// post-reset shown flags.
 - (void)resetWindowToDefaultShape {
     [(MainWindow *)self.window resetToDefaultShape];
     self.playerContentView.frame = [self playerBodyFrame];
@@ -250,15 +209,10 @@
         if (!AppSettings.sharedInstance.pitchControlAllowed) {
             return; // the one gate: the menu item, the P key and the debug verb all land here
         }
-        // Sync the fader with the player before the reveal; it is cheap either
-        // way.
         _pitchPanel.pitch = self.audioPlayer.pitch;
     }
-    // The reveal, and its reverse, is the window's right edge sweeping past a
-    // stationary panel, so both siblings are pinned in window coordinates for
-    // the duration of the animation. The resizable-width masks would drag them
-    // along with the edge instead: the body would shrink and re-grow, and the
-    // panel would slide in from over the body rather than being uncovered.
+    // Both siblings are pinned for the animation: the resizable masks would
+    // shrink the body and slide the panel in over it, not uncover it.
     MainPlayerContentView *body = self.playerContentView;
     NSAutoresizingMaskOptions bodyMask = body.autoresizingMask;
     NSAutoresizingMaskOptions panelMask = _pitchPanel.autoresizingMask;
@@ -267,8 +221,7 @@
     [window setPitchPanelShown:show animate:YES];
     body.autoresizingMask = bodyMask;
     _pitchPanel.autoresizingMask = panelMask;
-    // Re-assert the landing frames. A width clamped by the floor leaves the
-    // frozen frames a few points off the finished window.
+    // A width clamped by the floor leaves the pinned frames a few points off.
     body.frame = [self playerBodyFrame];
     _pitchPanel.frame = [self pitchPanelFrame];
 }
@@ -297,18 +250,13 @@
     [self.playerContentView setTrafficLightsShown:AppSettings.sharedInstance.showTrafficLights];
 }
 
-// The theme's app icon into the application, then the tile's choice between
-// it and the playing art — the AppIcon live effect's whole body, and the
-// launch-time apply. The icon lands first, since the tile reads it live.
+// The icon first: the tile reads it live.
 - (void)applyAppIcon {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     [NSDockTile setAppIcon:[theme customImageForKey:kVibeThemeImageAppIcon] shaped:theme.appIconShape];
     [self->_artworkController applyDockIcon];
 }
 
-// The whole themed window shape in one pass: the contentView mask that
-// shapes the window, the glass backdrop, the solid background cover, and
-// the pitch panel's drawn right-edge corners.
 - (void)applyWindowChrome {
     CGFloat radius = AppSettings.sharedInstance.currentTheme.resolvedWindowCornerRadius;
     NSView *contentView = self.window.contentView;
@@ -319,26 +267,20 @@
     [self.window invalidateShadow];
 }
 
-// Layer colors are CGColor, not appearance-dynamic, so the appearance-change
-// handler re-runs this — the same funnel that re-derives the header tint.
 - (void)applyWindowBackground {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     NSView *overlay = self.windowBackgroundOverlayView;
-    // Light/dark comes from the WINDOW, not the overlay: one caller is the
-    // appearance funnel, where a sibling view can still report the outgoing
-    // appearance mid-flip (the refreshTintWashes trap, APPEARANCE.md).
+    // From the WINDOW: mid-flip a view can still report the outgoing
+    // appearance (APPEARANCE.md's refreshTintWashes trap).
     BOOL dark = self.window.effectiveAppearance.isDark;
-    // Solid with an unset pair (a hand-edited import — the gate has no
-    // cross-field rules) draws the display accessor's default cover, the
-    // same one the editor's wells show.
+    // An unset pair (a hand-edited import) draws the accessor's default.
     NSColor *color = [theme.windowBackgroundStyle
             isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID]
             ? [theme displayColorForBase:kVibeThemeColorWindowBackground dark:dark] : nil;
     overlay.hidden = (color == nil);
     overlay.layer.backgroundColor = color.CGColor;
     overlay.layer.cornerRadius = theme.resolvedWindowCornerRadius;
-    // The header panel's half of the style; nil before the body is built,
-    // which applies its own at construction.
+    // nil before the body is built, which applies its own.
     [self.playerContentView applyWindowBackgroundStyle];
 }
 

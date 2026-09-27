@@ -1,17 +1,14 @@
 #!/bin/bash
-# Run one debug command against the iOS app in this checkout's simulator
-# (sim-udid.sh — never `booted`, which is ambiguous with several devices up)
-# and print its JSON reply. The iOS counterpart of `Vibe --debug-cmd`: there
-# is no CLI client — the simulator app's container tmp is a plain host
-# directory, so this writes the command file and reads the reply directly.
-# The app watches its tmp with a vnode source (DebugChannel.m), so no
-# notification is needed.
+# Run one debug command against the iOS app on this session's simulator
+# (sim-udid.sh, never `booted`) and print its JSON reply. There is no CLI
+# client: the app's container tmp is a host directory, so this writes the
+# command file and reads the reply; the app's vnode watcher (DebugChannel.m)
+# picks it up.
 #
-# Usage: debug-ios.sh <verb> [args ...]         (e.g. debug-ios.sh dump_state)
-# Timeout: 10s default; VIBE_DEBUG_TIMEOUT=<seconds> overrides (clear_caches
-# can take up to 15s on a full cache).
-# Exit codes match the mac client: 0 ok, 1 no response (no debug build
-# running), 2 command error.
+# Usage: debug-ios.sh <verb> [args ...]
+# Timeout: VIBE_DEBUG_TIMEOUT seconds, default 10 — raise it for clear_caches,
+# which can take 15s on a full cache.
+# Exit: 0 ok, 1 no response, 2 command error (as the mac client).
 set -euo pipefail
 
 [ "$#" -ge 1 ] || { echo "usage: debug-ios.sh <verb> [args ...]" >&2; exit 64; }
@@ -29,10 +26,8 @@ ID="$(uuidgen)"
 CMD="$TMP/vibe-command-$ID.json"
 RESPONSE="$TMP/vibe-response-$ID.txt"
 
-# Rename the finished file into place: the app's directory watcher fires on
-# every tmp mutation, and a command file read mid-write is deleted unexecuted.
-# The .part name matches neither the command prefix nor suffix, so the drain
-# ignores it.
+# Rename into place: the watcher fires on every tmp mutation and a command
+# read mid-write is deleted unexecuted. The drain ignores the .part name.
 jq -cn --arg id "$ID" '{id: $id, args: $ARGS.positional}' --args -- "$@" > "$CMD.part"
 mv "$CMD.part" "$CMD"
 
@@ -40,8 +35,7 @@ TIMEOUT="${VIBE_DEBUG_TIMEOUT:-10}"
 DEADLINE=$(( $(date +%s) + TIMEOUT ))
 while [ ! -f "$RESPONSE" ]; do
     if [ "$(date +%s)" -ge "$DEADLINE" ]; then
-        # Mirror the mac client: take the unexecuted command back so a later
-        # drain cannot run it out of nowhere.
+        # Take the command back so a later drain cannot run it out of nowhere.
         rm -f "$CMD"
         echo '{"error": "no response — is a Debug build of VibeiOS running?"}'
         exit 1

@@ -2,12 +2,6 @@
 //  FadeMathTests.m
 //  VibeTests
 //
-//  The fade curves and the rule that picks a track change's fade length. The
-//  voice bus evaluates the curves per frame on the audio thread and AudioFX's
-//  send gates step the log curve on the player queue; neither class is
-//  reachable from a host-less suite, so the header is where their shared
-//  arithmetic is asserted.
-//
 
 #import <XCTest/XCTest.h>
 #import "FadeMath.h"
@@ -23,8 +17,7 @@
     const uint32_t frames = 480;
     for (VibeFadeCurve curve = VibeFadeCurveLinear; curve <= VibeFadeCurveEqualPower; curve++) {
         XCTAssertEqual(VibeFadeGainAtFrame(curve, 1.0f, 0.0f, 0, frames), 1.0f, @"curve %d", curve);
-        // Exactly: the landing frame is what leaves a paused voice at true
-        // silence and a resumed one at true unity.
+        // Exactly: a paused voice lands at true silence, a resumed one at unity.
         XCTAssertEqual(VibeFadeGainAtFrame(curve, 1.0f, 0.0f, frames, frames), 0.0f, @"curve %d", curve);
         XCTAssertEqual(VibeFadeGainAtFrame(curve, 0.0f, 1.0f, frames, frames), 1.0f, @"curve %d", curve);
         XCTAssertEqual(VibeFadeGainAtFrame(curve, 0.0f, 0.25f, frames + 7, frames), 0.25f, @"curve %d", curve);
@@ -52,8 +45,7 @@
     }
 }
 
-// The declick's whole job. The render suite bounds a 0.25-amplitude signal's
-// per-sample step below 0.002 at every rate; the slowest rate is the worst case.
+// The render suite's bound: a 0.25-amplitude signal steps under 0.002 per sample.
 - (void)testTheDeclickStepIsInaudibleAtEveryRate {
     const double rates[] = { 44100, 48000, 88200, 96000, 176400, 192000 };
     for (size_t r = 0; r < sizeof(rates) / sizeof(rates[0]); r++) {
@@ -68,9 +60,6 @@
     }
 }
 
-// The reason the second curve exists: two complementary sides must sum to
-// about unity POWER, so a long crossfade holds level instead of dipping at
-// the midpoint, which is what a linear pair does.
 - (void)testEqualPowerSidesSumToConstantPower {
     const uint32_t frames = 1000;
     for (uint32_t frame = 0; frame <= frames; frame++) {
@@ -121,26 +110,20 @@
 
 #pragma mark - The track-change fade length
 
-// The one case the user's crossfade setting applies to.
 - (void)testReplacingAnAudiblyPlayingTrackTakesTheCrossfadeSetting {
     XCTAssertEqual(VibeIncomingFadeMilliseconds(2000, YES, NO), 2000u);
     XCTAssertEqual(VibeIncomingFadeMilliseconds(500, YES, NO), 500u);
 }
 
-// A first play, or one from pause or stop: nothing is sounding to fade
-// against, so transport stays instant however long the setting is.
 - (void)testAPlayWithNothingAudibleTakesTheDeclickMinimum {
     XCTAssertEqual(VibeIncomingFadeMilliseconds(2000, NO, NO), kFadeDurationMilliseconds);
 }
 
-// The convert swap replaces a track with its own audio at the same position,
-// which a crossfade would only dip.
+// The convert swap replaces a track with its own audio, which a crossfade would only dip.
 - (void)testTheDeclickFlagOverridesTheSetting {
     XCTAssertEqual(VibeIncomingFadeMilliseconds(2000, YES, YES), kFadeDurationMilliseconds);
 }
 
-// The setting can only ever lengthen the fade: below the declick minimum it
-// would fade faster than the minimum that stops the click.
 - (void)testTheSettingCannotFadeFasterThanTheDeclickMinimum {
     XCTAssertEqual(VibeIncomingFadeMilliseconds(0, YES, NO), kFadeDurationMilliseconds);
     XCTAssertEqual(VibeIncomingFadeMilliseconds(-100, YES, NO), kFadeDurationMilliseconds);
@@ -148,8 +131,7 @@
                    kFadeDurationMilliseconds);
 }
 
-// Only the declick minimum, which the UI presents as crossfade off, permits a
-// gapless splice; a longer setting asks for overlapped transitions.
+// The declick minimum is what the UI presents as crossfade off.
 - (void)testGaplessArmsOnlyAtTheDeclickMinimum {
     XCTAssertTrue(VibeGaplessArmAllowed(10));
     XCTAssertTrue(VibeGaplessArmAllowed(0));

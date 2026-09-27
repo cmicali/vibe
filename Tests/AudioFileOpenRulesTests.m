@@ -1,5 +1,6 @@
 //
-// Standardized-path identity for bounded audio-open claims.
+// Standardized-path identity for bounded audio-open claims, and the
+// delivery/detach race.
 //
 
 #import <XCTest/XCTest.h>

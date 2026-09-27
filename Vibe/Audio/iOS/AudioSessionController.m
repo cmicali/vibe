@@ -69,8 +69,7 @@ static VibeOutputRouteKind VibeOutputRouteKindForPort(AVAudioSessionPort portTyp
 
 // The one place a route is classified, for both the indicator the card draws
 // and — through VibeAudioSessionOutputRouteKindForRouteKind — the pause/recover
-// decision. The first non-built-in output decides, exactly as the coarse
-// classifier this replaced did, so the fold reproduces its answers.
+// decision. The first external output decides, else the first output.
 static VibeOutputRouteKind VibeOutputRouteKindForRoute(
         AVAudioSessionRouteDescription *route, NSString *__strong *outName) {
     if (outName) {
@@ -116,7 +115,7 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
 @end
 
 @implementation AudioSessionController {
-    // Both main-confined, like every other verdict path here.
+    // Main-confined, like every other verdict path here.
     //
     // Whether playback was running when the current interruption began,
     // recorded at the Began edge only: the route-loss pauses that often
@@ -182,9 +181,8 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
     // Began would wedge every future idle deactivation for the process's life.
     _interruptionActive = NO;
     _wasPlayingAtInterruption = NO;
-    // This explicit path alone cleared persistent route-loss/reset ownership
-    // above. Automatic interruption recovery enters the helper below without
-    // doing so.
+    // Only this explicit path clears route-loss and reset ownership; the
+    // interruption-ended resume enters activateSession without it.
     if ([self activateSession]) {
         return YES;
     }
@@ -321,11 +319,9 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
     return name;
 }
 
-// TRAP: an unconditional dispatch_async, not onMain:. This edge fans out
-// through PlaybackController to every observer, and activateSession publishes
-// it from inside a session activation the play path is waiting on — running
-// that broadcast inline there is a re-entrancy the notification paths never
-// have.
+// TRAP: an unconditional dispatch_async, not onMain:. activateSession
+// publishes from inside an activation the play path is waiting on, and this
+// edge fans out to every PlaybackObserver; inline, that is re-entrancy.
 - (void)publishOutputRouteChange {
     __weak AudioSessionController *weakSelf = self;
     dispatch_async(dispatch_get_main_queue(), ^{

@@ -12,14 +12,9 @@
 #import "PitchControlPanel.h"
 #import "VibeStrings.h"
 
-// The window is freely resizable in both axes, and the frame belongs to the
-// user, kept by the autosave. This class enforces only the floors —
-// kMainWindowMinContentWidth, plus the pitch panel's slice while it is
-// showing, and kMainWindowSmallHeight, with the band above that height closed
-// to a drag (restingHeightForDraggedHeight:) — and applies the two size changes
-// the app makes itself: the playlist toggle's height and the pitch panel's
-// kPitchPanelWidth either way. The layout constants live in MainWindowLayout.h,
-// imported through MainWindow.h and shared with MainPlayerContentView.
+// The frame belongs to the user, kept by the autosave. This class enforces
+// only the floors and the drag band (restingHeightForDraggedHeight:), and
+// applies the app's own resizes.
 
 static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 
@@ -61,17 +56,15 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
         self.identifier = @"main_window";
         self.releasedWhenClosed = NO;
         // Floors only; loadSettings re-applies the width floor once the
-        // pitch-panel state is known. There is no ceiling, because AppKit
-        // already keeps a drag-resize inside the screen.
+        // pitch-panel state is known.
         self.minSize = NSMakeSize(kMainWindowMinContentWidth, kMainWindowSmallHeight);
         self.maxSize = NSMakeSize(CGFLOAT_MAX, CGFLOAT_MAX);
         self.tabbingMode = NSWindowTabbingModeDisallowed;
         self.autorecalculatesKeyViewLoop = NO;
         self.allowsToolTipsWhenApplicationIsInactive = NO;
 
-        // File URLs only. performDragOperation reads with FileURLsOnly, so
-        // registering NSPasteboardTypeURL as well would show a copy cursor for
-        // a browser-link drag that the drop then rejects.
+        // File URLs only: NSPasteboardTypeURL would show a copy cursor for a
+        // browser link the drop then rejects.
         [self registerForDraggedTypes:@[
             NSPasteboardTypeFileURL,
         ]];
@@ -88,17 +81,11 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 
         self.contentView.wantsLayer = YES;
         self.contentView.focusRingType = NSFocusRingTypeNone;
-        // No explicit border. The system shadow and the glass backdrop's own
-        // rim lighting supply the edge, as on standard windows; a drawn dark
-        // outline reads wrong in light mode.
-        //
-        // This radius is load-bearing despite the absent masksToBounds: AppKit
-        // shapes the window from it, and without it the corners render square.
+        // Load-bearing without masksToBounds: AppKit shapes the window from
+        // this radius.
         self.contentView.layer.cornerRadius = AppSettings.sharedInstance.currentTheme.resolvedWindowCornerRadius;
 
-        // Adopt the previous session's frame, then keep saving under the same
-        // name. loadSettings reconciles the frame with the persisted flags for
-        // whether the playlist and pitch panel are shown.
+        // loadSettings reconciles the restored frame with the shown flags.
         if (![self setFrameUsingName:kFrameAutosaveName]) {
             [self center];
         }
@@ -107,8 +94,7 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
         [self invalidateShadow];
         [self loadSettings];
 
-        // A manual drag-resize can reveal or collapse the playlist without
-        // going through the toggle, so keep the flag and its setting in sync.
+        // A drag-resize can reveal or collapse the playlist without the toggle.
         _resizeObserver = [[NSNotificationCenter defaultCenter]
                 addObserverForName:NSWindowDidEndLiveResizeNotification
                             object:self
@@ -134,10 +120,6 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     }
 }
 
-// There is no performClose: override. ⌘W is nil-targeted closeFile:, which
-// this window's chain resolves to the player — it closes the loaded files
-// rather than the window — and nothing sends this window performClose:.
-
 - (void)syncPlaylistShownFromHeight {
     BOOL shown = (self.frame.size.height > kMainWindowSmallHeight);
     if (shown != _playlistShown) {
@@ -146,8 +128,7 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     }
 }
 
-// Borderless windows return NO by default, which makes AppKit warn on every
-// makeKeyWindow and can stop the window receiving key events.
+// Borderless windows default to NO, which stops key events.
 - (BOOL)canBecomeKeyWindow {
     return YES;
 }
@@ -158,9 +139,8 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 
 #pragma mark - Position lock
 
-// TRAP: from macOS 26 this call ignores isMovable and starts the drag in the
-// window server anyway, so the waveform's handoff would move a locked window.
-// The lock is enforced here, for every caller.
+// TRAP: from macOS 26 this ignores isMovable, so the waveform's handoff would
+// move a locked window. The lock is enforced here for every caller.
 - (void)performWindowDragWithEvent:(NSEvent *)event {
     if (self.isMovable) {
         [super performWindowDragWithEvent:event];
@@ -168,9 +148,9 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 }
 
 // TRAP: the system never moves a non-movable window when displays change
-// (NSWindow.h, isMovable), so a locked window whose display goes away would be
-// left where no screen is, out of reach. The screens are tested directly:
-// self.screen is not to be trusted straight after a reconfiguration.
+// (NSWindow.h, isMovable), so a locked window could be stranded off every
+// screen. Screens are tested directly: self.screen is unreliable right after a
+// reconfiguration.
 - (void)keepLockedWindowOnScreen {
     NSArray<NSScreen *> *screens = NSScreen.screens;
     if (self.isMovable || screens.count == 0) {
@@ -191,11 +171,8 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 
 #pragma mark - Drag and Drop
 
-// External file drags only. A draggingSource means one of our own views is the
-// source — the album art's drag-out, or a playlist row dragged as its file,
-// both of which carry a file URL a drop here would otherwise re-open. The
-// delegate is kept abreast of the drag's position, so that the playlist's
-// empty-state wells can track the cursor.
+// External drags only: our own sources (the art, a playlist row) carry file
+// URLs a drop here would re-open.
 - (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
     if (sender.draggingSource) {
         return NSDragOperationNone;
@@ -216,8 +193,8 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     [self notifyFileDraggingEnded];
 }
 
-// Fires after every session ends, drop or no drop. performDragOperation runs
-// first, so a drop resolves its well before this tears the presentation down.
+// After every session; performDragOperation runs first, so a drop resolves its
+// well before this tears the presentation down.
 - (void)draggingEnded:(id<NSDraggingInfo>)sender {
     [self notifyFileDraggingEnded];
 }
@@ -241,27 +218,21 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
         return NO;
     }
     // TRAP: a Finder drag delivers file-reference URLs (file:///.file/id=…),
-    // whose .path re-resolves to wherever the file currently is. Everything
-    // downstream treats a track's URL as a fixed path — cache keys hash it,
-    // and the convert-undo record restores to it — so pin every drop to the
-    // path it has right now.
+    // whose .path follows the file wherever it moves. Downstream treats a
+    // track's URL as fixed — cache keys hash it, the convert undo restores to
+    // it — so every drop is pinned to its current path.
     NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:pasteboardURLs.count];
     for (NSURL *url in pasteboardURLs) {
         NSString *path = url.path;
         [urls addObject:path ? [NSURL fileURLWithPath:path] : url];
     }
-    // Which empty-state well, if any, was hit — and so whether this drop
-    // appends. Resolved here, synchronously, because the wells are geometry
-    // and the dragging session is gone by the time the expansion lands.
+    // Synchronously: the session is gone by the time the expansion lands.
     BOOL append = NO;
     if ([self.dropDelegate respondsToSelector:@selector(mainWindow:dropAppendsAtLocation:)]) {
         append = [self.dropDelegate mainWindow:self dropAppendsAtLocation:sender.draggingLocation];
     }
-    // Everything past this point is the app's ordinary open funnel — the
-    // deliberate-open door on the burst coalescer, then the ordering token,
-    // the wait for a restoring grant, the bookmark, the expansion, the stats
-    // and the empty-result handling. A drop must take the whole funnel, or it
-    // silently skips a tail step such as revealEmptyState.
+    // The whole open funnel, or a drop skips a tail step such as
+    // revealEmptyState.
     [(AppDelegate *)NSApp.delegate openDroppedURLs:urls appending:append];
     return YES;
 }
@@ -308,15 +279,9 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     }
 }
 
-// Between the collapsed layout and the shortest playlist worth showing there is
-// no height worth resting at: the pane becomes a sliver, and the empty state
-// degrades from a cramped drop well to a blank strip once the well hides itself
-// (kPlaylistPaneMinHeight). So the band is closed rather than merely
-// discouraged — a drag through it lands on whichever end it is nearer, which
-// reads as the playlist snapping shut and springing back open under the cursor.
-//
-// minSize keeps its floor at the collapsed height, since both the toggle and
-// the settings restore target that exactly; this rule constrains only the drag.
+// No height between collapsed and the shortest useful playlist
+// (kPlaylistPaneMinHeight) is worth resting at, so a drag lands on the nearer
+// end. minSize stays at the collapsed height, which the toggle targets.
 - (CGFloat)restingHeightForDraggedHeight:(CGFloat)height {
     if (height <= kMainWindowSmallHeight || height >= kMainWindowMinLargeHeight) {
         return height;
@@ -340,10 +305,8 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     [self setFrame:[self frameKeptOnScreen:frame] display:YES animate:animate];
 }
 
-// A window grown at the right edge can end up hanging off the screen, where
-// the part the growth was for isn't visible; slide it back, but never so far
-// that the left edge (traffic lights, transport) goes off the other side.
-// A locked window stays put, so its growth may extend past the screen edge.
+// Slides back, but never past the left edge (traffic lights, transport). A
+// locked window stays put.
 - (NSRect)frameKeptOnScreen:(NSRect)frame {
     NSRect screenRect = self.screen.visibleFrame;
     if (self.isMovable && screenRect.size.width > 0 && NSMaxX(frame) > NSMaxX(screenRect)) {
@@ -356,10 +319,8 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     return _pitchPanelShown;
 }
 
-// The panel is a fixed-width slice of a resizable window, so it moves the
-// width floor rather than fixing the width: the body still has to fit
-// kMainWindowMinContentWidth beside it. Returns the new floor, which both the
-// toggle and the settings-restore clamp their frame against.
+// The panel moves the width floor: the body must still fit
+// kMainWindowMinContentWidth beside it. Returns the new floor.
 - (CGFloat)applyMinWidthForPitchPanelShown:(BOOL)shown {
     NSSize minSize = self.minSize;
     minSize.width = kMainWindowMinContentWidth + (shown ? kPitchPanelWidth : 0);
@@ -375,20 +336,14 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     AppSettings.sharedInstance.pitchPanelShown = shown;
     CGFloat minWidth = [self applyMinWidthForPitchPanelShown:shown];
     NSRect frame = self.frame;
-    // Widen/narrow by exactly the panel's slice: the body keeps whatever width
-    // the user resized it to.
+    // By exactly the slice: the body keeps the user's width.
     frame.size.width = MAX(minWidth,
                            frame.size.width + (shown ? kPitchPanelWidth : -kPitchPanelWidth));
-    // Grow to the right, but keep the panel on-screen when the window sits
-    // against the screen's right edge.
     [self setFrame:[self frameKeptOnScreen:frame] display:YES animate:animate];
 }
 
-// Anchored at the top-left like every other resize here, rather than
-// re-centered: Factory reset restores the shipping SHAPE, and where the user
-// put the window is not part of it. Writes both settings rather than trusting
-// the cleared store, so the window and the store agree however this is
-// reached, and saves the frame so a relaunch restores what is on screen.
+// The shipping shape, not position, so anchored at the top-left. Writes both
+// settings rather than trusting the cleared store, and saves the frame.
 - (void)resetToDefaultShape {
     _playlistShown = NO;
     AppSettings.sharedInstance.playlistShown = NO;
@@ -403,13 +358,9 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     [self saveFrameUsingName:kFrameAutosaveName];
 }
 
-// Both shown states are persisted as explicit settings rather than inferred
-// from the autosaved frame: a first launch has no saved frame at all (the
-// registered defaults — both hidden — supply the first-launch size), and with
-// a freely resizable window the saved width no longer identifies the panel
-// state. The restored width already includes the panel when it was showing at
-// save time (the toggle resizes the window and the autosave follows), so the
-// width itself is the user's — only the floor is enforced here.
+// Both shown states are explicit settings: a first launch has no saved frame,
+// and a resizable width does not identify the panel state. The restored width
+// already includes a shown panel, so only the floor is enforced.
 - (void)loadSettings {
     NSRect frame = self.frame;
 
@@ -422,9 +373,7 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
         height = kMainWindowLargeHeight; // shown, but the restored height is collapsed/missing
     }
     else {
-        // Shown: the user's own restored height, but never inside the band the
-        // drag snap keeps them out of. A frame saved before that floor existed
-        // can still land there.
+        // Never inside the drag band, which a saved frame can still land in.
         height = MAX(height, kMainWindowMinLargeHeight);
     }
     frame.origin.y -= height - frame.size.height; // top edge fixed, like setHeight:

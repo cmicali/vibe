@@ -49,9 +49,8 @@ static const CGFloat kWaveformDragHysteresis = 4;
 
 - (void)setup  {
 
-    // The layer-hosting contract: assign the layer before setting wantsLayer,
-    // or AppKit first creates its own backing layer and the view ends up
-    // layer-backed rather than layer-hosting.
+    // Layer before wantsLayer, or the view ends up layer-backed rather than
+    // layer-hosting.
     self.layer = [[CALayer alloc] init];
     self.wantsLayer = YES;
 
@@ -130,8 +129,8 @@ static const CGFloat kWaveformDragHysteresis = 4;
     _didClickInside = NO;
     _isDragSeeking = NO;
     if (!_waveform || !_currentWaveformRenderer || self.bounds.size.width <= 0) {
-        // Nothing to scrub — empty, loading, parked — so the whole surface
-        // drags the window, as it always did.
+        // Nothing to scrub (empty, loading, parked): the surface drags the
+        // window.
         [self.window performWindowDragWithEvent:event];
         return;
     }
@@ -151,10 +150,8 @@ static const CGFloat kWaveformDragHysteresis = 4;
     [self.window performWindowDragWithEvent:event];
 }
 
-// Seek-on-drag tracks the cursor with the hover highlight; the audio is
-// seeked once, on release. In drag_window mode the hysteresis decides:
-// past it the rest of the gesture is handed to the window's own drag, and
-// only a click that never crossed it seeks from mouseUp:.
+// Past the hysteresis, seek mode tracks the cursor with the hover highlight
+// and seeks once on release; drag_window mode hands the gesture to the window.
 - (void)mouseDragged:(NSEvent *)event {
     if (!_didClickInside) {
         return;
@@ -165,8 +162,7 @@ static const CGFloat kWaveformDragHysteresis = 4;
         return;
     }
     if (![_dragBehavior isEqualToString:SETTINGS_VALUE_WAVEFORM_DRAG_SEEK]) {
-        // Disarm before the handoff: after it the remaining events belong to
-        // the window's drag, and a mouseUp that does arrive must not seek.
+        // Disarmed first: a mouseUp that still arrives must not seek.
         _didClickInside = NO;
         [self.window performWindowDragWithEvent:event];
         return;
@@ -190,8 +186,7 @@ static const CGFloat kWaveformDragHysteresis = 4;
     NSPoint e = [event locationInWindow];
     NSPoint mouseLoc = [self convertPoint:e fromView:nil];
     if (wasDragSeeking) {
-        // The drag may legitimately end outside the view, so the containment
-        // test below does not apply; the clamped column is the target.
+        // May legitimately end outside the view: no containment test.
         [self.delegate audioWaveformView:self
                                  didSeek:(float) ([self clampedSeekX:mouseLoc.x] / self.bounds.size.width)];
         if (!NSPointInRect(mouseLoc, self.bounds)) {
@@ -200,10 +195,9 @@ static const CGFloat kWaveformDragHysteresis = 4;
         return;
     }
     if ([_dragBehavior isEqualToString:SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW]) {
-        // A moved mouse must never seek. The window-origin check catches the
-        // server-side background drag, where the view-local point barely moves
-        // because the window traveled with the cursor; the local-point check
-        // covers delivery where it doesn't.
+        // A moved mouse never seeks. The window-origin check catches a drag
+        // that moved the window with the cursor, where the local point barely
+        // moves.
         NSPoint origin = self.window.frame.origin;
         if (hypot(origin.x - _windowOriginAtMouseDown.x,
                   origin.y - _windowOriginAtMouseDown.y) > kWaveformDragHysteresis ||
@@ -227,30 +221,22 @@ static const CGFloat kWaveformDragHysteresis = 4;
     return NO;
 }
 
-// TRAP: a constant NO on purpose. AppKit caches this answer in the window's
-// movable-background region when the view joins the window, so a value
-// derived from the drag setting or the loaded state goes stale the moment
-// either changes — the seek mode then scrubbed while the server-side drag
-// moved the window with it. The view owns every drag that starts on it, and
-// the modes that move the window hand their gesture to
-// performWindowDragWithEvent:, a per-gesture decision nothing caches.
+// TRAP: a constant NO. AppKit caches this answer in the window's movable
+// region when the view joins the window, so one derived from the drag setting
+// or the loaded state goes stale — seek mode then scrubbed while the window
+// moved. Moving the window is per gesture, via performWindowDragWithEvent:.
 - (BOOL)mouseDownCanMoveWindow {
     return NO;
 }
 
 #pragma mark - Hover scrubbing affordance
 
-// Hovering lights the waveform's own column under the cursor to full
-// brightness. The renderer does the drawing, since each style knows how its
-// bars are built, and nothing is overlaid on top. Click-to-seek is untouched.
-
 - (void)updateTrackingAreas {
     [super updateTrackingAreas];
     if (_hoverTrackingArea) {
         [self removeTrackingArea:_hoverTrackingArea];
     }
-    // ActiveAlways, to match the window's hover-reveal chrome: the borderless
-    // window's controls track the cursor whatever the key state.
+    // ActiveAlways, like the window's hover-reveal chrome.
     _hoverTrackingArea = [[NSTrackingArea alloc]
             initWithRect:NSZeroRect
                  options:NSTrackingActiveAlways | NSTrackingInVisibleRect |
@@ -273,8 +259,6 @@ static const CGFloat kWaveformDragHysteresis = 4;
 
 - (void)updateHoverForEvent:(NSEvent *)event {
     NSPoint p = [self convertPoint:event.locationInWindow fromView:nil];
-    // No waveform means nothing to light, and nothing seekable. The empty,
-    // loading and parked states all land here.
     if (!_waveform || !NSPointInRect(p, self.bounds)) {
         [self hideHoverIndicator];
         return;
@@ -287,13 +271,10 @@ static const CGFloat kWaveformDragHysteresis = 4;
 }
 
 - (void)setProgress:(CGFloat)progress {
-    // Store it unconditionally. The bucket tracker below gates repaints alone,
-    // and gating the assignment too would leave the getter stale between them.
+    // Stored unconditionally; only the repaint is gated, per device pixel. A
+    // track-proportional step would stall the boundary for seconds on an
+    // hour-long mix and swallow small seeks.
     _progress = progress;
-    // Repaint whenever the playhead crosses a device pixel. The gate must be
-    // width-based rather than a fixed fraction of the track: a
-    // duration-proportional step stalls the played-unplayed boundary for many
-    // seconds on an hour-long mix, and swallows sub-step seeks entirely.
     NSUInteger steps = MAX((NSUInteger)1, (NSUInteger)self.devicePixelWidth);
     NSUInteger p = static_cast<NSUInteger>(progress * steps);
     if (_progressTracker != p) {
@@ -314,8 +295,8 @@ static const CGFloat kWaveformDragHysteresis = 4;
     return _convertSweepFraction;
 }
 
-// Only the span newly crossed since the last set is dipped: bars behind the
-// front are already easing home and must not be re-zeroed.
+// Only the span newly crossed is dipped: bars behind the front are already
+// easing home.
 - (void)setConvertSweepFraction:(double)fraction {
     if (fraction <= _convertSweepFraction) {
         _convertSweepFraction = MAX(0.0, fraction);
@@ -327,16 +308,11 @@ static const CGFloat kWaveformDragHysteresis = 4;
     _convertSweepFraction = fraction;
 }
 
-// The teardown shared by every presentation reset — prepareForWaveformLoad,
-// showLoadingIndicator and showEmptyPlaceholder — kept in one place so the
-// three cannot drift: clear the previous track's waveform, sweep and hover
-// state (a stale hover playhead would otherwise sit over the next
-// presentation until the mouse moved). Callers hide whichever overlay layers
-// must not survive, and redraw, themselves.
+// Every presentation reset's shared teardown, so the three cannot drift.
+// Callers hide their overlays and redraw themselves.
 - (void)resetWaveformContentState {
     [self hideHoverIndicator];
     _didClickInside = NO;
-    // A track change mid-drag makes the release a no-op.
     _isDragSeeking = NO;
     _convertSweepFraction = 0;
     _waveform = nil;
@@ -348,8 +324,6 @@ static const CGFloat kWaveformDragHysteresis = 4;
     [self hideEmptyPlaceholder];
     [self resetWaveformContentState];
     if (!_currentWaveformRenderer) {
-        // Prefer the persisted style, then the app default; the registry owns
-        // the chain.
         [self setWaveformStyle:AppSettings.sharedInstance.currentTheme.waveformStyle];
     }
     [self drawWaveform];
@@ -364,13 +338,11 @@ static const CGFloat kWaveformDragHysteresis = 4;
     BOOL sizeChanged = !NSEqualSizes(newSize, self.frame.size);
     [super setFrameSize:newSize];
     if (sizeChanged && _currentWaveformRenderer) {
-        // Sync the geometry even with no waveform. Otherwise the collapse
-        // morph after a track change keeps rebuilding at the old size for the
-        // rest of the collapse.
+        // Even with no waveform: a collapse morph in flight would otherwise
+        // keep rebuilding at the old size.
         [self drawWaveform];
     }
     if (sizeChanged && _loadingIndicator) {
-        // Keep the shimmer centered, spanning the new width, mid-load.
         [self layoutLoadingLayer];
     }
     if (sizeChanged && _placeholderLayer) {
@@ -378,31 +350,24 @@ static const CGFloat kWaveformDragHysteresis = 4;
     }
 }
 
-// Keeps the manually created layer tree — the renderer sublayers, masks and
-// gradients — at the window's backing scale. The root layer is layer-hosted, so
-// AppKit does not manage contentsScale for us.
+// Layer-hosted, so AppKit does not manage contentsScale for us.
 - (void)viewDidChangeBackingProperties {
     [super viewDidChangeBackingProperties];
     CGFloat scale = VibeBackingScaleOrDefault(self.window.backingScaleFactor);
     VibeApplyContentsScale(self.layer, scale);
     [_loadingIndicator updateContentsScale:scale];
-    // Settled geometry is snapped to the old display's pixel grid, and the
-    // same-size draw path skips the rebuild; ask for it explicitly. Must run
-    // after the scale re-stamp above, which the rebuild reads.
+    // Settled geometry is snapped to the old pixel grid and the same-size draw
+    // skips the rebuild. After the re-stamp above, which the rebuild reads.
     [_currentWaveformRenderer backingScaleDidChange];
 }
 
-// Fires when the system switches between light and dark; under the "System
-// default" appearance the window follows the OS. Without this, the cached
-// renderer colors go stale until a manual View > Appearance toggle.
 - (void)viewDidChangeEffectiveAppearance {
     [super viewDidChangeEffectiveAppearance];
     if (_currentWaveformRenderer) {
         BOOL isDark = self.isDark;
         if (_currentWaveformRenderer.isDark != isDark) {
-            // The theme is resolved per appearance, so a flip re-resolves it
-            // rather than merely recoloring: white's base and the album-art
-            // legibility clamp both depend on isDark.
+            // Re-resolved, not just recolored: the mono base and the album-art
+            // clamp both depend on isDark.
             [self applyResolvedTheme];
             [self updateRendererProgress];
         }
@@ -410,24 +375,13 @@ static const CGFloat kWaveformDragHysteresis = 4;
     if (_placeholderLayer) {
         [self updatePlaceholderColor];
     }
-    // Unconditional: the track and fill layers re-colour whether or not a
-    // shimmer is currently up.
     [self updateLoadingColors];
 }
 
 #pragma mark - Accessibility
 
-// The waveform is the only way to seek with the pointer, so to VoiceOver it is
-// a slider over the track: the label names it, the value is how far in
-// playback has reached, and increment/decrement seek through the same delegate
-// method a click does. Without this the whole strip was an unlabelled group
-// and the app had no reachable seek at all.
-//
-// The step is a fraction of the track rather than a number of seconds because
-// this view has no duration — it is handed a 0-1 progress and reports a 0-1
-// seek, and nothing else. Five percent crosses a song in twenty presses and an
-// hour-long mix in the same twenty, which is the right shape for a control
-// whose whole width is the track.
+// A slider over the track: the only pointer seek. A fraction, not seconds:
+// the view knows no duration.
 static const CGFloat kWaveformAccessibilityStep = 0.05;
 
 - (BOOL)isAccessibilityElement {
@@ -442,8 +396,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     return STR_A11Y_WAVEFORM;
 }
 
-// A spoken percentage, not the raw fraction: VoiceOver reads an NSNumber
-// verbatim, so 0.5 would be announced as "zero point five".
+// VoiceOver reads an NSNumber verbatim: 0.5 is "zero point five".
 - (id)accessibilityValue {
     return [Formatters.sharedInstance percentString:_progress];
 }
@@ -456,12 +409,11 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     return [self seekAccessibilityByDelta:-kWaveformAccessibilityStep];
 }
 
-// Reports the seek and lets the delegate's playback position come back around
-// through setProgress:, exactly as a click does. Writing _progress here would
-// show a playhead that had not moved yet, and fight the next UI tick.
+// The position comes back through setProgress:, as for a click. Writing
+// _progress here would show a playhead that has not moved and fight the tick.
 - (BOOL)seekAccessibilityByDelta:(CGFloat)delta {
     if (!_waveform || !_currentWaveformRenderer) {
-        return NO; // nothing loaded: there is no position to move
+        return NO;
     }
     CGFloat target = MAX(0.0, MIN(1.0, _progress + delta));
     if (target == _progress) {

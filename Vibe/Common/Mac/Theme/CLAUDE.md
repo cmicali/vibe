@@ -40,7 +40,7 @@ One theme, the type the theme system is written in terms of: a **sparse record**
 
 **Eleven fields name an image and are one kind** (`kVibeThemeImage*`, `imageFieldKeys`): the placeholder pair `defaultArtworkDark`/`Light`, `appIcon`, and the four buttons' art-keyed Dark/Light pairs. A value is an **image reference**: `""` for the slot's factory image, `bundled:<name>.<ext>` beside the built-in JSON, or `custom:<sha1>.<ext>` in `Application Support/<bundle id>/ThemeArt` (the name predates themes and stays — it is where every install's images already are; `VIBE_THEME_ART_DIR` redirects it under test). Content hashing is what makes `imageForReference:`'s lifetime cache safe — a changed image is a new key — and its custom-entry bound is the field count, so a theme's live set stays pinned while auditioned predecessors do not. The placeholder is the one *paired* image field and follows single mode like a color pair.
 
-**TRAP: a gone or undecodable image falls back but is never cached under ITS key** — the name is a content hash, so re-storing the same image later reuses the poisoned name and the theme would draw the factory record until relaunch.
+**TRAP: a gone or undecodable image falls back, but the fallback is never cached under the missing image's key** — names are content hashes, so re-storing that image reuses the key and the theme would draw the factory record until relaunch.
 
 **The factory fallback differs by slot.** `imageForReference:` answers the record image for anything missing — the placeholder's fallback; the app icon and the buttons ask `customImageForKey:`, nil for `""` and for a gone file, so they fall back to the bundle icon and the glyph, never the record. `referenceIsMissing:` is the only way to tell "deliberately the default" from "the chosen image is gone" — the editor's (!) badge.
 
@@ -56,8 +56,8 @@ One theme, the type the theme system is written in terms of: a **sparse record**
 
 **The codec is self-contained**: stored entries written, stored and raw-deflate read (a hand-made Finder zip), no archive library. Two traps in the reader:
 
-- **TRAP: the fixed 46-byte central-directory header is bounds-checked, the variable-length name after it is NOT** — guard the name and the offset advance before touching either.
-- **TRAP: charge the byte budget from the HEADER's sizes before materializing any bytes.** Every header in a small archive can point at the same large stream; copying first lets each copy measure under the remaining budget while together they exhaust memory.
+- **TRAP: the 46-byte central-directory check does not cover the variable-length name, extra and comment after it** — guard them before reading the name or advancing the offset.
+- **TRAP: test the byte budget against the HEADER's sizes before materializing any bytes.** Every header can point at the same large stream, so copies that each fit the remaining budget would together exhaust memory.
 
 ## The dice
 

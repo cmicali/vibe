@@ -1,19 +1,14 @@
 #!/usr/bin/env python3
 """Single-playlist skip and seek torture test for the running Vibe app.
 
-The fuzz profiles in vibe-stress keep OPENING files; this loads ONE large
-playlist and then hammers transport at the highest rate the channel allows,
-which is a different hazard entirely: track changes outrunning the metadata
-scan, the waveform load and the analyzers, plus seeks landing on a track that
-has already been replaced.
+The fuzz profiles keep OPENING files; this loads ONE large playlist and
+hammers transport, so track changes outrun the metadata scan, the waveform
+load and the analyzers, and seeks land on a track already replaced. Each burst
+is one `script -` invocation, which is what drives it faster than the fuzzer.
 
-Ops go through the channel's `script -` verb, so a burst is one CLI invocation
-rather than one per op. That is what makes it a torture test — it drives skips
-faster than any human or the ~12 ops/s fuzzer can.
-
-Oracles between bursts: the app is alive, check_consistency has no violations,
-and dump_health's fds / hosted units / pending counters / live heap have not
-run away. Seeded: --seed N replays an identical op sequence.
+Oracles between bursts: the app is alive, check_consistency is clean, and
+dump_health's fds / hosted units / pending counters / live heap have not run
+away. --seed N replays an identical op sequence.
 """
 
 import argparse
@@ -44,7 +39,6 @@ class App:
             return None
 
     def script(self, lines, timeout=300):
-        """One CLI invocation for a whole burst — the fast path."""
         p = subprocess.run([self.bin, "--debug-cmd", "script", "-"],
                            input="\n".join(lines) + "\n",
                            capture_output=True, text=True, timeout=timeout)
@@ -60,9 +54,8 @@ class App:
         return None
 
 
-# Each phase returns a list of channel commands. No sleeps anywhere: the whole
-# point is to issue the next transport command before the last one's async work
-# has landed.
+# No sleeps anywhere: each transport command must land before the last one's
+# async work has.
 def phase_skip_storm(rng, st, n):
     ops = []
     for _ in range(n):
@@ -105,8 +98,7 @@ def phase_mixed(rng, st, n):
 
 
 def phase_boundary(rng, st, n):
-    """Walk off the end of the playlist and back, repeatedly: the
-    end-of-playlist park and finishCurrentTrack path."""
+    """Walk off the end of the playlist and back: the end-of-playlist park."""
     ops = []
     while len(ops) < n:
         ops += ["next"] * rng.randint(8, 20)
@@ -117,28 +109,25 @@ def phase_boundary(rng, st, n):
 
 
 def phase_jump(rng, st, n):
-    """Land anywhere in the playlist, over and over.
+    """Land anywhere in the playlist.
 
-    next/previous only ever walk to the adjacent track, and the adjacent track
-    is the one case the successor prefetch has already parked and the metadata
-    sweep's neighborhood ranking has already reached. A jump lands where
-    nothing has prefetched — and against a cloud playlist that means a
-    foreground transfer with no head start, raised while the sweep still holds
-    the lane.
+    next/previous reach only the adjacent track, which the successor prefetch
+    and the sweep's neighborhood ranking have already reached. A jump lands
+    where nothing has — on a cloud playlist, a foreground transfer raised while
+    the sweep still holds the lane.
     """
     count = max(2, st.get("playlistCount") or 2)
     ops = []
     for _ in range(n):
         r = rng.random()
         if r < 0.08:
-            # Out of range is a documented no-op; escaping it is the finding.
+            # Out of range must be a no-op.
             ops.append(f"play_index {rng.randrange(count, count * 4 + 16)}")
         elif r < 0.14:
             ops.append(f"play_index -{rng.randrange(1, 50)}")
         elif r < 0.24:
-            # Two jumps to the SAME row: replaying one produces the same track
-            # and the same URL, so a settlement belonging to the first passes
-            # every content-based guard. Only submission identity can drop it.
+            # Same row twice: the first play's settlement passes every
+            # content-based guard; only submission identity can drop it.
             index = rng.randrange(count)
             ops += [f"play_index {index}", f"play_index {index}"]
         else:
@@ -147,13 +136,12 @@ def phase_jump(rng, st, n):
 
 
 def phase_blocked(rng, st, n):
-    """Every op a held main thread with a verb chained onto the same turn.
+    """Every op holds main, then runs a verb on the same turn.
 
-    The channel's own intake is on the main queue, so an async callback the app
-    dispatched to main always wins the race against a command sent afterwards.
-    Holding main first is the only way to park a queue of worker callbacks —
-    waveform, metadata, BPM and key deliveries from tracks already replaced —
-    behind a user action that is already underway.
+    The channel's intake is on main, so a callback already dispatched to main
+    always beats a command sent afterwards. Holding main first is the only way
+    to queue stale deliveries (waveform, metadata, BPM, key) behind a user
+    action already underway.
     """
     count = max(2, st.get("playlistCount") or 2)
     dur = max(1.0, st.get("duration") or 30.0)
@@ -182,17 +170,12 @@ PHASES = {
 
 
 def surviving_violations(app, settle=0.4):
-    """Violations that are still there after a settle and a second sample.
+    """Violations present in both of two samples a settle apart, matched by id.
 
-    Several of check_consistency's rules compare a RENDERED label against the
-    state that should have produced it, and renderState runs from the updateUI
-    funnel — so a state that flipped this runloop turn may legitimately not be
-    drawn yet. A burst here ends 40 transport ops deep with opens still in
-    flight, which is precisely when the render is a turn behind, so a single
-    sample turns a lag into a failure and ends the phase seconds in.
-
-    Only violations present in BOTH samples count, matched by id: a settle that
-    swaps one transient violation for another is still a settling app.
+    Several rules compare a RENDERED label against its state, and a burst ends
+    with opens in flight, when the render is legitimately a turn behind. One
+    sample would fail on that lag; a settle that swaps one transient violation
+    for another is still a settling app.
     """
     first = app.json("check_consistency")
     if not first or not first.get("violations"):
@@ -233,16 +216,14 @@ def main():
     ap.add_argument("--rounds", type=int, default=40, help="bursts per phase")
     ap.add_argument("--phases", default="skip,seek,mixed,jump,blocked,boundary")
     ap.add_argument("--cloud", metavar="SECONDS", type=float, default=None,
-                    help="arm the fake file provider before opening the playlist, so "
-                         "every track change is a real transfer. This is the shape the "
-                         "fuzz profiles cannot reach: they settle between opens to let a "
-                         "sweep run, while this issues the next track change before the "
-                         "last one's download has even started.")
-    ap.add_argument("--cloud-percent", type=int, default=70)
+                    help="arm the fake file provider with this base transfer time "
+                         "before opening, so each track change is a real transfer "
+                         "issued before the last one's download has started")
+    ap.add_argument("--cloud-percent", type=int, default=70,
+                    help="percent of files that are placeholders (default 70)")
     ap.add_argument("--cloud-capacity", type=int, default=1,
-                    help="provider transfer slots (default 1). With the provider's "
-                         "unlimited default nothing ever waits on anything, so the "
-                         "ordering the foreground hold exists for is unobservable.")
+                    help="provider transfer slots (default 1; 0 is unlimited, where "
+                         "nothing waits and the foreground hold is unobservable)")
     args = ap.parse_args()
 
     seed = args.seed if args.seed is not None else random.randrange(1 << 30)
@@ -268,12 +249,10 @@ def main():
               f"{armed['capacity']} transfer slot(s)")
 
     app.cmd("open", args.playlist, timeout=300)
-    # Wait for the playlist to actually populate before hammering it.
     deadline = time.time() + 180
     count = 0
     while time.time() < deadline:
-        # dump_health, not dump_state: the latter carries the whole file list,
-        # which is 2000+ paths on this playlist.
+        # dump_health, not dump_state: dump_state carries every path.
         h = app.json("dump_health") or {}
         count = (h.get("app") or {}).get("playlistCount") or 0
         if count > 1:
@@ -281,14 +260,11 @@ def main():
         time.sleep(0.5)
     print(f"loaded:   {count} tracks")
     if count <= 1:
-        # Distinguish the two: a dead app during the load is the bug firing on
-        # the open itself, not a driver problem.
         if not app.alive():
             print("FAILED: app DIED while loading the playlist (crash on open)")
             return 1
-        # Nearly always the sandbox grant: this script direct-execs the binary
-        # to pin WHICH build runs, and a direct-exec launch cannot grant a
-        # folder from argv, so an ungranted folder opens as nothing at all.
+        # Nearly always the sandbox grant: a direct-exec launch cannot grant a
+        # folder from argv, so an ungranted folder opens as nothing.
         print("FAIL: playlist never populated")
         print(f"      The sandbox most likely holds no grant for {args.playlist}.")
         print("      run-torture.sh direct-execs the binary to be sure which build")
@@ -308,8 +284,7 @@ def main():
         print(f"\n--- phase {phase}: {args.rounds} bursts x {args.burst} ops")
         st = {"duration": 30.0, "playlistCount": count}
         for r in range(args.rounds):
-            # dump_state is heavy on a large playlist (it lists every file), so
-            # refresh the seek scale periodically rather than every burst.
+            # dump_state lists every file, so refresh the seek scale rarely.
             if r % 5 == 0:
                 st_raw = app.json("dump_state") or {}
                 st = {"duration": (st_raw.get("player") or {}).get("duration") or 30.0,
@@ -359,7 +334,6 @@ def main():
                       f"fds {h['fds']}  units {h['units']}  live {h['liveMB']:5.1f} MB"
                       f"{'  PENDING ' + pend if pend else ''}")
 
-    # Everything must unwind once it settles.
     app.cmd("quiesce", timeout=120)
     rest = health_of(app)
     stuck = {k: v for k, v in rest["pending"].items() if v}
@@ -370,14 +344,9 @@ def main():
         return 1
 
     if args.cloud is not None:
-        # dump_health's pending section deliberately does not score the two
-        # cloud counters for growth — a sweep legitimately holds dozens of
-        # parses. At rest, after a quiesce, every count and every hold belongs
-        # at zero, and a stranded claim is a few hundred bytes that no memory
-        # oracle would ever notice.
-        # Only the gauges must be zero: the materialization reply also
-        # carries lifetime totals (handleOpensStarted/Completed, requests*),
-        # which every run that opened anything leaves nonzero.
+        # A stranded claim is too small for any memory oracle, and the
+        # materialization gauges sit outside dump_health's pending: at rest
+        # every gauge must be zero. Lifetime totals are skipped.
         cloud = app.json("dump_cloud_health") or {}
         mat = cloud.get("materialization") or {}
         cumulative = {"handleOpensStarted", "handleOpensCompleted"}
@@ -399,8 +368,6 @@ def main():
 
 
 if __name__ == "__main__":
-    # A run's stdout is nearly always redirected to a file, and Python
-    # block-buffers that — so a soak's progress stays invisible until the
-    # process exits, which for an hour-long run is the entire run.
+    # Redirected stdout is block-buffered, hiding a long run's progress.
     sys.stdout.reconfigure(line_buffering=True)
     sys.exit(main())

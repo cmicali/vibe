@@ -2,9 +2,6 @@
 //  AudioPlayer+Diagnostics.m
 //  Vibe
 //
-//  Audio-path reports in every build, and beta instrumentation under
-//  VIBE_VERBOSE_LOGGING. performDiagnosticPhase: always runs its operation.
-//
 
 #import "AudioPlayer+Diagnostics.h"
 #import "AudioPlayerInternal.h"
@@ -48,14 +45,13 @@ static void VibeReverse(uintptr_t *a, int n) {
     }
 }
 
-// Walks a thread's whole frame-pointer chain into pcs (2 * kVibeStackEnd
-// entries): the first kVibeStackEnd return addresses, then the last
-// kVibeStackEnd in order, kept in a ring while walking. Returns the chain's full
-// length; min(length, 2 * kVibeStackEnd) entries are stored.
-// TRAP: between suspend and resume nothing may allocate or take any lock the
-// stalled thread might hold — malloc's included — so this is C and system
-// calls only, the reads go through vm_read_overwrite so a bad frame ends the
-// walk instead of faulting, and symbolication waits until after the resume.
+// Into pcs (2 * kVibeStackEnd entries): the first kVibeStackEnd return
+// addresses, then the last kVibeStackEnd, kept in a ring. Returns the chain's
+// full length.
+// TRAP: between suspend and resume nothing may allocate or take a lock the
+// stalled thread might hold, malloc's included: C and system calls only,
+// vm_read_overwrite so a bad frame ends the walk instead of faulting, and
+// symbolication after the resume.
 static int VibeCaptureStack(thread_t thread, uintptr_t *pcs) {
     if (thread_suspend(thread) != KERN_SUCCESS) {
         return 0;
@@ -113,12 +109,9 @@ static int VibeCaptureStack(thread_t thread, uintptr_t *pcs) {
     return count;
 }
 
-// Symbols for the system's frames; Vibe's own (image 0, the executable) are
-// stripped in a release, so they print as offsets into the binary, to
-// symbolicate against the archived dSYM for the build the report names. A
-// run of one frame collapses to one entry: a recursive layout pass repeats its
-// call site dozens of times and would otherwise crowd out the frames that
-// started it, which is where Vibe's own code appears.
+// Vibe's own frames (image 0, stripped in a release) print as offsets for the
+// archived dSYM. A run of one frame collapses to one entry, so a recursive
+// pass cannot crowd out the frames that started it.
 static NSArray<NSString *> *VibeDescribeStack(const uintptr_t *pcs, int length) {
     NSMutableArray<NSString *> *frames = [NSMutableArray array];
     NSString *previous = nil;
@@ -157,9 +150,8 @@ static NSArray<NSString *> *VibeDescribeStack(const uintptr_t *pcs, int length) 
         previous = frame;
         repeats = 0;
     }
-    // Where it is stuck is at the top and how it got there, Vibe's frames
-    // included, near the bottom; a recursion that alternates frames does not
-    // collapse, so bound the middle rather than either end.
+    // Where it is stuck is at the top, how it got there near the bottom: trim
+    // the middle.
     if (frames.count > kVibeStackHeadFrames + kVibeStackTailFrames + 1) {
         NSRange middle = NSMakeRange(kVibeStackHeadFrames,
                                      frames.count - kVibeStackHeadFrames - kVibeStackTailFrames);
@@ -169,10 +161,8 @@ static NSArray<NSString *> *VibeDescribeStack(const uintptr_t *pcs, int length) 
     return frames;
 }
 
-// The thread now draining queue — THREAD_IDENTIFIER_INFO names the queue each
-// pool thread is serving, which is how crash reports label threads — else the
-// first whose pthread name is name. MACH_PORT_NULL when none; the caller owns
-// a returned port. Reads only, so nothing here can stall the thread it finds.
+// The thread now draining queue (THREAD_IDENTIFIER_INFO), else the first
+// whose pthread name is name. The caller owns a returned port.
 static thread_t VibeFindThread(dispatch_queue_t queue, const char *name) {
     thread_act_array_t threads = NULL;
     mach_msg_type_number_t count = 0;
@@ -214,8 +204,8 @@ static thread_t VibeFindThread(dispatch_queue_t queue, const char *name) {
     return found;
 }
 
-// TRAP: the unified log truncates one message near 1 KB (it ends "<…>"), which
-// cut the first beta stacks off before any of Vibe's frames. Numbered lines.
+// TRAP: the unified log truncates a message near 1 KB (it ends "<…>"), so a
+// stack spans numbered lines of at most 800 characters.
 static void VibeLogStack(NSString *name, double milliseconds, NSArray<NSString *> *frames) {
     NSMutableArray<NSString *> *lines = [NSMutableArray array];
     NSMutableString *line = [NSMutableString string];
@@ -250,10 +240,8 @@ static NSString *VibeSampleStack(thread_t thread, NSString *name, double millise
     return stack;
 }
 
-// One stall's samples: 250 ms in, then every 500 ms — a long freeze can move
-// between causes, and a single sample would show only the first — six at
-// most, the onset logged at the first. `samples` and `nextSampleAt` are the
-// caller's, zeroed for each new stall.
+// 250 ms in, then every 500 ms (a long freeze can move between causes), six
+// at most. `samples` and `nextSampleAt` are the caller's, zeroed per stall.
 static BOOL VibeStallSampleDue(NSString *name, uint64_t stuck, int *samples, uint64_t *nextSampleAt) {
     if (stuck <= 250 * NSEC_PER_MSEC || stuck < *nextSampleAt || *samples >= 6) {
         return NO;
@@ -266,11 +254,9 @@ static BOOL VibeStallSampleDue(NSString *name, uint64_t stuck, int *samples, uin
     return YES;
 }
 
-// A queue that takes more than 200 ms to run an empty block was blocked by
-// something, and the log says for how long, so a reported freeze can be told
-// apart from late audio; a stuck queue is sampled through whichever pool
-// thread is draining it. Returned suspended: the player resumes it while it
-// has work that can stall (refreshQueueStallWatcherOnQueue).
+// Logs an empty block that waited over 200 ms, and samples the pool thread
+// draining a stuck queue. Returned suspended
+// (refreshQueueStallWatcherOnQueue).
 static dispatch_source_t VibeWatchQueueForStalls(dispatch_queue_t queue, NSString *name) {
     dispatch_queue_t watcher = dispatch_queue_create("com.vibe.stallwatch", DISPATCH_QUEUE_SERIAL);
     __block BOOL waiting = NO; // confined to watcher, like the rest below
@@ -316,18 +302,13 @@ static dispatch_source_t VibeWatchQueueForStalls(dispatch_queue_t queue, NSStrin
     return timer;
 }
 
-// The main thread is watched by its run loop, not by pings. Each pass stamps
-// its start — at BeforeSources, and at AfterWaiting for the wakeup's own
-// work: the main queue's blocks, a timer, an event — and the loop's wait
-// clears it, so a stall is a pass older than 250 ms, and a pass that ran
-// long logs its own length as it ends. The watchdog that samples a stall
-// runs only while passes happen: a pass arms it, a quiet period parks it, so
-// an idle app wakes nothing and a stall is sampled whether or not the player
-// is busy. A nested loop (a modal panel, event tracking) stamps and clears
-// like the outer one, and a poll (a zero timeout) skips the wait's
-// observers but not the pass's, so a loop pumped from a computation reads as
-// responsive. One per process, like the thread it watches; `thread` is its
-// port, read on it, or MACH_PORT_NULL to find it at each sample.
+// By run loop observer, not pings: each pass stamps its start (BeforeSources,
+// and AfterWaiting for the wakeup's own work) and the wait clears it, so a
+// stall is a pass older than 250 ms. The sampling watchdog runs only while
+// passes happen, so an idle app wakes nothing. A nested loop stamps and
+// clears like the outer one; a poll skips the wait's observers, so a loop
+// pumped from a computation reads as responsive. One per process; `thread`
+// is its port, or MACH_PORT_NULL to find it at each sample.
 static void VibeWatchMainThreadForStalls(mach_port_t thread) {
     static _Atomic uint64_t passStart; // uptime nanos; 0 while the loop waits
     static _Atomic uint64_t passes;
@@ -448,10 +429,8 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
                                 || asbd->mFormatID == kAudioFormatAppleLossless);
         source[@"sampleRate"] = @(file.fileFormat.sampleRate);
         source[@"channels"] = @(file.fileFormat.channelCount);
-        // The codec's declared depth: PCM's own, a lossless codec's
-        // source-depth flags (OutputFormatRules.h), 0 for a lossy codec. Only
-        // PCM's flags say float: a lossless codec's are its depth, and the
-        // 24-bit one carries the float bit.
+        // Only PCM's flags say float: a lossless codec's flags are its source
+        // depth, and the 24-bit one carries the float bit.
 #if TARGET_OS_OSX
         source[@"bitsPerChannel"] = @(VibeSourceBitDepth(*asbd));
         source[@"float"] = @(VibeSourceIsFloat(*asbd));
@@ -463,8 +442,6 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
         source[@"decodedSampleFormat"] = VibeSampleFormatName(file.processingFormat);
     }
 
-    // What the voice reads the file as, and how it gets there: direct, or
-    // through the bus's converter (AudioVoiceBus.h).
     NSDictionary *conversion = [_voiceBus conversionOfVoice:_voice];
     AVAudioFormat *decodedFormat = _voice ? file.processingFormat : nil;
     NSMutableDictionary *decode = [@{@"stage": @"decode", @"present": @(_voice != 0 && decodedFormat != nil)} mutableCopy];
@@ -668,12 +645,9 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
 #endif
 }
 
-// The output's own render clock, read at every drain: the drain is the check's
-// clock, so it costs no wakeup of its own and an idle player has none. A clock
-// that stops means the device's IO stopped pulling audio — the one source of
-// a frozen time counter that is neither the main thread nor a late first
-// frame. Reports onset and recovery; noteOutputEdgeOnQueue closes a stall a
-// stop cuts short. Under the pump there is no device clock to watch.
+// Read at every drain, so it needs no wakeup of its own. A stopped clock means
+// the device's IO stopped pulling. noteOutputEdgeOnQueue closes a stall a stop
+// cuts short.
 - (void)noteRenderClockOnQueue {
 #if VIBE_VERBOSE_LOGGING
     if (![self drivesOutputDeviceOnQueue]) {
@@ -727,11 +701,8 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
 #endif
 }
 
-// The voice's own stamp names when its first frame rendered, and the live
-// event precedes that render as often as not — the decoder's first fill hops
-// to the drain before the audio thread has consumed — so the line waits for
-// the drain that first sees the stamp. Neither proves when a DAC produced
-// sound.
+// The live event often precedes the voice's first render, so the first-render
+// line waits for the drain that first sees its stamp.
 - (void)noteDrainOnQueue {
 #if VIBE_VERBOSE_LOGGING
     [self noteRenderClockOnQueue];
@@ -824,9 +795,8 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
 
 - (void)armSignalProbeOnQueue:(NSString *)reason {
 #if VIBE_VERBOSE_LOGGING
-    // The playlist's indicator may be hidden (its column is a theme choice),
-    // and a meter installed after the start misses its opening: on hardware the
-    // probe holds the meter itself for each capture.
+    // The indicator may be hidden, and a meter installed late misses the
+    // opening: on hardware the probe holds the meter itself.
     if ([self drivesOutputDeviceOnQueue] && !_signalProbeWanted) {
         _signalProbeWanted = YES;
         [self applyLevelMeterOnQueue];
@@ -856,14 +826,10 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
 #endif
 }
 
-// TRAP: the varispeed emits the bus's frames its declared latency late —
-// about 1 ms (measured) — so the last frames of a faded voice reach the
-// meter that long after the render saw the voice die, and the cutoff pads
-// for it whenever the varispeed is in the chain, which is while the pitch is
-// off zero (varispeedLatencyOnQueue reads 0 otherwise: at zero the render
-// skips the unit); without the pad the probe reads the outgoing track's tail
-// as the incoming one's first signal. The FX chain adds nothing: an idle
-// chain is skipped, and the meter reads the render's final samples.
+// TRAP: the varispeed emits the bus's frames its declared latency (48 frames)
+// late, so the cutoff is padded by varispeedLatencyOnQueue (0 at zero pitch,
+// where the unit is skipped); unpadded, the probe reads the outgoing track's
+// tail as the incoming one's first signal.
 - (void)noteRetiringAudioSilentOnQueue {
 #if VIBE_VERBOSE_LOGGING
     AudioTimeStamp time = [self outputRenderTimeOnQueue];

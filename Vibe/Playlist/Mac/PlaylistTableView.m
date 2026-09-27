@@ -14,7 +14,7 @@
 #import "LoadingIndicatorMath.h"
 #import "LoadingIndicatorView.h"
 
-// This is also the scroll view's line scroll and the cell prototypes' height.
+// Also the scroll view's line scroll and the prototypes' height.
 static const CGFloat kPlaylistRowHeight = 28;
 static const CGFloat kArtworkCellBleed = 4;
 static const CGFloat kEqualizerWidth = 16;
@@ -25,10 +25,8 @@ NSString *const kPlaylistColumnArt = @"artColumn";
 NSString *const kPlaylistColumnTitle = @"titleColumn";
 NSString *const kPlaylistColumnLength = @"lengthColumn";
 
-// The conformance is what makes validateMenuItem: below the protocol's method
-// rather than NSObject's deprecated informal one. It is declared here, not in
-// the header, because nothing outside this file calls it — the same pattern as
-// PlaylistController and MainPlayerController+Menus.
+// Makes validateMenuItem: the protocol's method, not NSObject's deprecated
+// informal one.
 @interface PlaylistTableView () <NSMenuItemValidation>
 @end
 
@@ -47,18 +45,12 @@ NSString *const kPlaylistColumnLength = @"lengthColumn";
         self.focusRingType = NSFocusRingTypeNone;
         self.intercellSpacing = NSMakeSize(0, 0);
         self.columnAutoresizingStyle = NSTableViewSequentialColumnAutoresizingStyle;
-        // Type-select would swallow plain keystrokes, jumping to the first row
-        // starting with that letter, before the menu saw them. That would
-        // break the unmodified transport key equivalents — Space, B and N —
-        // whenever the table had focus.
+        // Type-select would swallow the unmodified transport key equivalents
+        // (Space, B, N) whenever the table had focus.
         self.allowsTypeSelect = NO;
-        // Opt out of the macOS 11 inset look: the selection highlight and the
-        // row content should run flush with the scroll view's left and right
-        // edges.
+        // Flush with the scroll view's edges, not the macOS 11 inset look.
         self.style = NSTableViewStyleFullWidth;
 
-        // The column set. Cell construction, in makeCellViewWithIdentifier:,
-        // keys off these same identifiers, and the cells reuse them.
         struct {
             NSString *identifier;
             CGFloat width, minWidth, maxWidth;
@@ -81,8 +73,7 @@ NSString *const kPlaylistColumnLength = @"lengthColumn";
     return self;
 }
 
-// The theme's three optional columns. The title column absorbs the freed width
-// through the sequential autoresizing the table already uses.
+// The title column absorbs freed width through sequential autoresizing.
 - (void)applyThemedColumnVisibility {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     [self tableColumnWithIdentifier:kPlaylistColumnNumber].hidden = !theme.showPlaylistNumberColumn;
@@ -118,28 +109,23 @@ static NSDictionary *numColumnAttributes;
 static NSDictionary *lengthColumnAttributes;
 static NSDictionary *titleAttributes;
 static NSDictionary *artistAttributes;
-// Not dispatch_once: the attributes carry the theme's fonts and label
-// colors, so the PlaylistAppearance effect invalidates and the next cell
-// rebuilds — the invalidate-on-effect idiom, in place of cached-forever.
+// Not dispatch_once: they carry the theme's fonts and colors, so the
+// PlaylistAppearance effect invalidates them.
 static BOOL cellAttributesBuilt;
 static NSImage *defaultArtImage;
 
 static void ensureCellAttributes(void) {
     if (!cellAttributesBuilt) {
         cellAttributesBuilt = YES;
-        // TRAP: every column's paragraph style must truncate. These strings
-        // are set as attributed values, and an attributed string's paragraph
-        // style beats the cell's own line break mode, so leaving the style out
-        // left the default, which is wrapping, and a long title broke the
-        // row's layout.
+        // TRAP: every column's paragraph style must truncate. An attributed
+        // string's paragraph style beats the cell's lineBreakMode, and the
+        // default wraps a long title into a clipped second line.
         NSMutableParagraphStyle *left = [[NSParagraphStyle new] mutableCopy];
         left.lineBreakMode = NSLineBreakByTruncatingTail;
         NSMutableParagraphStyle *right = [left mutableCopy];
         right.alignment = NSTextAlignmentRight;
-        // One label-color set spans the header and the playlist — titleColor
-        // every title, artistColor every secondary line, here the artist run
-        // and both numeric columns — until a column's own pair is switched on,
-        // which the theme resolves per column.
+        // The header's label colors, until the theme switches on a column's
+        // own pair.
         AppTheme *theme = AppSettings.sharedInstance.currentTheme;
         defaultArtImage = theme.resolvedDefaultArtworkImage;
         NSColor *titleColor = [theme resolvedPlaylistColorForBase:kVibeThemeColorPlaylistTitle];
@@ -148,9 +134,8 @@ static void ensureCellAttributes(void) {
                 NSForegroundColorAttributeName:
                         [theme resolvedPlaylistColorForBase:kVibeThemeColorPlaylistNumber],
                 NSKernAttributeName: @(-1.5),
-                // Deliberately not the duration slot: the # column is row
-                // chrome, like the drop hint, so it keeps the built-in
-                // numbers font whatever face the theme picks for track text.
+                // Not the duration slot: the # column is row chrome, so it keeps
+                // the built-in numbers font whatever face the theme picks.
                 NSFontAttributeName: [Fonts fontForNumbers:12],
                 NSParagraphStyleAttributeName: right,
         };
@@ -181,8 +166,6 @@ static void ensureCellAttributes(void) {
     cellAttributesBuilt = NO;
 }
 
-// A static text field for a table cell, backed by the vertically centering
-// PlaylistTextCell.
 static NSTextField *makeCellTextField(NSRect frame) {
     NSTextField *field = [[NSTextField alloc] initWithFrame:frame];
     PlaylistTextCell *cell = [[PlaylistTextCell alloc] initTextCell:@""];
@@ -198,21 +181,13 @@ static NSTextField *makeCellTextField(NSRect frame) {
     return field;
 }
 
-// Edit > Select All is nil-targeted, so the responder chain hands it to
-// whichever table has focus, and NSTableView answers to selectAll: whether or
-// not it can act on it. Tied to the capability rather than hardcoded YES, so
-// the item enables exactly while the table can honor it — it could not when
-// the table was single-selection, and an enabled item that does nothing when
-// clicked is worse than a disabled one.
+// Select All enables exactly while the table can honor it.
 //
-// TRAP: there is no super to call. validateMenuItem: is a protocol method,
-// not an inherited one, and NSTableView, NSView and NSResponder all lack an
-// implementation — so [super validateMenuItem:] throws the moment any
-// nil-targeted item other than Select All reaches here, which is every other
-// action the table answers to (print:, deselectAll:). NSTableView does
-// implement validateUserInterfaceItem:, and an NSMenuItem is an
-// NSValidatedUserInterfaceItem, so the rest goes there: AppKit's own answer
-// for its own actions rather than a blanket YES.
+// TRAP: there is no super validateMenuItem:. It is a protocol method none of
+// NSTableView, NSView or NSResponder implements, so calling it throws for any
+// other nil-targeted action the table answers to (print:, deselectAll:).
+// NSTableView does implement validateUserInterfaceItem:, so the rest goes
+// there.
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
     if (menuItem.action == @selector(selectAll:)) {
         return self.allowsMultipleSelection;
@@ -220,9 +195,7 @@ static NSTextField *makeCellTextField(NSRect frame) {
     return [super validateUserInterfaceItem:menuItem];
 }
 
-// Builds the table's cell prototypes in code. makeViewWithIdentifier returns
-// nil until a view of that identifier has been created once, and setting the
-// identifier here puts these into the table's normal reuse queue.
+// Setting the identifier enters the prototype in the table's reuse queue.
 - (NSTableCellView *)makeCellViewWithIdentifier:(NSString *)identifier width:(CGFloat)width {
     CGFloat rowHeight = self.rowHeight;
     NSTableCellView *view = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, width, rowHeight)];
@@ -245,9 +218,7 @@ static NSTextField *makeCellTextField(NSRect frame) {
         eqView.barColor = NSColor.whiteColor;
         eqView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
         [view addSubview:eqView];
-        // The loading bar shares the equalizer's slot: same width and X, a
-        // small round-ended pill, vertically centred. White for the same
-        // reason the bars are — this gutter never inherits artwork colour.
+        // The loading bar shares the equalizer's slot and its white.
         CGFloat loadingHeight = VibeLoadingIndicatorMetricsForStyle(
                 VibeLoadingIndicatorStyleRow, kEqualizerWidth).height;
         LoadingIndicatorView *loadingView = [[LoadingIndicatorView alloc]
@@ -264,8 +235,7 @@ static NSTextField *makeCellTextField(NSRect frame) {
         view.textField = field;
     }
     else if ([identifier isEqualToString:kPlaylistColumnArt]) {
-        // It bleeds past the cell on every side, so artwork rows tile
-        // seamlessly.
+        // Bleeds past the cell on every side, so artwork rows tile seamlessly.
         PlaylistCoverImageView *imageView = [[PlaylistCoverImageView alloc]
                 initWithFrame:NSInsetRect(view.bounds, -kArtworkCellBleed,
                                           -kArtworkCellBleed)];
@@ -345,12 +315,7 @@ static NSTextField *makeCellTextField(NSRect frame) {
                                                                   attributes:artistAttributes]];
         return s;
     }
-    // No pair: displayTitle already carries everything known about the name,
-    // so it is still the TITLE and draws in the title's colour. It used to
-    // draw in artistAttributes, which is the same font a step dimmer: a file
-    // tagged with a title but no artist then read as an untagged filename row,
-    // and the mac disagreed with iOS, which draws this same value in
-    // labelColor.
+    // The single line is still the TITLE, so it takes the title's colour.
     return [[NSAttributedString alloc] initWithString:track.displayTitle
                                            attributes:titleAttributes];
 }
@@ -362,9 +327,8 @@ static NSTextField *makeCellTextField(NSRect frame) {
 }
 
 + (NSImage *)artworkCellImage:(NSImage *)thumbnail {
-    // The placeholder rides the invalidate-on-effect attribute cache: the
-    // per-cell cost on the scroll path is one pointer read, not a theme
-    // field lookup and cache probe per artless row.
+    // Cached with the attributes: one pointer read per artless row on the
+    // scroll path.
     ensureCellAttributes();
     return thumbnail ?: defaultArtImage;
 }

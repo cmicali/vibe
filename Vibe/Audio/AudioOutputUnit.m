@@ -44,9 +44,8 @@ static inline void VibeOutputUnitZero(AudioBufferList *data, UInt32 first) CA_RE
     }
 }
 
-// Everything the IO thread does. Plain memory and atomics, no call that can
-// block; the pragma makes the compiler hold that line, the proc's own
-// attribute included.
+// Everything the IO thread does; the checked region makes a blocking call,
+// the proc's included, a build error.
 VIBE_REALTIME_CHECKED_BEGIN
 static OSStatus VibeOutputUnitRenderCycle(VibeOutputUnitState *state, AudioUnitRenderActionFlags *actionFlags,
                                           const AudioTimeStamp *timestamp, UInt32 frameCount,
@@ -63,8 +62,6 @@ static OSStatus VibeOutputUnitRenderCycle(VibeOutputUnitState *state, AudioUnitR
         atomic_store_explicit(&state->inRender, 0, memory_order_release);
         return noErr;
     }
-    // The whole cycle, straight into the HAL's buffers; a cycle the proc
-    // fails is silence and a dropout.
     if (state->renderProc(state->renderRefCon, timestamp, frameCount, data) != noErr) {
         VibeOutputUnitZero(data, 0);
         atomic_fetch_add_explicit(&state->dropouts, 1, memory_order_relaxed);
@@ -77,9 +74,8 @@ static OSStatus VibeOutputUnitRenderCycle(VibeOutputUnitState *state, AudioUnitR
 }
 VIBE_REALTIME_END
 
-// The cost of every cycle the gate was open for is measured here, around the
-// checked function: the clock read is not on the checker's list, and it is a
-// commpage read that blocks on nothing.
+// Timed outside the checked function: the clock read is not on the checker's
+// list, though it is a commpage read that blocks on nothing.
 OSStatus VibeOutputUnitRender(void *refCon, AudioUnitRenderActionFlags *actionFlags, const AudioTimeStamp *timestamp,
                               UInt32 bus, UInt32 frameCount, AudioBufferList *data) {
     VibeOutputUnitState *state = refCon;
@@ -294,9 +290,9 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
         atomic_store_explicit(&_runGeneration, VibeOutputUnitNextGeneration(), memory_order_seq_cst);
         _running = NO;
     }
-    // TRAP: after the bump, as halStartForGeneration requires. A gate closed
-    // first let a start re-check the old generation after it and leave the
-    // gate open under a stopped unit.
+    // TRAP: after the bump, as halStartForGeneration requires. Closed first,
+    // a start could re-check the old generation after it and leave the gate
+    // open under a stopped unit.
     atomic_store_explicit(&_state->gate, 0, memory_order_seq_cst);
     if (wasRunning) {
         dispatch_async(_halQueue, ^{ [self halStopUnit]; });
@@ -345,8 +341,6 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
     LogInfo(@"AudioOutputUnit: bind to device %u took %.1f ms", deviceID, milliseconds);
 }
 
-// The device's own reckoning of when a rendered sample is heard, and its IO
-// cycle, at its nominal rate.
 - (void)halReadLatencies {
     AudioDeviceID device = _boundDeviceID;
     if (device == kAudioObjectUnknown) {
@@ -392,8 +386,6 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
 #endif
 }
 
-// The map the unit applies between its input and the device's stream, read
-// where the unit is changed, so a reader never waits on this queue for it.
 - (void)halReadChannelMap {
     AudioStreamBasicDescription output = {0};
     UInt32 size = sizeof(output);
@@ -422,11 +414,10 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
     OSStatus refusal = _bindStatus ?: _configureStatus;
     if (refusal == noErr) {
         uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
-        // TRAP: open, then re-check. A stop that landed between the check
-        // above and this store must win, or the unit would pull the pipeline
-        // after the player moved it to another device's rate. The stop bumps
-        // the generation before it closes the gate, so one of the two sees
-        // the other.
+        // TRAP: open, then re-check. A stop landing between the check above
+        // and this store must win, or the unit pulls the pipeline at a rate
+        // the player has moved off. The stop bumps the generation before it
+        // closes the gate, so one of the two sees the other.
         atomic_store_explicit(&_state->gate, 1, memory_order_seq_cst);
         if (generation != atomic_load_explicit(&_runGeneration, memory_order_seq_cst)) {
             atomic_store_explicit(&_state->gate, 0, memory_order_seq_cst);
