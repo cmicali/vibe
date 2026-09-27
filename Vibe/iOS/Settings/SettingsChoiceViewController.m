@@ -9,7 +9,11 @@ static NSString *const kChoiceCellIdentifier = @"choice";
 
 static NSString *const kSwitchCellIdentifier = @"switch";
 
-@implementation SettingsChoiceViewController
+@implementation SettingsChoiceViewController {
+    NSArray<NSString *> *_choices;
+    NSInteger            _selectedIndex;
+    void               (^_onSelect)(NSInteger index);
+}
 
 + (UITableViewCell *)switchCellInTableView:(UITableView *)tableView
                                      title:(NSString *)title
@@ -31,10 +35,6 @@ static NSString *const kSwitchCellIdentifier = @"switch";
     content.text = title;
     cell.contentConfiguration = content;
     return cell;
-} {
-    NSArray<NSString *> *_choices;
-    NSInteger            _selectedIndex;
-    void               (^_onSelect)(NSInteger index);
 }
 
 - (instancetype)initWithTitle:(NSString *)title
