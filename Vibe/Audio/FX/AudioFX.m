@@ -617,8 +617,7 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
 }
 #endif
 
-- (NSDictionary<NSString *, id> *)diagnosticSnapshot {
-    VibeFXChain *chain = _chain;
+- (NSDictionary<NSString *, id> *)intentSnapshot {
     os_unfair_lock_lock(&_stateLock);
     BOOL lowKill = _lowKillEnabled, boost = _lowKillBoostActive;
     float cutoff = _lowKillCutoffHz;
@@ -639,10 +638,28 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
             @"intent": @(i == VibeFXStageLowKill ? cutoff : intent[i]),
             @"active": @(atomic_load_explicit(&stage->active, memory_order_relaxed) != 0),
             @"gateTarget": @(atomic_load_explicit(&stage->target, memory_order_relaxed)),
-            @"tailSeconds": @(stage->tailSeconds),
         };
     }
     return @{
+        @"unitRenders": @(self.unitRenders),
+        @"lowKillBoost": @(boost),
+        @"delayTapBPM": @(bpm),
+        @"stages": stages,
+    };
+}
+
+- (NSDictionary<NSString *, id> *)diagnosticSnapshot {
+    VibeFXChain *chain = _chain;
+    NSMutableDictionary *snapshot = [[self intentSnapshot] mutableCopy];
+    NSString *names[VibeFXStageCount] = { @"lowKill", @"reverb", @"delay", @"shortDelay" };
+    NSMutableDictionary *stages = [NSMutableDictionary dictionary];
+    for (int i = 0; i < VibeFXStageCount; i++) {
+        NSMutableDictionary *stage = [snapshot[@"stages"][names[i]] mutableCopy];
+        stage[@"tailSeconds"] = @(_stages[i].tailSeconds);
+        stages[names[i]] = stage;
+    }
+    snapshot[@"stages"] = stages;
+    [snapshot addEntriesFromDictionary:@{
         @"connected": @(_connected),
         @"hosted": @(self.hosted),
         @"hostedUnits": @(self.hostedUnitCount),
@@ -652,13 +669,10 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
         // through rather than beside, so its declared latency is the segment's.
         @"latencySeconds": @(chain && chain->units[VibeFXUnitEQ].unit
                              ? VibeAudioUnitSeconds(chain->units[VibeFXUnitEQ].unit, kAudioUnitProperty_Latency) : 0),
-        @"unitRenders": @(self.unitRenders),
-        @"lowKillBoost": @(boost),
         @"lowKillFrequency": @(_lowKillFrequency),
         @"lowKillFlat": @(_lowKillFlat),
-        @"delayTapBPM": @(bpm),
-        @"stages": stages,
-    };
+    }];
+    return snapshot;
 }
 
 #pragma mark - Connecting

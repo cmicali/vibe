@@ -857,6 +857,9 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 
 - (void)playlist:(Playlist *)playlist currentIndexDidChangeFromIndex:(NSUInteger)previousIndex {
     [self updateMetadataNeighborhood];
+    // The effects belong to the track they were played over: a change cuts
+    // them, tails ringing out, before the card hears of it and drops its pad.
+    [self setFXPadPosition:CGPointZero engaged:NO];
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {
         if ([observer respondsToSelector:@selector(playback:didChangeCurrentIndexFromIndex:)]) {
             [observer playback:self didChangeCurrentIndexFromIndex:previousIndex];

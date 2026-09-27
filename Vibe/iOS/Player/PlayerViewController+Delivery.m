@@ -101,15 +101,13 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
 
 - (void)setPagerHeld:(BOOL)held byView:(UIView *)view {
     if (held) {
-        _pagerHoldView = view;
-    }
-    else if (view != _pagerHoldView) {
-        return;
+        [_pagerHoldViews addObject:view];
     }
     else {
-        _pagerHoldView = nil;
+        [_pagerHoldViews removeObject:view];
     }
-    _pagesView.scrollEnabled = !held;
+    // allObjects, not count, which still counts a holder that has died.
+    _pagesView.scrollEnabled = _pagerHoldViews.allObjects.count == 0;
 }
 
 #pragma mark - Waveform zoom

@@ -101,6 +101,7 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
     };
     _waveformCoordinator = [[PageWaveformCoordinator alloc] initWithCache:_waveformCache delegate:self];
     _artHeldPages = [NSMutableIndexSet indexSet];
+    _pagerHoldViews = [NSHashTable weakObjectsHashTable];
 
     _scrollLink = [CADisplayLink displayLinkWithTarget:[VibeWeakProxy proxyWithTarget:self]
                                               selector:@selector(scrollTick:)];
@@ -307,7 +308,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 // moves only on the edges; the frames between are positions alone.
 - (void)fxPadView:(FXPadView *)view didChangePosition:(CGPoint)position engaged:(BOOL)engaged {
     [_playback setFXPadPosition:position engaged:engaged];
-    if (engaged != (_pagerHoldView == view)) {
+    if (engaged != [_pagerHoldViews containsObject:view]) {
         [self setPagerHeld:engaged byView:view];
     }
 }
@@ -577,6 +578,18 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 
 - (void)playbackDidRenderCurrentTrack:(PlaybackController *)playback {
     [self renderHeaderForTrack:playback.currentTrack];
+}
+
+// A track change ends an FX hold and dismisses its pad; the model has cut
+// the effects already. The pad may be on any page, the bound one or not, so
+// it is found among the pager's holders, and its release frees the pager
+// through the pad's delegate call.
+- (void)playback:(PlaybackController *)playback didChangeCurrentIndexFromIndex:(NSUInteger)previousIndex {
+    for (UIView *view in _pagerHoldViews.allObjects) {
+        if ([view isKindOfClass:[FXPadView class]]) {
+            [(FXPadView *)view cancelInteraction];
+        }
+    }
 }
 
 - (void)playbackDidChangePlayState:(PlaybackController *)playback {

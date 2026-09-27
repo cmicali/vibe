@@ -4,6 +4,7 @@
 //
 
 #import "DebugCommonVerbs.h"
+#import "AudioFX.h"
 #import "AudioLevelMath.h"
 
 #if DEBUG
@@ -150,10 +151,9 @@ NSMutableDictionary *VibeDebugCommonStateDictionary(id<VibeDebugPlayerSurface> s
             @"resolvedRows": @(resolvedRows),
             @"files": files,
         } mutableCopy],
-        // The audio path's FX stage, taken on the player queue: the snapshot
-        // reads the chain the queue may free.
-        @"fx": [[player.audioPathSnapshot filteredArrayUsingPredicate:
-                 [NSPredicate predicateWithFormat:@"stage == 'fx'"]] firstObject] ?: @{},
+        // Intent only, which no queue owns: a dump must answer while the
+        // player queue is held. What the hosting says is dump_audio_path's.
+        @"fx": player.fx.intentSnapshot,
     } mutableCopy];
 }
 

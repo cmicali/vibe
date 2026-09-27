@@ -60,10 +60,12 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
     OutputRouteView         *_routeView;
     TrackPageActionBarView  *_actionBar;
     FXPadView               *_fxPadView;
-    // The view holding the pager still — a scrubber mid-scrub or mid-pinch,
+    // The views holding the pager still — a scrubber mid-scrub or mid-pinch,
     // an FX pad under a finger — NOT always the bound page's: a track ending
-    // mid-drag rebinds the chrome while the finger is down.
-    __weak UIView           *_pagerHoldView;
+    // mid-drag rebinds the chrome while the finger is down. A set, held
+    // weakly: a scrub and a pad hold overlap, and the pager is free only
+    // when the last of them lifts.
+    NSHashTable<UIView *>   *_pagerHoldViews;
 
     // The pager's own, not the model's: nothing else draws a waveform.
     AudioWaveformCache      *_waveformCache;

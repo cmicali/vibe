@@ -34,7 +34,10 @@
         // The pad as drawn: whether the setting shows it, and whether a
         // finger holds it (which also holds the pager).
         @"fxPadShown": @(_fxPadView && !_fxPadView.hidden),
-        @"fxPadEngaged": @(_fxPadView.isEngaged),
+        @"fxPadEngaged": @([_pagerHoldViews.allObjects indexOfObjectPassingTest:
+                ^BOOL(UIView *view, NSUInteger index, BOOL *stop) {
+            return [view isKindOfClass:[FXPadView class]];
+        }] != NSNotFound),
         @"waveformProgress": @(_waveformView.progress),
         @"waveformOverscroll": @(_waveformView.overscroll),
         @"waveformScrollGeom": _waveformView.scrollGeometry ?: @[],

@@ -66,8 +66,13 @@ typedef struct VibeFXChain VibeFXChain;
 // Idle effects render nothing, which the tests read. Any thread.
 - (NSUInteger)hostedUnitCount;
 - (uint64_t)unitRenders;
-// For the audio-path report. Player queue.
+// For the audio-path report: intentSnapshot plus what the hosting says.
+// Player queue, because it reads the chain the queue may free.
 - (NSDictionary<NSString *, id> *)diagnosticSnapshot;
+// The part of it no queue owns — every stage's intent and gate, the tempo
+// and the render counter, all lock-guarded or atomic. Any thread, so a dump
+// taken on main never waits on the player queue.
+- (NSDictionary<NSString *, id> *)intentSnapshot;
 
 // Q: a resonant high-pass that cuts the bass; persists across tracks, and
 // sweeps over ~80 ms so it never clicks. NO also clears lowKillBoostActive,
