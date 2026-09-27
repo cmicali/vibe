@@ -150,6 +150,10 @@ NSMutableDictionary *VibeDebugCommonStateDictionary(id<VibeDebugPlayerSurface> s
             @"resolvedRows": @(resolvedRows),
             @"files": files,
         } mutableCopy],
+        // The audio path's FX stage, taken on the player queue: the snapshot
+        // reads the chain the queue may free.
+        @"fx": [[player.audioPathSnapshot filteredArrayUsingPredicate:
+                 [NSPredicate predicateWithFormat:@"stage == 'fx'"]] firstObject] ?: @{},
     } mutableCopy];
 }
 

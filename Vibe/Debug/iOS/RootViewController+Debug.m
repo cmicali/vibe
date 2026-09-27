@@ -55,17 +55,6 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
     ui[@"selectedTab"] = self.selectedTabIdentifier;
     ui[@"libraryEmpty"] = @(playback.playlist.count == 0);
     state[@"ui"] = ui;
-    // The FX intent the model holds, through the lock-guarded getters (this
-    // runs on main). No analyzeKey: key analysis is macOS-only.
-    AudioFX *fx = playback.debugPlayer.fx;
-    state[@"fx"] = @{
-        @"lowKillCutoffHz": @(fx.lowKillCutoffHz),
-        @"reverbSendLevel": @(fx.reverbSendLevel),
-        @"delaySendLevel": @(fx.delaySendLevel),
-        @"delayTapBPM": @(fx.delayTapBPM),
-        @"hostedUnits": @(fx.hostedUnitCount),
-        @"unitRenders": @(fx.unitRenders),
-    };
     state[@"settings"] = @{
         @"waveformStyle": AppSettings.sharedInstance.waveformStyle ?: @"",
         @"waveformTheme": AppSettings.sharedInstance.waveformTheme,
