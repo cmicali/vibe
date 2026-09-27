@@ -25,7 +25,8 @@ void VibeNotifyDisplaySettingsChanged(void);
 BOOL VibeShowsRemainingTime(void);
 void VibeSetShowsRemainingTime(BOOL remaining);
 
-// The codec line under the artist; on by default, as on the mac.
+// The codec line under the artist, the tempo after it when known; on by
+// default, as on the mac.
 BOOL VibeShowsFileInfo(void);
 void VibeSetShowsFileInfo(BOOL show);
 

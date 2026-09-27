@@ -336,6 +336,74 @@ static double VibeTestRMS(NSData *capture, int channel, NSUInteger from, NSUInte
     XCTAssertEqual(_fx.unitRenders, rested, @"a parked low kill rendered");
 }
 
+// The pad's writers: a level lands the gate at that fraction of the held
+// key's full level with no swell, a second level moves it from there, and
+// zero closes the send, which rests after its tail as a release does.
+- (void)testASendLevelLandsTheGateAndZeroRestsIt {
+    [self connectAt:kRate];
+    _fx.delayTapBPM = 120;
+    _fx.delaySendLevel = 0.5f;
+    [self onQueue:^{}];
+    [self render:4800 source:nil into:nil];
+    XCTAssertEqualWithAccuracy(_fx.delaySendLevel, 0.5f, 1e-6);
+    XCTAssertFalse(_fx.delaySendEnabled, @"a level is not a held key");
+    XCTAssertGreaterThan(_fx.unitRenders, 0ull, @"a send at a level renders its units");
+    NSMutableData *half = [NSMutableData data];
+    uint64_t impulse = _pump.renderedFrames;
+    [self render:24000 source:^float(uint64_t frame, int channel) { return frame == impulse ? 0.5f : 0.0f; } into:half];
+    // No swell: six seconds on, the gate is where the level put it.
+    [self render:(NSUInteger)(kRate * 7) source:nil into:nil];
+    NSMutableData *later = [NSMutableData data];
+    impulse = _pump.renderedFrames;
+    [self render:24000 source:^float(uint64_t frame, int channel) { return frame == impulse ? 0.5f : 0.0f; } into:later];
+    double tapHalf = VibeTestRMS(half, 0, 12000 - 64, 256);
+    XCTAssertGreaterThan(tapHalf, 0.00001);
+    XCTAssertEqualWithAccuracy(VibeTestRMS(later, 0, 12000 - 64, 256), tapHalf, tapHalf * 0.05, @"the level swelled");
+    // Twice the level is twice the echo.
+    _fx.delaySendLevel = 1.0f;
+    [self onQueue:^{}];
+    [self render:4800 source:nil into:nil];
+    NSMutableData *full = [NSMutableData data];
+    impulse = _pump.renderedFrames;
+    [self render:24000 source:^float(uint64_t frame, int channel) { return frame == impulse ? 0.5f : 0.0f; } into:full];
+    XCTAssertEqualWithAccuracy(VibeTestRMS(full, 0, 12000 - 64, 256), tapHalf * 2, tapHalf * 0.1);
+    // Zero closes the send; the trail rings out and the stage rests.
+    _fx.delaySendLevel = 0;
+    [self onQueue:^{}];
+    [self render:(NSUInteger)(kRate * 40) source:nil into:nil];
+    uint64_t rested = _fx.unitRenders;
+    NSMutableData *silence = [NSMutableData data];
+    [self render:48000 source:nil into:silence];
+    XCTAssertEqual(_fx.unitRenders, rested, @"a rested stage rendered");
+    XCTAssertEqual(VibeTestRMS(silence, 0, 0, 48000), 0.0);
+}
+
+// A cutoff written directly engages the filter there — between the mac's
+// two cutoffs, where no toggle can put it — and parked rests it exactly.
+- (void)testADirectCutoffEngagesAndParkedRestsExactly {
+    [self connectAt:kRate];
+    _fx.lowKillCutoffHz = 300;
+    [self onQueue:^{}];
+    XCTAssertEqualWithAccuracy(_fx.lowKillCutoffHz, 300, 1e-6);
+    XCTAssertFalse(_fx.lowKillEnabled, @"a cutoff is not the toggle");
+    [self render:9600 source:nil into:nil]; // the 80 ms sweep
+    NSMutableData *cut = [NSMutableData data];
+    [self render:24000 source:^float(uint64_t frame, int channel) { return 0.25f * sinf((float)(2 * M_PI * 40 * frame / kRate)); } into:cut];
+    XCTAssertLessThan(VibeTestRMS(cut, 0, 12000, 12000) / (0.25 / sqrt(2)), 0.05, @"40 Hz survives a 300 Hz cutoff");
+    NSMutableData *kept = [NSMutableData data];
+    [self render:24000 source:^float(uint64_t frame, int channel) { return 0.25f * sinf((float)(2 * M_PI * 2000 * frame / kRate)); } into:kept];
+    XCTAssertGreaterThan(VibeTestRMS(kept, 0, 12000, 12000) / (0.25 / sqrt(2)), 0.8, @"2 kHz lost under a 300 Hz cutoff");
+    _fx.lowKillCutoffHz = 0;
+    [self onQueue:^{}];
+    [self render:24000 source:nil into:nil]; // the sweep back, the settle, and the rest
+    uint64_t rested = _fx.unitRenders;
+    NSMutableData *capture = [NSMutableData data];
+    uint64_t first = _pump.renderedFrames;
+    [self render:48000 source:^float(uint64_t frame, int channel) { return VibeTestNoise(frame, channel); } into:capture];
+    [self assertCapture:capture isNoiseFrom:first];
+    XCTAssertEqual(_fx.unitRenders, rested, @"a parked low kill rendered");
+}
+
 - (void)testTheChainFollowsARateChange {
     [self connectAt:kRate];
     [self attachPumpAt:96000];

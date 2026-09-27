@@ -137,6 +137,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (AudioTrack * _Nullable)trackForURL:(NSURL *)url;
 
 - (NSIndexSet *)indexesOfTracksWithURL:(NSURL *)url;
+// Playlist's: stamps every row holding url, YES when one of them is current.
+- (BOOL)stampTracksWithURL:(NSURL *)url usingBlock:(void (NS_NOESCAPE ^)(AudioTrack *track))stamp;
 
 - (void)reloadCurrentTrack;
 - (void)reloadTrackAtIndex:(NSUInteger)index;

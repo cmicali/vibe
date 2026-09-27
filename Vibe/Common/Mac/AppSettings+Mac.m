@@ -30,13 +30,11 @@
 #define SETTING_REOPEN_LAST_PLAYLIST                @"Playlist.reopenLast"
 #define SETTING_UI_UPDATE_HZ_CAP                    @"UI.updateHzCap"
 #define SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE      @"AudioPlayer.allowBitPerfectOnAnyDevice"
-#define SETTING_AUDIO_FX_ENABLED                    @"AudioPlayer.fxEnabled"
 // { device UID: { mode: YES } }, holding only the modes that are on.
 #define SETTING_OUTPUT_MODES_BY_DEVICE_UID          @"AudioPlayer.outputModesByDeviceUID"
 #define OUTPUT_MODE_BIT_PERFECT                     @"bitPerfect"
 #define OUTPUT_MODE_EXCLUSIVE                       @"exclusive"
 #define SETTING_DECLICK                             @"AudioPlayer.declick"
-#define SETTING_ANALYZE_BPM                         @"Audio.analyzeBPM"
 #define SETTING_ANALYZE_KEY                         @"Audio.analyzeKey"
 #define SETTING_KEY_NOTATION                        @"Audio.keyNotation"
 #define SETTING_KEY_COLORS                          @"Appearance.keyColors"
@@ -84,10 +82,8 @@ const size_t kVibeUIUpdateHzCapPresetCount =
             SETTING_SKIP_BASE_BARS:                 @(8),
             SETTING_REOPEN_LAST_PLAYLIST:           @(NO),
             SETTING_UI_UPDATE_HZ_CAP:               @(30),
-            SETTING_AUDIO_FX_ENABLED:               @(YES),
             SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE: @(NO),
             SETTING_DECLICK:                        @(YES),
-            SETTING_ANALYZE_BPM:                    @(YES),
             SETTING_ANALYZE_KEY:                    @(NO),
             SETTING_CONVERT_ASKS_WHERE_TO_SAVE:     @(NO),
             SETTING_FOLDER_ART:                     @(YES),
@@ -763,14 +759,6 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     [NSUserDefaults.standardUserDefaults setBool:allowed forKey:SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE];
 }
 
-- (BOOL)audioFXEnabled {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_AUDIO_FX_ENABLED];
-}
-
-- (void)setAudioFXEnabled:(BOOL)enabled {
-    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:SETTING_AUDIO_FX_ENABLED];
-}
-
 // Off is absence, so the store names only devices with a mode on. An entry
 // outlives its device being unplugged.
 - (BOOL)outputMode:(NSString *)mode forDeviceUID:(NSString *)deviceUID {
@@ -870,14 +858,6 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
 }
 
 #pragma mark Analysis and the key label
-
-- (BOOL)analyzeBPM {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_ANALYZE_BPM];
-}
-
-- (void)setAnalyzeBPM:(BOOL)analyze {
-    [[NSUserDefaults standardUserDefaults] setBool:analyze forKey:SETTING_ANALYZE_BPM];
-}
 
 - (BOOL)analyzeKey {
     return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_ANALYZE_KEY];

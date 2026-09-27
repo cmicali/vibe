@@ -129,11 +129,11 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         // queue-side reader and the dealloc dereference it unchecked, and
         // queue work can run before that block.
         _masterBus = VibeMasterBusCreate();
-        // macOS keeps the controls and BPM feed across toggles; the units are
-        // hosted at the first connect.
+        // Both platforms keep the controls and BPM feed across toggles; the
+        // units are hosted at the first connect.
         _fxEnabled = enableFX;
         __weak AudioPlayer *weakPlayer = self;
-        _fx = (enableFX || TARGET_OS_OSX) ? [[AudioFX alloc] initWithQueue:_queue scheduler:^(NSTimeInterval seconds, dispatch_block_t block) {
+        _fx = [[AudioFX alloc] initWithQueue:_queue scheduler:^(NSTimeInterval seconds, dispatch_block_t block) {
             [weakPlayer scheduleAfterSeconds:seconds block:block];
         } afterRenderLeaves:^(dispatch_block_t work) {
             AudioPlayer *player = weakPlayer;
@@ -143,7 +143,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             else {
                 work(); // no player, no pipeline, no render
             }
-        }] : nil;
+        }];
 #if TARGET_OS_OSX
         _pendingSavedDeviceUID = [deviceUID copy] ?: @"";
         _pendingSavedDeviceModelUID = [modelUID copy] ?: @"";
@@ -1029,6 +1029,26 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     float pitch = _pitch;
     os_unfair_lock_unlock(&_stateLock);
     return pitch;
+}
+
+// Declared on the class, so it lives here with the other main-interface
+// setters; the queue work it calls is the pipeline category's.
+- (void)setFXEnabled:(BOOL)enabled {
+    if (!enabled) {
+        [self clearFXIntent];
+    }
+    dispatch_async(_queue, ^{
+        if (self->_terminating || self->_fxEnabled == enabled) {
+            return;
+        }
+        BOOL wasPlaying = self->_state == VibePlayerStatePlaying && self->_voice != 0;
+        // The segment connects and disconnects with the output stopped; the
+        // voices keep their state across the stop, so nothing is rescheduled.
+        [self stopOutputOnQueue];
+        self->_fxEnabled = enabled;
+        [self reconcileFXOnQueue];
+        [self resumeOutputAfterEditOnQueue:wasPlaying reason:@"FX toggled"];
+    });
 }
 
 - (void)setPitch:(float)pitch {

@@ -27,6 +27,7 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
 #import "SearchViewController.h"
 #import "DebugCommonVerbs.h"
 #import "PlaybackController.h"
+#import "AudioFX.h"
 #import "Playlist.h"
 
 @implementation RootViewController (Debug)
@@ -54,13 +55,14 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
     ui[@"selectedTab"] = self.selectedTabIdentifier;
     ui[@"libraryEmpty"] = @(playback.playlist.count == 0);
     state[@"ui"] = ui;
-    // No analyzeBPM/analyzeKey: analysis is macOS-only.
     state[@"settings"] = @{
         @"waveformStyle": AppSettings.sharedInstance.waveformStyle ?: @"",
         @"waveformTheme": AppSettings.sharedInstance.waveformTheme,
         @"folderOpenSort": VibeFolderOpenSortIdentifier(AppSettings.sharedInstance.folderOpenSort),
         @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
         @"crossfadeMilliseconds": @(AppSettings.sharedInstance.crossfadeMilliseconds),
+        @"audioFXEnabled": @(AppSettings.sharedInstance.audioFXEnabled),
+        @"analyzeBPM": @(AppSettings.sharedInstance.analyzeBPM),
     };
     // The gate on every write to the shared container, so a widget test
     // asserts it first.

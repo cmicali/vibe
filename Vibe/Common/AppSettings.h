@@ -92,6 +92,22 @@ FOUNDATION_EXPORT const size_t kVibeCrossfadePresetCount;
 - (BOOL)pauseAtTrackEnd;
 - (void)setPauseAtTrackEnd:(BOOL)pause;
 
+// Settings > Playback > Enable audio effects, both platforms, default YES:
+// whether the DJ FX segment is in the render. The store never applies it:
+// the mac writer requests its live effect, the iOS writer calls
+// PlaybackController.applyFXSetting. On the mac audioFXAllowed
+// (Mac/AppSettings+Mac.h) folds in bit-perfect output, which outranks this.
+- (BOOL)audioFXEnabled;
+- (void)setAudioFXEnabled:(BOOL)enabled;
+
+// Settings > Playback > Detect BPM automatically, both platforms, default
+// YES. NO skips tempo detection. A file scanned while off caches no BPM, so
+// re-enabling reaches only uncached files. The loader is told through its
+// analysis provider rather than reading this. Key detection is macOS-only
+// (analyzeKey, Mac/AppSettings+Mac.h).
+- (BOOL)analyzeBPM;
+- (void)setAnalyzeBPM:(BOOL)analyze;
+
 // Normalized on read: an unknown identifier reads as Name. Each shell reads it
 // at open time and hands it to the walk; a change never reorders the
 // playlist on screen.

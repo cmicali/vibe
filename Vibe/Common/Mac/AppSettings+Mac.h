@@ -220,11 +220,6 @@ static const double kVibeWaveformGainMaxDB = 12;
 - (BOOL)allowBitPerfectOnAnyDevice;
 - (void)setAllowBitPerfectOnAnyDevice:(BOOL)allowed;
 
-// The stored FX choice the Playback pane's switch shows. Whether FX exist is
-// audioFXAllowed, which bit-perfect output outranks.
-- (BOOL)audioFXEnabled;
-- (void)setAudioFXEnabled:(BOOL)enabled;
-
 // While on: no FX, no varispeed, the crossfade at the declick minimum, and
 // each track sets the device to the file's rate and word length.
 //
@@ -265,14 +260,9 @@ static const double kVibeWaveformGainMaxDB = 12;
 // Not bitPerfectOutput, which hosts no varispeed for the fader to drive.
 - (BOOL)pitchControlAllowed;
 
-// NO skips tempo detection. A file scanned while off caches no BPM, so
-// re-enabling reaches only uncached files. The loader is told through its
-// analysis provider rather than reading this.
-- (BOOL)analyzeBPM;
-- (void)setAnalyzeBPM:(BOOL)analyze;
-
-// As analyzeBPM. Defaults off: detection is right about half the time on real
-// dance music (Audio/Analysis/CLAUDE.md).
+// NO skips key detection; same caching caveat as the shared analyzeBPM.
+// Defaults off: detection is right about half the time on real dance music
+// (Audio/Analysis/CLAUDE.md).
 - (BOOL)analyzeKey;
 - (void)setAnalyzeKey:(BOOL)analyze;
 

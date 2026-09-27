@@ -18,8 +18,8 @@ NS_ASSUME_NONNULL_BEGIN
 // change applies to the next decode with nobody republishing it; and this
 // layer must not reach into a settings singleton it cannot be tested without.
 //
-// UNSET MEANS NEITHER RUNS: what iOS, which does not analyze, and the tests
-// get.
+// UNSET MEANS NEITHER RUNS: what the tests get. The mac's provider reads both
+// settings; the iOS card's reads analyzeBPM and answers NO for the key.
 typedef struct {
     BOOL bpm;
     BOOL key;

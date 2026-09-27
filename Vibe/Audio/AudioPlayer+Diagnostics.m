@@ -468,7 +468,7 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
     NSDictionary *varispeedStage = renderFacts[@"varispeed"];
 
     NSMutableDictionary *fx = [@{
-        @"stage": @"fx", @"present": @(self.fx != nil), @"enabled": @(_fxEnabled), @"wanted": @([self fxWantedOnQueue]),
+        @"stage": @"fx", @"present": @YES, @"enabled": @(_fxEnabled), @"wanted": @([self fxWantedOnQueue]),
         @"inRender": renderFacts[@"fxInRender"],
     } mutableCopy];
     [fx addEntriesFromDictionary:self.fx.diagnosticSnapshot ?: @{}];

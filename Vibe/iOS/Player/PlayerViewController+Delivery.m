@@ -46,6 +46,14 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
     [[self cellAtIndex:index].waveformView hideLoadingIndicator];
 }
 
+// The tempo is the model's to stamp and feed the taps; the page hears it back
+// as the metadata event. No key: key detection is macOS-only.
+- (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
+              didDetectBPM:(float)bpm
+                    forURL:(NSURL *)url {
+    [_playback noteDetectedBPM:bpm forURL:url];
+}
+
 #pragma mark - WaveformScrubberViewDelegate
 
 - (void)waveformScrubberView:(WaveformScrubberView *)view didSeek:(float)percentage {
@@ -88,16 +96,18 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
 - (void)waveformScrubberView:(WaveformScrubberView *)view didChangeScrubbing:(BOOL)scrubbing {
     // Either way the labels' second guard is stale.
     _scrubLabelSecond = NSIntegerMin;
-    if (scrubbing) {
-        _scrubbingView = view;
-    }
-    else if (view != _scrubbingView) {
-        return;
+    [self setPagerHeld:scrubbing byView:view];
+}
+
+- (void)setPagerHeld:(BOOL)held byView:(UIView *)view {
+    if (held) {
+        [_pagerHoldViews addObject:view];
     }
     else {
-        _scrubbingView = nil;
+        [_pagerHoldViews removeObject:view];
     }
-    _pagesView.scrollEnabled = !scrubbing;
+    // allObjects, not count, which still counts a holder that has died.
+    _pagesView.scrollEnabled = _pagerHoldViews.allObjects.count == 0;
 }
 
 #pragma mark - Waveform zoom

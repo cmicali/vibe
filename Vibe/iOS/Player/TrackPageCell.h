@@ -3,12 +3,14 @@
 //  Vibe (iOS)
 //
 //  One full-screen page. Every page carries its own waveform, so a neighbor
-//  pulled into view shows its own track's. Landscape rearranges into the mac
-//  main window and hides the action bar.
+//  pulled into view shows its own track's. Portrait ends in the FX pad's
+//  circle and the route capsule (the route capsule alone with effects off).
+//  Landscape rearranges into the mac main window and hides both.
 //
 
 #import <UIKit/UIKit.h>
 
+@class FXPadView;
 @class OutputRouteView;
 
 NS_ASSUME_NONNULL_BEGIN
@@ -46,6 +48,16 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) OutputRouteView *routeView;
 // Exposed so the controller can fade it with the chrome.
 @property (nonatomic, readonly) TrackPageActionBarView *actionBar;
+// The FX pad, the circle at the leading end of portrait's action bar. It rides the page
+// like the route control; the controller wires its delegate and, because
+// it owns the touch for the length of a hold, holds the pager still for it.
+// Hidden with the setting (setFXPadShown:) and in landscape.
+@property (nonatomic, readonly) FXPadView *fxPadView;
+// Settings > Playback > Enable audio effects: shown, the bar is the pad's
+// circle and the route capsule over the rest; hidden, the route capsule takes
+// the whole width. The controller sets it from the setting on every
+// configure, so a recycled cell and a settings change both land.
+- (void)setFXPadShown:(BOOL)shown;
 @property (nonatomic, readonly) UIButton *previousButton;
 @property (nonatomic, readonly) UIButton *playPauseButton;
 @property (nonatomic, readonly) UIButton *nextButton;

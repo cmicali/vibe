@@ -68,9 +68,17 @@ NS_ASSUME_NONNULL_BEGIN
 // advances with every publication for the player's lifetime. Lock-free.
 - (BOOL)copyBandLevels:(float *)out count:(NSUInteger)count sequence:(uint64_t *)sequence;
 
-// macOS: exists from init so intent and tempo survive toggles; its units are
-// hosted at the first connect. nil on iOS.
-@property (nonatomic, readonly, nullable) AudioFX *fx;
+// Exists from init on both platforms so intent and tempo survive toggles;
+// its units are hosted at the first connect, and the segment is in the
+// render only while wanted.
+@property (nonatomic, readonly) AudioFX *fx;
+
+// The setting's live effect on iOS: off clears every stage's intent at
+// submission, then reconnects the pipeline with the output stopped and puts
+// a playing track back. The mac applies the same setting through its device
+// rebuild (setBitPerfectOutput:exclusiveOutput:enableFX:allowAnyDevice:).
+// Any thread.
+- (void)setFXEnabled:(BOOL)enabled;
 
 // The render chain stage by stage (audioPathOnQueue). One queue round trip;
 // any thread but the player queue.

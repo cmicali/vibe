@@ -134,6 +134,10 @@
     return [NSString stringWithFormat:STR_LABEL_SAMPLE_RATE, [self decimalString:hertz / 1000 fractionDigits:1]];
 }
 
+- (NSString *)bpmString:(double)bpm {
+    return [NSString stringWithFormat:STR_LABEL_BPM, [self decimalString:bpm fractionDigits:1]];
+}
+
 - (NSString *)decimalString:(double)value fractionDigits:(NSInteger)digits {
     if (isnan(value)) {
         value = 0;

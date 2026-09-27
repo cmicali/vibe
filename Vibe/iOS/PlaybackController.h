@@ -148,6 +148,26 @@ NS_ASSUME_NONNULL_BEGIN
 // seek, never interrupting what is playing.
 - (void)applyResamplingSetting;
 
+// Settings > Playback > Enable audio effects was written: the player connects
+// or disconnects the FX segment with the output stopped and puts a playing
+// track back; off also releases the pad. The card hides its pad from the
+// display notification the same write posts.
+- (void)applyFXSetting;
+
+#pragma mark - Effects and tempo
+
+// The one funnel every surface drives the effects through — the card's pad,
+// the debug channel. `position` is the pad's normalized point, x 0..1 left to
+// right and y 0..1 bottom to top; `engaged` NO is the release. The mapping is
+// AudioFXMath.h's: y the low kill's cutoff, x the reverb's level and, past
+// the onset, the 1/8-note delay's.
+- (void)setFXPadPosition:(CGPoint)position engaged:(BOOL)engaged;
+
+// The decode pass detected a tempo for `url`: stamped on every row holding
+// it (Playlist.stampTracksWithURL:usingBlock:), each redrawn, the delay taps
+// refed. The URL match closes the race with a track change.
+- (void)noteDetectedBPM:(float)bpm forURL:(NSURL *)url;
+
 // The priority metadata lane, for one track's tags ahead of the sweep. A
 // no-op once the track is parsed.
 - (void)loadMetadataNowForTrack:(nullable AudioTrack *)track;

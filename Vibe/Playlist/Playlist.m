@@ -220,6 +220,16 @@
     return [_indexesByURL[url] copy] ?: [NSIndexSet indexSet];
 }
 
+- (BOOL)stampTracksWithURL:(NSURL *)url usingBlock:(void (NS_NOESCAPE ^)(AudioTrack *track))stamp {
+    __block BOOL current = NO;
+    [[self indexesOfTracksWithURL:url] enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
+        AudioTrack *track = [self trackAtIndex:index];
+        stamp(track);
+        current |= [self isCurrentTrack:track];
+    }];
+    return current;
+}
+
 - (AudioTrack *)trackForURL:(NSURL *)url {
     if (!url) {
         return nil;

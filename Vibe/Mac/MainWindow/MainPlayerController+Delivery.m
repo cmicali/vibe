@@ -44,17 +44,11 @@
     [self.trackDisplay showWaveform:waveform];
 }
 
-// An analyzed value is valid for every row owning the URL; stamping only the
-// first match would strand a duplicate that happens to be playing.
-- (void)stampTracksWithURL:(NSURL *)url usingBlock:(void (^)(AudioTrack *track))stamp {
-    __block BOOL refresh = NO;
-    [[self.playlistController indexesOfTracksWithURL:url]
-            enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
-        AudioTrack *track = [self.playlistController trackAtIndex:index];
-        stamp(track);
-        refresh |= [self.playlistController isCurrentTrack:track];
-    }];
-    if (refresh) {
+// A late delivery can land after next: has advanced the playlist; the playlist
+// stamps every row holding the URL and says whether one is on display. The
+// BPM and the key share the label line, so both refresh here.
+- (void)stampTracksWithURL:(NSURL *)url usingBlock:(void (NS_NOESCAPE ^)(AudioTrack *track))stamp {
+    if ([self.playlistController stampTracksWithURL:url usingBlock:stamp]) {
         [self effectiveTempoDidChange];
     }
 }

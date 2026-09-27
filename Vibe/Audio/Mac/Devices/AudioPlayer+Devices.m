@@ -635,20 +635,10 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
             return NO;
         }
     
-        if (wasPlaying) {
-            NSError *startError = nil;
-            if (![self startOutputOnQueue:&startError]) {
-                // No output to restart on. Park Paused at the same position,
-                // so the next resume restarts the output, and say why.
-                [self pauseCurrentVoiceOnQueue];
-                [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
-                        @"Could not restart playback on the new audio device", startError)];
-                return NO;
-            }
-            [self armSignalProbeOnQueue:@"device rebind"];
-        }
-        else {
-            [self scheduleOutputIdleStopOnQueue];
+        // Restoring means Playing or Paused (getPlaybackIntent:), so the
+        // helper's Paused-only idle stop covers every non-playing case here.
+        if (![self resumeOutputAfterEditOnQueue:wasPlaying reason:@"device rebind"]) {
+            return NO;
         }
         [self maybeArmSuccessorOnQueue]; // re-queue the successor behind the restored voice
     }
@@ -1382,15 +1372,6 @@ static NSString *VibeBitPerfectStatusName(VibeBitPerfectStatus status) {
 #pragma mark - Output devices (public API, declared in AudioPlayer.h)
 
 @implementation AudioPlayer (Devices)
-
-- (void)clearFXIntent {
-    // Clear at submission: a queued bypass must not erase newer FX actions.
-    self.fx.lowKillBoostActive = NO;
-    self.fx.lowKillEnabled = NO;
-    self.fx.reverbSendEnabled = NO;
-    self.fx.delaySendEnabled = NO;
-    self.fx.shortDelaySendEnabled = NO;
-}
 
 - (void)setOutputDevice:(NSInteger)outputDeviceID completion:(dispatch_block_t)completion {
     NSString *uid = [AudioDeviceManager.sharedInstance outputDeviceForId:outputDeviceID].uid;

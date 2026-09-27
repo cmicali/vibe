@@ -25,7 +25,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Whether a decode should also run the tempo and key analyzers. Stamped onto
 // every loader this cache creates, and asked once per load, so a settings
 // change lands on the next decode. The owner installs it: macOS reads the two
-// analysis settings, iOS installs nothing because it never analyzes.
+// analysis settings, the iOS card reads analyzeBPM and never asks for the key.
 @property (nullable, copy) VibeWaveformAnalysisProvider analysisProvider;
 
 // The PINCache store name, derived from the entry format version; see the

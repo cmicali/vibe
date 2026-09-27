@@ -29,7 +29,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
       didFailWaveformForIndex:(NSUInteger)index;
 
-// No BPM or key: analysis is macOS-only, so the cache never fires them here.
+// A tempo for `url`, forwarded as delivered: matched by URL, not page, since
+// a file can occupy several rows, and never held — the model stamps it and
+// the delay taps follow at once; a page repaints only when the tempo it shows
+// changed, through the metadata event. No key: key detection is macOS-only.
+- (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
+              didDetectBPM:(float)bpm
+                    forURL:(NSURL *)url;
 
 @end
 

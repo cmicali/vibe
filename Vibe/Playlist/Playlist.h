@@ -117,6 +117,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable AudioTrack *)trackForURL:(nullable NSURL *)url;
 - (BOOL)isCurrentTrack:(AudioTrack *)track;
 
+// Runs `stamp` on every row holding url — an analyzed BPM or key delivery,
+// which is valid for each of them, so the first match alone would strand a
+// duplicate row that happens to be the one playing — and answers whether the
+// current track was among them, which is when a shell redraws or refeeds.
+- (BOOL)stampTracksWithURL:(nullable NSURL *)url usingBlock:(void (NS_NOESCAPE ^)(AudioTrack *track))stamp;
+
 // Points a row at a different file, returning the fresh AudioTrack now in it,
 // or nil when index is out of range. Mints rather than reassigning url:
 // AudioTrack memoizes its cache key, so a reused track would file the new

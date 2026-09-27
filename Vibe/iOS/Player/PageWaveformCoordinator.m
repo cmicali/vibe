@@ -144,4 +144,10 @@
     [_delegate pageWaveformCoordinator:self didFailWaveformForIndex:failedIndex];
 }
 
+// Straight through: the URL is the match, and the hold does not apply. No
+// key twin: key detection is macOS-only.
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forURL:(NSURL *)url {
+    [_delegate pageWaveformCoordinator:self didDetectBPM:bpm forURL:url];
+}
+
 @end

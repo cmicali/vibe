@@ -22,6 +22,8 @@
 
 // "44.1 kHz", per locale.
 - (NSString *)sampleRateString:(double)hertz;
+// "128.0 BPM": the tempo readout both platforms draw.
+- (NSString *)bpmString:(double)bpm;
 
 // The pitch readout: "+3.2%", "−3.2%" (U+2212), "0.0%", per locale.
 - (NSString *)signedPercentString:(double)percent;

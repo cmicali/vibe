@@ -14,6 +14,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioWaveformCache.h"
+#import "FXPadView.h"
 #import "TrackPageCell.h"
 #import "WaveformScrubberView.h"
 
@@ -30,6 +31,13 @@
         // Freezes the playhead while set; beside waveformBaked it says why a
         // waveform is still.
         @"routePickerUp": @(_routePickerPresenting),
+        // The pad as drawn: whether the setting shows it, and whether a
+        // finger holds it (which also holds the pager).
+        @"fxPadShown": @(_fxPadView && !_fxPadView.hidden),
+        @"fxPadEngaged": @([_pagerHoldViews.allObjects indexOfObjectPassingTest:
+                ^BOOL(UIView *view, NSUInteger index, BOOL *stop) {
+            return [view isKindOfClass:[FXPadView class]];
+        }] != NSNotFound),
         @"waveformProgress": @(_waveformView.progress),
         @"waveformOverscroll": @(_waveformView.overscroll),
         @"waveformScrollGeom": _waveformView.scrollGeometry ?: @[],

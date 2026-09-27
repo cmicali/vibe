@@ -49,7 +49,6 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
         @"reverbSend": @(player.fx.reverbSendEnabled),
         @"delaySend": @(player.fx.delaySendEnabled),
         @"shortDelaySend": @(player.fx.shortDelaySendEnabled),
-        @"delayTapBPM": @(player.fx.delayTapBPM),
         @"outputDeviceId": @(outputDeviceID),
         @"outputDeviceUID": outputDeviceUID ?: @"",
         @"requestedOutputDeviceId": @(player.currentlyRequestedAudioDeviceId),

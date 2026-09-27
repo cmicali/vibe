@@ -50,6 +50,14 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 // Connects or disconnects the FX segment per fxWantedOnQueue, with the
 // output stopped. Idempotent.
 - (void)reconcileFXOnQueue;
+// Clears every stage's intent at submission, so a queued bypass cannot erase
+// a newer FX action.
+- (void)clearFXIntent;
+// After an output stop for a pipeline edit (a format follow, an FX toggle):
+// a playing voice restarts the output and re-arms the signal probe, a paused
+// one re-arms the idle stop. NO when the output refuses to start; the voice
+// is then parked Paused and the error sent.
+- (BOOL)resumeOutputAfterEditOnQueue:(BOOL)wasPlaying reason:(NSString *)reason;
 // The meter is created at the first demand and kept; a demand toggle is the
 // render's pointer and a publisher session. dropLevelMeterOnQueue frees it
 // for a replacement (rate or normalization mode) once the render is outside.

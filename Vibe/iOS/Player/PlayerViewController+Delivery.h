@@ -18,6 +18,10 @@ NS_ASSUME_NONNULL_BEGIN
 @interface PlayerViewController (Delivery) <PageWaveformCoordinatorDelegate,
         WaveformScrubberViewDelegate>
 
+// Holds the pager still for a scrub, a pinch or an FX pad hold, and releases
+// it, matched against the view that took it (the trap on _pagerHoldViews).
+- (void)setPagerHeld:(BOOL)held byView:(UIView *)view;
+
 // The pager's one zoom lives here beside its only writer,
 // didChangeVisibleFraction:. Setup only.
 - (void)restoreWaveformZoom;

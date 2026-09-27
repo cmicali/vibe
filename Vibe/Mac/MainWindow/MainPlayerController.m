@@ -160,7 +160,7 @@
 
 - (void)wireCollaboratorHandlers {
     // Asked once per decode, so a settings change lands on the next load.
-    // iOS installs no provider: it never analyzes.
+    // The iOS card installs its own, tempo only.
     self.waveformCache.analysisProvider = ^VibeWaveformAnalysis{
         return (VibeWaveformAnalysis){AppSettings.sharedInstance.analyzeBPM, AppSettings.sharedInstance.analyzeKey};
     };

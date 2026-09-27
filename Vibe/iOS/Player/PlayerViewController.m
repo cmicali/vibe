@@ -10,8 +10,10 @@
 #import "PlayerViewController+Delivery.h"
 #import "PlayerViewController+Pager.h"
 
+#import "AppSettings.h"
 #import "AudioTrack.h"
 #import "AudioWaveformCache.h"
+#import "FXPadView.h"
 #import "PageWaveformCoordinator.h"
 #import "TrackPageCell.h"
 #import "Formatters.h"
@@ -49,6 +51,9 @@ static const NSTimeInterval kRoutePickerHoldSeconds = 10;
 }
 @end
 
+// Set once the cache written before tempo detection has been cleared.
+static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfilled";
+
 @implementation PlayerViewController {
     // The model's 3 Hz tick is too coarse for a moving waveform.
     CADisplayLink           *_scrollLink;
@@ -80,8 +85,23 @@ static const NSTimeInterval kRoutePickerHoldSeconds = 10;
     [self buildUI];
 
     _waveformCache = [[AudioWaveformCache alloc] init];
+    // Once: an entry cached before tempo detection existed here carries no
+    // BPM, and a cache hit never re-analyzes, so those tracks would show no
+    // tempo and echo at the default for as long as the entry lived. Ahead of
+    // the first load on the cache's serial queue, so no lookup sees the old
+    // entries.
+    if (![NSUserDefaults.standardUserDefaults boolForKey:kWaveformTempoBackfillKey]) {
+        [_waveformCache invalidateWithCompletion:nil];
+        [NSUserDefaults.standardUserDefaults setBool:YES forKey:kWaveformTempoBackfillKey];
+    }
+    // Asked once per decode, so Settings > Playback lands on the next load
+    // with nothing to republish. Tempo only: key detection is macOS-only.
+    _waveformCache.analysisProvider = ^VibeWaveformAnalysis{
+        return (VibeWaveformAnalysis){AppSettings.sharedInstance.analyzeBPM, NO};
+    };
     _waveformCoordinator = [[PageWaveformCoordinator alloc] initWithCache:_waveformCache delegate:self];
     _artHeldPages = [NSMutableIndexSet indexSet];
+    _pagerHoldViews = [NSHashTable weakObjectsHashTable];
 
     _scrollLink = [CADisplayLink displayLinkWithTarget:[VibeWeakProxy proxyWithTarget:self]
                                               selector:@selector(scrollTick:)];
@@ -272,11 +292,25 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
                 || [view isKindOfClass:[TrackPageTransportView class]]
                 || [view isKindOfClass:[TrackPageActionBarView class]]
                 || [view isKindOfClass:[OutputRouteView class]]
+                || [view isKindOfClass:[FXPadView class]]
                 || [view isKindOfClass:[WaveformScrubberView class]]) {
             return NO;
         }
     }
     return YES;
+}
+
+#pragma mark - FXPadViewDelegate
+
+// Every position goes to the model's one funnel, and the pager is held for
+// the length of the hold exactly as it is for a scrub: the pad owns the
+// touch, but UIKit would still chain an overscroll into the pager. The hold
+// moves only on the edges; the frames between are positions alone.
+- (void)fxPadView:(FXPadView *)view didChangePosition:(CGPoint)position engaged:(BOOL)engaged {
+    [_playback setFXPadPosition:position engaged:engaged];
+    if (engaged != [_pagerHoldViews containsObject:view]) {
+        [self setPagerHeld:engaged byView:view];
+    }
 }
 
 #pragma mark - OutputRouteViewDelegate
@@ -368,6 +402,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
         _remainingTimeControl = nil;
         _transportView = nil;
         _routeView = nil;
+        _fxPadView = nil;
         _actionBar = nil;
     }
 }
@@ -384,13 +419,14 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 - (void)updateChrome {
     CGFloat rowAlpha = [self chromeAlpha];
     if (_transportView.alpha == rowAlpha && _routeView.alpha == rowAlpha
-            && _actionBar.alpha == rowAlpha) {
+            && _actionBar.alpha == rowAlpha && _fxPadView.alpha == rowAlpha) {
         return;
     }
     [UIView animateWithDuration:0.3 animations:^{
         self->_transportView.alpha = rowAlpha;
         self->_routeView.alpha = rowAlpha;
         self->_actionBar.alpha = rowAlpha;
+        self->_fxPadView.alpha = rowAlpha;
     }];
 }
 
@@ -542,6 +578,18 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 
 - (void)playbackDidRenderCurrentTrack:(PlaybackController *)playback {
     [self renderHeaderForTrack:playback.currentTrack];
+}
+
+// A track change ends an FX hold and dismisses its pad; the model has cut
+// the effects already. The pad may be on any page, the bound one or not, so
+// it is found among the pager's holders, and its release frees the pager
+// through the pad's delegate call.
+- (void)playback:(PlaybackController *)playback didChangeCurrentIndexFromIndex:(NSUInteger)previousIndex {
+    for (UIView *view in _pagerHoldViews.allObjects) {
+        if ([view isKindOfClass:[FXPadView class]]) {
+            [(FXPadView *)view cancelInteraction];
+        }
+    }
 }
 
 - (void)playbackDidChangePlayState:(PlaybackController *)playback {

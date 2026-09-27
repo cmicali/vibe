@@ -10,6 +10,7 @@
 //
 
 #import "PlayerViewController.h"
+#import "FXPadView.h"
 #import "OutputRouteView.h"
 #import "PlaybackController.h"
 #import "PlayerDisplaySettings.h"
@@ -30,8 +31,8 @@ NS_ASSUME_NONNULL_BEGIN
 NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
 
 // Every other conformance is declared on the category that implements it.
-@interface PlayerViewController () <OutputRouteViewDelegate, PlaybackObserver,
-        UIGestureRecognizerDelegate> {
+@interface PlayerViewController () <FXPadViewDelegate, OutputRouteViewDelegate,
+        PlaybackObserver, UIGestureRecognizerDelegate> {
     PlaybackController      *_playback;
     // _playback's, held because every data-source callback reads it.
     Playlist                *_playlist;
@@ -58,9 +59,13 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
     UIView                  *_transportView;
     OutputRouteView         *_routeView;
     TrackPageActionBarView  *_actionBar;
-    // The scrubber holding the pager still, NOT always the bound page's: a
-    // track ending mid-drag rebinds the chrome while the finger is down.
-    __weak WaveformScrubberView *_scrubbingView;
+    FXPadView               *_fxPadView;
+    // The views holding the pager still — a scrubber mid-scrub or mid-pinch,
+    // an FX pad under a finger — NOT always the bound page's: a track ending
+    // mid-drag rebinds the chrome while the finger is down. A set, held
+    // weakly: a scrub and a pad hold overlap, and the pager is free only
+    // when the last of them lifts.
+    NSHashTable<UIView *>   *_pagerHoldViews;
 
     // The pager's own, not the model's: nothing else draws a waveform.
     AudioWaveformCache      *_waveformCache;

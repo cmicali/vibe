@@ -12,6 +12,8 @@
 #import "PlaybackController+PlayerEvents.h"
 
 #import "AppSettings.h"
+#import "AudioFX.h"
+#import "AudioFXMath.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+Diagnostics.h"
 #import "AudioPlayer+Recovery.h"
@@ -48,11 +50,12 @@ static const NSUInteger kUIUpdateHz = 3;
         _nowPlaying = [[NowPlayingController alloc] initWithDelegate:self];
         _widgetPublisher = [[WidgetPublisher alloc] init];
         _launchOpenWaiters = [NSMutableArray array];
-        // No FX on iOS (root CLAUDE.md).
-        _player = [[AudioPlayer alloc] initWithDeviceUID:@"" name:@"" enableFX:NO delegate:self];
+        // The setting as is: no bit-perfect mode here to outrank it.
+        _player = [[AudioPlayer alloc] initWithDeviceUID:@"" name:@""
+                                                enableFX:AppSettings.sharedInstance.audioFXEnabled
+                                                delegate:self];
         _player.crossfadeMilliseconds = AppSettings.sharedInstance.crossfadeMilliseconds;
         [self applyResamplingSetting];
-
 
         __weak PlaybackController *weakSelf = self;
         _updateTimer = [[UIUpdateTimer alloc] initWithHz:kUIUpdateHz handler:^{
@@ -139,6 +142,9 @@ static const NSUInteger kUIUpdateHz = 3;
 }
 
 - (void)notifyDidRenderCurrentTrack {
+    // Every path that changes which track is current comes through here, so
+    // it is where the delay taps learn the new track's tempo.
+    [self refreshTempoFeed];
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {
         if ([observer respondsToSelector:@selector(playbackDidRenderCurrentTrack:)]) {
             [observer playbackDidRenderCurrentTrack:self];
@@ -451,6 +457,46 @@ static const NSUInteger kUIUpdateHz = 3;
 - (void)applyResamplingSetting {
     _player.resamplingQuality = AppSettings.sharedInstance.maximumResamplingQuality
             ? VibeResamplingQualityMaximum : VibeResamplingQualityHigh;
+}
+
+- (void)applyFXSetting {
+    // Off clears every stage's intent in the player, so a held pad has
+    // nothing to leave behind.
+    [_player setFXEnabled:AppSettings.sharedInstance.audioFXEnabled];
+}
+
+#pragma mark - Effects and tempo
+
+- (void)setFXPadPosition:(CGPoint)position engaged:(BOOL)engaged {
+    if (!engaged) {
+        position = CGPointZero; // the corner is off on both axes
+    }
+    AudioFX *fx = _player.fx;
+    fx.lowKillCutoffHz = VibeFXPadLowCutHz((float)position.y);
+    fx.reverbSendLevel = VibeFXPadReverbLevel((float)position.x);
+    fx.delaySendLevel = VibeFXPadDelayLevel((float)position.x);
+}
+
+// The tag over the analysis (AudioTrack.bpm), 0 when neither is known, which
+// the FX read as the default. No pitch fader here, so the track's tempo is
+// the tempo as heard. The setter no-ops on the same value.
+- (void)refreshTempoFeed {
+    _player.fx.delayTapBPM = _playlist.currentTrack.bpm;
+}
+
+- (void)noteDetectedBPM:(float)bpm forURL:(NSURL *)url {
+    [_playlist stampTracksWithURL:url usingBlock:^(AudioTrack *track) {
+        float shown = track.bpm;
+        track.detectedBPM = bpm;
+        // Only a tempo that changed what the row shows: the delivery repeats
+        // on every load of the file, cache hits included, and a tag outranks
+        // it. The event is the one a tag landing sends, so the page redraws
+        // its codec line.
+        if (track.bpm != shown) {
+            [self notifyDidLoadMetadataForTrack:track];
+        }
+    }];
+    [self refreshTempoFeed]; // a no-op unless the current track's tempo moved
 }
 
 // A list's rows can be stale (an external open replaced the playlist), and
@@ -811,6 +857,9 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 
 - (void)playlist:(Playlist *)playlist currentIndexDidChangeFromIndex:(NSUInteger)previousIndex {
     [self updateMetadataNeighborhood];
+    // The effects belong to the track they were played over: a change cuts
+    // them, tails ringing out, before the card hears of it and drops its pad.
+    [self setFXPadPosition:CGPointZero engaged:NO];
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {
         if ([observer respondsToSelector:@selector(playback:didChangeCurrentIndexFromIndex:)]) {
             [observer playback:self didChangeCurrentIndexFromIndex:previousIndex];
@@ -820,13 +869,18 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 
 #pragma mark - AudioTrackMetadataCacheDelegate
 
-- (void)didLoadMetadata:(AudioTrack *)track {
+- (void)notifyDidLoadMetadataForTrack:(AudioTrack *)track {
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {
         if ([observer respondsToSelector:@selector(playback:didLoadMetadataForTrack:)]) {
             [observer playback:self didLoadMetadataForTrack:track];
         }
     }
+}
+
+- (void)didLoadMetadata:(AudioTrack *)track {
+    [self notifyDidLoadMetadataForTrack:track];
     if ([_playlist isCurrentTrack:track]) {
+        [self refreshTempoFeed]; // a BPM tag outranks the analysis
         // A parked seek that arrived before the duration lands now;
         // _trackStartPending says its open already started.
         if (_seekInFlight && _parked && !_trackStartPending && track.duration > 0) {

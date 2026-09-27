@@ -11,9 +11,10 @@
 NS_ASSUME_NONNULL_BEGIN
 
 // The DJ effects: the low-kill high-pass (Q, with a W boost) and the
-// send-returns (E reverb, R and T ping-pong delays). Plain on-off state per
-// effect; TransportKeyMonitor tells a tap from a hold. The FX segment of the
-// render, between the bus and the meter:
+// send-returns (E reverb, R and T ping-pong delays). The intent is one number
+// per stage — a cutoff, a send level — which the mac's on-off setters write
+// (TransportKeyMonitor tells a tap from a hold) and the iOS pad writes
+// directly. The FX segment of the render, between the bus and the meter:
 //
 //   bus -> lowKill -+-> dry -----------------------------------> out
 //                   +-> reverb send -> reverb -> lowCut -------> +
@@ -65,25 +66,46 @@ typedef struct VibeFXChain VibeFXChain;
 // Idle effects render nothing, which the tests read. Any thread.
 - (NSUInteger)hostedUnitCount;
 - (uint64_t)unitRenders;
-// For the audio-path report. Player queue.
+// For the audio-path report: intentSnapshot plus what the hosting says.
+// Player queue, because it reads the chain the queue may free.
 - (NSDictionary<NSString *, id> *)diagnosticSnapshot;
+// The part of it no queue owns — every stage's intent and gate, the tempo
+// and the render counter, all lock-guarded or atomic. Any thread, so a dump
+// taken on main never waits on the player queue.
+- (NSDictionary<NSString *, id> *)intentSnapshot;
 
 // Q: a resonant high-pass that cuts the bass; persists across tracks, and
 // sweeps over ~80 ms so it never clicks. NO also clears lowKillBoostActive,
-// which modifies this filter and must never outlive it.
+// which modifies this filter and must never outlive it. Both resolve to
+// lowKillCutoffHz through VibeLowKillCutoffHz.
 @property (nonatomic) BOOL lowKillEnabled;
+
+// The cutoff as one number, the iOS pad's writer: kLowKillParkedHz or below
+// is off (the getter reads the parked value), above it engages the filter
+// there. A direct write clears both toggles. Each write moves from wherever
+// the filter sits, preempting a sweep in flight.
+@property (nonatomic) float lowKillCutoffHz;
 
 // W: the same high-pass at double the cutoff, whether or not lowKillEnabled
 // is on; clearing it sweeps back to what lowKillEnabled implies.
 @property (nonatomic) BOOL lowKillBoostActive;
 
 // E: a long, fully wet, low-cut reverb return. NO cuts only the send; the
-// tail rings out.
+// tail rings out. A held key opens at the base level and swells.
 @property (nonatomic) BOOL reverbSendEnabled;
+
+// The same send as a level, 0..1 of the level a held key swells to: the iOS
+// pad's writer. A write clears reverbSendEnabled and swells nothing; 0 closes
+// the send, the tail ringing out. The gate slews toward it on the audio
+// thread, so a stream of positions needs no fade of its own.
+@property (nonatomic) float reverbSendLevel;
 
 // R: a 1/8-note ping-pong echo with heavy feedback, high-passed. NO cuts only
 // the send; the trail decays.
 @property (nonatomic) BOOL delaySendEnabled;
+
+// The 1/8-note send as a level, reverbSendLevel's twin.
+@property (nonatomic) float delaySendLevel;
 
 // T: the same echo on 1/16-note taps; independent of R.
 @property (nonatomic) BOOL shortDelaySendEnabled;

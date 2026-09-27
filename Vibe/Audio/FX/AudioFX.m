@@ -26,6 +26,12 @@ static const float kLowKillFlatBandwidth = 2.0f;
 // an instant kill.
 static const int kLowKillSweepSteps = 40;
 static const uint64_t kLowKillSweepStepMicroseconds = 2000;
+// A move of the engaged filter within this ratio is written to the unit
+// directly instead of swept: the pad's frames arrive finer than the sweep's
+// steps (about 7% a frame for a one-second full-height swipe, against 6% a
+// step), so sweeping each would restart forty timers per frame to move one
+// step. A larger jump (a flick, the toggle) still sweeps from where it sits.
+static const float kLowKillDirectMoveRatio = 1.12f;
 // How long a parked EQ keeps rendering for that residue before it is reset
 // and skipped.
 static const NSTimeInterval kLowKillSettleSeconds = 0.25;
@@ -45,6 +51,15 @@ static const float kReverbLargeSize = 0.15f;     // the real max: the tail knob
 static const float kReverbSmallLargeMix = 90.0f; // 0-100: mostly the large hall engine
 static const float kReverbLargeDensity = 0.9f;   // lush, smooth tail
 static const SInt32 kReverbCathedralPreset = 8;  // MatrixReverb's factory preset list, read at host
+#else
+// AUReverb2 tuning, the iOS stand-in: a long hall with a bright-to-dark
+// decay, its early reflections spread wide so the wash reads as space rather
+// than as a slapback. Its decay is a seconds knob, so the tail is set here
+// directly where MatrixReverb's is maxed through size and density.
+static const float kReverb2DecaySeconds = 6.0f;          // at 0 Hz: the length of the wash
+static const float kReverb2DecayAtNyquistSeconds = 1.5f; // the top dies sooner, as a hall's does
+static const float kReverb2MinDelaySeconds = 0.02f;      // the early reflections' spread
+static const float kReverb2MaxDelaySeconds = 0.08f;
 #endif
 
 // The delay sends' taps, in beats of the effective, pitch-scaled tempo:
@@ -128,7 +143,8 @@ typedef struct {
     double tailSeconds;        // how long the stage renders after its gate closed
     VibeFXUnitIndex firstUnit; // the units the stage owns, for its rest
     int unitCount;
-    BOOL enabled;              // the send's intent, lock-guarded
+    BOOL enabled;              // the toggle's memory, lock-guarded: a held key, which swells
+    float intent;              // the send's level, 0..1 of its full level, lock-guarded
     float level;               // the send's open level, and how far it swells while held
     float swellRatio;
 } VibeFXStage;
@@ -514,6 +530,7 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
     // where the filter sits.
     BOOL                    _lowKillEnabled;
     BOOL                    _lowKillBoostActive;
+    float                   _lowKillCutoffHz;       // the one intent the apply reads; the toggles write it
     uint64_t                _lowKillRampGeneration;
     float                   _lowKillFrequency;
     BOOL                    _lowKillFlat;
@@ -535,6 +552,7 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
         VibeFXStageSet(&_stages[VibeFXStageReverb], VibeFXUnitReverb, 2, kReverbSendLevel, kReverbSwellRatio);
         VibeFXStageSet(&_stages[VibeFXStageDelay], VibeFXUnitHalf0, 3, kDelaySendLevel, kDelaySwellRatio);
         VibeFXStageSet(&_stages[VibeFXStageShortDelay], VibeFXUnitHalf1, 3, kDelaySendLevel, kDelaySwellRatio);
+        _lowKillCutoffHz = kLowKillParkedHz;
         _lowKillFrequency = kLowKillParkedHz;
         _lowKillFlat = YES;
     }
@@ -599,14 +617,16 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
 }
 #endif
 
-- (NSDictionary<NSString *, id> *)diagnosticSnapshot {
-    VibeFXChain *chain = _chain;
+- (NSDictionary<NSString *, id> *)intentSnapshot {
     os_unfair_lock_lock(&_stateLock);
     BOOL lowKill = _lowKillEnabled, boost = _lowKillBoostActive;
+    float cutoff = _lowKillCutoffHz;
     float bpm = _delayTapBPM;
     BOOL enabled[VibeFXStageCount];
+    float intent[VibeFXStageCount];
     for (int i = 0; i < VibeFXStageCount; i++) {
         enabled[i] = _stages[i].enabled;
+        intent[i] = _stages[i].intent;
     }
     os_unfair_lock_unlock(&_stateLock);
     NSString *names[VibeFXStageCount] = { @"lowKill", @"reverb", @"delay", @"shortDelay" };
@@ -615,12 +635,31 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
         VibeFXStage *stage = &_stages[i];
         stages[names[i]] = @{
             @"enabled": @(i == VibeFXStageLowKill ? lowKill : enabled[i]),
+            @"intent": @(i == VibeFXStageLowKill ? cutoff : intent[i]),
             @"active": @(atomic_load_explicit(&stage->active, memory_order_relaxed) != 0),
             @"gateTarget": @(atomic_load_explicit(&stage->target, memory_order_relaxed)),
-            @"tailSeconds": @(stage->tailSeconds),
         };
     }
     return @{
+        @"unitRenders": @(self.unitRenders),
+        @"lowKillBoost": @(boost),
+        @"delayTapBPM": @(bpm),
+        @"stages": stages,
+    };
+}
+
+- (NSDictionary<NSString *, id> *)diagnosticSnapshot {
+    VibeFXChain *chain = _chain;
+    NSMutableDictionary *snapshot = [[self intentSnapshot] mutableCopy];
+    NSString *names[VibeFXStageCount] = { @"lowKill", @"reverb", @"delay", @"shortDelay" };
+    NSMutableDictionary *stages = [NSMutableDictionary dictionary];
+    for (int i = 0; i < VibeFXStageCount; i++) {
+        NSMutableDictionary *stage = [snapshot[@"stages"][names[i]] mutableCopy];
+        stage[@"tailSeconds"] = @(_stages[i].tailSeconds);
+        stages[names[i]] = stage;
+    }
+    snapshot[@"stages"] = stages;
+    [snapshot addEntriesFromDictionary:@{
         @"connected": @(_connected),
         @"hosted": @(self.hosted),
         @"hostedUnits": @(self.hostedUnitCount),
@@ -630,13 +669,10 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
         // through rather than beside, so its declared latency is the segment's.
         @"latencySeconds": @(chain && chain->units[VibeFXUnitEQ].unit
                              ? VibeAudioUnitSeconds(chain->units[VibeFXUnitEQ].unit, kAudioUnitProperty_Latency) : 0),
-        @"unitRenders": @(self.unitRenders),
-        @"lowKillBoost": @(boost),
         @"lowKillFrequency": @(_lowKillFrequency),
         @"lowKillFlat": @(_lowKillFlat),
-        @"delayTapBPM": @(bpm),
-        @"stages": stages,
-    };
+    }];
+    return snapshot;
 }
 
 #pragma mark - Connecting
@@ -653,9 +689,16 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
         [self disconnectOnQueue];
         [self retireChain];
     }
-    if (!self.hosted && ![self hostUnitsWithFormat:format maximumFrameCount:maximumFrameCount]) {
-        [self retireChain];
-        return;
+    if (!self.hosted) {
+        uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        BOOL hosted = [self hostUnitsWithFormat:format maximumFrameCount:maximumFrameCount];
+        double milliseconds = (double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - began) / 1e6;
+        LogTiming(milliseconds > 10, @"AudioFX: hosting %lu units at %.0f Hz took %.1f ms",
+                  (unsigned long)self.hostedUnitCount, format.sampleRate, milliseconds);
+        if (!hosted) {
+            [self retireChain];
+            return;
+        }
     }
     if (_connected) {
         return;
@@ -667,10 +710,11 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
     for (VibeFXStageIndex i = VibeFXStageReverb; i < VibeFXStageCount; i++) {
         VibeFXStage *stage = &_stages[i];
         os_unfair_lock_lock(&_stateLock);
-        BOOL on = stage->enabled;
+        BOOL held = stage->enabled;
+        float intent = stage->intent;
         os_unfair_lock_unlock(&_stateLock);
-        if (on) {
-            [self applySendGateOnQueue:stage enabled:YES];
+        if (intent > 0) {
+            [self applySendOnQueue:stage intent:intent swell:held];
         }
     }
 }
@@ -752,7 +796,8 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
         }
     }
 
-    // Fully wet: the dry signal only travels the dry path. macOS only.
+    // Fully wet: the dry signal only travels the dry path. MatrixReverb on
+    // the mac; iOS has none, so AUReverb2 tuned toward the same wash.
 #if TARGET_OS_OSX
     hosted = hosted && VibeFXHostUnit(&units[VibeFXUnitReverb], kAudioUnitType_Effect, kAudioUnitSubType_MatrixReverb, asbd, maximumFrameCount,
                                       chain->send, ^(AudioUnit instance) {
@@ -766,7 +811,16 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
         VibeFXSetParameter(units[VibeFXUnitReverb].unit, kReverbParam_LargeDensity, kReverbLargeDensity);
     }
 #else
-    hosted = NO;
+    hosted = hosted && VibeFXHostUnit(&units[VibeFXUnitReverb], kAudioUnitType_Effect, kAudioUnitSubType_Reverb2, asbd, maximumFrameCount,
+                                      chain->send, nil);
+    if (hosted) {
+        VibeFXSetParameter(units[VibeFXUnitReverb].unit, kReverb2Param_DryWetMix, 100);
+        VibeFXSetParameter(units[VibeFXUnitReverb].unit, kReverb2Param_Gain, 0);
+        VibeFXSetParameter(units[VibeFXUnitReverb].unit, kReverb2Param_MinDelayTime, kReverb2MinDelaySeconds);
+        VibeFXSetParameter(units[VibeFXUnitReverb].unit, kReverb2Param_MaxDelayTime, kReverb2MaxDelaySeconds);
+        VibeFXSetParameter(units[VibeFXUnitReverb].unit, kReverb2Param_DecayTimeAt0Hz, kReverb2DecaySeconds);
+        VibeFXSetParameter(units[VibeFXUnitReverb].unit, kReverb2Param_DecayTimeAtNyquist, kReverb2DecayAtNyquistSeconds);
+    }
 #endif
     hosted = hosted && VibeFXHostLowCut(&units[VibeFXUnitReverbLowCut], asbd, maximumFrameCount, chain->wet, kReverbTailLowCutHz);
     hosted = hosted && VibeFXHostLowCut(&units[VibeFXUnitDelayLowCut], asbd, maximumFrameCount, chain->echoes, kDelayEchoLowCutHz);
@@ -825,6 +879,9 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
 
 #pragma mark - Low kill
 
+// A toggle the low-kill writer leaves as it is.
+static const NSInteger kLowKillKeep = -1;
+
 - (BOOL)lowKillEnabled {
     os_unfair_lock_lock(&_stateLock);
     BOOL enabled = _lowKillEnabled;
@@ -833,24 +890,12 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
 }
 
 - (void)setLowKillEnabled:(BOOL)enabled {
-    os_unfair_lock_lock(&_stateLock);
-    if (_lowKillEnabled == enabled) {
-        os_unfair_lock_unlock(&_stateLock);
-        return;
-    }
-    _lowKillEnabled = enabled;
     // The boost modifies the low kill rather than being a control of its own,
     // so killing the filter kills the boost with it. Otherwise a latched W
     // would hold the cutoff above where Q alone would put it while the low
-    // kill read off. It is cleared under the same lock, so the one sweep below
-    // resolves both rather than racing a second one.
-    if (!enabled) {
-        _lowKillBoostActive = NO;
-    }
-    os_unfair_lock_unlock(&_stateLock);
-    dispatch_async(_queue, ^{
-        [self applyLowKillTargetOnQueue];
-    });
+    // kill read off. It is cleared under the same lock, so one sweep resolves
+    // both rather than racing a second one.
+    [self writeLowKillEnabled:enabled boost:enabled ? kLowKillKeep : NO cutoffHz:NAN];
 }
 
 - (BOOL)lowKillBoostActive {
@@ -861,35 +906,64 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
 }
 
 - (void)setLowKillBoostActive:(BOOL)active {
-    os_unfair_lock_lock(&_stateLock);
-    if (_lowKillBoostActive == active) {
-        os_unfair_lock_unlock(&_stateLock);
-        return;
-    }
-    _lowKillBoostActive = active;
-    os_unfair_lock_unlock(&_stateLock);
-    dispatch_async(_queue, ^{
-        [self applyLowKillTargetOnQueue];
-    });
+    [self writeLowKillEnabled:kLowKillKeep boost:active cutoffHz:NAN];
 }
 
-// Sweeps from wherever the filter sits to VibeLowKillCutoffHz; a re-toggle
-// preempts through the generation and continues from there. "Off" sweeps to
-// the floor, swaps the bands flat (colorless), and once settled resets and
-// skips the unit (free). Bypass is never touched (kLowKillParkedHz).
+- (float)lowKillCutoffHz {
+    os_unfair_lock_lock(&_stateLock);
+    float cutoff = _lowKillCutoffHz;
+    os_unfair_lock_unlock(&_stateLock);
+    return cutoff;
+}
+
+// The pad's writer: the cutoff itself, replacing the toggles' answer. Called
+// every drag frame, so only a real change touches the queue.
+- (void)setLowKillCutoffHz:(float)cutoffHz {
+    [self writeLowKillEnabled:NO boost:NO cutoffHz:MAX(cutoffHz, kLowKillParkedHz)];
+}
+
+// The one lock-side writer. enabled and boost are YES, NO or kLowKillKeep,
+// resolved against the fields under the lock; a NAN cutoff is the toggles'
+// answer. The queue hears one sweep, and only for a real change.
+- (void)writeLowKillEnabled:(NSInteger)enabled boost:(NSInteger)boost cutoffHz:(float)cutoffHz {
+    os_unfair_lock_lock(&_stateLock);
+    BOOL isEnabled = enabled == kLowKillKeep ? _lowKillEnabled : (BOOL)enabled;
+    BOOL isBoosted = boost == kLowKillKeep ? _lowKillBoostActive : (BOOL)boost;
+    float target = isnan(cutoffHz) ? VibeLowKillCutoffHz(isEnabled, isBoosted) : cutoffHz;
+    BOOL changed = isEnabled != _lowKillEnabled || isBoosted != _lowKillBoostActive || target != _lowKillCutoffHz;
+    _lowKillEnabled = isEnabled;
+    _lowKillBoostActive = isBoosted;
+    _lowKillCutoffHz = target;
+    os_unfair_lock_unlock(&_stateLock);
+    if (changed) {
+        dispatch_async(_queue, ^{
+            [self applyLowKillTargetOnQueue];
+        });
+    }
+}
+
+// Sweeps from wherever the filter sits to the one cutoff every writer
+// resolves to; a re-toggle or the next pad frame preempts through the
+// generation and continues from there. "Off" sweeps to the floor, swaps the
+// bands flat (colorless), and once settled resets and skips the unit (free).
+// Bypass is never touched (kLowKillParkedHz).
 - (void)applyLowKillTargetOnQueue {
     if (!self.hosted || !_connected) {
         return; // Not hosted yet. The first connect re-applies this.
     }
     os_unfair_lock_lock(&_stateLock);
-    BOOL enabled = _lowKillEnabled;
-    BOOL boost = _lowKillBoostActive;
+    float target = _lowKillCutoffHz;
     os_unfair_lock_unlock(&_stateLock);
-    float target = VibeLowKillCutoffHz(enabled, boost);
     if (target == _lowKillFrequency && _lowKillFlat == (target == kLowKillParkedHz)) {
         return; // Already there — a fresh host, or a re-applied intent; a pending settle keeps its generation.
     }
     uint64_t generation = ++_lowKillRampGeneration;
+    if (!_lowKillFlat && target != kLowKillParkedHz
+            && target < _lowKillFrequency * kLowKillDirectMoveRatio
+            && target > _lowKillFrequency / kLowKillDirectMoveRatio) {
+        [self setLowKillFrequency:target]; // an engaged filter moved a step: no sweep
+        return;
+    }
     if (target != kLowKillParkedHz) {
         // A reset, parked unit passes the signal exactly, so joining the
         // render here is seamless; then re-arm at the floor and sweep up.
@@ -970,37 +1044,66 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
     return enabled;
 }
 
-- (void)setSend:(VibeFXStageIndex)index enabled:(BOOL)enabled {
+- (float)sendLevel:(VibeFXStageIndex)index {
+    os_unfair_lock_lock(&_stateLock);
+    float intent = _stages[index].intent;
+    os_unfair_lock_unlock(&_stateLock);
+    return intent;
+}
+
+// The one writer of a send's intent: the level, 0..1 of the full level, and
+// whether a key holds it — a held key opens at the base level and swells, a
+// pad level is the whole answer. Called on every drag frame, so only a real
+// change touches the queue.
+- (void)setSend:(VibeFXStageIndex)index intent:(float)intent held:(BOOL)held {
     VibeFXStage *stage = &_stages[index];
     os_unfair_lock_lock(&_stateLock);
-    if (stage->enabled == enabled) {
+    if (stage->intent == intent && stage->enabled == held) {
         os_unfair_lock_unlock(&_stateLock);
         return;
     }
-    stage->enabled = enabled;
+    stage->enabled = held;
+    stage->intent = intent;
     os_unfair_lock_unlock(&_stateLock);
     dispatch_async(_queue, ^{
-        [self applySendGateOnQueue:stage enabled:enabled];
+        [self applySendOnQueue:stage intent:intent swell:held];
     });
 }
 
 - (BOOL)reverbSendEnabled { return [self sendEnabled:VibeFXStageReverb]; }
-- (void)setReverbSendEnabled:(BOOL)enabled { [self setSend:VibeFXStageReverb enabled:enabled]; }
+- (void)setReverbSendEnabled:(BOOL)enabled { [self setSend:VibeFXStageReverb intent:enabled held:enabled]; }
+- (float)reverbSendLevel { return [self sendLevel:VibeFXStageReverb]; }
+- (void)setReverbSendLevel:(float)level { [self setSend:VibeFXStageReverb intent:clampRange(level, 0.0f, 1.0f) held:NO]; }
 - (BOOL)delaySendEnabled { return [self sendEnabled:VibeFXStageDelay]; }
-- (void)setDelaySendEnabled:(BOOL)enabled { [self setSend:VibeFXStageDelay enabled:enabled]; }
+- (void)setDelaySendEnabled:(BOOL)enabled { [self setSend:VibeFXStageDelay intent:enabled held:enabled]; }
+- (float)delaySendLevel { return [self sendLevel:VibeFXStageDelay]; }
+- (void)setDelaySendLevel:(float)level { [self setSend:VibeFXStageDelay intent:clampRange(level, 0.0f, 1.0f) held:NO]; }
 - (BOOL)shortDelaySendEnabled { return [self sendEnabled:VibeFXStageShortDelay]; }
-- (void)setShortDelaySendEnabled:(BOOL)enabled { [self setSend:VibeFXStageShortDelay enabled:enabled]; }
+- (void)setShortDelaySendEnabled:(BOOL)enabled { [self setSend:VibeFXStageShortDelay intent:enabled held:enabled]; }
 
-// Opening is a declick-length fade, then a slow swell while held. Closing cuts
-// only the send: the stage renders its tail, then rests. A re-toggle preempts
-// through the generation from the current level.
-- (void)applySendGateOnQueue:(VibeFXStage *)stage enabled:(BOOL)enabled {
+// Opening from silence and closing to it are declick-length fades; a held key
+// (`swell`) opens to the base level, then swells slowly while held. A pad
+// level moving an OPEN gate is written to the target directly: the audio
+// thread slews the gain at full scale per 25 ms, which smooths a frame's step
+// with no timers. Closing cuts only the send: the stage renders its tail,
+// then rests. A newer write preempts through the generation from the current
+// level.
+- (void)applySendOnQueue:(VibeFXStage *)stage intent:(float)intent swell:(BOOL)swell {
     if (!self.hosted || !_connected) {
         return; // Not hosted yet. The first connect re-applies it.
     }
-    uint64_t generation = ++stage->generation;
+    float full = VibeSendSwellLevel(stage->level, stage->swellRatio);
+    float target = swell ? stage->level : intent * full;
     float from = atomic_load_explicit(&stage->target, memory_order_relaxed);
-    if (!enabled) {
+    if (target == from && !swell) {
+        return; // A pad frame that moved nothing; a ramp in flight keeps its generation.
+    }
+    uint64_t generation = ++stage->generation;
+    if (!swell && target > 0 && from > 0) {
+        atomic_store_explicit(&stage->target, target, memory_order_relaxed);
+        return;
+    }
+    if (target <= 0) {
         [self stepSendGateRamp:stage step:1 of:kFadeSteps stepMicroseconds:kFadeStepMicroseconds
                           from:from to:0 generation:generation completion:nil];
         return;
@@ -1009,14 +1112,12 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
     // starts from silence under the gate's fade-in.
     atomic_store_explicit(&stage->active, 1, memory_order_seq_cst);
     __weak AudioFX *weakSelf = self;
-    float level = stage->level;
-    float swell = VibeSendSwellLevel(level, stage->swellRatio);
     [self stepSendGateRamp:stage step:1 of:kFadeSteps stepMicroseconds:kFadeStepMicroseconds
-                      from:from to:level generation:generation completion:^{
+                      from:from to:target generation:generation completion:swell ? ^{
         // Same generation, so a release preempts the swell too.
         [weakSelf stepSendGateRamp:stage step:1 of:kSendSwellSteps stepMicroseconds:kSendSwellStepMicroseconds
-                              from:level to:swell generation:generation completion:nil];
-    }];
+                              from:target to:full generation:generation completion:nil];
+    } : nil];
 }
 
 // stage lives for the object's life, so the pointer cannot dangle. The

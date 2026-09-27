@@ -4,6 +4,7 @@
 //
 
 #import "TrackPageCell.h"
+#import "FXPadView.h"
 #import "OutputRouteView.h"
 #import "UIImage+Blur.h"
 #import "UIImage+DominantColor.h"
@@ -29,9 +30,17 @@ static const CGFloat kCellLabelGap = 6;
 static const CGFloat kCellLabelBandPadding = 10;
 static const CGFloat kCellWaveformTransportGap = 28;
 
+// With audio effects on, the FX pad's circle and, a gap to its right, the
+// route capsule over the rest of the width; off, the route capsule alone.
 static const CGFloat kCellActionBarHeight = 56;
 static const CGFloat kCellActionBarInset = 20;
+static const CGFloat kCellActionBarGap = 12;
+// The route control keeps this far inside the capsule's ends, where a long
+// device name truncates.
+static const CGFloat kCellActionBarContentInset = 16;
 static const CGFloat kCellActionBarTransportGap = 16;
+// The pad grows toward the safe edges and stops this short of them.
+static const CGFloat kCellFXPadMargin = 16;
 // A tint, not a live-blurring effect view: the backdrop never changes.
 static const CGFloat kCellActionBarFillAlpha = 0.12;
 
@@ -184,6 +193,12 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     NSLayoutConstraint *_playPauseGap;
     NSLayoutConstraint *_nextGap;
     NSLayoutConstraint *_routeMaxWidth;
+    // The route capsule's leading edge when the FX pad is shown: a gap past
+    // the pad's circle, required, outranking the full-width leading edge the
+    // portrait set holds at a lower priority. Active only in portrait, where
+    // that set is.
+    NSLayoutConstraint *_actionBarLeadingAfterPad;
+    BOOL               _fxPadShown;
 
     // Swapped on the cell's own aspect, so a rotation mid-reuse cannot
     // strand a cell.
@@ -302,6 +317,13 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         _routeView.translatesAutoresizingMaskIntoConstraints = NO;
         [content addSubview:_routeView];
 
+        // The FX pad, last so its expanded square draws over everything it
+        // covers — the transport, the waveform, the times.
+        _fxPadView = [[FXPadView alloc] initWithFrame:CGRectZero];
+        _fxPadView.backgroundColor = _actionBar.backgroundColor;
+        _fxPadView.translatesAutoresizingMaskIntoConstraints = NO;
+        [content addSubview:_fxPadView];
+
         _previousButton = [self makeTransportButton];
         _previousButton.accessibilityLabel = STR_TRANSPORT_PREVIOUS;
         [self setGlyph:@"backward.end.fill" onButton:_previousButton
@@ -354,6 +376,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
 
         _portraitConstraints = [self buildPortraitConstraints];
         _landscapeConstraints = [self buildLandscapeConstraints];
+        _fxPadShown = YES;
     }
     return self;
 }
@@ -404,6 +427,11 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     [content addLayoutGuide:labelBand];
     UILayoutGuide *labels = [[UILayoutGuide alloc] init];
     [content addLayoutGuide:labels];
+    _actionBarLeadingAfterPad = [_actionBar.leadingAnchor constraintEqualToAnchor:_fxPadView.trailingAnchor
+                                                                          constant:kCellActionBarGap];
+    NSLayoutConstraint *actionBarLeadingFull = [_actionBar.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor
+                                                                                        constant:kCellActionBarInset];
+    actionBarLeadingFull.priority = UILayoutPriorityDefaultHigh;
 
     // The single-line labels keep their line reserved, so a missing artist
     // lays out like a present one.
@@ -428,6 +456,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     topBand.priority = UILayoutPriorityRequired - 1;
 
     return @[
+        actionBarLeadingFull,
         topBand,
         [artBand.topAnchor constraintGreaterThanOrEqualToAnchor:safe.topAnchor],
         [_artCard.heightAnchor constraintGreaterThanOrEqualToConstant:0],
@@ -468,13 +497,23 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         // every page. The time row hangs off the waveform, so tightening it
         // cannot push the waveform down.
         [_actionBar.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor],
-        [_actionBar.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor
-                                                 constant:kCellActionBarInset],
         [_actionBar.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor
                                                   constant:-kCellActionBarInset],
         [_actionBar.heightAnchor constraintEqualToConstant:kCellActionBarHeight],
         [_routeView.centerXAnchor constraintEqualToAnchor:_actionBar.centerXAnchor],
         [_routeView.centerYAnchor constraintEqualToAnchor:_actionBar.centerYAnchor],
+        // Required, so the device name gives (it truncates) rather than the
+        // capsule: the width cap alone is wider than a narrow capsule.
+        [_routeView.leadingAnchor constraintGreaterThanOrEqualToAnchor:_actionBar.leadingAnchor
+                                                              constant:kCellActionBarContentInset],
+        [_routeView.trailingAnchor constraintLessThanOrEqualToAnchor:_actionBar.trailingAnchor
+                                                            constant:-kCellActionBarContentInset],
+        // The pad's circle, at the bar's leading end.
+        [_fxPadView.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor],
+        [_fxPadView.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor
+                                                 constant:kCellActionBarInset],
+        [_fxPadView.widthAnchor constraintEqualToConstant:kCellActionBarHeight],
+        [_fxPadView.heightAnchor constraintEqualToConstant:kCellActionBarHeight],
 
         [_transportView.bottomAnchor constraintEqualToAnchor:_actionBar.topAnchor
                                                     constant:-kCellActionBarTransportGap],
@@ -564,6 +603,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     _routeView.glyphPointSize = landscape ? kCellRouteGlyphPointSizeLandscape
                                           : kCellRouteGlyphPointSize;
     _actionBar.hidden = landscape;
+    [self applyActionBarSplit];
 
     NSTextAlignment alignment = landscape ? NSTextAlignmentLeft : NSTextAlignmentCenter;
     _titleLabel.textAlignment = alignment;
@@ -571,6 +611,31 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     _fileInfoLabel.textAlignment = landscape ? NSTextAlignmentRight : NSTextAlignmentCenter;
     _titleLabel.numberOfLines = landscape ? 1 : 2;
     VibeSignpostEnd(cell_constraints);
+}
+
+// Only in portrait: landscape has no bar. A pad hidden mid-hold releases.
+- (void)applyActionBarSplit {
+    if (!_layoutApplied) {
+        return; // the first applyLayoutForBounds: activates a set, then this
+    }
+    BOOL split = _fxPadShown && !_landscapeActive;
+    _actionBarLeadingAfterPad.active = split;
+    BOOL padHidden = !split;
+    if (padHidden != _fxPadView.hidden) {
+        if (padHidden) {
+            [_fxPadView cancelInteraction];
+        }
+        _fxPadView.hidden = padHidden;
+    }
+}
+
+- (void)setFXPadShown:(BOOL)shown {
+    if (_fxPadShown == shown) {
+        return;
+    }
+    _fxPadShown = shown;
+    [self applyActionBarSplit];
+    [self setNeedsLayout];
 }
 
 // On the fonts the labels draw at now; Dynamic Type rescales them. The band is
@@ -599,6 +664,13 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     [self applyLayoutForBounds:self.bounds];
     [self updateHeaderMetrics];
     [super layoutSubviews];
+    // The room the pad may grow into from its circle's corner: to the safe
+    // trailing edge and up to the safe top, a margin short.
+    UIView *content = self.contentView;
+    CGRect safe = UIEdgeInsetsInsetRect(content.bounds, content.safeAreaInsets);
+    CGRect pad = _fxPadView.frame;
+    _fxPadView.padExtent = CGSizeMake(CGRectGetMaxX(safe) - kCellFXPadMargin - CGRectGetMinX(pad),
+                                      CGRectGetMaxY(pad) - CGRectGetMinY(safe) - kCellFXPadMargin);
     // The default 1 draws the cached glyphs soft.
     CGFloat scale = self.traitCollection.displayScale;
     _previousButton.layer.rasterizationScale = scale;
@@ -615,6 +687,10 @@ static void VibeConfigureTimeLabel(UILabel *label) {
 
 - (void)prepareForReuse {
     [super prepareForReuse];
+    // TRAP: a page recycled under a held pad — a track ending mid-hold scrolls
+    // the outgoing page away — must release, or the effects stay engaged and
+    // the pager stays locked (the scrubber's release trap, Player/CLAUDE.md).
+    [_fxPadView cancelInteraction];
     [_waveformView prepareForWaveformLoad];
     _elapsedLabel.text = STR_LABEL_TIME_UNKNOWN;
     _remainingTimeControl.text = STR_LABEL_TIME_UNKNOWN;

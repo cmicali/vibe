@@ -2,7 +2,7 @@
 
 `AudioBPMAnalyzer` and `AudioKeyAnalyzer` (ObjC++ and Accelerate) both ride the waveform loader's decode pass (`Vibe/Audio/Waveform/`), so neither costs a second file read.
 
-**Analysis is macOS-only.** Both classes compile into both targets — they are portable Accelerate code, and the tests exercise them — but the decode pass constructs them only when its `VibeWaveformAnalysisProvider` says so, and only the mac installs one. So on iOS neither analyzer is ever built, `AudioTrack.detectedBPM` and `.detectedKey` stay unset, and a track's `bpm`/`key` are whatever its tags carry. Both settings are macOS-only for the same reason.
+**Tempo runs on both platforms; key is macOS-only.** Both classes compile into both targets — portable Accelerate code, and the tests exercise them — but the decode pass constructs them only when its `VibeWaveformAnalysisProvider` says so. The mac's provider reads the two settings; the iOS card's answers `{analyzeBPM, NO}`, so on iOS the key analyzer is never built, `AudioTrack.detectedKey` stays unset and a track's `key` is whatever its tag carries. `analyzeBPM` is shared in `AppSettings`; `analyzeKey` is macOS-only for the same reason.
 
 Results travel in `CodableAudioWaveform.bpm`/`.key`, arrive through `audioWaveformCache:didDetectBPM:forURL:` and `didDetectKey:forURL:`, and land in the transient `AudioTrack.detectedBPM`/`.detectedKey`. **Deliveries can race a track change, so receivers must match the URL against the current track.**
 
@@ -10,7 +10,7 @@ Results travel in `CodableAudioWaveform.bpm`/`.key`, arrive through `audioWavefo
 
 ## Tempo
 
-`AppSettings.analyzeBPM` (Settings > Playback, default **on**) gates the ride-along. Off, the waveform caches with no BPM, so a file scanned while off is not re-analyzed on re-enable until its cache entry goes; tagged BPM and the explicit `scan_bpm` path are unaffected.
+`AppSettings.analyzeBPM` (Settings > Playback on both platforms, default **on**) gates the ride-along. On iOS the detected tempo also drives the FX pad's delay taps (`iOS/CLAUDE.md`). Off, the waveform caches with no BPM, so a file scanned while off is not re-analyzed on re-enable until its cache entry goes; tagged BPM and the explicit `scan_bpm` path are unaffected.
 
 While streaming it builds a power-spectrum spectral-flux onset envelope. At end of file: autocorrelation and a harmonic comb over 60–200 BPM; a time-domain phase comb rescores the top candidates, refining each candidate's fractional period over a window of ≤40 seconds, to resolve 2:1 and 3:2 metrical errors; then an interpolated fine pass polishes the winner's period. Below `kMinConfidence` it returns 0 — noise, speech, rubato.
 

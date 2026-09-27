@@ -11,10 +11,14 @@
 #import "PlayerViewController+Delivery.h"
 #import "PlaybackController+NowPlaying.h"
 
+#import "AppSettings.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
+#import "FXPadView.h"
+#import "Formatters.h"
 #import "PageWaveformCoordinator.h"
 #import "TrackPageCell.h"
+#import "VibeStrings.h"
 #import "WaveformScrubberView.h"
 
 // At one, a quick second swipe outruns the fetch (a file read and a decode)
@@ -50,6 +54,7 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     _transportView = cell.transportView;
     _routeView = cell.routeView;
     _actionBar = cell.actionBar;
+    _fxPadView = cell.fxPadView;
     // A fresh cell's labels are at their defaults, and paused, no tick comes.
     [self updatePlaybackUI];
     [self updatePlayButton];
@@ -118,6 +123,12 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
         [page.remainingTimeControl addTarget:self action:@selector(remainingTimeTapped)
                            forControlEvents:UIControlEventTouchUpInside];
         page.routeView.delegate = self;
+        // The FX pad owns its touch from the press, the way the scrubber owns
+        // a drag: the pager's pan waits for it to fail, and its positions
+        // reach the model through the card.
+        page.fxPadView.delegate = self;
+        [_pagesView.panGestureRecognizer
+                requireGestureRecognizerToFail:page.fxPadView.pressRecognizer];
     }
 
     // Every time: a recycled cell keeps whatever it was last shown at. Each
@@ -151,12 +162,28 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
                       artist:(showError ? errorText : (track.displayArtist ?: @""))
                  artistColor:(showError ? [UIColor systemRedColor]
                                         : [UIColor secondaryLabelColor])
-                    fileInfo:(VibeShowsFileInfo() ? track.metadata.fileInfoLine : nil)
+                    fileInfo:(VibeShowsFileInfo() ? [self fileInfoLineForTrack:track] : nil)
                          art:(track.cachedArt ?: [UIImage imageNamed:@"record-bg"])];
     // The page's own index, so the last page arrives dimmed.
     [cell setNextEnabled:index + 1 < _playlist.count];
     [cell.routeView setRouteKind:_playback.outputRouteKind
                       deviceName:_playback.outputRouteName];
+    // The pad follows the setting, which the Playback screen's write carries
+    // here through the display notification.
+    [cell setFXPadShown:AppSettings.sharedInstance.audioFXEnabled];
+}
+
+// The codec line with the tempo after it when one is known — the tag, or
+// the analysis the waveform load ran — joined the way the line joins its own
+// fields. The mac gives the tempo a line of its own; this card has none.
+- (NSString *)fileInfoLineForTrack:(AudioTrack *)track {
+    NSString *line = track.metadata.fileInfoLine ?: @"";
+    float bpm = track.bpm;
+    if (bpm <= 0) {
+        return line;
+    }
+    NSString *tempo = [[Formatters sharedInstance] bpmString:bpm];
+    return line.length == 0 ? tempo : [@[line, tempo] componentsJoinedByString:VibeNotLocalized(@" | ")];
 }
 
 - (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView
@@ -168,6 +195,7 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     cell.transportView.alpha = [self chromeAlpha];
     cell.routeView.alpha = [self chromeAlpha];
     cell.actionBar.alpha = [self chromeAlpha];
+    cell.fxPadView.alpha = [self chromeAlpha];
     return cell;
 }
 

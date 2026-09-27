@@ -745,6 +745,378 @@
       },
       "extractionState": "manual"
     },
+    "a11y.player.fx_pad": {
+      "comment": "iOS: accessibility label for the FX pad on the full-screen player — a touch pad that applies DJ effects (a low-cut filter, reverb, delay) while a finger holds it.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пад за ефекти"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pad efektů"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effektpad"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effekt-Pad"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pad εφέ"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effects pad"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pad de efectos"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tehostepadi"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pad d’effets"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pad za efekte"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effektpad"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pad efek"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pad degli effetti"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "エフェクトパッド"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "효과 패드"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effektpad"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effectenpad"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pad efektów"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pad de efeitos"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pad de efeitos"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pad de efecte"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пэд эффектов"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pad efektov"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effektpad"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "แพดเอฟเฟ็กต์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Efekt pedi"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пед ефектів"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pad hiệu ứng"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音效触控板"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音效觸控板"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "a11y.player.fx_pad_hint": {
+      "comment": "iOS: accessibility hint for the FX pad on the full-screen player, explaining the drag: the vertical axis is a low-cut filter, the horizontal axis adds reverb then delay, and lifting the finger turns every effect off.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Докоснете и плъзнете. Нагоре се отрязват басите, надясно се добавя reverb, а след това delay. Вдигнете пръста, за да спрете."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dotkněte se a táhněte. Nahoru se ořezávají basy, doprava se přidává reverb a poté delay. Zvednutím prstu efekty uvolníte."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tryk og træk. Op skærer bassen væk, til højre tilføjer reverb og derefter delay. Løft fingeren for at slippe."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Berühren und ziehen. Nach oben werden die Bässe abgeschnitten, nach rechts kommen Reverb und dann Delay hinzu. Zum Beenden den Finger anheben."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αγγίξτε και σύρετε. Προς τα πάνω κόβονται τα μπάσα, προς τα δεξιά προστίθεται reverb και έπειτα delay. Σηκώστε το δάχτυλο για απελευθέρωση."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touch and drag. Up cuts the bass, right adds reverb and then delay. Lift to release."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toca y arrastra. Hacia arriba se cortan los graves; hacia la derecha se añade reverb y después delay. Levanta el dedo para soltar."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kosketa ja vedä. Ylöspäin leikkaa bassoa, oikealle lisää reverbin ja sitten delayn. Vapauta nostamalla sormi."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touchez et faites glisser. Vers le haut, les basses sont coupées ; vers la droite, la reverb puis le delay s’ajoutent. Levez le doigt pour relâcher."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodirnite i povucite. Prema gore se režu basovi, udesno se dodaje reverb, a zatim delay. Podignite prst za otpuštanje."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Érintsd meg, és húzd. Felfelé levágja a basszust, jobbra reverbet, majd delay-t ad hozzá. Az elengedéshez emeld fel az ujjad."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sentuh dan seret. Ke atas memotong bass, ke kanan menambahkan reverb lalu delay. Angkat jari untuk melepas."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tocca e trascina. Verso l’alto taglia i bassi, verso destra aggiunge reverb e poi delay. Solleva il dito per rilasciare."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "タッチしてドラッグします。上で低音をカットし、右でリバーブ、続いてディレイが加わります。指を離すと解除されます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "터치한 채로 드래그하십시오. 위로 움직이면 저음이 차단되고, 오른쪽으로 움직이면 리버브에 이어 딜레이가 추가됩니다. 손가락을 떼면 해제됩니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trykk og dra. Opp kutter bassen, til høyre legger til reverb og deretter delay. Løft fingeren for å slippe."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Raak aan en sleep. Omhoog snijdt de bas weg, naar rechts voegt reverb en daarna delay toe. Til je vinger op om los te laten."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dotknij i przeciągnij. W górę odcina bas, w prawo dodaje reverb, a następnie delay. Unieś palec, aby zwolnić."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toque e arraste. Para cima corta os graves; para a direita adiciona reverb e depois delay. Levante o dedo para soltar."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toque e arraste. Para cima corta os graves; para a direita adiciona reverb e depois delay. Levante o dedo para soltar."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atingeți și trageți. În sus se taie basul, la dreapta se adaugă reverb și apoi delay. Ridicați degetul pentru a elibera."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Коснитесь и перетяните. Вверх — срезаются басы, вправо — добавляется reverb, а затем delay. Поднимите палец, чтобы отпустить."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dotknite sa a ťahajte. Nahor sa orezávajú basy, doprava sa pridáva reverb a potom delay. Zdvihnutím prsta efekty uvoľníte."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tryck och dra. Uppåt skär bort basen, åt höger lägger till reverb och sedan delay. Lyft fingret för att släppa."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "แตะแล้วลาก ลากขึ้นเพื่อตัดเสียงเบส ลากไปทางขวาเพื่อเพิ่มรีเวิร์บแล้วตามด้วย Delay ยกนิ้วขึ้นเพื่อปล่อย"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dokunup sürükleyin. Yukarı doğru baslar kesilir, sağa doğru reverb ve ardından delay eklenir. Bırakmak için parmağınızı kaldırın."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Торкніться й перетягніть. Угору — зрізаються баси, праворуч — додається reverb, а потім delay. Підніміть палець, щоб відпустити."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chạm và kéo. Kéo lên để cắt âm trầm, kéo sang phải để thêm reverb rồi đến delay. Nhấc ngón tay để nhả."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "触碰并拖移。向上切除低音，向右添加混响，然后是延迟。抬起手指即可释放。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "觸碰並拖移。向上切除低音，向右加入殘響，然後是延遲。抬起手指即可釋放。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "a11y.player.minimize": {
       "comment": "iOS: accessibility label for the full-screen player's grabber, which returns it to the mini player strip.",
       "localizations": {
@@ -21014,6 +21386,564 @@
           "stringUnit": {
             "state": "translated",
             "value": "編輯主題…"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "player.fx_axis.low_cut": {
+      "comment": "iOS: caption in the top-left corner of the effects pad naming its vertical axis: dragging up raises a low-cut (high-pass) filter that removes the bass. Keep the arrow; upper case is the pad's style.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ローカット ↑"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "로우 컷 ↑"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "โลว์คัต ↑"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "低切 ↑"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "低切 ↑"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "player.fx_axis.reverb_delay": {
+      "comment": "iOS: caption in the bottom-right corner of the effects pad naming its horizontal axis: dragging right adds reverb, and past the middle a beat-synced delay (echo) on top. Keep the arrow; upper case is the pad's style.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リバーブ → ディレイ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "리버브 → 딜레이"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "รีเวิร์บ → DELAY"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "混响 → 延迟"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "殘響 → 延遲"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "player.fx_pill": {
+      "comment": "iOS: the label on the small round button in the full-screen player's bottom bar that opens the effects pad when touched. 'FX' is the DJ term for effects; keep it very short — the button is a 56-point circle.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
           }
         }
       },
@@ -75332,7 +76262,7 @@
       "extractionState": "manual"
     },
     "settings.playback.analysis_section": {
-      "comment": "Settings, Playback pane: heading above the group of rows enabling automatic tempo and key analysis.",
+      "comment": "Settings, Playback, on both platforms: heading above the rows enabling automatic tempo analysis (and, on macOS, key analysis).",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -76634,7 +77564,7 @@
       "extractionState": "manual"
     },
     "settings.playback.detect_bpm": {
-      "comment": "Settings, Playback pane: checkbox enabling tempo analysis of loaded files. BPM is beats per minute; a tempo already tagged in the file always shows regardless.",
+      "comment": "Settings, Playback, on both platforms: checkbox (macOS) or switch (iOS) enabling tempo analysis of loaded files. BPM is beats per minute; a tempo already tagged in the file always shows regardless.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -76814,6 +77744,192 @@
           "stringUnit": {
             "state": "translated",
             "value": "自動偵測 BPM"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.playback.detect_bpm.caption": {
+      "comment": "iOS Settings, Playback screen: footer under the Detect BPM switch. BPM is beats per minute. Says the analysis rides the waveform load and that a tempo tag in the file takes precedence.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Анализира темпото на всяка песен, докато се зарежда вълновата ѝ форма. Ако файлът вече има етикет за BPM, се използва той."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analyzuje tempo každé skladby při načítání jejího tvaru vlny. Pokud už je BPM uvedeno v souboru, použije se tato hodnota."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analyserer hvert nummers tempo, mens bølgeformen indlæses. Hvis filen allerede har et BPM-mærke, bruges det i stedet."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analysiert das Tempo jedes Titels, während seine Wellenform geladen wird. Ist in der Datei bereits ein BPM-Wert eingetragen, wird dieser verwendet."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αναλύει το τέμπο κάθε κομματιού ενώ φορτώνεται η κυματομορφή του. Αν το αρχείο έχει ήδη ετικέτα BPM, χρησιμοποιείται αυτή."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analyzes each track's tempo while its waveform loads. A BPM already tagged in the file is used instead."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analiza el tempo de cada pista mientras se carga su forma de onda. Si el archivo ya tiene una etiqueta de BPM, se usa esa."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analysoi kunkin kappaleen tempon aaltomuodon latautuessa. Jos tiedostossa on jo BPM-merkintä, käytetään sitä."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analyse le tempo de chaque morceau pendant le chargement de sa forme d’onde. Si le fichier contient déjà un BPM, celui-ci est utilisé."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analizira tempo svake pjesme dok se učitava njezin valni oblik. Ako datoteka već ima oznaku BPM-a, koristi se ona."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elemzi minden szám tempóját, miközben a hullámformája betöltődik. Ha a fájlban már van BPM-címke, az lesz használva."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menganalisis tempo setiap lagu saat bentuk gelombangnya dimuat. Jika file sudah memiliki tag BPM, tag itulah yang digunakan."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analizza il tempo di ogni brano mentre viene caricata la forma d’onda. Se il file contiene già un tag BPM, viene usato quello."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "波形の読み込み中に各トラックのテンポを解析します。ファイルにBPMタグがある場合は、そちらが使用されます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "파형을 불러오는 동안 각 트랙의 템포를 분석합니다. 파일에 BPM 태그가 이미 있으면 그 값이 사용됩니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analyserer tempoet til hvert spor mens bølgeformen lastes inn. Hvis filen allerede har en BPM-tagg, brukes den i stedet."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analyseert het tempo van elk nummer terwijl de golfvorm wordt geladen. Als het bestand al een BPM-tag heeft, wordt die gebruikt."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analizuje tempo każdego utworu podczas wczytywania jego kształtu fali. Jeśli plik ma już znacznik BPM, używana jest ta wartość."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analisa o andamento de cada faixa enquanto a forma de onda é carregada. Se o arquivo já tiver uma etiqueta de BPM, ela será usada."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analisa o andamento de cada faixa enquanto a forma de onda é carregada. Se o ficheiro já tiver uma etiqueta de BPM, é essa a utilizada."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analizează tempoul fiecărei piese în timp ce se încarcă forma de undă. Dacă fișierul are deja o etichetă BPM, se folosește aceasta."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Анализирует темп каждого трека во время загрузки его волновой формы. Если в файле уже указан BPM, используется это значение."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analyzuje tempo každej skladby počas načítavania jej vlnového priebehu. Ak je už BPM uvedené v súbore, použije sa táto hodnota."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analyserar varje spårs tempo medan vågformen läses in. Om filen redan har en BPM-tagg används den i stället."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "วิเคราะห์เทมโปของแต่ละแทร็กขณะโหลดรูปคลื่น หากไฟล์มีแท็ก BPM อยู่แล้ว จะใช้ค่านั้นแทน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dalga biçimi yüklenirken her parçanın temposunu analiz eder. Dosyada zaten bir BPM etiketi varsa o kullanılır."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аналізує темп кожного треку під час завантаження його хвильової форми. Якщо у файлі вже вказано BPM, використовується це значення."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phân tích nhịp độ của từng bài hát trong khi tải dạng sóng. Nếu tệp đã có thẻ BPM thì thẻ đó sẽ được dùng."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在加载波形时分析每首曲目的速度。如果文件中已有 BPM 标签，则使用该标签。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在載入波形時分析每首曲目的速度。如果檔案中已有 BPM 標籤，則使用該標籤。"
           }
         }
       },
@@ -77006,7 +78122,7 @@
       "extractionState": "manual"
     },
     "settings.playback.enable_fx": {
-      "comment": "Settings, Playback pane: checkbox choosing whether the DJ performance effects (low kill, reverb, delay) are available. 'FX' is the DJ term for effects, left untranslated.",
+      "comment": "Settings, Playback, on both platforms: checkbox (macOS) or switch (iOS) choosing whether the DJ performance effects (low kill, reverb, delay) are available. 'FX' is the DJ term for effects, left untranslated.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -77186,6 +78302,378 @@
           "stringUnit": {
             "state": "translated",
             "value": "啟用音效"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.playback.fx_caption": {
+      "comment": "iOS Settings, Playback screen: footer under the audio effects switch, saying what turning it on adds — a touch pad on the full-screen player whose vertical axis cuts the bass (a low-cut filter) and whose horizontal axis adds reverb and then delay. 'FX' is the DJ term for effects, left untranslated.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавя FX пад към плейъра: плъзнете нагоре за low cut, надясно за reverb и delay."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Přidá do přehrávače FX pad: tažením nahoru low cut, doprava reverb a delay."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Føjer en FX-pad til afspilleren: træk op for low cut, til højre for reverb og delay."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fügt dem Player ein FX-Pad hinzu: nach oben für Low Cut, nach rechts für Reverb und Delay."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Προσθέτει ένα FX pad στο πρόγραμμα αναπαραγωγής: σύρετε προς τα πάνω για low cut, προς τα δεξιά για reverb και delay."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adds an FX pad to the player: slide up for a low cut, right for reverb and delay."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añade un pad de FX al reproductor: desliza hacia arriba para el low cut y hacia la derecha para reverb y delay."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lisää soittimeen FX-padin: liu’uta ylös low cutia varten, oikealle reverbiä ja delayta varten."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajoute un pad FX au lecteur : faites glisser vers le haut pour le low cut, vers la droite pour la reverb et le delay."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaje FX pad u reproduktor: povucite prema gore za low cut, udesno za reverb i delay."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX padot ad a lejátszóhoz: húzd felfelé a low cuthoz, jobbra a reverbhöz és a delay-hez."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menambahkan pad FX ke pemutar: geser ke atas untuk low cut, ke kanan untuk reverb dan delay."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiunge un pad FX al player: scorri verso l’alto per il low cut, verso destra per reverb e delay."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プレーヤーにFXパッドを追加します。上にスライドでローカット、右にスライドでリバーブとディレイがかかります。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "플레이어에 FX 패드를 추가합니다. 위로 밀면 로우 컷, 오른쪽으로 밀면 리버브와 딜레이가 적용됩니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legger til en FX-pad i spilleren: dra opp for low cut, til høyre for reverb og delay."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voegt een FX-pad toe aan de speler: veeg omhoog voor low cut, naar rechts voor reverb en delay."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaje pad FX do odtwarzacza: przesuń w górę, aby użyć low cut, w prawo, aby użyć reverb i delay."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adiciona um pad de FX ao player: deslize para cima para o low cut e para a direita para reverb e delay."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adiciona um pad de FX ao leitor: deslize para cima para o low cut e para a direita para reverb e delay."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adaugă un pad FX în player: glisați în sus pentru low cut, la dreapta pentru reverb și delay."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавляет в плеер FX-пэд: проведите вверх для low cut, вправо — для reverb и delay."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pridá do prehrávača FX pad: ťahaním nahor low cut, doprava reverb a delay."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lägger till en FX-pad i spelaren: dra uppåt för low cut, åt höger för reverb och delay."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เพิ่มแพด FX ในเครื่องเล่น: เลื่อนขึ้นเพื่อโลว์คัต เลื่อนไปทางขวาเพื่อรีเวิร์บและ Delay"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oynatıcıya bir FX pedi ekler: low cut için yukarı, reverb ve delay için sağa kaydırın."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Додає до плеєра FX-пед: проведіть угору для low cut, праворуч — для reverb і delay."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thêm một pad FX vào trình phát: trượt lên để dùng low cut, sang phải để dùng reverb và delay."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在播放器中添加 FX 触控板：向上滑动为低切，向右滑动为混响和延迟。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在播放器中加入 FX 觸控板：向上滑動為低切，向右滑動為殘響和延遲。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.playback.fx_section": {
+      "comment": "iOS Settings, Playback screen: heading above the audio effects switch.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ефекти"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Efekty"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effekter"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effekte"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Εφέ"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effects"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Efectos"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tehosteet"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effets"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Efekti"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effektusok"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Efek"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effetti"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "エフェクト"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "효과"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effekter"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effecten"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Efekty"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Efeitos"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Efeitos"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Efecte"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эффекты"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Efekty"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effekter"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เอฟเฟ็กต์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Efektler"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ефекти"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hiệu ứng"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音效"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音效"
           }
         }
       },
