@@ -23,7 +23,7 @@ dropped or renamed theme file loud.
 ## File format
 
 `version` (always 1), `name`, an optional `description` (design rationale —
-ignored by the app), and then one object per Settings editor section —
+ignored by the app), and then one object per group —
 `window`, `player`, `info`, `waveform`, `playlist`, in that order — holding
 only the fields the theme changes from the factory look: a missing field (or
 a whole missing section) means "the default". Keys are section-local

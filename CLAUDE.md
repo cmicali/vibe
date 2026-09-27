@@ -6,7 +6,7 @@ Vibe is a native music player for macOS (`Vibe` target) and iOS (`VibeiOS` targe
 
 ## Building
 
-`Vibe.xcodeproj` is generated from `project.yml` by XcodeGen and is **not** checked in. Regenerate after cloning, after pulling and after every edit to `project.yml`: `xcodegen generate` (or `make project`). Every `make` target below regenerates first. The Makefile comments each target; the traps are here.
+`Vibe.xcodeproj` is generated from `project.yml` by XcodeGen and is **not** checked in. Regenerate after cloning, after pulling and after every edit to `project.yml`: `xcodegen generate` (or `make project`). Every `make` target that builds regenerates first. The Makefile comments each target; the traps are here.
 
 | Command | What it does |
 | --- | --- |
@@ -36,7 +36,7 @@ All of these run in CI (`.github/workflows/build.yml`).
 | `make check-layout` | The layout rule below. |
 | `make check-vocabulary` | The mechanical vocabulary rules below. |
 | `make check-strings` | Fails when `Resources/Localizable.xcstrings` is stale against the source. |
-| `make check-translations` | Fails when any key in any catalog is missing a language. Both release paths run it. |
+| `make check-translations` | Fails when any key in any catalog is missing a language. Both release paths run it; CI only reports. |
 | `make appstore-validate-copy` | App Store copy completeness and caption fit. |
 
 Anything that must be verified against the *running* app belongs in the debug command channel, not in a unit test.

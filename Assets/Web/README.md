@@ -1,13 +1,17 @@
 # Assets/Web
 
-The Vibe marketing page: one static HTML file, one stylesheet, and images. No
-build step, no dependencies, nothing to install — copy the folder to any static
-host and it works.
+The Vibe marketing page: static HTML, one stylesheet, and images. No build
+step, no dependencies, nothing to install — copy the folder to any static host
+and it works.
 
 ```
-index.html    the page
-styles.css    the page's styles
-img/          app icon renditions and screenshots
+index.html              the page
+404.html                the not-found page
+privacy/index.html      the privacy policy (a directory; see below)
+styles.css              the pages' styles
+img/                    app icon renditions and screenshots, PNG and WebP
+_headers, _redirects    Cloudflare Pages rules; GitHub Pages ignores both
+robots.txt, sitemap.xml, llms.txt
 ```
 
 ## Preview it
@@ -29,10 +33,10 @@ served month-old screenshots through a release deploy before anyone noticed.
 
 | Output | Source |
 | --- | --- |
-| `img/icon-*.png` | `Resources/AppIcon.icon/Assets/` — the vinyl ground and the glass waveform, composited and masked to the rounded square |
-| `img/player.png` | `Assets/screenshot-basic.png` |
-| `img/playlist.png` | `Assets/screenshot-playlist.png` |
-| `img/ios.png` | `Assets/screenshot-ios-iphone-player.png`, corners rounded at the iPhone's own radius and scaled to 560px wide |
+| `img/icon-*.png`, `img/icon-512.webp` | `Resources/AppIcon.icon/Assets/` — the vinyl ground and the glass waveform, composited and masked to the rounded square |
+| `img/player.{png,webp}` | `Assets/screenshot-basic.png` |
+| `img/playlist.{png,webp}` | `Assets/screenshot-playlist.png` |
+| `img/ios.{png,webp}` | `Assets/screenshot-ios-iphone-player.png`, corners rounded at the iPhone's own radius and scaled to 560px wide |
 | `img/app-store-badge.svg` | Apple's own marketing toolkit, copied verbatim. **Not generated and not to be edited** — the badge is Apple's artwork and its clear space and proportions are set by their guidelines. Replace it only with a newer file from the same source. |
 
 `web-build-images.sh` covers the three screenshots; **the icons and the badge
@@ -103,7 +107,8 @@ page already points at the release. A failed push there is fatal, because
 nothing has been published yet and a tag on an unpushed commit would dangle.
 
 A draft release is skipped: its download is not public, and a draft creates no
-tag until published, so there is no ordering to preserve.
+tag until published, so there is no ordering to preserve. A `--prerelease` is
+skipped too, so a beta never becomes the page's download or `/download/latest`.
 
 ### The stable link
 
@@ -224,7 +229,7 @@ The three URL files under `Assets/app-store/copy/` upload to every locale and bo
 | File | Value |
 | --- | --- |
 | `marketing-url.txt` | `https://vibeplayer.app` |
-| `support-url.txt` | `https://github.com/cmicali/vibe/issues` |
+| `support-url.txt` | `https://vibeplayer.app/support` (a `_redirects` 301 to the GitHub issues) |
 | `privacy-url.txt` | `https://vibeplayer.app/privacy` |
 
 The privacy URL is not a version field — it lives on ASC's `appInfoLocalizations`,

@@ -14,7 +14,10 @@
      - Regressions to watch: the five fixes in section G, each with its repro.
      - Since #66 (2026-09-25) there is no AVAudioEngine: the "engine nodes" baseline and the
        AudioLevelTap TSan signal no longer exist. dump_health reports hosted units instead;
-       don't expect either. -->
+       don't expect either. The files and symbols A1 and A4 name went with it:
+       AVFAudioWaveformLoader.mm is AudioWaveformLoader.mm, every audio open goes through
+       AudioFileHandle, which owns its descriptor (failsAudioOpenPreflight is gone), and the
+       level tap (applyLevelTapOnQueue, installTapOnBus:) is the render's own meter. -->
 
 # Overnight stress campaign — findings
 
@@ -33,7 +36,7 @@ corpus, a 42-file cloud-scenarios corpus, and a purpose-built hostile corpus.
 descriptors, and 31 copies of a single file were held open simultaneously.
 The 256-descriptor soft limit is reached after ~250 attempts.
 
-Where: `Vibe/Audio/Waveform/AVFAudioWaveformLoader.mm`, `openFileAtPath:`.
+Where: `Vibe/Audio/Waveform/AVFAudioWaveformLoader.mm` (since #66, `AudioWaveformLoader.mm`), `openFileAtPath:`.
 The guard there covers only `url.isEmptyOrDirectory`.
 
 The premise the guard rests on is stated in `Vibe/Util/Categories/NSURL+AudioOpen.m` and

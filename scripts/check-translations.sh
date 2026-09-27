@@ -21,7 +21,7 @@
 #
 # The test is "missing any catalog language", NOT "has only en". A key
 # spike-translated into el/de/ru to check layout (Greek and German are the
-# expansion-heavy ones) passes an only-en test while the other 27 languages
+# expansion-heavy ones) passes an only-en test while the other 26 languages
 # never get written — the worse failure, because the key looks done.
 #
 # The language set is the union across all keys (catalog-languages.sh), so it

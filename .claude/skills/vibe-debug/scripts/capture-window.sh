@@ -13,10 +13,17 @@ PID="${2:-}"
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# The iOS Simulator's app is named Vibe too; it is never this script's instance.
+mac_vibe_pids() {
+    for p in $(pgrep -x Vibe 2>/dev/null); do
+        case "$(ps -o command= -p "$p" 2>/dev/null)" in *CoreSimulator*) ;; *) echo "$p" ;; esac
+    done
+}
+
 # More than one instance and no pid given: ambiguous — show what's running.
-if [ -z "$PID" ] && [ "$(pgrep -x Vibe | wc -l)" -gt 1 ]; then
+if [ -z "$PID" ] && [ "$(mac_vibe_pids | wc -l)" -gt 1 ]; then
     echo "warning: multiple Vibe instances running; pass a pid to disambiguate:" >&2
-    ps -o pid=,command= -p "$(pgrep -x Vibe | tr '\n' ',' | sed 's/,$//')" >&2
+    ps -o pid=,command= -p "$(mac_vibe_pids | tr '\n' ',' | sed 's/,$//')" >&2
 fi
 
 LINE="$(swift "$DIR/find-window.swift" ${PID:+"$PID"} | head -1)" || {

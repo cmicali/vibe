@@ -27,7 +27,7 @@ Behavior spec, matching convention:
 - Track end funnels through `didFinishPlaying:` → `advanceOrParkAtTrackEnd`, which reads `hasNextTrack` *before* advancing (`MainPlayerController+PlayerEvents.m:196-215`).
 - **The linear-order leaks**: besides the model's own `advanceFromTrack:toTrack:` above, the mac's `successorPrefetchTrack` computes the gapless arm point as `trackAtIndex:currentIndex + 1` directly (`MainPlayerController.m:735-740`) instead of asking the model. Per the root `CLAUDE.md` guarantee, that parked handle is what a gapless splice advances into — so under shuffle it *must* answer the shuffled successor, or track ends splice into the linear neighbor while the UI expects the shuffled one.
 - **iOS has the same two leaks.** `PlaybackController.successorPrefetchTrack` parks a gapless successor as `trackAtIndex:currentIndex + 1`, and the boundary check in `PlaybackController+PlayerEvents.m` compares the started track against the same row; both must use `nextTrackPeek`.
-- `Playlist` also has row-level `removeTracksAtIndexes:`, `insertTracks:atIndexes:` and `moveTracksAtIndexes:toIndex:` (mac editing, #16). `_playOrder` stores row indexes, so each must remap it — a removal drops its entries and shifts later indexes, an insert shifts them, a move permutes them — keeping the played/current/unplayed invariant.
+- `Playlist` also has row-level `removeTracksAtIndexes:`, `insertTracks:atIndexes:` and `moveTracksAtIndexes:toIndexes:` (mac editing, #16). `_playOrder` stores row indexes, so each must remap it — a removal drops its entries and shifts later indexes, an insert shifts them, a move permutes them — keeping the played/current/unplayed guarantee.
 - Menu validation gates Next/Previous on the same predicates (`MainPlayerController+Menus.m:54-57`); the Playback menu holds the transport items (`MainMenuBuilder.m:227-260`).
 - `changeShuffleModeCommand` is currently in Now Playing's deliberately-disabled set (`System/NowPlayingController.m:225`).
 - `PlaylistTests.m` exists — the model is pure logic, host-less.
@@ -44,7 +44,7 @@ The order lives **inside `Playlist`**, not in a controller: the boundary predica
 @property (nonatomic, copy) uint32_t (^randomBelow)(uint32_t upperBound);
 ```
 
-Internal: `NSMutableArray<NSNumber *> *_playOrder` (a permutation of row indexes 0..count-1) and `NSUInteger _playOrderCursor`. Invariant to keep true everywhere: **entries before the cursor are played, the cursor entry is the current row, entries after it are unplayed** — every rule below is an application of it.
+Internal: `NSMutableArray<NSNumber *> *_playOrder` (a permutation of row indexes 0..count-1) and `NSUInteger _playOrderCursor`. The guarantee to keep true everywhere: **entries before the cursor are played, the cursor entry is the current row, entries after it are unplayed** — every rule below is an application of it.
 
 ### Rules
 
@@ -67,7 +67,7 @@ Internal: `NSMutableArray<NSNumber *> *_playOrder` (a permutation of row indexes
 
 ### Tests (`Tests/PlaylistTests.m`, deterministic via an injected `randomBelow`)
 
-Every track visited exactly once walking `next` to the boundary; the boundary parks (`hasNextTrack` NO); `previous` retraces the exact visited sequence; enabling puts the current row first; manual pick of an unplayed row continues with no repeats; manual pick of a played row replays it and still exhausts the remainder; append lands every new row in the unplayed span; toggle off resumes linear from `currentIndex`; convert swap mid-shuffle changes nothing; `nextTrackPeek` always equals the row `next` then lands on (the invariant Phase 2 leans on).
+Every track visited exactly once walking `next` to the boundary; the boundary parks (`hasNextTrack` NO); `previous` retraces the exact visited sequence; enabling puts the current row first; manual pick of an unplayed row continues with no repeats; manual pick of a played row replays it and still exhausts the remainder; append lands every new row in the unplayed span; toggle off resumes linear from `currentIndex`; convert swap mid-shuffle changes nothing; `nextTrackPeek` always equals the row `next` then lands on (the guarantee Phase 2 leans on).
 
 **Acceptance**: `make test`, `make check-layout`, `make build-ios` (shared file, both targets).
 
@@ -132,7 +132,7 @@ No Settings-pane row: this is transport state like play/pause, not configuration
 
 ## Phase 4 (optional, separate decision) — Now Playing shuffle command
 
-`changeShuffleModeCommand` is in the deliberately-disabled set (`NowPlayingController.m:218-233`). Enabling it puts a shuffle toggle in Control Center / CarPlay and routes the system's shuffle state to `applyShuffle`. **TRAP (same as the CarPlay doc's skip-command note): `MPRemoteCommandCenter` is process-global and the system may re-layout the compact transport when new commands appear** — verify on a real device that enabling it costs nothing on the lock screen before shipping. Keep this phase out of the initial landing; the feature is complete without it.
+`changeShuffleModeCommand` is in the deliberately-disabled set (`NowPlayingController.m:218-233`). Enabling it puts a shuffle toggle in Control Center / CarPlay and routes the system's shuffle state to `applyShuffle`. **TRAP: `MPRemoteCommandCenter` is process-global and the system may re-layout the compact transport when new commands appear** (the CarPlay doc's skip-command note) — verify on a real device that enabling it costs nothing on the lock screen before shipping. Keep this phase out of the initial landing; the feature is complete without it.
 
 ## Phase 5 — Final verification
 

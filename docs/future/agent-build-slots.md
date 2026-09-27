@@ -5,7 +5,12 @@ some of the ground it describes has moved. The debug channel now lives in
 `Vibe/Debug/DebugChannel.m` and `Vibe/Debug/Mac/DebugScreenshot.m`, not `DebugUtil.m`; `launch.sh`
 already quits through the channel and polls, instead of `pkill` then `sleep 1`; `slow-open.sh` and
 `AppDelegate.logBuildInfo` no longer exist; and iOS already isolates sessions through
-`sim-udid.sh`. Every file:line anchor below predates those moves — re-derive before acting.
+`sim-udid.sh`. Part of §2's `xcodegen` mutex exists as the checkout-wide build lock,
+`scripts/build-lock.sh` (`mkdir`-based, as proposed; the contention is measured there, not just
+reasoned): it wraps `make project`'s generate, `make build-ios`, `make test-audio` and the iOS
+driver's builds, but not `scripts/build.sh`'s own generate, the macOS `make build`/`make test`
+xcodebuilds, or `asc-build-lib.sh`. Every file:line anchor below predates those moves — re-derive
+before acting.
 
 The verified facts that shaped the design, in case they drift: `CLAUDE_CODE_SESSION_ID` is
 exported into every agent shell **and inherited by Task subagents** (so an agent and its subagents

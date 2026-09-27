@@ -3,11 +3,12 @@
 The whole cycle, from a clean checkout to a submitted release:
 
 ```bash
-make setup                                    # once per machine: brew bundle (xcodegen, jq)
+make setup                                    # once per machine: brew bundle (xcodegen, jq, gh)
 #  …write .release-env (once per machine, see §1)…
 #  …bump the version in project.yml (§2)…
 make appstore-validate-copy                   # copy present, within ASC limits, captions fit
-make appstore-generate-store-screenshots-all  # regenerate localized screenshots
+make appstore-generate-store-screenshots-all  # regenerate localized macOS screenshots
+                                              # (iOS: the script with --platform ios, §3)
 make appstore-upload-metadata \
     ARGS="--create-version 1.8"               # FIRST run of a cycle: open the new
                                               # version, then upload copy + screenshots.
@@ -116,6 +117,7 @@ copy/<lang>/<platform>/keywords.txt           one comma-separated line, ≤100 c
 copy/<lang>/<platform>/whats-new.txt          the version's notes, ≤4000 chars
 copy/<lang>/<platform>/screenshots.json       captions per shot, display order
 screenshots/<lang>/macos/                     generated 2880x1800 PNGs (en tracked, rest not)
+screenshots/<lang>/ios/{iphone,ipad}/         generated 1290x2796 / 2048x2732 PNGs, same
 ```
 
 `<platform>` is `macos` or `ios`. **Every file under `<lang>/` is an ASC
@@ -149,9 +151,14 @@ After editing copy or captions, or when the app UI changed:
 make appstore-validate-copy                         # limits, structure, captions fit the layout
 make screenshots                                    # ONLY if the UI changed: re-capture windows
                                                     # (debug build + Screen Recording permission)
-make appstore-generate-store-screenshots-all        # composite every language's screenshots
+make appstore-generate-store-screenshots-all        # composite every language's macOS screenshots
 make appstore-generate-store-screenshots LOCALE=de  # …or just one while iterating
+scripts/appstore-generate-store-screenshots.sh --all --platform ios   # the iOS sets (no make target)
 ```
+
+`make screenshots` re-captures the macOS windows only. The iOS composites read
+the `Assets/screenshot-ios-<device>-<shot>.png` captures, which no script in
+the repo produces.
 
 The overlay step is cheap and headless — every language shares the same
 English window captures (the window shows only song titles and artwork), so
@@ -233,8 +240,9 @@ make appstore-upload-signed-build-ios  # iOS:   same, then actually upload
 
 One script serves both: `scripts/release-appstore.sh`, defaulting to macOS and
 taking `--platform ios`. It regenerates the Xcode project, archives Release
-unsigned (`CODE_SIGN_IDENTITY: "-"`, so everyday builds need no credentials),
-exports re-signed via cloud signing, validates with App Store Connect, and with
+(unsigned on macOS, `CODE_SIGN_IDENTITY: "-"`, so everyday mac builds need no
+credentials; the iOS target is `CODE_SIGN_STYLE: Automatic` and signs through
+the API key), exports re-signed via cloud signing, validates with App Store Connect, and with
 `--upload` submits. Validation runs the same checks as upload, so the
 non-uploading target alone is a safe full rehearsal.
 
@@ -322,9 +330,10 @@ the state a reviewer hits.
 
 ### Privacy manifests
 
-`Resources/PrivacyInfo.xcprivacy` ships in both apps and declares three
-required-reason API categories: file timestamps, `UserDefaults` and system
-boot time. Neither app collects data and neither tracks.
+`Resources/PrivacyInfo.xcprivacy` is a resource of the `VibeiOS` target only;
+the macOS target bundles none. It declares three required-reason API
+categories — file timestamps, `UserDefaults` and system boot time — no
+collected data and no tracking.
 
 **`VibeWidget.appex` deliberately carries no manifest of its own.** It uses no
 required-reason API — it resolves the app-group container, enumerates it with

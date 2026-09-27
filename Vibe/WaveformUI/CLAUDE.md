@@ -1,6 +1,6 @@
 # Waveform rendering
 
-The *rendering* half of the waveform system; the data — generation, caching, BPM and key — is `Audio/Waveform/` and `Audio/Analysis/`. This level holds what both views resolve before they draw. **`Renderers/` (the strategies, the morph engine, the level mapping), `Mac/` (the `NSView`) and `iOS/` (the scrubber) each carry their own `CLAUDE.md`.**
+The *rendering* half of the waveform system; the data — decoding, caching, BPM and key — is `Audio/Waveform/` and `Audio/Analysis/`. This level holds what both views resolve before they draw. **`Renderers/` (the strategies, the morph engine, the level mapping), `Mac/` (the `NSView`) and `iOS/` (the scrubber) each carry their own `CLAUDE.md`.**
 
 Everything here compiles into both targets, so it is AppKit- and UIKit-free apart from the `VibeColor` alias. `WaveformZoomMath.h` is the iOS scrubber's zoom floor, shared because it is arithmetic with no UIKit in it (`iOS/CLAUDE.md`).
 

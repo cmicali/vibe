@@ -22,10 +22,15 @@ Options are environment variables. `open -a` cannot pass them, so `launchctl set
 
 ```bash
 xcodebuild -project Vibe.xcodeproj -scheme Vibe -configuration Debug \
-    -derivedDataPath build/DerivedData -enableThreadSanitizer YES build
-TSAN_OPTIONS=halt_on_error=0 "$V" --no-audio-hw --silent &
-.claude/skills/vibe-stress/scripts/stress.py --corpus ~/Music/big --profile ui   # app already up
+    -derivedDataPath build/DerivedData-tsan -enableThreadSanitizer YES build
+C=~/Library/Containers/com.commonwealthrecordings.Vibe/Data/tmp
+launchctl setenv TSAN_OPTIONS "log_path=$C/tsan:halt_on_error=0:external_symbolizer_path=:history_size=7"
+.claude/skills/vibe-stress/scripts/stress.py --corpus ~/Music/big --profile ui \
+    --app "$PWD/build/DerivedData-tsan/Build/Products/Debug/Vibe.app" --max-stalls 20
+launchctl unsetenv TSAN_OPTIONS
 ```
+
+`stress.py` always relaunches through `launch.sh`, so options set in the shell never reach the app; `run-torture.sh` direct-execs and takes them from its environment (`TSAN_OPTIONS=… run-torture.sh …`), its report on its stderr.
 
 Build to a **separate** derived-data path so the plain Debug build stays usable, and hand it to the driver with `--app` (which sets `VIBE_APP` for `launch.sh`). Reports land as `log_path.<pid>`; TSan creates the file only on the first report, so **no file means no race**. Raise `--max-stalls`: instrumentation makes ordinary verbs slow enough to trip the liveness oracle.
 
