@@ -11,7 +11,7 @@
 // The pad's side at most; the cell's extent caps it on a small window.
 static const CGFloat kFXPadSide = 260;
 static const CGFloat kFXPadCornerRadius = 20;
-// The label's weight at rest, the route control's own.
+// The pill's and the captions' weight at rest, the route control's own.
 static const CGFloat kFXPadRestingAlpha = 0.6;
 // The circle under the finger, and the fingertip it stands for.
 static const CGFloat kFXPadCursorDiameter = 44;
@@ -118,7 +118,7 @@ static const NSTimeInterval kFXPadCollapseDuration = 0.18;
     UILabel *label = [[UILabel alloc] init];
     label.text = text;
     label.font = [UIFont systemFontOfSize:11 weight:UIFontWeightSemibold];
-    label.textColor = [UIColor colorWithWhite:1 alpha:0.6];
+    label.textColor = [UIColor colorWithWhite:1 alpha:kFXPadRestingAlpha];
     label.isAccessibilityElement = NO;
     label.userInteractionEnabled = NO;
     [label sizeToFit];
