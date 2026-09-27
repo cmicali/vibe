@@ -525,6 +525,7 @@ static void VibeDisposeConverter(AudioVoiceRecord *record) {
     // TRAP: calloc's pages are mapped at their first write, so the scratch
     // only the render writes is written here: a fault on the audio thread
     // waits for a free page. The rings' first writer is the decoder.
+    // vDSP_vclr, not memset: clang drops a memset(0) after calloc.
     vDSP_vclr(_mix->gains, 1, kVibeVoiceBusMaxRenderFrames);
     _format = busFormat;
     _queue = queue;

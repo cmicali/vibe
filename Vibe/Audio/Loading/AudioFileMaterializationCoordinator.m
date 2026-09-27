@@ -580,10 +580,11 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
     }];
 }
 
-// Two separate loads: an open completing between them overstates by one.
+// Started first: an open racing the two loads reads low, never one high,
+// which quiescence's zero-at-rest check would report as a stranded open.
 - (uint64_t)handleOpensInFlight {
-    uint64_t completed = atomic_load(&_handleOpensCompleted);
     uint64_t started = atomic_load(&_handleOpensStarted);
+    uint64_t completed = atomic_load(&_handleOpensCompleted);
     return started > completed ? started - completed : 0;
 }
 

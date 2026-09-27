@@ -16,9 +16,11 @@ corpus of real audio files, and checks four oracles between batches:
                                               hosted units, pending counters)
   crash       the process is still alive     (and no fresh .ips landed)
 
-The seed is printed at the start and `--seed N` regenerates the run's ops
-(select_rows and file-drop coordinates also read live state). Every op is
-journaled as NDJSON; `--replay` reruns a journal verbatim and `--shrink`
+The seed is printed at the start and `--seed N` regenerates the run's ops only
+as far as the app answers the same: row selections, file-drop coordinates and
+theme and menu picks read live state (playlist length, window size, the
+installed themes and menu items). Every op is journaled as NDJSON; `--replay`
+reruns a journal verbatim, the one exact reproduction, and `--shrink`
 delta-debugs a failing one to a minimal run-script.sh repro.
 
     stress.py --corpus ~/Music/big --iterations 2000
@@ -68,7 +70,7 @@ STALL_PROBE_MS = 2000
 
 AUDIO_SUFFIXES = {".mp3", ".mp2", ".m4a", ".mp4", ".qta", ".aac", ".flac",
                   ".wav", ".wave", ".bwf", ".aif", ".aiff"}
-PLAYLIST_SUFFIXES = {".m3u", ".m3u8", ".pls", ".cue"}
+PLAYLIST_SUFFIXES = {".m3u", ".m3u8", ".cue"}   # PlaylistFile.isPlaylistExtension:
 
 # TRAP: raw input can start native file and window drags, so unattended runs
 # send only app-owned actions. require_command fails closed on anything else,
@@ -115,6 +117,18 @@ def require_command(argv, gesture_test=None):
                          "on an isolated desktop for input testing")
     if argv[0] == "click_menu" and (len(argv) != 2 or argv[1] not in MENU_IDS):
         raise ValueError("command-only stress refuses this menu item")
+
+
+def script_line(argv):
+    """argv as one `script -` line, or None if it cannot be one.
+
+    The script tokenizer groups quotes but has no escapes: an empty argument,
+    or one with a quote, tab or line break (a filename newline would start
+    another command), cannot be expressed.
+    """
+    if any(not a or any(c in a for c in "\"'\n\r\t") for a in argv):
+        return None
+    return " ".join(f'"{a}"' if " " in a else a for a in argv)
 
 
 class Failure(Exception):
@@ -199,23 +213,23 @@ class Channel:
         """
         for argv in argv_list:
             require_command(argv)
-        lines = []
-        for argv in argv_list:
-            # The script tokenizer groups quotes but has no escapes: an empty
-            # argument, or one with a quote, tab or line break (a filename
-            # newline would start another command), cannot be expressed.
-            if any(not a or any(c in a for c in "\"'\n\r\t") for a in argv):
-                return None
-            lines.append(" ".join(f'"{a}"' if " " in a else a for a in argv))
+        lines = [script_line(argv) for argv in argv_list]
+        if None in lines:
+            return None
         try:
+            # TRAP: the client's printf is block-buffered into a pipe, so a
+            # client killed at the timeout loses every reply it had printed
+            # and the caller re-sends ops that already ran. NSUnbufferedIO
+            # makes Foundation unbuffer stdout: each reply lands as it is made.
             proc = subprocess.run(
                 [str(self.binary), "--debug-cmd", "script", "-"],
                 input="\n".join(lines) + "\n",
                 capture_output=True, text=True, timeout=timeout,
+                env={**os.environ, "NSUnbufferedIO": "YES"},
             )
             out = proc.stdout
         except subprocess.TimeoutExpired as expired:
-            # Partial output says where the caller resumes one at a time.
+            # The replies so far say where the caller resumes one at a time.
             raw = expired.stdout
             out = raw.decode() if isinstance(raw, bytes) else (raw or "")
         results = []
@@ -1081,6 +1095,9 @@ PENDING_KEYS = ("metadataHolders", "metadataWaiters", "openResultsBuffered",
 # In-flight limits: loose, since a mid-run sample carries a decode's churn.
 # (section, key) in dump_health -> (absolute headroom, human name).
 GROWTH_LIMITS = {
+    # Mid-run the live heap read 26-52 MB across ~200 MB decodes; twice the
+    # resting headroom. Without it health_growth never scores the footprint.
+    ("process", "mallocLiveBytes"): (128 * 1024 * 1024, "live heap"),
     ("process", "footprintBytes"): (400 * 1024 * 1024, "memory footprint"),
     # Open descriptors: single digits at rest, a few dozen mid-burst. A leak
     # of 300 meets the 256 soft limit.
@@ -1484,7 +1501,7 @@ def run(args):
           f"{len(dirs)} subdirectories under {corpus}")
     if not files:
         sys.exit("no playable files found in the corpus")
-    print(f"seed:   {seed}   (replay this run with --seed {seed})")
+    print(f"seed:   {seed}   (regenerate with --seed {seed}; --replay its journal for the exact ops)")
 
     started = time.time()
     launch(corpus, app)
@@ -1741,7 +1758,16 @@ def shrink(args):
             n = min(len(ops), n * 2)
 
     out = Path(args.shrink).with_suffix(".min.txt")
-    out.write_text("".join(" ".join(argv) + "\n" for _, argv, _ in ops))
+    lines = []
+    for _, argv, _ in ops:
+        line = script_line(argv)
+        if line is None:
+            # Commented out so the script still runs; the repro is then not
+            # exact, and says so.
+            print(f"  warning: not expressible as a script line: {argv!r}")
+            line = "# not expressible: " + json.dumps(argv)
+        lines.append(line + "\n")
+    out.write_text("".join(lines))
     print(f"\nminimal repro: {len(ops)} ops -> {out}")
     print("replay it with:")
     print(f"  .claude/skills/vibe-debug/scripts/run-script.sh /tmp/shots < {out}")

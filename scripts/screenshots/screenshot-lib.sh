@@ -69,17 +69,24 @@ stop_backdrop() {
 
 launch() { "$SKILL/launch.sh" "$@" >/dev/null; }
 
+# The iOS Simulator's app is named Vibe too; it is never the one being shot.
+mac_vibe_pids() {
+    for p in $(pgrep -x Vibe 2>/dev/null); do
+        case "$(ps -o command= -p "$p" 2>/dev/null)" in *CoreSimulator*) ;; *) echo "$p" ;; esac
+    done
+}
+
 # Quit, not kill: the frame autosave and the settings the run restored are
 # flushed only on a real termination.
 quit_app() {
-    [ -n "$(pgrep -x Vibe || true)" ] || return 0
+    [ -n "$(mac_vibe_pids)" ] || return 0
     osascript -e 'tell application "Vibe" to quit' 2>/dev/null || true
     for _ in $(seq 1 20); do
-        [ -n "$(pgrep -x Vibe || true)" ] || return 0
+        [ -n "$(mac_vibe_pids)" ] || return 0
         sleep 0.25
     done
     echo "warning: Vibe did not quit — killing it (window state may not persist)" >&2
-    pkill -x Vibe 2>/dev/null || true
+    kill $(mac_vibe_pids) 2>/dev/null || true
 }
 
 # --- app state --------------------------------------------------------------
@@ -221,7 +228,7 @@ playing_row_point() { # <0-based row>
 # crossing, hence leaving first.
 
 # "<windowID> <pid> <x> <y> <w> <h>" — global screen points, top-left origin.
-win_geom() { swift "$SKILL/find-window.swift" "$(pgrep -x Vibe | head -1)" | head -1; }
+win_geom() { swift "$SKILL/find-window.swift" "$(mac_vibe_pids | head -1)" | head -1; }
 
 # input.swift gates global CGEvents behind --isolated-desktop, which ASSERTS
 # isolation rather than creating it, so a person makes the assertion, per run,
@@ -319,7 +326,7 @@ activate_vibe() {
 # but glass and NSVisualEffectView materials resolve against a NEUTRAL backdrop
 # (the playlist frost is mid-grey whatever is behind).
 capture_window() { # <out.png>
-    "$SKILL/capture-window.sh" "$1" "$(pgrep -x Vibe | head -1)" >/dev/null
+    "$SKILL/capture-window.sh" "$1" "$(mac_vibe_pids | head -1)" >/dev/null
 }
 
 # The window buffer's alpha, shadow and corners with the composited screen's

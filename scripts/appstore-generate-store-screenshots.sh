@@ -104,7 +104,17 @@ caption() { # <id> <headline|subhead>
 }
 
 shot() { # <id> <source> <output> [glyphs] [wash-color]
-    [ -f "$IN/$2" ] || { echo "missing: $IN/$2 — run generate-readme-screenshots.sh" >&2; exit 1; }
+    if [ ! -f "$IN/$2" ]; then
+        if [ "$PLATFORM" = ios ]; then
+            # generate-readme-screenshots.sh is macOS-only.
+            echo "missing: $IN/$2 — no script produces the iOS captures; take it from the" >&2
+            echo "  simulator at the set's native size (vibe-debug skill, iOS loop; the widget" >&2
+            echo "  shot needs VIBE_SIGN_SIM=1)" >&2
+        else
+            echo "missing: $IN/$2 — run generate-readme-screenshots.sh" >&2
+        fi
+        exit 1
+    fi
     local wash=() canvas=() hscale=() centre=()
     [ -n "${CENTER_TEXT:-}" ] && centre=(--center-text)
     [ -n "${5:-}" ] && wash=(--wash-color "$5")

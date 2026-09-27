@@ -649,7 +649,7 @@
 
 // Every playable extension is a fallback: a sheet naming the pre-transcode
 // file finds the m4a.
-- (void)testAnEntryRecoversToASpellingOutsideTheOldSubset {
+- (void)testAWavEntryRecoversToAnM4ABesideIt {
     NSURL *dir = [self makeTempDirWithFiles:@[@"track.m4a"]
                                playlistName:@"album.cue"
                                        text:@"FILE \"track.wav\" WAVE\n"];

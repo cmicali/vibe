@@ -36,7 +36,7 @@ S=.claude/skills/vibe-debug/scripts/debug-ios.sh
 "$S" dump_search         # {roots, folders} — the search scope. roots: the open BASE folder and every folder an append added, the folders added in Settings, the app's Documents, plus the STARRED folders once the search screen has been visited (FavoritesStore resolves their grants on that appearance); it is the composition before FileSearchIndex prunes nested and duplicate roots, so a folder can legitimately appear twice — re-appending the base folder is one ordinary way to see that. folders: just the added ones, the rows Settings shows
 "$S" add_search_folder <dir>  # {ok, added, roots, folders} — widens the scope as picking a folder in Settings would; remove_search_folder <index into dump_search.folders>. The channel cannot drive the system document picker (another process's UI), so these are the only way to set a scope up. added:false = a persistent root already covers it, not a failure. NOT security-scoped — SKILL.md's trap
 "$S" set_fake_cloud 4 100   # a common verb: references/test-audio.md
-VIBE_DEBUG_TIMEOUT=20 "$S" clear_caches   # blocks until both PINCaches are empty
+"$S" clear_caches        # blocks until both PINCaches are empty; waits its own 20 s window
 ```
 
 The search screen's index lives in its view controller, so what a query matched is read from `dump_view_tree`: the playlist section's rows draw `displayTitle` (no extension), the files section's the filename over the containing folder.

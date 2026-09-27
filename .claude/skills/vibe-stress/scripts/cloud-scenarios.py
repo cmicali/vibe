@@ -31,15 +31,12 @@ the admission seam, and only a real-provider run can say which providers do.
 """
 
 import argparse
-import os
 import sys
 import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from stress import AUDIO_SUFFIXES, Channel, launch  # noqa: E402
-
-DEFAULT_APP = Path("build/DerivedData/Build/Products/Debug/Vibe.app")
+from stress import AUDIO_SUFFIXES, DEFAULT_APP, Channel, launch  # noqa: E402
 
 # Seconds. Long enough to observe a transfer mid-flight across channel round
 # trips, short enough that a dozen do not make the suite a soak.
@@ -1483,7 +1480,6 @@ def s11_append_preserves_and_fast_path(ctx):
     events = ctx.wait_for("the first file's transfer to start",
                           lambda ev: events_of(ev, event="started", role="playback"))
     first_start = events_of(events, event="started", role="playback")[-1]
-    first_name = ctx.playlist()["files"][0]
     for f in files[1:4]:
         ctx.cmd("append", str(f))
     first_spans = [(start, end) for start, end in transfer_spans(
@@ -2385,5 +2381,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.stdout.reconfigure(line_buffering=True)
     sys.exit(main())

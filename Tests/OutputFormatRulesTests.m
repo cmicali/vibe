@@ -1300,11 +1300,24 @@ static int32_t VibeGate(AudioOutputUnit *unit) {
     });
 }
 
-// Refused before anything is queued, and the unit stays unbound.
-- (void)testABindToADeviceTheHALDoesNotKnowIsRefusedAtOnce {
+// The bind reads nothing on the caller's queue: a device the HAL refuses
+// fails the next start, as a bind refusal.
+- (void)testABindToADeviceTheHALDoesNotKnowFailsTheNextStart {
     AudioOutputUnit *unit = [[AudioOutputUnit alloc] init];
-    XCTAssertNotEqual([unit bindToDevice:(AudioDeviceID)0x7FFFFFF0], noErr);
-    XCTAssertEqual(unit.deviceID, kAudioObjectUnknown);
+    __block NSError *reported = nil;
+    __block BOOL reportedBind = NO;
+    unit.failureHandler = ^(NSError *error, uint64_t runGeneration, BOOL bindRefused) {
+        reported = error;
+        reportedBind = bindRefused;
+    };
+    [unit bindToDevice:(AudioDeviceID)0x7FFFFFF0];
+    XCTAssertEqual(unit.deviceID, (AudioDeviceID)0x7FFFFFF0, @"the bind is recorded at once");
+    [unit start];
+    [unit waitUntilIdle];
+    XCTAssertNotNil(reported);
+    XCTAssertTrue(reportedBind);
+    XCTAssertEqual(VibeGate(unit), 0);
+    [unit stop];
 }
 
 - (void)testOutputUnitIsUnboundAtInitAndStopsSafelyBeforeAnyStart {
@@ -1319,6 +1332,74 @@ static int32_t VibeGate(AudioOutputUnit *unit) {
     XCTAssertEqual(unit.renderMaxMicroseconds, 0.0);
     [unit stop];
     XCTAssertFalse(unit.running);
+}
+
+// The media-services reset: a start queued before it never reaches the dead
+// instance, and the unit's end disposes it without a stop.
+- (void)testADeadUnitIsNeverStartedAgain {
+    __block AudioOutputUnit *unit = [[AudioOutputUnit alloc] init];
+    dispatch_semaphore_t entered = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
+    __block int starts = 0;
+    VibeWithHALStart(^OSStatus {
+        if (++starts == 1) {
+            dispatch_semaphore_signal(entered);
+            dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+        }
+        return noErr;
+    }, ^{
+        [unit start];
+        XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0);
+        [unit stop];
+        [unit start]; // queued behind the device's slow start when the reset lands
+        [unit markDead];
+        XCTAssertEqual(VibeGate(unit), 0);
+        XCTAssertFalse(unit.running);
+        dispatch_semaphore_signal(release);
+        [unit waitUntilIdle];
+        XCTAssertEqual(starts, 1, @"a start reached the dead instance");
+        XCTAssertEqual(VibeGate(unit), 0);
+        unit = nil;
+    });
+}
+
+- (void)testABoundedReadAnswersInTimeOrLeavesItsAnswerToLate {
+    __block int value = 0;
+    XCTAssertTrue([CoreAudioUtil performBoundedRead:^{ value = 7; } within:1 late:^{ XCTFail(@"answered in time"); }]);
+    XCTAssertEqual(value, 7);
+
+    dispatch_semaphore_t hung = dispatch_semaphore_create(0);
+    XCTestExpectation *late = [self expectationWithDescription:@"the late answer"];
+    uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    XCTAssertFalse([CoreAudioUtil performBoundedRead:^{
+        dispatch_semaphore_wait(hung, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+    } within:0.05 late:^{ [late fulfill]; }]);
+    double waited = (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - began) / 1e6;
+    XCTAssertGreaterThanOrEqual(waited, 45.0);
+    XCTAssertLessThan(waited, 1000.0, @"the caller waited on the hung read");
+    began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    XCTAssertFalse([CoreAudioUtil performBoundedRead:^{} within:1 late:nil]);
+    XCTAssertLessThan((clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - began) / 1e6, 20.0,
+                      @"a read queued behind an overdue one must not wait for it");
+    dispatch_semaphore_signal(hung);
+    [self waitForExpectations:@[late] timeout:2];
+    XCTAssertTrue([CoreAudioUtil performBoundedRead:^{} within:1 late:nil], @"the queue waits again once it drained");
+}
+
+// The player queue asks during setup too: it must get "unknown" at once, not
+// the setup's 250 ms ceiling.
+- (void)testAbsenceDoesNotWaitForTheFirstSnapshot {
+    dispatch_semaphore_t publish = dispatch_semaphore_create(0);
+    AudioDeviceManager *manager = [[AudioDeviceManager alloc] initWithEnumerator:^NSArray *(BOOL partial) {
+        dispatch_semaphore_wait(publish, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+        return @[];
+    } retryScheduler:nil];
+    uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    XCTAssertFalse([manager knowsOutputDeviceIsAbsent:42]);
+    XCTAssertNil([manager outputDeviceForId:42]);
+    XCTAssertLessThan((clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - began) / 1e6, 100.0);
+    dispatch_semaphore_signal(publish);
+    (void)manager.outputDevices;
+    XCTAssertTrue([manager knowsOutputDeviceIsAbsent:42]);
 }
 
 @end

@@ -47,7 +47,8 @@ NS_ASSUME_NONNULL_BEGIN
 // none has been published — during setup, or while a HAL failure is retrying —
 // because `outputDevices` answers @[] for both that and a genuinely empty
 // system. Every caller that treats absence as REMOVAL, and so falls back to
-// System Output and persists it, must ask this rather than the getter.
+// System Output and persists it, must ask this rather than the getter. Never
+// waits, like cachedOutputDevices.
 - (BOOL)knowsOutputDeviceIsAbsent:(NSInteger)deviceId;
 
 // Resolves against the first successful device snapshot without blocking the
@@ -62,6 +63,7 @@ NS_ASSUME_NONNULL_BEGIN
                               name:(NSString *)name
                         completion:(void (^)(AudioDevice * _Nullable device))completion;
 
+// The published snapshot's device, without waiting: nil before the first one.
 - (nullable AudioDevice *)outputDeviceForId:(NSInteger)deviceId;
 
 // The published snapshot, or nil when none exists yet — WITHOUT waiting on

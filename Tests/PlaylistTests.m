@@ -351,11 +351,12 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
 
 #pragma mark - Replace
 
-- (void)testReplaceMintsAFreshTrackAndCarriesDurationAndBPM {
+- (void)testReplaceMintsAFreshTrackAndCarriesDurationBPMAndKey {
     Playlist *playlist = PlaylistWithFiles(@[@"a.wav", @"b.mp3"]);
     AudioTrack *outgoing = [playlist trackAtIndex:0];
     outgoing.duration = 123.5;
     outgoing.detectedBPM = 128.0f;
+    outgoing.detectedKey = 18; // F#m
 
     AudioTrack *incoming = [playlist replaceTrackAtIndex:0 withURL:URLNamed(@"a.flac")];
     XCTAssertNotNil(incoming);
@@ -363,6 +364,7 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     XCTAssertEqualObjects(incoming.url, URLNamed(@"a.flac"));
     XCTAssertEqual(incoming.duration, 123.5);
     XCTAssertEqual(incoming.detectedBPM, 128.0f);
+    XCTAssertEqual(incoming.detectedKey, 18);
     XCTAssertEqual([playlist trackAtIndex:0], incoming);
 
     XCTAssertEqual([playlist getIndexForTrack:incoming], 0);

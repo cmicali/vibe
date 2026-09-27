@@ -11,7 +11,7 @@ developer's own `~/Library` container, on whatever binary is in `build/DerivedDa
 that moment. Four traps documented in the `vibe-stress` skill all trace to that:
 
 - a second Vibe instance colliding with the one under test
-- Simulator's Vibe matching `pgrep -x Vibe`
+- Simulator's Vibe matching `pgrep -x Vibe` (the scripts exclude it)
 - a concurrent ⌘B swapping the binary mid-campaign
 - `AppSettings` inheriting the last fuzzer run's random final toggle
 

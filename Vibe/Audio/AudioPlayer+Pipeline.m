@@ -812,10 +812,9 @@ VIBE_REALTIME_END
 
 #if !TARGET_OS_OSX
 // The iOS media-services reset: every audio object is dead and must not be
-// messaged. The player only releases the unit; its dealloc then stops,
-// uninitializes and disposes it, and the disposal is what the reset
-// contract asks. The park and pending open go too,
-// since their handles would be dead. createOutputOnQueue rebuilds.
+// messaged. The unit is told so, and released: its end only disposes it, as
+// the reset contract asks. The park and pending open go too, since their
+// handles would be dead. createOutputOnQueue rebuilds.
 - (void)dropOutputBoundStateOnQueue {
     if (_drainTimer) {
         dispatch_source_cancel(_drainTimer);
@@ -824,6 +823,7 @@ VIBE_REALTIME_END
     atomic_store_explicit(&_masterBus->gate, 0, memory_order_seq_cst);
     [self dropVoiceBusOnQueue];
     [self dropLevelMeterOnQueue];
+    [_outputUnit markDead];
     _outputUnit = nil;
     [self refreshOutputAudioActiveOnQueue];
     [self cancelPlayOpenOnQueue];
@@ -966,7 +966,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
         VibeVarispeedHostFree(host);
         return NO;
     }
-    // TRAP: mapped here, not at the render's first write (AudioVoiceBus's pre-touch).
+    // TRAP: vDSP_vclr, not memset: clang drops a memset(0) after calloc (AudioVoiceBus's pre-touch).
     vDSP_vclr(host->recent[0], 1, (vDSP_Length)capacity * 2);
     vDSP_vclr(host->scratch[0], 1, (vDSP_Length)capacity * 2);
     host->recent[1] = host->recent[0] + capacity;

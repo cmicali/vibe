@@ -42,7 +42,7 @@ if [ "$1" = "start" ]; then
     xcrun simctl bootstatus "$UDID" -b >/dev/null
 else
     UDID="$("$DIR/sim-udid.sh" 2>/dev/null)" \
-        || { echo '{"error": "no simulator for this checkout — drive-ios.sh start first"}'; exit 1; }
+        || { echo '{"error": "no simulator for this session — drive-ios.sh start first"}'; exit 1; }
 fi
 
 # A host directory, not the app container: every `simctl install` rotates the

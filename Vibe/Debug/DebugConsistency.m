@@ -276,7 +276,7 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
         checked++;
         if ([fake[@"metadataOverlapTransfers"] unsignedIntegerValue] > 0) {
             VibeDebugViolation(v, @"cloud.metadata_lane_stands_aside",
-                    @"the metadata lane downloaded a file already in transfer %@ time(s)",
+                    @"a second transfer began for a file already in transfer %@ time(s)",
                     fake[@"metadataOverlapTransfers"]);
         }
 

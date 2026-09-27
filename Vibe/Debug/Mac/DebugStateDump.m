@@ -282,7 +282,7 @@ static NSMenuItem *VibeFindMenuItem(NSMenu *menu, NSString *name) {
 NSString *VibeClickMenuItem(NSString *name) {
     NSMenuItem *item = VibeFindMenuItem(NSApp.mainMenu, name);
     if (!item) {
-        return VibeErrorJSON(@"no menu item with identifier or title '%@' (run `menu` to list)", name);
+        return VibeErrorJSON(@"no menu item with identifier or title '%@' (run `dump_menu` to list)", name);
     }
     [item.menu update]; // same validation pass opening the menu would run
     if (!item.isEnabled) {

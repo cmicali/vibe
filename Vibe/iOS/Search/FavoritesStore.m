@@ -24,6 +24,9 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
 // Set once prepareSearchScope resolves the row; its scope is held until the
 // row goes.
 @property (nonatomic) NSURL *resolvedURL;
+// Standardized off main: coverage is tested per URL of every open, and a moved
+// folder's hits live under here, not under path.
+@property (nonatomic) NSString *resolvedPath;
 @property (nonatomic) BOOL scopeStarted;
 // resolvedURL lands late, so it cannot be the already-asked test: every
 // re-apply would enqueue another resolve, two starts against one stop.
@@ -256,18 +259,15 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
 
 - (NSURL *)resolvedRootCoveringURL:(NSURL *)url {
     NSString *path = url.URLByStandardizingPath.path;
-    NSURL *best = nil;
+    FavoriteFolder *best = nil;
     for (FavoriteFolder *favorite in _favorites) {
-        if (!favorite.resolvedURL) {
-            continue;
-        }
         // Longest match: nesting is legitimate here.
-        if (VibeSearchRootCoversPath(favorite.path, path)
-                && (!best || favorite.path.length > best.URLByStandardizingPath.path.length)) {
-            best = favorite.resolvedURL;
+        if (VibeSearchRootCoversPath(favorite.resolvedPath, path)
+                && favorite.resolvedPath.length > best.resolvedPath.length) {
+            best = favorite;
         }
     }
-    return best;
+    return best.resolvedURL;
 }
 
 - (void)prepareSearchScope {
@@ -293,6 +293,7 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
                                                  error:NULL];
         // NO is not failure: the app's own container is not security-scoped.
         BOOL scoped = url ? [url startAccessingSecurityScopedResource] : NO;
+        NSString *resolvedPath = url.URLByStandardizingPath.path;
         run_on_main_thread({
             favorite.scopeResolveInFlight = NO;
             if (!url) {
@@ -305,6 +306,7 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
                 return;
             }
             favorite.resolvedURL = url;
+            favorite.resolvedPath = resolvedPath;
             favorite.scopeStarted = scoped;
             [NSNotificationCenter.defaultCenter
                     postNotificationName:VibeFavoritesDidChangeNotification object:self];
@@ -321,6 +323,7 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
         favorite.scopeStarted = NO;
     }
     favorite.resolvedURL = nil;
+    favorite.resolvedPath = nil;
 }
 
 #pragma mark - Persistence

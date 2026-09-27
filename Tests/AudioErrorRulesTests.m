@@ -80,9 +80,13 @@ static NSError *VibeErr(NSString *domain, NSInteger code) {
                           VibeStatusForPlayError(VibeErr(@"other.domain", 1)));
 }
 
+// NSError refuses a nil domain at construction, so a nil domain reaches the
+// mapping only as a message to a nil error.
 - (void)testNilDomainIsGenericRatherThanACrash {
-    XCTAssertEqualObjects(VibeStatusForPlayError([NSError errorWithDomain:@"" code:0 userInfo:nil]),
-                          VibeStatusForPlayError(VibeErr(@"other.domain", 1)));
+    NSString *generic = VibeStatusForPlayError(VibeErr(@"other.domain", VibeAudioErrorFileOpenFailed));
+    XCTAssertEqualObjects(VibeStatusForPlayError((NSError *_Nonnull)nil), generic);
+    XCTAssertEqualObjects(VibeStatusForPlayError(VibeErr(@"", VibeAudioErrorFileOpenFailed)), generic,
+                          @"an empty domain is not ours, whatever its code");
 }
 
 @end

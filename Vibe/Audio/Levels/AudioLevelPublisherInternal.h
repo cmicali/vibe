@@ -12,7 +12,7 @@ typedef struct VibeLevelPublisherState VibeLevelPublisherState;
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface AudioLevelPublisher (TapSession)
+@interface AudioLevelPublisher (MeterSession)
 - (VibeLevelPublisherState *)publisherState;
 - (uint64_t)beginSession;
 - (void)endSession:(uint64_t)session;

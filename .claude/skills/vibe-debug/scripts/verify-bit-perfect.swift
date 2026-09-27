@@ -182,7 +182,7 @@ func savePCM(_ url: URL, rate: Double, samples: [[Float]]) {
         mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked, mBytesPerPacket: UInt32(4 * samples.count),
         mFramesPerPacket: 1, mBytesPerFrame: UInt32(4 * samples.count), mChannelsPerFrame: UInt32(samples.count), mBitsPerChannel: 32, mReserved: 0)
     var file: ExtAudioFileRef?
-    guard ExtAudioFileCreateWithURL(url as CFURL, kAudioFileWAVEType, &fileDescription, layout.layout, AudioFileFlags.eraseFile.rawValue, &file) == noErr, let file else {
+    guard ExtAudioFileCreateWithURL(url as CFURL, kAudioFileCAFType, &fileDescription, layout.layout, AudioFileFlags.eraseFile.rawValue, &file) == noErr, let file else {
         fail("cannot create saved capture: \(url.path)")
     }
     var clientDescription = format.streamDescription.pointee

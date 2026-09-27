@@ -14,7 +14,8 @@ waking from sleep takes seconds. Only physical power-cycling tests that.
 
 Oracles per flap: playing before and after with a moving position,
 check_consistency, the app alive; dump_health against a baseline every
---health-every flaps; a final quiesce with every pending counter at zero.
+--health-every flaps (outputDropouts and renderRefusals fail on any rise);
+a final quiesce with every pending counter at zero.
 
 TRAP: JUDGE THE HEAP AT REST, NOT WHILE RUNNING. A running sample counts
 allocations in flight: it read ~5 KB/flap of growth while the at-rest heap fell
@@ -46,13 +47,14 @@ HEALTH_KEYS = (
     "process.threads",
     "process.machPorts",
     "app.hostedUnits",
-    # Cumulative, so their baseline is zero, which the growth check skips:
-    # these two are printed, not scored. Read them.
     "app.outputDropouts",
     "app.renderRefusals",
     "ui.views",
     "ui.layers",
 )
+# Cumulative counters a healthy run holds at zero: any rise over the baseline
+# is a finding at once, which a growth factor over a zero baseline never sees.
+MUST_NOT_GROW = ("app.outputDropouts", "app.renderRefusals")
 # One sample over the limit means nothing (the opening decode peaks, and
 # retiring voices swing as crossfade pairs drain): the baseline is the minimum
 # of the first samples, and only consecutive breaches fail.
@@ -309,7 +311,11 @@ def main():
             if baseline:
                 for k, v in sample.items():
                     b = baseline.get(k)
-                    if b and v > b * GROWTH_FACTOR:
+                    if k in MUST_NOT_GROW:
+                        if b is not None and v > b and k not in breaches:
+                            breaches[k] = 1
+                            failures.append((i, f"{k} rose from {b} to {v}"))
+                    elif b and v > b * GROWTH_FACTOR:
                         breaches[k] = breaches.get(k, 0) + 1
                         if breaches[k] == CONSECUTIVE_BREACHES:
                             failures.append(

@@ -1,11 +1,14 @@
-# App Store Connect credential resolution for release.sh and
-# release-appstore.sh — sourced, never run. Assumes `set -euo pipefail`.
+# App Store Connect credential resolution for release.sh, release-appstore.sh
+# and appstore-upload-metadata.sh — sourced, never run. Assumes
+# `set -euo pipefail`.
 #
 # One API key covers cloud signing (xcodebuild -allowProvisioningUpdates),
 # notarization (notarytool --key, so no app-specific password) and upload
-# (altool --api-key). It must carry the ADMIN role: cloud-managed distribution
-# certificates are Admin-gated, so an App Manager key uploads but signing dies
-# with 403 FORBIDDEN_ERROR. A key's role cannot be edited; make a new key.
+# (altool --api-key --p8-file-path). Every consumer passes ASC_KEY_PATH itself:
+# altool's own search only finds AuthKey_<id>.p8 in fixed directories. It must
+# carry the ADMIN role: cloud-managed distribution certificates are
+# Admin-gated, so an App Manager key uploads but signing dies with 403
+# FORBIDDEN_ERROR. A key's role cannot be edited; make a new key.
 
 # shellcheck shell=bash
 

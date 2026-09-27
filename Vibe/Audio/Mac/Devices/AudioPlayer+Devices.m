@@ -22,6 +22,9 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 // freeze.
 static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 
+// The longest the player queue waits on one bounded HAL read.
+static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
+
 @implementation AudioPlayer (PlatformOutput)
 
 - (NSArray<NSDictionary<NSString *, id> *> *)outputUnitAudioPathOnQueue {
@@ -32,15 +35,22 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     AudioDeviceID deviceID = _outputUnit ? _outputUnit.deviceID : kAudioObjectUnknown;
     NSMutableDictionary *device = [@{@"stage": @"device", @"present": @(deviceID != kAudioObjectUnknown)} mutableCopy];
     if (deviceID != kAudioObjectUnknown) {
-        NSString *text = nil;
-        Float64 rate = 0;
-        AudioStreamID stream = kAudioObjectUnknown;
-        AudioStreamBasicDescription physical = {0};
+        AudioDevice *known = [AudioDeviceManager.sharedInstance outputDeviceForId:deviceID];
+        __block Float64 rate = 0;
+        __block AudioStreamBasicDescription physical = {0};
+        __block BOOL rateRead = NO, physicalRead = NO;
+        BOOL answered = [CoreAudioUtil performBoundedRead:^{
+            AudioStreamID stream = kAudioObjectUnknown;
+            rateRead = [CoreAudioUtil readNominalSampleRate:&rate forDeviceID:deviceID];
+            physicalRead = [CoreAudioUtil readOutputStream:&stream physicalFormat:&physical availableFormats:NULL
+                                                     count:NULL forDeviceID:deviceID];
+        } within:kDeviceReadWaitSeconds late:nil];
         device[@"deviceId"] = @((NSInteger)deviceID);
-        if ([CoreAudioUtil readName:&text forDeviceID:deviceID] && text) device[@"name"] = text;
-        if ([CoreAudioUtil readUID:&text forDeviceID:deviceID] && text) device[@"uid"] = text;
-        if ([CoreAudioUtil readNominalSampleRate:&rate forDeviceID:deviceID]) device[@"nominalSampleRate"] = @(rate);
-        if ([CoreAudioUtil readOutputStream:&stream physicalFormat:&physical availableFormats:NULL count:NULL forDeviceID:deviceID]) {
+        if (known) device[@"name"] = known.name;
+        if (known) device[@"uid"] = known.uid;
+        if (!answered) device[@"deviceReadTimedOut"] = @YES;
+        if (answered && rateRead) device[@"nominalSampleRate"] = @(rate);
+        if (answered && physicalRead) {
             device[@"physicalSampleRate"] = @(physical.mSampleRate);
             device[@"physicalBitsPerChannel"] = @(physical.mBitsPerChannel);
             device[@"physicalFloat"] = @((physical.mFormatFlags & kAudioFormatFlagIsFloat) != 0);
@@ -174,7 +184,6 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
             [self setOutputDeviceOnQueue:-1];
         }
         [self resolvePendingSavedOutputDeviceOnQueue];
-        [self publishBitPerfectReportOnQueue];
     });
 }
 
@@ -296,17 +305,20 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 }
 
 // Without a unit — the debug pump — there is nothing to bind, and a selection
-// keeps its menu and persistence behaviour.
+// keeps its menu and persistence behaviour. Refused at once only for a device
+// the snapshot knows is gone, never on a HAL read; any other refusal lands on
+// the unit's queue and fails the next start.
 - (BOOL)setOutputUnitDevice:(AudioDeviceID)deviceID {
     [self stopWatchingBoundDeviceRateOnQueue];
-    OSStatus status = _outputUnit ? [_outputUnit bindToDevice:deviceID] : noErr;
-    if (status != noErr) {
-        LogError(@"AudioPlayer: could not bind the output unit to device %u (OSStatus %d)", deviceID, (int)status);
+    if (!_outputUnit) {
+        return YES;
+    }
+    if ([AudioDeviceManager.sharedInstance knowsOutputDeviceIsAbsent:deviceID]) {
+        LogError(@"AudioPlayer: not binding the output unit to device %u, which is gone", deviceID);
         return NO;
     }
-    if (_outputUnit) {
-        [self watchBoundDeviceRateOnQueue:deviceID];
-    }
+    [_outputUnit bindToDevice:deviceID];
+    [self watchBoundDeviceRateOnQueue:deviceID];
     return YES;
 }
 
@@ -315,20 +327,20 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 // is watched in every mode, and a rate other than the pipeline's rebinds in
 // place, following it. A prepared bit-perfect device's own listener puts the
 // mode's format back instead; Vibe's own writes arrive with the pipeline
-// already at the rate, a no-op.
+// already at the rate, a no-op. The rate is read off the player queue.
 - (void)watchBoundDeviceRateOnQueue:(AudioDeviceID)deviceID {
     __weak AudioPlayer *weakSelf = self;
     AudioObjectPropertyListenerBlock listener = [^(UInt32 count, const AudioObjectPropertyAddress *addresses) {
-        AudioPlayer *strongSelf = weakSelf;
-        if (!strongSelf || strongSelf->_terminating || strongSelf->_boundRateDeviceID != deviceID
-                || strongSelf->_preparedDeviceID == deviceID) {
-            return;
-        }
-        Float64 rate = 0;
-        if ([CoreAudioUtil readNominalSampleRate:&rate forDeviceID:deviceID] && rate > 0
-                && rate != [strongSelf masterBusFormatOnQueue].sampleRate && ![CoreAudioUtil deviceIsConfirmedDead:deviceID]) {
-            LogInfo(@"AudioPlayer: device %u moved to %.0f Hz under the pipeline; rebinding", deviceID, rate);
-            [strongSelf configureOutputDeviceOnQueue:kAudioObjectUnknown];
+        __block Float64 rate = 0;
+        __block BOOL alive = NO;
+        dispatch_block_t follow = ^{
+            if (alive) [weakSelf followBoundDevice:deviceID toRate:rate];
+        };
+        if ([CoreAudioUtil performBoundedRead:^{
+            alive = [CoreAudioUtil readNominalSampleRate:&rate forDeviceID:deviceID]
+                    && ![CoreAudioUtil deviceIsConfirmedDead:deviceID];
+        } within:0 late:follow]) {
+            follow();
         }
     } copy];
     if ([CoreAudioUtil addNominalRateListener:listener queue:_queue forDeviceID:deviceID]) {
@@ -354,12 +366,41 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 
 // The graph runs at the bound device's rate, so the unit never resamples:
 // re-read after every bind; the prepare applies the rate its own format
-// write settled on. An unreadable rate keeps the current one.
+// write settled on. An unreadable rate keeps the current one. TRAP: the one
+// device read ordinary playback waits for, since the pipeline cannot be built
+// without it, so it is bounded: a device that answers late keeps the current
+// rate, and its answer is then followed as the rate listener's is.
 - (void)followOutputDeviceRateOnQueue {
-    Float64 rate = 0;
-    if (_outputUnit && [CoreAudioUtil readNominalSampleRate:&rate forDeviceID:_outputUnit.deviceID] && rate > 0) {
+    if (!_outputUnit) {
+        return;
+    }
+    AudioDeviceID deviceID = _outputUnit.deviceID;
+    __block Float64 rate = 0;
+    __block BOOL read = NO;
+    __weak AudioPlayer *weakSelf = self;
+    if (![CoreAudioUtil performBoundedRead:^{ read = [CoreAudioUtil readNominalSampleRate:&rate forDeviceID:deviceID]; }
+                                    within:kDeviceReadWaitSeconds
+                                      late:^{ if (read) [weakSelf followBoundDevice:deviceID toRate:rate]; }]) {
+        LogWarn(@"AudioPlayer: device %u did not report its rate within %.0f ms; the pipeline stays at %.0f Hz",
+                deviceID, kDeviceReadWaitSeconds * 1000, _masterFormat.sampleRate);
+        return;
+    }
+    if (read && rate > 0) {
         [self applyOutputRateOnQueue:rate];
     }
+}
+
+// Any thread: a rate read off the player queue, for the device the unit is
+// bound to when the queue gets it.
+- (void)followBoundDevice:(AudioDeviceID)deviceID toRate:(Float64)rate {
+    dispatch_async(_queue, ^{
+        if (self->_terminating || rate <= 0 || self->_outputUnit.deviceID != deviceID
+                || self->_preparedDeviceID == deviceID || rate == [self masterBusFormatOnQueue].sampleRate) {
+            return;
+        }
+        LogInfo(@"AudioPlayer: device %u moved to %.0f Hz under the pipeline; rebinding", deviceID, rate);
+        [self configureOutputDeviceOnQueue:kAudioObjectUnknown];
+    });
 }
 
 // Rebuilds the graph, restoring the track, position and play or pause state.
@@ -1089,7 +1130,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 // Computes the report from its owners — the mode, the graph, the chosen
 // device, the hog, the current file, the prepared device's physical format
 // read live and its volume, balance and mute (cached while its listener
-// stands) — and publishes the copy the shell reads, announcing it when it
+// stands), the device's reads bounded — and publishes the copy the shell reads, announcing it when it
 // differs. Held while a device switch is rebuilding. It gates itself: off,
 // once the zeroed Off report is out, a call is two ivar reads.
 - (void)publishBitPerfectReportOnQueue {
@@ -1110,8 +1151,39 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 #if VIBE_VERBOSE_LOGGING
         readDevice = YES;
 #endif
-        AudioStreamBasicDescription physical = {0};
-        BOOL readFormat = [CoreAudioUtil readPhysicalFormat:&physical forStream:_preparedStreamID];
+        AudioFileHandle *file = _file; // queue-confined writer; the promoted splice file included
+        UInt32 channels = file.fileFormat.channelCount;
+        // No file (Loading) asks for no channels; the last track's reading covers it.
+        controlsCached = _outputLevelListener && _outputControlsDeviceID == _preparedDeviceID
+                && _outputControlsStreamID == _preparedStreamID
+                && (_outputControlsChannels == channels || channels == 0);
+        // Every device read in one bounded read: this rides every state
+        // publication, and a hung device must not hold the queue for each.
+        AudioDeviceID prepared = _preparedDeviceID;
+        AudioStreamID stream = _preparedStreamID;
+        NSArray<NSNumber *> *channelMap = _outputUnit.channelMap;
+        BOOL readControls = !controlsCached;
+        BOOL readOwner = NO;
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+        readOwner = _hoggedDeviceID == prepared;
+#endif
+        __block AudioStreamBasicDescription devicePhysical = {0};
+        __block BOOL formatRead = NO, controlsRead = NO, ownerRead = NO, mapPreserves = NO, deviceMuted = NO;
+        __block Float32 deviceVolume = 1, deviceBalance = 0.5f;
+        __block pid_t owner = -1;
+        BOOL answered = [CoreAudioUtil performBoundedRead:^{
+            formatRead = [CoreAudioUtil readPhysicalFormat:&devicePhysical forStream:stream];
+            if (readOwner) ownerRead = [CoreAudioUtil readHogOwner:&owner forDeviceID:prepared];
+            if (readControls) {
+                controlsRead = [CoreAudioUtil readOutputVolume:&deviceVolume balance:&deviceBalance mute:&deviceMuted
+                                                      channels:channels inStream:stream forDeviceID:prepared];
+            }
+            mapPreserves = channels > 0 && [CoreAudioUtil channelMap:channelMap preservesChannels:channels inStream:stream
+                                                physicalChannelCount:devicePhysical.mChannelsPerFrame];
+        } within:kDeviceReadWaitSeconds late:nil];
+        // A read that timed out is still writing its results: none is looked at.
+        BOOL readFormat = answered && formatRead;
+        AudioStreamBasicDescription physical = readFormat ? devicePhysical : (AudioStreamBasicDescription){0};
         AVAudioFormat *mixerFormat = [self masterBusFormatOnQueue];
         AVAudioFormat *unitFormat = _outputUnit.format;
         report.sampleRate = physical.mSampleRate;
@@ -1120,7 +1192,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         // Named rather than folded into one flag: "switch failed" alone does
         // not say which condition failed, and the debug info log is read for it.
         AudioDeviceID bound = [self activeOutputDeviceID];
-        unconfirmed = !readFormat ? @"the device's format could not be read"
+        unconfirmed = !answered ? @"the device did not answer in time"
+                : !readFormat ? @"the device's format could not be read"
                 : [self varispeedPresentOnQueue] ? @"a varispeed is in the chain"
                 : self.fx.connected ? @"the FX bus is in the chain"
                 : !_outputLevelListener ? @"the device listener is missing"
@@ -1135,24 +1208,17 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         report.formatConfirmed = (unconfirmed == nil);
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
         report.hogWanted = _exclusiveOutputWanted; // the device is eligible and prepared by here
-        pid_t owner = -1;
-        report.exclusive = _hoggedDeviceID == _preparedDeviceID
-                && [CoreAudioUtil readHogOwner:&owner forDeviceID:_preparedDeviceID] && owner == getpid();
+        report.exclusive = readOwner && answered && ownerRead && owner == getpid();
 #endif
-        AudioFileHandle *file = _file; // queue-confined writer; the promoted splice file included
-        UInt32 controlChannels = file.fileFormat.channelCount;
-        // No file (Loading) asks for no channels; the last track's reading covers it.
-        controlsCached = _outputLevelListener && _outputControlsDeviceID == _preparedDeviceID
-                && _outputControlsStreamID == _preparedStreamID
-                && (_outputControlsChannels == controlChannels || controlChannels == 0);
-        if (!controlsCached) {
-            BOOL read = [CoreAudioUtil readOutputVolume:&_outputControlsVolume balance:&_outputControlsBalance
-                                                   mute:&_outputControlsMuted channels:controlChannels
-                                               inStream:_preparedStreamID forDeviceID:_preparedDeviceID];
+        if (readControls) {
+            BOOL read = answered && controlsRead;
+            _outputControlsVolume = read ? deviceVolume : 1;
+            _outputControlsBalance = read ? deviceBalance : 0.5f;
+            _outputControlsMuted = read && deviceMuted;
             // A failed read is never kept, so the next publication tries again.
             _outputControlsDeviceID = read ? _preparedDeviceID : kAudioObjectUnknown;
             _outputControlsStreamID = _preparedStreamID;
-            _outputControlsChannels = controlChannels;
+            _outputControlsChannels = channels;
         }
         report.softwareVolume = _outputControlsVolume;
         report.balance = _outputControlsBalance;
@@ -1165,13 +1231,11 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
             AudioStreamBasicDescription source = *file.fileFormat.streamDescription;
             // Keep the bus one-to-one; wider hardware is transparent only
             // when the AU's actual map preserves the prepared stream's pair.
-            UInt32 channels = source.mChannelsPerFrame;
             report.channelsMatch = channels > 0
                     && file.processingFormat.channelCount == channels
                     && mixerFormat.channelCount == channels
                     && unitFormat.channelCount == channels
-                    && [CoreAudioUtil channelMap:_outputUnit.channelMap preservesChannels:channels
-                            inStream:_preparedStreamID physicalChannelCount:physical.mChannelsPerFrame];
+                    && answered && mapPreserves;
             report.rateExact = (physical.mSampleRate == source.mSampleRate);
             report.depthOK = VibePhysicalFormatSatisfies(physical, source,
                                                          *file.processingFormat.streamDescription);

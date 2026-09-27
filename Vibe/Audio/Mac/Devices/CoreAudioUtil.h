@@ -18,6 +18,15 @@ NS_ASSUME_NONNULL_BEGIN
 // code must use the tri-state form below instead.
 + (AudioDeviceID)systemDefaultOutputDeviceID;
 
+// TRAP: a HAL read on a hung device holds its thread up to 30 s (measured), so
+// a read the player queue cannot do without runs here: on one serial queue of
+// reads, waited for at most `seconds`. NO when it has not returned by then; it
+// finishes there on its own, `late` (if any) runs there after it, and the
+// caller must not look at what it writes. While a timed-out read is still
+// running, nothing waits: every later read is queued behind it.
++ (BOOL)performBoundedRead:(dispatch_block_t)read within:(NSTimeInterval)seconds
+                      late:(nullable dispatch_block_t)late;
+
 // Restore/release a recorded device change, retrying a transient failure once.
 // A failed operation keeps the slot unless a published snapshot proves removal.
 // Callers run on their owning queue; supplied operations are synchronous.
@@ -51,15 +60,6 @@ NS_ASSUME_NONNULL_BEGIN
 // kAudioDevicePropertyTransportType. An optional refinement: the sweep keeps a
 // device whose transport is unreadable, as kAudioDeviceTransportTypeUnknown.
 + (BOOL)readTransportType:(UInt32 *)transportType forDeviceID:(AudioDeviceID)deviceID;
-
-// YES only for an aggregate created privately inside this process, which no
-// other process sees and which cannot be chosen as an output. Answered from
-// the composition dictionary's kAudioAggregateDeviceIsPrivateKey, so a public
-// aggregate the user built stays a real device. Deliberately not a tri-state:
-// every failure, including the property being absent on an ordinary device,
-// answers NO and keeps the device, because a device missing from the list is
-// worse than one wrongly kept.
-+ (BOOL)isProcessPrivateAggregateDevice:(AudioDeviceID)deviceID;
 
 // The device's nominal sample rate: a physical-format write is applied
 // asynchronously by the HAL, so a caller that needs the new rate to be in

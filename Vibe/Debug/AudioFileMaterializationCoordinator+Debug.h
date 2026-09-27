@@ -17,8 +17,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Wedges stage 2, the handle open after materialization: opens of `basename`
 // block inside the uncancellable AudioFileHandle call until released. The fake
 // cloud cannot stage this, since under it the bytes are local and a real open
-// never blocks. nil stops matching new opens without broadcasting to the ones
-// already held.
+// never blocks. nil also releases the opens already held.
 + (void)debugHangOpensForBasename:(nullable NSString *)basename;
 + (void)debugReleaseHungOpens;
 + (NSUInteger)debugHungOpenCount;

@@ -84,7 +84,7 @@ VibeAudioLevelAnalyzer *VibeAudioLevelAnalyzerCreate(
     analyzer->splitImag = cursor;
     cursor += analyzer->fftCapacity / 2;
     analyzer->magnitudes = cursor;
-    // TRAP: mapped here, not at the render's first write (AudioVoiceBus's pre-touch).
+    // TRAP: vDSP_vclr, not memset: clang drops a memset(0) after calloc (AudioVoiceBus's pre-touch).
     vDSP_vclr(analyzer->scratch, 1, floatCount);
     if (!VibeAudioLevelAnalyzerSetSampleRate(analyzer, sampleRate)) {
         VibeAudioLevelAnalyzerDestroy(analyzer);

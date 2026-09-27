@@ -19,8 +19,6 @@ import sys
 import time
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[0]
-
 
 class App:
     def __init__(self, binary):

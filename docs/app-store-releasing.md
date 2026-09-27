@@ -70,9 +70,11 @@ none of the signing paths are interchangeable.
   ASC_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
   ```
 
-  Optional overrides: `ASC_KEY_PATH` if the `.p8` lives elsewhere, `TEAM_ID`
-  if not the default. Resolution lives in `scripts/asc-auth-lib.sh`; every
-  release script sources it, so this one file covers cloud signing,
+  Optional overrides, in `.release-env` or the environment: `ASC_KEY_PATH` if
+  the `.p8` lives elsewhere, `TEAM_ID` if not the default (defaulted by
+  `release.sh` and `release-appstore.sh` themselves). Key resolution lives in
+  `scripts/asc-auth-lib.sh`; every release script sources it and passes the
+  resolved `ASC_KEY_PATH` explicitly, so this one file covers cloud signing,
   validation, metadata upload, and binary upload. No certificates or
   provisioning profiles need to be created by hand — the first archive/export
   creates them via `-allowProvisioningUpdates`.
@@ -330,8 +332,7 @@ the state a reviewer hits.
 
 ### Privacy manifests
 
-`Resources/PrivacyInfo.xcprivacy` is a resource of the `VibeiOS` target only;
-the macOS target bundles none. It declares three required-reason API
+`Resources/PrivacyInfo.xcprivacy` is a resource of both app targets. It declares three required-reason API
 categories — file timestamps, `UserDefaults` and system boot time — no
 collected data and no tracking.
 

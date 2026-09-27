@@ -76,7 +76,6 @@ shot_ids() {
     case "$1" in
         macos) echo "player playlist themes pitch" ;;
         ios)   echo "player seek playlist widget" ;;
-        *)     echo "" ;;
     esac
 }
 
@@ -113,23 +112,12 @@ done
 LANGS="$("$ROOT/scripts/catalog-languages.sh")"
 [ -n "$LANGS" ] || { echo "appstore-validate-copy: catalog-languages.sh returned no languages" >&2; exit 1; }
 
-PLATFORMS="macos ios"
-REQUIRED_PLATFORMS="macos ios"
-PENDING=0
-
 while read -r l; do
-    for plat in $PLATFORMS; do
+    for plat in macos ios; do
         DIR="$ROOT/Assets/app-store/copy/$l/$plat"
-        if [ ! -d "$DIR" ]; then
-            case " $REQUIRED_PLATFORMS " in
-                *" $plat "*) err "$l/$plat: missing $DIR" ;;
-                *)           PENDING=$((PENDING + 1)) ;;
-            esac
-            continue
-        fi
+        [ -d "$DIR" ] || { err "$l/$plat: missing $DIR"; continue; }
         check_text "$l/$plat" "$DIR"
         ids="$(shot_ids "$plat")"
-        [ -n "$ids" ] || continue
         if [ -f "$DIR/screenshots.json" ]; then
             # Unquoted on purpose: ids is a space-separated list.
             # shellcheck disable=SC2086
@@ -139,7 +127,5 @@ while read -r l; do
         fi
     done
 done <<< "$LANGS"
-
-[ "$PENDING" = 0 ] || echo "appstore-validate-copy: $PENDING iOS file(s) not written yet"
 
 [ "$FAIL" = 0 ] && echo "appstore-validate-copy: OK" || exit 1

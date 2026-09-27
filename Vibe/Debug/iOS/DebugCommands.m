@@ -225,8 +225,11 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // process's UI that neither the channel nor the touch driver can
             // drive; these three inspect and set up the scope for a test.
             //
-            // TRAP: a folder added here is NOT security-scoped, so it survives
-            // only the session. A test that relaunches must add it again.
+            // TRAP: a folder added here is NOT security-scoped, so the scope
+            // round trip goes unexercised — yet addFolderURL: still persists a
+            // plain bookmark, and the next launch restores it unless it no
+            // longer resolves. A test removes what it added; dump_search after
+            // a relaunch shows whether it came back.
             VibeDebugCmd(@"dump_search", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 return VibeJSONString(VibeSearchScopeDictionary(controller));
             }),

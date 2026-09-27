@@ -40,7 +40,7 @@ The folders the user handed the app to search: persisted security-scoped bookmar
 - **Removing a row hides it immediately but defers `stopAccessingSecurityScopedResource`** until the playlist and every overlapping open release the grant object `FolderSession` was handed, so later metadata and waveform reads keep the access that made the playlist valid.
 - **It posts `VibeSearchFoldersDidChangeNotification`; Settings and Search derive their rows from that one delivery.** Launch resolves can land while either screen is up, and a local animation beside the notification would mutate the table twice.
 - `restorePersistedFolders` runs at launch beside restore-or-adopt, not as a third branch: it opens and plays nothing.
-- The channel cannot drive the document picker, so `dump_search`, `add_search_folder` and `remove_search_folder` set up a scope for a test. **TRAP: a folder added through the channel is not security-scoped and survives only the session.**
+- The channel cannot drive the document picker, so `dump_search`, `add_search_folder` and `remove_search_folder` set up a scope for a test. **TRAP: a folder added through the channel is not security-scoped, yet it outlives the session**: `addFolderURL:` mints and persists a plain bookmark whatever `startAccessingSecurityScopedResource` answered, and `restorePersistedFolders` restores it at the next launch, dropping it only if the bookmark no longer resolves. A test removes what it added, or later runs inherit the scope; `dump_search` after a relaunch shows whether it came back.
 
 ## FavoritesStore and FavoritesViewController
 

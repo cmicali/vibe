@@ -154,9 +154,6 @@ if [[ -n "$DRY_RUN" ]]; then
     exit 0
 fi
 
-
-PROJECT="${CLOUDFLARE_PAGES_PROJECT:-vibe}"
-
 # Opt-in rather than sniffed from wrangler's cache, so a release never silently
 # changes how it authenticates.
 if [[ -n "$USE_LOGIN" ]]; then

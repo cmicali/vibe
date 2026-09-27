@@ -9,8 +9,8 @@
 #import <Cocoa/Cocoa.h>
 #import <MetalKit/MetalKit.h>
 
-// No restart API: mutating the instance buffer on a live view would race
-// in-flight command buffers, so AboutWindowController rebuilds the view.
+// One per open: the intro runs from creation, and AboutWindowController drops
+// the view at close.
 @interface VectorBallsView : MTKView
 
 @end
