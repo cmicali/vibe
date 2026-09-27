@@ -106,6 +106,15 @@ GROWTH_FACTOR = 3.0
 # while reading the default device still answered in 0.14 s. So a health check
 # between batches must make an output unit, not just read a property, and the
 # cap stays.
+#
+# TRAP: A LOCKED MAC CAN LOOK LIKE THIS DAMAGE. Overnight (macOS 27,
+# 2026-09-27), after the lock screen raised its password prompt, no process
+# got a render callback on any device, afplay included, while making,
+# starting and stopping a unit all succeeded; a coreaudiod restart changed
+# nothing, and waking and unlocking the screen brought it straight back.
+# Locked with the display dark earlier the same evening it still rendered, so
+# the trigger is not the lock alone. Only a render callback proves the output
+# works, which is why a start must reach a moving position below.
 MAX_UNCAPPED_FLAPS = 250
 RECOVER_EVERY = 20.0      # seconds of quiet
 RECOVER_BATCH = 100       # ...every this many flaps
@@ -276,9 +285,9 @@ def main():
         app.json("play_index", "0")
         time.sleep(2.0)
         state, pos = app.playback()
-        if state == "playing":
+        if state == "playing" and pos and pos > 0.5:
             break
-        print(f"  start attempt {attempt + 1}: state={state}, retrying", flush=True)
+        print(f"  start attempt {attempt + 1}: state={state} at {pos}s, retrying", flush=True)
     else:
         sys.exit(f"could not start playback after 3 attempts (state={state})")
     print(f"playing at {pos:.1f}s; flapping {args.flaps}x in {args.mode} mode", flush=True)
@@ -307,6 +316,14 @@ def main():
             break
 
         state, pos = app.playback()
+        # TRAP: "playing" is intent, not sound. With the output rendering
+        # nothing, every flap read playing at 0.0s and the run passed
+        # vacuously; a position that does not move is a silent stop too.
+        if state == "playing":
+            time.sleep(0.5)
+            state, moved = app.playback()
+            if state == "playing" and moved is not None and pos is not None and abs(moved - pos) < 0.05:
+                state = f"playing, stuck at {moved:.2f}s"
         # The oracle. A track ending naturally also reads stopped, so require
         # that the previous sample was NOT near the end of its track before
         # calling it a silent stop.
