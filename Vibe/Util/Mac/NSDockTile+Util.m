@@ -33,8 +33,10 @@ static NSImageView *VibeInstalledDockIconView(void) {
         // 256pt (512px at 2x), so it would draw at half the canvas.
         VibeDockIconView.imageScaling = NSImageScaleProportionallyUpOrDown;
     }
-    // TRAP: assigning NSApp.applicationIconImage drops the content view, so an
-    // image on a detached view shows nothing. Re-attach on every install.
+    // TRAP: assigning NSApp.applicationIconImage replaces the content view —
+    // AppKit's own image view for a custom icon, nil for the reset — so an
+    // image on a detached view shows nothing. Re-attach on every install; the
+    // re-attach itself leaks nothing (the assignment does, see setAppIcon:).
     if ([NSApp dockTile].contentView != VibeDockIconView) {
         [[NSApp dockTile] setContentView:VibeDockIconView];
     }
@@ -45,10 +47,9 @@ static NSImageView *VibeInstalledDockIconView(void) {
 
 + (void) resetToAppIcon {
     VibeDockIconGeneration++;
-    // No view on the tile — none yet, or an app icon assignment dropped it —
-    // means the Dock already draws the live icon. Installing one at launch
-    // would show nothing, and re-attaching after a drop would cost the leak
-    // above for nothing.
+    // Our view off the tile — none yet, or an app icon assignment replaced
+    // it — means the Dock already draws the live icon. Installing one at
+    // launch would show nothing.
     if (!VibeDockIconView || [NSApp dockTile].contentView != VibeDockIconView) {
         return;
     }
@@ -168,9 +169,10 @@ static NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvas
         composedFrom = image;
     }
     NSImage *icon = !image ? nil : shaped ? composed : image;
-    // Only on a change: each assignment drops the art tile's content view,
-    // and the re-attach that showing art again needs costs one leaked context
-    // (VibeInstalledDockIconView).
+    // TRAP: only on a change. The setter itself puts a view on the tile for
+    // a custom icon and nils it for the reset, so each custom-then-reset
+    // round trip leaks one 256KB dock-tile context inside AppKit, whatever
+    // the tile shows and whether or not our view is ever installed.
     if (icon != assigned) {
         assigned = icon;
         NSApp.applicationIconImage = icon;
