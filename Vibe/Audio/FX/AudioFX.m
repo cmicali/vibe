@@ -858,6 +858,9 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
 
 #pragma mark - Low kill
 
+// A toggle the low-kill writer leaves as it is.
+static const NSInteger kLowKillKeep = -1;
+
 - (BOOL)lowKillEnabled {
     os_unfair_lock_lock(&_stateLock);
     BOOL enabled = _lowKillEnabled;
@@ -866,25 +869,12 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
 }
 
 - (void)setLowKillEnabled:(BOOL)enabled {
-    os_unfair_lock_lock(&_stateLock);
-    if (_lowKillEnabled == enabled) {
-        os_unfair_lock_unlock(&_stateLock);
-        return;
-    }
-    _lowKillEnabled = enabled;
     // The boost modifies the low kill rather than being a control of its own,
     // so killing the filter kills the boost with it. Otherwise a latched W
     // would hold the cutoff above where Q alone would put it while the low
-    // kill read off. It is cleared under the same lock, so the one sweep below
-    // resolves both rather than racing a second one.
-    if (!enabled) {
-        _lowKillBoostActive = NO;
-    }
-    _lowKillCutoffHz = VibeLowKillCutoffHz(_lowKillEnabled, _lowKillBoostActive);
-    os_unfair_lock_unlock(&_stateLock);
-    dispatch_async(_queue, ^{
-        [self applyLowKillTargetOnQueue];
-    });
+    // kill read off. It is cleared under the same lock, so one sweep resolves
+    // both rather than racing a second one.
+    [self writeLowKillEnabled:enabled boost:enabled ? kLowKillKeep : NO cutoffHz:NAN];
 }
 
 - (BOOL)lowKillBoostActive {
@@ -895,17 +885,7 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
 }
 
 - (void)setLowKillBoostActive:(BOOL)active {
-    os_unfair_lock_lock(&_stateLock);
-    if (_lowKillBoostActive == active) {
-        os_unfair_lock_unlock(&_stateLock);
-        return;
-    }
-    _lowKillBoostActive = active;
-    _lowKillCutoffHz = VibeLowKillCutoffHz(_lowKillEnabled, _lowKillBoostActive);
-    os_unfair_lock_unlock(&_stateLock);
-    dispatch_async(_queue, ^{
-        [self applyLowKillTargetOnQueue];
-    });
+    [self writeLowKillEnabled:kLowKillKeep boost:active cutoffHz:NAN];
 }
 
 - (float)lowKillCutoffHz {
@@ -918,19 +898,27 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
 // The pad's writer: the cutoff itself, replacing the toggles' answer. Called
 // every drag frame, so only a real change touches the queue.
 - (void)setLowKillCutoffHz:(float)cutoffHz {
-    float target = MAX(cutoffHz, kLowKillParkedHz);
+    [self writeLowKillEnabled:NO boost:NO cutoffHz:MAX(cutoffHz, kLowKillParkedHz)];
+}
+
+// The one lock-side writer. enabled and boost are YES, NO or kLowKillKeep,
+// resolved against the fields under the lock; a NAN cutoff is the toggles'
+// answer. The queue hears one sweep, and only for a real change.
+- (void)writeLowKillEnabled:(NSInteger)enabled boost:(NSInteger)boost cutoffHz:(float)cutoffHz {
     os_unfair_lock_lock(&_stateLock);
-    if (_lowKillCutoffHz == target && !_lowKillEnabled && !_lowKillBoostActive) {
-        os_unfair_lock_unlock(&_stateLock);
-        return;
-    }
-    _lowKillEnabled = NO;
-    _lowKillBoostActive = NO;
+    BOOL isEnabled = enabled == kLowKillKeep ? _lowKillEnabled : (BOOL)enabled;
+    BOOL isBoosted = boost == kLowKillKeep ? _lowKillBoostActive : (BOOL)boost;
+    float target = isnan(cutoffHz) ? VibeLowKillCutoffHz(isEnabled, isBoosted) : cutoffHz;
+    BOOL changed = isEnabled != _lowKillEnabled || isBoosted != _lowKillBoostActive || target != _lowKillCutoffHz;
+    _lowKillEnabled = isEnabled;
+    _lowKillBoostActive = isBoosted;
     _lowKillCutoffHz = target;
     os_unfair_lock_unlock(&_stateLock);
-    dispatch_async(_queue, ^{
-        [self applyLowKillTargetOnQueue];
-    });
+    if (changed) {
+        dispatch_async(_queue, ^{
+            [self applyLowKillTargetOnQueue];
+        });
+    }
 }
 
 // Sweeps from wherever the filter sits to the one cutoff every writer
