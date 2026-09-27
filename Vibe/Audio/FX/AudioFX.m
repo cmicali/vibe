@@ -675,9 +675,16 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
         [self disconnectOnQueue];
         [self retireChain];
     }
-    if (!self.hosted && ![self hostUnitsWithFormat:format maximumFrameCount:maximumFrameCount]) {
-        [self retireChain];
-        return;
+    if (!self.hosted) {
+        uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        BOOL hosted = [self hostUnitsWithFormat:format maximumFrameCount:maximumFrameCount];
+        double milliseconds = (double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - began) / 1e6;
+        LogTiming(milliseconds > 10, @"AudioFX: hosting %lu units at %.0f Hz took %.1f ms",
+                  (unsigned long)self.hostedUnitCount, format.sampleRate, milliseconds);
+        if (!hosted) {
+            [self retireChain];
+            return;
+        }
     }
     if (_connected) {
         return;
