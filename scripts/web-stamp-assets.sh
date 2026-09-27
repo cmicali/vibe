@@ -1,29 +1,18 @@
 #!/usr/bin/env bash
 #
-# Stamp each asset's content hash into every page that references it —
-# the stylesheet, and every image under img/.
+# Stamp each asset's content hash into every page that references it: the
+# stylesheet, and each image under img/.
 #
 #   scripts/web-stamp-assets.sh [--check]
 #
-# The stylesheet and the markup are deployed together and have to expire
-# together, but Cloudflare Pages manages caching for its own assets and ignores
-# Cache-Control from _headers. Fixing the TTL at the edge only helps the next
-# fetch — a browser already holding a copy under the old four-hour TTL will not
-# ask again until it expires, so a layout change renders under the old rules
-# for hours.
+# Cloudflare Pages ignores Cache-Control from _headers, so after a deploy a
+# browser holding the old stylesheet or screenshot keeps drawing it until its
+# TTL (four hours) runs out, which reads as a broken deploy. A hash in the
+# query string changes the URL with the bytes, so no cache is consulted and the
+# TTL can stay long. Images are hashed one by one, so changing one screenshot
+# does not re-fetch the rest.
 #
-# A content hash in the query string sidesteps all of it: change the stylesheet
-# and the URL changes, so no cache anywhere is consulted. It also lets the TTL
-# be long rather than zero, since a given URL's bytes never change.
-#
-# IMAGES HAVE THE SAME PROBLEM, and used to have none of the fix. The 1.12
-# screenshots were re-derived and deployed, the CDN served the new bytes
-# immediately (cf-cache-status: REVALIDATED), and browsers that had visited
-# before kept drawing the old ones for the rest of the four hours — which reads
-# as a broken deploy rather than a cache. Each image is hashed on its own, so
-# changing one screenshot does not re-fetch the rest.
-#
-# --check verifies the stamps are current without writing, for deploy-web.sh.
+# --check verifies the stamps without writing; deploy-web.sh runs it.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -57,8 +46,8 @@ while IFS= read -r page; do
     stamp "$page" href "$(perl -ne 'print $1 if m{href="([./]*styles\.css)(?:\?v=[0-9a-f]*)?"}' "$page")" "$HASH"
 done < <(grep -rl 'styles\.css' Assets/Web --include='*.html')
 
-# Every img/ reference, hashed per file. The path is taken as written so a
-# relative ../img/ in privacy/ and an absolute /img/ in 404.html both match.
+# The path is taken as written, so privacy/'s relative ../img/ and 404.html's
+# absolute /img/ both match.
 while IFS= read -r line; do
     page="${line%%:*}"; rest="${line#*:}"
     attr="${rest%%=*}"; ref="${rest#*=\"}"; ref="${ref%\"}"

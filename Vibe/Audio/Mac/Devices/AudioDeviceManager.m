@@ -20,18 +20,10 @@ static const NSTimeInterval kListenerSetupWait = 0.25;
 
 // How many consecutive sweeps may be discarded for a per-device property-read
 // failure before one is published without the devices that failed.
-//
-// Discarding the whole sweep is right for a TRANSIENT failure: a device
-// vanishing mid-enumeration, or coreaudiod restarting, would otherwise look
-// like removal and persist a false System Output fallback. It is catastrophic
-// for a PERSISTENT one — a virtual or aggregate driver that always fails a
-// property read, a device with an empty name — because nothing else bounds it:
-// the retry runs every two seconds for the life of the process while
-// outputDevices stays empty (at launch) or frozen at the last good sweep, the
-// Output menu never populates, and resolveOutputDeviceForUID: never completes,
-// so the saved device can never bind. Three strikes turns that into one
-// degraded-but-usable snapshot, which is what the old skip-the-bad-device
-// behavior gave unconditionally.
+// Discarding is right for a TRANSIENT failure, which would otherwise look like
+// removal and persist a false System Output fallback. A PERSISTENT one — a
+// driver that always fails a read — would otherwise keep the list unpublished
+// for the process's life, so the saved device could never bind.
 static const NSUInteger kMaxIncompleteSweeps = 3;
 
 static const AudioObjectPropertyAddress kDevicesAddress = {
@@ -93,7 +85,7 @@ static const AudioObjectPropertyAddress kDevicesAddress = {
     BOOL _devicesListenerRegistered;
     BOOL _listenerRegistrationRetryScheduled;
 #if VIBE_VERBOSE_LOGGING
-    // Beta instrumentation (#47): the device event log. Per watched device id,
+    // Beta instrumentation: the device event log. Per watched device id,
     // its name, the listener blocks and the stream they sit on, which removal
     // needs; confined to _refreshQueue. Events arrive on _eventLogQueue.
     NSMutableDictionary<NSNumber *, NSDictionary *> *_eventLogWatches;
@@ -159,22 +151,14 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
         _observers = [NSHashTable weakObjectsHashTable];
         _observersLock = OS_UNFAIR_LOCK_INIT;
         _devicesLock = OS_UNFAIR_LOCK_INIT;
-        // No synchronous sweep here. The singleton is first touched on the
-        // main thread during observer registration; setup and its initial
-        // cache fill stay on the refresh queue.
         _refreshQueue = dispatch_queue_create("com.vibe.audiodevicemanager.refresh",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, 0));
         _listenerSetupGroup = dispatch_group_create();
         _snapshotWaiters = [NSMutableArray array];
         dispatch_group_enter(_listenerSetupGroup);
-        // Register the HAL listeners on the refresh queue rather than inline.
-        // These are the process's first CoreAudio calls, and bringing up the
-        // HAL client connection to coreaudiod costs about 20ms. The singleton
-        // is first touched on the main thread before first paint, by the
-        // devices menu controller's addObserver, and that must not pay the
-        // cost. Synchronous snapshot readers wait at most 250ms; saved-device
-        // resolution instead waits asynchronously for this block to publish a
-        // successful snapshot.
+        // Setup runs here, not inline: these are the process's first CoreAudio
+        // calls, bringing up the HAL connection costs about 20ms, and the
+        // singleton is first touched on main before first paint.
         dispatch_async(_refreshQueue, ^{
             if (!self->_enumerator) {
                 // Deliver HAL notifications on the HAL's own thread rather than
@@ -239,17 +223,13 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
     CFRunLoopWakeUp(mainRunLoop);
 }
 
-// Served from the cached snapshot, which the HAL listeners keep fresh by
-// refreshing first and notifying second; see refreshDevicesThenNotify:.
+// No caller waits unbounded: the enumeration behind the snapshot is a HAL
+// round trip a wedged coreaudiod can hold indefinitely, and a briefly stale
+// snapshot is safer than wedging a serial queue behind setup.
 //
-// No caller waits unbounded. This getter is on both the Output menu and player
-// recovery paths, and the enumeration behind it is a HAL round trip that a
-// wedged coreaudiod or Bluetooth device can hold indefinitely. A briefly stale
-// snapshot is safer than wedging either serial queue behind setup.
-//
-// TRAP: never call this from _refreshQueue. Setup runs there, so a call from
-// that queue before it completes pointlessly burns the full wait ceiling on
-// work which cannot advance until this call returns.
+// TRAP: never call this from _refreshQueue. Setup, and the resolution
+// completions its first sweep delivers, run there; a call from inside them
+// waits out the full ceiling on a setup that cannot finish until it returns.
 - (NSArray<AudioDevice *>*)outputDevices {
     return [self publishedOutputDevices] ?: @[];
 }
@@ -274,13 +254,10 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
     return devices;
 }
 
-// TRAP: absence in outputDevices is NOT removal. That getter answers @[] both
-// for "no output devices exist" and for "no sweep has been published yet",
-// which is what the 250ms ceiling above returns during setup or while a HAL
-// failure is being retried. Reading the second as the first makes a caller fall
-// back to System Output and PERSIST it, throwing away the user's device on a
-// transient stall. So the removal decisions ask this instead, and it answers NO
-// until a real snapshot exists to be absent from.
+// TRAP: absence in outputDevices is NOT removal: it answers @[] both for no
+// devices and for no snapshot yet (setup, or a HAL failure retrying). Reading
+// the second as the first falls back to System Output and PERSISTS it. Removal
+// decisions ask this instead, which answers NO until a snapshot exists.
 - (BOOL)knowsOutputDeviceIsAbsent:(NSInteger)deviceId {
     if (deviceId < 0) {
         return NO; // System Output is a policy, never a device that can vanish
@@ -337,8 +314,7 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
 
 #if VIBE_VERBOSE_LOGGING
 // Every property whose change the device event log records, registered only
-// where a device has it. The point is what changes on a device while Vibe
-// holds it: a reporter's delay the Mac could not otherwise see (#47).
+// where a device has it: what changes on a device while Vibe holds it.
 static const AudioObjectPropertyAddress kVibeEventLogDeviceAddresses[] = {
     { kAudioDevicePropertyDeviceIsAlive, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain },
     { kAudioDevicePropertyDeviceIsRunning, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain },
@@ -624,11 +600,9 @@ static void VibeEventLogListen(AudioObjectID object, const AudioObjectPropertyAd
         if (!hasOutputChannels) {
             continue;
         }
-        // Our own engine's private aggregate over the system default. It has
-        // output channels and a name, so nothing above excludes it, and it
-        // would otherwise be offered as a selectable output whose name changes
-        // under the user on every rebind. Not a sweep failure: it is a device
-        // that exists and is deliberately not listed.
+        // A process-private aggregate has output channels and a name but
+        // cannot be chosen. Not a sweep failure: it exists and is deliberately
+        // not listed.
         if ([CoreAudioUtil isProcessPrivateAggregateDevice:deviceID]) {
             continue;
         }
@@ -646,9 +620,7 @@ static void VibeEventLogListen(AudioObjectID object, const AudioObjectPropertyAd
     free(deviceIDs);
     if (!foundDefault) {
         // Either the default's own reads failed above, or it enumerated with no
-        // output channels — a driver oddity rather than something to reason
-        // from. Both are "this sweep does not describe the system", and both
-        // used to be silent unless some other read had already failed.
+        // output channels. Both mean this sweep does not describe the system.
         LogWarn(@"AudioDeviceManager sweep did not contain default output device %u "
                 @"(%lu output devices read%@)", defaultID, (unsigned long)result.count,
                 snapshotComplete ? @"" : @", some reads failed");
@@ -747,9 +719,8 @@ static void VibeEventLogListen(AudioObjectID object, const AudioObjectPropertyAd
     }
     // Devices without a UID keep an empty uid rather than a shared sentinel.
     // Two of them would collide on a sentinel, and a persisted sentinel would
-    // resolve to whichever enumerated first. +deviceForUID:name:inDevices:
-    // skips an empty UID query, so resolution for these devices falls through
-    // to the name match.
+    // resolve to whichever enumerated first. An empty UID query never
+    // matches, so these devices resolve by model UID or name.
     // Optional, never load-bearing: a failed transport read leaves Unknown,
     // which bit-perfect output treats as ineligible. It must not mark the
     // sweep incomplete — a device missing from the list is worse than one

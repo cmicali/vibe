@@ -2,13 +2,8 @@
 //  MiniPlayerView.h
 //  Vibe (iOS)
 //
-//  The minimized player: the strip that lives in the tab bar controller's
-//  bottomAccessory, above the tab bar. Artwork, title over artist, play/pause
-//  and next. Tapping it anywhere but a control — or swiping it up — expands
-//  the full-screen card.
-//
-//  It draws only what it is told; the events come from PlaybackController
-//  through RootViewController, which owns both this and the card.
+//  The strip in the tab bar's bottomAccessory. Tapping it anywhere but a
+//  control, or swiping up, expands the card. It draws only what it is told.
 //
 
 #import <UIKit/UIKit.h>
@@ -28,8 +23,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, weak) id<MiniPlayerViewDelegate> delegate;
 
-// The strip's whole content. Art is the 128px thumbnail — the size this draws
-// at — never the full-size decode the card's pages hold.
+// Art is the 128px thumbnail, never the card's full-size decode.
 - (void)renderTrack:(nullable AudioTrack *)track;
 - (void)setPlaying:(BOOL)playing;
 

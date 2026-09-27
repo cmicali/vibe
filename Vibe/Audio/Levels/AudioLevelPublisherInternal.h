@@ -2,7 +2,7 @@
 //  AudioLevelPublisherInternal.h
 //  Vibe
 //
-//  Tap-session writer surface. Display clients use AudioLevelPublisher.h.
+//  The meter-session writer surface. Display clients use AudioLevelPublisher.h.
 //
 
 #import "AudioLevelPublisher.h"
@@ -25,8 +25,8 @@ BOOL VibeLevelPublisherPublish(VibeLevelPublisherState *state,
                                uint64_t session,
                                const float levels[_Nonnull kLevelBandCount]) CA_REALTIME_API;
 
-// Their Release bodies are empty, keeping diagnostics out of the render path
-// without putting #if DEBUG in a header.
+// Empty in Release: diagnostics stay out of the render without #if DEBUG in a
+// header.
 void VibeLevelPublisherRecordCallback(VibeLevelPublisherState *state,
                                       uint64_t frameLength,
                                       double sampleRate) CA_REALTIME_API;

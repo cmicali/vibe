@@ -41,22 +41,15 @@
 @end
 
 
-// How long after an open event the next one still counts as part of the same
-// burst. It is long enough to absorb a split multi-file open, and short
-// enough that a deliberate second open replaces rather than appends.
+// Long enough to absorb a split multi-file open, short enough that a
+// deliberate second open replaces rather than appends.
 static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 
 @implementation AppDelegate {
-    // Burst coalescing — replace vs append, the quiet period, the pre-launch
-    // queue — lives in the coalescer; this object supplies the sink that
-    // expands and plays each drained batch.
     OpenBurstCoalescer *_openBurstCoalescer;
-    // The Open Recent submenu's delegate. It is owned here because menu
-    // delegates are weak, and this object is the target of the items it
-    // creates.
+    // Owned here because menu delegates are weak.
     OpenRecentMenuController *_openRecentMenuController;
-    // The live ⌘O panel, so repeated opens re-front it instead of stacking
-    // independent panels whose completions each do a replacing play.
+    // Repeated ⌘O re-fronts it rather than stacking panels that each replace.
     NSOpenPanel *_openPanel;
 }
 
@@ -77,18 +70,11 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 #pragma mark - Launch
 
 - (void)applicationWillFinishLaunching:(NSNotification *)notification {
-    // A playlist file's entries live outside the grant opening it conferred,
-    // so the expansion may have to ask for their folder. The asking is this
-    // layer's — the panel and the bookmark are the sandbox-grant funnel — and
-    // the expansion only signals that it is needed. Installed before any open
-    // can run.
+    // Installed before any open can run. The walk reports; acting on it
+    // (the grant panel, folder art) belongs to the app layer.
     [NSURLUtil setPlaylistFolderGrantHandler:^BOOL(NSURL *playlistURL) {
         return [[FolderAccessManager sharedInstance] requestAccessForPlaylistFolder:playlistURL];
     }];
-    // An expansion walks folders anyway, so the folder-artwork resolver takes
-    // its answers from that walk rather than paying for a listing of its own.
-    // Wired here for the same reason as the grant above: the expansion finds
-    // the facts, but acting on them belongs to the app layer.
     [NSURLUtil setWalkedDirectoriesHandler:^(NSSet<NSString *> *directories,
                                              NSDictionary<NSString *, NSString *> *artFilenameByDirectory) {
         [FolderArtResolver.sharedInstance noteListedDirectories:directories
@@ -97,9 +83,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     [NSURLUtil setBulkOpenDirectoriesHandler:^(NSSet<NSString *> *directories) {
         [FolderArtResolver.sharedInstance preferListingForDirectories:directories];
     }];
-    // Build the controller and menu bar early enough that window state
-    // restoration, which runs before applicationDidFinishLaunching, can find
-    // the controller.
+    // Window state restoration runs before applicationDidFinishLaunching.
     self.mainPlayerController = [[MainPlayerController alloc] init];
     _openRecentMenuController = [[OpenRecentMenuController alloc] initWithAppDelegate:self];
     [MainMenuBuilder installMainMenuWithAppDelegate:self
@@ -107,13 +91,11 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
                            openRecentMenuController:_openRecentMenuController];
 }
 
-// The app opts into window restoration (NSQuitAlwaysKeepsWindows); without
-// this, AppKit uses legacy insecure decoding for the restorable state.
+// Without this, AppKit uses legacy insecure decoding for restorable state.
 - (BOOL)applicationSupportsSecureRestorableState:(NSApplication *)app {
     return YES;
 }
 
-// The target of the Open Recent items OpenRecentMenuController creates.
 - (void)openRecentDocument:(NSMenuItem *)sender {
     NSURL *url = sender.representedObject;
     if (url) {
@@ -140,13 +122,11 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 
     [self openCommandLineArguments];
 
-    // A launch-time open of a remembered folder (Open Recent, restored state)
-    // may depend on a restored grant, so the queue drains only once the
-    // grants are back — bounded, see restoreGrantedAccessWithCompletion:.
-    // Opens that land in the meantime queue in the coalescer.
+    // A launch-time open may need a restored grant, so the coalescer's queue
+    // drains only once the grants are back (bounded).
     [[FolderAccessManager sharedInstance] restoreGrantedAccessWithCompletion:^{
         // A launch-time open outranks the remembered playlist, and the restore
-        // is not an open: it never enters the coalescer (Mac/App/CLAUDE.md).
+        // is not an open (Mac/App/CLAUDE.md).
         [self->_openBurstCoalescer finishLaunchRestoring:^BOOL{
             return [self.mainPlayerController restoreLastPlaylist];
         } revealEmpty:^{
@@ -155,23 +135,12 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     }];
 }
 
-// Opens file and directory paths passed as command-line arguments, as in:
-//     Vibe.app/Contents/MacOS/Vibe ~/Music/album /path/to/song.flac
-// Paths resolve relative to the working directory and feed the same expand,
-// filter and play pipeline as dropped files and Finder opens, so directories
-// are walked and unsupported files dropped. Dash-prefixed flags are skipped,
-// and each candidate must exist on disk.
-//
-// Note that under the App Sandbox this succeeds only for paths the sandbox
-// already permits — the container, or files opened through Launch Services or
-// a drag — so an arbitrary argv path may be denied at read time.
+// Dash-prefixed flags are skipped. Under the sandbox only paths it already
+// permits are readable, so an arbitrary argv path may be denied at read time.
 - (void)openCommandLineArguments {
     NSArray<NSString *> *args = NSProcessInfo.processInfo.arguments;
-    // The exists checks run off the main thread: a stat can block for an
-    // automounter timeout on an unreachable mount, and this is launch time.
-    // The survivors race the deferred launch drain, so they enter through
-    // openBurstURLs:, which queues before start and drains after it either
-    // way.
+    // Off main: a stat can block for an automounter timeout. The survivors
+    // race the launch drain; openBurstURLs: queues before start either way.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSArray<NSURL *> *urls = [OpenBurstCoalescer fileURLsInArguments:args existingPath:^BOOL(NSString *path) {
             return [NSFileManager.defaultManager fileExistsAtPath:path];
@@ -185,8 +154,6 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     });
 }
 
-// Superseded cache formats can hold tens of MB that would otherwise linger for
-// months, so delete their directories once, in the background.
 - (void)cleanupLegacyCaches {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         NSString *cachesDir = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES).firstObject;
@@ -212,14 +179,10 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     [_openBurstCoalescer openDeliberateURLs:urls appending:append];
 }
 
-// The coalescer's sink: expands a drained batch, walking folders and dropping
-// unsupported files, and hands the result to the controller, either appended
-// or as a replacing play.
+// The coalescer's sink.
 - (void)openURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append {
-    // Nothing to open must not mint a token: the token supersedes whatever
-    // open is still in flight, and the empty expansion behind it would then
-    // reveal the empty state over a perfectly good pending one. The coalescer
-    // never drains empty, so this guards the funnel's mouth, not that path.
+    // An empty batch must not mint a token: it would supersede the open in
+    // flight and reveal the empty state over it.
     if (urls.count == 0) {
         return;
     }
@@ -229,8 +192,6 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
                          delivery:^(NSArray<NSURL *> *files, NSUInteger folders, BOOL appending) {
                              [weakSelf deliverExpandedURLs:files folderCount:folders appending:appending];
                          }];
-    // If this batch is under a remembered folder whose grant is still being
-    // restored, wait for that scope — bounded; see the method's declaration.
     [[FolderAccessManager sharedInstance] awaitRestoredAccessForURLs:urls completion:^{
         [weakSelf openURLsWithRestoredAccess:urls token:token];
     }];
@@ -240,11 +201,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     if (![OpenRequestCoordinator.sharedCoordinator isRequestCurrent:token]) {
         return;
     }
-    // Folders arrive here holding a live sandbox grant; bookmark them now so
-    // the grant survives relaunch (see FolderAccessManager).
+    // Bookmark while the open's sandbox grant is live.
     [[FolderAccessManager sharedInstance] noteOpenedURLs:urls];
-    // The listing order is read here, on main, so one open cannot straddle a
-    // Settings change; the walk is a path utility and reads no setting itself.
+    // Read on main; the walk reads no setting itself.
     [NSURLUtil expandAndFilterList:urls
                           sortedBy:AppSettings.sharedInstance.folderOpenSort
                         completion:^(NSArray<NSURL *> *expanded, NSUInteger folderCount) {
@@ -258,11 +217,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
                 folderCount:(NSUInteger)folderCount
                   appending:(BOOL)append {
     [[AppStats sharedInstance] recordOpenedFiles:expanded.count folders:folderCount];
-    // Nothing playable, as with a folder that holds no audio. Do not wipe the
-    // current playlist with an empty list.
+    // Nothing playable must not wipe the playlist.
     if (expanded.count == 0) {
-        // A launch open that resolved to nothing must still end the launch
-        // grace, or the header would stay blank forever.
+        // Ends the launch grace, or the header would stay blank.
         [self.mainPlayerController revealEmptyState];
         return;
     }
@@ -278,17 +235,13 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     return YES;
 }
 
-// A quit owes two things that wait: bit-perfect output puts a changed device
-// format back and releases the hog, which waits on the device (about 0.2 s on
-// #47's USB DAC, bounded at 1.5 s), and a quit mid-encode stops the conversion
-// and waits for its temp file to be gone rather than leave it in tmp. Nobody
-// needs to watch either, so Vibe leaves the screen first and finishes off
-// main: the quit looks immediate however long the device takes.
+// A quit waits on the device (restoring its format and hog, bounded at 1.5 s)
+// and on a conversion's cancel, so Vibe leaves the screen first and finishes
+// off main.
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender {
     for (NSWindow *window in NSApp.windows) {
         [window orderOut:nil];
     }
-    // No Dock tile and no menu bar is what makes it read as quit.
     [NSApp setActivationPolicy:NSApplicationActivationPolicyProhibited];
     dispatch_group_t owed = dispatch_group_create();
     AudioFileConverter *converter = self.mainPlayerController.fileConverter;
@@ -298,19 +251,16 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
             dispatch_group_leave(owed);
         }];
     }
-    // The player is never deallocated at quit, so this is the edge that keeps
-    // the restore promise.
+    // The player is never deallocated, so this is what restores the device.
     AudioPlayer *player = self.mainPlayerController.audioPlayer;
     player.delegate = nil; // no auto-advance while the cleanup waits for its queue
     dispatch_group_async(owed, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         [player prepareForTermination];
     });
-    // TRAP: never reply through the main dispatch queue. A quit issued from
-    // inside a main-queue block — the debug channel's quit, any dispatch to
-    // main — runs terminate:'s wait loop inside that block, and libdispatch
-    // does not drain the main queue re-entrantly, so a reply queued there
-    // never ran: Vibe sat hidden and never quit. The run loop's own block
-    // queue is serviced by that wait loop whoever called terminate:.
+    // TRAP: never reply through the main dispatch queue. A quit issued from a
+    // main-queue block runs terminate:'s wait loop inside it, libdispatch does
+    // not drain the main queue re-entrantly, and the reply never runs. The run
+    // loop's block queue is serviced by that wait loop.
     dispatch_group_notify(owed, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         CFRunLoopPerformBlock(CFRunLoopGetMain(), kCFRunLoopCommonModes, ^{
             [sender replyToApplicationShouldTerminate:YES];
@@ -326,10 +276,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     [self.mainPlayerController saveLastPlaylist];
 }
 
-// Launch Services can split one multi-file open into several openURLs: events.
-// It happens reliably right after a rebuild re-registers the bundle. The
-// coalescer lands a split open as one playlist without restarting the first
-// track.
+// Launch Services can split one multi-file open into several events.
 - (void)application:(NSApplication *)application openURLs:(NSArray<NSURL *> *)urls {
     [_openBurstCoalescer openBurstURLs:urls];
 }
@@ -375,12 +322,8 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     panel.allowsMultipleSelection = YES;
     panel.canChooseFiles = YES;
     panel.canChooseDirectories = YES;
-    // The selectable types are the CFBundleDocumentTypes declarations from
-    // Info.plist, so the open panel cannot drift from what Launch Services
-    // registers the app for.
     NSArray<UTType *> *contentTypes = DocumentTypes.declaredTypes;
-    // An empty allowlist would make every file unselectable, so fall back to
-    // no filter should the plist declarations ever go missing.
+    // An empty allowlist would make every file unselectable.
     if (contentTypes.count > 0) {
         panel.allowedContentTypes = contentTypes;
     }

@@ -1,41 +1,32 @@
 #!/bin/bash
-# Build the Mac App Store screenshots by compositing window captures onto
-# generated backgrounds.
+# Build the App Store screenshots by compositing the window captures in
+# Assets/ onto generated backgrounds.
 #
-#   scripts/appstore-generate-store-screenshots.sh [lang]     # default en
-#   scripts/appstore-generate-store-screenshots.sh --all      # every catalog language
+#   scripts/appstore-generate-store-screenshots.sh [--platform macos|ios] [lang]
+#   scripts/appstore-generate-store-screenshots.sh --all [--platform macos|ios]
 #
-# Every language composites the same README captures from Assets/ — the
-# window shows only song titles and artwork, nothing localized, so the
-# captures are shared. Captions come from Assets/app-store/copy/<lang>/
-# screenshots.json and the output goes to Assets/app-store/screenshots/<lang>/
-# (only the English set is tracked). A missing translation fails loudly — an
-# English caption must never ship silently on a localized screenshot.
+# Defaults: macos, en; --all runs every catalog language. OUT_DIR overrides the
+# output directory (under --all, the base of one directory per language).
 #
-# This is the mock-up path: it needs no app, no debug build and no screen
-# recording permission, only the alpha-channel window captures. Regenerate
-# those first if the UI has changed, then run this.
+# Every language composites the same captures; nothing in them is localized.
+# Captions come from Assets/app-store/copy/<lang>/<platform>/screenshots.json,
+# output goes to Assets/app-store/screenshots/<lang>/<platform>/ (only en is
+# tracked). A missing translation fails: an English caption must never ship on
+# a localized screenshot.
 #
-# The other path, appstore-capture-app-screenshots.sh, photographs the window
-# over a staged desktop so the Liquid Glass shows a real backdrop. It is the
-# honest one, but it can only show the window at its captured size, which on a
-# 2880x1800 canvas leaves the UI small. This one upscales the capture ~1.6x so
-# the window is the picture, at the cost of being a composite. See the header
-# of compose-app-store-overlay.swift.
-#
-# The captions live in Assets/app-store/copy/ rather than here: they are
-# marketing text, revised alongside the rest of the App Store copy. The shot
-# table below is design, not copy — it maps each caption id to a capture, an
-# output name and an optional glyph row, identically for every language.
+# Needs no app, debug build or screen recording permission, only the captures,
+# so re-capture first if the UI changed. appstore-capture-app-screenshots.sh
+# instead photographs the window over a staged desktop, so the Liquid Glass
+# shows a real backdrop, but only at its captured size; this upscales the
+# capture ~1.6x so the window fills the canvas.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 COMPOSE="$ROOT/scripts/compose-app-store-overlay.swift"
 LANGS="$ROOT/scripts/catalog-languages.sh"
 
-# Compile the compositor once and reuse the binary — `swift file.swift`
-# recompiles per run, and --all invokes it four times per language. The
-# exported path survives the --all recursion so children skip the compile.
+# Compile the compositor once: `swift file.swift` recompiles per run. Exported,
+# so --all's children reuse it.
 if [ -z "${COMPOSE_BIN:-}" ]; then
     COMPOSE_BIN="$(mktemp -d)/compose"
     export COMPOSE_BIN
@@ -45,17 +36,14 @@ fi
 
 if [ "${1:-}" = --all ]; then
     shift
-    # Everything after --all is forwarded to each child. This used to recurse
-    # with the language alone, so `--all --platform ios` accepted the flag and
-    # silently generated the macOS set for all 30 languages.
+    # Forward every flag, or `--all --platform ios` silently builds macOS.
     REST=("$@")
     # Capture first: a process substitution's exit status is never checked, so
     # a failing catalog-languages.sh would silently generate nothing.
     ALL_LANGS="$("$LANGS")"
     [ -n "$ALL_LANGS" ] || { echo "catalog-languages.sh returned no languages" >&2; exit 1; }
-    # Each child derives its per-language output dir, and an exported OUT_DIR
-    # would send every language into the same directory — so scope it: an
-    # override becomes the base, gaining a /<lang> suffix per child.
+    # An inherited OUT_DIR would send every language to one directory, so it
+    # becomes the base of a per-language one.
     while read -r l; do
         if [ -n "${OUT_DIR:-}" ]; then
             OUT_DIR="$OUT_DIR/$l" "$0" ${REST[@]+"${REST[@]}"} "$l"
@@ -66,7 +54,6 @@ if [ "${1:-}" = --all ]; then
     exit 0
 fi
 
-# macOS by default; --platform ios composites the two iOS canvases instead.
 PLATFORM=macos
 case "${1:-}" in
     --platform) shift; PLATFORM="${1:-}"; shift ;;
@@ -90,31 +77,22 @@ COPY="$ROOT/Assets/app-store/copy/$L/$PLATFORM/screenshots.json"
     exit 1
 }
 
-# Empties and recreates one output directory. Every shot is regenerated on
-# every run, so it is cleared first: otherwise a renamed or removed shot
-# survives there and the uploader, which takes every .png in file-name order,
-# ships it beside the current set.
+# Cleared first: the uploader takes every .png in the directory, so a renamed
+# or removed shot would ship beside the current set.
 prepare_out() { # <dir>
     OUT="$1"
     mkdir -p "$OUT"
     rm -f "$OUT"/*.png
 }
 
-# Optional row of SF Symbols drawn above the player headline, larger than it.
-# Empty means no row, which is the current design — the glyphs are OFF.
-#
-# To turn the row back on, restore the five performance FX in Q-W-E-R-T order:
-#   PLAYER_GLYPHS="dial.min,dial.max.fill,water.waves,repeat,repeat.circle"
-#
-# Any names used here must stay identical to the ones the FX menu passes to
-# NSImage(systemSymbolName:) in Vibe/Mac/Menu/MainMenuBuilder.m, so the shot shows
-# the app's own artwork rather than a lookalike. The compositor renders them
-# through that same API.
+# SF Symbols drawn above the player headline; empty draws no row. The FX row
+# is "dial.min,dial.max.fill,water.waves,repeat,repeat.circle" (Q-W-E-R-T), and
+# any names here must match the FX menu's in Vibe/Mac/Menu/MainMenuBuilder.m so
+# the shot shows the app's own glyphs.
 PLAYER_GLYPHS=""
 
-# The iOS sets are headline-only, so a missing subhead there is the format
-# rather than an omission; on macOS both are required and an empty one is an
-# error. Passing an empty subhead to the compositor drops the line entirely.
+# iOS captions are headline-only; an empty subhead makes the compositor drop
+# the line.
 caption() { # <id> <headline|subhead>
     local v
     v="$(jq -r --arg id "$1" --arg f "$2" \
@@ -139,24 +117,17 @@ shot() { # <id> <source> <output> [glyphs] [wash-color]
         ${hscale[@]+"${hscale[@]}"} ${centre[@]+"${centre[@]}"}
 }
 
-# iOS: one directory per App Store Connect screenshot set, because iPhone and
-# iPad are SEPARATE sets (APP_IPHONE_67 and APP_IPAD_PRO_3GEN_129) rather than
-# two sizes of one. The canvases are those sets' exact pixel sizes, which are
-# also the simulators' native sizes, so nothing is resampled. macOS has a
-# single set (APP_DESKTOP) and keeps its flat directory.
+# iOS: one directory per ASC screenshot set, since iPhone (APP_IPHONE_67) and
+# iPad (APP_IPAD_PRO_3GEN_129) are separate sets. Each canvas is its set's
+# exact size, which is also the simulator's native size.
 if [ "$PLATFORM" = ios ]; then
-    # No subhead, and a headline nearly twice nominal. At the size the store
-    # actually draws these, a second smaller line is unreadable and only takes
-    # room from the one line that is, so the headline carries the message
-    # alone — which is why the iOS captions are short enough to wrap to two
-    # lines at this size rather than shrink back down.
-    #
-    # appstore-validate-copy.sh measures captions at this same scale. The two
-    # must agree, or the fit check passes copy that fails the build here.
+    # At the size the store draws a phone shot, a second, smaller line is
+    # unreadable, so the headline alone carries it at nearly twice nominal.
+    # appstore-validate-copy.sh's headline_scale must match, or its fit check
+    # passes copy that fails here.
     HEADLINE_SCALE="${HEADLINE_SCALE:-1.9}"
-    # One- and two-line headlines sit side by side in this set, so the device
-    # is pinned and the text centred above it rather than the whole stack
-    # being centred — otherwise the phone visibly jumps between shots.
+    # One- and two-line headlines sit side by side, so the device is pinned
+    # and the text centred above it; otherwise the phone jumps between shots.
     CENTER_TEXT=1
     for device in iphone:1290x2796 ipad:2048x2732; do
         DEV="${device%%:*}"; CANVAS="${device##*:}"
@@ -172,27 +143,20 @@ fi
 
 prepare_out "${OUT_DIR:-$ROOT/Assets/app-store/screenshots/$L/macos}"
 
-# The leading number is the App Store's display order: ASC sorts a locale's
-# screenshot set by file name. Renaming or reordering a shot therefore changes
-# what the store shows, which is why $OUT is emptied above — a shot that has
-# been renamed or dropped would otherwise linger there and upload alongside
-# the new set.
+# The leading number is the store's display order: the uploader sends each
+# set in file-name order.
 shot player   screenshot-basic.png          01-player.png   "$PLAYER_GLYPHS"
 shot playlist screenshot-playlist.png       02-playlist.png
-# The only shot with a fixed background. Every other one derives its wash
-# from the playing track's artwork, which here is a red hat on a green
-# backdrop — and a red field behind the shot that advertises THEMES fought
-# both the orange waveform and the point being made. 5C9488 is that artwork's
-# own green, sampled from its corners; solidWash halves it, so the field lands
-# at #2E4A44, the level the green reads at inside the art.
+# The only fixed background: this track's art is a red hat on green, and the
+# derived red wash fought the orange waveform. 5C9488 is the art's own green,
+# which solidWash halves to #2E4A44.
 #
-# TRAP: it is eyedropped from THIS track. Change FOLDER_TRACK_THEMES in
-# generate-readme-screenshots.sh and the background no longer has anything to
-# do with the artwork above it — resample or drop the argument.
+# TRAP: 5C9488 is eyedropped from FOLDER_TRACK_THEMES's artwork
+# (generate-readme-screenshots.sh). Change that track and resample it, or drop
+# the argument.
 shot themes   screenshot-themes.png         03-themes.png   ""              5C9488
-# The COMPACT pitch capture, not the folder one: the pitch fader is the
-# subject, and a playlist under it only competes with shot 02. screenshot-
-# playlist-pitch.png is still captured — the README uses it.
+# The compact pitch capture: a playlist under the fader would compete with
+# shot 02. (screenshot-playlist-pitch.png is the README's.)
 shot pitch    screenshot-pitch.png          04-pitch.png
 
 echo "done — $OUT"

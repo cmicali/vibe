@@ -2,11 +2,8 @@
 //  DebugCommonVerbs.m
 //  Vibe
 //
-//  See DebugCommonVerbs.h.
-//
 
 #import "DebugCommonVerbs.h"
-// kLevelBandCount, for dump_equalizer.
 #import "AudioLevelMath.h"
 
 #if DEBUG
@@ -51,22 +48,20 @@ NSString *VibeDebugPlayerStateName(AudioPlayer *player) {
     return player.isPaused ? @"paused" : @"stopped";
 }
 
-// How many filenames dump_state lists before it summarises the rest. A big
-// folder would otherwise put tens of thousands of names through the channel.
+// How many filenames dump_state lists before summarising the rest.
 static const NSUInteger kMaxListedFiles = 100;
 
-// A runaway guard, not a budget: the burst below is one main-queue turn per
-// jump, so even the ceiling costs under a second of wall clock.
+// A runaway guard: one main-queue turn per jump, so even this costs under a
+// second.
 static const NSUInteger kMaxBurstJumps = 5000;
-// block_main's ceiling. Well under the stress driver's 20s liveness probe, so
-// a stray one is never mistaken for the hang it deliberately imitates.
+// Well under the stress driver's 20s liveness probe, so a stray block is never
+// mistaken for the hang it imitates.
 static const double kMaxBlockMainSeconds = 5.0;
 
-// Holds main from under `depth` real frames, so a stall-stack sample has to
-// span a stack as deep as a layout recursion to reach the frames below it.
-// Alternating call sites give neighbouring frames different return addresses,
-// as a layout <-> subview recursion does, so they cannot collapse into one
-// entry. Not a tail call, or the compiler flattens the recursion into a loop.
+// Holds main from under `depth` real frames, so a stall-stack sample must span
+// a stack as deep as a layout recursion. Alternating call sites give
+// neighbouring frames different return addresses, as a layout <-> subview
+// recursion does. Not a tail call, or the compiler flattens it into a loop.
 __attribute__((noinline)) static NSUInteger VibeDebugRecurseThenBlock(NSUInteger depth, useconds_t micros,
                                                                         BOOL alternating) {
     if (depth == 0) {
@@ -80,20 +75,11 @@ __attribute__((noinline)) static NSUInteger VibeDebugRecurseThenBlock(NSUInteger
     return VibeDebugRecurseThenBlock(depth - 1, micros, alternating) + kept;
 }
 
-// Track changes at the rate the main queue will take them, which is the only
-// way to reach the interleavings that matter.
-//
-// The channel itself cannot: one --debug-cmd invocation per op costs ~80ms
-// against a plain build and ~2.4 SECONDS against a ThreadSanitizer one, almost
-// all of it spawning an instrumented sandboxed client. At that rate two threads
-// never collide, so a race hunt through the channel is hunting with the safety
-// on. In-process, a jump lands every main-queue turn — hundreds a second,
-// concurrent with a sweep's four stage-1 workers, which is exactly the pressure
-// the cloud lane's lock and the materializer slots are there to survive.
-//
-// Re-dispatched rather than looped, deliberately: a tight loop on main would
-// starve the very deliveries it is trying to race, and the app would look busy
-// while nothing interleaved. The LCG makes a burst reproducible from its seed.
+// Track changes at the rate the main queue takes them. One channel command per
+// jump costs ~80ms (~2.4s under ThreadSanitizer), too slow for threads to
+// collide; in-process, a jump lands every main-queue turn. Re-dispatched, not
+// looped: a tight loop on main would starve the deliveries it races. The LCG
+// makes a burst reproducible from its seed.
 static void VibeBurstJumps(__weak id<VibeDebugPlayerSurface> surface,
                            NSUInteger remaining, uint32_t state) {
     id<VibeDebugPlayerSurface> strongSurface = surface;
@@ -115,11 +101,9 @@ NSMutableDictionary *VibeDebugCommonStateDictionary(id<VibeDebugPlayerSurface> s
     AudioTrack *track = surface.debugPlaylistCurrentTrack;
     NSUInteger count = surface.debugPlaylistCount;
 
-    // Convergence, stated the way a user would: how many rows have had their
-    // metadata land. `files` is capped, so this counts the whole playlist
-    // separately rather than being derived from it. A nil metadata is the
-    // scan not having reached the row — not the file lacking tags, which is a
-    // parsed result like any other.
+    // Rows whose metadata has landed, over the whole playlist (`files` is
+    // capped). Nil metadata is a row the scan has not reached, not a file
+    // lacking tags.
     NSUInteger resolvedRows = 0;
     for (NSUInteger i = 0; i < count; i++) {
         if ([surface debugPlaylistTrackAtIndex:i].metadata) {
@@ -154,8 +138,8 @@ NSMutableDictionary *VibeDebugCommonStateDictionary(id<VibeDebugPlayerSurface> s
             @"url": track.url.path ?: @"",
             @"title": track.title ?: @"",
             @"artist": track.artist ?: @"",
-            // The resolved values (tag over analysis); the key strings are
-            // empty when unknown, and the BPM 0.
+            // Resolved, tag over analysis; empty key strings and BPM 0 when
+            // unknown.
             @"bpm": @(track.bpm),
             @"key": VibeMusicalKeyMusicalName(track.key),
             @"camelot": VibeMusicalKeyCamelotName(track.key),
@@ -189,8 +173,6 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                                                        id<VibeDebugPlayerSurface> surface) {
                 return VibeJSONString(surface.debugStateDictionary);
             }),
-            // Shared since AppStats became shared: both shells count opens and
-            // listening time, and both show the totals in Settings > About.
             VibeDebugCmd(@"dump_stats", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                        id<VibeDebugPlayerSurface> surface) {
                 AppStats *stats = [AppStats sharedInstance];
@@ -202,14 +184,9 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             }),
             VibeDebugCmd(@"dump_now_playing", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                              id<VibeDebugPlayerSurface> surface) {
-                // What we publish to the system Now Playing UI — Control
-                // Center, the media keys, the lock screen. It cross-checks the
-                // NowPlayingController wiring without a private-framework
-                // reader.
-                //
-                // TRAP: --no-audio-hw suppresses the publish and the command
-                // registration outright, so under it this always reports
-                // hasInfo: 0. See NowPlayingController's header.
+                // TRAP: --no-audio-hw and --no-now-playing suppress the
+                // publish and the command registration outright, so under
+                // either this always reports hasInfo: 0 (NowPlayingController.h).
                 NSDictionary *info = MPNowPlayingInfoCenter.defaultCenter.nowPlayingInfo;
                 NSMutableDictionary *out = [NSMutableDictionary dictionary];
                 out[@"hasInfo"] = @(info != nil);
@@ -246,15 +223,9 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 [surface debugSeekToSeconds:seconds];
                 return VibeJSONString(surface.debugActionSummary);
             }),
-            // How far the metadata sweep has actually got. Nothing else says:
-            // dump_state describes the current track alone, and the sweep is
-            // otherwise observable only as rows filling in on screen. It is
-            // what turns "has the scan finished" into a number, which is what
-            // any measurement of the scan's cost needs.
-            //
-            // parsed counts real metadata; attempted counts tracks a parse has
-            // landed on at all, so a file that failed to parse — legitimate,
-            // and permanent — is not mistaken for one still waiting.
+            // How far the metadata sweep has got. attempted counts every row a
+            // parse has landed on, so a file that failed to parse is not
+            // mistaken for one still waiting.
             VibeDebugCmd(@"dump_metadata_progress", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
@@ -272,22 +243,6 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 return VibeJSONString(@{@"total": @(total), @"parsed": @(parsed),
                                         @"attempted": @(attempted)});
             }),
-            // Occupy the main thread for a while and then, WITHOUT yielding it,
-            // run another verb — one main-thread turn, not two.
-            //
-            // It stages one class of defect and could not be replaced by two
-            // commands: a callback the app dispatched to main from a worker,
-            // arriving while a user action is already underway, and therefore
-            // running AFTER that action even though it was raised before it.
-            // A click handler is such an action; so is a menu item. Two
-            // separate channel commands cannot imitate one, because the
-            // channel's own intake is on the main queue — while main is held,
-            // nothing else can even be enqueued, so the callback always wins.
-            //
-            // Only the shared table's verbs can be run this way; the platform
-            // tables are typed to their own controllers. Bounded hard, because
-            // a wedged main thread is indistinguishable from a hang to every
-            // oracle that watches this app.
             VibeDebugCmd(@"block_main_deep <seconds> <depth> [alternating]", 30,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
@@ -303,10 +258,9 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 return VibeJSONString(@{@"ok": @YES, @"blockedSeconds": @(seconds), @"depth": @(depth),
                                         @"alternating": @(alternating)});
             }),
-            // A render stuck on the audio IO thread: the next real callback
-            // spins inside the pipeline (debugHoldRenderInside:) until the
-            // hold lifts, so the render clock stops and the beta watcher
-            // samples the IO thread. Bounded like block_main; audible as a gap.
+            // The next real render spins inside the pipeline until the hold
+            // lifts, so the render clock stops and the beta watcher samples the
+            // IO thread. Bounded like block_main; audible as a gap.
             VibeDebugCmd(@"block_render <seconds>", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
@@ -323,6 +277,12 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 });
                 return VibeJSONString(@{@"ok": @YES, @"heldSeconds": @(seconds)});
             }),
+            // Holds main, then runs a shared verb WITHOUT yielding it: one turn,
+            // not two. It stages a worker's main-queue callback that was raised
+            // before a user action but runs after it, which two channel commands
+            // cannot, since the channel's own intake is on main. Only shared
+            // verbs, because the platform tables are typed to their own
+            // controllers.
             VibeDebugCmd(@"block_main <seconds> [<verb> ...]", 30,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
@@ -350,10 +310,8 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 }
                 VibeDebugCommandHandler handler = spec[@"handler"];
                 NSString *chained = handler(then, commandId, surface);
-                // A nil reply means the chained verb answers asynchronously
-                // through VibeWriteDebugResponse under this same commandId, so
-                // returning anything here would write a second response for one
-                // command. Its reply is the authoritative one; stand down.
+                // The chained verb replies asynchronously under this commandId;
+                // a reply here would be a second response.
                 if (!chained) {
                     return nil;
                 }
@@ -361,22 +319,18 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                                         @"then": then.firstObject,
                                         @"thenReply": chained});
             }),
-            // The producer and renderer clocks in one reply. All counters are
-            // cumulative. Once an activity transition and any cell/layout
-            // work settle, two samples prove that an inactive state did no
-            // callbacks, FFT windows or display ticks. Geometry and layer-write
-            // counters additionally require stable bounds and cell population.
-            //
-            // `--silent` zeroes the output after the meter, so the bars are
-            // live under it and under `--no-audio-hw` alike; the three launch
-            // facts say whether the output unit or the pump produced the counters.
+            // The producer and renderer counters, all cumulative: once a
+            // transition settles, two samples prove an inactive state did no
+            // callbacks, FFT windows or display ticks (geometry and layer-write
+            // counters also need stable bounds and cells). `--silent` zeroes
+            // after the meter, so the bars are live under it; the launch facts
+            // say whether the output unit or the pump produced the counters.
             VibeDebugCmd(@"dump_equalizer", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
                 AudioPlayer *player = surface.debugPlayer;
-                // Drain any queued meter install/removal before reading the
-                // lock-free publication, so one reply never combines opposite
-                // sides of an activity edge.
+                // First, so a queued meter install or removal has drained and
+                // one reply never spans both sides of an activity edge.
                 NSDictionary *audio = [player debugEqualizerState];
                 float levels[kLevelBandCount] = {0};
                 uint64_t sequence = 0;
@@ -400,7 +354,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                             @([EqualizerIndicatorView vibeDebugTotalTransformWriteCount]),
                 };
                 return VibeJSONString(@{
-                    // Kept at top level for existing stress/debug consumers.
+                    // Top-level keys the stress tooling reads.
                     @"levelsEnabled": @(player.levelsEnabled),
                     @"outputAudioActive": @(player.outputAudioActive),
                     @"published": @(published),
@@ -413,9 +367,8 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                     @"manualRendering": @([player manualRenderingActive]),
                 });
             }),
-            // The render chain as it stands, from the source file to the
-            // output device, one entry per stage — what Settings > Advanced's
-            // Audio group lists, raw.
+            // One entry per stage, source file to device: Settings > Advanced's
+            // Audio group, raw.
             VibeDebugCmd(@"dump_audio_path", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
@@ -453,12 +406,8 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                     @"installed": audio[@"installed"],
                 });
             }),
-            // The cloud lane's two at-rest facts, on both platforms. macOS also
-            // reports them inside dump_health, which is where its stress driver
-            // scores them; iOS has no dump_health and no quiesce, so without
-            // this verb an iOS run cannot see a stuck hold or a stranded
-            // pending parse at all — and the hold lifecycle is the same code on
-            // both. Both belong at zero once a sweep has settled.
+            // The cloud lane's at-rest facts, both zero once a sweep settles.
+            // macOS also reports them in dump_health; this is iOS's only view.
             VibeDebugCmd(@"dump_cloud_health", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
@@ -475,9 +424,8 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             VibeDebugCmd(@"dump_row_loading", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
-                // Both halves of the row-loading guarantee, so a mismatch is
-                // visible: the registry's live transfers, and every playlist
-                // row the registry would mark. Lane capacity bounds both.
+                // Both halves of the row-loading guarantee, so a mismatch
+                // shows: the registry's transfers and the rows it would mark.
                 CloudTransferRegistry *registry = CloudTransferRegistry.sharedRegistry;
                 NSDictionary<NSString *, NSNumber *> *snapshot = [registry transferSnapshot];
                 NSMutableArray *transfers = [NSMutableArray arrayWithCapacity:snapshot.count];
@@ -557,10 +505,9 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                     return VibeErrorJSON(@"seed must be a number");
                 }
                 NSUInteger count = MIN((NSUInteger)jumps, kMaxBurstJumps);
-                // Replies at once and keeps firing: the caller's NEXT command
-                // then lands mid-burst, which is more contention rather than
-                // less, and the oracles' settle-and-re-check absorbs the
-                // transients that come with sampling a moving app.
+                // Replies at once and keeps firing, so the caller's next
+                // command lands mid-burst; the oracles' re-check absorbs the
+                // transients.
                 VibeBurstJumps(surface, count, (uint32_t)seed);
                 return VibeJSONString(@{@"ok": @YES, @"jumps": @(count),
                                         @"playlist": @(surface.debugPlaylistCount)});
@@ -597,11 +544,8 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
                     return VibeErrorJSON(@"no file or directory at '%@'", path);
                 }
-                // Asynchronous on both platforms — a large folder walk must not
-                // stall the channel — so the reply only acks the request; poll
-                // dump_state for the resulting playlist. On the sandbox: an
-                // arbitrary path the app has not been granted may be denied at
-                // read time, the same caveat as with command-line arguments.
+                // Asynchronous, so the reply only acks; poll dump_state. A path
+                // the sandbox has not granted may be denied at read time.
                 [surface debugOpenPath:path];
                 return VibeJSONString(@{@"ok": @YES, @"opening": path});
             }),
@@ -614,19 +558,16 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
                     return VibeErrorJSON(@"no file or directory at '%@'", path);
                 }
-                // Asynchronous like `open`, and under the same sandbox caveat.
                 [surface debugAppendPath:path];
                 return VibeJSONString(@{@"ok": @YES, @"appending": path});
             }),
-            // clientTimeout 20 exceeds the 15-second dispatch_group_wait
-            // below: the waveform clear queues behind any in-flight waveform
-            // load, and a flat 5-second client wait could give up on a clear
-            // that then succeeds.
+            // clientTimeout 20 exceeds the 15s wait below: the waveform clear
+            // queues behind any in-flight load, and the default 5s client wait
+            // could give up on a clear that then succeeds.
             VibeDebugCmd(@"clear_caches", 20, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                           id<VibeDebugPlayerSurface> surface) {
-                // This blocks the main thread until both PINCache stores are
-                // empty, which is acceptable for a debug-only command: the
-                // clears are file deletes at utility QoS.
+                // Blocks main until both stores are empty; the clears are file
+                // deletes.
                 dispatch_group_t group = dispatch_group_create();
                 dispatch_group_enter(group);
                 [surface.debugMetadataCache invalidateWithCompletion:^{
@@ -644,9 +585,8 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                     @"cleared": @[AudioTrackMetadataCache.cacheName, AudioWaveformCache.cacheName],
                 });
             }),
-            // 10s: it reaches the player's serial queue for the hosted-unit count, so a
-            // wedged queue must time the verb out rather than let it answer from
-            // stale state.
+            // 10s: it syncs on the player queue, so a wedged queue times the
+            // verb out rather than answering from stale state.
             VibeDebugCmd(@"check_consistency", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                               id<VibeDebugPlayerSurface> surface) {
                 NSMutableArray<NSDictionary *> *violations = [NSMutableArray array];
@@ -660,17 +600,9 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                     @"violations": violations,
                 });
             }),
-            // The stress harness's cloud simulator; see VibeFakeCloud. Seconds
-            // of 0 uninstalls and puts the real dataless test and the real
-            // coordinated read back. The options after percent select the
-            // deterministic modes: capacity=N shares one provider pool,
-            // uniform flattens the per-path speed spread, progress= picks a
-            // scripted progress source, unflagged stages placeholders whose
-            // probe answers NO, sticky is the fault-injection mode.
-            // The open side of the fake provider. set_fake_cloud shapes stage 1
-            // (which download runs, how fast, whether it fails); this holds
-            // stage 2 — the uncancellable AudioFileHandle call — which is the one
-            // provider failure a locally-backed fake cannot stage on its own.
+            // set_fake_cloud shapes stage 1, the download; this holds stage 2,
+            // the uncancellable AudioFileHandle call, which a locally backed
+            // fake cannot stage on its own.
             VibeDebugCmd(@"hang_open <basename>|release", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
@@ -690,6 +622,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                     @"hungOpens": @([AudioFileMaterializationCoordinator debugHungOpenCount]),
                 });
             }),
+            // See VibeFakeCloud.h for the modes. Seconds of 0 uninstalls.
             VibeDebugCmd(@"set_fake_cloud <seconds> [<percent>] [capacity=N] [uniform] "
                          @"[progress=none|linear|sparse|stall] [unflagged] [sticky] "
                          @"[fail=<basename>]", 0,
@@ -722,8 +655,8 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                                       @"sparse": @(VibeFakeCloudProgressSparse),
                                       @"stall": @(VibeFakeCloudProgressStall)};
                 });
-                // Every option is validated before the install re-arms, so a
-                // rejected command leaves the previous install untouched.
+                // Validated before the install re-arms, so a rejected command
+                // leaves the previous install untouched.
                 BOOL sticky = NO, uniform = NO, unflagged = NO, hasCapacity = NO;
                 NSUInteger capacity = 0;
                 NSNumber *progressMode = nil;
@@ -785,9 +718,6 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 }
                 return VibeJSONString([VibeFakeCloud statistics]);
             }),
-            // The fake cloud's admission trace: which transfer was requested,
-            // started, completed, or cancelled, in order, with roles. This is
-            // what ordering regressions assert on.
             VibeDebugCmd(@"dump_cloud_trace", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
@@ -800,7 +730,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 [VibeFakeCloud clearTrace];
                 return VibeJSONString(@{@"ok": @YES});
             }),
-            // The real-provider lane-routing measurement; see NSURLUtil+Debug.h.
+            // See NSURLUtil+Debug.h.
             VibeDebugCmd(@"set_dataless_diag <on|off>", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
@@ -816,11 +746,8 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                                      id<VibeDebugPlayerSurface> surface) {
                 return VibeJSONString([NSURLUtil datalessDiagnostics]);
             }),
-            // The in-process phase timings of recent waveform decodes, newest
-            // first — every load, whether it came from playing a track or from
-            // file_cache. This is the accurate measure of what the BPM and key
-            // analyzers cost: the app's total CPU also carries the render pump,
-            // the metadata scan and the UI.
+            // Every recent waveform decode, playback's or file_cache's. See
+            // AudioLoadTiming.h.
             VibeDebugCmd(@"dump_timing", 5, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                         id<VibeDebugPlayerSurface> surface) {
                 return VibeJSONString(@{@"loads": [AudioLoadTiming recentJSON]});
@@ -837,15 +764,10 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 if (!path) {
                     return errorJSON;
                 }
-                // Decode and persist this file's waveform without disturbing
-                // the current load, then reply with its detected BPM and key
-                // once the entry is on disk. A cold decode of a long file runs
-                // well past the default client wait, hence the 60-second
-                // clientTimeout.
+                // A cold decode of a long file runs well past the default
+                // client wait, hence the 60s clientTimeout.
                 [surface.debugWaveformCache cacheWaveformForURL:[NSURL fileURLWithPath:path]
                                                      completion:^(BOOL ok, BOOL wasCached, float bpm, NSInteger key) {
-                    // The decode's own phase timings, measured in-process, or
-                    // absent on a cache hit, where no decode ran.
                     NSDictionary *timing = [AudioLoadTiming newestJSONForPath:path];
                     NSMutableDictionary *body = [@{@"ok": @YES, @"path": path, @"wasCached": @(wasCached),
                                                    @"bpm": @(bpm), @"key": VibeMusicalKeyMusicalName(key),
@@ -874,14 +796,11 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 }];
                 return nil; // response written by the completion above
             }),
-            // Ending the app without a signal, which is the only way to end an
-            // instance Xcode is debugging: an attached debugger traps SIGTERM
-            // and stops the process instead of killing it, so a pkill leaves it
-            // in the process table, answering nothing. On macOS this is also
-            // the only exit that runs applicationWillTerminate:, so the
-            // AppStats flush happens; SIGKILL loses it. The reply is written
-            // here because nothing survives to write it afterwards, and the
-            // exit is deferred so the drain loop that called us finishes first.
+            // Ends the app without a signal, the only way to end one Xcode is
+            // debugging (the debugger traps SIGTERM), and on macOS the only
+            // exit that runs applicationWillTerminate:'s AppStats flush. The
+            // reply is written first because nothing survives to write it; the
+            // exit is deferred so the calling drain finishes.
             VibeDebugCmd(@"quit", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                  id<VibeDebugPlayerSurface> surface) {
                 VibeWriteDebugResponse(commandId, VibeJSONString(@{@"ok": @YES, @"quitting": @YES}));
@@ -889,9 +808,8 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
 #if TARGET_OS_OSX
                     [NSApp terminate:nil];
 #else
-                    // UIKit has no terminate: an iOS app is not supposed to
-                    // end itself, but under the simulator this is exactly what
-                    // the test loop wants, and the scene delegate has no say.
+                    // UIKit has no terminate; the simulator test loop wants
+                    // exactly this.
                     exit(0);
 #endif
                 });

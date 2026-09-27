@@ -1,31 +1,17 @@
-# Shared App Store Connect credential resolution — sourced, never run:
+# App Store Connect credential resolution for release.sh and
+# release-appstore.sh — sourced, never run. Assumes `set -euo pipefail`.
 #
-#   release.sh            Developer ID + notarize (direct download)
-#   release-appstore.sh   Apple Distribution + upload (App Store, either platform)
-#
-# ONE App Store Connect API key covers both pipelines. It authenticates three
-# separate things, which is why neither script wants a second credential:
-#   * cloud signing      xcodebuild -allowProvisioningUpdates creates and uses
-#                        the distribution certificates and profiles
-#   * notarization       notarytool --key/--key-id/--issuer (no app-specific
-#                        password, no `notarytool store-credentials` profile)
-#   * upload             altool --api-key/--api-issuer
-#
-# The key must carry the ADMIN role. Cloud-managed distribution certificates
-# are Admin-gated: an App Manager key authenticates fine and can upload, but
-# signing dies with 403 FORBIDDEN_ERROR / "You haven't been given access to
-# cloud-managed distribution certificates". A key's role cannot be edited after
-# creation — generate a new key instead.
-#
-# Callers own policy (which certificate, which destination); this file owns
-# only credential discovery. Assumes `set -euo pipefail` in the caller.
+# One API key covers cloud signing (xcodebuild -allowProvisioningUpdates),
+# notarization (notarytool --key, so no app-specific password) and upload
+# (altool --api-key). It must carry the ADMIN role: cloud-managed distribution
+# certificates are Admin-gated, so an App Manager key uploads but signing dies
+# with 403 FORBIDDEN_ERROR. A key's role cannot be edited; make a new key.
 
 # shellcheck shell=bash
 
-# Resolves ASC_KEY_ID / ASC_ISSUER_ID / ASC_KEY_PATH, and exports the
-# xcodebuild provisioning flags as the array ASC_XCODEBUILD_AUTH.
-# Reads a gitignored .release-env at the repo root if present, so a normal run
-# needs no environment fiddling. Exits with guidance if anything is missing.
+# Sets ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH and the xcodebuild flag array
+# ASC_XCODEBUILD_AUTH, sourcing the repo root's gitignored .release-env if
+# present. Exits with guidance when anything is missing.
 asc_resolve_credentials() {
     local root
     root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -57,7 +43,7 @@ MSG
         echo "       Put AuthKey_${ASC_KEY_ID}.p8 there, or set ASC_KEY_PATH." >&2
         exit 1
     fi
-    # notarytool and altool both reject a relative path once the cwd moves.
+    # Absolute, so the path survives a later cd.
     ASC_KEY_PATH="$(cd "$(dirname "$ASC_KEY_PATH")" && pwd)/$(basename "$ASC_KEY_PATH")"
 
     ASC_XCODEBUILD_AUTH=(
@@ -68,14 +54,11 @@ MSG
     )
 }
 
-# Explains xcodebuild's uselessly terse "Cloud signing permission error", which
-# hides Apple's real 403 in a temp .xcdistributionlogs bundle. Pass the export
-# log and the export method; prints nothing if that is not what went wrong.
-#
-# The same 403 means two different things depending on the certificate type:
-# App Store certificates are Admin-gated (fixable by upgrading the key), while
-# Developer ID certificates are Account-Holder-gated and NO api key can reach
-# them — that one is only fixable in Xcode's GUI.
+# Explains xcodebuild's bare "Cloud signing permission error" (Apple's real 403
+# sits in a temp .xcdistributionlogs bundle). $1 the export log, $2 the export
+# method; prints nothing for any other failure. The 403 means two things: App
+# Store certificates are Admin-gated (make an Admin key), Developer ID ones are
+# Account-Holder-gated (no API key can reach them; Xcode's GUI only).
 asc_explain_export_failure() {
     grep -q "Cloud signing permission error" "$1" 2>/dev/null || return 0
 

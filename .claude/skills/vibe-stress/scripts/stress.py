@@ -4,33 +4,32 @@
 It drives the debug command channel with weighted random operations against a
 corpus of real audio files, and checks four oracles between batches:
 
-  liveness    the app still answers          (the channel is delivered on the
-                                              main queue, so a timeout whose
-                                              recovery probe is ALSO slow is a
-                                              main-thread stall; one that probes
-                                              clean was just a slow verb)
+  liveness    the app still answers          (the channel is served on the main
+                                              queue, so a timeout whose recovery
+                                              probe is ALSO slow is a main-thread
+                                              stall; one that probes clean was a
+                                              slow verb)
   consistency check_consistency has no       (re-checked after a settle, since a
               surviving violations           render can lag its state change)
-  health      dump_health has not grown      (footprint, fds, threads, windows,
-              without bound                   views, hosted units)
+  health      dump_health has not grown      (footprint, live heap, fds, threads,
+              without bound                   ports, windows, views, layers,
+                                              hosted units, pending counters)
   crash       the process is still alive     (and no fresh .ips landed)
 
-Every run is reproducible: the seed is printed at the start and `--seed N`
-replays the identical op sequence. Every op is journaled as NDJSON, and
-`--shrink` delta-debugs a failing journal down to a minimal repro you can paste
-into run-script.sh.
+The seed is printed at the start and `--seed N` regenerates the run's ops
+(select_rows and file-drop coordinates also read live state). Every op is
+journaled as NDJSON; `--replay` reruns a journal verbatim and `--shrink`
+delta-debugs a failing one to a minimal run-script.sh repro.
 
     stress.py --corpus ~/Music/big --iterations 2000
-    stress.py --corpus ~/Music/big --seed 48213 --replay run.ndjson
+    stress.py --corpus ~/Music/big --replay run.ndjson
     stress.py --corpus ~/Music/big --shrink run.ndjson
 
-It is built on the vibe-debug skill's command channel and launches through
-that skill's launch.sh, so the app comes up off the audio hardware
-(--no-audio-hw --silent) and a long soak never opens an output device. Set
-VIBE_AUDIBLE=1 to override.
+It launches through vibe-debug's launch.sh, so the app runs off the audio
+hardware (--no-audio-hw --silent); VIBE_AUDIBLE=1 or =silent overrides.
 
-NOT included in any profile: convert_to_flac. It writes files beside the
-source and can trash the original, and the corpus is the user's real music.
+No profile sends convert_to_flac: it writes beside the source and can trash
+the original, and the corpus is the user's real music.
 """
 
 import argparse
@@ -47,43 +46,33 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[4]
 DEFAULT_APP = REPO / "build/DerivedData/Build/Products/Debug/Vibe.app"
-# Journals, health series, stall samples and failure directories are build
-# output, not source: they land under build/, which is already gitignored and
-# which `make clean` removes. Writing them to the CWD instead would litter the
-# repo root, since that is where `make stress` runs.
+# Under build/: gitignored and removed by `make clean`, unlike the CWD, which
+# for `make stress` is the repo root.
 DEFAULT_OUTPUT_DIR = REPO / "build/stress"
-# The launcher belongs to vibe-debug: this harness is built on that skill's
-# command channel and deliberately does not carry its own copy of the launch
-# rules, which are subtle (sandbox grants, off-hardware flags, stale-binary
-# detection) and must not drift into two versions.
+# vibe-debug's launcher, not a copy: the launch rules (sandbox grant,
+# off-hardware flags, wrong-binary warning) must not drift into two versions.
 LAUNCH_SH = Path(__file__).resolve().parents[2] / "vibe-debug/scripts/launch.sh"
 CRASH_DIR = Path.home() / "Library/Logs/DiagnosticReports"
 
-# Attempts per channel command before a signal-killed client counts as a real
-# failure; see Channel.run for why a sandboxed binary fails to launch at all.
-CLIENT_LAUNCH_RETRIES = 4
+CLIENT_LAUNCH_RETRIES = 4   # see Channel.run
 
-# Verbs whose own in-app wait is longer than the 30s default, which must stay
-# above it: a client timeout below the app's own deadline reports a verb that
-# was still working as an unresponsive app. A 7-minute MP3 takes ~30s through
-# file_cache in a -O0 debug build, and the app allows it 60.
+# The subprocess timeout must stay above the client's own per-verb wait (the
+# command table's clientTimeout: 5s by default, file_cache 60s, quiesce 20s),
+# or a verb still working reads as an unresponsive app. A 7-minute MP3 takes
+# ~30s through file_cache in a -O0 build.
 VERB_TIMEOUTS = {"file_cache": 90, "quiesce": 40}
 
-# A recovery probe slower than this, after a timed-out op, is what makes it a
-# main-thread stall rather than a verb that outran its budget. Ordinary probe
-# latency is ~110ms.
+# A recovery probe slower than this after a timed-out op makes it a
+# main-thread stall rather than a slow verb. Ordinary probe latency is ~110ms.
 STALL_PROBE_MS = 2000
 
 AUDIO_SUFFIXES = {".mp3", ".mp2", ".m4a", ".mp4", ".qta", ".aac", ".flac",
                   ".wav", ".wave", ".bwf", ".aif", ".aiff"}
-# .cue is a playlist file to Vibe (PlaylistFile.m reads it), and a real ripped
-# library carries them beside the audio. Leaving it out meant the whole sheet
-# path — the entry rescues for Windows-absolute paths and transcoded
-# extensions — was never opened by any profile.
 PLAYLIST_SUFFIXES = {".m3u", ".m3u8", ".pls", ".cue"}
 
-# Only app-owned actions belong in unattended runs. Unknown commands fail closed,
-# including old journals: raw events can initiate native file/window dragging.
+# TRAP: raw input can start native file and window drags, so unattended runs
+# send only app-owned actions. require_command fails closed on anything else,
+# old journals included.
 COMMAND_VERBS = set("""
 append block_main burst check_consistency clear_caches clear_cloud_trace
 click_menu dump_audio_loading dump_cloud_health dump_cloud_trace dump_health
@@ -142,33 +131,21 @@ class Failure(Exception):
 
 
 class Channel:
-    """The channel client: one `Vibe --debug-cmd` invocation, or one per batch.
+    """The channel client: one `Vibe --debug-cmd` process per op, or per batch.
 
-    The per-op cost was ~133ms, in two halves. The client used to sleep a fixed
-    50ms BEFORE first checking for its response, so every command paid it in
-    full whether or not the app had already answered — fixed in the client
-    itself now (DebugClient.m) — leaving ~80ms of fork/exec, dyld and sandbox
-    container setup. run_batch removes that half too, by running a whole batch
-    in one process through the channel's script mode.
-
-    Both halves matter most under a sanitizer, where the client pays the
-    instrumented startup as well: see the client_app note below.
+    A client process costs ~80ms of fork/exec, dyld and sandbox container
+    setup; run_batch pays it once per batch through the channel's script mode.
     """
 
     def __init__(self, app: Path, verbose=False, client_app: Path = None, gesture_test=None):
-        # The client need not be the app under test. The channel is command and
-        # response FILES in a shared container plus a Darwin notify wake-up, so
-        # any build of the same source can drive any other — which matters
-        # enormously under a sanitizer, where an instrumented client pays the
-        # instrumented startup too: measured 2.38s per op with a TSan-built
-        # client against 0.133s with a plain one, driving the same TSan app.
-        #
-        # Same source for both or the protocol can skew, which is why it is
-        # opt-in rather than automatic.
+        # The channel is files in a shared container plus a notify wake-up, so
+        # any build of the same source can drive any other. Under a sanitizer
+        # that matters: 2.38s per op with a TSan client against 0.133s with a
+        # plain one, driving the same TSan app. Opt-in, because builds from
+        # different sources can skew the protocol.
         self.binary = (client_app or app) / "Contents/MacOS/Vibe"
-        # Off by default so anything that needs each op's own timing — the
-        # shrinker, a replay — gets it without asking.
         self.gesture_test = gesture_test
+        # Off by default so the shrinker and --replay get each op's own timing.
         self.batch = False
         self.verbose = verbose
         if not self.binary.exists():
@@ -177,11 +154,9 @@ class Channel:
     def run(self, argv, timeout=30):
         """Returns (exit_code, parsed_json_or_None, elapsed_ms).
 
-        A client killed by a signal before it produced any output never reached
-        main(): launching hundreds of short-lived instances of a *sandboxed*
-        binary makes libsecinit's container setup fail outright, which SIGTRAPs
-        inside dyld's initializers. That is the harness outrunning the OS, not a
-        Vibe defect, so it is retried rather than reported.
+        TRAP: hundreds of quick launches of a sandboxed binary make libsecinit
+        fail, SIGTRAPping the client in dyld before main(). A client killed by
+        a signal with no output is therefore retried, not reported.
         """
         require_command(argv, self.gesture_test)
         started = time.monotonic()
@@ -196,10 +171,8 @@ class Channel:
                 )
                 code, out = proc.returncode, proc.stdout
             except subprocess.TimeoutExpired:
-                # Exit 1 here means only that this call ran out of time. Whether
-                # the app was stalled or the verb was merely slow is decided by
-                # the recovery probe in replay_ops, not here — see VERB_TIMEOUTS
-                # for the verbs whose own wait outlasts the default.
+                # The client's own no-response code. Stall versus slow verb is
+                # replay_ops' recovery probe's call.
                 code, out = 1, ""
             if code >= 0 or out.strip():
                 break
@@ -216,29 +189,21 @@ class Channel:
     def run_batch(self, argv_list, timeout):
         """Run many commands in ONE client process, through script mode.
 
-        Spawning a client per op costs ~80ms of fork/exec, dyld and sandbox
-        container setup, and after the response-poll fix that is the whole
-        per-op budget. Script mode reads a command list on stdin and prints one
-        compact JSON reply per line, so a batch pays the setup once and each
-        command costs only the app's own dispatch.
+        Batching loses the per-op process exit code; a reply's `error` stands
+        in for it. The script stops at its first failing or unanswered command,
+        so the stream comes back SHORT and the caller runs the rest one at a
+        time, where a hang gets its own timeout and stall diagnosis.
 
-        What batching gives up is the per-op PROCESS exit code, and with it the
-        timeout the stall oracle reads. Success and failure survive — every
-        reply carries `error` when the verb failed — so only a hang is
-        ambiguous, and a hang shows up as a SHORT reply stream. The caller
-        re-runs from there one at a time, which is exactly where the stall
-        diagnosis was wanted anyway.
-
-        Returns [(exit_code, payload)] as far as the stream got, which may be
-        shorter than argv_list, or None if the batch could not be expressed.
+        Returns [(exit_code, payload)] as far as the stream got, or None if the
+        batch cannot be expressed as script lines.
         """
         for argv in argv_list:
             require_command(argv)
         lines = []
         for argv in argv_list:
-            # The channel's tokenizer groups quoted tokens but has no escapes,
-            # so quotes and line/control whitespace go through argv instead.
-            # In particular, a filename newline must never start another command.
+            # The script tokenizer groups quotes but has no escapes: an empty
+            # argument, or one with a quote, tab or line break (a filename
+            # newline would start another command), cannot be expressed.
             if any(not a or any(c in a for c in "\"'\n\r\t") for a in argv):
                 return None
             lines.append(" ".join(f'"{a}"' if " " in a else a for a in argv))
@@ -250,8 +215,7 @@ class Channel:
             )
             out = proc.stdout
         except subprocess.TimeoutExpired as expired:
-            # Partial output still says how far it got, which is what the caller
-            # needs in order to resume one at a time from the right op.
+            # Partial output says where the caller resumes one at a time.
             raw = expired.stdout
             out = raw.decode() if isinstance(raw, bytes) else (raw or "")
         results = []
@@ -270,11 +234,9 @@ class Channel:
 def app_pid():
     """The GUI instance's pid, or None.
 
-    The CLI client is the app binary, so `pgrep -x Vibe` also matches every
-    in-flight `--debug-cmd` invocation. Sampling one of those yields a stack of
-    the client polling for its own response, which looks like a hang and says
-    nothing about the app — filter them out by argv. The iOS Simulator's app
-    is named Vibe too, and sampling it instead is the same wrong answer.
+    TRAP: never `sample Vibe` by name. The CLI client is the app binary, so the
+    name also matches every in-flight `--debug-cmd`, whose polling stack reads
+    as a hang, and the iOS Simulator's Vibe. Filtered here by argv.
     """
     found = subprocess.run(["pgrep", "-x", "Vibe"], capture_output=True, text=True)
     for pid in found.stdout.split():
@@ -289,18 +251,10 @@ def app_is_running():
     return app_pid() is not None
 
 
-# Settings that gate whole subsystems out of the run when off, and that persist
-# in NSUserDefaults across runs — so a run inherits whatever the LAST one left,
-# including a fuzzer's own random final toggle. With `useFolderArt` off the
-# artwork accessors return before reaching the resolver, and the run reports a
-# clean pass over code it never entered. Forced on at launch, and printed,
-# because a silently disabled feature and a genuinely clean run look identical
-# in the summary.
-#
-# The BPM and key analyzers are here for the same reason: they are the async
-# deliveries the loading profiles exist to race against track changes, and both
-# are ordinary settings a user can switch off. A run inheriting them off skips
-# the analyzer half of every decode and reports the same clean pass.
+# TRAP: these settings gate whole subsystems and persist in NSUserDefaults, so
+# a run inherits the last run's final toggle, and with one off it passes over
+# code it never entered. Forced on at launch, printed in the header, and forced
+# back on at teardown.
 FEATURE_SETTINGS = {
     "folderArt": ["set_folder_art", "on"],
     "analyzeBPM": ["set_analysis", "bpm", "on"],
@@ -318,59 +272,40 @@ def describe_feature_settings(channel) -> str:
 
 
 def user_settings_snapshot(channel) -> dict:
-    """The user's own persisted settings that ops flip, so they can be put back.
-
-    Unlike FEATURE_SETTINGS these are preferences rather than subsystem gates:
-    the run has no stake in their value, only in the invalidation edge each
-    change produces. Leaving one where a random flip landed is a side effect on
-    the user's app, not a finding.
-    """
+    """The user's persisted preferences that ops flip, to be put back at the
+    end whether the run passed or not."""
     code, state, _ = channel.run(["dump_state"], timeout=20)
     if code != 0 or not isinstance(state, dict):
         return {}
     settings = state.get("settings") or {}
-    # dump_state reports the system-default appearance as "system" rather than
-    # the stored empty string, so the three values here are exactly the
-    # set_appearance verb's own vocabulary and the restore hands them back
-    # verbatim.
+    # dump_state reports appearance in set_appearance's own vocabulary
+    # (light|dark|system), so restore hands it back verbatim.
     return {key: settings[key]
             for key in ("windowAppearance", "activeTheme", "pauseAtTrackEnd")
             if key in settings}
 
 
 def user_settings_restore(channel, snapshot: dict, imported_themes=()):
-    # Imported fuzz themes first, so the set_theme below lands on a clean
-    # list: every accepted import is a persisted user theme, visible in
-    # View > Theme and in the NEXT run's collect_themes — which would make the
-    # printed "replay with --seed N" promise false, since a different theme
-    # list draws a different op sequence from the same seed. remove_theme
-    # refuses built-ins and falls back to vibe when the removed theme is the
-    # active one, so removing whatever the run left applied is safe.
+    # Imports first: each is a persisted user theme, and one left behind
+    # changes the next run's theme list and so the op sequence its seed draws.
+    # remove_theme falls back to vibe when the removed theme is active.
     for identifier in imported_themes:
         channel.run(["remove_theme", str(identifier)])
-    # The theme next, and the appearance after it, because applying a theme
-    # repopulates the style and can pin the appearance: a single-mode theme
-    # outranks windowAppearance outright. Restoring in the other order would
-    # put both back and then have the theme apply overwrite them.
+    # Theme before appearance: a theme apply can pin the appearance (a
+    # single-mode theme outranks windowAppearance). The theme also carries the
+    # waveform style, so nothing restores that separately.
     theme = snapshot.get("activeTheme")
     if theme:
         channel.run(["set_theme", theme])
     appearance = snapshot.get("windowAppearance")
     if appearance:
-        # The set_appearance verb takes exactly the values dump_state reports.
         code, payload, _ = channel.run(["set_appearance", appearance])
         if code != 0 or not (payload or {}).get("ok"):
             print(f"  warning: could not restore appearance {appearance!r}",
                   file=sys.stderr)
-    # The waveform style is NOT restored separately, and must not be: it is a
-    # field of the theme now rather than its own View submenu, so the set_theme
-    # above has already put it back. Restoring it here would need a menu item
-    # that no longer exists — which is what this used to do, silently.
     pause = snapshot.get("pauseAtTrackEnd")
     if pause is not None:
         channel.run(["set_pause_at_track_end", "on" if pause else "off"])
-    # The analyzer flips end wherever the RNG left them; put the gates back the
-    # way the run forces them at start, per FEATURE_SETTINGS' contract.
     for argv in FEATURE_SETTINGS.values():
         channel.run(argv)
 
@@ -378,10 +313,10 @@ def user_settings_restore(channel, snapshot: dict, imported_themes=()):
 def launch(corpus: Path, app: Path):
     """Relaunch and wait until the app answers.
 
-    Passing the corpus directory to `open -a` is what grants sandbox access to
-    it: FolderAccessManager bookmarks folders arriving through the open funnel,
-    and the grant then persists, so later `--debug-cmd open` calls on files
-    inside it are readable. A direct-exec launch cannot do this.
+    TRAP: the corpus grant comes from this launch. Handing the folder to
+    `open -a` (launch.sh) is what bookmarks it; a direct-exec launch cannot
+    read argv paths under the sandbox. The grant persists, so later channel
+    `open`s inside the corpus are readable.
     """
     env = dict(os.environ, VIBE_APP=str(app))
     result = subprocess.run(
@@ -395,15 +330,12 @@ def launch(corpus: Path, app: Path):
 
 
 def assert_running_binary(app: Path):
-    """Which build actually came up — never assume the one that was asked for.
+    """Exit unless the running GUI instance is the binary that was asked for.
 
-    `open -a <path>` resolves by BUNDLE ID, not path. Every build of Vibe is
-    com.commonwealthrecordings.Vibe, so LaunchServices launches whichever copy
-    it has registered and silently ignores the path, and VIBE_APP does not save
-    you because launch.sh hands that path to `open -a` too. A sanitizer run
-    that lands on the plain build reports a clean pass over an uninstrumented
-    binary — the failure mode this check exists for, since nothing else in the
-    run would mention it.
+    TRAP: `open -a <path>` resolves by BUNDLE ID, not path, and every build is
+    com.commonwealthrecordings.Vibe, so VIBE_APP (handed to `open -a` by
+    launch.sh) does not pin the build. A sanitizer run on the plain build
+    would report a clean pass over an uninstrumented binary.
     """
     wanted = (app / "Contents/MacOS/Vibe").resolve()
     pid = app_pid()
@@ -446,25 +378,18 @@ def scan_corpus(root: Path):
 # Op generation
 # --------------------------------------------------------------------------
 
-# An op is (name, argv, tolerated_error_substrings). A tolerated error is one
-# the app is right to return for a randomly chosen argument — an empty undo
-# stack, say — and is not a finding.
+# An op is (name, argv, tolerated_error_substrings): errors the app is right
+# to return for a randomly chosen argument, which are not findings.
 
-# Errors the app is RIGHT to return for a path a hostile corpus legitimately
-# holds: a symlink loop, a zero-length file, a name that no longer resolves.
-# The refusal is the correct answer and the run must continue past it —
-# otherwise the driver ends on the app behaving exactly as it should, and the
-# corpus built to exercise those branches cannot be used at all. They stay
-# journaled with their exit codes, so a refusal of a file that IS there is
-# still recoverable from the journal afterwards.
+# Correct refusals of paths a hostile corpus holds (a symlink loop, a
+# zero-length file, a name that no longer resolves). They stay journaled with
+# their exit codes, so a refusal of a file that IS there is still visible.
 PATH_REFUSALS = [
     "no file or directory", "expects an existing file", "no such file",
     "could not", "failed",
 ]
 
-# An empty stack is the app's correct answer, and a fuzzer walks off both ends
-# of it constantly. `still in progress` is the conversion undo declining to
-# race the Trash, which is equally correct.
+# `still in progress` is a conversion undo/redo still settling.
 UNDO_REFUSALS = ["nothing to undo", "nothing to redo", "still in progress"]
 
 FX_ON_OFF = [
@@ -473,25 +398,18 @@ FX_ON_OFF = [
 
 APPEARANCE_VALUES = ["light", "dark", "system"]
 EQUALIZER_MODES = ["balanced", "activity", "spectrum"]
-# The only three set_audio_loading keys that are not diagnostic-only, so the
-# only ones whose churn changes what the app actually does.
-# Ranges are AudioLoadingConfiguration.m's own validation bounds, not guesses:
-# background 1-kMaximumSafeBackgroundMaterializations (4), local-parses
-# 1-kMaximumSafeLocalMetadataParseConcurrency (16), prefetch-depth
-# 0-kMaximumTunablePrefetchDepth (1). An out-of-range value is rejected with an
-# error, which the driver correctly scores as a `command` failure and which
-# would end the run on the harness's own bad argument rather than on a finding.
+# set_audio_loading's three "safe" (non-diagnostic) keys, within
+# AudioLoadingConfiguration.m's validation bounds: an out-of-range value is a
+# `command` failure that ends the run on the harness's own bad argument.
 AUDIO_LOADING_KEYS = {
     "background": lambda rng: rng.choice([1, 1, 2, 3, 4]),
     "local-parses": lambda rng: rng.choice([1, 2, 4, 8, 16]),
     "prefetch-depth": lambda rng: rng.choice([0, 1]),
 }
 
-# The theme record's own shape, group by group, as AppTheme serializes it. Used
-# to MUTATE a real dumped record rather than to synthesize one: a record built
-# from scratch is refused at the parse, which tests the JSON reader and stops
-# short of the sanitizer — and the sanitizer is the single gate every import,
-# stored record and UI edit is held to, so it is the thing worth hammering.
+# Fields of AppTheme's serialized record, by group, for mutating a real dumped
+# record: one built from scratch is refused by the JSON reader and never
+# reaches the sanitizer, the gate worth hammering.
 THEME_GROUPS = {
     "window": ["backgroundColorDark", "backgroundColorLight", "backgroundStyle",
                "cornerRadius", "tint", "mode"],
@@ -509,12 +427,9 @@ THEME_GROUPS = {
                  "theme", "unplayedColorDark", "unplayedColorLight"],
 }
 
-# Values a field must survive. Each one is a clamp or a rejection the sanitizer
-# owns, and a value that reaches a renderer unclamped is the finding — a corner
-# radius of 1e308 laid on a CALayer, a font size of -500 handed to NSFont, a
-# colour string that is not one. The nonexistent font face matters most: it
-# sanitizes CLEAN (a face name is not checkable against installed fonts without
-# asking for it), so it is the one hostile value that reaches the text system.
+# Values the sanitizer must clamp or reject; one reaching a renderer is the
+# finding. The nonexistent font face sanitizes CLEAN (a face cannot be checked
+# without asking the text system), so it is the one that reaches NSFont.
 def THEME_HOSTILE(rng):
     return rng.choice([
         1e308, -1e308, 0, -1, 99999, 1e18, -0.0,
@@ -526,10 +441,8 @@ def THEME_HOSTILE(rng):
     ])
 
 
-# Import is bounded because every accepted record is a persisted user theme
-# until the end-of-run cleanup removes it: an 8-hour run at any real weight
-# would put tens of thousands in the store mid-run. The cap is high enough
-# that the store's own dedupe and ordering are under real pressure.
+# Every accepted import is a persisted user theme until teardown removes it;
+# uncapped, a long run would put tens of thousands in the store.
 MAX_THEME_IMPORTS = 80
 
 
@@ -578,18 +491,11 @@ class OpGenerator:
     def op_open_playlist(self):
         if not self.playlists:
             return self.op_open_file()
-        # A .m3u grants only itself, so its entries may be unreadable; that is
-        # the app's business, not a driver failure.
         return [("open_playlist", ["open", str(self.rng.choice(self.playlists))], PATH_REFUSALS)]
 
     def op_open_burst(self):
-        """Opens landing on top of each other, with no settle between them.
-
-        This is the documented hazard: waveform, BPM, key and metadata
-        deliveries from the previous open arrive after the track has already
-        changed, and every receiver has to match the delivered URL against the
-        current one before applying it.
-        """
+        """Opens on top of each other, so waveform, BPM, key and metadata
+        deliveries land after the track has changed."""
         if not self.files:
             return self.op_transport()
         n = self.rng.randint(2, 4)
@@ -611,28 +517,20 @@ class OpGenerator:
         return [("clear_caches", ["clear_caches"], [])]
 
     def op_cloud_churn(self):
-        """Re-arms the fake provider mid-run, and sometimes tears it out.
+        """Re-arm the fake provider mid-run, sometimes uninstalling first.
 
-        The uninstall/reinstall edges are the point as much as the numbers: they
-        swap the dataless probe and the transfer block out from under workers
-        that are mid-flight, which is the one thing about the seam that could
-        deadlock rather than merely misreport.
+        The uninstall/reinstall edges swap the dataless probe and transfer
+        block under in-flight workers: the one way this seam could deadlock
+        rather than misreport. Never 100% cloudy: the local files prove the
+        cloud path has not slowed them.
 
-        Never 100% cloudy — the mixture is what proves the cloud machinery has
-        not slowed the local path down.
-
-        The CAPACITY is what makes this profile score the foreground hold at
-        all. Unlimited capacity — the provider's default, and all this op used
-        to arm — means a background download never actually delays a foreground
-        one, so "the user's open outranks the sweep" has nothing to be true
-        about: every transfer starts the moment it is asked for. One or two
-        slots is the shape a real provider has, and the shape the hold, the
-        stand-aside and the lane's ordering were all written for.
+        Scarce capacity is what makes the foreground hold observable: at
+        capacity=0 (unlimited) no background download ever delays a
+        foreground one. Install resets capacity to 1.
         """
         seconds = f"{self.rng.uniform(0.6, 1.6):.2f}"
         percent = self.rng.choice([30, 50, 80])
-        # Weighted towards a scarce provider; 0 keeps the unbounded shape in the
-        # mix so the two are compared rather than one simply replaced.
+        # Mostly scarce; 0 (unlimited) stays in the mix for comparison.
         capacity = self.rng.choice([1, 1, 2, 2, 0])
         argv = ["set_fake_cloud", seconds, str(percent), f"capacity={capacity}"]
         if self.rng.random() < 0.15:
@@ -651,29 +549,20 @@ class OpGenerator:
         return [("transport", [verb], [])]
 
     def op_playlist_jump(self):
-        """Land on an arbitrary row, the way a listener picks a track.
+        """Land on an arbitrary row, where no prefetch or neighborhood rank
+        has prepared anything (next/previous only reach the adjacent track).
 
-        next/previous only ever walk to the adjacent track, which is the one
-        case every prefetch and every neighborhood rank has already prepared
-        for. A jump lands where the background sweep has not been, with
-        neighbors nothing has fetched.
-
-        The index is drawn against a generous ceiling rather than the live
-        playlist length: out of range is a documented no-op, and asking for it
-        costs one round trip while sparing the driver a dump_state per jump.
+        Drawn against a ceiling, not the live length: out of range is a no-op,
+        cheaper than a dump_state per jump.
         """
         return [("playlist_jump", ["play_index", str(self.rng.randrange(0, 400))], [])]
 
     def op_burst(self):
-        """Hundreds of track changes in-process, at main-queue rate.
+        """Hundreds of track changes in-process, one per main-queue turn: a
+        rate the channel cannot reach (~80ms per op, ~2.4s under TSan).
 
-        The channel cannot reach the rate a race needs: ~80ms per op against a
-        plain build and ~2.4 SECONDS against a ThreadSanitizer one. `burst`
-        moves the loop inside the app, where a jump lands every main-queue turn.
-
-        Issued right after an open on purpose — that is when the sweep's four
-        stage-1 workers are live, so the burst contends with real background
-        work rather than a settled app.
+        Right after an open, so it contends with the sweep's live stage-1
+        workers rather than a settled app.
         """
         folder = str(self.rng.choice(self.dirs)) if self.dirs else None
         jumps = self.rng.choice([120, 300, 600])
@@ -684,8 +573,8 @@ class OpGenerator:
         return ops
 
     def op_seek(self):
-        # Deliberately unreasonable values as well as reasonable ones: the
-        # player clamps, and a value that escapes the clamp is the finding.
+        # Unreasonable values too: one that escapes the player's clamp is the
+        # finding.
         value = self.rng.choice([
             self.rng.uniform(0, 600),
             self.rng.uniform(-600, 0),
@@ -752,53 +641,42 @@ class OpGenerator:
         return ops
 
     def op_append(self):
-        """Extend the playlist instead of replacing it. append has its own
-        contract — no cursor touch, FIFO prefetch behind a same-turn play —
-        and the random file_drag_drop only reaches the Add well by coordinate
-        luck."""
+        """Extend the playlist instead of replacing it: append's own contract
+        (no cursor touch, FIFO prefetch behind a same-turn play), which a
+        random file_drag_drop reaches only by coordinate luck."""
         if not self.files:
             return self.op_transport()
         return [("append", ["append", str(self.rng.choice(self.files))], PATH_REFUSALS)]
 
     def op_end_of_track(self):
-        """Flip Settings > Playback > On track end under whatever is armed.
-        The setting is enforced in two places (the successor prefetch answers
-        nil under Pause, and the track-end advance re-reads it), and the write
-        requests the live effect that re-parks or drops an already-armed
-        gapless successor — an arm/unschedule race only a mid-play flip
-        reaches. Snapshot-restored after the run."""
+        """Flip On track end mid-play: the write's live effect re-parks or
+        drops an already-armed gapless successor, a race only a mid-play flip
+        reaches."""
         return [("end_of_track",
                  ["set_pause_at_track_end", self.rng.choice(["on", "off"])], [])]
 
     def op_analysis_flip(self):
-        """Flip a decode-pass analyzer under in-flight loads. The waveform
-        decode reads the setting when it starts, so a mid-run flip races the
-        loader's read and varies which deliveries the next track change must
-        drop. The run's teardown forces both analyzers back on, per
-        FEATURE_SETTINGS' contract."""
+        """Flip a decode-pass analyzer under in-flight loads: the decode reads
+        the setting when it starts, so a flip varies which deliveries the next
+        track change must drop."""
         return [("analysis_flip",
                  ["set_analysis", self.rng.choice(["bpm", "key"]),
                   self.rng.choice(["on", "off"])], [])]
 
     def op_reorder_begin(self):
-        """Start a synthetic row-reorder drag and leave it OPEN.
-
-        begin and finish are separate ops on purpose: whatever the scheduler
-        deals in between — an open that replaces the playlist, a removal, a
-        convert swap, a burst — lands inside a live drag session, which is
-        exactly the mid-drag race family no pointer can stage. A leftover
-        session is cancelled by the next begin, and rows are drawn against a
-        ceiling rather than the live count for playlist_jump's reason: out of
-        range is a tolerated refusal, cheaper than a dump_state per drag.
+        """Start a synthetic row-reorder drag and leave it OPEN, so whatever
+        the scheduler deals next (an open, a removal, a burst) lands inside a
+        live drag session. The next begin cancels a leftover one. Rows are
+        drawn against a ceiling for playlist_jump's reason; out of range is a
+        tolerated refusal.
         """
         rows = {self.rng.randrange(0, 24) for _ in range(self.rng.choice([1, 1, 2, 3]))}
         return [("reorder_begin", ["reorder_begin", *map(str, sorted(rows))],
                  ["not draggable"])]
 
     def op_reorder_finish(self):
-        """Resolve whatever drag session is live: probe a slot, then drop or
-        cancel. Without a session these are tolerated refusals, which also
-        keeps the no-session guard exercised."""
+        """Probe a slot, then drop or cancel whatever drag session is live.
+        With none, these are tolerated refusals that exercise the guard."""
         roll = self.rng.random()
         if roll < 0.15:
             return [("reorder_cancel", ["reorder_cancel"], ["no reorder session"])]
@@ -822,25 +700,19 @@ class OpGenerator:
         return [(verb, [verb], ["nothing to undo", "nothing to redo", "still in progress"])]
 
     def op_folder_art(self):
-        """Flip the folder-artwork setting under whatever is in flight.
+        """Flip folder art off and straight back on under whatever is in
+        flight, landing the invalidate between a resolve claiming a directory
+        and its result arriving.
 
-        The setting drops the resolver's decoded covers while the playlist is
-        drawing cells off the same tables, and nothing else in the harness
-        reaches that path. A rapid off/on pair is the shape that lands the
-        invalidate between a resolve claiming a directory and its result
-        arriving.
+        Always back on: a uniform on/off choice would park the feature OFF for
+        half the run, and with it off the accessors never reach the resolver
+        (the FEATURE_SETTINGS trap).
         """
-        # Always back on: the setting persists in NSUserDefaults for the whole
-        # run, so a uniform on/off choice parks the feature OFF for half the
-        # ops, and with it off the accessors never reach the resolver. Off and
-        # straight back on buys both invalidation edges, leaves the feature on
-        # throughout, and leaves the user's setting where it started.
         ops = [("folder_art", ["set_folder_art", "off"], []),
                ("folder_art", ["set_folder_art", "on"], [])]
         if self.rng.random() < 0.25:
-            # A settle between the edges, so an invalidate sometimes lands with
-            # resolves and decodes genuinely in flight rather than only between
-            # two channel round-trips.
+            # Sometimes a settle between the edges, so resolves and decodes are
+            # genuinely in flight rather than only between two round trips.
             ops.insert(1, ("settle", ["sleep", f"{self.rng.uniform(0.05, 0.4):.2f}"], []))
         return ops
 
@@ -850,20 +722,14 @@ class OpGenerator:
     # -- main-thread ordering -----------------------------------------------
 
     def op_block_main(self):
-        """Hold main, then run a verb on the SAME turn, without yielding.
+        """Hold main, then run a shared verb on the SAME turn.
 
-        Nothing else the driver can send reaches this shape. The channel's own
-        intake is on the main queue, so a callback the app dispatched to main
-        from a worker always wins the race against a command sent afterwards —
-        two ordinary ops can never stage "the callback landed while a click
-        handler was already underway". Blocking first is what parks a queue of
-        worker callbacks behind the chained verb.
-
-        The hold is what makes the queue deep: a longer block during an open
-        means more waveform, metadata, BPM and key deliveries pile up behind it,
-        so the chained verb runs with a full turn's worth of stale deliveries
-        queued right behind it. Bounded to 5s in the app; 1.2 keeps a batch
-        moving while still outlasting a decode's delivery cadence.
+        The channel's intake is on the main queue, so a worker's callback to
+        main always beats a command sent after it; two ordinary ops can never
+        stage "the callback landed while a handler was underway". The hold
+        parks those deliveries behind the chained verb. The app caps it at 5s;
+        1.2 keeps a batch moving while outlasting a decode's delivery cadence.
+        block_main chains only shared verbs (DebugCommonVerbs.m).
         """
         seconds = f"{self.rng.uniform(0.05, 1.2):.2f}"
         then = self.rng.choice([
@@ -881,13 +747,10 @@ class OpGenerator:
     # -- configuration churn under load -------------------------------------
 
     def op_audio_loading(self):
-        """Move the loading knobs while loaders and prefetches are in flight.
-
-        The contract is that a change applies to new admissions, loaders and
-        prefetch decisions and NEVER by cancelling live work, so churning it
-        mid-decode is the only way to find a knob that reaches back into work
-        already running. `defaults` is in the mix so the run does not drift to
-        one corner of the space and stay there.
+        """Move the loading knobs mid-decode. A change applies to new
+        admissions, loaders and prefetch decisions, NEVER to live work; this
+        finds a knob that reaches back. `defaults` keeps the run from parking
+        in one corner of the space.
         """
         if self.rng.random() < 0.2:
             return [("audio_loading", ["set_audio_loading", "defaults"], [])]
@@ -897,53 +760,29 @@ class OpGenerator:
         return [("audio_loading", argv, [])]
 
     def op_equalizer_mode(self):
-        """Replace the live level meter, synchronously, whenever.
-
-        A mode change retires the render's meter stage and applies another,
-        invalidating the current publication and the analyzer's partial
-        window, while the fx ops flip the FX segment underneath it. Landing
-        one on a track change or an output rebuild is the point.
-        """
+        """Replace the render's meter stage, invalidating its publication and
+        partial window, ideally on a track change or an output rebuild."""
         return [("equalizer_mode",
                  ["set_equalizer_mode", self.rng.choice(EQUALIZER_MODES)], [])]
 
-    # There is no op_waveform_style, and its absence is deliberate. The style
-    # used to be its own View submenu and is now a THEME FIELD, so no menu path
-    # to it exists: every `click_menu waveform_style_*` this op used to send now
-    # answers "no menu item", which the tolerated-error list swallowed — so it
-    # scored as a clean run over an op that had stopped doing anything at all.
-    # Swapping the renderer strategy under a morphing picture is still worth
-    # driving, and op_theme is what drives it now: the built-ins carry three
-    # different styles between them, and the import fuzzer sets waveform.style
-    # directly. Its weight went to `theme` in every profile.
+    # The waveform style is a theme field: op_theme and op_theme_import swap
+    # the renderer, so there is no separate style op.
 
     def op_appearance(self):
-        """Flip light/dark live, which re-resolves every waveform theme rule.
-
-        Every theme rule branches on dark, so a flip re-resolves the whole
-        palette — and on macOS one of its inputs is the settled artwork color,
-        which rides the generation-matched artwork install path. A flip landing
-        between an artwork delivery and its install is the case the
-        colour-ownership guarantee is written for.
-        """
+        """Flip light/dark live. The re-resolved palette takes the artwork
+        color from the artwork install path, so a flip between a delivery and
+        its install tests the waveform-theme guarantee."""
         return [("appearance", ["set_appearance", self.rng.choice(APPEARANCE_VALUES)], [])]
 
     # -- themes -------------------------------------------------------------
 
     def op_theme(self):
-        """Apply a whole theme while decodes and artwork installs are in flight.
+        """Apply a whole theme, the app's widest settings edit, while decodes
+        and artwork installs are in flight.
 
-        A theme apply is the widest single settings edit the app has: it
-        repopulates every themed field at once and requests ThemeApply, which
-        re-resolves the window chrome, all four font slots, the playlist's
-        colours and the waveform's palette in one turn. The artwork colour is
-        one of the waveform palette's inputs and rides the generation-matched
-        install path, so an apply landing between an artwork delivery and its
-        install is what the colour-ownership guarantee is written for.
-
-        Paired with an appearance flip half the time, because every theme rule
-        branches on dark and a single-mode theme outranks the window's own
-        appearance setting — the two settings only disagree when both move.
+        Half the time with an appearance flip: a single-mode theme outranks
+        the window's appearance setting, and the two only disagree when both
+        move.
         """
         if not self.themes:
             return self.op_appearance()
@@ -953,16 +792,8 @@ class OpGenerator:
         return ops
 
     def op_theme_import(self):
-        """Import a MUTATED real record, then usually apply it.
-
-        The sanitizer is one gate over four callers — a JSON import, a stored
-        record, a UI edit and the shipped built-ins — so a value that escapes
-        it escapes for all four. Mutating a real record rather than building
-        one keeps the mutation past the JSON reader, where the clamps live.
-
-        An applied hostile record is the half that matters: a value the
-        sanitizer let through has done nothing until a renderer is handed it.
-        """
+        """Import a MUTATED real record, then usually apply it: a value the
+        sanitizer let through does nothing until a renderer is handed it."""
         if not self.theme_base or self.theme_imports >= MAX_THEME_IMPORTS:
             return self.op_theme()
         record = json.loads(json.dumps(self.theme_base))
@@ -974,18 +805,14 @@ class OpGenerator:
             if isinstance(record[group], dict):
                 record[group][field] = THEME_HOSTILE(self.rng)
         if self.rng.random() < 0.15:
-            # The envelope itself, not a field: a version the reader must
-            # refuse and a name that is not a string.
+            # The envelope: a version the reader must refuse, a non-string name.
             record[self.rng.choice(["version", "name"])] = THEME_HOSTILE(self.rng)
         self.theme_imports += 1
         blob = json.dumps(record, separators=(",", ":"), ensure_ascii=False)
         ops = [("theme_import", ["import_theme", blob], ["not a theme"])]
         if self.rng.random() < 0.7:
-            # The record's name goes into the JSON body, where json.dumps
-            # escapes anything; as an ARGV it is raw, and execve cannot carry a
-            # NUL — Python raises ValueError from _fork_exec and the harness,
-            # not the app, is what dies. A mutated envelope can put any hostile
-            # value in `name`, so an argv only ever gets a clean one.
+            # A hostile `name` is safe inside the JSON body but not as argv:
+            # execve cannot carry a NUL, and the ValueError kills the harness.
             name = record.get("name")
             safe = (isinstance(name, str) and name and "\x00" not in name
                     and len(name) < 256)
@@ -996,9 +823,8 @@ class OpGenerator:
     # -- playlist structure -------------------------------------------------
 
     def op_select_rows(self):
-        # The app resolves these against the current table at execution time;
-        # "current" follows jumps earlier in the same batch, and numbered rows
-        # cover the observed list. A shortened or empty list ignores stale rows.
+        # Resolved against the table when the op runs: "current" follows jumps
+        # earlier in the batch, and stale rows past the end are ignored.
         if self.rng.random() < 0.2:
             rows = ["all"]
         else:
@@ -1018,7 +844,6 @@ class OpGenerator:
         return ops
 
     def op_playlist_move(self):
-        # One reorder mechanism: the real delegate path, without a native drag.
         ops = self.op_reorder_begin() + self.op_reorder_finish()
         if self.rng.random() < 0.5:
             ops.append(("undo", ["undo"], UNDO_REFUSALS))
@@ -1027,27 +852,18 @@ class OpGenerator:
         return ops
 
     def op_undo_storm(self):
-        """Walk the undo stack hard in both directions.
-
-        One structural edit sends one observer event and the mac reconciles it
-        with precise row operations rather than reloadData, so an off-by-one in
-        the reconciliation only shows after several edits have stacked. Walking
-        the stack down and back up is what stacks them.
-        """
+        """Walk the undo stack both ways: the table reconciles each edit with
+        precise row operations, so an off-by-one shows only once several
+        edits have stacked."""
         verbs = [self.rng.choice(["undo", "undo", "redo"])
                  for _ in range(self.rng.randint(2, 8))]
         return [(v, [v], UNDO_REFUSALS) for v in verbs]
 
     def op_resize_storm(self):
-        """Several width changes with nothing between them.
-
-        A resize now changes the waveform's BAR COUNT — the count follows the
-        drawn width at each style's designed pitch — and a count change mid
-        picture reaches the morph engine, which resamples the displayed bars
-        rather than collapsing them. One resize per 25-op batch never lands
-        two of those inside one morph; a storm does, and the extremes reach
-        both clamps (2 bars at the bottom, the per-style cap at the top).
-        """
+        """Several width changes back to back. The waveform's bar count
+        follows the drawn width, and a count change mid-picture resamples in
+        the morph engine; a storm lands two inside one morph, and the extremes
+        reach both clamps (2 bars, the per-style cap)."""
         widths = [self.rng.choice([
             self.rng.randint(300, 2400),
             self.rng.randint(1, 300),
@@ -1056,6 +872,7 @@ class OpGenerator:
         return [("resize", ["set_window_width", str(w)], []) for w in widths]
 
 
+# Why each profile weights what it does: references/profiles.md.
 PROFILES = {
     "base": {
         "open_file": 14, "open_dir": 3, "open_playlist": 2, "open_burst": 6,
@@ -1073,7 +890,7 @@ PROFILES = {
         "select_rows": 2, "remove_selected": 4, "playlist_move": 2,
         "undo_storm": 1,
     },
-    # Everything pointed at the open path and the async deliveries that race it.
+    # The open path and the async deliveries that race it.
     "loading": {
         "open_file": 30, "open_dir": 6, "open_burst": 20, "open_playlist": 4,
         "cache_churn": 6, "clear_caches": 2,
@@ -1087,13 +904,8 @@ PROFILES = {
         "appearance": 2, "resize_storm": 2,
         "theme": 2,
     },
-    # Everything `loading` does, with the throttles off. `burst` moves the
-    # track-change loop inside the app, where a jump lands every main-queue
-    # turn — the channel cannot reach that rate from outside — and settle drops
-    # to a token weight so an open almost never gets to finish before the next
-    # one lands on top of it. Aimed at a big local library rather than the
-    # fake provider: every open here is a real decode, a real tag parse and a
-    # real art extraction racing the track change that follows it.
+    # `loading` with the throttles off (in-app bursts, token settle), aimed at
+    # a big local library.
     "hammer": {
         "open_file": 26, "open_dir": 8, "open_burst": 24, "open_playlist": 5,
         "cache_churn": 6, "clear_caches": 3,
@@ -1107,18 +919,14 @@ PROFILES = {
         "append": 8, "end_of_track": 3, "analysis_flip": 4,
         "block_main": 10, "audio_loading": 5, "equalizer_mode": 3,
         "appearance": 3,
-        # Structural edits belong in the hammer, not only in their own profile:
-        # a removal whose replacement play is still settling when the next open
-        # lands on top of it is the shape neither profile reaches alone.
+        # Structural edits too: a removal whose replacement play is still
+        # settling when the next open lands is a shape neither profile reaches
+        # alone.
         "theme": 9, "theme_import": 2,
         "select_rows": 5, "remove_selected": 8, "playlist_move": 5,
         "undo_storm": 3,
     },
-    # The folder-artwork fallback: opens through all three resolve strategies
-    # (a folder, a burst of files, a lone file), the playlist visible far more
-    # often than elsewhere so cell draws pull thumbnails off the resolver
-    # concurrently with the header's display-size load, and the setting flipped
-    # underneath both. Pair it with a corpus built for it.
+    # The folder-artwork fallback; pair it with make-hostile-corpus.py.
     "artwork": {
         "open_file": 20, "open_dir": 14, "open_burst": 16, "open_playlist": 6,
         "cache_churn": 3, "clear_caches": 3,
@@ -1132,26 +940,12 @@ PROFILES = {
         "appearance": 6, "resize_storm": 3,
         "theme": 3,
     },
-    # The cloud path: files that are placeholders and take real time to arrive,
-    # so the scan's serial cloud lane, the foreground-download hold, the
-    # neighborhood re-ranking and the abandoned play and prefetch opens are all
-    # live at once. Needs the fake provider armed, which --profile cloud does at
-    # launch, and a corpus of BIG folders with real tags and embedded art —
-    # make-cloud-corpus.py builds one.
-    #
-    # The weights are the opposite of `loading`'s, and the first version of this
-    # profile got it exactly wrong by copying them. Opens are what this profile
-    # must be SPARING with: the sweep is deferred until playback starts or two
-    # seconds pass, and a replacement playlist drops the loader outright, so a
-    # stream of opens 80ms apart means the sweep never runs and the lane this
-    # profile exists to test is never even populated. Measured on the first
-    # attempt: 11 downloads cancelled, 1 completed, cloudParsesPending never
-    # above zero.
-    #
-    # So: heavy settle, so a sweep gets seconds to work through a folder; heavy
-    # jumping, because landing on an arbitrary row is what moves the ranking and
-    # raises the hold where nothing has prefetched; and clear_caches often,
-    # because a cache hit means no parse and therefore no download to race.
+    # The fake provider's placeholders (armed at launch); pair it with
+    # make-cloud-corpus.py. Opens must be SPARING: the sweep is deferred until
+    # playback starts or two seconds pass and a replacement playlist drops the
+    # loader, so opens 80ms apart never populate the cloud lane (measured: 11
+    # downloads cancelled, 1 completed). Every nonzero weight below is a settle
+    # not taken.
     "cloud": {
         "open_file": 3, "open_dir": 8, "open_burst": 3, "open_playlist": 1,
         "cache_churn": 3, "clear_caches": 5, "cloud_churn": 4,
@@ -1160,30 +954,21 @@ PROFILES = {
         "fx": 0, "held_fx": 0,
         "window": 1, "resize": 1, "file_drag_drop": 1,
         "menu": 1, "undo": 0, "settle": 30, "folder_art": 1,
-        # Reorder earns a thin slot here despite the settle budget: moving the
-        # successor away re-parks prefetch, which is a live cloud transfer
-        # being retargeted — a race only this profile can reach.
+        # Moving the successor re-parks prefetch, retargeting a live transfer.
         "reorder_begin": 2, "reorder_finish": 2,
-        # remove_selected is cloud-relevant for the same reason: a removed
-        # row's queued scan work is abandoned mid-transfer, and a removed
+        # A removed row abandons queued scan work mid-transfer; a removed
         # current row supersedes a live foreground download.
         "remove_selected": 2,
         "append": 2, "end_of_track": 2, "analysis_flip": 1,
-        # Kept deliberately thin. This profile's weights are a measured balance
-        # between opens and settles — every op kind added here is a settle not
-        # taken, and the sweep needs those seconds. block_main earns its place
-        # anyway: holding main across a transfer's completion callback is
-        # exactly the ordering the foreground hold is written for.
+        # Holding main across a transfer's completion callback is the ordering
+        # the foreground hold is written for.
         "block_main": 6, "audio_loading": 3, "equalizer_mode": 0,
         "appearance": 0, "resize_storm": 0,
-        # Zero deliberately, and not by oversight: every weight above is a
-        # measured balance between opens and settles, and each op added here is
-        # a settle not taken. The sweep needs those seconds.
         "theme": 0, "theme_import": 0,
         "select_rows": 0, "playlist_move": 0,
         "undo_storm": 0,
     },
-    # UI controller actions against whatever is loaded; never raw input.
+    # Controller actions against whatever is loaded; opens nothing.
     "ui": {
         "open_file": 0, "open_dir": 0, "open_playlist": 0, "open_burst": 0,
         "cache_churn": 0, "clear_caches": 0,
@@ -1197,23 +982,8 @@ PROFILES = {
         "appearance": 6, "resize_storm": 10,
         "theme": 8,
     },
-    # The theme record end to end: the store, the sanitizer and the apply.
-    #
-    # A theme apply is the app's widest settings edit — every themed field
-    # repopulated at once, then ThemeApply re-resolving window chrome, four
-    # font slots, the playlist's colours and the waveform's palette in one
-    # turn. So the pressure that matters is not the number of applies but WHAT
-    # is in flight underneath them: opens stay heavy, because the artwork
-    # colour feeding the waveform palette rides the generation-matched install
-    # path and an apply landing between a delivery and its install is the case
-    # the colour-ownership guarantee is written for.
-    #
-    # Appearance is heavy for the same reason: every theme rule branches on
-    # dark, and a single-mode theme outranks the window's own appearance
-    # setting outright, so the two only disagree when both move. The waveform
-    # STYLE rides along inside the theme rather than being driven separately —
-    # the built-ins carry three different ones and the import fuzzer sets the
-    # field directly.
+    # The theme record end to end (store, sanitizer, apply), with opens heavy
+    # because what matters is what is in flight under an apply.
     "theme": {
         "open_file": 14, "open_dir": 6, "open_burst": 10, "open_playlist": 2,
         "cache_churn": 3, "clear_caches": 4,
@@ -1227,19 +997,9 @@ PROFILES = {
         "select_rows": 3, "remove_selected": 2, "playlist_move": 2,
         "undo_storm": 1,
     },
-    # Structural edits to the playlist, under enough transport to make them
-    # dangerous. The model half deliberately cannot make the transport
-    # decision — removing the CURRENT row through the playlist alone would
-    # leave the player sounding an object the list no longer holds — so what
-    # this profile is really driving is the shell funnel that owns the unload,
-    # the successor re-prefetch, the replacement play and the undo
-    # registration, all of which only have an interesting branch while
-    # something is actually playing.
-    #
-    # Opens stay in the mix rather than being zeroed: a replacement playlist is
-    # what makes a registered undo stale, and its restore must then die quietly
-    # instead of reinserting into a list it no longer describes. That is
-    # reachable only by editing, then opening, then undoing.
+    # Structural edits under enough transport to reach the shell funnel's
+    # playing branches. Opens stay: only edit, open, undo makes a registered
+    # undo stale.
     "playlist": {
         "open_file": 8, "open_dir": 8, "open_burst": 6, "open_playlist": 4,
         "cache_churn": 2, "clear_caches": 2,
@@ -1258,9 +1018,7 @@ PROFILES = {
 
 
 def effective_weights(profile):
-    """The op weights a profile actually runs: base overlaid by the profile.
-
-    All profiles generate command-only operations, including inherited ones."""
+    """The op weights a profile actually runs: base overlaid by the profile."""
     weights = dict(PROFILES["base"])
     weights.update(PROFILES.get(profile, {}))
     return weights
@@ -1278,9 +1036,8 @@ def check_liveness(channel, since=None):
     if app_is_running():
         raise Failure("hang", "the app is running but stopped answering the channel "
                               "(the channel is served on the main thread)")
-    # Gone with no crash report is not a crash: the app terminated cleanly, so
-    # something in the op stream asked it to. Saying "crash" there sends you
-    # hunting for a stack that was never written.
+    # Gone without a report is a clean exit an op asked for, not a crash:
+    # calling it one sends you hunting for a stack that was never written.
     if since is not None and not fresh_crash_reports(since):
         raise Failure("exit", "the app terminated cleanly — no crash report was written, "
                               "so an op quit it rather than crashing it")
@@ -1288,12 +1045,9 @@ def check_liveness(channel, since=None):
 
 
 def check_consistency(channel, settle=0.35):
-    """A violation counts only if it survives a settle and a second sample.
-
-    Several checks compare a rendered label against the state that should have
-    produced it, and renderState runs from the updateUI funnel — so a state
-    that flipped this runloop turn may legitimately not be drawn yet.
-    """
+    """A violation counts only if it survives a settle and a second sample:
+    renderState runs from the updateUI funnel, so a state that flipped this
+    runloop turn may legitimately not be drawn yet."""
     code, first, _ = channel.run(["check_consistency"], timeout=20)
     if code != 0 or first is None:
         check_liveness(channel)   # raises hang/crash; otherwise a transient miss
@@ -1313,93 +1067,46 @@ PENDING_KEYS = ("metadataHolders", "metadataWaiters", "openResultsBuffered",
                 "openBurstQueued", "retiredFades", "priorityRecordsPending",
                 "handleOpensInFlight")
 
-# priorityRecordsPending IS a growth metric at quiescence, unlike the two
-# below: at most one or two priority records legitimately exist (the current
-# track, a convert target), and one outliving its play is a strand. The
-# 37-entry strand the soak missed was invisible precisely because no scored
-# counter carried it.
+# The `pending` counters scored as growth. priorityRecordsPending: at most one
+# or two legitimately exist, and one outliving its play is a strand.
+# handleOpensInFlight: an open that never returns cannot be cancelled, so each
+# is admission capacity lost for good (the J8 wedged-open starvation).
 #
-# handleOpensInFlight is the stranded-open signal, and it is a growth metric in
-# the strictest sense: a file open that never returns cannot be
-# cancelled, so the count only ever goes up. At rest it must be zero, and a
-# single stuck open is a permanent loss of admission capacity that no other
-# counter here carries — the wedged-open starvation bug (file-loading spec J8)
-# was invisible to this whole table until it was added.
-#
-# dump_health's pending section also carries cloudParsesPending and
-# cloudLaneHeld, and they are deliberately NOT scored here. Neither is a growth
-# metric: a sweep of a cloud folder legitimately holds dozens of pending parses,
-# and the lane is legitimately held for the whole of every foreground open, so
-# a headroom over a min-of-first-three baseline would either never fire or fire
-# constantly. Both are already covered where they mean something —
-#   at rest: quiesce refuses to settle until both reach zero, and a
-#            `settled: false` reply is a `pending` failure naming the counter;
-#   mid-run: check_consistency's cloud.* checks, which test the CONDITIONS
-#            (held with nothing playing, a background download inside a
-#            foreground one) rather than the magnitudes.
+# The rest of `pending` (cloudParsesPending, cloudLaneHeld,
+# datalessProbesInFlight) legitimately swings mid-run, so it is not scored
+# here: quiesce refuses to settle until every pending counter is zero, which
+# fails the run as `pending`, and check_consistency's cloud.* checks test the
+# conditions mid-run.
 
-# In-flight limits: sampled mid-run, so they have to tolerate a decode's worth
-# of churn. Loose by necessity — see the resting limits below for the sensitive
-# version of the same measurement.
+# In-flight limits: loose, since a mid-run sample carries a decode's churn.
+# (section, key) in dump_health -> (absolute headroom, human name).
 GROWTH_LIMITS = {
-    # path in dump_health -> (absolute headroom, human name)
     ("process", "footprintBytes"): (400 * 1024 * 1024, "memory footprint"),
-    # Tightened from 200 once the metric started measuring descriptors rather
-    # than the descriptor TABLE, which only ever grew (see
-    # VibeOpenFileDescriptorCount). True counts sit in single digits at rest and
-    # a few dozen mid-burst, so this is now a real detector rather than a number
-    # that could not fire — and a descriptor leak is the kind of growth this
-    # catches: 300 stranded descriptors meet a 256 soft limit.
+    # Open descriptors: single digits at rest, a few dozen mid-burst. A leak
+    # of 300 meets the 256 soft limit.
     ("process", "fileDescriptors"): (64, "open file descriptors"),
     ("process", "threads"): (48, "threads"),
     ("process", "machPorts"): (2000, "mach ports"),
     ("ui", "windows"): (3, "windows"),
     ("ui", "views"): (400, "views"),
-    # Sized for the widest window the fuzzer picks, because the layer count is
-    # no longer a constant: Sonic Cirrus derives its bar count from the drawn
-    # width at a 4pt pitch and draws TWO CALayers per bar, capped at 1,024 bars
-    # — so 2,048 layers is a legitimate resting state for a wide window, on top
-    # of AppKit's own bistable ~101/~350 glass machinery. Measured: a 2,844pt
-    # window read 1,432 layers, which is 711 bars x 2 plus chrome, and held it
-    # for three consecutive samples because the window stayed wide. The old
-    # +800 was right when every style had a fixed 128 or 1,024 bars in ONE
-    # shared mask path. Views stay the sensitive UI metric; a real layer leak
-    # is unbounded and clears this too.
+    # Sized for the widest window: Sonic Cirrus draws two CALayers per bar at a
+    # 4pt pitch, up to 1,024 bars, so 2,048 layers is a legitimate state
+    # (measured: 2,844pt read 1,432). Views are the sensitive UI metric; a
+    # real layer leak is unbounded and clears this too.
     ("ui", "layers"): (2400, "layers"),
     ("app", "hostedUnits"): (4, "hosted units"),
-    # Cumulative and zero in a healthy run: a refusal is an output unit's callback
-    # meeting a render stuck past its bounded stop.
+    # Cumulative; any refusal is an output unit's callback meeting a stuck
+    # render.
     ("app", "renderRefusals"): (0, "render refusals"),
     **{("pending", key): (8, f"pending {key}") for key in PENDING_KEYS},
 }
 
-# Resting limits, applied only to samples taken right after a `quiesce`. The
-# app is back at a fixed idle state there — no track, empty playlist, nothing
-# in flight — so the COUNTABLE metrics can be held tight enough to catch a slow
-# leak the in-flight limits would never see.
-#
-# Every headroom below is set from measured ranges over loading-profile runs,
-# not guessed:
-#
-#   views 47, windows 1, hosted units flat (the varispeed and the FX units
-#   are hosted once), every pending counter 0 — dead stable across runs, so
-#   these are the sensitive ones. Layers are NOT; see the limit below.
-#   threads 14-26 and fds 45-70 breathe with the loader pool and whether a
-#   folder is open.
-#   footprint 47-335 MB, and NOT accumulating: the same seed rests at 298 MB in
-#   one run and 51 MB in another, and a run that sat at 313 MB dropped to 88 MB
-#   two samples later. Concurrent decode and analyzer buffers dominate it and
-#   their lifetimes are timing-dependent, so it is a gross-leak backstop here
-#   rather than a sensitive signal. The counters above are where sensitivity
-#   actually comes from.
-#
-#   mallocLiveBytes is the sensitive version of that footprint: bytes actually
-#   allocated across every malloc zone, measured at ~19 MB where the footprint
-#   read 203 MB. The gap is the allocator holding freed pages — quiesce calls
-#   malloc_zone_pressure_relief, but it does NOT reliably give them back, which
-#   is why the footprint above cannot be tightened and why this metric exists.
-#   Read quiesce's `pressureRelief.releasedBytes` before believing any resting
-#   footprint number.
+# Resting limits, for samples taken right after a `quiesce` (no track, empty
+# playlist, nothing in flight), from measured loading-profile ranges: views 47,
+# windows 1, hosted units flat and pending 0 are stable, so they are the
+# sensitive ones; threads 14-26 breathe with the loader pool;
+# footprint 47-335 MB wanders with the allocator (see health_growth), which is
+# why mallocLiveBytes (~19 MB where the footprint read 203) is the heap signal.
 RESTING_GROWTH_LIMITS = {
     ("process", "mallocLiveBytes"): (64 * 1024 * 1024, "resting live heap"),
     ("process", "footprintBytes"): (256 * 1024 * 1024, "resting memory footprint"),
@@ -1408,20 +1115,9 @@ RESTING_GROWTH_LIMITS = {
     ("process", "machPorts"): (300, "resting mach ports"),
     ("ui", "windows"): (1, "resting windows"),
     ("ui", "views"): (40, "resting views"),
-    # Views are the sensitive half of this pair; layers deliberately are not.
-    # The resting layer count is bistable — ~101 and ~350-356 — and moves in
-    # BOTH directions within a single run. Nothing app-level selects it: with
-    # views pinned at 47 it is unmoved by row count (0 to 2208), window width
-    # (400 to 3000pt), or quiesce; the pitch panel and playlist toggle are worth
-    # 4 and 1 layers. It is AppKit's own glass and hosting-view machinery, so a
-    # tight limit against a min-of-first-three baseline fires whenever a run
-    # starts at the low plateau. Sized to clear that step; a real layer leak is
-    # unbounded and clears it too.
-    # Same reason as the in-flight limit above, and worse here: quiesce empties
-    # the playlist but does not resize the window or change the style, so the
-    # resting layer count carries whatever width and style the last ops left —
-    # ~101 with any Detailed style at any width, ~2,048 with Sonic Cirrus at a
-    # wide one. Until the resting sample pins both, this cannot be tight.
+    # Not tight: AppKit's own resting layer count is bistable (~101 and
+    # ~350-356, moving both ways within a run with views pinned at 47), and
+    # quiesce keeps the last width and style, so Sonic Cirrus can rest ~2,048.
     ("ui", "layers"): (2400, "resting layers"),
     ("app", "hostedUnits"): (4, "resting hosted units"),
     ("app", "renderRefusals"): (0, "resting render refusals"),
@@ -1429,10 +1125,8 @@ RESTING_GROWTH_LIMITS = {
 }
 
 
-# Health samples to collect before the baseline is fixed. The first sample is
-# a bad baseline on its own: the opening decode and its analyzers peak the
-# footprint well above the resting level, and a peak baseline is a permissive
-# one that hides the leak it was meant to catch.
+# The first sample alone is a peak (the opening decode and analyzers), and a
+# peak baseline hides the leak it was meant to catch.
 BASELINE_SAMPLES = 3
 
 
@@ -1447,50 +1141,30 @@ def min_baseline(samples, limits=GROWTH_LIMITS):
     return baseline
 
 
-# A single sample over the limit means nothing. Measured over a loading-profile
-# run, retiredFades swings as crossfades overlap and drain, and the footprint
-# spikes past 350MB during a decode before falling back to ~120MB. Only a
-# metric that stays over the limit for this many CONSECUTIVE samples is growth
-# rather than churn.
+# Consecutive over-limit samples before a metric counts as growth rather than
+# churn: mid-run, retiredFades swings as crossfades overlap and the footprint
+# spikes past 350MB during a decode. Resting samples are rarer (one per
+# --quiesce-every batches) and taken at a fixed idle state, so two suffice.
 GROWTH_CONFIRMATIONS = 3
-
-# Resting samples are far rarer — one per --quiesce-every batches — so waiting
-# for three of them would need most of a long run. Two is enough there, because
-# the measurement itself is taken at a fixed idle state rather than mid-churn.
 RESTING_CONFIRMATIONS = 2
 
 
-# Metrics the run has been told to stop scoring, by --ignore-metric. The only
-# honest use is standing down a metric whose finding is ALREADY diagnosed, so a
-# known bug stops masking everything behind it: an fd leak that fails every run
-# at op 600 hides whatever op 5,000 would have found. It is a global rather
-# than a parameter because health_growth is called from four places; the header
-# prints it on every run, because a relaxed run that looks like a strict one in
-# the summary is worse than no run.
+# --ignore-metric keys. The run header prints them: a relaxed run must not
+# read like a strict one.
 IGNORED_METRICS = set()
 
 
 def health_growth(baseline, current, streaks, limits=GROWTH_LIMITS,
                   confirmations=GROWTH_CONFIRMATIONS):
-    """Returns the messages for metrics that have now been over-limit long enough.
-
-    streaks is a caller-owned dict of consecutive over-limit counts per metric;
-    a sample back under the limit resets that metric to zero. Pass the resting
-    limits and a caller-owned streaks dict of their own to score the quiesced
-    series separately.
+    """Messages for metrics over their limit for `confirmations` consecutive
+    samples. streaks is caller-owned, one dict per scored series.
     """
     findings = []
-    # The footprint is a BACKSTOP, and on its own it is not evidence. It tracks
-    # the allocator's and the VM's high-water mark rather than anything the app
-    # retains, so it wanders in BOTH directions by hundreds of megabytes — one
-    # measured resting series read 553, 494, 749, 606, 838 MB while the live
-    # heap sat at 2.2 MB, byte-identical, with every pending counter at zero. A
-    # sanitizer build inflates it further still, its shadow memory alone
-    # clearing the limit on any long run.
-    #
-    # So it only counts when the live heap agrees. That keeps the gross-leak
-    # backstop — a real one grows both — without the false failure the skill
-    # otherwise tells every reader to expect and dismiss by hand.
+    # The footprint counts only when the live heap also grew past its limit.
+    # Alone it tracks the allocator's high-water mark and wanders both ways by
+    # hundreds of MB (a resting series read 553, 494, 749, 606, 838 MB with
+    # the live heap flat at 2.2 MB); a sanitizer's shadow memory inflates it
+    # further. A real leak grows both.
     live_limit = limits.get(("process", "mallocLiveBytes"))
     live_was = baseline.get("process", {}).get("mallocLiveBytes")
     live_now = current.get("process", {}).get("mallocLiveBytes")
@@ -1519,11 +1193,10 @@ def health_growth(baseline, current, streaks, limits=GROWTH_LIMITS,
 
 
 def quiesced_checkpoint(channel, samples, streaks, baseline, executed, verbose):
-    """Quiesce, sample at rest, score against the tight limits.
+    """Quiesce, sample at rest, score against the resting limits.
 
-    Returns (failure_or_None, baseline). A `settled: false` reply is itself a
-    finding: work that will not unwind inside the app's own deadline is stuck,
-    and the reply names the counter that held out.
+    Returns (failure_or_None, baseline). `settled: false` is itself a finding:
+    work that did not unwind inside the app's deadline, named by counter.
     """
     code, reply, _ = channel.run(["quiesce"], timeout=40)
     if code != 0 or reply is None:
@@ -1540,10 +1213,7 @@ def quiesced_checkpoint(channel, samples, streaks, baseline, executed, verbose):
     health["_ops"] = executed
     health["_resting"] = True
     samples.append(health)
-    # A pressure relief that released nothing means the footprint just sampled
-    # still carries the allocator's high-water mark, so the live heap beside it
-    # is the number to read. Said once: it is a property of the run, not of the
-    # sample.
+    # Said once per run: it describes the allocator, not the sample.
     relief = reply.get("pressureRelief") or {}
     if relief.get("releasedBytes") == 0 and not streaks.get("_reliefWarned"):
         streaks["_reliefWarned"] = True
@@ -1585,9 +1255,8 @@ def fresh_crash_reports(since):
 
 
 def capture_diagnostics(channel, out_dir: Path, failure: Failure, since):
-    # Cleared, not merged: the directory is named after the seed, so a re-run
-    # of the same seed would otherwise leave last run's sample and screenshot
-    # sitting beside this run's failure.txt, describing a different failure.
+    # Cleared: the directory is named after the seed, and a re-run's leftovers
+    # would describe a different failure.
     if out_dir.exists():
         shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1598,7 +1267,6 @@ def capture_diagnostics(channel, out_dir: Path, failure: Failure, since):
     pid = app_pid()
     if failure.kind == "hang" and pid and shutil.which("sample"):
         target = out_dir / "sample.txt"
-        # By pid, never by name: see app_pid.
         subprocess.run(["sample", str(pid), "5", "-file", str(target)],
                        capture_output=True, text=True)
         notes.append(f"main-thread sample (pid {pid}): {target}")
@@ -1608,11 +1276,9 @@ def capture_diagnostics(channel, out_dir: Path, failure: Failure, since):
         notes.append(f"crash report: {report.name}")
 
     if app_is_running():
-        # The cloud trace is the ONLY record of which transfer ran when and for
-        # which role, and the cloud.* consistency checks report a count without
-        # naming the files. A run that fires one of them and does not keep the
-        # trace cannot be diagnosed at all afterwards: the app is gone and the
-        # trace with it. Learned by losing exactly that on a 6,758-op run.
+        # The cloud trace is the only record of which transfer ran when and for
+        # which role; the cloud.* checks name no files, and the trace dies
+        # with the app.
         for verb, name in (("dump_state", "state.json"),
                            ("dump_view_tree", "view-tree.json"),
                            ("dump_cloud_trace", "cloud-trace.json"),
@@ -1635,17 +1301,12 @@ def capture_diagnostics(channel, out_dir: Path, failure: Failure, since):
 
 
 def collect_themes(channel):
-    """Every applicable theme id, and one real record to mutate from.
+    """Every applicable theme id (View > Theme, so user themes too), and one
+    real record to mutate from.
 
-    The ids come from the View > Theme submenu, which its delegate fills in, so
-    they cover the user's own themes as well as the built-ins.
-
-    Order matters in the base record's fallback chain, and it is not
-    alphabetical: a theme is a SPARSE record over the factory defaults, so the
-    built-ins differ enormously in how much they actually carry. Signal
-    Workshop sets every group and the most fields; Technical sets every group;
-    the Vibe theme is the empty record, and mutating that one would fuzz a
-    single group per import. Take the fullest that answers.
+    The base record's fallback order is by fullness: a theme is a SPARSE
+    record, Cupertino and Technical set every group, and Vibe is the empty
+    record, whose mutation would fuzz one group per import.
     """
     ids, base = [], None
     code, payload, _ = channel.run(["dump_menu"], timeout=20)
@@ -1660,9 +1321,8 @@ def collect_themes(channel):
                     walk(item["items"])
 
         walk(payload.get("menu", []))
-    # The menu ids are the display path; the built-ins are named ones the
-    # set_theme matcher resolves either way, so a run whose dump_menu happened
-    # before the delegate filled the submenu still has something to apply.
+    # The submenu fills only when opened, so dump_menu can miss it; the
+    # built-ins guarantee something to apply.
     for built_in in ("vibe", "cupertino", "field", "glassy", "snake",
                      "sonic_cirrus", "tangerine", "technical"):
         if built_in not in ids:
@@ -1684,10 +1344,8 @@ def collect_menu_ids(channel):
     def walk(items):
         for item in items:
             identifier = item.get("id")
-            # A submenu parent is not a clickable op: it is built with a nil
-            # action, but AppKit assigns it submenuAction: once it has a
-            # submenu, which reaches no responder. Recurse into its children
-            # rather than collecting it.
+            # A submenu parent's AppKit-assigned submenuAction: reaches no
+            # responder, so only its children are ops.
             has_submenu = "items" in item
             if (identifier and not has_submenu
                     and identifier in MENU_IDS):
@@ -1698,8 +1356,8 @@ def collect_menu_ids(channel):
     walk(payload.get("menu", []))
     missing = MENU_IDS - set(ids)
     if missing:
-        # FX can be absent by design when the chain is disabled. Still
-        # name every missing item so a rename never silently erases coverage.
+        # FX items are absent when the chain is disabled; still named, so a
+        # rename never silently erases coverage.
         print("WARNING: missing allowed menu IDs (not exercised): "
               + ", ".join(sorted(missing)), file=sys.stderr)
     return ids
@@ -1710,19 +1368,14 @@ def replay_ops(channel, ops, journal=None, check_every=0, stop_on_failure=True, 
     """Run a list of (name, argv, tolerated) and return the failure, or None.
 
     stalls, when given, is {"dir", "count", "samples", "max"}: recoverable
-    main-thread stalls are sampled and counted there rather than failing the
-    run outright.
+    main-thread stalls are sampled and counted there instead of failing.
 
-    imported_themes, when given, collects the identifier from every accepted
-    import_theme reply, so the end-of-run cleanup can remove exactly what the
-    run persisted. The reply is the authority — the record's own name is not,
-    since the store may rename on dedupe and a mutated envelope may not carry
-    a usable one.
+    imported_themes, when given, collects the `imported` identifier of every
+    accepted import_theme reply, for teardown to remove. The reply is the
+    authority: the store may rename, and a mutated record may carry no name.
     """
-    # One client process for the whole batch. Anything the batch could not
-    # deliver — a hang, an unquotable argument — falls through to the per-op
-    # loop, which resumes exactly where the reply stream stopped, so the op that
-    # wedged still gets its own timeout and its own stall diagnosis.
+    # Whatever the batch did not deliver runs one op at a time from where the
+    # reply stream stopped.
     for _, argv, _ in ops:
         require_command(argv)
     batched = {}
@@ -1735,7 +1388,7 @@ def replay_ops(channel, ops, journal=None, check_every=0, stop_on_failure=True, 
     for i, (name, argv, tolerated) in enumerate(ops):
         if i in batched:
             code, payload = batched[i]
-            elapsed = 0   # a batched op has no round trip of its own to time
+            elapsed = 0   # no round trip of its own
         else:
             code, payload, elapsed = channel.run(argv, timeout=VERB_TIMEOUTS.get(argv[0], 30))
         entry = {"i": i, "op": name, "argv": argv, "exit": code, "ms": elapsed}
@@ -1744,10 +1397,8 @@ def replay_ops(channel, ops, journal=None, check_every=0, stop_on_failure=True, 
                 and payload["imported"] not in imported_themes):
             imported_themes.append(payload["imported"])
         if tolerated:
-            # Journaled so replay and shrink apply the SAME rules. Without it,
-            # `undo` on an empty stack is a pass when generated and a failure
-            # when replayed — and the shrinker then happily minimizes any
-            # journal down to that one benign op instead of the real bug.
+            # Journaled so replay and shrink tolerate the same errors; otherwise
+            # the shrinker minimizes any journal down to one benign refusal.
             entry["tolerated"] = tolerated
         if code == 1:
             pid = app_pid()
@@ -1757,10 +1408,8 @@ def replay_ops(channel, ops, journal=None, check_every=0, stop_on_failure=True, 
                     journal.write(json.dumps(entry) + "\n")
                     journal.flush()
                 return Failure("crash", f"the app died on `{' '.join(argv)}`", argv)
-            # Still alive but silent: the channel is served on the main queue,
-            # so it is stalled right now. Sample before probing, because a
-            # probe that succeeds means the stall has already ended and the
-            # stack is gone with it.
+            # Alive but silent. Sample before probing: a probe that succeeds
+            # means any stall has ended and taken its stack with it.
             sample_path = None
             if stalls is not None and shutil.which("sample"):
                 stalls["samples"] += 1
@@ -1771,12 +1420,8 @@ def replay_ops(channel, ops, journal=None, check_every=0, stop_on_failure=True, 
             probe_started = time.monotonic()
             recovered = channel.run(["dump_state"], timeout=60)[0] == 0
             probe_ms = int((time.monotonic() - probe_started) * 1000)
-            # A timeout whose follow-up probe answers at the usual latency was
-            # never a main-thread stall: the verb outran its own budget while
-            # the channel stayed live, which is what a big file does to
-            # file_cache. The sample proves which one it was — an idle main
-            # thread parked in mach_msg is a slow verb, not a wedge — so only a
-            # probe that was itself slow counts against the stall budget.
+            # A probe answering at the usual latency means the verb was slow
+            # (file_cache on a big file), not main: only a slow probe counts.
             stalled = probe_ms > STALL_PROBE_MS
             entry["probeMs"] = probe_ms
             entry["failure"] = ("stall" if stalled else "slow") if recovered else "no response"
@@ -1789,8 +1434,7 @@ def replay_ops(channel, ops, journal=None, check_every=0, stop_on_failure=True, 
                 return Failure("hang", f"no response to `{' '.join(argv)}`", argv)
             if stalls is not None and stalled:
                 stalls["count"] += 1
-            # A stall it came back from is a finding, not a wedge. One is
-            # noise on a loaded machine; a run full of them is the bug.
+            # One recovered stall is noise on a loaded machine; many are the bug.
             if stalls is not None and stalls["count"] > stalls["max"]:
                 return Failure("hang",
                                f"{stalls['count']} main-thread stalls over 5s "
@@ -1806,8 +1450,7 @@ def replay_ops(channel, ops, journal=None, check_every=0, stop_on_failure=True, 
                         journal.flush()
                     return Failure("command", f"`{' '.join(argv)}` -> {message}", argv)
         elif code != 0:
-            # Anything else is the client dying on a signal after its retries,
-            # or a usage error (64) from a malformed op — never a pass.
+            # A signal after the retries, or a usage error (64): never a pass.
             entry["failure"] = f"client exit {code}"
             if journal:
                 journal.write(json.dumps(entry) + "\n")
@@ -1846,13 +1489,9 @@ def run(args):
     started = time.time()
     launch(corpus, app)
     menu_ids = collect_menu_ids(channel)
-    # Settings is RESTORABLE, and the app opts into NSQuitAlwaysKeepsWindows —
-    # so once it has been open at quit, AppKit reopens it on every launch
-    # afterwards, and no op in the run is responsible. Left alone it either
-    # lands ~600 views in the baseline (measuring a different app all run) or
-    # arrives after it (failing the run on a window rather than on a leak).
-    # Closing it before the baseline is what makes every leg start from the
-    # same UI, whatever the previous leg left behind.
+    # Window restoration (NSQuitAlwaysKeepsWindows) reopens Settings if it was
+    # open at quit: ~600 views in the baseline, or a false growth failure after
+    # it. Close it before the first sample.
     channel.run(["settings_close"], timeout=20)
     themes, theme_base = collect_themes(channel)
     print(f"menu:   {len(menu_ids)} allowed app actions")
@@ -1863,28 +1502,15 @@ def run(args):
     if IGNORED_METRICS:
         print(f"RELAXED: not scoring {', '.join(sorted(IGNORED_METRICS))} "
               f"— this run cannot report those")
-    # Appearance and waveform style are the user's own settings, not features
-    # the run needs forced on, and both persist in NSUserDefaults — so a run
-    # whose last flip happened to be `dark` leaves the app dark forever after.
-    # Snapshot them and put them back at the end, whether the run passed or not.
     restore = user_settings_snapshot(channel)
 
     if args.profile == "cloud":
-        # Armed before the first op rather than as one: the profile's premise is
-        # that an open is already a download, and a run that spent its first
-        # batch against local files would be scoring a different app.
-        #
-        # 0.9s BASE, deliberately above the player's own 0.5s slow-open
-        # threshold, so the slow-open UI — the loading state, the download fill,
-        # the placeholder artwork — is exercised rather than skipped. It is NOT
-        # what arms the foreground hold: that is taken at play submission, in
-        # the player's pre-submit delegate edge, whatever the open costs.
-        # Per-file times spread around the base with a slow and an
-        # effectively-stuck tail; see VibeFakeCloud.
-        #
-        # capacity=1 from the start, for the reason op_cloud_churn spells out:
-        # with an unlimited provider nothing ever waits on anything, and the
-        # ordering this profile exists to score is unobservable.
+        # Armed before the first op, so the first batch's opens are downloads.
+        # The 0.9s base sits above the player's 0.5s slow-open indicator delay,
+        # so the loading UI is exercised; per-file times spread around it with
+        # slow and stuck tails (VibeFakeCloud). capacity=1 is install's default
+        # too, stated because the hold is unobservable without it (see
+        # op_cloud_churn).
         code, payload, _ = channel.run(
             ["set_fake_cloud", "0.9", str(args.cloud_percent), "capacity=1"])
         if code != 0 or not (payload or {}).get("installed"):
@@ -1897,19 +1523,15 @@ def run(args):
                             themes=themes, theme_base=theme_base)
     journal_path = (Path(args.journal) if args.journal
                     else DEFAULT_OUTPUT_DIR / f"stress-{seed}.ndjson")
-    # Everything else in the run — health series, stall samples, the failure
-    # directory — derives from this parent, so one mkdir covers them all.
+    # The health series, stall samples and failure directory all land here.
     journal_path.parent.mkdir(parents=True, exist_ok=True)
     stalls = {"dir": journal_path.parent / f"stress-{seed}-stalls", "count": 0,
               "samples": 0, "max": args.max_stalls}
-    # Every identifier the run's import_theme ops persist, filled from the
-    # replies by replay_ops and removed again in user_settings_restore.
     imported_themes = []
     health_samples = []
     growth_streaks = {}
     baseline = None
-    # The quiesced series: rarer, taken at a fixed idle state, and scored
-    # against far tighter limits. This is where a slow leak actually shows.
+    # The quiesced series, scored against the tight resting limits.
     resting_samples = []
     resting_streaks = {}
     resting_baseline = None
@@ -1948,18 +1570,10 @@ def run(args):
                 code, health, _ = channel.run(["dump_health"], timeout=20)
                 if code == 0 and health:
                     health["_ops"] = executed
-                    # An auxiliary window left OPEN parks its whole subtree in
-                    # the view count for as long as it stays up: Settings is
-                    # ~600 views, which clears the growth limit on its own and
-                    # fails the run on a window rather than on a leak.
-                    #
-                    # Gate on views too: a window without an app view subtree
-                    # is not evidence of retained app UI.
-                    #
-                    # Nothing in the op set opens Settings on purpose and the
-                    # menu item that would is denied, so WHAT opens it is still
-                    # unknown. The note names the ops from the batch it showed
-                    # up in, which is what will localize it.
+                    # An open auxiliary window counts its subtree as views
+                    # (Settings is ~600), failing the run on a window rather
+                    # than a leak. No op opens Settings on purpose, so the
+                    # note names the batch's ops to localize whatever did.
                     aux_views = (health.get("ui") or {}).get("views", 0)
                     if ((health.get("ui") or {}).get("visibleWindows", 1) > 1
                             and baseline is not None
@@ -2000,9 +1614,7 @@ def run(args):
                         executed, args.verbose)
                     if failure:
                         break
-                    # quiesce empties the playlist, so the ui profile — which
-                    # never opens anything — would spend the rest of the run
-                    # driving an empty app.
+                    # quiesce empties the playlist, and `ui` never opens one.
                     if files:
                         channel.run(["open", str(rng.choice(files))])
 
@@ -2064,11 +1676,8 @@ def load_journal(path: Path):
 def reproduces(channel, corpus, app, ops, resting_mb=0):
     """Fresh app, replay ops, run the oracles. True if it still fails.
 
-    resting_mb turns this into a predicate for RESOURCE failures too: quiesce
-    and fail when the at-rest footprint exceeds it. Without that the shrinker
-    can only minimize crashes, hangs and consistency violations — and a retained
-    allocation is exactly the kind of failure whose repro you most want cut
-    down, since it only shows up after hundreds of ops.
+    resting_mb also counts an at-rest footprint above it as a failure, so a
+    resource failure can be shrunk like a crash.
     """
     for _, argv, _ in ops:
         require_command(argv)
@@ -2095,9 +1704,9 @@ def reproduces(channel, corpus, app, ops, resting_mb=0):
 def shrink(args):
     """Delta-debug the journal to a minimal op list that still fails.
 
-    ddmin: split into n chunks, try removing each; on success shrink to that
-    subset and reset, otherwise double n. Each candidate costs one relaunch,
-    so expect a shrink to take minutes, not seconds.
+    ddmin over complements: split into n chunks and try dropping each; keep
+    the first that still fails (n-1), otherwise double n. One relaunch per
+    candidate, so a shrink takes minutes.
     """
     app = Path(args.app).expanduser().resolve() if args.app else DEFAULT_APP
     corpus = Path(args.corpus).expanduser().resolve()
@@ -2140,15 +1749,9 @@ def shrink(args):
 
 
 def describe_materialization_coverage(channel) -> str:
-    """What the run actually put through the loading path, printed whether it
-    passed or failed.
-
-    F1 of docs/testing/materialization-coverage-plan.md. A run that performed
-    no handle opens has tested none of this, and until this line existed
-    nothing said so — the summary read the same either way, so a no-op was
-    indistinguishable from a pass. The `NONE` markers are the point: they are
-    not failures, they are the run telling you what it did not cover.
-    """
+    """What the run put through the loading path, pass or fail. A run with no
+    handle opens covered none of it and would read like a pass; `NONE` says
+    so, and is not a failure."""
     code, payload, _ = channel.run(["dump_health"], timeout=30)
     if code != 0 or not payload:
         return "unavailable (dump_health did not answer)"
@@ -2163,9 +1766,8 @@ def describe_materialization_coverage(channel) -> str:
              f"{failed} failed",
              f"{yielded} yielded",
              f"{refused} admission-refused"]
-    # Not scored: refusal is capacity pressure and a busy run has some. Reported
-    # because a run where it dominates is a run whose work mostly never ran, and
-    # no other number here would say so.
+    # Not scored (a busy run has some), but a run where refusal dominates
+    # mostly never did its work.
     if refused and ready and refused > ready:
         parts.append("WARN: more requests were refused than served")
     return ", ".join(parts)
@@ -2222,34 +1824,32 @@ def main():
     parser.add_argument("--isolated-desktop", action="store_true",
                         help="assert the gesture test is on a dedicated test Mac or disposable VM")
     parser.add_argument("--app", help=f"path to Vibe.app (default {DEFAULT_APP})")
-    parser.add_argument("--seed", type=int, help="replay a previous run's op sequence")
+    parser.add_argument("--seed", type=int, help="seed the op generator (a run prints its own)")
     parser.add_argument("--iterations", type=int, default=2000, help="ops to run (default 2000)")
-    parser.add_argument("--duration", type=float, help="stop after this many seconds")
+    parser.add_argument("--duration", type=float,
+                        help="stop after this many seconds; --iterations still caps the "
+                             "run, so raise both for a soak")
     parser.add_argument("--batch", type=int, default=25,
                         help="ops between oracle checks (default 25)")
     parser.add_argument("--quiesce-every", type=int, default=10,
-                        help="batches between quiesced (at-rest) health samples, 0 to "
-                             "disable (default 10). These carry the tight growth limits; "
-                             "the in-flight samples cannot, because a decode swings the "
-                             "footprint by hundreds of megabytes")
+                        help="batches between quiesced (at-rest) health samples, which "
+                             "carry the tight growth limits; 0 disables (default 10)")
     parser.add_argument("--max-stalls", type=int, default=3,
-                        help="recoverable >5s main-thread stalls tolerated (default 3); "
-                             "each one is sampled either way")
+                        help="recoverable main-thread stalls tolerated before failing "
+                             "(default 3); each is sampled")
     parser.add_argument("--profile", default="base", choices=sorted(PROFILES),
                         help="op weighting (default base)")
     parser.add_argument("--cloud-percent", type=int, default=60,
-                        help="cloud profile only: share of the corpus behaving as "
-                             "placeholders (default 60, deliberately MIXED — the local files "
-                             "are there to prove the cloud machinery has not slowed them "
-                             "down). 100 for an all-cloud folder.")
+                        help="cloud profile only: percent of files behaving as placeholders "
+                             "(default 60; the local rest proves the cloud path has not "
+                             "slowed them)")
     parser.add_argument("--client-app",
-                        help="app bundle to use as the channel CLIENT, when it should differ "
-                             "from --app. For sanitizer runs: an instrumented client costs "
-                             "~2.4s per op against ~0.13s for a plain one driving the same "
-                             "instrumented app. Build both from the same source.")
+                        help="app bundle to run as the channel client instead of --app: a "
+                             "plain client drives a sanitizer build at ~0.13s per op, not "
+                             "~2.4s. Build both from the same source.")
     parser.add_argument("--no-batch", action="store_true",
-                        help="one client process per op instead of one per batch. Slower; "
-                             "only needed when every op's own timing matters.")
+                        help="one client process per op instead of per batch; slower, for "
+                             "per-op timing")
     parser.add_argument("--journal",
                         help=f"NDJSON journal path (default {DEFAULT_OUTPUT_DIR}/"
                              "stress-<seed>.ndjson; the health series, stall samples and "
@@ -2257,17 +1857,14 @@ def main():
     parser.add_argument("--replay", help="replay a journal verbatim instead of generating ops")
     parser.add_argument("--shrink", help="delta-debug a failing journal to a minimal repro")
     parser.add_argument("--shrink-resting-mb", type=int, default=0,
-                        help="with --shrink, also treat an at-rest footprint above this "
-                             "many MB as a reproduction, so a resource failure can be "
-                             "minimized like a crash")
+                        help="with --shrink, also count an at-rest footprint above this "
+                             "many MB as a reproduction")
     parser.add_argument("--ignore-metric", action="append", default=[],
                         metavar="NAME",
                         help="stop scoring one dump_health metric (fileDescriptors, "
-                             "mallocLiveBytes, layers, ...). For standing down a finding "
-                             "that is ALREADY diagnosed, so it stops masking what lies "
-                             "behind it — a leak that fails every run at op 600 hides "
-                             "whatever op 5,000 would have found. Repeatable, and printed "
-                             "in the run header.")
+                             "mallocLiveBytes, layers, ...), to stand down an ALREADY "
+                             "diagnosed finding that masks what lies behind it. Repeatable; "
+                             "printed in the run header.")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
     if args.gesture_test:
@@ -2306,9 +1903,8 @@ def main():
 
 
 if __name__ == "__main__":
-    # A run's stdout is nearly always redirected to a file, and Python
-    # block-buffers that — so a soak's progress stays invisible until the
-    # process exits, which for an hour-long run is the entire run.
+    # stdout is usually redirected to a file, which Python block-buffers:
+    # a soak's progress would stay invisible until it exits.
     sys.stdout.reconfigure(line_buffering=True)
     try:
         sys.exit(main())

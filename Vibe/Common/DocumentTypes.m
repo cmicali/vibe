@@ -11,9 +11,9 @@
     NSMutableArray<UTType *> *types = [NSMutableArray new];
     NSArray *documentTypes = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleDocumentTypes"];
     for (NSDictionary *documentType in documentTypes) {
-        // Related-item declarations are sandbox plumbing (Convert to FLAC's
-        // sibling write), not types the app offers to open; including one
-        // would double-list a type in the ⌘O filter and default-player claim.
+        // A related-item declaration is sandbox plumbing (Convert to FLAC's
+        // sibling write); it would double-list a type in the ⌘O filter and
+        // the default-player claim.
         if ([documentType[@"NSIsRelatedItemType"] boolValue]) {
             continue;
         }

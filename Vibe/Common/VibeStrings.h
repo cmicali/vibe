@@ -2,61 +2,46 @@
 //  VibeStrings.h
 //  Vibe
 //
-// Every user-facing string in the app, in one place. Call sites use the STR_*
-// macro and nothing else — no key, English text, or translator comment inline.
+// Every user-facing string. Call sites use the STR_* macro only.
 //
 // Each entry is NSLS(key, value, comment), one per line however long:
-//   key     — symbolic and stable (menu.file, label.bpm), never the English
-//             text: rewording must not invalidate translations.
-//   value   — the English text. Seeds the catalog's "en" values and is the
-//             runtime fallback, so a missed lookup never renders "menu.file".
-//   comment — context for the translator: where it appears, what any format
-//             specifier holds.
+//   key     — symbolic and stable (menu.file), never the English text, so
+//             rewording does not invalidate translations.
+//   value   — the English text: the catalog's "en" seed and the runtime
+//             fallback.
+//   comment — translator context: where it appears, what each specifier holds.
 //
-// `make strings` regenerates Resources/Localizable.xcstrings from this file;
-// `make check-strings` fails when the two drift. An unreferenced macro still
-// yields a catalog key — delete the entry when the last call site goes.
-// Deliberately-unlocalized strings are marked VibeNotLocalized(...) at their
-// call sites instead of living here.
+// `make strings` regenerates Resources/Localizable.xcstrings from this file.
+// An unreferenced macro still yields a catalog key — delete the entry with its
+// last call site. Conventions live in the vibe-strings skill.
 //
-// The key-prefix families and the rest of the localization conventions —
-// terminology, testing, the extraction pipeline — live in CLAUDE.md's
-// Localization section, the single place they are documented.
-//
-// TRAP: named VibeStrings.h, NOT Strings.h. On the case-insensitive
-// filesystem "Strings.h" shadows POSIX <strings.h> during explicit-modules
-// dependency scanning (Xcode 26.6+ / CI): the SDK's CoreServices module
-// includes <strings.h>, resolves it to this file, and this file's Foundation
-// import completes a Foundation → CoreServices → Foundation cycle that fails
-// every module build in the target.
+// TRAP: named VibeStrings.h, NOT Strings.h. On a case-insensitive filesystem
+// "Strings.h" shadows <strings.h> in explicit-modules dependency scanning, and
+// this file's Foundation import closes a Foundation → CoreServices →
+// Foundation cycle that fails every module build.
 
 #ifndef VibeStrings_h
 #define VibeStrings_h
 
-// TRAP: extract-strings.sh preprocesses this header and needs
-// NSLocalizedStringWithDefaultValue to survive -E unexpanded — it is itself a
-// Foundation macro, so importing Foundation here would expand every entry into
-// its bundle-call body and extraction would find zero keys, marking the whole
-// catalog stale. The script defines VIBE_STRINGS_EXTRACTION to skip this
-// block; real builds see Foundation and the helper below.
+// TRAP: extract-strings.sh runs this header through `clang -E` and parses the
+// unexpanded NSLocalizedStringWithDefaultValue calls. That is a Foundation
+// macro, so importing Foundation under extraction would expand every entry and
+// extraction would find zero keys; the script defines VIBE_STRINGS_EXTRACTION.
 #ifndef VIBE_STRINGS_EXTRACTION
 #import <Foundation/Foundation.h>
 #endif
 
-// Lifts out the fixed scaffolding so entries read as key/English/comment.
-// xcstringstool cannot extract a three-argument macro (it matches macros by
-// name AND arity, even with -s), so extract-strings.sh preprocesses this file
-// and parses the expansion.
+// xcstringstool matches macros by name and arity, so it cannot extract this
+// three-argument one; extract-strings.sh parses its expansion instead.
 #define NSLS(key, value, comment) NSLocalizedStringWithDefaultValue(key, nil, NSBundle.mainBundle, value, comment)
 
 #pragma mark - Product
 
 #define STR_APP_NAME NSLS(@"app.name", @"Vibe", @"The application's name, as shown in the app menu and as the window title. A product name — translate only if it would otherwise be unreadable in the target script.")
 
-// The app name everywhere it appears — menu titles, the window title, "About
-// %@" — so the two catalogs cannot diverge: the localized CFBundleName, which
-// InfoPlist.xcstrings owns, with STR_APP_NAME as the never-nil fallback. Call
-// sites use this, never STR_APP_NAME directly.
+// The app name wherever it appears: the localized CFBundleName
+// (InfoPlist.xcstrings), so the two catalogs cannot diverge, with STR_APP_NAME
+// as the never-nil fallback. Call sites never use STR_APP_NAME directly.
 #ifndef VIBE_STRINGS_EXTRACTION
 static inline NSString *VibeAppName(void) {
     return [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleName"] ?: STR_APP_NAME;
@@ -95,7 +80,7 @@ static inline NSString *VibeAppName(void) {
 #define STR_MENU_EDIT_COPY_FILE            NSLS(@"menu.edit.copy_file",            @"Copy File",            @"Edit menu item: puts the current track's audio file on the clipboard, ready to paste in the Finder. Use the same verb as the system's Edit > Copy.")
 #define STR_MENU_EDIT_COPY_NAME            NSLS(@"menu.edit.copy_name",            @"Copy Name",            @"Edit menu item: copies the current track's display name — 'Artist - Title' — as text. Use the same verb as the system's Edit > Copy.")
 #define STR_MENU_EDIT_REMOVE_FROM_PLAYLIST NSLS(@"menu.edit.remove_from_playlist", @"Remove from Playlist", @"Edit menu item, and the same command in the playlist row menu: takes one track out of the playlist. The audio file stays on disk — nothing is deleted, moved or trashed — so use a verb that means taking something off a list, as Music does, not one that means deleting a file.")
-#define STR_MENU_EDIT_SELECT_ALL           NSLS(@"menu.edit.select_all",           @"Select All",           @"Edit menu item: selects every row of the list that has keyboard focus — the playlist, or the granted-folder list in Settings > Permissions. macOS uses this same name in every app.")
+#define STR_MENU_EDIT_SELECT_ALL           NSLS(@"menu.edit.select_all",           @"Select All",           @"Edit menu item: selects every row of the list that has keyboard focus — the playlist, or the granted-folder list in Settings > Files. macOS uses this same name in every app.")
 #define STR_MENU_EDIT_REORDER              NSLS(@"menu.edit.reorder",              @"Reorder",              @"Undo action name for dragging playlist rows to a new position; it appears only composed into the Edit menu's Undo/Redo titles, as 'Undo Reorder' / 'Redo Reorder'. Use a noun or noun-like form that reads naturally after the system's own Undo/Redo verb in your language.")
 
 #pragma mark - Transport
@@ -110,8 +95,9 @@ static inline NSString *VibeAppName(void) {
 
 #pragma mark - Playback menu
 
-// "More"/"Most" are progressively larger jumps (8/16/32 bars, or 10/30/60
-// seconds when the tempo is unknown) — not comparatives of a quantity.
+// "More"/"Most" are progressively larger jumps (the base bar count, twice and
+// four times it, or 10/30/60 seconds when the tempo is unknown) — not
+// comparatives of a quantity.
 
 #define STR_MENU_PLAYBACK          NSLS(@"menu.playback",                   @"Playback",          @"Menu bar: the Playback menu; also the Playback pane's sidebar item in the macOS Settings window, and the Playback row and screen title on iOS settings.")
 #define STR_MENU_PLAY_SELECTED     NSLS(@"menu.playback.play_selected",     @"Play Selected Track", @"Playback menu item: play the playlist row the user has selected, rather than the one already playing.")
@@ -258,9 +244,8 @@ static inline NSString *VibeAppName(void) {
 #define STR_SETTINGS_RESAMPLING_CAPTION   NSLS(@"settings.playback.resampling.caption",          @"Used when a file's sample rate differs from the output's.", @"iOS Settings, Playback screen: footer under the Resampling row, saying when the setting matters: only when a music file's sample rate differs from the output device's.")
 #define STR_SETTINGS_ENABLE_FX          NSLS(@"settings.playback.enable_fx",                    @"Enable audio effects",          @"Settings, Playback pane: checkbox choosing whether the DJ performance effects (low kill, reverb, delay) are available. 'FX' is the DJ term for effects, left untranslated.")
 #define STR_SETTINGS_OFF_WHILE_BIT_PERFECT NSLS(@"settings.playback.off_while_bit_perfect",      @"Off while bit-perfect output is on", @"Settings, Playback pane: caption under the disabled audio-FX switch and the disabled crossfade dropdown while bit-perfect output (Settings > Audio) is on, which turns both off.")
-// Bit-perfect output (Settings > General > Audio). English-only until release:
-// the wording is still moving. The status captions double as the header's
-// open-lock tooltip.
+// Bit-perfect output (Settings > Audio). The status captions double as the
+// header's bit-perfect tooltip.
 #define STR_SETTINGS_BIT_PERFECT               NSLS(@"settings.general.bit_perfect",                @"Bit-perfect output",       @"Settings, Audio pane: switch that sends each file's audio to the chosen output device unchanged — the device's sample rate and bit depth follow the file.")
 #define STR_SETTINGS_BIT_PERFECT_CAPTION_OFF   NSLS(@"settings.general.bit_perfect.caption_off",    @"Sets the device to each file's sample rate and bit depth", @"Settings, Audio pane: caption under the bit-perfect output switch while it is off, explaining what turning it on does. No trailing period.")
 #define STR_SETTINGS_EXCLUSIVE_OUTPUT              NSLS(@"settings.general.exclusive_output", @"Exclusive output", @"Settings, Audio pane: optional exclusive device access beneath Bit-perfect output.")
@@ -440,10 +425,9 @@ static inline NSString *VibeAppName(void) {
 #define STR_SETTINGS_DELETE_ORIGINAL     NSLS(@"settings.convert.delete_original",              @"Move original to Trash after conversion", @"Settings, Files pane, FLAC conversion group: checkbox — when on, a successful conversion moves the original file to the Trash. The same setting as the Convert menu's 'Delete Original After Convert' item, in sentence case per checkbox convention.")
 
 // The Files pane holds the granted-folder list and the folder-artwork setting.
-// The folder strings keep their settings.permissions.* keys, unchanged in
-// meaning and translation; only the pane's own title is a new key, since
-// reusing one would keep shipping the translated word "Permissions" until every
-// language was revisited.
+// Its folder strings keep their settings.permissions.* keys; the pane's title
+// has its own key, since reusing one would ship the translated word
+// "Permissions".
 #define STR_SETTINGS_FILES                NSLS(@"settings.files",                               @"Files",                    @"Settings window: the Files pane's toolbar item, and the window's title while that pane is selected; also the Files row on the iOS settings screen. The pane covers where the app looks for album art and which folders it keeps access to.")
 #define STR_SETTINGS_FOLDER_SORT_LABEL    NSLS(@"settings.files.folder_sort_label",             @"When opening a folder:",   @"Settings, Files pane: label beside the dropdown choosing the order a folder's songs are added to the playlist when that folder is opened. Ends with a colon.")
 #define STR_SETTINGS_FOLDER_SORT_NAME     NSLS(@"settings.files.folder_sort.name",              @"Sort by name",             @"Settings, Files pane, folder open sort choice: order the songs by filename, counting numbers in a filename as numbers. The default.")

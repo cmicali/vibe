@@ -2,15 +2,8 @@
 //  FilesViewController.h
 //  Vibe (iOS)
 //
-//  The Files tab: the system's own file browser, over the same providers the
-//  document picker reaches (On My iPhone, iCloud Drive, Dropbox — anything
-//  with a Files extension). Picking audio opens it exactly as the picker does,
-//  through FolderSession, so a file still expands to its directory when a
-//  grant covers it and the directory-as-playlist model is unchanged.
-//
-//  It is UIDocumentBrowserViewController rather than an embedded
-//  UIDocumentPickerViewController: the picker is a modal presentation and is
-//  not supported as a child, while the browser is built to be a root.
+//  The Files tab. A pick opens through FolderSession, as the picker's does.
+//  A browser, not an embedded picker: the picker is not supported as a child.
 //
 
 #import <UIKit/UIKit.h>

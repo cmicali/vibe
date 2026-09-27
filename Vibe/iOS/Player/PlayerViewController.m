@@ -2,9 +2,8 @@
 //  PlayerViewController.m
 //  Vibe (iOS)
 //
-//  The coordination: the chrome it builds, the update funnel, the empty state,
-//  and the PlaybackController events it draws. Everything else is a category —
-//  see PlayerViewControllerInternal.h for the surface they share.
+//  The chrome, the update funnel and the PlaybackController events. The
+//  categories share PlayerViewControllerInternal.h.
 //
 
 #import "PlayerViewControllerInternal.h"
@@ -20,22 +19,14 @@
 #import "VibeWeakProxy.h"
 #import "WaveformScrubberView.h"
 
-// How long the playhead's display link stays held for the system route picker
-// before releasing itself. Long enough to cover the sheet a user actually
-// dismisses, bounded because AVKit's end edge is not guaranteed.
+// Bounded because AVKit's end edge is not guaranteed.
 static const NSTimeInterval kRoutePickerHoldSeconds = 10;
 
-// The pager must not take a horizontal drag that starts on a waveform: the
-// scrubber owns those.
-//
-// TRAP: making the pager's pan require the scrubber's to fail is not enough.
-// When the scrubber's scroll sits exactly at a content edge, UIKit's nested
-// scroll arbitration keeps its pan from beginning at all so an ancestor scroll
-// view can have the gesture — the failure requirement is satisfied and the
-// pager inherits the drag, so pushing against an end either turned the page or,
-// on a one-track playlist, did nothing. Declining by hit-test here is what
-// leaves the drag with the scrubber. It has to be an override rather than a
-// delegate, since a scroll view owns its own pan's delegate.
+// TRAP: requiring the scrubber's pan to fail is not enough. At a content edge,
+// UIKit's nested-scroll arbitration never begins the scrubber's pan, so the
+// requirement is met and the pager takes the drag, turning the page. Declining
+// by hit-test keeps it with the scrubber; an override, since a scroll view owns
+// its pan's delegate.
 @interface TrackPagerView : UICollectionView
 @end
 
@@ -45,10 +36,8 @@ static const NSTimeInterval kRoutePickerHoldSeconds = 10;
         UIView *hit = [self hitTest:[recognizer locationInView:self] withEvent:nil];
         for (UIView *view = hit; view && view != self; view = view.superview) {
             if ([view isKindOfClass:[WaveformScrubberView class]]) {
-                // An unloaded scrubber disables its own pan so the failure
-                // requirement below can hand the gesture to the pager. Match
-                // that decision here; vetoing the pager unconditionally turns
-                // the empty waveform strip into a swipe dead zone.
+                // An unloaded scrubber hands the gesture to the pager, or the
+                // empty strip is a swipe dead zone.
                 if (((WaveformScrubberView *)view).isScrubbingEnabled) {
                     return NO;
                 }
@@ -61,13 +50,9 @@ static const NSTimeInterval kRoutePickerHoldSeconds = 10;
 @end
 
 @implementation PlayerViewController {
-    // Drives the scrolling waveform at display rate while playing in the
-    // active scene; the model's 3 Hz tick is far too coarse for a moving
-    // waveform.
+    // The model's 3 Hz tick is too coarse for a moving waveform.
     CADisplayLink           *_scrollLink;
 
-    // The affordance for the swipe that minimizes the card, and a tap target
-    // that does the same.
     UIView                  *_grabberView;
     UIButton                *_grabberTarget;
     UITapGestureRecognizer  *_screenTap;
@@ -87,8 +72,7 @@ static const NSTimeInterval kRoutePickerHoldSeconds = 10;
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    // Forced dark, like the Apple Music and SoundCloud player screens: every
-    // label and the waveform must read over arbitrary blurred art.
+    // Forced dark: every label must read over arbitrary blurred art.
     self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     self.view.backgroundColor = [UIColor systemBackgroundColor];
     // Before buildUI, so the first cell to display already has it.
@@ -101,7 +85,7 @@ static const NSTimeInterval kRoutePickerHoldSeconds = 10;
 
     _scrollLink = [CADisplayLink displayLinkWithTarget:[VibeWeakProxy proxyWithTarget:self]
                                               selector:@selector(scrollTick:)];
-    // ~1pt/frame of motion gains nothing at 120 Hz; spare ProMotion the work.
+    // ~1pt/frame of motion gains nothing at 120 Hz.
     _scrollLink.preferredFrameRateRange = CAFrameRateRangeMake(30, 60, 60);
     _scrollLink.paused = YES;
     [_scrollLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
@@ -109,18 +93,12 @@ static const NSTimeInterval kRoutePickerHoldSeconds = 10;
     [_playback addObserver:self];
 
     NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
-    // The settings screen lives on the Playlist tab, with this one minimized
-    // behind it, so the change arrives from outside rather than from a control
-    // of ours.
     [center addObserver:self selector:@selector(displaySettingsDidChange)
                    name:VibeDisplaySettingsDidChangeNotification object:nil];
 }
 
-// All three settings at once, since a screen that writes one may have written
-// any of them: the header carries the file-info line, the scrubbers carry the
-// waveform style, and the right label carries the time mode. Only the visible
-// pages need it — a cell in the reuse pool is configured from scratch on its
-// way back on screen.
+// All settings at once, visible pages only: a pooled cell is configured from
+// scratch on its way back.
 - (void)displaySettingsDidChange {
     for (TrackPageCell *cell in _pagesView.visibleCells) {
         NSIndexPath *path = [_pagesView indexPathForCell:cell];
@@ -133,8 +111,7 @@ static const NSTimeInterval kRoutePickerHoldSeconds = 10;
     [self repaintTimesOnVisiblePages];
 }
 
-// Reachable because the display link holds the weak proxy, not the
-// controller; the invalidate releases the link's run-loop registration.
+// Reachable because the display link holds a weak proxy.
 - (void)dealloc {
     [_scrollLink invalidate];
 }
@@ -146,8 +123,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     if (!VibeShowsRemainingTime()) {
         return [formatters durationStringFromTimeInterval:duration];
     }
-    // Same spelling as the mac's renderRightTimeLabel: a literal minus, not a
-    // localized one — it is arithmetic notation, not prose.
+    // Arithmetic notation, not prose, so not localized.
     return [VibeNotLocalized(@"-") stringByAppendingString:
             [formatters durationStringFromTimeInterval:MAX(0, duration - position)]];
 }
@@ -169,24 +145,19 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     _pagesView.pagingEnabled = YES;
     _pagesView.showsHorizontalScrollIndicator = NO;
     _pagesView.allowsSelection = NO;
-    // A two-finger touch on this screen is a waveform zoom, never a page swipe.
+    // Two fingers are a waveform zoom, never a page swipe.
     _pagesView.panGestureRecognizer.maximumNumberOfTouches = 1;
-    // Photos-style edge give: pulling past the first or last page reveals the
-    // backdrop and springs back. alwaysBounce keeps the pull alive on a
-    // one-track playlist too, where content exactly fills the bounds.
+    // alwaysBounce keeps the edge pull alive on a one-track playlist.
     _pagesView.bounces = YES;
     _pagesView.alwaysBounceHorizontal = YES;
     _pagesView.backgroundColor = [UIColor clearColor];
-    // What an edge pull (and the empty state) reveals behind the pages: the
-    // record texture, full-bleed. backgroundView pins it behind the cells
-    // without scrolling.
+    // What an edge pull and the empty state reveal.
     UIImageView *backdrop = [[UIImageView alloc]
             initWithImage:[UIImage imageNamed:@"record-bg"]];
     backdrop.contentMode = UIViewContentModeScaleAspectFill;
     backdrop.clipsToBounds = YES;
     _pagesView.backgroundView = backdrop;
-    // Pages must be exactly screen-sized; safe-area adjustment would shrink
-    // the content and break the paging math.
+    // Pages must be exactly screen-sized for the paging math.
     _pagesView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
     _pagesView.dataSource = self;
     _pagesView.delegate = self;
@@ -195,14 +166,13 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     _pagesView.translatesAutoresizingMaskIntoConstraints = NO;
     [root addSubview:_pagesView];
 
-    // The grabber: the sheet affordance, and the tap that minimizes.
     _grabberView = [[UIView alloc] init];
     _grabberView.backgroundColor = [UIColor.whiteColor colorWithAlphaComponent:0.35];
     _grabberView.layer.cornerRadius = 2.5;
     _grabberView.translatesAutoresizingMaskIntoConstraints = NO;
     [root addSubview:_grabberView];
 
-    // A hit area a finger can find: the bar itself is five points tall.
+    // The bar itself is five points tall.
     UIButton *grabberTarget = [UIButton buttonWithType:UIButtonTypeCustom];
     grabberTarget.backgroundColor = UIColor.clearColor;
     grabberTarget.accessibilityLabel = STR_A11Y_PLAYER_MINIMIZE;
@@ -212,20 +182,15 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     [root addSubview:grabberTarget];
     _grabberTarget = grabberTarget;
 
-    // Tap anywhere (off the waveform and the controls) — the art card
-    // included — toggles play/pause, the whole page standing in for the
-    // transport row's middle button.
+    // Off the waveform and the controls, a tap toggles play/pause.
     _screenTap = [[UITapGestureRecognizer alloc] initWithTarget:self
                                                           action:@selector(screenTapped)];
     _screenTap.delegate = self;
     [root addGestureRecognizer:_screenTap];
 
-    // Swipe down to minimize. It has to beat the pager to the touch, or a
-    // horizontally-paging scroll view — whose pan begins on movement in ANY
-    // direction — would swallow every vertical drag. The axis test in
-    // gestureRecognizerShouldBegin: fails this recognizer on the first move of
-    // a horizontal drag, so a page swipe pays one touch event for the
-    // arbitration and nothing more.
+    // A paging scroll view's pan begins on movement in ANY direction, so the
+    // pager waits for this one, which fails itself on the first horizontal
+    // move (gestureRecognizerShouldBegin:).
     _minimizePan = [[UIPanGestureRecognizer alloc] initWithTarget:self
                                                            action:@selector(minimizePanned:)];
     _minimizePan.delegate = self;
@@ -252,9 +217,6 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     ]];
 }
 
-// The at-rest time rendering shared by neighbor pages, a pending track
-// start, and a parked track the player has not opened: 0:00 elapsed, the
-// full duration once metadata knows it.
 + (void)renderRestingTimesForTrack:(AudioTrack *)track
                            elapsed:(UILabel *)elapsed
                          remaining:(TrackPageTimeControl *)remaining {
@@ -262,9 +224,8 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     elapsed.text = known
             ? [[Formatters sharedInstance] durationStringFromTimeInterval:0]
             : STR_LABEL_TIME_UNKNOWN;
-    // At rest the position is 0, so remaining is the whole duration — but it
-    // still goes through the one rule, or a page at rest would show a bare
-    // total while a playing one showed a minus-prefixed remaining.
+    // Through the one rule, or a resting page would show a bare total beside
+    // a playing one's minus-prefixed remaining.
     remaining.text = known ? VibeRightTimeText(0, track.duration) : STR_LABEL_TIME_UNKNOWN;
 }
 
@@ -276,14 +237,10 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 
 #pragma mark - Gestures
 
-// Downward, and more vertical than horizontal. Anything else is a page swipe,
-// and failing here is what hands the touch back to the pager.
-//
-// TRAP: the test is on TRANSLATION, not velocity. Velocity is sampled over the
-// last few touch events and reads zero whenever the finger pauses — including
-// the moment a slow, deliberate drag crosses the recognizer's slop, which is
-// exactly when this is asked. Translation is monotonic and always past the
-// slop by the time this runs.
+// Downward and more vertical than horizontal; failing hands the pager the
+// touch. TRAP: the test is on TRANSLATION, not velocity, which reads zero
+// whenever the finger pauses — including when a slow drag crosses the slop,
+// exactly when this is asked.
 - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)recognizer {
     if (recognizer != _minimizePan) {
         return YES;
@@ -302,20 +259,11 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
        shouldReceiveTouch:(UITouch *)touch {
-    // The waveforms own horizontal drags and taps for scrubbing, and the
-    // controls own their touches; the screen tap applies everywhere else.
-    // Class membership, not frames: every page cell carries a waveform view
-    // in its own coordinate space.
-    //
-    // The transport ROW is declined as a whole, not just its buttons: a
-    // disabled button is not handed back by hit-testing, so next at the end of
-    // the playlist would otherwise pass its tap through to the pause below it.
-    // The action bar is declined for the same reason from the other side —
-    // nothing hit-tests in the backdrop between its controls, so a tap on the
-    // capsule itself would reach the pause behind it. The route indicator is
-    // declined at one remove: what hit-tests inside it is AVKit's own view, and
-    // declining on a class we own does not depend on that view being a
-    // UIControl.
+    // By class, not frame: every page carries its own waveform. The transport
+    // row and the action bar decline as a whole, because hit-testing hands
+    // back neither a disabled button nor the capsule between controls, and
+    // the tap would reach the pause. What hit-tests in the route view is
+    // AVKit's, so it is declined by our own class.
     for (UIView *view = touch.view; view && view != self.view; view = view.superview) {
         if (view == _grabberTarget) {
             return gestureRecognizer == _minimizePan;
@@ -341,10 +289,8 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     uint64_t generation = ++_routePickerHoldGeneration;
     [self updateScrollLinkState];
     if (presenting) {
-        // The hold's own release, because AVKit's may never come — see the
-        // flag's trap. Overshooting a sheet that is still up costs nothing but
-        // an animated waveform nobody can see, which is what every other sheet
-        // over this card already does.
+        // AVKit's release may never come (see the flag). Overshooting a
+        // sheet still up only animates a hidden waveform.
         __weak PlayerViewController *weakSelf = self;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
                                      (int64_t)(kRoutePickerHoldSeconds * NSEC_PER_SEC)),
@@ -358,9 +304,8 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
         });
         return;
     }
-    // The only edge that says the user may have just picked something: a
-    // destination chosen against an inactive session posts no route
-    // notification of its own, so nothing else would repaint this.
+    // A destination picked against an inactive session posts no route
+    // notification.
     [self updateOutputRoute];
 }
 
@@ -373,8 +318,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     _presented = presented;
     [self updateScrollLinkState];
     if (presented) {
-        // Minimized the card takes no ticks, so its labels, waveform and page
-        // are however the last one left them.
+        // Minimized, the card took no ticks.
         [self updateOutputRoute];
         [self updatePlaybackUI];
         [self renderHeaderForTrack:_playlist.currentTrack];
@@ -388,8 +332,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     }
     _sceneActive = sceneActive;
     if (sceneActive) {
-        // Coming back settles a picker AVKit tore down without telling us,
-        // ahead of the deadline; see the flag's trap.
+        // Settles a picker AVKit tore down silently, ahead of the deadline.
         _routePickerPresenting = NO;
         _routePickerHoldGeneration++;
     }
@@ -406,12 +349,9 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 
 #pragma mark - Header rendering
 
-// The pager owns the header, art, and waveform; rendering the current track
-// means refreshing its page and rebinding the live chrome to it.
 - (void)renderHeaderForTrack:(AudioTrack *)track {
-    // Before the repaint, and from here rather than the currentIndex observer,
-    // so a park or a restore that lands on the index already current still
-    // moves the window onto it.
+    // Here, not the currentIndex observer, so a park on the index already
+    // current still moves the window.
     [self refreshArtWindow];
     [self refreshPageAtIndex:_playlist.currentIndex];
     TrackPageCell *cell = [self cellAtIndex:_playlist.currentIndex];
@@ -419,10 +359,9 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
         [self bindChromeToCell:cell];
     }
     else {
-        // A far jump: the target page has no live cell yet. Drop the bindings
-        // rather than keep the old page's — the incoming track's rest state
-        // and loading shimmer must not write into the outgoing track's still-
-        // visible cell during the scroll. willDisplayCell rebinds on arrival.
+        // A far jump: no live cell yet. Drop the bindings, or the incoming
+        // track's state writes into the outgoing cell mid-scroll;
+        // willDisplayCell rebinds.
         _boundPage = nil;
         _waveformView = nil;
         _elapsedLabel = nil;
@@ -438,10 +377,6 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     [self updateChrome];
 }
 
-// The transport, the action bar and the route indicator stay up whatever the
-// play state — they are controls, not a paused-state affordance. The empty
-// state is the one thing that hides them: there is nothing to play until a
-// folder is chosen.
 - (CGFloat)chromeAlpha {
     return _playback.screenState == VibePlayerScreenStateEmpty ? 0 : 1;
 }
@@ -459,9 +394,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     }];
 }
 
-// Every visible page, not just the bound one: each carries its own indicator in
-// its own time row, and a neighbor would otherwise keep the previous route
-// until it was recycled. Same reason repaintTimesOnVisiblePages exists.
+// Every visible page, or a neighbor keeps the old route until recycled.
 - (void)updateOutputRoute {
     VibeOutputRouteKind kind = _playback.outputRouteKind;
     NSString *name = _playback.outputRouteName;
@@ -470,14 +403,10 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     }
 }
 
-// Paused unless the playhead is actually moving where someone can see it. A
-// page swipe counts as nowhere: the waveform translating a fraction of a pixel
-// under a page that is itself sliding across the screen is invisible, and the
-// frames it costs are exactly the ones the swipe needs. A size transition
-// counts as nowhere for the same reason and a sharper one — the bake is down
-// for its duration, so each of those writes is a full re-composite of the live
-// tree rather than a texture crop. Both are the frame-budget hold; see
-// applyFrameBudgetHold in +Pager.
+// Paused unless the playhead moves where someone can see it. A swipe or a
+// size transition counts as unseen and takes the frame-budget hold (+Pager):
+// the swipe needs those frames, and during a resize the bake is down, so each
+// write re-composites the live tree.
 - (void)updateScrollLinkState {
     _scrollLink.paused = !(_playback.isPlaying && _sceneActive && self.isPresented
                            && !_pagerScrolling && !_pagerProgrammaticScrolling
@@ -486,21 +415,15 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 
 - (void)scrollTick:(CADisplayLink *)link {
     if (self.presentedViewController) {
-        // A sheet covers the waveform strip. The per-frame translation of the
-        // multi-screen layer tree is invisible waste, and it competes with the
-        // sheet + keyboard presentation for exactly the frames that stutter on
-        // device; the model's 3 Hz tick keeps progress near-current for the
-        // reveal.
+        // A sheet covers the waveform; the 3 Hz tick keeps progress current.
         return;
     }
     if (_waveformView.isScrubbing) {
         return;
     }
-    // The seek target is checked FIRST, ahead of Loading. A seek that opens the
-    // file — the parked scrub — is Loading and in flight at the same time, and
-    // zeroing the waveform there is exactly the snap-back the seek target
-    // exists to prevent. An ordinary track change clears seekInFlight, so
-    // Loading still wins where it should.
+    // The seek target FIRST: a parked scrub is Loading and in flight at once,
+    // and zeroing there is the snap-back it prevents. A track change clears
+    // seekInFlight.
     if (_playback.seekInFlight) {
         _waveformView.progress = _playback.pendingSeekProgress;
         return;
@@ -509,7 +432,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
         _waveformView.progress = 0;
         return;
     }
-    NSTimeInterval duration = _playback.duration;  // non-blocking, like position
+    NSTimeInterval duration = _playback.duration;
     if (duration > 0) {
         _waveformView.progress = _playback.position / duration;
     }
@@ -517,24 +440,16 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 
 - (void)updatePlaybackUI {
     if (_waveformView.isScrubbing) {
-        // The scrub owns the whole readout for its duration: the waveform,
-        // which it moves under the finger, and the labels, which show where
-        // the release will land rather than what is still playing
-        // (didScrubToProgress:). Same bail as scrollTick:, one tier up.
+        // The scrub owns the readout (didScrubToProgress:).
         return;
     }
     if (VibePlayerScreenRendersRestingTimes(_playback.screenState)) {
-        // Same precedence as scrollTick:: a seek in flight is a better answer
-        // for where the playhead is than "at rest".
+        // scrollTick:'s precedence.
         if (_playback.seekInFlight && !_waveformView.isScrubbing) {
             _waveformView.progress = _playback.pendingSeekProgress;
             [self renderRestingTimesForTrack:_playlist.currentTrack];
             return;
         }
-        // The current track at rest — the neighbor-page treatment. Loading: the
-        // player's getters still serve the OUTGOING track. Parked (a relaunch
-        // restore): the player has nothing loaded, and without this the labels
-        // sat at --:-- even after metadata delivered the duration.
         [self renderRestingTimesForTrack:_playlist.currentTrack];
         if (!_waveformView.isScrubbing) {
             _waveformView.progress = 0;
@@ -547,8 +462,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
         Formatters *formatters = [Formatters sharedInstance];
         _elapsedLabel.text = [formatters durationStringFromTimeInterval:position];
         _remainingTimeControl.text = VibeRightTimeText(position, duration);
-        // The display link owns the waveform while playing; this 3 Hz write
-        // is the only one while paused or parked, and they agree otherwise.
+        // The only waveform write while paused.
         if (!_waveformView.isScrubbing && !_playback.seekInFlight) {
             _waveformView.progress = position / duration;
         }
@@ -578,12 +492,11 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     [self repaintTimesOnVisiblePages];
 }
 
-// Every visible page, not just the one that changed: the neighbors are drawn
-// at rest and would keep the old spelling until they were recycled.
+// Neighbors are drawn at rest and would keep the old mode until recycled.
 - (void)repaintTimesOnVisiblePages {
     for (TrackPageCell *cell in _pagesView.visibleCells) {
         if (cell == _boundPage) {
-            continue;   // the bound page is live; updatePlaybackUI has it
+            continue;   // updatePlaybackUI has it
         }
         NSInteger index = [_pagesView indexPathForCell:cell].item;
         if (index >= 0 && (NSUInteger)index < (NSInteger)_playlist.count) {
@@ -596,8 +509,6 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 }
 
 - (void)screenTapped {
-    // The grabber is the minimize target, the transport buttons own their own
-    // touches; everywhere else — the art card included — toggles play/pause.
     [_playback playPause];
 }
 
@@ -608,8 +519,6 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 #pragma mark - PlaybackObserver: the playlist
 
 - (void)playbackDidReplacePlaylist:(PlaybackController *)playback {
-    // The art window's indexes, the snapshots and the pages all name tracks
-    // that are gone.
     [_artHeldPages removeAllIndexes];
     [_waveformCoordinator reset];
     [_pagesView reloadData];
@@ -620,11 +529,8 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     [_pagesView reloadData];
 }
 
-// Nothing here for a cursor move: the pages are drawn by renderHeaderForTrack:
-// and scrolled by playbackDidMoveToCurrentTrack:, and no art is discarded —
-// the departing track is usually the page right beside the arriving one, and
-// releasing its decode on every commit made a swipe back re-read and re-decode
-// the file. The art window owns retention, and renderHeaderForTrack: moves it.
+// No cursor-move handler, and no art discarded on a move: the departing page
+// is usually the arriving one's neighbor. The art window owns retention.
 
 #pragma mark - PlaybackObserver: the current track
 
@@ -661,13 +567,9 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     [_waveformView setLoadingProgress:fraction];
 }
 
-// Not a blanket hideLoadingIndicator: the open landing says nothing about the
-// waveform decode, which may still be streaming over the network.
-// Re-hydration repaints a snapshot already in hand (ending the slow-open
-// shimmer that replaced it); otherwise the line keeps animating until
-// showWaveform: delivers. The download fill IS cleared here — the open
-// landing means the file materialized, and showWaveform: deliberately leaves
-// the fill alone (a cached waveform can arrive mid-download).
+// Not hideLoadingIndicator: the waveform decode may still be streaming. The
+// download fill is cleared here because showWaveform: leaves it alone (a
+// cached waveform can arrive mid-download).
 - (void)playbackDidFinishLoading:(PlaybackController *)playback {
     TrackPageCell *cell = [self cellAtIndex:playback.currentIndex];
     [cell.waveformView setLoadingProgress:-1];
@@ -685,11 +587,8 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     if (row < 0) {
         return;
     }
-    // Before the repaint. This delivery installs the metadata object the art
-    // dispatch hangs off — until it lands the dispatch is a message to nil —
-    // so a page inside the window that could not start its decode starts it
-    // here, and the repaint below finds art rather than the placeholder as
-    // soon as it arrives.
+    // Before the repaint: until this delivery the art dispatch is a message
+    // to nil.
     if (NSLocationInRange((NSUInteger)row, [self artWindow])) {
         [self refreshArtWindow];
     }

@@ -12,8 +12,7 @@ typedef NS_ENUM(NSUInteger, VibeMetadataMaterializationRetry) {
     VibeMetadataMaterializationRetryDeferredAfterDelay,
 };
 
-// priorFailures excludes the result being judged. Yielding is not a file
-// failure and never consumes the configured attempt budget.
+// priorFailures excludes the result being judged. A yield spends nothing.
 static inline VibeMetadataMaterializationRetry
 VibeMetadataMaterializationRetryForResult(
         VibeAudioFileMaterializationResult result,
@@ -39,8 +38,7 @@ static inline NSUInteger VibeMetadataMaximumAttemptsForRetryCount(
     return retryCount == NSUIntegerMax ? NSUIntegerMax : retryCount + 1;
 }
 
-// Admission exhaustion is capacity pressure, not a file verdict. Give a live
-// claim time to settle without allowing diagnostics to stretch a scan forever.
+// Capacity pressure, not a file verdict: a short, capped backoff.
 static inline NSTimeInterval VibeMetadataAdmissionRetryDelay(
         NSUInteger priorFailures) {
     const NSTimeInterval step = 0.25;
@@ -51,19 +49,12 @@ static inline NSTimeInterval VibeMetadataAdmissionRetryDelay(
     return step * (priorFailures + 1);
 }
 
-// What happens to a priority record whose materialization came back Yielded.
-// A yield means dataless metadata was stopped by the foreground rule: the hold
-// was active at classification, or its same-path foreground waiter departed
-// while classification was outstanding. While the hold remains, a
-// still-dataless record WAITS: re-picking would install a fresh Probing claim,
-// occupy a bounded probe slot, repeat the filesystem probe, and yield when the
-// result lands. At the release edge (or a yield delivered after it — the two
-// orders of the same race), the file is probed: local means the settled open
-// downloaded it, so the record retries and its parse lands immediately; still
-// dataless means the open failed, and chasing it would spend the provider's
-// next slot re-downloading a file behind a terminal error the user is looking
-// at — the record DEMOTES to an ordinary sweep candidate at its rank. Yielding
-// never spends the budget.
+// A priority record's Yielded result. A local file retries at once, hold or
+// not: its parse starts no transfer, and waiting cost the now-playing tags a
+// successor prefetch's whole download. A still-dataless record waits while
+// the hold stands (a re-pick would burn a probe slot and yield again) and
+// demotes to the sweep once it lifts: the open failed, and re-downloading
+// behind its error is the sweep's call, at its rank.
 typedef NS_ENUM(NSUInteger, VibeMetadataPriorityYieldOutcome) {
     VibeMetadataPriorityYieldWait = 0,
     VibeMetadataPriorityYieldRetry,
@@ -72,12 +63,6 @@ typedef NS_ENUM(NSUInteger, VibeMetadataPriorityYieldOutcome) {
 
 static inline VibeMetadataPriorityYieldOutcome VibeMetadataPriorityAfterYield(
         BOOL held, BOOL local) {
-    // A local file retries even while the rule holds: its parse starts no
-    // transfer, and waiting it out costs the now-playing tags the length of
-    // whatever the foreground is still downloading — measured, a successor's
-    // prefetch held the current track's art hostage for its whole transfer.
-    // Only a still-dataless record waits, and only a settled foreground can
-    // demote it: mid-hold the open that would make it local is still running.
     if (local) {
         return VibeMetadataPriorityYieldRetry;
     }

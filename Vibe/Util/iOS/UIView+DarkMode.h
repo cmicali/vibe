@@ -2,8 +2,7 @@
 //  UIView+DarkMode.h
 //  Vibe (iOS)
 //
-//  The iOS mirror of NSView+DarkMode, so renderer call sites read the same
-//  on both platforms.
+//  The mirror of NSView+DarkMode, so shared call sites read the same.
 //
 
 #import <UIKit/UIKit.h>

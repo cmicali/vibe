@@ -9,14 +9,13 @@
 //  same one in the same 16pt number gutter. Only the superclass, the layout
 //  and appearance hooks differ.
 //
-//  Much cheaper than the equalizer, and the reason belongs here: the sweep is
-//  one repeating CABasicAnimation on one layer. There is no display link, no
-//  timer, no app-side per-frame callback and no path rebuild — the whole
-//  thing runs on the compositor. What it still must not do is hold a live
-//  animation for a row nobody can see, so active goes NO on cell reuse and on
-//  hiding — the row wiring owns those — and the view drops it itself on
-//  leaving its window, which is what scroll-out is; the table re-configures a
-//  row it scrolls back in.
+//  Much cheaper than the equalizer: the row style's only motion, the pulse, is
+//  one repeating CABasicAnimation on one layer, run by the compositor — no
+//  display link, timer, per-frame callback or path rebuild. It still must not
+//  hold a live animation for a row nobody can see, so active goes NO on cell
+//  reuse and on hiding — the row wiring owns those — and the view drops it
+//  itself on leaving its window, which is what scroll-out is; the table
+//  re-configures a row it scrolls back in.
 //
 
 #import "PlatformTypes.h"
@@ -39,8 +38,8 @@ NS_ASSUME_NONNULL_BEGIN
 // retained. Defaults to NO.
 @property (nonatomic, getter=isActive) BOOL active;
 
-// <0 is indeterminate — the shimmer owns the whole width. >=0 fills. A
-// control that has never been given a fraction is indeterminate.
+// <0 is indeterminate (the pulse); >=0 fills. A control never given a
+// fraction is indeterminate.
 @property (nonatomic) float progress;
 
 // Overrides the appearance-derived colour, as EqualizerIndicatorView.barColor

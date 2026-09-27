@@ -2,9 +2,8 @@
 //  DebugInternal.h
 //  Vibe
 //
-//  Shared by the debug channel's translation units: the imports they all need,
-//  and the functions that cross between them. Everything else in those files
-//  stays static. Debug builds only — the whole channel compiles out of Release.
+//  Shared by the mac channel's translation units: the imports they all need
+//  and the functions that cross between them. Everything else stays static.
 //
 
 #if DEBUG
@@ -67,7 +66,7 @@ NSArray *VibeMenuArray(NSMenu *menu);
 NSString *VibeClickMenuItem(NSString *name);
 NSDictionary *VibeActionSummaryDictionary(MainPlayerController *controller);
 
-// DebugInput.m — synthesized keyboard, mouse and file drags.
+// DebugInput.m — synthesized input, synthetic drags and row selection.
 NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *tokens,
                         BOOL down, BOOL up);
 NSString *VibeInjectMouse(MainPlayerController *controller, NSArray<NSString *> *tokens);

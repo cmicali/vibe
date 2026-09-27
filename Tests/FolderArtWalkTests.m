@@ -1,8 +1,7 @@
 //
 // What a folder open hands the resolver. The walk touches every entry anyway,
-// so the cover comes out of it for free, and this is the handoff that makes a
-// first open show art at all: without it the feature degrades to the three stat
-// probes a lone file uses.
+// so the cover comes out of it for free; without this handoff a first open
+// falls back to the three stat probes a lone file uses.
 //
 
 #import <XCTest/XCTest.h>
@@ -28,16 +27,13 @@
     [NSFileManager.defaultManager createDirectoryAtURL:_root
                            withIntermediateDirectories:YES attributes:nil error:nil];
     // The enumerator answers in resolved paths, and /var is a symlink to
-    // /private/var, so an unresolved root compares two spellings of one
-    // directory.
+    // /private/var.
     char resolved[PATH_MAX];
     if (realpath(_root.fileSystemRepresentation, resolved)) {
         _root = [NSURL fileURLWithFileSystemRepresentation:resolved isDirectory:YES relativeToURL:nil];
     }
-    // The walk hands its harvest to whoever installed the handler rather than
-    // reaching for the resolver itself, so the app wires the two together at
-    // launch (AppDelegate). That wiring is what is under test; make it here,
-    // against a clean resolver.
+    // The walk never reaches for the resolver itself; AppDelegate installs
+    // this same wiring at launch.
     [NSURLUtil setWalkedDirectoriesHandler:^(NSSet<NSString *> *directories,
                                              NSDictionary<NSString *, NSString *> *artFilenameByDirectory) {
         [FolderArtResolver.sharedInstance noteListedDirectories:directories
@@ -75,8 +71,6 @@
 
 #pragma mark - The harvest
 
-// The whole point of harvesting from the walk: names the lone-file stat probes
-// never ask about are found anyway, for no I/O of the resolver's own.
 - (void)testAWalkSettlesACoverTheProbesWouldMiss {
     NSString *directory = [self makeDirectory:@"Album"];
     [self makeFile:@"Album/track.mp3"];
@@ -114,9 +108,7 @@
                           [directory stringByAppendingPathComponent:@"cover.jpg"]);
 }
 
-// A folder with audio and no cover settles as having none, which stops it being
-// probed later: the answer costs nothing to record and saves three stats for
-// every track in it.
+// Settling as none spares the folder's tracks the three stat probes later.
 - (void)testAFolderWithAudioAndNoCoverIsSettledAsHavingNone {
     NSString *directory = [self makeDirectory:@"Bare"];
     [self makeFile:@"Bare/track.mp3"];
@@ -126,8 +118,6 @@
     XCTAssertEqualObjects([self settledFor:directory], @"");
 }
 
-// Each directory answers for itself: the resolver is keyed to the folder the
-// audio file lives in, and nothing inherits from a parent.
 - (void)testEachAudioBearingSubfolderIsSettledIndependently {
     NSString *one = [self makeDirectory:@"Multi/CD1"];
     NSString *two = [self makeDirectory:@"Multi/CD2"];
@@ -141,9 +131,8 @@
     XCTAssertEqualObjects([self settledFor:two], @"", @"no cover of its own, and none inherited");
 }
 
-// No track will ever ask about a folder that contributes no playable audio, so
-// it is not recorded: the history is bounded, and an entry spent on it would
-// evict one that matters.
+// No track will ask about it, and in the bounded history an entry spent on it
+// would evict one that matters.
 - (void)testAFolderWithoutAudioIsNotRecorded {
     NSString *artOnly = [self makeDirectory:@"Scans"];
     [self makeFile:@"Scans/cover.jpg"];
@@ -166,9 +155,8 @@
     XCTAssertEqualObjects([self settledFor:directory], @"");
 }
 
-// The harvest is a fact about the folder, not about the setting, so it is
-// recorded whether or not the fallback is switched on: switching it on later
-// then gets this answer rather than the lone file's guesswork.
+// The harvest is a fact about the folder, not the setting: switching the
+// fallback on later gets this answer rather than the lone file's probes.
 - (void)testTheHarvestIsRecordedEvenWithTheSettingOff {
     BOOL previous = AppSettings.sharedInstance.useFolderArt;
     [self addTeardownBlock:^{

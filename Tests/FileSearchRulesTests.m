@@ -2,10 +2,7 @@
 //  FileSearchRulesTests.m
 //  VibeTests
 //
-//  The iOS search screen's matching rules. Compiles here even though the header
-//  only ships in VibeiOS: it is Foundation-only, and the two sections agreeing
-//  on what a query matches is exactly the kind of thing a live app cannot be
-//  asked about cheaply.
+//  The header ships only in VibeiOS but is Foundation-only, so it compiles here.
 //
 
 #import <XCTest/XCTest.h>
@@ -111,8 +108,6 @@
     XCTAssertFalse(VibeSearchTrackMatchesQuery(@"Teardrop", @"Massive Attack", @"04 Teardrop.flac", @"portishead"));
 }
 
-// An untagged track has no title and no artist; the filename is the whole
-// answer, as it is everywhere else in the app.
 - (void)testUntaggedTrackFallsBackToTheFilename {
     XCTAssertTrue(VibeSearchTrackMatchesQuery(nil, nil, @"unknown-04.mp3", @"unknown"));
     XCTAssertFalse(VibeSearchTrackMatchesQuery(nil, nil, @"unknown-04.mp3", @"teardrop"));
@@ -124,16 +119,15 @@
 
 #pragma mark - Files
 
-// A found file has no tags, so its folder is the album or artist and has to
-// count: a query for the folder must find tracks named nothing like it.
+// A found file has no tags, so its folder stands in for album and artist.
 - (void)testFileMatchesItsFolderName {
     XCTAssertTrue(VibeSearchFileMatchesQuery(@"01.mp3", @"Kid A", @"kid a"));
     XCTAssertTrue(VibeSearchFileMatchesQuery(@"Idioteque.mp3", @"Kid A", @"idiot"));
     XCTAssertFalse(VibeSearchFileMatchesQuery(@"01.mp3", @"Kid A", @"amnesiac"));
 }
 
-// The one place the files rule deliberately disagrees with the text rule: an
-// empty query browses the playlist but must never dump the file tree.
+// Unlike the text rule: an empty query browses the playlist but must never dump
+// the file tree.
 - (void)testEmptyQueryMatchesNoFile {
     XCTAssertFalse(VibeSearchFileMatchesQuery(@"01.mp3", @"Kid A", @""));
 }
@@ -145,8 +139,7 @@
 
 #pragma mark - Root coverage
 
-// The shared decision behind both the index's pruning and the settings list's
-// "you already added a folder that reaches this one".
+// Shared by the index's pruning and the settings list's "already covered".
 - (void)testARootCoversItself {
     XCTAssertTrue(VibeSearchRootCoversPath(@"/Data/Music", @"/Data/Music"));
 }
@@ -159,8 +152,7 @@
     XCTAssertFalse(VibeSearchRootCoversPath(@"/Data/Music/Albums", @"/Data/Music"));
 }
 
-// The separator is the whole reason this is a function: on a bare prefix test
-// "/Music" would swallow "/Music Videos" and that folder would never be walked.
+// On a bare prefix test "/Music" would swallow "/Music Videos".
 - (void)testARootDoesNotCoverASiblingSharingItsPrefix {
     XCTAssertFalse(VibeSearchRootCoversPath(@"/Data/Music", @"/Data/Music Videos"));
     XCTAssertFalse(VibeSearchRootCoversPath(@"/Data/Music", @"/Data/Musical"));
@@ -241,9 +233,8 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
     XCTAssertEqual(pruned.count, 2u);
 }
 
-// The bug this exists for: searchRoots names the open folder first and Documents
-// second, so the covered root is the EARLIER one. Pruning only later roots kept
-// both and listed the folder's files twice.
+// searchRoots names the open folder before Documents, so the covered root can
+// be the EARLIER one; pruning only later roots would list its files twice.
 - (void)testAnAncestorListedSecondStillSwallowsTheFolderBeforeIt {
     XCTAssertEqualObjects(PrunedPaths(@[@"/Data/Documents/Music", @"/Data/Documents"]),
                           @[@"/Data/Documents"]);
@@ -259,8 +250,6 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
                           @[@"/Data/Documents"]);
 }
 
-// The separator is what keeps this apart: on a bare prefix test "/Music" covers
-// "/Music Videos" and the second folder would never be walked.
 - (void)testASiblingSharingAPrefixIsNotCovered {
     NSArray<NSString *> *pruned = PrunedPaths(@[@"/Data/Music", @"/Data/Music Videos"]);
     XCTAssertEqual(pruned.count, 2u);

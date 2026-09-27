@@ -4,16 +4,14 @@
 //
 //  The loading control, owned by both waveform views and — through
 //  LoadingIndicatorView — both platforms' row number gutters. It is pure
-//  CALayer work with no view, no window and no trait collection, which is why
-//  it can be one object rather than one per platform — it was two, and they
-//  drifted: the mac grew the eased fill and the clipped sweep while the iOS
-//  copy kept an older shimmer with a separate un-eased bar bolted on.
+//  CALayer work with no view, no window and no trait collection, so it is one
+//  object rather than one per platform, and the platforms cannot drift apart.
 //
 //  IT IS ONE CONTROL ACROSS TWO STYLES AND BOTH MODES, not a shimmer with a
 //  progress bar added: a faint track across the bounds it is given, a solid
-//  filled head over [0, fraction] whose last few points fade out, and the
-//  shimmer band sweeping ONLY the unfilled remainder. Indeterminate is simply
-//  the case where nothing is filled, so the sweep spans the whole track. That
+//  filled head over [0, fraction] whose last few points fade out, and — waveform
+//  style only — the shimmer band sweeping ONLY the unfilled remainder.
+//  Indeterminate is simply the case where nothing is filled. That
 //  is why every part of it is placed by layoutInBounds:animatedOver: and
 //  nowhere else, and why a negative fraction reverts cleanly. The style changes
 //  metrics, not structure — LoadingIndicatorMath.h.
@@ -48,19 +46,18 @@ NS_ASSUME_NONNULL_BEGIN
 // waveform can land while the provider is still materializing the audio, so
 // the fill riding over the drawn waveform is the only remaining sign of the
 // download. It comes down later with its monitor, via setProgress: with a
-// negative fraction. It has no row equivalent — a row's owner toggles the
-// whole control.
+// negative fraction. A row's owner never calls it; it toggles the whole
+// control.
 - (BOOL)endSweepKeepingFill;
 
 // Places the whole control for these bounds, ORIGIN INCLUDED — the iOS
 // scrubber gives it the span its track's content occupies rather than the
-// view's whole width. Pass 0 for a resize or a state change; setProgress:
-// passes its own ease.
+// view's whole width. Instant; setProgress: eases its own relayout.
 - (void)layoutInBounds:(CGRect)bounds;
 
 // Determinate download progress: the track fills from the left as the
 // provider materializes the file. A negative fraction removes the fill and
-// hands the whole width back to the shimmer. Providers report about once a
+// returns to indeterminate. Providers report about once a
 // second and irregularly, so the fill EASES to each value over roughly the
 // last interval rather than snapping — Core Animation retargets from the
 // presentation value, so a sample landing early redirects the motion instead

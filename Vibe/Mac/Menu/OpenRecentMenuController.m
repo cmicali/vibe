@@ -19,12 +19,10 @@
     return self;
 }
 
-// Rebuilt from NSDocumentController each time the menu opens.
 - (void)menuNeedsUpdate:(NSMenu *)menu {
     [menu removeAllItems];
-    // Enablement is ours: Clear Menu targets NSDocumentController, which
-    // always responds to clearRecentDocuments:, so autoenable would leave an
-    // empty list's one item an enabled no-op. The system menu disables it.
+    // Autoenable would leave an empty list's Clear Menu an enabled no-op:
+    // NSDocumentController always responds to clearRecentDocuments:.
     menu.autoenablesItems = NO;
     NSArray<NSURL *> *urls = [[NSDocumentController sharedDocumentController] recentDocumentURLs];
     for (NSURL *url in urls) {
@@ -46,9 +44,8 @@
     [menu addItem:clear];
 }
 
-// Without this, AppKit's key-equivalent scan calls menuNeedsUpdate:, a full
-// Open Recent rebuild, on every keyDown. OutputDevicesMenuController follows
-// the same pattern. No Open Recent item carries a key equivalent.
+// Without this, AppKit's key-equivalent scan rebuilds the menu on every
+// keyDown. No item carries a key equivalent.
 - (BOOL)menuHasKeyEquivalent:(NSMenu *)menu forEvent:(NSEvent *)event target:(_Nullable id *_Nonnull)target action:(_Nullable SEL *_Nonnull)action {
     return NO;
 }

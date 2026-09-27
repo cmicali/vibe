@@ -3,12 +3,10 @@
 //  Vibe
 //
 //  The waveform's palette, resolved from a theme identifier in exactly one
-//  place. Each color carries its side's resting level in its ALPHA — the
-//  levels that once lived in the renderers as constants — and the renderers
-//  keep only their ramp shapes, scaling every stop relative to the color's
-//  own alpha. The Mono pair's alphas reproduce the pre-theme monochrome
-//  output pixel for pixel; a custom well's alpha dials its side's whole
-//  intensity. The style setting stays the geometry; this is only the color.
+//  place. Each color carries its side's resting level in its ALPHA, and the
+//  renderers keep only their ramp shapes, scaling every stop relative to it;
+//  a custom well's alpha dials its side's whole intensity. The style is the
+//  geometry; this is only the color.
 //
 
 #import <Foundation/Foundation.h>
@@ -20,56 +18,41 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface WaveformTheme : NSObject
 
-// The played side of the progress boundary: the hue at the side's resting
-// alpha.
+// Each side's hue at its resting alpha.
 @property (readonly) VibeColor *playedColor;
-
-// The unplayed side, likewise.
 @property (readonly) VibeColor *unplayedColor;
 
-// The hover column/bar color, derived from playedColor's hue: full alpha,
-// shifted toward white in dark mode and black in light until its luminance
-// clears the played color's by ~0.25, so the highlight stays readable under
-// any palette — a near-white custom played color would otherwise swallow the
-// old "base at full alpha" rule.
+// playedColor's hue at full alpha, shifted toward the contrast pole until its
+// luminance clears the played color's by ~0.25, so the highlight reads under
+// any palette.
 @property (readonly) VibeColor *hoverColor;
 
-// The one home of the resolution rules. identifier is a
-// SETTINGS_VALUE_WAVEFORM_THEME_* value (AppSettings.h); an unknown one
-// resolves as mono. artworkColor is the current track's dominant art color
-// for album_art — nil or too gray to read falls back to mono's answer.
-// played/unplayed are the custom pair FOR THIS APPEARANCE — the store keeps a
-// pair per appearance and the resolver passes the matching one — alpha
-// included, nil falling back to mono's answer.
+// identifier is a SETTINGS_VALUE_WAVEFORM_THEME_* value; an unknown one
+// resolves as mono. artworkColor feeds album_art; nil or too gray falls back
+// to mono. played/unplayed are the custom pair FOR THIS APPEARANCE, alpha
+// included; nil falls back to mono.
 + (WaveformTheme *)themeForIdentifier:(NSString *)identifier
                                isDark:(BOOL)isDark
                          artworkColor:(nullable VibeColor *)artworkColor
                          customPlayed:(nullable VibeColor *)played
                        customUnplayed:(nullable VibeColor *)unplayed;
 
-// YES when unplayedColor is the same hue as playedColor, alphas aside — the
-// Mono theme, one hue at two levels. The iOS scrubber's settled fast path
-// asks: with one hue the unplayed bitmap is the played bitmap at
-// unplayedOverPlayedOpacity, with two it needs its own bake.
+// Same hue, alphas aside (Mono). The iOS scrubber's fast path then draws the
+// unplayed side as the played bitmap at unplayedOverPlayedOpacity rather than
+// baking its own.
 @property (readonly) BOOL unplayedSharesPlayedHue;
 
-// NO vertical ramp: every stop a renderer builds is the side's color as-is.
-// Set by macOS's resolution from the app theme's waveformGradient; iOS never
-// sets it, so its bars keep the ramp.
+// No vertical ramp: every stop is the side's color as-is. macOS only.
 @property (nonatomic) BOOL flatFill;
 
 #if TARGET_OS_OSX
-// The macOS resolution: the theme record's identifier, its custom pair for
-// this appearance and its gradient switch, plus the view's artwork color.
-// Every mac surface that draws a waveform — the player view, the settings
-// preview — maps the record through here, so a new waveform field is mapped
-// once.
+// Every mac surface that draws a waveform maps the theme record through here,
+// so a new waveform field is mapped once.
 + (WaveformTheme *)themeForAppTheme:(AppTheme *)theme isDark:(BOOL)isDark
                        artworkColor:(nullable VibeColor *)artworkColor;
 #endif
 
-// Mono's answer: the pre-theme monochrome palette for the appearance. The
-// renderers' default before a view resolves anything.
+// The renderers' default before a view resolves anything.
 + (WaveformTheme *)monochromeThemeIsDark:(BOOL)isDark;
 
 @end

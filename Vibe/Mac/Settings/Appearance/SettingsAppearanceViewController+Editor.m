@@ -15,20 +15,13 @@
 #import "WaveformRendererRegistry.h"
 
 static const CGFloat kImagePreviewSize = 64;
-// The glyph an unset button image slot previews, at the transport row's
-// own glyph size.
+// An unset button image slot's glyph, at the transport row's glyph size.
 static const CGFloat kImagePreviewGlyphPointSize = 31;
-// The two corner badges over an image preview — the clear ✕ and the
-// missing-image (!) — sized as one pair. The box carries a little more than
-// the glyph, which is the inset they sit at; scaling both by the same factor
-// keeps that. SF Symbols quantize a point size to whole points, so the glyph
-// lands near, not exactly on, the box's own ratio.
+// The clear ✕ and missing (!) badges, box and glyph scaled by one factor.
 static const CGFloat kImageBadgeSize = 22.5;       // 18 * 1.25
 static const CGFloat kImageBadgePointSize = 16.25; // NSFont.systemFontSize * 1.25
-// Both badges sit fully INSIDE the preview, at this inset from its corners.
-// They stay inside deliberately: a subview hanging past its superview's bounds
-// is not hit-tested, which would cost the (!) its tooltip and the ✕ most of its
-// click target.
+// Inside the preview: a subview past its superview's bounds is not
+// hit-tested, costing the (!) its tooltip and the ✕ its click target.
 static const CGFloat kImageBadgeInset = 1.5;
 
 // A color well's binding to one side of its theme pair; see wellForDark:base:effect:.
@@ -36,8 +29,7 @@ static NSString *const kWellBase = @"base";
 static NSString *const kWellEffect = @"effect";
 static NSString *const kWellDark = @"dark";
 
-// The transport buttons' glyph popups' last item: a custom image in place of
-// any glyph. Not a symbol-name shape, so it can never reach a glyph field.
+// Not a symbol-name shape, so it can never reach a glyph field.
 static NSString *const kGlyphChoiceCustomImage = @"custom-image";
 
 static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
@@ -84,11 +76,8 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
     [self refreshFromSettings];
 }
 
-// A well bound to one side of a themed color pair, by the pair's base key: it
-// reads its color through the theme's display accessor (the override, or the
-// unset slot's constant), writes it through the base setter, and requests the
-// effect. Alpha is part of the choice: a fill's strength, the solid
-// background's opacity, a waveform side's resting level.
+// Bound to one side of the pair at base. Alpha is part of every choice: a
+// fill's strength, a background's opacity, a waveform side's resting level.
 - (NSColorWell *)wellForDark:(BOOL)isDark base:(NSString *)base effect:(VibeSettingsLiveEffect)effect {
     NSColorWell *well = [[NSColorWell alloc] init];
     well.target = self;
@@ -101,8 +90,7 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
     if (@available(macOS 14.0, *)) {
         well.supportsAlpha = YES;
     } else {
-        // Pre-14 a well follows the shared panel, and nothing else in the app
-        // opens it, so the global flag is safe.
+        // Pre-14 wells follow the shared panel, which nothing else opens.
         NSColorPanel.sharedColorPanel.showsAlpha = YES;
     }
     [well.widthAnchor constraintEqualToConstant:44].active = YES;
@@ -140,15 +128,13 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
     return pair;
 }
 
-// Both sides of one themed color pair as the Dark/Light row control.
 - (NSStackView *)darkLightPairForBase:(NSString *)base effect:(VibeSettingsLiveEffect)effect {
     return [self darkLightPairWithDark:[self wellForDark:YES base:base effect:effect]
                                  light:[self wellForDark:NO base:base effect:effect]];
 }
 
-// A transport button's pairs — image previews, or its color wells — are
-// art-keyed (see kVibeThemeColorPlaylistButton), so they are captioned like
-// every pair but never registered with the single-mode collapse.
+// A transport button's pairs are art-keyed (kVibeThemeColorPlaylistButton),
+// so they never join the single-mode collapse.
 - (NSStackView *)artKeyedImagePairForDarkKey:(NSString *)darkKey lightKey:(NSString *)lightKey {
     return [self wellPair:[self imageClusterForKey:darkKey] caption:STR_SETTINGS_THEME_ON_DARK_ART
                     well:[self imageClusterForKey:lightKey] caption:STR_SETTINGS_THEME_ON_LIGHT_ART];
@@ -161,8 +147,6 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
                  caption:STR_SETTINGS_THEME_ON_LIGHT_ART];
 }
 
-// A font row's trailing cluster: the current choice, then Select…, which
-// opens the font panel onto that slot.
 - (NSStackView *)fontClusterForSlot:(VibeFontSlot)slot valueLabel:(NSTextField **)outLabel {
     NSTextField *value = [NSTextField labelWithString:@""];
     value.textColor = NSColor.secondaryLabelColor;
@@ -175,12 +159,9 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
     return cluster;
 }
 
-// One image field's picker: a preview of what the slot resolves to as the
-// click target (click picks a custom image), with a hover-revealed clear
-// badge over its corner while a custom image is set. The badge is a real
-// button so the walker can address it by its undrawn title. System Settings
-// appearance-picker shape. The field key rides both buttons' identifiers,
-// which is how their shared actions find the slot.
+// The field key rides both buttons' identifiers, which is how their shared
+// actions find the slot. The clear badge is a real button so the walker can
+// address it by its undrawn title.
 - (NSView *)imageClusterForKey:(NSString *)key {
     NSButton *preview = [NSButton buttonWithImage:[AppTheme imageForReference:@""]
                                            target:self action:@selector(chooseImage:)];
@@ -201,11 +182,8 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
     clear.identifier = key;
     clear.imagePosition = NSImageOnly;
     clear.hidden = YES;
-    // The missing-image badge mirrors that clear badge across the preview, and
-    // is NOT hover-gated: it reports a state rather than offering an action,
-    // and a warning nobody can see without hovering the thing it warns about
-    // is no warning. An image view, not a button — there is nothing to press,
-    // and a button would promise one to VoiceOver.
+    // Not hover-gated: it reports a state. An image view, since a button
+    // would promise VoiceOver an action.
     NSImageView *missing = [NSImageView imageViewWithImage:[NSImage
             symbolNamed:@"exclamationmark.circle.fill"
               pointSize:kImageBadgePointSize weight:NSFontWeightRegular
@@ -229,8 +207,7 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
         [preview.trailingAnchor constraintEqualToAnchor:cluster.trailingAnchor],
         [preview.topAnchor constraintEqualToAnchor:cluster.topAnchor],
         [preview.bottomAnchor constraintEqualToAnchor:cluster.bottomAnchor],
-        // Pinned to the glyph's size: the undrawn title still feeds the
-        // button's intrinsic width, which stretched it across the preview.
+        // The undrawn title still feeds the intrinsic width.
         [clear.widthAnchor constraintEqualToConstant:kImageBadgeSize],
         [clear.heightAnchor constraintEqualToConstant:kImageBadgeSize],
         [clear.topAnchor constraintEqualToAnchor:cluster.topAnchor
@@ -244,12 +221,8 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
         [missing.leadingAnchor constraintEqualToAnchor:cluster.leadingAnchor
                                               constant:kImageBadgeInset],
     ]];
-    // The controller owns the hover tracking; userInfo names the field, since
-    // every cluster shares one owner. ActiveInActiveApp, not ActiveInKeyWindow:
-    // the font or color panel is often key while this page is edited, and the
-    // badge must still appear. Posted debug events cannot fire it — the window
-    // server drives tracking areas — so a scripted clear needs a real hover
-    // (input.swift).
+    // ActiveInActiveApp: the font or color panel is often key. Posted debug
+    // events cannot fire tracking areas; a scripted clear needs a real hover.
     [cluster addTrackingArea:[[NSTrackingArea alloc] initWithRect:NSZeroRect
             options:NSTrackingMouseEnteredAndExited | NSTrackingActiveInActiveApp
                     | NSTrackingInVisibleRect
@@ -260,12 +233,8 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
     return cluster;
 }
 
-// One transport button's editor rows — the glyph popup, the color pair a
-// glyph is drawn in, and the custom image pair(s) that replace the glyph —
-// keyed by the button's dark image field, which its popup and rows are
-// looked up by. The color and image rows swap on whether an image is set
-// (resolveLayoutStateFromSettings): a glyph has a color, a picture has its
-// own.
+// Keyed by the button's dark image field. The color and image rows swap on
+// whether an image is set (resolveLayoutStateFromSettings).
 - (NSArray<SettingsRowView *> *)buttonRowsForImageKey:(NSString *)imageKey
                                                 title:(NSString *)title
                                            colorTitle:(NSString *)colorTitle
@@ -275,8 +244,7 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
     NSPopUpButton *popUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
                                                action:@selector(buttonGlyphChanged:)];
     popUp.identifier = imageKey;
-    // The symbol names are identifiers — what SF Symbols calls them — shown
-    // beside the glyph itself rather than given thirty display names apiece.
+    // Symbol names are identifiers, deliberately not given display names.
     for (NSString *glyph in glyphs) {
         [self addItem:VibeNotLocalized(glyph) value:glyph to:popUp];
         popUp.lastItem.image = [NSImage imageWithSystemSymbolName:glyph accessibilityDescription:nil];
@@ -365,12 +333,9 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     return image;
 }
 
-// What a slot's preview shows: the placeholder pair its resolved image (the
-// factory record when unset), the app icon whatever the application holds —
-// the composed custom icon or the bundle's, since the AppIcon effect has
-// already landed by refresh time — and a button slot what draws over that
-// side's art: its own picture, else the other side's, else the glyph, so an
-// unset side is never a blank square.
+// The app icon is whatever the application holds, since the AppIcon effect
+// has landed by refresh time. A button slot shows its picture, else the other
+// side's, else the glyph.
 - (NSImage *)previewImageForKey:(NSString *)key {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     if ([key isEqualToString:kVibeThemeImageAppIcon]) {
@@ -393,8 +358,7 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     [slider.widthAnchor constraintEqualToConstant:kAppearancePopUpWidth].active = YES;
     NSTextField *label = [NSTextField labelWithString:@""];
     label.textColor = NSColor.secondaryLabelColor;
-    // Right-aligned at a fixed width, so the readout's changing digit count
-    // never nudges the slider.
+    // Fixed width, so a changing digit count never nudges the slider.
     label.alignment = NSTextAlignmentRight;
     [label.widthAnchor constraintEqualToConstant:50].active = YES;
     *outSlider = slider;
@@ -434,16 +398,11 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     _customCornerRadiusSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectWindowChrome
             write:^(AppTheme *theme, BOOL on) { theme.customCornerRadius = on; }];
 
-    // Default artwork follows the color pairs: one preview per appearance
-    // under Light & Dark Modes, collapsing to the dark-keyed one — the single
-    // slot's home — under Single Mode.
+    // Appearance-keyed, so it joins the single-mode collapse.
     NSStackView *artPair = [self darkLightPairWithDark:
             [self imageClusterForKey:kVibeThemeImageDefaultArtworkDark]
             light:[self imageClusterForKey:kVibeThemeImageDefaultArtworkLight]];
 
-    // The three transport buttons, each a glyph popup with a color pair, or
-    // a custom image; the play button's picture is a play/pause pair, one
-    // per state, captioned like the color pairs.
     NSArray<SettingsRowView *> *playlistButtonRows = [self
             buttonRowsForImageKey:kVibeThemeImagePlaylistButtonDark
                             title:STR_SETTINGS_THEME_BUTTON_PLAYLIST
@@ -580,15 +539,12 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     _customLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CUSTOM_LIGHT_LABEL
                                             control:customWells(NO)];
 
-    // The playlist background is one layer color the cells never read, and
-    // the row fills are read per draw, so their drags take the lighter effects
-    // rather than the full PlaylistAppearance rebuild.
+    // The background is one layer color and the row fills are read per draw,
+    // so their drags take lighter effects than PlaylistAppearance.
     _playlistBackgroundColorsRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_BACKGROUND_COLORS
             control:[self darkLightPairForBase:kVibeThemeColorPlaylistBackground
                                         effect:VibeSettingsLiveEffectPlaylistBackground]];
 
-    // The playlist's tint mirrors the window's: the same three choices, the
-    // same custom-color rows shown only under Custom.
     _playlistTintPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
                                              action:@selector(playlistTintChanged:)];
     [self addItem:STR_SETTINGS_WINDOW_TINT_NONE value:SETTINGS_VALUE_WINDOW_TINT_MONO to:_playlistTintPopUp];
@@ -599,8 +555,6 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     _playlistTintLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_LIGHT_LABEL
             control:[self wellForDark:NO base:kVibeThemeColorPlaylistTint effect:VibeSettingsLiveEffectWindowTint]];
 
-    // A switch row per playlist column, each revealing its pair's row below
-    // it — in column order, the number column first.
     _playlistColorSwitches = [NSMutableDictionary dictionary];
     _playlistColorRows = [NSMutableDictionary dictionary];
     NSMutableArray<SettingsRowView *> *playlistColorRows = [NSMutableArray array];
@@ -700,8 +654,7 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     _transportSection = [SettingsSectionView sectionWithHeader:STR_SETTINGS_TRANSPORT_SECTION rows:transportRows];
 
     NSArray<NSView *> *sections = @[
-        // The pair swaps visibility — exactly one shows — so the second row
-        // must not keep the between-rows hairline the section stamps on it.
+        // Exactly one of the pair shows, so the second drops its hairline.
         [SettingsSectionView sectionWithRows:@[_builtInRow, _nameRow]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_ICON_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_APP_ICON control:appIconCluster],
@@ -760,10 +713,8 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     scroll.hasVerticalScroller = YES;
     scroll.autohidesScrollers = YES;
     scroll.drawsBackground = NO;
-    // Without this, macOS 26 associates the scroll view with the titlebar
-    // above it and builds a scroll pocket — a full-column blur band whose
-    // hard bottom edge reads as a stray hairline over the editor page. The
-    // scroll view starts below the toolbar, so there is nothing to inset.
+    // Otherwise macOS 26 builds a titlebar scroll pocket whose hard edge
+    // draws a stray hairline over the page.
     scroll.automaticallyAdjustsContentInsets = NO;
     scroll.documentView = _editorStack;
 
@@ -784,9 +735,7 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
         [scroll.leadingAnchor constraintEqualToAnchor:container.leadingAnchor],
         [scroll.trailingAnchor constraintEqualToAnchor:container.trailingAnchor],
         [scroll.bottomAnchor constraintEqualToAnchor:container.bottomAnchor],
-        // The standard vertical-scroll pinning — top, leading and width, the
-        // height left to the content. What keeps the resting position at the
-        // top through a relayout is the document view being flipped, above.
+        // The flipped document view keeps the top in place across relayout.
         [_editorStack.topAnchor constraintEqualToAnchor:scroll.contentView.topAnchor],
         [_editorStack.leadingAnchor constraintEqualToAnchor:scroll.contentView.leadingAnchor],
         [_editorStack.widthAnchor constraintEqualToAnchor:scroll.contentView.widthAnchor],
@@ -801,13 +750,10 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
             AppSettings.sharedInstance.activeThemeIdentifier];
     _nameRow.hidden = builtIn;
     _builtInRow.hidden = !builtIn;
-    // A single-mode theme has one color per field, so every Dark/Light pair
-    // collapses to one well — the dark-keyed well, the single slot's home —
-    // with the captions hidden, and the per-side rows keep only that one.
+    // Single mode has one color per field: every pair collapses to its
+    // dark-keyed well, and the per-side rows lose their side in the title the
+    // debug walker addresses them by.
     BOOL single = theme.isSingleMode;
-    // The per-side rows lose their side with it: one color, so "Dark color"
-    // names a half the theme does not have — and that title is what the
-    // debug walker addresses the row by.
     [_windowTintDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLOR_LABEL
                                            : STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL];
     [_playlistTintDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLOR_LABEL
@@ -836,8 +782,6 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     for (NSString *base in _playlistColorRows) {
         _playlistColorRows[base].hidden = ![theme playlistColorEnabledForBase:base];
     }
-    // A button dressed in a picture has no glyph color to edit, and one
-    // drawing a glyph has no picture to show.
     for (NSString *key in _glyphPopUps) {
         BOOL hasImage = [self buttonHasImageForKey:key];
         _buttonColorRows[key].hidden = hasImage;
@@ -848,8 +792,6 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     [self applyEditorVisibility];
 }
 
-// One depth-first descendant walk for the leaf actions that need every
-// view, not only the controls.
 static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     for (NSView *subview in view.subviews) {
         block(subview);
@@ -857,18 +799,14 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     }
 }
 
-// The editor, from the working theme. (The name/built-in row swap lives in
-// resolveLayoutStateFromSettings with the other conditional rows.)
 - (void)refreshEditorFromSettings {
     AppSettings *settings = AppSettings.sharedInstance;
     AppTheme *theme = settings.currentTheme;
     NSString *active = settings.activeThemeIdentifier;
     BOOL builtIn = [AppTheme isBuiltInIdentifier:active];
-    // Skip while the field editor is open, or a refresh mid-type (a menu
-    // open/close, the window regaining key) would silently discard the edit —
-    // unless the active theme changed under it: then the edit belongs to a
-    // theme this page no longer shows, and keeping it would commit onto the
-    // wrong one, so it is dropped instead.
+    // A refresh mid-type (menu tracking, regaining key) must not discard the
+    // edit, unless the active theme changed under it: then drop it rather
+    // than commit it onto the wrong theme.
     if (_nameField.currentEditor != nil &&
         ![active isEqualToString:_nameFieldThemeIdentifier]) {
         [_nameField abortEditing];
@@ -929,26 +867,21 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 
     [self refreshFontValueLabels];
 
-    // Read-only built-ins: every editor control disables, honestly reported
-    // by the debug walker; then the always-live sub-rules re-apply.
     [SettingsRowView setControlsInView:_editorStack enabled:!builtIn];
-    // The built-in page's one live control sits inside the swept stack now
-    // that the caption row is a card row: without this, a built-in could
-    // never be duplicated from its own page. Observed, not hypothetical.
+    // The built-in page's one live control sits inside the swept stack.
     [SettingsRowView setControl:_duplicateButton enabled:YES];
     if (!builtIn) {
         BOOL info = theme.showFileInfo;
         for (SettingsRowView *row in _fileInfoRows) {
             [SettingsRowView setControlsInView:row enabled:info];
         }
-        // These readouts share one font, even when only one group is visible.
+        // One font shared by three readouts.
         [SettingsRowView setControlsInView:_infoFontRow
                                    enabled:info || theme.showStatusIcons || theme.showTimeLabels];
         [SettingsRowView setControlsInView:_transportSection enabled:theme.showTransportButtons];
         [SettingsRowView setControl:_transportButtonsSwitch enabled:YES];
         [SettingsRowView setControlsInView:_timeSection enabled:theme.showTimeLabels];
         [SettingsRowView setControl:_timeLabelsSwitch enabled:YES];
-        // Key notation and key colors additionally require Show key.
         [SettingsRowView setControl:_keyNotationPopUp enabled:info && showKey];
         [SettingsRowView setControl:_keyColorsSwitch enabled:info && showKey];
         // The slider governs nothing while the window draws the standard radius.
@@ -982,8 +915,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 
 #pragma mark - Editor: mode and color wells
 
-// Which color slot every consumer reads moves with the mode, so the whole
-// theme re-applies.
+// Every consumer's color slot moves with the mode, so the whole theme re-applies.
 - (void)themeModeChanged:(id)sender {
     AppSettings.sharedInstance.currentTheme.mode =
             _modePopUp.selectedItem.representedObject;
@@ -991,13 +923,9 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     [self refreshFromSettings]; // ends in resolveLayoutStateFromSettings
 }
 
-// Writes each well's displayed color into its slot, so the surface
-// immediately matches what the wells show when a popup reveals them. A set
-// slot writes its own value back, unchanged; an unset one takes the
-// display accessor's constant. Dark wells FIRST: under single mode both
-// reads and writes canonicalize to the dark-keyed slot, so the dark pass
-// seeds it and the light pass reads that back — the one slot takes the dark
-// default with no special case.
+// Writes each well's displayed color into its slot, so a revealed pair
+// matches the surface at once. Dark FIRST: under single mode both sides
+// canonicalize to the dark-keyed slot, which must take the dark default.
 - (void)seedWellsIn:(NSArray<NSView *> *)containers {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     NSMutableArray<NSDictionary *> *bindings = [NSMutableArray array];
@@ -1021,8 +949,6 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     }
 }
 
-// The one action every themed well sends: write the side, request the
-// pair's effect.
 - (void)colorWellChanged:(NSColorWell *)sender {
     NSDictionary *binding = [_wellBindings objectForKey:sender];
     [AppSettings.sharedInstance.currentTheme setColor:sender.color forBase:binding[kWellBase]
@@ -1031,10 +957,8 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
                    continuous:YES];
 }
 
-// The one gesture behind every popup that reveals color rows — the two
-// background styles, the two tints, the waveform theme: the choice that
-// consumes the pair seeds its wells first, so the surface immediately matches
-// what they show; then the field, the effect, and the row reveal.
+// Every popup that reveals color rows: the revealing choice seeds its wells
+// first, so the surface matches what they show.
 - (void)chooseFromPopUp:(NSPopUpButton *)popUp revealing:(NSString *)revealing
                   wells:(NSArray<NSView *> *)rows effect:(VibeSettingsLiveEffect)effect
                   write:(void (^)(AppTheme *theme, NSString *identifier))write {
@@ -1067,9 +991,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 }
 
 - (void)cornerRadiusChanged:(id)sender {
-    // A magnetic detent at the standard radius — the reset, without a button:
-    // dragging near it snaps onto it. The sanitize gate rounds to whole
-    // points; the knob re-syncs to what actually landed.
+    // The sanitize gate rounds to whole points; the knob re-syncs to it.
     double radius = _cornerRadiusSlider.doubleValue;
     if (fabs(radius - kVibeThemeCornerRadiusDefault) < 1.5) {
         radius = kVibeThemeCornerRadiusDefault;
@@ -1087,9 +1009,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 
 #pragma mark - Editor: images
 
-// The clear badge shows only while there is something to clear: a non-empty
-// reference in the hovered slot, on an editable page. Read live — the value,
-// the page and the enable state can all have changed since the last hover.
+// Read live: the value, the page and the enable state may have changed.
 - (void)mouseEntered:(NSEvent *)event {
     NSString *key = event.trackingArea.userInfo[@"imageField"];
     if (!key) {
@@ -1110,7 +1030,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     NSString *key = sender.identifier;
     [AppSettings.sharedInstance.currentTheme setImageReference:@"" forKey:key];
     [self themeFieldDidChange:VibeThemeImageEditEffect(key)];
-    [self refreshFromSettings]; // also hides the badge — the cursor is still over it
+    [self refreshFromSettings]; // hides the badge, though the cursor is still over it
 }
 
 - (void)chooseImage:(NSButton *)sender {
@@ -1122,9 +1042,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     panel.canChooseDirectories = NO;
     panel.allowsMultipleSelection = NO;
     panel.allowedContentTypes = @[UTTypeJPEG, UTTypePNG];
-    // The sheet blocks the window, not the menu bar — View > Theme can switch
-    // the active theme underneath it, so bind the write to the theme that was
-    // active when the panel opened (the async-delivery rule).
+    // View > Theme can switch the active theme under the sheet.
     NSString *target = AppSettings.sharedInstance.activeThemeIdentifier;
     [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSInteger result) {
         if (result != NSModalResponseOK || !panel.URL) {
@@ -1153,10 +1071,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 
 #pragma mark - Editor: transport buttons
 
-// A glyph pick retires the button's picture — the picture wins over the
-// glyph while set, so leaving it would make the pick a no-op; Custom image…
-// opens the panel for the button's (first) slot and, cancelled, refreshes
-// the popup back to the glyph.
+// A glyph pick retires the button's picture, which would otherwise win.
 - (void)buttonGlyphChanged:(NSPopUpButton *)sender {
     NSString *key = sender.identifier;
     NSString *choice = sender.selectedItem.representedObject;
@@ -1237,9 +1152,8 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 #pragma mark - Editor: name
 
 // TRAP: the Name field's editor is an NSTextView, which implements changeFont:
-// and would eat the font panel's sends to restyle the name. selectFont: parks
-// first responder to open the panel clear of it; this is the same trap reached
-// from the other side, once the panel is already up.
+// and would eat the font panel's sends; editing the name closes the panel
+// (selectFont: guards the other direction).
 - (void)controlTextDidBeginEditing:(NSNotification *)notification {
     if (notification.object != _nameField) {
         return;
@@ -1283,8 +1197,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 - (void)selectFont:(NSButton *)sender {
     _fontEditingSlot = (VibeFontSlot)sender.tag;
     // TRAP: a focused field editor is an NSTextView, which implements
-    // changeFont: and would eat the panel's sends to restyle the Name field —
-    // park first responder on the pane's own view before opening the panel.
+    // changeFont: and would eat the panel's sends.
     [self.view.window makeFirstResponder:self.view];
     NSFontManager *manager = NSFontManager.sharedFontManager;
     [manager setSelectedFont:[Fonts fontForSlot:_fontEditingSlot bold:NO] isMultiple:NO];
@@ -1295,9 +1208,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     return NSFontPanelModeMaskCollection | NSFontPanelModeMaskFace | NSFontPanelModeMaskSize;
 }
 
-// Continuous browsing in the panel lands here per pick — a live preview for
-// free. The store clamps the size; face names resolve through Fonts'
-// never-nil fallback at draw time.
+// Called per pick while browsing. The store clamps the size.
 - (void)changeFont:(NSFontManager *)sender {
     if (_fontEditingSlot == VibeFontSlotNone) {
         return;
@@ -1311,11 +1222,8 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     [self refreshFontValueLabels];
 }
 
-// Editor teardown: close the font panel and deactivate every color well.
-// A well stays bound to the shared NSColorPanel until deactivated — disabling
-// or hiding it does not — so a well left active on a departed or now read-only
-// page would take the panel's next pick. Every caller is a page leave or a
-// switch to a built-in.
+// A well stays bound to the shared color panel until deactivated, even
+// disabled or hidden, and would take the panel's next pick.
 - (void)closeEditorPanels {
     _fontEditingSlot = VibeFontSlotNone;
     if (NSFontPanel.sharedFontPanelExists) {

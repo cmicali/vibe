@@ -1,17 +1,10 @@
 #!/bin/bash
 #
-# Generates the header holding the git provenance of the build (commit, branch,
-# dirty flag) for NSBundle+BuildInfo to report in the startup log.
+# Generates VibeGitInfo.h (commit, branch, dirty flag) for NSBundle+BuildInfo's
+# launch provenance. The app targets' pre-build phase; also runnable by hand.
 #
-# Run as the Vibe target's pre-build script phase; also runnable by hand. The
-# repo root comes from SRCROOT when Xcode runs it, else from this script's own
-# location, so `scripts/generate-git-info.sh` works from any directory.
-#
-# The header is rewritten only when its contents actually change, so an
-# unchanged git state doesn't force a recompile of everything that includes it.
-#
-# A source tree with no git (an exported tarball, or git not installed) is not
-# an error: every field falls back to "unknown" and the build proceeds.
+# Rewritten only when its contents change, so an unchanged git state forces no
+# recompile. With no git, every field is "unknown" and the build proceeds.
 
 set -euo pipefail
 
@@ -25,14 +18,12 @@ dirty=0
 
 if command -v git >/dev/null 2>&1 && git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
     commit=$(git -C "$REPO_ROOT" rev-parse --short=12 HEAD 2>/dev/null || echo "unknown")
-    # HEAD detached (a tag build, a bisect) has no branch name: report the
-    # commit rather than git's literal "HEAD".
+    # A detached HEAD reports "detached" rather than git's literal "HEAD".
     branch=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
     if [ "$branch" = "HEAD" ]; then
         branch="detached"
     fi
-    # --porcelain covers staged, unstaged, and untracked-but-not-ignored files,
-    # so anything that would show up in `git status` counts as dirty.
+    # Anything `git status` shows, untracked files included, counts as dirty.
     if [ -n "$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null)" ]; then
         dirty=1
     fi

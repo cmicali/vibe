@@ -59,11 +59,10 @@
     [self setSuccessorArmedForUI:YES];
 }
 
-// The decoder may have won: once it has switched into the successor, its
-// frames are in the ring behind the current file's, and withdrawing the
-// metadata alone leaves them to play under a track the UI still names, with
-// no boundary to promote and no end to report. Only a new voice discards
-// them, so the current file is re-voiced at its position.
+// The decoder may have won: the successor's frames are in the ring, and only
+// a new voice discards them, so the current file is re-voiced at its position.
+// Withdrawn in metadata alone, they play under the wrong title, with no
+// boundary to promote and no end to report.
 - (void)unqueueSuccessorOnQueue {
     BOOL withdrawn = !_voice || [_voiceBus unqueueSuccessorForVoice:_voice];
     [self clearSuccessorOnQueue];
@@ -72,10 +71,9 @@
     }
 }
 
-// The boundary passed: the successor is sounding on the same voice. Promote
-// it in place — no stop, no fade, no graph mutation — with the bus frames
-// consumed before it as the new base for the position math. The park is
-// consumed with it, so a replay of the promoted row opens its own file.
+// In place, with the bus frames consumed before the boundary as the position's
+// new base. The park is consumed with it, so a replay of the promoted row opens
+// its own file.
 - (void)promoteSuccessorOnQueue {
     AudioTrack *finishedTrack = self.currentTrack;
     AudioTrack *startedTrack = _successorTrack;
@@ -93,9 +91,9 @@
     startedTrack.duration = self.duration;
     [self armSignalProbeOnQueue:@"gapless boundary"];
     uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
-    // Snapshot-guarded like every delivery: a play or stop queued behind this
-    // promote rewrites currentTrack before the hop lands, and advancing the
-    // playlist for a superseded splice would strand it one row ahead.
+    // A play or stop queued behind this promote rewrites currentTrack before
+    // the hop lands; advancing for a superseded splice strands the playlist a
+    // row ahead.
     run_on_main_thread({
         if (self.currentTrack != startedTrack || ![self submittedPlayIsCurrent:owningSubmittedPlayIdentifier]) {
             return;
@@ -185,19 +183,15 @@
                 _prefetchRequestState, requestIdentifier).state;
         return;
     }
-    // The queued successor must track the prefetch target. When the
-    // playlist's next changes under it — a convert swap of that row, or the
-    // parked handle being dropped — the voice would continue into the wrong
-    // file at the boundary, so unqueue it.
+    // The successor must track the prefetch target, or the voice continues
+    // into the wrong file at the boundary.
     if (_successorTrack && (!path || ![path isEqualToString:_successorTrack.url.path])) {
         [self unqueueSuccessorOnQueue];
     }
     if (disposition == VibeAudioPrefetchDispositionReuseParked
             || disposition == VibeAudioPrefetchDispositionJoinPrefetchClaim) {
-        // Already parked, or that open is still in flight. A same-path
-        // re-prefetch can carry a fresh AudioTrack object, which the promote
-        // must deliver; and parked material can be dormant behind a gate
-        // that has since opened.
+        // A same-path re-prefetch can carry a fresh AudioTrack object, which
+        // the promote must deliver, and a gate may have opened since.
         _prefetchedTrack = track;
         if (_successorTrack) {
             _successorTrack = track;
@@ -213,9 +207,8 @@
         return; // being opened for playback right now
     }
     [self clearPrefetchOnQueue];
-    // Claimed at request time rather than at completion, so that repeated
-    // prefetches of the same path do not stack opens. _prefetchedFile stays
-    // nil until the open lands.
+    // Claimed at request time, so repeated prefetches of a path do not stack
+    // opens.
     _prefetchedPath = path;
     _prefetchedTrack = track;
     _prefetchedFile = nil;
@@ -239,10 +232,9 @@
         }
         VibePlaybackRequest *request = strongSelf.pendingRequest.currentRequest;
         if (request && [path isEqualToString:request.path]) {
-            // A play of this path is waiting on its own interactive claim.
-            // Deliver on success only; whichever result consumes the request
-            // first detaches the other, and delivery follows the latest
-            // rebound row through PlaybackRequestCoordinator.
+            // A play of this path is waiting on its own claim. Deliver on
+            // success only; whichever result consumes the request first
+            // detaches the other.
             if (prefetchGeneration == strongSelf->_prefetchGeneration) {
                 [strongSelf clearPrefetchOnQueue];
             }
@@ -259,15 +251,13 @@
             [strongSelf maybeArmSuccessorOnQueue];
         }
         else {
-            // The open failed. Release the claim so that a play of this track
-            // runs its own open and reports the error the usual way.
+            // A play of this track then runs its own open and reports the
+            // error.
             [strongSelf clearPrefetchOnQueue];
         }
     }];
-    // Every non-suppressed disposition ends the request here: with no
-    // acknowledgement to time, the request's remaining job — carrying the
-    // target for a suppressed resume — is over the moment its disposition is
-    // applied. The open above completes into _prefetchedFile on its own.
+    // Every non-suppressed disposition ends the request here; the open
+    // completes into _prefetchedFile on its own.
     [self settlePrefetchRequestOnQueueForIdentifier:requestIdentifier];
 }
 

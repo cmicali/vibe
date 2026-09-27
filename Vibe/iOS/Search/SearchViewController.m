@@ -15,15 +15,12 @@
 #import "SearchFolderStore.h"
 #import "VibeStrings.h"
 
-// How long a burst of metadata deliveries is allowed to gather before the
-// matches are rebuilt. Long enough that a folder scan's stream of them costs a
-// handful of passes rather than one per track, short enough to read as live.
+// A folder scan's metadata stream costs a handful of rebuilds, not one per
+// track, and still reads as live.
 static const NSTimeInterval kRefilterCoalesceInterval = 0.25;
 
-// The files section is capped: it draws off a walk of up to twenty thousand
-// files, and a query of one letter would otherwise reload thousands of rows on
-// every keystroke. The playlist section is uncapped — it is what the user
-// already has open, and it doubles as the browse list.
+// Uncapped, a one-letter query reloads thousands of rows per keystroke. The
+// playlist section is uncapped: it doubles as the browse list.
 static const NSUInteger kMaxFileResults = 200;
 
 typedef NS_ENUM(NSInteger, VibeSearchSection) {
@@ -39,21 +36,15 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     PlaybackController *_playback;
     Playlist           *_playlist;
     UISearchController *_searchController;
-    // Indexes into the playlist, filtered by the live query. All rows when
-    // the query is empty, so the screen doubles as a browse list.
+    // Indexes into the playlist; all of them for an empty query.
     NSArray<NSNumber *> *_matches;
-    // The files section: the walk, its current answer, and the playlist's paths
-    // so a track the playlist already lists is not offered twice. The path set
-    // is rebuilt on a playlist change, not per keystroke.
+    // The playlist's paths, so a listed track is not offered twice; rebuilt
+    // per playlist change, not per keystroke.
     FileSearchIndex     *_fileIndex;
     NSArray<FileSearchHit *> *_fileHits;
     NSSet<NSString *>   *_playlistPaths;
-    // Tags have landed that the matches have not been rebuilt for, and whether
-    // a rebuild is already parked.
     BOOL                _matchesStale;
     BOOL                _refilterScheduled;
-    // The controller owns presentation visibility; RootViewController supplies
-    // whether its custom card leaves this tab's pixels materially exposed.
     BOOL                _viewPresentationVisible;
     BOOL                _materialSurfaceVisible;
 }
@@ -82,27 +73,18 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     _searchController.searchBar.placeholder = STR_LABEL_SEARCH;
     self.navigationItem.searchController = _searchController;
     self.navigationItem.hidesSearchBarWhenScrolling = NO;
-    // Dragging the results puts the keyboard away, which is the only way to see
-    // the bottom half of them: UISearchTab hoists the field into the tab bar, so
-    // the keyboard covers the LIST rather than sitting under a field inside it,
-    // and nothing else here would ever dismiss it. Not `interactive` — that mode
-    // tracks a field the scroll view contains, and this one does not contain it.
+    // Nothing else dismisses the keyboard, which covers the list. Not
+    // `interactive`: that tracks a field the scroll view contains, and this
+    // one is in the tab bar.
     self.tableView.keyboardDismissMode = UIScrollViewKeyboardDismissModeOnDrag;
-    // Deliberately not focused on appear: this is a tab root, and seizing the
-    // keyboard on every switch to it is not what a tab does.
+    // Not focused on appear: this is a tab root.
     [_playback addObserver:self];
-    // The settings screen adds folders on the PLAYLIST tab, so this screen's own
-    // appearance would usually be enough to notice — but the launch resolve of
-    // the persisted grants is asynchronous and can land while this screen is
-    // already up, and then nothing else would ever tell it.
+    // Launch restores can land while this screen is up.
     [NSNotificationCenter.defaultCenter addObserver:self
                                            selector:@selector(searchFoldersDidChange:)
                                                name:VibeSearchFoldersDidChangeNotification
                                              object:nil];
-    // The starred folders are the other half of the persistent scope, and they
-    // land the same way: prepareSearchScope resolves each saved grant off main,
-    // so roots arrive after this screen is up. A folder starred on the Playlist
-    // tab while this one exists reaches the walk through the same delivery.
+    // Starred roots resolve off main and arrive after this screen is up.
     [NSNotificationCenter.defaultCenter addObserver:self
                                            selector:@selector(searchFoldersDidChange:)
                                                name:VibeFavoritesDidChangeNotification
@@ -147,24 +129,21 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     }
 }
 
-// Different roots discard the index and re-walk; the same ones are a no-op, so
-// this is cheap to call on every appearance. The build is started only from a
-// screen that is up: arriving here is the signal the work is wanted.
+// Cheap on every appearance: the same roots are a no-op. Builds only from a
+// screen that is up.
 - (BOOL)isBuildingFileIndex {
     return _fileIndex.isBuilding;
 }
 
-// The field is the query's home: requestFileHitsForQuery: drops any delivery
-// whose query no longer matches currentQuery, so putting the text anywhere else
-// would filter once and then discard the file half's answer.
+// The field is the query's home: requestFileHitsForQuery: drops a delivery
+// whose query no longer matches it.
 - (void)setQueryText:(NSString *)query {
     _searchController.searchBar.text = query;
     [self filterWithQuery:query];
 }
 
 - (void)applySearchRoots {
-    // Starred folders are resolvable but not yet resolved until this asks: the
-    // saved grant is only worth opening once something is going to walk it.
+    // A saved grant is worth opening only once something will walk it.
     [FavoritesStore.shared prepareSearchScope];
     [_fileIndex setRoots:_playback.searchRoots];
     if ([self isMateriallyVisible]) {
@@ -172,21 +151,14 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     }
 }
 
-// Off screen the matches are left to go stale; deliveries schedule nothing
-// while the tab is not showing, so a folder scan behind another tab costs
-// this screen nothing at all.
-//
-// The FILE walk starts here rather than on the first keystroke: arriving on this
-// screen is the signal it is wanted, and starting it now is what lets the first
-// query answer off an index that is already filling. It is idempotent, so the
-// second appearance costs nothing.
+// Hidden, the matches go stale and deliveries schedule nothing. The file walk
+// starts here, not on the first keystroke, so the first query answers off an
+// index already filling.
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     _viewPresentationVisible = YES;
     [self applySearchRoots];
-    // Unconditional, not gated on _matchesStale: the walk delivers while this
-    // screen is off in the wings and its reloads are dropped there, so appearing
-    // is the one place both sections are known to be drawn from what is current.
+    // Unconditional: reloads are dropped while hidden.
     [self filterWithQuery:[self currentQuery]];
 }
 
@@ -231,10 +203,8 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     [self filterWithQuery:[self currentQuery]];
 }
 
-// The playlist half is a synchronous pass and lands on this run loop turn. The
-// files half snapshots whatever the walk has delivered and does its localized
-// matching away from main; later batches supersede that work instead of stacking
-// passes. Neither waits on the other or on a provider listing.
+// The playlist half lands on this turn; the files half matches off main, later
+// batches superseding it. Neither waits on the other or on a provider.
 - (void)filterWithQuery:(NSString *)query {
     _matchesStale = NO;
     NSArray<AudioTrack *> *tracks = _playlist.tracks;
@@ -298,9 +268,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     return VibeSearchSectionCount;
 }
 
-// An empty section draws no header, so a search with no file matches does not
-// leave a bare "Files" heading behind — except while the walk is still running,
-// where the heading and its footer are how a partial answer says so.
+// An empty section draws no header, except while the walk runs.
 - (BOOL)showsFilesSection {
     return [self currentQuery].length > 0 && (_fileHits.count > 0 || _fileIndex.isBuilding);
 }
@@ -314,8 +282,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
     if (section == VibeSearchSectionPlaylist) {
-        // No heading over a browse list: with an empty query this section is
-        // the whole screen and has nothing to be distinguished from.
+        // No heading over the browse list.
         return (_matches.count > 0 && [self currentQuery].length > 0)
                 ? STR_SEARCH_SECTION_PLAYLIST : nil;
     }
@@ -352,8 +319,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     return cell;
 }
 
-// A file the walk found carries no tags — reading them would be a download each
-// — so the row is its filename over its folder, and a glyph rather than art.
+// No tags (each would be a download): filename over folder, a glyph, no art.
 - (UITableViewCell *)fileCellForTableView:(UITableView *)tableView row:(NSUInteger)row {
     static NSString *const identifier = @"file";
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:identifier];
@@ -374,13 +340,10 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     return cell;
 }
 
-// A playlist row is a selection and stays here, as the library's rows do. A file
-// row is an OPEN: its folder becomes the playlist, so the card presents, exactly
-// as it does for any other open.
+// A playlist row selects and stays; a file row is an OPEN, like any other.
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
-    // Picking something is the end of typing. The query is left in the field, so
-    // the results stay put and a second pick needs no re-typing.
+    // Resigns the field but keeps the query.
     [_searchController.searchBar resignFirstResponder];
     if (indexPath.section == VibeSearchSectionFiles) {
         [_playback openSearchResultURL:_fileHits[(NSUInteger)indexPath.row].url];
@@ -391,15 +354,13 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 
 #pragma mark - FileSearchIndexDelegate
 
-// The index grew, so the files section can only have gained rows; the playlist
-// section is untouched. Refiltering the whole screen would be a wasted pass
-// over the playlist a few times a second for the length of the walk.
+// Only the files section can have changed.
 - (void)fileSearchIndexDidGrow:(FileSearchIndex *)index {
     [self reloadFilesSection];
 }
 
 - (void)fileSearchIndexDidFinishBuilding:(FileSearchIndex *)index {
-    [self reloadFilesSection];   // drops the "searching" footer
+    [self reloadFilesSection];   // drops the footer
 }
 
 - (void)reloadFilesSection {
@@ -408,18 +369,15 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     }
     NSString *query = [self currentQuery];
     if (query.length == 0 && _fileHits.count == 0) {
-        return;   // browsing: the walk's batches have nothing to draw
+        return;   // browsing
     }
     [self requestFileHitsForQuery:query];
 }
 
 #pragma mark - PlaybackObserver
 
-// Re-filter rather than reload: the matches are indexes into a playlist that
-// has just changed, so every one of them is stale. The new playlist is also a
-// new exclusion set, and — when the open changed folders, or an Add brought a
-// new one in — new search roots, which discard the index and re-walk on the
-// next appearance. A replace and an append need exactly this, so they share it.
+// Re-filter, not reload: every match is an index into the old playlist, and
+// the exclusion set and roots may have changed too. Replace and append alike.
 - (void)playlistDidChange {
     [self rebuildPlaylistPaths];
     [self applySearchRoots];
@@ -441,10 +399,8 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     [self playlistDidChange];
 }
 
-// Tags can change what a row says and what the query matches, but a folder
-// scan delivers one of these per track, and a re-filter is a pass over the
-// whole playlist plus a reloadData — thousands of them, on main, while the
-// player is opening a file. Coalesce instead of answering each one.
+// Coalesced: a scan delivers one per track, and each re-filter is a playlist
+// pass plus a reloadData on main while the player opens a file.
 - (void)playback:(PlaybackController *)playback didLoadMetadataForTrack:(AudioTrack *)track {
     _matchesStale = YES;
     [self scheduleRefilter];

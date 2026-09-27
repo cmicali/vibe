@@ -2,11 +2,8 @@
 //  DefaultAppRegistration.h
 //  Vibe
 //
-//  Settings > General's default-player button: asking Launch Services to make
-//  Vibe the default app for every audio type DocumentTypes declares, so the
-//  user need not walk Finder's Get Info > Open With > Change All once per
-//  extension. The type list itself lives in DocumentTypes (Common); this is
-//  the NSWorkspace half, macOS-only.
+//  The NSWorkspace half of DocumentTypes: Settings > General's default-player
+//  button.
 //
 
 #import <Foundation/Foundation.h>
@@ -15,16 +12,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface DefaultAppRegistration : NSObject
 
-// Answers YES when Vibe is already the default app for every
-// declaredFileTypes entry. The per-type Launch Services lookups are
-// synchronous XPC calls, so the walk runs on a background queue; the
-// completion arrives on the main thread.
+// YES when Vibe is the default app for every declaredFileTypes entry. Walks
+// off main; the completion arrives on main.
 + (void)checkIsDefaultAppForAllFileTypes:(void (^)(BOOL isDefault))completion;
 
-// Requests default-app status for every declaredFileTypes entry. It returns
-// immediately: the system asks the user to confirm and reports the outcome
-// itself, and the result shows up in checkIsDefaultAppForAllFileTypes: and in
-// the log.
+// Returns immediately; the system confirms with the user and reports the
+// outcome itself.
 + (void)makeDefaultApp;
 
 @end

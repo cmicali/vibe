@@ -2,8 +2,6 @@
 //  PlayerDisplaySettings.m
 //  Vibe (iOS)
 //
-//  See PlayerDisplaySettings.h.
-//
 
 #import "PlayerDisplaySettings.h"
 
@@ -27,9 +25,7 @@ void VibeSetShowsRemainingTime(BOOL remaining) {
 }
 
 BOOL VibeShowsFileInfo(void) {
-    // A key never written reads back as NO, and this one defaults to ON — so
-    // the absence is tested rather than registered, which keeps the key iOS's
-    // own instead of putting it in AppSettings' defaults dictionary.
+    // Defaults ON: absence is tested rather than registered in AppSettings.
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
     return [defaults objectForKey:kShowFileInfoKey] == nil
             || [defaults boolForKey:kShowFileInfoKey];

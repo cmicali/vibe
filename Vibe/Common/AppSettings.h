@@ -5,51 +5,32 @@
 // Every persisted preference, as properties over NSUserDefaults. Callers
 // import this header explicitly so their dependency is visible.
 //
-// THE PLATFORM SPLIT IS THE DIRECTORY, not a guard per property. Almost
-// everything the store configures — the window, the pitch fader, the FX
-// graph, Convert to FLAC, the playlist table, folder art, BPM and key
-// analysis — exists only on macOS, and all of it is the (Mac) category in
-// Mac/AppSettings+Mac.h, which a macOS caller imports explicitly. What both
-// targets compile is the short list here, plus one #if !TARGET_OS_OSX block
-// for the loose appearance keys the mac theme migration consumed. So "does
-// the iOS app honor this?" is answered by which header a property sits in,
-// rather than by grepping for its readers.
+// The platform split is the header: macOS-only settings are the (Mac)
+// category in Mac/AppSettings+Mac.h; this one holds what both targets compile,
+// plus the iOS-only block below.
 //
 
 #import <Foundation/Foundation.h>
 #import "FolderOpenSort.h"
 #import "PlatformTypes.h"
 
-// Nonnull by default: every string getter is backed by a registered default
-// (registerDefaults covers each key), and the normalized getters snap
-// unknown values to one. The nullable exceptions are marked — the
-// per-appearance color pairs, whose nil means "unset, use the fallback".
+// Nonnull by default: every string getter has a registered default or
+// normalizes to one. Nullable ones are marked.
 NS_ASSUME_NONNULL_BEGIN
 
-// A stable WaveformRendererRegistry identifier, never a class key or localized
-// display name. Both platforms render waveforms and both offer the
-// picker, so this one is shared.
+// A stable WaveformRendererRegistry identifier, never a display name.
 #define SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT               @"oversampling_detailed_x4"
 
-// The waveform color theme, the palette laid over whichever style draws the
-// geometry. Stable identifiers, resolved to colors in one place —
-// WaveformTheme (Vibe/WaveformUI/).
+// Waveform color theme identifiers, resolved to colors only by WaveformTheme.
 #define SETTINGS_VALUE_WAVEFORM_THEME_MONO                  @"mono"
 #define SETTINGS_VALUE_WAVEFORM_THEME_ORANGE                @"orange"
 #define SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART             @"album_art"
 #define SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM                @"custom"
 
-// The crossfade ladder Settings > Playback offers on both platforms, in
-// milliseconds: 10 (instant — the declick minimum the engine always
-// applies), 500 and 2000. The getter snaps a persisted value that matches no
-// preset — an external defaults write — to the nearest one
-// (SettingsRules.h), so the picker's selection and the engine always agree.
+// The crossfade ladder in milliseconds; 10 is instant, the declick minimum.
+// The getter snaps any other stored value to the nearest preset.
 FOUNDATION_EXPORT const NSInteger kVibeCrossfadePresets[];
 FOUNDATION_EXPORT const size_t kVibeCrossfadePresetCount;
-
-// The folder-open order's identifiers are in FolderOpenSort.h instead, beside
-// the enum the app passes around — Util/NSURLUtil needs the enum and must not
-// reach a setting to get it.
 
 @interface AppSettings : NSObject
 
@@ -57,85 +38,63 @@ FOUNDATION_EXPORT const size_t kVibeCrossfadePresetCount;
 
 @property(class, nonatomic, readonly) AppSettings *sharedInstance;
 
-// Both app delegates call this; its body is macOS-only today
-// (Mac/AppSettings+Mac.m).
+// Both app delegates call this; only macOS does work in it.
 - (void)applicationDidFinishLaunching;
 
-// Settings > Advanced > Reset. Preserves custom themes on macOS;
-// granted-folder bookmarks, stats and window frames are
-// other objects' stores. Resetting only clears the store; the caller owns the
-// running-app effects and restores window shape separately, since that action
-// writes geometry and its own settings.
+// Settings > Advanced > Reset. Preserves custom themes on macOS; bookmarks,
+// stats and window frames live elsewhere. Clears the store only: the caller
+// owns the running-app effects.
 - (BOOL)allSettingsAtDefaults;
 - (void)resetToDefaults;
 
-// iOS's loose appearance keys. On macOS the theme migration consumed them and
-// currentTheme.<field> is the store of record, so they are compiled out there:
-// a macOS caller fails to build instead of silently reading the registered
-// default forever.
+// iOS-only. On macOS the theme migration consumed these keys, so a macOS
+// caller fails to build rather than reading a dead key; use currentTheme.
 #if !TARGET_OS_OSX
 - (NSString *)waveformStyle;
 - (void)setWaveformStyle:(NSString *)identifier;
 
-// The home-screen widget's own style, or nil to match the app's above. Here
-// rather than in PlayerDisplaySettings for the same reason as its neighbours:
-// what sends a key to that store is a macOS AppTheme field of the same name
-// making an AppSettings property a lie, and the widget has no macOS
-// counterpart to collide with. nil is the default and the "match app" answer;
-// an empty string normalizes to it.
+// The home-screen widget's own style; nil (the default, and what an empty
+// string reads as) matches the app's.
 - (nullable NSString *)widgetWaveformStyle;
 - (void)setWidgetWaveformStyle:(nullable NSString *)identifier;
 
-// The waveform color theme, normalized on read: an identifier no picker can
-// produce snaps to mono. WaveformTheme resolves it to colors.
+// Normalized on read: an unknown identifier snaps to mono.
 - (NSString *)waveformTheme;
 - (void)setWaveformTheme:(NSString *)identifier;
 
-// The custom theme's colors, a played/unplayed pair per appearance —
-// a single pair cannot read on both backdrops — persisted as #RRGGBB[AA],
-// the alpha being the side's resting level. nil when unset or unparsable;
-// WaveformTheme supplies the fallback.
+// The custom theme's played/unplayed pair per appearance, as #RRGGBB[AA] with
+// the alpha the side's resting level. nil when unset or unparsable.
 - (nullable VibeColor *)waveformCustomPlayedColorForDark:(BOOL)isDark;
 - (void)setWaveformCustomPlayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
 - (nullable VibeColor *)waveformCustomUnplayedColorForDark:(BOOL)isDark;
 - (void)setWaveformCustomUnplayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
 
-// Settings > Playback > Resampling, iOS only: NO, the default, converts a
-// file whose rate differs from the output's at High quality; YES at Maximum,
-// the only quality macOS uses. The two differ only above 21 kHz, and High
-// costs about half the CPU (AudioPlayer.resamplingQuality). Like the
-// track-transition settings, the writer applies it through PlaybackController.
+// NO (the default) resamples at High, YES at Maximum, the only quality macOS
+// uses (AudioPlayer.resamplingQuality). The writer applies it through
+// PlaybackController.
 - (BOOL)maximumResamplingQuality;
 - (void)setMaximumResamplingQuality:(BOOL)maximum;
 #endif  // !TARGET_OS_OSX
 
-// Settings > Playback > Track transitions, on both platforms. The store never
-// applies either (Common/CLAUDE.md): the mac writer requests the named live
-// effect, the iOS writer calls PlaybackController.applyTrackTransitionSettings.
+// Track transitions. The store never applies either: the mac writer requests
+// the live effect, the iOS writer calls
+// PlaybackController.applyTrackTransitionSettings.
 //
-// Track-change crossfade length: 10 (instant, the declick minimum), 500 or
-// 2000, the stored choice the picker displays. iOS pushes it to the player as
-// is; the mac pushes effectiveCrossfadeMilliseconds (Mac/AppSettings+Mac.h),
-// which bit-perfect output holds at the minimum. Pause, seek and stop
-// declicks never scale with it.
+// The stored crossfade choice. The mac pushes effectiveCrossfadeMilliseconds
+// instead, which bit-perfect output holds at the minimum.
 - (NSInteger)crossfadeMilliseconds;
 - (void)setCrossfadeMilliseconds:(NSInteger)milliseconds;
 
-// On track end. NO, the default, plays the next track in the playlist when
-// one ends; YES parks on the finished track exactly as the end of the
-// playlist does. Each shell enforces it at both places a track end can
-// advance from (root CLAUDE.md): the successor prefetch, which is also the
-// player's gapless arm point, and the end callback. A writer must then
-// re-park or drop the parked handle, or a mid-track switch to Pause leaves an
-// armed splice that advances anyway.
+// YES parks on the finished track as the end of the playlist does. Each shell
+// enforces it at the successor prefetch and the end callback (root
+// CLAUDE.md); a writer must re-park, or a mid-track switch to Pause leaves an
+// armed gapless splice that advances anyway.
 - (BOOL)pauseAtTrackEnd;
 - (void)setPauseAtTrackEnd:(BOOL)pause;
 
-// The order a folder's tracks land in the playlist — see FolderOpenSort.h.
-// Normalized on read: an identifier no picker can produce reads as Name.
-// Read by each shell at open time and handed to the walk, which is a path
-// utility and may not read a setting itself (Util/CLAUDE.md). It governs the
-// next open only; a change never reorders the playlist already on screen.
+// Normalized on read: an unknown identifier reads as Name. Each shell reads it
+// at open time and hands it to the walk; a change never reorders the
+// playlist on screen.
 - (VibeFolderOpenSort)folderOpenSort;
 - (void)setFolderOpenSort:(VibeFolderOpenSort)sort;
 

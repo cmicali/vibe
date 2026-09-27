@@ -15,9 +15,8 @@ typedef void (^DownloadAllocatedSizeSampleHandler)(float fraction,
                                                     long long logicalBytes);
 typedef void (^DownloadProgressFractionHandler)(float fraction);
 
-// Private source adapters for DownloadProgressMonitor. Each owns exactly one
-// system observation mechanism and its teardown; the monitor owns precedence
-// and coalescing.
+// Each owns one system observation and its teardown; the monitor owns
+// precedence and coalescing.
 @interface DownloadAllocatedSizeSource : NSObject
 
 - (instancetype)initWithURL:(NSURL *)url

@@ -34,39 +34,28 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     // redraw, and the background under the rows re-resolves (glass lift or
     // solid cover — the tint wash above it rides WindowTint).
     VibeSettingsLiveEffectPlaylistAppearance = 1UL << 16,
-    // Just the playlist row fills, redrawn in place — PlaylistRowView reads
-    // its themed fill per draw, so a playing/selected-row color edit needs no
-    // cell rebuild. The lighter sibling of PlaylistAppearance for live drags.
+    // Row fills only: PlaylistRowView reads its fill per draw, so a live drag
+    // skips the cell rebuild.
     VibeSettingsLiveEffectPlaylistRowFills = 1UL << 17,
-    // Just the background under the rows (glass lift or solid cover) — one
-    // layer color the cells never read, so a background color drag skips the
-    // cell rebuild and reload. The other lighter sibling for live drags.
+    // The background under the rows only, a layer color the cells never read.
     VibeSettingsLiveEffectPlaylistBackground = 1UL << 18,
-    // The waveform's level mapping — Normalize and the gain: the renderer
-    // refills its morph target from the same waveform, so the bars ease to
-    // their new heights under a drag.
+    // Normalize and gain: the renderer refills its morph target, so the bars
+    // ease under a drag.
     VibeSettingsLiveEffectWaveformLevels   = 1UL << 19,
     // Off deletes the container mirror.
     VibeSettingsLiveEffectReopenLastPlaylist = 1UL << 20,
-    // The theme's app icon and its Dock tile choice — the icon into the
-    // application, then the tile re-decided between it and the playing art.
+    // The theme's app icon, then the Dock tile re-decided.
     VibeSettingsLiveEffectAppIcon          = 1UL << 21,
-    // The three transport buttons' visibility, glyph or image, color, and gradient
-    // behind them.
+    // The transport buttons' visibility, glyph or image, color and gradient.
     VibeSettingsLiveEffectTransportButtons = 1UL << 22,
-    // Bit-perfect output: pushes the mode to the player, resets the pitch to
-    // 0 and hides the fader while on. Also pushes exclusiveOutput. A change
-    // to bitPerfectOutput uses BitPerfectApply below; exclusiveOutput alone
-    // needs only this effect. The settled report redraws the header and pane.
+    // Pushes bit-perfect and exclusive output; bit-perfect on zeroes the
+    // pitch and hides the fader. A bitPerfectOutput write requests
+    // BitPerfectApply instead.
     VibeSettingsLiveEffectBitPerfect       = 1UL << 23,
-    // Declick: pushes the choice to the player; nothing is rebuilt.
     VibeSettingsLiveEffectDeclick          = 1UL << 24,
-    // The window's movability; no theme carries it.
-    VibeSettingsLiveEffectWindowLock       = 1UL << 25,
-    // Everything applying a whole theme moves at once. WindowAppearance is
-    // included because a single-mode theme demands the pinned dark
-    // appearance (AppTheme.requiredWindowAppearance) even though the
-    // appearance SETTING stays a common one; TrafficLights stays outside.
+    VibeSettingsLiveEffectWindowLock       = 1UL << 25, // not theme state
+    // WindowAppearance is included because a single-mode theme pins the
+    // window dark (AppTheme.requiredWindowAppearance).
     VibeSettingsLiveEffectThemeApply       = VibeSettingsLiveEffectWindowAppearance
                                            | VibeSettingsLiveEffectWaveformStyle
                                            | VibeSettingsLiveEffectWaveformTheme
@@ -77,10 +66,8 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
                                            | VibeSettingsLiveEffectTrackDisplay
                                            | VibeSettingsLiveEffectAppIcon
                                            | VibeSettingsLiveEffectTransportButtons,
-    // Every write of bitPerfectOutput requests this: the FX and crossfade
-    // branches, reading audioFXAllowed and effectiveCrossfadeMilliseconds, are
-    // what withdraw the FX and drop the crossfade — the same path the FX
-    // switch and the crossfade popup take themselves.
+    // Every bitPerfectOutput write requests this: the FX and crossfade
+    // branches are what withdraw FX and drop the crossfade under the mode.
     VibeSettingsLiveEffectBitPerfectApply  = VibeSettingsLiveEffectBitPerfect
                                            | VibeSettingsLiveEffectFXControls
                                            | VibeSettingsLiveEffectCrossfade,
@@ -89,16 +76,14 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
 
 @interface MainPlayerController (Settings)
 
-// Pushes the theme's font choice into Fonts (Util may not read a setting).
-// buildContentInWindow: runs it before any label exists; the Fonts effect
-// re-runs it live.
+// Pushes the theme's fonts into Fonts, which may not read a setting.
+// buildContentInWindow: runs it before any label exists.
 - (void)applyStoredFonts;
 
-// Applies the running-app half of settings that were already stored. Never
-// writes settings or window geometry.
+// Applies settings already stored. Never writes settings or window geometry.
 - (void)applySettingsLiveEffects:(VibeSettingsLiveEffect)effects;
-// Device settlements already applied their modes; do not send them back to
-// a player that may have moved on to another device.
+// NO for a device settlement: its modes are applied, and the player may have
+// moved on to another device.
 - (void)applySettingsLiveEffects:(VibeSettingsLiveEffect)effects updatingOutputModes:(BOOL)updatingOutputModes;
 
 @end

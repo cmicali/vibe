@@ -21,8 +21,7 @@ typedef struct {
     NSUInteger localMetadataParseConcurrency;
     NSUInteger prefetchDepth;
 
-    // Diagnostic tuning surface. Production callers normally leave these at
-    // their defaults; tests and the debug command channel may replace them.
+    // Diagnostic surface: only tests and the debug channel change these.
     NSUInteger maximumInteractiveMaterializations;
     NSUInteger maximumInteractivePendingMaterializations;
     NSUInteger maximumBackgroundPendingMaterializations;

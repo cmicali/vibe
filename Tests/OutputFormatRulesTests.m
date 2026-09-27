@@ -1,8 +1,3 @@
-//
-// Bit-perfect output: the source depth decode, the rate and depth rules, the
-// device eligibility allowlist and the status fold.
-//
-
 #import <XCTest/XCTest.h>
 #import <objc/runtime.h>
 
@@ -45,7 +40,7 @@ static AudioStreamRangedDescription RangedFormat(double rate, UInt32 bits, BOOL 
     return r;
 }
 
-// The devices probed while planning, verbatim: every one float32 only.
+// Real devices' offered rates: every one float32 only.
 static const double kSpeakerRates[] = { 44100, 48000, 88200, 96000 };
 static const double kAirPodsRates[] = { 24000, 48000 };
 
@@ -643,7 +638,7 @@ static VibeBitPerfectReport Perfect(void) {
         }
     }];
     [self waitForExpectations:@[started] timeout:2];
-    [manager outputDevices]; // Initial setup has returned from the injected enumeration.
+    [manager outputDevices]; // waits out the listener setup
     return manager;
 }
 
@@ -897,7 +892,7 @@ static NSString *const kModesKey = @"AudioPlayer.outputModesByDeviceUID";
 // whether it can be re-adopted when it comes back without waiting for a stop.
 - (void)testSavedDeviceBindsOnceAPauseHasSettledButNotDuringItsFade {
     XCTAssertTrue(VibeCanBindSavedOutputDevice(NO, NO, YES, NO, NO));  // idle-stopped
-    XCTAssertTrue(VibeCanBindSavedOutputDevice(NO, NO, YES, YES, NO)); // engine up, fade done
+    XCTAssertTrue(VibeCanBindSavedOutputDevice(NO, NO, YES, YES, NO)); // output running, fade done
     XCTAssertFalse(VibeCanBindSavedOutputDevice(NO, NO, YES, YES, YES)); // pause fade still audible
 }
 
@@ -1091,8 +1086,7 @@ static OSStatus VibeTestCycle(VibeOutputUnitState *state, AudioBufferList *data,
     XCTAssertEqual(atomic_load(&state.dropouts), 0ull);
 }
 
-// clear_render_counters' seam: the cumulative counters restart from zero and
-// keep counting, and nothing else in the state moves.
+// The seam under clear_render_counters: nothing but the counters moves.
 - (void)testOutputUnitCountersClearAndRestart {
     VibeTestEngine engine = { .maxFrames = 8192 };
     VibeOutputUnitState state = {0};
@@ -1124,8 +1118,6 @@ static OSStatus VibeTestCycle(VibeOutputUnitState *state, AudioBufferList *data,
 }
 
 - (void)testOutputUnitCallbackHandsTheProcEveryBuffer {
-    // A four-output interface pulling the stereo pipeline: the proc sees all
-    // four buffers, writes the first two and leaves the rest silent.
     VibeTestEngine engine = { .maxFrames = 8192 };
     VibeOutputUnitState state = {0};
     XCTAssertTrue(VibeOutputUnitStateInitialize(&state, 2, VibeTestRenderProc, &engine));
@@ -1226,9 +1218,8 @@ static int32_t VibeGate(AudioOutputUnit *unit) {
     return atomic_load_explicit(&unit.state->gate, memory_order_seq_cst);
 }
 
-// #53: the player queue asks for a start and goes on; the device's IO thread
-// is waited for on the unit's own queue. A stop closes the gate at once, even
-// with that wait still in progress.
+// The device's IO thread is waited for on the unit's own queue, never the
+// player's. A stop closes the gate at once, even mid-wait.
 - (void)testAStartReturnsBeforeTheDeviceHasStartedAndAStopClosesTheGateAtOnce {
     AudioOutputUnit *unit = [[AudioOutputUnit alloc] init];
     XCTAssertNotNil(unit);
@@ -1253,9 +1244,8 @@ static int32_t VibeGate(AudioOutputUnit *unit) {
     });
 }
 
-// A start that a later stop or start supersedes before the unit's queue reaches
-// it never runs: a unit still headed for the previous device or format must
-// never pull the pipeline the player has already moved on.
+// A unit still headed for the previous device or format must never pull the
+// pipeline the player has already moved on.
 - (void)testAStartSupersededBeforeItRunsNeverStartsTheDevice {
     AudioOutputUnit *unit = [[AudioOutputUnit alloc] init];
     dispatch_semaphore_t entered = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
@@ -1310,8 +1300,7 @@ static int32_t VibeGate(AudioOutputUnit *unit) {
     });
 }
 
-// A device the HAL no longer knows is refused at once, before anything is
-// queued, and the unit keeps no claim to it.
+// Refused before anything is queued, and the unit stays unbound.
 - (void)testABindToADeviceTheHALDoesNotKnowIsRefusedAtOnce {
     AudioOutputUnit *unit = [[AudioOutputUnit alloc] init];
     XCTAssertNotEqual([unit bindToDevice:(AudioDeviceID)0x7FFFFFF0], noErr);

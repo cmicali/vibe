@@ -2,31 +2,23 @@
 //  AudioOutputUnit.h
 //  Vibe
 //
-//  The output, hosted by Vibe: one output audio unit whose render callback
-//  pulls the player's render proc into the hardware's buffers. On macOS a
-//  HALOutput unit bound to one device; AVAudioEngine's own output node is a
-//  default output unit that follows the system default wherever it moves,
-//  and this one moves only when the player rebinds it (hogfollow.swift’s
-//  `hal` measurement; Audio/Mac/Devices/CLAUDE.md). On iOS a RemoteIO unit,
-//  which has no device: the route is the audio session's.
+//  One hosted output unit whose render callback pulls the player's render
+//  proc into the hardware's buffers. macOS: a HALOutput unit bound to one
+//  device, which — unlike a default output unit — moves only when the player
+//  rebinds it. iOS: RemoteIO, whose route is the audio session's.
 //
-//  The callback is a C function under the same realtime discipline as the
-//  voice bus's render: plain memory and atomics, no lock, allocation,
-//  Objective-C or dispatch call. It decides nothing. A gate the queue opens in
-//  start and closes in stop says whether the proc is called at all; closed,
-//  the callback writes silence, so a render that lands during a rebuild or
-//  before the player is ready is silence, never a call into state being
-//  changed.
+//  The callback runs under the voice bus's realtime discipline and decides
+//  nothing: a gate opened in start and closed in stop says whether the proc is
+//  called; closed, it writes silence, so a cycle during a rebuild never calls
+//  into state being changed.
 //
-//  Every method is called on the player queue and returns without waiting on
-//  the HAL (#53). A call records its effect at once — the properties answer
-//  the state the unit is headed for — and hands the HAL work to the unit's own
-//  serial queue, in call order; that is where a device's IO thread is waited
-//  on: stopping the device the unit leaves and starting the one it joins,
-//  each hundreds of milliseconds on some interfaces. A stop closes the gate before it returns, and a
-//  start superseded by a later start or stop never opens it, so the proc is
-//  never called on a unit still at its previous device or format. A refusal
-//  the HAL makes later reaches `failureHandler`.
+//  Every method is called on the player queue, records its effect at once (the
+//  properties answer the state the unit is headed for) and queues the HAL work
+//  on the unit's own serial queue in call order; only waitUntilIdle waits for
+//  that queue. A stop closes the gate before it returns and
+//  a superseded start never opens it, so the proc is never called on a unit
+//  still at its previous device or format. Later refusals reach
+//  `failureHandler`.
 //
 
 #import <AVFAudio/AVFAudio.h>
@@ -73,10 +65,9 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 // the receiver stops the unit.
 @property (atomic, copy, nullable) void (^failureHandler)(NSError * _Nullable error, uint64_t runGeneration, BOOL bindRefused);
 // Device plus stream latency and the safety offset, in seconds; on iOS the
-// session's output latency. On macOS read by the unit's queue after each
-// bind, configure and start, like channelMap, so a reader never waits on
-// the HAL: a hung device held the player queue 30 s per read, and main with
-// it through dump_state.
+// session's output latency. TRAP: on macOS a field the unit's queue fills
+// after each bind, configure and start (channelMap likewise), never a live
+// read: a hung device held the player queue 30 s per HAL read.
 @property (atomic, readonly) NSTimeInterval presentationLatency;
 // The device's IO buffer at its nominal rate, in seconds — the cycle the
 // unit renders ahead of the device — read as presentationLatency is; on iOS
@@ -88,14 +79,12 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 @property (atomic, copy, readonly, nullable) NSArray<NSNumber *> *channelMap;
 // IO cycles the proc could not render, so silence was written. Cumulative.
 @property (nonatomic, readonly) uint64_t dropouts;
-// The callback's cost, for dump_health and a before/after measurement: the
-// IO cycles the gate was open for, and the mean and the longest time spent
-// inside the callback over them, in microseconds. Cumulative.
+// The callback's cost over the cycles the gate was open, in microseconds.
+// Cumulative.
 @property (nonatomic, readonly) uint64_t renderCycles;
 @property (nonatomic, readonly) double renderMeanMicroseconds;
 @property (nonatomic, readonly) double renderMaxMicroseconds;
-// Zeroes the four, so a phase reads on its own instead of as a delta. Any
-// thread; a cycle in flight lands in the new count.
+// Zeroes the four. Any thread; a cycle in flight lands in the new count.
 - (void)clearCounters;
 
 #if TARGET_OS_OSX

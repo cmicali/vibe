@@ -2,8 +2,6 @@
 //  WaveformThemeSettingsViewController.m
 //  Vibe (iOS)
 //
-//  See WaveformThemeSettingsViewController.h.
-//
 
 #import "WaveformThemeSettingsViewController.h"
 
@@ -20,9 +18,7 @@ typedef NS_ENUM(NSInteger, VibeThemeSection) {
     VibeThemeSectionCount,
 };
 
-// The mac's four, in the mac popup's order. Album art draws its palette from
-// the playing track's cover; on this platform each page of the pager supplies
-// its own, so the whole pager is not painted with one track's color.
+// The mac popup's order.
 typedef NS_ENUM(NSInteger, VibeThemeChoiceRow) {
     VibeThemeChoiceRowMono = 0,
     VibeThemeChoiceRowOrange,
@@ -74,11 +70,9 @@ static NSString *ThemeColorRowName(NSInteger row) {
     }
 }
 
-// The custom pairs' fallbacks, shared by the wells' display and the seed on
-// choosing Custom, so the waveform always matches what the wells show. Their
-// alphas are the Mono theme's resting levels, so a fresh Custom starts at a
-// sane intensity — a color's alpha is its side's level (WaveformTheme.h) — and
-// the played hue is the appearance's own base.
+// Shared by the wells and the seed on choosing Custom, so the waveform matches
+// what the wells show. The alphas are Mono's resting levels (a color's alpha is
+// its side's level, WaveformTheme.h).
 static UIColor *DefaultCustomPlayedColor(BOOL isDark) {
     return isDark ? [UIColor colorWithRed:1 green:1 blue:1 alpha:0.75]
                   : [UIColor colorWithRed:0 green:0 blue:0 alpha:0.75];
@@ -88,9 +82,7 @@ static UIColor *DefaultCustomUnplayedColor(BOOL isDark) {
     return [UIColor colorWithRed:0.5 green:0.5 blue:0.5 alpha:0.75];
 }
 
-// The stored identifier. Every one of the four has a row now, so unlike the
-// style list there is nothing to resolve — an identifier from a later version
-// simply matches no row, and currentThemeDisplayName falls back to Mono, which
+// An identifier from a later version matches no row and reads as Mono, which
 // is also what WaveformTheme draws for it.
 static NSString *CurrentWaveformTheme(void) {
     return AppSettings.sharedInstance.waveformTheme;
@@ -154,8 +146,7 @@ static NSString *const kChoiceCellIdentifier = @"choice";
     return cell;
 }
 
-// Built fresh rather than dequeued: each row's color well carries that row's
-// own state and target wiring, which reuse would drag to the other row.
+// Not dequeued: reuse would drag a well's state and wiring to another row.
 - (UITableViewCell *)colorCellForRow:(NSInteger)row {
     BOOL played = ThemeColorRowIsPlayed(row);
     BOOL isDark = ThemeColorRowIsDark(row);
@@ -165,11 +156,9 @@ static NSString *const kChoiceCellIdentifier = @"choice";
     UIListContentConfiguration *content = [UIListContentConfiguration cellConfiguration];
     content.text = ThemeColorRowName(row);
     cell.contentConfiguration = content;
-    // accessoryView is placed by frame, not intrinsic size, and a UIColorWell
-    // starts at zero — left unset it lands at the cell's origin.
+    // accessoryView is placed by frame, and a UIColorWell starts at zero.
     UIColorWell *well = [[UIColorWell alloc] initWithFrame:CGRectMake(0, 0, 34, 34)];
-    // The alpha is part of the choice: a color's alpha is its side's resting
-    // level (WaveformTheme.h).
+    // A color's alpha is its side's resting level (WaveformTheme.h).
     well.supportsAlpha = YES;
     AppSettings *settings = AppSettings.sharedInstance;
     well.selectedColor = played
@@ -187,12 +176,11 @@ static NSString *const kChoiceCellIdentifier = @"choice";
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     if ((VibeThemeSection)indexPath.section == VibeThemeSectionColors) {
-        return;     // the color wells are their own controls
+        return;
     }
     NSString *identifier = ThemeIdentifierForRow(indexPath.row);
     if ([identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM]) {
-        // Choosing Custom seeds any unset color from the wells' fallbacks —
-        // the mac pane's behavior.
+        // Seeds any unset color from the wells' fallbacks, as the mac does.
         AppSettings *settings = AppSettings.sharedInstance;
         for (int darkPass = 0; darkPass <= 1; darkPass++) {
             BOOL isDark = darkPass == 1;
@@ -205,17 +193,11 @@ static NSString *const kChoiceCellIdentifier = @"choice";
         }
     }
     AppSettings.sharedInstance.waveformTheme = identifier;
-    // TRAP: reloadData, NOT a reloadSections: per section. Choosing a theme has
-    // to move the checkmark in one section AND take the colors section from
-    // four rows to none (or back) in the other, and two reloadSections: calls
-    // in the same turn COALESCE into one implicit batch update — whose
-    // validation then sees a section whose row count changed with no insert or
-    // delete to account for it, and raises
-    // _Bug_Detected_In_Client_Of_UITableView_Invalid_Batch_Updates.
-    // A lone reloadSections: is fine with a changed count and is what the
-    // Files screen's folder list uses; it is the pairing that is not. Explicit
-    // insert/delete rows in a performBatchUpdates: would also be correct — this
-    // screen has at most eight rows and no animation worth the machinery.
+    // TRAP: reloadData, NOT a reloadSections: per section. The checkmark moves
+    // and the colors section changes row count in one turn, and two
+    // reloadSections: calls COALESCE into one batch update whose validation
+    // raises _Bug_Detected_In_Client_Of_UITableView_Invalid_Batch_Updates on
+    // the unaccounted count change. A lone reloadSections: is fine.
     [tableView reloadData];
     VibeNotifyDisplaySettingsChanged();
 }

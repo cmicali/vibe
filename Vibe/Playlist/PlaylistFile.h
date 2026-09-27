@@ -19,10 +19,9 @@ extern NSString *const kVibeLastPlaylistCurrentIndexKey;
 // YES for a (lowercased) path extension this class expands: cue, m3u, m3u8.
 + (BOOL)isPlaylistExtension:(NSString *)extension;
 
-// Decodes playlist bytes to text. BOMs decide UTF-16/UTF-8; otherwise UTF-8 is
-// tried first and Windows-1252 then Latin-1 catch the legacy writers, so a
-// readable file never fails to decode outright. (.m3u8 promises UTF-8, which
-// the first rung already covers.)
+// Decodes playlist bytes to text: a UTF-16 BOM, then a BOM-less UTF-16
+// signature, then UTF-8, then Windows-1252 and Latin-1 for legacy writers, so
+// a non-empty file always decodes.
 + (nullable NSString *)textFromData:(NSData *)data;
 
 // The FILE entries of a CUE sheet in sheet order: quoted or unquoted names, a
@@ -38,14 +37,10 @@ extern NSString *const kVibeLastPlaylistCurrentIndexKey;
 + (NSArray<NSString *> *)m3uEntriesInText:(NSString *)text;
 
 // The entries of the playlist file at url resolved to file URLs, in order.
-// Relative names resolve against the playlist's folder; when the named path is
-// not readable, its basename beside the playlist is tried (rescuing the common
-// Windows-absolute-path case), then both spellings again under each alternate
-// audio extension — wav, aif, aiff, flac, mp3 — which rescues a rip
-// transcoded after the sheet was written. An entry readable nowhere still
-// yields its primary candidate — the caller decides whether that means "ask
-// for sandbox access" or "skip" — so calling again after a grant resolves
-// better.
+// Relative names resolve against the playlist's folder; an unreadable path
+// falls back to its basename beside the playlist, then both spellings under
+// each playable extension. An entry readable nowhere still yields its primary
+// candidate, so the caller can ask for sandbox access and call again.
 + (NSArray<NSURL *> *)resolvedFileURLsForPlaylistAtURL:(NSURL *)url;
 
 // The entries of M3U data this app wrote itself — m3uTextForTracks: with a

@@ -32,9 +32,8 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
     AudioPlayer *player = controller.audioPlayer;
     MainWindow *window = (MainWindow *)controller.window;
 
-    // The player, currentTrack and playlist blocks are shared with iOS; this
-    // side extends "player" with the fields only the mac has, and adds the
-    // three blocks below.
+    // The shared blocks, with mac-only fields added to "player" and
+    // "playlist", plus ui, window and settings.
     NSMutableDictionary *state = VibeDebugCommonStateDictionary(controller);
     NSMutableDictionary *bitPerfect = [player.bitPerfectReportDictionary mutableCopy];
     [bitPerfect addEntriesFromDictionary:player.outputDeviceDiagnosticSnapshot];
@@ -55,16 +54,15 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
         @"outputDeviceUID": outputDeviceUID ?: @"",
         @"requestedOutputDeviceId": @(player.currentlyRequestedAudioDeviceId),
         @"bitPerfect": bitPerfect,
-        // The flag asked; this is what actually happened: a pump the player
-        // holds. They differ when no pump could be attached and the output
-        // unit opened anyway — which no other signal would reveal.
+        // noAudioHw is the flag asked; this is whether the player holds a
+        // pump. They differ when no pump could attach and the output unit
+        // opened anyway, which no other signal reveals.
         @"manualRendering": @(player.manualRenderingActive),
     }];
-    // The keyboard selection, which is not the playing row: only this platform
-    // has one, and it is what Remove from Playlist and Play Selected Track act
-    // on. selectedRow is the topmost selected row or -1; selectedRows is every
-    // selected row, the group-gesture oracle — read from the controller's own
-    // selection primitive, not reconstructed.
+    // The table selection, not the playing row: what Remove from Playlist and
+    // Play Selected Track act on. selectedRow is the topmost or -1;
+    // selectedRows, from the controller's own primitive, is the group-gesture
+    // oracle.
     NSMutableArray<NSNumber *> *selectedRows = [NSMutableArray array];
     [controller.playlistController.selectedRows
             enumerateIndexesUsingBlock:^(NSUInteger row, BOOL *stop) {
@@ -85,8 +83,8 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"fileMetadata": controller.trackDisplay.fileMetadataTextField.stringValue ?: @"",
             @"timeLabelsHidden": @(controller.trackDisplay.currentTimeTextField.isHidden),
             @"playButtonEnabled": @(controller.playButton.isEnabled),
-            // The pair side the transport backdrop picked, as the color it
-            // resolved to — the only outside view of the placeholder sample.
+            // The resting color the transport backdrop's light/dark sample
+            // picked: the only outside view of that sample.
             @"playButtonColor": VibeHexStringFromColor(controller.playButton.symbolNormalColor) ?: @"",
             @"nextButtonEnabled": @(controller.nextButton.isEnabled),
             @"pitchFader": @(controller.pitchPanel.pitch),
@@ -219,14 +217,12 @@ NSString *VibeViewTreeDump(void) {
 }
 
 NSArray *VibeMenuArray(NSMenu *menu) {
-    // Delegate-built menus — Output devices, Open Recent, waveform styles —
-    // populate only when displayed, so ask the delegate directly, the way
-    // display would. [menu update] alone does not call menuNeedsUpdate:.
+    // Delegate-built menus (Output, Open Recent, Themes) populate only when
+    // displayed, and [menu update] alone does not call menuNeedsUpdate:.
     if ([menu.delegate respondsToSelector:@selector(menuNeedsUpdate:)]) {
         [menu.delegate menuNeedsUpdate:menu];
     }
-    // Runs validateMenuItem exactly as opening the menu would, so that the
-    // enabled state and checkmark below are live rather than stale defaults.
+    // Validates as opening the menu would, so enabled and state are live.
     [menu update];
     NSMutableArray *items = [NSMutableArray array];
     for (NSMenuItem *item in menu.itemArray) {
@@ -249,8 +245,8 @@ NSArray *VibeMenuArray(NSMenu *menu) {
             node[@"action"] = NSStringFromSelector(item.action);
         }
         node[@"enabled"] = @(item.isEnabled);
-        // A hidden item is still in itemArray but not on screen — the Convert
-        // menu with Settings > Convert > Enabled off.
+        // Still in itemArray but not on screen, e.g. Convert with conversion
+        // disabled in Settings.
         if (item.isHidden) {
             node[@"hidden"] = @YES;
         }
@@ -289,11 +285,9 @@ NSString *VibeClickMenuItem(NSString *name) {
     if (!item.isEnabled) {
         return VibeErrorJSON(@"menu item '%@' is disabled", item.title);
     }
-    // TRAP: a submenu parent is built with action:NULL, but AppKit assigns it
-    // submenuAction: as soon as it gets a submenu — so the nil-action check
-    // below does NOT catch it, and sending that action reaches a responder
-    // which does not implement it and aborts the app. The random clicker finds
-    // every top-level submenu, so this read as an app crash in stress runs.
+    // TRAP: AppKit gives a submenu parent submenuAction: even when it was built
+    // with action:NULL, so the nil-action check below misses it, and sending
+    // that action to a responder that does not implement it aborts the app.
     if (item.hasSubmenu) {
         return VibeErrorJSON(@"menu item '%@' opens a submenu; click one of its items",
                              item.title);
@@ -311,10 +305,9 @@ NSString *VibeClickMenuItem(NSString *name) {
     });
 }
 
-// A compact result for the action commands: enough to assert on without a
-// second `state` round-trip. Transport actions kick off async engine work, so
-// the state here can be a beat behind, since it is read synchronously after
-// the call.
+// A compact reply for the action verbs, enough to assert on without a
+// dump_state round trip. Read synchronously after async transport work
+// starts, so it can be a beat behind.
 NSDictionary *VibeActionSummaryDictionary(MainPlayerController *controller) {
     AudioPlayer *player = controller.audioPlayer;
     MainWindow *window = (MainWindow *)controller.window;

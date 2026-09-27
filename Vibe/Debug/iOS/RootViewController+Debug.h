@@ -2,22 +2,18 @@
 //  RootViewController+Debug.h
 //  Vibe (iOS)
 //
-//  Extra surface for the debug command channel (Vibe/Debug/iOS/DebugCommands.m),
-//  the iOS twin of Introspection/MainPlayerController+Debug.h. The shell is
-//  what adopts VibeDebugPlayerSurface, because it is the one object that can
-//  see the whole app: it forwards the player and playlist reads to its
-//  PlaybackController and the pager reads to its card.
-//
-//  It lives here, with its implementation beside it, so the shipping header
-//  carries no conditional about a tool that does not ship. Debug builds only.
+//  The shell adopts VibeDebugPlayerSurface because it is the one object that
+//  sees the whole app: it forwards player and playlist reads to its
+//  PlaybackController and pager reads to its card. The iOS twin of
+//  Mac/Introspection/MainPlayerController+DebugPlayerSurface.h.
 //
 
 #if DEBUG
 
 #import "RootViewController.h"
 #import "DebugPlayerSurface.h"
-#import "FavoritesViewController.h" // the categories below need the classes,
-#import "LibraryViewController.h"   // not a @class
+#import "FavoritesViewController.h" // the categories below need the classes
+#import "LibraryViewController.h"
 #import "SearchViewController.h"
 #import "OutputRouteRules.h"        // VibeOutputRouteKind, taken below
 
@@ -27,9 +23,7 @@
 @class PlaybackController;
 @class PlayerViewController;
 
-// Declaration-only access to production methods used by the debug adapter.
-// Their implementation stays in RootViewController.m; keeping this separate
-// avoids putting debug-only surface in the shipping header.
+// Declaration-only access to production methods in RootViewController.m.
 @interface RootViewController (DebugSurface)
 
 @property (nonatomic, readonly) PlaybackController *playback;
@@ -47,73 +41,59 @@
 
 @end
 
-// The star lives on the Playlist tab's navigation bar, and the channel cannot
-// synthesize the tap — the same reason expand_player and select_tab exist.
 @interface LibraryViewController (DebugSurface)
 - (void)favoriteTapped;
 @end
 
-// A row's Add is the action's own method, so the resolve and the unavailable
-// alert are the ones a real tap gets — the same reason favoriteTapped is here.
 @interface FavoritesViewController (DebugSurface)
 - (void)openFavorite:(FavoriteFolder *)favorite appending:(BOOL)appending;
 @end
 
-// The search field takes KEYSTROKES, which the channel cannot synthesize and
-// the touch driver has no verb for either — so a query, and the row tap that
-// follows it, come through here.
 @interface SearchViewController (DebugSurface)
-// Puts the query in the FIELD and filters — the field is where currentQuery is
-// read from, and the file half's delivery is dropped if the two disagree.
+// Puts the query in the FIELD and filters: currentQuery is read from the
+// field, and the files half's delivery is dropped if the two disagree.
 - (void)setQueryText:(NSString *)query;
-// Whether the file walk is still running, so a poll can tell "no matches" from
-// "not finished looking".
+// So a poll can tell "no matches" from "not finished looking".
 - (BOOL)isBuildingFileIndex;
-// The walk and the file matching are BOTH gated on this. False means the files
-// half answered nothing because it never ran — the card is up over this screen,
-// another tab is forward, or the scene is not active — which is otherwise
-// indistinguishable from a query that genuinely matched no file.
+// Gates both the walk and the file matching. NO means the files half never ran
+// (the card is up, another tab is forward, or the scene is inactive), which
+// otherwise looks like a query that matched no file.
 - (BOOL)isMateriallyVisible;
 @end
 
 @interface RootViewController (Debug) <VibeDebugPlayerSurface>
 
 - (NSDictionary *)debugStateDictionary;
-// The pager's art window and each page's art state. Nothing on screen tells
-// "not decoded yet" from "no art at all" — both are the placeholder — so this
-// is the only way to see whether the prefetch is keeping up.
+// The pager's art window and each page's art state: on screen, "not decoded
+// yet" and "no art" are both the placeholder.
 - (NSDictionary *)debugArtDictionary;
-// The compact reply the transport verbs share.
 - (NSDictionary *)debugActionSummary;
 - (void)debugPlayPause;
 - (void)debugNext;
 - (void)debugPlayIndex:(NSUInteger)index;
 - (void)debugPrevious;
-// Routes through the scrubber's didSeek path so the seek-in-flight guard
-// behaves exactly as a real drag's release.
+// Through the scrubber's didSeek path, so the seek-in-flight guard behaves as
+// on a real drag's release.
 - (void)debugSeekToSeconds:(NSTimeInterval)seconds;
-// The waveform zoom, the one gesture the command channel cannot synthesize.
 - (void)debugSetWaveformZoom:(CGFloat)fraction;
-// Exactly what tapping the star does: it toggles, and the ADD lands
-// asynchronously because the bookmark has to be minted off main. Returns NO
-// when there is no Playlist tab yet or no open folder to star.
+// Exactly what tapping the star does; the ADD lands asynchronously because the
+// bookmark is minted off main. NO when there is no Playlist tab yet or no open
+// folder.
 - (BOOL)debugTapFavoriteStar;
-// Exactly what a favorite row's tap and its Add action do, resolve and alert
-// included — appending picks which. By the store's own list, which is what
-// dump_favorites indexes; the screen's copy of it can lag a notification turn.
-// NO means the Favorites tab was never visited, or the index is past the list.
+// What a favorite row's tap (or, appending, its Add) does. Indexes the
+// store's list, as dump_favorites does; the screen's copy can lag a
+// notification turn. NO when the Favorites tab was never visited or the index
+// is past the list.
 - (BOOL)debugOpenFavoriteAtIndex:(NSUInteger)index appending:(BOOL)appending;
-// Runs a query through the search screen and reports both sections as it draws
-// them. The files half is asynchronous, so this settles on the table rather
-// than on the keystroke; NO means the Search tab was never visited.
+// Reports both sections as drawn, once the table settles (the files half is
+// asynchronous). NO when the Search tab was never visited.
 - (BOOL)debugSearchQuery:(NSString *)query
               completion:(void (^)(NSDictionary *result))completion;
-// Taps a row of the search screen's files section — an OPEN, where a playlist
-// row would be a mere selection.
+// Taps a files-section row, which OPENS it.
 - (BOOL)debugTapSearchFileAtIndex:(NSUInteger)index;
 
-// Draws the card's route indicator as a given route, model untouched — the
-// only way to see the off-device renderings, which the simulator never reports.
+// Draws the card's route indicator as `kind`, model untouched: the simulator
+// never reports an off-device route.
 - (void)debugSetOutputRouteKind:(VibeOutputRouteKind)kind deviceName:(NSString *)name;
 - (void)debugOpenPath:(NSString *)path;
 - (void)debugAppendPath:(NSString *)path;

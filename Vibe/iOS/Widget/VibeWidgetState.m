@@ -2,8 +2,6 @@
 //  VibeWidgetState.m
 //  Vibe (iOS)
 //
-//  See VibeWidgetState.h.
-//
 
 #import "VibeWidgetState.h"
 
@@ -19,8 +17,7 @@ static NSString *const kArtworkFormat  = @"artwork-%@.jpg";
 static NSString *const kPlayedFormat   = @"waveform-%@-played.png";
 static NSString *const kUnplayedFormat = @"waveform-%@-unplayed.png";
 
-// Plist keys. Spelled once: a typo on one side of the app/extension boundary
-// reads as an absent field, which draws an empty widget rather than failing.
+// Spelled once: a typo across the process boundary reads as an absent field.
 static NSString *const kKeyVersion      = @"version";
 static NSString *const kKeyTitle        = @"title";
 static NSString *const kKeyArtist       = @"artist";
@@ -31,16 +28,14 @@ static NSString *const kKeyDuration     = @"duration";
 static NSString *const kKeyPosition     = @"position";
 static NSString *const kKeyPositionDate = @"positionDate";
 
-// Bumped when a field's meaning changes. A reader that does not recognize the
-// version draws the empty state, which is always safe: the app republishes on
-// its next track event anyway.
+// Bumped when a field's meaning changes; an unknown version draws the empty
+// state until the next publish.
 static const NSInteger kStateVersion = 2;   // 2: trackKey, and the images named by it
 
 @implementation VibeWidgetState
 
 + (NSURL *)containerURL {
-    // Resolved once: the container manager answers over XPC, and every file
-    // this class names went back to it.
+    // Once: the container manager answers over XPC.
     static NSURL *container;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
@@ -91,9 +86,7 @@ static const NSInteger kStateVersion = 2;   // 2: trackKey, and the images named
 }
 
 + (VibeWidgetState *)loadState {
-    // Before the read, not after a successful one: an empty container is still
-    // a widget asking, and it is exactly the widget that needs the app to
-    // start publishing.
+    // Before the read: an empty container is still a widget asking.
     notify_post(kVibeWidgetReadNotification);
     NSURL *url = [self fileNamed:kStateFileName];
     if (!url) {

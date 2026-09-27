@@ -1,9 +1,3 @@
-//
-// The iOS player screen's display-state resolution. Its inputs are a count,
-// three flags and a duration, so the whole state machine is enumerable without
-// a view, a player or a playlist.
-//
-
 #import <XCTest/XCTest.h>
 
 #import "PlayerScreenRules.h"
@@ -17,8 +11,6 @@
 
 - (void)testNoTracksIsEmptyWhateverElseIsSet {
     XCTAssertEqual(VibeResolvePlayerScreenState(0, NO, NO, NO, 0), VibePlayerScreenStateEmpty);
-    // Empty wins over every other flag: with no tracks there is nothing for
-    // them to describe.
     XCTAssertEqual(VibeResolvePlayerScreenState(0, YES, YES, YES, 120), VibePlayerScreenStateEmpty);
 }
 
@@ -49,9 +41,7 @@
 
 #pragma mark - Precedence
 
-// The two "the player is holding nothing usable" states outrank Error,
-// because in both the times must render at rest whatever the last attempt
-// did. A failure landing on a parked track keeps the park's resting times.
+// In both, the times must render at rest whatever the last attempt did.
 - (void)testRestingStatesOutrankError {
     XCTAssertEqual(VibeResolvePlayerScreenState(3, YES, NO, YES, 0), VibePlayerScreenStateLoading);
     XCTAssertEqual(VibeResolvePlayerScreenState(3, NO, YES, YES, 0), VibePlayerScreenStateParked);
@@ -96,8 +86,6 @@
     XCTAssertFalse(VibeMiniPlayerVisible(VibePlayerScreenStateError));
 }
 
-// The strip and the card describe the same thing, so they must never disagree
-// about whether there is anything to describe.
 - (void)testMiniPlayerAgreesWithDescribesTrackInEveryState {
     VibePlayerScreenState states[] = {
         VibePlayerScreenStateEmpty, VibePlayerScreenStateLoading,

@@ -43,8 +43,7 @@
     XCTAssertLessThan(VibeFolderArtCandidateRank(@"cover.png"), VibeFolderArtCandidateRank(@"folder.png"));
 }
 
-// The stems other players write, so a library tagged elsewhere is found as-is.
-// They rank below cover/folder/album/front, which keeps the probe prefix intact.
+// They rank below cover/folder/album/front, keeping the probe prefix intact.
 - (void)testTheOtherEcosystemSpellingsAreRecognized {
     for (NSString *name in @[@"albumart.jpg", @"art.jpg", @"albumart.png", @"art.jpeg"]) {
         XCTAssertNotEqual(VibeFolderArtCandidateRank(name), NSNotFound, @"%@", name);
@@ -64,9 +63,6 @@
     XCTAssertEqualObjects(VibeFolderArtBestCandidate(@[@"cover.webp", @"folder.jpg"]), @"folder.jpg");
 }
 
-// Names deliberately left out: thumb is by its name a small image and would
-// show soft at the header size, poster and default are video-library
-// conventions, and back is the wrong side of the sleeve.
 - (void)testTheDeliberatelyExcludedNamesStayExcluded {
     for (NSString *name in @[@"thumb.jpg", @"poster.jpg", @"default.jpg", @"back.jpg",
                              @"albumart_large.jpg", @"albumartsmall.jpg"]) {
@@ -83,8 +79,7 @@
     }
 }
 
-// A folder with no cover pays one stat per probed candidate — once, ever. Keep
-// that bill small: this is the number every coverless folder in a library pays.
+// Every coverless folder in a library pays one stat per probed candidate.
 - (void)testTheProbedPrefixStaysSmall {
     XCTAssertLessThanOrEqual(kVibeFolderArtStatProbeCount, 3u);
     XCTAssertLessThanOrEqual(kVibeFolderArtStatProbeCount, _candidates.count);
@@ -145,7 +140,6 @@
 - (void)testNoteCandidateKeepsTheBestPerDirectory {
     NSMutableDictionary<NSString *, NSString *> *art = [NSMutableDictionary dictionary];
     NSMutableDictionary<NSString *, NSNumber *> *ranks = [NSMutableDictionary dictionary];
-    // Arriving in the order a directory enumerator might hand them over.
     VibeFolderArtNoteCandidate(@"/A", @"01 Track.mp3", art, ranks);
     VibeFolderArtNoteCandidate(@"/A", @"album.jpg", art, ranks);
     VibeFolderArtNoteCandidate(@"/A", @"Cover.JPG", art, ranks);

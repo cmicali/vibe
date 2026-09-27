@@ -13,17 +13,13 @@ NS_ASSUME_NONNULL_BEGIN
 @class CodableAudioWaveform;
 @protocol AudioWaveformLoaderDelegate;
 
-// Which analyzers the decode pass should run, since both ride it (see
-// AudioWaveformLoader). It is a provider rather than a stored pair because
-// it is asked once per load: a settings change then applies to the next decode
-// with nobody having to republish it, which is how the two flags behaved when
-// the loader read them itself. Same shape as FolderArtResolver's enabled
-// provider, and for the same reason — this layer must not reach up into a
-// settings singleton it cannot be tested without.
+// Which analyzers the decode pass should run, since both ride it. A provider
+// rather than a stored pair because it is asked once per load, so a settings
+// change applies to the next decode with nobody republishing it; and this
+// layer must not reach into a settings singleton it cannot be tested without.
 //
-// UNSET MEANS NEITHER RUNS. That is what the iOS app installs: it does not
-// analyze, so it never reads the macOS-only analysis settings. It is also what
-// the tests get, which keeps a decode under test off the analyzers.
+// UNSET MEANS NEITHER RUNS: what iOS, which does not analyze, and the tests
+// get.
 typedef struct {
     BOOL bpm;
     BOOL key;

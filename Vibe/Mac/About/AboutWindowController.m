@@ -14,13 +14,11 @@
 static const CGFloat kAboutWindowWidth = 460;
 static const CGFloat kAboutWindowHeight = 340;
 
-// Both lines are set at the main window's drop-hint size, so the About text
-// reads at the same weight as the player's own small print.
+// The main window's drop-hint size.
 static const CGFloat kAboutTextFontSize = 13;
 
-// The author's name inside NSHumanReadableCopyright becomes a mailto link.
-// Matched as a substring rather than composed here, so the copyright line
-// stays Info.plist's to word; an unmatched name simply renders unlinked.
+// Matched as a substring of NSHumanReadableCopyright, so Info.plist keeps the
+// wording; an unmatched name renders unlinked.
 static NSString *const kAboutAuthorName = @"Christopher Micali";
 static NSString *const kAboutAuthorMailto = @"mailto:chrismicali@gmail.com";
 
@@ -38,30 +36,25 @@ static NSString *const kAboutAuthorMailto = @"mailto:chrismicali@gmail.com";
                                                              NSWindowStyleMaskFullSizeContentView
                                                      backing:NSBackingStoreBuffered
                                                        defer:NO];
-    // Same key as the App menu item that opens this window.
     window.title = [NSString stringWithFormat:STR_MENU_APP_ABOUT, VibeAppName()];
     window.titleVisibility = NSWindowTitleHidden;
     window.titlebarAppearsTransparent = YES;
     window.movableByWindowBackground = YES;
     window.releasedWhenClosed = NO;
     window.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
-    // Matches the Metal view's clear color, so the text strip below it blends
-    // in.
+    // The Metal view's clear color, so the text strip blends in.
     window.backgroundColor = [NSColor colorWithSRGBRed:0.02 green:0.02 blue:0.035 alpha:1.0];
 
     self = [super initWithWindow:window];
     if (self) {
         window.delegate = self;
-        // The copyright line's link is the window's only focusable view, so the
-        // loop is worth nothing until AppKit builds it. initialFirstResponder is
-        // the content view, which declines: without it AppKit would focus the
-        // link as the window opens and draw its ring unasked.
+        // The link is the only focusable view. The content view declines first
+        // responder; without it AppKit focuses the link on open and draws its
+        // ring unasked.
         window.autorecalculatesKeyViewLoop = YES;
         window.initialFirstResponder = window.contentView;
 
-        // A grooved record texture filling the window behind the vectorballs.
-        // A backing layer with resizeAspectFill covers the landscape window
-        // from the square source, with no letterbox bars and no distortion.
+        // Aspect-fill covers the landscape window from the square source.
         NSView *recordView = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, kAboutWindowWidth, kAboutWindowHeight)];
         recordView.wantsLayer = YES;
         recordView.layer.contents = [NSImage imageNamed:@"record-bg"];
@@ -76,7 +69,7 @@ static NSString *const kAboutAuthorMailto = @"mailto:chrismicali@gmail.com";
                                                     fontSize:kAboutTextFontSize
                                                        alpha:0.55
                                                            y:36]];
-        // objectForInfoDictionaryKey:, NOT infoDictionary[…] — only the former applies InfoPlist.xcstrings.
+        // NOT infoDictionary[…]: only this applies InfoPlist.xcstrings.
         NSString *copyright = [NSBundle.mainBundle objectForInfoDictionaryKey:@"NSHumanReadableCopyright"] ?: @"";
         [window.contentView addSubview:[self copyrightLabelWithString:copyright
                                                             fontSize:kAboutTextFontSize
@@ -95,9 +88,8 @@ static NSString *const kAboutAuthorMailto = @"mailto:chrismicali@gmail.com";
     return label;
 }
 
-// The copyright line, with the author's name underlined and wired to a mailto.
-// The attributes carry the centering, because setting attributedStringValue
-// overrides the field's own alignment.
+// The attributes carry the centering: attributedStringValue overrides the
+// field's alignment.
 - (NSTextField *)copyrightLabelWithString:(NSString *)string fontSize:(CGFloat)fontSize alpha:(CGFloat)alpha y:(CGFloat)y {
     VibeLinkLabel *label = [VibeLinkLabel labelWithString:string];
     label.frame = NSMakeRect(0, y, kAboutWindowWidth, fontSize + 6);
@@ -126,11 +118,8 @@ static NSString *const kAboutAuthorMailto = @"mailto:chrismicali@gmail.com";
 - (void)showWindow:(id)sender {
     if (!self.window.isVisible) {
         [self.window center];
-        // Build the Metal view fresh each time the window opens. MTKView's
-        // render loop, and the CVDisplayLink-based alternatives, do not
-        // reliably resume after the window is closed and reopened: the balls
-        // freeze on the second open, whereas a new view always starts
-        // animating.
+        // Fresh each open: MTKView's render loop does not reliably resume
+        // after a close, and the balls freeze on the second open.
         [self rebuildBallsView];
     }
     [super showWindow:sender];
@@ -138,23 +127,19 @@ static NSString *const kAboutAuthorMailto = @"mailto:chrismicali@gmail.com";
 
 - (void)rebuildBallsView {
     [_ballsView removeFromSuperview];
-    // A full-window frame, added above every other subview, so the balls are
-    // drawn over the version and copyright text wherever they overlap it. The
-    // view's transparent clear lets the text and the record show through
-    // elsewhere.
+    // Above everything; its transparent clear shows the text and the record
+    // through.
     _ballsView = [[VectorBallsView alloc] initWithFrame:NSMakeRect(0, 0, kAboutWindowWidth, kAboutWindowHeight)];
     [self.window.contentView addSubview:_ballsView positioned:NSWindowAbove relativeTo:nil];
 }
 
-// File > Close (⌘W) is nil-targeted closeFile:; catching it while this window
-// is key closes it, instead of falling through to the player's version, which
-// clears the playlist.
+// ⌘W is nil-targeted: caught here, it closes this window rather than reaching
+// the player's, which clears the playlist.
 - (IBAction)closeFile:(nullable id)sender {
     [self.window performClose:sender];
 }
 
-// The player may have named the shared nil-targeted item "Close All Files"
-// during its previous validation. This target closes one auxiliary window.
+// The player may have retitled the shared item "Close All Files".
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
     if ([menuItem.identifier isEqualToString:kVibeMenuClose]) {
         menuItem.title = STR_MENU_FILE_CLOSE;
@@ -163,18 +148,15 @@ static NSString *const kAboutAuthorMailto = @"mailto:chrismicali@gmail.com";
 }
 
 - (void)windowWillClose:(NSNotification *)notification {
-    // Drop the Metal view and its resources. showWindow rebuilds it next time.
-    [_ballsView removeFromSuperview];
+    [_ballsView removeFromSuperview]; // with its Metal resources
     _ballsView = nil;
     // TRAP: this window is reused (releasedWhenClosed = NO), so first responder
-    // survives a close. A link left focused would come back with its ring
-    // already drawn, on a window the user just opened fresh.
+    // survives a close, and a focused link would reopen with its ring drawn.
     [self.window makeFirstResponder:nil];
 }
 
-// Pauses the 60fps Metal render loop while the window cannot be seen — fully
-// covered, the app hidden, or minimized — rather than burning GPU
-// indefinitely. The animation is wall-clock based, so it resumes seamlessly.
+// Paused while unseen. The animation is wall-clock based, so it resumes
+// seamlessly.
 - (void)windowDidChangeOcclusionState:(NSNotification *)notification {
     BOOL visible = (self.window.occlusionState & NSWindowOcclusionStateVisible) != 0;
     _ballsView.paused = !visible;

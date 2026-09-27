@@ -21,8 +21,7 @@
 #include <stdatomic.h>
 #endif
 
-// Installed once at launch, read from the expansion workers, so each handoff
-// takes a lock rather than assuming the install lands first.
+// Installed at launch, read from the expansion workers: every access locks.
 static VibePlaylistFolderGrantHandler sPlaylistFolderGrantHandler;
 static VibeWalkedDirectoriesHandler sWalkedDirectoriesHandler;
 static VibeBulkOpenDirectoriesHandler sBulkOpenDirectoriesHandler;
@@ -36,9 +35,8 @@ static VibeDatalessProbe DatalessProbe(void) {
     }
 }
 
-// The lane-routing measurement; see NSURLUtil+Debug.h. Guarded by the class
-// @synchronized like the probe, and consulted only after an atomic flag says
-// it is on, so the 2.3us stat path pays one relaxed load when it is not.
+// See NSURLUtil+Debug.h. Behind an atomic flag, so the stat path pays one
+// relaxed load while it is off.
 static _Atomic(BOOL) sDatalessDiagEnabled;
 static NSMutableDictionary<NSString *, NSMutableDictionary *> *sDatalessDiag;
 static NSUInteger sDatalessDiagOverflow;
@@ -106,22 +104,15 @@ static VibeBulkOpenDirectoriesHandler BulkOpenDirectoriesHandler(void) {
 }
 #endif
 
-// One stat, and SF_DATALESS is the whole answer.
+// TRAP: never second-guess SF_DATALESS with an NSURL resource value
+// (NSURLUbiquitousItemDownloadingStatus or any other). NSURL memoizes them per
+// instance, and these URLs live as long as their AudioTrack, so a placeholder
+// would read "not downloaded" forever and the metadata loader's locality
+// re-probes would never see it turn local.
 //
-// TRAP: do not second-guess it with NSURLUbiquitousItemDownloadingStatus, or
-// with any other NSURL resource value. NSURL memoizes resource values on the
-// INSTANCE, and these URLs live as long as their AudioTrack, so the first
-// answer freezes for the file's whole life — a placeholder read while
-// downloading still reads "not downloaded" once it has materialized, and the
-// current-track lane, which skips a dataless file and retries when the open
-// lands, then skips forever. It is a getattrlist round trip besides, on a test
-// the scan's lane routing runs once per track.
-//
-// If a provider ever does appear whose placeholders carry no flag, the symptom
-// is specific: its files route to the wide scan lane instead of the serial
-// cloud one, so opening a folder starts four downloads at once and starves the
-// track the user picked. Fix it there, and pay the round trip once per
-// directory rather than once per file.
+// A provider whose placeholders carry no flag would read as local: the sweep
+// would parse them on its local workers, several downloads at once outside the
+// foreground hold. Fix it here, with a round trip per directory, not per file.
 + (BOOL)isDatalessFile:(NSURL *)url {
 #if DEBUG
     VibeDatalessProbe probe = DatalessProbe();
@@ -167,16 +158,15 @@ static VibeBulkOpenDirectoriesHandler BulkOpenDirectoriesHandler(void) {
 }
 #endif
 
-// The directory a symbolic link names, canonically spelled, or nil when it
-// names anything else — a file, or nothing at all because the link is broken.
+// The directory a path resolves to, canonically spelled, or nil for a file or
+// a broken link.
 //
-// TRAP: NSURLIsDirectoryKey is lstat-shaped. A link to a folder answers NO to
-// it, and the enumerator refuses such a link as its root outright (ENOTDIR,
-// every URL spelling), so a folder link left unresolved is taken for a file and
-// then dropped by the extension filter: a dragged ~/Music/NAS link opened to
-// nothing. realpath, not URLByResolvingSymlinksInPath, which leaves a /private
-// prefix as it found it — the enumerator answers in fully resolved paths, so
-// only realpath's spelling can be compared against them.
+// TRAP: NSURLIsDirectoryKey is lstat-shaped: a link to a folder answers NO, and
+// the enumerator refuses one as its root (ENOTDIR), so an unresolved folder
+// link is taken for a file and dropped by the extension filter — a dragged
+// ~/Music/NAS link opens to nothing. realpath, not URLByResolvingSymlinksInPath,
+// which keeps a /private prefix: only realpath's spelling matches the
+// enumerator's resolved paths.
 static NSString *VibeResolvedDirectoryPath(NSString *path) {
     if (path.length == 0) {
         return nil;
@@ -191,9 +181,7 @@ static NSString *VibeResolvedDirectoryPath(NSString *path) {
                                                                      length:strlen(resolved)];
 }
 
-// Whether path names a file sitting directly in directory — a string test, so a
-// walk can tell it is still in the same folder without rebuilding that folder's
-// path for every entry.
+// A string test, so the walk need not rebuild the parent path per entry.
 static BOOL VibePathIsDirectlyInside(NSString *path, NSString *directory) {
     NSUInteger directoryLength = directory.length;
     if (directoryLength == 0 || path.length <= directoryLength + 1) {
@@ -206,23 +194,16 @@ static BOOL VibePathIsDirectlyInside(NSString *path, NSString *directory) {
     return [path rangeOfString:@"/" options:0 range:remainder].location == NSNotFound;
 }
 
-// A static set, consulted once per file in a folder drop. The spellings are
-// Common/PlayableExtensions', which the playlist fallback walks in order.
 + (NSSet<NSString*>*) supportedExtensions {
     return PlayableExtensions.lookup;
 }
 
-// Puts one folder's audio into the order the user picked. byFullPath is the
-// name comparator's subject: the whole path for a recursive walk, which groups
-// subfolders, and the filename alone for a flat listing. It is also
-// newest-first's tiebreak, so a batch of files copied in one go — one shared
-// mtime — still reads in track order rather than arbitrarily.
+// byFullPath sorts a recursive walk by whole path, grouping subfolders. The
+// name is also newest-first's tiebreak, so a batch copy reads in track order.
 //
-// TRAP: the dates and the names are decorated onto the list once rather than
-// read inside the comparator, which runs O(n log n) times. The enumeration
-// prefetches the date key, so each read here is served from that batch instead
-// of costing a round trip to the file provider; NSURL.path mints a new string
-// on every read, and the comparator would read two per comparison.
+// TRAP: decorate the dates and names once, never read them in the comparator,
+// which runs O(n log n) times: NSURL.path mints a string per read, and a date
+// the enumeration did not prefetch is a file-provider round trip.
 static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort sort,
                               BOOL byFullPath) {
     if (sort == VibeFolderOpenSortAsReceived) {
@@ -251,9 +232,7 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
             dateByURL[url] = modified;
         }
     }
-    // A file whose date the file system or provider would not give up sorts
-    // after every dated one, then by name, so the order stays total and
-    // repeatable instead of the missing date reading as the epoch.
+    // Undated files sort last, by name, keeping the order total.
     [urls sortUsingComparator:^NSComparisonResult(NSURL *a, NSURL *b) {
         NSDate *dateA = dateByURL[a];
         NSDate *dateB = dateByURL[b];
@@ -268,26 +247,22 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
     }];
 }
 
-// The walk picks the album cover out on the way past: it already touches every
-// entry, so the walked-directories handler gets the whole folder's answer for
-// the cost of a rank lookup per name. Only directories contributing playable
-// audio are handed over; nothing will ask about an "Artwork" subfolder.
+// The walk ranks cover candidates on the way past, so the walked-directories
+// handler gets each folder's answer for free. Only directories with playable
+// audio are reported.
 + (NSArray<NSURL*>*) expandDirectory:(NSURL*)dir sortedBy:(VibeFolderOpenSort)sort {
 
     NSMutableArray<NSURL*> *results = [[NSMutableArray alloc] init];
     NSFileManager *fileManager = [NSFileManager defaultManager];
-    // directory -> the best cover filename seen in it so far, and its rank.
     NSMutableDictionary<NSString*, NSString*> *artByDirectory = [NSMutableDictionary dictionary];
     NSMutableDictionary<NSString*, NSNumber*> *artRankByDirectory = [NSMutableDictionary dictionary];
     NSMutableSet<NSString*> *directoriesWalked = [NSMutableSet set];
     NSSet<NSString*> *supported = [self supportedExtensions];
 
-    // The enumerator neither follows a directory symlink nor opens one as its
-    // root, so the walk owns them: each one found becomes another root here,
-    // and the top-level folder is resolved so every path below is canonical
-    // like the enumerator's own answers. covered holds every directory an
-    // enumeration has passed through, which is what ends a link cycle and
-    // keeps a link into an already-walked subtree from listing it twice.
+    // The enumerator neither follows a directory link nor takes one as root,
+    // so each link found becomes another root, resolved to canonical form.
+    // covered ends a link cycle and keeps a link into an already-walked
+    // subtree from listing it twice.
     NSMutableArray<NSString*> *pendingRoots = [NSMutableArray array];
     NSMutableSet<NSString*> *covered = [NSMutableSet set];
     NSString *resolvedRoot = VibeResolvedDirectoryPath(dir.path);
@@ -295,14 +270,10 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
         [pendingRoots addObject:resolvedRoot];
     }
 
-    // Skip hidden files. On exFAT, SMB and USB volumes macOS writes
-    // AppleDouble sidecars such as "._Song.mp3", whose extension passes the
-    // filetype filter but which hold resource-fork metadata rather than audio;
-    // each one showed up as a duplicate, unplayable playlist row. Skipping
-    // package descendants keeps the walk out of app and bundle internals.
-    // The modification date is prefetched only when the sort needs it; every
-    // key here is one more attribute the provider has to answer for — the link
-    // flag rides along rather than costing a getattrlist per entry.
+    // Skipping hidden files drops the AppleDouble "._Song.mp3" sidecars that
+    // exFAT, SMB and USB volumes carry, which would pass the extension filter
+    // as unplayable rows. Every key is one more attribute the provider must
+    // answer, so the date is prefetched only when the sort needs it.
     NSArray<NSURLResourceKey> *keys = sort == VibeFolderOpenSortNewestFirst
             ? @[NSURLIsDirectoryKey, NSURLIsSymbolicLinkKey, NSURLContentModificationDateKey]
             : @[NSURLIsDirectoryKey, NSURLIsSymbolicLinkKey];
@@ -314,21 +285,16 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
             continue;
         }
         [covered addObject:rootPath];
-        // Directory links seen under this root. Held back until it has been
-        // enumerated in full, so each can be tested against everything the
-        // enumeration actually covered rather than against a partial answer.
+        // Held back until this root is enumerated in full, so each is tested
+        // against everything it covered.
         NSMutableArray<NSString*> *linkedRoots = [NSMutableArray array];
-        // The enumerator is depth-first, so entries arrive in long runs from one
-        // directory; remembering the last one avoids rebuilding the parent path for
-        // every file in a folder.
+        // Depth-first, so entries arrive in runs from one directory.
         NSString *lastDirectory = nil;
         NSDirectoryEnumerator *enumerator = [fileManager
                 enumeratorAtURL:[NSURL fileURLWithPath:rootPath isDirectory:YES]
      includingPropertiesForKeys:keys
                         options:NSDirectoryEnumerationSkipsHiddenFiles | NSDirectoryEnumerationSkipsPackageDescendants
                    errorHandler:^(NSURL *url, NSError *error) {
-                       // Skip the unreadable entry or subtree, but keep
-                       // enumerating the rest of the drop.
                        LogWarn(@"Error enumerating %@: %@", url, error);
                        return YES;
                    }];
@@ -340,21 +306,16 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
                 isFile = !isDirectory.boolValue;
             }
             else {
-                // Log it and treat it as a file, the same fallback
-                // expandFileList:folderCount: uses, so that it still reaches the
-                // extension filter rather than vanishing.
+                // Treat it as a file, so the extension filter still sees it.
                 LogWarn(@"Could not read directory flag for %@: %@", url, error);
                 isFile = YES;
             }
-            // One string per entry, rather than the URL and two strings
-            // URLByDeletingLastPathComponent.path would cost. Non-audio entries
-            // stay out of results but still reach the folder-art bookkeeping
-            // below: a cover is exactly a non-audio entry.
+            // Non-audio entries still reach the folder-art bookkeeping below:
+            // a cover is exactly a non-audio entry.
             NSString *path = url.path;
             if (!isFile) {
-                // A real subdirectory the enumerator descends itself: record it
-                // so a link pointing anywhere into this subtree is recognized as
-                // covered. One a link already made a root of is skipped whole.
+                // Recorded so a link into this subtree reads as covered; one a
+                // link already walked is skipped whole.
                 if (path.length == 0) {
                     continue;
                 }
@@ -374,14 +335,10 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
                     [linkedRoots addObject:linked];
                     continue;
                 }
-                // A link to a file stays a file, reaching the extension filter
-                // and the emptiness stat like any other entry. One pointing at
-                // nothing is dropped here instead: that filter answers NO to
-                // anything it cannot stat, deliberately, so that a sandbox
-                // denial is left for the real open to report (NSURL+AudioOpen)
-                // — which means a dangling Song.mp3 link would otherwise
-                // survive as an unplayable row. The link itself just came out
-                // of the enumeration, so ENOENT can only be its target.
+                // A dangling link is dropped here: the emptiness filter passes
+                // anything it cannot stat, so the real open can report a
+                // sandbox denial, and would keep it as an unplayable row. The
+                // link was just enumerated, so ENOENT means its target.
                 struct stat targetInfo;
                 if (stat(path.fileSystemRepresentation, &targetInfo) != 0 && errno == ENOENT) {
                     continue;
@@ -413,20 +370,13 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
         walked(directoriesWalked, artByDirectory);
     }
 
-    // The enumerator returns APFS hash order, which is effectively random —
-    // which is also what Settings > Files' "Keep folder order" leaves in place
-    // here, since a local volume has no meaningful order to preserve. The
-    // other two choices sort by full path with Finder's numeric comparator,
-    // which groups subfolders, or by date. An explicit multi-file drop keeps its pasteboard
-    // order either way; see expandFileList:folderCount:.
     VibeSortAudioURLs(results, sort, YES);
 
     return results;
 }
 
 + (NSArray<NSURL*>*) audioFilesInDirectory:(NSURL*)dir sortedBy:(VibeFolderOpenSort)sort {
-    // Non-recursive, unlike expandDirectory:sortedBy:. Skipping hidden files
-    // also drops the AppleDouble "._Song.mp3" sidecars; see that method.
+    // Skipping hidden files drops AppleDouble sidecars, as in expandDirectory.
     NSError *error = nil;
     NSArray<NSURL*> *contents = [[NSFileManager defaultManager]
             contentsOfDirectoryAtURL:dir
@@ -452,15 +402,9 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
     return results;
 }
 
-// Folder walks are independent and can block on unrelated mounts, so they run
-// concurrently rather than serially: one dead folder must not hold every later
-// open hostage. Callers that can issue overlapping opens own their ordering and
-// replacement policy through OpenRequestCoordinator.
-//
-// Bounded at four workers, the same width as the metadata scan. A walk that
-// blocks holds its worker for as long as the mount takes, and an unbounded
-// concurrent queue would answer a burst of such drops by spawning a thread
-// each, up to GCD's ceiling, all at user-initiated priority.
+// Concurrent, so one dead mount cannot hold every later open; bounded, so a
+// burst of blocked walks cannot spawn a thread each. Callers order overlapping
+// results (OpenRequestCoordinator).
 + (NSOperationQueue *)expansionQueue {
     static NSOperationQueue *queue;
     static dispatch_once_t onceToken;
@@ -497,9 +441,8 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
                 looseFileDirectories:looseFileDirectories];
     NSUInteger expandedCount = list.count;
     NSSet<NSString*> *supported = [NSURLUtil supportedExtensions];
-    // Empty entries go the way of the AppleDouble sidecars the walk skips:
-    // nothing can play them, and one reaching an open would leak a descriptor
-    // (NSURL+AudioOpen). Ordered second so it stats only the extension matches.
+    // Nothing can play an empty file. Second, so only extension matches pay
+    // the stat.
     list = [list filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSURL *url, NSDictionary* bindings) {
         return [supported containsObject:[url.pathExtension lowercaseString]] && !url.isEmptyOrDirectory;
     }]];
@@ -508,12 +451,9 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
         [self noteLooseFileDirectoryOf:url into:supportedLooseDirectories];
     }
     [looseFileDirectories intersectSet:supportedLooseDirectories];
-    // Anything but a single file is a bulk open, whose folders are worth one
-    // listing each rather than the lone file's stat probes. A dropped folder's
-    // directories were walked above and are settled, so only the loose files'
-    // folders are left to mark — including a playlist file's tracks, which is
-    // why the post-expansion count matters: a dropped .cue is one file that
-    // names a whole album.
+    // Anything but a single file is a bulk open, whose loose files' folders are
+    // worth a listing each. The post-expansion count matters: a dropped .cue is
+    // one file naming a whole album.
     BOOL bulkOpen = inputCount > 1 || (folderCount && *folderCount > 0) ||
                     looseFileDirectories.count > 1 || expandedCount > inputCount;
     VibeBulkOpenDirectoriesHandler bulk = BulkOpenDirectoriesHandler();
@@ -523,22 +463,15 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
     return list;
 }
 
-// looseFileDirectories collects the folders of files that did NOT come from
-// walking a folder — a multi-file open, or a playlist file's tracks. Only those
-// still need their artwork resolved; a walked folder settled its own.
 + (NSArray<NSURL*>*) expandFileList:(NSArray<NSURL*>*)list
                            sortedBy:(VibeFolderOpenSort)sort
                         folderCount:(NSUInteger *)folderCount
                looseFileDirectories:(NSMutableSet<NSString*> *)looseFileDirectories {
     NSMutableArray<NSURL*> *results = [[NSMutableArray alloc] initWithCapacity:list.count];
     for (NSURL *url in list) {
-        // Ask the filesystem rather than the URL. hasDirectoryPath inspects
-        // only the trailing slash, so a directory URL built without
-        // isDirectory:YES — from an argv path or some pasteboards — would be
-        // treated as a file and then silently dropped by the extension filter.
-        // Both keys in one read: NSURLIsDirectoryKey answers for the link
-        // itself, so a dropped ~/Music/NAS folder link needs resolving before
-        // that same filter drops it (VibeResolvedDirectoryPath).
+        // Ask the file system: hasDirectoryPath reads only the trailing slash,
+        // which a URL from argv or some pasteboards lacks. The link flag rides
+        // along, since a folder link must be resolved (VibeResolvedDirectoryPath).
         NSDictionary<NSURLResourceKey, id> *values =
                 [url resourceValuesForKeys:@[NSURLIsDirectoryKey, NSURLIsSymbolicLinkKey]
                                      error:NULL];
@@ -585,9 +518,8 @@ typedef NS_ENUM(NSInteger, VibeReadAccess) {
     VibeReadAccessDenied,
 };
 
-// access(2) rather than NSFileManager, because the errno is the only way to
-// tell a file that is not there from one the sandbox will not let us read —
-// and only the latter is worth interrupting the user with a grant prompt.
+// access(2), because only its errno tells missing from sandbox-denied, and
+// only denied is worth a grant prompt.
 static VibeReadAccess ReadAccessForURL(NSURL *url) {
     if (access(url.fileSystemRepresentation, R_OK) == 0) {
         return VibeReadAccessReadable;
@@ -595,20 +527,13 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
     return (errno == EPERM || errno == EACCES) ? VibeReadAccessDenied : VibeReadAccessMissing;
 }
 
-// A top-level playlist file (.cue, .m3u, .m3u8) expands like a directory: the
-// audio files it lists, in list order. Only explicitly opened ones expand —
-// one found inside a folder walk is dropped by the extension filter, since
-// the walk already yields the folder's audio and expanding it too would
-// double every track.
+// Only an explicitly opened playlist file expands; one met in a folder walk
+// would double every track, and the extension filter drops it.
 //
-// Opening a playlist file grants sandbox access to it alone, not to the files
-// it names, so a denied entry raises a one-shot folder grant through the
-// installed handler; granting is what extends the sandbox, and the re-resolve
-// then also gets a working basename fallback. Entries unreadable after all
-// that are skipped.
+// Opening a playlist file grants access to it alone, so a denied entry raises
+// one folder grant through the handler, and the re-resolve then also gets a
+// working basename fallback. Entries still unreadable are skipped.
 #if TARGET_OS_OSX
-// Only the macOS grant-panel path below reads the handler; the setter stays
-// unconditional so the app can install one on either platform.
 static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
     @synchronized (NSURLUtil.class) {
         return sPlaylistFolderGrantHandler;
@@ -619,10 +544,8 @@ static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
 + (NSArray<NSURL *> *)expandPlaylistFile:(NSURL *)playlistURL {
     NSArray<NSURL *> *resolved = [PlaylistFile resolvedFileURLsForPlaylistAtURL:playlistURL];
 #if TARGET_OS_OSX
-    // Each probe is a blocking syscall that can hang on a dead mount, so the
-    // scan's verdicts are kept for the readable filter below (partial when the
-    // scan exits early) and dropped only when a grant re-resolve replaces the
-    // URLs — a grant changes readability.
+    // A probe can hang on a dead mount, so verdicts are reused by the filter
+    // below, and dropped only when a grant changes readability.
     NSMutableDictionary<NSString *, NSNumber *> *scannedAccessByPath =
             [NSMutableDictionary dictionaryWithCapacity:resolved.count];
     BOOL anyUnreadable = NO;
@@ -636,12 +559,8 @@ static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
             break;  // both facts settled; stop paying probes
         }
     }
-    // A missing-looking entry still warrants the grant prompt while the
-    // playlist's own folder is denied: unresolved entries fall back to their
-    // as-written path, which can be genuinely absent (a foreign subfolder
-    // spelling) and so read as "missing" — but with the folder unreadable,
-    // the fallback candidates beside the playlist could not be probed at all,
-    // so "missing" cannot be trusted until the folder opens up.
+    // With the playlist's own folder denied, "missing" cannot be trusted: the
+    // fallback candidates beside the playlist could not be probed.
     BOOL folderDenied =
             ReadAccessForURL(playlistURL.URLByDeletingLastPathComponent) == VibeReadAccessDenied;
     VibePlaylistFolderGrantHandler grantHandler = PlaylistFolderGrantHandler();

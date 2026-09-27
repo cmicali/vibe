@@ -2,14 +2,12 @@
 //  AudioVoiceBusTests.m
 //  VibeTests
 //
-//  The voice bus with no engine: the tests own the output buffers and call
-//  the render block themselves, so every frame the audio thread would produce
-//  is compared against the file it came from. Inline decoding keeps the whole
-//  thing on this thread — fills before renders, deterministically.
+//  The voice bus with no pipeline: the tests own the output buffers and call
+//  VibeVoiceBusRender themselves, so every frame is compared against the file
+//  it came from. Inline decoding fills before each render on this thread.
 //
-//  A voice's snapshot is readable until the drain reports it ended, and the
-//  same drain recycles the slot; so the harness captures the snapshot inside
-//  that handler, exactly as the player must.
+//  The same drain that reports a voice ended recycles its slot, so the harness
+//  reads the snapshot inside that handler, as the player must.
 //
 
 #import <XCTest/XCTest.h>
@@ -262,10 +260,8 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 
 #pragma mark - Passthrough and ends
 
-// The transport reads snapshots while the audio thread renders: the gain and
-// the stamps are the render's to write, so the snapshot reads them through
-// atomics and a seqlock. Under ThreadSanitizer this is the case that reports
-// a plain read otherwise.
+// The gain and the stamps are the render's to write, so a snapshot reads them
+// through atomics and a seqlock; ThreadSanitizer reports a plain read here.
 - (void)testSnapshotsWhileARenderRuns {
     [self makeBusAtRate:kRate channels:2];
     AudioFileHandle *file = [self open:[self writePCM:[self noiseFrames:64000 channels:2 seed:17]
@@ -287,10 +283,9 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     dispatch_group_wait(renders, DISPATCH_TIME_FOREVER);
 }
 
-// Snapshots poll a voice while its slot is killed, recycled and bound to the
-// next: the origins a snapshot subtracts are the bind's to write, so they are
-// atomics, and the generation is the seqlock's version around the bind.
-// Under ThreadSanitizer this is the case that reports the plain fields.
+// The origins a snapshot subtracts are the bind's to write, so they are
+// atomics, and the generation is the seqlock's version around the bind;
+// ThreadSanitizer reports plain fields here.
 - (void)testSnapshotsWhileSlotsAreReused {
     [self makeBusAtRate:kRate channels:2];
     AudioFileHandle *file = [self open:[self writePCM:[self noiseFrames:4096 channels:2 seed:71]
@@ -594,7 +589,6 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     [_bus fillInline];
     uint64_t buffered = [_bus snapshotOfVoice:voice].written;
     XCTAssertGreaterThan(buffered, 40000u);
-    // Render past what is buffered without feeding it.
     uint32_t rendered = 0;
     while (rendered < buffered + 2048) {
         [self renderWithoutFilling:1024 into:nil];
@@ -701,8 +695,6 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     XCTAssertEqual([_bus occupiedSlotCount], 8u);
 }
 
-// A successor queued while the start was still pending rides into the slot
-// the drain binds it to: the voice continues into it at its boundary.
 - (void)testASuccessorQueuedOnAPendingVoiceSurvivesItsBind {
     NSData *filler = [self noiseFrames:20000 channels:2 seed:14];
     NSURL *fillerURL = [self writePCM:filler rate:kRate channels:2 name:@"filler.wav"];
@@ -760,11 +752,9 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     }
 }
 
-// A voice that can write nothing is asked for no decoder turn: past a
-// published end with no successor queued, a paused voice near its end sat
-// below the low-water mark and was handed an empty turn every drain. A
-// successor queued after the end still restarts the decoder, through the
-// turn queueSuccessor: asks for itself.
+// Otherwise a paused voice past its published end sits below the low-water
+// mark and is handed an empty turn every drain. A successor queued after the
+// end still restarts the decoder, through the turn queueSuccessor: asks for.
 - (void)testADrainAsksNoTurnOfAVoiceThatCannotWrite {
     [self makeBusAtRate:kRate channels:2 inlineDecoding:NO];
     NSURL *url = [self writePCM:[self noiseFrames:12000 channels:2 seed:5] rate:kRate channels:2 name:@"short.wav"];
@@ -786,10 +776,8 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     XCTAssertGreaterThan(_bus.decodeTurns, turns);
 }
 
-// The same for a resampled file past its last frame: its converter stays
-// open for a late successor while the render is far from the end, so a turn
-// could write nothing, and a paused voice there was handed an empty one every
-// drain until the idle stop. The successor still restarts the decoder.
+// The same for a resampled file past its last frame, whose converter stays
+// open for a late successor while the render is far from the end.
 - (void)testADrainAsksNoTurnOfAStreamHeldOpenForASuccessor {
     [self makeBusAtRate:48000 channels:2 inlineDecoding:NO];
     NSURL *url = [self writePCM:[self noiseFrames:22050 channels:2 seed:7] rate:44100 channels:2 name:@"held441.wav"];
@@ -823,9 +811,8 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 
 // A voice whose end was published takes a late successor by withdrawing the
 // end and waiting for the render that could have seen it. With that render
-// stuck inside the bus, stopping the voice's reads must release the decoder
-// at once: a rebuild joins the decoder right after its own bounded render
-// wait gave up, and held the player queue on the stuck render otherwise.
+// stuck inside the bus, stopping the voice's reads ends the wait at once, so a
+// rebuild's stopReadingThen: is not held behind the stuck render.
 - (void)testAStoppedDecoderLeavesTheReopenWaitUnderAStuckRender {
     [self makeBusAtRate:kRate channels:2 inlineDecoding:NO];
     NSURL *url = [self writePCM:[self noiseFrames:2000 channels:2 seed:81] rate:kRate channels:2 name:@"ended.wav"];
@@ -1263,10 +1250,9 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 }
 
 // A rebuilt source segment hands the current file to a new bus while the old
-// bus's decoder may be inside a read of it. stopReadingThen: reports once
-// that read is over and no later turn reads, so the file's position is the
-// new voice's alone from then; without that the two decoders shared the
-// position and the new voice ended early.
+// bus's decoder may be inside a read of it. stopReadingThen: reports once that
+// read is over and no later turn reads; otherwise two decoders share the
+// file's position and the new voice ends early.
 - (void)testAReplacedBusStopsReadingBeforeItsFileIsReused {
     NSURL *url = [self writePCM:[self noiseFrames:96000 channels:2 seed:83] rate:kRate channels:2 name:@"rebuild.wav"];
     AudioFileHandle *file = [self open:url];
@@ -1368,10 +1354,9 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 }
 
 // A decode turn queued for a voice can run after that voice died, its slot
-// was recycled, and another voice began binding it — before the new
-// generation is published. It must touch nothing: a turn that entered the
-// half-bound slot read the recycled record's nil file and declared an end,
-// and the new voice died at its first render.
+// was recycled, and another voice began binding it, before the new generation
+// is published. One that entered the half-bound slot would read the recycled
+// record's nil file, declare an end, and kill the new voice at its first render.
 - (void)testAStaleDecodeTurnCannotEnterARebindingSlot {
     self.continueAfterFailure = YES;
     NSURL *url = [self writePCM:[self noiseFrames:96000 channels:2 seed:1201] rate:kRate channels:2 name:@"rebind.wav"];
@@ -1504,8 +1489,8 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
         NSURL *b = [self writePCM:[whole subdataWithRange:NSMakeRange(split * 8, (count - split) * 8)] rate:sourceRate channels:2 name:@"b.wav"];
         NSData *reference = [self referenceConversionOfURL:full toRate:busRate];
         uint64_t end = reference.length / (2 * sizeof(float));
-        // Apple mastering SRC itself drops these tails on the current macOS.
-        // Keep the exact duration assertion visible, without excusing a Vibe mismatch.
+        // Apple's mastering SRC drops these tails itself; the duration assertion
+        // stays visible without excusing a Vibe mismatch.
         XCTExpectedFailureOptions *knownTail = [[XCTExpectedFailureOptions alloc] init];
         knownTail.enabled = busRate == 192000 && ((sourceRate == 22050 && end == 191085)
                                               || (sourceRate == 24000 && end == 191496));

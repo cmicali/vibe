@@ -11,45 +11,33 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Builds the app's menu bar. It is a stateless one-shot, so there is nothing
-// to instantiate or keep alive. Every live submenu's delegate is owned by the
-// object it works for and supplied here to be wired: Open Recent by the app
-// delegate's OpenRecentMenuController, Output by the player's
-// OutputDevicesMenuController, and View > Theme by the player controller
-// itself. Item validation lives with the items' targets, in
-// MainPlayerController+Menus.
+// A stateless one-shot. Each live submenu's delegate is owned by the object it
+// works for and only wired here; validation lives with the items' targets.
 @interface MainMenuBuilder : NSObject
 
-// Builds the menu bar and sets it as NSApp.mainMenu, and as its servicesMenu.
-// Menu delegates are weak references, so openRecentMenuController must outlive
-// the menu; the app delegate owns it.
+// Menu delegates are weak, so openRecentMenuController must outlive the menu.
 + (void)installMainMenuWithAppDelegate:(AppDelegate *)appDelegate
                       playerController:(MainPlayerController *)playerController
               openRecentMenuController:(OpenRecentMenuController *)openRecentMenuController;
 
-// One symbol-carrying item with no key equivalent, for context menus that
-// want the main menu's item style without duplicating its SF Symbol wiring.
+// The main menu's item style, with no key equivalent, for context menus.
 + (NSMenuItem *)symbolItemWithTitle:(NSString *)title
                          symbolName:(NSString *)symbolName
                              action:(SEL)action
                              target:(nullable id)target
                          identifier:(nullable NSString *)identifier;
 
-// The items the window-body context menu shares with the main menu: same
-// title, symbol, identifier and, through the identifier, the same validation
-// branch. Vending them keeps each identifier and symbol in exactly one file.
-// They carry no key equivalent — that is the menu bar's concern, and
-// installMainMenuWithAppDelegate: adds it to its own copies.
+// Shared with the window-body context menu, so each identifier, symbol and
+// validation branch lives in one place. No key equivalent: the menu bar adds
+// its own.
 + (NSMenuItem *)copyNameItemWithTarget:(nullable id)target;
 + (NSMenuItem *)copyFileItemWithTarget:(nullable id)target;
 + (NSMenuItem *)convertToFLACItemWithTarget:(nullable id)target;
 
-// Shows or hides the menu bar's Convert menu in place. The build seeds the
-// initial state; the ConvertMenu settings effect calls this after a write.
+// The ConvertMenu settings effect's hook; the menu is always built.
 + (void)applyConvertMenuVisibility;
 
-// Shows or hides the FX menu and withdraws or restores its bare shortcuts when
-// the setting allows FX. The menu is always built, including an FX-off launch.
+// Also withdraws or restores the bare shortcuts; the menu is always built.
 + (void)applyFXMenuVisibility;
 
 @end

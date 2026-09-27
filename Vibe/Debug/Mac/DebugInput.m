@@ -6,29 +6,26 @@
 //
 
 #import "DebugInternal.h"
-#import "PlaylistTableView.h" // the reorder verbs hand the real table to the drag delegate methods
+#import "PlaylistTableView.h"
 #import "PitchFaderView.h"
 
 #if DEBUG
 
 #pragma mark Input injection
 
-// Synthesized NSEvents posted into the app's own event queue, through
-// [NSApp postEvent:atStart:NO]. Unlike --debug-cmd's direct action calls,
-// these exercise the real event dispatch path, local monitors such as
-// TransportKeyMonitor and view mouse handling included, and unlike CGEvent
-// injection through input.swift they need no Accessibility permission and no
-// global event posting. Mouse injection does activate the window, and handlers
-// can start native file/window dragging. App-local events are not containment.
+// Synthesized NSEvents posted into the app's own event queue. Unlike the
+// direct-action verbs they exercise real event dispatch, local monitors such
+// as TransportKeyMonitor and view mouse handling included; unlike CGEvent
+// injection through input.swift they need no Accessibility permission. Mouse
+// injection still activates the window, and handlers can start native
+// file/window dragging: app-local events are not containment.
 //
-// They have two structural limits against real window-server events. Tracking
-// areas and hover effects do not fire, because the window server drives those.
-// And the posted events are processed after the reply is written, so poll
-// dump_state to observe the result.
+// Two limits against real window-server events: tracking areas and hover
+// effects do not fire, since the window server drives those, and the events
+// are processed after the reply is written, so poll dump_state for the result.
 //
-// Mouse coordinates are main-window points with a top-left origin, the same
-// frame of reference as dump_screenshot, which is the retina pixel divided by
-// two. NSEvent wants bottom-left window coordinates, converted here.
+// Mouse coordinates are main-window points with a top-left origin:
+// dump_screenshot's pixels divided by the backing scale.
 
 static NSTimeInterval VibeEventTimestamp(void) {
     return NSProcessInfo.processInfo.systemUptime;
@@ -38,8 +35,7 @@ static NSDictionary<NSString *, NSNumber *> *VibeKeyCodeMap(void) {
     static NSDictionary<NSString *, NSNumber *> *map;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        // The ANSI virtual key codes: HIToolbox Events.h values, stated inline
-        // so that Carbon stays unimported.
+        // HIToolbox Events.h ANSI key codes, inline so Carbon stays unimported.
         map = @{
             @"a": @0,  @"s": @1,  @"d": @2,  @"f": @3,  @"h": @4,  @"g": @5,
             @"z": @6,  @"x": @7,  @"c": @8,  @"v": @9,  @"b": @11, @"q": @12,
@@ -75,9 +71,8 @@ static NSString *VibeKeyCharacters(NSString *name) {
     return special[name] ?: name;
 }
 
-// What `characters` carries when shift is held. uppercaseString covers letters
-// alone, so the digits get their US-layout shifted forms explicitly. The
-// specials and arrows are unaffected by shift either way.
+// What `characters` carries with shift held. uppercaseString covers letters
+// only, so the digits get their US-layout shifted forms explicitly.
 static NSString *VibeShiftedKeyCharacters(NSString *chars) {
     static NSDictionary<NSString *, NSString *> *shifted;
     static dispatch_once_t once;
@@ -112,11 +107,8 @@ static BOOL VibeParseModifiers(NSArray<NSString *> *tokens, NSUInteger start,
     BOOL repeat = NO;
     for (NSUInteger i = start; i < tokens.count; i++) {
         NSString *mod = tokens[i].lowercaseString;
-        // Hardware key repeat, which several handlers gate on: a held delete
-        // key must take one playlist row rather than walk the list, and the
-        // momentary FX keys ignore repeats outright. It rides the modifier
-        // token list because it is spelled like one, but it is not a modifier
-        // flag — it is parsed out into its own out-param.
+        // Hardware key repeat, not a modifier flag: several handlers gate on
+        // it (a held delete takes one row; the effect keys ignore repeats).
         if ([mod isEqualToString:@"repeat"]) {
             repeat = YES;
         }
@@ -142,9 +134,9 @@ static BOOL VibeParseModifiers(NSArray<NSString *> *tokens, NSUInteger start,
     return YES;
 }
 
-// key posts a down and an up, while key_down and key_up post one edge each.
-// That split is how the held W, E, R and T momentary FX keys are driven, since
-// TransportKeyMonitor releases on keyUp.
+// key posts a down and an up; key_down and key_up post one edge each, which
+// is how a held Q/W/E/R/T effect key is driven: TransportKeyMonitor decides
+// latch (tap) or revert (hold) on keyUp.
 NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *tokens,
                                BOOL down, BOOL up) {
     NSString *verb = tokens.firstObject;
@@ -200,10 +192,8 @@ NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *t
     return VibeJSONString(@{@"ok": @YES, @"posted": verb, @"key": name, @"repeat": @(isRepeat)});
 }
 
-// The shared tail for the mouse verbs. It converts to bottom-left window
-// coordinates, posts through the block, and replies with the hit-tested view,
-// so that a missed aim is visible in the reply rather than silently doing
-// nothing.
+// Replies with the hit-tested view, so a missed aim shows in the reply rather
+// than silently doing nothing.
 static NSString *VibeMouseReply(NSString *verb, NSWindow *window, NSPoint location,
                                 double x, double y) {
     NSView *content = window.contentView;
@@ -220,14 +210,13 @@ static NSString *VibeMouseReply(NSString *verb, NSWindow *window, NSPoint locati
     });
 }
 
-// A non-key window swallows the first click as activation, because
-// acceptsFirstMouse defaults to NO as click-through protection, so mouse
-// injection self-activates first. It uses the deprecated force spelling,
-// because the cooperative [NSApp activate] is declined while another app is
-// frontmost, which is exactly the state a shell-driven test runs in.
-// Activation lands asynchronously, so spin the run loop briefly until key
-// status arrives: events posted before that are swallowed. The reply's
-// windowKey reports whether it took.
+// A non-key window swallows the first click as activation (acceptsFirstMouse
+// defaults to NO), so mouse injection activates first. The deprecated force
+// spelling, because the cooperative [NSApp activate] is declined while another
+// app is frontmost, which is exactly where a shell-driven test runs.
+// Activation lands asynchronously and events posted before it are swallowed,
+// so spin the run loop briefly for key status; the reply's windowKey reports
+// whether it took.
 static void VibeMakeWindowKeyForInjection(NSWindow *window) {
     if (window.isKeyWindow) {
         return;
@@ -257,8 +246,7 @@ static NSEvent *VibeMouseEvent(NSEventType type, NSPoint location, NSInteger win
                               pressure:pressure];
 }
 
-// click, mouse_down, mouse_up and mouse_move. mouse_move with a button token
-// posts a *dragged* event, and a plain move otherwise. CAUTION: a lone
+// mouse_move with a button token posts a dragged event. CAUTION: a lone
 // mouse_down on a control that runs a modal mouse-tracking loop stalls the app
 // inside that loop, and the command channel, on the GCD main queue, cannot
 // deliver the matching mouse_up while it spins. Use `click` or `drag`, whose
@@ -300,8 +288,8 @@ NSString *VibeInjectMouse(MainPlayerController *controller, NSArray<NSString *> 
     NSPoint location = NSMakePoint(x, NSHeight(window.frame) - y);
     NSInteger windowNumber = window.windowNumber;
     if (isClick) {
-        // A double-click is two full press cycles with an ascending
-        // clickCount, exactly as the window server delivers one.
+        // A double-click is two press cycles with an ascending clickCount, as
+        // the window server delivers one.
         for (NSInteger i = 1; i <= clickCount; i++) {
             [NSApp postEvent:VibeMouseEvent(right ? NSEventTypeRightMouseDown : NSEventTypeLeftMouseDown,
                                             location, windowNumber, i, 1.0) atStart:NO];
@@ -326,9 +314,8 @@ NSString *VibeInjectMouse(MainPlayerController *controller, NSArray<NSString *> 
     return VibeMouseReply(verb, window, location, x, y);
 }
 
-// A full left-button drag gesture queued in one command: down, interpolated
-// dragged steps, up. It is the only injection shape that works on
-// tracking-loop controls; see VibeInjectMouse.
+// A whole left-button drag queued in one command, the only injection shape
+// that works on tracking-loop controls; see VibeInjectMouse.
 NSString *VibeInjectDrag(MainPlayerController *controller, NSArray<NSString *> *tokens) {
     NSString *usage = @"usage: drag <x1> <y1> <x2> <y2> [steps]";
     double x1 = 0, y1 = 0, x2 = 0, y2 = 0;
@@ -366,9 +353,9 @@ NSString *VibeInjectDrag(MainPlayerController *controller, NSArray<NSString *> *
     return VibeMouseReply(@"drag", window, start, x1, y1);
 }
 
-// Explicit, named gesture probes only. Resolve and hit-test the real control
-// after activation, in the same main-thread turn that queues the full gesture.
-// The runner checks the resulting pitch; queued events alone are not a pass.
+// Resolves and hit-tests the real control after activation, in the same
+// main-thread turn that queues the whole gesture. The runner checks the
+// resulting pitch; queued events alone are not a pass.
 NSString *VibeTestGesture(MainPlayerController *controller, NSArray<NSString *> *tokens) {
     BOOL reset = tokens.count == 3 && [tokens[1] isEqualToString:@"pitch-reset"];
     BOOL drag = tokens.count == 3 && [tokens[1] isEqualToString:@"pitch-drag"];
@@ -450,11 +437,11 @@ NSString *VibeSelectPlaylistRows(MainPlayerController *controller, NSArray<NSStr
 
 #pragma mark Synthetic file drags
 
-// file_drag_hover, file_drag_drop and file_drag_end drive the same FileDropDelegate path a
-// real external file drag takes through MainWindow. These are direct delegate
-// calls without mouse events or a native NSDraggingSession: mouse handlers can
-// start window-server dragging, which unattended stress must avoid. Coordinates
-// are main-window points with a top-left origin, as with the mouse verbs.
+// file_drag_hover, file_drag_drop and file_drag_end drive the FileDropDelegate
+// path a real external file drag takes through MainWindow, as direct delegate
+// calls with no mouse events or NSDraggingSession: mouse handlers can start
+// window-server dragging, which unattended stress must avoid. Coordinates are
+// the mouse verbs'.
 
 static NSString *VibeWellName(PlaylistDropWellAction action) {
     switch (action) {
@@ -464,8 +451,7 @@ static NSString *VibeWellName(PlaylistDropWellAction action) {
     }
 }
 
-// The shared coordinate parse and conversion for file_drag_hover and file_drag_drop. It
-// returns NO with *errorJSON set on a malformed pair.
+// Returns NO with *errorJSON set on a malformed pair.
 static BOOL VibeDragPointArgument(NSArray<NSString *> *tokens, NSWindow *window,
                                   NSPoint *outLocation, double *outX, double *outY,
                                   NSString **errorJSON) {
@@ -493,8 +479,7 @@ NSString *VibeSyntheticFileDragHover(MainPlayerController *controller, NSArray<N
     if ([window.dropDelegate respondsToSelector:@selector(mainWindow:fileDraggingUpdatedAtLocation:)]) {
         [window.dropDelegate mainWindow:window fileDraggingUpdatedAtLocation:location];
     }
-    // Which well the point resolves to, meaning what a drop here would do:
-    // the assertable part of the reply.
+    // What a drop here would do: the assertable part of the reply.
     PlaylistDropWellAction well = [controller.playerContentView.playlistDropZoneView
             dropActionForWindowPoint:location];
     return VibeJSONString(@{@"ok": @YES, @"posted": @"file_drag_hover",
@@ -525,17 +510,14 @@ NSString *VibeSyntheticFileDragDrop(MainPlayerController *controller, NSArray<NS
     if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
         return VibeErrorJSON(@"no file or directory at '%@'", path);
     }
-    // Resolved before anything mutates, purely for the reply. The geometry is
-    // independent of drag state, and the real delivery below re-resolves it.
+    // For the reply only, resolved before anything mutates; the delivery
+    // below re-resolves it.
     PlaylistDropWellAction well = [controller.playerContentView.playlistDropZoneView
             dropActionForWindowPoint:location];
-    // Mirror performDragOperation:'s pipeline and ordering: resolve the well
-    // into an append flag, hand the URL to the app's open funnel, then tear
-    // the drag-over presentation down. A real drop gets draggingEnded right
-    // after performDragOperation returns. The funnel owns the expansion, so
-    // this posts and returns rather than waiting for it. The sandbox caveat is
-    // the same as with `open`: an ungranted path may be denied at read time.
-    // Poll dump_state for the resulting playlist.
+    // performDragOperation:'s order: the well's append flag, the open funnel,
+    // then draggingEnded's teardown. The funnel owns the expansion, so this
+    // returns without waiting; poll dump_state for the playlist. As with
+    // `open`, an ungranted path may be denied at read time.
     BOOL append = NO;
     if ([window.dropDelegate respondsToSelector:@selector(mainWindow:dropAppendsAtLocation:)]) {
         append = [window.dropDelegate mainWindow:window dropAppendsAtLocation:location];
@@ -550,22 +532,20 @@ NSString *VibeSyntheticFileDragDrop(MainPlayerController *controller, NSArray<NS
 
 #pragma mark Synthetic reorder drags
 
-// reorder_begin, reorder_update, reorder_drop and reorder_cancel drive the
-// playlist's internal row-reorder drag through the same NSTableViewDataSource
-// methods a real drag session calls, in the same order — writer per dragged
-// row, willBegin, validate, accept, ended. No native NSDraggingSession is
-// started; these calls carry a stand-in NSDraggingInfo whose
-// draggingSource is the real table and whose draggingPasteboard holds what
-// the real writers minted. Everything downstream — token match, survivor
-// resolution, slot arithmetic, the model move, the table reconciliation, the
-// undo registration — is the shipping path. What is NOT exercised is AppKit's
-// half: the drag threshold, which rows a gesture picks up, the insertion
-// line, autoscroll. The session survives across channel commands on purpose:
-// begin a drag, mutate the playlist with any other verb, then update or drop
-// — the mid-drag races no pointer can stage deterministically.
+// The reorder verbs drive the playlist's row-reorder drag through the
+// NSTableViewDataSource methods a real session calls, in the same order:
+// writer per dragged row, willBegin, validate, accept, ended. No
+// NSDraggingSession is started; a stand-in NSDraggingInfo carries the real
+// table as draggingSource and what the real writers minted as its pasteboard.
+// Everything downstream — token match, survivor resolution, slot arithmetic,
+// the model move, table reconciliation, undo — is the shipping path. AppKit's
+// half is not exercised: the drag threshold, which rows a gesture picks up,
+// the insertion line, autoscroll. The session deliberately survives across
+// commands, so another verb can mutate the playlist mid-drag — races no
+// pointer can stage deterministically.
 
-// The private drag surface these verbs drive; the class extension owns the
-// real declarations.
+// NSTableViewDataSource's drag methods, which PlaylistController implements,
+// redeclared for direct calls.
 @interface PlaylistController (VibeDebugReorder)
 - (PlaylistTableView *)tableView;
 - (id<NSPasteboardWriting>)tableView:(NSTableView *)tableView
@@ -604,8 +584,7 @@ NSString *VibeSyntheticFileDragDrop(MainPlayerController *controller, NSArray<NS
 - (NSDragOperation)draggingSourceOperationMask { return NSDragOperationMove; }
 - (NSPoint)draggingLocation { return NSZeroPoint; }
 - (NSPoint)draggedImageLocation { return NSZeroPoint; }
-// Deprecated protocol members, implemented inertly only to satisfy
-// conformance.
+// Deprecated protocol members, inert, for conformance only.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-implementations"
 - (NSImage *)draggedImage { return nil; }
@@ -626,10 +605,9 @@ NSString *VibeSyntheticFileDragDrop(MainPlayerController *controller, NSArray<NS
 - (void)resetSpringLoading {}
 @end
 
-// One synthetic session at most, mirroring the real world's one drag at a
-// time. Statics rather than controller state: this is harness bookkeeping,
-// not app state, and the controller's own session ivars are set and cleared
-// by the real delegate calls below exactly as a genuine drag would.
+// One synthetic session at most, as with real drags. Statics rather than
+// controller state: this is harness bookkeeping, and the controller's own
+// session ivars are set and cleared by the real delegate calls.
 static VibeDebugReorderDraggingInfo *vibeReorderInfo;
 static NSPasteboard *vibeReorderPasteboard;
 
@@ -670,8 +648,8 @@ NSString *VibeReorderBegin(MainPlayerController *controller, NSArray<NSString *>
     if (vibeReorderInfo) {
         VibeReorderEndSession(playlist, NSDragOperationNone);
     }
-    // The real writer path: per dragged row, exactly as AppKit asks, which is
-    // what mints the controller's session token.
+    // Per dragged row, as AppKit asks; this mints the controller's session
+    // token.
     NSMutableArray<id<NSPasteboardWriting>> *items = [NSMutableArray arrayWithCapacity:rows.count];
     __block NSUInteger refusedRow = NSNotFound;
     [rows enumerateIndexesUsingBlock:^(NSUInteger row, BOOL *stop) {

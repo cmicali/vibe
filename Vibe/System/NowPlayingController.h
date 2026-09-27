@@ -2,23 +2,14 @@
 //  NowPlayingController.h
 //  Vibe
 //
-//  Bridges the player to the system Now Playing UI — Control Center, the macOS
-//  hardware media keys for play/pause, next and previous, and AirPods and
-//  Bluetooth transport controls — through MediaPlayer's MPRemoteCommandCenter
-//  and MPNowPlayingInfoCenter. Registering the command handlers is what routes
-//  the media keys to Vibe, and publishing now-playing info is what makes Vibe
-//  the system's active Now Playing app.
+//  The MPRemoteCommandCenter / MPNowPlayingInfoCenter bridge. It owns no
+//  playback state: each shell's +NowPlaying category drives it and takes the
+//  commands back through the delegate.
 //
 //  TRAP: the debug-only --no-audio-hw and --no-now-playing flags suppress all
-//  of it — no publish, no command registration. Publishing can pull AirPods
-//  from another device even when rendering to a virtual output. The latter
-//  flag leaves hardware rendering enabled for loopback tests. Verifying this
-//  class needs a launch without either flag; see the vibe-debug skill.
-//
-//  It owns no playback state. MainPlayerController drives it with track and
-//  timing updates through updateWithTrack:..., and receives the hardware
-//  commands back through the delegate, routing them to the same transport
-//  actions the on-screen buttons and the keyboard use.
+//  of it, no publish and no command registration, because publishing can pull
+//  AirPods from another device even when rendering to a virtual output.
+//  Verifying this class needs a launch without either flag (vibe-debug).
 //
 
 #import <Foundation/Foundation.h>
@@ -29,9 +20,7 @@ NS_ASSUME_NONNULL_BEGIN
 @class AudioTrack;
 @class NowPlayingController;
 
-// The three states the system Now Playing UI distinguishes. The player's
-// transient Loading state maps to Playing, since a play is committed and
-// imminent.
+// Loading maps by its intent: an ordinary load is Playing, a parked one Paused.
 typedef NS_ENUM(NSInteger, NowPlayingPlaybackState) {
     NowPlayingPlaybackStateStopped = 0,
     NowPlayingPlaybackStatePlaying,
@@ -39,51 +28,33 @@ typedef NS_ENUM(NSInteger, NowPlayingPlaybackState) {
 };
 
 @protocol NowPlayingControllerDelegate <NSObject>
-// Discrete play and pause, which some remotes and Control Center send. These
-// name destination states, so delegates route them to idempotent start/resume
-// and pause operations rather than through a play/pause toggle.
+// Destination states, not a toggle: route them to idempotent operations.
 - (void)nowPlayingControllerPlay:(NowPlayingController *)controller;
 - (void)nowPlayingControllerPause:(NowPlayingController *)controller;
-// The keyboard play/pause media key sends this toggle.
 - (void)nowPlayingControllerTogglePlayPause:(NowPlayingController *)controller;
 - (void)nowPlayingControllerNextTrack:(NowPlayingController *)controller;
 - (void)nowPlayingControllerPreviousTrack:(NowPlayingController *)controller;
-// A Control Center scrubber drag. position is in seconds from the track start.
+// Seconds from the track start.
 - (void)nowPlayingController:(NowPlayingController *)controller seekToPosition:(NSTimeInterval)position;
 @end
 
 @interface NowPlayingController : NSObject
 
-// Registers the remote command handlers immediately. They are process-global,
-// so the media keys can route to Vibe as soon as now-playing info is published.
+// Registers the remote command handlers at once.
 - (instancetype)initWithDelegate:(id<NowPlayingControllerDelegate>)delegate;
 
-// Publication-only construction: no remote-command registration. The clock and
-// sinks are the OS boundary; the same dirty check and artwork pipeline run.
+// Publication only, no command registration: the tests' OS boundary.
 - (instancetype)initWithClock:(NSTimeInterval (^)(void))clock
                       publish:(void (^)(NSDictionary * _Nullable, NowPlayingPlaybackState))publish
           commandAvailability:(void (^)(BOOL hasNext, BOOL hasPrevious))commandAvailability;
 
-// Publishes the current track's metadata and artwork, and the playback timing
-// and state. A nil track clears the now-playing info, meaning nothing is
-// loaded, but only once something has been published: before the first track
-// plays, a nil update is a no-op, so Vibe never claims the system Now Playing
-// slot at launch.
-//
-// hasNext and hasPrevious come from PlaylistController's hasNextTrack and
-// hasPreviousTrack, the same predicates the in-app Next button and menu items
-// use, and they gate the system next and previous commands. They apply even
-// before the first publish, because enabling a command does not claim the Now
-// Playing slot.
-//
-// This is cheap enough to call on every transport event and every metadata or
-// artwork delivery: a dirty check skips the republish when nothing has
-// changed, and artwork is read non-blocking, using already-decoded art only,
-// so it is safe on the main thread.
-//
-// placeholderArt is the shell's own no-artwork image, published while the
-// track has no decoded art, so the card shows what the app shows. Pass the
-// same object while it is unchanged: the dirty check compares identity.
+// Nothing is published until the first Playing update, so a launch never
+// claims the system slot; after that a nil track clears it once. hasNext and
+// hasPrevious gate the system commands and apply even before the first
+// publish. Cheap on every transport event: a dirty check skips unchanged
+// publishes, and art is read non-blocking. placeholderArt stands in while the
+// track has no decoded art; pass the same object while it is unchanged, since
+// the dirty check compares identity. Main thread.
 - (void)updateWithTrack:(nullable AudioTrack *)track
          placeholderArt:(nullable VibeImage *)placeholderArt
                position:(NSTimeInterval)position

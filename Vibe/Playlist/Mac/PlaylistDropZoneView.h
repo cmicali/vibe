@@ -26,26 +26,19 @@ NS_ASSUME_NONNULL_BEGIN
 //     wells over a within-window blur, so they read against the rows beneath.
 //   - Populated playlist at rest: it draws nothing and is hit-transparent.
 //
-// This handles presentation and hit-testing alone. The window is the dragging
-// destination, and this view never registers for drags. MainWindow forwards
-// drag locations through MainPlayerController, and the drop resolves against
-// the well geometry through dropActionForWindowPoint:.
+// Presentation and hit-testing alone: the window is the dragging destination
+// and forwards drag locations through MainPlayerController.
 @interface PlaylistDropZoneView : NSView
 
-// Which layout the zone presents; see above. The owning controller sets it
-// from its updateUI funnel, alongside the playlist count.
 @property (nonatomic) BOOL playlistEmpty;
 
-// Drag-over tracking. The points are in window coordinates, from
-// NSDraggingInfo.draggingLocation. An update enters the drag-over state and
-// moves the well highlight, and no-ops while the view is hidden or collapsed.
+// Window coordinates. An update enters drag-over and moves the highlight; it
+// no-ops while the view is hidden or collapsed.
 - (void)fileDragUpdatedAtWindowPoint:(NSPoint)point;
 - (void)fileDragEnded;
 
-// Which well the given drop point lands on. It is geometry-only, and so stays
-// valid after fileDragEnded has already reset the drag-over state, which
-// matters because drops are delivered asynchronously, after directory
-// expansion.
+// Geometry-only, so it stays valid after fileDragEnded: drops are delivered
+// asynchronously, after directory expansion.
 - (PlaylistDropWellAction)dropActionForWindowPoint:(NSPoint)point;
 
 @end

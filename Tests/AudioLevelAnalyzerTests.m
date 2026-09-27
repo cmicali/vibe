@@ -683,9 +683,8 @@ static NSUInteger VibeTestAnalyze(VibeAudioLevelAnalyzer *analyzer, float *const
     VibeAudioLevelAnalyzerDestroy(antiphase);
 }
 
-// The same frames in three callbacks are three windows analyzed as they
-// fill, and one summary covers them all, as it does in the meter at its
-// publication; a summary clears what it covered.
+// Windows analyze as they fill across callbacks, and one summary covers them
+// all, as at the meter's publication; a summary clears what it covered.
 - (void)testWindowsAnalyzedAcrossCallbacksSummarizeOnce {
     const double sampleRate = 48000.0;
     VibeAudioLevelAnalyzer *whole = VibeAudioLevelAnalyzerCreate(

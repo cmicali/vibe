@@ -4,7 +4,7 @@
 //
 
 #import "DebugHealth.h"
-#import "DebugConsistency.h"   // VibeDebugViolation, shared with the cross-platform checks
+#import "DebugConsistency.h"
 
 #if DEBUG
 
@@ -43,7 +43,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "MusicalKey.h"
-#import "VibeStrings.h"   // STR_LABEL_TIME_UNKNOWN, compared against the live label
+#import "VibeStrings.h"
 
 #pragma mark - Process counters
 
@@ -74,14 +74,11 @@ static NSUInteger VibeMachPortCount(void) {
 }
 
 // A leaked AudioFileHandle or an unclosed cache handle shows here long before it
-// shows in the footprint. Passing a null buffer asks only for the size.
-// TRAP: the sizing call is not a count. proc_pidinfo(PROC_PIDLISTFDS) with a
-// NULL buffer answers how big the process's descriptor TABLE is, and that table
-// grows with peak concurrency and never shrinks — so using it as the count
-// reports every burst of parallel opens as a permanent leak that survives even
-// a quiesce. Measured: 420 "descriptors" against lsof's 41 after 400 rapid
-// plays. The listing has to be fetched for real; the bytes it actually writes
-// are the open ones.
+// shows in the footprint.
+// TRAP: the NULL-buffer sizing call is not a count. It answers the size of the
+// descriptor TABLE, which grows with peak concurrency and never shrinks, so
+// every burst of parallel opens would read as a permanent leak. Fetch the
+// listing; the bytes it writes are the open descriptors.
 static NSUInteger VibeOpenFileDescriptorCount(void) {
     int capacity = proc_pidinfo(getpid(), PROC_PIDLISTFDS, 0, NULL, 0);
     if (capacity <= 0) {
@@ -99,11 +96,10 @@ static NSUInteger VibeOpenFileDescriptorCount(void) {
     return (NSUInteger)(bytes / (int)PROC_PIDLISTFD_SIZE);
 }
 
-// The split phys_footprint cannot make. A footprint of hundreds of megabytes
+// The split phys_footprint cannot make: hundreds of megabytes of footprint
 // over a live heap of twenty is the allocator holding freed pages, not a leak,
-// and only `liveBytes` distinguishes the two — it is the sensitive signal the
-// footprint was standing in for. Every registered zone is summed, CoreAudio's
-// own caulk zones included, since a per-zone breakdown is vmmap's job.
+// and only the live bytes tell the two apart. Every registered zone is summed,
+// CoreAudio's caulk zones included; a per-zone breakdown is vmmap's job.
 static void VibeMallocBytes(uint64_t *live, uint64_t *reserved) {
     *live = 0;
     *reserved = 0;
@@ -165,16 +161,15 @@ static void VibeCountViews(NSView *view, NSUInteger *views, NSUInteger *tracking
 
 #pragma mark - Pending work
 
-// App-owned work which must return to zero at rest. The containers are leak
-// signals too small for process counters; the fixed-bounded syscall gauges
-// instead let quiesce name work stuck below those containers.
-// engineCounts comes from the caller so the player's queue is crossed once per
-// dump, not once per section.
+// App-owned work that must return to zero at rest; VibeIsSettled scores
+// every entry, so whatever holds out names itself. The containers are leak
+// signals too small for the process counters to see; the in-flight gauges
+// name work stuck below them. engineCounts comes from the caller so the
+// player's queue is crossed once per dump.
 static NSDictionary<NSString *, NSNumber *> *VibePendingCounts(MainPlayerController *controller,
                                                               NSDictionary *engineCounts) {
     NSMutableDictionary<NSString *, NSNumber *> *out = [NSMutableDictionary dictionary];
-    // The health schema's names are this file's business; each source reports
-    // in its own vocabulary and is namespaced here.
+    // Each source reports in its own vocabulary; the schema's names are set here.
     NSDictionary<NSString *, NSNumber *> *parse = [controller.metadataCache.parseCoordinator pendingCounts];
     out[@"metadataHolders"] = parse[@"holders"];
     out[@"metadataWaiters"] = parse[@"waiters"];
@@ -184,34 +179,27 @@ static NSDictionary<NSString *, NSNumber *> *VibePendingCounts(MainPlayerControl
         out[@"openBurstQueued"] = @([appDelegate debugQueuedOpenCount]);
     }
     out[@"retiredFades"] = engineCounts[@"retiredFades"];
-    // Both belong at rest. A queued cloud parse that never ran is a row stuck
-    // on its filename forever, and a lane still HELD once everything has
-    // settled is the whole sweep suspended — the hold is set when a slow open
-    // starts and cleared when it settles, so any teardown that loses the
-    // clearing edge shows up here and nowhere else.
+    // A queued cloud parse that never ran is a row stuck on its filename
+    // forever. A lane still held at rest is the whole sweep suspended: the
+    // hold is set when a slow open starts and cleared when it settles, so a
+    // teardown that loses the clearing edge shows up here and nowhere else.
     out[@"cloudParsesPending"] = @([controller.metadataCache debugPendingBackgroundMaterializationCount]);
     out[@"cloudLaneHeld"] = @([controller.metadataCache debugBackgroundMaterializationHeld] ? 1 : 0);
-    // Unlike the two above, this one IS a growth metric at quiescence: a
-    // priority record outliving its play is a strand, and the 37-entry one
-    // the stress soak missed was invisible precisely because no health
-    // counter carried it.
+    // A priority record outliving its play is a strand no other counter shows.
     out[@"priorityRecordsPending"] =
             @([(NSArray *)[controller.metadataCache debugPriorityLaneState][@"pending"] count]);
-    // Accounting starts before the scheduler/worker handoff, so a probe can
-    // outlive the claim whose last waiter detached without a zero-count gap.
-    // At rest this distinguishes stuck classification from transfer/open work.
+    // Counted from before the scheduler/worker handoff, so a probe outliving
+    // the claim whose last waiter detached never reads zero in between. At
+    // rest it separates stuck classification from transfer or open work.
     out[@"datalessProbesInFlight"] =
             @([AudioFileMaterializationCoordinator.sharedCoordinator
                     datalessProbesInFlight]);
-    // An AudioFileHandle call the OS still owes an answer for. Unlike everything
-    // above it is not a container the app can drain — a never-returning open
-    // cannot be cancelled — so nonzero here at rest is not "work still in
-    // flight" but "work that will never finish", which is the only reading
-    // quiesce can give it. That is also why it belongs in this dictionary
-    // rather than beside the diagnostic numbers: VibeIsSettled scores every
-    // entry, so a stranded open holds the settle open and names itself.
-    // The lock-free reader, not debugState: quiesce polls this every 100ms and
-    // must not take the coordinator's state queue to do it.
+    // AudioFileHandle calls the OS still owes an answer. Not drainable — a
+    // never-returning open cannot be cancelled — so nonzero at rest means work
+    // that will never finish, and it belongs here rather than in the
+    // diagnostics so a stranded open holds the settle open and names itself.
+    // Read lock-free rather than through debugState: quiesce polls every 100ms
+    // and must not take the coordinator's state queue.
     out[@"handleOpensInFlight"] =
             @([AudioFileMaterializationCoordinator.sharedCoordinator handleOpensInFlight]);
     return out;
@@ -240,21 +228,11 @@ NSString *VibeDebugHealthJSON(MainPlayerController *controller) {
     process[@"machPorts"] = @(VibeMachPortCount());
     process[@"uptimeSeconds"] = @(VibeProcessUptimeSeconds());
 
-    // VISIBLE windows only, and that qualifier is the whole measurement.
-    //
-    // TRAP: NSApp.windows holds every window the app has ever built, closed
-    // ones included — AppDelegate caches settingsWindowController for the
-    // process's life and NSColorPanel is a shared singleton that never dies.
-    // Counting their subtrees made ONE visit to Settings add ~750 views
-    // permanently, which reads as an unbounded leak forever after: a soak run
-    // failed on `views grew 50 -> 889` with every one of those views sitting
-    // in two closed windows. A window the app deliberately retains for reuse
-    // is not a leak, and a metric that cannot tell the two apart is a number
-    // rather than a measurement.
-    //
-    // Stranded windows are still caught, by `windows` below — that count stays
-    // over NSApp.windows precisely so an unbounded number of retained windows
-    // has somewhere to show up.
+    // TRAP: NSApp.windows includes closed windows the app keeps for reuse
+    // (AppDelegate's settingsWindowController, the shared NSColorPanel), so
+    // counting their views makes one visit to Settings read as a permanent
+    // leak. Views, layers and tracking areas count VISIBLE windows only;
+    // `windows` below stays over NSApp.windows so stranded windows still show.
     NSUInteger views = 0;
     NSUInteger trackingAreas = 0;
     NSUInteger layers = 0;
@@ -339,10 +317,8 @@ static BOOL VibeIsSettled(MainPlayerController *controller, NSDictionary *pendin
 }
 
 void VibeDebugQuiesce(MainPlayerController *controller, void (^completion)(NSString *)) {
-    // closeFile: is already the whole teardown — stop, drop the prefetch
-    // handle, cancel the waveform load and the deferred metadata scan, clear
-    // the playlist, reset the UI — so quiescing is that plus waiting for what
-    // it cancelled to actually unwind.
+    // closeFile: is the whole teardown; quiescing is that plus waiting for
+    // what it cancelled to unwind.
     [controller closeFile:nil];
 
     NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:kQuiesceDeadline];
@@ -363,18 +339,12 @@ void VibeDebugQuiesce(MainPlayerController *controller, void (^completion)(NSStr
                            dispatch_get_main_queue(), poll);
             return;
         }
-        // Hand every zone's free pages back to the OS before the caller
-        // samples. Without it phys_footprint reports the allocator's
-        // high-water mark rather than what is still live — a decode buffer
-        // freed to malloc keeps the footprint hundreds of megabytes up, which
-        // reads exactly like a leak and never comes back down.
-        //
-        // The released count is reported because this call is not reliably
-        // effective: measured against a run that had churned through hundreds
-        // of large files, it returned nothing while vmmap showed 67 MB of
-        // dirty pages sitting in MALLOC_LARGE regions with no live
-        // allocations. A caller that assumes it worked is reading a footprint
-        // that still carries the high-water mark.
+        // Hand every zone's free pages back before the caller samples, or
+        // phys_footprint reports the allocator's high-water mark and a freed
+        // decode buffer reads as a leak that never comes down. releasedBytes
+        // is reported because the call is not reliably effective: it can
+        // return nothing while MALLOC_LARGE regions still hold dirty pages
+        // with no live allocations.
         uint64_t liveBefore = 0, reservedBefore = 0;
         VibeMallocBytes(&liveBefore, &reservedBefore);
         size_t released = malloc_zone_pressure_relief(NULL, 0);
@@ -403,14 +373,8 @@ void VibeDebugQuiesce(MainPlayerController *controller, void (^completion)(NSStr
 
 #pragma mark - check_consistency
 
-// The macOS-only checks: the header labels and artwork the mac renders, the
-// pitch fader, the playlist table's row count, and the scaled UI tick rate.
-// Everything that holds on both platforms is VibeDebugCheckShared, in
-// Debug/DebugConsistency.m, and `check_consistency` runs that first and
-// this through the surface protocol's optional hook.
-//
-// These are the render-lag-sensitive ones: renderState runs from the updateUI
-// funnel, so a state that flipped this runloop turn may not have been drawn
+// The header checks are render-lag-sensitive: renderState runs from the
+// updateUI funnel, so a state that flipped this run-loop turn may not be drawn
 // yet. Re-check after a settle before believing them.
 NSUInteger VibeDebugCheckMac(NSMutableArray<NSDictionary *> *v,
                                         MainPlayerController *controller) {
@@ -429,12 +393,11 @@ NSUInteger VibeDebugCheckMac(NSMutableArray<NSDictionary *> *v,
     }
 
     // Both of Playlist's row indexes against the array they index. Every
-    // structural edit rebuilds them wholesale rather than patching, so a
-    // rebuild that drops or doubles an entry leaves lookups answering a
-    // neighbouring row forever after — silent, because the counts still agree
-    // and every row still draws. The identity lookup also catches one object
-    // landing in two rows, which is what a move that copies instead of
-    // relocating produces.
+    // structural edit rebuilds them wholesale, so a rebuild that drops or
+    // doubles an entry leaves lookups answering a neighbouring row forever —
+    // silently, since the counts still agree and every row still draws. The
+    // identity lookup also catches one object in two rows, which a move that
+    // copies instead of relocating produces.
     checked++;
     PlaylistController *list = controller.playlistController;
     for (NSUInteger i = 0; i < count; i++) {
@@ -459,9 +422,9 @@ NSUInteger VibeDebugCheckMac(NSMutableArray<NSDictionary *> *v,
         }
     }
 
-    // A selection surviving past the rows it named. The table clamps its own,
-    // so this is really about a structural edit that reconciled the view with
-    // precise row operations and left the selection describing the old shape.
+    // The table clamps its own selection, so one reaching past the rows is a
+    // structural edit whose precise row operations left it describing the old
+    // shape.
     checked++;
     NSIndexSet *selection = controller.playlistTableView.selectedRowIndexes;
     if (selection.count > 0 && selection.lastIndex >= count) {
@@ -477,11 +440,9 @@ NSUInteger VibeDebugCheckMac(NSMutableArray<NSDictionary *> *v,
                 @"fader %.4f, player %.4f", faderPitch, player.pitch);
     }
 
-    // The UI tick rate is scaled to the playhead's on-screen speed, so it must
-    // follow its three inputs. A disagreement means some path moved the
-    // waveform width, the duration cache or the varispeed rate without
-    // resyncing the timer, and the playhead is being drawn at the previous
-    // track's or window's cadence.
+    // The tick rate is scaled to the playhead's on-screen speed. A mismatch
+    // means some path moved the waveform width, the duration cache or the
+    // varispeed rate without resyncing the timer.
     checked++;
     NSUInteger armedHz = controller.debugUIUpdateHz;
     NSUInteger expectedHz = controller.debugExpectedUIUpdateHz;

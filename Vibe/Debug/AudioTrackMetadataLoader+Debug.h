@@ -18,10 +18,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSDictionary *)debugPriorityLaneState;
 - (NSDictionary *)debugScanLaneState;
 
-// Test seams (AudioTrackMetadataLoaderTests), not verbs. DEBUG-only
-// implementations, so they cannot move to the shipping Internal.h, whose
-// primary @interface Release would then leave unimplemented.
-// Fires before every off-lock scan-pick validation until explicitly cleared.
+// Test seams for AudioTrackMetadataLoaderTests. Their implementations are
+// DEBUG-only, so declaring them in the shipping Internal.h would leave them
+// unimplemented in Release.
+// Fires before every off-lock scan-pick validation until cleared.
 - (void)debugSetBeforeScanPickValidation:(nullable dispatch_block_t)block;
 - (NSQualityOfService)debugLastScheduledParseQualityOfService;
 - (NSQualityOfService)debugParseQualityOfServiceForTrack:(AudioTrack *)track;

@@ -5,8 +5,6 @@
 
 #import "PlaybackRequestCoordinator.h"
 
-// Writable only in here. Everything handed out is a copy, so the readonly
-// declaration in the header is the whole caller-facing contract.
 @interface VibePlaybackRequest ()
 @property (nonatomic, strong) AudioTrack *track;
 @property (nonatomic, copy) NSString *path;
@@ -102,7 +100,6 @@
     if (!request) {
         return NO;
     }
-    // Either identity is enough; see the header for why it is not both.
     BOOL trackMatches = track && request.track == track;
     BOOL playMatches = submittedPlayIdentifier
             && request.submittedPlayIdentifier == submittedPlayIdentifier;

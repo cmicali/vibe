@@ -2,9 +2,6 @@
 //  AudioPlayer+Devices.m
 //  Vibe
 //
-//  See AudioPlayer+Devices.h. The shared ivars and queue-side helpers come
-//  from AudioPlayerInternal.h.
-//
 
 #import "AudioPlayer+Devices.h"
 #import "AudioPlayerInternal.h"
@@ -21,10 +18,8 @@ static const NSTimeInterval kSystemOutputBindRetryDelay = 2.0;
 static const NSTimeInterval kFormatSwitchDeadlineSeconds = 1.5;
 static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 
-// A rebind slower than this held the player queue long enough for the user to
-// feel it as a freeze; see #53 and the comment at configureOutputDeviceOnQueue:.
-// A bit-perfect switch legitimately reached 0.73s on healthy hardware, so a
-// tighter bound would warn about working correctly.
+// A rebind slower than this holds the player queue long enough to feel like a
+// freeze.
 static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 
 @implementation AudioPlayer (PlatformOutput)
@@ -116,10 +111,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     }
     [self followOutputDeviceRateOnQueue];
     [[AudioDeviceManager sharedInstance] addObserver:self];
-    // Do not put first-use HAL discovery on the player's sole queue. The
-    // output begins honestly on System Output; a successful async snapshot
-    // later applies the saved preference through the checked device-switch
-    // path.
+    // First-use HAL discovery stays off the player queue: the output starts
+    // on System Output, and the async snapshot applies the saved preference.
     [self resolvePendingSavedOutputDeviceOnQueue];
     return YES;
 }
@@ -132,10 +125,9 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     if (![self createOutputUnitOnQueue]) {
         return NO;
     }
-    // TRAP: the unit followed its device's rate through applyOutputRateOnQueue:,
-    // which leaves the source segment to its caller: a segment built at the
-    // fallback format, and the voice parked in it, are reconciled here, or
-    // the voice played into the new rate at the old one.
+    // TRAP: applyOutputRateOnQueue: leaves the source segment to its caller.
+    // A segment built at the fallback format must be reconciled here, or its
+    // voice plays at the old rate into the new one.
     if (before && _masterFormat && !VibePCMFormatsMatch(before, _masterFormat) && ![self reconcileSourceSegmentOnQueue]) {
         return NO;
     }
@@ -153,19 +145,17 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:2];
     [_outputUnit configureFormat:format renderProc:VibeMasterBusRender refCon:_masterBus];
     [self setMasterBusFormatOnQueue:format];
-    // A bus at the old rate stays until the caller reconciles the segment —
-    // every caller does, and re-voices when the rebuild killed the voice.
-    // TRAP: rebuilding it here instead left playback silent while Playing:
-    // the rebind's own reconcile then found the bus already at the rate,
-    // reported no rebuild, and never started the replacement voice.
+    // TRAP: the segment stays at the old rate for the caller to reconcile,
+    // which re-voices when it rebuilds. Rebuilt here, the caller's reconcile
+    // would find it already at the rate and never start the replacement voice:
+    // silence while Playing.
     LogInfo(@"AudioPlayer: output unit pulls at %.0f Hz from device %u", rate, _outputUnit.deviceID);
     return YES;
 }
 
-// The device that just went away, moved from "bound" to "wanted again". The
-// pending slot is the same one a launch preference waits in, so the existing
-// resolve path re-adopts the device when it returns — no new mechanism, and
-// VibeCanBindSavedOutputDevice still decides when it is safe to bind.
+// The device that just went away, moved from "bound" to "wanted again": the
+// pending slot a launch preference waits in, so the resolver re-adopts it when
+// it returns, whenever VibeCanBindSavedOutputDevice allows.
 - (void)retainVanishedOutputDeviceIntentOnQueue {
     if (_boundDeviceUID.length == 0 && _boundDeviceName.length == 0) {
         return;
@@ -184,7 +174,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
             [self setOutputDeviceOnQueue:-1];
         }
         [self resolvePendingSavedOutputDeviceOnQueue];
-        [self publishBitPerfectReportOnQueue]; // whether the chosen device is the default moved
+        [self publishBitPerfectReportOnQueue];
     });
 }
 
@@ -207,7 +197,6 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     });
 }
 
-// Read the shared bind rule from queue-owned playback state.
 - (BOOL)canBindSavedOutputDeviceNowOnQueue {
     return VibeCanBindSavedOutputDevice(_state == VibePlayerStateStopped,
                                         _state == VibePlayerStateLoading,
@@ -215,13 +204,11 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
                                         [self renderingOnQueue], _outputAudioActive);
 }
 
-// Binds a wanted device the resolver found. When it was found by its model UID
-// under a NEW device UID — a class-compliant interface moved to another USB
-// port — the bind reads the modes remembered under the old UID, so the device
-// comes back as the user left it rather than with bit-perfect off. Only a model
-// match earns that: a name match may be a different device, and carrying
-// exclusive to it would hog hardware the user never chose — the warning in
-// selectOutputDeviceOnQueue: is why. The shell persists the carry on main.
+// Binds a wanted device the resolver found. A model-UID match under a NEW
+// device UID — a class-compliant interface on another USB port — reads the
+// modes remembered under the old UID, so the device comes back as the user
+// left it. Only a model match earns that (see selectOutputDeviceOnQueue:).
+// The shell persists the carry on main.
 - (BOOL)selectSavedOutputDeviceOnQueue:(AudioDevice *)device
                               savedUID:(NSString *)savedUID
                          savedModelUID:(NSString *)savedModelUID {
@@ -249,9 +236,9 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
             || (savedUID.length == 0 && savedModelUID.length == 0 && savedName.length == 0)) {
         return;
     }
-    // TRAP: returning devices must resolve synchronously, before a local open
-    // can move Loading to Playing and make the bind ineligible. Only launch
-    // waits for the manager's first successful snapshot.
+    // TRAP: resolve synchronously, before a local open can move Loading to
+    // Playing and make the bind ineligible. Only launch waits for the
+    // manager's first snapshot.
     AudioDeviceManager *manager = AudioDeviceManager.sharedInstance;
     NSArray<AudioDevice *> *snapshot = manager.cachedOutputDevices;
     if (!snapshot) {
@@ -277,8 +264,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         return;
     }
     if (!device && !_bitPerfectWanted) return;
-    // TRAP: hold the guard across every bind, including cached resolutions.
-    // A refused HAL bind publishes Stopped; reset must not queue another try.
+    // TRAP: hold the guard across every bind, cached resolutions included: a
+    // refused bind resets to Stopped, and the reset must not queue another try.
     _pendingSavedDeviceLookupInFlight = YES;
     if (device) {
         BOOL bound = [self selectSavedOutputDeviceOnQueue:device savedUID:savedUID savedModelUID:savedModelUID];
@@ -323,15 +310,12 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     return YES;
 }
 
-// TRAP: another process moving the bound device's rate — Audio MIDI Setup,
-// a DAW, the loopback verifier — leaves the unit configured at the old one,
-// and a hosted unit renders nothing at a rate the device no longer runs at
-// (measured: silence on BlackHole moved 96 → 48 kHz under a playing unit).
-// So the bound device's rate is watched in every mode, and a rate other
-// than the pipeline's rebinds in place, which follows the rate and
-// re-voices. A prepared bit-perfect device has its own listener, which
-// puts the mode's format back instead; Vibe's own rate writes arrive with
-// the pipeline already at the rate, a no-op.
+// TRAP: a hosted unit left at a rate its device no longer runs at renders
+// nothing (measured). Another process can move the bound device's rate, so it
+// is watched in every mode, and a rate other than the pipeline's rebinds in
+// place, following it. A prepared bit-perfect device's own listener puts the
+// mode's format back instead; Vibe's own writes arrive with the pipeline
+// already at the rate, a no-op.
 - (void)watchBoundDeviceRateOnQueue:(AudioDeviceID)deviceID {
     __weak AudioPlayer *weakSelf = self;
     AudioObjectPropertyListenerBlock listener = [^(UInt32 count, const AudioObjectPropertyAddress *addresses) {
@@ -379,17 +363,14 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 }
 
 // Rebuilds the graph, restoring the track, position and play or pause state.
-// kAudioObjectUnknown keeps the current binding (a mode toggle on System
-// Output needs no device read). On failure it reports a delegate error.
-// The report is held throughout. A success is published by the caller once
-// the requested id is committed — publishing here would fold the old id
-// against the new prepared device — so only the failure reset's held
-// publication is owed here.
+// kAudioObjectUnknown keeps the current binding. On failure it reports a
+// delegate error. The report is held throughout: the caller publishes a
+// success once the requested id is committed — publishing here would fold the
+// old id against the new prepared device — so only a failure publishes here.
 - (BOOL)configureOutputDeviceOnQueue:(AudioDeviceID)deviceID {
     if (_terminating) return NO;
     _rebindDeviceID = deviceID;
-    // What the rebuild holds the player queue for; the device's own time is
-    // the output unit's, off this queue. Warn level when slow, so it persists.
+    // The device's own time is the output unit's, off this queue.
     uint64_t reboundAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     BOOL rebound = [self rebindOutputOnQueueToDevice:deviceID];
     NSTimeInterval seconds =
@@ -399,12 +380,9 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
             slowRebind ? @"slow " : @"", deviceID, seconds, rebound ? @"bound" : @"FAILED");
     _rebindDeviceID = kAudioObjectUnknown;
     if (!rebound) {
-        // Names the path that asked for a bind the HAL refused. A rebind onto a
-        // device that is vanishing fails with -10851, raises a user-visible
-        // error and unloads the track, and it was seen once in three paused
-        // unplugs with nothing in the log saying who asked (#62). Failed binds
-        // are rare, so the stack costs nothing in ordinary use. A Release build
-        // logs addresses, which symbolicate against the archived binary.
+        // Names who asked for a bind the HAL refused: a rebind onto a
+        // vanishing device fails with -10851 and unloads the track. Release
+        // builds log addresses, which symbolicate against the archived binary.
         NSArray<NSString *> *stack = [NSThread callStackSymbols];
         NSUInteger depth = MIN(stack.count, (NSUInteger)10);
         NSString *callers = depth > 1
@@ -451,13 +429,11 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     if (_terminating) return NO;
     BOOL bitPerfectOutput = NO, exclusiveOutput = NO;
     NSString *uid = [AudioDeviceManager.sharedInstance outputDeviceForId:outputDeviceID].uid;
-    // TRAP: a name fallback can resolve a different UID; read its own modes
-    // before preparing or hogging it, never the missing device's flags. A name
-    // match may be different hardware, and carrying exclusive to it would hog a
-    // device the user never enabled it on. The ONE exception is
-    // _modesUIDForNextSelection: set only when the device was matched by its
-    // documented model UID under a new device UID, which is the same model on
-    // another USB port, not a stranger that shares a name.
+    // TRAP: a name fallback can resolve different hardware; read the
+    // destination's own modes before preparing or hogging it, never the
+    // missing device's, or exclusive hogs a device the user never enabled it
+    // on. The one exception is _modesUIDForNextSelection, set only for a
+    // model-UID match: the same model on another USB port.
     [self readOutputModesForDeviceUID:(_modesUIDForNextSelection ?: uid)
                      bitPerfectOutput:&bitPerfectOutput exclusiveOutput:&exclusiveOutput];
     BOOL previousBitPerfect = _bitPerfectWanted;
@@ -473,7 +449,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         _exclusiveOutputWanted = previousExclusive;
 #endif
         // TRAP: a failed rebuild may already have rewired or prepared the
-        // destination. A failed pin leaves live playback untouched.
+        // destination, so a Stopped player leaves it; a player still holding
+        // its track keeps it.
         if (_state == VibePlayerStateStopped) {
             [self stopOutputOnQueue];
             [self leaveOutputDeviceOnQueue];
@@ -561,12 +538,10 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     [self reconcileFXOnQueue];
 
     if (shouldRestore) {
-        // Reuse the already-open handle rather than reopening the URL. A
-        // synchronous, timeout-free initForReading: here would wedge the whole
-        // queue if the track had been evicted to an iCloud or Dropbox
-        // placeholder, or sat on a hung mount, between the play and the device
-        // switch. processingFormat is fixed at open, so a new voice on the
-        // existing file is safe.
+        // Reuse the open handle: reopening the URL here, synchronously and
+        // with no deadline, would wedge the queue on an evicted cloud
+        // placeholder or a hung mount. processingFormat is fixed at open, so a
+        // new voice on the existing file is safe.
         AudioFileHandle *file = _file; // safe: _file is only written on _queue, and we are on it
         if (!file) {
             [self resetToStoppedStateOnQueue];
@@ -684,18 +659,15 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 }
 
 // The single announcement of the committed choice, sent on EVERY settled
-// mutation rather than only when the id moved. The delegate both persists it
-// and drives the menu checkmark, and it is idempotent, so re-sending an
-// unchanged value costs a defaults write nobody notices. Suppressing it made
-// "Settings names the last committed device" a guarantee with no enforcement:
-// any path that left the two disagreeing — a failed bind, a launch preference
-// resolved to the id already requested — could then never resynchronize them,
-// because the one call that writes Settings was skipped precisely when they
-// already looked equal. Runs on _queue; the delegate hop is to main.
+// mutation, not only when the id moved. The delegate persists it and drives
+// the menu checkmark, idempotently. Skipping the unchanged case would leave a
+// disagreement between Settings and the binding — a failed bind, a launch
+// preference resolved to the id already requested — with no call left to
+// resynchronize them. The delegate hop is to main.
 - (void)notifyRequestedOutputDeviceOnQueue {
     NSInteger requested = self.currentlyRequestedAudioDeviceId;
-    // The report's eligibility follows the committed id, which the rebuild
-    // above ran before this was written.
+    // Here, not in the rebuild: the report's eligibility follows the
+    // committed id.
     [self publishBitPerfectReportOnQueue];
     // Captured by value: the announcement lands on main asynchronously while
     // the caller clears the queue-side fields straight after.
@@ -888,7 +860,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     BOOL formatDiffers = !VibePhysicalFormatsEquivalent(chosen, current);
     if (VibeBitPerfectOutputNeedsSwitch(current, chosen, [self masterBusFormatOnQueue].sampleRate)) {
         // Bit-perfect edges are cuts or declicks, so a settlement mid-fade
-        // loses at most a declick; the device restore stopped the output itself.
+        // loses at most a declick.
         [self stopOutputOnQueue];
     }
     if (formatDiffers) {
@@ -945,10 +917,9 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
             return; // never overwrite an outstanding release with a second device
         }
     }
-    // Taking the device that is the system default moves the default elsewhere;
-    // the hosted unit stays bound and nothing here waits for anything.
-    // A successful write followed by a failed read-back may still own the
-    // device. Record the cleanup obligation BEFORE asking the HAL to take it.
+    // Taking the system default moves the default elsewhere; the hosted unit
+    // stays bound. A successful write followed by a failed read-back may still
+    // own the device, so the obligation is recorded BEFORE the take.
     if (_hoggedDeviceID != deviceID) {
         [_outputUnit waitUntilIdle]; // an ownership edge: after the queued stop, as the format write
     }
@@ -997,11 +968,10 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     if (_preparedDeviceID == deviceID && (_outputLevelListener || deviceID == kAudioObjectUnknown)) {
         return YES;
     }
-    // The third device obligation, and it retires like the other two. A device
-    // that vanished can never accept the removal, and this used to fail
-    // forever: the early return below left _preparedDeviceID naming the gone
-    // device, and needsPreparation reads that as "a device is prepared", so
-    // every later bind rebuilt the graph and held the player queue (#56).
+    // The third device obligation, retired like the other two: a vanished
+    // device never accepts the removal, and a _preparedDeviceID left naming it
+    // reads as "a device is prepared" to setOutputDeviceOnQueue:, so every
+    // later bind would rebuild the graph.
     if (_outputLevelListener) {
         AudioObjectPropertyListenerBlock listener = _outputLevelListener;
         if ([CoreAudioUtil releaseDeviceObligation:&_preparedDeviceID attempt:^BOOL{
@@ -1117,12 +1087,11 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 }
 
 // Computes the report from its owners — the mode, the graph, the chosen
-// device, the hog, the current file, and the prepared device's physical
-// format, volume, balance, mute and default-ness read live — and publishes the copy the
-// shell reads, announcing it to the delegate when it differs. Held while a
-// device switch is rebuilding; the switch's caller publishes once the
-// requested id is committed. It gates itself: off, once the zeroed Off
-// report is out, a call is two ivar reads, so callers never repeat the check.
+// device, the hog, the current file, the prepared device's physical format
+// read live and its volume, balance and mute (cached while its listener
+// stands) — and publishes the copy the shell reads, announcing it when it
+// differs. Held while a device switch is rebuilding. It gates itself: off,
+// once the zeroed Off report is out, a call is two ivar reads.
 - (void)publishBitPerfectReportOnQueue {
     if (_rebindDeviceID != kAudioObjectUnknown || (!_bitPerfectWanted && !_bitPerfectReport.enabled)) {
         return;
@@ -1148,8 +1117,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         report.sampleRate = physical.mSampleRate;
         report.bitsPerChannel = physical.mBitsPerChannel;
         report.isFloat = VibePhysicalFormatIsFloat(physical);
-        // Named rather than folded into one flag: "switch failed" alone sent #47
-        // round the houses, and the debug info log is where this is read.
+        // Named rather than folded into one flag: "switch failed" alone does
+        // not say which condition failed, and the debug info log is read for it.
         AudioDeviceID bound = [self activeOutputDeviceID];
         unconfirmed = !readFormat ? @"the device's format could not be read"
                 : [self varispeedPresentOnQueue] ? @"a varispeed is in the chain"
@@ -1194,7 +1163,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         }
         if (file) {
             AudioStreamBasicDescription source = *file.fileFormat.streamDescription;
-            // Keep the mixer one-to-one; wider hardware is transparent only
+            // Keep the bus one-to-one; wider hardware is transparent only
             // when the AU's actual map preserves the prepared stream's pair.
             UInt32 channels = source.mChannelsPerFrame;
             report.channelsMatch = channels > 0

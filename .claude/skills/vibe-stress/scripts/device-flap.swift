@@ -1,23 +1,17 @@
-// CoreAudio helper for device-flap.py. One flap per invocation, so the driver
-// owns pacing, counting and every oracle.
+// CoreAudio helper for device-flap.py and bitperfect-soak.py. One action per
+// invocation, so the driver owns pacing, counting and every oracle.
 //
-// `vanish` is the faithful stimulus: it builds a PUBLIC aggregate over a real
-// output device, makes it the system default, then destroys it — so the default
-// device genuinely ceases to exist, which is what a USB DAC does when it sleeps.
-// `move` only reassigns the default between two devices that both persist; it
-// is a strictly weaker stimulus, kept because it separates "the default moved"
-// from "the device vanished".
+// `vanish` is the faithful stimulus: a PUBLIC aggregate over a real output
+// device becomes the system default and is destroyed, as a sleeping USB DAC
+// disappears. `move` only reassigns the default between two persistent devices,
+// separating "the default moved" from "the device vanished". `rotate` cycles the
+// default across real devices, creating nothing, to measure per-interface bind
+// cost (the table in SKILL.md).
 //
-// `rotate` cycles the default across a list of REAL devices in one long-lived
-// process. It creates nothing, so it cannot degrade coreaudiod the way vanish
-// can, and it measures what a bind actually costs per interface — which varies
-// by 6x and NOT in the direction anyone guesses (see the table in SKILL.md).
-//
-// TRAP: this changes the SYSTEM default output, so it moves audio for every app
-// on the machine, not just Vibe. It restores the original default on every exit
-// path including SIGINT/SIGTERM, and destroys its aggregate before exiting —
-// but a SIGKILL leaves both behind. That is why device changes are excluded
-// from the unattended stress profiles and live here instead.
+// TRAP: this changes the SYSTEM default output, moving audio for every app. It
+// restores the default and destroys its aggregate on every exit path including
+// SIGINT/SIGTERM; a SIGKILL leaves both behind. Hence device changes are not a
+// stress profile.
 import AudioToolbox
 import CoreAudio
 import Foundation
@@ -61,8 +55,8 @@ func emit(_ d: [String: Any]) {
 
 let args = CommandLine.arguments
 guard args.count >= 4 else {
-    emit(["ok": false, "error": "usage: device-flap <vanish|move|rotate> "
-            + "<deviceA|steps> <holdMillis> [deviceB|comma,separated,devices]"])
+    emit(["ok": false, "error": "usage: device-flap <vanish|move|rotate|rate|rates|volume> "
+            + "<deviceA|steps> <holdMillis> [deviceB|comma,separated,devices|key:scalar,...]"])
     exit(64)
 }
 let mode = args[1]
@@ -90,13 +84,9 @@ case "move":
     Thread.sleep(forTimeInterval: goneMs / 1000.0)
     emit(["ok": ok, "mode": "move", "target": target, "defaultAfter": readDefault()])
 
-// Rotate the system default across REAL devices, one long-lived process so the
-// original default is restored once at the end rather than bounced back after
-// every step. Creates and destroys nothing, so unlike vanish it cannot degrade
-// coreaudiod — and it exercises each device's real bind cost, which differs by
-// an order of magnitude between interfaces (measured output start: built-in
-// 24ms, FiiO and Audient ~50ms, RME Fireface 215ms — and the RME takes ~200ms
-// more to STOP, which the next device's bind pays).
+// One long-lived process, so the original default is restored once at the end
+// rather than after every step. Creates nothing, so unlike vanish it cannot
+// degrade coreaudiod.
 case "rotate":
     guard args.count >= 5 else {
         emit(["ok": false, "error": "rotate needs a comma-separated device list"]); exit(64)
@@ -142,10 +132,8 @@ case "vanish":
     emit(["ok": became && wasDefault && destroyed, "mode": "vanish", "aggregate": aggID,
           "becameDefault": wasDefault, "destroyed": destroyed, "defaultAfter": readDefault()])
 
-// Read a device's CURRENT nominal rate from the HAL, for a caller checking that
-// bit-perfect put the format back. Only an external read can prove that: the
-// app's own report says what it believes it restored, which is the thing under
-// test. devA is the device; nothing is changed.
+// devA's current nominal rate, read from the HAL: the app's own report of what
+// it restored is the thing under test.
 case "rate":
     var addr = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyNominalSampleRate,
                                           mScope: kAudioObjectPropertyScopeGlobal,
@@ -155,10 +143,8 @@ case "rate":
     let st = AudioObjectGetPropertyData(devA, &addr, 0, nil, &sz, &rate)
     emit(["ok": st == noErr, "mode": "rate", "device": devA, "rate": rate])
 
-// The rates a device can actually run at, so a caller can tell "correctly
-// reported rateUnsupported" from "failed to switch when it could have". Without
-// this the two are indistinguishable, and a DAC that simply lacks 88.2 kHz
-// reads as a bug (the FiiO DAC-E10 does exactly that).
+// devA's supported rates, so a correct rateUnsupported (the FiiO DAC-E10 lacks
+// 88.2 kHz) is told apart from a failed switch.
 case "rates":
     var addr = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyAvailableNominalSampleRates,
                                           mScope: kAudioObjectPropertyScopeGlobal,
@@ -173,13 +159,10 @@ case "rates":
     emit(["ok": st == noErr, "mode": "rates", "device": devA,
           "ranges": ranges.map { ["min": $0.mMinimum, "max": $0.mMaximum] }])
 
-// Read, or set, the output volume scalar per element, so a bit-perfect run can
-// hold a DAC at unity and put the user's level back afterwards. A device below
-// unity truthfully reports volumeScaled, which reads as a failed soak rather
-// than a precondition. devA is the device; args[4], when present, is
-// "key:scalar,…" to write, a key being an element number or "v" for the
-// virtual main volume the app's report reads. Replies with every settable
-// key's value after the write.
+// Read or set devA's output volume scalars, so a bit-perfect run can hold a DAC
+// at unity (below it the app truthfully reports volumeScaled) and restore it.
+// args[4], when present, is "key:scalar,…", a key being an element number or
+// "v" for the virtual main volume. Replies with every settable key's value.
 case "volume":
     var writes: [String: Float32] = [:]
     if args.count >= 5 {

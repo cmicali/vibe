@@ -16,30 +16,20 @@
 // The hover highlight's required luminance separation from the played color.
 static const CGFloat kHoverLuminanceDelta = 0.25;
 
-// The resting alphas the built-in themes' colors carry — the levels that used
-// to live in the renderers. The monochrome pair reproduces the pre-theme
-// Detailed output exactly (its old stop alphas times its old 0.75 layer
-// opacity); the colored unplayed level is Sonic Cirrus's historical unplayed
-// alpha, so the colored themes pair a full-strength hue with SC's bright
-// monochrome — the classic Sonic Cirrus look, on every style. Colored played
-// is simply full alpha.
+// The built-in themes' resting levels. The colored themes pair a full-alpha
+// hue with Sonic Cirrus's bright monochrome unplayed level, on every style.
 static const CGFloat kMonochromePlayedAlpha = 0.75;
 static const CGFloat kMonochromeUnplayedAlpha = 0.375;
 static const CGFloat kColoredUnplayedAlpha = 0.89;
 
-// The album-art legibility clamp. Below the saturation floor the dominant
-// color is effectively grayscale and the theme falls back to mono. The level
-// test is perceptual luminance, not HSB brightness, which is hue-blind — a
-// pure blue reads B=1.0 yet is far too dark for the dark backdrop — and the
-// fix blends toward the appearance's contrast pole, which moves luminance for
-// any hue where scaling components cannot.
+// The album-art legibility clamp; below the saturation floor the color is
+// effectively gray and falls back to mono. Perceptual luminance, not HSB
+// brightness, which is hue-blind: pure blue reads B=1.0 yet is far too dark.
 static const CGFloat kArtworkSaturationFloor = 0.15;
 static const CGFloat kArtworkDarkMinLuminance = 0.55;
 static const CGFloat kArtworkLightMaxLuminance = 0.45;
 
-// How far the album-art hue is pulled toward its own luminance gray before it
-// colors the unplayed side. Blending toward that gray leaves luminance
-// untouched, so the legibility clamp above still holds after it.
+// Toward the color's own luminance gray, which leaves the clamp above intact.
 static const CGFloat kArtworkUnplayedDesaturation = 0.5;
 
 static BOOL VibeGetRGB(VibeColor *color, CGFloat *r, CGFloat *g, CGFloat *b) {
@@ -69,9 +59,8 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
         _unplayedColor = unplayed;
         _hoverColor = [WaveformTheme hoverColorForPlayed:played isDark:isDark];
         CGFloat pr, pg, pb, ur, ug, ub;
-        // RGB only, alphas aside on purpose: the White pair is one hue at two
-        // levels, and the iOS scrubber's single-bitmap fast path recovers the
-        // level difference from unplayedOverPlayedOpacity.
+        // Alphas aside on purpose: the scrubber's single-bitmap fast path
+        // recovers the level difference from unplayedOverPlayedOpacity.
         _unplayedSharesPlayedHue = played == unplayed ||
                 (VibeGetRGB(played, &pr, &pg, &pb) && VibeGetRGB(unplayed, &ur, &ug, &ub) &&
                  fabs(pr - ur) < 0.001 && fabs(pg - ug) < 0.001 && fabs(pb - ub) < 0.001);
@@ -102,14 +91,10 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
                          artworkColor:(VibeColor *)artworkColor
                          customPlayed:(VibeColor *)played
                        customUnplayed:(VibeColor *)unplayed {
-    // The monochrome base every fallback lands on: white-based in dark mode,
-    // black-based in light — exactly the pre-theme palette.
     VibeColor *base = isDark ? [VibeColor whiteColor] : [VibeColor blackColor];
     VibeColor *coloredUnplayed = [base colorWithAlphaComponent:kColoredUnplayedAlpha];
 
     if ([identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_ORANGE]) {
-        // Sonic Cirrus's played orange over its bright monochrome unplayed,
-        // now available to every style.
         VibeColor *orange = [VibeColor colorWithRed:1 green:0.45 blue:0 alpha:1];
         return [[self alloc] initWithPlayed:orange unplayed:coloredUnplayed isDark:isDark];
     }
@@ -136,12 +121,9 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
                                  isDark:isDark];
 }
 
-// nil when the color cannot supply a legible hue at all; otherwise the color
-// blended toward the appearance's contrast pole until its luminance clears
-// the bar — bright enough for the dark backdrop, dark enough for the light
-// one. The blend desaturates a little; that is the price of a hue like pure
-// blue ever reaching a readable level. Full alpha: the played side of a
-// colored theme draws at full strength.
+// nil for a color with no legible hue; otherwise blended toward the
+// appearance's contrast pole until its luminance clears the bar — the only
+// move that reaches every hue, at the cost of a little saturation.
 + (VibeColor *)legibleArtworkColor:(VibeColor *)color isDark:(BOOL)isDark {
     CGFloat r, g, b;
     if (!color || !VibeGetRGB(color, &r, &g, &b)) {
@@ -168,8 +150,6 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
     return [VibeColor colorWithRed:r green:g blue:b alpha:1];
 }
 
-// The color blended toward its own perceptual gray by amount, which holds its
-// luminance fixed.
 + (VibeColor *)color:(VibeColor *)color desaturatedBy:(CGFloat)amount {
     CGFloat r, g, b;
     if (!VibeGetRGB(color, &r, &g, &b)) {
@@ -187,13 +167,9 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
     if (!VibeGetRGB(played, &r, &g, &b)) {
         return isDark ? [VibeColor whiteColor] : [VibeColor blackColor];
     }
-    // Blend toward the appearance's contrast pole — white in dark mode, black
-    // in light — just far enough that the luminance delta clears the
-    // threshold. Luminance is linear in the blend, so the fraction is closed
-    // form; a played color already at the pole saturates there, which is what
-    // keeps the Mono theme's hover identical to the pre-theme one. Full
-    // alpha regardless of the played level: the highlight is meant to be the
-    // brightest thing in the waveform.
+    // Toward the contrast pole just far enough to clear the delta (closed form:
+    // luminance is linear in the blend). Full alpha whatever the played level:
+    // the highlight is the brightest thing in the waveform.
     CGFloat pole = isDark ? 1 : 0;
     CGFloat luminance = VibeLuminance(r, g, b);
     CGFloat headroom = fabs(pole - luminance);

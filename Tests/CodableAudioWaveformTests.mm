@@ -1,10 +1,6 @@
-//
-// The disk-cache archive contract. PINCache unarchives WITHOUT secure
-// coding, so initWithCoder: is the only thing standing between a corrupt or
-// bit-rotted entry and the renderers — and a bad entry keyed by file hash
-// would come back on every play until it ages out. Every rejection branch is
-// asserted independently here.
-//
+// PINCache unarchives WITHOUT secure coding, so initWithCoder: is all that
+// stands between a rotted entry and the renderers, and a bad entry keyed by
+// file hash comes back on every play until it ages out.
 
 #import <XCTest/XCTest.h>
 
@@ -24,10 +20,8 @@ static const NSUInteger kEncodedChunkCount = 4096 * 2;
 
 #pragma mark - Helpers
 
-// Builds an archive with hand-chosen values for the keys initWithCoder:
-// reads, so each validation branch can be exercised in isolation. No "key"
-// entry is written, which is byte-honest for a pre-key entry — the archives
-// current builds write carry one (see ArchiveWithMusicalKey).
+// No "key" entry: byte-honest for an archive written before keys were
+// analyzed.
 static NSData *ArchiveWithKeys(int version, id numChunks, NSData *chunkBytes, float bpm) {
     NSKeyedArchiver *archiver = [[NSKeyedArchiver alloc] initRequiringSecureCoding:NO];
     [archiver encodeInt:version forKey:@"version"];
@@ -38,8 +32,6 @@ static NSData *ArchiveWithKeys(int version, id numChunks, NSData *chunkBytes, fl
     return archiver.encodedData;
 }
 
-// The same archive plus a "key" entry, for exercising the musical-key
-// branches with hand-chosen (including malformed) values.
 static NSData *ArchiveWithMusicalKey(int version, id numChunks, NSData *chunkBytes,
                                      float bpm, id key) {
     NSKeyedArchiver *archiver = [[NSKeyedArchiver alloc] initRequiringSecureCoding:NO];
@@ -128,9 +120,8 @@ static NSData *ValidChunkBytes(void) {
 }
 
 - (void)testWrongClassForChunkCountIsRejected {
-    // Validated before being messaged: a bit-rotted entry that decodes
-    // numChunks as some other class would otherwise raise an unrecognized
-    // selector inside the decode, ahead of the payload checks.
+    // Validated before being messaged, or another class raises an
+    // unrecognized selector inside the decode.
     XCTAssertNil(DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion, @"not a number",
                                                ValidChunkBytes(), 120)));
     XCTAssertNil(DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion, @[@1],
@@ -138,8 +129,6 @@ static NSData *ValidChunkBytes(void) {
 }
 
 - (void)testUnexpectedChunkCountIsRejected {
-    // The encoder only ever writes kEncodedChunkCount; requiring exact
-    // equality is what removes the unchecked multiply from the length check.
     std::vector<AudioWaveformCacheChunk> small(100, AudioWaveformCacheChunk());
     NSData *bytes = [NSData dataWithBytes:small.data()
                                    length:100 * sizeof(AudioWaveformCacheChunk)];
@@ -159,9 +148,7 @@ static NSData *ValidChunkBytes(void) {
 }
 
 - (void)testNonFiniteSamplesInThePayloadAreRejected {
-    // Generation clamps NaN before chunks are stored, but the archive carries
-    // no checksum — a single rotted float would otherwise poison the
-    // renderers' geometry on every play of this file until the entry expires.
+    // Generation clamps NaN, but the archive carries no checksum.
     for (float poison : {(float)NAN, (float)INFINITY, (float)-INFINITY}) {
         NSMutableData *bytes = [ValidChunkBytes() mutableCopy];
         float *values = (float *)bytes.mutableBytes;
@@ -200,9 +187,8 @@ static NSData *ValidChunkBytes(void) {
 #pragma mark - Musical key coercion (not rejection)
 
 - (void)testAbsentKeyDecodesAsNone {
-    // A pre-key entry carries no "key" at all. It must decode as unknown, not
-    // as the 0 an integer decode would fabricate — 0 is C major. This is the
-    // contract that lets those entries stay valid without a version bump.
+    // Not the 0 an integer decode fabricates, which is C major. This is what
+    // keeps entries without a key valid without a version bump.
     CodableAudioWaveform *decoded =
             DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion, @(kEncodedChunkCount),
                                           ValidChunkBytes(), 120));
@@ -219,9 +205,8 @@ static NSData *ValidChunkBytes(void) {
 }
 
 - (void)testOutOfRangeOrWrongClassKeyIsCoercedToNone {
-    // Like bpm: a bad key degrades to "unknown" rather than throwing away
-    // good waveform data. 0 stays a valid key (C major), so the coercion
-    // must come only from range and class checks, never from a nil-ish read.
+    // 0 is a valid key (C major), so the coercion must come from range and
+    // class checks, never from a nil-ish read.
     for (id bad in @[@(24), @(-2), @"8A", @[@(3)]]) {
         CodableAudioWaveform *decoded = DecodeArchive(
                 ArchiveWithMusicalKey(kCodableAudioWaveformVersion, @(kEncodedChunkCount),

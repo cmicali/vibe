@@ -38,10 +38,9 @@ static NSTabViewController *VibeSettingsTabs(NSString **errorJSON) {
         *errorJSON = VibeErrorJSON(@"settings window is not open (run settings_open)");
         return nil;
     }
-    // The window's content is the split controller (sidebar + panes); the tab
-    // controller that owns pane selection is its content child. Driving IT is
-    // what keeps this channel honest — didSelectTabViewItem syncs the sidebar
-    // row back, so a programmatic selection looks exactly like a click.
+    // The tab controller is the split controller's content child. Driving it,
+    // not the sidebar, keeps selection honest: didSelectTabViewItem syncs the
+    // sidebar row back, so a programmatic selection looks exactly like a click.
     NSViewController *root = window.contentViewController;
     if ([root isKindOfClass:NSSplitViewController.class]) {
         for (NSViewController *child in root.childViewControllers) {
@@ -58,9 +57,6 @@ static NSString *VibePaneIdentifier(NSTabViewItem *item) {
     return [item.identifier isKindOfClass:NSString.class] ? (NSString *)item.identifier : @"";
 }
 
-// selectedTabViewItemIndex is -1 while nothing is selected, which no live
-// settings window is ever in — but an index into tabViewItems must not take
-// that on trust.
 static NSTabViewItem *VibeSelectedPane(NSTabViewController *tabs) {
     NSInteger index = tabs.selectedTabViewItemIndex;
     return (index >= 0 && index < (NSInteger)tabs.tabViewItems.count)
@@ -81,8 +77,8 @@ static NSArray<NSDictionary *> *VibePaneList(NSTabViewController *tabs) {
     return panes;
 }
 
-// A pane by stable identifier, by index, or by displayed (localized) title —
-// identifier first, so a script never has to know the running language.
+// A pane by index, stable identifier or displayed (localized) title; the
+// identifier means a script never needs the running language.
 static NSInteger VibePaneIndexForToken(NSTabViewController *tabs, NSString *token) {
     NSArray<NSTabViewItem *> *items = tabs.tabViewItems;
     NSScanner *scanner = [NSScanner scannerWithString:token];
@@ -114,8 +110,7 @@ void VibeDebugSettingsRefreshSelectedPane(void) {
 #pragma mark - Control inventory
 
 // One addressable thing in a pane. `name` is what settings_click matches on
-// first: a button's own title, or the form grid's row label for the controls
-// that have no title of their own.
+// first: a button's own title, else its form row's title.
 @interface VibeSettingsElement : NSObject
 @property (nonatomic, strong) NSView *view;
 @property (nonatomic, copy) NSString *kind;
@@ -211,10 +206,10 @@ static void VibeCollectElements(NSView *view, NSString *rowLabel, SettingsRowVie
         return;
     }
 
-    // A grouped-form row: its title is the addressing label for the controls
-    // beside it, and the title and caption are structure, not elements. A
-    // section passes its header down the same way, which is how the Files
-    // pane's folder list answers to "Permissions".
+    // A form row's title addresses the controls beside it; the title and
+    // caption are structure, not elements. A section passes its header down
+    // the same way, so an untitled row (the Files pane's folder list) answers
+    // to its section's header.
     if ([view isKindOfClass:SettingsRowView.class]) {
         SettingsRowView *row = (SettingsRowView *)view;
         NSString *title = row.titleLabel.stringValue;
@@ -301,8 +296,8 @@ static NSArray<NSDictionary *> *VibeMenuItemList(NSPopUpButton *popUp) {
         if (item.state != NSControlStateValueOff) {
             node[@"state"] = VibeStateName(item.state);
         }
-        // The waveform styles, the key notations and the appearances all carry
-        // their stable identifier here while the title is localized.
+        // Popups built with addItem:value:to: carry their stable identifier
+        // here while the title is localized.
         if ([item.representedObject isKindOfClass:NSString.class]) {
             node[@"represented"] = item.representedObject;
         }
@@ -423,10 +418,10 @@ static NSDictionary *VibeElementJSON(VibeSettingsElement *element, NSUInteger in
 
 #pragma mark - Addressing a control
 
-// `#3` is the dump's index; anything else matches the name, the row label or a
-// button's title, case-insensitively — exactly first, then as a substring, so
-// "delete" reaches "Delete Original After Convert". An ambiguous match is an
-// error naming the candidates rather than a guess.
+// `#3` is the dump's index; anything else matches the name or the row label,
+// case-insensitively — exactly first, then as a substring, so "trash" reaches
+// "Move original to Trash after conversion". An ambiguous match is an error
+// naming the candidates rather than a guess.
 static VibeSettingsElement *VibeElementForToken(NSArray<VibeSettingsElement *> *elements,
                                                 NSString *token, NSString *paneName,
                                                 NSString **errorJSON) {
@@ -459,10 +454,9 @@ static VibeSettingsElement *VibeElementForToken(NSArray<VibeSettingsElement *> *
             return matches.firstObject;
         }
         if (matches.count > 1) {
-            // A hidden page's controls stay in the dump for honesty, but a
-            // NAME should resolve against what is on screen: the two-page
-            // Appearance pane has an "Appearance" popup on each page, and
-            // without this tie-break neither is ever reachable by name.
+            // A hidden page's controls stay in the dump, but a name resolves
+            // against what is on screen: the two-page Appearance pane would
+            // otherwise make a name shared across its pages unreachable.
             NSMutableArray<VibeSettingsElement *> *visible = [NSMutableArray array];
             for (VibeSettingsElement *match in matches) {
                 if (!match.view.isHiddenOrHasHiddenAncestor) {
@@ -519,8 +513,7 @@ static NSMenuItem *VibeMenuItemForToken(NSPopUpButton *popUp, NSString *token, N
     }
     for (NSUInteger pass = 0; pass < 2; pass++) {
         for (NSMenuItem *item in items) {
-            // The identifier a localized title hides, first: waveform styles,
-            // key notations and appearances are all chosen by it.
+            // The identifier behind a localized title matches in the exact pass.
             NSString *represented = [item.representedObject isKindOfClass:NSString.class]
                     ? item.representedObject : @"";
             BOOL hit = pass == 0
@@ -608,9 +601,9 @@ static NSString *VibeToggleSwitch(VibeSettingsElement *element, NSString *value)
 
 // A popup or pull-down is NOT clicked: opening its menu spins a modal tracking
 // loop, and the command channel, on the main queue, could never deliver
-// anything to close it again. Choosing an item programmatically takes the same
-// two steps AppKit does — select it, then send the item's own action if it
-// carries one (the output devices do), else the button's.
+// anything to close it again. Choosing an item takes AppKit's two steps:
+// select it, then send the item's own action if it carries one (the Files
+// pane's Add Common Folder items do), else the button's.
 static NSString *VibeChooseMenuItem(VibeSettingsElement *element, NSString *value) {
     NSPopUpButton *popUp = (NSPopUpButton *)element.view;
     BOOL isPullDown = [element.kind isEqualToString:@"pulldown"];
@@ -706,8 +699,8 @@ NSString *VibeDebugSettingsOpen(NSArray<NSString *> *tokens) {
             return VibeErrorJSON(@"no settings pane '%@' (panes: %@)",
                     tokens[1], VibePaneNameList(tabs));
         }
-        // The tab controller's own selection path, so the pane's
-        // refreshFromSettings and the animated window resize both run.
+        // The tab controller's own selection path, so the pane's refresh and
+        // the window resize both run.
         tabs.selectedTabViewItemIndex = index;
     }
     NSWindow *window = VibeSettingsWindow();
@@ -720,10 +713,10 @@ NSString *VibeDebugSettingsOpen(NSArray<NSString *> *tokens) {
     if (!selected) {
         return VibeErrorJSON(@"no pane is selected");
     }
-    // After a layout flush: whether the pane's view fills the tab view is
-    // the one thing dump_settings_ui cannot show — a pane collapsed to its
-    // fitting size (loadPaneWithSections:'s autoresizing trap) still drew
-    // every control and reported a plausible rect while no click could land.
+    // Whether the pane's view fills the tab view, after a layout flush, is
+    // what dump_settings_ui cannot show: a collapsed pane (the autoresizing
+    // trap in loadPaneWithSections:) still reports plausible control rects
+    // while no click can land.
     [window.contentView layoutSubtreeIfNeeded];
     NSView *paneView = selected.viewController.view;
     return VibeJSONString(@{
@@ -751,12 +744,12 @@ NSString *VibeDebugSettingsResize(NSArray<NSString *> *tokens) {
         return VibeErrorJSON(@"settings window is not open (run settings_open)");
     }
     NSSize minSize = window.contentMinSize;
-    // The window refuses engine-driven size changes, so the resize must go
-    // through the controller's blessed funnel.
+    // SettingsWindow refuses a size change outside a live resize or
+    // resizeUnlocked:, so this goes through the controller's funnel.
     [(SettingsWindowController *)window.windowController applyContentSize:
             NSMakeSize(MAX(width, minSize.width), MAX(height, minSize.height))];
-    // Flush layout so any constraint-driven snap-back would happen before the
-    // reply reads the frame — its absence is what this verb verifies.
+    // Any constraint-driven snap-back happens before the reply reads the frame;
+    // its absence is what this verb verifies.
     [window layoutIfNeeded];
     return VibeJSONString(@{
         @"ok": @YES,
@@ -770,9 +763,9 @@ NSString *VibeDebugSettingsClose(void) {
     if (!window || !window.isVisible) {
         return VibeJSONString(@{@"ok": @YES, @"open": @NO});
     }
-    // An open panel run as a sheet — Add Folder, Add Common Folder — cannot be
-    // dismissed through the channel any other way: the injection verbs post
-    // into the main player window, and powerbox owns the sheet itself.
+    // A sheet (Add Folder's open panel) cannot be dismissed through the
+    // channel any other way: the injection verbs post into the main player
+    // window, and powerbox owns an open panel.
     NSWindow *sheet = window.attachedSheet;
     if (sheet) {
         [window endSheet:sheet returnCode:NSModalResponseCancel];
@@ -814,10 +807,9 @@ NSString *VibeDebugSettingsDump(void) {
     if (window.attachedSheet) {
         reply[@"sheet"] = window.attachedSheet.className;
     }
-    // The toolbar's segmented controls — the navigation pill, the dice and
-    // undo, the preview toggle — by item identifier, each segment's enabled
-    // flag: the toolbar is outside the pane, so this is the only view of
-    // whether an edit reached the arrow.
+    // Each toolbar segmented control's per-segment enabled flags, by item
+    // identifier (navigation, randomize/undo/redo, preview): the toolbar is
+    // outside the pane, so this is the only view of whether an edit reached it.
     NSMutableDictionary *toolbar = [NSMutableDictionary dictionary];
     for (NSToolbarItem *item in window.toolbar.items) {
         if (![item.view isKindOfClass:NSSegmentedControl.class]) {
@@ -954,9 +946,8 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
         return VibeClickReply(element, @"set");
     }
     if ([element.kind isEqualToString:@"field"]) {
-        // Typed and committed: the field editor takes the text, then first
-        // responder moves off it — what Tab does — so the delegate's
-        // controlTextDidEndEditing: runs as for a real commit.
+        // The field editor takes the text, then first responder moves off it,
+        // as Tab would, so controlTextDidEndEditing: runs as for a real commit.
         NSTextField *field = (NSTextField *)element.view;
         if (!value) {
             return VibeErrorJSON(@"'%@' is a field and needs text", element.name);

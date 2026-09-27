@@ -12,19 +12,15 @@
 
 static VibeDebugChannelExecutor gExecutor;
 
-// A short tag joining a command's log line to its reply's. The full id is the
-// client's; eight characters cannot collide within one debugging session.
+// Joins a command's log line to its reply's.
 static NSString *VibeDebugLogTag(NSString *commandId) {
     return commandId.length > 8 ? [commandId substringToIndex:8] : (commandId ?: @"?");
 }
 
-// Every reply, so a failed command is visible in the log rather than only to a
-// client that may have thrown the reply away — which is how a "no such device"
-// answer once went unseen while its caller read the silence as success. Errors
-// persist (Warn) and are logged whole: they are short, and they are the point.
-// A success is Info and trimmed, because dump_state and the screenshot verbs
-// answer with tens of kilobytes and a stress run sends thousands of commands.
-// Only a short reply is parsed: nothing large is ever an error.
+// Every reply is logged, so a failure is visible even to a client that threw
+// the reply away. Errors are Warn and whole; successes are Info and trimmed,
+// since some replies run to tens of kilobytes. Only a short reply is parsed:
+// nothing large is an error.
 static void VibeLogDebugReply(NSString *commandId, NSString *response) {
     NSString *tag = VibeDebugLogTag(commandId);
     if (response.length < 4096 && [response containsString:@"\"error\""]) {
@@ -62,9 +58,8 @@ static void VibeHandleOneDebugCommandFile(NSString *path) {
         return;
     }
     [NSFileManager.defaultManager removeItemAtPath:path error:nil];
-    // A malformed payload still gets an {"error": ...} reply whenever the id
-    // is recoverable. A silent drop leaves the client polling out its window
-    // and blaming a missing debug build.
+    // A malformed payload still gets an error reply whenever the id is
+    // recoverable; a silent drop leaves the client polling out its window.
     NSDictionary *payload = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
     NSString *commandId = [payload isKindOfClass:NSDictionary.class] ? payload[@"id"] : nil;
     if (![commandId isKindOfClass:NSString.class] || commandId.length == 0) {
@@ -92,8 +87,7 @@ static void VibeHandleOneDebugCommandFile(NSString *path) {
         VibeWriteDebugResponse(commandId, VibeJSONString(@{@"error": malformed}));
         return;
     }
-    // Before the verb runs, not after: a verb that hangs or crashes must still
-    // have logged what it was asked to do, and the reply then reads in order.
+    // Before the verb runs, so one that hangs or crashes has still logged it.
     LogInfo(@"Debug command %@: %@", VibeDebugLogTag(commandId), [args componentsJoinedByString:@" "]);
     NSString *response = gExecutor(args, commandId);
     if (response) {
@@ -101,15 +95,13 @@ static void VibeHandleOneDebugCommandFile(NSString *path) {
     }
 }
 
-// notify_post coalesces back-to-back posts into one delivery, so a single
-// wake-up must drain every pending command file. Each reply pairs with its
-// command through the id.
+// notify_post coalesces back-to-back posts, so one wake-up drains every
+// pending command file.
 static void VibeHandleDebugCommandFiles(void) {
-    // A command can spin the main run loop (the mac mouse verbs wait for key
-    // status in VibeMakeWindowKeyForInjection), and that spin services this
-    // handler — without the guard a second client's queued command executes
-    // reentrantly inside the first. Main-thread state; the deferred pass
-    // re-drains once the outer command finishes.
+    // A command can spin the main run loop (VibeMakeWindowKeyForInjection),
+    // which services this handler: without the guard a second client's command
+    // would run reentrantly inside the first. The deferred pass re-drains once
+    // the outer command finishes. Main thread.
     static BOOL draining = NO;
     static BOOL deferred = NO;
     if (draining) {
@@ -130,16 +122,10 @@ static void VibeHandleDebugCommandFiles(void) {
     draining = NO;
 }
 
-// Sweep files orphaned by earlier runs. An async verb that outlives its
-// client's poll window writes a response no one ever deletes, because the
-// client cleans up only its command file, so vibe-response-*.txt litter
-// accumulates in the container tmp until the OS purges it, as does any
-// per-command vibe-screenshot-*.png a client never streamed. Stale
-// vibe-command-*.json files are the dangerous ones: a client killed
-// mid-poll leaves its command behind, and the next notification's drain
-// would EXECUTE it — a days-old convert_to_flac delete, out of nowhere.
-// Anything present before this hook is live belongs to a dead
-// conversation, so delete all three kinds.
+// Anything present before the channel is live belongs to a dead client:
+// responses and screenshots nobody collected, and, dangerously, commands a
+// killed client left behind, which the next drain would otherwise EXECUTE
+// (a days-old convert_to_flac delete).
 static void VibeSweepStaleChannelFiles(void) {
     NSString *tmpDir = NSTemporaryDirectory();
     NSArray<NSString *> *names = [NSFileManager.defaultManager contentsOfDirectoryAtPath:tmpDir error:nil];
@@ -154,10 +140,9 @@ static void VibeSweepStaleChannelFiles(void) {
 }
 
 #if TARGET_OS_IPHONE
-// The vnode source fires on any tmp-directory mutation, response writes
-// included; a spurious drain finds no command files and costs one readdir.
-// The host must rename complete command files into place — a file the drain
-// reads mid-write is deleted unexecuted.
+// Fires on any tmp mutation, response writes included; a spurious drain costs
+// one readdir. The host must rename complete command files into place: a file
+// read mid-write is deleted unexecuted.
 static dispatch_source_t gTmpWatcher;
 
 static void VibeInstallTmpDirectoryWatcher(void) {

@@ -11,31 +11,27 @@ static const CFTimeInterval kFadeDuration = 0.1;
 // A fallback only: every call site sets its own size.
 static const CGFloat kDefaultSymbolPointSize = 15;
 
-// The factory state strengths: the resting alpha, and what hover, press and
-// disabled do to it. setSymbolColorsFromRestingColor: scales a picked color's
-// alpha by these ratios, and a custom image fades its opacity by the same
-// ones, so every button state keeps one relationship whatever draws it.
+// The factory state strengths. A picked color's alpha and a custom image's
+// opacity both scale by these ratios, so every state keeps one relationship.
 static const CGFloat kRestingAlpha = 0.55;
 static const CGFloat kHoverAlpha = 0.8;
 static const CGFloat kDisabledAlpha = 0.19;
 static const CGFloat kPressedFraction = 0.5;
 
-// SF Symbol glyphs draw at roughly this fraction of their configured point
-// size, so a custom image fits the same box a glyph fills.
+// So a custom image fits the box a glyph fills.
 static const CGFloat kGlyphFractionOfPointSize = 0.8;
 
 @implementation SymbolButton {
     CALayer *_colorLayer;  // flat wash of the current state color
     CALayer *_maskLayer;   // the symbol, as the alpha mask carving that wash
     CALayer *_imageLayer;  // the custom image, when one replaces the symbol
-    // What _maskLayer's image was built for. It skips redundant rasterizations
-    // on every layout pass.
+    // What _maskLayer was rasterized for, so layout skips redundant passes.
     NSString *_renderedSymbolName;
     CGFloat _renderedPointSize;
     NSFontWeight _renderedWeight;
     CGFloat _renderedScale;
-    BOOL _hovering;    // the cursor is inside the button
-    BOOL _mouseDown;   // a press that began inside us is in progress
+    BOOL _hovering;
+    BOOL _mouseDown;   // a press that began inside
 }
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
@@ -44,27 +40,20 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
         self.wantsLayer = YES;
         _symbolPointSize = kDefaultSymbolPointSize;
         _symbolWeight = NSFontWeightRegular;
-        // CALayer cannot tint its contents, so the symbol becomes a mask and
-        // the state color rides on the layer beneath it. The color then stays
-        // an animatable layer property.
+        // CALayer cannot tint its contents, so the symbol is a mask over an
+        // animatable color layer.
         _colorLayer = [CALayer layer];
         _maskLayer = [CALayer layer];
         _colorLayer.mask = _maskLayer;
         [self.layer addSublayer:_colorLayer];
-        // The custom image's layer sits beside the color layer, hidden until
-        // an image is set; the state fades then ride its opacity instead.
         _imageLayer = [CALayer layer];
         _imageLayer.contentsGravity = kCAGravityResizeAspect;
         _imageLayer.hidden = YES;
         [self.layer addSublayer:_imageLayer];
-        // Idle sits dim. Hover fades to the highlight color at full opacity,
-        // with no transparency, and a press dims to half that opacity.
         _symbolNormalColor = [NSColor colorWithDisplayP3Red:1 green:1 blue:1 alpha:kRestingAlpha];
         _symbolHighlightColor = [NSColor colorWithDisplayP3Red:1 green:1 blue:1 alpha:kHoverAlpha];
         _symbolDisabledColor = [NSColor colorWithDisplayP3Red:1 green:1 blue:1 alpha:kDisabledAlpha];
-        // EnabledDuringMouseDrag is needed because exited and entered do not
-        // fire during a drag without it, and dragging off and back is exactly
-        // a mid-drag exit.
+        // EnabledDuringMouseDrag: dragging off and back is a mid-drag exit.
         [self addTrackingArea:[[NSTrackingArea alloc]
                 initWithRect:self.bounds
                      options:NSTrackingActiveAlways | NSTrackingInVisibleRect |
@@ -75,9 +64,8 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
     return self;
 }
 
-// The window is movable by its background, and without this a click on the
-// button would also start a window drag, since NSControl is non-opaque, unlike
-// NSButton.
+// Or a click would also drag the window: NSControl, unlike NSButton, is
+// non-opaque.
 - (BOOL)mouseDownCanMoveWindow {
     return NO;
 }
@@ -86,9 +74,7 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
     return NO;
 }
 
-// A click on an inactive window should work the transport, not merely activate
-// it: a player is reached for while another app is frontmost. Same rule as the
-// playlist drop zone's.
+// A player is reached for while another app is frontmost.
 - (BOOL)acceptsFirstMouse:(NSEvent *)event {
     return YES;
 }
@@ -97,7 +83,7 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
 
 - (void)viewDidMoveToWindow {
     [super viewDidMoveToWindow];
-    self.needsLayout = YES; // the backing scale is only known once we have a window
+    self.needsLayout = YES; // the backing scale is known only now
 }
 
 - (void)viewDidChangeBackingProperties {
@@ -115,10 +101,6 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
     [CATransaction commit];
 }
 
-// The custom image as the layer's own contents — AppKit draws an NSImage set
-// there at the layer's contentsScale from its best rep — aspect-fit by the
-// layer's gravity into the box a glyph of the configured point size fills,
-// and centered.
 - (void)updateImageLayer {
     _imageLayer.hidden = (_image == nil);
     _imageLayer.contents = _image;
@@ -131,9 +113,7 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
     [self centerLayer:_imageLayer size:NSMakeSize(box, box)];
 }
 
-// Rasterizes the configured symbol at the window's backing scale and centers
-// the result in the bounds. A mask layer samples only alpha, so the symbol's
-// own black content needs no tinting.
+// A mask samples only alpha, so the symbol's black needs no tinting.
 - (void)updateMaskLayer {
     CGFloat scale = self.window.backingScaleFactor;
     if (scale <= 0) {
@@ -172,7 +152,7 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
                       colorSpaceName:NSDeviceRGBColorSpace
                          bytesPerRow:0
                         bitsPerPixel:0];
-    rep.size = size; // point size of the rep — makes the draw below fill the pixel grid
+    rep.size = size; // so the draw below fills the pixel grid
     [NSGraphicsContext saveGraphicsState];
     NSGraphicsContext.currentContext = [NSGraphicsContext graphicsContextWithBitmapImageRep:rep];
     [image drawInRect:NSMakeRect(0, 0, size.width, size.height)];
@@ -187,8 +167,7 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
     [self centerMaskLayer];
 }
 
-// An integral origin, because a half-point offset would soften the symbol's
-// edges.
+// Integral: a half-point offset softens the edges.
 - (void)centerMaskLayer {
     CGImageRef image = (__bridge CGImageRef)_maskLayer.contents;
     if (!image) {
@@ -208,9 +187,7 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
 
 - (void)applyColorAnimated:(BOOL)animated {
     NSColor *color;
-    // The image's opacity by state, the factory ratios over full strength at
-    // hover: a custom picture reads as itself when hovered and rests a step
-    // dimmer, as the glyphs do.
+    // Full strength at hover, the factory ratios elsewhere.
     float opacity;
     if (!self.isEnabled) {
         color = _symbolDisabledColor;
@@ -245,12 +222,9 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
 
 #pragma mark - Mouse handling (momentary push)
 
-// Disabled buttons are click-through, so a click over one still drags the
-// window. So are invisible ones: the window's chrome sits at alpha 0 until
-// hover fades it in, and an invisible close button that still takes a press
-// quit the app on a click the user never saw a control under. The animator
-// writes the model alpha up front, so a button mid-fade-in is already
-// hittable.
+// Disabled and invisible buttons are click-through: the chrome rests at alpha
+// 0, and an invisible close button must not quit the app. The animator writes
+// the model alpha up front, so a button fading in is already hittable.
 - (NSView *)hitTest:(NSPoint)point {
     if (!self.isEnabled || self.alphaValue < 0.01) {
         return nil;
@@ -263,7 +237,7 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
         return;
     }
     _mouseDown = YES;
-    _hovering = YES; // pressing implies the cursor is inside
+    _hovering = YES;
     [self applyColorAnimated:YES];
 }
 
@@ -283,10 +257,9 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
     }
     _mouseDown = NO;
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
-    _hovering = NSPointInRect(point, self.bounds); // released inside → stay in hover state
+    _hovering = NSPointInRect(point, self.bounds);
     [self applyColorAnimated:YES];
-    // Re-check isEnabled, because the button can be disabled mid-press:
-    // mouseDown: only gates the press starting.
+    // It can be disabled mid-press.
     if (_hovering && self.isEnabled) {
         [NSApp sendAction:self.action to:self.target from:self];
     }
@@ -305,8 +278,8 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
     [CATransaction commit];
 }
 
-// The image hides the color layer rather than replacing its contents, so a
-// return to the symbol is the mask it still holds.
+// Hides the color layer rather than replacing its mask, which a return to the
+// symbol reuses.
 - (void)setImage:(NSImage *)image {
     if (_image == image) {
         return;

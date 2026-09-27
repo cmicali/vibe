@@ -11,8 +11,7 @@
 
 @implementation NSData (Hash)
 
-// Hexed in a stack buffer: this runs once per track on the scan workers,
-// where twenty appendFormat: calls per key add up across a large folder.
+// A stack buffer: this runs once per track on the scan workers.
 - (NSString *)sha1Hex {
     static const char kHexDigits[] = "0123456789abcdef";
     unsigned char digest[CC_SHA1_DIGEST_LENGTH];
@@ -42,29 +41,21 @@
 }
 
 - (nullable NSString *)cacheKey {
-    // Resolve symlinks first, so that the hashed path is the target's: a link
-    // and its target then share one entry, and retagging the target
-    // invalidates it rather than serving stale metadata through the link.
+    // A link and its target share one entry, so retagging the target
+    // invalidates it.
     NSString *path = [self.path stringByResolvingSymlinksInPath];
-    // stat(2), not NSFileManager's attributesOfItemAtPath:, which fetches every
-    // extended attribute of the file to build a dictionary two fields are read
-    // from — that fetch was the single largest cost of the playlist scan.
+    // stat(2), not attributesOfItemAtPath:, whose attribute fetch was the
+    // scan's largest cost.
     struct stat st;
     if (stat(path.fileSystemRepresentation, &st) != 0) {
-        // No key rather than a degenerate "0-0-<sha1>" one: callers memoize
-        // and persist under this, and a transiently-unstattable file would
-        // mis-file its cache entries under that garbage identity forever.
+        // Not "0-0-<sha1>": a transiently unstattable file would persist
+        // entries under that identity forever.
         LogWarn(@"Could not stat %@ for cache key: %s", path, strerror(errno));
         return nil;
     }
-    // Microsecond resolution is enough to distinguish writes; APFS only
-    // surfaces sub-second mtime via getattrlist anyway.
-    //
-    // TRAP: the rounding must match what Foundation's NSDate for this timespec
-    // produced, or every persisted key changes. Foundation converts to
-    // reference-date seconds BEFORE adding the nanoseconds; doing the 1970
-    // arithmetic directly lands 1µs off on about 6% of real files, which
-    // would orphan their cache entries.
+    // TRAP: round exactly as Foundation's NSDate for this timespec does —
+    // reference-date seconds BEFORE the nanoseconds — or persisted keys
+    // change: direct 1970 arithmetic lands 1µs off on ~6% of real files.
     NSTimeInterval sinceReference = ((NSTimeInterval)st.st_mtimespec.tv_sec - NSTimeIntervalSince1970)
             + (NSTimeInterval)st.st_mtimespec.tv_nsec / 1e9;
     NSDate *modified = [NSDate dateWithTimeIntervalSinceReferenceDate:sinceReference];

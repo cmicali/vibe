@@ -2,9 +2,6 @@
 //  AudioPlayer+Recovery.m
 //  Vibe (iOS)
 //
-//  See AudioPlayer+Recovery.h. The shared ivars and queue-side helpers come
-//  from AudioPlayerInternal.h.
-//
 
 #import "AudioPlayer+Recovery.h"
 #import "AudioPlayerInternal.h"
@@ -70,16 +67,13 @@
 @implementation AudioPlayer (Recovery)
 
 // Only a playing voice has anything to recover: every start follows the
-// route itself. A rate follow restarts a playing output itself; otherwise
-// the one thing to recover is a unit the system stopped under a playing
-// voice — an interruption whose resume raced the pause — which restarts in
-// place: the voice's ring and gain survived the stop, so nothing is
-// rescheduled.
+// route itself. The voice's ring and gain survive a system stop, so a
+// restart reschedules nothing.
 - (void)recoverOutput {
     dispatch_async(_queue, ^{
         if (self->_state != VibePlayerStatePlaying || !self->_voice) {
             LogInfo(@"AudioPlayer: output recovery: nothing playing, the next start follows the route");
-            return; // idle or Loading: the next start follows the route
+            return;
         }
         if (![self followOutputRateOnQueue]) {
             return; // reset or parked, and said why
@@ -101,11 +95,11 @@
     });
 }
 
-// Dead objects are dropped, never stopped — messaging the defunct unit is
-// what must not happen here, which is dropOutputBoundStateOnQueue's
-// contract — and createOutputOnQueue rebuilds exactly what init built: the
-// pipeline at the route's rate, its unit made at the next start, or the
-// shared debug pump. The source segment rebuilds itself at the next
+// The player messages none of the dead objects: dropOutputBoundStateOnQueue
+// only forgets them, and the unit's own dealloc then stops, uninitializes and
+// disposes its instance. createOutputOnQueue rebuilds exactly what init
+// built: the pipeline at the route's rate, its unit made at the next start,
+// or the shared debug pump. The source segment rebuilds itself at the next
 // settlement.
 - (void)beginMediaServicesResetWithCompletion:
         (VibeMediaServicesResetCompletion)completion {
@@ -120,8 +114,7 @@
         LogWarn(@"AudioPlayer: rebuilding the output after media services reset");
         AudioTrack *resetTrack = self.currentTrack;
         // The voice's consumed frames, read before the bus is dropped; 0 for
-        // a Stopped player, so a later replay of a finished track begins at
-        // zero as it always did.
+        // a Stopped player, so replaying a finished track begins at zero.
         NSTimeInterval position = self.position;
         if (!resetTrack) {
             os_unfair_lock_lock(&self->_stateLock);

@@ -3,8 +3,8 @@
 //
 // The metadata stand-in below is duck-typed: AudioTrack only ever sends
 // messages to its metadata and never names the class, so a fake cast to the
-// property type behaves identically at runtime and keeps TagLib (and its ~70
-// vendored sources) out of the test target.
+// property type behaves identically at runtime and keeps TagLib out of the
+// test target.
 //
 
 #import <XCTest/XCTest.h>
@@ -101,7 +101,6 @@ static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
 #pragma mark - Key precedence
 
 - (void)testTaggedKeyBeatsAnalyzedKey {
-    // Same cross-directory guarantee as tempo: the file's own tag wins.
     AudioTrack *track = TrackNamed(@"song.mp3");
     FakeTrackMetadata *tagged = [FakeTrackMetadata new];
     tagged.key = 21; // Am
@@ -112,7 +111,7 @@ static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
 }
 
 - (void)testTaggedCMajorIsNotMistakenForUntagged {
-    // 0 is C major, the value nil-messaging would fabricate — the classic trap.
+    // 0 is C major, the value nil-messaging would fabricate.
     AudioTrack *track = TrackNamed(@"song.mp3");
     FakeTrackMetadata *tagged = [FakeTrackMetadata new];
     tagged.key = 0; // C
@@ -179,8 +178,6 @@ static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
 #pragma mark - Artist
 
 - (void)testArtistIsEmptyRatherThanNilWhenUnknown {
-    // Callers measure .length; nil would read as empty anyway, but the
-    // singleLineTitle format string would print "(null)".
     XCTAssertEqualObjects(TrackNamed(@"song.mp3").artist, @"");
 }
 
@@ -206,10 +203,8 @@ static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
 }
 
 - (void)testHasArtistAndTitleIgnoresTheFilenameFallback {
-    // Deliberate asymmetry: it tests metadata.title, NOT the filename-derived
-    // .title. A tagless file has a perfectly good display title but is not
-    // "artist and title" — inlining .title here would make every tagless file
-    // with an artist tag render as "Artist - filename".
+    // It reads metadata.title, not the filename-derived .title; otherwise every
+    // tagless file with an artist tag would render as "Artist - filename".
     AudioTrack *track = TrackNamed(@"a good filename.mp3");
     FakeTrackMetadata *artistOnly = [FakeTrackMetadata new];
     artistOnly.artist = @"Art Tester";
@@ -254,7 +249,7 @@ static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
 #pragma mark - Duration
 
 - (void)testDurationIsUnsetUntilPublished {
-    // -1 is the sentinel; with no metadata the fake's 0 is what surfaces.
+    // Unpublished (-1) with no metadata falls through to nil-messaging's 0.
     AudioTrack *track = TrackNamed(@"song.mp3");
     XCTAssertEqualObjects(track.durationString, @"", @"no duration renders as empty, not 0:00");
 }

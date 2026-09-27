@@ -42,7 +42,7 @@ Simulator testing with the entitlement key present but not yet granted is *repor
 
 ### 2. A second scene, which collides with a documented decision
 
-CarPlay is a `CPTemplateApplicationSceneSessionRoleApplication` scene, live *alongside* the window scene. Today the app is deliberately single-scene, and `project.yml`'s manifest says why: `UIApplicationSupportsMultipleScenes: false`, commented "a second scene would spawn a second engine" — because `VibeiOSSceneDelegate` owns the one `PlaybackController` (`VibeiOSSceneDelegate.m:14,28`), and that comment is already stale in naming `PlayerViewController` as the owner.
+CarPlay is a `CPTemplateApplicationSceneSessionRoleApplication` scene, live *alongside* the window scene. Today the app is deliberately single-scene, and `project.yml`'s manifest says why: `UIApplicationSupportsMultipleScenes: false`, commented "a second scene would spawn a second engine" — because `VibeiOSSceneDelegate` owns the one `PlaybackController` (`VibeiOSSceneDelegate.m:14,28`).
 
 CarPlay does not want a second engine; it wants a second *view* of the one that exists. The change is therefore:
 

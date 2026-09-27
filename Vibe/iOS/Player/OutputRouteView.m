@@ -9,22 +9,16 @@
 
 #import "VibeStrings.h"
 
-// The tap target stays comfortably large around the glyph — the mini player's
-// rule — whatever size the owner asks for. This is the fallback for an owner
-// that asks for none.
+// For an owner that sets no glyph size.
 static const CGFloat kRouteDefaultGlyphPointSize = 15;
 static const CGFloat kRouteContentSpacing = 5;
-// What the control is worth touching at, whatever it draws: on the built-in
-// speaker the content is one 17pt glyph, and a target that narrow is a miss.
+// On the built-in speaker the content is a lone glyph, too narrow to hit.
 static const CGFloat kRouteMinimumTapWidth = 44;
-// Apple Music's relationship, and the reason there are two: at rest this is
-// secondary chrome and sits at the same weight as the time labels either side
-// of it (dark mode's secondary label is white at 0.6), while an off-device
-// route brings it to full strength — the tint change IS the "audio is not
-// coming out of this phone" signal, with the device name beside it.
+// At rest, the time labels' secondary weight; off-device, full strength — the
+// tint change IS the "not coming out of this phone" signal.
 static const CGFloat kRouteRestingAlpha = 0.6;
 static const CGFloat kRouteActiveAlpha = 1.0;
-// The touch-down dip, which the invisible picker underneath cannot draw for us.
+// The invisible picker underneath cannot draw a press state.
 static const CGFloat kRoutePressedAlpha = 0.35;
 
 @interface OutputRouteView () <AVRoutePickerViewDelegate>
@@ -32,22 +26,16 @@ static const CGFloat kRoutePressedAlpha = 0.35;
 
 @implementation OutputRouteView {
     // TRAP: this is the tap surface, not the glyph. AVRoutePickerView is the
-    // only public way to raise the system picker — there is no programmatic
-    // present, and reaching into its subviews for the button it draws would be
-    // depending on AVKit's internals. So it fills the bounds with both tints
-    // clear and our own icon and label ride on top, non-interactive.
-    //
-    // If a release ever draws chrome a clear tint cannot erase, or stops
-    // extending its hit area to a stretched frame, the fallback is contained
-    // here: drop _symbolView, size the picker to its intrinsic width in that
-    // slot and keep the label beside it.
+    // only public way to raise the picker, so it fills the bounds with both
+    // tints clear under our non-interactive icon and label. If a release draws
+    // chrome a clear tint cannot erase, or stops hit-testing a stretched frame,
+    // drop _symbolView and size the picker to its intrinsic width instead.
     AVRoutePickerView   *_routePicker;
     UIStackView         *_content;
     UIImageView         *_symbolView;
     UILabel             *_nameLabel;
 
-    // The last pair it was told, kept so a glyph-size change can redraw it
-    // without the owner having to push the route again.
+    // Kept so a glyph-size change can redraw without a push.
     VibeOutputRouteKind  _kind;
     NSString            *_name;
 }
@@ -69,8 +57,7 @@ static const CGFloat kRoutePressedAlpha = 0.35;
     _routePicker.tintColor = UIColor.clearColor;
     _routePicker.activeTintColor = UIColor.clearColor;
     _routePicker.translatesAutoresizingMaskIntoConstraints = NO;
-    // It is stretched well past its intrinsic size on both axes, and its own
-    // preference must not argue with the frame it is given.
+    // Stretched past its intrinsic size on both axes.
     [_routePicker setContentHuggingPriority:UILayoutPriorityDefaultLow
                                     forAxis:UILayoutConstraintAxisHorizontal];
     [_routePicker setContentHuggingPriority:UILayoutPriorityDefaultLow
@@ -101,28 +88,18 @@ static const CGFloat kRoutePressedAlpha = 0.35;
     content.axis = UILayoutConstraintAxisHorizontal;
     content.alignment = UIStackViewAlignmentCenter;
     content.spacing = kRouteContentSpacing;
-    // The picker underneath is the whole control's tap surface, so nothing
-    // drawn on top may swallow a touch.
     content.userInteractionEnabled = NO;
     content.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:content];
 
-    // Hug the content, but never below a finger's width: the hug is what sizes
-    // the view, and the minimum is where the extra room around a lone glyph
-    // comes from — the content stays centered in it, so what the eye measures
-    // is the glyph against the middle of the time row, not the tap target.
-    //
-    // TRAP: the hug must sit BELOW the label's compression resistance. At or
-    // above it the tie resolves toward the smaller view, and a device name
-    // truncates to a couple of characters inside a control with room to spare.
-    // The card's own width cap is required, so it still wins over both.
+    // Hug the content, never below a finger's width, content centered.
+    // TRAP: the hug must sit BELOW the label's compression resistance; at or
+    // above it a device name truncates to a few characters with room to spare.
+    // The page's width cap is required and wins over both.
     NSLayoutConstraint *hug = [self.widthAnchor constraintEqualToAnchor:content.widthAnchor];
     hug.priority = UILayoutPriorityDefaultLow;
 
-    // The picker draws no highlight we can see — its own glyph is the one being
-    // dimmed, and that one is transparent — so the press state is ours. It
-    // takes nothing from the touch: no delay, no cancel, so the picker still
-    // receives every phase.
+    // Takes nothing from the touch, so the picker still gets every phase.
     UILongPressGestureRecognizer *press =
             [[UILongPressGestureRecognizer alloc] initWithTarget:self
                                                           action:@selector(pressed:)];
@@ -152,7 +129,7 @@ static const CGFloat kRoutePressedAlpha = 0.35;
         return;
     }
     _glyphPointSize = glyphPointSize;
-    // Redraw what is already up: the card's layouts swap under a live cell.
+    // The page's layouts swap under a live cell.
     [self setRouteKind:_kind deviceName:_name];
 }
 
@@ -168,14 +145,9 @@ static const CGFloat kRoutePressedAlpha = 0.35;
     _symbolView.image = [UIImage systemImageNamed:_symbolName withConfiguration:config];
     _nameLabel.text = _showsDeviceName ? name : nil;
     _nameLabel.hidden = !_showsDeviceName;
-    // The name is drawn only off-device, so it is also what "active" means
-    // here — one fact, not two that could disagree.
     _content.alpha = _showsDeviceName ? kRouteActiveAlpha : kRouteRestingAlpha;
 
-    // The label says what tapping does, the value says where the audio is
-    // going. Ours rather than whatever AVKit supplies: this is set before the
-    // view is ever in a window, where the picker has no label to defer to, and
-    // one wording across every route is what VoiceOver should hear.
+    // Ours, not AVKit's: one wording across every route.
     _routePicker.accessibilityLabel = STR_A11Y_PLAYER_OUTPUT_ROUTE;
     _routePicker.accessibilityValue = _showsDeviceName ? name : nil;
 }

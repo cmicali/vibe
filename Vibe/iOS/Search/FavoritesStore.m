@@ -10,9 +10,7 @@
 NSNotificationName const VibeFavoritesDidChangeNotification =
         @"VibeFavoritesDidChangeNotification";
 
-// An iOS app-layer key beside FolderSession's, SearchFolderStore's and
-// PlayerDisplaySettings', not an AppSettings property: the shared settings file
-// stays untouched, and there is no macOS counterpart to keep it in step with.
+// iOS app-layer state, so not AppSettings.
 static NSString *const kFavoriteFoldersKey = @"VibeiOSFavoriteFolders";
 static NSString *const kFavoriteNameKey = @"name";
 static NSString *const kFavoriteLocationKey = @"location";
@@ -21,17 +19,14 @@ static NSString *const kFavoriteBookmarkKey = @"bookmark";
 static const NSInteger kMaximumConcurrentScopeResolutions = 3;
 
 @interface FavoriteFolder ()
-// Kept beside the drawn strings rather than resolved from the path: a
-// bookmark is what survives a move, and the path is only the identity.
+// A bookmark survives a move; the path is only the identity.
 @property (nonatomic) NSData *bookmark;
-// The search scope's half: set once prepareSearchScope has resolved this row,
-// with its scope held for the session and released when the row goes.
+// Set once prepareSearchScope resolves the row; its scope is held until the
+// row goes.
 @property (nonatomic) NSURL *resolvedURL;
 @property (nonatomic) BOOL scopeStarted;
-// resolvedURL is only set when the operation LANDS, so it cannot double as the
-// already-asked test: Search re-applies its roots on every delivery, and each
-// re-apply would enqueue another resolve for every row still in flight — two
-// startAccessingSecurityScopedResource calls against one recorded stop.
+// resolvedURL lands late, so it cannot be the already-asked test: every
+// re-apply would enqueue another resolve, two starts against one stop.
 @property (nonatomic) BOOL scopeResolveInFlight;
 - (instancetype)initWithName:(NSString *)name
                     location:(NSString *)location
@@ -79,8 +74,6 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
     NSString *location = record[kFavoriteLocationKey];
     NSString *path = record[kFavoritePathKey];
     NSData *bookmark = record[kFavoriteBookmarkKey];
-    // A record missing its path or bookmark is a row that cannot be identified
-    // or opened, so it is dropped rather than drawn.
     if (![name isKindOfClass:NSString.class] || ![location isKindOfClass:NSString.class]
             || ![path isKindOfClass:NSString.class] || path.length == 0
             || ![bookmark isKindOfClass:NSData.class]) {
@@ -93,14 +86,12 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
 @end
 
 @implementation FavoritesStore {
-    // Main-confined. Loaded once at first use: unlike SearchFolderStore there
-    // is nothing to resolve, so the list is complete the moment it is read.
+    // Main-confined; complete the moment it is read.
     NSMutableArray<FavoriteFolder *> *_favorites;
-    // Resolution is provider IPC and never runs on main. Serial, because a tap
-    // is one open and the user cannot be waiting on two.
+    // Serial: a tap is one open.
     dispatch_queue_t _resolveQueue;
-    // Search-scope resolution is independent of a tap's, and bounded, so one
-    // stalled provider cannot hold every other starred folder out of the walk.
+    // Bounded and apart from a tap's, so one stalled provider cannot hold
+    // every starred folder out of the walk.
     NSOperationQueue *_scopeQueue;
     BOOL _searchScopePrepared;
 }
@@ -166,16 +157,13 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
     NSFileManager *files = NSFileManager.defaultManager;
     NSString *name = [files displayNameAtPath:url.path] ?: url.lastPathComponent;
     NSURL *parent = url.URLByStandardizingPath.URLByDeletingLastPathComponent;
-    // Empty rather than the volume root's name when the folder has no parent
-    // worth naming: the row drops its second line instead of drawing "/".
+    // Empty rather than "/": the row drops its second line.
     NSString *location = parent.path.length > 1
             ? ([files displayNameAtPath:parent.path] ?: parent.lastPathComponent)
             : @"";
     FavoriteFolder *favorite = [[FavoriteFolder alloc] initWithName:name location:location
                                                                path:path bookmark:bookmark];
     [_favorites addObject:favorite];
-    // A folder starred after the search screen has been visited joins the scope
-    // now; before that, prepareSearchScope will reach it with the rest.
     if (_searchScopePrepared) {
         [self resolveScopeForFavorite:favorite];
     }
@@ -226,10 +214,9 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
     });
 }
 
-// Resolve queue only. Minting needs the scope OPEN, so a stale bookmark can be
-// refreshed only after resolving — the ordering FolderSession documents too.
-// The scope is stopped again immediately: this store holds none, and the adopt
-// that follows the tap starts its own on the same URL.
+// Resolve queue only. Minting needs the scope OPEN, so a stale bookmark is
+// refreshed after resolving; the scope stops at once, since the adopt that
+// follows starts its own.
 - (NSData *)mintBookmarkForURL:(NSURL *)url {
     BOOL scoped = [url startAccessingSecurityScopedResource];
     NSError *error = nil;
@@ -246,8 +233,7 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
     return bookmark;
 }
 
-// Silent: the row's drawn strings do not change, so nothing has to reload. A
-// favorite removed while its refresh was in flight keeps the removal.
+// Silent: nothing drawn changes.
 - (void)refreshBookmark:(NSData *)bookmark forFavorite:(FavoriteFolder *)favorite {
     if ([_favorites indexOfObjectIdenticalTo:favorite] == NSNotFound) {
         return;
@@ -275,8 +261,7 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
         if (!favorite.resolvedURL) {
             continue;
         }
-        // Longest match, so a starred subfolder wins over a starred parent —
-        // both are legitimate rows here, unlike in SearchFolderStore.
+        // Longest match: nesting is legitimate here.
         if (VibeSearchRootCoversPath(favorite.path, path)
                 && (!best || favorite.path.length > best.URLByStandardizingPath.path.length)) {
             best = favorite.resolvedURL;
@@ -292,9 +277,7 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
     }
 }
 
-// One operation per row, each publishing on its own. A favorite whose bookmark
-// is gone simply never becomes a root: the row stays, because it is still a
-// place the user asked to keep, and tapping it says so with the alert.
+// A favorite that no longer resolves never becomes a root, but the row stays.
 - (void)resolveScopeForFavorite:(FavoriteFolder *)favorite {
     if (favorite.resolvedURL || favorite.scopeResolveInFlight) {
         return;
@@ -308,15 +291,13 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
                                          relativeToURL:nil
                                    bookmarkDataIsStale:&stale
                                                  error:NULL];
-        // A NO return is not failure — the app's own container is not
-        // security-scoped. Record what was started, for the balanced stop.
+        // NO is not failure: the app's own container is not security-scoped.
         BOOL scoped = url ? [url startAccessingSecurityScopedResource] : NO;
         run_on_main_thread({
             favorite.scopeResolveInFlight = NO;
             if (!url) {
                 return;
             }
-            // The row can have gone while the provider was thinking.
             if ([self->_favorites indexOfObjectIdenticalTo:favorite] == NSNotFound) {
                 if (scoped) {
                     [url stopAccessingSecurityScopedResource];
@@ -331,15 +312,10 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
     }];
 }
 
-// Unlike SearchFolderStore's, this scope needs no refcounted grant handed to
-// the playlist, because FolderSession never reads on the strength of it: a
-// favorite tapped on its own tab goes through the open prologue, and a search hit
-// inside one goes through openFileFromSearchRoots:, which asks
-// resolvedRootCoveringURL: and then takes a hold of its OWN. Both own their
-// readability, so dropping this one cannot leave a playlist unreadable.
+// No refcounted grant, unlike SearchFolderStore: FolderSession always takes a
+// hold of its OWN, so dropping this scope cannot strand a playlist.
 - (void)releaseScopeForFavorite:(FavoriteFolder *)favorite {
-    // A resolve still in flight checks membership before recording anything, so
-    // it releases its own hold and there is nothing here to balance.
+    // A resolve in flight checks membership and releases its own hold.
     if (favorite.scopeStarted) {
         [favorite.resolvedURL stopAccessingSecurityScopedResource];
         favorite.scopeStarted = NO;

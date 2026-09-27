@@ -1,89 +1,71 @@
 // Composite a window-only Vibe capture onto a designed App Store background.
 //
-//     swiftc -O -o compose scripts/compose-app-store-overlay.swift && \
-//         ./compose <shot.png> <out.png> [--headline ...]
+// Compiled once by its callers (`swift file.swift` recompiles every run):
+//     swiftc -O -o compose scripts/compose-app-store-overlay.swift
 //
-// (Runnable as `swift compose-app-store-overlay.swift` too, but the callers
-// compile it once first — appstore-validate-copy.sh measures ~116 captions and
-// `swift` re-compiles per run.)
+//     compose <shot.png> <out.png> [--headline …] [--subhead …] [--lang …]
+//         [--canvas WxH] [--width frac] [--glyphs a,b] [--wash-color RRGGBB]
+//         [--headline-scale x] [--center-text]
+//     compose --measure --headline … [--subhead …] [--lang …] [--canvas WxH]
+//         [--headline-scale x]         # exit 1 if the caption cannot fit
 //
-// Unlike appstore-capture-app-screenshots.sh, which photographs the window over
-// a staged desktop so the Liquid Glass shows a real backdrop, this is a pure
-// mock-up: it takes an already-captured window (the alpha-channel PNGs in
-// Assets/, produced by generate-readme-screenshots.sh) and lays it over a
-// generated background. That is only honest because those captures come out
-// effectively opaque — the window's own material is dense enough that nothing
-// behind it would show through anyway — so the background is decoration around
-// the window, never through it.
+// A mock-up, unlike appstore-capture-app-screenshots.sh: it lays an
+// already-captured window (the alpha-channel PNGs in Assets/) over a generated
+// background. Honest only because those captures are effectively opaque, so
+// the background is decoration around the window, never through it.
 //
-// The background is built from the app's own identity rather than a wallpaper:
-// the vinyl-groove texture from the app icon, lit by a heavily blurred wash of
-// the playing track's own album artwork (cropped out of the shot itself), then
-// vignetted. Each shot therefore carries the colour of the music it is showing.
+// The background is the app icon's vinyl-groove texture lit by a blurred wash
+// of the track's artwork (cropped from the shot), then vignetted.
 //
-// This replaced a Python/PIL implementation so the toolchain needs no pip
-// installs. Image math follows PIL's semantics where they differ from Core
-// Image's defaults (enhance factors, content-mean contrast, gamma-space
-// blurs); text goes through CoreText, whose system-font fallback reaches the
-// real CJK faces (PingFang et al.) that PIL could not open.
+// Image math follows PIL's semantics where they differ from Core Image's
+// defaults (enhance factors, content-mean contrast, gamma-space blurs); the
+// constants below were tuned under them. Text goes through CoreText, whose
+// fallback reaches the real CJK faces.
 
 import AppKit
 import CoreImage
 import CoreText
 
-// The repo root, from the source file's compile-time path — the binary itself
-// is compiled into a temp dir by the calling scripts, so argv[0] is useless.
+// From the source's compile-time path: callers compile into a temp dir, so
+// argv[0] says nothing about the repo.
 let ROOT = URL(fileURLWithPath: #filePath)
     .deletingLastPathComponent().deletingLastPathComponent().path
 
-// 2880x1800 is the 16:10 size App Store Connect takes for macOS; 2560x1600 and
-// 1440x900 are the others and work unchanged, since everything is placed by
-// fraction of the canvas.
+// The default canvas; everything is placed by fraction, so any other works.
 let CANVAS_W = 2880
 let CANVAS_H = 1800
 
-// How much of the canvas the window may take. Width usually binds; the height
-// cap only comes into play for the tall playlist+pitch shot, and leaves room
-// for the headline above. The README captures are 1360-1550px wide, so a width
-// fraction this high means upscaling ~1.5-1.8x — the 2x-retina source takes
-// it without visible softening.
+// How much of the canvas the window may take; width usually binds. The README
+// captures are 1360-1550px wide, so this upscales ~1.5-1.8x, which the 2x
+// source takes without visible softening.
 let WINDOW_W_FRAC = 0.84
 let WINDOW_H_FRAC = 0.72
 
 // Vertical placement of the headline + window block within the free space.
 let BLOCK_Y_FRAC = 0.5
 
-// --center-text instead pins the window to this margin below it and centres
-// the text in whatever space is left above. Centring the whole stack (the
-// default) lets the window ride up and down as the headline wraps, which is
-// invisible when every shot's text is the same height and obvious as a jump
-// when it is not — the iOS set has one- and two-line headlines side by side.
-// Pinning keeps the device at one height across a set however long each
-// headline runs.
+// --center-text pins the window this far from the bottom and centres the text
+// above it. Centring the whole stack lets the window jump between shots whose
+// headlines wrap differently.
 let WINDOW_BOTTOM_FRAC = 0.063
 
 let GROOVE = "\(ROOT)/Assets/record background.png"
 
-// SF Pro through NSFont.systemFont, which matches the type inside the window
-// and falls back per script — CJK gets the genuine system faces. Tracking is a
-// fraction of the point size; SF tightens at display sizes, but negative
-// tracking is a Latin display convention, so CJK stays at 0.
+// Tracking is a fraction of the point size. Negative tracking is a Latin
+// display convention, so CJK stays at 0.
 let HEADLINE_TRACKING = -0.014
 let SUBHEAD_TRACKING = 0.0
 let CJK_LANGS: Set<String> = ["ja", "ko", "zh-Hans", "zh-Hant"]
 
-// Optional row of SF Symbols above the headline (--glyphs). Height and gap are
-// fractions of the canvas width; the height is deliberately larger than the
-// headline's point size, so the row reads as artwork rather than as a caption.
-// Rendered with the same NSImage(systemSymbolName:) the app itself uses (see
-// MainMenuBuilder), so the shots show the identical artwork to the FX menu.
+// SF Symbols row above the headline (--glyphs), sized as fractions of the
+// canvas width and larger than the headline so it reads as artwork. Drawn
+// through NSImage(systemSymbolName:), as the app's FX menu draws them.
 let GLYPH_H_FRAC = 0.050
 let GLYPH_GAP_FRAC = 0.030
 let GLYPH_BLOCK_GAP_FRAC = 0.026
 let GLYPH_ALPHA = 235.0 / 255.0
 let GLYPH_WEIGHT = NSFont.Weight.regular
-// Point size handed to the rasterizer. Symbols are vector, so this only sets
-// resolution — keep it comfortably above the drawn height.
+// Rasterizer resolution only; keep it above the drawn height.
 let GLYPH_RENDER_PT = 220.0
 
 func die(_ message: String) -> Never {
@@ -374,25 +356,15 @@ func buildBackground(art: Buffer, washColor: String?, w: Int, h: Int) -> Buffer 
 
 // --- text -------------------------------------------------------------------
 
-// Point size and leading of each line. The size fraction is of the canvas's
-// GEOMETRIC MEAN, sqrt(w*h), not its width.
-//
-// Width alone works while every canvas is landscape, and it is what this used
-// to do. It breaks on a portrait one: 1290x2796 is nearly the same area as
-// 2880x1800, but its width is 45% as large, so the headline came out at 43pt
-// against the macOS canvas's 95pt and read as a caption rather than a
-// headline. The geometric mean tracks area, so type scales with how big the
-// shot actually is rather than with which way round it happens to be. The
-// constants are derived from the macOS canvas, which therefore renders
-// byte-identically to before.
-// (kind, sizeFrac, leading, alpha)
+// (kind, sizeFrac, leading, alpha). sizeFrac is of the canvas's GEOMETRIC
+// MEAN, sqrt(w*h), not its width: 1290x2796 has nearly 2880x1800's area but
+// 45% of its width, and width-based type read as a caption there.
 let LINES: [(String, Double, Double, Double)] = [
     ("headline", 0.041742, 1.30, 255), ("subhead", 0.022768, 1.40, 195),
 ]
-// Widest a text line may run, as a fraction of the canvas. When a translation
-// exceeds it the point size shrinks (headline) or the line wraps then shrinks
-// (subhead, max two lines); below MIN_SHRINK of nominal the copy is too long
-// to read at store size, so fail and shorten the translation instead.
+// Widest a line may run, as a fraction of the canvas width. Text past it wraps
+// to two lines, then shrinks; below MIN_SHRINK of nominal it is too long to read
+// at store size, so it fails and the translation must be shortened.
 let MAX_TEXT_W_FRAC = 0.92
 let MIN_SHRINK = 0.72
 let SHRINK_STEP = 0.96
@@ -455,18 +427,14 @@ extension String {
     }
 }
 
-// Resolve both strings into rendered lines. drawText and textHeight both
-// consume this, so the drawn stack and the vertical centering can never
-// disagree. Dies (exit 1) when a string cannot fit — the --measure contract.
-// headlineScale multiplies ONLY the headline. iOS screenshots carry no
-// subhead — at store thumbnail size a second, smaller line is unreadable and
-// only steals room from the one line that is — so the headline is sized to
-// carry the whole message on its own.
+// renderTextLayer and textHeight both consume this, so the drawn stack and the
+// centring cannot disagree. Dies (exit 1) when a string cannot fit: the
+// --measure contract. headlineScale multiplies ONLY the headline (iOS captions
+// are headline-only).
 func layoutText(_ headline: String, _ subhead: String, _ w: Int, _ h: Int, _ lang: String,
                 _ headlineScale: Double = 1.0) -> [Line] {
     let maxW = Double(w) * MAX_TEXT_W_FRAC
-    // Sizes scale with area; the line-width cap stays a fraction of WIDTH,
-    // since that is what a line actually has to fit inside.
+    // Sizes scale with area; the line cap stays a fraction of WIDTH.
     let typeBase = (Double(w) * Double(h)).squareRoot()
     let headlineTracking = CJK_LANGS.contains(lang) ? 0.0 : HEADLINE_TRACKING
     var out: [Line] = []
@@ -481,10 +449,6 @@ func layoutText(_ headline: String, _ subhead: String, _ w: Int, _ h: Int, _ lan
         while true {
             let font = makeFont(kind, size)
             let tracking = trackingFrac * size
-            // Both roles wrap to at most two lines. wrapTwo returns the
-            // single line unchanged when it already fits, so the macOS shots —
-            // whose headlines all fit at nominal size — render exactly as
-            // before; the wrap only engages for the much larger iOS headline.
             lines = wrapTwo(content, font, tracking, maxW, lang)
             if lines != nil { break }
             size = (size * SHRINK_STEP).rounded(.down)
@@ -634,7 +598,6 @@ func compose(
     let (rawWin, header) = loadWindow(shot)
     let art = crop(rawWin, x: 0, y: 0, w: header, h: header)
 
-    // Width binds for the short shots, height for the tall playlist+pitch one.
     let scale = min(
         Double(canvasW) * widthFrac / Double(rawWin.w),
         Double(canvasH) * WINDOW_H_FRAC / Double(rawWin.h))
@@ -722,8 +685,6 @@ while !args.isEmpty {
     case "--width": widthFrac = Double(value()) ?? WINDOW_W_FRAC
     case "--canvas": canvasSpec = value()
     case "--glyphs": glyphSpec = value()
-    // Override the album-art background with one colour, for a shot whose
-    // artwork fights what it is advertising.
     case "--wash-color": washColor = value().trimmingCharacters(in: CharacterSet(charactersIn: "#"))
     case "--headline-scale": headlineScale = Double(value()) ?? 1.0
     case "--center-text": centerText = true

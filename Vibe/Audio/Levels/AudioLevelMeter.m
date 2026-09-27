@@ -19,12 +19,10 @@ enum { kMeterChannels = 2 };
 struct VibeLevelMeter {
     VibeAudioLevelAnalyzer *analyzer;
     VibeLevelPublisherState *publisherState;
-    // The publisher session the install began: the render's one identity for
-    // a callback, read once at its entry — the session it restarts on when
-    // it differs from the last one seen, and the session it publishes into.
-    // TRAP: read again at publication, it labelled a callback that began
-    // before a remove-and-reinstall with the new session, and the bars opened
-    // on the previous session's audio.
+    // The session the install began. TRAP: the render reads it once, at its
+    // entry, and both restarts on and publishes into that one; read again at
+    // publication, a callback that began before a remove-and-reinstall
+    // publishes the previous session's audio as the new session's.
     _Atomic uint64_t session;
     uint64_t renderSession;              // the session the render last saw; 0 before its first callback
 #if DEBUG
@@ -70,8 +68,8 @@ VIBE_REALTIME_END
 
 VIBE_REALTIME_CHECKED_BEGIN
 #if VIBE_VERBOSE_LOGGING
-// Only the audio thread writes the accumulators. Atomic result words plus the
-// version let the queue read without allocating, locking or logging here.
+// Only the audio thread writes the accumulators; the queue reads the atomic
+// result words under the version.
 static void VibeLevelMeterCapture(VibeLevelMeter *meter, float *const *channels, UInt32 channelCount, UInt32 frames,
                                   double rate, const AudioTimeStamp *when) CA_REALTIME_API {
     uint64_t request = atomic_load(&meter->signalRequest);
@@ -79,11 +77,9 @@ static void VibeLevelMeterCapture(VibeLevelMeter *meter, float *const *channels,
             || (meter->signalObservedRequest == request && meter->signalFound)) return;
     BOOL hostValid = (when->mFlags & kAudioTimeStampHostTimeValid) != 0;
     BOOL sampleValid = (when->mFlags & kAudioTimeStampSampleTimeValid) != 0;
-    // A block can still carry the previous track's audio: everything before
-    // the cutoff is excluded. The clock is the pipeline's sample clock, on
-    // which the origin is a whole frame, so offsets from it are computed in
-    // frames: two times converted to seconds and subtracted can land a hair
-    // under a boundary they meet exactly.
+    // Everything before the cutoff (the previous track's audio) is excluded.
+    // Offsets from the origin are computed in whole frames: two times in
+    // seconds subtracted can land a hair under a boundary they meet exactly.
     double origin = atomic_load(&meter->signalSampleOrigin), cutoff = atomic_load(&meter->signalSampleCutoff);
     double bufferTime = sampleValid && rate > 0 ? when->mSampleTime / rate : NAN;
     int64_t originFrame = isfinite(origin) ? llround(origin * rate) : -1;
@@ -146,11 +142,9 @@ void VibeLevelMeterRender(VibeLevelMeter *meter, float * _Nonnull const * _Nonnu
     if (!meter || channelCount == 0 || frames == 0 || !channels[0]) {
         return;
     }
-    // A fresh install restarts the cadence and the analyzer, so no earlier
-    // audio is published. TRAP: restarting the meter's own count alone left
-    // the analyzer's partial window and references in place — the meter is
-    // kept across demand changes — and the first publication of a new
-    // session carried the previous track's samples into the bars.
+    // TRAP: a new session restarts the analyzer too, not just the count: the
+    // meter is kept across demand changes, and its partial window and
+    // references would carry the previous track's audio into the new bars.
     uint64_t session = atomic_load_explicit(&meter->session, memory_order_acquire);
     if (session != meter->renderSession) {
         meter->renderSession = session;
@@ -171,8 +165,8 @@ void VibeLevelMeterRender(VibeLevelMeter *meter, float * _Nonnull const * _Nonnu
         VibeLevelMeterCapture(meter, channels, channelCount, frames, meter->sampleRate, timestamp);
     }
 #endif
-    // Each window is analyzed in the callback that fills it; every meter
-    // buffer's worth, the windows so far are summarized and published once.
+    // Every `target` frames, the windows analyzed so far are summarized and
+    // published once.
     UInt32 analyzed = channelCount < kMeterChannels ? channelCount : kMeterChannels;
     UInt32 consumed = 0;
     while (consumed < frames) {

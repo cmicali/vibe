@@ -12,8 +12,7 @@ static const CGFloat kRowMinHeight = 40;
 static const CGFloat kRowTitleControlGap = 8;
 static const CGFloat kCardCornerRadius = 10;
 static const CGFloat kHeaderCardGap = 6;
-// The System Settings list row: 24 points, measured off the Sound pane's
-// device table.
+// Measured off System Settings' Sound pane device table.
 static const CGFloat kListRowHeight = 24;
 static const CGFloat kListHeaderHeight = 28;
 // Full-width table cells supply the other six points of the Sound list inset.
@@ -36,9 +35,6 @@ static NSColor *ListColor(NSUInteger shade) {
 @property (nonatomic, strong) NSColor *listBackgroundColor;
 @end
 
-// updateLayer resolves the side's color against the current appearance, and
-// the appearance-change hook re-runs it, so a dynamic color tracks a live
-// light/dark flip.
 @implementation SettingsFillView
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
@@ -126,9 +122,7 @@ static SettingsFillView *Hairline(NSView *in) {
     SettingsFillView *_separator;
     NSTableView *_listTable;
     SettingsFillView *_listHeader;
-    // The caption's layout, built on first use by setCaption: — the control
-    // cluster it must clear, the title-centered constraint that holds while
-    // there is no caption, and the caption's own constraints while there is.
+    // Built on first use by setCaption:.
     NSStackView *_cluster;
     NSLayoutConstraint *_titleCenteredConstraint;
     NSArray<NSLayoutConstraint *> *_captionConstraints;
@@ -248,11 +242,8 @@ static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat
     return changed;
 }
 
-// Every caller remeasures the pane on YES, a full Auto Layout solve, and a
-// status caption rewritten during playback keeps its line count. So the
-// answer is measured on this one label at the width it wraps at, not assumed
-// from the text. Before the first layout there is no width, and any change
-// counts.
+// Measured, not assumed from the text: YES costs the caller a full Auto Layout
+// solve, and a status caption rewritten during playback keeps its line count.
 - (BOOL)captionHeightChangesFrom:(NSString *)previous to:(NSString *)text {
     CGFloat width = NSMinX(_cluster.frame) - kRowTitleControlGap - NSMinX(_titleLabel.frame);
     if (width <= 0 || NSIsEmptyRect(_captionLabel.frame)) {
@@ -311,8 +302,6 @@ static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat
                                                                 constant:-kRowTitleControlGap],
         ]];
         row->_cluster = cluster;
-        // The two layouts the caption switches between: title centered alone,
-        // or title pinned to the top with the caption beneath it.
         row->_titleCenteredConstraint = [titleLabel.centerYAnchor constraintEqualToAnchor:row.centerYAnchor];
         row->_titleCenteredConstraint.active = YES;
         [row setCaption:caption];
@@ -513,18 +502,14 @@ static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat
     stack.alignment = NSLayoutAttributeLeading;
     stack.spacing = 0;
     stack.translatesAutoresizingMaskIntoConstraints = NO;
-    // The separator belongs to the row below it, so hiding a row (the custom
-    // theme's color pairs) removes its separator with it and the stack closes
-    // the gap.
+    // The separator belongs to the row below it, so hiding a row removes it.
     [rows enumerateObjectsUsingBlock:^(SettingsRowView *row, NSUInteger index, BOOL *stop) {
         row.showsTopSeparator = index > 0;
         [row.widthAnchor constraintEqualToAnchor:stack.widthAnchor].active = YES;
     }];
 
-    // The card: one lift-step off the pane background in each direction,
-    // borderless — the System Settings pairing, measured off its pixels: dark
-    // cards sit ~7/255 above the background, light cards ~8/255 below the
-    // white one the pane paints (SettingsPaneViewController).
+    // One lift-step off the pane background in each appearance, measured off
+    // System Settings.
     SettingsFillView *card = [[SettingsFillView alloc] initWithFrame:NSZeroRect];
     card.darkColor = [NSColor colorWithWhite:1 alpha:0.032];
     card.lightColor = [NSColor colorWithWhite:0 alpha:0.032];
@@ -543,7 +528,6 @@ static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat
     if (header.length) {
         NSTextField *headerLabel = [NSTextField labelWithString:header.vibeFormLabel];
         headerLabel.translatesAutoresizingMaskIntoConstraints = NO;
-        // Semibold primary at text size — the System Settings section heading.
         headerLabel.font = [NSFont systemFontOfSize:13 weight:NSFontWeightSemibold];
         headerLabel.textColor = NSColor.labelColor;
         [section addSubview:headerLabel];

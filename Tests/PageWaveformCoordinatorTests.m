@@ -1,12 +1,8 @@
 //
 // The iOS pager's waveform bookkeeping: N pages against one load-at-a-time
-// cache. Its whole job is deciding which page that load is pointed at and
-// dropping deliveries that no longer belong to it, which is the app-wide
-// "async deliveries race track changes" guarantee — so it is worth testing
-// without a pager, a cache or a decode.
-//
-// The cache is a duck-typed fake cast to the property type, per Tests/CLAUDE.md:
-// the coordinator only ever sends it three messages.
+// cache, pointing that load and dropping deliveries that no longer belong.
+// The cache is a duck-typed fake (Tests/CLAUDE.md); the coordinator sends it
+// three messages.
 //
 
 #import <XCTest/XCTest.h>
@@ -91,10 +87,8 @@
     _tracks = tracks;
 }
 
-// A stand-in for the delivered waveform. The coordinator only stores it and
-// hands it on, so any object will do — but it must not be nil, because a nil
-// value is what a dictionary uses to mean "no entry", and the snapshot store
-// is a dictionary.
+// Any non-nil object will do: the coordinator only stores the waveform, in a
+// dictionary where nil means no entry, and hands it on.
 - (void)deliverForURL:(NSURL *)url percent:(float)percent {
     CodableAudioWaveform *waveform = (CodableAudioWaveform *)[NSObject new];
     [(id<AudioWaveformCacheDelegate>)_coordinator audioWaveform:waveform
@@ -121,9 +115,8 @@
     XCTAssertEqual(_cache.loadedURLs.count, 0u);
 }
 
-// Re-requesting the page already targeted, still holding the same file, must
-// not restart the decode — a cell reload would otherwise kill it every time
-// and no waveform would ever complete.
+// A cell reload re-requests the targeted page; restarting the decode each time
+// would never let a waveform complete.
 - (void)testRepeatRequestForTheSameFileIsANoOp {
     [_coordinator requestIndex:3 track:_tracks[3]];
     [_coordinator requestIndex:3 track:_tracks[3]];
@@ -131,8 +124,6 @@
     XCTAssertEqual(_cache.cancelCount, 1u);
 }
 
-// But the same INDEX holding a different file is a different request. Matching
-// on the index alone left the load pointed at the departed track.
 - (void)testSameIndexWithADifferentFileReloads {
     [_coordinator requestIndex:3 track:_tracks[3]];
     [_coordinator requestIndex:3 track:_tracks[5]];
@@ -213,8 +204,6 @@
     XCTAssertEqual(_coordinator.targetIndex, 3u);
 }
 
-// A completed page re-requested after a detour needs no second decode; its
-// snapshot is what hydration draws.
 - (void)testCompletedPageIsNotReloaded {
     [_coordinator requestIndex:3 track:_tracks[3]];
     [self deliverForURL:_tracks[3].url percent:1.0f];

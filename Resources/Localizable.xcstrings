@@ -11906,7 +11906,7 @@
       "extractionState": "manual"
     },
     "menu.edit.select_all": {
-      "comment": "Edit menu item: selects every row of the list that has keyboard focus — the playlist, or the granted-folder list in Settings > Permissions. macOS uses this same name in every app.",
+      "comment": "Edit menu item: selects every row of the list that has keyboard focus — the playlist, or the granted-folder list in Settings > Files. macOS uses this same name in every app.",
       "localizations": {
         "bg": {
           "stringUnit": {

@@ -1,15 +1,7 @@
-# Shared generate/archive/export scaffolding for the two release pipelines —
-# sourced, never run:
-#
-#   release.sh            Developer ID + notarize (direct download)
-#   release-appstore.sh   Apple Distribution + upload (App Store, either platform)
-#
-# Callers own policy — the export method, the ExportOptions.plist contents and
-# what happens to the exported product; this file owns the mechanics that are
-# identical between `xcodegen generate` and the exported archive. Assumes
-# `set -euo pipefail` in the caller, cwd at the repo root, asc-auth-lib.sh
-# already sourced (for ASC_XCODEBUILD_AUTH and asc_explain_export_failure), and
-# BUILD_DIR / ARCHIVE / EXPORT_DIR / PRODUCT / SCHEME set.
+# Generate/archive/export mechanics for release.sh and release-appstore.sh —
+# sourced, never run. Callers own the export method and ExportOptions.plist.
+# Assumes `set -euo pipefail`, cwd at the repo root, asc-auth-lib.sh sourced,
+# and BUILD_DIR, ARCHIVE, EXPORT_DIR, PRODUCT and SCHEME set.
 
 # shellcheck shell=bash
 
@@ -18,31 +10,21 @@ asc_require_xcodegen() {
         echo "error: xcodegen not found — install with: brew install xcodegen" >&2; exit 1; }
 }
 
-# Both release paths ship the same in-app catalog, so both gate on it. Runs
-# before the archive: an untranslated key is a content problem, and finding it
-# after a full archive+notarize costs the whole cycle.
+# Before the archive: an untranslated key found after archive and notarize
+# costs the whole cycle.
 asc_require_translations() {
     "$(dirname "${BASH_SOURCE[0]}")/check-translations.sh"
 }
 
-# Archive Release into $ARCHIVE. The optional arguments are spliced into the
-# xcodebuild command line ahead of the `archive` action, so they may be build
-# setting overrides or flags; release callers use them to pin the architecture
-# set rather than inheriting whichever host runs them, and to pin the
-# destination rather than letting a single-platform scheme resolve a simulator.
-# Keeping this command here means every archive retains the same signing rule
-# below, including a second architecture-specific archive in one release run.
+# Archive Release into $ARCHIVE.
+#   $1   progress label
+#   ...  xcodebuild arguments placed before `archive` (callers pin ARCHS and
+#        the destination, so neither follows the host)
 #
-#   $1  progress label
-#   ... optional xcodebuild arguments (build-setting overrides or flags)
-#
-# No signing overrides on the archive, deliberately. It keeps project.yml's
-# CODE_SIGN_IDENTITY "-" (sign to run locally); distribution signing happens at
-# the export step, which re-signs the app outright. This mirrors Xcode's own
-# Archive -> Distribute App flow. Pinning a distribution identity here instead
-# ("Developer ID Application" / "Apple Distribution") fails the archive with
-# "conflicting provisioning settings" — under automatic signing the identity is
-# Xcode's to choose.
+# No signing overrides: the archive keeps project.yml's automatic signing and
+# the export re-signs for distribution, as Xcode's Archive -> Distribute App
+# does. Pinning "Developer ID Application" or "Apple Distribution" here fails
+# the archive with "conflicting provisioning settings".
 asc_archive() {
     local label="$1"
     shift
@@ -53,8 +35,7 @@ asc_archive() {
         archive
 }
 
-# Wipe $BUILD_DIR, regenerate the project and archive Release into $ARCHIVE.
-# Optional arguments pass through to asc_archive.
+# Wipe $BUILD_DIR, regenerate the project, then asc_archive "Release" "$@".
 asc_generate_and_archive() {
     rm -rf "$BUILD_DIR"
 
@@ -64,10 +45,8 @@ asc_generate_and_archive() {
     asc_archive "Release" "$@"
 }
 
-# Require the executable to contain exactly the requested architecture set.
-# `lipo -verify_arch` is insufficient here because it accepts extra slices: an
-# arm64-only artifact carrying x86_64 would pass. Comparing sorted sets also
-# makes the check independent of lipo's display order.
+# Require exactly the given architecture set. Not `lipo -verify_arch`, which
+# accepts extra slices, so an arm64-only build carrying x86_64 would pass.
 asc_require_binary_architectures() {
     local binary="$1"
     shift
@@ -94,16 +73,10 @@ asc_require_binary_architectures() {
     }
 }
 
-# Export $ARCHIVE into $EXPORT_DIR using $BUILD_DIR/ExportOptions.plist, which
-# the caller writes first — the plist is where the two pipelines differ.
-#   $1  label for the progress line ("Developer ID", "App Store package")
-#   $2  method hint for asc_explain_export_failure ("developer-id", or "" for
-#       the App Store path)
-#
-# xcodebuild reports cloud-signing failures as a bare "Cloud signing permission
-# error" and buries Apple's actual 403 in a temp .xcdistributionlogs bundle, so
-# the log is teed and asc_explain_export_failure surfaces the real reason
-# rather than making the next person go digging.
+# Export $ARCHIVE into $EXPORT_DIR with the caller's
+# $BUILD_DIR/ExportOptions.plist. The log is teed for asc_explain_export_failure.
+#   $1  progress label
+#   $2  "developer-id", or "" for the App Store path
 asc_export_archive() {
     echo "🔊 export ($1)"
     if ! xcodebuild -exportArchive -archivePath "$ARCHIVE" \

@@ -62,8 +62,7 @@ static NSError *VibeErr(NSString *domain, NSInteger code) {
 #pragma mark - Everything else is the generic line
 
 - (void)testNotPlayingFallsThroughToGeneric {
-    // Filtered on the way in as a benign no-op, so it should never be given its
-    // own wording here.
+    // The shell drops it as benign before asking for a line.
     XCTAssertEqualObjects(VibeStatusForPlayError(VibeErr(kVibeAudioErrorDomain,
                                                          VibeAudioErrorNotPlaying)),
                           VibeStatusForPlayError(VibeErr(@"other.domain", 1)));

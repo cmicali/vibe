@@ -3,10 +3,8 @@
 //  VibeTests
 //
 
-// The identifier-to-domain classification behind MainPlayerController's
-// validateMenuItem:. The policy under test is that recognition is explicit:
-// an identifier this controller does not own answers Unknown, and the
-// validator disables it rather than letting it through.
+// Recognition is explicit: an identifier this controller does not own answers
+// Unknown, and the validator disables it.
 
 #import <XCTest/XCTest.h>
 
@@ -55,8 +53,8 @@
                    classify:VibeMenuValidationDomainConvert];
 }
 
-// Both dynamic families are matched by prefix, so a preset or style added later
-// is classified without touching the chain.
+// Matched by prefix, so a preset or theme added later is classified without
+// touching the chain.
 - (void)testTheWindowSizeFamilyIsMatchedByPrefix {
     [self assertIdentifiers:@[@"view_size_small", @"view_size_default", @"view_size_large",
                               @"view_size_enormous"]
@@ -64,7 +62,6 @@
 }
 
 - (void)testTheThemeFamilyIsMatchedByPrefix {
-    // Built-ins and minted user-theme UUIDs alike.
     for (NSString *theme in @[@"vibe", @"industrial",
                               NSUUID.UUID.UUIDString]) {
         XCTAssertEqual(VibeMenuValidationDomainForIdentifier(VibeThemeMenuIdentifier(theme)),
@@ -72,28 +69,24 @@
     }
 }
 
-// The whole point of the enum: an item nobody claimed is not silently enabled.
-// The first five are owned elsewhere or carry no action — the two clicked-row
-// commands are PlaylistController's, which validates them itself — and the rest
-// are the shapes a typo and a missing identifier take.
+// The first five are owned elsewhere or carry no action (the clicked-row
+// commands are PlaylistController's); the rest are a typo's and a missing
+// identifier's shapes.
 - (void)testUnclaimedIdentifiersAreUnknownRatherThanEnabled {
     [self assertIdentifiers:@[@"show_clicked_track_in_finder", @"menu_settings", @"menu_convert",
                               @"remove_clicked_track_from_playlist",
                               @"menu_fx", @"menu_edit_select_all", @"menu_next_trak",
                               kVibeMenuThemeSubmenu, @"view_size", @"", @"menu_",
-                              // The retired style family and the app-delegate-
-                              // targeted Edit tail both deliberately classify
-                              // as nobody's, as does the identifier a second
-                              // Convert item would carry: Cancel Conversion is
-                              // kVibeMenuConvertToFLAC re-aimed in validation.
+                              // Nobody's: a waveform-style identifier, the app
+                              // delegate's Edit tail, and a second Convert item
+                              // (Cancel Conversion is kVibeMenuConvertToFLAC
+                              // re-aimed in validation).
                               @"waveform_style_detailed", kVibeMenuEditThemes,
                               @"menu_convert_cancel"]
                    classify:VibeMenuValidationDomainUnknown];
     XCTAssertEqual(VibeMenuValidationDomainForIdentifier(nil), VibeMenuValidationDomainUnknown);
 }
 
-// The identifier is derived from the preset in one place, so the builder, the
-// checkmark and the width lookup cannot disagree about a spelling.
 - (void)testEachSizePresetRoundTripsThroughItsIdentifier {
     for (NSNumber *boxed in @[@(VibeWindowSizePresetSmall), @(VibeWindowSizePresetDefault),
                               @(VibeWindowSizePresetLarge)]) {
@@ -101,12 +94,10 @@
         XCTAssertEqual(VibeWindowSizePresetForMenuIdentifier(VibeWindowSizeMenuIdentifier(preset)),
                        preset);
     }
-    // A size identifier naming no preset sizes to the design width, which is
-    // what the width lookup has always answered for one.
+    // A size identifier naming no preset sizes to the design width.
     XCTAssertEqual(VibeWindowSizePresetForMenuIdentifier(@"view_size_enormous"),
                    VibeWindowSizePresetDefault);
 }
-
 
 - (void)testSelectionCommandsRequireVisibleSelectionInTheKeyWindow {
     for (NSInteger key = 0; key < 2; key++) for (NSInteger shown = 0; shown < 2; shown++) {

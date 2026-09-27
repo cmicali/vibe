@@ -12,19 +12,14 @@
 #import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
-// The explainer's wrap width before any layout: the design-width pane's row
-// content (480 less the pane and row insets), so the height the panes' shared
-// floor is first computed from is the design one. viewDidLayout then follows
-// the card's actual width.
+// The explainer's wrap width before first layout: the design-width pane's row
+// content, so the first shared-floor height is the design one.
 static const CGFloat kExplainWrapWidth = 408;
 static NSString *const kFolderCellIdentifier = @"FolderCell";
-// Stable identifiers for the album-art choices, so the debug channel can pick
-// one without touching localized text.
+// Stable identifiers, so the debug channel can pick an item by name.
 static NSString *const kAlbumArtFileOnly = @"file_only";
 static NSString *const kAlbumArtFolder = @"file_then_folder";
 
-// One Add Common Folder candidate, so call sites read .name/.path rather than
-// decoding positional two-element arrays.
 @interface VibeCommonFolder : NSObject
 + (instancetype)folderWithName:(NSString *)name path:(NSString *)path;
 @property (nonatomic, copy) NSString *name;
@@ -55,25 +50,16 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     NSSwitch *_convertEnabledSwitch, *_deleteOriginalSwitch;
     NSPopUpButton *_convertDestinationPopUp;
     NSArray<VibeGrantedFolder *> *_folders;
-    // Which of the Add Common Folder candidates are on disk, probed off the
-    // main thread; nil, or a path with no entry, means not yet probed. Two of
-    // the four are file-provider roots — iCloud Drive and Dropbox under
-    // CloudStorage — where a stat can block for as long as the provider takes,
-    // which is the same reason grantedFolders costs no I/O. Main-confined,
-    // with the generation dropping a probe a newer one has overtaken.
+    // Probed off main: two candidates are file-provider roots, where a stat
+    // blocks for as long as the provider takes. No entry means not yet probed.
     NSDictionary<NSString *, NSNumber *> *_commonFolderExists;
     uint64_t _commonFolderProbeGeneration;
 }
 
-// Spans the card and wraps at whatever width that is. A wrapping label
-// measures its height at preferredMaxLayoutWidth, so viewDidLayout hands it
-// the width the row actually gave it — a fixed measure left a stale
-// two-line height under a one-line fit once the window was wide. Its
-// horizontal compression resistance is dropped below the fitting priority
-// so the unwrapped text never widens every pane to its single-line width (a
-// long localization would otherwise raise the window's floor); the row's
-// leading-to-trailing pin decides the real width regardless. A width CAP is
-// deliberately not set — SettingsFormViews.h's rowWithContentView: trap.
+// A wrapping label measures its height at preferredMaxLayoutWidth, so
+// viewDidLayout follows the row's real width. Compression resistance sits
+// below the fitting priority so the unwrapped text never widens every pane,
+// and no width cap is set (rowWithContentView:'s trap).
 - (NSTextField *)explainLabel:(NSString *)text {
     NSTextField *label = [NSTextField wrappingLabelWithString:text];
     label.selectable = NO;
@@ -95,8 +81,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
 - (void)loadView {
     _folders = @[];
 
-    // The choices carry the VibeFolderOpenSort itself: the stored identifiers
-    // are AppSettings' business, and a menu item has no reason to know them.
+    // The items carry the enum; the stored identifiers are AppSettings'.
     _folderSortPopUp = [self popUpButtonWithWidth:260 action:@selector(folderOpenSortChanged:)];
     [self addItem:STR_SETTINGS_FOLDER_SORT_NAME value:@(VibeFolderOpenSortName) to:_folderSortPopUp];
     [self addItem:STR_SETTINGS_FOLDER_SORT_NEWEST_FIRST value:@(VibeFolderOpenSortNewestFirst) to:_folderSortPopUp];
@@ -109,17 +94,15 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
 
     _tableView = [SettingsRowView listTableWithColumnIdentifiers:@[kFolderCellIdentifier] delegate:self];
     _tableView.allowsMultipleSelection = YES;
-    // File URLs only: the drop reads with FileURLsOnly, so registering
-    // NSPasteboardTypeURL too would show a copy cursor for a browser-link drag
-    // the drop then rejects.
+    // File URLs only: NSPasteboardTypeURL would show a copy cursor for a
+    // browser-link drag the drop then rejects.
     [_tableView registerForDraggedTypes:@[NSPasteboardTypeFileURL]];
-    // Seven rows: the folders most people grant fit; a long list scrolls.
     SettingsRowView *listRow = [SettingsRowView rowWithTableView:_tableView rowCount:7];
 
     NSButton *addButton = [NSButton buttonWithTitle:STR_SETTINGS_ADD_FOLDER
                                              target:self action:@selector(addFolder:)];
     _addCommonButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:YES];
-    // Build an unprobed menu for layout; selection triggers the real refresh.
+    // Unprobed, for layout; refreshFromSettings probes.
     [self rebuildCommonFolderMenu];
     _removeButton = [NSButton buttonWithTitle:STR_SETTINGS_REMOVE_FOLDER
                                        target:self action:@selector(removeFolder:)];
@@ -150,17 +133,13 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
             [SettingsRowView rowWithTitle:STR_SETTINGS_DELETE_ORIGINAL control:_deleteOriginalSwitch],
         ]],
     ]];
-    // The sunk list is its own divider on both edges; the hairlines the
-    // section stamps would double them.
+    // The list is its own divider; the section's hairlines would double it.
     listRow.showsTopSeparator = NO;
     buttonRow.showsTopSeparator = NO;
 }
 
-// Observed only while visible, like the base class's own observers: the window
-// controller keeps every pane alive forever, so a loadView-registered observer
-// would reload the list and stat the file-provider roots on every folder open
-// for a pane nobody can see. refreshFromSettings on each appearance covers
-// whatever changed while hidden.
+// Observed only while on screen: the pane outlives the window, and each
+// appearance's refresh covers what changed while hidden.
 - (void)viewDidAppear {
     [super viewDidAppear];
     [NSNotificationCenter.defaultCenter addObserver:self
@@ -177,9 +156,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
 }
 
 - (void)grantedFoldersChanged:(NSNotification *)notification {
-    // Only the list. A new grant's effect on folder art is the player
-    // controller's own observation of this notification, which runs whether or
-    // not this pane was ever opened.
+    // Only the list; folder art observes this notification itself.
     [self refreshFromSettings];
 }
 
@@ -199,9 +176,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     [self selectValue:@(AppSettings.sharedInstance.convertAsksWhereToSave) in:_convertDestinationPopUp];
 }
 
-// Draws the menu from what is known now, then re-probes the candidate paths
-// off the main thread and redraws when the answers land. The two steps are
-// separate methods so the redraw cannot re-trigger the probe.
+// Separate from rebuildCommonFolderMenu so the redraw cannot re-trigger the probe.
 - (void)refreshCommonFolderMenu {
     [self rebuildCommonFolderMenu];
     uint64_t generation = ++_commonFolderProbeGeneration;
@@ -216,7 +191,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
         run_on_main_thread({
             SettingsFilesViewController *strongSelf = weakSelf;
             if (!strongSelf || generation != strongSelf->_commonFolderProbeGeneration) {
-                return; // a newer probe owns the answer now
+                return;
             }
             strongSelf->_commonFolderExists = exists;
             [strongSelf rebuildCommonFolderMenu];
@@ -224,15 +199,9 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     });
 }
 
-// A pull-down takes its button title from the item at index 0, which is never
-// chosen. Enablement is ours to set (autoenablesItems off): a folder that is
-// not there, or already covered by a grant, stays visible but dead. The button
-// itself always opens, so the menu can show why an entry is unavailable.
-//
-// No file system here: it runs on the main thread, and every existence answer
-// comes from the probed cache. A path with no answer yet is offered as
-// available — the panel simply opens staged on it — rather than dimmed on a
-// guess the probe may contradict a moment later.
+// A pull-down takes its title from item 0. Main thread, so no file system:
+// existence comes from the probe, and an unprobed path is offered rather than
+// dimmed on a guess.
 - (void)rebuildCommonFolderMenu {
     NSMenu *menu = [[NSMenu alloc] init];
     menu.autoenablesItems = NO;
@@ -261,14 +230,10 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     _addCommonButton.menu = menu;
 }
 
-// Dropbox moved under ~/Library/CloudStorage when it became a file provider —
-// older installs keep ~/Dropbox, newer ones leave a symlink there, and neither
-// is guaranteed — so both spellings are candidates and the probe decides.
+// Dropbox lives at either spelling depending on the install; the probe decides.
 static NSString *const kDropboxClassicSubpath = @"Dropbox";
 static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Dropbox";
 
-// Every path the menu may offer, for the off-main existence probe. Both
-// Dropbox spellings are here; commonFoldersWithExistence: picks one.
 + (NSArray<NSString *> *)commonFolderCandidatePaths {
     NSString *home = self.homeFolderPath;
     return @[
@@ -280,10 +245,7 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
     ];
 }
 
-// Name and path of each offered folder, resolved against the probed existence
-// answers. Pure — no file system — so it is safe on the main thread; an
-// unprobed path counts as present, which is what keeps the classic Dropbox
-// location the one offered until the probe says otherwise.
+// No file system, so safe on main. An unprobed path counts as present.
 + (NSArray<VibeCommonFolder *> *)commonFoldersWithExistence:
         (NSDictionary<NSString *, NSNumber *> *)existsByPath {
     NSString *home = self.homeFolderPath;
@@ -309,16 +271,14 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
             && isDirectory;
 }
 
-// The manager owns the rule, alias spellings and the standing ~/Music grant
-// included, so the menu's "(Already accessible)" state cannot drift from what
-// adding the folder would actually do.
+// The manager's rule, so "Already accessible" cannot drift from what adding
+// the folder would do.
 + (BOOL)folderGranted:(NSString *)path in:(NSArray<NSString *> *)paths {
     return [FolderAccessManager path:path isCoveredByAnyOf:paths];
 }
 
-// An unavailable grant must not make the menu claim a folder is already
-// accessible: it is exactly the one worth offering to add again. A restoring
-// one still counts, so the menu does not briefly offer a duplicate at launch.
+// An unavailable grant is the folder worth offering again; a restoring one
+// still counts, or the menu briefly offers a duplicate at launch.
 - (NSArray<NSString *> *)grantedPaths {
     NSMutableArray<NSString *> *paths = [NSMutableArray arrayWithCapacity:_folders.count];
     for (VibeGrantedFolder *folder in _folders) {
@@ -349,9 +309,8 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
     AppSettings.sharedInstance.convertAsksWhereToSave = [_convertDestinationPopUp.selectedItem.representedObject boolValue];
 }
 
-
-// No live effect: the order governs the next open, and re-sorting the playlist
-// already on screen would throw away an order the user may have built by hand.
+// No live effect: re-sorting the playlist on screen would discard an order
+// built by hand.
 - (void)folderOpenSortChanged:(id)sender {
     AppSettings.sharedInstance.folderOpenSort =
             (VibeFolderOpenSort)[_folderSortPopUp.selectedItem.representedObject integerValue];
@@ -359,9 +318,8 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
 
 - (void)albumArtSourceChanged:(id)sender {
     AppSettings.sharedInstance.useFolderArt = [_albumArtPopUp.selectedItem.representedObject isEqual:kAlbumArtFolder];
-    // TRAP: FolderArt must follow the write, not merely to redraw: the resolver
-    // caches this setting and that effect is the one thing that drops the
-    // cache, so a write without it is not observed at all.
+    // TRAP: the resolver caches this setting and FolderArt is its only re-read;
+    // without it the write is never observed.
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectFolderArt];
 }
 
@@ -377,9 +335,8 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
     }];
 }
 
-// The sandbox has no way to grant a folder without the user picking it, so the
-// menu can only stage the panel: opened on the chosen folder, with nothing
-// selected, so confirming returns that folder itself.
+// The sandbox grants nothing unpicked, so stage the panel on the folder with
+// nothing selected: confirming returns the folder itself.
 - (void)addCommonFolder:(NSMenuItem *)sender {
     NSString *path = sender.representedObject;
     NSOpenPanel *panel = [NSOpenPanel openPanel];
@@ -420,27 +377,21 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
                                                         inTableView:tableView imagePosition:NSImageLeft];
     cell.textField.lineBreakMode = NSLineBreakByTruncatingMiddle;
     VibeGrantedFolder *folder = _folders[(NSUInteger)row];
-    // Rows include unmounted and unreachable folders, and a path-specific icon
-    // lookup can synchronously wake their mount on the main thread. Use the
-    // shared folder type icon instead.
     static NSImage *folderIcon;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         folderIcon = [NSWorkspace.sharedWorkspace iconForContentType:UTTypeFolder];
     });
     cell.imageView.image = folderIcon;
-    // TRAP: never stat a row. This runs on the main thread for every reload,
-    // and a dead path's mount can block for an automounter timeout — so the
-    // state is the manager's own answer, which costs no I/O: a row dims because
-    // its bookmark would not resolve, never because this pane stat-ed the path.
+    // TRAP: never stat a row, path-specific icon lookups included. This runs
+    // on main per reload, and a dead mount blocks for an automounter timeout;
+    // the state is the manager's resolve, which costs no I/O.
     BOOL unavailable = folder.state == VibeGrantedFolderStateUnavailable;
     NSString *display = [self.class displayPath:folder.path];
     cell.alphaValue = unavailable ? 0.5 : 1;
     cell.textField.stringValue = unavailable
             ? [NSString stringWithFormat:STR_SETTINGS_FOLDER_UNAVAILABLE, display]
             : display;
-    // The label truncates in the middle, so the tooltip carries the whole path
-    // either way, and for a dead row says why it is still listed.
     cell.textField.toolTip = unavailable
             ? [NSString stringWithFormat:@"%@\n%@", folder.path,
                                          [NSString stringWithFormat:STR_SETTINGS_FOLDER_UNAVAILABLE_TIP,
@@ -455,11 +406,8 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
 
 #pragma mark - Dropping folders in
 
-// TRAP: never stat a drag. Folders only, asked of the pasteboard rather than
-// the file system: this runs on the main thread for every mouse move of the
-// drag, and a stat can block on an unreachable mount. A package is a directory
-// but not a folder in UTI terms, so an app bundle is refused here rather than
-// silently dropped later.
+// TRAP: never stat a drag. Validation runs on main per mouse move, so
+// folder-ness is asked of the pasteboard; public.folder also refuses a package.
 + (NSDictionary<NSPasteboardReadingOptionKey, id> *)folderReadingOptions {
     return @{
         NSPasteboardURLReadingFileURLsOnlyKey: @YES,
@@ -467,9 +415,7 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
     };
 }
 
-// Retargeted onto the list as a whole: the rows are in the order the grants
-// were added, so an insertion point between two of them would promise
-// something the store cannot honor.
+// Retargeted onto the whole list: grants keep the order they were added in.
 - (NSDragOperation)tableView:(NSTableView *)tableView
                 validateDrop:(id<NSDraggingInfo>)info
                  proposedRow:(NSInteger)row
@@ -491,24 +437,20 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
     if (dropped.count == 0) {
         return NO;
     }
-    // TRAP: a Finder drag delivers file-reference URLs (file:///.file/id=…),
-    // which resolve to wherever the folder currently is. A grant is stored
-    // against a path, so pin every drop to the one it has right now.
+    // TRAP: a Finder drag delivers file-reference URLs (file:///.file/id=…);
+    // a grant is stored against a path, so pin each to its current one.
     NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:dropped.count];
     for (NSURL *url in dropped) {
         NSString *path = url.path;
         [urls addObject:path ? [NSURL fileURLWithPath:path isDirectory:YES] : url];
     }
-    // The same funnel as Add Folder: the drag carries the sandbox grant, so the
-    // bookmark can be made from it, and anything already covered is skipped.
+    // The drag carries the sandbox grant the bookmark is made from.
     [FolderAccessManager.sharedInstance noteOpenedURLs:urls];
     return YES;
 }
 
 // stringByAbbreviatingWithTildeInPath abbreviates against the sandbox
-// container, not the user's home, so substitute the real home by hand. The home
-// folder itself abbreviates to a bare ~ — the Home Folder grant makes exactly
-// that row, which would otherwise be the one entry spelled out in full.
+// container, not the real home.
 + (NSString *)displayPath:(NSString *)path {
     NSString *home = self.homeFolderPath;
     if (home.length == 0) {

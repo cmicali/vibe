@@ -2,13 +2,9 @@
 //  FileSearchRules.h
 //  Vibe (iOS)
 //
-//  What a search query matches, in the one place both of the search screen's
-//  sections read it. The playlist section matches tags, the files section
-//  matches path components, and they must agree wherever they overlap: a
-//  filename that matched in one and not the other reads as a broken walk
-//  rather than as two comparisons that drifted apart.
-//
-//  Header-only and Foundation-only so the macOS suite can test it.
+//  What a query matches, for both of the search screen's sections, which must
+//  agree where they overlap. Header-only and Foundation-only so the macOS suite
+//  can test it.
 //
 
 #ifndef FileSearchRules_h
@@ -18,13 +14,9 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Case, diacritic and width insensitive, matching anywhere in the text — a
-// query is a fragment the user half-remembers, not a prefix.
-//
-// An empty query is no constraint and matches everything: the playlist section
-// doubles as a browse list. The FILES section does not use that reading — an
-// empty query there means "walk nothing", since a recursive dump of a provider
-// tree is not a browse list — so it tests the length itself.
+// Case, diacritic and width insensitive, anywhere in the text. An empty query
+// matches everything, for the playlist's browse list; the files section tests
+// the length itself, since a dump of a provider tree is no browse list.
 static inline BOOL VibeSearchTextMatchesQuery(NSString *_Nullable text, NSString *query) {
     if (query.length == 0) {
         return YES;
@@ -40,9 +32,8 @@ static inline BOOL VibeSearchTextMatchesQuery(NSString *_Nullable text, NSString
                         locale:NSLocale.currentLocale].location != NSNotFound;
 }
 
-// FileSearchIndex prepares these strings once as the directory walk discovers
-// them. Repeating locale-aware folding for every indexed row on every
-// keystroke is substantially more work than the substring search itself.
+// Folded once per file by the walk: folding per row per keystroke costs far
+// more than the search.
 static inline NSString *VibeSearchFoldedText(NSString *_Nullable text) {
     if (text.length == 0) {
         return @"";
@@ -58,8 +49,6 @@ static inline BOOL VibeSearchFoldedTextContainsQuery(NSString *foldedText,
             && [foldedText rangeOfString:foldedQuery].location != NSNotFound;
 }
 
-// A track whose tags are loaded is named by them, with the filename as the
-// fallback the rest of the app already uses for an untagged file.
 static inline BOOL VibeSearchTrackMatchesQuery(NSString *_Nullable title,
                                                NSString *_Nullable artist,
                                                NSString *fileName,
@@ -69,10 +58,8 @@ static inline BOOL VibeSearchTrackMatchesQuery(NSString *_Nullable title,
             || VibeSearchTextMatchesQuery(fileName, query);
 }
 
-// A file the walk found has no tags — reading them would be a download each —
-// so it is named by its path. The containing folder counts, because on a music
-// tree that folder is the album or the artist and a query for it is how a whole
-// directory of tracks named nothing like it gets found.
+// No tags (each would be a download), so the path. The folder counts: on a
+// music tree it is the album or the artist.
 static inline BOOL VibeSearchFileMatchesQuery(NSString *fileName,
                                               NSString *_Nullable folderName,
                                               NSString *query) {
@@ -83,13 +70,9 @@ static inline BOOL VibeSearchFileMatchesQuery(NSString *fileName,
             || (folderName.length > 0 && VibeSearchTextMatchesQuery(folderName, query));
 }
 
-// Whether one search root already covers a path — it IS it, or contains it. A
-// folder grant reaches the whole subtree, so a root inside another root buys
-// nothing and walking both would list every file under it twice.
-//
-// Both paths must already be standardized; this is string work and touches no
-// disk. The separator is appended to BOTH sides so "/Music" cannot be read as
-// covering "/Music Videos", and so an exact match still counts.
+// The root IS the path or contains it. Both must be standardized; no disk. The
+// separator on BOTH sides keeps "/Music" from covering "/Music Videos" while an
+// exact match still counts.
 static inline BOOL VibeSearchRootCoversPath(NSString *rootPath, NSString *path) {
     if (rootPath.length == 0 || path.length == 0) {
         return NO;
@@ -100,9 +83,9 @@ static inline BOOL VibeSearchRootCoversPath(NSString *rootPath, NSString *path) 
     return [pathPrefix hasPrefix:rootPrefix];
 }
 
-// The two halves of SearchFolderStore's one merge. Existing roots are kept
-// minimal: an ancestor absorbs a candidate, while a candidate ancestor removes
-// every descendant. Exact duplicates take the first path and are absorbed.
+// SearchFolderStore's merge keeps roots minimal: an existing ancestor absorbs a
+// candidate (an exact duplicate included), and a candidate ancestor removes
+// every descendant.
 static inline NSUInteger VibeSearchFolderCoveringRootIndex(
         NSArray<NSString *> *rootPaths, NSString *candidatePath) {
     for (NSUInteger index = 0; index < rootPaths.count; index++) {

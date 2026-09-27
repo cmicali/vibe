@@ -7,9 +7,7 @@
 
 @implementation UIUpdateTimer {
     dispatch_source_t   _timer;
-    // The dispatch source's actual state, where wanted and windowVisible carry
-    // the intent. sync reconciles them, and the guard exists because an
-    // unbalanced dispatch_resume or suspend traps.
+    // The source's actual state; wanted and windowVisible are the intent.
     BOOL                _running;
 }
 
@@ -17,24 +15,21 @@
     self = [super init];
     if (self) {
         NSAssert(hz > 0, @"UIUpdateTimer needs a positive rate");
-        hz = MAX(hz, (NSUInteger)1); // guard the divisions below
+        hz = MAX(hz, (NSUInteger)1);
         _timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
         _hz = hz;
-        // The first tick is due immediately, so a resume refreshes the UI at
-        // once rather than after an interval.
+        // Due immediately, so a resume refreshes the UI at once.
         [self armFrom:DISPATCH_TIME_NOW];
         dispatch_source_set_event_handler(_timer, handler);
-        _running = NO; // sources are created suspended
+        _running = NO; // created suspended
     }
     return self;
 }
 
-// dispatch_source_set_timer is legal on an active source and on a suspended
-// one, so the rate changes without any resume/suspend bookkeeping.
+// Legal on an active or suspended source: no resume/suspend bookkeeping.
 - (void)armFrom:(dispatch_time_t)start {
-    // The leeway must be well under the interval, at about a tenth of it.
-    // Otherwise the OS coalesces ticks and the time label visibly skips
-    // seconds, which is worst on battery.
+    // A tenth of the interval: more lets the OS coalesce ticks and the time
+    // label skip seconds.
     uint64_t interval = NSEC_PER_SEC / _hz;
     dispatch_source_set_timer(_timer, start, interval, interval / 10);
 }
@@ -44,20 +39,14 @@
         return;
     }
     _hz = hz;
-    // Phase the next tick a whole interval out. Re-arming from now would fire
-    // one immediately, and the rate is recomputed on inputs that can move in
-    // bursts — a resize drag above all.
+    // A whole interval out: arming from now would fire at once, and the rate
+    // changes in bursts during a resize drag.
     [self armFrom:dispatch_time(DISPATCH_TIME_NOW, (int64_t)(NSEC_PER_SEC / hz))];
 }
 
 - (void)dealloc {
-    // Releasing a suspended dispatch source traps. The timer is created
-    // suspended and stays suspended whenever _running is NO.
-    //
-    // Cancel BEFORE the balancing resume, not after: the resume schedules on
-    // the main queue, and cancelling first guarantees no handler can run in
-    // between. The other order only happened to be safe because dealloc runs
-    // on main and the handler could not be dispatched before it returned.
+    // Releasing a suspended source traps, so resume it — after cancelling,
+    // so no handler can run in between.
     dispatch_source_cancel(_timer);
     if (!_running) {
         dispatch_resume(_timer);

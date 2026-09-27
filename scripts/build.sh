@@ -14,7 +14,6 @@ case "$CONFIGURATION" in
     *) echo "error: configuration must be Debug or Release (got '$CONFIGURATION')" >&2; exit 1 ;;
 esac
 
-# Run from the repo root regardless of the caller's working directory.
 cd "$(dirname "$0")/.."
 
 if ! command -v xcodegen >/dev/null 2>&1; then
@@ -22,8 +21,7 @@ if ! command -v xcodegen >/dev/null 2>&1; then
     exit 1
 fi
 
-# SKIP_GENERATE=1 skips regeneration (the Makefile's `build` target sets this
-# because its `project` prerequisite has already run `xcodegen generate`).
+# SKIP_GENERATE=1: the caller has already generated (the Makefile's `build`).
 if [[ "${SKIP_GENERATE:-}" == "1" ]]; then
     echo "🔊 skipping xcodegen generate (SKIP_GENERATE=1)"
 else

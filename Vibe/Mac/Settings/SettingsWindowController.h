@@ -15,35 +15,26 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithPlayerController:(MainPlayerController *)playerController;
 
-// The two panes other code addresses by name: Appearance is the theme
-// editor's host and the debug channel's preview and navigation target;
-// Audio shows the bit-perfect report, which the player controller
-// refreshes as it changes. audioPane answers nil unless the pane is on
-// screen, so those refreshes cost nothing for a closed window or another
-// pane; the pane catches up when it appears.
+// audioPane answers nil unless that pane is on screen, so outside refreshes
+// cost nothing for a closed window; the pane catches up when it appears.
 - (nullable SettingsAppearanceViewController *)appearancePane;
 - (nullable SettingsGeneralViewController *)audioPane;
 
 - (void)refreshSelectedPane;
 
-// Selects the Appearance pane and lands on the theme editor — View > Theme >
-// Edit Themes…'s destination. The window must already be shown (the app
-// delegate's showThemeSettings: does both).
+// Selects the Appearance pane and opens the active theme's editor. The window
+// must already be shown.
 - (void)showThemeEditor;
 
-// The settings window refuses engine-driven size changes (the constraint
-// engine's fitting snap; see SettingsWindow in the implementation), so every
-// deliberate programmatic resize funnels through here to be told apart.
+// The window refuses engine-driven size changes (SettingsWindow), so every
+// programmatic resize must come through here.
 - (void)applyWindowFrame:(NSRect)frame;
 
-// The same funnel in content points, top-anchored — the titlebar stays put
-// and the bottom edge moves, as a drag of the bottom edge would leave it. A
-// size within half a point of the current one is left alone.
+// The same funnel in content points, top-anchored.
 - (void)applyContentSize:(NSSize)size;
 
-// Re-reads the Appearance pane's back/forward state into the toolbar's
-// navigation control. The pane calls it on every page swap, the tab
-// controller on every pane switch.
+// Re-reads the Appearance pane's navigation and history state into the
+// toolbar. Called on every page swap and pane switch.
 - (void)updateThemeNavigation;
 
 @end

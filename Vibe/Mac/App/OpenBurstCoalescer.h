@@ -2,26 +2,21 @@
 //  OpenBurstCoalescer.h
 //  Vibe
 //
-//  Coalesces system open events into one logical playlist action. Launch
-//  Services can split a single multi-file open into several events, and a
-//  burst can straddle app launch, so: the first batch replaces and plays
-//  immediately, with no coalescing delay, and later batches inside the quiet
-//  period append. A deliberate open (the open panel, Open Recent) ends any
-//  burst and always replaces. Foundation-only; the owner supplies what to do
-//  with each drained batch through the sink.
+//  Launch Services can split one multi-file open into several events, and a
+//  burst can straddle launch. The first batch replaces and plays at once;
+//  later batches inside the quiet period append. A deliberate open ends any
+//  burst.
 //
 
 #import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Receives each drained batch, unexpanded: folders still need walking and
-// unsupported files filtering. append is NO for a replacing play.
+// Receives each drained batch unexpanded.
 typedef void (^OpenBurstSink)(NSArray<NSURL *> *urls, BOOL append);
 
-// Test seam for the quiet-period timer; the default schedules on the main
-// queue. A superseded block must become a no-op — the coalescer handles that
-// internally, so a scheduler only ever runs what it is given.
+// Test seam; the default schedules on the main queue. The coalescer makes a
+// superseded block a no-op itself.
 typedef void (^OpenBurstScheduler)(NSTimeInterval delay, dispatch_block_t block);
 
 @interface OpenBurstCoalescer : NSObject
@@ -31,27 +26,21 @@ typedef void (^OpenBurstScheduler)(NSTimeInterval delay, dispatch_block_t block)
                           scheduler:(OpenBurstScheduler)scheduler
                                sink:(OpenBurstSink)sink;
 
-// The app finished launching: drains anything queued as the first batch of a
-// burst — the post-launch remainder of an open that straddled launch must
-// append rather than replace. Returns YES when a batch drained, so the caller
-// knows whether the empty state may render.
+// Drains the queue as a burst's first batch, so the rest of an open that
+// straddled launch appends. YES when a batch drained.
 - (BOOL)startAndDrainQueue;
 // After grant restoration: an explicit queued open wins, then the saved
 // session, then empty state. Restoration itself never arms an open burst.
 - (void)finishLaunchRestoring:(BOOL (^)(void))restore revealEmpty:(dispatch_block_t)revealEmpty;
-// Pure argument selection; existence checks are supplied by the caller and
-// run on its worker, never during the main-thread launch drain.
+// exists runs on the caller's worker, never during the main-thread drain.
 + (NSArray<NSURL *> *)fileURLsInArguments:(NSArray<NSString *> *)arguments
                            existingPath:(BOOL (^)(NSString *path))exists;
 
 // A system open event: part of the current burst, or the start of a new one.
 - (void)openBurstURLs:(NSArray<NSURL *> *)urls;
 
-// A deliberate open — the open panel, Open Recent, a window drop: ends any
-// burst rather than joining it. append is the caller's own decision, not the
-// burst's: a drop onto the empty-state add well appends, everything else
-// replaces. Before start it only queues, exactly like openBurstURLs:, and the
-// launch drain picks it up.
+// The open panel, Open Recent, a window drop: ends any burst rather than
+// joining it; append is the caller's own. Before start it only queues.
 - (void)openDeliberateURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append;
 
 @end

@@ -2,9 +2,8 @@
 //  EqualizerIndicatorView+Debug.h
 //  Vibe
 //
-//  Process-wide renderer counters for dump_equalizer. The implementation stays
-//  beside the view so its hot paths can increment relaxed atomics directly;
-//  this declaration lives in Debug so the shipping view API stays minimal.
+//  Process-wide renderer counters for dump_equalizer. Implemented beside the
+//  view, whose hot paths increment them as relaxed atomics.
 //
 
 #if DEBUG

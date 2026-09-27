@@ -2,8 +2,6 @@
 //  DebugCommandDispatch.m
 //  Vibe
 //
-//  See DebugCommandDispatch.h.
-//
 
 #import "DebugCommandDispatch.h"
 
@@ -52,14 +50,8 @@ NSString *VibeDebugUnknownCommandReply(NSString *verb,
                          verb, [usages componentsJoinedByString:@", "]);
 }
 
-// tokens[0] is the verb and the rest are its arguments: one token per CLI argv
-// entry, transported verbatim and never re-tokenized. They are rejoined with
-// single spaces as a convenience, so that an unquoted multi-word title still
-// works. A properly quoted argument arrives as one token and passes through
-// exactly, consecutive spaces and all.
 NSString *VibeRestArgument(NSArray<NSString *> *tokens) {
-    // An empty array would make the length below (NSUInteger)-1 and trap. Every
-    // caller has a verb in hand, so this is the precondition rather than a case.
+    // An empty array would make the length below (NSUInteger)-1.
     if (tokens.count < 2) {
         return @"";
     }
@@ -67,14 +59,10 @@ NSString *VibeRestArgument(NSArray<NSString *> *tokens) {
             componentsJoinedByString:@" "];
 }
 
-// A path argument: the rest of the tokens, with a leading ~ expanded.
 NSString *VibePathArgument(NSArray<NSString *> *tokens) {
     return VibeRestArgument(tokens).stringByExpandingTildeInPath;
 }
 
-// Shared validation for the verbs that take one existing-file argument, which
-// keeps file_cache's and file_clear_cache's argument contracts identical. It
-// returns the path, or nil with *errorJSON set to the reply to send.
 NSString *VibeExistingFileArgument(NSArray<NSString *> *tokens, NSString **errorJSON) {
     NSString *verb = tokens.firstObject;
     if (tokens.count < 2) {

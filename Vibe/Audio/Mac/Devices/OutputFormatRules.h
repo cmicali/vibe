@@ -15,17 +15,12 @@
 #import <CoreAudio/AudioHardwareBase.h>
 #include <math.h>
 
-// A saved-device bind may land whenever nothing is audible, because the one
-// thing it must never do is rebind underneath sound — that clicks, or tears
-// down a live stream. So: stopped; the first loading open before the engine
-// starts; and a pause whose fade has settled. A loading open with a running
-// outgoing fade, and playing, are excluded.
-//
-// Paused used to be excluded outright, including a paused engine that had
-// idle-stopped and was plainly silent. That left a device which vanished and
-// came back unadoptable until the next stop, because an unplug parks playback
-// as Paused. The rebuild already restores a paused track as Paused rather than
-// resuming it, so a settled pause is as safe to rebind as a stop.
+// A saved-device bind may land whenever nothing is audible: a rebind under
+// sound clicks, or tears down a live stream. So: stopped; loading while the
+// output is not running (the first open at launch); and a pause whose fade has
+// settled, since an unplug parks playback as Paused and the rebuild restores a
+// paused track as Paused. Loading over a running outgoing fade, and playing,
+// are excluded.
 static inline BOOL VibeCanBindSavedOutputDevice(BOOL stopped, BOOL loading, BOOL paused,
                                                 BOOL outputRunning, BOOL audioActive) {
     return stopped || (loading && !outputRunning) || (paused && !audioActive);
@@ -144,12 +139,12 @@ static inline BOOL VibeSourceIsLossless(AudioStreamBasicDescription source) {
     return VibeSourceBitDepth(source) > 0;
 }
 
-// A source is asked the PCM question only when it is PCM: the ALAC and FLAC
-// depth flags reuse the same low bits.
 static inline BOOL VibePhysicalFormatIsFloat(AudioStreamBasicDescription format) {
     return (format.mFormatFlags & kAudioFormatFlagIsFloat) != 0;
 }
 
+// A source is asked the PCM question only when it is PCM: the ALAC and FLAC
+// depth flags reuse the same low bits.
 static inline BOOL VibeSourceIsFloat(AudioStreamBasicDescription source) {
     return source.mFormatID == kAudioFormatLinearPCM && VibePhysicalFormatIsFloat(source);
 }
@@ -175,9 +170,8 @@ static inline BOOL VibePCMFormatCarries(AudioStreamBasicDescription pcm,
 // YES when the path delivers `source` unchanged: the device at the source's
 // rate, and both the decode's processing format (AudioFileHandle decodes to
 // float32, so a 32-bit integer source is never delivered in full, whatever
-// the device offers — measured: 24,641,537 came out 24,641,536) and the
-// device's physical format carry it. The report's depth check, not the
-// chooser's preference.
+// the device offers) and the device's physical format carry it. The report's
+// depth check, not the chooser's preference.
 static inline BOOL VibePhysicalFormatSatisfies(AudioStreamBasicDescription physical,
                                                AudioStreamBasicDescription source,
                                                AudioStreamBasicDescription processing) {
@@ -187,14 +181,11 @@ static inline BOOL VibePhysicalFormatSatisfies(AudioStreamBasicDescription physi
 }
 
 // Whether the mode may drive a chosen device: its transport carries bits
-// unchanged — an ALLOWLIST. Bluetooth, AirPlay, Continuity, Remote*,
-// Aggregate, AutoAggregate and Unknown are out; so is anything Apple adds
-// later, until argued in. The System Output POLICY (-1, follow whatever macOS
-// points at) is never eligible, but that is the absence of a chosen device,
-// not a property of one: the device that happens to be the current default
-// is judged by its transport like any other. Read by the switch, the Output
-// menu and the report, so the three cannot disagree. The Advanced testing
-// override bypasses this transport allowlist; format/signal checks still apply.
+// unchanged — an ALLOWLIST, so anything Apple adds later is out until argued
+// in. The System Output policy (-1) is the absence of a chosen device; the
+// device that happens to be the default is judged by its transport like any
+// other. Read by the switch, the Output menu and the report, so the three
+// cannot disagree. The Advanced testing override bypasses only the transport.
 static inline BOOL VibeBitPerfectDeviceEligible(UInt32 transportType, BOOL allowAnyDevice) {
     if (allowAnyDevice) return YES;
     switch (transportType) {
@@ -262,7 +253,7 @@ static inline BOOL VibePhysicalFormatsEquivalent(AudioStreamBasicDescription a,
 }
 
 // Shared by the silent settlement and the gapless gate: even an unchanged
-// device needs a rebuild when the mixer would resample into it.
+// device needs a rebuild when the bus would resample into it.
 static inline BOOL VibeBitPerfectOutputNeedsSwitch(AudioStreamBasicDescription current,
                                                    AudioStreamBasicDescription chosen,
                                                    double mixerRate) {
@@ -275,9 +266,10 @@ static inline BOOL VibeBitPerfectOutputNeedsSwitch(AudioStreamBasicDescription c
 // unchanged. A lossy source has no depth of its own: what reaches the device
 // is its float32 decode, so it is chosen like a float source, the float
 // format first, else the widest integer, which rounds that decode least —
-// never 16 bits because it is lossy, which rounded every AAC sample to 16
-// bits. Only formats wide enough for all source channels qualify. Returns NO when none is usable at `rate`;
-// the caller compares the choice against what the device has before writing.
+// never 16 bits for being lossy, which would round every AAC sample to 16
+// bits. Only formats wide enough for all source channels qualify. Returns NO
+// when none is usable at `rate`; the caller compares the choice against what
+// the device has before writing.
 static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription source,
                                               double rate,
                                               const AudioStreamRangedDescription *formats,

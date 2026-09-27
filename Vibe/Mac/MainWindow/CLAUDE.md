@@ -6,7 +6,7 @@
 
 `MainPlayerController` (`NSWindowController`) is the coordinator. `MainPlayerController.m` keeps the `updateUI` funnel, display-state resolution and the open and playlist entry points; each `MainPlayerController+*.h` preamble states what its category owns. **A method a category implements is declared in that category's header**, never in `MainPlayerController.h` or `MainPlayerControllerInternal.h` (the shared class extension: outlets, collaborators, the ivars a category touches), or the compiler cannot check either side. `+Debug` is declared in `Vibe/Debug/Mac/Introspection/`, never here.
 
-**Menu identifiers and the domain that decides each are `MenuValidationRules.h`** — one `kVibeMenu*` constant per identifier and the literal nowhere else, so a rename that misses a site fails the build. **TRAP: an identifier that reaches Unknown is DISABLED, not enabled** — a new controller-targeted menu item must be added there, or it silently skips validation.
+**Menu identifiers and the domain that decides each are `MenuValidationRules.h`** — one `kVibeMenu*` constant per identifier and the literal nowhere else, so a rename that misses a site fails the build. **TRAP: an identifier that reaches Unknown is DISABLED, not enabled** (and asserts in Debug) — a new controller-targeted menu item must be added there, or it never enables.
 
 **`+PlayerEvents` and `+Delivery` implement the root doc's staleness guarantee**: every callback can be stale and must match the delivered track against the playlist's current one, and `stop` fires no callback. The decisions are seams, both tested: `PlaybackDeliveryRules.h` (track-end advance, seek settlement, the deferred-metadata gate) and `AudioErrorRules.h` (benign and wrong-URL errors).
 
@@ -18,7 +18,7 @@
 
 ## The UI tick
 
-Listening statistics follow `audioPlayer:didChangeOutputAudioActive:` and its current snapshot, just as the equalizer does. This includes outgoing fades, excludes silent Loading time, and replaces transport-callback bookkeeping. Quit still flushes the clock in the app delegate.
+Listening statistics follow `audioPlayer:didChangeOutputAudioActive:` and its current snapshot, just as the equalizer does: outgoing fades count, silent Loading time does not. Quit flushes the clock in the app delegate.
 
 `UIUpdateTimer` (`Vibe/Util/`) drives `updatePlaybackUI` only while playback wants updates and the window is unoccluded; `windowDidChangeOcclusionState:` pushes the gate and refreshes once on reveal. The full `updateUI` runs on transport events and metadata deliveries, and its header work is one phase, `renderTrackPresentationForState:track:displayTrack:`, all against one display-state decision. A recovered thumbnail takes that path only when its exact metadata object is still displayed. Rate and position updates stay separate so they reload no artwork or rows. A same-track refresh reloads no row (`_lastReloadedTrack`): the gutter's three states reconcile on their own edges (`Playlist/Mac/CLAUDE.md`).
 

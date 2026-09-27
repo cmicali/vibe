@@ -36,12 +36,10 @@
 - (void)settleClaim:(VibeWaveformLoadClaim *)claim;
 @end
 
-// How many superseded decodes may keep running in the background at once. A
-// skip-ahead or a pager peek used to abort the in-flight decode and throw the
-// work away; a detached decode completes, persists, and turns the next
-// request for that file into a disk hit. Beyond the cap the oldest is
-// genuinely cancelled — with the active load this bounds concurrent decodes
-// at three.
+// How many superseded decodes may keep running in the background at once: a
+// detached decode completes, persists, and turns the next request for that
+// file into a disk hit. Beyond the cap the oldest is cancelled — with the
+// active load this bounds concurrent decodes at three.
 static const NSUInteger kMaxDetachedWaveformLoads = 2;
 static const NSUInteger kMaxPendingWaveformWork = 4;
 static const NSTimeInterval kWaveformAdmissionGraceSeconds = 10.0;
@@ -58,8 +56,7 @@ static const NSUInteger kMaxRunningWaveformLookups = 2;
 // UI is told it is not coming. The claim itself is not bounded — its worker may
 // be blocked in an uncancellable stat or open for the process's lifetime — but
 // the waveform view must not sit in its loading state forever waiting on it.
-// Matches the player's own per-file open timeout in spirit: long enough that a
-// slow provider still lands, short enough to be an answer.
+// Long enough that a slow provider still lands, short enough to be an answer.
 static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
 
 @implementation AudioWaveformCache {
@@ -67,7 +64,7 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
     // Two lanes, because the two stages block on different things and must not
     // be able to starve each other. stat and AudioFileHandle open have no
     // cancellation point on a wedged mount, so fixed admission slots are the
-    // resource bound in both; playback has its own scheduler again.
+    // resource bound in both. Playback opens use neither.
     AudioWorkScheduler              *_lookupScheduler;   // cache-key stat + cache lookup
     AudioWorkScheduler              *_decodeScheduler;   // AudioFileHandle open + decode
     PINCache*                       _waveformCache;
@@ -124,18 +121,14 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
         _currentLoader = nil;
         _detachedLoaders = [NSMutableArray array];
         _claimsByPath = [NSMutableDictionary dictionary];
-        // Create the cache on the loader queue. Constructing it on the main
-        // thread would boost PINCache's internal init-time disk scan to
-        // user-initiated QoS, which then priority-inverts against our
-        // utility-QoS cache calls, and the Thread Performance Checker warns
-        // about it on the first drop. The _waveformCache ivar is only ever
-        // read on this serial queue — decode-side writes go through a pointer
-        // snapshotted here, and PINCache itself is thread-safe — so it is
-        // always constructed before first use.
+        // Created on the loader queue: on main, PINCache's init-time disk scan
+        // would run at user-initiated QoS and priority-invert against the
+        // utility-QoS cache calls. The ivar is read only on this serial queue,
+        // so it exists before first use; decode-side writes go through a
+        // pointer snapshotted here.
         dispatch_async(_loaderQueue, ^{
-            // Why the memory cache goes unused is with the shared policy. The
-            // view retains the one live waveform, and a replay re-reads from
-            // disk in a few ms on this utility queue.
+            // No memory cache (PINCache+VibeAudioCache): the view retains the
+            // one live waveform, and a replay re-reads from disk in a few ms.
             self->_waveformCache = [PINCache audioCacheWithName:AudioWaveformCache.cacheName];
         });
     }
@@ -252,10 +245,7 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
     [self detachCurrentLoader];
 }
 
-// Supersedes the active load WITHOUT aborting it: the decode runs on
-// detached — deliveries stop, but a completed decode still persists, so the
-// next request for that file is a disk hit instead of a re-decode. Beyond
-// the cap the oldest detached decode is cancelled outright.
+// Supersedes the active load without aborting it; see cancelLoad.
 - (void)detachCurrentLoader {
     AudioWaveformLoader *loader = _currentLoader;
     _currentLoader = nil;
@@ -264,10 +254,9 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
         return;
     }
     // TRAP: detach even a completed loader. isComplete is set on the decode
-    // thread BEFORE its final delivery block reaches the main queue, so
-    // "complete" can still have a live delivery in flight, and the detach flag
-    // is what deliverCompleteWaveform checks on main. Skipping the detach here
-    // let that delivery land as a live one on whatever track superseded it.
+    // thread BEFORE its final delivery reaches main, where
+    // deliverCompleteWaveform checks the detach flag; skipped, that delivery
+    // lands live on whatever track superseded it.
     [loader detach];
     if (loader.isComplete) {
         return; // nothing to pool — the decode is done and persists on its own

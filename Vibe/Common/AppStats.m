@@ -10,13 +10,11 @@
 #define STAT_SECONDS_PLAYED     @"Stats.secondsPlayed"
 
 @implementation AppStats {
-    // systemUptime when the current playback run began, or 0 while not
-    // playing.
+    // systemUptime when the current run began, or 0 while not playing.
     NSTimeInterval _playbackStartUptime;
 #if TARGET_OS_OSX
-    // A run folded at will-sleep and awaiting its did-wake restart. While set,
-    // the run is logically still active: did-wake restarts its clock, and a
-    // stop in between ends it like any other.
+    // A run folded at will-sleep, still active until did-wake restarts it or
+    // a stop ends it.
     BOOL _sleepPausedRun;
 #endif
 }
@@ -33,9 +31,7 @@
 - (instancetype)init {
     self = [super init];
     if (self) {
-        // Process-lifetime singleton, so the observers are never removed. Both
-        // platforms' notifications arrive on the main thread, matching this
-        // class's main-thread-only contract.
+        // Never removed: a process-lifetime singleton. Both post on main.
 #if TARGET_OS_OSX
         NSNotificationCenter *center = NSWorkspace.sharedWorkspace.notificationCenter;
         [center addObserver:self
@@ -118,10 +114,9 @@
 
 #if TARGET_OS_OSX
 
-// systemUptime is monotonic, but NOT frozen during system sleep on Apple
-// Silicon, so sleep — which silences the engine without a pause callback —
-// would count the whole night as listening. These two bracket the run instead:
-// will-sleep folds and zeroes the baseline, did-wake restarts it.
+// systemUptime is not frozen by sleep on Apple Silicon, and sleep silences the
+// engine with no pause callback, so without this bracket a night asleep would
+// count as listening.
 - (void)workspaceWillSleep:(NSNotification *)notification {
 #if VIBE_VERBOSE_LOGGING
     LogInfo(@"Callback: the Mac is going to sleep");
@@ -146,14 +141,10 @@
 
 #else
 
-// iOS needs no sleep bracket: a device does not go to sleep out from under a
-// running audio session, and anything that does silence one — an interruption,
-// a route loss — reaches the player and pauses it, so the run ends through
-// playbackStopped like any other. What it needs instead is a persistence edge,
-// because a backgrounded app is killed with no notice and no terminate
-// callback. Both edges fold the elapsed time into the total and restart the
-// baseline WITHOUT ending the run: playback carries on in the background
-// (UIBackgroundModes: audio), so the clock must keep running after the write.
+// iOS needs no sleep bracket (anything that silences the session pauses the
+// player) but a persistence edge, since a backgrounded app is killed without
+// notice. It folds WITHOUT ending the run: playback continues in the
+// background.
 - (void)flushRunningClock:(NSNotification *)notification {
     if (_playbackStartUptime <= 0) {
         return;

@@ -12,10 +12,9 @@
 #import "MetadataParseCoordinator.h"
 #import "NSURLUtil+Debug.h"
 
-// AudioTrackMetadata's real implementation is ObjC++/TagLib and deliberately
-// stays out of the host-less target. These tests replace the loader's parse
-// boundary; this definition only satisfies the dormant production path's
-// class reference, and fails loudly if that boundary is ever crossed.
+// The real AudioTrackMetadata is ObjC++/TagLib and stays out of the host-less
+// target. The tests replace the loader's parse boundary; this definition only
+// satisfies the dormant path's class reference and raises if it is crossed.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wincomplete-implementation"
 @implementation AudioTrackMetadata
@@ -170,8 +169,9 @@ static BOOL VibeMetadataLoaderCoordinatorIsSettled(
 
 - (BOOL)runWithError:(NSError *__autoreleasing *)error {
     VibeMetadataLoaderOperationController *controller = _controller;
-    // TRAP: recordStart fulfills the test's synchronization edge. Snapshot
-    // the hold first so a later clear cannot retarget this run to success.
+    // TRAP: recordStart fulfills the test's synchronization edge, after which
+    // the test may clear the hold. Read the hold first, or a clear landing in
+    // between turns this parked run into a success.
     BOOL parks = controller.blocksUntilCancelled;
     [controller recordStartForURL:_url role:_role];
     if ([controller consumeFailureForURL:_url]) {
@@ -735,9 +735,8 @@ materializationCoordinator:coordinator
     ]));
 }
 
-// The shell's row removal: an abandoned queued entry must never start a
-// provider transfer, and the later priority edge — the undo of the removal —
-// rebuilds a fresh record and parses the row after all.
+// The shell's row removal abandons the queued entry; its undo is the later
+// priority edge.
 - (void)testAbandonedQueuedTrackNeverMaterializesAndPriorityRebuildsIt {
     AudioTrack *first = [self trackNamed:@"first.wav"];
     AudioTrack *removed = [self trackNamed:@"removed.wav"];
@@ -745,9 +744,9 @@ materializationCoordinator:coordinator
 
     VibeMetadataLoaderOperationController *controller =
             [[VibeMetadataLoaderOperationController alloc] init];
-    // Park the first materialization: stage one has fully drained by the time
-    // it starts (the barrier), so the other two entries are sitting in the
-    // pending list — exactly where an abandon must catch them.
+    // Park the first materialization. The stage-one barrier has drained by
+    // then, so the other two entries sit in the pending list, where an abandon
+    // must catch them.
     controller.blocksUntilCancelled = YES;
     controller.firstStartExpectation = [self expectationWithDescription:@"first started"];
     NSObject *parsedLock = [[NSObject alloc] init];
@@ -777,7 +776,6 @@ materializationCoordinator:coordinator
     XCTAssertEqualObjects(controller.startedURLs, (@[first.url, last.url]),
             @"the abandoned row must never start a materialization");
 
-    // The undo: a fresh priority edge rebuilds the record from scratch.
     [loader prioritizeTrack:removed];
     [self waitForCondition:^BOOL{
         @synchronized (parsedLock) {

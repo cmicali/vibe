@@ -2,8 +2,6 @@
 //  PlaybackController+Debug.m
 //  Vibe (iOS)
 //
-//  See PlaybackController+Debug.h.
-//
 
 #import "PlaybackController+Debug.h"
 

@@ -39,9 +39,8 @@ static BOOL VibeHangInstalled;
         @"foregroundTransferActive": @(snapshot.foregroundTransferActive),
         @"handleRuns": @(snapshot.handleRunCount),
         @"datalessProbesInFlight": @(snapshot.datalessProbesInFlight),
-        // The stranded-open signal: an AudioFileHandle call the OS still owes an
-        // answer for. Nonzero at rest means a run will never finish, which no
-        // gauge above can say — see docs/testing/materialization-coverage-plan.md.
+        // AudioFileHandle calls the OS still owes an answer for. Nonzero at
+        // rest is a stranded run, which no gauge above shows.
         @"handleOpensInFlight": @(snapshot.handleOpensStarted
                                   - snapshot.handleOpensCompleted),
         @"handleOpensStarted": @(snapshot.handleOpensStarted),

@@ -9,9 +9,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Raw HAL property accessors. Device
-// enumeration, AudioDevice model lookup and device-change notifications live
-// in AudioDeviceManager.
+// Raw HAL property accessors. Device enumeration, AudioDevice lookup and
+// device-change notifications live in AudioDeviceManager.
 @interface CoreAudioUtil : NSObject
 
 // Convenience for device-switch paths which must act on the current answer.
@@ -44,19 +43,18 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)readHasOutputChannels:(BOOL *)hasOutputChannels
                   forDeviceID:(AudioDeviceID)deviceID;
 
-// kAudioDevicePropertyTransportType. An optional refinement: the sweep keeps a
-// device whose transport is unreadable, as kAudioDeviceTransportTypeUnknown.
 // Asks the device itself whether it still exists, rather than a snapshot that
 // may not have caught up with an unplug. YES only when confirmed; a failed
 // read answers NO (see VibeDeviceIsConfirmedDead).
 + (BOOL)deviceIsConfirmedDead:(AudioDeviceID)deviceID;
 
+// kAudioDevicePropertyTransportType. An optional refinement: the sweep keeps a
+// device whose transport is unreadable, as kAudioDeviceTransportTypeUnknown.
 + (BOOL)readTransportType:(UInt32 *)transportType forDeviceID:(AudioDeviceID)deviceID;
 
-// YES only for an aggregate this process created privately — the one CoreAudio
-// builds over the system default when the engine follows it, which is visible
-// to no other process and cannot be chosen as an output. Answered from the
-// composition dictionary's kAudioAggregateDeviceIsPrivateKey, so a public
+// YES only for an aggregate created privately inside this process, which no
+// other process sees and which cannot be chosen as an output. Answered from
+// the composition dictionary's kAudioAggregateDeviceIsPrivateKey, so a public
 // aggregate the user built stays a real device. Deliberately not a tri-state:
 // every failure, including the property being absent on an ordinary device,
 // answers NO and keeps the device, because a device missing from the list is
@@ -122,7 +120,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSDictionary<NSString *, id> *)diagnosticDescriptionOfDeviceID:(AudioDeviceID)deviceID;
 
 #if VIBE_VERBOSE_LOGGING
-// Beta instrumentation (#47): one changed HAL property as a log phrase with
+// Beta instrumentation: one changed HAL property as a log phrase with
 // its new value ("nominal rate = 44100 Hz", "exclusive owner = 1377 (Vibe)"),
 // for the device event log. Reads through coreaudiod; call it off main.
 + (NSString *)eventDescriptionOfProperty:(AudioObjectPropertyAddress)address object:(AudioObjectID)object;
@@ -133,9 +131,8 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)supportsHogModeForDeviceID:(AudioDeviceID)deviceID;
 
 // kAudioDevicePropertyHogMode. TRAP: setting hog mode ignores the value
-// written and TOGGLES ownership — if this process owns it, a set releases it.
-// So this reads first and writes only when the owner has to change, which
-// makes it idempotent. YES means the device is in the requested state on
+// written and TOGGLES ownership, so this reads first and writes only when the
+// owner has to change. YES means the device is in the requested state on
 // return; "owned by this process" is the whole state, so a release while
 // another process holds it is already true.
 + (BOOL)readHogOwner:(pid_t *)owner forDeviceID:(AudioDeviceID)deviceID;

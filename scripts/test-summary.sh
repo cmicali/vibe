@@ -5,19 +5,14 @@
 # Usage: scripts/test-summary.sh [path/to/TestResults.xcresult]
 #   path defaults to build/TestResults.xcresult (what `make test` writes).
 #
-# The table goes to $GITHUB_STEP_SUMMARY when set (the run's summary page),
-# otherwise to stdout. Under Actions each failure is also emitted as an
-# ::error:: annotation, which is why the table never goes to stdout there.
+# The table goes to $GITHUB_STEP_SUMMARY when set, otherwise to stdout; under
+# Actions each failure is also an ::error:: annotation on stdout.
 #
-# The Expected column is XCTExpectFailure tests — a known-failing test pinning
-# an open bug. It is its own column because it is neither passed nor failed and
-# xcresulttool counts it in neither: leaving it out made the four numbers not
-# add up (946 + 0 + 0 against a total of 948) with nothing on the page saying
-# why, so a run carrying known failures read as unqualified green. The sum check
-# below is what keeps that from happening again for some later state.
+# Expected counts XCTExpectFailure tests, which xcresulttool counts as neither
+# passed nor failed; without the column a run carrying known failures reads as
+# unqualified green. The sum check flags any state the table does not name.
 #
-# Exit status reflects only whether the summary could be produced — the test
-# run's own pass/fail is `make test`'s to report.
+# Exit status says only whether the summary could be produced.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -34,8 +29,7 @@ if ! command -v jq >/dev/null 2>&1; then
     exit 1
 fi
 
-# `get test-results summary` is Xcode 16+. The pre-16 spelling needs --legacy
-# and a different schema; the deployment floor here is Xcode 26, so no fallback.
+# Xcode 16+ spelling; nothing here builds with an older Xcode.
 SUMMARY="$(xcrun xcresulttool get test-results summary --path "$BUNDLE" --format json)"
 
 emit() {
@@ -71,7 +65,6 @@ $(jq -r '
 ' <<<"$SUMMARY")
 EOF
 
-# Annotations: surfaced on the run's summary page and against the PR.
 if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
     jq -r '.testFailures[]?
       | "::error title=\(.targetName)/\(.testIdentifierString // .testName)::"

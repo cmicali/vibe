@@ -39,9 +39,8 @@ typedef struct {
     vector_float4   lightView;   // xyz: red light position in view space
 } VBUniforms;
 
-// The view-space position of the red key light, at the bottom left and
-// slightly in front of the dot plane, lighting the dots in the lower-left
-// quarter.
+// The red key light, fixed in view space at the bottom left, slightly in front
+// of the dot plane, so it lights the lower-left quarter as the grid spins.
 static const vector_float3 kRedLightViewPos = { -8.0f, -6.0f, -20.0f };
 
 #pragma mark - Matrix helpers
@@ -384,8 +383,6 @@ static void VibeRequestVectorBallsPipeline(
     uniforms.model = matrix_multiply(vb_rotationX(tilt), vb_rotationY(yaw));
     uniforms.params = (vector_float4){ introT, 0, time, 0 };
 
-    // Red key light: fixed in view space (bottom-left) so it lights the dots in
-    // the lower-left quarter as the grid spins.
     uniforms.lightView = (vector_float4){ kRedLightViewPos.x, kRedLightViewPos.y, kRedLightViewPos.z, 1 };
 
     id<MTLCommandBuffer> commandBuffer = [_commandQueue commandBuffer];

@@ -6,19 +6,16 @@
 #import "CloudFileMaterializer.h"
 #import "NSURLUtil.h"
 #if DEBUG
-#import "CloudFileMaterializer+Debug.h"   // the fake transfer, declared out of the shipping header
+#import "CloudFileMaterializer+Debug.h"
 #endif
 
 #include <os/lock.h>
 
 #if DEBUG
-// TRAP: these are written by the debug channel on main and read on whichever
-// worker is about to download, so they need the lock even though only a test
-// harness installs them — an unsynchronized read of a block global is a retain
-// racing a release, not merely something TSan dislikes. Found by TSan on the
-// first cloud-profile run, in the harness rather than the app.
+// TRAP: written by the debug channel on main, read on download workers. An
+// unlocked read of a block global is a retain racing a release.
 static os_unfair_lock sFakeLock = OS_UNFAIR_LOCK_INIT;
-static NSTimeInterval (^sFakeTransferSeconds)(NSURL *, NSString *);   // nil, or 0 for a URL = the real read
+static NSTimeInterval (^sFakeTransferSeconds)(NSURL *, NSString *);   // nil or 0: the real read
 static BOOL (^sFakeAcquireSlot)(NSURL *, NSString *, BOOL (^)(void));
 static void (^sFakeReleaseSlot)(NSURL *, NSString *);
 static void (^sFakeTransferDidFinish)(NSURL *, NSString *, BOOL);
@@ -50,18 +47,12 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
 @end
 
 @implementation CloudFileMaterializer {
-    // Installed by -prepareMaterialization before the caller dispatches its
-    // worker. Keeping the pending call in the same slot as the live
-    // coordinator closes the cancel-before-entry window without turning
-    // cancellation into a permanent latch.
+    // Set before dispatch, so a cancel before entry lands.
     CloudFileMaterializationToken *_token;
-    // The coordinator of the download in flight, which is the only thing
-    // -cancel has to reach. Held under a lock because cancel is documented as
-    // callable from any thread and is the whole point of the class.
+    // What -cancel, callable from any thread, reaches.
     NSFileCoordinator *_coordinator;
 #if DEBUG
-    // The fake transfer's waiter, signalled by -cancel. Same slot discipline as
-    // the coordinator above, so cancel reaches whichever of the two is live.
+    // The fake transfer's waiter, signalled by -cancel.
     dispatch_semaphore_t _fakeWait;
 #endif
     os_unfair_lock    _lock;
@@ -103,9 +94,7 @@ static NSError *VibeMaterializationCancelledError(void) {
     return [NSError errorWithDomain:NSCocoaErrorDomain code:NSUserCancelledError userInfo:nil];
 }
 
-// Atomically consumes a still-current token for a URL which was already local.
-// A cancel that wins this lock makes the call fail; one that lands afterwards
-// correctly sees no work left to cancel.
+// A cancel that wins this lock fails the call; a later one finds no work.
 - (BOOL)consumeLocalToken:(CloudFileMaterializationToken *)token {
     os_unfair_lock_lock(&_lock);
     BOOL current = (_token == token && !token.isCancelled);
@@ -130,8 +119,6 @@ static NSError *VibeMaterializationCancelledError(void) {
     os_unfair_lock_unlock(&sFakeLock);
 }
 
-// Reads under the same lock every other token transition takes, so the slot
-// poll's cancellation check cannot race a -cancel mid-write.
 - (BOOL)tokenIsCancelled:(CloudFileMaterializationToken *)token {
     os_unfair_lock_lock(&_lock);
     BOOL cancelled = (_token != token || token.isCancelled);
@@ -139,11 +126,8 @@ static NSError *VibeMaterializationCancelledError(void) {
     return cancelled;
 }
 
-// Waits out the fake transfer, or returns NO the moment -cancel signals. The
-// semaphore is the cancel path's only reach into this, so it goes in the slot
-// under the same lock the coordinator uses. The already-prepared token is
-// checked while installing it, which covers cancellation before this method
-// was entered as well as cancellation during the wait.
+// NO the moment -cancel signals. The token is checked as the semaphore is
+// installed, covering a cancel before entry as well as during the wait.
 - (BOOL)waitOutFakeTransfer:(NSTimeInterval)seconds
                        token:(CloudFileMaterializationToken *)token
                        error:(NSError *__autoreleasing *)error {
@@ -186,11 +170,9 @@ static NSError *VibeMaterializationCancelledError(void) {
                  token:(CloudFileMaterializationToken *)token
                  error:(NSError *__autoreleasing *)error {
 #if DEBUG
-    // The fake is asked AHEAD of the placeholder probe, so an
-    // unflagged-placeholder mode — where the probe disowns a file whose
-    // transfer has not run — still costs the transfer. The provider contract
-    // carries the old ordering's job: it answers 0 for a path whose transfer
-    // already completed, so a replayed file is not re-downloaded.
+    // Asked ahead of the placeholder probe, so an unflagged-placeholder mode
+    // still costs the transfer; the provider answers 0 for a path already
+    // transferred.
     NSTimeInterval (^fakeSeconds)(NSURL *, NSString *) = nil;
     BOOL (^acquireSlot)(NSURL *, NSString *, BOOL (^)(void)) = nil;
     void (^releaseSlot)(NSURL *, NSString *) = nil;
@@ -198,15 +180,12 @@ static NSError *VibeMaterializationCancelledError(void) {
     VibeFakeTransferHooks(&fakeSeconds, &acquireSlot, &releaseSlot, &didFinish);
     NSString *role = self.label ?: @"unlabeled";
     NSTimeInterval fake = fakeSeconds ? fakeSeconds(url, role) : 0;
-    // Negative is the provider's failure sentinel: the transfer runs for the
-    // magnitude, then reports failure — the shape a provider error takes,
-    // reachable by no other fake mode (stall never fails, sticky never ends).
+    // Negative: run for the magnitude, then fail, as a provider error does.
     BOOL fakeFails = fake < 0;
     fake = fabs(fake);
     if (fake > 0) {
-        // The shared provider slot first, cancellable while queued; then the
-        // transfer itself. Cancelled leaves the file a placeholder, exactly as
-        // a real one does.
+        // The provider slot first, cancellable while queued, then the
+        // transfer. A cancel leaves the file a placeholder, as a real one does.
         BOOL admitted = YES;
         if (acquireSlot) {
             __weak CloudFileMaterializer *weakSelf = self;
@@ -235,9 +214,7 @@ static NSError *VibeMaterializationCancelledError(void) {
     }
 #endif
 
-    // Keep the placeholder probe inside the prepared call. Besides making local
-    // files cheap, this means callers never have to bypass materialization and
-    // accidentally leave a prepared token live forever.
+    // Inside the prepared call, so no caller bypasses it and strands its token.
     if (![NSURLUtil isDatalessFile:url]) {
         BOOL current = [self consumeLocalToken:token];
         if (!current && error) {
@@ -246,10 +223,7 @@ static NSError *VibeMaterializationCancelledError(void) {
         return current;
     }
 
-    // A fresh coordinator per download, deliberately. Cancellation poisons a
-    // coordinator for good — every later -coordinate... on it returns
-    // NSUserCancelledError without invoking the block — so reusing one would
-    // turn the first abort into a permanent refusal to download anything.
+    // Fresh per download: cancelling poisons a coordinator for good.
     NSFileCoordinator *coordinator = [[NSFileCoordinator alloc] initWithFilePresenter:nil];
     os_unfair_lock_lock(&_lock);
     BOOL current = (_token == token && !token.isCancelled);
@@ -268,16 +242,13 @@ static NSError *VibeMaterializationCancelledError(void) {
 
     __block BOOL materialized = NO;
     NSError *coordinationError = nil;
-    // options 0 is the whole mechanism: a plain coordinated read is what asks
-    // the provider for the contents. (ImmediatelyAvailableMetadataOnly is the
-    // opposite request and would defeat the purpose — it also answers only for
-    // the file system's own metadata, never the tags inside the audio.)
+    // Options 0: a plain coordinated read is what asks for the contents;
+    // ImmediatelyAvailableMetadataOnly would ask for the opposite.
     [coordinator coordinateReadingItemAtURL:url options:0 error:&coordinationError
                                 byAccessor:^(NSURL *readURL) {
-        // TRAP: cancellation is racy by contract — the accessor can already be
-        // running when cancel lands — so reaching here is what "the bytes are
-        // here" means, and nothing expensive belongs inside it. The caller
-        // opens the now-local file itself, after coordination has ended.
+        // TRAP: a cancel can land while the accessor runs, and cannot stop it,
+        // so it only records that the bytes are here; the caller opens the
+        // file after coordination ends.
         materialized = YES;
     }];
 

@@ -188,10 +188,9 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     XCTAssertNotNil(VibeWriteFixture(url, buffer, &error), @"%@", error);
     return url;
 }
-// The generator emits a fixed 44-byte RIFF header. Read those bytes directly
-// for the lossless matrix so the handle is not its own decode oracle.
-// A generated fixture's samples from its own bytes, at full width: integers
-// to 32 bits scaled by their full scale, float32 or float64 as stored.
+// A generated fixture's samples from its own bytes (a fixed 44-byte RIFF
+// header), so the handle is not its own decode oracle: integers to 32 bits
+// scaled by their full scale, float32 or float64 as stored.
 - (NSData *)wideSourcePCM:(NSURL *)url {
     NSData *wav=[NSData dataWithContentsOfURL:url];
     XCTAssertGreaterThan(wav.length,44u);
@@ -228,11 +227,10 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.0001]];
     XCTAssertTrue(condition(), @"Timed out; events %@; error %@", _events, _playError);
 }
-// The tap delivers on its own thread, and the probe's poll rides the player's
-// clock, which the frame-driven pump advances only while frames render: on a
-// slow runner the signal can reach the tap after the last slice, with no poll
-// left to finish the capture. So wait for the tap thread to see it, then
-// render a poll's worth, and read the settled snapshot.
+// The probe's poll rides the player's clock, which the frame-driven pump
+// advances only while frames render, so no poll may be left to finish the
+// capture: wait for the signal, render a poll's worth, then read the settled
+// snapshot.
 - (NSDictionary *)settledSignalSnapshot {
     __block NSDictionary *signal;
     BOOL (^read)(void) = ^BOOL {
@@ -286,9 +284,8 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     XCTAttachment *attachment=[XCTAttachment attachmentWithContentsOfFileAtURL:url];
     attachment.lifetime=XCTAttachmentLifetimeKeepAlways; [self addAttachment:attachment];
 }
-// The startup the comparison may skip: the 10 ms declick and the settling
-// after it, and nothing at all with Declick off, which cuts, so the first
-// sample must already be exact.
+// The 10 ms declick and the settling after it; nothing with Declick off, which
+// cuts, so the first sample must already be exact.
 - (NSUInteger)startupSkip {
     return _player.declick ? (NSUInteger)(_rate * 0.05) : 0;
 }
@@ -405,12 +402,10 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         [self assertFinite:capture peak:1];
     }
 }
-// Wider sources, compared at full width. A 32-bit file whose samples sit on
-// float32's grid plays exactly. Integer32 and float64 samples finer than
-// float32's significand arrive rounded once, to the nearest float32 and
-// nothing coarser, and the wide comparison counts every one: the loss the
-// report calls DepthInsufficient, visible to the oracle rather than shared
-// by its reference.
+// A 32-bit file on float32's grid plays exactly. Integer32 and float64 samples
+// finer than float32's significand arrive rounded once to the nearest float32,
+// and the wide comparison counts every one: the loss the report calls
+// DepthInsufficient, visible to the oracle rather than shared by its reference.
 - (void)testWideSourcesArriveRoundedOnceToFloat32 {
     for (NSString *name in @[@"integer32.wav",@"integer32-low-bits.wav",@"float64-low-bits.wav"]) {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
@@ -491,7 +486,6 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     for (NSUInteger i = 0; i < 4800 * 2; i++) XCTAssertEqual(tail[i], 0.0f, @"sound after stop");
 }
 
-// The default: every edge is the 10 ms declick, and nothing else is touched.
 - (void)testBitPerfectDeclickRampsOnlyTheEdges {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
     XCTAssertTrue(_player.declick);
@@ -517,9 +511,8 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     for (NSUInteger i = 0; i < 4000 * 2; i++) XCTAssertEqual(tail[i], 0.0f, @"sound after stop");
 }
 
-// Declick is every mode's: off, ordinary playback cuts its declick-length
-// edges too, while a crossfade longer than the declick is the user's choice
-// and still fades.
+// Declick off cuts ordinary playback's declick-length edges too; a crossfade
+// longer than the declick is the user's choice and still fades.
 - (void)testDeclickOffCutsOrdinaryEdgesAndKeepsTheCrossfade {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
     _player.declick = NO;
@@ -536,7 +529,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     NSUInteger stopped = _capture.length / sizeof(float) / 2;
     [self render:14400]; XCTAssertTrue(_player.isStopped);
     XCTAssertGreaterThanOrEqual([self assertExactExcerptsOf:references inCapture:_capture rampFrames:0 ramped:NULL], 3u);
-    // The varispeed, bypassed but in the chain, delays the cut by its latency.
+    // A block, plus the varispeed's latency (zero while it is out of the chain).
     NSUInteger latency = (NSUInteger)llround([_player.debugRenderCounts[@"varispeedLatency"] doubleValue] * _rate) + _blockSize;
     const float *out = _capture.bytes;
     for (NSUInteger i = (stopped + latency) * 2; i < _capture.length / sizeof(float); i++) {
@@ -552,11 +545,10 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     XCTAssertEqual([_player.debugRenderCounts[@"retiredFades"] unsignedIntegerValue], 1u, @"the crossfade fades with Declick off");
 }
 
-// A skip past the end reaches finishPlaybackOnQueue with the voice still at
-// full amplitude, and it fades like every other edge: the transport
-// publishes Stopped before it retires the voice, so the retire must read the
-// voice's own state, not the player's. Every adjacent sample of the tail is
-// inspected, the command boundary included.
+// A skip past the end reaches finishPlaybackOnQueue with the voice at full
+// amplitude. The transport publishes Stopped before it retires the voice, so
+// the retire must read the voice's own state, not the player's. Every adjacent
+// sample of the tail is inspected, the command boundary included.
 - (void)testFinishCurrentTrackFadesTheOutgoingVoice {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
     [self play:[self fixture:@"100.wav"] paused:NO position:0];
@@ -628,10 +620,9 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         XCTAssertEqual([self count:@"finish"],1u);
     }
 }
-// A continuous 44.1 kHz signal split across two tracks, played at 48 kHz:
-// the resampler carries across the gapless boundary, whether the successor
-// was named while the first track was decoding or once it had been decoded
-// whole, so the output is the unsplit file's.
+// A 44.1 kHz signal split across two tracks, played at 48 kHz, matches the
+// unsplit file whether the successor is named while the first track decodes or
+// after it decoded whole.
 - (void)testGaplessContinuesTheResamplerAcrossTheBoundary {
     NSData *whole = [PCM([self read:[self fixture:@"noise-44100-24-2.wav"]]) subdataWithRange:NSMakeRange(0, 44100 * 8)];
     NSURL *full = [self write:whole rate:44100 channels:2 name:@"whole441.wav"];
@@ -779,11 +770,9 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
 }
 
 // The seek's replacement voice reads the same AudioFileHandle as the voice it
-// retires, on the production decode queue: the old voice's reads must stop
-// before the new voice positions the shared cursor, or a turn of the old
-// voice queued between the two advances it and the new voice skips a chunk.
-// The retire is held open with the decoder running, so a start before it
-// loses its second chunk.
+// retires: the old voice's reads must stop before the new voice positions the
+// shared cursor, or an old turn queued between the two advances it and the new
+// voice skips a chunk. The retire is held open with the decoder running.
 - (void)testSeekStopsTheOldVoiceReadingBeforeItsFileIsHandedOn {
     self.continueAfterFailure = YES;
     Method initializer = class_getInstanceMethod(AudioVoiceBus.class, @selector(initWithFormat:queue:inlineDecoding:));
@@ -861,9 +850,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
 }
 
 // The meter is kept across demand toggles, so an install must forget the
-// audio before it: the accumulator, and the analyzer's partial window and
-// references with it. Tone, remove, install, silence — the new session's
-// first publication is silence, however often the demand toggles.
+// accumulator, and the analyzer's partial window and references with it.
 - (void)testMeterReinstallPublishesNoEarlierAudio {
     AVAudioPCMBuffer *tone = [self read:[self fixture:@"1000.wav"]];
     AudioLevelPublisher *publisher = [[AudioLevelPublisher alloc] init];
@@ -889,9 +876,8 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     }
 }
 
-// A meter callback that began before a remove-and-reinstall — the demand
-// toggling under it — publishes into the session it began, which has ended,
-// so the new session opens on none of its audio.
+// A callback that began before the remove publishes into the session it
+// began, which has ended.
 - (void)testAMeterCallbackStalledAcrossAReinstallPublishesNothingIntoTheNewSession {
     AVAudioPCMBuffer *tone = [self read:[self fixture:@"1000.wav"]];
     AudioLevelPublisher *publisher = [[AudioLevelPublisher alloc] init];
@@ -1058,11 +1044,10 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
 - (void)testSignalDiagnosticsExcludePreviousTrack {
     for (NSNumber *rate in @[@44100, @48000]) for (NSNumber *fx in @[@NO, @YES])
     for (NSNumber *fade in @[@10, @500]) for (NSNumber *silence in @[@300, @700, @1500]) {
-        // Bit-perfect output cuts the old track rather than fading it, and
-        // under the pump the output cannot follow the file's rate, so the bus's
-        // converter resampling the 48 kHz fixtures carries a few milliseconds
-        // of it past the cut in its history. Real bit-perfect output sets the
-        // device to the file's rate, so nothing resamples; test that case.
+        // Under the pump the output cannot follow the file's rate, so a
+        // bit-perfect cut at another rate carries a few milliseconds of the old
+        // track past the cut in the converter's history. Real bit-perfect
+        // output sets the device to the file's rate; test only that case.
         if (!fx.boolValue && rate.doubleValue != 48000) continue;
         [self startPlayerAt:rate.doubleValue channels:2 fx:fx.boolValue bitPerfect:!fx.boolValue automatic:NO];
         _player.crossfadeMilliseconds = fade.integerValue;
@@ -1222,14 +1207,12 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         if (_rate<48000) XCTAssertLessThan(RMS(data,2,0,window),0.000032); // -90 dBFS alias ceiling
     }
 }
-// A render stuck inside the pipeline past the wait's bound — blocked after
-// it read the bus, on a thread of its own, which is what a stuck render is —
-// must not let a withdrawal free or reset what it is inside, and no later
-// render may clear the evidence that it is: the pipeline admits one render
-// at a time, so the rebuilt output's callbacks render silence while it is
-// inside. A rate change replaces the meter, the bus, the varispeed hosting
-// and the FX chain, and every one of them stays allocated until the first
-// drain that sees the render outside; playback carries on at the new rate.
+// A render stuck inside the pipeline past the wait's bound, on a thread of its
+// own, must not let a withdrawal free or reset what it is inside, and no later
+// render may clear the evidence that it is: the pipeline admits one render at a
+// time, so the rebuilt output's callbacks render silence meanwhile. A rate
+// change replaces the meter, the bus, the varispeed hosting and the FX chain,
+// and each stays allocated until the first drain that sees the render outside.
 - (void)testAStuckRenderDefersEveryTeardownUntilItLeaves {
     [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
     _player.levelsEnabled = YES;
@@ -1247,7 +1230,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     [_player debugHoldRenderInside:YES];
     dispatch_group_t stuck = dispatch_group_create();
     dispatch_group_async(stuck, dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
-        [self->_player debugRenderOnCallerThread:256]; // an output unit's callback, blocked inside the old bus
+        [self->_player debugRenderOnCallerThread:256]; // an output unit's callback, blocked inside the old pipeline
     });
     [self settleUntil:^BOOL { return [self->_player.debugRenderCounts[@"rendersHeld"] unsignedIntegerValue] == 1; }];
     XCTAssertTrue([_player debugSetOutputRate:96000]);
@@ -1277,7 +1260,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     NSUInteger refusals = [_player.debugRenderCounts[@"renderRefusals"] unsignedIntegerValue];
     @autoreleasepool { [self render:256]; } // the render left; the drain after this one runs the parked teardowns
     XCTAssertEqual([_player.debugRenderCounts[@"renderLeaveWork"] unsignedIntegerValue], 0u);
-    // The beta signal probe's poll holds the old tap until its next 100 ms
+    // The beta signal probe's poll holds the old meter until its next 100 ms
     // tick of the pump's clock finds it removed; nothing else may.
     @autoreleasepool { [self render:9600]; }
     XCTAssertNil(tap, @"the meter outlived the render it waited for");
@@ -1512,7 +1495,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         _player.fx.delaySendEnabled = YES;
         _player.fx.shortDelaySendEnabled = YES;
         (void)_player.debugRenderCounts;
-        // Hold engine work until the later UI actions have published their intent.
+        // Hold the queue until the later UI actions have published their intent.
         dispatch_queue_t queue = [_player valueForKey:@"queue"];
         dispatch_suspend(queue);
         @try {
@@ -1567,10 +1550,8 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         XCTAssertEqual([_player.debugRenderCounts[@"retiredFades"] unsignedIntegerValue],0u);
     }
 }
-// Ordinary playback converts a file at another rate inside the bus, on the
-// decode queue; bit-perfect output plays each file at its own rate, so the
-// bus's converter is measured here and nowhere else: gain flat within 0.01 dB,
-// duration exact, and a tone above the bus's Nyquist below -90 dBFS.
+// Gain flat within 0.01 dB, duration exact, and a tone above the bus's Nyquist
+// below -90 dBFS.
 - (void)testOrdinaryPlaybackConvertsRateInTheBus {
     for (NSArray<NSNumber *> *rates in @[@[@48000,@44100],@[@44100,@48000],@[@96000,@44100]]) {
         NSNumber *rate=rates[1];
@@ -1620,9 +1601,8 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     XCTAssertEqual([self count:@"start"],31u); XCTAssertEqual([self count:@"finish"],0u);
     XCTAssertTrue(_player.isPlaying); XCTAssertEqualObjects(_player.currentTrack.url,urls[0]); // the thirtieth skip landed on a
 }
-// A decoder that gets no turn: the voice plays what its ring holds, then
-// zero-fills, holds its position and counts the frames it could not fill;
-// fed again, it continues from the exact frame it stopped at.
+// The voice plays what its ring holds, then zero-fills and counts the frames
+// it could not fill; fed again, it continues from the exact frame it stopped at.
 - (void)testAStarvedDecoderHoldsThePositionAndResumesExactly {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
     NSURL *url=[self fixture:@"noise-48000-24-2.wav"]; NSData *reference=PCM([self read:url]);
@@ -1656,10 +1636,8 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     XCTAssertGreaterThan(captured.length,4800u*8); [self assertFinite:captured peak:0.251];
     XCTAssertEqual([self count:@"finish"],0u);
 }
-// Ordinary playback declicks both edges, and so does bit-perfect output by
-// default; with Declick off it writes no volume, so its first sample is the
-// file's and a stop cuts at once. Modes: 0 ordinary, 1 bit-perfect, 2
-// bit-perfect with Declick off.
+// Modes: 0 ordinary, 1 bit-perfect, 2 bit-perfect with Declick off, whose
+// first sample is the file's and whose stop cuts at once.
 - (void)testStartupAndStopEnvelopesAreBounded {
     for (NSNumber *mode in @[@0, @1, @2])
     for (NSNumber *rate in @[@44100,@48000,@88200,@96000,@176400,@192000]) {
@@ -1681,7 +1659,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         for(NSUInteger i=settled;i<end;i++) XCTAssertEqual(s[i*2],0.25f);
         [_player stop]; NSData *stop=[self renderSeconds:0.1]; const float *e=stop.bytes;
         for(NSUInteger i=settled;i<end;i++) XCTAssertEqual(e[i*2],0);
-        // The node is retired only after its ramp; no full-amplitude discontinuity.
+        // The voice retires only after its ramp: no full-amplitude discontinuity.
         float worst=0; for(NSUInteger i=1;i<end;i++) worst=MAX(worst,fabsf(e[i*2]-e[(i-1)*2]));
         XCTAssertLessThan(worst,0.02f,@"%@ Hz",rate);
     }
@@ -2201,13 +2179,11 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 
 #pragma mark - The varispeed at zero, the output's rate, the 16-bit decode, disabled FX, the path
 
-// At zero pitch the varispeed is hosted but not in the chain: the bus renders
-// straight into the output, sample-exact, and the unit renders nothing. The
-// fader leaving and returning to zero engages and disengages it without a
-// click or a skip: on a 100 Hz tone every transition keeps the waveform
-// continuous and its envelope full, the file advances exactly as far as the
-// rates played, and back at zero the output is the file again, exactly, with
-// the unit idle.
+// At zero pitch the varispeed is hosted but not in the chain, so the output is
+// the file exactly. Leaving and returning to zero engages and disengages it
+// with no click or skip: on a 100 Hz tone every transition keeps the waveform
+// continuous and its envelope full, and the file advances exactly as far as
+// the rates played.
 - (void)testZeroPitchRendersTheBusDirectlyAndTogglesAreClickFree {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
     NSURL *noise = [self fixture:@"noise-48000-24-2.wav"];
@@ -2278,11 +2254,10 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertEqual([counts[@"varispeedHistoryWrites"] unsignedLongLongValue], historyWrites, @"the history ring was written at zero pitch");
 }
 
-// The output's rate moves under the pipeline — a device's would under the
-// mac unit, the route's under the iOS one; here the pump's — and the pipeline
-// follows it, keeping the track: playing, the tone continues at the new rate
-// from the same position; paused, the position holds through the change and
-// the resume continues there.
+// The output's rate moves under the pipeline (a device's or a route's under
+// the output unit, here the pump's): playing, the tone continues at the new
+// rate from the same position; paused, the position holds and the resume
+// continues there.
 - (void)testOutputRateChangeKeepsThePlayingAndPausedTrack {
     [self startPlayerAt:44100 channels:2 fx:NO bitPerfect:NO automatic:NO];
     NSURL *url = [self fixture:@"1000.wav"];
@@ -2399,9 +2374,8 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     return out;
 }
 
-// FX disabled with the reverb and a delay still ringing out: the segment
-// leaves the render at once — its units render nothing more, and the output
-// is the file, sample for sample, from where playback stood.
+// The segment leaves the render at once: its units render nothing more, and
+// the output is the file, sample for sample, from where playback stood.
 - (void)testDisabledFXProcessNothingWhileTailsRing {
     [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
     NSURL *url = [self fixture:@"noise-48000-24-2.wav"];
@@ -2431,9 +2405,8 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertEqual([_player.debugRenderCounts[@"unitRenders"] unsignedLongLongValue], rested);
 }
 
-// A lossless codec's depth is the one it declares, not the container's 0,
-// and its flags are never read as PCM's: FLAC's and ALAC's 24-bit flag
-// carries the float bit, and the row once read them as 32-bit float.
+// Not the container's 0, and the flags are never read as PCM's: FLAC's and
+// ALAC's 24-bit flag carries the float bit.
 - (void)testAudioPathReportsALosslessCodecsDeclaredDepth {
     NSDictionary<NSString *, NSArray *> *expected = @{
         @"lossless.flac": @[@"FLAC", @24, @NO], @"lossless.m4a": @[@"ALAC", @24, @NO],
@@ -2467,9 +2440,8 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertTrue([decode[@"mixed"] boolValue]);
 }
 
-// The player's half of the reopen wait's bound: a rebuild's stopReading
-// joins the decoder while a late successor's reopen waits for a render held
-// inside the bus, and completes at the new rate with the render still held.
+// The player's half of the reopen wait's bound: a rate change completes while
+// a late successor's reopen waits for a render held inside the bus.
 - (void)testARebuildCompletesWhileAVoiceRenderIsStuck {
     self.continueAfterFailure = YES;
     // The real decode queue under the frame-driven pump, as the seek test does.
@@ -2578,12 +2550,10 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     [self settleUntil:^BOOL { return self->_player.position > resumedFrom + 0.1; }];
     XCTAssertGreaterThan(_player.position, resumedFrom + 0.1, @"the track never played after the decoder left");
     XCTAssertNil(_playError);
-    // TRAP: the re-voiced track's decoder keeps reading through the swizzle
-    // until the player stops, and a read in flight returns into the block's
-    // trampoline — removed here under a slow read, the block was freed under
-    // that decoder (a segfault inside the block on CI). The original goes
-    // back first, then the player stops and its bus's decode queue drains,
-    // so no read can be inside the block when it goes.
+    // TRAP: the re-voiced track's decoder reads through the swizzle until the
+    // player stops, so removing the block while a read is in flight frees it
+    // under that decoder. Restore the original, stop the player and drain the
+    // bus's decode queue first; only then can no read be inside the block.
     __block AudioVoiceBus *bus;
     [_player runSyncOnQueue:^{ bus = [self->_player valueForKey:@"voiceBus"]; }];
     method_setImplementation(read, original);
@@ -2613,8 +2583,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     }
 }
 
-// A production player whose output unit could not be made —
-// fails the start with an error instead of publishing Playing over nothing.
+// With an error, rather than publishing Playing over nothing.
 - (void)testAMissingOutputUnitFailsTheStart {
     self.continueAfterFailure = YES;
     Method initializer = class_getInstanceMethod(AudioOutputUnit.class, @selector(init));
@@ -2777,8 +2746,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     }
 }
 
-// #53: a device slow to start — an RME takes ~215 ms, a waking DAC seconds —
-// holds neither the play that asked for it nor the player queue behind it.
+// An RME takes ~215 ms to start, a waking DAC seconds.
 - (void)testASlowDeviceStartHoldsNeitherThePlayNorThePlayerQueue {
     self.continueAfterFailure = YES;
     dispatch_semaphore_t entered = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
@@ -2806,8 +2774,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertNil(_playError);
 }
 
-// A start the device refuses after the player published Playing parks the
-// play Paused where it is and says why.
+// The refusal arrives after the player published Playing.
 - (void)testARefusedDeviceStartParksThePlayAndSaysSo {
     self.continueAfterFailure = YES;
     [self withOutputUnitStartingAs:^OSStatus { return kAudioHardwareNotRunningError; } body:^(AudioPlayer *target) {

@@ -1,17 +1,8 @@
-//
-// The Playlist model: ordering, the current-index cursor and its boundary
-// predicates, URL lookup with duplicate rows, the replace-row rule — a fresh
-// AudioTrack carrying the old row's duration and detected BPM — and the three
-// structural edits that move rows (remove, insert, move) and so rebuild the
-// two indexes rather than patching them.
-//
-
 #import <XCTest/XCTest.h>
 
 #import "Playlist.h"
 
-// A compact index-set spelling for event strings: "1" or "0,2". A one-index
-// set prints as the bare number, so single-row expectations read unchanged.
+// "1" or "0,2".
 static NSString *RowsString(NSIndexSet *indexes) {
     NSMutableArray<NSString *> *parts = [NSMutableArray array];
     [indexes enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
@@ -20,8 +11,6 @@ static NSString *RowsString(NSIndexSet *indexes) {
     return [parts componentsJoinedByString:@","];
 }
 
-// Records every observer notification in order, so the tests can assert both
-// that mutations notify and what rows they name.
 @interface RecordingObserver : NSObject <PlaylistObserver>
 @property (nonatomic, strong) NSMutableArray<NSString *> *events;
 @property (nonatomic) NSUInteger lastReplacementGeneration;
@@ -57,8 +46,7 @@ static NSString *RowsString(NSIndexSet *indexes) {
 }
 
 - (void)playlist:(Playlist *)playlist didRemoveTracksAtIndexes:(NSIndexSet *)indexes {
-    // The final state is recorded alongside the payload, because the model's
-    // contract is that everything is coherent BEFORE the observer is called.
+    // Records the final state: the model is coherent BEFORE the observer is called.
     [self.events addObject:[NSString stringWithFormat:@"remove %@ cursor %lu count %lu",
                             RowsString(indexes),
                             (unsigned long)playlist.currentIndex,
@@ -143,10 +131,8 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     XCTAssertEqualObjects([playlist indexesOfTracks:playlist.tracks], RowRange(0, 2));
 }
 
-// Every subset of a small playlist, at every cursor: compare the proposed
-// forward landing with an independently chosen surviving object, then apply
-// the real edit and verify the model actually lands there. URL duplicates
-// deliberately make content-based identity insufficient.
+// Every subset at every cursor. All rows share one URL, so only object
+// identity can pass.
 - (void)testRemovalForwardLandingAgreesWithEveryActualRemoval {
     for (NSUInteger cursor = 0; cursor < 5; cursor++) {
         for (NSUInteger mask = 1; mask < 32; mask++) {
@@ -305,7 +291,6 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     XCTAssertTrue([playlist next]);
     XCTAssertEqual(playlist.currentIndex, 1u);
     XCTAssertFalse(playlist.hasNextTrack);
-    // At the last track, next refuses and the cursor stays put.
     XCTAssertFalse([playlist next]);
     XCTAssertEqual(playlist.currentIndex, 1u);
 }
@@ -380,8 +365,6 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     XCTAssertEqual(incoming.detectedBPM, 128.0f);
     XCTAssertEqual([playlist trackAtIndex:0], incoming);
 
-    // The row map follows the swap: the departed track no longer resolves,
-    // and the fresh one resolves to the row it took over.
     XCTAssertEqual([playlist getIndexForTrack:incoming], 0);
     XCTAssertEqual([playlist getIndexForTrack:outgoing], -1);
 }
@@ -486,8 +469,6 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     XCTAssertFalse(playlist.hasPreviousTrack);
 }
 
-// The one mutation that moves rows, so the one whose indexes must be rebuilt
-// rather than patched: every survivor has to resolve to its shifted row.
 - (void)testRemovalRebuildsTheIdentityMap {
     Playlist *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3", @"c.mp3", @"d.mp3"]);
     NSArray<AudioTrack *> *before = playlist.tracks;
@@ -505,9 +486,7 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     NSIndexSet *rows = [playlist indexesOfTracksWithURL:URLNamed(@"a.mp3")];
     XCTAssertEqual(rows.count, 1u);
     XCTAssertTrue([rows containsIndex:1]);
-    // The surviving occurrence is now the first one the URL lookup answers.
     XCTAssertEqual([playlist trackForURL:URLNamed(@"a.mp3")], [playlist trackAtIndex:1]);
-    // b.mp3's own bucket followed the shift too.
     XCTAssertEqualObjects([playlist indexesOfTracksWithURL:URLNamed(@"b.mp3")],
                           [NSIndexSet indexSetWithIndex:0]);
 }
@@ -526,8 +505,7 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     RecordingObserver *observer = [RecordingObserver new];
     playlist.observer = observer;
     AudioTrack *track = [AudioTrack withURL:URLNamed(@"z.mp3")];
-    // Nothing to insert, and a track list that does not pair one-to-one with
-    // its index set, are both refused whole: no mutation, no event.
+    // Refused whole: no mutation, no event.
     [playlist insertTracks:@[] atIndexes:RowSet(0)];
     [playlist insertTracks:@[track] atIndexes:RowSetOf(@[@0u, @1u])];
     XCTAssertEqual(playlist.count, 2u);
@@ -572,9 +550,6 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     XCTAssertEqual(playlist.currentTrack, track);
 }
 
-// Remove then insert at the same index must round-trip the rows, the identity
-// map and the URL buckets — and the cursor object, when the removed row was
-// not the current one.
 - (void)testRemoveThenInsertRoundTripsRowsAndIndexes {
     Playlist *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3", @"c.mp3"]);
     [playlist next];
@@ -591,10 +566,8 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
                           [NSIndexSet indexSetWithIndex:2]);
 }
 
-// The cursor deliberately does NOT round-trip when the removed row WAS
-// current: the removal moved it to the successor, whose audio the shell
-// started, and the cursor keeps naming what is sounding — the restore is a
-// list edit, never a replay.
+// The cursor keeps naming the successor the shell started playing: a
+// restore is a list edit, never a replay.
 - (void)testReinsertingARemovedCurrentRowKeepsTheSuccessorCurrent {
     Playlist *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3", @"c.mp3"]);
     [playlist next];
@@ -615,8 +588,7 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     XCTAssertEqualObjects(observer.events, @[@"insert 0 cursor 2 count 3"]);
 }
 
-// The rebuild must reuse the row objects, not recreate them from their URLs:
-// a fresh AudioTrack would drop installed metadata and fail every identity
+// A fresh AudioTrack would drop installed metadata and fail every identity
 // check the async deliveries make.
 - (void)testSurvivingTracksKeepTheirIdentityAndState {
     Playlist *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3"]);
@@ -635,7 +607,6 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     Playlist *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3", @"c.mp3", @"d.mp3"]);
     NSArray<AudioTrack *> *before = playlist.tracks;
     NSArray<AudioTrack *> *removed = [playlist removeTracksAtIndexes:RowSetOf(@[@0u, @2u])];
-    // The exact objects, in ascending row order.
     XCTAssertEqual(removed.count, 2u);
     XCTAssertEqual(removed[0], before[0]);
     XCTAssertEqual(removed[1], before[2]);
@@ -670,8 +641,6 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     Playlist *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3", @"c.mp3", @"d.mp3"]);
     [playlist next];
     AudioTrack *survivor = [playlist trackAtIndex:3];
-    // The current row and its immediate successor both go; the first survivor
-    // after them slides into the current position.
     [playlist removeTracksAtIndexes:RowSetOf(@[@1u, @2u])];
     XCTAssertEqual(playlist.currentIndex, 1u);
     XCTAssertEqual(playlist.currentTrack, survivor);
@@ -711,8 +680,7 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
 
 #pragma mark - Batch insert
 
-// The undo shape: removeTracksAtIndexes:'s returned array and index set,
-// handed back, must restore rows, identity map and URL buckets exactly.
+// The undo shape: removeTracksAtIndexes:'s array and index set, handed back.
 - (void)testBatchInsertRestoresANonContiguousRemoval {
     Playlist *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3", @"c.mp3", @"d.mp3"]);
     [playlist next];
@@ -736,10 +704,9 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     NSArray<AudioTrack *> *original = playlist.tracks;
     XCTAssertFalse([playlist moveTracksAtIndexes:[NSIndexSet indexSet] toIndexes:[NSIndexSet indexSet]]);
     XCTAssertFalse([playlist moveTracksAtIndexes:RowSet(3) toIndexes:RowSet(0)]);
-    // Both sets are final positions in the same-count list, so a two-row block
-    // whose range would run past the end is out of range, not clamped.
+    // Both sets are final positions, so a block running past the end is
+    // refused, not clamped.
     XCTAssertFalse([playlist moveTracksAtIndexes:RowSetOf(@[@0u, @1u]) toIndexes:RowRange(2, 2)]);
-    // The sets must pair one-to-one.
     XCTAssertFalse([playlist moveTracksAtIndexes:RowSetOf(@[@0u, @1u]) toIndexes:RowSet(0)]);
     XCTAssertEqualObjects(playlist.tracks, original);
     XCTAssertEqual(observer.events.count, 0u);
@@ -751,17 +718,13 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     playlist.observer = observer;
     XCTAssertFalse([playlist moveTracksAtIndexes:RowSet(1) toIndexes:RowSet(1)]);
     XCTAssertFalse([playlist moveTracksAtIndexes:RowSetOf(@[@1u, @2u]) toIndexes:RowRange(1, 2)]);
-    // Every row selected: no destination changes anything.
     XCTAssertFalse([playlist moveTracksAtIndexes:RowSetOf(@[@0u, @1u, @2u, @3u]) toIndexes:RowRange(0, 4)]);
     XCTAssertEqual(observer.events.count, 0u);
-    // A non-contiguous set landing on its own first row is NOT a no-op: the
-    // survivor between its members has to move out from between them.
+    // Not a no-op: the survivor between the members must move out.
     XCTAssertTrue([playlist moveTracksAtIndexes:RowSetOf(@[@0u, @2u]) toIndexes:RowRange(0, 2)]);
 }
 
 - (void)testMovingSingleRowsInEveryDirection {
-    // (source, destination) covering first-to-last, last-to-first and both
-    // middle directions, each checked against a reference splice.
     for (NSArray<NSNumber *> *pair in @[@[@0u, @3u], @[@3u, @0u], @[@1u, @2u], @[@2u, @1u]]) {
         NSUInteger source = pair[0].unsignedIntegerValue;
         NSUInteger destination = pair[1].unsignedIntegerValue;
@@ -777,8 +740,6 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
 }
 
 - (void)testMovingANonContiguousSetGathersItAtTheDestination {
-    // Each case checked against the same reference: extract ascending, then
-    // splice back contiguously at the destination.
     for (NSArray *testCase in @[@[@[@1u, @3u], @0u], @[@[@0u, @4u], @2u], @[@[@0u, @2u, @4u], @1u]]) {
         NSIndexSet *sources = RowSetOf(testCase[0]);
         NSUInteger destination = [testCase[1] unsignedIntegerValue];
@@ -821,11 +782,9 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     [playlist next];
     [playlist next];
     AudioTrack *current = playlist.currentTrack;
-    // A row from above lands below: the cursor slides up.
     XCTAssertTrue([playlist moveTracksAtIndexes:RowSet(0) toIndexes:RowSet(4)]);
     XCTAssertEqual(playlist.currentTrack, current);
     XCTAssertEqual(playlist.currentIndex, 1u);
-    // And back across: the cursor slides down again.
     XCTAssertTrue([playlist moveTracksAtIndexes:RowSet(4) toIndexes:RowSet(0)]);
     XCTAssertEqual(playlist.currentTrack, current);
     XCTAssertEqual(playlist.currentIndex, 2u);
@@ -848,8 +807,7 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     }
 }
 
-// The undo shape: hand the two sets back swapped and the move inverts itself,
-// scattering the gathered block onto the original positions.
+// The undo shape: the two sets handed back swapped.
 - (void)testMoveInvertsItselfWithTheSetsSwapped {
     Playlist *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3", @"c.mp3", @"d.mp3", @"e.mp3"]);
     [playlist next];
@@ -868,8 +826,6 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
 }
 
 - (void)testMoveScattersAContiguousBlockOntoItsDestinations {
-    // The general form directly: rows 0-1 land at {1, 3}, checked against the
-    // remove-then-insert reference.
     Playlist *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3", @"c.mp3", @"d.mp3"]);
     NSMutableArray<AudioTrack *> *expected = [playlist.tracks mutableCopy];
     NSIndexSet *sources = RowRange(0, 2);
@@ -913,7 +869,7 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
 }
 
 - (void)testSettingTheSameCurrentIndexStillNotifies {
-    // A double-click on the already-playing row re-renders it immediately.
+    // A double-click on the playing row must re-render it.
     Playlist *playlist = PlaylistWithFiles(@[@"a.mp3"]);
     RecordingObserver *observer = [RecordingObserver new];
     playlist.observer = observer;
@@ -921,8 +877,8 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     XCTAssertEqualObjects(observer.events, @[@"index 0->0"]);
 }
 
-// One structural edit, one event: the cursor callback deliberately does not
-// also fire, or a table would reconcile the same action twice.
+// The cursor callback must not also fire, or a table would reconcile the
+// same edit twice.
 - (void)testRemovalSendsExactlyOneEventCarryingTheFinalState {
     Playlist *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3", @"c.mp3"]);
     [playlist next];
@@ -932,7 +888,7 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     [playlist removeTracksAtIndexes:RowSet(0)];
     XCTAssertEqualObjects(observer.events, @[@"remove 0 cursor 0 count 2"]);
 
-    // And again where the removed row IS the current one, at the end.
+    // The removed row is the current one.
     [playlist next];
     [observer.events removeAllObjects];
     [playlist removeTracksAtIndexes:RowSet(1)];
@@ -964,7 +920,6 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     [playlist moveTracksAtIndexes:RowSet(0) toIndexes:RowSet(0)];
     XCTAssertEqual(observer.events.count, 0u);
 }
-
 
 - (void)testConversionReplacesAllDuplicateURLsWithFreshRowsAndPreservesCursor {
     NSURL *source = [NSURL fileURLWithPath:@"/tests/source.wav"];

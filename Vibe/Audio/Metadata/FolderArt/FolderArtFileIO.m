@@ -10,8 +10,6 @@
 #import <sys/stat.h>
 #import <unistd.h>
 
-// The lstat/O_NOFOLLOW rule these two share is in FolderArtFileIO.h.
-
 BOOL VibeFolderArtFileInfo(NSString *path, unsigned long long *size) {
     struct stat info;
     if (lstat(path.fileSystemRepresentation, &info) != 0 || !S_ISREG(info.st_mode) ||
@@ -24,10 +22,9 @@ BOOL VibeFolderArtFileInfo(NSString *path, unsigned long long *size) {
     return YES;
 }
 
-// TRAP: O_NONBLOCK belongs on the *open* and nowhere else. It keeps a FIFO or a
-// device named cover.jpg from wedging the resolver on the open itself — S_ISREG
-// cannot be tested until that open returns. Left set across the reads it means
-// something else entirely: a regular file whose bytes are not resident answers
+// TRAP: O_NONBLOCK belongs on the open and nowhere else. It keeps a FIFO or
+// device named cover.jpg from wedging the open (S_ISREG is known only after
+// it); left on across the reads, a file whose bytes are not resident answers
 // EAGAIN, which says nothing about the image.
 NSData *VibeReadFolderArt(NSString *path) {
     int descriptor = open(path.fileSystemRepresentation,
@@ -43,8 +40,7 @@ NSData *VibeReadFolderArt(NSString *path) {
     }
     int flags = fcntl(descriptor, F_GETFL, 0);
     if (flags < 0 || fcntl(descriptor, F_SETFL, flags & ~O_NONBLOCK) < 0) {
-        // The reads would answer EAGAIN instead of blocking, indistinguishable
-        // from a real failure. Give up; the caller's retry budget covers it.
+        // The reads would answer EAGAIN; the caller's retry budget covers this.
         close(descriptor);
         return nil;
     }

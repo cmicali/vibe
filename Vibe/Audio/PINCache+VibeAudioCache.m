@@ -5,16 +5,12 @@
 
 #import "PINCache+VibeAudioCache.h"
 
-// The per-cache disk budget. A metadata archive is roughly 5-20KB and a
-// waveform 128KB — its chunks carry energy beside the min/max peaks — but each
-// art-bearing track also carries a display-art sidecar of up to ~60KB, so the
-// budget is sized for around ten thousand such tracks before LRU eviction
-// starts.
+// Per cache, about ten thousand tracks before LRU eviction: a waveform is
+// 128 KB, a metadata archive 5–20 KB plus up to ~60 KB of display art.
 static const NSUInteger kAudioCacheByteLimit = 1024 * 1024 * 1024;
 
-// Entries untouched for this long are evicted. A rewritten or moved file leaves
-// an orphaned entry whose size-and-mtime key never matches again, and that must
-// not sit in the byte budget forever.
+// A rewritten or moved file orphans its entry (the key never matches again),
+// so untouched entries age out rather than hold the byte budget forever.
 static const NSTimeInterval kAudioCacheAgeLimit = 6 * (30 * (24 * 60 * 60)); // 6 months
 
 @implementation PINCache (VibeAudioCache)

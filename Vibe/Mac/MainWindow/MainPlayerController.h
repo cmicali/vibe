@@ -14,52 +14,37 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The central coordinator for the main window. View outlets and most protocol
-// conformances are internal, in the class extension in the implementation, and
-// the debug command channel's extra surface lives in
-// MainPlayerController+Debug.h. NSMenuDelegate stays public because
-// MainMenuBuilder wires the controller as the View > Theme submenu's delegate.
+// Outlets and most conformances are in MainPlayerControllerInternal.h, the
+// debug surface in MainPlayerController+Debug.h. NSMenuDelegate is public
+// because MainMenuBuilder makes the controller View > Theme's delegate.
 @interface MainPlayerController : NSWindowController <NSMenuDelegate>
 
-// The collaborators, created once in init and never replaced — readonly here,
-// readwrite only inside the class extension, so a caller cannot swap a live
-// collaborator and orphan its delegate wiring. MainMenuBuilder wires
-// devicesMenuController as the Output menu's delegate.
+// Created once in init and never replaced, so no caller can orphan a
+// collaborator's delegate wiring.
 @property (readonly, strong) OutputDevicesMenuController *devicesMenuController;
 @property (readonly, strong) AudioPlayer *audioPlayer;
 @property (readonly, strong) PlaylistController *playlistController;
 @property (readonly, strong) AudioTrackMetadataCache *metadataCache;
 @property (readonly, strong) AudioWaveformCache *waveformCache;
-// Convert to FLAC's engine. The controller owns it because it also owns the
-// swap afterwards, and every menu's item validates against it.
 @property (readonly, strong) AudioFileConverter *fileConverter;
 
 - (void)play:(NSArray<NSURL *> *)urls;
 
-// The varispeed playback rate, 1.0 + pitch/100: the track plays this much
-// faster or slower than file time. The time labels, and the Now Playing
-// publish, show file time divided by it, and the bar-less skip fallback
-// multiplies by it. The Transport and NowPlaying categories read it.
+// The varispeed rate, 1.0 + pitch/100. Time labels and Now Playing show file
+// time divided by it.
 - (double)playbackRate;
 
-// Appends to the current playlist without disturbing playback, and starts
-// playing when the playlist is empty. The later batches of AppDelegate's open
-// burst land here.
+// Appends without disturbing playback; plays when the playlist is empty.
 - (void)addURLs:(NSArray<NSURL *> *)urls;
 
-// Ends the launch grace period. The header starts blank rather than flashing
-// the empty state while a launch-time open, from a Finder double-click or
-// argv, is still resolving. The app delegate calls this once it knows nothing
-// is being opened, and play: ends the grace on its own. Idempotent.
+// Ends the launch grace, which keeps the header blank rather than flashing the
+// empty state while a launch-time open resolves. play: ends it too. Idempotent.
 - (void)revealEmptyState;
 
-// The launch restore of the container mirror: YES when it came back, parked
-// on its last current row; NO when the setting is off or nothing was saved,
-// and the caller reveals the empty state as before. Not an open
-// (Mac/App/CLAUDE.md).
+// YES when the mirror came back, parked on its last current row; NO when the
+// setting is off or nothing was saved. Not an open (Mac/App/CLAUDE.md).
 - (BOOL)restoreLastPlaylist;
-// Quit-time: writes the mirror, or deletes it when the setting is off or the
-// playlist is empty.
+// Quit-time: writes the mirror, or deletes it when off or empty.
 - (void)saveLastPlaylist;
 
 - (IBAction)closeApp:(id)sender;
@@ -69,31 +54,20 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)next:(nullable id)sender;
 - (IBAction)previous:(nullable id)sender;
 
-// Playback > Play Selected Track (Return), and the same bare key through
-// TransportKeyMonitor: plays the playlist row the arrow keys have selected,
-// exactly as a double-click on it does.
+// Plays the selected row, as a double-click does.
 - (IBAction)playSelectedTrack:(nullable id)sender;
 
-// File > Close (⌘W). It stops playback, clears the playlist and returns the
-// app to the empty state.
 - (IBAction)closeFile:(nullable id)sender;
 
-// File > Save Playlist… (⌘S): the playlist as an M3U file, wherever the save
-// panel lands it. The audio files are never touched.
+// The playlist as M3U; the audio files are never touched.
 - (IBAction)savePlaylist:(nullable id)sender;
 
-// Edit > Remove from Playlist, and the same through Backspace and Forward
-// Delete: takes the selected row out of the playlist, leaving its file where it
-// is. Removing a row that is not playing never interrupts playback; removing
-// the playing one moves to a deterministic adjacent row.
+// Removes every selected row, never the file. A removed current row hands its
+// play intent to its forward successor, or parks on the row before.
 - (IBAction)removeSelectedPlaylistTracks:(nullable id)sender;
 
-// MainPlayerController+Transport.h declares, and implements, the
-// relative-seek skips and the DJ effect toggles.
-
-// MainPlayerController+Window.h declares, and implements, everything that
-// changes the window's shape or appearance: the Size presets, the pitch-panel
-// reveal, always-on-top and the light/dark choice.
+// The Transport, Window and Convert actions are declared in their category
+// headers.
 
 - (IBAction)setPitchRange:(id)sender;
 
@@ -102,9 +76,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)showInFinder:(id)sender;
 - (IBAction)copyFile:(id)sender;
 - (IBAction)copyName:(id)sender;
-
-// The Convert to FLAC and undo/redo actions live in
-// MainPlayerController+Convert.h, like the Transport actions.
 
 @end
 

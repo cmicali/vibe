@@ -2,11 +2,9 @@
 //   <index> <ownerName> <pid> <width>x<height> layer<n>
 // Usage: swift window-stack.swift
 //
-// The screenshot runs cover the screen with backdrop.swift and then raise the
-// app back over it; this is how they check that the raise actually took. A
-// window can be key while another app's window sits on top of it, and the
-// merged capture reads the composited screen — so without this check a lost
-// race photographs the backdrop through a window-shaped hole, silently.
+// How the screenshot runs confirm Vibe was raised over backdrop.swift: a key
+// window can still sit under another app's, and the merged capture would then
+// silently photograph a window-shaped hole.
 import CoreGraphics
 import Foundation
 

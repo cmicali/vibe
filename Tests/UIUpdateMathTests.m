@@ -1,9 +1,4 @@
-//
-// The playback-UI tick rate rule: the Hz that steps the playhead about
-// kVibeUITargetPxPerTick device pixels, clamped to [3, 30]. Ordinary songs
-// must land on the floor — they cost exactly what they always did — and short
-// samples on the cap.
-//
+// Ordinary songs must land on the floor, and short samples on the cap.
 
 #import <XCTest/XCTest.h>
 
@@ -48,18 +43,14 @@ static NSUInteger Hz(double widthPx, NSTimeInterval duration, double rate) {
 }
 
 - (void)testFasterRateAsksForMoreTicks {
-    // The pitch fader moves the playhead, so it moves the rate. +16% on a
-    // track that sits mid-range at 1.0.
+    // ±16% on a track that sits mid-range at 1.0.
     XCTAssertEqual(Hz(kWidthPx, 60.0, 1.16), (NSUInteger)12);
     XCTAssertEqual(Hz(kWidthPx, 60.0, 0.84), (NSUInteger)9);
-    // A rate change cannot escape the clamps.
     XCTAssertEqual(Hz(kWidthPx, 240.0, 1.16), kVibeUIUpdateHzMin);
     XCTAssertEqual(Hz(kWidthPx, 5.0, 0.84), kCap);
 }
 
 - (void)testWiderWaveformAsksForMoreTicks {
-    // The same track on a wider window, or on a Retina display against a
-    // non-Retina one, moves more pixels per second.
     XCTAssertEqual(Hz(600.0, 60.0, 1.0), (NSUInteger)5);
     XCTAssertEqual(Hz(2400.0, 60.0, 1.0), (NSUInteger)20);
 }
@@ -88,7 +79,6 @@ static NSUInteger Hz(double widthPx, NSTimeInterval duration, double rate) {
     // A five-second sample asks for 120 Hz and takes whatever it is allowed.
     XCTAssertEqual(VibeUIUpdateHzForPlayhead(kWidthPx, 5.0, 1.0, 60), (NSUInteger)60);
     XCTAssertEqual(VibeUIUpdateHzForPlayhead(kWidthPx, 5.0, 1.0, 30), (NSUInteger)30);
-    // The floor cap is the fixed 3 Hz tick the app had before this rule.
     XCTAssertEqual(VibeUIUpdateHzForPlayhead(kWidthPx, 5.0, 1.0, 3), kVibeUIUpdateHzMin);
     XCTAssertEqual(VibeUIUpdateHzForPlayhead(kWidthPx, 30.0, 1.0, 3), kVibeUIUpdateHzMin);
     // A cap above what the playhead needs changes nothing: 40 px/s is 20 Hz

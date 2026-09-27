@@ -2,21 +2,8 @@
 //  AudioTrackMetadataCache+Debug.h
 //  Vibe
 //
-//  What the health oracle reads from background metadata materialization. Both
-//  values belong at rest — a settled sweep has no pending file acquisition
-//  and is not held — so the stress driver scores them as pending
-//  counters rather than as information.
-//
-//  A held lane at rest is the failure this exists for: the hold is set when a
-//  slow open starts and cleared when it settles, so a teardown that loses the
-//  clearing edge leaves the whole sweep suspended, and the symptom is metadata
-//  that simply never arrives for anything.
-//
-//  Declaration-only, like AudioPlayer+Debug.h: both implementations stay in the
-//  classes' own .m files, where the ivars are, and re-declaring here is what
-//  keeps the shipping headers free of #if DEBUG.
-//
-//  Debug builds only, like everything in this directory.
+//  What the health oracle reads from background metadata materialization.
+//  Declaration-only, like AudioPlayer+Debug.h.
 //
 
 #if DEBUG
@@ -38,21 +25,20 @@ NS_ASSUME_NONNULL_BEGIN
 // The versioned PINCache store name reported by clear_caches.
 + (NSString *)cacheName;
 
-// Stage-2 file acquisitions queued by the scan and not yet settled. Main
-// thread only, like the rest of the cache's surface.
+// Stage-2 file acquisitions queued, delayed or in flight. Zero at rest, so the
+// stress driver scores it as a pending counter. Main thread, like the rest of
+// the cache's surface.
 - (NSUInteger)debugPendingBackgroundMaterializationCount;
 
-// Whether background materialization is suspended by the foreground-download
-// hold.
+// The coordinator's isForegroundTransferActive, which suspends background
+// materialization. Stopped and settled must read NO.
 - (BOOL)debugBackgroundMaterializationHeld;
 
-// The priority lane's request bookkeeping by track name: queued, parked, the
-// later-load markers, and whether its own materialization token is live. Main
-// thread; the scan slot is reported separately below.
+// The priority lane's bookkeeping, rows by file name. Main thread.
 - (NSDictionary *)debugPriorityLaneState;
 
-// The ordinary scan lane, separated from priority records so a scenario can
-// prove stage-one completion and scan demand without subtracting aggregates.
+// The scan lane apart from priority rows, so a scenario can prove stage-1
+// completion and scan demand without subtracting aggregates.
 - (NSDictionary *)debugScanLaneState;
 
 @end

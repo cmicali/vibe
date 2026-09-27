@@ -2,8 +2,6 @@
 //  AppearanceSettingsViewController.m
 //  Vibe (iOS)
 //
-//  See AppearanceSettingsViewController.h.
-//
 
 #import "AppearanceSettingsViewController.h"
 
@@ -23,8 +21,7 @@ typedef NS_ENUM(NSInteger, VibeAppearanceRow) {
     VibeAppearanceRowCount,
 };
 
-// The time display's two answers, in the order the mac's radio pair reads.
-// Deliberately not a cast of the BOOL: a row index is a screen position.
+// Not a cast of the BOOL: a row index is a screen position.
 static const NSInteger kTimeRowTotal     = 0;
 static const NSInteger kTimeRowRemaining = 1;
 
@@ -32,9 +29,8 @@ static NSString *const kValueCellIdentifier  = @"value";
 static NSString *const kSwitchCellIdentifier = @"switch";
 
 @implementation AppearanceSettingsViewController {
-    // Style IDENTIFIERS, sorted by their localized display names so the list
-    // reads alphabetically in whatever language it is drawn in. A display name
-    // is never a key — see AudioWaveformRenderer.h.
+    // IDENTIFIERS, sorted by localized display name; a display name is never
+    // a key.
     NSArray<NSString *> *_waveformStyles;
 }
 
@@ -52,9 +48,7 @@ static NSString *const kSwitchCellIdentifier = @"switch";
     }];
 }
 
-// The value column is this screen's whole job, and a picker writes its setting
-// without telling anyone here — so the rows are re-read on the way back rather
-// than kept in step from the other side.
+// A picker writes without telling this screen.
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     [self.tableView reloadData];
@@ -62,9 +56,7 @@ static NSString *const kSwitchCellIdentifier = @"switch";
 
 #pragma mark - Current values
 
-// The style actually being drawn, not the raw stored value: an identifier from
-// a later version, or a hand-edited one, renders as the default, and a
-// checkmark on a row nothing draws would misreport the screen.
+// Resolved, not the stored value: an unknown identifier draws as the default.
 - (NSString *)currentWaveformStyle {
     return [WaveformRendererRegistry resolveStyleIdentifier:AppSettings.sharedInstance.waveformStyle];
 }
@@ -73,8 +65,8 @@ static NSString *const kSwitchCellIdentifier = @"switch";
     return [WaveformRendererRegistry displayNameForIdentifier:[self currentWaveformStyle]];
 }
 
-// Unset is the default and reads as Match app — NOT as the app's style name,
-// which would say the widget is pinned to it when it is actually following.
+// Unset reads as Match app, NOT the app's style name, which would say the widget
+// is pinned when it is following.
 - (NSString *)widgetWaveformStyleValueText {
     NSString *identifier = AppSettings.sharedInstance.widgetWaveformStyle;
     return identifier ? [WaveformRendererRegistry displayNameForIdentifier:identifier]
@@ -159,16 +151,12 @@ static NSString *const kSwitchCellIdentifier = @"switch";
             next = [self timeDisplayPicker];
             break;
         default:
-            return;     // the switch row's own control changes it
+            return;     // the switch row
     }
     [self.navigationController pushViewController:next animated:YES];
 }
 
-// The picker is handed display names and hands back a row index; the identifier
-// it stands for is resolved here, against the same sorted array the names came
-// from, so the two cannot get out of step.
-// The styles' localized names, in _waveformStyles' order — both pickers list
-// the same styles and differ only in what precedes them.
+// In _waveformStyles' order, so a picker's row index maps back to it.
 - (NSMutableArray<NSString *> *)waveformStyleNames {
     NSMutableArray<NSString *> *names = [NSMutableArray arrayWithCapacity:_waveformStyles.count];
     for (NSString *identifier in _waveformStyles) {
@@ -191,9 +179,7 @@ static NSString *const kSwitchCellIdentifier = @"switch";
     }];
 }
 
-// The same list with Match app on the front, so row 0 is "follow" and every
-// other row is offset by one against the style array. The offset is the whole
-// mapping and it lives here, beside the array it indexes.
+// Match app first, so every other row is offset by one against the styles.
 - (SettingsChoiceViewController *)widgetWaveformStylePicker {
     NSMutableArray<NSString *> *names = [self waveformStyleNames];
     [names insertObject:STR_SETTINGS_WIDGET_WAVEFORM_MATCH atIndex:0];
@@ -202,8 +188,7 @@ static NSString *const kSwitchCellIdentifier = @"switch";
     NSInteger selected = 0;
     if (current) {
         NSUInteger index = [styles indexOfObject:current];
-        // A style that is no longer registered falls back to Match app rather
-        // than leaving the list with no checkmark at all.
+        // An unregistered style falls back to Match app's checkmark.
         selected = index == NSNotFound ? 0 : (NSInteger)index + 1;
     }
     return [[SettingsChoiceViewController alloc]

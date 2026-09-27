@@ -14,73 +14,52 @@
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <stdatomic.h>
 
-// NSUserDefaults keys. Kept here rather than in AppSettings: they are iOS
-// app-layer state, and the shared settings file stays untouched.
+// iOS app-layer state, so not AppSettings.
 static NSString *const kFolderBookmarkKey = @"VibeiOSFolderBookmark";
 static NSString *const kAdditionBookmarksKey = @"VibeiOSAdditionBookmarks";
-// The value is a standardized path now, not a filename; the key keeps its
-// shipped spelling so an installed build's parked track survives the update —
-// a bare filename left by one restores through the match's filename tier.
+// Holds a standardized path despite its name: the shipped key is kept so a
+// bare filename an older build wrote restores through the filename tier.
 static NSString *const kLastTrackPathKey = @"VibeiOSLastTrackFileName";
-// The bound on a launch restore's concurrent bookmark resolutions, the same
-// one SearchFolderStore's restore uses and for the same reason: one stalled
-// provider must not head-of-line every other bookmark.
+// SearchFolderStore's bound, for its reason: one stalled provider must not
+// head-of-line every other bookmark.
 static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 
 @interface FolderSession () <UIDocumentPickerDelegate>
 @end
 
 @implementation FolderSession {
-    // Every URL whose security scope this session started, in acquisition
-    // order: the base open's, then each addition's. Held for the whole session
-    // — the player, TagLib and the waveform loader read under them at
-    // arbitrary later times — and released only after a successor set is in
-    // hand. Main-confined; workers get snapshots. A URL may appear twice (a
-    // worker's own hold adopted beside the session's), each start balanced by
-    // its own stop.
+    // Every scope this session started, held for the session (the player,
+    // TagLib and the waveform loader read under them at any time) and released
+    // only once a successor set is in hand. Main-confined. A URL may appear
+    // twice, each start balanced by its own stop.
     NSMutableArray<NSURL *> *_scopedURLs;
     // Persistent-root grants retained for this playlist, same lifetime.
     NSMutableArray<SearchFolderGrant *> *_searchGrants;
-    // The BASE folder: the Playlist tab's title, the star, the bookmark.
-    // Appends never move it; nil for a single-file base.
+    // The BASE: title, star, bookmark. Appends never move it; nil for a
+    // single-file base.
     NSURL *_folderURL;
-    // Folders added after the base (or a multi-URL open's further folders).
-    // Search roots only — never the title, never the star.
+    // Search roots only — never the title or the star.
     NSMutableArray<NSURL *> *_addedFolderURLs;
-    // YES when this session's replace wrote the base bookmark, so the addition
-    // list belongs to this session and may be extended. NO after a search-hit
-    // open, an inbox copy or a one-file open over a folder bookmark, all of
-    // which leave the persisted base alone.
+    // YES when this session's replace wrote the base bookmark, so the
+    // persisted addition list is this session's to extend.
     BOOL _additionsPersisted;
-    // Bookmark resolution and directory listings are file-provider IPC.
-    // Replaces run concurrently so a new user intent is not parked behind an
-    // older provider call; openIntentGeneration decides which result may
-    // deliver.
+    // Replaces run concurrently so a new intent never waits behind an older
+    // provider call; the generation decides which result delivers.
     dispatch_queue_t _workQueue;
-    // Appends run serially, behind each other but not behind a replace, so two
-    // Adds land in tap order.
+    // Serial, so two Adds land in order, but never behind a replace.
     dispatch_queue_t _appendQueue;
     _Atomic(uint64_t) _openIntentGeneration;
-    // The generation of the last SETTLED replace — one that delivered a
-    // playlist, or one that found nothing and so left the last delivered one
-    // standing. An append lands only against the playlist it was requested on;
-    // zero means nothing has ever landed, so an Add is promoted to an Open.
-    // Main-confined.
+    // The last SETTLED replace's generation; an append lands only against it.
+    // Zero: nothing has landed, so an Add is promoted to an Open. Main-confined.
     uint64_t _landedOpenIntentGeneration;
-    // YES between promoting an Add to an Open and that open settling. Only the
-    // FIRST Add onto a never-landed session may promote; the rest park below.
-    // Set only by a promotion, so a launch restore that failed leaves it NO and
-    // the Add after it still plays. Main-confined.
+    // YES from a promotion until that open settles; later Adds park in
+    // _addWaiters. Set only by a promotion, so after a failed launch restore
+    // the next Add still plays. Main-confined.
     BOOL _promotedOpenInFlight;
-    // The generation a promotion created, or zero. A promotion bumps the
-    // generation like any replace, but it is itself an Add and has no business
-    // cancelling the Adds tapped alongside it: their tokens are one below this,
-    // and addURLs:token: lets those through so the waiter path can park them.
-    // Self-invalidating — a real replace or a clear bumps past this value, and
-    // the "is it still live" test then fails on its own.
+    // The generation a promotion created, or zero; see addURLs:token:.
     uint64_t _promotedOpenIntentGeneration;
-    // Adds parked behind that promoted open, each delivered exactly once when
-    // it settles — landed, empty, or beaten by a user's replace. Main-confined.
+    // Waiters, delivered once when the promoted open settles, however it
+    // settles. Main-confined.
     NSMutableArray<void (^)(void)> *_addWaiters;
 }
 
@@ -90,8 +69,6 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         dispatch_queue_attr_t attributes = dispatch_queue_attr_make_with_qos_class(
                 DISPATCH_QUEUE_CONCURRENT, QOS_CLASS_USER_INITIATED, 0);
         _workQueue = dispatch_queue_create("FolderSession", attributes);
-        // Targeting the work queue inherits its QoS and keeps appends off the
-        // replace lane's concurrency.
         _appendQueue = dispatch_queue_create_with_target("FolderSession.append",
                                                          DISPATCH_QUEUE_SERIAL, _workQueue);
         _scopedURLs = [NSMutableArray array];
@@ -130,22 +107,14 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
             == openIntentGeneration;
 }
 
-// The session URL covering path, or nil. Two lists answer two different
-// questions, and conflating them cost a playlist its access:
-//
-// self.searchRoots — the LOGICAL base and additions — answers what may be
-// LISTED. A container folder is never security-scoped, so _folderURL can be
-// set while _scopedURLs is empty, and a file picked inside the open container
-// folder must still expand to it.
-//
-// _scopedURLs answers what may be HELD. TRAP: a security scope is acquired
-// through the URL the system granted, never through a path-equivalent one this
-// app derived. A search hit leaves _folderURL pointing at a parent derived
-// from the hit, so a later open under it picked that derived URL,
-// startAccessingSecurityScopedResource refused it, no hold was collected, and
-// the landing then stopped the real grant with no successor — leaving the
-// player, TagLib and the waveform loader reading a playlist they had just lost
-// access to.
+// Asked of two lists. self.searchRoots, the LOGICAL roots, answers what may be
+// LISTED: a container folder is never security-scoped, yet a file picked in it
+// must still expand to it. _scopedURLs answers what may be HELD.
+// TRAP: a scope is started through the URL the system granted, never a
+// path-equivalent one the app derived. A search hit leaves _folderURL a
+// derived parent; asked for a hold, it refuses the start, nothing is
+// collected, and the landing stops the real grant with no successor — the
+// playlist goes unreadable mid-play.
 - (NSURL *)rootCoveringPath:(NSString *)path in:(NSArray<NSURL *> *)roots {
     for (NSURL *root in roots) {
         if (VibeSearchRootCoversPath(root.URLByStandardizingPath.path, path)) {
@@ -161,8 +130,8 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     NSArray<UTType *> *types = [@[UTTypeFolder] arrayByAddingObjectsFromArray:DocumentTypes.declaredFileTypes];
     UIDocumentPickerViewController *picker =
         [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:types asCopy:NO];
-    // Several items at once: this is the app's only multi-select road now that
-    // the browser's own multi-item picking is off (FilesViewController).
+    // The app's only multi-select road: the browser's stays off
+    // (FilesViewController).
     picker.allowsMultipleSelection = YES;
     picker.delegate = self;
     [presenter presentViewController:picker animated:YES completion:nil];
@@ -177,11 +146,9 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 
 - (void)openURLs:(NSArray<NSURL *> *)urls openInPlace:(BOOL)openInPlace {
     if (!openInPlace) {
-        // Not open-in-place: the system handed a copy in our own inbox
-        // container, readable without a scope. It deliberately skips the
-        // worker — Documents/Inbox sits UNDER the container Documents folder,
-        // so whenever that folder is the open base the coverage rule would
-        // expand the copy into the whole Inbox.
+        // An inbox copy, readable without a scope. It skips the worker:
+        // Documents/Inbox sits under Documents, so with Documents as the base
+        // the coverage rule would expand the copy into the whole Inbox.
         NSURL *url = urls.firstObject;
         if (!url) {
             return;
@@ -203,22 +170,14 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 }
 
 - (void)addURLs:(NSArray<NSURL *> *)urls token:(uint64_t)token {
-    // The generation an Add is judged against is captured when the USER asks,
-    // not when the caller finally has a URL. Without this, a favorite whose
-    // provider took its time resolved after the user had opened something else
-    // and appended to that new playlist, having captured ITS generation on the
-    // way in — the one case the append guard cannot catch, since by then the
-    // request looks freshly made.
+    // The token is taken when the USER asks, so a favorite whose resolve
+    // outlived a replace is dropped rather than appended to the new playlist.
     //
-    // TRAP: a PROMOTION is not a supersession. The first of several Adds tapped
-    // onto an empty playlist is promoted to an Open, and that bumps the
-    // generation — which used to drop its own siblings here, before they could
-    // reach the waiter path that exists for exactly them. Invisible on local
-    // files, where a resolve is a millisecond; wide open on a cold provider,
-    // where it is seconds. A token one below the generation a promotion created
-    // is therefore still the user's request, as long as that promotion is still
-    // the live generation: a real replace or a clear bumps past it and drops
-    // these siblings as it should.
+    // TRAP: a PROMOTION is not a supersession. Promoting the first of several
+    // Adds onto an empty playlist bumps the generation; without this exemption
+    // its siblings are dropped here before they can park as waiters (seconds
+    // on a cold provider). A token one below the live promoted generation is
+    // still the user's; a real replace or a clear bumps past it.
     BOOL supersededByOwnPromotion = _promotedOpenIntentGeneration != 0
             && token + 1 == _promotedOpenIntentGeneration
             && [self isCurrentOpenIntent:_promotedOpenIntentGeneration];
@@ -234,11 +193,8 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 }
 
 - (void)clearSession {
-    // FIRST, so an open still in flight is superseded: its result is dropped
-    // and its own holds and owned scopes are released by its own path, which
-    // is what keeps every start balanced by exactly one stop. Acquire before
-    // release does not apply — there is no successor playlist to keep
-    // readable, which is the whole point of a clear.
+    // FIRST: an open in flight is superseded and releases its own scopes on
+    // its own path. No successor set, so acquire-before-release does not apply.
     [self beginOpenIntent];
     for (NSURL *url in _scopedURLs) {
         [url stopAccessingSecurityScopedResource];
@@ -248,8 +204,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     _folderURL = nil;
     _addedFolderURLs = [NSMutableArray array];
     _additionsPersisted = NO;
-    // Back to "nothing has ever landed", so the next Add is promoted to an
-    // Open and plays, exactly as the first Add of a fresh session does.
+    // Nothing has landed, so the next Add is promoted to an Open.
     _landedOpenIntentGeneration = 0;
     _promotedOpenInFlight = NO;
     _promotedOpenIntentGeneration = 0;
@@ -268,9 +223,8 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     }
     NSArray *additions =
             [NSUserDefaults.standardUserDefaults arrayForKey:kAdditionBookmarksKey] ?: @[];
-    // The base first, then the additions in persisted order. Everything below
-    // keeps that order: it is what the worker's base-first dedupe and the
-    // first-contributor base rule rest on.
+    // Base first, then additions, in persisted order: the dedupe and the
+    // first-contributor base rule rest on it.
     NSMutableArray<NSData *> *bookmarks = [NSMutableArray arrayWithObject:bookmark];
     for (id data in additions) {
         if ([data isKindOfClass:NSData.class]) {
@@ -286,18 +240,12 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         if (![self isCurrentOpenIntent:openIntentGeneration]) {
             return;
         }
-        // No pre-adopt refresh of a stale bookmark: minting bookmark data
-        // needs the security scope OPEN, and the landing re-persists after the
-        // scope starts anyway — the refresh before it always failed.
+        // No refresh of a stale bookmark here: minting needs the scope OPEN,
+        // and the landing re-persists anyway.
         NSArray<NSURL *> *urls = [self resolveBookmarksConcurrently:bookmarks
                                               openIntentGeneration:openIntentGeneration];
-        // Only a restore where NOTHING resolved is a failed restore. A base
-        // that has been deleted while its additions are still readable
-        // restores from those: the first survivor becomes the base, and the
-        // landing rewrites both keys from the contributors, the same
-        // self-healing that already prunes a dead addition. Erasing the
-        // addition list because the base died threw away folders the user
-        // could still play.
+        // Only a restore where NOTHING resolved fails. A dead base's
+        // surviving additions restore, the first becoming the base.
         if (urls.count == 0 || ![self isCurrentOpenIntent:openIntentGeneration]) {
             if (urls.count == 0) {
                 LogWarn(@"FolderSession: no persisted bookmark resolves");
@@ -318,30 +266,13 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     return YES;
 }
 
-// Resolves a launch restore's bookmarks off main, at most
-// kMaximumConcurrentBookmarkRestorations at a time, and answers the URLs that
-// resolved IN THE ORDER THEY WERE PASSED. Whatever failed is simply missing
-// from the answer — the BASE included, which is not special here: a base that
-// no longer resolves must not take still-readable additions down with it, so
-// the first survivor becomes the base by the first-contributor rule and the
-// landing rewrites both keys from what actually contributed. Nothing prunes
-// the persisted list; that rewrite is the pruning. An empty answer means
-// nothing resolved at all, which is the one genuine failure.
-//
-// Resolution is provider IPC that can take seconds per bookmark, and a
-// CONCURRENT QUEUE DOES NOT PARALLELIZE WORK INSIDE ONE BLOCK: resolving them
-// in a row made every launch cost their sum. Bounded exactly as
-// SearchFolderStore's launch restore is (Search/CLAUDE.md), so one slow
-// provider cannot head-of-line the rest.
-//
-// It does NOT stop a stalled provider from delaying launch. The walk needs the
-// whole union, so this waits for the slowest bookmark whatever the bound does;
-// bounded concurrency only lets the other bookmarks make progress meanwhile.
-// The directory LISTING that follows, and the bookmark minting after it, are
-// still serial: deliberately, because the dedupe, the contributor list and the
-// first-contributor base rule are all order-dependent walks of one loop that
-// also owns each URL's scope start and its paired stop, and splitting that loop
-// would put the scope balance at risk for a second-order win.
+// Answers the URLs that resolved, IN THE ORDER PASSED; a failure, the base
+// included, is simply missing, and the landing's rewrite of both keys is the
+// pruning. Parallel because a concurrent queue does not parallelize inside
+// one block, and resolving in a row cost the sum. It still waits for the
+// slowest bookmark, since the walk needs the whole union. The listing and
+// minting that follow stay serial on purpose: one order-dependent loop owns
+// the dedupe, the base rule and each scope's start-stop pairing.
 - (NSArray<NSURL *> *)resolveBookmarksConcurrently:(NSArray<NSData *> *)bookmarks
                               openIntentGeneration:(uint64_t)openIntentGeneration {
     NSMutableArray *slots = [NSMutableArray arrayWithCapacity:bookmarks.count];
@@ -354,8 +285,6 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     queue.maxConcurrentOperationCount = kMaximumConcurrentBookmarkRestorations;
     [bookmarks enumerateObjectsUsingBlock:^(NSData *data, NSUInteger index, BOOL *stop) {
         [queue addOperationWithBlock:^{
-            // A user open landing mid-restore wins: the rest of this restore
-            // costs the provider nothing.
             if (![self isCurrentOpenIntent:openIntentGeneration]) {
                 return;
             }
@@ -365,10 +294,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
                 LogWarn(@"FolderSession: a bookmark no longer resolves (%@)", error);
                 return;
             }
-            // Completion order is not playlist order. Each result goes back
-            // into its own slot and the union is read out below in persisted
-            // order, so a fast addition can never overtake the base or another
-            // addition and claim its place.
+            // Its own slot: completion order must not become playlist order.
             @synchronized (slots) {
                 slots[index] = url;
             }
@@ -407,9 +333,8 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 }
 
 - (NSData *)bookmarkForURL:(NSURL *)url {
-    // iOS has no WithSecurityScope option: a default bookmark of a
-    // picker-granted URL round-trips the scope by itself. Requires the URL's
-    // scope to be open, which every caller guarantees.
+    // iOS has no WithSecurityScope option: a default bookmark of a granted
+    // URL carries the scope. Requires the scope open, which every caller holds.
     NSError *error = nil;
     NSData *bookmark = [url bookmarkDataWithOptions:0
                      includingResourceValuesForKeys:nil
@@ -421,9 +346,8 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     return bookmark;
 }
 
-// Extends the persisted addition list. Only this session's own base may be
-// extended: after a search hit, an inbox copy or a one-file open over a folder
-// bookmark the persisted base belongs to an earlier playlist.
+// Only this session's own base may be extended: after a search hit, an inbox
+// copy or a one-file open over a folder bookmark, it is an earlier playlist's.
 - (void)persistAdditionBookmarks:(NSArray<NSData *> *)additionBookmarks {
     if (additionBookmarks.count == 0) {
         return;
@@ -437,9 +361,8 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
                                             forKey:kAdditionBookmarksKey];
 }
 
-// The hold is what makes this safe to run off main: finishOpenIntent releases
-// the previous scopes the moment a newer open lands, and a mint under a closed
-// scope fails.
+// The hold makes this safe off main: a newer open landing releases the
+// previous scopes, and a mint under a closed scope fails.
 - (void)bookmarkOpenFolderWithCompletion:(void (^)(NSURL *folderURL,
                                                    NSData *bookmark))completion {
     NSURL *folderURL = _folderURL;
@@ -447,8 +370,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         completion(nil, nil);
         return;
     }
-    // From the scoped list, not the search roots: the hold has to be taken on
-    // the granted URL, and _folderURL can be one this session derived.
+    // The scoped list, not the search roots: see rootCoveringPath:in:.
     NSURL *scopedURL = [self rootCoveringPath:folderURL.URLByStandardizingPath.path
                                            in:_scopedURLs];
     BOOL scopeHoldStarted = [scopedURL startAccessingSecurityScopedResource];
@@ -463,17 +385,14 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     });
 }
 
-// The browser's own grant, not this session's: the URL arrives granted, so the
-// hold is started on it directly rather than looked up in the scoped list.
+// The URL arrives with the browser's grant, so its scope is started directly.
 - (void)bookmarkFolderURL:(NSURL *)folderURL
                completion:(void (^)(NSData *bookmark))completion {
     if (!folderURL) {
         completion(nil);
         return;
     }
-    // A NO return is not failure — the app's own container is not
-    // security-scoped and mints without a hold — so only a start that returned
-    // YES is stopped, the same pairing the open path uses.
+    // NO is not failure: the app's own container is not security-scoped.
     BOOL scopeHoldStarted = [folderURL startAccessingSecurityScopedResource];
     dispatch_async(_workQueue, ^{
         NSData *bookmark = [self bookmarkForURL:folderURL];
@@ -488,34 +407,23 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 
 #pragma mark - Opening
 
-// The one funnel for a URL list from any source. Each request owns an intent
-// number; provider work can overlap, but only the newest result may replace the
-// live session. Main thread, and no I/O: string compares over snapshots, plus
-// the scope starts the worker reads under — a request also takes a hold on each
-// covering scope so an older worker can finish safely after a newer result has
+// The one prologue for every URL list. Main thread, no I/O. Each request holds
+// each covering scope, so an older worker can finish after a newer result has
 // replaced it.
 //
-// fromSearchRoots: YES for a search hit — its parent was already walked under a
-// root in hand, so it is listed unconditionally, and the persisted bookmark is
-// left alone, since re-pointing it at a subfolder would shrink next launch's
-// searchable root.
+// fromSearchRoots: a search hit, whose parent a root in hand already covers.
+// It is listed unconditionally and leaves the persisted bookmark alone:
+// re-pointing it at a subfolder would shrink next launch's searchable root.
 - (void)beginOpenURLs:(NSArray<NSURL *> *)urls
             appending:(BOOL)appending
       fromSearchRoots:(BOOL)fromSearchRoots {
     if (urls.count == 0) {
         return;
     }
-    // An Add onto nothing IS an open: it plays and presents the card. "Restore
-    // failed at launch, then Add" deliberately lands here and plays.
-    //
-    // TRAP: only the FIRST such Add may promote. Promoting every Add made
-    // before anything had landed made two Adds onto an empty playlist cancel
-    // each other — each became an Open, each bumped the generation, and the
-    // second superseded the first, so a selection the user made was silently
-    // discarded. That is not the drop rule: a user's explicit replace beating
-    // a stale Add is wanted, two Adds beating each other is not. The rest park
-    // as waiters and are replayed once the promoted open settles, whichever way
-    // it settles.
+    // An Add onto nothing IS an open, including after a failed launch restore.
+    // TRAP: only the FIRST such Add may promote. Each promotion bumps the
+    // generation, so two promoted Adds cancel each other and a selection
+    // vanishes. The rest park as waiters, replayed when it settles.
     BOOL promoting = NO;
     if (appending && _landedOpenIntentGeneration == 0) {
         if (_promotedOpenInFlight) {
@@ -523,10 +431,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
                 _addWaiters = [NSMutableArray array];
             }
             NSArray<NSURL *> *parked = [urls copy];
-            // Weak: the waiter is stored ON this session, so a strong capture
-            // would be a cycle. A session torn down before the open settles
-            // takes its parked Adds with it, which is what a gone playlist
-            // should do.
+            // Weak: the waiter is stored on self.
             __weak FolderSession *weakSelf = self;
             [_addWaiters addObject:^{
                 [weakSelf beginOpenURLs:parked appending:YES fromSearchRoots:fromSearchRoots];
@@ -543,14 +448,10 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     if (promoting) {
         _promotedOpenIntentGeneration = openIntentGeneration;
     }
-    // The listing order rides the snapshot for the same reason the rest of it
-    // does: an open must not straddle a Settings change.
+    // Snapshotted: an open must not straddle a Settings change.
     VibeFolderOpenSort sort = AppSettings.sharedInstance.folderOpenSort;
-    // The roots this request may read under, standardized here because the
-    // worker's one coverage question takes paths. A session folder implies no
-    // scope — a container folder is never security-scoped — while a hold and a
-    // grant do, which is why all three land in one list for reading and stay
-    // separate lists for lifetime.
+    // Every root this request may read under, as paths: one list for reading,
+    // while holds and grants stay separate lists for lifetime.
     NSMutableArray<NSString *> *coveringRootPaths = [NSMutableArray array];
     for (NSURL *folder in self.searchRoots) {
         [coveringRootPaths addObject:folder.URLByStandardizingPath.path ?: @""];
@@ -559,16 +460,13 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     NSMutableArray<SearchFolderGrant *> *grants = [NSMutableArray array];
     for (NSURL *url in urls) {
         NSString *path = url.URLByStandardizingPath.path;
-        // The scoped list, never the search roots: this answer is started, and
-        // only the granted URL can be. A logical root that is merely
-        // path-equivalent refuses the start and would collect nothing, while
-        // still masking the favorites lookup below.
+        // The scoped list, never the search roots (rootCoveringPath:in:);
+        // a derived root would also mask the favorites lookup below.
         NSURL *root = [self rootCoveringPath:path in:_scopedURLs];
         SearchFolderGrant *grant = [SearchFolderStore.shared grantCoveringURL:url];
         if (!grant) {
-            // The row may have been removed after it produced the current
-            // playlist. Transfer that playlist's retained grant to this open
-            // instead of revoking it when the result wins.
+            // A removed Settings row: carry the current playlist's retained
+            // grant over rather than revoke it when this result wins.
             for (SearchFolderGrant *held in _searchGrants) {
                 if (VibeSearchRootCoversPath(held.rootURL.URLByStandardizingPath.path, path)) {
                     grant = held;
@@ -576,16 +474,12 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
                 }
             }
         }
-        // A file inside a STARRED folder is covered by neither of those: the
-        // store holds that scope and drops it when the row goes. So the session
-        // takes a hold of its own on the favorite's root. That, and not a
-        // refcounted grant, is what keeps this playlist readable after the
-        // favorite is unstarred.
+        // Inside a STARRED folder: the session takes its own hold, so the
+        // playlist stays readable after an unstar.
         if (!root && !grant) {
             root = [FavoritesStore.shared resolvedRootCoveringURL:url];
         }
-        // Only a start that returned YES is collected: holds is the list the
-        // worker must balance, and a container folder is not security-scoped.
+        // Only a start that returned YES is collected: the worker balances holds.
         if (root && ![holds containsObject:root]
                 && [root startAccessingSecurityScopedResource]) {
             [holds addObject:root];
@@ -604,8 +498,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     });
 }
 
-// Adds the URLs this delivery has not already named to tracks, and answers how
-// many it took, so a caller can tell "contributed nothing" from "contributed".
+// Answers how many it took, so a caller can tell "contributed nothing".
 - (NSUInteger)appendFresh:(NSArray<NSURL *> *)urls
                        to:(NSMutableArray<NSURL *> *)tracks
                      seen:(NSMutableSet<NSString *> *)seenPaths {
@@ -637,28 +530,20 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         return;
     }
     NSMutableArray<NSURL *> *tracks = [NSMutableArray array];
-    // One delivery names each file once. A restore's list can legitimately
-    // overlap — an Add the shell deduped away still persisted its bookmark, and
-    // a folder can be added beside one of its own files — and the union is
-    // delivered as a REPLACE, which does not dedupe. Without this the playlist
-    // grew a copy of every re-added folder at each relaunch.
+    // One delivery names each file once. A restore's list can overlap and is
+    // delivered as a REPLACE, which does not dedupe: without this, every
+    // relaunch grows a copy of each re-added folder.
     NSMutableSet<NSString *> *seenPaths = [NSMutableSet set];
     NSMutableArray<NSURL *> *ownedScopes = [NSMutableArray array];
     NSMutableArray<NSURL *> *addedFolders = [NSMutableArray array];
-    // The URLs that actually produced tracks, in pick order: a folder, the
-    // parent an expansion listed, or a one-track file. Bookmarks are minted
-    // from these and never from urls, so a folder holding no audio persists
-    // nothing.
+    // The URLs that produced tracks, in pick order. Bookmarks are minted from
+    // these, never from urls, so a folder with no audio persists nothing.
     NSMutableArray<NSURL *> *contributors = [NSMutableArray array];
     NSURL *folderURL = nil;
     NSURL *selectedURL = nil;
-    // An added file is one track, never its directory; only a replace of
-    // exactly one picked file expands.
     BOOL expands = !appending && urls.count == 1;
-    // The persisted base, resolved at most once per pass and lazily: the
-    // expansion test and the one-file bookmark rule below both ask about it,
-    // a resolve is provider IPC that can take seconds, and a folder open needs
-    // neither. The flag records that the answer is known, nil included.
+    // Resolved lazily and at most once: a resolve is provider IPC, and a
+    // folder open never needs it.
     __block BOOL persistedBaseResolved = NO;
     __block NSURL *persistedBase = nil;
     NSURL *(^resolvePersistedBase)(void) = ^NSURL *{
@@ -671,24 +556,17 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     };
 
     for (NSURL *url in urls) {
-        // A NO return is not failure: the app's own container and open-in-place
-        // inbox URLs are not security-scoped. Track what we actually started so
-        // the paired stop is balanced.
+        // NO is not failure: the app's own container is not security-scoped.
         BOOL started = [url startAccessingSecurityScopedResource];
         NSNumber *isDirectory = nil;
         [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
-        // The key can be absent — a URL the provider has not resolved yet — and
-        // then the trailing slash is all there is to go on. Compared to nil
-        // explicitly: an NSNumber * in a boolean position is a pointer test, not
-        // a value test, which is what the analyzer flags.
+        // The key is absent for a URL the provider has not resolved yet. An
+        // explicit nil test: the analyzer flags an NSNumber * used as a BOOL.
         BOOL isDir = isDirectory != nil ? isDirectory.boolValue : url.hasDirectoryPath;
 
-        // A single-file grant reaches only that file — iOS grants no sibling
-        // access — but a FOLDER already in hand may cover it: an open folder,
-        // a Settings grant, a favorite's root, or the persisted bookmark on a
-        // cold open-in-place. Then "tap a file in Dropbox" expands back into
-        // the directory-as-playlist model, with the tapped file selected. Only
-        // a file no folder in hand covers stays a one-track playlist.
+        // A file grant reaches only the file, but a folder in hand may cover
+        // it; then the file expands to its directory, selected. Otherwise it
+        // is a one-track playlist.
         if (!isDir && expands) {
             NSURL *parent = url.URLByDeletingLastPathComponent;
             NSString *parentPath = parent.URLByStandardizingPath.path;
@@ -697,8 +575,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
             BOOL listable = fromSearchRoots
                     || VibeSearchFolderCoveringRootIndex(coveringRootPaths, parentPath) != NSNotFound;
             if (!listable) {
-                // The persisted base is the only folder grant in hand on a cold
-                // "Open in Vibe", which arrives before any restore ran.
+                // A cold "Open in Vibe" arrives before any restore ran.
                 NSURL *candidate = resolvePersistedBase();
                 if (candidate && VibeSearchRootCoversPath(
                         candidate.URLByStandardizingPath.path, parentPath)) {
@@ -728,8 +605,8 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
             }
         }
 
-        // A URL that added nothing is not a contributor: its bookmark is not
-        // persisted, which is what prunes a redundant addition.
+        // A URL that added nothing is not persisted: that prunes a redundant
+        // addition.
         NSArray<NSURL *> *produced = isDir ? [NSURLUtil audioFilesInDirectory:url sortedBy:sort]
                                            : @[url];
         if ([self appendFresh:produced to:tracks seen:seenPaths] == 0) {
@@ -743,13 +620,10 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         }
         [contributors addObject:url];
         if (isDir) {
-            // The base is the FIRST contributor, whatever it is: a file first
-            // means a single-file base with no folderURL, and every later
-            // folder is an addition. TRAP: a folder may not claim the base
-            // merely because the contributor ahead of it was a file — a
-            // restore delivers base-then-additions, so that would rewrite the
-            // base bookmark to the addition, demote the original base to an
-            // addition, and reorder the union at the next relaunch.
+            // TRAP: the base is the FIRST contributor, even a file. A restore
+            // delivers base-then-additions, so a folder behind a file base
+            // that claimed the base would rewrite the base bookmark and
+            // reorder the union at the next relaunch.
             if (!appending && contributors.count == 1) {
                 folderURL = url;
             }
@@ -760,17 +634,13 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     }
 
     if (tracks.count == 0) {
-        // Nothing here reaches the playlist, so every scope this pass started
-        // is released whatever the generation.
         for (NSURL *hold in holds) {
             [hold stopAccessingSecurityScopedResource];
         }
         for (NSURL *owned in ownedScopes) {
             [owned stopAccessingSecurityScopedResource];
         }
-        // Still a landing: an open that found nothing leaves the previous
-        // playlist standing, and finishOpenIntent: is the one place allowed to
-        // say so and to touch the main-confined state.
+        // Still settles (finishOpenIntent:).
         run_on_main_thread({
             [self finishOpenIntent:openIntentGeneration appending:appending tracks:@[]
                          folderURL:nil addedFolders:@[] selectedURL:nil restored:restored
@@ -779,12 +649,9 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         return;
     }
 
-    // A hold taken for a URL that contributed nothing is released now; the rest
-    // are adopted, so every scope the playlist reads under outlives this call.
-    // Tested against the contributors rather than the tracks: a hold covers a
-    // track exactly when it covers the contributor that produced it — the
-    // listing is flat, and a single-file contributor IS its track — and there
-    // are as many contributors as URLs picked, against thousands of tracks.
+    // A hold covering no contributor is released; the rest are adopted.
+    // Contributors, not tracks: the listing is flat, so covering a contributor
+    // is covering its tracks, and there are far fewer of them.
     NSMutableArray<NSString *> *contributorPaths = [NSMutableArray arrayWithCapacity:contributors.count];
     for (NSURL *contributor in contributors) {
         [contributorPaths addObject:contributor.URLByStandardizingPath.path ?: @""];
@@ -806,19 +673,14 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         }
     }
 
-    // Minting needs the scope OPEN, so it runs here, before anything is
-    // released, and under the intent check so late provider work cannot
-    // overwrite a newer open's bookmarks.
+    // Minting needs the scope OPEN, so it runs before any release.
     NSData *baseBookmark = nil;
     NSMutableArray<NSData *> *additionBookmarks = [NSMutableArray array];
     NSURL *base = appending ? nil : (folderURL ?: contributors.firstObject);
     if ([self isCurrentOpenIntent:openIntentGeneration]) {
-        // A one-file open never replaces a folder bookmark: that broader grant
-        // is what powers sibling expansion and relaunch restore. An open that
-        // brought a folder in at all is not that case, whichever contributor
-        // the base turned out to be — a multi-select of a file and a folder
-        // owns the next launch, and refusing to persist it would restore a
-        // playlist that no longer exists.
+        // A one-file open never replaces a folder bookmark, whose broader
+        // grant powers expansion and restore. An open that brought any folder
+        // in is not that case, whatever its base.
         BOOL openedNoFolder = !folderURL && addedFolders.count == 0;
         BOOL persistedBaseIsFolder = NO;
         if (base && !fromSearchRoots && openedNoFolder) {
@@ -849,11 +711,8 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     });
 }
 
-// Main thread only, and the one place the session's own state moves. Every
-// request ends here, an empty result included — a stale one releases only the
-// scopes it started and leaves the current session untouched. Bookmark
-// persistence is here too, under the same intent check, so late provider work
-// cannot overwrite a newer open.
+// Main thread; the one place session state and bookmarks move. Every request
+// ends here, an empty one included; a stale one only releases its scopes.
 - (void)finishOpenIntent:(uint64_t)openIntentGeneration
                appending:(BOOL)appending
                   tracks:(NSArray<NSURL *> *)tracks
@@ -867,8 +726,6 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
        additionBookmarks:(NSArray<NSData *> *)additionBookmarks {
     BOOL current = [self isCurrentOpenIntent:openIntentGeneration];
     if (current && appending && _landedOpenIntentGeneration != openIntentGeneration) {
-        // The open this Add was requested during has not landed, so there is no
-        // playlist to add to yet.
         LogWarn(@"FolderSession: dropping an append whose open never landed");
         current = NO;
     }
@@ -879,15 +736,11 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         return;
     }
     if (tracks.count == 0) {
-        // TRAP: an open that delivered nothing still SETTLES its generation.
-        // The playlist it left standing is the one the last landing installed,
-        // so that playlist answers for this generation too. Without the carry
-        // every Add made after an empty-folder open captures a generation no
-        // landing ever matched and is dropped — one empty folder killed Add
-        // for the rest of the session. Zero stays zero, so an Add onto a
-        // session that never landed anything is still promoted to an Open
-        // (restore fails at launch, then Add plays), and an append carries
-        // nothing: a bad Add must not make itself the base.
+        // TRAP: an empty open still SETTLES its generation: the playlist left
+        // standing answers for it. Without the carry, every later Add is
+        // captured at a generation nothing landed and Add is dead for the
+        // session. Zero stays zero, so an Add is still promoted, and an append
+        // carries nothing.
         if (!appending && _landedOpenIntentGeneration != 0) {
             _landedOpenIntentGeneration = openIntentGeneration;
         }
@@ -900,18 +753,13 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         else {
             [self.delegate folderSessionDidOpenEmptyFolder:self];
         }
-        // A replace settling empty is still a settle, so an Add parked behind a
-        // promoted open that found nothing is replayed rather than left hanging;
-        // the first replayed one promotes to an Open in its turn.
+        // Replayed, not left hanging; the first promotes in its turn.
         if (!appending) {
             [self releaseAddWaitersAfterSettle];
         }
         return;
     }
-    // The one place every entry point lands, so the counters cannot miss an
-    // open or double-count one. A launch restore is not an open the user made,
-    // and counting it would add a folder to the total on every cold start.
-    // An append never carries a base folder, so the same expression serves it.
+    // A restore is not a user open; counted, every cold start adds a folder.
     if (!restored) {
         [[AppStats sharedInstance] recordOpenedFiles:tracks.count
                                              folders:(folderURL ? 1 : 0) + addedFolders.count];
@@ -919,12 +767,9 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     if (appending) {
         [_scopedURLs addObjectsFromArray:ownedScopes];
         [_searchGrants addObjectsFromArray:ownedGrants];
-        // A folder a root in hand already covers names no new search root.
-        // Without this, adding the same favorite twice lists it twice and
-        // persists a second bookmark the next launch resolves and lists for
-        // nothing. Its scope is still adopted above: that is lifetime, not
-        // reach — which is why this one asks the SEARCH ROOTS and not the
-        // scoped list.
+        // A folder already covered adds no search root, or a twice-added
+        // favorite is walked twice. Reach, not lifetime, so the SEARCH ROOTS
+        // answer; its scope is still adopted above.
         for (NSURL *folder in addedFolders) {
             if (![self rootCoveringPath:folder.URLByStandardizingPath.path
                                      in:self.searchRoots]) {
@@ -935,10 +780,10 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         [self.delegate folderSession:self didAppendTracks:tracks];
         return;
     }
-    // TRAP: acquire before release. The successor set is installed FIRST and
-    // only then is the previous one stopped, so a failed pick never strands the
-    // current playlist unreadable. A URL may sit in both sets — it was started
-    // once for each, and each start is balanced by its own stop.
+    // TRAP: acquire before release. The previous set is stopped only here,
+    // after the successor is installed, so a failed or superseded pick never
+    // strands the current playlist unreadable. A URL may sit in both sets,
+    // started once for each.
     NSArray<NSURL *> *previous = _scopedURLs;
     _scopedURLs = [ownedScopes mutableCopy];
     _searchGrants = [ownedGrants mutableCopy];
@@ -961,20 +806,14 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     }
     [self.delegate folderSession:self didOpenTracks:tracks folderURL:folderURL
                      selectedURL:selectedURL restored:restored];
-    // Last, so a replayed Add appends to the playlist this landing just
-    // installed rather than to the one it replaced.
+    // Last, so a replayed Add appends to this landing's playlist.
     [self releaseAddWaitersAfterSettle];
 }
 
-// Every parked Add is replayed through the prologue, which decides afresh what
-// it is now: an append when this settle landed a playlist, and a promotion when
-// it did not. Drained into a local first, so a waiter that parks again — the
-// promoted open failed and the next Add takes its place — parks behind the new
-// open instead of being run inside this loop.
-//
-// Called for a REPLACE settling, whichever way it settled, which is also what
-// covers a promoted open the user's own replace superseded: that replace's own
-// settle is what releases them.
+// For any REPLACE settling, which also releases the waiters of a promoted open
+// a user's replace superseded. Each replays through the prologue, which
+// decides afresh; drained first, so a waiter that parks again parks behind
+// the new promotion.
 - (void)releaseAddWaitersAfterSettle {
     _promotedOpenInFlight = NO;
     NSArray<void (^)(void)> *waiters = _addWaiters;

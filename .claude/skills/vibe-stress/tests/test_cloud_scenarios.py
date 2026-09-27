@@ -64,12 +64,11 @@ class FakeOpenContext:
 
 
 class TraceHelperTests(unittest.TestCase):
-    # The cloud runner shares Channel with stress/replay. Keep its input gate
-    # under the same host-less runner tests, with process launch held as a spy.
+    # Also covers stress.py's Channel input gate, which the cloud runner
+    # shares; the app client is never launched.
     def test_literal_commands_in_both_channel_consumers_are_allowed(self):
-        # Generated operations have their own coverage below. Also audit the
-        # real call sites outside the generator: cloud scenarios, setup,
-        # cleanup and diagnostics must not drift from the shared gate.
+        # Every literal cmd/run call site, not just generated operations, must
+        # pass the shared gate.
         for path in (SCRIPT, Path(stress.__file__)):
             for node in ast.walk(ast.parse(path.read_text())):
                 if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):

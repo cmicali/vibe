@@ -57,11 +57,9 @@ struct AudioWaveformCacheChunk {
         vDSP_maxv(mono, 1, &maxVal, numFrames);
         vDSP_measqv(mono, 1, &meanSquare, numFrames);
 
-        // A corrupt file can decode NaN or Inf floats, which vDSP propagates
-        // into all three reductions. Left unsanitized they produce NaN CGRects
-        // in the renderers, giving CoreGraphics error spam and blank bars,
-        // and, because isComplete stays YES, they get persisted under the file
-        // hash and break that track forever. Clamp them to 0 here.
+        // A corrupt file can decode NaN or Inf, which vDSP propagates into all
+        // three reductions: NaN geometry in the renderers, persisted under the
+        // file's key because the decode still completes.
         if (!std::isfinite(minVal)) minVal = 0.0f;
         if (!std::isfinite(maxVal)) maxVal = 0.0f;
         if (!std::isfinite(meanSquare)) meanSquare = 0.0f;
@@ -85,10 +83,7 @@ public:
     AudioWaveform();
     AudioWaveform(NSUInteger numChunks, const void* chunks);
     AudioWaveform(const AudioWaveform& other);
-    // Copy-assignment would shallow-copy the raw chunks pointer and cause a
-    // double free. It is never used, since waveforms are always heap-allocated
-    // and passed by pointer, so delete it to complete the rule of three and
-    // keep matters that way.
+    // Deleted: it would shallow-copy the raw chunks pointer and double free.
     AudioWaveform& operator=(const AudioWaveform&) = delete;
     ~AudioWaveform();
 
@@ -128,11 +123,10 @@ extern const int kCodableAudioWaveformVersion;
 // archive rather than paying for a second decode into a cache of its own.
 @property (nonatomic) float bpm;
 
-// The detected musical key (VibeMusicalKey; MusicalKey.h is not imported
-// here to keep this C++ header out of that dependency's reverse closure);
-// -1, VibeMusicalKeyNone, means unknown or undetectable. Same ride-along
-// rationale as bpm. Note the default for a freshly inited object must be -1,
-// not the zero-filled ivar default, because 0 is a valid key (C major).
+// The detected musical key (VibeMusicalKey, not imported to keep this C++
+// header out of MusicalKey.h's reverse closure); -1, VibeMusicalKeyNone, means
+// unknown. Same ride-along rationale as bpm. A fresh object must set -1: the
+// zero-filled default is C major.
 @property (nonatomic) NSInteger key;
 
 - (id)initWithWaveform:(AudioWaveform *)waveform;

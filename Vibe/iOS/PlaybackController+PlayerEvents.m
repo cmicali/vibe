@@ -2,16 +2,10 @@
 //  PlaybackController+PlayerEvents.m
 //  Vibe (iOS)
 //
-//  Two rules govern this whole file.
-//
-//  EVERY CALLBACK CAN BE STALE. A delivery can land after the playlist has
-//  moved on — an external open replaces the playlist, a page commit starts a
-//  new track — so each handler matches the delivered track against the
-//  playlist's current one before acting.
-//
-//  STOP FIRES NO CALLBACK. AudioPlayer.stop is not a track-end event, so
-//  nothing here drives auto-advance off it; track-end and skip-past-end both
-//  funnel through didFinishPlaying:.
+//  Two rules govern this file. Every callback can be stale, so each handler
+//  matches the delivered track against the playlist's current one first.
+//  AudioPlayer.stop fires no callback, so nothing here advances off it;
+//  track-end and skip-past-end both funnel through didFinishPlaying:.
 //
 
 #import "PlaybackController+PlayerEvents.h"
@@ -32,8 +26,7 @@
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeOutputAudioActive:(BOOL)outputAudioActive {
-    // The actual render state, not pending play intent, is what starts and
-    // stops both the playing-row display link and the FFT behind it.
+    // Actual output, not play intent, gates the equalizer and its FFT.
     [self notifyDidChangePlayState];
 }
 
@@ -47,12 +40,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         return;
     }
     [self notifyDidBeginLoading];
-    // This callback owns only the slow-open UI and the monitor below, which
-    // stays here so a fast local play never constructs a monitor it would
-    // cancel moments later.
-    // Best-effort determinate fill while the provider materializes the file.
-    // The monitor drops a sample whose track has since changed; see
-    // monitorReplacing:forURL:currentURL:handler:.
+    // The monitor is built here, not at play:, so a fast local play never
+    // builds one it cancels moments later.
     if (!_downloadMonitor
             || _downloadMonitorOpenRequestIdentifier != openRequestIdentifier) {
         __weak PlaybackController *weakSelf = self;
@@ -78,10 +67,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [self publishNowPlaying];
 }
 
-// A pause toggled while the open is still in flight — the user's tap, or an
-// audio-session interruption — decides whether the load lands playing or
-// parked. No audio has started, so this refreshes the transport glyph and the
-// lock-screen card and nothing else.
+// A pause toggled mid-open decides whether the load lands playing or parked.
+// No audio has started, so only the glyph and the lock screen change.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeLoadingPaused:(BOOL)paused
                   forTrack:(AudioTrack *)track {
@@ -98,36 +85,24 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     }
     _errorText = nil;
     _trackStartPending = NO;
-    // A start settles any seek in flight — including the one that OPENED this
-    // file, in seekToProgress:'s parked branch, which has no didFinishSeeking:
-    // of its own to clear the flag.
+    // Includes the parked seek that OPENED this file, which gets no
+    // didFinishSeeking:.
     _seekInFlight = NO;
-    // The open landed, so the file is materialized; the monitor's work is
-    // done whatever it last reported.
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
     _downloadMonitorOpenRequestIdentifier = 0;
     // Before the repaint and the metadata kicks, so a quick second Next finds
-    // the park. The foreground/background rule needs no release here: the
-    // coordinator derives it from its own claim table, and the prefetch's
-    // registration preempts any background transfer that beat it to the lane.
-    // Same rule as the mac's MainPlayerController+PlayerEvents.
+    // the successor parked.
     [_player prefetchTrack:self.successorPrefetchTrack];
     [self notifyDidRenderCurrentTrack];
-    // Not a blanket "hide the loading indicator": the open landing says
-    // nothing about the waveform decode, which may still be streaming over the
-    // network. The download fill IS cleared — the open landing means the file
-    // materialized — and a screen re-hydrates from the snapshot it holds.
+    // Clears the download fill only; the waveform decode may still be
+    // streaming.
     [self notifyDidFinishLoading];
-    // The dataless-placeholder retry: a cache miss skipped while the player's
-    // own open was materializing the file parses now.
+    // Retries a parse skipped while this open was materializing the file.
     [_metadataCache loadMetadataNow:track];
-    // The open settled, so the playlist-wide sweep it was deferred behind runs.
     [self startPendingMetadataLoad];
     _folderSession.persistedTrackPath = track.url.URLByStandardizingPath.path;
-    // The landing can be parked — a pause verdict during the load, or the
-    // media-reset re-park — in which case playback is idle, so the session is
-    // released just as a pause releases it.
+    // A parked landing releases the session as a pause does.
     BOOL playing = _player.isPlaying;
     _updateTimer.wanted = playing;
     if (!playing) {
@@ -155,14 +130,11 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     if (![_playlist isCurrentTrack:track]) {
         return;
     }
-    // A resume from a media-reset (or interrupted-load) park goes through
-    // playPause directly, never playCurrentTrack, so the flag clears here.
+    // A resume from a re-park goes through playPause, never playCurrentTrack.
     _parked = NO;
-    // A start refused under a loaded track (a route change, the unit failing)
-    // parks it Paused and reports the error; resuming proves the error wrong.
-    // Left set, the Error state kept the header and hid the track from Now
-    // Playing and the mini player while it played. Same as the mac's
-    // clearErrorMask.
+    // A refused start parks Paused with an error; a resume proves it wrong.
+    // Left set, the Error state hides the playing track from Now Playing and
+    // the mini player.
     if (_errorText) {
         _errorText = nil;
         [self notifyDidRenderCurrentTrack];
@@ -174,13 +146,10 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(AudioTrack *)track {
-    // A real track carries the usual identity guard. Nil is the promised settle
-    // after a seek with nothing playable loaded, and it must be judged against
-    // the PLAYER, not the playlist: an end-of-playlist park leaves a current
-    // row with no loaded track, and matching on isCurrentTrack: alone would
-    // drop that settle and strand _seekInFlight — which PlayerViewController
-    // reads to suppress the scrubber's position sync until the next track
-    // change. Same rule as the mac's MainPlayerController+PlayerEvents.
+    // Nil is the settle for a seek with nothing loaded, judged against the
+    // PLAYER: an end-of-playlist park keeps a current row with no loaded track,
+    // and dropping the settle strands _seekInFlight, which freezes the
+    // scrubber's position sync.
     if ((track && ![_playlist isCurrentTrack:track])
             || (!track && !audioPlayer.isStopped)) {
         return;
@@ -190,37 +159,26 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track {
-    // A natural end can be delivered just as the playlist is replaced —
-    // folderSession:didOpenTracks: replaces and plays without stopping the
-    // player first — and advancing then skips past the track the user just
-    // picked. Same guard as the mac's MainPlayerController+PlayerEvents.
+    // A replace plays without stopping first, so a natural end can land after
+    // it; advancing then would skip the track just picked.
     if (track && ![_playlist isCurrentTrack:track]) {
-        // The replacement may still be opening, and in that gap the player has
-        // no current track, so the finished track's stats run must stop here;
-        // didStartPlaying: starts a fresh one once the replacement produces
-        // audio. A replacement that is already playing has its restarted clock
-        // left alone — which is why a playlist emptied since (both sides nil,
-        // and so equal) must not read as that case and leave the clock running.
+        // Stop the stats run unless the replacement is already playing; an
+        // emptied playlist (both sides nil) is not that case.
         AudioTrack *playlistTrack = _playlist.currentTrack;
         if (!playlistTrack || audioPlayer.currentTrack != playlistTrack) {
             [[AppStats sharedInstance] playbackStopped];
         }
         return;
     }
-    // Folds the finished run. An advance restarts it through didStartPlaying:;
-    // a park leaves it stopped.
     [[AppStats sharedInstance] playbackStopped];
-    // Settings > Playback > On track end = Pause parks on the finished track
-    // exactly as the end of the playlist does. Both reads of the setting are
-    // load-bearing: successorPrefetchTrack parked nothing to splice, and this
-    // one decides from the playlist alone (root CLAUDE.md).
+    // The second of On track end's two reads (root CLAUDE.md): this one
+    // decides from the playlist alone.
     if (VibePlaybackShouldAdvanceAtTrackEnd(_playlist.hasNextTrack,
                                             AppSettings.sharedInstance.pauseAtTrackEnd)
             && [_playlist next]) {
         [self playCurrentTrack];
         return;
     }
-    // End of playlist, or Pause: park on the finished track, ready to replay.
     _parked = YES;
     _updateTimer.wanted = NO;
     [_audioSession deactivateWhenIdle];
@@ -231,47 +189,39 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didAutoAdvanceFromTrack:(AudioTrack *)finishedTrack
                     toTrack:(AudioTrack *)startedTrack {
-    // The player spliced into the pre-scheduled next track; audio never
-    // stopped. This handler's job is the bookkeeping half of an auto-advance:
-    // move the playlist cursor and run the per-track refresh, without play:.
-    // A boundary that raced a track change belongs to the operation that
-    // superseded it.
+    // A gapless splice: audio never stopped, so this moves the cursor and
+    // refreshes without play:.
     if (![_playlist isCurrentTrack:finishedTrack]) {
         return;
     }
-    // The playlist owns what "next" means. If its next row is no longer the
-    // track the player spliced into — a replace raced the boundary —
-    // correctness beats gaplessness: treat it as an ordinary track end, whose
-    // play replaces the spliced audio with the real successor.
+    // A replace raced the boundary: the playlist owns "next", so treat it as
+    // a plain track end and play the real successor.
     if (startedTrack != [_playlist trackAtIndex:_playlist.currentIndex + 1]) {
         [self audioPlayer:audioPlayer didFinishPlaying:finishedTrack];
         return;
     }
     [_playlist next];
     [self notifyDidMoveToCurrentTrackAnimated:YES];
-    // The rest of the per-track refresh — render, metadata, prefetch of the
-    // new next (which re-arms the splice), Now Playing — is exactly
-    // didStartPlaying:'s body, and its identity guard now passes.
+    // The rest of the refresh is didStartPlaying:'s, whose guard now passes.
     [self audioPlayer:audioPlayer didStartPlaying:startedTrack];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didChangeOutputDevice:(NSInteger)newDeviceID
 involuntaryFallbackUID:(NSString *)fallbackUID involuntaryFallbackName:(NSString *)fallbackName
 carriedModesFromUID:(NSString *)carriedModesUID {
-    // macOS-only path; never sent on iOS.
+    // macOS only.
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error {
     if ([error.domain isEqualToString:kVibeAudioErrorDomain]
             && error.code == VibeAudioErrorNotPlaying) {
-        // A transport toggle raced a track ending, or nothing is loaded. It is
-        // the benign no-op AudioErrorRules promises never reaches presentation.
+        // A toggle raced a track end, or nothing is loaded: benign.
         return;
     }
     NSURL *url = error.userInfo[kVibeAudioErrorTrackURLKey];
     AudioTrack *current = _playlist.currentTrack;
     if (url && current && ![url isEqual:current.url]) {
-        return;  // a stale delivery racing a track change
+        return;
     }
     _errorText = VibeStatusForPlayError(error);
     _seekInFlight = NO;
@@ -279,7 +229,6 @@ carriedModesFromUID:(NSString *)carriedModesUID {
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
     _downloadMonitorOpenRequestIdentifier = 0;
-    // Nothing is going to start now, so the deferred sweep stops waiting.
     [self startPendingMetadataLoad];
     [self notifyDidFailCurrentTrack];
     if (current) {

@@ -1,21 +1,17 @@
 #!/bin/bash
-# Fail unless every catalog language has complete App Store copy in
-# Assets/app-store/copy/<lang>/<platform>/ and it holds up: the four text
-# fields present,
-# non-empty and within ASC's character limits (counted in characters, not
-# bytes), description free of leftover markdown (bold, links, headings and
-# bullets — it uploads verbatim), the shared support-url.txt,
-# marketing-url.txt and privacy-url.txt each a bare URL, and screenshots.json
-# holding a caption for every shot that fits every canvas that platform ships
-# (compose-app-store-overlay.swift --measure).
+# Fail unless every catalog language has complete App Store copy for both
+# platforms in Assets/app-store/copy/<lang>/<platform>/: the four text fields
+# non-empty and within ASC's limits (in characters, not bytes), no markdown in
+# description.txt (it uploads verbatim), the shared copy/*-url.txt files each a
+# bare URL, and a screenshots.json caption for every shot that fits every
+# canvas the platform ships (compose-app-store-overlay.swift --measure).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 COMPOSE="$ROOT/scripts/compose-app-store-overlay.swift"
 FAIL=0
 
-# Compile the compositor once — this measures ~120 captions, and `swift
-# file.swift` would recompile on every one.
+# Compiled once: `swift file.swift` would recompile for every caption.
 COMPOSE_BIN="$(mktemp -d)/compose"
 trap 'rm -rf "$(dirname "$COMPOSE_BIN")"' EXIT
 xcrun swiftc -O -o "$COMPOSE_BIN" "$COMPOSE"
@@ -40,11 +36,8 @@ check_text() { # <lang> <dir>
             err "$1: $f.txt is $len chars (ASC limit $limit)"
         fi
     done
-    # The old pattern required a space after the marker, so **bold** headings
-    # slipped through and would have shipped as literal asterisks in 30 locales.
-    # Bold and links are matched anywhere on the line, headings and bullets only
-    # at line start. whats-new.txt is exempt by construction — this only reads
-    # description.txt — and its "* " bullets upload verbatim on purpose.
+    # Bold and links anywhere on a line, headings and bullets at its start.
+    # whats-new.txt is not checked: its "* " bullets upload verbatim on purpose.
     if [ -f "$2/description.txt" ] \
         && grep -qE '(\*\*|__|\[[^]]+\]\([^)]+\))|^(#{1,6}|\*|-) ' "$2/description.txt"; then
         err "$1: description.txt contains markdown markup — it uploads verbatim"
@@ -61,21 +54,15 @@ check_captions() { # <label> <lang> <platform> <screenshots.json> <shot ids…>
         h="$(jq -r --arg id "$id" 'first(.[] | select(.id == $id)) | .headline // empty' "$json")"
         s="$(jq -r --arg id "$id" 'first(.[] | select(.id == $id)) | .subhead // empty' "$json")"
         [ -n "$h" ] || { err "$label: shot '$id' missing headline"; continue; }
-        # An iOS caption is the headline alone, and that is enforced in both
-        # directions: the store draws a phone screenshot too small for a
-        # second, smaller line to be read, so the headline runs at 1.9x and
-        # carries the message. A subhead written for one locale would not be
-        # dropped — it would render, and that locale alone would be laid out
-        # differently from the other 29.
+        # iOS captions are headline-only, enforced both ways: a subhead in one
+        # locale would render, laying that locale out unlike the rest.
         if [ "$plat" = ios ]; then
             [ -z "$s" ] || err "$label: shot '$id' has a subhead; iOS captions are headline-only"
         else
             [ -n "$s" ] || { err "$label: shot '$id' missing subhead"; continue; }
         fi
-        # --lang is the LANGUAGE, not the label: the measurement picks the font
-        # and line-breaking rules from it, and "en/macos" is not a language.
-        # Every canvas the platform ships is measured, because one caption is
-        # written for all of them and each has its own type size and width cap.
+        # --lang is the language (it picks font and line breaking), not the
+        # label. Each canvas has its own type size and width cap.
         for canvas in $(canvases "$plat"); do
             "$COMPOSE_BIN" --measure --lang "$lang" --headline "$h" --subhead "$s" \
                 --canvas "$canvas" --headline-scale "$hscale" \
@@ -93,9 +80,7 @@ shot_ids() {
     esac
 }
 
-# The canvases one caption has to fit. macOS has a single screenshot set;
-# iOS has two, because iPhone and iPad are separate ASC sets rather than two
-# sizes of one, and they share the caption between them.
+# The canvases one caption must fit; iPhone and iPad share a caption.
 canvases() {
     case "$1" in
         macos) echo "2880x1800" ;;
@@ -103,8 +88,8 @@ canvases() {
     esac
 }
 
-# Must match the generator. Getting this wrong makes the fit check pass copy
-# that fails the build, which is the one thing it exists to prevent.
+# Must match appstore-generate-store-screenshots.sh's HEADLINE_SCALE, or the
+# fit check passes copy that fails the build.
 headline_scale() {
     case "$1" in
         ios) echo 1.9 ;;
@@ -112,11 +97,8 @@ headline_scale() {
     esac
 }
 
-# Shared across locales. ASC requires a support URL per localization — one
-# created without it blocks submission; the marketing URL is optional but kept
-# uniform the same way. The privacy URL is a different record entirely — it
-# lives on appInfoLocalizations rather than the version — but it is the same
-# shape of file and the same one-string-everywhere rule.
+# Shared by every locale, and not version fields, so they live at copy/. ASC
+# blocks submission of a localization without a support URL.
 for u in support-url marketing-url privacy-url; do
     URL_FILE="$ROOT/Assets/app-store/copy/$u.txt"
     if [ ! -f "$URL_FILE" ]; then
@@ -131,14 +113,6 @@ done
 LANGS="$("$ROOT/scripts/catalog-languages.sh")"
 [ -n "$LANGS" ] || { echo "appstore-validate-copy: catalog-languages.sh returned no languages" >&2; exit 1; }
 
-# Every file under copy/<lang>/<platform>/ is an ASC *version* field, and
-# versions are per platform — which is the whole reason for the platform
-# directory. The three URL files above are not version fields and stay at
-# copy/, shared by both.
-#
-# Both platforms are required: every catalog language now carries copy for
-# each. The tolerance that let a wholly absent ios/ pass while it was being
-# written is gone, as its own comment said it should be.
 PLATFORMS="macos ios"
 REQUIRED_PLATFORMS="macos ios"
 PENDING=0

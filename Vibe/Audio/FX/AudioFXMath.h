@@ -2,40 +2,26 @@
 //  AudioFXMath.h
 //  Vibe
 //
-//  The numbers AudioFX's toggles resolve to, as static inlines so the unit
-//  tests reach them without a render pipeline. The graph they are applied to —
-//  the low-kill EQ, the gated send-returns, the ping-pong delay lanes — lives
-//  in AudioFX.m, which is where every unit-hosting trap is recorded.
-//
-//  Only the arithmetic is here. The on/off intent, its lock, the ramp
-//  generations and the sweep loops stay with the class: they are about
-//  ordering and preemption, which a pure function cannot express.
+//  The numbers AudioFX's toggles resolve to, tested without a pipeline.
 //
 
 #import <Foundation/Foundation.h>
 
 // Low-kill high-pass cutoff while engaged: bass and kick gone, mids untouched.
 static const float kLowKillCutoffHz = 200.0f;
-// A held W drives the same filter to double the toggle's cutoff, 400 Hz: a
-// momentary harder kill that releases back to the Q state.
+// A held W: double the toggle's cutoff.
 static const float kLowKillBoostMultiplier = 2.0f;
-// The parked, disengaged cutoff: AUNBandEQ's frequency floor. A high-pass
-// parked here is not colorless — the resonant band's peak lifts 20–60 Hz by
-// up to 4 dB — so once the sweep lands here AudioFX swaps the bands to a 0 dB
-// parametric type, an identity filter, and swaps back before sweeping up. The
-// bands are never bypassed, because flipping bypass dumps stale delay-line
-// state into the signal and clicks audibly; a type swap keeps the state and
-// only lets the old response decay out at this frequency.
+// AUNBandEQ's frequency floor. A high-pass parked here still lifts 20–60 Hz
+// by up to 4 dB, so AudioFX swaps the bands to a 0 dB parametric type here.
+// Never bypass them: flipping bypass dumps stale filter state and clicks,
+// while a type swap keeps the state.
 static const float kLowKillParkedHz = 20.0f;
 
 // The tap length with no tempo known: 0.25s at the 1/8-note division.
 static const float kDelayDefaultBPM = 120.0f;
 
-// The single cutoff the two low-kill controls share. The held boost outranks
-// the Q toggle, which outranks parked — and the boost runs the filter even
-// while the toggle reads off, which is what makes it a three-way resolution
-// rather than two independent flags. (AudioFX coupling: clearing the toggle
-// also clears the boost, so the middle case cannot outlive its filter.)
+// The boost outranks the toggle, which outranks parked; the boost runs the
+// filter even while the toggle reads off.
 static inline float VibeLowKillCutoffHz(BOOL enabled, BOOL boostActive) {
     if (boostActive) {
         return kLowKillCutoffHz * kLowKillBoostMultiplier;
@@ -43,32 +29,26 @@ static inline float VibeLowKillCutoffHz(BOOL enabled, BOOL boostActive) {
     return enabled ? kLowKillCutoffHz : kLowKillParkedHz;
 }
 
-// Seconds per tap at the effective, pitch-scaled tempo. The delays sit
-// post-varispeed, so tap time is wall-clock. A tempo of zero or less means no
-// tempo is known — the label shows nothing — and the default stands in rather
-// than dividing by zero.
+// Wall-clock seconds per tap (the delays sit post-varispeed); no tempo takes
+// the default.
 static inline NSTimeInterval VibeDelayTapSeconds(float bpm, float beatsPerTap) {
     float effectiveBPM = bpm > 0 ? bpm : kDelayDefaultBPM;
     return 60.0 / (NSTimeInterval)effectiveBPM * (NSTimeInterval)beatsPerTap;
 }
 
-// Each ping-pong lane repeats every SECOND hop — the two lanes interleave at
-// twice the tap period, offset by one tap — so a lane's delay time is twice
-// the tap. See VibeDelaySend's topology comment.
+// Each ping-pong lane repeats every second hop, so its delay is twice the tap
+// (the topology comment in AudioFX.m).
 static inline NSTimeInterval VibeDelayLaneSeconds(float bpm, float beatsPerTap) {
     return VibeDelayTapSeconds(bpm, beatsPerTap) * 2;
 }
 
-// And for the same reason a lane's own feedback is the per-hop decay squared:
-// one lane revolution is two hops.
+// Likewise a lane's feedback is the per-hop decay squared.
 static inline float VibeDelayLaneFeedbackPercent(float hopFeedbackPercent) {
     float hopDecay = hopFeedbackPercent / 100.0f;
     return hopDecay * hopDecay * 100.0f;
 }
 
-// Where a held send gate swells to. After the fast open it keeps rising gently
-// for as long as the key is held, so the effect builds the longer it is
-// ridden, like easing a send fader up.
+// Where a held send gate swells to.
 static inline float VibeSendSwellLevel(float level, float swellRatio) {
     return level * swellRatio;
 }

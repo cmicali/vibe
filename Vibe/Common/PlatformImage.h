@@ -2,13 +2,8 @@
 //  PlatformImage.h
 //  Vibe
 //
-//  The bounded image decode, in platform-neutral terms. It is the companion to
-//  PlatformTypes.h: that header names VibeImage, this one builds one.
-//
-//  These are free functions rather than categories because there is no single
-//  foreign class to hang them on: the image is NSImage or UIImage depending on
-//  the target, and the color one of them returns is NSColor or UIColor. Same
-//  reason PlatformColor.h's VibeHexStringFromColor is a function.
+//  The bounded image decode and pixel sampling. Free functions because the
+//  image class differs per platform.
 //
 
 #import <Foundation/Foundation.h>
@@ -16,53 +11,36 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The pixel size for a playlist-cell thumbnail, generous for Retina at typical
-// row heights.
+// The pixel size of a list-row thumbnail.
 FOUNDATION_EXPORT const CGFloat kVibeThumbnailArtDimension;
 
-// The cap for a full-resolution display image. Nothing renders art larger than
-// the roughly 300px artwork panel or the 512px dock icon, and decoding straight
-// to this size never allocates the original-resolution bitmap, over 50MB.
+// The cap for a display-size decode, so the original-resolution bitmap is
+// never allocated.
 FOUNDATION_EXPORT const CGFloat kVibeDisplayArtDimension;
 
 // The longest side of the display-art rendition archived beside a track's
-// metadata — the display decode source on both platforms, sized per platform
-// in the .m (640 for the mac header, 1024 for the iOS page, matching its live
-// decode bound). Doubles as the pass-through threshold: original art at or
-// under it is archived verbatim, with no decode and no recompression; only
-// larger art is downscaled to this and re-encoded. Aspect is always preserved
-// — the square crop is display-time policy.
+// metadata (640 mac, 1024 iOS). Also the pass-through threshold: art at or
+// under it is archived verbatim; larger art is downscaled, aspect preserved.
 FOUNDATION_EXPORT const CGFloat kVibeArchivedDisplayArtDimension;
 
-// Decodes image data at a bounded pixel size through ImageIO. Unlike
-// initWithData: followed by a resize, this never materializes the full-size
-// bitmap. nil for nil data, or data that is not a decodable image. The decode
-// can take 10-100ms, so it belongs off the main thread.
+// Decodes at a bounded pixel size without materializing the full-size bitmap;
+// nil for nil or undecodable data. 10-100ms, so keep it off the main thread.
 FOUNDATION_EXPORT VibeImage *_Nullable VibeDecodedImageWithData(NSData *_Nullable data, CGFloat maxPixelSize);
 
-// The pixel size of encoded image bytes from the container header alone — no
-// pixel decode. CGSizeZero for nil data, or data that is not a decodable
-// image.
+// The pixel size from the container header alone; CGSizeZero for nil or
+// undecodable data.
 FOUNDATION_EXPORT CGSize VibeEncodedImagePixelSize(NSData *_Nullable data);
 
-// The image's dominant color, for tinting a surface to match album art: the
-// average of the most-populated hue band, weighted by saturation times
-// brightness, so a colorful accent beats a large muted background. An
-// effectively monochrome image falls back to the plain average and returns that
-// gray. It downsamples to a fixed 32x32 internally, so the cost is independent
-// of image size; nil only when the image cannot be rasterized.
-//
-// Callers that ask repeatedly for the same image should memoize — the mac's
-// ArtworkDisplayController keys a weak map by source image, iOS memoizes on the
-// UIImage itself (UIImage+DominantColor).
+// The average of the most-populated hue band, weighted by saturation times
+// brightness, so a colorful accent beats a large muted background; a
+// monochrome image answers its average gray. Fixed 32x32 downsample; nil only
+// when the image cannot be rasterized. Callers asking repeatedly memoize.
 FOUNDATION_EXPORT VibeColor *_Nullable VibeDominantColorOfImage(VibeImage *_Nullable image);
 
-// Whether the bottom `fraction` of the image reads as dark — the mean
-// relative luminance of that band under the midpoint — so a control drawn
-// over it can pick its light or dark color from the picture rather than from
-// the appearance. Same fixed 32x32 downsample as the dominant color. YES for
-// an image that cannot be rasterized, which is the safer of the two guesses
-// for light controls.
+// Whether the bottom `fraction` of the image reads as dark (mean relative
+// luminance under the midpoint), so a control over it can pick its color from
+// the picture. YES when the image cannot be rasterized, the safer guess for
+// light controls.
 FOUNDATION_EXPORT BOOL VibeImageLowerBandIsDark(VibeImage *_Nullable image, CGFloat fraction);
 
 NS_ASSUME_NONNULL_END

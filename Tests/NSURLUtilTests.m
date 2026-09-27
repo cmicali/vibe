@@ -33,11 +33,8 @@
                            withIntermediateDirectories:YES
                                             attributes:nil
                                                  error:nil];
-    // The enumerator answers in resolved paths, and /var is a symlink to
-    // /private/var — left unresolved, every path assertion compares two
-    // spellings of the same directory. realpath, not
-    // URLByResolvingSymlinksInPath, which leaves the temporary directory's
-    // /var prefix exactly as it found it.
+    // The enumerator answers in resolved paths (/private/var). realpath, not
+    // URLByResolvingSymlinksInPath, which leaves the /var prefix as it found it.
     char resolved[PATH_MAX];
     if (realpath(_root.fileSystemRepresentation, resolved)) {
         _root = [NSURL fileURLWithFileSystemRepresentation:resolved isDirectory:YES relativeToURL:nil];
@@ -51,9 +48,8 @@
     [super tearDown];
 }
 
-// Anything a denial test locked down has to be readable again before the
-// removal, which lists as it goes. Each directory is unlocked before it is
-// listed, so an execute-only one is not skipped along with its contents.
+// Each directory is unlocked before it is listed, so an execute-only one is
+// not skipped along with its contents.
 - (void)unlock:(NSURL *)url {
     chmod(url.fileSystemRepresentation, 0755);
     NSNumber *isDirectory = nil;
@@ -86,16 +82,12 @@
                            withIntermediateDirectories:YES
                                             attributes:nil
                                                  error:nil];
-    // One byte, not none: expandAndFilterList: drops empty files, so a
-    // zero-length fixture would vanish before any of these assertions.
-    // testAnEmptyFileIsDropped covers that path deliberately.
+    // One byte: expandAndFilterList: drops empty files.
     XCTAssertTrue([[NSData dataWithBytes:"\0" length:1] writeToURL:url atomically:YES], @"%@", relative);
     return url;
 }
 
-// A symbolic link at relative, naming target under the fixture root. The
-// destination need not exist — a broken link is one of the cases the walk has
-// to classify.
+// The target need not exist: a broken link is a case the walk classifies.
 - (NSURL *)makeLink:(NSString *)relative to:(NSString *)target {
     NSURL *url = [_root URLByAppendingPathComponent:relative isDirectory:NO];
     [NSFileManager.defaultManager createDirectoryAtURL:url.URLByDeletingLastPathComponent
@@ -121,10 +113,8 @@
     return url;
 }
 
-// Paths relative to the fixture root, which is what an assertion can read.
-// Two spellings of the root are stripped: the folder walk answers in resolved
-// paths, while playlist resolution standardizes, and standardizing is what
-// drops the /private prefix again.
+// Strips both spellings of the root: the walk answers in resolved paths, and
+// playlist resolution standardizes, which drops the /private prefix again.
 - (NSArray<NSString *> *)relativePaths:(NSArray<NSURL *> *)urls {
     NSArray<NSString *> *prefixes = @[[_root.path stringByAppendingString:@"/"],
                                       [_root.path.stringByStandardizingPath stringByAppendingString:@"/"]];
@@ -149,22 +139,17 @@
 
 #pragma mark - The extension filter
 
-// Every spelling the CFBundleDocumentTypes claim admits has to be here:
-// com.microsoft.waveform-audio alone declares wav, wave AND bwf, and dropping
-// one lets Finder offer Vibe a file the filter then silently discards.
+// com.microsoft.waveform-audio alone declares wav, wave AND bwf; a spelling
+// missing here lets Finder offer Vibe a file the filter silently discards.
 - (void)testSupportedExtensionsCoverEveryClaimedSpelling {
     NSSet<NSString *> *supported = [NSURLUtil supportedExtensions];
 
     XCTAssertEqualObjects(supported, ([NSSet setWithArray:@[@"mp2", @"mp3", @"aac", @"aif", @"aiff",
                                                             @"wav", @"wave", @"bwf", @"flac",
                                                             @"m4a", @"mp4", @"qta"]]));
-    // The filter and the playlist fallback read one list, so the ordered form
-    // the fallback walks must hold each spelling exactly once and no other.
     NSArray<NSString *> *ordered = PlayableExtensions.ordered;
     XCTAssertEqualObjects([NSSet setWithArray:ordered], supported);
     XCTAssertEqual(ordered.count, supported.count);
-    // OGG is not supported, and the playlist extensions are expanded rather
-    // than played, so neither may leak into the filter.
     for (NSString *rejected in @[@"ogg", @"m3u", @"m3u8", @"cue", @"aifc", @"txt", @""]) {
         XCTAssertFalse([supported containsObject:rejected], @"%@", rejected);
     }
@@ -186,9 +171,8 @@
 
 #pragma mark - The folder walk
 
-// AppleDouble sidecars — "._Song.mp3", written by macOS on exFAT, SMB and USB
-// volumes — pass the extension filter but hold resource-fork metadata rather
-// than audio, and each one showed up as a duplicate, unplayable row.
+// AppleDouble sidecars ("._Song.mp3", written on exFAT, SMB and USB volumes)
+// pass the extension filter but hold no audio.
 - (void)testTheWalkSkipsAppleDoubleSidecarsAndHiddenFiles {
     [self makeFile:@"folder/Song.mp3"];
     [self makeFile:@"folder/._Song.mp3"];
@@ -213,9 +197,7 @@
     XCTAssertEqualObjects(files, (@[@"folder/Song.mp3"]));
 }
 
-// The enumerator returns APFS hash order, which is effectively random, so the
-// walk sorts by full path with Finder's comparator: numeric, and grouping each
-// subfolder's files together.
+// The enumerator returns APFS hash order, effectively random.
 - (void)testTheWalkSortsNumericallyByFullPath {
     [self makeFile:@"folder/track10.mp3"];
     [self makeFile:@"folder/track2.mp3"];
@@ -251,8 +233,7 @@
 #pragma mark - The top-level list
 
 // hasDirectoryPath inspects only the trailing slash, so a directory URL built
-// without isDirectory:YES — from an argv path, or some pasteboards — would be
-// treated as a file and then silently dropped by the extension filter.
+// without isDirectory:YES (argv, some pasteboards) would read as a file.
 - (void)testADirectoryURLThatDoesNotLookLikeOneIsStillExpanded {
     [self makeFile:@"folder/Song.mp3"];
     NSURL *folder = [self makeDirectory:@"folder"];
@@ -286,8 +267,6 @@
                           (@[@"folder/Song.mp3"]));
 }
 
-// An explicit multi-file drop keeps its pasteboard order — only a folder's own
-// contents are sorted.
 - (void)testAnExplicitFileSelectionKeepsItsOrder {
     NSArray<NSURL *> *picked = @[[self makeFile:@"c.mp3"],
                                  [self makeFile:@"a.mp3"],
@@ -297,8 +276,6 @@
                           (@[@"c.mp3", @"a.mp3", @"b.mp3"]));
 }
 
-// A zero-length file has an extension but nothing to decode, so the funnel
-// drops it here rather than seating an unplayable row.
 - (void)testAnEmptyFileIsDropped {
     NSURL *empty = [_root URLByAppendingPathComponent:@"folder/empty.mp3" isDirectory:NO];
     [NSFileManager.defaultManager createDirectoryAtURL:empty.URLByDeletingLastPathComponent
@@ -346,9 +323,8 @@
                           (@[@"side-a.wav", @"side-b.wav"]));
 }
 
-// Only an explicitly opened playlist expands. One found inside a folder walk
-// must be dropped by the extension filter — the walk already yields the
-// folder's audio, and expanding it too would double every track.
+// The walk already yields the folder's audio; expanding the playlist too
+// would double every track.
 - (void)testAPlaylistInsideADroppedFolderIsNotExpandedAgain {
     [self makeFile:@"folder/a.mp3"];
     [self makeFile:@"folder/b.mp3"];
@@ -368,8 +344,7 @@
     }];
 
     XCTAssertEqualObjects([self expandAndFilter:@[playlist] folderCount:NULL], (@[@"here.mp3"]));
-    // Missing is not denied: there is nothing a grant would rescue, and the
-    // panel would be an interruption with no remedy behind it.
+    // Missing is not denied: no grant would rescue it.
     XCTAssertEqual(asked, 0u);
 }
 
@@ -386,8 +361,7 @@
     XCTAssertEqual(asked, 0u);
 }
 
-// Opening a .m3u grants the .m3u alone, not the audio it names, so a denied
-// entry is the one case worth interrupting the user for.
+// Opening a .m3u grants the .m3u alone, not the audio it names.
 - (void)testADeniedEntryAsksOnceAndIsSkippedWhenTheGrantIsRefused {
     XCTSkipIf(geteuid() == 0, @"root reads through every permission bit, so nothing can be denied");
     [self makeFile:@"open.mp3"];
@@ -407,8 +381,6 @@
     XCTAssertEqualObjects(askedFor.path, playlist.path);
 }
 
-// Granting is what extends the sandbox, so the entries are resolved again
-// afterwards — the second pass is where the newly readable ones appear.
 - (void)testAGrantedFolderIsResolvedAgainAndItsEntriesAppear {
     XCTSkipIf(geteuid() == 0, @"root reads through every permission bit, so nothing can be denied");
     [self makeFile:@"open.mp3"];
@@ -427,13 +399,10 @@
     XCTAssertEqual(asked, 1u);
 }
 
-// The re-resolve is not a formality: an entry written as a Windows absolute
-// path resolves to nothing until the basename beside the playlist becomes
-// readable, so the grant changes what the entry means, not just whether it can
-// be opened. This is also the folder-denied case — the playlist file itself is
-// readable while its folder is not, which is exactly the shape of a sandbox
-// grant on a single opened .m3u, and an execute-only folder is the closest a
-// chmod comes to it.
+// A Windows absolute path resolves to nothing until the basename beside the
+// playlist becomes readable, so the grant changes what the entry means. An
+// execute-only folder is the closest chmod comes to a sandbox grant on a
+// single opened .m3u: the file readable, its folder not.
 - (void)testAGrantOnADeniedFolderIsFollowedByASecondResolution {
     XCTSkipIf(geteuid() == 0, @"root reads through every permission bit, so nothing can be denied");
     NSURL *folder = [self makeDirectory:@"set"];
@@ -474,8 +443,7 @@
 #pragma mark - Concurrency
 
 // Folder walks run four wide, and callers hand the results straight into
-// playlist state on main. Every drop must come back whole, matched to its own
-// completion, on the main thread.
+// playlist state on main.
 - (void)testConcurrentExpansionsEachDeliverTheirOwnResultOnMain {
     static const NSUInteger kDrops = 24;
     NSMutableArray<NSURL *> *folders = [NSMutableArray arrayWithCapacity:kDrops];
@@ -507,10 +475,7 @@
     [self waitForExpectations:expectations timeout:30];
 }
 
-// The handler is installed once at launch but read from every expansion
-// worker, so the handoff takes a lock rather than assuming the install lands
-// first. Whichever handler a walk sees, each denied playlist must ask exactly
-// once and no ask may vanish.
+// Whichever handler a walk sees, each denied playlist must ask exactly once.
 - (void)testTheGrantHandlerCanBeReplacedWhileExpansionsRun {
     XCTSkipIf(geteuid() == 0, @"root reads through every permission bit, so nothing can be denied");
     static const NSUInteger kPlaylists = 24;
@@ -542,8 +507,7 @@
             [expectation fulfill];
         }];
     }
-    // Swapped underneath the running walks, which is the race the lock exists
-    // for: an unguarded static here is a torn read of a block pointer.
+    // Unguarded, a swap under a running walk is a torn read of a block pointer.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         for (NSUInteger i = 0; i < 200; i++) {
             [NSURLUtil setPlaylistFolderGrantHandler:(i % 2) ? alsoRefusing : refusing];
@@ -556,9 +520,8 @@
 
 #pragma mark - Symbolic links
 
-// NSURLIsDirectoryKey is lstat-shaped, so a link to a folder answers NO to it
-// and used to fall through to the extension filter, which dropped it: dragging
-// a ~/Music/NAS link on the window ended in the empty state.
+// NSURLIsDirectoryKey is lstat-shaped: a link to a folder answers NO and would
+// fall through to the extension filter.
 - (void)testADroppedFolderLinkExpandsToItsTargetsAudio {
     [self makeFile:@"Music/Song.mp3"];
     NSURL *link = [self makeLink:@"NAS" to:@"Music"];
@@ -570,9 +533,8 @@
     XCTAssertEqual(folderCount, 1u);
 }
 
-// The walk answers in the target's spelling, not the link's, so that the
-// directories it reports to the folder-art resolver and the tracks it returns
-// name the same folder.
+// Answered in the target's spelling, so the directories reported to the
+// folder-art resolver and the tracks returned name the same folder.
 - (void)testAFolderLinkInsideAWalkedFolderIsFollowed {
     [self makeFile:@"library/Own.mp3"];
     [self makeFile:@"elsewhere/Linked.mp3"];
@@ -596,9 +558,8 @@
     XCTAssertEqualObjects(files, (@[@"library/Alias.mp3", @"library/Song.mp3"]));
 }
 
-// The emptiness filter answers NO to anything it cannot stat, deliberately, so
-// that a sandbox denial is left for the real open to report — which leaves the
-// walk itself as the only place a link pointing at nothing can be dropped.
+// The emptiness filter keeps anything it cannot stat, leaving a sandbox denial
+// for the real open to report; so only the walk can drop a dangling link.
 - (void)testABrokenLinkFoundByTheWalkIsSkipped {
     [self makeFile:@"library/Song.mp3"];
     [self makeLink:@"library/gone.mp3" to:@"nowhere"];
@@ -609,8 +570,7 @@
     XCTAssertEqualObjects(files, (@[@"library/Song.mp3"]));
 }
 
-// The covered set is what ends this: without it the walk follows the link back
-// into the folder it is already in, forever.
+// Only the covered set ends this.
 - (void)testALinkCycleTerminates {
     [self makeFile:@"library/Song.mp3"];
     [self makeLink:@"library/loop" to:@"library"];
@@ -623,8 +583,7 @@
     XCTAssertEqualObjects(files, (@[@"library/Song.mp3"]));
 }
 
-// Two links onto one folder, and a link into a subtree the walk already
-// listed, are all one listing: a duplicate here is a duplicate playlist row.
+// A duplicate here is a duplicate playlist row.
 - (void)testALinkIntoAnAlreadyWalkedSubtreeListsItOnce {
     [self makeFile:@"library/album/Song.mp3"];
     [self makeLink:@"library/shortcut" to:@"library/album"];
@@ -637,8 +596,7 @@
     XCTAssertEqualObjects(files, (@[@"library/album/Song.mp3"]));
 }
 
-// The link is walked first and the folder containing it second, so the second
-// enumeration has to recognize the subtree it already listed as it passes.
+// The second enumeration must recognize the subtree it already listed.
 - (void)testALinkWalkedBeforeItsRealParentListsItOnce {
     [self makeFile:@"outer/album/Song.mp3"];
     [self makeLink:@"drop/toAlbum" to:@"outer/album"];
@@ -651,8 +609,8 @@
     XCTAssertEqualObjects(files, (@[@"outer/album/Song.mp3"]));
 }
 
-// The folder-art resolver is handed directories, and asks about them by the
-// path a track sits in; a link's target has to be spelled the same in both.
+// The folder-art resolver asks by the path a track sits in, so both must spell
+// the link's target the same.
 - (void)testTheWalkedDirectoriesHandlerNamesTheLinkTarget {
     [self makeFile:@"elsewhere/Song.mp3"];
     [self makeLink:@"library/shortcut" to:@"elsewhere"];

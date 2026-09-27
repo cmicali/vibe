@@ -2,10 +2,9 @@
 //  AudioLevelMeter.h
 //  Vibe
 //
-//  Demand-driven FFT analysis for the shared five-bar equalizer indicator,
-//  fed the final output samples by the render. AudioPlayer owns one publisher
-//  for its lifetime, and one meter from the first demand on,
-//  replaced only when the output's rate or the normalization mode changes.
+//  Demand-driven FFT analysis for the five-bar equalizer, fed the render's
+//  final samples. The meter lives from the first demand, replaced only when
+//  the output's rate or the normalization mode changes.
 //
 
 #import <AVFAudio/AVFAudio.h>
@@ -15,20 +14,15 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The render's plain state: the analyzer, the publisher's session and the
-// accumulator the render fills. The meter owns it for its life; the master bus
-// points the render at it while the meter is installed and withdraws the
-// pointer before the meter is freed (AudioPlayer+Pipeline.h), so the render never
-// reads memory the meter has freed.
+// The render's plain state, owned by the meter for its life; the master bus
+// withdraws its pointer before the meter is freed.
 typedef struct VibeLevelMeter VibeLevelMeter;
 
 @interface AudioLevelMeter : NSObject
 
-// Allocates the analyzer and the accumulator for `format`'s rate, which is
-// fixed for the meter's life: replace the meter at another rate. Nothing is
-// published until install. Returns nil for an unusable format or a failed
-// allocation. The normalization mode is fixed for the meter's lifetime too;
-// replace the meter to switch modes and reset its analysis history.
+// The rate and the normalization mode are fixed for the meter's life. Nothing
+// is published until install. nil for an unusable format or a failed
+// allocation.
 - (nullable instancetype)initWithFormat:(AVAudioFormat *)format
                                publisher:(AudioLevelPublisher *)publisher
                        normalizationMode:(VibeAudioLevelNormalizationMode)normalizationMode
@@ -39,35 +33,30 @@ typedef struct VibeLevelMeter VibeLevelMeter;
 - (VibeLevelMeter *)meter;
 @property (nonatomic, readonly) double sampleRate;
 
-// Begins a publisher session and restarts the accumulator, so the first
-// publication after an install carries no earlier audio; the render meters
-// once the master bus points at the meter. Idempotent. Player queue.
+// Begins a publisher session; the render restarts the analysis on seeing it,
+// so no earlier audio is published. Idempotent. Player queue.
 - (void)install;
 // Ends the publisher session, so its snapshot is unavailable at once, and
 // completes a pending signal capture. Idempotent. Player queue.
 - (void)remove;
 @property (nonatomic, readonly) BOOL installed;
 
-// Beta probe of the installed meter, bounded to first signal or three
-// seconds. All calls and completion belong to the player queue. Poll returns
-// YES while pending; removal and replacement also complete partial captures.
-// No call creates demand or opens a file. The last snapshot survives removal.
+// The beta signal probe, bounded to first signal or three seconds. Player
+// queue. Poll returns YES while pending; removal completes a partial capture.
+// The last snapshot survives removal.
 - (uint64_t)beginSignalDiagnosticsAtTime:(AudioTimeStamp)startTime
                 waitingForRetiredAudio:(BOOL)waiting
                             completion:(void (^)(NSDictionary<NSString *, id> *snapshot))completion;
-// Called when the last outgoing fade has actually settled, including smoothing.
-// The probe's clock is the timestamp's sample time, in the pipeline's
-// frames; a timestamp without one leaves the capture's clock unset.
+// The last outgoing fade has settled. The clock is the timestamp's sample
+// time, in the pipeline's frames; without one the capture's clock is unset.
 - (void)endSignalOverlapAtTime:(AudioTimeStamp)time;
 - (BOOL)pollSignalDiagnostics:(uint64_t)request;
 - (NSDictionary<NSString *, id> *)signalDiagnosticSnapshot;
 
 @end
 
-// The render's entry: non-interleaved float32 at the meter's rate, stamped
-// with `timestamp`. Accumulates VibeLevelPublicationFrameCount frames before
-// analyzing and publishing. Audio thread: no allocation, lock, logging or
-// Objective-C send.
+// Non-interleaved float32 at the meter's rate. Publishes every
+// VibeLevelPublicationFrameCount frames. Audio thread.
 void VibeLevelMeterRender(VibeLevelMeter *meter, float * _Nonnull const * _Nonnull channels, UInt32 channelCount, UInt32 frames,
                           const AudioTimeStamp *timestamp) CA_REALTIME_API;
 

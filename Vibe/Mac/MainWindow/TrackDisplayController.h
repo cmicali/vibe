@@ -2,24 +2,12 @@
 //  TrackDisplayController.h
 //  Vibe
 //
-//  Owns the track-display rendering for the main window: the artist and title
-//  labels, with the title's shrink-to-fit, the time labels, the codec and BPM
-//  corner labels, the empty-state drop hint, and the waveform view's rendering
-//  states — progress, loading shimmer and empty placeholder. It is pure
-//  rendering, on a decide-against-draw split: MainPlayerController resolves
-//  what to show, as a TrackDisplayState plus a track and times, and this
-//  object draws it. It reads no player or playlist state and never decides a
-//  state transition.
-//
-//  It is one of the two display controllers, with ArtworkDisplayController,
-//  that render into MainPlayerContentView's widgets. The content view builds
-//  and owns the hierarchy, each display controller adopts its subset at init
-//  and renders one facet, and MainPlayerController decides what they render.
+//  Draws the header — labels, times, the codec and BPM corner, the drop hint —
+//  and the waveform's rendering states. Pure rendering: MainPlayerController
+//  resolves the state, and this reads no player or playlist state.
 //
 
 #import <Cocoa/Cocoa.h>
-// TrackDisplayState and the resolution that picks one; every rendering method
-// below takes it.
 #import "TrackDisplayRules.h"
 
 @class AudioTrack;
@@ -28,11 +16,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The deck state riding the codec line — which performance effects are on,
-// and whether bit-perfect output is delivering the track — drawn inline at
-// the head of the line; see renderFXState:. It mirrors the AudioFX flags and
-// the player's bit-perfect report, since the display controller reads no
-// player state itself.
+// The deck state on the codec line, mirroring the AudioFX flags and the
+// player's bit-perfect report.
 typedef struct {
     BOOL lowKill;       // Q — low-kill high-pass
     BOOL lowKillBoost;  // W — doubles Q's cutoff (renders as the filled dial)
@@ -48,105 +33,66 @@ typedef struct {
 // Main thread only.
 @interface TrackDisplayController : NSObject
 
-// Adopts the header labels and the waveform view from the content view.
-// MainPlayerContentView keeps ownership of the view hierarchy.
+// The content view keeps ownership of the adopted views.
 - (instancetype)initWithContentView:(MainPlayerContentView *)contentView;
 
-// A full render of the header for a resolved state. track is the track the
-// header should describe: the displayed track for Track and Loading, the
-// errored track for Error, whose title goes under the error status, and nil
-// for Empty and LaunchGrace. duration is the player's file-time duration, and
-// rate is the varispeed playback rate the time labels divide by. errorStatus
-// is the artist-line status for the Error state, and nil falls back to
-// "Playback error".
+// track: the displayed track for Track and Loading, the errored track for
+// Error, nil otherwise. duration is file time; the labels divide it by rate.
+// A nil errorStatus reads as the generic playback error.
 - (void)renderState:(TrackDisplayState)state
               track:(nullable AudioTrack *)track
            duration:(NSTimeInterval)duration
                rate:(double)rate
         errorStatus:(nullable NSString *)errorStatus;
 
-// The position tick: waveform progress plus a change-guarded elapsed
-// label. duration is the caller's cached track duration, because the live
-// player duration reads 0 in the Loading gap. It renders only in Track and
-// Loading; the empty and error states keep showing --:--.
+// The position tick. duration is the caller's cache: the live one reads 0
+// while Loading.
 - (void)renderPosition:(NSTimeInterval)position
               duration:(NSTimeInterval)duration
                   rate:(double)rate
                  state:(TrackDisplayState)state;
 
-// A change-guarded refresh of the right-hand time label alone, showing either
-// the total duration or the remaining time, per the persisted mode. It serves
-// the fader-drag path, where the full renderState — let alone the caller's
-// full updateUI — is too heavy to run per tick. Like renderPosition: it
-// renders only in Track; the loading, empty and error states keep showing
-// --:--.
+// The right time label alone, cheap enough for fader ticks. Track only.
 - (void)renderTotalDuration:(NSTimeInterval)duration rate:(double)rate state:(TrackDisplayState)state;
 
-// The codec line's hover text: the one sentence explaining an open lock, or
-// nil for none. The whole line is the hover target — it is one label.
+// The sentence explaining an open lock, or nil. The whole line is the target.
 - (void)renderBitPerfectToolTip:(nullable NSString *)toolTip;
 
-// The BPM line under the codec label, which also carries the musical key. It
-// takes the pitch-scaled display value, since the caller owns both the
-// tag-against-analysis precedence and the rate scaling, and the key already
-// formatted in the user's chosen notation, since the caller owns that choice
-// too. A BPM of 0 or less and an empty key text clear their halves; with
-// both absent the line is empty.
-//
-// colorKey is the VibeMusicalKey whose CDJ color the key text should be drawn
-// in, bold, or -1 to draw it like the rest of the line. The caller passes the
-// key rather than a color because the palette is a display concern; it passes
-// -1 when the setting is off.
+// The BPM and key line. The caller owns precedence, rate scaling and notation;
+// a BPM <= 0 or an empty key clears its half. colorKey is the VibeMusicalKey
+// whose Camelot color the key draws in, bold, or -1 for none.
 - (void)renderBPM:(float)displayBPM keyText:(NSString *)keyText colorKey:(NSInteger)colorKey;
 
-// SF Symbols for the effects that are on, drawn immediately left of the codec
-// text, on the same line, so they inherit its right alignment, color and 50%
-// alpha. Nothing is drawn for an effect that is off. This is independent of
-// the track, because FX persist across tracks, so the codec line is composed
-// from the last rendered text and the last rendered FX state, whichever
-// changed.
+// Symbols for the active effects, inline at the head of the codec line. FX
+// outlive tracks, so the line composes from the last text and the last state.
 - (void)renderFXState:(VibeFXDisplayState)state;
 
-// The title's shrink-to-fit is computed against the label's width, and the
-// label is width-flexible, so re-run the fit for the current text after a
-// window resize has changed that width. It is a no-op otherwise: no text is
-// measured when the width is unchanged. It works both ways, re-shrinking when
-// narrowed and restoring toward the full font when widened.
+// A no-op unless the title label's width changed.
 - (void)refitTitleIfWidthChanged;
 
-// Re-fits the title under freshly pushed themed fonts — the Fonts live
-// effect's hook, where the width-change check above would see nothing moved.
+// The Fonts effect's hook, where the width check would see nothing move.
 - (void)refitTitle;
 
-// Clears the corner lines' content guards so the next updateUI repaints them
-// in a freshly themed color — the TrackDisplay effect's hook.
+// The TrackDisplay effect's hook: the next updateUI repaints in the new colors.
 - (void)resetRenderGuards;
 
-// End-of-playlist parking: pin the finished track's header at its start, with
-// progress 0, an elapsed time of 0:00 and the right label at the full
-// duration. The caller's didFinishPlaying: explains why the resting values
-// cannot be read off the player. duration is the finished track's own
-// file-time duration.
+// The end-of-track park: progress 0, 0:00, the right label at full length.
+// duration is the finished track's own; the player's is mid-teardown.
 - (void)resetPlayheadToStartWithDuration:(NSTimeInterval)duration rate:(double)rate;
 
-// The waveform rendering states, forwarded to the view, which stays a plain
-// surface. The cache, its deliveries and the style selection stay with the
-// controller.
+// Forwarded to the view, which stays a plain surface.
 - (void)prepareForWaveformLoad;
 - (void)showWaveform:(CodableAudioWaveform *)waveform;
 // Slow-open playback and the debug channel's set_loading drive this directly.
 - (void)showWaveformLoadingIndicator;
 - (void)hideWaveformLoadingIndicator;
-// Determinate download fill while the indicator shows; negative reverts to
-// the indeterminate shimmer. See AudioWaveformView.
+// Determinate download fill; negative reverts to the indeterminate shimmer.
 - (void)setWaveformLoadingProgress:(float)fraction;
-// Convert to FLAC's brush-through-the-waveform progress; 0 resets the front.
-// The getter serves the debug state dump.
+// Convert to FLAC's sweep; 0 resets it. The getter serves the debug dump.
 - (void)setConvertSweepFraction:(double)fraction;
 - (double)convertSweepFraction;
 
-// The rendered fields, exposed for the debug command channel's state dump and
-// consistency check; see Debug/Mac/DebugStateDump.m and DebugHealth.m.
+// For the debug channel's state dump and consistency check.
 @property (weak, readonly) NSTextField *artistTextField;
 @property (weak, readonly) NSTextField *titleTextField;
 @property (weak, readonly) NSTextField *totalTimeTextField;

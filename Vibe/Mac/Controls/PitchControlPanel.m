@@ -18,15 +18,12 @@ static const CGFloat kTitleHeight   = 14;
 static const CGFloat kReadoutHeight = 16;
 static const CGFloat kBottomPadding = 16;
 
-// The collapsed, playlist-hidden layout: no header, and the fader gets
-// everything.
+// Playlist collapsed: no header, and the fader gets everything.
 static const CGFloat kFaderTopCompact    = 12;
 static const CGFloat kBottomPaddingCompact = 12;
 
-// The header, PITCH plus the readout, fades and the fader slides as a
-// continuous function of the panel height across this band, so that the
-// animated window resize carries the panel transition with it, with no
-// discrete jump at a threshold.
+// Across this band the header fades and the fader slides continuously with
+// the height, so the animated resize carries the transition with no jump.
 static const CGFloat kHeaderFadeStartHeight = 200;
 static const CGFloat kHeaderFadeEndHeight   = 340;
 
@@ -46,7 +43,7 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
         _titleLabel.font = [Fonts font:10 bold:YES];
         _titleLabel.textColor = [NSColor colorWithWhite:0.55 alpha:1];
         _titleLabel.alignment = NSTextAlignmentCenter;
-        // The panel is only 96pt wide; long translations ellipsize.
+        // Long translations ellipsize in 96pt.
         _titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
         _titleLabel.maximumNumberOfLines = 1;
         [self addSubview:_titleLabel];
@@ -74,8 +71,7 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
 - (void)layoutPanel {
     CGFloat width = self.bounds.size.width;
     CGFloat height = self.bounds.size.height;
-    // 0 is collapsed, with the header hidden and a full-length fader; 1 is
-    // expanded.
+    // 0 collapsed, 1 expanded.
     CGFloat t = (height - kHeaderFadeStartHeight) / (kHeaderFadeEndHeight - kHeaderFadeStartHeight);
     t = MAX(0, MIN(1, t));
 
@@ -92,10 +88,9 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
 }
 
 - (void)drawRect:(NSRect)dirtyRect {
-    // Round only the right corners, with a path that stays strictly inside the
-    // bounds. Never draw outside the bounds here: the backing layer does not
-    // mask, and drawing past the left edge bleeds a dark strip over the main
-    // content — seen on macOS 26, at least through CALayer renderInContext.
+    // Right corners only, strictly inside the bounds: the backing layer does
+    // not mask, and drawing past the left edge bleeds a dark strip over the
+    // body.
     NSRect b = self.bounds;
     CGFloat r = AppSettings.sharedInstance.currentTheme.resolvedWindowCornerRadius;
     NSBezierPath *background = [NSBezierPath bezierPath];
@@ -138,8 +133,7 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
 
 - (void)updateReadout {
     float pitch = _faderView.pitch;
-    // The formatter owns the sign (U+2212, matching the fader scale), the
-    // decimal separator, and the % placement.
+    // The formatter owns the sign, the decimal separator and the % placement.
     _readoutField.stringValue = [[Formatters sharedInstance] signedPercentString:pitch];
     _readoutField.textColor = (pitch == 0)
             ? VibeQuartzLockGreen(1)

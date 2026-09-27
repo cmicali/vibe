@@ -2,15 +2,11 @@
 //  OpenRequestCoordinator.h
 //  Vibe
 //
-//  Orders the asynchronously expanded batches of every open funnel — Launch
-//  Services bursts, the ⌘O panel, Open Recent and window drops — against one
-//  another. A replacing request supersedes every unfinished older request;
-//  append batches in the surviving burst still deliver in submission order.
-//
-//  There is ONE coordinator (sharedCoordinator), because there is one
-//  playlist: two of them would each enforce ordering only within their own
-//  funnel, and a drop could still be overwritten by an older, slower open.
-//  Main thread only.
+//  Orders the asynchronously expanded batches of every open funnel. A
+//  replacing request supersedes every unfinished older one; appends in the
+//  surviving burst deliver in submission order. ONE coordinator, because
+//  there is one playlist: a drop must not be overwritten by an older, slower
+//  open from another funnel. Main thread only.
 //
 
 #import <Foundation/Foundation.h>
@@ -19,13 +15,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class OpenRequestToken;
 
-// Runs on the main thread when this request's turn comes up. Each request
-// carries its own sink, so unrelated funnels can share the coordinator.
+// Runs on main when this request's turn comes up.
 typedef void (^OpenRequestDelivery)(NSArray<NSURL *> *files, NSUInteger folderCount, BOOL append);
 
 @interface OpenRequestCoordinator : NSObject
 
-// The app's coordinator. -init makes an independent one, for tests.
+// -init makes an independent one, for tests.
 + (instancetype)sharedCoordinator;
 
 // Closing the playlist supersedes pending walks and buffered append results.
@@ -38,25 +33,19 @@ typedef void (^OpenRequestDelivery)(NSArray<NSURL *> *files, NSUInteger folderCo
 // YES until a later replacing request supersedes the token.
 - (BOOL)isRequestCurrent:(OpenRequestToken *)token;
 
-// May arrive out of order. Surviving append results are buffered until every
-// earlier result in their generation has arrived — or until the straggler
-// deadline gives up on it; see abandonStalledRequests.
+// May arrive out of order. Results buffer until every earlier one in their
+// generation has arrived, or the straggler deadline gives up on it.
 - (void)finishRequest:(OpenRequestToken *)token
                 files:(NSArray<NSURL *> *)files
           folderCount:(NSUInteger)folderCount;
 
-// Gives up on the one request that finished results are queued behind and
-// delivers whatever that frees. An expansion can block forever — a folder
-// walk on a mount that never answers — and without this every later batch in
-// the burst would buffer unseen. Only that one request is abandoned, so a
-// merely slow walk behind it still gets to deliver; a burst stalled on
-// several therefore costs one deadline each. Armed automatically whenever a
-// result cannot deliver in order, and re-armed after it fires while anything
-// is still buffered; exposed because it is the seam the tests drive.
+// Gives up on the one request the buffered results wait behind (a walk on a
+// mount that never answers) and delivers what that frees. Only that one, so a
+// merely slow walk behind it still delivers; each stalled request costs one
+// deadline. Armed automatically; exposed for the tests.
 - (void)abandonStalledRequests;
 
-// How long a finished result waits behind an earlier one. Settable so the
-// tests can drive the real deadline rather than wait it out.
+// How long a finished result waits behind an earlier one.
 @property (nonatomic) NSTimeInterval stragglerDeadline;
 
 @end

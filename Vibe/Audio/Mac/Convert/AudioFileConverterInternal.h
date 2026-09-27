@@ -25,16 +25,14 @@ typedef NSURL *_Nullable (^VibeSourceTrashResultingURLFilter)(
 @end
 
 @interface AudioFileConverter () {
-    // The converter's own serial queue. Every file move runs on it, because a
-    // destination on another volume turns a move into a full copy and an
-    // unreachable mount blocks until it times out.
+    // The converter's own serial queue: the encode and every placement move,
+    // because a destination on another volume turns a move into a full copy
+    // and an unreachable mount blocks until it times out.
     dispatch_queue_t _queue;
-    // Presenters for FLACs only the related-item path could write, kept
-    // registered for the session: the sandbox extension dies with the
-    // registration, leaving a just-written file unreadable. Mutated only on
-    // the converter queue; created in init before publication, and dealloc's
-    // teardown iteration never races the queue because the app-lifetime
-    // instance is never released.
+    // Presenters for FLACs only the related-item rung could write, kept
+    // registered for the session (the sandbox category's trap). Mutated only
+    // on the converter queue; dealloc's teardown never races it because the
+    // app-lifetime instance is never released.
     NSMutableArray<VibeRelatedItemPresenter *> *_relatedItemPresenters;
 }
 

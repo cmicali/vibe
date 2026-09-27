@@ -49,7 +49,6 @@
 }
 
 - (void)testTheHourIsNotZeroPadded {
-    // DropLeading: "1:30:00", never "01:30:00".
     NSString *rendered = [self stringFor:5400];
     XCTAssertFalse([rendered hasPrefix:@"0"], @"got %@", rendered);
 }
@@ -106,8 +105,7 @@
 }
 
 - (void)testDecimalStringUsesTheLocaleDecimalSeparator {
-    // The point of routing through Formatters at all: "44.1" in en, "44,1"
-    // in de, so assert the current locale's separator appears rather than ".".
+    // "44.1" in en, "44,1" in de: assert the current locale's separator.
     NSString *separator = [self referenceDecimalFormatterWithFractionDigits:1].decimalSeparator;
     XCTAssertTrue([[_formatters decimalString:44.1 fractionDigits:1] containsString:separator],
                   @"got %@", [_formatters decimalString:44.1 fractionDigits:1]);
@@ -130,7 +128,6 @@
 #pragma mark signedPercentString:
 
 - (void)testPositivePitchGetsAnExplicitPlus {
-    // The pitch readout always shows direction: "+3.2%", never bare "3.2%".
     XCTAssertTrue([[_formatters signedPercentString:3.2] hasPrefix:@"+"],
                   @"got %@", [_formatters signedPercentString:3.2]);
 }

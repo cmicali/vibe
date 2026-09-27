@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 #
-# Build the iOS app for a physical device and install it over the CoreDevice
-# tunnel. Unlike `make build-ios` (simulator slice, CODE_SIGNING_ALLOWED=NO)
-# this produces a real signed bundle, so it needs a development certificate and
-# a provisioning profile for com.commonwealthrecordings.Vibe.
+# Build the iOS app for a paired physical device and install it over the
+# CoreDevice tunnel. Signed, so it needs a development certificate and a
+# provisioning profile for com.commonwealthrecordings.Vibe.
 #
 # Usage: scripts/install-ios.sh [Debug|Release]   (default: Release)
 #   DEVICE=<name or identifier>  pick a device when more than one is paired.
@@ -52,8 +51,7 @@ fi
 DEVICE_ID="${MATCHES%%$'\t'*}"
 DEVICE_NAME="${MATCHES#*$'\t'}"
 
-# SKIP_GENERATE=1 skips regeneration (the Makefile's `install-ios` target sets
-# this because its `project` prerequisite has already run `xcodegen generate`).
+# SKIP_GENERATE=1: the caller has already generated (the Makefile's `install-ios`).
 if [[ "${SKIP_GENERATE:-}" == "1" ]]; then
     echo "🔊 skipping xcodegen generate (SKIP_GENERATE=1)"
 else

@@ -41,9 +41,6 @@ static CGFloat Alpha(VibeColor *color) {
                                 artworkColor:nil customPlayed:nil customUnplayed:nil];
 }
 
-// The Mono theme is the pre-theme monochrome look exactly: the base hue,
-// carrying the resting alphas that used to live in the Detailed renderer
-// (its old stop alphas times its old 0.75 layer opacity).
 - (void)testMonoReproducesMonochromeBase {
     WaveformTheme *dark = [self themeFor:SETTINGS_VALUE_WAVEFORM_THEME_MONO isDark:YES];
     XCTAssertTrue(SameRGB(dark.playedColor, NSColor.whiteColor));
@@ -61,9 +58,6 @@ static CGFloat Alpha(VibeColor *color) {
     XCTAssertEqualWithAccuracy(Alpha(light.unplayedColor), 0.375, 0.001);
 }
 
-// Orange is the pre-theme Sonic Cirrus pairing on every style: the hardcoded
-// orange at full strength over the appearance's base at SC's historical
-// unplayed alpha.
 - (void)testOrangeMatchesSonicCirrusPairing {
     WaveformTheme *dark = [self themeFor:SETTINGS_VALUE_WAVEFORM_THEME_ORANGE isDark:YES];
     XCTAssertTrue(SameRGB(dark.playedColor, [NSColor colorWithRed:1 green:0.45 blue:0 alpha:1]));
@@ -77,7 +71,7 @@ static CGFloat Alpha(VibeColor *color) {
     XCTAssertEqualWithAccuracy(Alpha(light.unplayedColor), 0.89, 0.001);
 }
 
-// Album art with no color, or a grayscale one, is White's answer.
+// Album art with no color, or a grayscale one, is Mono's answer.
 - (void)testAlbumArtFallsBackToWhite {
     WaveformTheme *nilArt = [WaveformTheme themeForIdentifier:SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART
                                                        isDark:YES artworkColor:nil
@@ -91,11 +85,9 @@ static CGFloat Alpha(VibeColor *color) {
     XCTAssertTrue(SameRGB(grayArt.playedColor, NSColor.blackColor));
 }
 
-// A saturated art color survives, blended toward the appearance's contrast
-// pole until its LUMINANCE clears the bar — bright enough for the dark
-// backdrop, dark enough for the light one — with the hue's character kept.
-// HSB brightness would pass a pure blue untouched (B is already 1.0) even
-// though it is perceptually far too dark.
+// A saturated art color is blended toward the appearance's contrast pole until
+// its luminance clears the bar, keeping its hue. HSB brightness would pass a
+// pure blue untouched (B is already 1.0) though it reads far too dark.
 - (void)testAlbumArtClampsLuminanceTowardThePole {
     CGFloat r, g, b;
 
@@ -149,7 +141,7 @@ static CGFloat Alpha(VibeColor *color) {
     XCTAssertEqualWithAccuracy(Alpha(theme.hoverColor), 1.0, 0.001);
 }
 
-// Custom with either color missing is White's answer.
+// Custom with either color missing is Mono's answer.
 - (void)testCustomFallsBackToWhiteWhenUnset {
     NSColor *teal = [NSColor colorWithRed:0 green:0.7 blue:0.7 alpha:1];
     WaveformTheme *missing = [WaveformTheme themeForIdentifier:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM
@@ -170,9 +162,8 @@ static CGFloat Alpha(VibeColor *color) {
     XCTAssertTrue(SameRGB(theme.playedColor, NSColor.whiteColor));
 }
 
-// The hover contrast rule: hover clears the played color's luminance by 0.25
-// toward the appearance's pole, saturating at the pole — which is what keeps
-// White's hover exactly the base.
+// Hover clears the played color's luminance by 0.25 toward the appearance's
+// pole, saturating there, which keeps Mono's hover exactly the base.
 - (void)testHoverContrastHolds {
     NSColor *orange = [NSColor colorWithRed:1 green:0.45 blue:0 alpha:1];
     struct { NSString *identifier; NSColor *played; NSColor *unplayed; } cases[] = {

@@ -2,8 +2,6 @@
 //  SettingsChoiceViewController.m
 //  Vibe (iOS)
 //
-//  See SettingsChoiceViewController.h.
-//
 
 #import "SettingsChoiceViewController.h"
 

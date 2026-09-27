@@ -27,35 +27,25 @@
     [self.audioPlayer seekToPosition:self.audioPlayer.duration * percentage];
 }
 
-// The progressive snapshots and the final waveform, on the main thread. The
-// view simply renders what it is handed. The cache filters out cancelled
-// loads, but it cancels only when the next load starts, at didStartPlaying:,
-// so between a slow track's didBeginLoading: and its start the outgoing
-// decode is still streaming: without the match its waveform would draw under
-// the new track's loading shimmer.
+// The cache cancels only when the next load starts, so between a slow track's
+// didBeginLoading: and its start the outgoing decode still streams; unmatched,
+// it would draw under the new track's shimmer.
 - (void)audioWaveform:(CodableAudioWaveform *)waveform
           didLoadData:(float)percentLoaded
                forURL:(NSURL *)url {
     if (![[self.playlistController currentTrack].url isEqual:url]) {
         return;
     }
-    // The URL match alone is not enough: a hard mid-play error masks the
-    // still-current track behind the error placeholder, and a late snapshot of
-    // that same track must not repaint over it. Same resolution the header
-    // renders through; a retry's didBeginLoading: clears the mask first.
+    // Not the URL alone: a late snapshot must not repaint over the error
+    // state of the same, still-current track.
     if ([self displayState] == TrackDisplayStateError) {
         return;
     }
     [self.trackDisplay showWaveform:waveform];
 }
 
-// A delivery usually belongs to the current track, but a late one can land
-// after next: has advanced the playlist, and the same file can occupy more
-// than one row. An analyzed value is valid for every track owning that URL —
-// the first match alone would strand a duplicate row that happens to be the
-// one playing — so stamp them all, and refresh the label only when one of them
-// is on display. The BPM and the key share the label line, so both refresh
-// through effectiveTempoDidChange.
+// An analyzed value is valid for every row owning the URL; stamping only the
+// first match would strand a duplicate that happens to be playing.
 - (void)stampTracksWithURL:(NSURL *)url usingBlock:(void (^)(AudioTrack *track))stamp {
     __block BOOL refresh = NO;
     [[self.playlistController indexesOfTracksWithURL:url]

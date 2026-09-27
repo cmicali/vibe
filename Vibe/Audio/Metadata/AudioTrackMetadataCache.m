@@ -29,20 +29,12 @@
 
 @implementation AudioTrackMetadataCache {
     AudioTrackMetadataLoader*   _currentLoader;
-    // Exists only to construct the cache off the main thread at utility QoS;
-    // see init.
+    // Serializes construction, invalidation and disk usage at utility QoS.
     dispatch_queue_t            _cacheQueue;
-    // Bumped by invalidateWithCompletion:; see the class-extension comment.
     atomic_uint_fast64_t        _cacheGeneration;
-    // The scan ranking and current-track priority, kept here rather than only
-    // on the loader because loadMetadata: mints a new one: neither the
-    // neighborhood the screen last named nor the priority of the track the
-    // user is waiting on may be lost by the sweep that open is racing. The
-    // foreground/background rule needs no state here at all — the
-    // materialization coordinator derives it from its own claim table.
+    // Kept here, not only on the loader, so a replacement loader inherits them.
     NSArray<NSURL *>            *_neighborhood;
-    // Weak on purpose: re-prioritizing is best-effort continuity across a
-    // loader replacement, never a reason to pin a departed playlist's track.
+    // Weak: never pins a departed playlist's track.
     __weak AudioTrack           *_lastPrioritizedTrack;
     AudioLoadingConfiguration   *_loadingConfiguration;
 }
@@ -52,17 +44,9 @@
 }
 
 + (NSString *)cacheName {
-    // The name embeds the archive-format version. Bump it whenever the
-    // archived fields or their meaning change, as fileType labeling did, since
-    // stale entries otherwise persist until the size-and-mtime cache key
-    // changes, which can take up to the age limit.
-    // v5: the tagged musical key joined the archive; older entries would
-    // otherwise show no key until their cache key changed.
-    // v6: display-art sidecar entries ("#displayArt"-suffixed keys) joined the
-    // store; without them the display surfaces fall back to re-reading the
-    // audio file, so old stores re-parse rather than staying slow.
-    // v7: the sidecar became per-platform-sized (640 mac, 1024 iOS) and iOS
-    // started reading it; v6 stores carry none on iOS and 640s on mac.
+    // The archive-format version: bump it whenever the archived fields, the
+    // rendition or their meaning change, or stale entries live until their
+    // cache key changes.
     return @"Audio Track Metadata v7";
 }
 
@@ -80,15 +64,11 @@
         _parseCoordinator = [[MetadataParseCoordinator alloc] init];
         _cacheQueue = dispatch_queue_create("com.vibe.metadatacache",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
-        // Create the cache at utility QoS. Constructing it on the main thread
-        // boosts PINCache's internal init-time disk scan to user-initiated,
-        // which then priority-inverts against the utility worker ops, and the
-        // Thread Performance Checker warns about it on the first drop.
-        // Metadata loading usually starts well after init, since it is
-        // deferred until playback begins, but a launch by double-click can
-        // beat this block. The loader re-reads the property at each use.
+        // Off main: constructing on main boosts PINCache's init-time disk scan
+        // to user-initiated, which priority-inverts against the utility
+        // workers. A loader can run before this lands; it re-reads the
+        // property at each use.
         dispatch_async(_cacheQueue, ^{
-            // Why the memory cache goes unused is with the shared policy.
             self.metadataCache = [PINCache audioCacheWithName:AudioTrackMetadataCache.cacheName];
         });
     }
@@ -100,15 +80,12 @@
     if (_loadingConfiguration == loadingConfiguration) {
         return;
     }
-    // A loader snapshots its configuration; the next loadMetadata: (or the
-    // next pre-sweep loadMetadataNow:) builds under the new one. Nothing to
-    // retire: priority work lives in the current loader and dies with it.
+    // A loader snapshots its configuration; the next one built uses this.
     _loadingConfiguration = [loadingConfiguration copy];
 }
 
 - (void)invalidateWithCompletion:(dispatch_block_t)completion {
-    // The queue is serial, so this runs after the deferred cache construction
-    // in init and self.metadataCache is always set when this block executes.
+    // Serial behind init's construction, so metadataCache is set.
     dispatch_async(_cacheQueue, ^{
         atomic_fetch_add_explicit(&self->_cacheGeneration, 1, memory_order_relaxed);
         [self.metadataCache removeAllObjects];
@@ -119,19 +96,13 @@
 }
 
 - (void)diskUsageWithCompletion:(void (^)(NSUInteger fileCount, unsigned long long totalBytes))completion {
-    // The serial queue guarantees the cache exists and keeps the blocking
-    // enumeration off the caller's thread.
     dispatch_async(_cacheQueue, ^{
         [self.metadataCache audioDiskUsageWithCompletion:completion];
     });
 }
 
 - (void)cancelScan {
-    // Release it, rather than merely cancelling. _queuedTracks strongly holds
-    // every queued track, pinning the old playlist until a next loadMetadata:
-    // that may never come. The current track's priority record dies with the
-    // loader too — replacement drops everything, the guarantee's J1 half —
-    // and duplicate parse waiters are weak, so leave those alone.
+    // Release, not just cancel: the loader holds every queued track.
     [_currentLoader cancel];
     _currentLoader = nil;
 }
@@ -146,12 +117,9 @@
                                                                    loadingConfiguration:_loadingConfiguration];
     _currentLoader = loader;
     [loader setNeighborhoodURLs:_neighborhood];
-    // Carry the current track's priority across the replacement: the shells'
-    // loadMetadataNow: often lands on the loader this one replaces (the
-    // single-track loader a pre-sweep prioritization built), and the track
-    // the user is waiting on must not restart as an ordinary row. Weak and
-    // re-checked, so a departed track re-prioritizes nothing. Before load:,
-    // so the sweep's stage 1 dedupes against it rather than racing it.
+    // Carry the current track's priority across the replacement, which often
+    // replaces a pre-sweep single-track loader. Before load:, so stage 1
+    // dedupes against it.
     AudioTrack *priorityTrack = _lastPrioritizedTrack;
     if (priorityTrack && !priorityTrack.metadata.parsedOK) {
         [loader prioritizeTrack:priorityTrack];
@@ -168,9 +136,7 @@
     [_currentLoader setNeighborhoodURLs:_neighborhood];
 }
 
-// The tracks the listener reaches soonest, in the order they reach them: the
-// next one, the one after it, then the one behind — a back-skip is the fourth
-// thing a hand does, not the first.
+// In the order a listener reaches them.
 static const NSInteger kNeighborhoodOffsets[] = {1, 2, -1};
 
 - (void)setNeighborhoodAroundIndex:(NSUInteger)index inTracks:(id<AudioTrackIndexedSource>)tracks {
@@ -191,17 +157,13 @@ static const NSInteger kNeighborhoodOffsets[] = {1, 2, -1};
 }
 
 #if DEBUG
-// Declared in Debug/AudioTrackMetadataCache+Debug.h; implemented here because
-// the loader and the hold flag are this file's.
+// Debug/AudioTrackMetadataCache+Debug.h; here because the loader is this file's.
 - (NSUInteger)debugPendingBackgroundMaterializationCount {
     return [_currentLoader debugPendingBackgroundMaterializationCount];
 }
 
 - (BOOL)debugBackgroundMaterializationHeld {
-    // The key survives for the harness; the fact now lives where it is
-    // derived. The consistency check "lane held with the player stopped"
-    // becomes a check on the derivation itself: stopped and settled means no
-    // foreground claims, so this must read NO.
+    // Stopped and settled means no foreground claims, so this must read NO.
     return [AudioFileMaterializationCoordinator.sharedCoordinator
             isForegroundTransferActive];
 }
@@ -221,17 +183,14 @@ static const NSInteger kNeighborhoodOffsets[] = {1, 2, -1};
     }
     _lastPrioritizedTrack = track;
     if (!_currentLoader) {
-        // No sweep yet — the deferred load has not fired, or none is coming.
-        // A loader with just this track carries the record whose retries D3
-        // depends on; the real playlist sweep replaces it wholesale (D10) and
-        // loadMetadata: re-prioritizes the track on the replacement.
+        // No sweep yet: a loader over this one track, which the sweep
+        // replaces wholesale (D10), re-prioritizing the track.
         _currentLoader = [[AudioTrackMetadataLoader alloc] initWithOwner:self
                                                                  delegate:self.delegate
                                                      loadingConfiguration:_loadingConfiguration];
         [_currentLoader setNeighborhoodURLs:_neighborhood];
     }
-    // A loader snapshots the delegate at creation; refresh it here because
-    // prioritization can outlive the delegate wiring that existed then.
+    // The delegate may have been wired after the loader was built.
     _currentLoader.delegate = self.delegate;
     [_currentLoader prioritizeTrack:track];
 }

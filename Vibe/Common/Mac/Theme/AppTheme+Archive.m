@@ -7,9 +7,8 @@
 #import "AppThemeInternal.h"
 #import <compression.h>
 
-// Minimal ZIP, self-contained: the writer emits stored (uncompressed)
-// entries; the reader takes stored and raw-deflate ones, which covers both
-// our own exports and a zip a person made by hand (Finder compresses).
+// Minimal ZIP: the writer emits stored entries; the reader also takes
+// raw-deflate, which Finder writes.
 
 static uint32_t VibeCRC32(NSData *data) {
     static uint32_t table[256];
@@ -31,11 +30,8 @@ static uint32_t VibeCRC32(NSData *data) {
     return crc ^ 0xFFFFFFFF;
 }
 
-// The ZIP's DOS date/time as one packed word, date in the high half: seconds/2,
-// minute and hour below; day, month and year-1980 above. Zero is a legal field
-// but extracts as 1979-11-29, so entries carry the export's own wall time. The
-// 7-bit year cannot hold a clock outside 1980-2107, so a bogus one clamps
-// rather than wrapping into a stranger date than it started with.
+// DOS date (high half) and time. Zero would extract as 1979-11-29, so entries
+// carry the wall time; the 7-bit year clamps to 1980-2107 rather than wrap.
 static uint32_t VibeDOSTimestampNow(void) {
     NSDateComponents *now = [NSCalendar.currentCalendar
             components:NSCalendarUnitYear | NSCalendarUnitMonth | NSCalendarUnitDay |
@@ -59,8 +55,6 @@ static void VibeAppendLE(NSMutableData *out, uint64_t value, int bytes) {
 static NSData *VibeZipData(NSDictionary<NSString *, NSData *> *entries) {
     NSMutableData *out = [NSMutableData data];
     NSMutableData *central = [NSMutableData data];
-    // One stamp for every entry: the archive is written in a single pass, so a
-    // per-entry read would only differ when the write straddles a second.
     uint32_t stamp = VibeDOSTimestampNow();
     NSUInteger count = 0;
     for (NSString *name in [entries.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
@@ -121,19 +115,16 @@ static uint32_t VibeReadLE(const uint8_t *bytes, int width) {
     return value;
 }
 
-// The whole theme archive's ceiling — one JSON plus one image per image
-// field, each at the store's byte cap, with slack. Both the pre-parse input
-// gate and the unzip's running inflate budget use it.
+// One JSON plus one image per image field at the byte cap, with slack: the
+// input gate and the unzip's running budget.
 static NSUInteger VibeThemeArchiveByteCap(void) {
     return AppTheme.imageFieldKeys.count * kVibeThemeImageByteCap + 64 * 1024;
 }
-// A theme archive is one JSON plus at most one image per image field; a
-// Finder zip adds its __MACOSX sidecars. The count is a 16-bit field, and
-// walking 65,535 headers to reject them one by one is itself the attack.
+// Room for a Finder zip's __MACOSX sidecars. Walking 65,535 headers to reject
+// them one by one would itself be the attack.
 static const NSUInteger kThemeArchiveEntryCap = 64;
 
-// nil when the data is not a zip this reader can walk. Entries it cannot
-// decode (an unsupported method) are skipped rather than fatal.
+// nil when the data is not a walkable zip; an undecodable entry is skipped.
 static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
     const uint8_t *bytes = zip.bytes;
     NSUInteger length = zip.length;
@@ -157,15 +148,13 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
     if (count > kThemeArchiveEntryCap) {
         return nil;
     }
-    // A total budget across all entries, so deflate's ~1000:1 ratio cannot
-    // aim thousands of central-directory entries at one small stream and
-    // exhaust memory. One JSON plus the image slots is all the caller needs.
+    // One budget across all entries, so deflate's ~1000:1 ratio cannot aim
+    // many entries at one small stream and exhaust memory.
     NSUInteger budget = VibeThemeArchiveByteCap();
     NSMutableDictionary *entries = [NSMutableDictionary dictionary];
     for (NSUInteger i = 0; i < count; i++) {
-        // Per entry, because everything below it is transient but the name and
-        // the accepted payload: a rejected entry must not hold its bytes until
-        // the whole walk returns.
+        // Per entry, so a rejected entry's bytes do not live until the walk
+        // returns.
         @autoreleasepool {
             if (offset + 46 > length || VibeReadLE(bytes + offset, 4) != 0x02014b50) {
                 return nil;
@@ -177,10 +166,9 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
             NSUInteger extraLength = VibeReadLE(bytes + offset + 30, 2);
             NSUInteger commentLength = VibeReadLE(bytes + offset + 32, 2);
             NSUInteger local = VibeReadLE(bytes + offset + 42, 4);
-            // TRAP: the fixed 46-byte header is bounds-checked above, but the
-            // variable-length name that follows is NOT — a crafted nameLength
-            // (≤65535) would read past the buffer. Guard the name AND the offset
-            // advance before touching either.
+            // TRAP: the 46-byte check does not cover the variable-length name,
+            // extra and comment after it; a crafted length reads past the
+            // buffer. Guard them before reading the name or advancing offset.
             if (offset + 46 + nameLength + extraLength + commentLength > length) {
                 return nil;
             }
@@ -196,18 +184,15 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
             if (dataStart + csize > length || !name || [name hasSuffix:@"/"]) {
                 continue;
             }
-            // TRAP: charge the budget from the HEADER's sizes, BEFORE any bytes
-            // are materialized. Copying first and charging after is what the
-            // budget cannot save you from: every header in a small archive can
-            // point at the same large stream, so the copies exhaust memory
-            // while each one still measures under the remaining budget.
+            // TRAP: test the budget against the HEADER's sizes before
+            // materializing any bytes. Every header can point at the same
+            // large stream, so copies that each fit the remaining budget would
+            // together exhaust memory.
             if (method == 0 && csize <= budget) {
                 budget -= csize;
                 entries[name] = [zip subdataWithRange:NSMakeRange(dataStart, csize)];
             } else if (method == 8 && usize > 0 && usize <= budget) {
                 NSMutableData *inflated = [NSMutableData dataWithLength:usize];
-                // Inflated straight out of the caller's buffer: the compressed
-                // bytes need no copy of their own to be read.
                 size_t written = compression_decode_buffer(inflated.mutableBytes, usize,
                         bytes + dataStart, csize, NULL, COMPRESSION_ZLIB);
                 if (written == usize) {
@@ -224,28 +209,18 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
 
 + (NSData *)archiveDataForRecord:(NSDictionary<NSString *, id> *)record
                             name:(NSString *)name {
-    // Entries are named by SLOT (archiveEntryStemForImageKey:), not by where
-    // the image came from: a built-in names its image by a bundled filename
-    // and a user theme by a content hash, and neither reads as anything to a
-    // person opening the ZIP. Every image field rides along — the dormant
-    // light half of a single-mode theme included, so a mode flip after
-    // re-import still round-trips.
+    // Every image field rides along, a single-mode theme's dormant light
+    // half included, so a mode flip after re-import round-trips.
     NSDictionary<NSString *, id> *fields = [self sanitizedRecord:record];
     NSMutableDictionary<NSString *, NSData *> *entries = [NSMutableDictionary dictionary];
     NSMutableDictionary<NSString *, NSString *> *names = [NSMutableDictionary dictionary];
     NSMutableDictionary<NSString *, NSString *> *nameForValue = [NSMutableDictionary dictionary];
     for (NSString *key in self.imageFieldKeys) {
         NSString *reference = fields[key];
-        // Two fields naming ONE image share its entry rather than shipping
-        // the bytes twice — the common single-mode and both-sides-alike
-        // placeholder cases.
         if (nameForValue[reference]) {
             names[key] = nameForValue[reference];
             continue;
         }
-        // A built-in's image ships in THIS build, so the export could name it
-        // and stop. It travels anyway: the archive is the portable form, and
-        // the build that opens it may not be this one.
         NSData *image = [self dataForReference:reference];
         if (!image) {
             continue;
@@ -271,8 +246,7 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
     if (!isZip) {
         NSMutableDictionary *record =
                 [[self recordFromJSONData:data name:outName error:error] mutableCopy];
-        // JSON alone cannot carry the images: a custom reference that names
-        // nothing already stored here is dangling — drop it, keep the theme.
+        // JSON carries no images: drop a custom reference nothing here holds.
         for (NSString *key in self.imageFieldKeys) {
             NSString *reference = record[key];
             if ([reference hasPrefix:@"custom:"] && [self referenceIsMissing:reference]) {
@@ -288,12 +262,10 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
         return nil;
     }
     NSDictionary<NSString *, NSData *> *entries = VibeUnzipData(data);
-    // Skip a Finder zip's AppleDouble sidecars — __MACOSX/._theme.json has a
-    // .json extension but is not JSON, and would nondeterministically win.
+    // Skip a Finder zip's AppleDouble sidecars: __MACOSX/._theme.json is not
+    // JSON. Sorted, first name winning, so duplicate base names resolve
+    // deterministically.
     NSMutableDictionary<NSString *, NSData *> *byBaseName = [NSMutableDictionary dictionary];
-    // Walked sorted, first name winning, so an archive holding two entries
-    // that share a base name resolves the same way every time — NSDictionary
-    // enumeration order is arbitrary.
     for (NSString *entry in [entries.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
         NSString *base = entry.lastPathComponent;
         if ([entry hasPrefix:@"__MACOSX/"] || [base hasPrefix:@"._"] || byBaseName[base]) {
@@ -301,9 +273,7 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
         }
         byBaseName[base] = entries[entry];
     }
-    // theme.json is the name every export writes, so it wins outright; a
-    // hand-assembled archive naming its theme something else takes the first
-    // JSON in that same sorted order.
+    // theme.json wins; a hand-made archive falls back to the first JSON.
     NSData *json = byBaseName[@"theme.json"];
     for (NSString *base in [byBaseName.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
         if (!json && [base.pathExtension isEqualToString:@"json"]) {
@@ -322,13 +292,8 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
     if (!record) {
         return nil;
     }
-    // Inside an archive an image reference is the bare name of the entry
-    // beside the JSON ("" is still the factory image). A custom: or bundled:
-    // prefix is tolerated — a hand-edited file — and means nothing extra
-    // here, since the entry is what the reference resolves against either
-    // way: whatever precedes a colon is dropped. Read from the RAW JSON,
-    // because the sanitizer admits only the two prefixed shapes and has
-    // already dropped a bare name from the record.
+    // A reference here is a bare entry name, read from the RAW JSON because
+    // the sanitizer dropped it. A prefix from a hand-edited file is ignored.
     NSDictionary<NSString *, NSString *> *references = [self rawImageReferencesInJSONData:json];
     for (NSString *key in self.imageFieldKeys) {
         NSString *reference = references[key];
@@ -336,14 +301,9 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
             continue;
         }
         NSString *entry = [reference componentsSeparatedByString:@":"].lastObject;
-        // Re-validated and re-hashed from the bytes, never trusting the name:
-        // the stored custom:<sha1> form is the only shape the sanitizer admits
-        // for a container image, and it is where EVERY archived image lands —
-        // a built-in's included, since a slot-named entry says nothing about
-        // which build's Resources the bytes started in.
-        // An image that fails validation costs its field and nothing else —
-        // the theme still imports — so its reason never lands in the caller's
-        // error beside a record.
+        // Stored as custom:<sha1>, a built-in's too: a slot name says nothing
+        // about which build's Resources the bytes came from. A failing image
+        // costs only its field, so its reason is not reported.
         NSData *image = byBaseName[entry];
         NSString *stored = image ? [self storeCustomImageData:image error:NULL] : nil;
         if (stored) {

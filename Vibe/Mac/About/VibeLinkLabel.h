@@ -7,16 +7,10 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// A label with one clickable range. A selectable NSTextField would give links
-// for free, but these labels span the window's full width while their text is
-// centered and short, so selectability would turn a full-width strip into an
-// I-beam that also swallows the window's background drag. This hit-tests the
-// link's own glyphs instead: only those characters take the click, the
-// pointing-hand cursor and the focus ring, and the rest of the label stays
-// transparent.
-//
-// With no link set it is an ordinary label: not focusable, not an
-// accessibility link, and hit-test transparent everywhere.
+// A label with one clickable range, hit-tested against the link's glyphs: a
+// selectable NSTextField would make the full-width strip an I-beam that
+// swallows the window's background drag. With no link it is an ordinary,
+// unfocusable, hit-transparent label.
 @interface VibeLinkLabel : NSTextField
 
 // Set both, or neither. linkRange indexes attributedStringValue, so assign the
@@ -24,13 +18,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, nullable) NSURL *linkURL;
 @property (nonatomic) NSRange linkRange;
 
-// The link's glyph rect in this label's own coordinates, NSZeroRect with no
-// link. The pointer, the focus ring and the accessibility frame all use it, so
-// the three cannot cover different pixels.
+// NSZeroRect with no link. The pointer, the focus ring and the accessibility
+// frame all use it, so they cannot cover different pixels.
 @property (nonatomic, readonly) NSRect linkRect;
 
-// The one activation funnel: the click, Return/Space, and the accessibility
-// press all land here. Overridden by tests so they need not open Mail.
+// The one activation funnel; tests override it so they need not open Mail.
 - (void)activateLink;
 
 @end

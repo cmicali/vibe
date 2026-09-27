@@ -13,8 +13,7 @@
 
 static const CGFloat kAboutIconSize = 96;
 
-// A borderless button styled as a hyperlink; a plain NSButton so the debug
-// walker addresses it by title.
+// A plain NSButton, so the debug walker addresses it by title.
 @interface VibeSettingsLinkButton : NSButton
 @end
 
@@ -28,8 +27,7 @@ static const CGFloat kAboutIconSize = 96;
 @end
 
 @implementation SettingsAboutViewController {
-    // Re-read on every refresh: a theme's custom app icon lands in
-    // NSApp.applicationIconImage while this pane may already be built.
+    // Re-read on every refresh: a theme's app icon can change after build.
     NSButton *_iconButton;
     NSTextField *_filesOpenedValue;
     NSTextField *_foldersOpenedValue;
@@ -63,13 +61,9 @@ static const CGFloat kAboutIconSize = 96;
     ]];
 }
 
-// Icon, name and version, centered on the pane background rather than inside
-// a card.
 - (NSView *)identityBlock {
-    // The icon doubles as the About window's opener, with the hand cursor as
-    // the affordance. Nil-targeted: the settings window is key when clicked,
-    // so the action resolves to AppDelegate.showAboutWindow: exactly as the
-    // app menu's item does.
+    // Nil-targeted, so it resolves to AppDelegate.showAboutWindow: like the
+    // app menu's item.
     VibeSettingsLinkButton *icon = [VibeSettingsLinkButton buttonWithImage:NSApp.applicationIconImage
                                                                     target:nil
                                                                     action:@selector(showAboutWindow:)];

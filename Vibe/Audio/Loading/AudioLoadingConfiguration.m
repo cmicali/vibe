@@ -23,8 +23,7 @@ VibeAudioLoadingConfigurationValues VibeAudioLoadingProductionConfigurationValue
     values.maximumBackgroundMaterializations = 1;
     values.localMetadataParseConcurrency = 4;
     values.prefetchDepth = 1;
-    // Handle-run admission is independent (spec J8); changing foreground
-    // transfer concurrency would be a separate policy decision.
+    // Transfer lanes only; the handle-run ceiling is separate (spec J8).
     values.maximumInteractiveMaterializations = 3;
     values.maximumInteractivePendingMaterializations = 1;
     values.maximumBackgroundPendingMaterializations = 6;

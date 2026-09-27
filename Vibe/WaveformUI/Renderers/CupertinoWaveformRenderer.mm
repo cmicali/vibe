@@ -56,10 +56,8 @@ static const CGFloat kCupertinoBarWidth = 1;
 
 #pragma mark - Cupertino Basic
 
-// Apple Music's scrubber is about 7pt; this one is deliberately a little
-// taller. Hovering grows the pill, Apple Music's own affordance, and the
-// growth is what says "this is the control" — the column below only says
-// where the seek would land.
+// A little taller than Apple Music's ~7pt. The hover growth says "this is the
+// control"; the column only says where the seek would land.
 static const CGFloat kPillHeight = 9;
 static const CGFloat kPillHoverHeight = 16;
 static const CGFloat kPillHoverGrowDuration = 0.18;
@@ -197,11 +195,9 @@ static const CGFloat kSeekBandHeight = 28;
                       bounds.size.width, height);
 }
 
-// The samples are never read — the pill is the same picture for every track —
-// but their ABSENCE is the empty and loading states, where the bar styles
-// collapse to the midline and a full-width track would instead read as a
-// loaded file at 0:00 and frame the loading shimmer. Hidden is this style's
-// collapse; a late delivery simply unhides it.
+// The samples are never read, but their ABSENCE is the empty and loading
+// states, where a visible pill would read as a loaded file at 0:00. Hidden is
+// this style's collapse.
 - (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
     _bounds = bounds;
     _progress = MAX(0.0, MIN(1.0, progress));

@@ -4,11 +4,10 @@
 //
 //  The output-device half of the player, macOS only: which device the hosted
 //  output unit is bound to and at what rate, the bit-perfect and exclusive
-//  modes, no-device parking and the report. It owns the AudioOutputUnit.
-//  (Devices) is the public API a shell imports beside AudioPlayer.h; (DevicesInternal) is what the rest of the player and the
-//  tests reach. AudioPlayer+Devices.m implements both. It lives under Mac/ so
-//  only the macOS target compiles it: a shared caller would compile on iOS
-//  and fail at link.
+//  modes, no-device parking and the report. (Devices) is the public API a
+//  shell imports beside AudioPlayer.h; (DevicesInternal) is what the rest of
+//  the player and the tests reach. It lives under Mac/ so only the macOS
+//  target compiles it: a shared caller would compile on iOS and fail at link.
 //
 
 #import "AudioPlayer.h"
@@ -33,7 +32,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Bit-perfect output. While on, each track's settlement sets the chosen
 // device to the file's rate and word length, and the source segment is the
-// bus at the file's own format straight into the mixer, without varispeed;
+// bus at the file's own format, without varispeed;
 // the only gain ever applied is the declick at each transport edge, and none
 // with AudioPlayer.declick off, when every edge is a cut. The shell owns
 // the rest of the pruning (minimum crossfade, hidden pitch fader) and only
@@ -50,8 +49,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput
                   enableFX:(BOOL)enableFX allowAnyDevice:(BOOL)allowAnyDevice;
 
-// Permanently stops transport, restores any changed device format and releases the hog,
-// synchronously on the player queue, so it waits on the device. The app
+// Permanently stops transport, restores any changed device format and
+// releases the hog, synchronously on the player queue, so it waits on the
+// device. The app
 // delegate's applicationShouldTerminate: is the one caller, off main and after
 // the windows are gone and its playback delegate is detached on main: this is
 // the edge that keeps the restore promise.
@@ -71,9 +71,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)ensureOutputUnitOnQueue;
 - (BOOL)createOutputUnitOnQueue;
 // Brings the unit and the pipeline to `rate`: the output stopped, the unit
-// reconfigured, the FX chain re-hosted, the meter replaced. The bus is the
-// caller's to reconcile through ensureSourceSegmentOnQueueRebuilt:, which
-// rebuilds one at the old rate and reports it, so the caller re-voices. A
+// reconfigured, the FX chain re-hosted, the meter replaced. The voice bus is
+// the caller's to reconcile (reconcileSourceSegmentOnQueue), which rebuilds
+// one at the old rate and re-voices. A
 // no-op at the current rate. NO without a unit; a format the HAL refuses
 // fails the next start instead (AudioOutputUnit.h).
 - (BOOL)applyOutputRateOnQueue:(double)rate;
@@ -81,9 +81,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The newest published report — a locked snapshot, no queue hop, like
 // outputAudioActive. Recomputed from its owners at every settlement, hog
-// edge, mode toggle, playback-state publication, volume/balance/mute change and default
-// change, and announced through audioPlayerDidChangeBitPerfectReport: when
-// it differs.
+// edge, mode toggle, playback-state publication, volume/balance/mute change
+// and default change, and announced through
+// audioPlayerDidChangeBitPerfectReport: when it differs.
 @property (readonly) VibeBitPerfectReport bitPerfectReport;
 
 // The same report as a dictionary with its status named: every input to the
@@ -97,8 +97,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Resolves the retained launch preference without blocking _queue. It only
 // applies a found device where VibeCanBindSavedOutputDevice allows — Stopped,
-// a settled Pause, or Loading while the output is not running; the rule and its trap are on
-// that function — and playback winning the lookup race leaves the preference
+// a settled Pause, or Loading while the output is not running — and playback
+// winning the lookup race leaves the preference
 // pending for the next eligible transition or device/default refresh. Runs on
 // _queue. A completed missing-device lookup disables an armed bit-perfect
 // mode; an unpublished snapshot never settles that lookup.
@@ -127,10 +127,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)prepareOutputOnQueueForFile:(AudioFileHandle *)file;
 
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-// Hog for the bound device, when the setting, an eligible device and writable
-// HAL hog mode all hold. Idempotent through the HAL read; a rebuild on the
-// device already hogged keeps the hog. Taking the device that is currently
-// the system default moves the default elsewhere; the hosted unit stays.
+// Hogs the bit-perfect device (the requested one, or a switch's destination)
+// when the setting, an eligible device and writable HAL hog mode all hold.
+// Idempotent through the HAL read; a rebuild on the device already hogged
+// keeps the hog. Taking the system default moves the default elsewhere; the
+// hosted unit stays.
 - (void)acquireExclusiveOutputOnQueue;
 - (void)releaseExclusiveOutputOnQueue;
 #endif

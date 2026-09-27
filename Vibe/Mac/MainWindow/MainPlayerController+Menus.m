@@ -35,9 +35,8 @@
             return YES;
         case VibeMenuValidationDomainFX:
             [self applyFXStateToMenuItem:menuItem];
-            // TRAP: hiding a parent does not disable its descendants. The menu
-            // builder removes their key equivalents; this also blocks direct
-            // menu dispatch while the controls are off.
+            // TRAP: hiding the FX menu does not disable its items. The builder
+            // clears their key equivalents; this blocks direct dispatch.
             return self.audioPlayer.fx != nil && AppSettings.sharedInstance.audioFXAllowed;
         case VibeMenuValidationDomainPitchRange:
             [self applyPitchRangeStateToMenuItem:menuItem];
@@ -56,8 +55,7 @@
         case VibeMenuValidationDomainUnknown:
             break;
     }
-    // Only items this controller is the target of reach here, so an unknown
-    // one is a menu item that was added without a validation policy.
+    // Only this controller's items reach here: one was added with no policy.
     LogWarn(@"Menu item %@ targets the player with no validation policy", menuItem.identifier);
     NSAssert(NO, @"unvalidated menu identifier %@ — add it to MenuValidationRules.h",
              menuItem.identifier);
@@ -66,9 +64,6 @@
 
 #pragma mark - Presentation-only domains
 
-// A preference or a window state, not an action, so each of these is a
-// checkmark and nothing else: there is no condition under which the item
-// should go unavailable.
 - (void)applyViewToggleStateToMenuItem:(NSMenuItem *)menuItem {
     MainWindow *window = (MainWindow *)self.window;
     if ([menuItem.identifier isEqualToString:kVibeMenuShowPlaylist]) {
@@ -88,16 +83,13 @@
     }
 }
 
-// Checkmark whichever preset the current body width already sits at, which
-// after a drag-resize is none of them.
+// After a drag-resize, none of them.
 - (void)applyWindowSizeStateToMenuItem:(NSMenuItem *)menuItem {
     MainWindow *window = (MainWindow *)self.window;
     menuItem.state = StateForBOOL(window.contentWidth ==
             [MainPlayerController contentWidthForSizeIdentifier:menuItem.identifier]);
 }
 
-// One checkmark per effect. The controls outlive any single track, but become
-// unavailable together when their stored setting hides the FX menu.
 - (void)applyFXStateToMenuItem:(NSMenuItem *)menuItem {
     AudioFX *fx = self.audioPlayer.fx;
     if ([menuItem.identifier isEqualToString:kVibeMenuFXLowKill]) {
@@ -129,14 +121,10 @@
 
 #pragma mark - Conditional domains
 
-// A selection nobody can see is not a selection: with the playlist collapsed
-// the arrow keys do not move one either (TransportKeyMonitor), so both commands
-// that act on the selected row have nothing to act on. The key-window half is
-// part of the same fact — a bare Return or Delete press in Settings or About
-// falls through to these items' fallback key equivalents, and must not act on
-// a playlist that is not even frontmost. One home, because both commands must
-// agree; the play half used to skip the key-window check, which let Return in
-// Settings start playback of a selection the user was not looking at.
+// Play Selected and Remove share this so they agree. Collapsed, the arrow
+// keys move no selection; and a bare Return or Delete in Settings or About
+// falls through to these items' key equivalents, and must not act on a
+// playlist that is not frontmost.
 - (BOOL)hasVisiblePlaylistSelection {
     MainWindow *window = (MainWindow *)self.window;
     return VibeMenuHasVisibleSelection(window.isKeyWindow, window.isPlaylistShown,
@@ -162,7 +150,7 @@
 }
 
 - (BOOL)validateEditMenuItem:(NSMenuItem *)menuItem {
-    // Stack titles and availability only: no filesystem reads during validation.
+    // The stack alone: no filesystem reads during validation.
     NSUndoManager *manager = self.window.undoManager;
     if ([menuItem.identifier isEqualToString:kVibeMenuEditUndo]) menuItem.title = manager.undoMenuItemTitle;
     if ([menuItem.identifier isEqualToString:kVibeMenuEditRedo]) menuItem.title = manager.redoMenuItemTitle;
@@ -172,25 +160,19 @@
 }
 
 - (BOOL)validateConvertMenuItem:(NSMenuItem *)menuItem {
-    // A preference, not an action, so never disabled.
+    // A preference, never disabled.
     if ([menuItem.identifier isEqualToString:kVibeMenuConvertDeleteOriginal]) {
         menuItem.state = StateForBOOL(AppSettings.sharedInstance.deleteOriginalAfterConvert);
         return YES;
     }
-    // The Convert menu's item and the window-body context menu's share this
-    // identifier; the converter owns the idle enable-and-retitle rule. With
-    // Convert switched off (Settings > Convert > Enabled) the whole feature is
-    // hidden — the menu bar's Convert menu through applyConvertMenuVisibility,
-    // and this shared item here, which is how the context menus follow the
-    // setting live.
+    // Shared with the window-body context menu. Hiding it here is how the
+    // context menus follow the Convert setting live.
     menuItem.hidden = !AppSettings.sharedInstance.convertEnabled;
     if (menuItem.hidden) {
         return NO;
     }
-    // One item, re-aimed: while a conversion runs it is the enabled Cancel
-    // Conversion, the sweep's only affordance. Swapped here rather than in the
-    // converter, which cannot name this controller's selectors; a click landing
-    // after the conversion settles reaches a cancel that is a no-op by then.
+    // While converting, the same item is the enabled Cancel Conversion, the
+    // sweep's only affordance. A click after it settles cancels nothing.
     BOOL converting = self.fileConverter.isConverting;
     menuItem.action = VibeConvertMenuAction(converting);
     if (converting) {
@@ -205,9 +187,7 @@
     if (![menu.identifier isEqualToString:kVibeMenuThemeSubmenu]) {
         return;
     }
-    // Rebuilt whole on every open: themes are added, renamed and removed at
-    // runtime, and a full rebuild is simpler than teaching incremental item
-    // arithmetic about the static Edit tail.
+    // Rebuilt whole on every open: themes change at runtime.
     [menu removeAllItems];
     AppSettings *settings = AppSettings.sharedInstance;
     NSString *active = settings.activeThemeIdentifier;
@@ -216,8 +196,7 @@
                 initWithTitle:[settings displayNameForThemeIdentifier:identifier] ?: identifier
                        action:@selector(selectTheme:)
                 keyEquivalent:@""];
-        // The identifier travels on the item — a display name can't
-        // round-trip into the store — and gives click_menu a stable id.
+        // A display name cannot round-trip into the store.
         item.representedObject = identifier;
         item.identifier = VibeThemeMenuIdentifier(identifier);
         item.state = StateForBOOL([identifier isEqualToString:active]);
@@ -225,8 +204,7 @@
         [menu addItem:item];
     }
     [menu addItem:[NSMenuItem separatorItem]];
-    // Nil-targeted: the app delegate answers showThemeSettings:, the same
-    // ownership as Settings… itself.
+    // Nil-targeted: the app delegate owns it, as it does Settings….
     NSMenuItem *edit = [[NSMenuItem alloc] initWithTitle:STR_MENU_VIEW_EDIT_THEMES
                                                   action:@selector(showThemeSettings:)
                                            keyEquivalent:@""];
@@ -234,9 +212,8 @@
     [menu addItem:edit];
 }
 
-// Without this, AppKit's key-equivalent scan calls menuNeedsUpdate:, a full
-// submenu rebuild, on every keyDown. OutputDevicesMenuController follows the
-// same pattern. The theme items carry no key equivalents.
+// Without this, AppKit's key-equivalent scan rebuilds the submenu through
+// menuNeedsUpdate: on every keyDown. The theme items have no equivalents.
 - (BOOL)menuHasKeyEquivalent:(NSMenu *)menu forEvent:(NSEvent *)event target:(_Nullable id *_Nonnull)target action:(_Nullable SEL *_Nonnull)action {
     return NO;
 }

@@ -54,10 +54,8 @@ NSString *const kVibeLastPlaylistCurrentIndexKey = @"VibeLastPlaylistCurrentInde
             || [extension isEqualToString:@"m3u8"];
 }
 
-// NULs on the even and odd halves of the byte pairs. Both UTF-16 tests below
-// are decided from these two counts alone, so they are counted in one place;
-// the tests differ only in how strict they are, which is the point of keeping
-// them apart.
+// NULs on the even and odd halves of the byte pairs, the only input to both
+// UTF-16 tests below.
 static void CountHalfNULs(const uint8_t *bytes, NSUInteger length,
                           NSUInteger *evenNULs, NSUInteger *oddNULs) {
     *evenNULs = 0;
@@ -88,10 +86,8 @@ static NSStringEncoding BOMlessUTF16Encoding(const uint8_t *bytes, NSUInteger le
     return 0;
 }
 
-// The looser twin of the test above, for data that reached the fallback rungs:
-// the strict form already declined it — an odd length, or NULs on both halves
-// — so this only picks the likelier side rather than asking for a clean
-// signature.
+// The looser twin, for data the strict test declined: picks the likelier side
+// rather than asking for a clean signature.
 static NSStringEncoding LikelyUTF16Encoding(const uint8_t *bytes, NSUInteger length) {
     NSUInteger evenNULs = 0, oddNULs = 0;
     CountHalfNULs(bytes, length, &evenNULs, &oddNULs);
@@ -110,13 +106,10 @@ static NSStringEncoding LikelyUTF16Encoding(const uint8_t *bytes, NSUInteger len
             return text;
         }
     }
-    // TRAP: this has to be decided BEFORE the UTF-8 attempt, not after it
-    // fails. UTF-16-encoded ASCII — which is what a sheet of plain filenames
-    // is — carries no byte above 0x7F, so it decodes as UTF-8 *successfully*,
-    // into text with a NUL between every character. No line then matches
-    // anything and the playlist reads as empty. Only a non-ASCII filename
-    // makes the UTF-8 decode fail, which is why the fallback below cannot
-    // carry this on its own.
+    // TRAP: decide BOM-less UTF-16 BEFORE trying UTF-8. UTF-16 ASCII has no
+    // byte above 0x7F, so it decodes as UTF-8 *successfully*, with a NUL
+    // between every character, and the playlist reads as empty; the NUL
+    // fallback below only sees files a non-ASCII name made UTF-8 reject.
     NSString *text = nil;
     NSStringEncoding bomless = BOMlessUTF16Encoding(bytes, data.length);
     if (bomless) {
@@ -126,10 +119,8 @@ static NSStringEncoding LikelyUTF16Encoding(const uint8_t *bytes, NSUInteger len
         text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
     }
     if (!text && data.length >= 2 && memchr(bytes, 0, data.length)) {
-        // A NUL byte occurs in no single-byte text encoding: this is BOM-less
-        // UTF-16 (some Windows writers). The zeros sit on the high half of
-        // each code unit, so their side tells the byte order — the CP1252
-        // backstop would otherwise render it as NUL-riddled mojibake.
+        // No single-byte encoding holds a NUL, so this is UTF-16 the strict
+        // test declined; CP1252 would render it as NUL-riddled mojibake.
         text = [[NSString alloc] initWithData:data
                                      encoding:LikelyUTF16Encoding(bytes, data.length)];
     }
@@ -137,8 +128,8 @@ static NSStringEncoding LikelyUTF16Encoding(const uint8_t *bytes, NSUInteger len
         text = [[NSString alloc] initWithData:data encoding:NSWindowsCP1252StringEncoding];
     }
     if (!text) {
-        // Latin-1 maps every byte, so this cannot fail; mojibake in an odd
-        // filename beats dropping the whole playlist.
+        // Maps every byte, so this cannot fail: mojibake in one filename beats
+        // dropping the whole playlist.
         text = [[NSString alloc] initWithData:data encoding:NSISOLatin1StringEncoding];
     }
     if ([text hasPrefix:@"\uFEFF"]) {
@@ -153,14 +144,9 @@ static NSString *NormalizePathSeparators(NSString *name) {
     return [name stringByReplacingOccurrencesOfString:@"\\" withString:@"/"];
 }
 
-// TRAP: a path cannot hold a NUL, and an unpaired surrogate is not text at
-// all, but both reach us — from a file truncated mid-write, or one written
-// as UTF-16 and read as something else. (%00 in a file:// URL was the third
-// origin; the m3u URL branch now drops it in encoded form.) NSURL answers
-// *nil* for such a component, and a nil candidate takes the whole open down
-// with an exception on a background expansion worker. They are dropped here,
-// while the name is still a string: what is left either names the file or
-// resolves to nothing, and neither crashes.
+// TRAP: truncated and mis-encoded files carry NULs and unpaired surrogates.
+// NSURL answers *nil* for such a component, and a nil candidate raises on the
+// background expansion worker. Drop them while the name is still a string.
 static NSString *StrippedOfUnpathableCharacters(NSString *name) {
     NSUInteger length = name.length;
     BOOL suspect = NO;
@@ -176,9 +162,8 @@ static NSString *StrippedOfUnpathableCharacters(NSString *name) {
         return name;
     }
     [name getCharacters:units range:NSMakeRange(0, length)];
-    // Compacted in place, which is safe because the write index never passes
-    // the read index. A valid surrogate pair is copied whole — emoji in a
-    // filename are ordinary text and take this path too.
+    // In place: the write index never passes the read index. A valid
+    // surrogate pair (emoji) is copied whole.
     NSUInteger out = 0;
     for (NSUInteger i = 0; i < length; i++) {
         unichar unit = units[i];
@@ -272,20 +257,14 @@ static BOOL IsCueFileTypeKeyword(NSString *token) {
             if (![entry.lowercaseString hasPrefix:@"file://"]) {
                 return;
             }
-            // TRAP: what NSURL.path answers for %00 moved between OS releases
-            // — older Foundation decoded it to a NUL (which the strip below
-            // dropped), macOS 26 leaves the literal %00 in the path. A NUL
-            // cannot name a file either way, so drop the encoded form before
-            // NSURL sees it and both generations converge on the rescued
-            // name. Unambiguous here: a file literally named a%00b travels
-            // as %2500, which does not contain the substring %00.
+            // TRAP: NSURL.path decodes %00 to a NUL on older Foundation and
+            // keeps the literal %00 on macOS 26, so drop it before NSURL parses
+            // the entry. Unambiguous: a literal "%00" in a name travels as %2500.
             entry = [entry stringByReplacingOccurrencesOfString:@"%00" withString:@""];
             NSString *path = [NSURL URLWithString:entry].path;
             if (path.length == 0) {
-                // Sloppy writers emit file:// URLs with raw spaces, which
-                // NSURL refuses outright. Strip the scheme (and the optional
-                // localhost authority) and take the remainder as a path,
-                // percent-decoding what does decode.
+                // NSURL refuses the raw spaces sloppy writers emit: strip the
+                // scheme and optional localhost and decode what decodes.
                 NSString *rest = [entry substringFromIndex:7];
                 if ([rest.lowercaseString hasPrefix:@"localhost/"]) {
                     rest = [rest substringFromIndex:9];
@@ -307,20 +286,17 @@ static BOOL IsCueFileTypeKeyword(NSString *token) {
 
 #pragma mark - Resolution
 
-// Fallback rungs for one entry, in order: the named path as written, its
-// basename beside the playlist (rescues Windows-absolute-path entries), then
-// both of those again under each alternate audio extension (rescues a rip
-// transcoded after the sheet was written — the cue says .wav, the files are
-// now .flac). First readable candidate wins; readable nowhere returns the
-// primary so the caller can tell sandbox denial from a missing file.
+// Rungs in order: the named path, its basename beside the playlist (a
+// Windows-absolute entry), then both under each playable extension (a rip
+// transcoded after the sheet was written). First readable wins; readable
+// nowhere returns the primary so the caller can tell sandbox denial from a
+// missing file.
 static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManager,
                            NSMutableDictionary<NSString *, NSNumber *> *dirReachable) {
     NSURL *primary = [entry hasPrefix:@"/"]
             ? [NSURL fileURLWithPath:entry]
             : [dir URLByAppendingPathComponent:entry].URLByStandardizingPath;
-    // Both constructors answer nil for a component no path can hold; the
-    // parsers strip those, and this is the backstop for any other caller.
-    // Nothing can be resolved without a primary, so the entry has no URL.
+    // Backstop for a component the parsers' strip missed: no primary, no URL.
     if (!primary.path) {
         return nil;
     }
@@ -328,9 +304,8 @@ static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManag
     NSMutableArray<NSURL *> *candidates = [NSMutableArray arrayWithObject:primary];
     NSMutableSet<NSString *> *seen = [NSMutableSet setWithObject:primary.path];
     void (^addCandidate)(NSURL *) = ^(NSURL *url) {
-        // The path, not the URL, is the identity here, and it is nil for a
-        // component no path can hold — the same case the primary is checked
-        // for above. A nil there would raise inside the set.
+        // Keyed by path, which is nil for an unpathable component; a nil
+        // would raise inside the set.
         NSString *path = url.path;
         if (path && ![seen containsObject:path]) {
             [seen addObject:path];
@@ -338,13 +313,10 @@ static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManag
         }
     };
     addCandidate(beside);
-    // One readability probe of the primary's folder gates its alternate-extension
-    // candidates: a sheet of absolute paths into a missing or unreachable volume
-    // then costs one stat per entry instead of one per playable spelling. The
-    // probe is memoized per directory across the pass — on a dead mount it blocks
-    // for an automounter timeout, and a list of absolute paths into one folder
-    // must pay that once, not once per entry. The beside candidates live in the
-    // playlist's own folder, which was just read, so they stay unconditional.
+    // One probe of the primary's folder, memoized per pass, gates its
+    // alternate extensions: on a dead mount each probe blocks for an
+    // automounter timeout, which a sheet into one folder must pay once. The
+    // beside candidates are in the playlist's own, just-read folder.
     NSString *primaryDir = primary.URLByDeletingLastPathComponent.path;
     BOOL primaryDirReachable = NO;
     if (primaryDir) {
@@ -407,11 +379,10 @@ static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManag
 
 #pragma mark - M3U writing
 
-// The path line for one track: relative under prefix, absolute otherwise.
-// TRAP: the reader's line rules decide the rest. It trims whitespace, splits
-// at any newline and reads a leading # as a comment — this reader and every
-// other — so a name any of those would mangle goes out as a percent-encoded
-// file:// URL, which the reader decodes whole. Relativity is given up for it.
+// Relative under prefix, absolute otherwise.
+// TRAP: every M3U reader trims whitespace, splits at newlines and skips a
+// leading #, so a name any of those would mangle goes out as a
+// percent-encoded file:// URL, which reads back whole (and absolute).
 static NSString *M3UPathLine(NSString *path, NSString *_Nullable prefix) {
     NSString *line = prefix != nil && [path hasPrefix:prefix] ? [path substringFromIndex:prefix.length] : path;
     if ([line hasPrefix:@"#"]
@@ -422,10 +393,9 @@ static NSString *M3UPathLine(NSString *path, NSString *_Nullable prefix) {
     return line;
 }
 
-// "Artist - Title", or the display title alone: the display-name rule's own
-// halves, joined by a literal rather than STR_LABEL_TRACK_ARTIST_TITLE because
-// an interchange file must not change shape with the UI language. A newline
-// becomes a space, or the tail would read as an entry line.
+// A literal " - ", not STR_LABEL_TRACK_ARTIST_TITLE: an interchange file must
+// not change shape with the UI language. A newline becomes a space, or the
+// tail would read as an entry line.
 static NSString *M3UInfoName(AudioTrack *track) {
     NSString *artist = track.displayArtist;
     NSString *name = artist ? [NSString stringWithFormat:@"%@ - %@", artist, track.displayTitle]
@@ -436,8 +406,7 @@ static NSString *M3UInfoName(AudioTrack *track) {
 
 + (NSString *)m3uTextForTracks:(NSArray<AudioTrack *> *)tracks relativeToDirectory:(NSURL *)directory {
     // The trailing slash keeps /Music/Album from claiming /Music/Album2/x.mp3.
-    // Both sides standardize the same way, so one folder's /private/var and
-    // /var spellings agree; nothing under a music path is stat'd for it.
+    // Both sides standardize alike, stat-free.
     NSString *dir = directory.path.stringByStandardizingPath;
     NSString *prefix = [dir hasSuffix:@"/"] ? dir : [dir stringByAppendingString:@"/"];
     NSMutableString *text = [NSMutableString stringWithString:@"#EXTM3U\n"];
@@ -454,8 +423,8 @@ static NSString *M3UInfoName(AudioTrack *track) {
 + (BOOL)writeM3UForTracks:(NSArray<AudioTrack *> *)tracks relativeToDirectory:(NSURL *)directory
                     toURL:(NSURL *)url error:(NSError **)error {
     NSString *text = [self m3uTextForTracks:tracks relativeToDirectory:directory];
-    // Lossy so the data is total: an unpaired surrogate from a malformed tag
-    // costs one character, not the save.
+    // Lossy: an unpaired surrogate from a malformed tag costs one character,
+    // not the save.
     NSData *data = [text dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
     return [data writeToURL:url options:NSDataWritingAtomic error:error];
 }

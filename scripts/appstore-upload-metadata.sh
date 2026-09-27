@@ -1,15 +1,14 @@
 #!/bin/bash
-# Upload the localized App Store product-page metadata — promotional text,
-# description, keywords, and screenshots from Assets/app-store/ — to App Store
-# Connect, via the Swift tool in scripts/asc-upload (Bagbutik). No build is
-# involved; this edits the one editable macOS version's product page.
+# Upload the localized App Store product page (copy and screenshots from
+# Assets/app-store/) to the one editable version of one platform, through
+# scripts/asc-upload. No build is involved.
 #
-#   scripts/appstore-upload-metadata.sh [--dry-run] [--locales de,fr]
-#                                        [--skip-screenshots] [--skip-text]
+#   scripts/appstore-upload-metadata.sh [--platform macos|ios] [--dry-run]
+#       [--locales de,fr] [--skip-screenshots] [--skip-text]
+#       [--create-version <version>]
 #
-# Uses the same App Store Connect API key as the release scripts (.release-env,
-# resolved by asc-auth-lib.sh). Metadata editing needs App Manager or above;
-# the shared key is Admin, so it covers this too.
+# Uses the release scripts' API key (asc-auth-lib.sh); editing metadata needs
+# App Manager or above, which its Admin role covers.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

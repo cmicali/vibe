@@ -10,12 +10,9 @@
 NS_ASSUME_NONNULL_BEGIN
 
 // The platform-neutral half of the debug command channel: the command-file
-// drain, payload validation, response writing, the stale-file sweep, and the
-// wake-up listeners. The platform command tables — Mac/DebugCommandTable.m on
-// macOS, Vibe/Debug/iOS/DebugCommands.m on iOS — supply the executor and own
-// every verb.
-//
-// Same C-linkage guard rationale as DebugUtil.h.
+// drain, payload validation, response writing, the stale-file sweep and the
+// wake-up listeners. The platform tables (Mac/DebugCommandTable.m,
+// iOS/DebugCommands.m) supply the executor and own every verb.
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,16 +25,15 @@ extern "C" {
 typedef NSString * _Nullable (^VibeDebugChannelExecutor)(NSArray<NSString *> *args,
                                                          NSString *commandId);
 
-// Installs the channel: sweeps files orphaned by earlier runs, then listens on
-// com.vibe.debug.command, on the main queue. On iOS it also watches the
-// container tmp directory itself, because the simulator host can write command
-// files straight into it but a host-side notifyutil posts into the mac's
-// notification namespace, not the simulator's.
+// Sweeps files orphaned by earlier runs, then listens on
+// kVibeDebugCommandNotification on the main queue. On iOS it also watches the
+// container's tmp directory: the host writes command files straight into it,
+// but a host-side notifyutil posts into the mac's namespace, not the
+// simulator's.
 void VibeInstallDebugCommandChannel(VibeDebugChannelExecutor executor);
 
-// Writes the per-command response file the client polls for. Both the
-// synchronous path and commands that finish asynchronously from their own
-// completion block use it.
+// Writes the per-command response file the client polls for; asynchronous
+// commands call it from their own completion.
 void VibeWriteDebugResponse(NSString *commandId, NSString *response);
 
 #ifdef __cplusplus

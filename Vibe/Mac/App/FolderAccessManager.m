@@ -17,14 +17,12 @@ NSNotificationName const FolderAccessManagerDidChangeNotification = @"FolderAcce
 static NSString *const kGrantedFoldersDefaultsKey = @"VibeGrantedFolders";
 static NSString *const kEntryPathKey = @"path";
 static NSString *const kEntryBookmarkKey = @"bookmark";
-// Runtime-only: the resolved URL whose security scope is currently started.
-// Stripped before the entry is persisted.
+// Runtime-only, never persisted: the URL whose security scope is started.
 static NSString *const kEntryAccessedURLKey = @"accessedURL";
-// Runtime-only: a live Powerbox/open/drop grant in this process.
+// Runtime-only: a live powerbox, open or drop grant in this process.
 static NSString *const kEntryPowerboxActiveKey = @"powerboxActive";
 
-// The ceiling on every wait for a restored grant, shared by the launch drain
-// and the per-open waiters, so the two cannot drift apart.
+// Shared by the launch drain and every per-open wait.
 static const NSTimeInterval kRestoreDeadline = 2.0;
 const NSInteger VibeFolderAccessRestoreConcurrencyLimit = 4;
 
@@ -36,8 +34,8 @@ const NSInteger VibeFolderAccessRestoreConcurrencyLimit = 4;
 @implementation VibeRestorationWaiter
 @end
 
-// TRAP: promotion cancels and re-enqueues a queued operation, but cancellation
-// can race its start. The claim keeps the two lanes from resolving it twice.
+// TRAP: promotion cancels and re-enqueues a queued operation, and the cancel
+// can race its start; the claim keeps the two lanes from resolving it twice.
 @interface FolderAccessRestoration : NSObject
 // Exact row identity. The immutable snapshot below is the background input;
 // this object is only compared by pointer on main.
@@ -84,21 +82,18 @@ const NSInteger VibeFolderAccessRestoreConcurrencyLimit = 4;
 @end
 
 @interface FolderAccessManager ()
-// Paths whose scope is live in this process. Stored rows remain separately
-// visible while their bookmark is unresolved or failed.
+// Paths whose scope is live in this process.
 @property (atomic, copy) NSArray<NSString *> *activePathSnapshot;
 @end
 
 @implementation FolderAccessManager {
-    // Mutated on the main thread only; background work operates on snapshots
-    // and merges back on main.
+    // Main thread only; background work takes snapshots and merges back.
     NSMutableArray<NSMutableDictionary *> *_entries;
     NSMutableArray<VibeRestorationWaiter *> *_restorationWaiters;
     NSOperationQueue *_restorationQueue;
     NSOperationQueue *_urgentRestorationQueue;
     NSMutableArray<FolderAccessRestoration *> *_pendingRestorations;
-    // Until the launch restore runs, no stored bookmark has been tried, so a
-    // row that is neither live nor resolving is pending rather than failed.
+    // Before the launch restore, an inactive row is pending, not failed.
     BOOL _restoreStarted;
     BOOL _changeNotificationPending;
 }
@@ -140,16 +135,12 @@ const NSInteger VibeFolderAccessRestoreConcurrencyLimit = 4;
     return self;
 }
 
-// The two ways macOS spells one directory: /tmp, /var and /etc are symlinks
-// into /private, and every real path also exists under the data volume's
-// firmlink. A grant and a track can arrive spelled either way, so both sides of
-// the coverage test go through this. Deliberately string work alone —
-// stringByStandardizingPath and its kin touch the file system to decide, and
-// this runs on directories the app may have no business touching yet.
+// /tmp, /var and /etc are symlinks into /private, and every path also exists
+// under the data volume's firmlink. String work alone: the standardizing APIs
+// touch the file system, and this runs on directories the app may not touch.
 static NSString *VibeAliasFreePath(NSString *path) {
     static NSString *const kDataVolumePrefix = @"/System/Volumes/Data/";
-    // /private itself is real; only these firmlink roots are aliases. Hoisted:
-    // this runs once per granted path per coverage test.
+    // /private itself is real; only these roots are aliases.
     static NSArray<NSString *> *privateRoots;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
@@ -190,10 +181,8 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
     return folders;
 }
 
-// Restoration is the only thing that settles a stored bookmark, so an entry it
-// finished with and left inactive is one that failed. Deliberately costs no
-// I/O: the pane must be able to say a folder is gone without stat-ing a path
-// whose mount may be unreachable, on the main thread, per row.
+// No I/O: the pane asks per row on main, and a dead mount blocks a stat.
+// Restoration alone settles a bookmark, so an inactive settled row failed.
 - (VibeGrantedFolderState)stateForEntry:(NSDictionary *)entry {
     if (entry[kEntryAccessedURLKey] || [entry[kEntryPowerboxActiveKey] boolValue]) {
         return VibeGrantedFolderStateActive;
@@ -262,9 +251,8 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
     if (!completion) {
         return;
     }
-    // Fire when every scope has started, or at the deadline — a caller gated
-    // on a dead mount's grant gains nothing by waiting, since a walk under
-    // that mount would block the same way. done is main-thread state.
+    // A walk under a dead mount would block the same way, so waiting longer
+    // gains nothing. done is main-thread state.
     __block BOOL done = NO;
     dispatch_block_t finish = ^{
         if (!done) {
@@ -287,11 +275,9 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
     }];
 }
 
-// A removed or reactivated row no longer competes for an open's reserved lane.
-// Its resolution still has to run once: that is what balances the launch group,
-// and a resolution already in flight may have started a scope that merge must
-// release. A pending urgent admission is therefore moved back to utility work;
-// the restoration's claim arbitrates the cancel/start race between operations.
+// A removed or reactivated row leaves the open's reserved lane, but its
+// resolution still runs once: it balances the launch group, and one in flight
+// may have started a scope merge must release.
 - (void)invalidateRestorationsForEntry:(NSMutableDictionary *)entry {
     for (FolderAccessRestoration *restoration in [_pendingRestorations copy]) {
         if (!restoration.eligible || restoration.liveEntry != entry) {
@@ -312,12 +298,11 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
     }
 }
 
-// Background thread. Resolves and starts the scope; the main-thread caller
-// merges the result and only then marks this remembered path settled.
+// Background thread.
 // TRAP: WithoutMounting and WithoutUI are load-bearing. Nobody asked for this
-// resolve, so a grant on a server that is not mounted must fail here and now:
-// without them the resolver tries the mount itself, which can raise a connect
-// dialog at every launch and pin this lane for the automounter timeout.
+// resolve; without them the resolver tries to mount an absent server, which
+// can raise a connect dialog every launch and pin this lane for the
+// automounter timeout.
 - (NSDictionary *)resolveStoredEntry:(NSDictionary *)stored {
     NSData *bookmark = stored[kEntryBookmarkKey];
     BOOL stale = NO;
@@ -331,9 +316,7 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
                                bookmarkDataIsStale:&stale
                                              error:&error];
     if (!url) {
-        // The folder may be gone or its volume unmounted. Keep the entry: it
-        // stays in the pane as VibeGrantedFolderStateUnavailable, where it can
-        // be removed, and resolves again at the next launch if the volume is back.
+        // Kept as Unavailable; it resolves again at a launch that finds it.
         LogWarn(@"Granted folder failed to resolve (%@): %@", stored[kEntryPathKey], error);
         return nil;
     }
@@ -341,9 +324,7 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
         LogWarn(@"Granted folder refused security scope: %@", url.path);
         return nil;
     }
-    // A stale bookmark still resolves; refresh it so the next launch
-    // doesn't pay the staleness again. Creation needs the scope the
-    // line above just started.
+    // Refreshing a stale bookmark needs the scope just started.
     NSData *freshBookmark = bookmark;
     if (stale) {
         NSData *recreated = [url bookmarkDataWithOptions:NSURLBookmarkCreationWithSecurityScope
@@ -371,9 +352,6 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
     waiter.urls = urls;
     waiter.completion = completion;
     [_restorationWaiters addObject:waiter];
-    // The deadline the header promises. Same value as the restore's own, and
-    // for the same reason: a caller gated on a dead mount's grant gains
-    // nothing by waiting, since a walk under that mount blocks the same way.
     __weak FolderAccessManager *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kRestoreDeadline * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
@@ -423,8 +401,7 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
             [self releaseWaiter:waiter];
         }
         else {
-            // If the most-specific candidate failed, promote the next covering
-            // grant instead of leaving it behind unrelated launch restores.
+            // The most specific candidate failed: promote the next covering one.
             [self prioritizeRestorationsForURLs:waiter.urls];
         }
     }
@@ -455,7 +432,7 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
                    isCoveredByAnyOf:self.activePathSnapshot ?: @[]];
 }
 
-// One shot, whichever fires first — the grant settling or its deadline.
+// One shot: the grant settling or its deadline, whichever is first.
 - (void)releaseWaiter:(VibeRestorationWaiter *)waiter {
     if (![_restorationWaiters containsObject:waiter]) {
         return;
@@ -466,8 +443,7 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
     completion();
 }
 
-// Matches a background resolution back onto the live entry, which may have
-// been removed while the resolve ran — then the scope is released untracked.
+// The live entry may have been removed while the resolve ran.
 - (void)mergeRestoredURL:(NSURL *)url
                 bookmark:(NSData *)bookmark
           forRestoration:(FolderAccessRestoration *)restoration {
@@ -486,12 +462,10 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
             [self persist];
         }
         [self publishActivePaths];
-        // The caller posts for every settled entry, failures included, so
-        // this path does not post its own.
+        // The caller posts for every settled entry, failures included.
         return;
     }
-    // The row was removed or explicitly reopened while resolution was in
-    // flight, so this scope has no owner.
+    // Removed or reopened meanwhile: the scope has no owner.
     [url stopAccessingSecurityScopedResource];
 }
 
@@ -501,9 +475,8 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
     if (urls.count == 0) {
         return;
     }
-    // Only a live grant covers this open. A failed stored parent must not make
-    // us skip a newly granted child, and an explicitly reopened exact folder
-    // must be allowed to reactivate its stored row.
+    // Only a live grant covers: a failed stored parent must not skip a newly
+    // granted child, and a reopened folder must reactivate its stored row.
     NSArray<NSString *> *existing = self.activePathSnapshot ?: @[];
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         NSMutableArray<NSDictionary *> *additions = [NSMutableArray array];
@@ -514,10 +487,8 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
             if (!path || ![NSFileManager.defaultManager fileExistsAtPath:path isDirectory:&isDirectory] || !isDirectory) {
                 continue;
             }
-            // Standardizing keeps whatever case the caller spelled, and the
-            // volume is typically case-insensitive — left as-is, a
-            // differently-cased spelling of a granted folder (or of ~/Music)
-            // dodges the case-sensitive coverage check below and mints a
+            // Standardizing keeps the caller's case; a differently-cased
+            // spelling would dodge the case-sensitive check and mint a
             // duplicate bookmark.
             id canonical = nil;
             [[NSURL fileURLWithPath:path] getResourceValue:&canonical forKey:NSURLCanonicalPathKey error:nil];
@@ -534,7 +505,7 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
                               relativeToURL:nil
                                       error:&error];
             if (!bookmark) {
-                // Expected for a path the sandbox never granted, such as argv.
+                // Expected for a path the sandbox never granted (argv).
                 LogInfo(@"No bookmark for %@: %@", path, error.localizedDescription);
                 continue;
             }
@@ -554,8 +525,7 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
     BOOL changed = NO;
     for (NSDictionary *addition in additions) {
         NSString *path = addition[kEntryPathKey];
-        // Re-check live ACTIVE coverage: another batch may have landed while
-        // this one's bookmarks were being created.
+        // Another batch may have landed while these bookmarks were created.
         if ([self.class path:path isCoveredByAnyOf:self.activePathSnapshot ?: @[]]) {
             continue;
         }
@@ -584,15 +554,10 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
     }
 }
 
-// The stored row this newly granted directory should reactivate rather than
-// duplicate: same directory, no live scope of its own.
-//
-// The inactive half of that test is load-bearing, not a restatement of the
-// caller's active-coverage check: that check compares canonical spellings, and a
+// The stored row to reactivate rather than duplicate. Inactive only: a
 // restored row's path is whatever its bookmark resolved to, so a divergent
-// spelling slips past it and lands here. Overwriting an entry that still holds a
-// started scope strands it — nothing else remembers the URL to stop accessing,
-// and the sandbox extension leaks for the process's life.
+// spelling slips past the caller's check, and overwriting a started scope
+// leaks its sandbox extension for the process's life.
 - (NSMutableDictionary *)inactiveEntryForDirectory:(NSString *)path {
     NSString *wanted = VibeAliasFreePath(path);
     for (NSMutableDictionary *entry in _entries) {
@@ -606,10 +571,8 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
     return nil;
 }
 
-// TRAP: inside the sandbox both NSHomeDirectory and NSHomeDirectoryForUser
-// answer with the container, which silently turns the ~/Music rule below into a
-// test against a path no music sits under. getpwuid is the documented way to
-// the on-disk home.
+// TRAP: inside the sandbox NSHomeDirectory and NSHomeDirectoryForUser answer
+// the container, silently breaking the ~/Music rule. getpwuid is the on-disk home.
 + (NSString *)realHomeDirectory {
     static NSString *home;
     static dispatch_once_t once;
@@ -623,8 +586,6 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
     return home;
 }
 
-// A folder inside an already-granted folder, or under ~/Music (the standing
-// entitlement grant), needs no bookmark of its own.
 + (BOOL)path:(NSString *)path isCoveredByAnyOf:(NSArray<NSString *> *)grantedPaths {
     return [self path:path isCoveredByAnyOf:grantedPaths caseInsensitive:NO];
 }
@@ -633,13 +594,8 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
     return [self path:path isCoveredByAnyOf:grantedPaths caseInsensitive:YES];
 }
 
-// Case sensitivity splits the two callers. The auto-add's duplicate check
-// compares canonical spellings and must stay exact, or a case-SENSITIVE volume
-// loses a bookmark it needs. A read test gets whatever spelling the track URL
-// carried — Launch Services, argv, a pasteboard, a playlist file's entries — so
-// folding case is the safe direction: under-matching withholds a folder the app
-// may legitimately read, while the only over-match is a case-variant path on a
-// case-sensitive volume whose grant the user gave for a sibling spelling.
+// The only over-match of a case-folded read test is a case-variant path on a
+// case-sensitive volume; under-matching withholds a readable folder.
 + (BOOL)path:(NSString *)path isCoveredByAnyOf:(NSArray<NSString *> *)grantedPaths
         caseInsensitive:(BOOL)caseInsensitive {
     NSString *candidate = VibeAliasFreePath(path);
@@ -650,9 +606,7 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
             return YES;
         }
     }
-    // The standing entitlement grant, tested last rather than appended to the
-    // caller's array: this runs per folder the artwork resolver considers, and
-    // arrayByAddingObject: allocates an array every time to add one constant.
+    // Not appended to grantedPaths: this runs per folder art considers.
     return caseInsensitive ? VibeUncanonicalPathIsUnderFolder(candidate, self.musicRoot)
                            : VibePathIsUnderFolder(candidate, self.musicRoot);
 }
@@ -670,8 +624,7 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
 #pragma mark - Removing
 
 - (void)removeFoldersAtIndexes:(NSIndexSet *)indexes {
-    // Clamp to the live row range; a stale caller index must not crash the
-    // batch removal.
+    // A stale caller index must not crash.
     NSMutableIndexSet *valid = [indexes mutableCopy];
     [valid removeIndexesInRange:NSMakeRange(_entries.count, NSNotFound - _entries.count)];
     if (valid.count == 0) {
@@ -701,13 +654,9 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
     [NSUserDefaults.standardUserDefaults setObject:stored forKey:kGrantedFoldersDefaultsKey];
 }
 
-// Restoration settles one bookmark at a time, each on its own block, and every
-// one changes what the Files pane shows — including the failures, which merge
-// nothing. Coalesced to one post per turn of the run loop because observers do
-// real work with it: the player invalidates folder art, and a dozen
-// remembered folders should not make it do that a dozen times at launch. The
-// user-driven add and remove post directly, so the pane redraws in the same
-// turn as the click.
+// Restoration settles one bookmark at a time and observers do real work
+// (folder art), so one post per run-loop turn. User add and remove post
+// directly, so the pane redraws in the click's turn.
 - (void)postCoalescedChangeNotification {
     if (_changeNotificationPending) {
         return;

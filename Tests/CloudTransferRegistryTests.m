@@ -2,10 +2,7 @@
 //  CloudTransferRegistryTests.m
 //  VibeTests
 //
-//  The registry with an injected monitor factory, per its Internal.h seam:
-//  begin/end pairing, standardized-path keying, the shell's noteProgress:
-//  suppressing the registry's own monitor, a cancelled-and-readmitted run
-//  ending and re-beginning, and no monitor surviving its transfer.
+//  The registry with an injected monitor factory, through its Internal.h seam.
 //
 
 #import <XCTest/XCTest.h>
@@ -111,9 +108,7 @@
     }));
 }
 
-// A provider's zero sample is status, not progress: the row stays
-// indeterminate until real movement arrives, and a stray zero afterwards
-// never downgrades a fraction already shown.
+// A provider's zero sample is status, not progress.
 - (void)testAZeroSampleNeverLeavesOrReentersIndeterminate {
     NSURL *url = [self urlForName:@"status-zero.wav"];
     [self beginForURL:url];
@@ -151,8 +146,7 @@
     XCTAssertEqual([_registry progressForURL:url], -1);
 }
 
-// The coordinator's cancelled-and-readmitted run ends and then re-begins;
-// the restart gets a fresh monitor and fresh indeterminate progress.
+// The coordinator's cancelled-and-readmitted run.
 - (void)testAReadmittedRunEndsAndRebegins {
     NSURL *url = [self urlForName:@"readmitted.wav"];
     [self beginForURL:url];

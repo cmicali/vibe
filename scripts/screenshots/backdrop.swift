@@ -1,41 +1,23 @@
-// A full-screen window to stage behind Vibe for `CAPTURE=merged` screenshots
-// (see generate-readme-screenshots.sh) — either an image or a gradient.
+// A full-screen window staged behind Vibe, so what shows through the glass is
+// chosen rather than whatever is on screen: an image or a gradient.
 //
-//   swift backdrop.swift <image-path>   # draw an image, aspect-filled
-//   swift backdrop.swift [hex ...]      # or a gradient; default blue → violet
+//   swift backdrop.swift <image-path>   # aspect-filled
+//   swift backdrop.swift [hex ...]      # gradient; default blue → violet
 //   swift backdrop.swift --rect <x> <y> <w> <h> <image-path>
 //   swift backdrop.swift --no-reassert ...
 //
-// `--rect` (global screen points, origin top-left — the space find-window.swift
-// prints and screencapture -R takes) draws a SECOND copy of the content,
-// aspect-filled into exactly that rect, over the full-screen one. That is what
-// appstore-capture-app-screenshots.sh uses: its output canvas is a scaled
-// rendering of this same image, and the glass is transparent enough to show
-// the backdrop nearly directly, so the pixels behind the window have to be the
-// canvas's pixels at the canvas's scale — otherwise what shows through the
-// window doesn't line up with the background around it. Only the part of the
-// rect behind the window matters; the seam where the rect meets the
-// full-screen fill is outside every capture.
+// --rect (global screen points, top-left origin, as find-window.swift prints)
+// draws a second copy aspect-filled into exactly that rect, so the pixels
+// behind the window are appstore-capture-app-screenshots.sh's canvas at the
+// canvas's scale. The seam with the full-screen fill is outside every capture.
 //
-// Merged captures show what is genuinely behind the window through the glass
-// and the playlist frost, which otherwise means "whatever happens to be on your
-// screen" — not reproducible, and not something to publish unexamined. This
-// covers the screen with something known instead.
-//
-// The window sits at .normal level and is ordered front, so every other app's
-// window ends up BEHIND it; activating Vibe afterwards raises Vibe (and only
-// Vibe) above it. It ignores mouse events and stays up until killed.
-//
-// Ordering front ONCE isn't enough when the app is relaunched between shots:
-// macOS then activates whatever app is next in the stack, which raises that
-// app's window above this one — and the next shot composites its glass against
-// that app instead of the backdrop. So the window re-asserts itself on a timer,
-// skipping the tick whenever Vibe is frontmost.
-//
-// `--no-reassert` turns that off, and a run that stages a fresh backdrop AFTER
-// the app is already up should use it: re-activating an app that is ALREADY
-// frontmost is a no-op, so it cannot raise the window back over a late tick —
-// the shot would photograph this window through a window-shaped hole.
+// At .normal level and ordered front, so activating Vibe raises only Vibe
+// above it; it ignores the mouse and stays up until killed. When the app
+// relaunches between shots macOS activates the next app in the stack, whose
+// window rises above this one, so it re-orders itself front on a timer,
+// skipping ticks while Vibe is frontmost. --no-reassert is for a backdrop
+// staged after the app is up: re-activating a frontmost app is a no-op, so a
+// late tick could not be undone and the shot would be a window-shaped hole.
 import AppKit
 import ImageIO
 

@@ -2,20 +2,10 @@
 //  AudioPlayerInternal.h
 //  Vibe
 //
-//  The private surface shared between AudioPlayer.m and its categories: the
-//  player state enum, the error constructors, and the class extension holding
-//  the ivars and queue-side helpers the categories reach. Do not use it
-//  outside the AudioPlayer implementation files; everything else goes through
-//  AudioPlayer.h.
-//
-//  Ownership, in one place. The PLAYER QUEUE runs every transport verb and
-//  every output mutation. _stateLock guards only the snapshot the main-thread
-//  getters read — the published tuple that publishState:… writes whole. The
-//  audio itself is the bus's (AudioVoiceBus.h): the transport starts voices,
-//  ramps them, retires them, and drains the three events it needs back.
-//
-//  Two categories are platform-specific and only one is ever compiled:
-//  AudioPlayer+Devices.m on macOS, Audio/iOS/AudioPlayer+Recovery.m on iOS.
+//  The private surface AudioPlayer.m and its categories share; nothing else
+//  imports it. The PLAYER QUEUE runs every transport verb and output mutation;
+//  _stateLock guards only the published tuple the main-thread getters read,
+//  which publishState:… writes whole.
 //
 
 #import "AudioPlayer.h"
@@ -28,9 +18,8 @@
 #import <AVFAudio/AVFAudio.h>
 #import <os/lock.h>
 
-// The category family, declared once here because every implementation file in
-// it calls across category lines. A file outside the family imports the one
-// category it uses. Exactly one platform member is compiled.
+// Every member calls across category lines; exactly one platform member is
+// compiled.
 #if TARGET_OS_OSX
 #import "AudioPlayer+Devices.h"
 #else
@@ -48,20 +37,17 @@ NS_ASSUME_NONNULL_BEGIN
 // the attach, the counters, the failures — is AudioPlayer+Pipeline's.
 @interface AudioPlayer (PlatformOutput)
 
-// The output unit brings its rate before a segment is built or a voice started
-// at the old one: macOS makes a unit it could not make at init, whose device
-// brings a rate (ensureOutputUnitOnQueue); iOS follows the session's route
-// rate. The pipeline follows, the current track kept. NO only when that left
-// the player reset or parked and said why; an output unit still missing is the
-// start's to report.
+// Brings the output's rate before a segment is built or a voice started at the
+// old one: macOS makes a unit it could not make at init; iOS follows the
+// route's rate. NO only when that left the player reset or parked and said
+// why; a unit still missing is the start's to report.
 - (BOOL)followOutputRateOnQueue;
 - (void)prepareOutputOnQueue;
 - (BOOL)startOutputUnitOnQueueWithError:(NSError * _Nullable * _Nullable)error;
 - (void)releaseIdleOutputUnitOnQueue;
 - (BOOL)adoptOutputFormatOnQueue:(AVAudioFormat *)format;
-// Report-only: the platform's own keys for the output stage — the unit's
-// shared ones are the report's — then any stages past it. Never polled by
-// the stall watcher.
+// Report-only: the platform's keys for the output stage, then any stages past
+// it.
 - (NSArray<NSDictionary<NSString *, id> *> *)outputUnitAudioPathOnQueue;
 
 @end
@@ -70,10 +56,8 @@ typedef NS_ENUM(NSInteger, VibePlayerState) {
     VibePlayerStateStopped = 0,
     VibePlayerStatePlaying,
     VibePlayerStatePaused,
-    // A play was requested and the file open is in flight, potentially for
-    // the snapshotted cloud-open timeout budget. There is no voice or file
-    // yet. isPlaying/isPaused reflect the pending start intent, while
-    // position and duration read 0 rather than the previous track's values.
+    // The open is in flight; no voice or file yet. isPlaying/isPaused reflect
+    // the pending intent; position and duration read 0.
     VibePlayerStateLoading,
 };
 
@@ -109,26 +93,19 @@ static inline UInt32 VibeConverterQualityForResampling(VibeResamplingQuality qua
     uint64_t                _promotedBaseFrames; // bus frames the voice consumed before its current file began
     BOOL                    _gaplessArmedForUI;
     BOOL                    _outputAudioActive;
-    float                   _pitch;             // percent; see the warning at the pitch accessor below
-    // Monotonic identity minted synchronously by every explicit play. Under
-    // _stateLock because queue-side settlements and iOS recovery completions
-    // compare against submissions made from main.
+    float                   _pitch;             // percent; see the trap below
+    // Minted on main by every explicit play; only ever increments.
     uint64_t                _nextSubmittedPlayIdentifier;
 
     // ---- Queue-confined transport state.
-    // The explicit play submission that owns the current voice. A promote
-    // preserves it; a newer play, stop or failure clears it. Deliveries
-    // capture it so a same-row replay cannot pass a track-identity guard.
+    // The play that owns the current voice. A promote keeps it; a newer play,
+    // stop or failure clears it.
     uint64_t                _activeSubmittedPlayIdentifier;
     PlaybackRequestCoordinator *_pendingRequest;
-    // Voices fading out after a track change, seek or stop. Each leaves when
-    // the drain reports it ended; together with the current voice they are
-    // what outputAudioActive folds over.
+    // Voices fading out; each leaves when the drain reports it ended.
     NSMutableArray<NSNumber *> *_retiringVoices;
-    // The current voice's decode format, for the report and dump_state.
-    // Files a retired bus's decoder may still be inside — a rebuild leaves
-    // that decoder to finish its read on its own — counted per retired bus;
-    // the current bus withholds reads of them until the count reaches zero.
+    // Files a retired bus's decoder may still be inside, counted per retired
+    // bus; the current bus withholds reads of them until the count is zero.
     NSCountedSet<AudioFileHandle *> *_retiredDecoderFiles;
 
     // ---- The park and the successor (AudioPlayer+Prefetch.m).
@@ -152,26 +129,20 @@ static inline UInt32 VibeConverterQualityForResampling(VibeResamplingQuality qua
     dispatch_source_t       _drainTimer;        // hardware only: 10 ms while the output runs voices
     id                      _manualPump;        // VibeManualRenderPump, debug builds only
 #if VIBE_VERBOSE_LOGGING
-    // The beta player-queue watcher ticks only while the player has work that
-    // can stall (refreshQueueStallWatcherOnQueue), so an idle player wakes
-    // nothing; the main thread's watcher is the process's (startStallWatchers),
-    // and the render clock is read at each drain.
+    // Ticks only while the player has work that can stall
+    // (refreshQueueStallWatcherOnQueue).
     dispatch_source_t       _queueStallWatcher;
     BOOL                    _queueStallWatcherRunning;
     NSUInteger              _diagnosticPhaseDepth;
     uint64_t                _renderClockFrames, _renderClockAdvancedAt, _renderClockStalledSince, _renderClockDropouts;
 #endif
-    // Teardowns of what a render was still inside when their wait ran out —
-    // a meter, a bus, a varispeed or FX hosting — run at the first later moment
-    // the render is seen outside (afterRenderLeavesOnQueue:). The render the
-    // last wait found stuck is bounded once: later withdrawals park behind
-    // it without a spin of their own until a slice has finished since.
+    // Teardowns parked behind a stuck render (afterRenderLeavesOnQueue:). A
+    // stuck render is waited for once: later withdrawals park at once until a
+    // slice has finished since.
     NSMutableArray<dispatch_block_t> *_renderLeaveWork;
     BOOL                    _renderStuck;
     uint64_t                _renderStuckFrames;
-    // The hosted output unit that pulls the pipeline: HALOutput bound to the
-    // output device on macOS, RemoteIO on iOS. nil under the debug pump, which
-    // has no device, and on iOS until the first start.
+    // nil under the debug pump, and on iOS until the first start.
     AudioOutputUnit         *_outputUnit;
     // The equalizer's meter: queue-confined intent and installation; the
     // publisher is stable for the player's lifetime.
@@ -180,8 +151,7 @@ static inline UInt32 VibeConverterQualityForResampling(VibeResamplingQuality qua
     AudioLevelPublisher     *_levelPublisher;
     AudioLevelMeter           *_levelMeter;
 
-    // ---- Beta diagnostics (AudioPlayer+Diagnostics.m). Present in every
-    // build so the header carries no conditional; unused otherwise.
+    // ---- Beta diagnostics (AudioPlayer+Diagnostics.m), in every build.
     BOOL                    _signalProbeWanted;
     uint64_t                _signalProbeRequest;
     NSDictionary            *_positionDiagnostic; // _stateLock; consumed once by main
@@ -253,45 +223,34 @@ static inline UInt32 VibeConverterQualityForResampling(VibeResamplingQuality qua
 
 #pragma mark - Read by the categories, written only by AudioPlayer.m
 
-// Readonly so that an accidental write from a category is a compile error
-// rather than a race. Queue-confined unless noted.
-//
-// TRAP: these getters are auto-synthesized and nonatomic, so they are plain
-// ivar reads and safe to call while holding _stateLock. The PUBLIC `pitch`
-// accessor in AudioPlayer.h is not — it takes _stateLock itself, so code
-// already holding the lock must read `_pitch` directly. os_unfair_lock is not
-// recursive, so getting this wrong aborts the process on the first play.
+// Queue-confined unless noted. TRAP: these are plain nonatomic ivar reads,
+// safe under _stateLock; the public `pitch` getter takes _stateLock itself,
+// so code holding it reads `_pitch` directly — os_unfair_lock is not
+// recursive, and re-taking it aborts.
 
 // The in-flight open's identity, row and intent; see PlaybackRequestCoordinator.
 @property (nonatomic, readonly, nullable) PlaybackRequestCoordinator *pendingRequest;
 
-// The loading intent, mirrored under _stateLock so that main-thread getters and
-// a seek's identity snapshot never touch queue-confined pending state. The
-// submitted-play identity binds a seek to the exact queued play: a play can be
-// submitted just before seekToPosition: snapshots the mirror, and without these
-// the seek would evaporate in that gap.
+// The loading intent, mirrored under _stateLock for the main-thread getters
+// and a seek's identity snapshot. The last submitted play binds a seek to a
+// play submitted just before it, which the mirror does not show yet.
 @property (nonatomic, readonly, nullable) AudioTrack *loadingTrack;
 @property (nonatomic, readonly) uint64_t loadingSubmittedPlayIdentifier;
 @property (nonatomic, readonly) uint64_t lastSubmittedPlayIdentifier;
 @property (nonatomic, readonly, nullable) AudioTrack *lastSubmittedPlayTrack;
 @property (nonatomic, readonly) BOOL loadingStartPaused;
 
-// Readwrite here, readonly in AudioPlayer.h: currentTrack is written on
-// _queue, the device id from the init and device-switch paths.
 @property (nullable, strong, readwrite) AudioTrack *currentTrack;
 @property (atomic, readwrite) NSInteger currentlyRequestedAudioDeviceId;
 
 #pragma mark - Queue-side helpers implemented in AudioPlayer.m
 
-// Runs block beside the mutable state and returns only once it has: inline
-// when the caller is already on _queue, because dispatch_sync onto our own
-// queue deadlocks.
+// Inline when already on _queue, where dispatch_sync would deadlock.
 - (void)runSyncOnQueue:(NS_NOESCAPE dispatch_block_t)block;
 
-// The audio-time clock for FX sweeps, drains and the idle stop: the debug
-// pump's under manual rendering, else dispatch_after on _queue. Wall-clock
-// deadlines (the open timeout, the system-output bind retry) use dispatch_after
-// directly, because rendered frames must not advance them.
+// The audio-time clock for FX sweeps and the idle stop: the debug pump's under
+// manual rendering, else dispatch_after on _queue. Wall-clock deadlines (the
+// open timeout, the bind retry) use dispatch_after directly.
 - (void)scheduleAfterSeconds:(NSTimeInterval)seconds block:(dispatch_block_t)block;
 
 // The mode: bit-perfect output wanted. Always NO on iOS.
@@ -328,9 +287,8 @@ static inline UInt32 VibeConverterQualityForResampling(VibeResamplingQuality qua
 // it; requires a current voice and file.
 - (void)revoiceOnQueueAtPosition:(NSTimeInterval)position;
 
-// The writer model for the published tuple: this is the FULL-TUPLE publisher,
-// and the two unpublish variants are the only partial writers. Anything that
-// moves the position must come through here.
+// The full-tuple publisher; the two unpublish variants are the only partial
+// writers. Anything that moves the position comes through here.
 - (void)publishState:(VibePlayerState)state
                voice:(VibeVoiceID)voice
                 file:(nullable AudioFileHandle *)file
@@ -344,8 +302,8 @@ static inline UInt32 VibeConverterQualityForResampling(VibeResamplingQuality qua
 - (void)refreshOutputAudioActiveOnQueue;
 
 - (void)sendDelegateError:(NSError *)error;
-// Thread-safe submission identity check, used inside every main-thread
-// delivery: what matters is whether a newer play existed when it ran.
+// Any thread. Checked inside every main-thread delivery: what matters is
+// whether a newer play existed when it ran.
 - (BOOL)submittedPlayIsCurrent:(uint64_t)submittedPlayIdentifier;
 // The play-path variant drops an error whose submission a newer play has
 // replaced. Every error carrying kVibeAudioErrorTrackURLKey must use it.

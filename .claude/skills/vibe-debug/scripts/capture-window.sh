@@ -1,10 +1,9 @@
 #!/bin/bash
-# Real screen capture of the on-screen Vibe window — composited pixels,
-# including NSVisualEffectView materials/vibrancy that the in-process snapshot
-# helper cannot render. Requires Screen Recording permission for the terminal.
+# Screen-capture the on-screen Vibe window: composited pixels, including the
+# materials, vibrancy and glass dump_screenshot cannot render. Needs Screen
+# Recording permission for the terminal.
 #
-# Usage: capture-window.sh <output.png> [pid]
-# Pass the pid when more than one Vibe instance is running.
+# Usage: capture-window.sh <output.png> [pid]   (pid when several are running)
 set -euo pipefail
 
 OUT="${1:-}"
@@ -20,7 +19,6 @@ mac_vibe_pids() {
     done
 }
 
-# More than one instance and no pid given: ambiguous — show what's running.
 if [ -z "$PID" ] && [ "$(mac_vibe_pids | wc -l)" -gt 1 ]; then
     echo "warning: multiple Vibe instances running; pass a pid to disambiguate:" >&2
     ps -o pid=,command= -p "$(mac_vibe_pids | tr '\n' ',' | sed 's/,$//')" >&2

@@ -2,8 +2,6 @@
 //  VibeWorkTally.m
 //  Vibe
 //
-//  See VibeWorkTally.h.
-//
 
 #import "VibeWorkTally.h"
 
@@ -11,10 +9,8 @@
 
 #import <os/lock.h>
 
-// The bake's pixel pass runs on a global queue while everything else tallying
-// is on main, so the table is locked rather than main-thread-only. Contention
-// is two threads a few hundred times a window; an unfair lock is the cheapest
-// thing that is actually correct here.
+// Locked, not main-thread-only: the iOS waveform bake tallies from a global
+// queue.
 static os_unfair_lock gTallyLock = OS_UNFAIR_LOCK_INIT;
 static NSMutableDictionary<NSString *, NSMutableDictionary<NSString *, NSNumber *> *> *gWork;
 static NSString *gLabel;
@@ -66,9 +62,6 @@ void VibeWorkTallyEndWindow(void) {
     NSDictionary *result = VibeWorkTallyTakeWindow();
     if (![result[@"active"] boolValue]) return;
     NSDictionary *work = result[@"work"];
-    // Slowest total first: the ordering the reader wants is "what did this
-    // window spend its main thread on", and a pure count sorts to the bottom
-    // where it belongs.
     NSArray<NSString *> *keys = [work.allKeys sortedArrayUsingComparator:
             ^NSComparisonResult(NSString *a, NSString *b) {
         double na = [work[a][@"totalMs"] doubleValue];

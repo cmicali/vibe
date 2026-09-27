@@ -2,9 +2,8 @@
 //  AudioErrorRules.h
 //  Vibe
 //
-//  What the header's status line says about a play failure — a function of the
-//  error alone, so both screens answer identically and the mapping is testable
-//  without a player.
+//  What the status line says about a play failure: a function of the error
+//  alone, so both screens agree and it is tested without a player.
 //
 
 #import <Foundation/Foundation.h>
@@ -26,11 +25,9 @@ static inline BOOL VibePlayErrorMatchesCurrentURL(NSError *error, NSURL *_Nullab
     return !failedURL || [failedURL isEqual:currentURL];
 }
 
-// Deliberately short: the title line already names the track and the full error
-// text is in the log. VibeAudioErrorNotPlaying never arrives here — it is
-// filtered on the way in as a benign no-op rather than a failure to report. The
-// switch is exhaustive with no default, so a new code is a compile warning
-// rather than a silent fall-through to the generic line.
+// Short: the title line names the track, and the log has the full text.
+// VibeAudioErrorNotPlaying is filtered out before this as benign. No default,
+// so a new code is a compile warning, not the generic line.
 static inline NSString *VibeStatusForPlayError(NSError *error) {
     if ([error.domain isEqualToString:kVibeAudioErrorDomain]) {
         switch ((VibeAudioErrorCode)error.code) {

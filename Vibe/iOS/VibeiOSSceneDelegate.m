@@ -9,9 +9,7 @@
 #import "SearchFolderStore.h"
 
 @implementation VibeiOSSceneDelegate {
-    // The scene owns the one PlaybackController — one engine per process,
-    // which is why UIApplicationSupportsMultipleScenes is off. The screens
-    // borrow it.
+    // One engine per process, so multi-scene is off.
     PlaybackController *_playback;
     RootViewController *_root;
 }
@@ -23,9 +21,7 @@
         return;
     }
     UIWindowScene *windowScene = (UIWindowScene *)scene;
-    // iPadOS 26 windowing: 320x480 is the portrait layout's floor (waveform
-    // band + bottom bar leave no room below it). sizeRestrictions is nil on
-    // iPhone, so this is a no-op there.
+    // The portrait layout's floor; nil (a no-op) on iPhone.
     windowScene.sizeRestrictions.minimumSize = CGSizeMake(320, 480);
     _playback = [[PlaybackController alloc] init];
     RootViewController *root = [[RootViewController alloc] initWithPlayback:_playback];
@@ -33,16 +29,11 @@
     self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
     self.window.rootViewController = root;
     [self.window makeKeyAndVisible];
-    // The screens must exist — and be observing — before anything is adopted.
-    // Exactly one of the two launch paths runs: a cold "Open in Vibe" adopts
-    // the arriving URL directly, everything else restores the persisted
-    // session — never both, so the open does not pay for a restore it
-    // immediately replaces.
+    // The screens observe before anything is adopted. Exactly one launch path
+    // runs, so a cold "Open in Vibe" never pays for a restore it replaces.
     [root loadViewIfNeeded];
     [self setSceneActive:scene.activationState == UISceneActivationStateForegroundActive];
-    // Not part of the either/or below: this opens nothing and plays nothing, it
-    // just takes back the search grants the user gave us. It resolves off main
-    // and reports through its own notification, so it cannot delay either path.
+    // Opens and plays nothing, and resolves off main.
     [SearchFolderStore.shared restorePersistedFolders];
     if (connectionOptions.URLContexts.count > 0) {
         [_playback handleOpenURLContexts:connectionOptions.URLContexts];
@@ -52,9 +43,9 @@
     }
 }
 
-// Foreground-inactive is an off state, not a halfway foreground. Views remain
-// attached under Control Center and the app switcher, so only the scene owner
-// can make both the UI timer and the equalizer fail closed there.
+// Foreground-inactive is off: views stay attached under Control Center and the
+// app switcher, so only the scene owner can fail the UI timer and equalizer
+// closed there.
 - (void)setSceneActive:(BOOL)active {
     _playback.sceneActive = active;
     _root.sceneActive = active;
@@ -78,10 +69,8 @@
 
 #pragma mark - The widget's way in
 
-// Multi-scene is off, so "the connected scene" is at most one — but a scene
-// can be connected and not yet have built its controller, and the app can be
-// launched with no scene at all, which is exactly the state an intent fired
-// from the home screen may find.
+// A scene can be connected before building its controller, and an intent can
+// find the app launched with no scene at all.
 + (PlaybackController *)connectedPlayback {
     for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
         if ([scene.delegate isKindOfClass:VibeiOSSceneDelegate.class]) {

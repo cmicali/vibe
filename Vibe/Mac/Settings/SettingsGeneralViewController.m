@@ -27,15 +27,12 @@ static const CGFloat kGeneralPopUpWidth = 280;
     NSTableView *_outputTable;
     NSArray<AudioDevice *> *_outputDevices;
     BOOL _refreshingOutputList;
-    // Enabled only for a device bit-perfect output can drive; the row's
-    // caption says why otherwise, and names the format while it is active.
     NSSwitch *_bitPerfectSwitch;
     SettingsRowView *_bitPerfectRow;
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     NSSwitch *_exclusiveOutputSwitch;
     SettingsRowView *_exclusiveOutputRow;
 #endif
-    // Enabled only while bit-perfect output is on: ordinary playback always ramps.
     NSSwitch *_declickSwitch;
     SettingsRowView *_declickRow;
     NSButton *_defaultPlayerButton;
@@ -44,9 +41,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
     NSSwitch *_reopenPlaylistSwitch;
     NSPopUpButton *_waveformDragPopUp;
     NSPopUpButton *_artworkDragPopUp;
-    // The last answer from the async default-app check, shown immediately on
-    // refresh while the fresh one is fetched; the generation drops a stale
-    // reply that lands after a newer refresh.
+    // Shown on refresh while the async check runs.
     BOOL _lastKnownIsDefaultPlayer;
     NSUInteger _defaultPlayerCheckGeneration;
 }
@@ -68,11 +63,8 @@ static const CGFloat kGeneralPopUpWidth = 280;
         [self loadAudioPane];
         return;
     }
-    // The pane is measured once, here, while the async default-app check is
-    // still out and the real title has not arrived. Floor the button at the
-    // wider of the two titles it can carry, or the pane's width freezes
-    // against an empty one and a locale whose title outgrows the design width
-    // gets a clipped button — this pane's widest control.
+    // The pane is measured before the async default-app check answers, so
+    // floor the button at the wider of its two titles or a long one clips.
     _defaultPlayerButton = [NSButton buttonWithTitle:[self defaultPlayerTitle:NO]
                                               target:self action:@selector(makeDefaultPlayer:)];
     CGFloat widestTitle = _defaultPlayerButton.fittingSize.width;
@@ -84,10 +76,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
     _lockWindowPositionSwitch = [self switchWithAction:@selector(toggleLockWindowPosition:)];
     _reopenPlaylistSwitch = [self switchWithAction:@selector(toggleReopenPlaylist:)];
 
-    // Identifiers in representedObject, localized names in the titles — a
-    // display name must never reach NSUserDefaults. No live effect for
-    // either popup: the waveform view reads its setting per mouse-down, the
-    // art view reads its own per drag start.
+    // No live effect: each view reads its setting per gesture.
     _waveformDragPopUp = [self popUpButtonWithWidth:kGeneralPopUpWidth action:@selector(waveformDragChanged:)];
     [self addItem:STR_SETTINGS_WAVEFORM_DRAG_WINDOW value:SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW to:_waveformDragPopUp];
     [self addItem:STR_SETTINGS_WAVEFORM_DRAG_SEEK value:SETTINGS_VALUE_WAVEFORM_DRAG_SEEK to:_waveformDragPopUp];
@@ -116,10 +105,9 @@ static const CGFloat kGeneralPopUpWidth = 280;
 }
 
 - (void)loadAudioPane {
-    // TRAP: tiling the table below runs before the first refreshOutputDevice,
-    // and AppKit, denied an empty selection, selects row 0 on its own. Read as
-    // a request that switched the output to System Output, and persisted it,
-    // every time this pane was first shown.
+    // TRAP: tiling the table runs before the first refreshOutputDevice, and
+    // AppKit, denied an empty selection, selects row 0 itself; read as a
+    // request, that would switch the output to System Output and persist it.
     _refreshingOutputList = YES;
     _outputTable = [SettingsRowView listTableWithColumnIdentifiers:@[@"icon", @"name", @"type"] delegate:self];
     _outputTable.allowsEmptySelection = NO;
@@ -172,17 +160,12 @@ static const CGFloat kGeneralPopUpWidth = 280;
     _alwaysOnTopSwitch.state = AppSettings.sharedInstance.alwaysOnTop ? NSControlStateValueOn : NSControlStateValueOff;
     _lockWindowPositionSwitch.state = AppSettings.sharedInstance.windowPositionLocked ? NSControlStateValueOn : NSControlStateValueOff;
     _reopenPlaylistSwitch.state = AppSettings.sharedInstance.reopenLastPlaylist ? NSControlStateValueOn : NSControlStateValueOff;
-    // The getters are normalized, so a match always exists.
     [self selectValue:AppSettings.sharedInstance.waveformDragBehavior in:_waveformDragPopUp];
     [self selectValue:AppSettings.sharedInstance.artworkDragAction in:_artworkDragPopUp];
 }
 
-// The switch follows the selected output device: enabled only while the
-// chosen device is one the mode can drive (OutputFormatRules.h), with the
-// caption saying why otherwise. On, the caption is the player's own report —
-// the same sentence the header's open lock shows on hover — and the report
-// settles asynchronously, so the toggle's own call shows the previous one
-// until the player controller's report-change call corrects it.
+// On, the caption is the player's report, which settles asynchronously: the
+// toggle's own call shows the previous one until the report-change call.
 - (void)refreshBitPerfectRows {
     if (!_outputTable) {
         return;
@@ -193,13 +176,13 @@ static const CGFloat kGeneralPopUpWidth = 280;
     BOOL eligible = device.uid.length > 0 && VibeBitPerfectDeviceEligible(device.transportType, AppSettings.sharedInstance.allowBitPerfectOnAnyDevice);
     BOOL on = AppSettings.sharedInstance.bitPerfectOutput;
     BOOL pending = self.playerController.devicesMenuController.outputDeviceSelectionPending;
-    // TRAP: until the bind settles, mode writes still name the old saved UID.
+    // TRAP: until the bind settles, mode writes still name the old saved UID,
+    // so both mode switches stay disabled while a selection is pending.
     [SettingsRowView setControl:_bitPerfectSwitch enabled:!pending && (on || eligible)];
     _bitPerfectSwitch.state = on ? NSControlStateValueOn : NSControlStateValueOff;
-    // The two ways the mode has no device to drive need different remedies, so
-    // they get different captions: -1 is the System Output policy, which names
-    // no device at all (its own device may well be wired), while a concrete id
-    // that is not eligible is a transport the mode cannot drive.
+    // Two captions for two remedies: -1 is the System Output policy, which
+    // names no device (its own may well be wired); a concrete ineligible id is
+    // a transport the mode cannot drive.
     NSString *ineligibleCaption = requestedId < 0 ? STR_SETTINGS_BIT_PERFECT_SYSTEM_OUTPUT
             : STR_SETTINGS_BIT_PERFECT_NEEDS_DEVICE;
     NSString *caption;
@@ -376,11 +359,8 @@ static const CGFloat kGeneralPopUpWidth = 280;
     }
 }
 
-// The device manager is observed only while the Audio pane is on screen, like
-// the Files pane's grants: every pane outlives the window, so an observer
-// registered at init reloaded the device list for a pane nobody could see on
-// every device change. viewWillAppear's refresh covers whatever changed
-// while hidden.
+// Observed only while on screen: the pane outlives the window, and
+// viewWillAppear's refresh covers what changed while hidden.
 - (void)viewDidAppear {
     [super viewDidAppear];
     if (_audioPane) {
@@ -406,13 +386,11 @@ static const CGFloat kGeneralPopUpWidth = 280;
 #pragma mark - Default music player
 
 - (void)makeDefaultPlayer:(id)sender {
-    // The system runs its own confirmation panel and reports the outcome
-    // itself; the button retitles on the base class's key-window refresh.
+    // The system's panel reports the outcome; the button retitles on the
+    // key-window refresh.
     [DefaultAppRegistration makeDefaultApp];
 }
 
-// The check walks Launch Services off the main thread, so show the last-known
-// state now and correct it when the fresh answer lands.
 - (void)refreshDefaultPlayerButton {
     [self renderDefaultPlayerState:_lastKnownIsDefaultPlayer];
     NSUInteger generation = ++_defaultPlayerCheckGeneration;
@@ -427,8 +405,6 @@ static const CGFloat kGeneralPopUpWidth = 280;
     }];
 }
 
-// Nothing to do once Vibe already holds every type, so the title says so and
-// the button disables rather than offering a no-op.
 - (NSString *)defaultPlayerTitle:(BOOL)isDefault {
     return [NSString stringWithFormat:
             isDefault ? STR_SETTINGS_DEFAULT_PLAYER_IS : STR_SETTINGS_DEFAULT_PLAYER_SET, VibeAppName()];

@@ -20,10 +20,8 @@ VibeColor *VibeColorFromHexString(NSString *hex) {
     if (digits.length != 6 && !hasAlpha) {
         return nil;
     }
-    // scanHexLongLong: skips leading whitespace and accepts an 0x prefix, so
-    // the digit-count test above is not by itself a shape test: "0x123456"
-    // would scan clean and read as RRGGBBAA. Refuse anything but hex digits
-    // first.
+    // scanHexLongLong: skips whitespace and accepts 0x, so "0x123456" would
+    // pass the length test and scan as RRGGBBAA.
     static NSCharacterSet *nonHexDigits;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
@@ -97,8 +95,7 @@ NSString *VibeHexStringFromColor(VibeColor *color) {
     unsigned int gi = (unsigned int)lround(clampRange(g, 0, 1) * 255);
     unsigned int bi = (unsigned int)lround(clampRange(b, 0, 1) * 255);
     unsigned int ai = (unsigned int)lround(clampRange(a, 0, 1) * 255);
-    // Opaque stays the short form, so pre-alpha stored values and their reads
-    // round-trip unchanged.
+    // Opaque stays six digits, so a stored six-digit value round-trips.
     if (ai >= 255) {
         return [NSString stringWithFormat:@"#%02X%02X%02X", ri, gi, bi];
     }

@@ -1,8 +1,6 @@
 //
-// The open-burst coalescer: first batch replaces immediately, later batches
-// inside the quiet period append, a deliberate open ends the burst, and a
-// burst straddling launch still lands as one playlist. The scheduler is
-// injected so the quiet period elapses only when a test fires it.
+// The scheduler is injected, so the quiet period elapses only when a test
+// fires it.
 //
 
 #import <XCTest/XCTest.h>
@@ -45,7 +43,6 @@ static NSArray<NSURL *> *URLBatch(NSUInteger count) {
     return urls;
 }
 
-// The most recently scheduled quiet period elapses.
 - (void)fireQuietPeriod {
     XCTAssertTrue(_timers.count > 0);
     _timers.lastObject();
@@ -92,9 +89,7 @@ static NSArray<NSURL *> *URLBatch(NSUInteger count) {
     XCTAssertEqualObjects(_drains, expected);
 }
 
-// A drop onto the empty-state add well is the one deliberate open that does
-// not replace: it still ends the burst, but drains appending, and the next
-// burst batch then starts fresh rather than appending to it.
+// A drop onto the empty-state add well, the one deliberate open that appends.
 - (void)testADeliberateAppendEndsTheBurstWithoutReplacing {
     [_coalescer startAndDrainQueue];
     [_coalescer openBurstURLs:URLBatch(2)];
@@ -139,7 +134,6 @@ static NSArray<NSURL *> *URLBatch(NSUInteger count) {
     NSArray *expected = @[@"replace 1"];
     XCTAssertEqualObjects(_drains, expected);
 }
-
 
 #pragma mark - Launch restoration
 

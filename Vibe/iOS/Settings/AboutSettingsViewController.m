@@ -2,8 +2,6 @@
 //  AboutSettingsViewController.m
 //  Vibe (iOS)
 //
-//  See AboutSettingsViewController.h.
-//
 
 #import "AboutSettingsViewController.h"
 
@@ -42,28 +40,17 @@ static const CGFloat kHeaderBottomPadding = 12;
 
 static NSString *const kValueCellIdentifier = @"value";
 
-// The app icon, for the header. UIKit has no NSApp.applicationIconImage, and
-// the asset catalog cannot supply one: Resources/AppIcon.icon is an Icon
-// Composer package, so ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS puts
-// "AppIcon" in the catalog as a layered IconImageStack with no flat rendition.
-// The composed 1024px renditions are in there, but only private API reaches
-// them.
-//
-// TRAP: [UIImage imageNamed:@"AppIcon"] does not return nil for that stack —
-// it THROWS out of _UIImageCGImageContent, so a nil-check fallback never runs
-// and this screen aborted on every open.
-//
-// What is left is the loose PNG actool writes beside the executable, named by
-// the bundle's CFBundleIcons declaration. It is 120px against a header drawn
-// at 88pt, so it is soft on a 3x phone; a crisper one means shipping a second
-// copy of the artwork, which nothing regenerates from the .icon. Nil is a real
-// outcome — the header drops the image rather than drawing a placeholder that
-// would itself read as the icon failing to load.
+// Resources/AppIcon.icon is an Icon Composer package, so "AppIcon" in the
+// catalog is a layered stack with no flat rendition reachable by public API.
+// TRAP: [UIImage imageNamed:@"AppIcon"] does not return nil for it — it THROWS,
+// so a nil-check fallback never runs. The loose PNG CFBundleIcons names is
+// used instead: 120px, soft at 3x. Nil drops the image rather than drawing a
+// placeholder that reads as a failed load.
 static UIImage *AppIconImage(void) {
     NSDictionary *icons = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleIcons"];
     NSDictionary *primary = icons[@"CFBundlePrimaryIcon"];
     NSArray<NSString *> *files = primary[@"CFBundleIconFiles"];
-    // Last, not first: the array is ordered smallest to largest.
+    // Ordered smallest to largest.
     NSString *name = files.lastObject;
     return name.length ? [UIImage imageNamed:name] : nil;
 }
@@ -134,11 +121,9 @@ static UIImage *AppIconImage(void) {
     return header;
 }
 
-// TRAP: a table header view is positioned by AUTORESIZING, not by the table's
-// constraints, so it keeps whatever height its frame was given. Sizing it here
-// — rather than once at build time — is what makes it survive a rotation, an
-// iPad window resize and a Dynamic Type change, each of which changes the
-// height the stack needs without the table asking for a new one.
+// TRAP: a table header view is positioned by AUTORESIZING, not constraints, so
+// it keeps whatever height it was given. Sized here, not once at build, so a
+// rotation, a resize or a Dynamic Type change re-sizes it.
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     UIView *header = self.tableView.tableHeaderView;
@@ -151,7 +136,7 @@ static UIImage *AppIconImage(void) {
                                 verticalFittingPriority:UILayoutPriorityFittingSizeLevel].height;
     if (ABS(CGRectGetHeight(header.frame) - height) < 0.5
             && ABS(CGRectGetWidth(header.frame) - width) < 0.5) {
-        return;     // assigning tableHeaderView re-enters layout; only do it on a real change
+        return;     // assigning tableHeaderView re-enters layout
     }
     header.frame = CGRectMake(0, 0, width, height);
     self.tableView.tableHeaderView = header;
@@ -169,14 +154,11 @@ static UIImage *AppIconImage(void) {
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
-    // Nothing over the links: three addresses under the app's own name need no
-    // heading to say what they are.
     return (VibeAboutSection)section == VibeAboutSectionStats ? STR_SETTINGS_STATS_SECTION : nil;
 }
 
-// The link rows' display text is the bare address, deliberately unlocalized and
-// deliberately not built from the URL constants: what is SHOWN drops the scheme,
-// what is OPENED must not.
+// Unlocalized, and not built from the URL constants: what is SHOWN drops the
+// scheme, what is OPENED must not.
 static NSString *LinkDisplayTextForRow(NSInteger row) {
     switch ((VibeAboutLinkRow)row) {
         case VibeAboutLinkRowSupport: return VibeNotLocalized(@"vibeplayer.app/support");
@@ -218,8 +200,7 @@ static NSString *StatTitleForRow(NSInteger row) {
         case VibeAboutStatRowFoldersOpened:
             return [formatters countString:stats.totalFoldersOpened];
         case VibeAboutStatRowAudioPlayed:
-            // Live: totalSecondsPlayed folds in the run still going, so opening
-            // this screen mid-track reports the listening time including it.
+            // Live: includes the run still going.
             return [formatters spelledDurationString:stats.totalSecondsPlayed];
         default:
             return [formatters countString:stats.totalFilesOpened];
@@ -251,7 +232,7 @@ static NSString *StatTitleForRow(NSInteger row) {
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     if ((VibeAboutSection)indexPath.section != VibeAboutSectionLinks) {
-        return;     // a statistic is a readout, not a control
+        return;
     }
     NSURL *url = [NSURL URLWithString:LinkURLStringForRow(indexPath.row)];
     if (url) {

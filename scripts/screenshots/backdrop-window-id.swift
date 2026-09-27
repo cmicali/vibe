@@ -1,15 +1,13 @@
-// Print the CGWindowID of a window to stage behind Vibe for `CAPTURE=merged`
-// screenshots — for `screencapture -l<id>` (see generate-readme-screenshots.sh).
+// Print the CGWindowID of the window generate-readme-screenshots.sh captures
+// (`screencapture -l<id>`) and stages behind Vibe.
 //
 //   swift backdrop-window-id.swift "IntelliJ IDEA"   # by owning app name
 //   swift backdrop-window-id.swift wallpaper         # the desktop picture
 //
-// App matching is a case-insensitive substring of the owner name, and picks the
-// largest on-screen window it owns so a palette or tool window can't win over
-// the editor. The wallpaper is a real window owned by the Dock, sitting far
-// below the normal window levels; capturing it gets the picture ALONE, since
-// desktop icons are a separate Finder window at a different layer, so no file
-// names come along. Exits 1 with nothing printed if there's no match.
+// The owner name matches as a case-insensitive substring, and the largest
+// window wins so a palette cannot beat the editor. The wallpaper is a real
+// Dock-owned window; desktop icons are a separate Finder window, so none come
+// along. Exits 1, printing no id, when nothing matches.
 import CoreGraphics
 import Foundation
 
@@ -38,9 +36,8 @@ func windowID(ownerContains needle: String) -> Int? {
 }
 
 func wallpaperWindowID() -> Int? {
-    // "Wallpaper-<uuid>" owned by the Dock is the one actually on screen; the
-    // Wallpaper agent's own window is an offscreen staging copy, used as a
-    // fallback in case the Dock stops hosting it.
+    // The Dock's "Wallpaper-<uuid>" is the one on screen; the Wallpaper
+    // agent's offscreen copy is a fallback should the Dock stop hosting it.
     for (owner, prefix) in [("Dock", "Wallpaper"), ("Wallpaper", "")] {
         for window in windows {
             guard field(window, kCGWindowOwnerName) == owner as String?,

@@ -9,18 +9,15 @@
 #import "AppSettings+Mac.h"
 #endif
 
-// Nonnull by default: the normalizers accept a nullable stored value —
-// stringForKey: answers nil before defaults registration or after an external
-// delete — and always return an identifier.
+// The normalizers accept a nil stored value and always return an identifier.
 NS_ASSUME_NONNULL_BEGIN
 
 static inline NSInteger VibeNormalizedPitchRange(NSInteger range) {
     return range == 16 ? 16 : 8;
 }
 
-// The preset ladders (the crossfade on both platforms; the mac's skip steps
-// and playhead refresh): an out-of-list persisted value reads as the nearest
-// preset, so display and behavior cannot disagree. Ties break downward.
+// An out-of-list stored value reads as the nearest preset, so display and
+// behavior cannot disagree. Ties break downward.
 static inline NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, size_t count) {
     // Clamp before subtracting: external defaults can contain integer extremes.
     if (value <= presets[0]) return presets[0];
@@ -34,8 +31,6 @@ static inline NSInteger VibeNearestPreset(NSInteger value, const NSInteger *pres
     return best;
 }
 
-// An unknown stored waveform-theme identifier snaps to mono, like
-// keyNotation's snap to Camelot.
 static inline NSString *VibeNormalizedWaveformTheme(NSString *_Nullable identifier) {
     if ([identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_ORANGE] ||
         [identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART] ||
@@ -45,8 +40,6 @@ static inline NSString *VibeNormalizedWaveformTheme(NSString *_Nullable identifi
     return SETTINGS_VALUE_WAVEFORM_THEME_MONO;
 }
 
-// The folder-open order, both ways: an unknown stored identifier snaps to
-// Name, the default and the order every folder open used before the setting.
 static inline VibeFolderOpenSort VibeNormalizedFolderOpenSort(NSString *_Nullable identifier) {
     if ([identifier isEqualToString:SETTINGS_VALUE_FOLDER_OPEN_SORT_NEWEST_FIRST]) {
         return VibeFolderOpenSortNewestFirst;
@@ -67,10 +60,8 @@ static inline NSString *VibeFolderOpenSortIdentifier(VibeFolderOpenSort sort) {
 }
 
 #if TARGET_OS_OSX
-// The two tint ladders are one shape with different defaults: an unknown
-// window tint snaps to artwork (the header wash follows the playing track's
-// art color), an unknown playlist tint to mono (the factory playlist takes
-// no wash).
+// One ladder, two factory defaults: artwork for the window, mono for the
+// playlist.
 static inline NSString *VibeNormalizedTint(NSString *_Nullable identifier, NSString *fallback) {
     if ([identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_MONO] ||
         [identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_ARTWORK] ||
@@ -88,8 +79,7 @@ static inline NSString *VibeNormalizedPlaylistTint(NSString *_Nullable identifie
     return VibeNormalizedTint(identifier, SETTINGS_VALUE_WINDOW_TINT_MONO);
 }
 
-// The theme record's other two-value ladders, each snapping to its factory
-// side: dual color sets, the glass background, Camelot notation.
+// Each snaps an unknown value to its factory choice.
 static inline NSString *VibeNormalizedThemeMode(NSString *_Nullable identifier) {
     return [identifier isEqualToString:SETTINGS_VALUE_THEME_MODE_SINGLE]
             ? SETTINGS_VALUE_THEME_MODE_SINGLE
@@ -116,8 +106,7 @@ static inline NSString *VibeNormalizedDockIcon(NSString *_Nullable identifier) {
             : SETTINGS_VALUE_DOCK_ICON_ALBUM_ART;
 }
 
-// When the darkening behind the transport buttons shows, in the editor's
-// menu order; an unknown value snaps to the factory always-on.
+// In the editor's menu order.
 static inline NSArray<NSString *> *VibeButtonGradientModes(void) {
     return @[SETTINGS_VALUE_BUTTON_GRADIENT_NONE, SETTINGS_VALUE_BUTTON_GRADIENT_HOVER,
              SETTINGS_VALUE_BUTTON_GRADIENT_ARTWORK, SETTINGS_VALUE_BUTTON_GRADIENT_ALWAYS];
@@ -128,19 +117,16 @@ static inline NSString *VibeNormalizedButtonGradient(NSString *_Nullable identif
             ? identifier : SETTINGS_VALUE_BUTTON_GRADIENT_ALWAYS;
 }
 
-// The transport buttons' glyph choices, as the theme editor offers them —
-// SF Symbol names every macOS the app runs on carries. The theme's glyph
-// fields are free text (AppTheme), so these are the editor's menu and the
-// pair table below, not a ladder: a JSON may name a symbol outside them.
+// The editor's glyph menus: SF Symbols every supported macOS carries. Not a
+// ladder — the theme's glyph fields are free text.
 static inline NSArray<NSString *> *VibePlaylistButtonGlyphs(void) {
     return @[@"list.bullet", @"list.dash", @"list.triangle", @"list.number", @"music.note.list",
              @"text.justify", @"line.3.horizontal", @"square.stack", @"rectangle.stack",
              @"tablecells", @"sidebar.left", @"chevron.up.chevron.down"];
 }
 
-// The play choices are play/pause PAIRS, because one pick has to dress both
-// states: the first is what the editor lists and the play field stores, the
-// second what it writes to the pause field beside it.
+// Pairs, because one pick dresses both states: the play field stores the
+// first, the pause field the second.
 static inline NSArray<NSArray<NSString *> *> *VibePlayPauseGlyphPairs(void) {
     return @[@[@"play.fill", @"pause.fill"],
              @[@"play", @"pause"],
@@ -167,9 +153,8 @@ static inline NSArray<NSString *> *VibeNextButtonGlyphs(void) {
              @"arrow.right.to.line", @"arrowtriangle.right.fill", @"arrowshape.right.fill"];
 }
 
-// The pause glyph a play pick dresses the playing state with: its pair-table
-// partner, or the factory pause glyph for a play glyph the table does not
-// know — a JSON-authored one — so the two states never draw the same glyph.
+// The factory pause glyph for a play glyph outside the table, so the two
+// states never draw the same glyph.
 static inline NSString *VibePauseGlyphForPlayGlyph(NSString *_Nullable playGlyph) {
     for (NSArray<NSString *> *pair in VibePlayPauseGlyphPairs()) {
         if ([pair[0] isEqualToString:playGlyph]) {
@@ -179,8 +164,6 @@ static inline NSString *VibePauseGlyphForPlayGlyph(NSString *_Nullable playGlyph
     return kVibeThemePauseButtonGlyphDefault;
 }
 
-// An unknown stored waveform-drag identifier snaps to drag_window, the
-// default: a drag moves the window and only a stationary click seeks.
 static inline NSString *VibeNormalizedWaveformDragBehavior(NSString *_Nullable identifier) {
     if ([identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_DRAG_SEEK]) {
         return identifier;
@@ -188,8 +171,6 @@ static inline NSString *VibeNormalizedWaveformDragBehavior(NSString *_Nullable i
     return SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW;
 }
 
-// An unknown stored artwork-drag identifier snaps to copy_file, the default:
-// dragging the art out delivers the audio file itself.
 static inline NSString *VibeNormalizedArtworkDragAction(NSString *_Nullable identifier) {
     if ([identifier isEqualToString:SETTINGS_VALUE_ARTWORK_DRAG_COPY_PATH] ||
         [identifier isEqualToString:SETTINGS_VALUE_ARTWORK_DRAG_COPY_ARTIST_TITLE]) {
@@ -198,10 +179,8 @@ static inline NSString *VibeNormalizedArtworkDragAction(NSString *_Nullable iden
     return SETTINGS_VALUE_ARTWORK_DRAG_COPY_FILE;
 }
 
-// The waveform gain's ladder: an external write outside the slider's range
-// clamps, NaN reads as the plain mapping, and every value lands on the
-// nearest half dB — the slider's step — so the pane's knob and readout never
-// show a value the store did not keep.
+// Lands on the slider's half-dB step, so the knob and readout never show a
+// value the store did not keep.
 static inline double VibeNormalizedWaveformGainDB(double gainDB) {
     if (isnan(gainDB)) {
         return 0;
@@ -211,10 +190,9 @@ static inline double VibeNormalizedWaveformGainDB(double gainDB) {
 }
 #endif  // TARGET_OS_OSX
 
-// The one-time theme migration: the value to write, or nil to write nothing.
-// Sonic Cirrus owned the orange before the style/theme split, so a stored
-// sonic_cirrus style with no theme key yet keeps its orange; any stored theme
-// key means the migration already ran or the user chose.
+// The theme to write, or nil. A stored sonic_cirrus style with no theme key
+// keeps the orange that style used to draw; any theme key means the
+// migration ran or the user chose.
 static inline NSString *_Nullable VibeMigratedWaveformTheme(NSString *_Nullable storedTheme,
                                                             NSString *_Nullable storedStyle) {
     if (storedTheme) {
@@ -223,12 +201,9 @@ static inline NSString *_Nullable VibeMigratedWaveformTheme(NSString *_Nullable 
     return [storedStyle isEqualToString:@"sonic_cirrus"] ? SETTINGS_VALUE_WAVEFORM_THEME_ORANGE : nil;
 }
 
-// Whether every stored setting still holds its default — the Reset to
-// Defaults button's enabled decision. A registered key is non-default only
-// when a value is stored AND differs from the registered default, so a
-// migration that wrote the default back does not count; a nullable key (the
-// custom colors, which register no default) is non-default whenever it is
-// stored at all.
+// Reset to Defaults' enabled decision. A registered key counts only when its
+// stored value differs from the default, so a migration writing the default
+// back does not; a nullable key counts whenever stored.
 static inline BOOL VibeSettingsAreAtDefaults(NSDictionary<NSString *, id> *_Nullable stored,
                                              NSDictionary<NSString *, id> *registeredDefaults,
                                              NSArray<NSString *> *nullableKeys) {
@@ -247,11 +222,9 @@ static inline BOOL VibeSettingsAreAtDefaults(NSDictionary<NSString *, id> *_Null
 }
 
 #if TARGET_OS_OSX
-// The Advanced pane's Audio group is a debug readout: a Debug build always
-// shows it, a Release build hides it until the Version row is clicked
-// kVibeAudioPathRevealClicks times in a row, each within
-// kVibeAudioPathRevealGapSeconds of the last. The count after a click
-// `sinceLast` seconds after the previous one: a slower click starts over.
+// Release builds reveal the Advanced pane's Audio readout after
+// kVibeAudioPathRevealClicks clicks on the Version row, each within
+// kVibeAudioPathRevealGapSeconds of the last; a slower click starts over.
 static const NSUInteger kVibeAudioPathRevealClicks = 7;
 static const NSTimeInterval kVibeAudioPathRevealGapSeconds = 1.5;
 

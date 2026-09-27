@@ -38,7 +38,7 @@ Tint changes fade over `kVibeArtCrossfadeDuration`, shared with `CrossfadingImag
 
 **TRAP: an `NSGlassEffectView` inside `MainPlayerContentView` must not stretch from design height to window height.** As a height-sizable `NSGlassEffectView`, the frost band's SwiftUI hosting internals fought the autoresizing stretch and **the window silently refused to expand past the design height** — hence `NSVisualEffectView` here. The trap is the design-size-to-window-size stretch, not height-flexibility itself: the backdrop is created full-bleed at live bounds, `NSViewHeightSizable`, and resizes cleanly. Width-flexibility is fine for both glass views.
 
-**TRAP: `refreshTintWashes` must resolve light/dark from the *window*, not from `headerTintView`.** Its caller is the *content view's* `viewDidChangeEffectiveAppearance`, and AppKit updates the tree top-down, so a subview there still reports the outgoing appearance — reading it left the wash a full appearance behind on every live toggle.
+**TRAP: `refreshTintWashes` must resolve light/dark from the *window*, not from `headerTintView`.** Its caller is the *content view's* `viewDidChangeEffectiveAppearance`, and AppKit updates the tree top-down, so a subview there still reports the outgoing appearance — the wash would lag a full appearance behind every live toggle. `applyWindowBackground` reads the window for the same reason.
 
 ## The codec line and FX indicators
 

@@ -21,8 +21,6 @@
 static const CGFloat kSettingsSidebarWidth = 200;
 
 @interface SettingsWindowController () <NSMenuItemValidation, NSToolbarDelegate> {
-    // The pane host; SettingsTabViewController is defined further down, and
-    // everything reached through this ivar is NSTabViewController API.
     NSTabViewController *_tabs;
     NSSegmentedControl *_navigationControl;
     NSSegmentedControl *_appearanceToggle;
@@ -30,19 +28,11 @@ static const CGFloat kSettingsSidebarWidth = 200;
 }
 @end
 
-// The constraint engine re-sizes any window hosting an auto layout subtree
-// to the content's ideal frame after layout passes
-// (_changeWindowFrameFromConstraintsIfNecessary), through setFrame:display: —
-// and the priority games that could defeat that snap also clamp interactive
-// resizing: frame-tracking equality constants at 999 and at 509 collapsed the
-// user-resize range to a point (no resize cursor at all), while 500 and no
-// constraints lost the snap fight instead, all four observed. So the frame is
-// guarded here, in public API alone: a size change lands only from the user's
-// live resize, from a blessed path inside resizeUnlocked:, or while the
-// window is not yet visible (setup, autosave restore). The snap becomes the
-// no-op no constraint arrangement could make it, origin-only changes — moves
-// — always pass, and zoom is the one casualty (refused; System Settings does
-// not zoom either).
+// AppKit re-sizes a contentViewController window to its content's fitting
+// size after layout passes, through setFrame:display:, and every constraint
+// priority that defeats that snap also collapses the user's resize range. So
+// a size change lands only from a live resize, inside resizeUnlocked:, or
+// before the window is visible. Moves always pass; zoom is refused.
 @interface SettingsWindow : NSWindow
 - (void)resizeUnlocked:(void (^)(void))block;
 @end
@@ -80,12 +70,9 @@ static const CGFloat kSettingsSidebarWidth = 200;
     return [super validateMenuItem:item];
 }
 
-// Strictly scoped: the engine's snap fires inside the very next layout
-// flush, so a time-boxed unlock re-admits it (observed — a 0.35s tail let
-// layoutIfNeeded revert a blessed resize before the caller ever saw it).
-// Blessed resizes are therefore SYNCHRONOUS plain setFrame: calls; nothing
-// animates the frame, so there is no in-flight animation to outlive the
-// block.
+// Block-scoped and synchronous: the snap fires in the next layout flush, so a
+// time-boxed unlock re-admits it, and an animator's later frames would arrive
+// locked out.
 - (void)resizeUnlocked:(void (^)(void))block {
     _resizeUnlocked = YES;
     block();
@@ -93,9 +80,7 @@ static const CGFloat kSettingsSidebarWidth = 200;
 }
 
 - (void)setFrame:(NSRect)frameRect display:(BOOL)flag {
-    // isVisible is NO while miniaturized, but that is not the pre-visible
-    // setup window this admits — a layout flush can still fire the snap in
-    // the Dock, deminiaturizing the user's frame at the fitting size.
+    // isVisible is NO while miniaturized, but the snap still fires in the Dock.
     if (!NSEqualSizes(frameRect.size, self.frame.size)
             && (self.isVisible || self.isMiniaturized)
             && !self.inLiveResize && !_resizeUnlocked
@@ -105,17 +90,14 @@ static const CGFloat kSettingsSidebarWidth = 200;
     [super setFrame:frameRect display:flag];
 }
 
-// The fitting snap keeps the window on its current screen, so it never
-// escapes here. A display disconnect or resolution drop is the case this
-// admits: the window is currently off every screen and AppKit is pulling it
-// back onto one. (An AX window-manager resize is indistinguishable from the
-// snap at this funnel and stays refused — the documented limitation.)
+// A display disconnect or resolution drop: the window is off every screen and
+// AppKit is pulling it back. The snap never moves a window off-screen, so it
+// cannot pass here. An accessibility window-manager resize stays refused.
 - (BOOL)appKitIsRescuingOntoScreen:(NSRect)proposed {
     BOOL currentOnScreen = NO, proposedFits = NO;
     for (NSScreen *screen in NSScreen.screens) {
         // Intersection, not containment: a window straddling two displays is
-        // contained by neither visibleFrame, but it is exactly where the user
-        // put it — only a window with no visible part left needs the rescue.
+        // contained by neither.
         if (NSIntersectsRect(screen.visibleFrame, self.frame)) {
             currentOnScreen = YES;
         }
@@ -128,11 +110,9 @@ static const CGFloat kSettingsSidebarWidth = 200;
 
 @end
 
-// The same swallow as the tab controller's: AppKit resizes the window the
-// moment its contentViewController's preferredContentSize changes, and the
-// split controller adopts one from its children's fitting sizes on layout —
-// which would snap the window to the raw pane height, past both the height
-// floor and the animated resize.
+// AppKit resizes the window as soon as its contentViewController's
+// preferredContentSize changes, and the split controller adopts one from its
+// children's fitting sizes on layout.
 @interface SettingsSplitViewController : NSSplitViewController
 @end
 
@@ -141,9 +121,7 @@ static const CGFloat kSettingsSidebarWidth = 200;
 - (void)setPreferredContentSize:(NSSize)preferredContentSize {
 }
 
-// Assigning contentViewController after init does not establish the title
-// binding windowWithContentViewController: would have, so the pane-title
-// chain's last hop — split to window — is explicit.
+// Assigning contentViewController after init does not bind the window title.
 - (void)setTitle:(NSString *)title {
     [super setTitle:title];
     self.view.window.title = title ?: @"";
@@ -153,17 +131,14 @@ static const CGFloat kSettingsSidebarWidth = 200;
 
 #pragma mark - Sidebar
 
-// The pane list, drawn from the tab controller's own items so the two cannot
-// drift: same order, same localized labels, same symbols.
+// Rows come from the tab controller's items, so the two cannot drift.
 @interface SettingsSidebarController : NSViewController <NSTableViewDataSource, NSTableViewDelegate>
 @property (weak, nonatomic) NSTabViewController *tabs;
 @property (readonly, nonatomic) NSTableView *tableView;
 @end
 
-// The icon flips white through backgroundStyle — the row view pushes it the
-// moment its selection moves, mouse-down tracking included. Re-tinting from
-// tableViewSelectionDidChange: left the pressed row mis-tinted for the whole
-// press: that notification waits for mouse-up.
+// Tinted through backgroundStyle, which the row view pushes on mouse-down;
+// tableViewSelectionDidChange: waits for mouse-up.
 @interface SettingsSidebarCellView : NSTableCellView
 @end
 
@@ -256,19 +231,15 @@ static const CGFloat kSettingsSidebarWidth = 200;
 
 #pragma mark - Tab controller
 
-// Owns the frame update when every pane's shared size changes. Also the sync
-// point back to the sidebar, so a programmatic selection (the debug channel's
-// settings_open) moves the highlighted row too.
+// Also syncs the sidebar, so a programmatic selection (settings_open) moves
+// the highlighted row.
 @interface SettingsTabViewController : NSTabViewController <SettingsPaneSizeHost>
 @property (weak, nonatomic) NSTableView *sidebarTable;
 @end
 
 @implementation SettingsTabViewController
 
-// Swallow the selected child's preferredContentSize instead of adopting it:
-// a window whose contentViewController's preferredContentSize changes is
-// resized by AppKit immediately, which is the snap that beats the animated
-// resize below to the target frame and turns it into a no-op.
+// AppKit would resize the window immediately, ahead of the animated resize.
 - (void)setPreferredContentSize:(NSSize)preferredContentSize {
 }
 
@@ -283,8 +254,6 @@ static const CGFloat kSettingsSidebarWidth = 200;
     if (index != NSNotFound && sidebar && sidebar.selectedRow != (NSInteger)index) {
         [sidebar selectRowIndexes:[NSIndexSet indexSetWithIndex:index] byExtendingSelection:NO];
     }
-    // The window binds its title to the split controller's; the pane's title
-    // reaches it through here, never set on the window directly.
     self.parentViewController.title = pane.title;
     SettingsWindowController *controller =
             (SettingsWindowController *)self.view.window.windowController;
@@ -293,9 +262,7 @@ static const CGFloat kSettingsSidebarWidth = 200;
     }
 }
 
-// A pane revealed or hid a row, so every pane's shared size moved under the
-// open window. SettingsPaneViewController has already opened the animation
-// transaction that moves the visible layout with this frame update.
+// Runs inside the animation transaction paneContentDidChange opened.
 - (void)settingsPaneSizeDidChange {
     NSInteger index = self.selectedTabViewItemIndex;
     if (index < 0 || index >= (NSInteger)self.tabViewItems.count) {
@@ -304,8 +271,7 @@ static const CGFloat kSettingsSidebarWidth = 200;
     [self resizeWindowToPaneSize:self.tabViewItems[(NSUInteger)index].viewController];
 }
 
-// The floor needs a laid-out window (the titlebar height comes from the
-// engine), so the first chance to set it is here rather than at build.
+// The floor needs a laid-out window for the titlebar height.
 - (void)viewDidAppear {
     [super viewDidAppear];
     [self settingsPaneSizeDidChange];
@@ -316,12 +282,9 @@ static const CGFloat kSettingsSidebarWidth = 200;
     if (![pane isKindOfClass:SettingsPaneViewController.class] || !window) {
         return;
     }
-    // The panes' shared size is the window's FLOOR, not its size: the window
-    // is user-resizable above it, so a shared-size change moves the minimum
-    // and grows an undersized window, never shrinking one the user enlarged.
-    // The floor is computed from the engine's own numbers: this view's
-    // leading edge in the window is the sidebar plus divider, and the content
-    // rect past contentLayoutRect is the titlebar overlaying the content.
+    // The shared size is the window's FLOOR: grow an undersized window, never
+    // shrink one the user enlarged. Computed from the engine's own numbers,
+    // since anything else is re-snapped by the next flush.
     NSSize paneSize = ((SettingsPaneViewController *)pane).sharedPaneSize;
     CGFloat leading = NSMinX([self.view convertRect:self.view.bounds toView:nil]);
     NSRect content = [window contentRectForFrameRect:window.frame];
@@ -339,9 +302,7 @@ static const CGFloat kSettingsSidebarWidth = 200;
 
 @implementation SettingsWindowController
 
-// The identifier is the pane's stable name, the one the debug channel's
-// settings_open selects by, so a script never depends on the running
-// language the way the label would make it.
+// identifier is stable and unlocalized; settings_open selects by it.
 static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
                                NSString *label, NSString *symbolName) {
     pane.title = label;
@@ -354,8 +315,7 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
 - (instancetype)initWithPlayerController:(MainPlayerController *)playerController {
     SettingsTabViewController *tabs = [[SettingsTabViewController alloc] init];
     tabs.tabStyle = NSTabViewControllerTabStyleUnspecified;
-    // Every pane already has the same size. AppKit's default crossfade briefly
-    // composites section headers from both panes and makes the swap flash.
+    // The default crossfade composites two panes' section headers and flashes.
     tabs.transitionOptions = NSViewControllerTransitionNone;
     tabs.tabView.tabViewType = NSNoTabsNoBorder;
 
@@ -363,8 +323,6 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
                                   @"general", STR_SETTINGS_GENERAL, @"gearshape")];
     [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController audioPane:YES],
                                   @"audio", STR_SETTINGS_AUDIO_SECTION, @"speaker.wave.2")];
-    // The sidebar labels reuse the Playback and Appearance menu strings: same
-    // word, same translations.
     [tabs addTabViewItem:PaneItem([[SettingsPlaybackViewController alloc] initWithPlayerController:playerController],
                                   @"playback", STR_MENU_PLAYBACK, @"play.circle")];
     [tabs addTabViewItem:PaneItem([[SettingsAppearanceViewController alloc] initWithPlayerController:playerController],
@@ -376,8 +334,6 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
     [tabs addTabViewItem:PaneItem([[SettingsAboutViewController alloc] initWithPlayerController:playerController],
                                   @"about", STR_SETTINGS_ABOUT, @"info.circle")];
 
-    // Every pane at the largest pane's size, before the window is built, so
-    // the window has one size and a pane switch resizes nothing.
     [SettingsPaneViewController settleSharedSizeForPanes:tabs.childViewControllers];
 
     SettingsSidebarController *sidebar = [[SettingsSidebarController alloc] init];
@@ -392,39 +348,23 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
     sidebarItem.canCollapse = NO;
     sidebarItem.allowsFullHeightLayout = YES;
     [split addSplitViewItem:sidebarItem];
-    // Each split item carries its OWN titlebar separator style, defaulting to
-    // automatic — which draws a hairline under the toolbar the moment the
-    // pane's content can scroll beneath it, exactly what the theme editor's
-    // scroll view does. The window-level None does not reach through.
+    // Per split item: the default draws a hairline under the toolbar once
+    // content scrolls beneath it, and the window-level None does not reach.
     NSSplitViewItem *contentItem = [NSSplitViewItem splitViewItemWithViewController:tabs];
     contentItem.titlebarSeparatorStyle = NSTitlebarSeparatorStyleNone;
     [split addSplitViewItem:contentItem];
-    // The window title comes from the pane-title chain (didSelectTabViewItem
-    // above), never set directly; the initial selection ran before the split
-    // controller existed, so seed it here once.
+    // The initial selection ran before the split controller existed.
     split.title = tabs.tabViewItems.firstObject.viewController.title;
 
-    // The seed is the settled shared size; the height is short of the
-    // titlebar here — the tab controller's grow-to-floor pass on first
-    // appearance corrects it, and an autosaved frame overrides it anyway.
+    // Short of the titlebar; the tab controller's grow-to-floor pass on first
+    // appearance corrects it.
     NSSize seedSize = ((SettingsPaneViewController *)
             tabs.tabViewItems.firstObject.viewController).sharedPaneSize;
     NSRect seedRect = NSMakeRect(0, 0, kSettingsSidebarWidth + 1 + seedSize.width,
                                  seedSize.height);
-    // The guarded subclass is what makes contentViewController livable: the
-    // engine re-sizes such a window to its content's fitting answer after
-    // layout passes, and every constraint arrangement that could defeat that
-    // snap also collapsed the user-resize range to a point (no resize cursor;
-    // 999 and 509 equalities, 500, and none — all observed). The guard
-    // refuses the snap at the setFrame:display: funnel instead, so the
-    // content can stay constraint-free and the resize range open. The split
-    // controller must remain the contentViewController — hosting its view
-    // bare re-created the titlebar scroll pocket as an unmanaged window-wide
-    // band whose hard edge drew a stray hairline over the theme editor
-    // (macOS 26); through the controller, the split items' separator style
-    // governs it. Full-size content view lets the sidebar run the window's
-    // full height; extra height past the floor is blank space below the
-    // sections, and the theme editor's scroll area grows.
+    // The split controller must stay the contentViewController: hosted bare,
+    // macOS 26 draws the titlebar scroll pocket as a window-wide band with a
+    // hairline over the theme editor.
     SettingsWindow *window = [[SettingsWindow alloc]
             initWithContentRect:seedRect
                       styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
@@ -433,10 +373,8 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
                         backing:NSBackingStoreBuffered
                           defer:NO];
     window.contentViewController = split;
-    // No green-button fullscreen: a resizable non-panel window offers it
-    // implicitly, and the frame guard would refuse AppKit's grow-to-screen —
-    // stranding a mini-window in a dedicated space. System Settings is the
-    // same. Zoom is likewise a no-op through the guard, by design.
+    // The frame guard would refuse fullscreen's grow-to-screen, stranding a
+    // small window in its own space.
     window.collectionBehavior |= NSWindowCollectionBehaviorFullScreenNone;
     window.title = split.title ?: @"";
     [window setContentSize:seedRect.size];
@@ -446,35 +384,21 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
     self = [super initWithWindow:window];
     if (self) {
         _tabs = tabs;
-        // Under Auto, the preview toggle shows the side the system is on; an
-        // OS flip while the editor is idle must re-resolve it.
-        // viewDidChangeEffectiveAppearance is an NSView hook, not available on
-        // this controller, so the app-level appearance is observed by KVO.
+        // Under Auto, the preview toggle shows the system's side, so an OS
+        // flip must re-resolve it.
         [NSApp addObserver:self forKeyPath:@"effectiveAppearance" options:0 context:NULL];
-        // An item-less toolbar except for the sidebar tracking separator,
-        // which AppKit vends for a split-view content controller: it gives the
-        // titlebar its unified height and carries the sidebar divider through
-        // it, which is the whole System Settings look.
         NSToolbar *toolbar = [[NSToolbar alloc] initWithIdentifier:@"SettingsToolbar"];
         toolbar.delegate = self;
         toolbar.allowsUserCustomization = NO;
-        // Icon only: with labels allowed, the unified toolbar reserves a label
-        // row under its items whether or not any item shows one — 66 points
-        // against System Settings' 52 — and the Appearance pane's toggle
-        // printed "Appearance" under itself in it. The label stays on the
-        // item for accessibility.
+        // With labels allowed, a unified toolbar reserves a label row whether
+        // or not one is drawn. Labels stay set for accessibility.
         toolbar.displayMode = NSToolbarDisplayModeIconOnly;
         window.toolbar = toolbar;
         window.toolbarStyle = NSWindowToolbarStyleUnified;
-        // The System Settings look: the page title sits beside the navigation
-        // control with no hairline under the toolbar.
         window.titleVisibility = NSWindowTitleVisible;
         window.titlebarSeparatorStyle = NSTitlebarSeparatorStyleNone;
 
-        // After center, so a saved position wins over the default one. The
-        // SIZE the autosave restores needs no correction here: the tab
-        // controller's grow-to-floor pass raises an undersized restore to the
-        // panes' floor on first appearance and never shrinks an enlarged one.
+        // After center, so a saved position wins.
         self.windowFrameAutosaveName = @"SettingsWindow";
         [sidebar.tableView selectRowIndexes:[NSIndexSet indexSetWithIndex:0] byExtendingSelection:NO];
     }
@@ -482,8 +406,6 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
 }
 
 - (void)applyWindowFrame:(NSRect)frame {
-    // Plain and synchronous — nothing animates this window's frame anymore,
-    // so there is no in-flight animation to retarget.
     SettingsWindow *window = (SettingsWindow *)self.window;
     [window resizeUnlocked:^{
         [window setFrame:frame display:YES];
@@ -495,10 +417,6 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
     if (!item) {
         return;
     }
-    // The tab controller's own selection path, so the sidebar, the title
-    // chain and refreshFromSettings all follow; then land on the active
-    // theme's page — Edit Themes… states intent to edit, and the active
-    // theme is unambiguous — with Back one click away.
     _tabs.selectedTabViewItemIndex = (NSInteger)[_tabs.tabViewItems indexOfObject:item];
     [(SettingsAppearanceViewController *)item.viewController showThemeEditorForActiveTheme];
 }
@@ -519,10 +437,7 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
         [window setFrame:frame display:NO];
         return;
     }
-    // Synchronous, not animated — the guard's unlock is scoped to the call,
-    // and an animator's later frames would arrive locked out. The pane's
-    // arranged views still animate inside their own transaction; the window
-    // edge lands at once.
+    // Synchronous: an animator's later frames would arrive locked out.
     [self applyWindowFrame:frame];
 }
 
@@ -537,9 +452,7 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
 }
 
 - (NSArray<NSToolbarItemIdentifier> *)toolbarDefaultItemIdentifiers:(NSToolbar *)toolbar {
-    // The dice and the appearance toggle are deliberately absent: they exist
-    // only while the Appearance pane is selected, inserted and removed by
-    // updateThemeNavigation.
+    // The dice and the appearance toggle are inserted by updateThemeNavigation.
     return @[NSToolbarSidebarTrackingSeparatorItemIdentifier, kThemeNavigationItemIdentifier,
              NSToolbarFlexibleSpaceItemIdentifier];
 }
@@ -547,10 +460,6 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
 - (NSToolbarItem *)toolbar:(NSToolbar *)toolbar itemForItemIdentifier:(NSToolbarItemIdentifier)itemIdentifier
  willBeInsertedIntoToolbar:(BOOL)flag {
     if ([itemIdentifier isEqualToString:kRandomizeItemIdentifier]) {
-        // The theme editor's dice, beside the preview toggle: the die rolls
-        // the settings, the palette the colors, and the arrows traverse
-        // theme history. Dice require an editable page; undo and redo
-        // are available on both pages.
         NSSegmentedControl *control = [NSSegmentedControl segmentedControlWithImages:@[
                 [NSImage imageWithSystemSymbolName:@"dice"
                           accessibilityDescription:STR_SETTINGS_THEME_RANDOMIZE_SETTINGS],
@@ -573,12 +482,6 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
         return item;
     }
     if ([itemIdentifier isEqualToString:kAppearanceToggleItemIdentifier]) {
-        // The Appearance pane's fast light/dark preview, trailing in the
-        // titlebar: a dual-mode theme keeps a palette per appearance, and
-        // flipping the main window's is how you see the other one — on the
-        // theme list, where it previews the theme being picked, as much as
-        // inside the editor. A single-mode theme disables the toggle because
-        // its palette pins the window dark.
         NSSegmentedControl *control = [NSSegmentedControl segmentedControlWithImages:@[
                 [NSImage imageWithSystemSymbolName:@"sun.max"
                           accessibilityDescription:STR_MENU_APPEARANCE_LIGHT],
@@ -596,9 +499,6 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
         return item;
     }
     if ([itemIdentifier isEqualToString:kThemeNavigationItemIdentifier]) {
-        // The System Settings navigation pill: back pops the theme editor to
-        // the list, forward — armed by a pop — re-opens it. Disabled outside
-        // the Appearance pane; updateThemeNavigation keeps it honest.
         NSSegmentedControl *control = [NSSegmentedControl segmentedControlWithImages:@[
                 [NSImage imageWithSystemSymbolName:@"chevron.backward"
                           accessibilityDescription:STR_SETTINGS_THEME_BACK],
@@ -611,8 +511,6 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
         _navigationControl = control;
         NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
         item.view = control;
-        // Leading, before the window title — where System Settings puts its
-        // navigation pill.
         item.navigational = YES;
         return item;
     }
@@ -636,22 +534,13 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
     return (SettingsAppearanceViewController *)[self appearanceTabItem].viewController;
 }
 
-// The Audio pane for the player's and the Output menu's refreshes, and only
-// while someone can see it: the controller and every pane outlive the window,
-// so a report or device change with Settings closed, or another pane selected,
-// would otherwise reload the device list and re-measure captions for nobody
-// (#47's rule: a closed Settings window is not a cheap one). A pane that was
-// hidden catches up in viewWillAppear.
 - (SettingsGeneralViewController *)audioPane {
     SettingsGeneralViewController *pane =
             (SettingsGeneralViewController *)[self tabItemWithIdentifier:@"audio"].viewController;
     return pane.isViewLoaded && pane.view.window.isVisible ? pane : nil;
 }
 
-// Panes measure nothing while the window is hidden, so a content change that
-// landed with Settings closed has no measurement behind it. Settle every pane
-// on the way in rather than leaving the first shown pane to discover it; a
-// show while already visible (⌘, again, Edit Themes…) has nothing to settle.
+// Panes measure nothing while hidden, so settle them all on the way in.
 - (void)showWindow:(id)sender {
     BOOL wasVisible = self.window.isVisible;
     [super showWindow:sender];
@@ -682,17 +571,13 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object
                         change:(NSDictionary *)change context:(void *)context {
-    // The toggle exists only while the Appearance pane is on screen, and a
-    // selection or an open re-reads it on the way in; the observer outlives
-    // the window, so an OS flip with Settings closed has nothing to do.
+    // Selecting the pane or opening the window re-reads it on the way in.
     if (!self.window.isVisible || ![self appearancePaneIsSelected]) {
         return;
     }
     [self updateThemeNavigation];
 }
 
-// The Edit menu item and the toolbar arrow name what a step would put back:
-// a removed theme, or an edit.
 static NSString *ThemeHistoryTitle(BOOL forward) {
     AppSettings *settings = AppSettings.sharedInstance;
     if (forward) {
@@ -704,9 +589,7 @@ static NSString *ThemeHistoryTitle(BOOL forward) {
 - (void)updateThemeNavigation {
     SettingsAppearanceViewController *pane = [self appearancePane];
     BOOL selected = [self appearancePaneIsSelected];
-    // A pane can retitle itself mid-view (the editor's page swap); re-push
-    // the pane-title chain the tab controller drives on selection, so no
-    // pane has to know how deep the container nesting is.
+    // The editor's page swap retitles the pane mid-view.
     NSInteger selectedIndex = _tabs.selectedTabViewItemIndex;
     if (selectedIndex >= 0) {
         _tabs.parentViewController.title =
@@ -714,11 +597,9 @@ static NSString *ThemeHistoryTitle(BOOL forward) {
     }
     [_navigationControl setEnabled:(selected && pane.canGoBack) forSegment:0];
     [_navigationControl setEnabled:(selected && pane.canGoForward) forSegment:1];
-    // The dice and the toggle exist only on this pane — both its pages — and
-    // are inserted and removed rather than hidden, which reaches every macOS
-    // the app runs on; NSToolbarItem.hidden needs macOS 15. The delegate also
-    // vends non-inserted copies during allowed-item enumeration, so a stored
-    // item reference is not reliably the one on screen. Trailing, dice first.
+    // Inserted and removed, never hidden: NSToolbarItem.hidden needs macOS 15,
+    // and the delegate vends non-inserted copies during enumeration, so a
+    // stored item is not reliably the one on screen.
     NSToolbar *toolbar = self.window.toolbar;
     for (NSToolbarItemIdentifier identifier in @[kRandomizeItemIdentifier, kAppearanceToggleItemIdentifier]) {
         NSUInteger index = [toolbar.items indexOfObjectPassingTest:
@@ -738,9 +619,7 @@ static NSString *ThemeHistoryTitle(BOOL forward) {
     [_randomizeControl setEnabled:(selected && [pane canRestoreThemeHistoryForward:YES]) forSegment:3];
     [_randomizeControl setToolTip:ThemeHistoryTitle(NO) forSegment:2];
     [_randomizeControl setToolTip:ThemeHistoryTitle(YES) forSegment:3];
-    // windowAppearance owns the style-to-appearance ladder, preview and a
-    // single-mode theme's pin folded in; its nil (Auto) shows the side the
-    // system is on right now.
+    // windowAppearance folds in the preview and a single-mode pin; nil is Auto.
     NSAppearance *appearance =
             AppSettings.sharedInstance.windowAppearance ?: NSApp.effectiveAppearance;
     _appearanceToggle.selectedSegment = appearance.isDark ? 1 : 0;
@@ -749,9 +628,6 @@ static NSString *ThemeHistoryTitle(BOOL forward) {
     [_appearanceToggle setEnabled:canPreview forSegment:1];
 }
 
-// A PREVIEW, not a choice — the pane owns it, as it owns the pages the
-// navigation pill drives, so the debug channel reaches it by the same route
-// the toolbar does.
 - (void)toggleAppearancePreview:(id)sender {
     [[self appearancePane] previewAppearanceDark:(_appearanceToggle.selectedSegment == 1)];
 }
@@ -778,16 +654,11 @@ static NSString *ThemeHistoryTitle(BOOL forward) {
     }
 }
 
-// File > Close (⌘W) is nil-targeted closeFile:; catching it while this window
-// is key closes it, instead of falling through to the player's version, which
-// clears the playlist.
+// Catches the nil-targeted ⌘W ahead of the player's, which clears the playlist.
 - (IBAction)closeFile:(nullable id)sender {
     [self.window performClose:sender];
 }
 
-// The File menu owns one nil-targeted Close item. Its previous validation may
-// have run through the player and named it "Close All Files", so every other
-// closeFile: target restores the title that describes its own action.
 - (IBAction)undo:(id)sender {
     if ([self appearancePaneIsSelected]) [self.appearancePane restoreThemeHistoryForward:NO];
 }
@@ -802,6 +673,7 @@ static NSString *ThemeHistoryTitle(BOOL forward) {
         menuItem.title = ThemeHistoryTitle(forward);
         return [self appearancePaneIsSelected] && [self.appearancePane canRestoreThemeHistoryForward:forward];
     }
+    // The one Close item may have been retitled by the player's validation.
     if ([menuItem.identifier isEqualToString:kVibeMenuClose]) {
         menuItem.title = STR_MENU_FILE_CLOSE;
     }

@@ -2,9 +2,7 @@
 //  DownloadProgressMonitorInternal.h
 //  Vibe
 //
-//  The source-independent delivery seam. The monitor and its tests both use
-//  this surface so movement, coalescing, replacement and cancellation are
-//  exercised without depending on a system progress source.
+//  The source-independent delivery seam, for tests.
 //
 
 #import "DownloadProgressMonitor.h"

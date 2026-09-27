@@ -3,8 +3,7 @@
 //  Vibe
 //
 //  The loading indicator's per-style metrics: one control, two sizes. The
-//  waveform style is the numbers the control has always drawn — the hairline
-//  midline, the shimmer peaking at an unplayed waveform bar's on-screen worth
+//  waveform style is the hairline midline, the shimmer peaking at an unplayed waveform bar's on-screen worth
 //  (the renderer family's 0.5 gradient top under its 0.75 layer opacity), the
 //  inert track on the unplayed baseline — so the waveform arriving over it is
 //  the same brightness rather than a step down. The row style is one EQ-bar's
@@ -19,7 +18,7 @@
 #import <Foundation/Foundation.h>
 
 typedef NS_ENUM(NSUInteger, VibeLoadingIndicatorStyle) {
-    VibeLoadingIndicatorStyleWaveform = 0,  // the hairline midline, unchanged
+    VibeLoadingIndicatorStyleWaveform = 0,  // the hairline midline
     VibeLoadingIndicatorStyleRow,           // a single EQ-bar-weight pill
 };
 
@@ -45,7 +44,7 @@ VibeLoadingIndicatorMetricsForStyle(VibeLoadingIndicatorStyle style, CGFloat wid
     if (style == VibeLoadingIndicatorStyleRow) {
         // Tall enough that the capsule ends read as round — at 2pt the
         // max radius is a hairline semicircle nobody can see. cornerRadius is
-        // height / 2, full pill ends, as layoutBars gives each EQ bar.
+        // height / 2: full pill ends, like each EQ bar's.
         VibeLoadingIndicatorMetrics row = {
             .height = 3,
             .cornerRadius = 1.5,

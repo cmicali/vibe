@@ -1,22 +1,11 @@
 //
 //  PlaylistFileFuzzTests.m
 //
-//  Playlists arrive from other people's software and other people's disks, so
-//  the readers have to survive anything: half-written files, wrong encodings,
-//  truncated multi-byte sequences, megabyte-long lines, bytes that are not
-//  text at all. Two shapes of fuzzing here.
+//  Generated-and-known sheets must read back exactly: the only half that
+//  catches a dropped or reordered entry, since an empty answer satisfies every
+//  property. Corrupted bytes must satisfy only what holds for any input.
 //
-//  Generated-and-known: build a random but well-formed sheet whose entries are
-//  known up front, and demand exactly those back. This is the half that can
-//  catch a reader that drops or reorders entries — asserting only what must
-//  hold cannot, since returning nothing satisfies every one of those.
-//
-//  Generated-and-corrupted: mutate bytes and assert only what must hold for
-//  ANY input. No crash, no exception, and the output contract the callers rely
-//  on — every entry non-empty, single-line, separator-normalized.
-//
-//  The generator is a seeded PRNG, so a failure reproduces exactly: the seed
-//  is in every assertion message, and VIBE_FUZZ_SEED re-runs one.
+//  Seeded: the seed is in every assertion message, and VIBE_FUZZ_SEED re-runs one.
 //
 
 #import <XCTest/XCTest.h>
@@ -102,7 +91,7 @@ static NSString *FuzzPlainName(FuzzRandom *random) {
     return name.length ? name : @"track.mp3";
 }
 
-// Lines a reader must skip. Every one of these has bitten a real playlist.
+// Lines a reader must skip.
 static NSString *FuzzCueNoiseLine(FuzzRandom *random) {
     static NSArray<NSString *> *lines;
     static dispatch_once_t once;
@@ -221,8 +210,6 @@ static NSString *NormalizedSeparators(NSString *name) {
     }
 }
 
-// The same sheets through every encoding the reader claims to accept. A
-// playlist's meaning cannot depend on how its bytes were written down.
 - (void)testAWellFormedSheetReadsTheSameThroughEveryAcceptedEncoding {
     NSArray<NSNumber *> *encodings = @[@(NSUTF8StringEncoding),
                                        @(NSUTF16StringEncoding),
@@ -267,9 +254,6 @@ static NSString *NormalizedSeparators(NSString *name) {
 
 #pragma mark - Corrupted bytes
 
-// Bytes no writer would produce: random noise, plausible prefixes with garbage
-// behind them, truncated multi-byte sequences, NUL runs, and a real playlist
-// with its bytes chewed up.
 static NSData *FuzzCorruptData(FuzzRandom *random) {
     NSMutableData *data = [NSMutableData data];
     switch (FuzzBelow(random, 8)) {
@@ -373,9 +357,8 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
     return data;
 }
 
-// What must hold for any input at all. Anything weaker than this and a reader
-// that returned garbage would still pass; anything stronger and the reader
-// would have to understand the corruption.
+// What must hold for any input: weaker passes garbage, stronger would demand
+// the reader understand the corruption.
 - (void)assertEntriesAreWellFormed:(NSArray<NSString *> *)entries
                               kind:(NSString *)kind
                               seed:(uint64_t)seed {
@@ -394,11 +377,9 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
             XCTAssertFalse([entry containsString:breaker], @"%@ seed %llu: %@", kind, seed, entry);
         }
     }
-    // Deliberately NOT asserted for m3u: that no entry begins with '#' or with
-    // whitespace. Both hold of a plain path line, but an entry lifted out of a
-    // file:// URL is that URL's path verbatim, and "file:// #x.mp3" yields one
-    // of each. Neither resolves to anything, and trimming the path would be
-    // the real bug — a filename is allowed to end in a space.
+    // Not asserted for m3u: no leading '#' or whitespace. A file:// URL's path
+    // is taken verbatim ("file:// #x.mp3" yields both), and trimming it would be
+    // the real bug — a filename may end in a space.
     if ([kind isEqualToString:@"cue"]) {
         for (NSUInteger i = 1; i < entries.count; i++) {
             XCTAssertNotEqual([entries[i - 1] caseInsensitiveCompare:entries[i]], NSOrderedSame,
@@ -415,9 +396,8 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
             NSData *data = FuzzCorruptData(&random);
 
             NSString *text = [PlaylistFile textFromData:data];
-            // The Latin-1 rung maps every byte, so anything non-empty decodes
-            // to something. A nil here would drop a whole playlist on the
-            // floor for one bad byte.
+            // The Latin-1 rung maps every byte, so one bad byte can never drop
+            // the whole playlist.
             if (data.length > 0) {
                 XCTAssertNotNil(text, @"seed %llu", seed);
             }
@@ -428,8 +408,7 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
             NSArray<NSString *> *m3u = [PlaylistFile m3uEntriesInText:text];
             [self assertEntriesAreWellFormed:cue kind:@"cue" seed:seed];
             [self assertEntriesAreWellFormed:m3u kind:@"m3u" seed:seed];
-            // Parsing is a pure function of the text: same bytes, same answer,
-            // every time. A reader with static state would show up here.
+            // A reader with static state would show up here.
             XCTAssertEqualObjects([PlaylistFile cueFileEntriesInText:text], cue, @"seed %llu", seed);
             XCTAssertEqualObjects([PlaylistFile m3uEntriesInText:text], m3u, @"seed %llu", seed);
         }
@@ -462,9 +441,8 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
 
 #pragma mark - Corrupted files on disk
 
-// The same corruption through the whole path, which adds the file read, the
-// extension dispatch and the resolution rungs — and resolution touches the
-// file system with whatever the parsers produced.
+// Adds the file read, the extension dispatch and the resolution rungs, which
+// touch the file system with whatever the parsers produced.
 - (void)testCorruptedFilesOnDiskResolveWithoutBreaking {
     NSURL *neighbor = [_root URLByAppendingPathComponent:@"one.mp3"];
     [[NSData data] writeToURL:neighbor atomically:YES];
@@ -535,10 +513,8 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
             NSArray<NSURL *> *urls = [PlaylistFile resolvedFileURLsForPlaylistAtURL:playlist];
             XCTAssertEqual(urls.count, written.count, @"seed %llu", seed);
             for (NSUInteger i = 0; i < urls.count && i < written.count; i++) {
-                // Compared precomposed. The volume stores names decomposed, so
-                // an é the playlist spells as one code point comes back as two
-                // — the file is the same file, and the readability check below
-                // is the part that proves the resolution landed.
+                // Compared precomposed: the volume stores names decomposed. The
+                // readability check below proves the resolution landed.
                 XCTAssertEqualObjects(urls[i].lastPathComponent.precomposedStringWithCanonicalMapping,
                                       written[i].precomposedStringWithCanonicalMapping,
                                       @"seed %llu", seed);

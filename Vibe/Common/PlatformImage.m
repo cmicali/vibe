@@ -15,12 +15,11 @@
 const CGFloat kVibeThumbnailArtDimension = 128.0;
 const CGFloat kVibeDisplayArtDimension = 1024.0;
 #if TARGET_OS_OSX
-// The mac header renders at most ~525px, so 640 leaves headroom for less disk.
+// The mac header renders at most ~525px.
 const CGFloat kVibeArchivedDisplayArtDimension = 640.0;
 #else
-// The iOS now-playing page is full-screen at 3x, and its live decode caps at
-// kVibeDisplayArtDimension — the rendition matches that bound exactly, so the
-// sidecar is pixel-equivalent to the decode it stands in for.
+// Matches kVibeDisplayArtDimension, so the sidecar is pixel-equivalent to the
+// live decode it stands in for.
 const CGFloat kVibeArchivedDisplayArtDimension = 1024.0;
 #endif
 
@@ -64,18 +63,14 @@ VibeImage *VibeDecodedImageWithData(NSData *data, CGFloat maxPixelSize) {
     return image;
 }
 
-// 1024 samples is plenty to pick one color out of a cover.
 static const size_t kDominantSampleSide = 32;
 static const NSInteger kDominantHueBins = 12;
-// Under about 2% of pixels vivid means a monochrome cover, and its overall gray
-// is the honest answer. A hue teased out of that little signal would tint it a
-// random color.
+// Under ~2% vivid pixels is a monochrome cover: a hue from that little signal
+// would be random.
 static const double kDominantVividFloor = 0.02;
 
-// The platform image as a CGImage. This — rather than each platform's own
-// bitmap type — is what lets one implementation serve both: NSBitmapImageRep
-// and UIImage's backing store agree on nothing, while CoreGraphics draws either
-// into a context we control the layout of.
+// CoreGraphics rather than either platform's bitmap type, so one pixel loop
+// serves both.
 static CGImageRef VibeCGImageOfImage(VibeImage *image) {
 #if TARGET_OS_OSX
     return [image CGImageForProposedRect:NULL context:nil hints:nil];
@@ -84,11 +79,8 @@ static CGImageRef VibeCGImageOfImage(VibeImage *image) {
 #endif
 }
 
-// The image downsampled to side x side, drawn into a context whose layout we
-// dictate — sRGB, 8-bit, alpha last, premultiplied — so a pixel loop reads a
-// known buffer instead of interrogating whatever the source happened to be
-// encoded as. Row 0 is the image's TOP. The caller frees the buffer; NULL when
-// the image cannot be rasterized.
+// side x side, sRGB, 8-bit, premultiplied alpha last; row 0 is the image's
+// TOP. The caller frees it; NULL when the image cannot be rasterized.
 static unsigned char *_Nullable VibeSampledPixels(VibeImage *_Nullable image, size_t side) {
     CGImageRef source = image ? VibeCGImageOfImage(image) : NULL;
     if (!source) {
@@ -119,9 +111,7 @@ static unsigned char *_Nullable VibeSampledPixels(VibeImage *_Nullable image, si
     return data;
 }
 
-// One sampled pixel as straight (un-premultiplied) sRGB, or NO for a pixel
-// too transparent to count — the buffer's layout contract, spelled once for
-// both readers.
+// One sampled pixel as straight sRGB, or NO when too transparent to count.
 static BOOL VibeOpaquePixelRGB(const unsigned char *px, double *r, double *g, double *b) {
     double a = px[3] / 255.0;
     if (a < 0.5) {
@@ -139,9 +129,8 @@ BOOL VibeImageLowerBandIsDark(VibeImage *image, CGFloat fraction) {
     if (!data) {
         return YES;
     }
-    // Relative luminance of the band's opaque pixels, gamma-encoded sRGB
-    // taken as-is: the question is which of two button colors reads, and
-    // the midpoint of the encoded scale is where either starts to.
+    // Gamma-encoded sRGB taken as-is: the encoded midpoint is where either
+    // button color starts to read.
     size_t firstRow = (size_t)floor(side * (1 - clampRange(fraction, 0, 1)));
     double luminance = 0;
     NSInteger count = 0;
@@ -168,9 +157,8 @@ VibeColor *VibeDominantColorOfImage(VibeImage *image) {
         return nil;
     }
 
-    // A weighted hue histogram. Vivid pixels — saturated and not near-black —
-    // vote for their hue band, while grays and shadows abstain but still feed
-    // the monochrome fallback average.
+    // Vivid pixels vote for their hue band; grays and shadows abstain but
+    // still feed the monochrome fallback average.
     double binWeight[kDominantHueBins], binR[kDominantHueBins];
     double binG[kDominantHueBins], binB[kDominantHueBins];
     memset(binWeight, 0, sizeof(binWeight));
@@ -195,17 +183,15 @@ VibeColor *VibeDominantColorOfImage(VibeImage *image) {
             if (saturation < 0.15 || brightness < 0.1) {
                 continue;
             }
-            // A saturation of 0.15 or more guarantees maxc > minc, so delta > 0.
+            // saturation >= 0.15 guarantees delta > 0.
             double delta = maxc - minc;
             double hue;
             if (maxc == r)      hue = fmod((g - b) / delta + 6.0, 6.0) / 6.0;
             else if (maxc == g) hue = ((b - r) / delta + 2.0) / 6.0;
             else                hue = ((r - g) / delta + 4.0) / 6.0;
             double weight = saturation * brightness;
-            // Hue wraps, and red straddles the 0.0-to-1.0 seam, so round to the
-            // nearest bin center and fold with a modulo, which lands both edges
-            // in bin 0. Flooring instead split red's vote across the first and
-            // last bins, penalizing red covers alone in the election.
+            // Red straddles the hue seam: rounding plus the modulo lands both
+            // edges in bin 0, where flooring would split red's vote in two.
             NSInteger bin = ((NSInteger)lround(hue * kDominantHueBins)) % kDominantHueBins;
             binWeight[bin] += weight;
             binR[bin] += r * weight;
@@ -235,7 +221,7 @@ VibeColor *VibeDominantColorOfImage(VibeImage *image) {
 #if TARGET_OS_OSX
     return [NSColor colorWithSRGBRed:red green:green blue:blue alpha:1];
 #else
-    // UIColor's component initializer is sRGB, matching the context above.
+    // UIColor's component initializer is already sRGB.
     return [UIColor colorWithRed:red green:green blue:blue alpha:1];
 #endif
 }

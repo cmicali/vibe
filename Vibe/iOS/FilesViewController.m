@@ -2,8 +2,6 @@
 //  FilesViewController.m
 //  Vibe (iOS)
 //
-//  See FilesViewController.h.
-//
 
 #import "FilesViewController.h"
 
@@ -20,32 +18,19 @@
 }
 
 - (instancetype)initWithPlayback:(PlaybackController *)playback {
-    // Folders first, then the declared audio types, the same list the picker
-    // takes — DocumentTypes reads it back out of Info.plist, so the browser's
-    // filter and the app's registered types cannot drift.
+    // The picker's list; DocumentTypes reads Info.plist, so it cannot drift.
     NSArray<UTType *> *types =
             [@[UTTypeFolder] arrayByAddingObjectsFromArray:DocumentTypes.declaredFileTypes];
     self = [super initForOpeningContentTypes:types];
     if (self) {
         _playback = playback;
         self.delegate = self;
-        // Vibe opens what is already there; it authors nothing.
         self.allowsDocumentCreation = NO;
-        // TRAP: multiple-item picking BREAKS the browser's Open button. With it
-        // on, Open runs the browser's confirm-an-open flow, which replaces the
-        // button with a progress indicator and holds it until the app presents
-        // a document view controller for what was picked. Vibe presents none —
-        // it switches to the Playlist tab and raises the card — so the open
-        // lands and plays while the browser spins on that button forever, one
-        // per Open, for the rest of the session. Off, the same press is a plain
-        // pick: the button stays, and the Open button, folder opens and file
-        // taps all behave. Tapping a file row never spun either way.
-        //
-        // It bought nothing on iPhone, where iOS 26's browser has no "Select"
-        // mode; what it cost was Open. An iPad drag selection or a future OS
-        // could have handed several items over, and now cannot — the delegate
-        // below still takes a set, so restoring it is one line if a browser
-        // ever both selects several items AND leaves Open alone.
+        // TRAP: multiple-item picking BREAKS the browser's Open button. On,
+        // Open swaps the button for a progress indicator until the app presents
+        // a document view controller, which Vibe never does, so it spins
+        // forever after every Open. It buys nothing on iPhone, whose browser
+        // has no Select mode.
         self.allowsPickingMultipleItems = NO;
         __weak PlaybackController *weakPlayback = playback;
         UIDocumentBrowserAction *add = [[UIDocumentBrowserAction alloc]
@@ -59,17 +44,13 @@
         add.image = [UIImage systemImageNamed:@"text.badge.plus"];
         add.supportsMultipleItems = YES;
         // TRAP: a folder row matches public.DIRECTORY, not public.folder.
-        // Listing UTTypeFolder — what the browser itself filters on — hides
-        // this action from every folder while the files still show it, which
-        // looks like the action being unsupported on folders altogether.
+        // UTTypeFolder, what the browser filters on, hides the action from
+        // every folder.
         add.supportedContentTypes = [@[UTTypeDirectory.identifier]
                 arrayByAddingObjectsFromArray:
                         [DocumentTypes.declaredFileTypes valueForKey:@"identifier"]];
-        // Starring without opening. Until this existed the only road to a
-        // favorite was to open the folder — replacing the playlist — and then
-        // tap the star, so keeping a place for later cost you the place you
-        // were. Menu availability only: the navigation-bar half needs rows the
-        // user has selected, and this browser has no Select mode on iPhone.
+        // Starring without opening, which would replace the playlist. Menu
+        // only: the navigation bar half needs a Select mode iPhone lacks.
         UIDocumentBrowserAction *favorite = [[UIDocumentBrowserAction alloc]
                 initWithIdentifier:@"com.commonwealthrecordings.vibe.add-to-favorites"
                     localizedTitle:[NSString stringWithFormat:STR_MENU_CONTEXT_ADD_FAVORITE,
@@ -77,10 +58,8 @@
                       availability:UIDocumentBrowserActionAvailabilityMenu
                            handler:^(NSArray<NSURL *> *urls) {
             for (NSURL *folder in urls) {
-                // The mint needs the folder's scope open, which only
-                // FolderSession promises; FavoritesStore refuses a row without
-                // a bookmark, so a failed mint adds nothing rather than a row
-                // that draws and cannot be opened.
+                // A failed mint adds no row: one without a bookmark cannot
+                // be opened.
                 [weakPlayback bookmarkFolderURL:folder completion:^(NSData *bookmark) {
                     if (bookmark) {
                         [FavoritesStore.shared addFolderURL:folder bookmark:bookmark];
@@ -89,10 +68,8 @@
             }
         }];
         favorite.image = [UIImage systemImageNamed:@"star"];
-        // Folders only — a favorite is a place to go back to, never a file.
-        // TRAP: the same public.DIRECTORY rule as the action above; spelling it
-        // UTTypeFolder hides the action from every folder, which is every row
-        // this action has.
+        // Folders only. TRAP: the public.DIRECTORY rule above; UTTypeFolder
+        // here hides the action from every row it has.
         favorite.supportedContentTypes = @[UTTypeDirectory.identifier];
         self.customActions = @[add, favorite];
     }
@@ -104,9 +81,7 @@
 - (void)documentBrowser:(UIDocumentBrowserViewController *)controller
         didPickDocumentsAtURLs:(NSArray<NSURL *> *)documentURLs {
     if (documentURLs.count > 0) {
-        // openInPlace:YES — the browser hands back the real files, never copies
-        // in the inbox, so the security scopes FolderSession opens are the ones
-        // that cover the folders they came from.
+        // The browser hands back the real files, never inbox copies.
         [_playback openURLs:documentURLs openInPlace:YES];
     }
 }

@@ -35,10 +35,8 @@ static const float kMinConfidence = 1.3f;
 // a candidate T beats its half exactly when T < 4/3 of the center, so the
 // center places that crossover — here at 187 BPM, which keeps drum and bass at
 // 174 rather than halving it to 87 — and the spread only sets how hard the
-// prior can override the comb. Both were swept against GiantSteps; see
-// Audio/Analysis/CLAUDE.md. The center is the sensitive one: 120 costs 9 points of
-// Accuracy1, and widening the spread to 160, or dropping the prior entirely,
-// costs 6 and 11 — the prior is load-bearing, not decoration.
+// prior can override the comb. Both were swept against GiantSteps, and the
+// prior is load-bearing; see Audio/Analysis/CLAUDE.md.
 static const double kTempoPriorCenterBPM = 140.0;
 static const double kTempoPriorSpreadBPM = 80.0;
 
@@ -58,11 +56,11 @@ static const double kGridNormExponent = 0.5;
 // p + round(k*L): every phase reads the same beat offsets, shifted. Scoring
 // them a beat at a time rather than a phase at a time therefore makes each beat
 // one vDSP add of an envelope slice onto the running phase scores, and scores
-// every phase at once. A phase's own terms are still summed in k order, as in
-// the scalar loop this replaces, and still in double.
+// every phase at once. A phase's own terms are summed in k order, in double:
+// the order is accuracy-bearing.
 //
 // Later phases run off the end of the window first, so each beat's slice is a
-// prefix of the phase range — which is also the original's per-phase break.
+// prefix of the phase range.
 //
 // `acc` is caller-owned scratch, so a sweep allocates nothing.
 static double VibeCombPhaseBest(const double *env, size_t winLen, double L,
@@ -216,10 +214,9 @@ struct VibeBPMComb {
     // frame, summed across bins. Increases in energy mark onsets, and
     // decreases, which are note tails, are ignored. Summing the changes and
     // their magnitudes gives twice that rectified sum, which keeps the whole
-    // reduction inside vDSP. The per-bin loop this replaces cost several times
-    // the FFT ahead of it: its branch is unpredictable and its single
-    // accumulator serializes on float-add latency, so it neither vectorized nor
-    // pipelined.
+    // reduction inside vDSP: a per-bin loop costs several times the FFT, its
+    // branch unpredictable and its single accumulator serialized on float-add
+    // latency.
     vDSP_vsub(_prevMagnitudes.data(), 1, _magnitudes.data(), 1, _binDelta.data(), 1, kFrameSize / 2);
     float signedSum = 0, absSum = 0;
     vDSP_sve(_binDelta.data() + 1, 1, &signedSum, kFrameSize / 2 - 1);

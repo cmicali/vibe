@@ -2,12 +2,12 @@
 # Enforces the layout rule stated in CLAUDE.md: every directory directly under
 # Vibe/ except Mac/, iOS/ and ThirdParty/ is a shared subsystem listed in both
 # targets, and within any subsystem Mac/ and iOS/ are the only platform
-# markers. Prose annotations drift; this does not.
+# markers.
 #
-# Four assertions, all mechanical. The first three read project.yml, which
-# settles which SOURCES compile; the fourth reads the imports, which settles
-# which HEADERS may be named — Xcode's project-wide headermap resolves any
-# header in the project from any target, so target membership does not.
+# Four assertions. The first three read project.yml, which settles which
+# SOURCES compile; the fourth reads the imports, which settles which HEADERS may
+# be named, since Xcode's project-wide headermap resolves any header from any
+# target.
 #   1. every exclude is on the whitelist — no feature-named exclude anywhere;
 #   2. no Vibe path names the other platform, and every shared entry carries
 #      its platform exclude;
@@ -71,10 +71,8 @@ targets="Vibe VibeiOS"
 # Every exclude a source entry may carry. Anything else — a feature-named
 # exclude — means the tree stopped being the membership rule.
 allowed_always='**/.DS_Store **/*.md Mac/** iOS/**'
-# The two PIN caches are exclude-and-readd entries, not membership decisions:
-# each is re-added immediately below its exclusion with per-file compilerFlags
-# (ARC exceptions, and the NumberObjectConversion analyzer checker off for
-# vendored style the repo does not restyle).
+# The two PIN caches are excluded only to be re-added with per-file
+# compilerFlags, not membership decisions.
 allowed_thirdparty='**/*.xcprivacy **/*.txt **/LICENSE.MPL **/PINDiskCache.m **/PINMemoryCache.m'
 
 info_dir_for() {
@@ -145,11 +143,8 @@ for d in Vibe/*/; do
     has_word "$d" "$(echo "$ios_paths" | tr '\n' ' ')" \
         || fail "VibeiOS: '$d' exists on disk but is not a source path — every shared subsystem is in both targets"
 done
-#    Vibe/Mac/ is one entry per piece, for the same reason the top level is:
-#    nothing globs a new one in, so a directory nobody named compiles into
-#    nothing at all. Deeper nesting needs no entry of its own — each piece's
-#    path is recursive. Vibe/iOS is a single recursive entry by design, so it
-#    has no equivalent check.
+#    Vibe/Mac/ is one entry per piece, so a piece nobody named compiles into
+#    nothing. Vibe/iOS is a single recursive entry, so it needs no such check.
 mac_children=0
 for d in Vibe/Mac/*/; do
     d="${d%/}"
@@ -162,11 +157,10 @@ done
 echo "$ios_paths" | grep -q '^Vibe/iOS' \
     || fail "VibeiOS: no source path under Vibe/iOS — the iOS app shell lives there"
 
-# 4. Imports. Assertions 1-3 settle which sources compile; nothing there stops a
-#    shared file from NAMING a header the other target never compiles, and it
-#    builds anyway — Xcode's Vibe-project-headers.hmap maps every header in the
-#    project by basename, whatever the target. A constant- or static-inline-only
-#    header does not even fail to link. So the basename is the key here too.
+# 4. Imports. A shared file NAMING a header the other target never compiles
+#    still builds, because the headermap maps every header by basename, and a
+#    constant- or static-inline-only header does not even fail to link. So the
+#    basename is the key.
 basenames_under() {   # basenames_under <Mac|iOS>
     find Vibe -name '*.h' -path "*/$1/*" ! -path '*/ThirdParty/*' -exec basename {} \; | sort -u
 }
@@ -175,17 +169,14 @@ basenames_outside() {
 }
 
 for platform in Mac iOS; do
-    # Only names with no home outside that tree: a header duplicated on both
-    # sides (NSView+DarkMode / UIView+DarkMode are separate names, but the rule
-    # must not assume that) resolves legitimately either way.
+    # Only names with no home outside that tree: a basename present on both
+    # sides resolves legitimately either way.
     exclusive=$(comm -23 <(basenames_under "$platform") <(basenames_outside "$platform"))
     [ -n "$exclusive" ] || continue
     names_file=$(mktemp)
     printf '%s\n' "$exclusive" > "$names_file"
-    # TARGET_OS_OSX is the one sanctioned reach across, in either direction
-    # (`#if TARGET_OS_OSX` on the mac side, `#if !TARGET_OS_OSX` on the iOS
-    # side), so one pattern covers both. An #if that opens a guard is tracked by
-    # depth, so a nested #if inside it does not end it early.
+    # TARGET_OS_OSX (either polarity) is the one sanctioned reach across. The
+    # guard is tracked by depth so a nested #if does not end it early.
     hits=$(find Vibe ! -path "*/$platform/*" ! -path '*/ThirdParty/*' \
                 \( -name '*.m' -o -name '*.mm' -o -name '*.h' \) -print0 \
         | xargs -0 -I{} awk -v names="$names_file" -v file="{}" '

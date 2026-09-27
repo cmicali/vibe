@@ -2,9 +2,6 @@
 //  AudioLevelMathTests.m
 //  VibeTests
 //
-//  AudioLevelMeter is fed by VibeMasterBusRender. Its arithmetic lives here
-//  so the decisions that shape the equalizer bars can be tested without rendering.
-//
 
 #import <XCTest/XCTest.h>
 
@@ -30,8 +27,8 @@
                    VibeAudioLevelNormalizationModeBalancedSpectrum);
 }
 
-// Contiguous, not merely ascending: a band's top IS its neighbour's bottom, so
-// no bin drives two bars and none drives none.
+// A band's top is its neighbour's bottom, so no bin drives two bars and none
+// drives none.
 - (void)testBandsAreContiguous {
     NSUInteger previousHigh = 0;
     for (NSUInteger b = 0; b < kLevelBandCount; b++) {
@@ -104,8 +101,6 @@
     }
 }
 
-// The chosen regions grow in linear bandwidth while reserving three bars for
-// everything below 800 Hz.
 - (void)testBassForwardBandsWidenInBinCount {
     NSUInteger previousWidth = 0;
     for (NSUInteger b = 0; b < kLevelBandCount; b++) {
@@ -141,8 +136,8 @@
                    0.0f);
 }
 
-// The edges are bound from the delivered format, so a rate change must move
-// them — a constant here would put the bands in the wrong places silently.
+// The edges are bound from the delivered format; a constant would silently put
+// the bands in the wrong places after a rate change.
 - (void)testBandBinRangesFollowSampleRate {
     NSUInteger lo44 = 0, hi44 = 0, lo96 = 0, hi96 = 0;
     VibeLevelBandBinRange(0, 1024, 44100.0, &lo44, &hi44);
@@ -183,8 +178,8 @@
 }
 
 - (void)testChannelEnergyCombinationPreservesAntiphaseStereo {
-    // Magnitude-squared spectra for +x and -x are identical. Averaging those
-    // spectra must preserve the tone rather than downmixing it to zero.
+    // +x and -x have identical power spectra; averaging them keeps the tone
+    // that a sample downmix would cancel.
     float antiphaseEnergy[] = {0.25f, 0.25f};
     XCTAssertEqualWithAccuracy(VibeLevelMeanChannelEnergy(antiphaseEnergy, 2),
                                0.25f, 0.0001);
@@ -259,8 +254,7 @@
     XCTAssertEqual(VibeLevelNormalize(0.0f, 1.0f), 0.0f);
     XCTAssertEqual(VibeLevelNormalize(-1.0f, 1.0f), 0.0f);
     XCTAssertEqual(VibeLevelNormalize(NAN, 1.0f), 0.0f);
-    // Inf is a corrupt decode, not a loud passage: it reads as nothing to show
-    // rather than as a bar pinned to full height.
+    // Inf is a corrupt decode, not a loud passage.
     XCTAssertEqual(VibeLevelNormalize(INFINITY, 1.0f), 0.0f);
     // A reference that never got a real value must not amplify silence.
     XCTAssertEqual(VibeLevelNormalize(1e-12f, NAN), 0.0f);
@@ -380,12 +374,9 @@
     XCTAssertEqual(VibeLevelNormalize(0.0f, reference), 0.0f);
 }
 
-// A band carrying nothing but a noise floor must stay DARK. This is the whole
-// job of the absolute floor, and the case that motivates its value: in
-// relative-activity mode, the AGC divides each band by its own running
-// reference. Without a floor above the noise, a signal-free band normalizes
-// its own hiss to full scale and the emptiest bar reads the brightest. Measured
-// on a pure 220 Hz tone, bands 3 and 4 averaged 0.98 before the floor was raised.
+// The absolute floor's job: relative-activity mode divides each band by its
+// own running reference, so without a floor above the noise a signal-free band
+// normalizes its hiss to full scale and the emptiest bar reads the brightest.
 - (void)testSignalFreeBandStaysDarkAcrossItsWholeDecay {
     // Approximate 16-bit quantization noise after FFT-size normalization.
     const float noise = 1e-10f;
@@ -397,11 +388,8 @@
     XCTAssertEqualWithAccuracy(reference, kLevelReferenceFloor, kLevelReferenceFloor * 0.01f);
 }
 
-// The converse, and the reason the floor cannot simply be raised without bound:
-// relative-activity mode relies on the per-band AGC so a QUIET track still
-// moves its bars. A band carrying real signal reaches full scale on its own
-// peaks at any level, however far down — right up to the point its energy
-// crosses the absolute floor.
+// The converse, which bounds how high the floor can go: a quiet track must
+// still move its bars on its own peaks.
 - (void)testQuietBandStillReachesFullScale {
     // A full-scale tone's mean depends on band width; 0.05 is representative.
     // Forty dB below it remains above the stable reference floor.
@@ -413,8 +401,7 @@
     }
 }
 
-// Below the floor the bar rolls off rather than cutting out, which is what
-// makes a fade-out fall smoothly instead of snapping dark at a threshold.
+// So a fade-out falls smoothly instead of snapping dark at a threshold.
 - (void)testBelowTheFloorTheLevelRollsOffRatherThanCutting {
     float previous = 1.0f;
     for (float scale = 1.0f; scale >= 1e-4f; scale *= 0.5f) {

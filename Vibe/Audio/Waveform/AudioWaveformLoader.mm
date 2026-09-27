@@ -79,9 +79,7 @@
     // its cache entry goes. The explicit scan_bpm and scan_key debug paths run
     // the analyzers directly and ignore this.
     //
-    // The answer is asked of the provider rather than read from the settings,
-    // so this layer stays testable and iOS — which never analyzes — installs
-    // nothing. No provider means neither runs.
+    // No provider means neither runs.
     VibeWaveformAnalysis analysis = self.analysisProvider ? self.analysisProvider()
                                                           : (VibeWaveformAnalysis){NO, NO};
     AudioBPMAnalyzer *bpmAnalyzer = analysis.bpm
@@ -235,7 +233,7 @@
     // analyzers and the chunker on a serial queue one block behind. The pass
     // is decode-bound — CoreAudio's MP3 and FLAC codecs cost 3-5x everything
     // downstream combined — so overlapping them takes the wall time down to
-    // roughly the decode alone, 12-17% measured with both analyzers on. A
+    // roughly the decode alone. A
     // slot's buffer is reused only after its semaphore signals, so the decode
     // never writes a buffer the processor is still reading, and the serial
     // queue preserves stream order, which the analyzers' framing depends on.

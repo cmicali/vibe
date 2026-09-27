@@ -2,10 +2,7 @@
 //  PlaybackController+PlayerEvents.h
 //  Vibe (iOS)
 //
-//  Every AudioPlayerDelegate callback. Two rules govern the whole file and are
-//  stated at its top: every callback can be stale and must match the delivered
-//  track against the playlist's current one, and stop fires no callback, so
-//  nothing here drives auto-advance.
+//  Every AudioPlayerDelegate callback; the rules are at the top of the .m.
 //
 
 #import "PlaybackController.h"

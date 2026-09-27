@@ -1,7 +1,7 @@
 //
-// The five art accessors and the one rule they all apply: a file's own artwork
-// always wins, "unknown" is never "artless", and the folder's cover is a
-// display-time fallback that must never reach the disk cache.
+// The rule every art accessor applies: a file's own artwork always wins,
+// "unknown" is never "artless", and the folder's cover is a display-time
+// fallback that never reaches the disk cache.
 //
 
 #import <XCTest/XCTest.h>
@@ -22,8 +22,8 @@
 }
 
 - (void)setUp {
-    // Defensive: an eviction test that failed mid-body must not leave its
-    // shrunken bound behind for the next test.
+    // An eviction test that failed mid-body must not leave its shrunken bound
+    // behind.
     [AudioTrackArtwork setDecodedThumbnailCacheLimitForTesting:0];
     [AudioTrackArtwork clearDecodedThumbnailCacheForTesting];
     _folderCover = [[NSImage alloc] initWithSize:NSMakeSize(4, 4)];
@@ -98,8 +98,8 @@
     XCTAssertNotEqualObjects([artwork decodeThumbnailForArchiving], _folderCover);
 }
 
-// The window before a file's own art has been read is NOT the artless answer.
-// Getting this wrong puts a folder cover in front of a track's own artwork.
+// Before a file's own art is read the answer is unknown, not artless;
+// confusing them puts a folder cover in front of the track's own artwork.
 - (void)testAnUnreadFileNeverFallsBackToTheFolder {
     __block BOOL extracted = NO;
     AudioTrackArtwork *artwork = [[AudioTrackArtwork alloc] initWithSourceFilePath:_trackPath
@@ -109,8 +109,6 @@
         return VibeEmbeddedArtExtractionNoArt;
     }];
     artwork.folderArt = [self resolverWithCover];
-    // Non-blocking accessors must not answer with the folder while the file's
-    // own art is merely unknown.
     XCTAssertNil(artwork.cachedArt);
     XCTAssertNil(artwork.cachedThumbnail);
     XCTAssertFalse(extracted, @"neither accessor may read the audio file");
@@ -121,9 +119,7 @@
             NSString *path, NSData *__autoreleasing *artData) {
         return VibeEmbeddedArtExtractionNoArt;
     }];
-    // The blocking accessor settles the question and then falls back.
     XCTAssertEqualObjects([artwork loadArtBlocking], _folderCover);
-    // And the non-blocking ones follow, now that the answer is known.
     XCTAssertEqualObjects(artwork.cachedArt, _folderCover);
 }
 
@@ -158,7 +154,7 @@
         *artData = embedded;
         return VibeEmbeddedArtExtractionFoundArt;
     }];
-    (void)[artwork loadArtBlocking]; // decode it
+    (void)[artwork loadArtBlocking];
     XCTAssertNotNil([artwork decodeThumbnailForArchiving]);
     XCTAssertNotEqualObjects([artwork decodeThumbnailForArchiving], _folderCover);
 }
@@ -237,11 +233,10 @@
     [self waitForExpectationsWithTimeout:5.0 handler:nil];
 }
 
-// The iOS-written cache entry: no thumbnail archived at all, because iOS keeps
-// none, and the has-art flag is the only record that the file carries any. It
-// must behave exactly like a thumbnail-bearing entry — re-read on demand —
-// since reading as artless would leave the pager on the placeholder for good
-// and hand the folder's cover to a file that has its own art.
+// The iOS-written entry archives no thumbnail; the has-art flag is the only
+// record that the file carries art. Read as artless, it would leave the pager
+// on the placeholder for good and hand the folder's cover to a file with its
+// own art.
 - (void)testACacheHitWithNoThumbnailButKnownArtStillReadsTheFile {
     NSData *embedded = [self embeddedArtData];
     __block BOOL extracted = NO;
@@ -315,10 +310,8 @@
 }
 
 // The budget bounds how many reads a bad file costs; the backoff bounds how
-// fast they are spent. updateUI fires several times in quick succession at a
-// track start, and without this all three attempts went back to back — each
-// blocking a worker on a read that had no reason to behave differently
-// milliseconds after the last one failed.
+// fast they are spent. updateUI fires several times at a track start, which
+// would otherwise spend all three attempts back to back.
 - (void)testAFailedReadIsNotRetriedUntilItsBackoffElapses {
     __block NSUInteger attempts = 0;
     __block NSTimeInterval clock = 1000;
@@ -333,9 +326,8 @@
     XCTAssertNil([artwork loadArtBlocking]);
     XCTAssertEqual(attempts, 1u);
 
-    // Every pass inside the window is refused, and says so through artNeedsLoad
-    // as well, so updateUI does not spend the dispatch flag on a load that
-    // would immediately no-op.
+    // artNeedsLoad says so too, so updateUI does not spend the dispatch flag on
+    // a load that would no-op.
     XCTAssertFalse(artwork.artNeedsLoad);
     clock += 0.5;
     XCTAssertNil([artwork loadArtBlocking]);
@@ -350,8 +342,6 @@
     XCTAssertEqual(attempts, 2u);
 }
 
-// The backoff must never outlive the failure that set it: a read that succeeds
-// after one that failed leaves nothing behind to hold up a later re-read.
 - (void)testASuccessfulReadClearsTheBackoff {
     NSData *embedded = [self embeddedArtData];
     __block NSUInteger attempts = 0;
@@ -372,17 +362,14 @@
     clock += 5;
     XCTAssertNotNil([artwork loadArtBlocking]);
 
-    // Demote and come back: the re-read is available immediately, with no
-    // leftover window from the failure two visits ago.
     [artwork discardDecodedArt];
     XCTAssertTrue(artwork.artNeedsLoad);
     XCTAssertNotNil([artwork loadArtBlocking]);
     XCTAssertEqual(attempts, 3u);
 }
 
-// A demotion re-arms the budget, so it must clear the window too — otherwise a
-// track revisited within two seconds of its last failure would be refused on
-// arrival, which is exactly when a user flicking back and forth revisits it.
+// Otherwise a track revisited within the two-second backoff, as when flicking
+// back and forth, would be refused on arrival.
 - (void)testDemotionClearsTheBackoffAsWellAsTheBudget {
     __block NSUInteger attempts = 0;
     __block NSTimeInterval clock = 1000;
@@ -475,10 +462,8 @@
                              @"and the folder's cover must not slip in front of it");
 }
 
-// The drawing path asks this before dispatching a decode request. An artless
-// row answering YES would re-request on every redraw — at the mini player's
-// poll cadence for the current track, a permanent request-per-frame loop that
-// can never produce pixels.
+// The drawing path asks this before requesting a decode. An artless row
+// answering YES would re-request on every redraw, forever.
 - (void)testAnArtlessRowReportsNoThumbnailDecodeSource {
     AudioTrackArtwork *artwork = [self artworkWithExtractor:^VibeEmbeddedArtExtractionResult(
             NSString *path, NSData *__autoreleasing *artData) {
@@ -602,9 +587,8 @@
     [AudioTrackArtwork setDecodedThumbnailCacheLimitForTesting:0];
 }
 
-// A row's entry is keyed by its artwork alone, so it leaves with it: every
-// playlist reload used to strand a whole set of thumbnails until 16k newer
-// rows pushed them out.
+// A row's entry is keyed by its artwork, so it leaves with it rather than
+// waiting for 16k newer rows to push it out.
 - (void)testADeallocatedRowTakesItsThumbnailWithIt {
     __weak AudioTrackArtwork *departed;
     NSUInteger cached;
@@ -617,8 +601,8 @@
         departed = artwork;
     }
     // TRAP: the pool is not the row's last owner. The decode worker releases
-    // its capture of the row only after main has consumed the result, so on a
-    // loaded machine the row outlived the pool and the count read one high.
+    // its capture of the row only after main has consumed the result, so the
+    // row can outlive the pool; wait for it to go before counting.
     NSPredicate *gone = [NSPredicate predicateWithBlock:^BOOL(id object, NSDictionary *bindings) {
         return departed == nil;
     }];
@@ -627,9 +611,6 @@
     XCTAssertEqual(AudioTrackArtwork.decodedThumbnailCacheCountForTesting, cached - 1);
 }
 
-// Decodes completing against a full cache evict the oldest entries rather
-// than growing past the bound, and the rows that just decoded stay readable.
-// Runs against the shrunken bound; the production number is pinned above.
 - (void)testCompletingDecodesEvictRatherThanExceedTheBound {
     [AudioTrackArtwork setDecodedThumbnailCacheLimitForTesting:8];
     NSUInteger limit = [AudioTrackArtwork decodedThumbnailCacheLimitForTesting];

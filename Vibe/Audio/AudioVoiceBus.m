@@ -200,10 +200,8 @@ static void VibeVoiceDie(VibeVoiceSlot *slot, int32_t reason, uint64_t renderSeq
                                             memory_order_release, memory_order_relaxed);
 }
 
-// The calls the compiler cannot check: vDSP's vector arithmetic, which
-// allocates nothing and blocks on nothing, and which Accelerate attributes
-// with nothing, and, in debug builds, the sleep of a test's render held
-// inside the bus. Everything around them is under the error pragma below.
+// The calls the compiler cannot check: vDSP, which neither allocates nor
+// blocks but carries no attribute, and the debug sleep of a held render.
 VIBE_REALTIME_UNCHECKED_BEGIN
 #if DEBUG
 static inline void VibeVoiceBusHoldWait(void) CA_REALTIME_API {
@@ -252,8 +250,8 @@ static inline void VibeVoiceGainRamp(VibeFadeCurve curve, float from, float to, 
 }
 VIBE_REALTIME_END
 
-// Everything the audio thread does. Plain memory and atomics, no call that
-// can block; the pragma below makes the compiler hold that line.
+// Everything the audio thread does; the checked region makes a blocking call a
+// build error.
 VIBE_REALTIME_CHECKED_BEGIN
 OSStatus VibeVoiceBusRender(VibeVoiceMix *mix, BOOL *isSilence, const AudioTimeStamp *timestamp,
                             AVAudioFrameCount frameCount, AudioBufferList *output) CA_REALTIME_API {
@@ -690,9 +688,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     into.frameLength = frames;
 }
 
-// The resampler settings as read back, for the check after the set and for
-// the report: the complexity under the name the report has always carried,
-// nil where the read fails (iOS).
+// The resampler complexity as read back; nil where the read fails (iOS).
 static NSString *VibeConverterAlgorithm(AudioConverterRef converter) {
     UInt32 complexity = 0, size = sizeof(complexity);
     if (AudioConverterGetProperty(converter, kAudioConverterSampleRateConverterComplexity, &size, &complexity) != noErr) {
@@ -920,11 +916,10 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     }
     // The slot's fields are a seqlock whose version is the generation: the
     // recycle zeroed it, this fence orders that zero before every write
-    // below, and the identifier's release-store publishes them, so a
-    // snapshot that read the old identifier and then any field written here
-    // sees the zero or the new identifier at its recheck and retries. TRAP:
-    // a plain origin here was a data race with a snapshot polled while the
-    // slot was reused under a seek or skip.
+    // below, and the identifier's release-store publishes them, so a snapshot
+    // straddling the bind retries. TRAP: the origins are atomics because a
+    // snapshot polls them while a seek or skip reuses the slot; plain, they
+    // race.
     atomic_thread_fence(memory_order_release);
     AudioVoiceRecord *bound = _records[slot];
     bound->startFrame = record->startFrame;
@@ -1284,10 +1279,8 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
             if (!_inlineDecoding) {
                 uint64_t written = atomic_load_explicit(&s->written, memory_order_relaxed);
                 uint64_t buffered = written - atomic_load_explicit(&s->consumed, memory_order_relaxed);
-                // A voice paused near its published end, or past its file with
-                // the stream held open, sat below the low-water mark and was
-                // handed an empty turn every drain. A successor queued since
-                // asks for its own turn.
+                // A stream held open past its file asks for no turn: it would
+                // find the same. A successor queued since asks for its own.
                 BOOL heldOpen = atomic_load_explicit(&record->heldOpenAt, memory_order_acquire) == written
                         && atomic_load_explicit(&s->successorState, memory_order_relaxed) == VibeSuccessorNone
                         && buffered >= kOpenStreamReserveFrames;
@@ -1327,14 +1320,10 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
 #pragma mark - The decoder
 
 // Decode queue, or the caller's thread under inline decoding — never both:
-// the ring has one producer. TRAP: a recycle queued behind decode work can
-// run after the slot was freed and taken by a new voice, so it cleans only
-// the death it was queued for; without the check it erased the new voice and
-// playback went silent with no end event. A decode turn queued for the dead
-// voice is the mirror: every turn checks the slot's generation first, and the
-// recycle clears it, so no turn of the old voice can enter the slot while the
-// next voice binds it; without that one wrote an end into a voice that had
-// not read a frame, and it died at its first render.
+// the ring has one producer. Cleans only the death it was queued for. TRAP: a
+// decode turn queued for the dead voice can run after the next voice binds
+// the slot; every turn checks the generation this clears, or it writes an end
+// into a voice that has read nothing, which dies at its first render.
 - (void)recycleSlot:(NSUInteger)slot generation:(VibeVoiceID)generation {
     AudioVoiceRecord *record = _records[slot];
     VibeVoiceSlot *s = &_mix->slots[slot];
@@ -1437,19 +1426,16 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     return _records[slot]->successorFile;
 }
 
-// A successor read the same way as the file before it — the same format,
-// layout included — continues through the
-// voice's converter, which is told nothing of the boundary, so its filter
-// carries across as the mixer's once did; the next read is the successor's
-// from its start. NO when it needs a converter of its own.
+// A successor with the same processing format, layout included, continues
+// through the voice's converter, which is told nothing of the boundary, so
+// its filter carries across. NO when it needs a converter of its own.
 - (BOOL)continueRecord:(AudioVoiceRecord *)record intoSuccessor:(AudioFileHandle *)successor {
     if (!VibePCMFormatsMatch(record->file.processingFormat, successor.processingFormat)) {
         return NO;
     }
-    // TRAP: the pair moves as one under the lock: a retirement snapshot
-    // (filesInUse) taken between the two writes saw the successor in
-    // neither field, and the replacement bus read a file this decoder was
-    // inside.
+    // TRAP: the pair moves as one under the lock, or a filesInUse snapshot
+    // between the writes lists the successor in neither field and the
+    // replacement bus reads a file this decoder is inside.
     os_unfair_lock_lock(&_tableLock);
     record->file = successor;
     record->successorFile = nil;
@@ -1523,11 +1509,9 @@ static OSStatus VibeConverterSupplyInput(AudioConverterRef converter, UInt32 *io
     if (input->flushing) {
         return noErr; // zero packets is the end: the converter gives up its tail
     }
-    // TRAP: the file ran out with the stream open, and the converter must be
-    // told nothing of an end — zero packets under noErr declares one, and the
-    // resampler flushes its tail, so the successor lands a filter's length
-    // early. A nonzero status ends this fill with what it produced and leaves
-    // the filter primed for the successor; the fill's caller knows this one.
+    // TRAP: dry with the stream open, never zero packets under noErr: that
+    // declares the end, and the resampler flushes its tail a filter's length
+    // early. This private status ends the fill and keeps the filter primed.
     record->stream = VibeStreamDrained;
     return kVibeConverterInputDry;
 }
@@ -1675,12 +1659,9 @@ static OSStatus VibeConverterSupplyInput(AudioConverterRef converter, UInt32 *io
     return !ended;
 }
 
-// Where a stream that continues through its converter ends in the ring: the
-// frames the converter was fed, at the bus rate, from where it began. Read
-// off `written` instead, the boundary landed a filter's length early — the
-// mastering resampler holds hundreds of frames back until the successor's
-// first frames push them out — and the transport promoted the next track
-// before its first frame sounded.
+// The frames the converter was fed, at the bus rate, from where it began —
+// not `written`, which the resampler holds back by its filter's length until
+// the successor pushes it out, so the next track would promote early.
 - (uint64_t)streamEndForRecord:(AudioVoiceRecord *)record written:(uint64_t)written {
     if (!record->converter) {
         return written;
@@ -1703,19 +1684,14 @@ static OSStatus VibeConverterSupplyInput(AudioConverterRef converter, UInt32 *io
     if (!continues) [self recordFailure:nil forSlot:slot];
     if (continues) {
         record->convertedBase = end;
-        // TRAP: only the audio thread decides that the voice reached its end,
-        // and it may be inside that render now. Withdraw the end, then let
-        // every render that could have loaded it finish — the sequence is
-        // read after the withdrawal, so a render that began between the two
-        // is waited for too — and read the verdict; the render's own load is
-        // sequentially consistent for this. Publishing the boundary over a
-        // voice that had died at the end made the transport promote, and at
-        // once finish, a track that never played. The wait ends early, with
-        // no verdict, when the voice's reads are stopped or the render is
-        // stuck past the bound: the end goes back and the stream ends, and
-        // the transport re-voices the successor as after any end. TRAP: an
-        // unconditional wait here held the decode queue, and every other
-        // voice's reads, for as long as a render was stuck.
+        // TRAP: only the audio thread decides the voice reached its end, and
+        // it may be inside that render now. Withdraw the end (seq_cst, as the
+        // render's load), wait out every render that could have loaded it,
+        // then read the verdict; a boundary published over a voice that died
+        // at the end promotes, and at once finishes, a track that never
+        // played. TRAP: the wait is bounded and yields to stopped reads, or a
+        // stuck render holds the decode queue and every voice's reads; with no
+        // verdict the end goes back and the stream ends.
         atomic_store_explicit(&s->endOfStream, kUnset, memory_order_seq_cst);
         uint64_t renderSequence = atomic_load_explicit(&_mix->renderSequence, memory_order_seq_cst);
         uint64_t deadline = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) + kRenderLeaveWaitNanos;

@@ -140,24 +140,14 @@ typedef NS_ENUM(NSInteger, VibeAudioWorkState) {
         [self dispatchItem:item];
     }
     else if (rejectNow) {
-        // Same delivery as an expiry: decided synchronously, so it never waits
-        // behind a blocked worker, but announced on failureQueue like every
-        // other rejection. See the header — one contract, not two.
         [self deliverRejectedItems:@[item]];
     }
     return token;
 }
 
-// The timer source is resumed for this object's whole life, and releasing a
-// resumed source without cancelling it leaks the source and its handler.
-//
-// The pending drain below is insurance for a state that cannot currently be
-// reached: pending work exists only while every slot is running, a running
-// item's dispatch block holds this object strongly, and finishing it promotes
-// the pending item — so the last reference cannot drop while anything is
-// parked. It stays because the cost is nothing and the failure it prevents is
-// silent: a caller parked here has no timeout of its own, so a scheduler that
-// vanished without answering would leave it waiting forever.
+// A resumed source released uncancelled leaks. The pending drain is
+// unreachable today (a parked item implies a running one, whose block retains
+// self), but a parked caller has no timeout of its own, so it stays.
 - (void)dealloc {
     dispatch_source_cancel(_expiryTimer);
     NSArray<VibeAudioWorkItem *> *abandoned = nil;
@@ -190,8 +180,7 @@ typedef NS_ENUM(NSInteger, VibeAudioWorkState) {
     }
     os_unfair_lock_unlock(&_lock);
     if (removed) {
-        // Releasing a block can run captured-object deallocators. Keep that
-        // arbitrary code outside the unfair-lock critical section.
+        // Outside the lock: releasing the blocks runs their captures' deallocs.
         item.work = nil;
         item.failureQueue = nil;
         item.admissionFailure = nil;
@@ -271,8 +260,7 @@ typedef NS_ENUM(NSInteger, VibeAudioWorkState) {
     }
 }
 
-// _lock held. A single reusable timer is the whole pending-timeout mechanism;
-// rapid cancel/retry cycles therefore cannot enqueue timer blocks of their own.
+// _lock held. One reusable timer, so cancel/retry churn enqueues no blocks.
 - (void)rescheduleExpiryTimerLockedAtTime:(NSTimeInterval)now {
     if (_pendingItems.count == 0) {
         dispatch_source_set_timer(_expiryTimer, DISPATCH_TIME_FOREVER,
@@ -289,10 +277,8 @@ typedef NS_ENUM(NSInteger, VibeAudioWorkState) {
             DISPATCH_TIME_FOREVER, NSEC_PER_MSEC);
 }
 
-// The one place a rejection reaches its caller, whether the pending limit
-// refused it at submission or its grace ran out later. Always on failureQueue,
-// never inline: submitWork: is called from serial queues that the failure block
-// then wants to touch, and running it inline would re-enter them.
+// Never inline: submitWork: callers sit on the serial queues their failure
+// blocks touch.
 - (void)deliverRejectedItems:(NSArray<VibeAudioWorkItem *> *)items {
     for (VibeAudioWorkItem *item in items) {
         dispatch_queue_t queue = item.failureQueue;

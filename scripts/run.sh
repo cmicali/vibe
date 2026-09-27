@@ -20,14 +20,11 @@ fi
 
 APP="build/DerivedData/Build/Products/$CONFIGURATION/Vibe.app"
 
-# Build only if the app isn't already present; `make clean` (or deleting build/)
-# forces a rebuild on the next run.
 if [[ ! -e "$APP" ]]; then
     scripts/build.sh "$CONFIGURATION"
 fi
 
-# Quit a running instance first so `open` launches this on-disk build —
-# Vibe is single-instance, so otherwise `open` just reactivates the old copy.
+# Vibe is single-instance: without the quit, `open` reactivates the old copy.
 if pgrep -x Vibe >/dev/null; then
     osascript -e 'tell application "Vibe" to quit' >/dev/null 2>&1 || pkill -x Vibe 2>/dev/null || true
     for _ in $(seq 1 25); do pgrep -x Vibe >/dev/null || break; sleep 0.2; done

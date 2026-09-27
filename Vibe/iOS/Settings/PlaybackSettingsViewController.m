@@ -2,8 +2,6 @@
 //  PlaybackSettingsViewController.m
 //  Vibe (iOS)
 //
-//  See PlaybackSettingsViewController.h.
-//
 
 #import "PlaybackSettingsViewController.h"
 
@@ -25,12 +23,10 @@ typedef NS_ENUM(NSInteger, VibePlaybackRow) {
     VibePlaybackRowCount,
 };
 
-// Resampling's two answers, the default first.
 static const NSInteger kResamplingRowHigh    = 0;
 static const NSInteger kResamplingRowMaximum = 1;
 
-// On track end's two answers, in the order the mac's popup lists them.
-// Deliberately not a cast of the BOOL: a row index is a screen position.
+// Not a cast of the BOOL: a row index is a screen position.
 static const NSInteger kOnEndRowPlayNext = 0;
 static const NSInteger kOnEndRowPause    = 1;
 
@@ -53,8 +49,7 @@ static NSString *const kValueCellIdentifier = @"value";
     self.title = STR_MENU_PLAYBACK;
 }
 
-// A picker writes its setting without telling anyone here, so the value
-// column is re-read on the way back — the Appearance screen's rule.
+// A picker writes without telling this screen.
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     [self.tableView reloadData];
@@ -62,8 +57,7 @@ static NSString *const kValueCellIdentifier = @"value";
 
 #pragma mark - Current values
 
-// The crossfade presets' titles in ladder order, the mac popup's three, so an
-// index into either names the same length.
+// In preset order, so an index names the same length in both.
 - (NSArray<NSString *> *)crossfadeTitles {
     NSArray<NSString *> *titles = @[STR_SETTINGS_CROSSFADE_INSTANT,
                                     STR_SETTINGS_CROSSFADE_SHORT,
@@ -151,8 +145,8 @@ static NSString *const kValueCellIdentifier = @"value";
     [self.navigationController pushViewController:next animated:YES];
 }
 
-// The store never applies effects (Common/CLAUDE.md): every write here ends
-// on the model, which is the iOS spelling of the mac's live-effect request.
+// The store applies no effects (Common/CLAUDE.md): every write ends on the
+// model.
 - (SettingsChoiceViewController *)onTrackEndPicker {
     PlaybackController *playback = _playback;
     return [[SettingsChoiceViewController alloc]

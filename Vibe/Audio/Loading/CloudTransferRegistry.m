@@ -2,10 +2,6 @@
 //  CloudTransferRegistry.m
 //  Vibe
 //
-//  See the header. Everything here runs on main; the coordinator's edges
-//  arrive by dispatch_async from its state queue, FIFO, so an end-then-begin
-//  restart cannot marshal out of order.
-//
 
 #import "CloudTransferRegistry.h"
 #import "CloudTransferRegistryInternal.h"
@@ -13,9 +9,8 @@
 #import "AudioFileOpenRules.h"
 #import "DownloadProgressMonitor.h"
 
-// One transfer's registry-side state. The monitor is nil when the shell's own
-// monitor feeds this path through noteProgress:forURL:, or when the factory
-// could not build one — both read as indeterminate until a fraction lands.
+// monitor is nil when the shell's monitor feeds the path (externallyFed) or
+// the factory built none.
 @interface VibeCloudTransferEntry : NSObject
 @property (nonatomic, strong) NSURL *url;
 @property (nonatomic) float progress;                 // <0 while indeterminate
@@ -33,8 +28,7 @@
 
 @implementation CloudTransferRegistry {
     NSMutableDictionary<NSString *, VibeCloudTransferEntry *> *_entries;
-    // The last component of every key, so a read can rule a URL out without
-    // standardizing it (entryForURL:).
+    // Every key's last component, so entryForURL: can rule a URL out cheaply.
     NSCountedSet<NSString *> *_fileNames;
     VibeCloudTransferMonitorFactory _monitorFactory;
     BOOL _notifyPending;
@@ -50,9 +44,8 @@
 }
 
 - (instancetype)init {
-    // The production factory only paints: currentURL pins the fraction to the
-    // path's own URL, and movement is nil because the open's abandon deadline
-    // is fed by the shell's monitor and must not be extended from here.
+    // Paint only: movement is nil because the open's abandon deadline is the
+    // shell's monitor's to extend.
     return [self initWithMonitorFactory:^id<VibeCloudTransferMonitor>(
             NSURL *url, void (^handler)(float fraction)) {
         return [DownloadProgressMonitor monitorReplacing:nil
@@ -84,13 +77,10 @@
     return entry ? entry.progress : -1;
 }
 
-// TRAP: VibeStandardizedAudioOpenPath is not free. URLByStandardizingPath
-// stats the file to strip a /private prefix, and every cloud path has one
-// (/private/var/mobile/Library/CloudStorage/...), so a list row asking for its
-// loading state paid two stats on main — 81% of an iOS library cell's render,
-// measured. Standardizing never changes a file path's last component unless
-// that component is "." or "..", so a name no key ends in is not transferring,
-// and the common case, nothing in flight, costs nothing.
+// TRAP: VibeStandardizedAudioOpenPath stats every iOS cloud path (its /private
+// prefix), and each row asks on main as it draws. Standardizing never changes
+// a last component other than "." or "..", so a name no key ends in is ruled
+// out without it.
 - (nullable VibeCloudTransferEntry *)entryForURL:(NSURL *)url {
     if (_entries.count == 0) {
         return nil;
@@ -119,7 +109,7 @@
 - (void)beganTransferForPath:(NSString *)path url:(NSURL *)url {
     NSParameterAssert(NSThread.isMainThread);
     if (_entries[path]) {
-        return; // an end-then-begin restart re-begins through endedTransferForPath: first
+        return;
     }
     VibeCloudTransferEntry *entry = [[VibeCloudTransferEntry alloc] init];
     entry.url = url;
@@ -145,18 +135,15 @@
     [self scheduleObserverNotification];
 }
 
-// A zero (or negative) sample is the provider's initial-status shape, not
-// progress: the row stays indeterminate until the provider demonstrates real
-// movement, and a stray non-positive sample after that never downgrades a
-// fraction already shown.
+// A non-positive sample is status, not progress: it neither leaves
+// indeterminate nor downgrades a fraction already shown.
 - (float)displayFraction:(float)fraction over:(float)current {
     return fraction > 0 ? fraction : current;
 }
 
 - (void)monitorReportedProgress:(float)fraction forPath:(NSString *)path {
     VibeCloudTransferEntry *entry = _entries[path];
-    // A cancelled monitor delivers nothing, but the entry check also drops a
-    // fraction already in flight to main when the transfer ended under it.
+    // Also drops a fraction already queued to main when the transfer ended.
     if (!entry || entry.externallyFed) {
         return;
     }
@@ -171,9 +158,8 @@
         return;
     }
     if (!entry.externallyFed) {
-        // The shell's own monitor owns this path now; the registry's would be
-        // a second NSMetadataQuery and File Provider subscription on the same
-        // file. Cancel rather than merely ignore, so nothing keeps observing.
+        // The shell's monitor owns this path now; cancel ours so the file is
+        // not watched twice.
         entry.externallyFed = YES;
         [entry.monitor cancel];
         entry.monitor = nil;

@@ -2,16 +2,15 @@
 //  PlaybackRequestCoordinatorTests.m
 //
 //  Deterministic event-order coverage for the queue-confined pending-open
-//  control plane. AVAudioEngine deliberately stays out of this target.
+//  control plane, with no player.
 //
 
 #import <XCTest/XCTest.h>
 
 #import "PlaybackRequestCoordinator.h"
 
-// Identity-only stand-in, duck-typed like FakeTrackMetadata: the coordinator
-// stores and compares the row pointer without ever messaging it, so a plain
-// NSObject serves as the AudioTrack and the suite stays host-less.
+// The coordinator only stores and compares the row pointer, never messages
+// it, so a plain NSObject serves as the AudioTrack.
 static AudioTrack *FakeTrack(void) {
     return (AudioTrack *)[NSObject new];
 }
@@ -135,7 +134,6 @@ static AudioTrack *FakeTrack(void) {
     XCTAssertNil(state.currentRequest);
 }
 
-// Either identity is enough, and neither alone is required — see the header.
 - (void)testSeekIsAcceptedByEitherTheRowOrTheSubmittedPlay {
     PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
     AudioTrack *first = FakeTrack();
@@ -149,16 +147,15 @@ static AudioTrack *FakeTrack(void) {
     XCTAssertTrue([state seekToPosition:42 ifCurrentTrackIs:first submittedPlayIdentifier:1]);
     [state rebindTrack:rebound path:@"/same.flac" intent:state.currentRequest.intent submittedPlayIdentifier:2];
 
-    // Neither identity holds: a seek aimed at a row this request never had.
+    // Neither identity holds.
     XCTAssertFalse([state seekToPosition:99 ifCurrentTrackIs:stranger submittedPlayIdentifier:1]);
     XCTAssertFalse([state seekToPosition:99 ifCurrentTrackIs:nil submittedPlayIdentifier:0]);
-    // The row still matches, even though the rebind moved the play identifier.
-    // Same file, same target audio, so the seek must not be dropped.
+    // The row matches though the rebind moved the play identifier.
     XCTAssertTrue([state seekToPosition:7 ifCurrentTrackIs:rebound submittedPlayIdentifier:1]);
-    // The play identifier still matches, even though the row object moved. This
-    // is the seek issued before its play ever reached the queue.
+    // The play identifier matches though the row moved: a seek issued before
+    // its play reached the queue.
     XCTAssertTrue([state seekToPosition:9 ifCurrentTrackIs:first submittedPlayIdentifier:2]);
-    // 0 means "caller could not determine it": the row alone decides.
+    // 0: the caller cannot tell, so the row alone decides.
     XCTAssertTrue([state seekToPosition:-3 ifCurrentTrackIs:rebound submittedPlayIdentifier:0]);
     XCTAssertFalse([state seekToPosition:11 ifCurrentTrackIs:first submittedPlayIdentifier:0]);
 
@@ -202,8 +199,8 @@ static AudioTrack *FakeTrack(void) {
         XCTAssertFalse([seen containsObject:@(identifier)]);
         [seen addObject:@(identifier)];
         previous = identifier;
-        // Invalidate must not rewind the counter either: a request abandoned
-        // by resetToStoppedStateOnQueue leaves a worker still holding its id.
+        // Invalidate must not rewind the counter: a request abandoned by
+        // resetToStoppedStateOnQueue leaves a worker still holding its id.
         if (i % 3 == 0) {
             [state invalidate];
         }
@@ -300,8 +297,6 @@ static AudioTrack *FakeTrack(void) {
                 submittedPlayIdentifier++;
                 currentIdentifier = [state beginWithTrack:currentTrack path:currentPath intent:currentIntent
                                      submittedPlayIdentifier:submittedPlayIdentifier];
-                // Never reused, whatever mix of consume and invalidate ran
-                // before: a blocked worker's id must not name a later open.
                 XCTAssertGreaterThan(currentIdentifier, previousIdentifier,
                                      @"trace %lu event %lu", (unsigned long)trace, (unsigned long)event);
                 previousIdentifier = currentIdentifier;
@@ -342,8 +337,7 @@ static AudioTrack *FakeTrack(void) {
                 AudioTrack *target = (random & 1) ? currentTrack : tracks[random % tracks.count];
                 random = [self nextRandom:random];
                 NSTimeInterval position = (NSTimeInterval)((NSInteger)(random % 480) - 120);
-                // All three arms of the identifier check: the live play, a
-                // stale one, and the 0 the caller passes when it cannot tell.
+                // The live play, a mismatched one, and 0 (cannot tell).
                 random = [self nextRandom:random];
                 uint64_t offered;
                 switch (random % 3) {

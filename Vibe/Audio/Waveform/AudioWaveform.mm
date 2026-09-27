@@ -91,10 +91,7 @@ AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInte
     return result;
 }
 
-// See the declaration in AudioWaveform.h. It also names the disk cache, so a
-// bump invalidates by rename as well as by mismatch. The key rode in without
-// a bump: it is encoded as an object, so a pre-key entry decodes nil — never
-// a fabricated C major — and everyone's cached waveforms and BPMs survive.
+// See the declaration in AudioWaveform.h.
 const int kCodableAudioWaveformVersion = 5;
 
 @implementation CodableAudioWaveform
@@ -106,16 +103,14 @@ const int kCodableAudioWaveformVersion = 5;
     [coder encodeFloat:self.bpm forKey:@"bpm"];
     // As an object, not encodeInteger: an absent integer decodes as 0, which
     // as a key means C major, whereas an absent object is unambiguously nil.
-    // That is what lets pre-key archives stay valid without a version bump.
     [coder encodeObject:@(self.key) forKey:@"key"];
 }
 
 - (instancetype)initWithCoder:(NSCoder *)coder {
     self = [super init];
     if (self) {
-        // A missing or mismatched version, since old cache entries decode as
-        // 0, and a malformed payload are both rejected. The waveform simply
-        // regenerates.
+        // A missing or mismatched version, or a malformed payload, is
+        // rejected; the waveform regenerates.
         if ([coder decodeIntForKey:@"version"] != kCodableAudioWaveformVersion) {
             return nil;
         }
@@ -136,17 +131,13 @@ const int kCodableAudioWaveformVersion = 5;
         if (!data || numChunks != NUM_CHUNKS || length != numChunks * sizeof(AudioWaveformCacheChunk)) {
             return nil;
         }
-        // Generation clamps NaN before chunks are stored; see AudioWaveform.h.
-        // But the archive has no checksum, so a bit-rotted entry can still
-        // decode non-finite floats, which poison the renderers' geometry on
-        // every play until the entry ages out. Reject it like any other
-        // malformed payload.
-        // TRAP: decodeBytesForKey: returns a pointer into the unarchiver's own
-        // buffer at whatever offset the payload sits — no alignment guarantee,
-        // so reading it through a typed float pointer is UB (UBSan: "load of
-        // misaligned address"). memcpy into an aligned local instead; it
-        // compiles to the same scalar load, without licensing the vectorizer
-        // to emit alignment-faulting paired loads over this loop.
+        // The archive has no checksum, so a bit-rotted entry can decode
+        // non-finite floats, which would poison the renderers' geometry on
+        // every play until the entry ages out.
+        // TRAP: decodeBytesForKey: returns an unaligned pointer into the
+        // unarchiver's buffer, so reading it through a float pointer is UB and
+        // lets the vectorizer emit alignment-faulting loads. memcpy each value
+        // into an aligned local.
         const char *bytes = (const char *)data;
         NSUInteger numValues = length / sizeof(float);
         for (NSUInteger i = 0; i < numValues; i++) {
@@ -161,7 +152,7 @@ const int kCodableAudioWaveformVersion = 5;
         self.bpm = std::isfinite(bpm) && bpm > 0 ? bpm : 0;
         // Like bpm, a bad key degrades to "unknown" rather than rejecting the
         // entry — it is not a reason to throw away good waveform data. Absent
-        // (a pre-key entry) decodes nil, and nil falls to -1, never C major.
+        // decodes nil, and nil falls to -1, never C major.
         id keyValue = [coder decodeObjectForKey:@"key"];
         NSInteger key = [keyValue isKindOfClass:[NSNumber class]] ? [keyValue integerValue] : -1;
         self.key = (key >= 0 && key < 24) ? key : -1;

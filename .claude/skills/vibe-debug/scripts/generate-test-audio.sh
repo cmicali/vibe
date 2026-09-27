@@ -1,14 +1,20 @@
 #!/bin/bash
-# Generates the standard test audio files into Assets/test_audio_files/
-# (gitignored). Idempotent: existing files are kept unless --force is given.
-# Uses only tools present on a stock dev Mac: python3, afconvert, swift —
-# except the MP3s, which need lame or ffmpeg and are skipped without one, so
-# the corpus is machine-dependent in that one respect. See the MP3 section.
+# Generate the standard test audio into Assets/test_audio_files/ (gitignored).
+# Existing files are kept unless --force. Stock-Mac tools only (python3,
+# afconvert, swift), except the MP3s, which need lame or ffmpeg and are skipped
+# without one.
+#
+# Usage: generate-test-audio.sh [--force]
+#        generate-test-audio.sh --render-tests <dir>       (make test-audio)
+#        generate-test-audio.sh --blackhole-drivers [dir]  (make build-test-blackhole)
 #
 #   tone-short-1.wav / -2 / -3   8s stereo WAVs at distinct pitches — playlist,
 #                                multi-file, and Close All tests
 #   tone-long.wav                120s WAV — seek and skip-forward/back tests
 #                                (skips reach ±60s)
+#   rates/tone-<rate>-<bits>.wav tone-long at 44.1k/16, 48k/16, 88.2k/24 and
+#                                96k/24 (plus a 96k/24 FLAC) — bit-perfect
+#                                loopback checks
 #   tone.flac                    8s FLAC — codec-label / format coverage
 #   bpm-85.wav ... bpm-174.wav   30s kick+hat drum loops at exact BPMs (85,
 #                                120, 128, 140, 174) — BPM-analyzer tests
@@ -33,7 +39,9 @@
 #                                parser with the MP4 art above
 set -euo pipefail
 
-# Driver fixtures remain outside the app and the repository's vendored sources.
+# BlackHole loopback drivers patched with test fault controls, built under
+# build/ (default build/blackhole-drivers) into an installer package; never
+# vendored or shipped.
 if [ "${1:-}" = "--blackhole-drivers" ]; then
     python3 - "${2:-build/blackhole-drivers}" <<'DRIVER_PY'
 import pathlib, plistlib, re, subprocess, sys, uuid
@@ -235,9 +243,9 @@ DRIVER_PY
     exit 0
 fi
 
-# Analytical fixtures for the real-player render suite. No third-party encoder
-# is required for the core matrix. Optional MPEG fixtures are explicitly skipped
-# by XCTest when ffmpeg is absent, rather than pretending those codecs passed.
+# Analytic fixtures for the render suite and the bit-perfect verifier. Only
+# the MP3/MP2/QTA fixtures need ffmpeg; without it XCTest skips them rather than
+# passing them.
 if [ "${1:-}" = "--render-tests" ]; then
     render_dir="${2:?usage: --render-tests <output-directory>}"
     mkdir -p "$render_dir"
@@ -347,9 +355,8 @@ if ! have tone.flac; then
     afconvert -f flac -d flac "$OUT/tone-short-1.wav" "$OUT/tone.flac"
 fi
 
-# The rates set, for bit-perfect output: the long tone at the rates and word
-# lengths a DAC is asked for, so a loopback can prove each arrives unchanged
-# (verify-bit-perfect.swift). Deterministic content, known rate and depth.
+# The rates and word lengths a DAC is asked for, so a loopback can prove each
+# arrives unchanged (verify-bit-perfect.swift).
 mkdir -p "$OUT/rates"
 for spec in 44100-16 48000-16 88200-24 96000-24; do
     have "rates/tone-$spec.wav" \
@@ -518,8 +525,7 @@ SWIFT
     rm -f "$OUT/.art.png" "$OUT/.plain.m4a"
 }
 
-# Minutes-long sources so the art files can exercise scrubbing; the temp
-# tones are distinct pitches like the shorts.
+# Minutes long so the art files can exercise scrubbing.
 if ! have tone-art-red.m4a; then
     gen_wav "$OUT/.art-src-1.wav" 220 180
     gen_art_m4a tone-art-red.m4a  "$OUT/.art-src-1.wav" 200 40 60  "Red Art Test"  "Art Tester"
@@ -532,16 +538,10 @@ if ! have tone-art-blue.m4a; then
 fi
 
 # ---------------------------------------------------------------------------
-# MP3 — the one part of the corpus needing a non-stock tool.
-#
-# afconvert cannot encode MP3, and its help actively misleads: `afconvert -hf`
-# lists 'MPG3' = MPEG Layer 3 with data_formats '.mp3', so the format looks
-# writable, but the encode dies with
-#     Error: ExtAudioFileSetProperty ('cfmt') failed ('fmt?')
-# because macOS ships an MP3 decoder and no encoder. Do not spend another round
-# on afconvert flags; reach for lame or ffmpeg (either works, lame preferred as
-# the smaller dep) and skip the files when neither is installed rather than
-# failing the whole corpus.
+# MP3: macOS ships an MP3 decoder and no encoder. `afconvert -hf` lists 'MPG3'
+# as writable, but the encode fails with ExtAudioFileSetProperty ('cfmt')
+# 'fmt?' — no afconvert flag fixes it. Use lame (preferred, smaller) or ffmpeg,
+# and skip the files when neither is installed.
 # ---------------------------------------------------------------------------
 MP3ENC=""
 command -v lame   >/dev/null 2>&1 && MP3ENC=lame
@@ -557,12 +557,10 @@ gen_mp3() {
     esac
 }
 
-# Stamp the APIC picture type to 3 (Front cover). Neither encoder will: lame
-# has no option for it and ffmpeg defaults to 0 (Other) unless the video stream
-# carries a matching comment tag, so both leave a picture that getAlbumArtID3v2
-# finds only through its any-type fallback. Real files carry type 3, and a test
-# asset exercising the fallback would hide a regression in the FrontCover
-# branch it prefers.
+# Stamp the APIC picture type to 3 (Front cover); lame cannot and ffmpeg
+# writes 0 (Other). Real files carry 3, and a fixture reaching
+# getAlbumArtID3v2 only through its any-type fallback would hide a regression
+# in the front-cover branch it prefers.
 set_apic_front_cover() {
     python3 - "$1" <<'PY'
 import sys
@@ -588,8 +586,8 @@ gen_art_mp3() {
                  --tt "$title" --ta "$artist" --ti "$OUT/.art.png" "$src" "$dst"
             ;;
         ffmpeg)
-            # attached_pic or the image lands as a video stream some parsers
-            # then read as a second track rather than as embedded art.
+            # Without attached_pic the image is a video stream some parsers
+            # read as a second track, not embedded art.
             ffmpeg -y -loglevel error -i "$src" -i "$OUT/.art.png" \
                    -map 0:a -map 1:v -codec:a libmp3lame -b:a 192k -codec:v copy \
                    -id3v2_version 3 -disposition:v attached_pic \
@@ -606,8 +604,7 @@ if [ -n "$MP3ENC" ]; then
     have tone-art-green.mp3 || gen_art_mp3 "$OUT/tone-art-green.mp3" \
                                    "$OUT/tone-short-3.wav" 40 170 90 "Green Art Test" "Art Tester"
 elif ! have tone-cbr.mp3 || ! have tone-vbr.mp3 || ! have tone-art-green.mp3; then
-    # Only when something is actually missing: a machine with no encoder but a
-    # corpus generated earlier is fine, and warning there reads as a problem.
+    # Only when a file is missing: an earlier corpus without an encoder is fine.
     echo "note: neither lame nor ffmpeg found — skipping the MP3 files." >&2
     echo "      brew install lame, then re-run, to cover the app's headline format." >&2
 fi

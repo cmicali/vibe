@@ -31,7 +31,7 @@
     XCTAssertNotNil(translucent);
     XCTAssertEqualWithAccuracy(CGColorGetAlpha(translucent.CGColor), 0.75, 0.01);
     XCTAssertEqualObjects(VibeHexStringFromColor(translucent), @"#FF7300BF");
-    // Opaque emits the short form, so pre-alpha stored values are unchanged.
+    // Opaque emits the short form, so values stored without alpha round-trip.
     XCTAssertEqualObjects(VibeHexStringFromColor(VibeColorFromHexString(@"#FF7300FF")), @"#FF7300");
     XCTAssertEqualWithAccuracy(CGColorGetAlpha(VibeColorFromHexString(@"#FFFFFF00").CGColor), 0, 0.001);
 }
@@ -47,9 +47,8 @@
     XCTAssertNil(VibeColorFromHexString(@"-1234567"));
 }
 
-// NSScanner's leniency, which the digit count alone does not catch: it skips
-// leading whitespace and accepts an 0x prefix, so an eight-character "0x123456"
-// once scanned clean and read as RRGGBBAA.
+// NSScanner skips leading whitespace and accepts a 0x prefix, which the digit
+// count alone does not catch: "0x123456" would read as RRGGBBAA.
 - (void)testScannerLeniencyIsRefused {
     XCTAssertNil(VibeColorFromHexString(@"0x123456"));
     XCTAssertNil(VibeColorFromHexString(@"0X123456"));

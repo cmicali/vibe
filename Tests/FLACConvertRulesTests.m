@@ -1,7 +1,3 @@
-//
-// Convert to FLAC: which files are eligible, and what the output is called.
-//
-
 #import <XCTest/XCTest.h>
 
 #import "FLACConvertRules.h"
@@ -31,7 +27,6 @@
 }
 
 - (void)testSniffedTypeBeatsTheExtension {
-    // TagLib read the bytes; the extension is only ever a guess.
     XCTAssertFalse(VibeTrackIsConvertibleToFLAC(VibeAudioFileFormatMP3, @"wav"));
     XCTAssertTrue(VibeTrackIsConvertibleToFLAC(VibeAudioFileFormatWAV, @"mp3"));
 }
@@ -51,9 +46,8 @@
     // A row is eligible from the moment it is dropped, not when the background
     // scan reaches it.
     XCTAssertTrue(VibeTrackIsConvertibleToFLAC(nil, @"wav"));
-    // The claimed UTType (com.microsoft.waveform-audio) declares wav, wave,
-    // AND bwf — all plain RIFF WAVE — and the open filter admits all three,
-    // so eligibility claims them too.
+    // com.microsoft.waveform-audio declares wav, wave AND bwf, all plain RIFF
+    // WAVE, and the open filter admits all three.
     XCTAssertTrue(VibeTrackIsConvertibleToFLAC(nil, @"wave"));
     XCTAssertTrue(VibeTrackIsConvertibleToFLAC(nil, @"bwf"));
     XCTAssertTrue(VibeTrackIsConvertibleToFLAC(nil, @"aif"));
@@ -89,8 +83,7 @@
 }
 
 - (void)testEmptyTypeIsTreatedAsUnparsedRatherThanUnknown {
-    // A cache decode can hand back a nil-or-empty fileType on a track whose
-    // extension is perfectly good; that must not disable the item.
+    // A cache decode can hand back an empty fileType for a good extension.
     XCTAssertTrue(VibeTrackIsConvertibleToFLAC(@"", @"wav"));
 }
 
@@ -120,9 +113,7 @@
 }
 
 - (void)testTrailingDotIsKeptNotTreatedAsAnExtension {
-    // stringByDeletingPathExtension leaves a bare trailing dot alone, so the
-    // odd-but-harmless result is foo..flac — pinned so a future normalization
-    // is a deliberate choice.
+    // Odd but harmless; pinned so a normalization is a deliberate choice.
     XCTAssertEqualObjects(VibeFLACDestinationName(@"foo."), @"foo..flac");
 }
 

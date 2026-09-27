@@ -10,9 +10,7 @@
 
 @implementation PlaylistRowView
 
-// The theme's overrides, alpha and all, over the neutral wash the display
-// accessor defaults to. Read per draw: rows draw on state changes and
-// scroll-in, and the record lookup is cheap.
+// Read per draw; the record lookup is cheap.
 - (NSColor *)selectedFillColor {
     return [AppSettings.sharedInstance.currentTheme
             displayColorForBase:kVibeThemeColorPlaylistSelectedRow dark:self.isDark];
@@ -30,8 +28,7 @@
     }
 }
 
-// There is no super call: this replaces the system's accent-blue selection
-// fill outright rather than layering over it.
+// No super: replaces the accent-blue fill rather than layering over it.
 - (void)drawSelectionInRect:(NSRect)dirtyRect {
     [[self selectedFillColor] setFill];
     NSRectFillUsingOperation(self.bounds, NSCompositingOperationSourceOver);
@@ -39,8 +36,7 @@
 
 - (void)drawBackgroundInRect:(NSRect)dirtyRect {
     [super drawBackgroundInRect:dirtyRect];
-    // A selected row already draws the same wash through drawSelectionInRect:,
-    // so do not double up: two 9% passes read as a brighter row.
+    // A selected row already drew its wash; two read as a brighter row.
     if (_playingRow && !self.selected) {
         [[self playingFillColor] setFill];
         NSRectFillUsingOperation(self.bounds, NSCompositingOperationSourceOver);

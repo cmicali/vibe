@@ -2,16 +2,9 @@
 //  AudioWaveformLoaderTests.mm
 //  VibeTests
 //
-//  The decode pass's phases, one at a time. Three of them read the pass struct
-//  and need no audio; the last group runs the whole loader over a WAV the test
-//  writes itself, which needs a file but no engine, no hardware and no running
-//  app.
-//
-//  What is actually being pinned here is the *completeness rule*, which is the
-//  part of a waveform load most likely to be wrong and least likely to be
-//  noticed: a file that decodes one chunk short looks identical on screen, and
-//  a wrong answer either caches a truncated waveform forever under the file's
-//  hash or freezes the strip mid-load with nothing logged.
+//  Pins the completeness rule: a file one chunk short looks identical on
+//  screen, and a wrong answer either caches a truncated waveform under the
+//  file's hash or freezes the strip mid-load with nothing logged.
 //
 
 #import <XCTest/XCTest.h>
@@ -52,11 +45,8 @@
                                                  error:nil];
 }
 
-// A chunk is constructed at (0, 0) and merging only ever widens it, so a
-// window whose samples are all negative keeps max == 0. "Has content" is
-// therefore either bound moving, never max alone — a distinction worth pinning,
-// because asserting on max alone passes on silence for half the signals a real
-// file contains.
+// A chunk starts at (0, 0) and only widens, so an all-negative window keeps
+// max == 0: content is either bound moving, never max alone.
 static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
     return chunk.getMin() < 0.0f || chunk.getMax() > 0.0f;
 }
@@ -102,9 +92,7 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
     }
 }
 
-// Past the tolerance the same shape is truncation, and the phase promotes it
-// to a read error rather than merely answering NO — that promotion is why it
-// is not a pure predicate.
+// The promotion is why the phase is not a pure predicate.
 - (void)testDecodeEndingWellShortIsPromotedToAReadError {
     struct VibeWaveformDecodePass pass = [self completePassWithChunks:1000];
     pass.chunksFilled = 900;
@@ -244,7 +232,6 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
 
 #pragma mark - openFileAtPath: and the whole pass, over a written file
 
-// Writes a float32 WAV of the given duration — no engine, no audio hardware.
 - (NSString *)writeWAVNamed:(NSString *)name seconds:(double)seconds {
     NSURL *url = [_tempDirectory URLByAppendingPathComponent:name];
     AVAudioFormat *format = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32
@@ -314,8 +301,6 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
     XCTAssertEqual(delegate.progressExpectation, progress);
 }
 
-// The whole pass end to end: every chunk filled, marked complete, and the
-// content actually present rather than a silent array.
 - (void)testFullLoadOfAWrittenFileIsComplete {
     NSString *path = [self writeWAVNamed:@"full.wav" seconds:2.0];
     CodableAudioWaveform *result = [_loader load:path];
@@ -341,8 +326,6 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
     XCTAssertEqual(wrongEnergy, (NSUInteger)0, @"every chunk of a constant ±0.5 signal carries meanSquare 0.25");
 }
 
-// The short-file path end to end: fewer frames than chunks, stretched to span
-// the strip rather than leaving a silent tail.
 - (void)testFullLoadOfAVeryShortFileSpansTheStrip {
     NSString *path = [self writeWAVNamed:@"blip.wav" seconds:0.02]; // 882 frames
     CodableAudioWaveform *result = [_loader load:path];

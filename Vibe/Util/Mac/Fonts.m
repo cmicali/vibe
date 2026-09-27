@@ -14,8 +14,6 @@
     return [self font:size bold:NO];
 }
 
-// Negating the size for bold collides at size 0, so the key spells out both
-// dimensions.
 static NSString *fontCacheKey(CGFloat size, BOOL bold) {
     return [NSString stringWithFormat:@"%g%@", size, bold ? @"-bold" : @""];
 }
@@ -27,15 +25,14 @@ static NSString *fontCacheKey(CGFloat size, BOOL bold) {
         cache = [NSMutableDictionary new];
     });
     NSString *key = fontCacheKey(size, bold);
-    // NSMutableDictionary is not thread-safe and not every caller is on the
-    // main thread. A duplicate create inside the lock is harmless.
+    // Not every caller is on main.
     @synchronized (cache) {
         NSFont *font = cache[key];
         if (!font) {
             font = [NSFont fontWithName:bold ? @"HelveticaNeue-Bold" : @"HelveticaNeue-Medium" size:size];
             if (!font) {
-                // Never return nil. Callers put the result straight into
-                // attribute dictionaries, where nil raises.
+                // Never nil: callers put it straight into attribute
+                // dictionaries.
                 font = [NSFont systemFontOfSize:size weight:bold ? NSFontWeightBold : NSFontWeightMedium];
             }
             cache[key] = font;
@@ -67,15 +64,12 @@ static NSString *fontCacheKey(CGFloat size, BOOL bold) {
 
 #pragma mark Themed slots
 
-// The pushed configuration, indexed by VibeFontSlot (AppTheme.h; entry None
-// unused). All access is under @synchronized(Fonts.class) — its own lock; the
-// caches above each lock their own dictionary.
+// Indexed by VibeFontSlot; guarded by @synchronized(Fonts.class).
 static NSString *slotFace[kVibeFontSlotCount];
 static CGFloat slotSize[kVibeFontSlotCount];
 static NSMutableDictionary<NSString *, NSFont *> *slotCache;
 
-// The factory look until the shell pushes the stored theme, so a slot
-// resolved before that push is the Vibe theme's font rather than size 0.
+// So a slot resolved before the first push is not size 0.
 + (void)initialize {
     if (self == Fonts.class) {
         [self applyThemeFonts:[[AppTheme alloc] init]];
@@ -114,9 +108,8 @@ static NSMutableDictionary<NSString *, NSFont *> *slotCache;
                 font = bolded ?: font;
             }
             if (font && (slot == VibeFontSlotInfo || slot == VibeFontSlotPlaylistDuration)) {
-                // Times tick every second; a proportional-digit face would
-                // jitter them, so ask for the monospaced-digits feature. A
-                // face without it ignores the request.
+                // Monospaced digits, so ticking times do not jitter; a face
+                // without the feature ignores it.
                 NSFontDescriptor *mono = [font.fontDescriptor fontDescriptorByAddingAttributes:@{
                     NSFontFeatureSettingsAttribute: @[@{
                         NSFontFeatureTypeIdentifierKey: @(kNumberSpacingType),
@@ -126,7 +119,7 @@ static NSMutableDictionary<NSString *, NSFont *> *slotCache;
                 font = [NSFont fontWithDescriptor:mono size:size] ?: font;
             }
         }
-        // Different lock objects, so the nested caches cannot deadlock.
+        // The nested caches take their own locks, never this one: no deadlock.
         if (!font) {
             font = (slot == VibeFontSlotInfo || slot == VibeFontSlotPlaylistDuration)
                     ? [self fontForNumbers:size bold:bold]

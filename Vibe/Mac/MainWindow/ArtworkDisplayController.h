@@ -2,16 +2,10 @@
 //  ArtworkDisplayController.h
 //  Vibe
 //
-//  Owns the artwork display policy for the main window: which image shows in
-//  the album-art view, whether the track's art or the default record-bg
-//  backdrop, the header and playlist tint washes drawn from the theme and the
-//  dominant art color, and the dock icon. It also owns the deferred
-//  off-main-thread art loads and the full-resolution art memory lifecycle.
-//
-//  It is one of the two display controllers, with TrackDisplayController, that
-//  render into MainPlayerContentView's widgets. The content view builds and
-//  owns the hierarchy, each display controller adopts its subset at init and
-//  renders one facet, and MainPlayerController decides what they render.
+//  The artwork display: the art view (the track's art or the theme's
+//  default), the header and playlist tint washes, the Dock tile, the deferred
+//  art loads and the full-resolution art's lifetime. MainPlayerController
+//  decides what it renders.
 //
 
 #import <Cocoa/Cocoa.h>
@@ -24,84 +18,57 @@ NS_ASSUME_NONNULL_BEGIN
 // Main thread only.
 @interface ArtworkDisplayController : NSObject
 
-// Adopts the album-art view and the two tint views — header and playlist —
-// from the content view. Each tint view is a layer-backed wash whose
-// background this controller resolves from the theme's tint choice and the
-// art's dominant color. MainPlayerContentView keeps ownership of the view
-// hierarchy.
+// Adopts the art view and both tint views; the content view keeps ownership.
 - (instancetype)initWithContentView:(MainPlayerContentView *)contentView;
 
-// Runs the same admission and delivery policy with controlled rendering and
-// publication. Render completions are delivered on main; nil uses the real
-// serial renderer or the adopted views/Dock. A nil published image is default art.
+// The same admission and delivery policy with injected rendering and
+// publication (tests). Completions deliver on main; nil uses the real renderer
+// or views and Dock. A nil published image is default art.
 - (instancetype)initWithRenderer:(void (^_Nullable)(NSImage *source, NSColor * _Nullable cachedColor,
         void (^completion)(NSImage *image, NSColor * _Nullable color, BOOL dark)))renderer
                       publication:(void (^_Nullable)(NSImage * _Nullable image, NSColor * _Nullable color,
                                                      BOOL defaultArt, BOOL dark))publication;
 
-// A deferred art load must re-check which track is current when it completes,
-// since the user may have skipped on, and the owner answers here. Set once at
-// startup.
+// A deferred art load re-checks the current track through this. Set once.
 @property (nonatomic, copy) AudioTrack * _Nullable (^currentTrackProvider)(void);
 
-// Called on the main thread when a deferred art load resolves with an image.
-// The owner then refreshes the art-dependent UI, which calls back into
-// updateForTrack: with the art now decodable.
+// On main when a deferred load resolves with an image; the owner's refresh
+// calls updateForTrack: again.
 @property (nonatomic, copy) void (^artDidResolveHandler)(void);
 
-// The settled art's raw dominant color, nil while the default art shows. Set
-// only when a render result installs, which is generation- and target-matched
-// against the current track — so a stale delivery can never surface a
-// previous track's color here.
+// nil while the default shows. Set only by a generation- and target-matched
+// install, so it never carries a previous track's color.
 @property (nonatomic, readonly, nullable) NSColor *dominantArtColor;
 
-// Called on the main thread whenever dominantArtColor settles — art
-// installed, or the default art cleared it. The owner forwards it into the
-// waveform's album-art theme.
+// On main whenever dominantArtColor settles.
 @property (nonatomic, copy) void (^dominantColorDidChangeHandler)(void);
 
-// Whether the band of the installed image the transport row sits over reads
-// as dark — sampled from the very image on screen, the placeholder included,
-// so the buttons pick their color from what is under them rather than from
-// the appearance. Fires with every install and default; the receiver drops
-// an unchanged answer. hasArtwork excludes the theme's default image.
+// Whether the image band under the transport row reads dark, sampled from the
+// image on screen, placeholder included. Fires with every install and default;
+// the receiver drops an unchanged answer. hasArtwork excludes the default.
 @property (nonatomic, copy) void (^transportBackdropDidChangeHandler)(BOOL dark, BOOL hasArtwork);
 
-// Reflects the track's art; a nil track shows the default. New art replaces
-// old art directly, and while a track's art is still unresolved the previous
-// track's art stays on screen, so the default never flashes between tracks. It
-// also keeps the art view's drag-out fileURL on the displayed track.
+// A nil track shows the default. While a track's art is unresolved the
+// previous art stays, so the default never flashes between tracks.
 - (void)updateForTrack:(nullable AudioTrack *)track;
 
-// A slow open has crossed the loading-indicator threshold, so drop the
-// keep-previous policy and show the default, empty-state art, unless the
-// pending track's own art is already displayed. It pairs with the waveform's
-// loading shimmer.
+// With the loading shimmer: drops keep-previous and shows the default, unless
+// the pending track's own art is up.
 - (void)showPlaceholderForSlowLoad;
 
-// Re-derives the header and playlist washes from the theme and the stored art
-// color, and — while the placeholder is up — the transport contrast under
-// the buttons, since the placeholder's pixels follow the appearance. A wash
-// depends on the appearance — a deep wash in dark mode, a pastel one in
-// light — but not on key-window state: its strength is constant whether or
-// not the window is active. That is why each is a plain view's background
-// rather than the glass's own tintColor; see the .m. Call it on appearance
-// changes.
+// Re-derives both washes and, while the placeholder is up, its transport
+// contrast. Call on appearance changes.
 - (void)refreshTintWashes;
 
-// Demotes the previous track's full-resolution art — both the decoded bitmap
-// and the compressed bytes — when playback moves to a new track, so that art
-// does not accumulate for the playlist's lifetime.
+// Demotes the previous track's full-resolution art, so played art does not
+// accumulate.
 - (void)trackDidStartPlaying:(AudioTrack *)track;
 
-// Re-applies the theme's no-artwork placeholder while it is on screen — the
-// theme's default artwork changed, and showDefaultArtwork's already-showing
-// guard would otherwise keep the old image up.
+// For a changed theme default: showDefaultArtwork's already-showing guard
+// would keep the old image.
 - (void)refreshDefaultArtwork;
 
-// Re-decides the Dock tile from the theme's dockIcon choice and what the
-// header shows: the installed art crop, or the app icon. The AppIcon live
-// effect calls it after the icon itself has landed.
+// The installed crop or the app icon, per the theme's dockIcon.
 - (void)applyDockIcon;
 
 @end

@@ -2,18 +2,9 @@
 //  FilesSettingsViewController.h
 //  Vibe (iOS)
 //
-//  Settings > Files: the two settings that are about files rather than pixels.
-//
-//  - the order a folder's tracks land in the playlist (AppSettings
-//    .folderOpenSort, shared with the mac's Files pane). It governs the NEXT
-//    open, so nothing on screen draws from it and writing it notifies nobody —
-//    the one setting in this app's iOS screens that posts nothing.
-//  - the folders the user has given the app to SEARCH (SearchFolderStore), last
-//    because it grants access rather than choosing anything. The store owns the
-//    grants and its own notification.
-//
-//  It writes the setting and presents the folder picker; it holds no playback
-//  handle and never reaches for the screens behind it.
+//  Settings > Files: the folder-open order (AppSettings.folderOpenSort, which
+//  governs the NEXT open, so a write notifies nobody) and the folders the app
+//  may SEARCH (SearchFolderStore, which owns the grants and its notification).
 //
 
 #import <UIKit/UIKit.h>

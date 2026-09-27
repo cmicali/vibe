@@ -17,10 +17,8 @@
 @end
 
 @implementation OutputDevicesMenuController {
-    // The devices menu while it is on screen, and nil otherwise. Device
-    // notifications arrive in the common run-loop modes, so an open menu can
-    // be rebuilt in place when a device is plugged or unplugged, or the
-    // default changes.
+    // Non-nil while on screen: device notifications arrive in the common
+    // run-loop modes, so an open menu rebuilds in place.
     __weak NSMenu *_openMenu;
     NSUInteger _pendingOutputDeviceSelections;
 }
@@ -57,14 +55,11 @@
     }
 }
 
-// The menu layout: [0] is "System Output (<default device>)", tag -1, the
-// default choice; [1] is a separator; [2] onwards is every output device. The
-// checkmark tracks currentlyRequestedAudioDeviceId, where -1 checks System
-// Output and anything else checks the explicitly chosen device.
+// [0] System Output (tag -1), [1] a separator, [2...] every output device. The
+// checkmark tracks currentlyRequestedAudioDeviceId.
 - (void)menuNeedsUpdate:(NSMenu *)menu {
-    // Enumerate once and size the menu from that same snapshot. A second
-    // enumeration could disagree, after a device hotplug mid-update, and
-    // overrun the menu's item count.
+    // One snapshot: a second enumeration could disagree after a hotplug and
+    // overrun the item count.
     NSArray<AudioDevice *> *devices = AudioDeviceManager.sharedInstance.outputDevices;
     NSInteger requestedId = self.audioPlayer.currentlyRequestedAudioDeviceId;
 
@@ -76,8 +71,7 @@
         }
     }
 
-    // Build the fixed header once. The device tail below resizes in place, so
-    // an open menu refreshes without losing its tracking state.
+    // The tail resizes in place, so an open menu keeps its tracking state.
     if (menu.numberOfItems < 2 || ![menu itemAtIndex:1].isSeparatorItem) {
         [menu removeAllItems];
         NSMenuItem *systemItem = [NSMenuItem new];

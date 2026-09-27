@@ -15,9 +15,8 @@
 
 #pragma mark - Nothing loaded
 
-// Closing a file must clear the header. Without this, a nil track reads as
-// "unresolved" and the keep-previous policy leaves the closed track's art and
-// tint on screen.
+// Otherwise a nil track reads as unresolved and keep-previous leaves the
+// closed track's art and tint on screen.
 - (void)testNoTrackAlwaysShowsTheDefault {
     XCTAssertEqual(VibeArtworkDisplayActionFor(NO, NO, NO, YES), VibeArtworkDisplayActionShowDefault);
     XCTAssertEqual(VibeArtworkDisplayActionFor(NO, NO, YES, YES), VibeArtworkDisplayActionShowDefault);
@@ -35,9 +34,7 @@
 
 #pragma mark - The unresolved gap
 
-// The no-flash rule: while the new track's art is still pending, the previous
-// track's art stays up. Two tracks that both have covers must never show the
-// backdrop between them.
+// Two tracks that both have covers must never show the backdrop between them.
 - (void)testAnUnresolvedTrackKeepsThePreviousArt {
     XCTAssertEqual(VibeArtworkDisplayActionFor(YES, NO, NO, YES),
                    VibeArtworkDisplayActionKeepPrevious);
@@ -51,8 +48,6 @@
                       VibeArtworkDisplayActionShowDefault);
 }
 
-// Before the first render there is no previous art to keep, so an unresolved
-// track shows the backdrop rather than an empty frame.
 - (void)testTheFirstRenderShowsTheDefaultRatherThanNothing {
     XCTAssertEqual(VibeArtworkDisplayActionFor(YES, NO, NO, NO),
                    VibeArtworkDisplayActionShowDefault);
@@ -109,8 +104,7 @@
                                                       track, metadata, newArt));
 }
 
-// The whole policy in one place, so a future edit has to break a named case
-// rather than a boolean expression by accident.
+// Every row, so an edit to the policy cannot change a case by accident.
 - (void)testTheCompleteTruthTable {
     struct {
         BOOL hasTrack, hasArt, artResolved, initialized;

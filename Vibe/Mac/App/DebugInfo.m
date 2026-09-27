@@ -27,8 +27,7 @@ static NSString *const kVibeLogSubsystem = @"com.commonwealthrecordings.Vibe";
 // A bound on the file, not a filter: a long session keeps its newest lines.
 static const NSUInteger kVibeDebugInfoMaxLogLines = 100000;
 
-// Long enough for any setting a person typed; a theme archive or other blob
-// stored as a string is cut rather than filling the report.
+// Cuts a blob stored as a string, not anything a person typed.
 static const NSUInteger kVibeDebugInfoMaxStringLength = 2000;
 
 static NSString *VibeSysctlString(const char *name) {
@@ -68,9 +67,8 @@ static NSString *VibeGrantedFolderStateName(VibeGrantedFolderState state) {
     return @"unknown";
 }
 
-// A stored setting made printable. Data goes by size — bookmarks and theme
-// images are opaque, and a bookmark would put an access grant in a file meant
-// for sharing.
+// Data goes by size: a bookmark would put an access grant in a file meant for
+// sharing.
 static id VibeJSONSafe(id value) {
     if ([value isKindOfClass:NSData.class]) {
         return [NSString stringWithFormat:@"<%lu bytes>", (unsigned long)[(NSData *)value length]];
@@ -185,7 +183,7 @@ static NSDictionary *VibePlayerDictionary(MainPlayerController *controller) {
     return d;
 }
 
-// Which windows are up is often the answer — #47's freeze needed Settings open.
+// Which windows are up is often the answer.
 static NSArray *VibeWindowsArray(void) {
     NSMutableArray *windows = [NSMutableArray array];
     for (NSWindow *window in NSApp.windows) {
@@ -222,8 +220,7 @@ NSDictionary<NSString *, id> *VibeDebugInfoSnapshot(MainPlayerController *contro
             @"secondsPlayed": @(stats.totalSecondsPlayed),
         },
         @"settingsAtDefaults": @(AppSettings.sharedInstance.allSettingsAtDefaults),
-        // Everything stored, not a curated list, so a setting added later is
-        // reported without anyone remembering to add it here.
+        // Everything stored, so a setting added later is reported too.
         @"settings": VibeJSONSafe(stored),
     };
 }
@@ -240,9 +237,8 @@ static NSString *VibeLogLevelName(OSLogEntryLogLevel level) {
     return @"?";
 }
 
-// This process's entries: all of Vibe's own, the audio frameworks' (device and
-// engine trouble is reported there, not by us), and anyone's errors. What
-// exists depends on VIBE_VERBOSE_LOGGING — without it Vibe's info and debug
+// Vibe's own, the audio frameworks' (device trouble is reported there), and
+// anyone's errors. Without VIBE_VERBOSE_LOGGING Vibe's info and debug lines
 // were never stored.
 static NSArray<NSString *> *VibeLogLines(NSUInteger *dropped) {
     *dropped = 0;
@@ -285,8 +281,8 @@ static NSArray<NSString *> *VibeLogLines(NSUInteger *dropped) {
     return lines;
 }
 
-// One outstanding worker per section, even after timeout. A hung driver must
-// not accumulate more workers each time the user saves another report.
+// One outstanding worker per section, even after timeout, so a hung driver
+// cannot accumulate workers across reports.
 static NSDictionary *VibeFreshDiagnosticSection(NSString *section, NSDictionary *(^read)(void)) {
     static NSMutableDictionary *completed, *inFlight;
     static dispatch_once_t once;
@@ -344,7 +340,6 @@ NSString *VibeDebugInfoText(NSDictionary<NSString *, id> *snapshot, AudioPlayer 
     NSDictionary *playback = VibeFreshDiagnosticSection(@"player", ^NSDictionary *{
         return player.outputDeviceDiagnosticSnapshot;
     });
-    // The render chain stage by stage, the Settings window's Audio group raw.
     NSDictionary *audioPath = VibeFreshDiagnosticSection(@"audioPath", ^NSDictionary *{
         return @{@"stages": player.audioPathSnapshot};
     });

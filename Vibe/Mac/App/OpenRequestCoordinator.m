@@ -5,9 +5,7 @@
 
 #import "OpenRequestCoordinator.h"
 
-// How long a finished result waits behind an earlier one that has not arrived.
-// It is not a bound on expansion — nothing is armed until a LATER batch has
-// already finished, so by then the straggler is the odd one out.
+// Not a bound on expansion: nothing is armed until a LATER batch has finished.
 static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
 
 @interface OpenRequestToken : NSObject
@@ -52,9 +50,7 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
 - (instancetype)init {
     self = [super init];
     if (self) {
-        // Generation 1, not 0, so the first request needs no special case: an
-        // append arriving first is a genuine append, not a silently rewritten
-        // replacement.
+        // 1, not 0: the armed-deadline state uses 0 as none.
         _openGeneration = 1;
         _completed = [NSMutableDictionary dictionary];
         _stragglerDeadline = kDefaultStragglerDeadline;
@@ -104,8 +100,7 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
     _completed[@(token.sequence)] = result;
 
     [self deliverReadyResults];
-    // Still buffered, so an earlier batch is outstanding. Give it a bounded
-    // head start rather than holding these behind it for good.
+    // Still buffered: an earlier batch is outstanding.
     if (_completed.count > 0) {
         [self armStragglerDeadline];
     }
@@ -116,17 +111,12 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
     if (_completed.count == 0) {
         return;
     }
-    // Give up on the request at the head of the queue and on nothing else:
-    // the ones behind it may be slow rather than wedged, and skipping the
-    // whole gap at once would drop a walk that is still coming — its result
-    // is dropped by the sequence check in finishRequest:. Every insertion
-    // drains first, so the head is always the missing one. Each stalled
-    // request costs one more deadline this way, and buys the next one a full
-    // window to answer in.
+    // Only the head: the ones behind it may be slow rather than wedged, and a
+    // skipped request's late result is dropped by finishRequest:'s sequence
+    // check. Every insertion drains first, so the head is the missing one.
     _nextDeliverySequence++;
     [self deliverReadyResults];
-    // Whatever is still buffered sits behind a gap of its own, and nothing
-    // else re-arms a deadline for it.
+    // Nothing else re-arms for a gap still buffered.
     if (_completed.count > 0) {
         [self armStragglerDeadline];
     }
@@ -161,8 +151,8 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
         if (!strongSelf) {
             return;
         }
-        // TRAP: a replacement or a later gap may have armed a deadline of its
-        // own. Disarming on the way out would strand that missing request.
+        // TRAP: a replacement or a later gap may have armed its own deadline;
+        // disarming here would strand that missing request.
         if (strongSelf->_armedDeadlineGeneration != generation ||
                 strongSelf->_armedDeadlineSequence != missingSequence) {
             return;

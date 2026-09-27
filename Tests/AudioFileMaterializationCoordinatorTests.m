@@ -52,8 +52,9 @@ static NSString *VibeProbeCallKey(NSString *name, NSUInteger call) {
     return self;
 }
 
-// TRAP: a synchronous-probe regression can block the test method before
-// tearDown releases its gates, so every gate needs a diagnostic deadline.
+// TRAP: if the probe regresses to running on the caller, a gate blocks the
+// test method itself and tearDown never releases it. The deadline turns that
+// hang into a reported failure.
 static const NSTimeInterval kProbeGateTimeout = 5;
 
 - (BOOL)probeURL:(NSURL *)url {
@@ -418,15 +419,10 @@ static const NSTimeInterval kProbeGateTimeout = 5;
     [super tearDown];
 }
 
-// B1 of docs/testing/materialization-coverage-plan.md, and the reason it runs
-// in teardown rather than as its own case: every lane slot taken has to be
-// given back, and a slot that is not is silent in every other assertion here —
-// it only shows up much later, as capacity that never returns. Running this
-// after each test retro-covers the whole file, including tests written before
-// there was an accounting to break.
-//
-// Drained pending claims mint fresh operations, so completeAll is inside the
-// loop rather than before it.
+// Runs in teardown so it covers every test: a lane slot never given back is
+// invisible to every other assertion and surfaces only as capacity that never
+// returns. Drained pending claims mint fresh operations, so completeAll is
+// inside the loop.
 - (void)assertAccountingSettles {
     if (!_coordinator) {
         return;
@@ -522,11 +518,8 @@ static const NSTimeInterval kProbeGateTimeout = 5;
                          completionQueue:_completionQueue completion:completion];
 }
 
-// F2 of docs/testing/materialization-coverage-plan.md. Every counter the
-// oracles read needs a test that it MOVES: one that silently always read zero
-// would look exactly like a clean run, which is the failure mode that let the
-// stall this whole plan came from stay invisible. Asserting the deltas rather
-// than absolute values keeps it independent of what the rest of the file does.
+// A counter an oracle reads needs a test that it moves: one stuck at zero
+// reads exactly like a clean run.
 - (void)testOutcomeCountersMoveWithRealWork {
     [self makeCoordinatorWithValues:VibeAudioLoadingProductionConfigurationValues()];
     VibeAudioFileMaterializationCoordinatorSnapshot before =
@@ -550,22 +543,19 @@ static const NSTimeInterval kProbeGateTimeout = 5;
     XCTAssertEqual(after.requestsReady, 1u, @"requestsReady never moved");
     XCTAssertEqual(after.requestsFailed, 0u);
     XCTAssertEqual(after.requestsAdmissionExhausted, 0u);
-    // No stage-2 open on this path: materializeURL: is stage 1 alone, and a
-    // counter that moved here would mean the two stages had been conflated.
+    // materializeURL: is stage 1 alone; an open counted here would mean the
+    // two stages had been conflated.
     XCTAssertEqual(after.handleOpensStarted, 0u);
     XCTAssertEqual([_coordinator handleOpensInFlight], 0u);
 }
 
-// The other half of F2 for the counter the quiesce oracle actually polls: it
-// must reach a nonzero value under a real open, or the oracle is decorative.
 - (void)testAdmissionExhaustionIsCounted {
     VibeAudioLoadingConfigurationValues values = VibeAudioLoadingProductionConfigurationValues();
     values.maximumBackgroundMaterializations = 1;
     values.maximumBackgroundPendingMaterializations = 1;
     [self makeCoordinatorWithValues:values];
     XCTestExpectation *exhausted = [self expectationWithDescription:@"exhausted"];
-    // More than one request is refused, and each fulfils: over-fulfilment is an
-    // API violation, not a finding.
+    // More than one request is refused.
     exhausted.assertForOverFulfill = NO;
     for (NSUInteger i = 0; i < 4; i++) {
         [self requestName:[NSString stringWithFormat:@"crowd-%lu.wav", (unsigned long)i]
@@ -1452,10 +1442,9 @@ static const NSTimeInterval kProbeGateTimeout = 5;
     [self waitForExpectations:@[oldSilent] timeout:0.1];
 }
 
-// A run that finishes with a cancellation nobody ordered — the provider's
-// dying fetch bleeding into a fresh coordinated read, the shape a play takes
-// when it lands milliseconds after a rising edge cancelled the sweep's
-// transfer of the same file — restarts instead of settling Failed.
+// The provider's dying fetch of a transfer a rising edge just cancelled can
+// bleed into a fresh coordinated read of the same file as a cancellation
+// nobody ordered; that is not a verdict on the file.
 - (void)testAnUnorderedCancellationRestartsTheRunInsteadOfFailingIt {
     [self makeCoordinatorWithValues:VibeAudioLoadingProductionConfigurationValues()];
     XCTestExpectation *ready = [self expectationWithDescription:@"ready after restart"];
@@ -1470,8 +1459,8 @@ static const NSTimeInterval kProbeGateTimeout = 5;
     XCTAssertTrue([_controller waitForStartedCount:1]);
     VibeTestMaterializationOperation *first = _controller.startedOperations.firstObject;
     XCTAssertEqual(first.cancellationCount, 0u);
-    // The fake's not-ready run reports NSUserCancelledError — exactly the
-    // materializer's one spelling — with no cancel ever issued.
+    // A not-ready run reports NSUserCancelledError, the materializer's one
+    // spelling, with no cancel issued.
     [first completeReady:NO];
     XCTAssertTrue([_controller waitForStartedCount:2]);
     XCTAssertEqual([_probeController callCountForName:@"inherited.wav"], 2u);
@@ -1479,8 +1468,6 @@ static const NSTimeInterval kProbeGateTimeout = 5;
     [self waitForExpectations:@[ready] timeout:2];
 }
 
-// The restart is bounded: a provider that keeps answering cancelled still
-// settles as Failed rather than looping.
 - (void)testInheritedCancellationRestartsAreBounded {
     [self makeCoordinatorWithValues:VibeAudioLoadingProductionConfigurationValues()];
     XCTestExpectation *failed = [self expectationWithDescription:@"failed after the bound"];
@@ -1502,8 +1489,6 @@ static const NSTimeInterval kProbeGateTimeout = 5;
     XCTAssertEqual([_probeController callCountForName:@"stuck.wav"], 3u);
 }
 
-// An ordinary provider failure is a verdict and settles first time — the
-// restart is for cancellations alone.
 - (void)testAnOrdinaryFailureDoesNotRestart {
     [self makeCoordinatorWithValues:VibeAudioLoadingProductionConfigurationValues()];
     NSError *providerError = [NSError errorWithDomain:@"com.test.provider"
@@ -1549,9 +1534,9 @@ static const NSTimeInterval kProbeGateTimeout = 5;
     XCTAssertEqual(_controller.totalCancellationCount, 0u);
 }
 
-// The C1 rule, derived: a playback claim's registration preempts running
-// metadata-only dataless work, new metadata requests yield while it is live,
-// and its settlement is the release — no external edge exists to miss.
+// The foreground hold derives from the claim table: registration preempts
+// running metadata-only dataless work, new metadata requests yield while it is
+// live, and its settlement is the release, so no external edge can be missed.
 - (void)testAForegroundClaimPreemptsAndSuspendsMetadataOnlyWork {
     [_probeController gateCall:1 forName:@"user-pick.wav"];
     [self makeCoordinatorWithValues:VibeAudioLoadingProductionConfigurationValues()];
@@ -1827,12 +1812,9 @@ static const NSTimeInterval kProbeGateTimeout = 5;
     [self waitForExpectations:@[ready] timeout:2];
 }
 
-// The successor never queues behind the sweep: while any foreground transfer
-// is live, dataless metadata requests yield at entry — spending no admission
-// grace and no budget — so a second prefetch parks into an empty pending
-// lane and starts the moment the first settles. This replaces the old
-// reserved-slot/eviction arbitration, which the derived rule made
-// unrepresentable: metadata can no longer sit pending beside a prefetch.
+// Dataless metadata requests yield at entry while a foreground transfer is
+// live, spending no grace or budget, so the second prefetch parks into an
+// empty pending lane and the successor never queues behind the sweep.
 - (void)testMetadataYieldsWhileAPrefetchRunsAndThePrefetchStartsNext {
     VibeAudioLoadingConfigurationValues values =
             VibeAudioLoadingProductionConfigurationValues();

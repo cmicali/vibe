@@ -2,14 +2,10 @@
 //  AppearanceSettingsViewController.h
 //  Vibe (iOS)
 //
-//  Settings > Appearance: everything the player DRAWS. The waveform's style and
-//  theme, the time display, and the file-info switch — the engine's own
-//  settings are macOS-only (see Vibe/Common/CLAUDE.md), so this is the whole of
-//  what there is to set here.
-//
-//  Five rows and no lists: each choice with more than two answers pushes its
-//  own picker, so this screen stays the summary you read the current settings
-//  off. Writing any of them ends on VibeNotifyDisplaySettingsChanged().
+//  Settings > Appearance: everything the player DRAWS — waveform style, the
+//  widget's waveform style, theme, time display, file info. Every row but the
+//  file-info switch pushes its own picker, so this screen is the summary.
+//  Every write ends on VibeNotifyDisplaySettingsChanged().
 //
 
 #import <UIKit/UIKit.h>

@@ -13,12 +13,9 @@
 #import "AppSettings+Mac.h"
 #import "DebugWireFormat.h"
 
-// The CLI half of the debug command channel: VibeDebugCommandClientMain, which
-// main.m runs for `Vibe --debug-cmd ...` before NSApplicationMain. The local
-// verbs (sleep, script, scan_bpm, scan_key, clear_disk_caches, set_analysis)
-// run in this process; everything else rides the file-and-notification transport to the
-// running app. See DebugUtil.h for the transport contract and DebugUtil.m for
-// the app side.
+// The CLI half of the debug command channel. The local verbs (sleep, script,
+// scan_bpm, scan_key, clear_disk_caches, set_analysis) run in this process;
+// everything else rides the transport DebugUtil.h describes.
 
 #pragma mark Client side
 
@@ -40,12 +37,10 @@ static void VibeClientPrintReply(NSString *json, BOOL inScript) {
     printf("%s\n", json.UTF8String);
 }
 
-// Runs one command — local verbs in this process, everything else over the
-// channel — printing its reply line and returning the exit code. Called both
-// by the top-level main and per script line (inScript switches the verbs
-// whose I/O contract can't compose with NDJSON-lines output: dump_screenshot
-// replies carry the PNG as base64 instead of streaming raw bytes, and
-// stdin-streaming scan_bpm - and nested script are rejected).
+// Prints one command's reply and returns its exit code. inScript switches the
+// verbs whose I/O cannot compose with NDJSON output: dump_screenshot carries
+// the PNG as base64 instead of raw bytes, and the stdin scan forms and nested
+// script are rejected.
 static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
     @autoreleasepool {
         // Client-side pause, for scripts: the app's main thread never sleeps.
@@ -65,14 +60,10 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
             fprintf(stderr, "vibe: scripts cannot nest\n");
             return 64;
         }
-        // scan_bpm runs IN THIS PROCESS — a pure decode+analyze with no app
-        // state — so the client skips the channel round-trip entirely: it
-        // works with no app running and never disturbs a running instance.
-        // `scan_bpm - < file` streams the audio via stdin: this process owns
-        // the app container and stages the bytes in its own tmp — a shell cp
-        // into ~/Library/Containers/<id>/ trips macOS 14+ app-data
-        // protection, while inherited fds cross the sandbox freely. The
-        // staged file carries no extension: CoreAudio identifies the format
+        // The stdin form stages the bytes in this process's own container
+        // tmp: a shell cp into ~/Library/Containers/<id>/ trips macOS 14+
+        // app-data protection, while inherited fds cross the sandbox freely.
+        // The staged file has no extension; CoreAudio identifies the format
         // by content (verified for WAV/FLAC/MP4/ADTS).
         BOOL isScanBPM = [args.firstObject isEqualToString:@"scan_bpm"];
         if (isScanBPM || [args.firstObject isEqualToString:@"scan_key"]) {
@@ -114,9 +105,9 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
             return reply[@"error"] != nil ? 2 : 0;
         }
         // In-process for the same container-ownership reason (a shell rm -rf
-        // into the container prompts). Only for when no app is running —
-        // deleting under a live app races its open caches (clear-caches.sh
-        // guards with pgrep and uses the channel's clear_caches instead).
+        // into the container prompts). Only with no app running: deleting
+        // under a live app races its open caches, which is why clear-caches.sh
+        // checks pgrep and uses the channel's clear_caches instead.
         if ([args.firstObject isEqualToString:@"clear_disk_caches"]) {
             NSString *caches = NSSearchPathForDirectoriesInDomains(
                     NSCachesDirectory, NSUserDomainMask, YES).firstObject;
@@ -131,12 +122,10 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
             VibeClientPrintReply(VibeJSONString(@{@"ok": @YES, @"cleared": cleared}), inScript);
             return 0;
         }
-        // The analysis toggles — a CLI-process prefs write that, like
-        // set_key_display above, a running app's reads see immediately:
-        // the next waveform decode picks the new values up, no
-        // relaunch needed. This exists to make the analyzers' cost
-        // measurable: each decode pass reads these, so A/B timing needs them
-        // settable without the UI.
+        // A prefs write from the CLI process. AppSettings reads these from
+        // defaults on every access, so a running app's next waveform decode
+        // sees them with no relaunch — A/B timing of the analyzers without
+        // the UI.
         if ([args.firstObject isEqualToString:@"set_analysis"]) {
             BOOL on = args.count == 3 && [args[2] isEqualToString:@"on"];
             BOOL off = args.count == 3 && [args[2] isEqualToString:@"off"];
@@ -159,9 +148,8 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
             return 0;
         }
         NSString *commandId = NSUUID.UUID.UUIDString;
-        // Args ride a JSON array, one element per argv entry — never joined
-        // and re-tokenized — so a quoted path with any whitespace (including
-        // consecutive spaces) reaches the handler byte-exact.
+        // One array element per argv entry, never joined and re-tokenized, so
+        // a path with any whitespace reaches the handler byte-exact.
         NSDictionary *payload = @{
             @"id": commandId,
             @"args": args,
@@ -178,11 +166,9 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
 
         NSString *responsePath = VibeDebugResponsePath(commandId);
         NSFileManager *fileManager = NSFileManager.defaultManager;
-        // Per-verb wait from the same table the app dispatches with — slow
-        // verbs (file_cache's full decode, clear_caches' blocking clear)
-        // declare their own window there; everything else gets 5s, or
-        // VIBE_DEBUG_TIMEOUT seconds when the caller sets it: a script that
-        // drives the failure fixtures (the bit-perfect verifier) knows the
+        // Slow verbs declare their own wait in the table the app dispatches
+        // with. Everything else gets 5s, or VIBE_DEBUG_TIMEOUT: a script
+        // driving the failure fixtures (the bit-perfect verifier) knows the
         // app's main thread waits out a dead device for longer than that.
         NSTimeInterval timeout = [VibeCommandSpecForVerb(args.firstObject)[@"clientTimeout"] doubleValue];
         if (timeout <= 0) {
@@ -191,12 +177,9 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
         if (timeout <= 0) {
             timeout = 5;
         }
-        // Check first, then back off — a fixed pre-sleep charged EVERY command
-        // the full interval even when the app had already answered, which for a
-        // 50ms interval was most of the round trip and the whole reason driving
-        // the app through this channel felt like a hardware limit. Starting at
-        // 0.5ms and doubling to a 20ms ceiling keeps a fast reply fast, an idle
-        // wait cheap, and a slow verb's polling as sparse as it ever was.
+        // Check before sleeping, backing off from 0.5ms to a 20ms ceiling: a
+        // fixed pre-sleep would charge every command the full interval, most
+        // of a fast round trip, while a slow verb's polling stays sparse.
         useconds_t backoff = 500;
         NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:timeout];
         while (YES) {
@@ -212,22 +195,18 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
                                                                       options:0
                                                                         error:nil];
                 BOOL failed = ![reply isKindOfClass:NSDictionary.class] || reply[@"error"] != nil;
-                // dump_screenshot payload delivery. Only this process may
-                // read the PNG — it lives in the app container, and another
-                // process reading it trips macOS 14+ app-data protection; the
-                // inherited stdout fd crosses the sandbox freely.
-                // Top level, `dump_screenshot -`: raw PNG bytes to stdout
-                // (JSON reply moves to stderr); the caller opens its own
-                // redirect target. In a script: the reply line carries the
-                // PNG base64-encoded (raw bytes can't interleave with
-                // one-JSON-object-per-line output) plus any label argument —
-                // run-script.sh decodes them to numbered files.
+                // Only this process may read the PNG: it lives in the app
+                // container, and another process reading it trips macOS 14+
+                // app-data protection, while the inherited stdout fd crosses
+                // the sandbox freely. `dump_screenshot -` writes raw PNG bytes
+                // to stdout and the JSON reply to stderr. In a script the reply
+                // line carries the PNG as base64 plus any label, which
+                // run-script.sh decodes to numbered files.
                 if (!failed && [args.firstObject isEqualToString:@"dump_screenshot"]
                             && (inScript || [args containsObject:@"-"])) {
                     NSString *pngPath = [reply[@"path"] isKindOfClass:NSString.class] ? reply[@"path"] : nil;
                     NSData *png = pngPath ? [NSData dataWithContentsOfFile:pngPath] : nil;
-                    // Consumed here, so delete like the response file — the
-                    // per-command PNGs would otherwise pile up all run long.
+                    // Consumed here, or the per-command PNGs pile up all run.
                     if (pngPath) {
                         [fileManager removeItemAtPath:pngPath error:nil];
                     }

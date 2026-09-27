@@ -2,47 +2,30 @@
 //  PlayerDisplaySettings.h
 //  Vibe (iOS)
 //
-//  What the now-playing card draws rather than what it plays: the two
-//  preferences the settings screen and the card both read, and the one
-//  notification a write to either posts.
-//
-//  These are iOS-owned NSUserDefaults keys, beside FolderSession's and the
-//  waveform zoom's, rather than AppSettings' equivalents: on macOS those are
-//  AppTheme fields now, and iOS has no theme system. The discriminator is that
-//  COLLISION, not platform — a key whose macOS counterpart is an AppTheme
-//  field cannot be an AppSettings property without lying. The waveform styles,
-//  which have no such counterpart, stay in AppSettings (iOS-compiled).
+//  iOS-owned keys, not AppSettings: on macOS these are AppTheme fields, and a
+//  key whose mac counterpart is a theme field cannot be an AppSettings property
+//  without lying. The waveform style has no such counterpart and stays there.
 //
 
 #import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Posted on main after the settings screen writes any display setting,
-// including the waveform style. The card is built once and never torn down, so
-// it is the receiver: a setting changed on the Playlist tab has to reach a
-// screen sitting minimized behind it. The time label's own tap does not post —
-// it repaints the pages itself.
+// Posted on main after a settings screen writes any display setting, the
+// waveform style included; the keep-alive card is the receiver. The time
+// label's own tap repaints the pages itself and does not post.
 extern NSNotificationName const VibeDisplaySettingsDidChangeNotification;
 
-// Posts it. The settings screens are several — one per group, plus a picker
-// per choice — and every one of them that writes a display setting ends on
-// this rather than composing the post itself, so a new screen cannot post a
-// near-miss name to a card that would then never hear it.
+// Every display-setting writer ends on this, never a hand-composed post.
 void VibeNotifyDisplaySettingsChanged(void);
 
-// The right-hand time label's mode, and the one place the two spellings live.
-// NO — the default, and the macOS default — shows the track's total duration;
-// YES shows the minus-prefixed remaining time ("-1:50"). Tapping the label
-// toggles it, as it does on the mac. Every render path goes through
-// VibeRightTimeText so a scrub, a tick and a page at rest cannot disagree.
+// The right time label: NO (default) shows the duration, YES the
+// minus-prefixed remaining time. Every render path goes through
+// VibeRightTimeText.
 BOOL VibeShowsRemainingTime(void);
 void VibeSetShowsRemainingTime(BOOL remaining);
 
-// Whether the card's header draws the file-format readout — codec, bitrate,
-// sample rate — under the artist. The mac's Settings > Appearance > Show file
-// info, and its default: on. There is no BPM/key line to go with it here,
-// since analysis is macOS-only.
+// The codec line under the artist; on by default, as on the mac.
 BOOL VibeShowsFileInfo(void);
 void VibeSetShowsFileInfo(BOOL show);
 

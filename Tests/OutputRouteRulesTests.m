@@ -26,8 +26,8 @@ static const VibeOutputRouteKind kAllKinds[] = {
 
 #pragma mark - The fold onto the recovery kind
 
-// The fold IS the guarantee: an external kind folding to BuiltIn would fire the
-// unplugged-headphones pause when AirPods connect.
+// An external kind folding to BuiltIn would fire the unplugged-headphones
+// pause when AirPods connect.
 - (void)testExternalKindsFoldToExternal {
     XCTAssertEqual(VibeAudioSessionOutputRouteKindForRouteKind(VibeOutputRouteKindWired),
                    VibeAudioSessionOutputRouteExternal);
@@ -53,8 +53,6 @@ static const VibeOutputRouteKind kAllKinds[] = {
                    VibeAudioSessionOutputRouteNone);
 }
 
-// The transition the fold has to keep producing, spelled out end to end: an
-// external route falling back to the built-in speaker is headphone loss.
 - (void)testFoldedHeadphoneLossStillPauses {
     XCTAssertEqual(VibeAudioSessionConfigurationActionForRoutes(
             VibeAudioSessionOutputRouteKindForRouteKind(VibeOutputRouteKindWired),
@@ -86,7 +84,6 @@ static const VibeOutputRouteKind kAllKinds[] = {
     XCTAssertEqualObjects(VibeOutputRouteSymbolName(VibeOutputRouteKindBuiltInReceiver, nil), airPlay);
 }
 
-// Once the audio is somewhere else, the glyph describes that somewhere.
 - (void)testOffDeviceRoutesEachDrawTheirOwn {
     NSArray<NSString *> *symbols = @[
         VibeOutputRouteSymbolName(VibeOutputRouteKindWired, nil),
@@ -124,7 +121,6 @@ static NSString *BluetoothSymbol(NSString *name) {
     XCTAssertEqualObjects(BluetoothSymbol(@"AirPods"), @"airpods");
 }
 
-// Recognising nothing is today's glyph, never a worse one.
 - (void)testRenamedOrUnknownDevicesKeepTheGenericGlyph {
     NSString *generic = BluetoothSymbol(nil);
     XCTAssertEqualObjects(generic, @"hifispeaker.fill");
@@ -134,8 +130,7 @@ static NSString *BluetoothSymbol(NSString *name) {
     XCTAssertEqualObjects(BluetoothSymbol(@"airpods"), generic);
 }
 
-// Only the Bluetooth row reads the name: every other kind already knows what
-// it is, and USB-C Beats are still wired headphones.
+// Every other kind already knows what it is; USB-C Beats are still wired.
 - (void)testTheNameOnlyChangesTheBluetoothRow {
     for (size_t i = 0; i < sizeof(kAllKinds) / sizeof(kAllKinds[0]); i++) {
         if (kAllKinds[i] == VibeOutputRouteKindBluetooth) {

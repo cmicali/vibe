@@ -2,11 +2,8 @@
 //  AudioPlayer+State.m
 //  Vibe
 //
-//  The public surface is the (State) category in AudioPlayer.h; the state it
-//  reads, and the lock that guards it, are AudioPlayerInternal.h's. Every
-//  getter takes the lock, copies scalars, and computes off it; the position
-//  reads the current voice's consumed frames through the bus's short table
-//  lock and atomic snapshot, without waiting on the player queue.
+//  Every getter copies scalars under _stateLock and computes off it; the
+//  position adds the voice's snapshot, never a player-queue wait.
 //
 
 #import "AudioPlayerInternal.h"
@@ -72,11 +69,9 @@
 }
 #endif
 
-// Playhead in file seconds: where the voice began plus what it has rendered
-// since, less the frames that belonged to a file it has since been promoted
-// out of. Bus frames and file frames agree in seconds whatever the bus's
-// rate, and under the pitch fader the bus is pulled faster, so this advances
-// with the audio, as it should.
+// Where the voice began plus what it has rendered since, less the frames of a
+// file it was promoted out of. Bus and file frames agree in seconds at any bus
+// rate, and under the pitch fader this advances with the audio.
 - (NSTimeInterval)position {
     os_unfair_lock_lock(&_stateLock);
     VibePlayerState state = _state;
@@ -100,8 +95,6 @@
     return clampRange(startSeconds + rendered, 0, duration);
 }
 
-// The queued-successor mirror, written under the lock by the prefetch code so
-// this can answer without touching the queue at all.
 - (BOOL)isGaplessArmed {
     os_unfair_lock_lock(&_stateLock);
     BOOL armed = _gaplessArmedForUI;

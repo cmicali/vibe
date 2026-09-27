@@ -2,11 +2,10 @@
 //  AudioFixtures.h
 //  VibeTests, VibeAudioTests
 //
-//  The two fixture writers every test file shares. VibeWriteWAV lays the
-//  bytes down itself, so a fixture read back through AudioFileHandle is not
-//  the handle's own work; VibeWriteFixture goes through the handle's writing
-//  side for what a bare RIFF cannot carry — a channel layout, or a codec.
-//  Header-only so both test targets pick it up by import.
+//  Fixture writers shared by both test targets. VibeWriteWAV writes the bytes
+//  itself, so reading a fixture back through AudioFileHandle never makes the
+//  handle its own oracle; VibeWriteFixture uses the handle's writer for what a
+//  bare RIFF cannot carry — a channel layout, or a codec.
 //
 
 #import <AVFoundation/AVFoundation.h>
@@ -57,7 +56,7 @@ static inline NSURL *VibeWriteFixture(NSURL *url, AVAudioPCMBuffer *buffer, NSEr
     return url;
 }
 
-// Append complete channel frames without sharing any production DSP/oracle logic.
+// Appends whole interleaved frames; shares no production DSP, so a capture stays independent.
 static inline void VibeAppendPCM(NSMutableData *capture, AVAudioPCMBuffer *buffer) {
     NSUInteger channels = buffer.format.channelCount;
     NSUInteger start = capture.length;

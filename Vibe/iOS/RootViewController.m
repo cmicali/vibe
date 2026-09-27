@@ -2,8 +2,6 @@
 //  RootViewController.m
 //  Vibe (iOS)
 //
-//  See RootViewController.h.
-//
 
 #import "RootViewController.h"
 
@@ -20,24 +18,17 @@
 #import "SearchViewController.h"
 #import "VibeStrings.h"
 
-// The card's corner radius while it is up, and the amount the screen behind it
-// scales back — the Apple Music proportions.
+// Apple Music's proportions.
 static const CGFloat kCardCornerRadius = 14;
 static const CGFloat kBackdropScale = 0.92;
 static const CGFloat kBackdropCornerRadius = 38;
 
-// What commits a downward drag: a quarter of the screen, or a flick. Either
-// alone is enough — a slow long drag and a fast short one both read as "put it
-// away".
+// Either alone commits a downward drag.
 static const CGFloat kDismissTravelFraction = 0.25;
 static const CGFloat kDismissFlickVelocity = 900;
 
-// What the Files browser's own bar needs to clear the floating capsule below
-// it, and it is a sum of two measured things: UIKit's own 8pt gap between the
-// mini strip and the tab bar — the spacing two floating capsules are meant to
-// have — plus the ~12.7pt the browser draws PAST its own safe-area bottom.
-// Leave the overhang out and the two capsules touch rather than clear each
-// other. See applyFilesBottomInset.
+// UIKit's 8pt gap between floating capsules plus the ~12.7pt the browser's bar
+// draws past its own safe-area bottom. See applyFilesBottomInset.
 static const CGFloat kFilesBarClearance = 21;
 
 static NSString *const kTabPlaylist = @"playlist";
@@ -59,12 +50,9 @@ static NSString *const kTabSearch = @"search";
     MiniPlayerView       *_miniPlayer;
     PlayerViewController *_player;
     BOOL                 _expanded;
-    // Whether the accessory is installed. Kept rather than read back off the
-    // tab bar controller, because it is also nil'd while the card is up.
+    // Whether the accessory is installed.
     BOOL                 _miniWanted;
-    // The two ways the card can be somewhere between up and away, which is the
-    // only time the tabs behind it are worth rendering — see
-    // updateBackdropVisibility.
+    // The card between up and away; see updateBackdropVisibility.
     BOOL                 _cardAnimating;
     BOOL                 _interactiveDrag;
     UIViewPropertyAnimator *_cardAnimator;
@@ -105,8 +93,7 @@ static NSString *const kTabSearch = @"search";
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    // The card's rounded corners cut to this, so it has to be the colour the
-    // corners should read as.
+    // Shows through the card's rounded corners.
     self.view.backgroundColor = UIColor.blackColor;
 
     [self buildTabs];
@@ -133,14 +120,8 @@ static NSString *const kTabSearch = @"search";
     }
 }
 
-// The iOS 26 tab shape, and Apple Music's: the tabs in a capsule and search as
-// a circle beside it rather than one more tab inside it. UISearchTab is what
-// draws that circle, and automaticallyActivatesSearch is what makes tapping it
-// collapse the bar behind a search field and restore the previous tab on
-// cancel — the whole behavior, from UIKit, with no bar of our own.
-//
-// Each tab builds its view controller lazily through a provider, so a tab
-// never visited costs nothing; the Files browser in particular is not cheap.
+// Lazy providers, so a tab never visited costs nothing; the Files browser is
+// not cheap.
 - (void)buildTabs {
     __weak RootViewController *weakSelf = self;
 
@@ -155,8 +136,7 @@ static NSString *const kTabSearch = @"search";
         LibraryViewController *library =
                 [[LibraryViewController alloc] initWithPlayback:root->_playback];
         root->_library = library;
-        // The empty state's Open. The library knows nothing about tabs; this
-        // is the one place that turns "find something to play" into one.
+        // The empty state's Open; the library knows nothing about tabs.
         library.openFilesHandler = ^{
             [weakSelf setSelectedTabIdentifier:kTabFiles];
         };
@@ -164,8 +144,6 @@ static NSString *const kTabSearch = @"search";
         return [[UINavigationController alloc] initWithRootViewController:library];
     }];
 
-    // Between Playlist and Files, which is the order the three read in: what is
-    // playing, what has been kept, and everywhere else.
     UITab *favorites = [[UITab alloc] initWithTitle:STR_TAB_FAVORITES
                                               image:[UIImage systemImageNamed:@"star"]
                                          identifier:kTabFavorites
@@ -180,8 +158,7 @@ static NSString *const kTabSearch = @"search";
         return [[UINavigationController alloc] initWithRootViewController:starred];
     }];
 
-    // No navigation controller: the browser brings its own bar and its own
-    // hierarchy, and wrapping it in a second one stacks two.
+    // No navigation controller: the browser brings its own bar.
     UITab *files = [[UITab alloc] initWithTitle:STR_TAB_FILES
                                           image:[UIImage systemImageNamed:@"folder"]
                                      identifier:kTabFiles
@@ -241,9 +218,8 @@ static NSString *const kTabSearch = @"search";
     _player.view.layer.masksToBounds = YES;
     [self.view addSubview:_player.view];
     [_player didMoveToParentViewController:self];
-    // Built minimized, and never appears until it is expanded — which is what
-    // the manual appearance forwarding below is for: its viewWillAppear: must
-    // not fire just because it is in the hierarchy.
+    // Built minimized; the manual appearance forwarding below keeps its
+    // viewWillAppear: from firing just because it is in the hierarchy.
     _player.view.transform = [self minimizedCardTransform];
     _player.view.hidden = YES;
     _player.view.accessibilityViewIsModal = NO;
@@ -253,8 +229,7 @@ static NSString *const kTabSearch = @"search";
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     if (!_expanded) {
-        // The offset is the view's own height, which a rotation or an iPad
-        // resize changes under a minimized card.
+        // The offset is the view's height, which a rotation or resize moves.
         _player.view.transform = [self minimizedCardTransform];
     }
 }
@@ -265,20 +240,14 @@ static NSString *const kTabSearch = @"search";
 
 #pragma mark - Appearance forwarding
 
-// Both children are in the hierarchy from viewDidLoad, but only one of them is
-// ever on screen at a time, so this controller says when each appears rather
-// than letting UIKit forward to both. Automatic forwarding would tell the card
-// it had appeared while it sits minimized and hidden, and would then double
-// the begin/end pairs expandPlayerAnimated: and minimizePlayerAnimated: send.
-//
-// TRAP: the switch is per-parent, not per-child — turning it off for the card
-// turns it off for the tabs too, which is why they are forwarded by hand here.
+// Automatic forwarding would tell the minimized card it appeared and double
+// the pairs expand and minimize send. TRAP: the switch is per-parent — off for
+// the card is off for the tabs, so both are forwarded by hand.
 - (BOOL)shouldAutomaticallyForwardAppearanceMethods {
     return NO;
 }
 
-// The card only while it is up; expand and minimize own its transitions
-// otherwise.
+// Expand and minimize own the card's transitions while it is down.
 - (NSArray<UIViewController *> *)appearingChildren {
     return _expanded ? @[_tabs, _player] : @[_tabs];
 }
@@ -295,11 +264,9 @@ static NSString *const kTabSearch = @"search";
     [super viewWillAppear:animated];
     _rootPresentationVisible = YES;
     [self syncTabSurfaces];
-    // Interactive parent transitions can reverse before their did-callback.
-    // Close either outstanding pair before beginning the new direction, then
-    // snapshot the exact children this parent begin belongs to. `_expanded`
-    // may change before viewDidAppear:, but the matching end must not change
-    // with it.
+    // An interactive transition can reverse before its did-callback, so close
+    // any open pair, then snapshot the children: `_expanded` may change before
+    // the matching end.
     [self finishParentAppearanceTransition];
     [self finishPlayerAppearanceTransition];
     _parentAppearanceChildren = [[self appearingChildren] copy];
@@ -343,9 +310,8 @@ static NSString *const kTabSearch = @"search";
     return _sceneActive;
 }
 
-// Each tab owns its own navigation/view lifecycle. The root contributes what
-// no descendant can know: whether this scene is active and whether the custom
-// card leaves the selected tab materially exposed.
+// What no descendant can know: scene activity and whether the card leaves the
+// selected tab exposed.
 - (void)syncTabSurfaces {
     BOOL playlistSelected = [_tabs.selectedTab.identifier isEqualToString:kTabPlaylist];
     _library.equalizerSurfaceVisible = _sceneActive
@@ -359,8 +325,7 @@ static NSString *const kTabSearch = @"search";
 
 #pragma mark - The mini player
 
-// The strip stands in for the card whenever there is a track to describe, and
-// disappears with the playlist. It is never up while the card is.
+// Never up while the card is.
 - (void)refreshMiniPlayer {
     BOOL wanted = VibeMiniPlayerVisible(_playback.screenState) && !_expanded;
     if (wanted) {
@@ -377,38 +342,21 @@ static NSString *const kTabSearch = @"search";
     [_tabs setBottomAccessory:accessory animated:!UIAccessibilityIsReduceMotionEnabled()];
 }
 
-// The Files browser draws its OWN bottom bar (Recents / Shared / Browse) as a
-// floating capsule placed against its safe area — and UIKit's safe area ends
-// exactly at the top of whichever of our floating capsules is lowest: the tab
-// bar with the strip down, the strip itself with it up. So the browser's
-// capsule lands flush on ours, overlapping by the few points it draws past its
-// own safe-area bottom, and the two read as one collided pill. A scroll view
-// never shows this — it just takes extra content inset — which is why this is
-// the only tab that needs telling.
+// The browser draws its own bottom bar as a floating capsule against its safe
+// area, which ends at the top of our lowest capsule, so the two collide.
 //
-// TRAP: do NOT add the accessory's height here. UIKit's tab-child safe area
-// already accounts for the strip, so an earlier version that measured the live
-// strip and added it lifted the browser's bar a whole strip height clear of the
-// mini player, leaving a band of dead space. The clearance is therefore
-// constant — it does not depend on whether the strip is up, because UIKit has
-// already moved the safe area for it, and one value lands the same 8pt gap in
-// both states.
+// TRAP: do NOT add the accessory's height. The tab-child safe area already
+// spans the strip; adding it leaves a strip-high dead band. One constant lands
+// the same gap with the strip up or down.
 //
-// TRAP: the browser's bar overhangs its safe area, so a clearance of only the
-// 8pt system gap still leaves the capsules touching. Measured on iOS 26.5,
-// window 874: with the strip down UIKit's inset is 83 and an added 12 put the
-// content bottom at 779, where the bar's own bottom edge drew at 791.67 —
-// 12.67pt past it, and flush against a tab capsule whose top is 791.
-//
-// Both halves are screenshot-measurable, which is how the numbers above were
-// got: scan a screenshot column for runs of non-background rows. The tab
-// capsule (791–853) and the accessory container (735–783) come from
-// dump_view_tree and anchor the scale; a run that spans the browser's bar AND
-// the capsule below it without a break is the bug.
+// TRAP: the browser's bar overhangs its safe area by ~12.7pt (iOS 26.5), so
+// the 8pt gap alone leaves the capsules touching. Re-measure after an iOS
+// update: dump_view_tree anchors, and a screenshot column scan must show a
+// break between the browser's bar and the capsule below.
 - (void)applyFilesBottomInset {
     UIViewController *files = _filesController;
     if (!files) {
-        return;   // the lazy provider has not been asked for Files yet
+        return;   // Files not built yet
     }
     UIEdgeInsets insets = files.additionalSafeAreaInsets;
     if (fabs(insets.bottom - kFilesBarClearance) < 0.5) {
@@ -428,9 +376,8 @@ static NSString *const kTabSearch = @"search";
     if (!_rootPresentationVisible) {
         return;
     }
-    // A card intent can land between this container's will/did callbacks. End
-    // that parent-owned pair before starting an opposite transition on the
-    // same player child; UIKit appearance transitions cannot be nested.
+    // A card intent can land between this container's will/did; appearance
+    // transitions cannot nest, so end the parent's pair first.
     [self finishParentAppearanceTransition];
     [_player beginAppearanceTransition:appearing animated:animated];
     _playerAppearanceTransitionActive = YES;
@@ -455,8 +402,7 @@ static NSString *const kTabSearch = @"search";
 - (uint64_t)beginAccessibilityTransitionToExpanded:(BOOL)expanded {
     uint64_t generation = ++_accessibilityPresentationGeneration;
     if (expanded) {
-        // This is a custom container transition rather than a presentation, so
-        // UIKit cannot infer which sibling is the modal accessibility surface.
+        // Not a presentation, so UIKit cannot infer the modal surface.
         _player.view.accessibilityViewIsModal = YES;
         _tabs.view.accessibilityElementsHidden = YES;
     }
@@ -528,9 +474,7 @@ static NSString *const kTabSearch = @"search";
     uint64_t accessibilityGeneration = [self beginAccessibilityTransitionToExpanded:NO];
     [self beginPlayerAppearanceTransition:NO animated:shouldAnimate];
     _player.presented = NO;
-    // Before the animation, not in its completion: the strip has to be on its
-    // way in while the card is still travelling down over it, or it pops in a
-    // beat after the card has already landed.
+    // Before the animation, or the strip pops in after the card lands.
     [self refreshMiniPlayer];
     [self animateCardAnimated:shouldAnimate changes:^{
         self->_player.view.transform = [self minimizedCardTransform];
@@ -543,14 +487,11 @@ static NSString *const kTabSearch = @"search";
     }];
 }
 
-// TRAP: the card moves by TRANSFORM and never by frame. Its pages carry
-// WaveformScrubberViews, and a scrubber tears down its baked envelope bitmap
-// and re-bakes it (0.6s later) on any bounds change — over a layer tree twice
-// the view's width. Animating the card's frame would pay that on every
-// single expand, on every page.
+// TRAP: the card moves by TRANSFORM, never by frame: a WaveformScrubberView
+// tears down and re-bakes its envelope bitmap on any bounds change, which a
+// frame animation would pay on every expand, on every page.
 //
-// This is also the one place that knows the card is in motion, so the backdrop's
-// visibility is bracketed here rather than at each caller.
+// The one place that knows the card is moving, so it brackets the backdrop.
 - (void)animateCardAnimated:(BOOL)animated
                     changes:(void (^)(void))changes
                  completion:(void (^)(void))completion {
@@ -580,9 +521,8 @@ static NSString *const kTabSearch = @"search";
     [animator startAnimation];
 }
 
-// A second intent can arrive while the first spring is still on screen. Freeze
-// at the presentation transform, cancel the stale completion, and balance the
-// appearance pair before beginning the opposite transition.
+// A second intent during a spring: freeze at the presentation transform, drop
+// the stale completion, and balance the appearance pair.
 - (void)interruptCardAnimationPreservingVisualState {
     if (!_cardAnimator) {
         return;
@@ -610,21 +550,11 @@ static NSString *const kTabSearch = @"search";
     [_player endAppearanceTransition];
 }
 
-// A card that has fully ARRIVED covers every pixel the tabs could draw, so they
-// are hidden for as long as it does. Left visible they stay a full-screen
-// subtree carrying a scale transform and a 38pt corner mask, which the render
-// server composites on every frame of every rotation — measured on device as
-// offscreen passes inside 6 of 8 rotation hitches.
-//
-// The claim that nothing shows through rests on two constants together: the
-// card's own corners are cut to kCardCornerRadius (14pt), revealing this
-// controller's black background, and the tabs are inset well inside that by
-// kBackdropScale (0.92, so 16pt horizontally on an iPhone). Raise the scale to
-// 1 and the corner wedges would show the tabs instead.
-//
-// Hidden only when the card is at rest: both its animation and the interactive
-// drag reveal what is behind it, and either can be in flight while `_expanded`
-// is already YES.
+// A card at rest covers the tabs, so they are hidden: visible, their scaled,
+// corner-masked subtree costs offscreen passes on every rotation frame. That
+// nothing shows through rests on kBackdropScale insetting the tabs well
+// inside the card's cut corners; at a scale of 1 the corners would show them.
+// The animation and the drag both reveal them while `_expanded` is YES.
 - (void)updateBackdropVisibility {
     BOOL hidden = _expanded && !_cardAnimating && !_interactiveDrag;
     if (_tabs.view.hidden != hidden) {
@@ -633,9 +563,7 @@ static NSString *const kTabSearch = @"search";
     [self syncTabSurfaces];
 }
 
-// 0 is the card fully up (the screen behind it scaled back), 1 is the card
-// fully away. Interpolated rather than switched, so a drag moves the backdrop
-// with the finger instead of snapping at the commit.
+// 0 is the card fully up, 1 fully away.
 - (void)applyBackdropProgress:(CGFloat)progress {
     CGFloat t = MAX(0, MIN(1, progress));
     CGFloat scale = kBackdropScale + (1 - kBackdropScale) * t;
@@ -646,9 +574,8 @@ static NSString *const kTabSearch = @"search";
 
 #pragma mark - The interactive minimize
 
-// The card reports the drag in points; this is where it becomes geometry. The
-// card keeps `presented` for the whole gesture — it is still on screen, and a
-// cancelled drag must not have stopped its display link on the way.
+// `presented` holds for the whole gesture, so a cancelled drag has not stopped
+// the card's display link.
 - (void)playerViewController:(PlayerViewController *)controller
        didPanWithTranslation:(CGFloat)translation
                     velocity:(CGFloat)velocity
@@ -660,20 +587,16 @@ static NSString *const kTabSearch = @"search";
     switch (state) {
         case UIGestureRecognizerStateBegan:
             [self interruptCardAnimationPreservingVisualState];
-            // Fall through: the first drag frame uses the same geometry as the
-            // rest of the gesture.
+            // Fall through.
         case UIGestureRecognizerStateChanged:
-            // The finger is about to move the card off what it covers, so the
-            // tabs have to be back before the first frame of travel.
+            // The tabs must be back before the first frame of travel.
             _interactiveDrag = YES;
             [self updateBackdropVisibility];
             _player.view.transform = CGAffineTransformMakeTranslation(0, translation);
             [self applyBackdropProgress:translation / height];
             break;
         case UIGestureRecognizerStateEnded:
-            // Cleared BEFORE the settle, so the animation that follows owns the
-            // visibility through _cardAnimating and its completion can hide the
-            // backdrop again.
+            // Before the settle, whose animation then owns the backdrop.
             _interactiveDrag = NO;
             if (translation > height * kDismissTravelFraction || velocity > kDismissFlickVelocity) {
                 [self minimizePlayerAnimated:YES];
@@ -697,9 +620,7 @@ static NSString *const kTabSearch = @"search";
         self->_player.view.transform = CGAffineTransformIdentity;
         [self applyBackdropProgress:0];
     } completion:^{
-        // A drag can interrupt the original expand animation before its
-        // accessibility completion moves focus off the now-hidden mini player.
-        // Landing back at the expanded card owns that same completion edge.
+        // A drag can interrupt the expand before its accessibility completion.
         [self completeAccessibilityTransitionToExpanded:YES
                                               generation:self->_accessibilityPresentationGeneration];
     }];
@@ -712,8 +633,7 @@ static NSString *const kTabSearch = @"search";
     [self syncTabSurfaces];
 }
 
-// UISearchTab's identifier is UIKit's, not ours, so it is matched by kind —
-// the two we mint are matched by the identifiers we gave them.
+// UISearchTab's identifier is UIKit's, so it is matched by kind.
 - (NSString *)selectedTabIdentifier {
     UITab *selected = _tabs.selectedTab;
     if ([selected isKindOfClass:UISearchTab.class]) {
@@ -760,25 +680,15 @@ static NSString *const kTabSearch = @"search";
     [self refreshMiniPlayer];
 }
 
-// An open is a deliberate act with a result worth showing, so it presents the
-// card — the one place that happens by itself. A relaunch restore sends no
-// such event and stays minimized: nothing was asked for.
-//
-// It brings the Playlist tab forward too, so minimizing the card lands on what
-// was just opened rather than back in the Files browser or the Favorites list.
-// Search is the one exception: UISearchTab owns the selection while its field
-// is up — it restores the previous tab on cancel — and its results are where
-// the next pick comes from anyway.
+// The only place the card presents by itself. The Playlist tab comes forward
+// so minimizing lands on what was opened — except over Search, whose tab owns
+// the selection while its field is up.
 - (void)playbackDidOpenNewFolder:(PlaybackController *)playback {
     [self bringPlaylistTabForward];
     [self expandPlayerAnimated:YES];
 }
 
-// A pick that found no audio still has to say so, and the only thing that says
-// it is the Playlist tab's empty state — so the answer has to be brought to
-// wherever the pick was made. Without this a favorite whose folder has emptied
-// since it was starred, or an empty folder opened from Files, produces nothing
-// visible at all. No card: there is nothing to show on it.
+// Only the Playlist tab's empty state says a pick found no audio.
 - (void)playbackDidOpenEmptyFolder:(PlaybackController *)playback {
     [self bringPlaylistTabForward];
 }

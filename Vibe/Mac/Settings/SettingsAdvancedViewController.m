@@ -21,8 +21,6 @@
 
 static const CGFloat kAdvancedPopUpWidth = 200;
 
-// The rate ladder lives in AppSettings+Mac.h (kVibeUIUpdateHzCapPresets), like
-// the Playback pane's, because the getter snaps a persisted value to it.
 
 @implementation SettingsAdvancedViewController {
     NSPopUpButton *_refreshRatePopUp;
@@ -32,25 +30,16 @@ static const CGFloat kAdvancedPopUpWidth = 200;
     NSTextField *_cacheSizeValue;
     NSButton *_clearCacheButton;
     NSButton *_debugInfoButton;
-    // Drops a stale usage reply: each refresh bumps it, and only the newest
-    // request may write the label — a clear right after a refresh would
-    // otherwise race the older, larger answer over the fresh zero.
+    // Drops an older, larger reply landing after Clear Cache.
     NSUInteger _usageRequestGeneration;
-    // The Audio group: one readout per stage of the render chain, keyed by
-    // the stage name the player reports, refreshed once a second while the
-    // pane is on screen and the group is shown. The readouts are single-line,
-    // so a refresh costs the label's own layout and never a pane solve
-    // (Mac/Settings/CLAUDE.md).
+    // Keyed by the player's stage name.
     NSDictionary<NSString *, NSTextField *> *_audioPathValues;
     dispatch_source_t _audioPathTimer;
-    // The snapshot is a player-queue round trip taken off main; only the
-    // newest request may write the readouts, and one is in flight at a time.
     NSUInteger _audioPathGeneration;
     BOOL _audioPathInFlight;
-    // The group is a debug readout: a Debug build shows it always, a Release
-    // build hides it until the Version row is clicked kVibeAudioPathRevealClicks
-    // times in quick succession (SettingsRules.h), for the session. Hidden, it
-    // takes no snapshot and runs no timer.
+    // Release builds hide the Audio group until kVibeAudioPathRevealClicks quick
+    // clicks on the Version row, for the session. Hidden, it takes no snapshot
+    // and runs no timer.
     SettingsSectionView *_audioSection;
     BOOL _audioPathShown;
     NSUInteger _versionClicks;
@@ -141,9 +130,8 @@ static const CGFloat kAdvancedPopUpWidth = 200;
 
 #pragma mark - The audio path
 
-// A readout that stays one line whatever the stage reports, so a change
-// costs the label's own layout and never the pane's: the title wins the
-// width and the value truncates at its tail.
+// One line whatever the stage reports, so a change costs the label's own
+// layout and never a pane solve.
 - (NSTextField *)audioPathValueLabel {
     NSTextField *label = [self valueLabel];
     label.alignment = NSTextAlignmentRight;
@@ -165,8 +153,6 @@ static const CGFloat kAdvancedPopUpWidth = 200;
     [self stopAudioPathTimer];
 }
 
-// Seven quick clicks on the Version row reveal the group in a Release build,
-// the count SettingsRules.h's; a Debug build shows it from the start.
 - (void)versionRowClicked:(NSClickGestureRecognizer *)recognizer {
     NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
     _versionClicks = VibeAudioPathRevealClickCount(_versionClicks, now - _lastVersionClick);
@@ -220,12 +206,8 @@ static NSString *VibeAudioPathDepth(NSUInteger bits, BOOL isFloat) {
     return [NSString stringWithFormat:STR_SETTINGS_AUDIO_PATH_BITS, [Formatters.sharedInstance countString:bits]];
 }
 
-// One row, the same shape for every stage: name · rate · depth · channels ·
-// status · latency, each column present only where the stage has one, so the
-// rows read across. The latency is the stage's own, and only a stage in the
-// render has one. A stage the signal bypasses — the pitch at zero, the
-// effects disconnected, the meter not wanted — is a bare Off: nothing passes
-// through it, so it has no format or latency to show.
+// name · rate · depth · channels · status · latency for every stage, each
+// column only where the stage has one, so the rows read across.
 static NSString *VibeAudioPathRow(NSString *name, NSString *rate, NSString *depth, NSString *channels, NSString *status,
                                   NSNumber *latencySeconds) {
     NSMutableArray<NSString *> *parts = [NSMutableArray array];
@@ -239,9 +221,8 @@ static NSString *VibeAudioPathRow(NSString *name, NSString *rate, NSString *dept
     return VibeAudioPathJoin(parts);
 }
 
-// The format the stages that carry the signal unchanged — the pitch, the
-// effects, the meter — read and write: the bus's while one exists, else the
-// output's, which the bus is built at.
+// The format the pass-through stages (pitch, effects, meter) carry: the bus's
+// while one exists, else the output unit's, which the bus is built at.
 static NSDictionary<NSString *, id> *VibeAudioPathOutputUnitFormat(NSArray<NSDictionary<NSString *, id> *> *path) {
     NSDictionary *output = nil;
     for (NSDictionary *stage in path) {
@@ -251,8 +232,7 @@ static NSDictionary<NSString *, id> *VibeAudioPathOutputUnitFormat(NSArray<NSDic
     return output;
 }
 
-// One line per stage from the facts the player reports (AudioPlayer.h's
-// audioPathSnapshot); the keys are the model's.
+// A bypassed stage is a bare Off: nothing passes through it.
 - (NSString *)audioPathTextForStage:(NSDictionary<NSString *, id> *)stage inPath:(NSArray<NSDictionary<NSString *, id> *> *)path {
     Formatters *formatters = Formatters.sharedInstance;
     NSString *name = stage[@"stage"];
@@ -341,15 +321,12 @@ static NSDictionary<NSString *, id> *VibeAudioPathOutputUnitFormat(NSArray<NSDic
     return @"";
 }
 
-// TRAP: the snapshot waits on the player queue, which a device rebind or a
-// device that stopped answering holds for seconds — the acceptance matrix's
-// dead-device cases hold it 14 s — so it is never taken on main: a
-// dispatch_sync here beachballed the app for the length of the teardown.
+// TRAP: never take the snapshot on main. It waits on the player queue, which
+// a device rebind or an unresponsive device holds for seconds.
 - (void)refreshAudioPath {
     AudioPlayer *player = self.playerController.audioPlayer;
     NSWindow *window = self.view.window;
-    // A window behind others or on another Space is visible but occluded: the
-    // timer ticks, the snapshot waits.
+    // Visible but occluded (behind others, another Space): skip the snapshot.
     if (!player || !_audioPathShown || !window.isVisible || _audioPathInFlight
             || !(window.occlusionState & NSWindowOcclusionStateVisible)) {
         return;
@@ -445,8 +422,6 @@ static NSString *VibeFlagForLanguage(NSString *language) {
     return label;
 }
 
-// The readouts are informational, so they take the secondary color a System
-// Settings value column uses.
 - (NSTextField *)valueLabel {
     NSTextField *label = [NSTextField labelWithString:@""];
     label.textColor = NSColor.secondaryLabelColor;
@@ -464,10 +439,9 @@ static NSString *VibeFlagForLanguage(NSString *language) {
     [self refreshAudioPath];
 }
 
-// The cache size is measured once per appearance, and again after Clear
-// Cache, never on the key and menu refreshes: each measurement walks both
-// stores stat by stat and holds the waveform cache's queue, which the next
-// track's waveform waits on.
+// Measured here and after Clear Cache, never on the key and menu refreshes:
+// each walk stats both stores and holds the waveform cache's queue, which the
+// next track's waveform waits on.
 - (void)viewWillAppear {
     [super viewWillAppear];
     [self refreshCacheSize];
@@ -475,10 +449,8 @@ static NSString *VibeFlagForLanguage(NSString *language) {
 
 #pragma mark - Debug info
 
-// Saved where the user picks, which the sandbox already allows, then revealed,
-// because the next step is always attaching it somewhere. The snapshot is taken
-// on main at the click; everything slow runs off main, so a report can be saved
-// in the middle of the stall it is about.
+// The snapshot is main-only and cheap; everything slow runs off main, so a
+// report can be saved in the middle of the stall it is about.
 - (void)saveDebugInfo:(id)sender {
     NSSavePanel *panel = [NSSavePanel savePanel];
     NSDateFormatter *stamp = [[NSDateFormatter alloc] init];
@@ -516,9 +488,9 @@ static NSString *VibeFlagForLanguage(NSString *language) {
 
 #pragma mark - Reset to defaults
 
-// Hidden panes resolve layout before remeasurement but defer their full refresh.
-// TRAP: reset clears both window-shape settings; no pane applies them, so
-// restore the window separately or its shape disagrees with the store until launch.
+// TRAP: reset clears both window-shape settings and no live effect applies
+// them, so the window is restored separately or it disagrees with the store
+// until the next launch.
 - (void)resetSettings:(id)sender {
     if (sender == _factoryResetButton) {
         [AppSettings.sharedInstance factoryReset];
@@ -527,10 +499,13 @@ static NSString *VibeFlagForLanguage(NSString *language) {
     }
     MainPlayerController *player = self.playerController;
     [player applySettingsLiveEffects:VibeSettingsLiveEffectAll];
-    // TRAP: a cleared device UID with the old binding leaves mode switches
-    // enabled for a device their setters cannot write to.
+    // TRAP: reset cleared the saved device UID while the player keeps the old
+    // binding, so mode writes would miss. selectOutputDevice: holds the mode
+    // switches disabled until the bind settles; a refused bind reannounces the
+    // retained device, restoring its UID.
     [player.devicesMenuController selectOutputDevice:-1];
     [player resetWindowToDefaultShape];
+    // Hidden panes resolve layout only; their full refresh waits for appearance.
     for (__kindof NSViewController *pane in self.parentViewController.childViewControllers) {
         if ([pane isKindOfClass:SettingsPaneViewController.class]) {
             [pane resolveLayoutStateFromSettings];
@@ -554,9 +529,6 @@ static NSString *VibeFlagForLanguage(NSString *language) {
 
 #pragma mark - Cache
 
-// Sums both stores — metadata and waveform — since "the cache" is one thing
-// to the user, exactly as the Clear Cache button and the debug channel's
-// clear_caches treat it.
 - (void)refreshCacheSize {
     MainPlayerController *player = self.playerController;
     NSUInteger generation = ++_usageRequestGeneration;
