@@ -42,6 +42,8 @@
 @interface RecordingCoordinatorDelegate : NSObject <PageWaveformCoordinatorDelegate>
 @property (nonatomic, strong) NSMutableArray<NSNumber *> *updatedIndexes;
 @property (nonatomic, strong) NSMutableArray<NSNumber *> *failedIndexes;
+@property (nonatomic, strong) NSMutableArray<NSURL *> *tempoURLs;
+@property (nonatomic, strong) NSMutableArray<NSNumber *> *tempos;
 @end
 
 @implementation RecordingCoordinatorDelegate
@@ -50,8 +52,16 @@
     if (self) {
         _updatedIndexes = [NSMutableArray array];
         _failedIndexes = [NSMutableArray array];
+        _tempoURLs = [NSMutableArray array];
+        _tempos = [NSMutableArray array];
     }
     return self;
+}
+- (void)pageWaveformCoordinator:(PageWaveformCoordinator *)coordinator
+                   didDetectBPM:(float)bpm
+                         forURL:(NSURL *)url {
+    [_tempoURLs addObject:url];
+    [_tempos addObject:@(bpm)];
 }
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)coordinator
               didUpdateWaveform:(CodableAudioWaveform *)waveform
@@ -164,6 +174,17 @@
     [self deliverForURL:_tracks[3].url percent:1.0f];
     XCTAssertEqual(_delegate.updatedIndexes.count, 0u);
     XCTAssertFalse([_coordinator isCompleteAtIndex:4]);
+}
+
+// A tempo is forwarded as delivered — with its URL, untargeted and unheld —
+// because the model matches it by URL across every row, not by page.
+- (void)testTempoIsForwardedByURLWhateverThePageAndHold {
+    [_coordinator requestIndex:3 track:_tracks[3]];
+    _coordinator.held = YES;
+    [(id<AudioWaveformCacheDelegate>)_coordinator audioWaveformCache:(AudioWaveformCache *)_cache
+                                                        didDetectBPM:128 forURL:_tracks[5].url];
+    XCTAssertEqualObjects(_delegate.tempoURLs, @[_tracks[5].url]);
+    XCTAssertEqualObjects(_delegate.tempos, @[@128]);
 }
 
 - (void)testFullDeliveryMarksThePageComplete {
