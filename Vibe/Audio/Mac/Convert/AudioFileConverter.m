@@ -248,8 +248,10 @@ static void VibeConverterPerformOnMain(dispatch_block_t block) {
             return;
         }
         NSError *error = nil;
-        NSURL *tempURL = [self encodeSource:sourceURL progress:progress error:&error];
-        if (!tempURL) {
+        NSURL *tempURL = [NSURL fileURLWithPath:
+                [NSTemporaryDirectory() stringByAppendingPathComponent:
+                        [NSString stringWithFormat:@"%@%@.flac", kConvertTempPrefix, NSUUID.UUID.UUIDString]]];
+        if (![self encodeSource:sourceURL toURL:tempURL progress:progress error:&error]) {
             // encodeSource: removed its own temp on failure.
             [self finishConversionWithURL:nil
                                     error:error
@@ -679,16 +681,12 @@ static NSString *VibeFileStat(NSURL *url) {
 
 #pragma mark - Encode
 
-// Encodes into the app's own tmp, always writable, so nothing partial ever
-// appears beside the user's music. progress runs on the converter queue at
-// about one-percent steps, plus a final 1.0.
+// Encodes into the supplied temp URL. progress runs on the converter queue
+// at about one-percent steps, plus a final 1.0.
 - (nullable NSURL *)encodeSource:(NSURL *)sourceURL
+                           toURL:(NSURL *)tempURL
                         progress:(void (^)(double fraction))progress
                            error:(NSError **)error {
-    NSURL *tempURL = [NSURL fileURLWithPath:
-            [NSTemporaryDirectory() stringByAppendingPathComponent:
-                    [NSString stringWithFormat:@"%@%@.flac", kConvertTempPrefix, NSUUID.UUID.UUIDString]]];
-
     AudioFileHandle *probe = [[AudioFileHandle alloc] initForReading:sourceURL error:error];
     if (!probe) {
         return nil;

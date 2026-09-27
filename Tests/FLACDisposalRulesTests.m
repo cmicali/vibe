@@ -310,6 +310,7 @@ BOOL VibeCopyTagsToFLAC(NSString *source, NSString *output, VibeUncompressedCont
 
 @implementation FLACEncodeRoundTripTests {
     NSURL *_directory;
+    NSURL *_outputURL;
     AudioFileConverter *_converter;
 }
 
@@ -317,18 +318,12 @@ BOOL VibeCopyTagsToFLAC(NSString *source, NSString *output, VibeUncompressedCont
     [super setUp];
     _directory = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString] isDirectory:YES];
     [NSFileManager.defaultManager createDirectoryAtURL:_directory withIntermediateDirectories:YES attributes:nil error:nil];
+    _outputURL = [_directory URLByAppendingPathComponent:@"encoded.flac"];
     _converter = [[AudioFileConverter alloc] initWithRestore:nil verify:nil trash:nil];
 }
 
-// The converter encodes into NSTemporaryDirectory and its launch-time sweep
-// is skipped by the test constructor, so each test's temp is removed here.
 - (void)tearDown {
     [NSFileManager.defaultManager removeItemAtURL:_directory error:nil];
-    for (NSString *name in [NSFileManager.defaultManager contentsOfDirectoryAtPath:NSTemporaryDirectory() error:nil]) {
-        if ([name hasPrefix:@"vibe-convert-"]) {
-            [NSFileManager.defaultManager removeItemAtPath:[NSTemporaryDirectory() stringByAppendingPathComponent:name] error:nil];
-        }
-    }
     _converter = nil;
     [super tearDown];
 }
@@ -410,7 +405,7 @@ static int32_t VibeEncodeSample(uint32_t frame, uint32_t channel, int bits) {
     NSURL *source = [self writeWAVNamed:@"s16.wav" frames:frames channels:2 bits:16];
     NSError *error = nil;
     __block double last = 0;
-    NSURL *flac = [_converter encodeSource:source progress:^(double fraction) { last = fraction; } error:&error];
+    NSURL *flac = [_converter encodeSource:source toURL:_outputURL progress:^(double fraction) { last = fraction; } error:&error];
     XCTAssertNotNil(flac, @"%@", error);
     XCTAssertEqual(last, 1.0);
     AVAudioPCMBuffer *buffer = [self decode:flac as:AVAudioPCMFormatInt16 expecting:frames depth:kAppleLosslessFormatFlag_16BitSourceData];
@@ -428,7 +423,7 @@ static int32_t VibeEncodeSample(uint32_t frame, uint32_t channel, int bits) {
     const uint32_t frames = 4608 + 1;
     NSURL *source = [self writeWAVNamed:@"s24.wav" frames:frames channels:1 bits:24];
     NSError *error = nil;
-    NSURL *flac = [_converter encodeSource:source progress:nil error:&error];
+    NSURL *flac = [_converter encodeSource:source toURL:_outputURL progress:nil error:&error];
     XCTAssertNotNil(flac, @"%@", error);
     AVAudioPCMBuffer *buffer = [self decode:flac as:AVAudioPCMFormatInt32 expecting:frames depth:kAppleLosslessFormatFlag_24BitSourceData];
     for (uint32_t frame = 0; frame < frames; frame++) {
@@ -448,7 +443,7 @@ static int32_t VibeEncodeSample(uint32_t frame, uint32_t channel, int bits) {
     const uint32_t frames = 4608 * 2 + 100;
     NSURL *source = [self writeWAVNamed:@"f32.wav" frames:frames channels:2 bits:32];
     NSError *error = nil;
-    NSURL *flac = [_converter encodeSource:source progress:nil error:&error];
+    NSURL *flac = [_converter encodeSource:source toURL:_outputURL progress:nil error:&error];
     XCTAssertNotNil(flac, @"%@", error);
     AVAudioPCMBuffer *buffer = [self decode:flac as:AVAudioPCMFormatFloat32 expecting:frames depth:kAppleLosslessFormatFlag_24BitSourceData];
     for (uint32_t frame = 2; frame < frames; frame++) {
@@ -468,24 +463,22 @@ static int32_t VibeEncodeSample(uint32_t frame, uint32_t channel, int bits) {
 - (void)testASourceThatEndsEarlyIsRefusedAndLeavesNoTemp {
     NSURL *whole = [self writeWAVNamed:@"whole.wav" frames:4608 * 4 channels:2 bits:16];
     NSError *error = nil;
-    NSURL *encoded = [_converter encodeSource:whole progress:nil error:&error];
+    NSURL *encoded = [_converter encodeSource:whole toURL:_outputURL progress:nil error:&error];
     XCTAssertNotNil(encoded, @"%@", error);
     NSData *bytes = [NSData dataWithContentsOfURL:encoded];
-    [NSFileManager.defaultManager removeItemAtURL:encoded error:nil]; // this test asserts no temp is left behind
+    [NSFileManager.defaultManager removeItemAtURL:encoded error:nil];
     NSURL *source = [_directory URLByAppendingPathComponent:@"short.flac"];
     XCTAssertTrue([[bytes subdataWithRange:NSMakeRange(0, bytes.length / 2)] writeToURL:source atomically:YES]);
-    NSURL *flac = [_converter encodeSource:source progress:nil error:&error];
+    NSURL *flac = [_converter encodeSource:source toURL:_outputURL progress:nil error:&error];
     XCTAssertNil(flac);
     XCTAssertEqual(error.code, VibeConvertErrorEncodeFailed);
-    NSArray *temps = [[NSFileManager.defaultManager contentsOfDirectoryAtPath:NSTemporaryDirectory() error:nil]
-            filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"SELF BEGINSWITH 'vibe-convert-'"]];
-    XCTAssertEqual(temps.count, 0u, @"%@", temps);
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:_outputURL.path]);
 }
 
 - (void)testASourceWithNoFramesIsNotConvertible {
     NSURL *source = [self writeWAVNamed:@"none.wav" frames:0 channels:2 bits:16];
     NSError *error = nil;
-    XCTAssertNil([_converter encodeSource:source progress:nil error:&error]);
+    XCTAssertNil([_converter encodeSource:source toURL:_outputURL progress:nil error:&error]);
     XCTAssertEqual(error.code, VibeConvertErrorNotConvertible);
 }
 
