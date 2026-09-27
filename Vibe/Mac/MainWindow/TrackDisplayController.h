@@ -38,7 +38,9 @@ typedef struct {
 
 // track: the displayed track for Track and Loading, the errored track for
 // Error, nil otherwise. duration is file time; the labels divide it by rate.
-// A nil errorStatus reads as the generic playback error.
+// errorStatus is the track's play error: in Error the artist line, where nil
+// reads as the generic playback error; in Track, a parked track's, it stands
+// in for the file info line.
 - (void)renderState:(TrackDisplayState)state
               track:(nullable AudioTrack *)track
            duration:(NSTimeInterval)duration

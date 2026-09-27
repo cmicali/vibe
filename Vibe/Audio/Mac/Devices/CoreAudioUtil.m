@@ -457,24 +457,47 @@ static const AudioObjectPropertyAddress kVibeNominalRateAddress = {
             && (rate == noErr || rate == kAudioHardwareBadObjectError);
 }
 
-+ (BOOL)addNominalRateListener:(AudioObjectPropertyListenerBlock)listener
+static const AudioObjectPropertyAddress kVibeHogModeAddress = {
+    kAudioDevicePropertyHogMode, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain
+};
+
++ (BOOL)addBoundDeviceListener:(AudioObjectPropertyListenerBlock)listener
                         queue:(dispatch_queue_t)queue
                   forDeviceID:(AudioDeviceID)deviceID {
     if (deviceID == kAudioObjectUnknown) {
         return NO;
     }
     OSStatus status = AudioObjectAddPropertyListenerBlock(deviceID, &kVibeNominalRateAddress, queue, listener);
+    if (status == noErr) {
+        status = AudioObjectAddPropertyListenerBlock(deviceID, &kVibeHogModeAddress, queue, listener);
+        if (status != noErr) {
+            AudioObjectRemovePropertyListenerBlock(deviceID, &kVibeNominalRateAddress, queue, listener);
+        }
+    }
     if (status != noErr) {
-        LogWarn(@"CoreAudioUtil: nominal rate listener on %u failed (OSStatus %d)", deviceID, (int)status);
+        LogWarn(@"CoreAudioUtil: bound device listener on %u failed (OSStatus %d)", deviceID, (int)status);
     }
     return status == noErr;
 }
 
-+ (BOOL)removeNominalRateListener:(AudioObjectPropertyListenerBlock)listener
++ (BOOL)removeBoundDeviceListener:(AudioObjectPropertyListenerBlock)listener
                            queue:(dispatch_queue_t)queue
                      forDeviceID:(AudioDeviceID)deviceID {
-    OSStatus status = AudioObjectRemovePropertyListenerBlock(deviceID, &kVibeNominalRateAddress, queue, listener);
-    return status == noErr || status == kAudioHardwareBadObjectError;
+    OSStatus rate = AudioObjectRemovePropertyListenerBlock(deviceID, &kVibeNominalRateAddress, queue, listener);
+    OSStatus hog = AudioObjectRemovePropertyListenerBlock(deviceID, &kVibeHogModeAddress, queue, listener);
+    return (rate == noErr || rate == kAudioHardwareBadObjectError)
+            && (hog == noErr || hog == kAudioHardwareBadObjectError);
+}
+
++ (BOOL)readHogOwner:(pid_t *)owner forDeviceID:(AudioDeviceID)deviceID {
+    *owner = -1;
+    return VibeReadDeviceProperty(deviceID, kAudioDevicePropertyHogMode,
+                                  kAudioObjectPropertyScopeGlobal, owner, sizeof(*owner));
+}
+
++ (BOOL)deviceIsHeldByAnotherProcess:(AudioDeviceID)deviceID {
+    pid_t owner = -1;
+    return [self readHogOwner:&owner forDeviceID:deviceID] && owner != -1 && owner != getpid();
 }
 
 #pragma mark - Diagnostics
@@ -715,12 +738,6 @@ static NSArray<NSString *> *VibeReadAvailableRates(AudioDeviceID deviceID) {
     Boolean settable = false;
     return deviceID != kAudioObjectUnknown && AudioObjectHasProperty(deviceID, &address)
             && AudioObjectIsPropertySettable(deviceID, &address, &settable) == noErr && settable;
-}
-
-+ (BOOL)readHogOwner:(pid_t *)owner forDeviceID:(AudioDeviceID)deviceID {
-    *owner = -1;
-    return VibeReadDeviceProperty(deviceID, kAudioDevicePropertyHogMode,
-                                  kAudioObjectPropertyScopeGlobal, owner, sizeof(*owner));
 }
 
 + (BOOL)setHogOwnedByThisProcess:(BOOL)owned forDeviceID:(AudioDeviceID)deviceID {

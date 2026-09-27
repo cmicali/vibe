@@ -103,14 +103,22 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)removeOutputLevelListener:(AudioObjectPropertyListenerBlock)listener
                            queue:(dispatch_queue_t)queue
                      forDeviceID:(AudioDeviceID)deviceID;
-// The device's nominal rate alone, delivered on queue; the block is the
-// handle, as above.
-+ (BOOL)addNominalRateListener:(AudioObjectPropertyListenerBlock)listener
+// The device's nominal rate and its hog owner, delivered on queue; the block
+// is the handle, as above.
++ (BOOL)addBoundDeviceListener:(AudioObjectPropertyListenerBlock)listener
                         queue:(dispatch_queue_t)queue
                   forDeviceID:(AudioDeviceID)deviceID;
-+ (BOOL)removeNominalRateListener:(AudioObjectPropertyListenerBlock)listener
++ (BOOL)removeBoundDeviceListener:(AudioObjectPropertyListenerBlock)listener
                            queue:(dispatch_queue_t)queue
                      forDeviceID:(AudioDeviceID)deviceID;
+
+// Another process holds the device in hog mode. TRAP: an output unit running
+// on it when the hog is taken reports running and gets no IO cycle until the
+// release (measured), yet one started under the hog plays, heard on a
+// loopback. So the start is refused on this answer, not left to the HAL. In
+// every build: exclusive output being compiled out does not stop other apps
+// taking it.
++ (BOOL)deviceIsHeldByAnotherProcess:(AudioDeviceID)deviceID;
 
 // Everything the HAL will say about one device, for Save Debug Info: identity,
 // liveness and exclusive ownership, rates and buffer, the latency it declares,

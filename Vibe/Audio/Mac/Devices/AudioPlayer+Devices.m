@@ -79,6 +79,11 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
         if (error) *error = VibeAudioError(VibeAudioErrorEngineStartFailed, @"No audio output is available", nil);
         return NO;
     }
+    if (_boundDeviceHeldElsewhere) {
+        if (error) *error = VibeAudioError(VibeAudioErrorDeviceInUse,
+                                           @"Another app has exclusive use of the audio output device", nil);
+        return NO;
+    }
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     [self performDiagnosticPhase:@"exclusive setup" device:self.currentlyRequestedAudioDeviceId operation:^BOOL{
         [self acquireExclusiveOutputOnQueue];
@@ -309,7 +314,7 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
 // the snapshot knows is gone, never on a HAL read; any other refusal lands on
 // the unit's queue and fails the next start.
 - (BOOL)setOutputUnitDevice:(AudioDeviceID)deviceID {
-    [self stopWatchingBoundDeviceRateOnQueue];
+    [self stopWatchingBoundDeviceOnQueue];
     if (!_outputUnit) {
         return YES;
     }
@@ -318,7 +323,7 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
         return NO;
     }
     [_outputUnit bindToDevice:deviceID];
-    [self watchBoundDeviceRateOnQueue:deviceID];
+    [self watchBoundDeviceOnQueue:deviceID];
     return YES;
 }
 
@@ -327,34 +332,37 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
 // is watched in every mode, and a rate other than the pipeline's rebinds in
 // place, following it. A prepared bit-perfect device's own listener puts the
 // mode's format back instead; Vibe's own writes arrive with the pipeline
-// already at the rate, a no-op. The rate is read off the player queue.
-- (void)watchBoundDeviceRateOnQueue:(AudioDeviceID)deviceID {
+// already at the rate, a no-op. Its hog owner rides the same listener. Both
+// are read off the player queue.
+- (void)watchBoundDeviceOnQueue:(AudioDeviceID)deviceID {
     __weak AudioPlayer *weakSelf = self;
     AudioObjectPropertyListenerBlock listener = [^(UInt32 count, const AudioObjectPropertyAddress *addresses) {
         __block Float64 rate = 0;
-        __block BOOL alive = NO;
+        __block BOOL alive = NO, held = NO;
         dispatch_block_t follow = ^{
-            if (alive) [weakSelf followBoundDevice:deviceID toRate:rate];
+            if (alive) [weakSelf followBoundDevice:deviceID toRate:rate heldElsewhere:held];
         };
         if ([CoreAudioUtil performBoundedRead:^{
             alive = [CoreAudioUtil readNominalSampleRate:&rate forDeviceID:deviceID]
                     && ![CoreAudioUtil deviceIsConfirmedDead:deviceID];
+            held = alive && [CoreAudioUtil deviceIsHeldByAnotherProcess:deviceID];
         } within:0 late:follow]) {
             follow();
         }
     } copy];
-    if ([CoreAudioUtil addNominalRateListener:listener queue:_queue forDeviceID:deviceID]) {
-        _boundRateListener = listener;
-        _boundRateDeviceID = deviceID;
+    if ([CoreAudioUtil addBoundDeviceListener:listener queue:_queue forDeviceID:deviceID]) {
+        _boundDeviceListener = listener;
+        _boundDeviceListenerDeviceID = deviceID;
     }
 }
 
-- (void)stopWatchingBoundDeviceRateOnQueue {
-    if (_boundRateListener) {
-        [CoreAudioUtil removeNominalRateListener:_boundRateListener queue:_queue forDeviceID:_boundRateDeviceID];
-        _boundRateListener = nil;
-        _boundRateDeviceID = kAudioObjectUnknown;
+- (void)stopWatchingBoundDeviceOnQueue {
+    if (_boundDeviceListener) {
+        [CoreAudioUtil removeBoundDeviceListener:_boundDeviceListener queue:_queue forDeviceID:_boundDeviceListenerDeviceID];
+        _boundDeviceListener = nil;
+        _boundDeviceListenerDeviceID = kAudioObjectUnknown;
     }
+    _boundDeviceHeldElsewhere = NO;
 }
 
 // Whether the standing master-bus route disagrees with the flags: the FX
@@ -376,26 +384,49 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
     }
     AudioDeviceID deviceID = _outputUnit.deviceID;
     __block Float64 rate = 0;
-    __block BOOL read = NO;
+    __block BOOL read = NO, held = NO;
     __weak AudioPlayer *weakSelf = self;
-    if (![CoreAudioUtil performBoundedRead:^{ read = [CoreAudioUtil readNominalSampleRate:&rate forDeviceID:deviceID]; }
+    if (![CoreAudioUtil performBoundedRead:^{
+            read = [CoreAudioUtil readNominalSampleRate:&rate forDeviceID:deviceID];
+            held = [CoreAudioUtil deviceIsHeldByAnotherProcess:deviceID];
+        }
                                     within:kDeviceReadWaitSeconds
-                                      late:^{ if (read) [weakSelf followBoundDevice:deviceID toRate:rate]; }]) {
+                                      late:^{ [weakSelf followBoundDevice:deviceID toRate:(read ? rate : 0) heldElsewhere:held]; }]) {
         LogWarn(@"AudioPlayer: device %u did not report its rate within %.0f ms; the pipeline stays at %.0f Hz",
                 deviceID, kDeviceReadWaitSeconds * 1000, _masterFormat.sampleRate);
         return;
     }
+    _boundDeviceHeldElsewhere = held;
     if (read && rate > 0) {
         [self applyOutputRateOnQueue:rate];
     }
 }
 
-// Any thread: a rate read off the player queue, for the device the unit is
-// bound to when the queue gets it.
-- (void)followBoundDevice:(AudioDeviceID)deviceID toRate:(Float64)rate {
+// Any thread: a rate and hog owner read off the player queue, for the device
+// the unit is bound to when the queue gets it; a rate of 0 is unread. TRAP: a
+// foreign hog neither stops the unit nor reports it (IsRunning stays 1,
+// measured); the IO simply stops, so unanswered the transport reads Playing
+// over a frozen position for as long as the other app holds the device. It
+// parks rather than waiting it out: audio must not restart on its own when
+// the other app lets go.
+- (void)followBoundDevice:(AudioDeviceID)deviceID toRate:(Float64)rate heldElsewhere:(BOOL)held {
     dispatch_async(_queue, ^{
-        if (self->_terminating || rate <= 0 || self->_outputUnit.deviceID != deviceID
-                || self->_preparedDeviceID == deviceID || rate == [self masterBusFormatOnQueue].sampleRate) {
+        if (self->_terminating || self->_outputUnit.deviceID != deviceID) {
+            return;
+        }
+        if (held != self->_boundDeviceHeldElsewhere) {
+            self->_boundDeviceHeldElsewhere = held;
+            LogWarn(@"AudioPlayer: device %u %@ by another process", deviceID, held ? @"taken" : @"released");
+            if (held && self->_state == VibePlayerStatePlaying) {
+                [self parkPlaybackForMissingOutputDeviceOnQueue];
+                [self sendDelegateError:VibeAudioError(VibeAudioErrorDeviceInUse,
+                        @"Another app took exclusive use of the audio output device", nil)];
+            }
+            else if (held) {
+                [self stopOutputOnQueue]; // a Loading settlement's start then refuses
+            }
+        }
+        if (rate <= 0 || self->_preparedDeviceID == deviceID || rate == [self masterBusFormatOnQueue].sampleRate) {
             return;
         }
         LogInfo(@"AudioPlayer: device %u moved to %.0f Hz under the pipeline; rebinding", deviceID, rate);

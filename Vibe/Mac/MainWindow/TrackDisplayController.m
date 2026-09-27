@@ -228,7 +228,12 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
                                                  duration:duration
                                                      rate:rate];
         }
-        [self setFileMetadataText:(AppSettings.sharedInstance.currentTheme.showFileInfo ? track.metadata.fileInfoLine : @"")];
+        if (state == TrackDisplayStateTrack && errorStatus) {
+            [self setFileMetadataText:errorStatus];
+        }
+        else {
+            [self setFileMetadataText:(AppSettings.sharedInstance.currentTheme.showFileInfo ? track.metadata.fileInfoLine : @"")];
+        }
         break;
 
     case TrackDisplayStateLaunchGrace:

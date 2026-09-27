@@ -27,14 +27,21 @@ static inline BOOL VibePlayErrorMatchesCurrentURL(NSError *error, NSURL *_Nullab
 
 // Short: the title line names the track, and the log has the full text.
 // VibeAudioErrorNotPlaying is filtered out before this as benign. No default,
-// so a new code is a compile warning, not the generic line.
+// so a new code is a compile warning, not the generic line. An underlying
+// error of ours is the more specific cause: a refused start arrives wrapped
+// in the caller's "could not resume".
 static inline NSString *VibeStatusForPlayError(NSError *error) {
+    NSError *underlying = error.userInfo[NSUnderlyingErrorKey];
+    if ([underlying.domain isEqualToString:kVibeAudioErrorDomain]) {
+        return VibeStatusForPlayError(underlying);
+    }
     if ([error.domain isEqualToString:kVibeAudioErrorDomain]) {
         switch ((VibeAudioErrorCode)error.code) {
             case VibeAudioErrorFileOpenTimedOut:   return STR_ERROR_LOAD_TIMEOUT;
             case VibeAudioErrorFileOpenFailed:     return STR_ERROR_OPEN_FAILED;
             case VibeAudioErrorEngineStartFailed:  return STR_ERROR_ENGINE_START_FAILED;
             case VibeAudioErrorDeviceUnavailable:  return STR_ERROR_DEVICE_UNAVAILABLE;
+            case VibeAudioErrorDeviceInUse:        return STR_ERROR_DEVICE_IN_USE;
             case VibeAudioErrorNotPlaying:         break;
         }
     }

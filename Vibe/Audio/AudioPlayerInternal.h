@@ -160,10 +160,13 @@ static inline UInt32 VibeConverterQualityForResampling(VibeResamplingQuality qua
 #if TARGET_OS_OSX
     // ---- The output device: the device _outputUnit is bound to.
     // AudioPlayer+Devices.m owns every field below.
-    // The bound device's nominal rate, watched in every mode: another process
-    // moving it rebinds the unit at the new rate. Delivered on the queue.
-    AudioObjectPropertyListenerBlock _boundRateListener;
-    AudioDeviceID           _boundRateDeviceID;
+    // The bound device's nominal rate and hog owner, watched in every mode:
+    // another process moving the rate rebinds the unit at the new rate, and
+    // one taking the device parks playback and refuses starts until it lets
+    // go (_boundDeviceHeldElsewhere). Delivered on the queue.
+    AudioObjectPropertyListenerBlock _boundDeviceListener;
+    AudioDeviceID           _boundDeviceListenerDeviceID;
+    BOOL                    _boundDeviceHeldElsewhere;
     // The launch preference awaiting a successful HAL snapshot and bind.
     // Queue-confined. Until binding succeeds the output honestly follows
     // System Output (-1).

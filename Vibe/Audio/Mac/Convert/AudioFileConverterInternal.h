@@ -53,9 +53,10 @@ typedef NSURL *_Nullable (^VibeSourceTrashResultingURLFilter)(
 - (void)settleConversionWithURL:(nullable NSURL *)url error:(nullable NSError *)error
                      completion:(void (^)(NSURL * _Nullable, NSError * _Nullable))completion;
 
-// The encode alone, source to a temp FLAC beside nothing, for the round-trip
-// tests: nil with the error, or the temp URL the caller removes.
+// Encodes into a caller-owned temp URL, removed on failure. Round-trip tests
+// put it inside their fixture directory.
 - (nullable NSURL *)encodeSource:(NSURL *)sourceURL
+                           toURL:(NSURL *)tempURL
                         progress:(void (^_Nullable)(double fraction))progress
                            error:(NSError **)error;
 - (BOOL)playableFileAtURL:(NSURL *)url error:(NSError **)error;

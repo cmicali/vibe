@@ -216,8 +216,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     if (_outputLevelListener) {
         [CoreAudioUtil removeOutputLevelListener:_outputLevelListener queue:_queue forDeviceID:_preparedDeviceID];
     }
-    if (_boundRateListener) {
-        [CoreAudioUtil removeNominalRateListener:_boundRateListener queue:_queue forDeviceID:_boundRateDeviceID];
+    if (_boundDeviceListener) {
+        [CoreAudioUtil removeBoundDeviceListener:_boundDeviceListener queue:_queue forDeviceID:_boundDeviceListenerDeviceID];
     }
     [[AudioDeviceManager sharedInstance] removeObserver:self];
 #endif

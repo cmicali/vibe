@@ -105,10 +105,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)resolvePendingSavedOutputDeviceOnQueue;
 
 // The HAL bind boundary, replaced by a refusal in the device-free render
-// tests: binds the hosted unit, which never moves on its own. Stopped only.
+// tests: binds the hosted unit, which moves on its own only off a device that
+// vanished. Stopped only.
 - (BOOL)setOutputUnitDevice:(AudioDeviceID)deviceID;
 // Brings the pipeline to the bound device's nominal rate, so the unit never
-// resamples; an unreadable rate keeps the current one. After every bind.
+// resamples; an unreadable rate keeps the current one. Reads whether another
+// process holds the device in the same bounded read. After every bind.
 - (void)followOutputDeviceRateOnQueue;
 
 // Whether prepareOutputOnQueueForFile: would stop the output for a switch —
