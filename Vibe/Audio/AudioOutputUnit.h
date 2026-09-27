@@ -65,9 +65,10 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 // the receiver stops the unit.
 @property (atomic, copy, nullable) void (^failureHandler)(NSError * _Nullable error, uint64_t runGeneration, BOOL bindRefused);
 // Device plus stream latency and the safety offset, in seconds; on iOS the
-// session's output latency. TRAP: on macOS a field the unit's queue fills
-// after each bind, configure and start (channelMap likewise), never a live
-// read: a hung device held the player queue 30 s per HAL read.
+// session's output latency, read live, as the route's rate is before every
+// start. TRAP: on macOS a field the unit's queue fills after each bind,
+// configure and start (channelMap likewise), never a live read: a hung
+// device held the player queue 30 s per HAL read.
 @property (atomic, readonly) NSTimeInterval presentationLatency;
 // The device's IO buffer at its nominal rate, in seconds — the cycle the
 // unit renders ahead of the device — read as presentationLatency is; on iOS
@@ -88,10 +89,9 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 - (void)clearCounters;
 
 #if TARGET_OS_OSX
-// Stopped only. Sets kAudioOutputUnitProperty_CurrentDevice. Refuses at once
-// only a device the HAL no longer reports alive; a later refusal fails the
-// next start.
-- (OSStatus)bindToDevice:(AudioDeviceID)deviceID;
+// Stopped only. Sets kAudioOutputUnitProperty_CurrentDevice on the unit's
+// queue, so it never refuses at once: a refusal fails the next start.
+- (void)bindToDevice:(AudioDeviceID)deviceID;
 // The bind is known not to have landed: the next bind is never a no-op.
 - (void)forgetDevice;
 #endif
@@ -110,6 +110,12 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 // callback is bounded; the pipeline retains render state until that callback
 // actually leaves.
 - (void)stop;
+
+// The iOS media-services reset: the instance died with the media server, and
+// Apple's contract is to dispose it without messaging it. Stops the unit;
+// from then on no queued start, configure or stop, even one queued before
+// this, messages the instance, and the unit's end only disposes it.
+- (void)markDead;
 
 // Returns once every call made before it has reached the HAL. For a caller
 // about to change the device's format or ownership, which must not overtake

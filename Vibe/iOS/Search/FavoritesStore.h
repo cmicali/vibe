@@ -72,7 +72,8 @@ extern NSNotificationName const VibeFavoritesDidChangeNotification;
 // after it is up and Search re-reads them on the notification.
 - (void)prepareSearchScope;
 
-// Longest match, or nil. FolderSession takes a hold of its OWN on the answer,
+// Longest match against where each bookmark resolved, never the star-time
+// path, or nil. FolderSession takes a hold of its OWN on the answer,
 // so removing a favorite can drop this store's scope safely.
 - (nullable NSURL *)resolvedRootCoveringURL:(NSURL *)url;
 

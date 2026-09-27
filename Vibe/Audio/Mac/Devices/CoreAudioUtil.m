@@ -9,8 +9,42 @@
 #import <AudioToolbox/AudioToolbox.h> // kAudioHardwareServiceDeviceProperty_VirtualMainVolume
 #import <unistd.h>
 #include <math.h>
+#include <stdatomic.h>
+
+// Timed-out reads still running; while there is one, a bounded read does not wait.
+static _Atomic int VibeOverdueReads;
 
 @implementation CoreAudioUtil
+
++ (BOOL)performBoundedRead:(dispatch_block_t)read within:(NSTimeInterval)seconds late:(dispatch_block_t)late {
+    static dispatch_queue_t queue;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        // No QoS of its own: a read runs at its caller's, which waits for it.
+        queue = dispatch_queue_create("com.commonwealthrecordings.Vibe.halReads", DISPATCH_QUEUE_SERIAL);
+    });
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    dispatch_async(queue, ^{
+        read();
+        dispatch_semaphore_signal(done);
+    });
+    BOOL overdue = atomic_load(&VibeOverdueReads) > 0;
+    if (dispatch_semaphore_wait(done, overdue ? DISPATCH_TIME_NOW
+                                : dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC))) == 0) {
+        return YES;
+    }
+    BOOL counted = seconds > 0 && !overdue;
+    if (counted) {
+        atomic_fetch_add(&VibeOverdueReads, 1);
+    }
+    dispatch_async(queue, ^{
+        if (counted) {
+            atomic_fetch_sub(&VibeOverdueReads, 1);
+        }
+        if (late) late();
+    });
+    return NO;
+}
 
 + (BOOL)releaseDeviceObligation:(AudioDeviceID *)deviceID attempt:(BOOL (^)(void))attempt
                       isAbsent:(BOOL (^)(AudioDeviceID))isAbsent {
@@ -244,32 +278,6 @@ static BOOL VibeReadStartingChannel(AudioStreamID stream, UInt32 *firstChannel) 
     *transportType = kAudioDeviceTransportTypeUnknown;
     return VibeReadDeviceProperty(deviceID, kAudioDevicePropertyTransportType,
                                   kAudioObjectPropertyScopeGlobal, transportType, sizeof(*transportType));
-}
-
-+ (BOOL)isProcessPrivateAggregateDevice:(AudioDeviceID)deviceID {
-    if (deviceID == kAudioObjectUnknown) {
-        return NO;
-    }
-    AudioObjectPropertyAddress addr = {
-            kAudioAggregateDevicePropertyComposition,
-            kAudioObjectPropertyScopeGlobal,
-            kAudioObjectPropertyElementMain
-    };
-    // Absent on every non-aggregate, which is the common case and not a failure.
-    if (!AudioObjectHasProperty(deviceID, &addr)) {
-        return NO;
-    }
-    CFDictionaryRef composition = NULL;
-    UInt32 size = sizeof(composition);
-    if (AudioObjectGetPropertyData(deviceID, &addr, 0, NULL, &size, &composition) != noErr
-            || composition == NULL) {
-        return NO;
-    }
-    NSNumber *isPrivate = [(__bridge NSDictionary *)composition
-            objectForKey:@kAudioAggregateDeviceIsPrivateKey];
-    CFRelease(composition);
-    // The key is optional, and its absence means published to the whole system.
-    return [isPrivate isKindOfClass:[NSNumber class]] && isPrivate.intValue != 0;
 }
 
 + (BOOL)readNominalSampleRate:(Float64 *)rate forDeviceID:(AudioDeviceID)deviceID {
@@ -576,7 +584,6 @@ static NSArray<NSString *> *VibeReadAvailableRates(AudioDeviceID deviceID) {
     d[@"manufacturer"] = VibeReadObjectString(deviceID, kAudioObjectPropertyManufacturer);
     UInt32 transport = 0;
     if ([self readTransportType:&transport forDeviceID:deviceID]) d[@"transport"] = VibeFourCCText(transport);
-    d[@"processPrivateAggregate"] = @([self isProcessPrivateAggregateDevice:deviceID]);
     VibeAddUInt32(d, @"alive", deviceID, kAudioDevicePropertyDeviceIsAlive, kAudioObjectPropertyScopeGlobal);
     VibeAddUInt32(d, @"runningSomewhere", deviceID, kAudioDevicePropertyDeviceIsRunningSomewhere,
                   kAudioObjectPropertyScopeGlobal);

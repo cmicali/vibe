@@ -119,8 +119,14 @@ trap screenshot_cleanup EXIT INT TERM
 require_global_input
 require_debug_build
 mkdir -p "$OUT_DIR"
-pkill -x Vibe 2>/dev/null && sleep 1 || true
-quiet set_appearance "$APPEARANCE"
+# The uploader sends every .png here, so anything outside this script's three
+# (the generator's 03-themes and 04-pitch, say) would ship beside them.
+for f in "$OUT_DIR"/*.png; do
+    case "$(basename "$f")" in
+        01-player.png|02-playlist.png|03-pitch.png) ;;
+        *) rm -f "$f" ;;
+    esac
+done
 
 # --- geometry ---------------------------------------------------------------
 
@@ -249,6 +255,7 @@ shot_pitch() {
 # can report them; the pitch panel goes first so the frame width IS the body
 # width.
 launch "$TRACK_PLAYER"
+quiet set_appearance "$APPEARANCE"
 ensure_pitch 0
 ORIGINAL_STYLE="$(state | jq -r .settings.waveformStyle)"
 ORIGINAL_WIDTH="$(state | jq -r .window.frame | tr -d '{}' | awk -F', ' '{printf "%d", $3}')"
@@ -263,7 +270,7 @@ for s in "${SHOTS[@]}"; do
 done
 
 # Best effort: the shots are written, so nothing here fails the run.
-if [ -n "$(pgrep -x Vibe || true)" ]; then
+if [ -n "$(mac_vibe_pids)" ]; then
     ensure_pitch 0
     ensure_playlist 0
     if [ -n "$ORIGINAL_STYLE" ]; then

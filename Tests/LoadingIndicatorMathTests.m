@@ -14,7 +14,7 @@
 
 // Pinned exactly: the track matches the unplayed waveform's brightness, and the
 // macOS empty-state line reads its height and alpha from here.
-- (void)testWaveformStyleReturnsTheHistoricalConstants {
+- (void)testWaveformStyleMetricsArePinned {
     for (NSNumber *widthNumber in @[ @200, @480, @1024, @3000 ]) {
         CGFloat width = widthNumber.doubleValue;
         VibeLoadingIndicatorMetrics m =

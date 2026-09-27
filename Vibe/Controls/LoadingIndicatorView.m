@@ -34,6 +34,12 @@
                           withHandler:^(id<UITraitEnvironment> environment, UITraitCollection *previous) {
             [weakSelf applyAppearance];
         }];
+        // The iOS twin of viewDidChangeBackingProperties: a move to another
+        // screen. Joining a window is didMoveToWindow's.
+        [self registerForTraitChanges:@[UITraitDisplayScale.class]
+                          withHandler:^(id<UITraitEnvironment> environment, UITraitCollection *previous) {
+            [weakSelf applyContentsScale];
+        }];
 #endif
         _progress = -1;
     }
@@ -109,6 +115,11 @@
     [_indicator updateColorsForDark:self.isDark];
 }
 
+// Activation can precede the window, when only the fallback scale is known.
+- (void)applyContentsScale {
+    [_indicator updateContentsScale:[self currentContentsScale]];
+}
+
 #if TARGET_OS_OSX
 
 - (void)layout {
@@ -123,7 +134,7 @@
 
 - (void)viewDidChangeBackingProperties {
     [super viewDidChangeBackingProperties];
-    [_indicator updateContentsScale:[self currentContentsScale]];
+    [self applyContentsScale];
 }
 
 // Scroll-out and detachment: a row leaving its window must not keep a live
@@ -147,6 +158,9 @@
     [super didMoveToWindow];
     if (!self.window) {
         self.active = NO;
+    }
+    else {
+        [self applyContentsScale];
     }
 }
 

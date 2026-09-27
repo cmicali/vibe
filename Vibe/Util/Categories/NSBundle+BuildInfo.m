@@ -119,14 +119,21 @@ void VibeLogBuildProvenance(void) {
                                       VibeBuildSetting(settings, @"AppSandbox")];
 }
 
+// The build machine is a Mac for both targets.
 - (NSString *)vibeToolchainString {
     NSDictionary *info = self.infoDictionary;
-    return [NSString stringWithFormat:@"SDK %@ (%@) · Xcode %@ (%@) · min macOS %@ · on macOS %@",
+#if TARGET_OS_OSX
+    NSString *platform = @"macOS", *minimum = info[@"LSMinimumSystemVersion"];
+#else
+    NSString *platform = @"iOS", *minimum = info[@"MinimumOSVersion"];
+#endif
+    return [NSString stringWithFormat:@"SDK %@ (%@) · Xcode %@ (%@) · min %@ %@ · on macOS %@",
                                       info[@"DTSDKName"] ?: @"?",
                                       info[@"DTSDKBuild"] ?: @"?",
                                       info[@"DTXcode"] ?: @"?",
                                       info[@"DTXcodeBuild"] ?: @"?",
-                                      info[@"LSMinimumSystemVersion"] ?: @"?",
+                                      platform,
+                                      minimum ?: @"?",
                                       info[@"BuildMachineOSBuild"] ?: @"?"];
 }
 

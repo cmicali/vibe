@@ -19,7 +19,13 @@ import AudioToolbox
 import CoreAudio
 import Foundation
 
-let device = AudioDeviceID(CommandLine.arguments[1])!
+let device: AudioDeviceID = {
+    guard CommandLine.arguments.count > 1, let id = AudioDeviceID(CommandLine.arguments[1]) else {
+        FileHandle.standardError.write("usage: hogfollow <deviceID> [engine|hal] [--make-default]\n".data(using: .utf8)!)
+        exit(64)
+    }
+    return id
+}()
 let useHAL = CommandLine.arguments.contains("hal")
 let makeDefault = CommandLine.arguments.contains("--make-default")
 

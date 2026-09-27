@@ -226,6 +226,8 @@ targets:
         buildPhase: resources
       - path: Resources/InfoPlist.xcstrings
         buildPhase: resources
+      - path: Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
       # Hand-managed (table "ThemeNames"): extraction never touches it;
       # check-translations covers it.
       - path: Resources/ThemeNames.xcstrings

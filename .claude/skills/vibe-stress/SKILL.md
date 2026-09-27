@@ -23,12 +23,13 @@ Five drivers, five questions:
 
 ## Running each suite
 
-**Stress.** Every run is reproducible: the seed prints first, `--seed N` regenerates the identical op sequence, every op is journaled as NDJSON under `build/stress/`, and `--replay` re-runs a journal verbatim. Without the seed a fuzz failure is nearly worthless.
+**Stress.** Every run is reproducible: the seed prints first, every op is journaled as NDJSON under `build/stress/`, and `--replay` re-runs a journal verbatim — **the exact reproduction**. `--seed N` regenerates the same op sequence only while the app answers the same: row selections, file-drop coordinates and theme and menu picks read live state (playlist length, window size, installed themes, menu items). Without the seed or the journal a fuzz failure is nearly worthless.
 
 ```bash
 make stress CORPUS=~/Music/big
 make stress CORPUS=~/Music/big ARGS="--profile loading --duration 3600 --iterations 100000"
-.claude/skills/vibe-stress/scripts/stress.py --corpus ~/Music/big --seed 48213    # replay exactly
+.claude/skills/vibe-stress/scripts/stress.py --corpus ~/Music/big --replay build/stress/stress-48213.ndjson   # replay exactly
+.claude/skills/vibe-stress/scripts/stress.py --corpus ~/Music/big --seed 48213    # regenerate: same ops while live state agrees
 ```
 
 Profiles (`--profile`): `base`, `loading`, `hammer`, `ui`, `cloud`, `theme`, `playlist`, `artwork` — what each weights and why is `references/profiles.md`. `cloud` and `artwork` need purpose-built corpora (`make-cloud-corpus.py`, `make-hostile-corpus.py`; same file).
@@ -54,7 +55,7 @@ make torture PLAYLIST=~/Music/big ARGS="--rounds 40 --burst 40 --seed N"
 
 The first two corpus folders must each hold 6–40 playable files; larger folders outlive a scenario's bounds or rotate its finite trace. Clean report is **`PASS=24 XFAIL=1`** (S9), no `FAIL`/`ERROR`. `XFAIL` does not fail the run; `XPASS`, `FAIL` and `ERROR` do, and an `XPASS` is a finding to investigate — the gap closed or the scenario stopped reaching it. The scenario rules, the registry and the `block_main` instrument are `references/cloud-scenarios.md`.
 
-**Device flap.** One question: does playback survive the output device going away and coming back? `--mode vanish` builds a *public* aggregate over a real device, makes it the system default and destroys it, so the default device genuinely ceases to exist — what a USB DAC does when it sleeps. `--mode move` only reassigns the default between two devices that both persist, a strictly weaker stimulus kept to separate "the default moved" from "the device vanished". Oracles per flap: playback state and position, `check_consistency`, the app alive; `dump_health` against a min-of-first-three baseline every `--health-every`; a closing `quiesce` requiring every `pending` counter at zero.
+**Device flap.** One question: does playback survive the output device going away and coming back? `--mode vanish` builds a *public* aggregate over a real device, makes it the system default and destroys it, so the default device genuinely ceases to exist — what a USB DAC does when it sleeps. `--mode move` only reassigns the default between two devices that both persist, a strictly weaker stimulus kept to separate "the default moved" from "the device vanished". Oracles per flap: playback state and position, `check_consistency`, the app alive; `dump_health` against a min-of-first-three baseline every `--health-every`, where the cumulative `outputDropouts` and `renderRefusals` fail on any rise; a closing `quiesce` requiring every `pending` counter at zero.
 
 ```bash
 .claude/skills/vibe-stress/scripts/device-flap.py --corpus ~/Music/big --device <id> --flaps 250
@@ -143,7 +144,7 @@ Failure kinds: `hang`, `crash`, `exit`, `consistency`, `resource`, `command`, `c
 
 **Reading a `resource` failure.** Rules, each earned by watching the oracle cry wolf:
 
-- **`mallocLiveBytes` is the sensitive megabyte metric; `phys_footprint` is a gross backstop (+400 MB in flight, +256 MB at rest).** The footprint is the allocator's and VM's high-water mark, wanders hundreds of MB in *both* directions at rest with the live heap flat, and a sanitizer build's shadow memory alone clears it. Check the live heap before believing a footprint number, and shrink on live heap, never footprint.
+- **`mallocLiveBytes` is the sensitive megabyte metric; `phys_footprint` is a gross backstop (+400 MB in flight, +256 MB at rest), scored only while the live heap is also over its own limit (+128 MB in flight, +64 MB at rest).** The footprint is the allocator's and VM's high-water mark, wanders hundreds of MB in *both* directions at rest with the live heap flat, and a sanitizer build's shadow memory alone clears it. Check the live heap before believing a footprint number, and shrink on live heap, never footprint.
 - **`pending` counters must all be zero at rest** — a stranded claim or undelivered result is a few hundred bytes, invisible to any megabyte metric, yet work that will never finish. `quiesce` refuses to settle until they unwind and names the holdout.
 - Baseline is the element-wise **minimum of the first three samples** (two for the at-rest series), and a metric fails only after **three consecutive** over-limit samples (two at rest): the opening decode peaks far above resting; hosted units are flat, the varispeed and the FX units being hosted once, and `retiredFades` counts voices still fading, which drain within the crossfade length.
 - `quiesce.pressureRelief.releasedBytes` is what `malloc_zone_pressure_relief` actually returned — mostly 0 after a heavy run.

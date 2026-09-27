@@ -96,7 +96,7 @@
 }
 
 // The player messages none of the dead objects: dropOutputBoundStateOnQueue
-// only forgets them, and the unit's own dealloc then stops, uninitializes and
+// only forgets them, and marks the unit dead, whose dealloc then only
 // disposes its instance. createOutputOnQueue rebuilds exactly what init
 // built: the pipeline at the route's rate, its unit made at the next start,
 // or the shared debug pump. The source segment rebuilds itself at the next

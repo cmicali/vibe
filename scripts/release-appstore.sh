@@ -188,7 +188,7 @@ fi
 # The upload's own checks, without submitting.
 echo "🔊 validate with App Store Connect"
 xcrun altool --validate-app -f "$UPLOAD_FILE" -t "$ALTOOL_TYPE" \
-    --api-key "$ASC_KEY_ID" --api-issuer "$ASC_ISSUER_ID"
+    --api-key "$ASC_KEY_ID" --api-issuer "$ASC_ISSUER_ID" --p8-file-path "$ASC_KEY_PATH"
 
 if [[ $UPLOAD == 0 ]]; then
     echo "🔊 done (validated, NOT uploaded)"
@@ -199,7 +199,7 @@ fi
 
 echo "🔊 upload to App Store Connect"
 xcrun altool --upload-app -f "$UPLOAD_FILE" -t "$ALTOOL_TYPE" \
-    --api-key "$ASC_KEY_ID" --api-issuer "$ASC_ISSUER_ID"
+    --api-key "$ASC_KEY_ID" --api-issuer "$ASC_ISSUER_ID" --p8-file-path "$ASC_KEY_PATH"
 
 echo "🔊 done — $PLATFORM $VERSION ($BUILD_NUM) uploaded"
 echo "    Processing takes a few minutes. The build then appears under"

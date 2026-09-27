@@ -57,6 +57,7 @@ static BOOL VibeHangInstalled;
     [gate lock];
     VibeHangBasename = [basename copy];
     VibeHungOpensReleased = (basename == nil);
+    [gate broadcast];
     [gate unlock];
     if (VibeHangInstalled) {
         return;

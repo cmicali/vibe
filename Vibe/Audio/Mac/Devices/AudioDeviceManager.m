@@ -257,12 +257,13 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
 // TRAP: absence in outputDevices is NOT removal: it answers @[] both for no
 // devices and for no snapshot yet (setup, or a HAL failure retrying). Reading
 // the second as the first falls back to System Output and PERSISTS it. Removal
-// decisions ask this instead, which answers NO until a snapshot exists.
+// decisions ask this instead, which answers NO until a snapshot exists — and
+// does not wait for one, since its callers are on the player queue.
 - (BOOL)knowsOutputDeviceIsAbsent:(NSInteger)deviceId {
     if (deviceId < 0) {
         return NO; // System Output is a policy, never a device that can vanish
     }
-    NSArray<AudioDevice *> *devices = [self publishedOutputDevices];
+    NSArray<AudioDevice *> *devices = [self cachedOutputDevices];
     if (!devices) {
         return NO; // no authoritative answer yet
     }
@@ -600,12 +601,6 @@ static void VibeEventLogListen(AudioObjectID object, const AudioObjectPropertyAd
         if (!hasOutputChannels) {
             continue;
         }
-        // A process-private aggregate has output channels and a name but
-        // cannot be chosen. Not a sweep failure: it exists and is deliberately
-        // not listed.
-        if ([CoreAudioUtil isProcessPrivateAggregateDevice:deviceID]) {
-            continue;
-        }
         AudioDevice *device = nil;
         if (![AudioDeviceManager readDeviceForID:deviceID defaultID:defaultID device:&device]) {
             LogWarn(@"AudioDeviceManager could not read identity for output device %u", deviceID);
@@ -744,7 +739,7 @@ static void VibeEventLogListen(AudioObjectID object, const AudioObjectPropertyAd
     if (deviceId < 0) {
         return nil;
     }
-    for (AudioDevice *device in self.outputDevices) {
+    for (AudioDevice *device in self.cachedOutputDevices) {
         if (device.deviceId == deviceId) {
             return device;
         }

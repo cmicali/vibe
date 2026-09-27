@@ -30,11 +30,11 @@ static NSUInteger sCompleted, sCancelled;
 // of its path, so this is all the progress side needs.
 static NSMutableDictionary<NSString *, NSNumber *> *sTransferStartedAt;
 // Which roles hold a slot for each path right now, and how many times a
-// METADATA transfer overlapped another transfer of the same file: the duplicate
-// download path-wide single-flight prevents, invisible in every other counter
-// because both transfers complete.
+// transfer overlapped another transfer of the same file, whatever the roles:
+// the duplicate download path-wide single-flight prevents, invisible in every
+// other counter because both transfers complete.
 static NSMutableDictionary<NSString *, NSMutableArray<NSString *> *> *sInFlightRolesByPath;
-static NSUInteger sMetadataOverlapTransfers;
+static NSUInteger sSamePathOverlapTransfers;
 // Transfers in flight per role, and how many times a metadata transfer took a
 // slot while a playback or prefetch transfer held one. Both foreground roles
 // close the background lane, so such a start means the hold failed, which no
@@ -67,15 +67,6 @@ static const double kStallProgressCeiling = 0.4;
 
 static BOOL VibeFakeCloudRoleIsMetadata(NSString *role) {
     return [role hasPrefix:@"metadata"];
-}
-
-static BOOL VibeFakeCloudRolesContainMetadata(NSArray<NSString *> *roles) {
-    for (NSString *role in roles) {
-        if (VibeFakeCloudRoleIsMetadata(role)) {
-            return YES;
-        }
-    }
-    return NO;
 }
 
 // Stable across launches, so a seeded run picks the same placeholders and
@@ -227,7 +218,7 @@ static void VibeResetScenarioLocked(void) {
     sUniform = NO;
     sProgressMode = VibeFakeCloudProgressHashed;
     sUnflagged = NO;
-    sMetadataOverlapTransfers = 0;
+    sSamePathOverlapTransfers = 0;
     sForegroundContentionStarts = 0;
     sExecuting = 0;
     sQueued = 0;
@@ -362,8 +353,8 @@ static void VibeResetScenarioLocked(void) {
                 VibeTraceLocked(@"started", role, path, @{
                     @"queuedMs": @((NSUInteger)((CFAbsoluteTimeGetCurrent() - queuedAt) * 1000.0)),
                 });
-                if (roles.count > 1 && VibeFakeCloudRolesContainMetadata(roles)) {
-                    sMetadataOverlapTransfers++;
+                if (roles.count > 1) {
+                    sSamePathOverlapTransfers++;
                     VibeTraceLocked(@"overlap", role, path, @{@"roles": [roles copy]});
                 }
                 if (VibeFakeCloudRoleIsMetadata(whose) && foregroundInFlight > 0) {
@@ -549,7 +540,7 @@ static void VibeResetScenarioLocked(void) {
         @"executing": @(sExecuting),
         @"queued": @(sQueued),
         @"maxConcurrency": @(sMaxObservedConcurrency),
-        @"metadataOverlapTransfers": @(sMetadataOverlapTransfers),
+        @"metadataOverlapTransfers": @(sSamePathOverlapTransfers),
         @"foregroundContentionStarts": @(sForegroundContentionStarts),
         @"contentionEvents": [sContentionEvents copy] ?: @[],
         @"traceCount": @(sTrace.count),

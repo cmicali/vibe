@@ -118,8 +118,7 @@ static NSString *const kAboutAuthorMailto = @"mailto:chrismicali@gmail.com";
 - (void)showWindow:(id)sender {
     if (!self.window.isVisible) {
         [self.window center];
-        // Fresh each open: MTKView's render loop does not reliably resume
-        // after a close, and the balls freeze on the second open.
+        // windowWillClose: dropped the last one with its Metal resources.
         [self rebuildBallsView];
     }
     [super showWindow:sender];

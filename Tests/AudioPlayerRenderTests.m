@@ -1765,7 +1765,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
             [self->_player setValue:@"Saved DAC" forKey:@"pendingSavedDeviceName"];
             [self->_player resolvePendingSavedOutputDeviceOnQueue];
         }];
-        XCTAssertEqual(binds, 1u, @"One failed HAL bind must return; regression guard capped recursion at four");
+        XCTAssertEqual(binds, 1u, @"a refused saved-device bind is tried once: the guard held across it keeps the reset to Stopped from resolving again (the stub ends a regression at four)");
     } @finally {
         [_player debugShutdown]; _player=nil;
         for(NSUInteger i=0;i<3;i++) { method_setImplementation(methods[i],originals[i]); imp_removeBlock(replacements[i]); }
@@ -2482,7 +2482,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
             XCTAssertTrue([self->_player debugSetOutputRate:96000]);
         });
         XCTAssertEqual(dispatch_group_wait(rebuild, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0L,
-                       @"the rebuild joined a decoder waiting for the stuck render");
+                       @"the rate change completes within its bound while a render is held inside the bus");
         XCTAssertEqual(bus.debugRendersHeld, 1u, @"the render was still stuck when the rebuild completed");
         XCTAssertEqualWithAccuracy([_player.debugRenderCounts[@"outputRate"] doubleValue], 96000, 0);
     } @finally {
@@ -2973,6 +2973,35 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 }
 - (void)testDecodeFailureDeliveryIsDroppedAfterReplayOfTheSameRow {
     [self checkDecodeFailureForSuccessor:NO afterFrames:0 superseded:YES repeatedURL:NO];
+}
+
+// A hung device holds its HAL reads 30 s: the rate a bind follows is the one
+// the player queue waits for, and it waits at most its bound.
+- (void)testAHungDeviceRateReadHoldsThePlayerQueueOnlyForItsBound {
+    dispatch_semaphore_t release = dispatch_semaphore_create(0);
+    __block BOOL returned = NO;
+    Method method = class_getClassMethod(CoreAudioUtil.class, @selector(readNominalSampleRate:forDeviceID:));
+    IMP replacement = imp_implementationWithBlock(^BOOL(id cls, Float64 *rate, AudioDeviceID deviceID) {
+        dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC));
+        returned = YES;
+        return NO;
+    });
+    [self withOutputUnitStartingAs:^OSStatus { return noErr; } body:^(AudioPlayer *target) {
+        [target runSyncOnQueue:^{ [target ensureOutputUnitOnQueue]; }];
+        IMP original = method_setImplementation(method, replacement);
+        @try {
+            uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+            [target runSyncOnQueue:^{ [target followOutputDeviceRateOnQueue]; }];
+            double waited = (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - began) / 1e9;
+            XCTAssertLessThan(waited, 2.0, @"the player queue waited out the hung device");
+        } @finally {
+            dispatch_semaphore_signal(release);
+            [self settleUntil:^BOOL { return returned; }];
+            [self settleUntil:^BOOL { return [CoreAudioUtil performBoundedRead:^{} within:0.1 late:nil]; }];
+            method_setImplementation(method, original);
+            imp_removeBlock(replacement);
+        }
+    }];
 }
 
 @end

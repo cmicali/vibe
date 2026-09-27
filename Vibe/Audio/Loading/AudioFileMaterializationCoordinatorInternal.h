@@ -68,7 +68,8 @@ typedef struct {
 // Swappable on a live coordinator; the debug channel reads it back to wrap it.
 @property (nonatomic, copy) VibeAudioFileOpener fileOpener;
 
-// Outstanding AudioFileHandle calls, lock-free, for the health probe.
+// Outstanding AudioFileHandle calls, lock-free, for the health probe. Never
+// overstates; a racing open may read low.
 - (uint64_t)handleOpensInFlight;
 
 // Dataless probes outstanding, queued or running, including one whose last

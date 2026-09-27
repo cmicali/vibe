@@ -24,8 +24,8 @@
 // effects do not fire, since the window server drives those, and the events
 // are processed after the reply is written, so poll dump_state for the result.
 //
-// Mouse coordinates are main-window points with a top-left origin:
-// dump_screenshot's pixels divided by the backing scale.
+// Mouse coordinates are content-view points with a top-left origin, the frame
+// dump_screenshot renders: its pixels divided by the backing scale.
 
 static NSTimeInterval VibeEventTimestamp(void) {
     return NSProcessInfo.processInfo.systemUptime;
@@ -192,6 +192,18 @@ NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *t
     return VibeJSONString(@{@"ok": @YES, @"posted": verb, @"key": name, @"repeat": @(isRepeat)});
 }
 
+static NSPoint VibeWindowPointForContentPoint(NSWindow *window, double x, double y) {
+    NSView *content = window.contentView;
+    return [content convertPoint:NSMakePoint(x, content.isFlipped ? y : NSHeight(content.bounds) - y)
+                          toView:nil];
+}
+
+static NSPoint VibeContentPointForWindowPoint(NSWindow *window, NSPoint point) {
+    NSView *content = window.contentView;
+    NSPoint local = [content convertPoint:point fromView:nil];
+    return NSMakePoint(local.x, content.isFlipped ? local.y : NSHeight(content.bounds) - local.y);
+}
+
 // Replies with the hit-tested view, so a missed aim shows in the reply rather
 // than silently doing nothing.
 static NSString *VibeMouseReply(NSString *verb, NSWindow *window, NSPoint location,
@@ -285,7 +297,7 @@ NSString *VibeInjectMouse(MainPlayerController *controller, NSArray<NSString *> 
     }
     NSWindow *window = controller.window;
     VibeMakeWindowKeyForInjection(window);
-    NSPoint location = NSMakePoint(x, NSHeight(window.frame) - y);
+    NSPoint location = VibeWindowPointForContentPoint(window, x, y);
     NSInteger windowNumber = window.windowNumber;
     if (isClick) {
         // A double-click is two press cycles with an ascending clickCount, as
@@ -336,18 +348,17 @@ NSString *VibeInjectDrag(MainPlayerController *controller, NSArray<NSString *> *
     }
     NSWindow *window = controller.window;
     VibeMakeWindowKeyForInjection(window);
-    CGFloat height = NSHeight(window.frame);
     NSInteger windowNumber = window.windowNumber;
-    NSPoint start = NSMakePoint(x1, height - y1);
+    NSPoint start = VibeWindowPointForContentPoint(window, x1, y1);
     [NSApp postEvent:VibeMouseEvent(NSEventTypeLeftMouseDown, start, windowNumber, 1, 1.0)
              atStart:NO];
     for (NSInteger i = 1; i <= steps; i++) {
         double t = (double)i / steps;
-        NSPoint p = NSMakePoint(x1 + (x2 - x1) * t, height - (y1 + (y2 - y1) * t));
+        NSPoint p = VibeWindowPointForContentPoint(window, x1 + (x2 - x1) * t, y1 + (y2 - y1) * t);
         [NSApp postEvent:VibeMouseEvent(NSEventTypeLeftMouseDragged, p, windowNumber, 1, 1.0)
                  atStart:NO];
     }
-    NSPoint end = NSMakePoint(x2, height - y2);
+    NSPoint end = VibeWindowPointForContentPoint(window, x2, y2);
     [NSApp postEvent:VibeMouseEvent(NSEventTypeLeftMouseUp, end, windowNumber, 1, 0.0)
              atStart:NO];
     return VibeMouseReply(@"drag", window, start, x1, y1);
@@ -394,12 +405,13 @@ NSString *VibeTestGesture(MainPlayerController *controller, NSArray<NSString *> 
             return VibeErrorJSON(@"gesture target unavailable: pitch fader is clipped or covered");
         }
     }
-    NSString *x1 = @(start.x).stringValue, *y1 = @(NSHeight(window.frame) - start.y).stringValue;
+    NSPoint from = VibeContentPointForWindowPoint(window, start);
+    NSString *x1 = @(from.x).stringValue, *y1 = @(from.y).stringValue;
     if (reset) {
         return VibeInjectMouse(controller, @[@"click", x1, y1, @"left", @"2"]);
     }
-    return VibeInjectDrag(controller, @[@"drag", x1, y1, @(end.x).stringValue,
-                                       @(NSHeight(window.frame) - end.y).stringValue, @"20"]);
+    NSPoint to = VibeContentPointForWindowPoint(window, end);
+    return VibeInjectDrag(controller, @[@"drag", x1, y1, @(to.x).stringValue, @(to.y).stringValue, @"20"]);
 }
 
 // Selection is a table operation; removal is the shell's transport decision.
@@ -464,7 +476,7 @@ static BOOL VibeDragPointArgument(NSArray<NSString *> *tokens, NSWindow *window,
     }
     *outX = x;
     *outY = y;
-    *outLocation = NSMakePoint(x, NSHeight(window.frame) - y); // → bottom-left window coords
+    *outLocation = VibeWindowPointForContentPoint(window, x, y);
     return YES;
 }
 
@@ -543,30 +555,6 @@ NSString *VibeSyntheticFileDragDrop(MainPlayerController *controller, NSArray<NS
 // the insertion line, autoscroll. The session deliberately survives across
 // commands, so another verb can mutate the playlist mid-drag — races no
 // pointer can stage deterministically.
-
-// NSTableViewDataSource's drag methods, which PlaylistController implements,
-// redeclared for direct calls.
-@interface PlaylistController (VibeDebugReorder)
-- (PlaylistTableView *)tableView;
-- (id<NSPasteboardWriting>)tableView:(NSTableView *)tableView
-              pasteboardWriterForRow:(NSInteger)row;
-- (void)tableView:(NSTableView *)tableView
-  draggingSession:(NSDraggingSession *)session
- willBeginAtPoint:(NSPoint)screenPoint
-    forRowIndexes:(NSIndexSet *)rowIndexes;
-- (NSDragOperation)tableView:(NSTableView *)tableView
-                validateDrop:(id<NSDraggingInfo>)info
-                 proposedRow:(NSInteger)row
-       proposedDropOperation:(NSTableViewDropOperation)dropOperation;
-- (BOOL)tableView:(NSTableView *)tableView
-       acceptDrop:(id<NSDraggingInfo>)info
-              row:(NSInteger)row
-    dropOperation:(NSTableViewDropOperation)dropOperation;
-- (void)tableView:(NSTableView *)tableView
-  draggingSession:(NSDraggingSession *)session
-     endedAtPoint:(NSPoint)screenPoint
-        operation:(NSDragOperation)operation;
-@end
 
 // The stand-in dragging info. Only draggingSource and draggingPasteboard are
 // read by the reorder path; the rest of the protocol is inert.

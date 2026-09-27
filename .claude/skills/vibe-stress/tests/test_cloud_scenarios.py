@@ -667,5 +667,36 @@ class TraceHelperTests(unittest.TestCase):
         self.assertNotIn("Data format", result.stdout)
 
 
+class ScriptLineTests(unittest.TestCase):
+    """stress.script_line against the app's tokenizer: quotes group, no escapes."""
+
+    @staticmethod
+    def tokenize(line):
+        tokens, current, quoted, started = [], "", False, False
+        for c in line:
+            if c == '"':
+                quoted, started = not quoted, True
+            elif c == " " and not quoted:
+                if started:
+                    tokens.append(current)
+                current, started = "", False
+            else:
+                current, started = current + c, True
+        if started:
+            tokens.append(current)
+        return tokens
+
+    def test_a_path_with_spaces_round_trips(self):
+        argv = ["open", "/Music/My Library/01 Track.m4a"]
+        self.assertEqual(self.tokenize(stress.script_line(argv)), argv)
+
+    def test_plain_arguments_stay_unquoted(self):
+        self.assertEqual(stress.script_line(["seek", "12.5"]), "seek 12.5")
+
+    def test_inexpressible_arguments_are_refused(self):
+        for bad in ("", "it's", 'say "hi"', "a\tb", "two\nlines"):
+            self.assertIsNone(stress.script_line(["open", bad]), repr(bad))
+
+
 if __name__ == "__main__":
     unittest.main()

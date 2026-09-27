@@ -71,9 +71,10 @@ typedef NS_ENUM(NSInteger, VibeFakeCloudProgressMode) {
 
 + (BOOL)isInstalled;
 
-// The run's tally, for the health oracle. metadataOverlapTransfers counts
-// metadata downloading a file another role already was; path-wide
-// single-flight ownership keeps it at zero. foregroundContentionStarts counts
+// The run's tally, for the health oracle. metadataOverlapTransfers, the name
+// cloud-scenarios.py reads, counts any transfer of a file another transfer
+// already was downloading, whatever the roles; path-wide single-flight
+// ownership keeps it at zero. foregroundContentionStarts counts
 // metadata downloads that began while a playback or prefetch download ran:
 // the foreground hold's job as a number.
 + (NSDictionary *)statistics;

@@ -6,8 +6,9 @@
 # picks it up.
 #
 # Usage: debug-ios.sh <verb> [args ...]
-# Timeout: VIBE_DEBUG_TIMEOUT seconds, default 10 — raise it for clear_caches,
-# which can take 15s on a full cache.
+# Timeout: VIBE_DEBUG_TIMEOUT seconds when set; otherwise the verb's own
+# clientTimeout from the shared table (DebugCommonVerbs.m: clear_caches 20,
+# block_main and block_main_deep 30, file_cache 60), else 10.
 # Exit: 0 ok, 1 no response, 2 command error (as the mac client).
 set -euo pipefail
 
@@ -16,9 +17,9 @@ set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 BUNDLE_ID="com.commonwealthrecordings.Vibe"
 UDID="$("$DIR/sim-udid.sh" 2>/dev/null)" \
-    || { echo '{"error": "no simulator for this checkout — run launch-ios.sh first (or set VIBE_SIM_UDID)"}'; exit 1; }
+    || { echo '{"error": "no simulator for this session — run launch-ios.sh first (or set VIBE_SIM_UDID)"}'; exit 1; }
 DATA="$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data 2>/dev/null)" \
-    || { echo '{"error": "app not installed on this checkout'"'"'s simulator — run launch-ios.sh"}'; exit 1; }
+    || { echo '{"error": "app not installed on this session'"'"'s simulator — run launch-ios.sh"}'; exit 1; }
 TMP="$DATA/tmp"
 [ -d "$TMP" ] || { echo '{"error": "app container has no tmp directory"}'; exit 1; }
 
@@ -31,7 +32,14 @@ RESPONSE="$TMP/vibe-response-$ID.txt"
 jq -cn --arg id "$ID" '{id: $id, args: $ARGS.positional}' --args -- "$@" > "$CMD.part"
 mv "$CMD.part" "$CMD"
 
-TIMEOUT="${VIBE_DEBUG_TIMEOUT:-10}"
+# Mirrors the table's clientTimeout: there is no client here to read it.
+case "$1" in
+    clear_caches) VERB_TIMEOUT=20 ;;
+    block_main|block_main_deep) VERB_TIMEOUT=30 ;;
+    file_cache) VERB_TIMEOUT=60 ;;
+    *) VERB_TIMEOUT=10 ;;
+esac
+TIMEOUT="${VIBE_DEBUG_TIMEOUT:-$VERB_TIMEOUT}"
 DEADLINE=$(( $(date +%s) + TIMEOUT ))
 while [ ! -f "$RESPONSE" ]; do
     if [ "$(date +%s)" -ge "$DEADLINE" ]; then

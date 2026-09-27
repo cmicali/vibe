@@ -98,7 +98,9 @@
 // An inline refusal would re-enter a caller submitting from a serial queue
 // with its own failure block.
 - (void)testEveryRejectionIsDeliveredOnTheFailureQueue {
-    AudioWorkScheduler *scheduler = [self schedulerWithPendingCount:1 grace:0.05];
+    // A grace far above the gap to the over-bound submit: expired first, the
+    // parked item would free its slot and that submit would park, not fail.
+    AudioWorkScheduler *scheduler = [self schedulerWithPendingCount:1 grace:0.5];
     dispatch_queue_t failureQueue = dispatch_queue_create("com.vibe.tests.failure",
                                                           DISPATCH_QUEUE_SERIAL);
     dispatch_semaphore_t releaseRunning = dispatch_semaphore_create(0);
@@ -121,18 +123,26 @@
         [expiredOnQueue fulfill];
     }];
 
+    // Submitting from the failure queue itself: an async delivery cannot run
+    // until the submitting block has returned, an inline one runs inside it.
+    __block BOOL submitting = NO;
     __block BOOL rejectedInline = NO;
     XCTestExpectation *refusedOnQueue = [self expectationWithDescription:@"refusal on failureQueue"];
-    [scheduler submitWork:^{
-        XCTFail(@"work beyond the pending bound ran");
-    } failureQueue:failureQueue admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
-        XCTAssertEqual(failure, VibeAudioWorkAdmissionFailurePendingLimit);
-        dispatch_assert_queue(failureQueue);
-        [refusedOnQueue fulfill];
-    }];
-    XCTAssertFalse(rejectedInline, @"the refusal must not run before submitWork: returns");
+    dispatch_sync(failureQueue, ^{
+        submitting = YES;
+        [scheduler submitWork:^{
+            XCTFail(@"work beyond the pending bound ran");
+        } failureQueue:failureQueue admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
+            XCTAssertEqual(failure, VibeAudioWorkAdmissionFailurePendingLimit);
+            dispatch_assert_queue(failureQueue);
+            rejectedInline = submitting;
+            [refusedOnQueue fulfill];
+        }];
+        submitting = NO;
+    });
 
     [self waitForExpectations:@[refusedOnQueue, expiredOnQueue] timeout:2];
+    XCTAssertFalse(rejectedInline, @"the refusal must not run before submitWork: returns");
     dispatch_semaphore_signal(releaseRunning);
 }
 

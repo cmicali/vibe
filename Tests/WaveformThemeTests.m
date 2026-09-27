@@ -72,7 +72,7 @@ static CGFloat Alpha(VibeColor *color) {
 }
 
 // Album art with no color, or a grayscale one, is Mono's answer.
-- (void)testAlbumArtFallsBackToWhite {
+- (void)testAlbumArtFallsBackToMonoForMissingOrGrayArt {
     WaveformTheme *nilArt = [WaveformTheme themeForIdentifier:SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART
                                                        isDark:YES artworkColor:nil
                                                  customPlayed:nil customUnplayed:nil];
@@ -142,7 +142,7 @@ static CGFloat Alpha(VibeColor *color) {
 }
 
 // Custom with either color missing is Mono's answer.
-- (void)testCustomFallsBackToWhiteWhenUnset {
+- (void)testCustomFallsBackToMonoWhenEitherColorIsUnset {
     NSColor *teal = [NSColor colorWithRed:0 green:0.7 blue:0.7 alpha:1];
     WaveformTheme *missing = [WaveformTheme themeForIdentifier:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM
                                                         isDark:YES artworkColor:nil
@@ -157,7 +157,7 @@ static CGFloat Alpha(VibeColor *color) {
 }
 
 // An unknown identifier resolves as mono rather than raising or going dark.
-- (void)testUnknownIdentifierResolvesAsWhite {
+- (void)testUnknownIdentifierResolvesAsMono {
     WaveformTheme *theme = [self themeFor:@"lava_lamp" isDark:YES];
     XCTAssertTrue(SameRGB(theme.playedColor, NSColor.whiteColor));
 }

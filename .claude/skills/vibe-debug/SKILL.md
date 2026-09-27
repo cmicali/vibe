@@ -141,7 +141,7 @@ Stream, never `log show` — the one-liner above. A real phone offers no unified
 
 ```bash
 .claude/skills/vibe-debug/scripts/launch-ios.sh [audio-file ...]   # create+boot this session's device, install if stale, seed files, relaunch, wait for the channel
-.claude/skills/vibe-debug/scripts/debug-ios.sh dump_state          # the channel: same JSON contract and jq rules as the mac; VIBE_DEBUG_TIMEOUT overrides 10s
+.claude/skills/vibe-debug/scripts/debug-ios.sh dump_state          # the channel: same JSON contract and jq rules as the mac; waits 10 s or the verb's own longer window, VIBE_DEBUG_TIMEOUT overrides
 .claude/skills/vibe-debug/scripts/drive-ios.sh start|status|tap|drag|pinch|type|rotate|stop   # real touches via the resident XCUITest driver
 xcrun simctl io "$(.claude/skills/vibe-debug/scripts/sim-udid.sh)" screenshot shot.png   # ground-truth pixels (3x, top-left)
 ```
@@ -162,7 +162,7 @@ Do not verify this with `codesign -d --entitlements`, which reads the *signature
 - **Three tiers, cheapest first.** (1) Look and read: `launch-ios.sh`, a screenshot, `dump_state`/`dump_view_tree`. (2) Make things happen: the channel's action verbs — `seek` takes the scrubber's own `didSeek` path, so a seek test needs no drag. (3) Real gestures: `drive-ios.sh`, only when the gesture itself is under test (1:1 waveform tracking, the pager pull, tap targets). A session costs 1–2 minutes and a reinstall: never start one speculatively, and keep it for the whole work session.
 - **No input injection on iOS** — no public API synthesizes `UITouch`es, so the driver is the only touch path. The mac's menu, window, FX, pitch and convert verbs have no iOS counterparts.
 - TRAP: **`appStale: true` (`drive-ios.sh status`) invalidates every gesture result since the rebuild** — a stale app launches, answers, and accepts touches exactly like a fresh one, so nothing else will tell you. Rerun `launch-ios.sh` after any rebuild.
-- **TRAP: a folder added with `add_search_folder` is NOT security-scoped** and survives only the session: a bare path, not a picker bookmark, so a relaunch must add it again and the bookmark round-trip goes unexercised.
+- **TRAP: a folder added with `add_search_folder` is NOT security-scoped**, so the scope round trip goes unexercised — yet it is persisted as a plain bookmark and restored at the next launch unless that no longer resolves. Remove what a test adds; `dump_search` after a relaunch shows whether it came back.
 - **TRAP: `tap_favorite_star`'s ADD is asynchronous** (the bookmark is minted off main) — `ok:true` means the handler ran; poll `dump_favorites` for the row.
 - **Check `ui.waveformBaked` after `expand_player`.** The card animates by transform so the scrubbers never re-bake; `waveformBaked:false` means something animated its bounds again (`Vibe/iOS/CLAUDE.md`).
 - **Logs stream from the HOST** (the simulator writes into the mac's unified log; `simctl spawn … log stream` is refused): the same `/usr/bin/log stream` line as macOS.

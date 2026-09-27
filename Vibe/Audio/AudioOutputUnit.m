@@ -4,8 +4,8 @@
 //
 
 #import "AudioOutputUnitInternal.h"
-#if TARGET_OS_OSX
-#import "CoreAudioUtil.h"
+#if !TARGET_OS_OSX
+#import <os/lock.h>
 #endif
 #include <unistd.h>
 
@@ -114,10 +114,12 @@ void VibeOutputUnitStateClearCounters(VibeOutputUnitState *state) {
 @end
 
 #if !TARGET_OS_OSX
-static void VibeOutputUnitRunningChanged(void *refCon, AudioUnit unit, AudioUnitPropertyID property,
-                                         AudioUnitScope scope, AudioUnitElement element) {
-    [(__bridge AudioOutputUnit *)refCon reportSystemStop];
-}
+// TRAP: RemoteIO reports IsRunning on a thread of its own, and removing the
+// listener does not wait for a report in flight, so the listener's refCon is
+// a token, never the unit: a unit already deallocating is not found.
+static os_unfair_lock VibeRunningListenersLock = OS_UNFAIR_LOCK_INIT;
+static NSMapTable<NSNumber *, AudioOutputUnit *> *VibeRunningListeners; // weak values
+static _Atomic uintptr_t VibeRunningListenerTokens;
 #endif
 
 @implementation AudioOutputUnit {
@@ -139,7 +141,35 @@ static void VibeOutputUnitRunningChanged(void *refCon, AudioUnit unit, AudioUnit
     AudioDeviceID _boundDeviceID; // the device the last landed bind set
 #endif
     OSStatus _configureStatus;  // the last configure's refusal, until one lands
+    _Atomic bool _dead;         // markDead: nothing messages the instance again
+#if !TARGET_OS_OSX
+    uintptr_t _runningListenerToken;
+#endif
 }
+
+#if !TARGET_OS_OSX
+static void VibeOutputUnitRunningChanged(void *refCon, AudioUnit unit, AudioUnitPropertyID property,
+                                         AudioUnitScope scope, AudioUnitElement element) {
+    void *held = NULL;
+    dispatch_queue_t queue = nil;
+    @autoreleasepool {
+        os_unfair_lock_lock(&VibeRunningListenersLock);
+        AudioOutputUnit *outputUnit = [VibeRunningListeners objectForKey:@((uintptr_t)refCon)];
+        os_unfair_lock_unlock(&VibeRunningListenersLock);
+        [outputUnit reportSystemStop];
+        if (outputUnit) {
+            queue = outputUnit->_halQueue;
+            held = (__bridge_retained void *)outputUnit;
+        }
+    }
+    // TRAP: the reference taken here is dropped on the unit's queue: were it
+    // the last, a dealloc inside RemoteIO's own callback would dispose the
+    // instance calling it.
+    if (held) {
+        dispatch_async_f(queue, held, (dispatch_function_t)CFRelease);
+    }
+}
+#endif
 
 - (instancetype)init {
     self = [super init];
@@ -167,13 +197,19 @@ static void VibeOutputUnitRunningChanged(void *refCon, AudioUnit unit, AudioUnit
     AudioUnitSetProperty(_unit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &callback, sizeof(callback));
 #if TARGET_OS_OSX
     _deviceID = kAudioObjectUnknown;
-#else
-    AudioUnitAddPropertyListener(_unit, kAudioOutputUnitProperty_IsRunning, VibeOutputUnitRunningChanged,
-                                 (__bridge void *)self);
 #endif
     // Default QoS, as the player queue: the waits here are for a device's IO
     // thread, and the player queue is the only thing that ever waits on this.
     _halQueue = dispatch_queue_create("com.commonwealthrecordings.Vibe.outputUnit", DISPATCH_QUEUE_SERIAL);
+#if !TARGET_OS_OSX
+    _runningListenerToken = atomic_fetch_add_explicit(&VibeRunningListenerTokens, 1, memory_order_relaxed) + 1;
+    os_unfair_lock_lock(&VibeRunningListenersLock);
+    if (!VibeRunningListeners) VibeRunningListeners = [NSMapTable strongToWeakObjectsMapTable];
+    [VibeRunningListeners setObject:self forKey:@(_runningListenerToken)];
+    os_unfair_lock_unlock(&VibeRunningListenersLock);
+    AudioUnitAddPropertyListener(_unit, kAudioOutputUnitProperty_IsRunning, VibeOutputUnitRunningChanged,
+                                 (void *)_runningListenerToken);
+#endif
     return self;
 }
 
@@ -181,9 +217,21 @@ static void VibeOutputUnitRunningChanged(void *refCon, AudioUnit unit, AudioUnit
 // run on the unit's own queue: it must not wait on it.
 - (void)dealloc {
     if (_unit) {
+        BOOL dead = atomic_load_explicit(&_dead, memory_order_seq_cst);
         atomic_store_explicit(&_state->gate, 0, memory_order_seq_cst);
+#if !TARGET_OS_OSX
+        os_unfair_lock_lock(&VibeRunningListenersLock);
+        [VibeRunningListeners removeObjectForKey:@(_runningListenerToken)];
+        os_unfair_lock_unlock(&VibeRunningListenersLock);
+        if (!dead) {
+            AudioUnitRemovePropertyListenerWithUserData(_unit, kAudioOutputUnitProperty_IsRunning,
+                                                        VibeOutputUnitRunningChanged, (void *)_runningListenerToken);
+        }
+#endif
         [self halStopUnit];
-        AudioUnitUninitialize(_unit);
+        if (!dead) {
+            AudioUnitUninitialize(_unit);
+        }
         AudioComponentInstanceDispose(_unit);
     }
     free(_state);
@@ -242,14 +290,10 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
 #pragma mark Player-queue API
 
 #if TARGET_OS_OSX
-- (OSStatus)bindToDevice:(AudioDeviceID)deviceID {
+- (void)bindToDevice:(AudioDeviceID)deviceID {
     NSParameterAssert(!_running);
-    if ([CoreAudioUtil deviceIsConfirmedDead:deviceID]) {
-        return kAudioHardwareBadDeviceError;
-    }
     _deviceID = deviceID;
     dispatch_async(_halQueue, ^{ [self halBindToDevice:deviceID]; });
-    return noErr;
 }
 
 - (void)forgetDevice {
@@ -297,6 +341,11 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
     if (wasRunning) {
         dispatch_async(_halQueue, ^{ [self halStopUnit]; });
     }
+}
+
+- (void)markDead {
+    atomic_store_explicit(&_dead, true, memory_order_seq_cst);
+    [self stop];
 }
 
 - (void)waitUntilIdle {
@@ -365,6 +414,9 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
 #endif
 
 - (void)halConfigureFormat:(AVAudioFormat *)format renderProc:(VibeOutputRenderProc)renderProc refCon:(void *)refCon {
+    if (atomic_load_explicit(&_dead, memory_order_seq_cst)) {
+        return;
+    }
     AudioUnitUninitialize(_unit);
     _initialized = NO;
     AudioStreamBasicDescription description = *format.streamDescription;
@@ -468,12 +520,15 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
 }
 
 // Also the dealloc's stop, which may run on this queue. Stopping a stopped
-// unit is a no-op.
+// unit is a no-op; a dead one is not messaged, but its callback is still
+// waited out, since the state it reads is freed with the unit.
 - (void)halStopUnit {
-    uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
-    AudioOutputUnitStop(_unit);
-    double milliseconds = VibeMillisecondsSinceUptime(began);
-    LogTiming(milliseconds > 100, @"AudioOutputUnit: stop took %.1f ms", milliseconds);
+    if (!atomic_load_explicit(&_dead, memory_order_seq_cst)) {
+        uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        AudioOutputUnitStop(_unit);
+        double milliseconds = VibeMillisecondsSinceUptime(began);
+        LogTiming(milliseconds > 100, @"AudioOutputUnit: stop took %.1f ms", milliseconds);
+    }
     // The gate store and the callback's gate load are both seq_cst, so a
     // cycle that read the gate open has inRender set before this read sees
     // it clear; it finishes on its own within a buffer's time.

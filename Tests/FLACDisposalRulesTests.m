@@ -271,6 +271,28 @@ BOOL VibeCopyTagsToFLAC(NSString *source, NSString *output, VibeUncompressedCont
     XCTAssertEqualObjects(order, (@[@"request-one", @"cancel-one", @"cancel-two", @"request-two", @"new-cancel"]));
 }
 
+// A Quit issued from a main-queue block (the debug channel's quit) waits for
+// the cancel inside that block, where the main dispatch queue never drains.
+- (void)testCancelSettlesWhileAMainQueueBlockWaitsForIt {
+    [self.converter beginConversionDeletingOriginal:NO];
+    XCTestExpectation *done = [self expectationWithDescription:@"waited inside a main-queue block"];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        __block BOOL cancelled = NO;
+        [self.converter cancelConversionWithCompletion:^{ cancelled = YES; }];
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+            [self.converter settleConversionWithURL:nil error:nil completion:^(NSURL *url, NSError *error) {}];
+        });
+        NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:2];
+        while (!cancelled && deadline.timeIntervalSinceNow > 0) {
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.05, true);
+        }
+        XCTAssertTrue(cancelled);
+        XCTAssertFalse(self.converter.isConverting);
+        [done fulfill];
+    });
+    [self waitForExpectations:@[done] timeout:5];
+}
+
 - (void)testIdleCancellationCompletesAsynchronously {
     __block NSUInteger completions = 0;
     XCTestExpectation *done = [self expectationWithDescription:@"idle cancel"];

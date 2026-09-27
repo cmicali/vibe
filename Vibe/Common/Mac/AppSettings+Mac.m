@@ -325,7 +325,8 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
 - (void)applyThemeWithIdentifier:(NSString *)identifier {
     [self activateThemeWithIdentifier:identifier];
     [self clearThemeHistory];
-    // Dropping the divergence record and history can orphan an image.
+    // Dropping the history orphans any image only an undo was keeping. A
+    // divergence record never names one: built-ins refuse custom images.
     [self sweepUnreferencedThemeImages];
 }
 

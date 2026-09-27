@@ -30,6 +30,17 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
 // it to remove what a crash or a kill left behind.
 static NSString *const kConvertTempPrefix = @"vibe-convert-";
 
+// TRAP: progress and settlement reach main through the run loop's block queue,
+// never the main dispatch queue. Quit waits on a cancel's settlement, and a
+// Quit issued from a main-queue block (the debug channel's quit) waits inside
+// it, where libdispatch never drains the main queue. Progress shares the queue
+// so no report can land after the settlement's sweep reset.
+static void VibeConverterPerformOnMain(dispatch_block_t block) {
+    CFRunLoopRef mainRunLoop = CFRunLoopGetMain();
+    CFRunLoopPerformBlock(mainRunLoop, kCFRunLoopCommonModes, block);
+    CFRunLoopWakeUp(mainRunLoop);
+}
+
 @implementation VibeFLACConversionRecord
 @end
 
@@ -206,7 +217,7 @@ static NSString *const kConvertTempPrefix = @"vibe-convert-";
 
     __weak AudioFileConverter *weakSelf = self;
     void (^progress)(double) = ^(double fraction) {
-        run_on_main_thread({
+        VibeConverterPerformOnMain(^{
             AudioFileConverter *strongSelf = weakSelf;
             if (strongSelf && strongSelf.progressHandler) {
                 strongSelf.progressHandler(track, fraction);
@@ -348,7 +359,7 @@ static NSString *const kConvertTempPrefix = @"vibe-convert-";
 - (void)settleConversionWithURL:(nullable NSURL *)outputURL
                           error:(nullable NSError *)error
                      completion:(void (^)(NSURL *_Nullable, NSError *_Nullable))completion {
-    run_on_main_thread({
+    VibeConverterPerformOnMain(^{
         self->_converting = NO;
         NSArray<dispatch_block_t> *waiters = self->_cancelWaiters;
         self->_cancelWaiters = nil;
@@ -363,7 +374,7 @@ static NSString *const kConvertTempPrefix = @"vibe-convert-";
     NSAssert(NSThread.isMainThread, @"cancelConversionWithCompletion must be called on the main thread");
     if (!_converting) {
         if (completion) {
-            run_on_main_thread({ completion(); });
+            VibeConverterPerformOnMain(completion);
         }
         return;
     }

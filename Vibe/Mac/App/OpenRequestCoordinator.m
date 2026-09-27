@@ -9,7 +9,7 @@
 static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
 
 @interface OpenRequestToken : NSObject
-@property NSUInteger generation;
+@property NSUInteger openGeneration;
 @property NSUInteger sequence;
 @property BOOL append;
 @property (copy) OpenRequestDelivery delivery;
@@ -73,7 +73,7 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
         [self invalidate];
     }
     OpenRequestToken *token = [OpenRequestToken new];
-    token.generation = _openGeneration;
+    token.openGeneration = _openGeneration;
     token.sequence = _nextSequence++;
     token.append = append;
     token.delivery = delivery;
@@ -82,7 +82,7 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
 
 - (BOOL)isRequestCurrent:(OpenRequestToken *)token {
     NSAssert(NSThread.isMainThread, @"OpenRequestCoordinator is main-thread only");
-    return token && token.generation == _openGeneration;
+    return token && token.openGeneration == _openGeneration;
 }
 
 - (void)finishRequest:(OpenRequestToken *)token

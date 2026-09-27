@@ -26,7 +26,9 @@
 #   -y          skip the confirmation prompt (required when stdin is not a tty)
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+# Resolved before the cd, so -h still finds this file from a relative $0.
+SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+cd "$(dirname "$SELF")/.."
 
 BUNDLE_ID="com.commonwealthrecordings.Vibe"
 SIM_UDID_SCRIPT=".claude/skills/vibe-debug/scripts/sim-udid.sh"
@@ -44,7 +46,7 @@ while [[ $# -gt 0 ]]; do
         -n|--dry-run)    DRY_RUN=1 ;;
         -y|--yes)        ASSUME_YES=1 ;;
         # Prints lines 3-26: the usage block must end on line 26.
-        -h|--help)       sed -n '3,26p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help)       sed -n '3,26p' "$SELF" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *)               echo "reset-state: unknown option $1" >&2; exit 2 ;;
     esac
     shift
@@ -72,6 +74,14 @@ present_mac_paths() {
     done
     shopt -u nullglob
     return 0
+}
+
+# The mac app only: `pgrep -x Vibe` also matches the iOS Simulator's Vibe.
+vibe_pids() {
+    local p
+    for p in $(pgrep -x Vibe 2>/dev/null); do
+        case "$(ps -o command= -p "$p" 2>/dev/null)" in *CoreSimulator*) ;; *) echo "$p" ;; esac
+    done
 }
 
 # This session's simulator. Never `booted`: a wipe must name its device.
@@ -126,15 +136,17 @@ fi
 # --- macOS ------------------------------------------------------------------
 
 if [[ $DO_MAC -eq 1 ]]; then
-    if pgrep -x Vibe >/dev/null; then
+    if [[ -n "$(vibe_pids)" ]]; then
         echo "quitting Vibe"
         osascript -e "quit app id \"$BUNDLE_ID\"" >/dev/null 2>&1 || true
         for _ in $(seq 1 20); do
-            pgrep -x Vibe >/dev/null || break
+            [[ -n "$(vibe_pids)" ]] || break
             sleep 0.25
         done
-        if pgrep -x Vibe >/dev/null; then
-            pkill -x Vibe || true
+        pids="$(vibe_pids)"
+        if [[ -n "$pids" ]]; then
+            # shellcheck disable=SC2086
+            kill $pids 2>/dev/null || true
             sleep 0.5
         fi
     fi

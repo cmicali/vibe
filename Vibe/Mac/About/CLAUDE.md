@@ -8,7 +8,7 @@ Three files, and only two of them have anything to know.
 
 Demoscene vectorballs: "VIBE" as a dot matrix of shaded spheres spinning in 3D, on an `MTKView`. It is the whole window's backdrop, and the content view's background matches the Metal clear color so the text strip below blends into it.
 
-**The intro replays by rebuilding the whole view**, in `AboutWindowController.rebuildBallsView`. There is deliberately **no restart API**: mutating the instance buffer on a live view would race command buffers already in flight. So `showWindow:` builds a fresh view each open and `windowWillClose:` drops it with its Metal resources.
+**The view lives only while the window is open**: `windowWillClose:` drops it with its Metal resources, so a closed About window holds no GPU state and no render loop, and `showWindow:` builds a fresh one (`rebuildBallsView`) — which is also what replays the intro, timed from the view's creation.
 
 `windowDidChangeOcclusionState:` pauses the 60fps render loop whenever the window cannot be seen. A 3D animation nobody is looking at is exactly the kind of wakeup the rest of the app is careful about — see the root `CLAUDE.md`'s equalizer guarantee for the same rule stated where it is load-bearing.
 

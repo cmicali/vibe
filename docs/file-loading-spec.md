@@ -342,5 +342,6 @@ H policy numbers · I platform differences · J open items · K non-goals.
 - **K4.** The internal shape of retry bookkeeping, so long as D7's observable
   budgets hold.
 - **K5.** Debug/stress instrumentation (fake cloud, trace events, scenario suite) —
-  it evolves with the implementation, though the scenarios named in this spec
-  (S1–S12) remain the acceptance tests for C, D, and G.
+  it evolves with the implementation. The acceptance test for C, D, and G is
+  the whole `cloud-scenarios.py` registry passing (the `vibe-stress` skill
+  names the clean report), not a fixed list of scenarios.

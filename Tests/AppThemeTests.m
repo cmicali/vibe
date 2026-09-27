@@ -2054,15 +2054,32 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     [settings factoryReset];
 }
 
+// Written straight to the defaults key, as an external `defaults write` would,
+// and read back by a fresh instance so no memoized list hides it.
 - (void)testStoredUserThemesDropsJunkAndBuiltInSpoofs {
     AppSettings *settings = AppSettings.sharedInstance;
     [settings factoryReset];
     NSString *real = [settings addUserThemeWithRecord:@{} name:@"Real"];
-    NSArray *ids = [settings orderedThemeIdentifiers];
-    XCTAssertTrue([ids containsObject:real]);
-    NSUInteger occurrences = [ids filteredArrayUsingPredicate:
-            [NSPredicate predicateWithFormat:@"SELF == %@", real]].count;
-    XCTAssertEqual(occurrences, 1u);
+    NSString *key = @"Appearance.userThemes";
+    NSArray *stored = [NSUserDefaults.standardUserDefaults arrayForKey:key];
+    XCTAssertEqual(stored.count, 1u, @"the key the store writes is the one this test forges");
+    NSMutableArray *forged = [stored mutableCopy];
+    [forged addObjectsFromArray:@[
+        @"not a dictionary",
+        @42,
+        @{kVibeThemeRecordNameKey: @"No id"},
+        @{kVibeThemeRecordIdentifierKey: @"", kVibeThemeRecordNameKey: @"Empty id"},
+        @{kVibeThemeRecordIdentifierKey: @7, kVibeThemeRecordNameKey: @"Numeric id"},
+        @{kVibeThemeRecordIdentifierKey: @"user-nameless"},
+        @{kVibeThemeRecordIdentifierKey: @"user-empty-name", kVibeThemeRecordNameKey: @""},
+        @{kVibeThemeRecordIdentifierKey: kVibeThemeIdentifierVibe,
+          kVibeThemeRecordNameKey: @"Spoofed Vibe"},
+    ]];
+    [NSUserDefaults.standardUserDefaults setObject:forged forKey:key];
+
+    AppSettings *reloaded = [AppSettings new];
+    NSArray *expected = [[AppTheme builtInThemeIdentifiers] arrayByAddingObject:real];
+    XCTAssertEqualObjects([reloaded orderedThemeIdentifiers], expected);
     [settings factoryReset];
 }
 

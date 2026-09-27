@@ -28,7 +28,7 @@ which are separately licensed and covered below.
 This is deliberate, not incidental. TagLib is *statically* compiled into the
 app targets, and the LGPL's static-linking obligation — supplying object files
 or otherwise letting a user relink the application against a modified TagLib —
-cannot be satisfied through Mac App Store distribution. MPL 1.1 is file-level
+cannot be satisfied through App Store distribution, on the Mac or on iOS. MPL 1.1 is file-level
 copyleft: it governs the TagLib files themselves and does not reach the
 proprietary code they are linked with, so it permits exactly this arrangement.
 The dual license exists to make that election possible.

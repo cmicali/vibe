@@ -14,8 +14,8 @@ static const CGFloat kVibeDockIconCanvasSize = 512;
 
 // TRAP: setting the tile's contentView to nil and installing a view again
 // leaks a 256KB dock-tile context per transition (788MB over a 42-minute
-// soak). So one view is installed and only its image swaps; the tile never
-// sees nil again, which is why the reset draws the icon into it.
+// soak). So one view is installed and only its image swaps; the reset draws
+// the icon into it rather than detach it.
 static NSImageView *VibeDockIconView = nil;
 static NSImage *VibeDockAppIcon = nil;
 
@@ -45,13 +45,15 @@ static NSImageView *VibeInstalledDockIconView(void) {
 
 + (void) resetToAppIcon {
     VibeDockIconGeneration++;
-    // No view yet means the Dock still draws the real icon; installing one at
-    // launch would show nothing.
-    if (!VibeDockIconView) {
+    // No view on the tile — none yet, or an app icon assignment dropped it —
+    // means the Dock already draws the live icon. Installing one at launch
+    // would show nothing, and re-attaching after a drop would cost the leak
+    // above for nothing.
+    if (!VibeDockIconView || [NSApp dockTile].contentView != VibeDockIconView) {
         return;
     }
     // Live, so a theme's custom icon reads through; the capture covers nil.
-    VibeInstalledDockIconView().image = [NSApp applicationIconImage] ?: VibeDockAppIcon;
+    VibeDockIconView.image = [NSApp applicationIconImage] ?: VibeDockAppIcon;
     [[NSApp dockTile] display];
 }
 
@@ -166,7 +168,8 @@ static NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvas
         composedFrom = image;
     }
     NSImage *icon = !image ? nil : shaped ? composed : image;
-    // Only on a change: each assignment drops the art tile's content view
+    // Only on a change: each assignment drops the art tile's content view,
+    // and the re-attach that showing art again needs costs one leaked context
     // (VibeInstalledDockIconView).
     if (icon != assigned) {
         assigned = icon;
