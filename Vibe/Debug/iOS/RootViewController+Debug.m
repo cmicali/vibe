@@ -32,6 +32,7 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
 #import "SearchViewController.h"
 #import "DebugCommonVerbs.h"
 #import "PlaybackController.h"
+#import "AudioFX.h"
 #import "Playlist.h"
 
 @implementation RootViewController (Debug)
@@ -65,8 +66,19 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
     // player screen's open hint used to.
     ui[@"libraryEmpty"] = @(playback.playlist.count == 0);
     state[@"ui"] = ui;
-    // No analyzeBPM/analyzeKey: BPM and key analysis are macOS-only, so those
-    // settings do not exist here. A track's bpm/key still report its tags.
+    // The FX intent as the model holds it — the pad's three numbers and the
+    // tempo the taps follow — beside what the chain has done. Off main, the
+    // getters are the lock-guarded ones. No analyzeKey: key analysis is
+    // macOS-only, so that setting does not exist here.
+    AudioFX *fx = playback.debugPlayer.fx;
+    state[@"fx"] = @{
+        @"lowKillCutoffHz": @(fx.lowKillCutoffHz),
+        @"reverbSendLevel": @(fx.reverbSendLevel),
+        @"delaySendLevel": @(fx.delaySendLevel),
+        @"delayTapBPM": @(fx.delayTapBPM),
+        @"hostedUnits": @(fx.hostedUnitCount),
+        @"unitRenders": @(fx.unitRenders),
+    };
     state[@"settings"] = @{
         @"waveformStyle": AppSettings.sharedInstance.waveformStyle ?: @"",
         @"waveformTheme": AppSettings.sharedInstance.waveformTheme,
@@ -74,6 +86,8 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
         @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
         // The stored choice, which iOS pushes to the player as is.
         @"crossfadeMilliseconds": @(AppSettings.sharedInstance.crossfadeMilliseconds),
+        @"audioFXEnabled": @(AppSettings.sharedInstance.audioFXEnabled),
+        @"analyzeBPM": @(AppSettings.sharedInstance.analyzeBPM),
     };
     // Whether the publisher believes a widget is placed — the gate on every
     // write to the shared container, so a widget test asserts it first.

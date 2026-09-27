@@ -272,6 +272,23 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 reply[@"ok"] = @YES;
                 return VibeJSONString(reply);
             }),
+            // The FX pad's touch is the third gesture the channel cannot
+            // synthesize: this drives the model's funnel the pad's delegate
+            // takes, so the audio can be checked without a finger. The pad
+            // itself does not draw for it.
+            VibeDebugCmd(@"set_fx_pad <x 0-1> <y 0-1> | off", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                if (tokens.count == 2 && [tokens[1] isEqualToString:@"off"]) {
+                    [controller.playback setFXPadPosition:CGPointZero engaged:NO];
+                }
+                else {
+                    double x = 0, y = 0;
+                    if (tokens.count < 3 || !VibeParseDouble(tokens[1], &x) || !VibeParseDouble(tokens[2], &y)) {
+                        return VibeErrorJSON(@"usage: set_fx_pad <x 0-1> <y 0-1> | off");
+                    }
+                    [controller.playback setFXPadPosition:CGPointMake(x, y) engaged:YES];
+                }
+                return VibeJSONString(@{ @"ok": @YES, @"fx": [controller debugStateDictionary][@"fx"] ?: @{} });
+            }),
             // The simulator reports the built-in speaker and nothing else,
             // and a route cannot be faked at the session — so this draws the
             // indicator as a route for a look, leaving the model alone. The

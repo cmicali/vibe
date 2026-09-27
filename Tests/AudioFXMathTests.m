@@ -3,9 +3,9 @@
 //  VibeTests
 //
 //  AudioFX's toggles resolved to numbers: the low-kill cutoff, the ping-pong
-//  delay's tap and lane times, its lane feedback, and a held send's swell
-//  target: the numbers alone, asserted without hosting a unit. The chain
-//  itself is hosted and rendered in AudioFXChainTests.
+//  delay's tap and lane times, its lane feedback, a held send's swell target
+//  and the iOS pad's two axes: the numbers alone, asserted without hosting a
+//  unit. The chain itself is hosted and rendered in AudioFXChainTests.
 //
 
 #import <XCTest/XCTest.h>
@@ -48,6 +48,61 @@
     XCTAssertGreaterThan(VibeLowKillCutoffHz(NO, NO), 0.0f);
     XCTAssertGreaterThan(VibeLowKillCutoffHz(YES, NO), 0.0f);
     XCTAssertGreaterThan(VibeLowKillCutoffHz(YES, YES), 0.0f);
+}
+
+#pragma mark - The iOS pad
+
+// The bottom edge and below are the parked, colorless off; the top edge is
+// the ceiling; between them the cutoff climbs a log curve, so the midpoint
+// is the geometric mean, an equal musical interval from either end.
+- (void)testThePadsBottomIsParkedAndItsTopIsTheCeiling {
+    XCTAssertEqual(VibeFXPadLowCutHz(0), kLowKillParkedHz);
+    XCTAssertEqual(VibeFXPadLowCutHz(-0.5f), kLowKillParkedHz);
+    XCTAssertEqualWithAccuracy(VibeFXPadLowCutHz(1), kFXPadLowCutMaxHz, 1e-3);
+    XCTAssertEqualWithAccuracy(VibeFXPadLowCutHz(2), kFXPadLowCutMaxHz, 1e-3);
+    XCTAssertEqualWithAccuracy(VibeFXPadLowCutHz(0.5f), sqrtf(kLowKillParkedHz * kFXPadLowCutMaxHz), 1e-2);
+}
+
+- (void)testThePadsCutoffRisesMonotonicallyAndStaysPositive {
+    float previous = 0;
+    for (float y = 0; y <= 1.0001f; y += 0.05f) {
+        float cutoff = VibeFXPadLowCutHz(y);
+        XCTAssertGreaterThan(cutoff, 0.0f);
+        XCTAssertGreaterThanOrEqual(cutoff, previous, @"y %.2f", y);
+        previous = cutoff;
+    }
+}
+
+// The mac's momentary boost is reachable on the pad: it sits inside the
+// sweep, not past its ceiling.
+- (void)testThePadReachesTheMacsCutoffs {
+    XCTAssertLessThan(kLowKillCutoffHz * kLowKillBoostMultiplier, kFXPadLowCutMaxHz);
+    XCTAssertGreaterThan(kLowKillCutoffHz, kLowKillParkedHz);
+}
+
+// The reverb rides the whole axis; the delay waits for the onset and then
+// climbs to full beside it, so the far right is both at 1.
+- (void)testThePadsHorizontalAxisIsReverbThenDelay {
+    XCTAssertEqual(VibeFXPadReverbLevel(0), 0.0f);
+    XCTAssertEqual(VibeFXPadReverbLevel(-1), 0.0f);
+    XCTAssertEqualWithAccuracy(VibeFXPadReverbLevel(0.25f), 0.25f, 1e-6);
+    XCTAssertEqual(VibeFXPadReverbLevel(1), 1.0f);
+    XCTAssertEqual(VibeFXPadReverbLevel(3), 1.0f);
+
+    XCTAssertEqual(VibeFXPadDelayLevel(0), 0.0f);
+    XCTAssertEqual(VibeFXPadDelayLevel(kFXPadDelayOnset), 0.0f);
+    XCTAssertEqualWithAccuracy(VibeFXPadDelayLevel((1 + kFXPadDelayOnset) / 2), 0.5f, 1e-6);
+    XCTAssertEqual(VibeFXPadDelayLevel(1), 1.0f);
+    XCTAssertEqual(VibeFXPadDelayLevel(3), 1.0f);
+}
+
+- (void)testThePadsLevelsAreWithinUnityEverywhere {
+    for (float x = -0.5f; x <= 1.5f; x += 0.05f) {
+        XCTAssertGreaterThanOrEqual(VibeFXPadReverbLevel(x), 0.0f);
+        XCTAssertLessThanOrEqual(VibeFXPadReverbLevel(x), 1.0f);
+        XCTAssertGreaterThanOrEqual(VibeFXPadDelayLevel(x), 0.0f);
+        XCTAssertLessThanOrEqual(VibeFXPadDelayLevel(x), 1.0f);
+    }
 }
 
 #pragma mark - Delay tap times

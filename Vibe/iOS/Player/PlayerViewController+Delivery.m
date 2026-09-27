@@ -63,9 +63,14 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
     [[self cellAtIndex:index].waveformView hideLoadingIndicator];
 }
 
-// No BPM or key delivery here: analysis is macOS-only, so the coordinator has
-// nothing to forward. AudioTrack.bpm and .key still resolve, from the file's
-// own tags.
+// The tempo is the model's to stamp and to feed the delay taps: the page
+// hears about it back as the metadata event. No key delivery: key detection
+// is macOS-only, and AudioTrack.key still resolves from the file's tag.
+- (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
+              didDetectBPM:(float)bpm
+                    forURL:(NSURL *)url {
+    [_playback noteDetectedBPM:bpm forURL:url];
+}
 
 #pragma mark - WaveformScrubberViewDelegate
 
@@ -124,16 +129,20 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
     // scrub must render its first frame, and a finished one hands the labels
     // back to updatePlaybackUI at whatever the position turns out to be.
     _scrubLabelSecond = NSIntegerMin;
-    if (scrubbing) {
-        _scrubbingView = view;
+    [self setPagerHeld:scrubbing byView:view];
+}
+
+- (void)setPagerHeld:(BOOL)held byView:(UIView *)view {
+    if (held) {
+        _pagerHoldView = view;
     }
-    else if (view != _scrubbingView) {
+    else if (view != _pagerHoldView) {
         return;  // a page that never held the lock, or a reset of a still cell
     }
     else {
-        _scrubbingView = nil;
+        _pagerHoldView = nil;
     }
-    _pagesView.scrollEnabled = !scrubbing;
+    _pagesView.scrollEnabled = !held;
 }
 
 #pragma mark - Waveform zoom

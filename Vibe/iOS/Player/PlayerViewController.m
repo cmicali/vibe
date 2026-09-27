@@ -11,8 +11,10 @@
 #import "PlayerViewController+Delivery.h"
 #import "PlayerViewController+Pager.h"
 
+#import "AppSettings.h"
 #import "AudioTrack.h"
 #import "AudioWaveformCache.h"
+#import "FXPadView.h"
 #import "PageWaveformCoordinator.h"
 #import "TrackPageCell.h"
 #import "Formatters.h"
@@ -44,6 +46,11 @@ static const NSTimeInterval kRoutePickerHoldSeconds = 10;
     if (recognizer == self.panGestureRecognizer) {
         UIView *hit = [self hitTest:[recognizer locationInView:self] withEvent:nil];
         for (UIView *view = hit; view && view != self; view = view.superview) {
+            // The FX pad owns its touch from the press, so the pager never
+            // begins on it either.
+            if ([view isKindOfClass:[FXPadView class]]) {
+                return NO;
+            }
             if ([view isKindOfClass:[WaveformScrubberView class]]) {
                 // An unloaded scrubber disables its own pan so the failure
                 // requirement below can hand the gesture to the pager. Match
@@ -96,6 +103,11 @@ static const NSTimeInterval kRoutePickerHoldSeconds = 10;
     [self buildUI];
 
     _waveformCache = [[AudioWaveformCache alloc] init];
+    // Asked once per decode, so Settings > Playback lands on the next load
+    // with nothing to republish. Tempo only: key detection is macOS-only.
+    _waveformCache.analysisProvider = ^VibeWaveformAnalysis{
+        return (VibeWaveformAnalysis){AppSettings.sharedInstance.analyzeBPM, NO};
+    };
     _waveformCoordinator = [[PageWaveformCoordinator alloc] initWithCache:_waveformCache delegate:self];
     _artHeldPages = [NSMutableIndexSet indexSet];
 
@@ -324,11 +336,22 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
                 || [view isKindOfClass:[TrackPageTransportView class]]
                 || [view isKindOfClass:[TrackPageActionBarView class]]
                 || [view isKindOfClass:[OutputRouteView class]]
+                || [view isKindOfClass:[FXPadView class]]
                 || [view isKindOfClass:[WaveformScrubberView class]]) {
             return NO;
         }
     }
     return YES;
+}
+
+#pragma mark - FXPadViewDelegate
+
+// Every position goes to the model's one funnel, and the pager is held for
+// the length of the hold exactly as it is for a scrub: the pad owns the
+// touch, but UIKit would still chain an overscroll into the pager.
+- (void)fxPadView:(FXPadView *)view didChangePosition:(CGPoint)position engaged:(BOOL)engaged {
+    [_playback setFXPadPosition:position engaged:engaged];
+    [self setPagerHeld:engaged byView:view];
 }
 
 #pragma mark - OutputRouteViewDelegate
@@ -429,6 +452,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
         _remainingTimeControl = nil;
         _transportView = nil;
         _routeView = nil;
+        _fxPadView = nil;
         _actionBar = nil;
     }
 }
@@ -449,13 +473,14 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 - (void)updateChrome {
     CGFloat rowAlpha = [self chromeAlpha];
     if (_transportView.alpha == rowAlpha && _routeView.alpha == rowAlpha
-            && _actionBar.alpha == rowAlpha) {
+            && _actionBar.alpha == rowAlpha && _fxPadView.alpha == rowAlpha) {
         return;
     }
     [UIView animateWithDuration:0.3 animations:^{
         self->_transportView.alpha = rowAlpha;
         self->_routeView.alpha = rowAlpha;
         self->_actionBar.alpha = rowAlpha;
+        self->_fxPadView.alpha = rowAlpha;
     }];
 }
 

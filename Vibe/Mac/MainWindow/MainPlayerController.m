@@ -201,8 +201,8 @@
 // The inline block wirings, one contract per block, each stated beside it.
 - (void)wireCollaboratorHandlers {
     // Asked once per decode, so Settings > Playback and the debug channel's
-    // set_analysis both land on the next load with nothing to republish. iOS
-    // installs no provider: it never analyzes.
+    // set_analysis both land on the next load with nothing to republish. The
+    // iOS card installs its own, tempo only.
     self.waveformCache.analysisProvider = ^VibeWaveformAnalysis{
         return (VibeWaveformAnalysis){AppSettings.sharedInstance.analyzeBPM, AppSettings.sharedInstance.analyzeKey};
     };

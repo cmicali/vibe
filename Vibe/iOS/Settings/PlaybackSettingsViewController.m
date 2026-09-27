@@ -9,16 +9,20 @@
 
 #import "AppSettings.h"
 #import "PlaybackController.h"
+#import "PlayerDisplaySettings.h"
 #import "SettingsChoiceViewController.h"
 #import "VibeStrings.h"
 
 typedef NS_ENUM(NSInteger, VibePlaybackSection) {
     VibePlaybackSectionTransitions = 0,
     VibePlaybackSectionSound,
+    VibePlaybackSectionEffects,
+    VibePlaybackSectionAnalysis,
     VibePlaybackSectionCount,
 };
 
-// The Track transitions rows; Sound has the one Resampling row.
+// The Track transitions rows; the other three sections hold one row each —
+// Resampling, the effects switch and the BPM detection switch.
 typedef NS_ENUM(NSInteger, VibePlaybackRow) {
     VibePlaybackRowOnTrackEnd = 0,
     VibePlaybackRowCrossfade,
@@ -35,6 +39,7 @@ static const NSInteger kOnEndRowPlayNext = 0;
 static const NSInteger kOnEndRowPause    = 1;
 
 static NSString *const kValueCellIdentifier = @"value";
+static NSString *const kSwitchCellIdentifier = @"switch";
 
 @implementation PlaybackSettingsViewController {
     PlaybackController *_playback;
@@ -104,20 +109,63 @@ static NSString *const kValueCellIdentifier = @"value";
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return section == VibePlaybackSectionSound ? 1 : VibePlaybackRowCount;
+    return section == VibePlaybackSectionTransitions ? VibePlaybackRowCount : 1;
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
-    return section == VibePlaybackSectionSound ? STR_SETTINGS_PLAYBACK_AUDIO_SECTION
-                                               : STR_SETTINGS_TRANSITIONS_SECTION;
+    switch ((VibePlaybackSection)section) {
+        case VibePlaybackSectionSound: return STR_SETTINGS_PLAYBACK_AUDIO_SECTION;
+        case VibePlaybackSectionEffects: return STR_SETTINGS_FX_SECTION;
+        case VibePlaybackSectionAnalysis: return STR_SETTINGS_ANALYSIS_SECTION;
+        default: return STR_SETTINGS_TRANSITIONS_SECTION;
+    }
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
-    return section == VibePlaybackSectionSound ? STR_SETTINGS_RESAMPLING_CAPTION : nil;
+    switch ((VibePlaybackSection)section) {
+        case VibePlaybackSectionSound: return STR_SETTINGS_RESAMPLING_CAPTION;
+        case VibePlaybackSectionEffects: return STR_SETTINGS_FX_CAPTION;
+        case VibePlaybackSectionAnalysis: return STR_SETTINGS_DETECT_BPM_CAPTION;
+        default: return nil;
+    }
+}
+
+// The two switches, built the way the Appearance screen's file-info switch
+// is: the row itself does not select, the switch writes in place.
+- (UITableViewCell *)switchCellInTableView:(UITableView *)tableView
+                                     title:(NSString *)title
+                                        on:(BOOL)on
+                                    action:(SEL)action {
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kSwitchCellIdentifier];
+    if (!cell) {
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
+                                      reuseIdentifier:kSwitchCellIdentifier];
+        cell.selectionStyle = UITableViewCellSelectionStyleNone;
+        cell.accessoryView = [[UISwitch alloc] init];
+    }
+    UISwitch *toggle = (UISwitch *)cell.accessoryView;
+    // A recycled cell carries the other row's target.
+    [toggle removeTarget:nil action:NULL forControlEvents:UIControlEventValueChanged];
+    [toggle addTarget:self action:action forControlEvents:UIControlEventValueChanged];
+    toggle.on = on;
+    UIListContentConfiguration *content = [UIListContentConfiguration cellConfiguration];
+    content.text = title;
+    cell.contentConfiguration = content;
+    return cell;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView
          cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    if (indexPath.section == VibePlaybackSectionEffects) {
+        return [self switchCellInTableView:tableView title:STR_SETTINGS_ENABLE_FX
+                                        on:AppSettings.sharedInstance.audioFXEnabled
+                                    action:@selector(effectsToggled:)];
+    }
+    if (indexPath.section == VibePlaybackSectionAnalysis) {
+        return [self switchCellInTableView:tableView title:STR_SETTINGS_DETECT_BPM
+                                        on:AppSettings.sharedInstance.analyzeBPM
+                                    action:@selector(detectBPMToggled:)];
+    }
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kValueCellIdentifier];
     if (!cell) {
         cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
@@ -145,6 +193,9 @@ static NSString *const kValueCellIdentifier = @"value";
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    if (indexPath.section == VibePlaybackSectionEffects || indexPath.section == VibePlaybackSectionAnalysis) {
+        return; // the switch rows
+    }
     UIViewController *next = indexPath.section == VibePlaybackSectionSound ? [self resamplingPicker]
             : (VibePlaybackRow)indexPath.row == VibePlaybackRowCrossfade ? [self crossfadePicker]
             : [self onTrackEndPicker];
@@ -176,6 +227,20 @@ static NSString *const kValueCellIdentifier = @"value";
         AppSettings.sharedInstance.maximumResamplingQuality = (index == kResamplingRowMaximum);
         [playback applyResamplingSetting];
     }];
+}
+
+// The one Playback write that also notifies the card: the FX pad it shows or
+// hides is drawn from this setting, so the display notification carries it
+// the way the Appearance screen's writes are carried.
+- (void)effectsToggled:(UISwitch *)toggle {
+    AppSettings.sharedInstance.audioFXEnabled = toggle.isOn;
+    [_playback applyFXSetting];
+    VibeNotifyDisplaySettingsChanged();
+}
+
+// Nothing to apply: the loader asks the provider on its next decode.
+- (void)detectBPMToggled:(UISwitch *)toggle {
+    AppSettings.sharedInstance.analyzeBPM = toggle.isOn;
 }
 
 - (SettingsChoiceViewController *)crossfadePicker {

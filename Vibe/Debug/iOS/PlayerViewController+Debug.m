@@ -16,6 +16,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioWaveformCache.h"
+#import "FXPadView.h"
 #import "TrackPageCell.h"
 #import "WaveformScrubberView.h"
 
@@ -32,6 +33,10 @@
         // The flag that freezes the playhead if it ever sticks; with
         // waveformBaked it says which of the two ways a still waveform means.
         @"routePickerUp": @(_routePickerPresenting),
+        // The pad as drawn: whether the setting shows it, and whether a
+        // finger holds it (which also holds the pager).
+        @"fxPadShown": @(_fxPadView && !_fxPadView.hidden),
+        @"fxPadEngaged": @(_fxPadView.isEngaged),
         @"waveformProgress": @(_waveformView.progress),
         @"waveformOverscroll": @(_waveformView.overscroll),
         @"waveformScrollGeom": _waveformView.scrollGeometry ?: @[],

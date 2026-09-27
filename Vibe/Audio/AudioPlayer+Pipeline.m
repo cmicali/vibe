@@ -657,7 +657,7 @@ VIBE_REALTIME_END
 // the render out — and published once the units are up, so a disconnected
 // segment costs the render nothing, not even its stages' flags.
 - (void)reconcileFXOnQueue {
-    if (!self.fx || !_masterFormat) {
+    if (!_masterFormat) {
         return;
     }
     atomic_store_explicit(&_masterBus->chain, NULL, memory_order_seq_cst);
@@ -665,6 +665,52 @@ VIBE_REALTIME_END
     if (self.fx.connected) {
         atomic_store_explicit(&_masterBus->chain, self.fx.chain, memory_order_release);
     }
+}
+
+- (void)clearFXIntent {
+    self.fx.lowKillBoostActive = NO;
+    self.fx.lowKillEnabled = NO;
+    self.fx.lowKillCutoffHz = 0;
+    self.fx.reverbSendEnabled = NO;
+    self.fx.reverbSendLevel = 0;
+    self.fx.delaySendEnabled = NO;
+    self.fx.delaySendLevel = 0;
+    self.fx.shortDelaySendEnabled = NO;
+}
+
+- (void)setFXEnabled:(BOOL)enabled {
+    if (!enabled) {
+        [self clearFXIntent];
+    }
+    dispatch_async(_queue, ^{
+        if (self->_terminating || self->_fxEnabled == enabled) {
+            return;
+        }
+        BOOL wasPlaying = self->_state == VibePlayerStatePlaying && self->_voice != 0;
+        // The segment connects and disconnects with the output stopped; the
+        // voices keep their state across the stop, so nothing is rescheduled.
+        [self stopOutputOnQueue];
+        self->_fxEnabled = enabled;
+        [self reconcileFXOnQueue];
+        [self resumeOutputAfterEditOnQueue:wasPlaying reason:@"FX toggled"];
+    });
+}
+
+- (BOOL)resumeOutputAfterEditOnQueue:(BOOL)wasPlaying reason:(NSString *)reason {
+    if (wasPlaying) {
+        NSError *startError = nil;
+        if (![self startOutputOnQueue:&startError]) {
+            [self pauseCurrentVoiceOnQueue];
+            [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
+                    [NSString stringWithFormat:@"Could not restart playback (%@)", reason], startError)];
+            return NO;
+        }
+        [self armSignalProbeOnQueue:reason];
+    }
+    else if (_state == VibePlayerStatePaused) {
+        [self scheduleOutputIdleStopOnQueue];
+    }
+    return YES;
 }
 
 - (void)applyLevelMeterOnQueue {
@@ -1080,18 +1126,8 @@ void VibeMasterBusFree(VibeMasterBus *master) {
                 @"Could not restore the track at the output's new format", nil)];
         return NO;
     }
-    if (wasPlaying) {
-        NSError *startError = nil;
-        if (![self startOutputOnQueue:&startError]) {
-            [self pauseCurrentVoiceOnQueue];
-            [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
-                    @"Could not restart playback at the output's new format", startError)];
-            return NO;
-        }
-        [self armSignalProbeOnQueue:@"output format change"];
-    }
-    else if (_state == VibePlayerStatePaused) {
-        [self scheduleOutputIdleStopOnQueue];
+    if (![self resumeOutputAfterEditOnQueue:wasPlaying reason:@"output format change"]) {
+        return NO;
     }
     [self maybeArmSuccessorOnQueue];
     LogInfo(@"AudioPlayer: the pipeline follows the output to %.0f Hz", format.sampleRate);

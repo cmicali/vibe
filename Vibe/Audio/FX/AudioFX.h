@@ -12,9 +12,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The DJ performance effects on the master bus: the low-kill high-pass, on Q
 // with a W boost, and the send-returns — E for a reverb wash, R and T for
-// ping-pong delays. A bare key drives each one, and the same key both taps and
-// holds. TransportKeyMonitor owns that distinction; this class simply holds
-// plain on-off state per effect.
+// ping-pong delays. On the mac a bare key drives each one, and the same key
+// both taps and holds; TransportKeyMonitor owns that distinction. On iOS the
+// card's FX pad drives the same stages continuously. Either way the intent
+// this class holds is one number per stage — a cutoff, a send level — and
+// the on-off setters are writers of it.
 //
 // It owns the FX segment of the render pipeline, everything between the bus
 // and the meter:
@@ -103,8 +105,18 @@ typedef struct VibeFXChain VibeFXChain;
 // cutoff over about 80ms rather than switching instantly, so it never clicks.
 //
 // Setting this to NO also clears lowKillBoostActive, because the boost
-// modifies this filter and must never outlive it.
+// modifies this filter and must never outlive it. Both toggles resolve to
+// lowKillCutoffHz through VibeLowKillCutoffHz.
 @property (nonatomic) BOOL lowKillEnabled;
+
+// The filter's cutoff as one number, the intent the toggles above write and
+// the iOS pad writes directly: kLowKillParkedHz or below is off (the sweep
+// parks flat and colorless, and the getter reads the parked value), anything
+// above it engages the filter there. A direct write clears both toggles,
+// since it replaces their answer. Every write sweeps from wherever the
+// filter sits, preempting a sweep in flight, so a stream of pad positions
+// lands as one smooth motion.
+@property (nonatomic) float lowKillCutoffHz;
 
 // The low kill's boost, on the W key. While YES the same high-pass runs at
 // double the usual cutoff, whether or not lowKillEnabled is on, and clearing
@@ -115,14 +127,25 @@ typedef struct VibeFXChain VibeFXChain;
 
 // The reverb send, on the E key. While YES the master signal also feeds a
 // long, fully wet reverb return, low-cut so the tail cannot muddy the bass.
-// Setting NO cuts only the send, and the tail rings out naturally.
+// Setting NO cuts only the send, and the tail rings out naturally. A held
+// key opens the send at its base level and swells it while held.
 @property (nonatomic) BOOL reverbSendEnabled;
+
+// The same send as a level, 0 to 1, where 1 is the level a held key swells
+// to: the iOS pad's writer. A write clears reverbSendEnabled — the level is
+// the whole answer, with no swell — and 0 closes the send, the tail ringing
+// out as a release does. The gate slews toward each value on the audio
+// thread, so a stream of pad positions needs no fade of its own.
+@property (nonatomic) float reverbSendLevel;
 
 // The delay echo send, on the R key. While YES the master signal also feeds an
 // 1/8-note ping-pong echo with aggressive feedback, high-passed so the repeats
 // do not stack up bass. Setting NO cuts only the send, and the trail decays
 // through the feedback naturally.
 @property (nonatomic) BOOL delaySendEnabled;
+
+// The 1/8-note send as a level, reverbSendLevel's twin.
+@property (nonatomic) float delaySendLevel;
 
 // The short delay echo send, on the T key: the same ping-pong echo as
 // delaySendEnabled, on 1/16-note taps, so twice as fast. The two are

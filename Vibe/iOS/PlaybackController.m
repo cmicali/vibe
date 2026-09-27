@@ -14,6 +14,8 @@
 #import "PlaybackController+PlayerEvents.h"   // AudioPlayerDelegate, adopted by the category
 
 #import "AppSettings.h"
+#import "AudioFX.h"
+#import "AudioFXMath.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+Diagnostics.h"
 #import "AudioPlayer+Recovery.h"
@@ -31,6 +33,13 @@
 // the screen that draws one. This tick only feeds the time labels, which
 // change once a second, and the Now Playing publish.
 static const NSUInteger kUIUpdateHz = 3;
+
+// The delay taps' tempo, and the metadata event the BPM delivery reuses:
+// this file's own, so not in the internal header the categories share.
+@interface PlaybackController (TempoFeed)
+- (void)refreshTempoFeed;
+- (void)notifyDidLoadMetadataForTrack:(AudioTrack *)track;
+@end
 
 @implementation PlaybackController {
     // Weakly held: an observer is a view or a view controller, and every one
@@ -53,15 +62,14 @@ static const NSUInteger kUIUpdateHz = 3;
         _nowPlaying = [[NowPlayingController alloc] initWithDelegate:self];
         _widgetPublisher = [[WidgetPublisher alloc] init];
         _launchOpenWaiters = [NSMutableArray array];
-        // No FX on iOS: nothing surfaces them, so the FX graph segment is
-        // never created or attached — the mixer wires straight to the output.
-        // A hard NO, not the shared audioFXEnabled setting, so the mac default
-        // cannot reach in here.
-        _player = [[AudioPlayer alloc] initWithDeviceUID:@"" name:@"" enableFX:NO delegate:self];
+        // The setting as is: no bit-perfect mode here to outrank it. The
+        // card's FX pad drives the segment through setFXPadPosition:engaged:.
+        _player = [[AudioPlayer alloc] initWithDeviceUID:@"" name:@""
+                                                enableFX:AppSettings.sharedInstance.audioFXEnabled
+                                                delegate:self];
         // The stored choice as is: no bit-perfect mode here to hold it down.
         _player.crossfadeMilliseconds = AppSettings.sharedInstance.crossfadeMilliseconds;
         [self applyResamplingSetting];
-
 
         __weak PlaybackController *weakSelf = self;
         _updateTimer = [[UIUpdateTimer alloc] initWithHz:kUIUpdateHz handler:^{
@@ -151,6 +159,9 @@ static const NSUInteger kUIUpdateHz = 3;
 }
 
 - (void)notifyDidRenderCurrentTrack {
+    // Every path that changes which track is current comes through here, so
+    // it is where the delay taps learn the new track's tempo.
+    [self refreshTempoFeed];
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {
         if ([observer respondsToSelector:@selector(playbackDidRenderCurrentTrack:)]) {
             [observer playbackDidRenderCurrentTrack:self];
@@ -493,6 +504,50 @@ static const NSUInteger kUIUpdateHz = 3;
 - (void)applyResamplingSetting {
     _player.resamplingQuality = AppSettings.sharedInstance.maximumResamplingQuality
             ? VibeResamplingQualityMaximum : VibeResamplingQualityHigh;
+}
+
+- (void)applyFXSetting {
+    // The player clears every effect's intent itself when it is switched
+    // off, so a pad still held has nothing to leave behind.
+    [_player setFXEnabled:AppSettings.sharedInstance.audioFXEnabled];
+}
+
+#pragma mark - Effects and tempo
+
+- (void)setFXPadPosition:(CGPoint)position engaged:(BOOL)engaged {
+    AudioFX *fx = _player.fx;
+    if (!engaged) {
+        fx.lowKillCutoffHz = 0;
+        fx.reverbSendLevel = 0;
+        fx.delaySendLevel = 0;
+        return;
+    }
+    fx.lowKillCutoffHz = VibeFXPadLowCutHz((float)position.y);
+    fx.reverbSendLevel = VibeFXPadReverbLevel((float)position.x);
+    fx.delaySendLevel = VibeFXPadDelayLevel((float)position.x);
+}
+
+// The delay taps follow the current track's tempo — the tag over the
+// analysis, AudioTrack.bpm's rule — and 0 when neither is known, which the
+// FX read as the default tempo. There is no pitch fader here, so the track's
+// own tempo is the tempo as heard. The setter no-ops on the same value.
+- (void)refreshTempoFeed {
+    _player.fx.delayTapBPM = _playlist.currentTrack.bpm;
+}
+
+- (void)noteDetectedBPM:(float)bpm forURL:(NSURL *)url {
+    __block BOOL current = NO;
+    [[_playlist indexesOfTracksWithURL:url] enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
+        AudioTrack *track = [self->_playlist trackAtIndex:index];
+        track.detectedBPM = bpm;
+        current |= [self->_playlist isCurrentTrack:track];
+        // The same event a tag landing sends: the page redraws its codec
+        // line from AudioTrack.bpm either way.
+        [self notifyDidLoadMetadataForTrack:track];
+    }];
+    if (current) {
+        [self refreshTempoFeed];
+    }
 }
 
 // Clamped because a list's rows can be stale — an external "Open in Vibe"
@@ -908,13 +963,19 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 
 #pragma mark - AudioTrackMetadataCacheDelegate
 
-- (void)didLoadMetadata:(AudioTrack *)track {
+- (void)notifyDidLoadMetadataForTrack:(AudioTrack *)track {
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {
         if ([observer respondsToSelector:@selector(playback:didLoadMetadataForTrack:)]) {
             [observer playback:self didLoadMetadataForTrack:track];
         }
     }
+}
+
+- (void)didLoadMetadata:(AudioTrack *)track {
+    [self notifyDidLoadMetadataForTrack:track];
     if ([_playlist isCurrentTrack:track]) {
+        // The tag outranks the analysis, so a BPM tag landing moves the taps.
+        [self refreshTempoFeed];
         // A seek that arrived parked before this delivery (seekToProgress:)
         // lands now, through the same funnel. !_trackStartPending is what says
         // it has not already opened: the parked open sets it.

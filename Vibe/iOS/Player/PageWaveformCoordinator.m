@@ -158,8 +158,13 @@
     [_delegate pageWaveformCoordinator:self didFailWaveformForIndex:failedIndex];
 }
 
-// audioWaveformCache:didDetectBPM:forURL: and its key twin are optional and
-// deliberately unimplemented: analysis is macOS-only, so the cache never fires
-// them here. See the delegate protocol.
+// Straight through: the URL is the match (see the protocol), and the hold
+// does not apply, since nothing repaints on it.
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forURL:(NSURL *)url {
+    [_delegate pageWaveformCoordinator:self didDetectBPM:bpm forURL:url];
+}
+
+// The key twin stays unimplemented: key detection is macOS-only, so the
+// cache never fires it here.
 
 @end

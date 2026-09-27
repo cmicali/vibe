@@ -6,8 +6,8 @@
 // import this header explicitly so their dependency is visible.
 //
 // THE PLATFORM SPLIT IS THE DIRECTORY, not a guard per property. Almost
-// everything the store configures — the window, the pitch fader, the FX
-// graph, Convert to FLAC, the playlist table, folder art, BPM and key
+// everything the store configures — the window, the pitch fader, the
+// bit-perfect modes, Convert to FLAC, the playlist table, folder art, key
 // analysis — exists only on macOS, and all of it is the (Mac) category in
 // Mac/AppSettings+Mac.h, which a macOS caller imports explicitly. What both
 // targets compile is the short list here, plus one #if !TARGET_OS_OSX block
@@ -130,6 +130,26 @@ FOUNDATION_EXPORT const size_t kVibeCrossfadePresetCount;
 // armed splice that advances anyway.
 - (BOOL)pauseAtTrackEnd;
 - (void)setPauseAtTrackEnd:(BOOL)pause;
+
+// Settings > Playback > Enable audio effects, on both platforms, default
+// YES: whether the DJ FX segment is in the render at all. The store never
+// applies it: the mac writer requests its live effect, which reaches the
+// player through its device rebuild, and the iOS writer calls
+// PlaybackController.applyFXSetting, which also hides the card's FX pad.
+// Whether FX exist for a mac user is audioFXAllowed (Mac/AppSettings+Mac.h),
+// since bit-perfect output outranks this there; iOS has no such mode.
+- (BOOL)audioFXEnabled;
+- (void)setAudioFXEnabled:(BOOL)enabled;
+
+// Settings > Playback > Detect BPM automatically, on both platforms, default
+// YES. NO skips tempo detection on the waveform decode pass. A file scanned
+// while off caches a waveform with no BPM, so re-enabling only affects files
+// not yet cached. Tagged BPM is unaffected either way. The loader is TOLD
+// the answer through its analysis provider rather than reading it here; each
+// shell installs one that reads this (AudioWaveformLoader). Key detection
+// stays macOS-only (analyzeKey, Mac/AppSettings+Mac.h).
+- (BOOL)analyzeBPM;
+- (void)setAnalyzeBPM:(BOOL)analyze;
 
 // The order a folder's tracks land in the playlist — see FolderOpenSort.h.
 // Normalized on read: an identifier no picker can produce reads as Name.

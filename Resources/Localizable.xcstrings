@@ -745,6 +745,30 @@
       },
       "extractionState": "manual"
     },
+    "a11y.player.fx_pad": {
+      "comment": "iOS: accessibility label for the FX pad on the full-screen player — a touch pad that applies DJ effects (a low-cut filter, reverb, delay) while a finger holds it.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effects pad"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "a11y.player.fx_pad_hint": {
+      "comment": "iOS: accessibility hint for the FX pad on the full-screen player, explaining the drag: the vertical axis is a low-cut filter, the horizontal axis adds reverb then delay, and lifting the finger turns every effect off.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touch and drag. Up cuts the bass, right adds reverb and then delay. Lift to release."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "a11y.player.minimize": {
       "comment": "iOS: accessibility label for the full-screen player's grabber, which returns it to the mini player strip.",
       "localizations": {
@@ -20828,6 +20852,42 @@
           "stringUnit": {
             "state": "translated",
             "value": "編輯主題…"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "player.fx_axis.low_cut": {
+      "comment": "iOS: caption in the top-left corner of the effects pad naming its vertical axis: dragging up raises a low-cut (high-pass) filter that removes the bass. Keep the arrow; upper case is the pad's style.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LOW CUT ↑"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "player.fx_axis.reverb_delay": {
+      "comment": "iOS: caption in the bottom-right corner of the effects pad naming its horizontal axis: dragging right adds reverb, and past the middle a beat-synced delay (echo) on top. Keep the arrow; upper case is the pad's style.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVERB → DELAY"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "player.fx_pill": {
+      "comment": "iOS: the label on the capsule in the full-screen player's bottom bar that opens the effects pad when touched. 'FX' is the DJ term for effects; keep it very short — the capsule is small.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FX"
           }
         }
       },
@@ -75146,7 +75206,7 @@
       "extractionState": "manual"
     },
     "settings.playback.analysis_section": {
-      "comment": "Settings, Playback pane: heading above the group of rows enabling automatic tempo and key analysis.",
+      "comment": "Settings, Playback, on both platforms: heading above the rows enabling automatic tempo analysis (and, on macOS, key analysis).",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -76448,7 +76508,7 @@
       "extractionState": "manual"
     },
     "settings.playback.detect_bpm": {
-      "comment": "Settings, Playback pane: checkbox enabling tempo analysis of loaded files. BPM is beats per minute; a tempo already tagged in the file always shows regardless.",
+      "comment": "Settings, Playback, on both platforms: checkbox (macOS) or switch (iOS) enabling tempo analysis of loaded files. BPM is beats per minute; a tempo already tagged in the file always shows regardless.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -76628,6 +76688,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "自動偵測 BPM"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.playback.detect_bpm.caption": {
+      "comment": "iOS Settings, Playback screen: footer under the Detect BPM switch. BPM is beats per minute. Says the analysis rides the waveform load and that a tempo tag in the file takes precedence.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analyzes each track's tempo while its waveform loads. A BPM already tagged in the file is used instead."
           }
         }
       },
@@ -76820,7 +76892,7 @@
       "extractionState": "manual"
     },
     "settings.playback.enable_fx": {
-      "comment": "Settings, Playback pane: checkbox choosing whether the DJ performance effects (low kill, reverb, delay) are available. 'FX' is the DJ term for effects, left untranslated.",
+      "comment": "Settings, Playback, on both platforms: checkbox (macOS) or switch (iOS) choosing whether the DJ performance effects (low kill, reverb, delay) are available. 'FX' is the DJ term for effects, left untranslated.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -77000,6 +77072,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "啟用音效"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.playback.fx_caption": {
+      "comment": "iOS Settings, Playback screen: footer under the audio effects switch, saying what turning it on adds — a touch pad on the full-screen player whose vertical axis cuts the bass (a low-cut filter) and whose horizontal axis adds reverb and then delay. 'FX' is the DJ term for effects, left untranslated.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adds an FX pad to the player: slide up for a low cut, right for reverb and delay."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.playback.fx_section": {
+      "comment": "iOS Settings, Playback screen: heading above the audio effects switch.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effects"
           }
         }
       },

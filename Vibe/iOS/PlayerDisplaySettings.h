@@ -40,9 +40,9 @@ BOOL VibeShowsRemainingTime(void);
 void VibeSetShowsRemainingTime(BOOL remaining);
 
 // Whether the card's header draws the file-format readout — codec, bitrate,
-// sample rate — under the artist. The mac's Settings > Appearance > Show file
-// info, and its default: on. There is no BPM/key line to go with it here,
-// since analysis is macOS-only.
+// sample rate, and the tempo when one is known — under the artist. The mac's
+// Settings > Appearance > Show file info, and its default: on. The tempo
+// rides this line rather than a line of its own, as it does on the mac.
 BOOL VibeShowsFileInfo(void);
 void VibeSetShowsFileInfo(BOOL show);
 

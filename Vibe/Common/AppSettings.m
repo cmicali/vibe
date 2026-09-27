@@ -53,6 +53,8 @@ const size_t kVibeCrossfadePresetCount =
             SETTING_FOLDER_OPEN_SORT: SETTINGS_VALUE_FOLDER_OPEN_SORT_NAME,
             SETTING_CROSSFADE_MILLISECONDS: @(10),
             SETTING_PAUSE_AT_TRACK_END: @(NO),
+            SETTING_AUDIO_FX_ENABLED: @(YES),
+            SETTING_ANALYZE_BPM: @(YES),
     } mutableCopy];
 #if TARGET_OS_OSX
     [self registerMacDefaultsInto:appDefaults];
@@ -242,6 +244,22 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 
 - (void)setPauseAtTrackEnd:(BOOL)pause {
     [[NSUserDefaults standardUserDefaults] setBool:pause forKey:SETTING_PAUSE_AT_TRACK_END];
+}
+
+- (BOOL)audioFXEnabled {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_AUDIO_FX_ENABLED];
+}
+
+- (void)setAudioFXEnabled:(BOOL)enabled {
+    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:SETTING_AUDIO_FX_ENABLED];
+}
+
+- (BOOL)analyzeBPM {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_ANALYZE_BPM];
+}
+
+- (void)setAnalyzeBPM:(BOOL)analyze {
+    [[NSUserDefaults standardUserDefaults] setBool:analyze forKey:SETTING_ANALYZE_BPM];
 }
 
 #if !TARGET_OS_OSX

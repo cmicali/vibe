@@ -27,6 +27,12 @@ NS_ASSUME_NONNULL_BEGIN
 // didChangeVisibleFraction: is what writes it — so its persistence lives here
 // too, and the defaults key has exactly one home.
 
+// Holds the pager still for the length of a scrub, a pinch or an FX pad
+// hold, and releases it — matched against the view that took it, never the
+// bound page (the trap on _pagerHoldView). Every hold and release goes
+// through here.
+- (void)setPagerHeld:(BOOL)held byView:(UIView *)view;
+
 // Read the persisted zoom into _waveformZoom. Setup only.
 - (void)restoreWaveformZoom;
 // Push the shared zoom onto one page's scrubber; a no-op when it matches.

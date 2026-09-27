@@ -35,10 +35,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
       didFailWaveformForIndex:(NSUInteger)index;
 
-// The cache's BPM and key deliveries are deliberately NOT forwarded: tempo
-// and key analysis are macOS-only (the analysis provider is unset here, see
-// AudioWaveformLoader), so nothing on this platform can fire them. A track's
-// bpm and key still resolve from its tags.
+// The decode pass detected a tempo for `url`, forwarded as delivered: it is
+// matched by URL, not by page, since the same file can occupy several rows,
+// and it is never held — a tempo is a number the model stamps, not a paint.
+// The key delivery is not forwarded: key detection is macOS-only, so
+// nothing on this platform fires it.
+- (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
+              didDetectBPM:(float)bpm
+                    forURL:(NSURL *)url;
 
 @end
 

@@ -95,10 +95,20 @@ NS_ASSUME_NONNULL_BEGIN
 // for the main-thread snapshot poller.
 - (BOOL)copyBandLevels:(float *)out count:(NSUInteger)count sequence:(uint64_t *)sequence;
 
-// The macOS FX controls exist from init so intent and tempo survive live
-// toggles. Audio nodes are created on first enable, then bypassed while off.
-// The iOS player has no FX object.
-@property (nonatomic, readonly, nullable) AudioFX *fx;
+// The FX controls exist from init on both platforms so intent and tempo
+// survive live toggles. The units are hosted at the first connect and kept;
+// the segment is in the render only while wanted (setFXEnabled:, and on the
+// mac the bit-perfect mode that outranks it).
+@property (nonatomic, readonly) AudioFX *fx;
+
+// Whether the FX segment is wanted in the chain: the setting's live effect
+// on iOS. Off clears every effect's intent at submission, then reconnects
+// the pipeline with the output stopped and puts a playing track back as it
+// was, so a switch mid-hold cuts the effect and the music continues. The mac
+// applies the same setting through its device rebuild
+// (setBitPerfectOutput:exclusiveOutput:enableFX:allowAnyDevice:), which is
+// the one path there. Any thread.
+- (void)setFXEnabled:(BOOL)enabled;
 
 // The render chain as it stands, stage by stage from the source file to the
 // output device — each a dictionary with `stage` (source, decode, bus,

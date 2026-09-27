@@ -176,6 +176,29 @@ NS_ASSUME_NONNULL_BEGIN
 // or seek), so a change never interrupts what is playing.
 - (void)applyResamplingSetting;
 
+// Settings > Playback > Enable audio effects was written: pushes it to the
+// player, which connects or disconnects the FX segment with the output
+// stopped and puts a playing track back as it was. Off also releases the
+// pad, so a switch mid-hold cuts the effect. The card hides its pad from the
+// display notification the same write posts.
+- (void)applyFXSetting;
+
+#pragma mark - Effects and tempo
+
+// The card's FX pad, and the debug channel's stand-in for it: the one funnel
+// every surface takes. `position` is the pad's normalized point, x 0..1 left
+// to right and y 0..1 bottom to top; `engaged` NO is the release, every
+// effect back to off with its tail ringing out, whatever the position. The
+// mapping is AudioFXMath.h's: y the low kill's cutoff, x the reverb's level
+// and, past the onset, the 1/8-note delay's on top of it.
+- (void)setFXPadPosition:(CGPoint)position engaged:(BOOL)engaged;
+
+// The waveform decode pass detected a tempo for `url`. Stamped on every
+// playlist track with that URL — the same file can occupy more than one row
+// — and, when one of them is current, fed to the delay taps and redrawn.
+// The delivery can race a track change, which the URL match closes.
+- (void)noteDetectedBPM:(float)bpm forURL:(NSURL *)url;
+
 // The priority metadata lane, for a screen that needs one track's tags before
 // the playlist-wide scan would reach them — the pager's art prefetch, whose
 // dispatch hangs off the metadata object. A no-op once the track is parsed.

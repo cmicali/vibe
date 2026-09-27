@@ -3,8 +3,8 @@
 //  Vibe
 //
 //  The macOS half of AppSettings: every preference only the mac app has —
-//  the window, the pitch fader, the FX graph, Convert to FLAC, the playlist
-//  table, folder art, BPM and key analysis — and the theme store. What both
+//  the window, the pitch fader, the bit-perfect modes, Convert to FLAC, the playlist
+//  table, folder art, key analysis — and the theme store. What both
 //  platforms compile is AppSettings.h; a macOS caller of anything here
 //  imports this header explicitly, so its dependency is visible.
 //
@@ -292,15 +292,6 @@ static const double kVibeWaveformGainMaxDB = 12;
 - (BOOL)allowBitPerfectOnAnyDevice;
 - (void)setAllowBitPerfectOnAnyDevice:(BOOL)allowed;
 
-// The DJ performance FX — low kill, reverb and delay returns. Off routes the
-// mixer straight to output; nodes are created on first enable and retained.
-// Changes apply through the player's stopped-engine rebuild. iOS has no FX.
-// The stored choice, which the Playback pane's switch displays. Whether FX
-// exist for the user is audioFXAllowed below, which bit-perfect output
-// outranks.
-- (BOOL)audioFXEnabled;
-- (void)setAudioFXEnabled:(BOOL)enabled;
-
 // Settings > General > Audio > Bit-perfect output, default NO. While on, the
 // chain is pruned to the exact one — no FX (this outranks audioFXEnabled at
 // every gate, bypassing the FX graph immediately), no varispeed, the
@@ -359,17 +350,9 @@ static const double kVibeWaveformGainMaxDB = 12;
 // launch restore read the same answer.
 - (BOOL)pitchControlAllowed;
 
-// NO skips tempo detection on the waveform decode pass. A file scanned while
-// off caches a waveform with no BPM, so re-enabling only affects files not
-// yet cached. Tagged BPM is unaffected either way. The loader is TOLD the
-// answer through its analysis provider rather than reading it here, so iOS —
-// which never analyzes — never consults this; see AudioWaveformLoader.
-- (BOOL)analyzeBPM;
-- (void)setAnalyzeBPM:(BOOL)analyze;
-
 // NO skips key detection on the waveform decode pass; same caching caveat as
-// analyzeBPM, and a tagged key is likewise unaffected. Defaults OFF, unlike
-// analyzeBPM: detection is right about half the time on real dance music
+// the shared analyzeBPM, and a tagged key is likewise unaffected. Defaults
+// OFF, unlike analyzeBPM: detection is right about half the time on real dance music
 // (see Audio/Analysis/CLAUDE.md), which is not good enough to put in front of someone
 // unasked, while a key the file already carries always shows.
 - (BOOL)analyzeKey;

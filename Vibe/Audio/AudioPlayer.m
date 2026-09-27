@@ -137,11 +137,12 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         // the render stall watcher's first tick, due at once on the queue,
         // ran first on a loaded machine and read the gate through NULL.
         _masterBus = VibeMasterBusCreate();
-        // Keep the macOS controls and BPM feed stable across live toggles;
-        // the FX nodes themselves are created only when first connected.
+        // The controls and the BPM feed exist from init, whatever the setting,
+        // so intent survives a live toggle; the FX units themselves are hosted
+        // only at the first connect.
         _fxEnabled = enableFX;
         __weak AudioPlayer *weakPlayer = self;
-        _fx = (enableFX || TARGET_OS_OSX) ? [[AudioFX alloc] initWithQueue:_queue scheduler:^(NSTimeInterval seconds, dispatch_block_t block) {
+        _fx = [[AudioFX alloc] initWithQueue:_queue scheduler:^(NSTimeInterval seconds, dispatch_block_t block) {
             [weakPlayer scheduleAfterSeconds:seconds block:block];
         } afterRenderLeaves:^(dispatch_block_t work) {
             AudioPlayer *player = weakPlayer;
@@ -151,7 +152,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             else {
                 work(); // no player, no pipeline, no render
             }
-        }] : nil;
+        }];
 #if TARGET_OS_OSX
         _pendingSavedDeviceUID = [deviceUID copy] ?: @"";
         _pendingSavedDeviceModelUID = [modelUID copy] ?: @"";

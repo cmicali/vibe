@@ -31,6 +31,14 @@ static const float kLowKillParkedHz = 20.0f;
 // The tap length with no tempo known: 0.25s at the 1/8-note division.
 static const float kDelayDefaultBPM = 120.0f;
 
+// The iOS pad's ceilings. Its Y axis sweeps the low kill's cutoff from
+// parked up to here, log-frequency so each equal move is the same musical
+// interval; the mac's momentary boost sits a third of the way up it. Its X
+// axis is the reverb send across the whole axis, and past the onset the
+// 1/8-note delay blends in on top of it, so the far right is both at full.
+static const float kFXPadLowCutMaxHz = 1200.0f;
+static const float kFXPadDelayOnset = 0.5f;
+
 // The single cutoff the two low-kill controls share. The held boost outranks
 // the Q toggle, which outranks parked — and the boost runs the filter even
 // while the toggle reads off, which is what makes it a three-way resolution
@@ -41,6 +49,37 @@ static inline float VibeLowKillCutoffHz(BOOL enabled, BOOL boostActive) {
         return kLowKillCutoffHz * kLowKillBoostMultiplier;
     }
     return enabled ? kLowKillCutoffHz : kLowKillParkedHz;
+}
+
+// The pad's vertical position, 0 at the bottom edge and 1 at the top, as
+// the low kill's cutoff. At or below the bottom the filter is parked — the
+// same colorless off the mac's toggle sweeps to — and above it the cutoff
+// climbs the log curve to the ceiling, clamped there past the top. Never
+// zero or negative: the sweep interpolates multiplicatively.
+static inline float VibeFXPadLowCutHz(float y) {
+    if (!(y > 0)) {
+        return kLowKillParkedHz;
+    }
+    float clamped = y > 1 ? 1 : y;
+    return kLowKillParkedHz * powf(kFXPadLowCutMaxHz / kLowKillParkedHz, clamped);
+}
+
+// The pad's horizontal position, 0 at the left edge and 1 at the right, as
+// the reverb send's level: 0 to 1 across the whole axis, where 1 is the level
+// a held key swells to. Clamped at both ends.
+static inline float VibeFXPadReverbLevel(float x) {
+    return !(x > 0) ? 0 : (x > 1 ? 1 : x);
+}
+
+// The same position as the 1/8-note delay send's level: nothing up to the
+// onset, then 0 to 1 over the rest of the axis, so the echo arrives once the
+// reverb is already half up.
+static inline float VibeFXPadDelayLevel(float x) {
+    if (!(x > kFXPadDelayOnset)) {
+        return 0;
+    }
+    float level = (x - kFXPadDelayOnset) / (1 - kFXPadDelayOnset);
+    return level > 1 ? 1 : level;
 }
 
 // Seconds per tap at the effective, pitch-scaled tempo. The delays sit

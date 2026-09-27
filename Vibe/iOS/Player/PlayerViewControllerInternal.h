@@ -22,6 +22,7 @@
 //
 
 #import "PlayerViewController.h"
+#import "FXPadView.h"               // FXPadViewDelegate, adopted below
 #import "OutputRouteView.h"         // OutputRouteViewDelegate, adopted below
 #import "PlaybackController.h"      // PlaybackObserver, adopted below
 #import "PlayerDisplaySettings.h"   // the two display preferences, read below
@@ -46,8 +47,8 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
 // These two conformances stay on the class because PlayerViewController.m
 // implements them. Every other one is declared on the category that implements
 // it, so the compiler checks each against the file that holds it.
-@interface PlayerViewController () <OutputRouteViewDelegate, PlaybackObserver,
-        UIGestureRecognizerDelegate> {
+@interface PlayerViewController () <FXPadViewDelegate, OutputRouteViewDelegate,
+        PlaybackObserver, UIGestureRecognizerDelegate> {
     PlaybackController      *_playback;
     // Borrowed from _playback, which owns the one instance for the process.
     // Held by name because the pager reads it on every data-source callback.
@@ -87,11 +88,13 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
     UIView                  *_transportView;    // bound: the current page's transport row
     OutputRouteView         *_routeView;        // bound: the current page's route indicator
     TrackPageActionBarView  *_actionBar;        // bound: the current page's action bar
-    // Whichever scrubber currently holds the pager still, which is NOT always
-    // the bound page's: playback runs on through a scrub, so a track ending
-    // mid-drag rebinds the chrome above while the finger is still down on the
+    FXPadView               *_fxPadView;        // bound: the current page's FX pad
+    // Whichever view currently holds the pager still — a scrubber mid-scrub
+    // or mid-pinch, an FX pad under a finger — which is NOT always the bound
+    // page's: playback runs on through a hold, so a track ending mid-drag
+    // rebinds the chrome above while the finger is still down on the
     // outgoing page. The release has to be honored from the view that took it.
-    __weak WaveformScrubberView *_scrubbingView;
+    __weak UIView           *_pagerHoldView;
 
     // The waveform data and the pager's bookkeeping over it — the one load's
     // target page, the per-page snapshots, the complete set — between the

@@ -21,9 +21,9 @@ NS_ASSUME_NONNULL_BEGIN
 // provider, and for the same reason — this layer must not reach up into a
 // settings singleton it cannot be tested without.
 //
-// UNSET MEANS NEITHER RUNS. That is what the iOS app installs: it does not
-// analyze, so it never reads the macOS-only analysis settings. It is also what
-// the tests get, which keeps a decode under test off the analyzers.
+// UNSET MEANS NEITHER RUNS, which is what the tests get and keeps a decode
+// under test off the analyzers. The mac's provider reads both settings; the
+// iOS card's reads analyzeBPM and answers NO for the key, which is macOS-only.
 typedef struct {
     BOOL bpm;
     BOOL key;

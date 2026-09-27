@@ -1319,15 +1319,6 @@ static NSString *VibeBitPerfectStatusName(VibeBitPerfectStatus status) {
 
 @implementation AudioPlayer (Devices)
 
-- (void)clearFXIntent {
-    // Clear at submission: a queued bypass must not erase newer FX actions.
-    self.fx.lowKillBoostActive = NO;
-    self.fx.lowKillEnabled = NO;
-    self.fx.reverbSendEnabled = NO;
-    self.fx.delaySendEnabled = NO;
-    self.fx.shortDelaySendEnabled = NO;
-}
-
 - (void)setOutputDevice:(NSInteger)outputDeviceID completion:(dispatch_block_t)completion {
     NSString *uid = [AudioDeviceManager.sharedInstance outputDeviceForId:outputDeviceID].uid;
     BOOL bitPerfectOutput = NO, exclusiveOutput = NO;

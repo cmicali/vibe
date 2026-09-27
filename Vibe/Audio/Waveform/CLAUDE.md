@@ -6,7 +6,7 @@ This directory owns the waveform *data*: generation, chunking and persistence. R
 
 ## Whether the analyzers ride at all is an input, not a setting this layer reads
 
-`AudioWaveformLoader` takes a `VibeWaveformAnalysisProvider` block, asked once per `load:` so a settings change lands on the next decode. `AudioWaveformCache` stamps its own onto every loader it creates, and the cache's owner installs it — `MainPlayerController` from the two analysis settings, and **nothing on iOS**, which does not analyze. An unset provider means neither analyzer runs, which is also what the tests get.
+`AudioWaveformLoader` takes a `VibeWaveformAnalysisProvider` block, asked once per `load:` so a settings change lands on the next decode. `AudioWaveformCache` stamps its own onto every loader it creates, and the cache's owner installs it — `MainPlayerController` from the two analysis settings, `PlayerViewController` on iOS from `analyzeBPM` alone. An unset provider means neither analyzer runs, which is what the tests get.
 
 Same shape as `FolderArtResolver`'s enabled provider, for the same reason: a decode pass that reached into a settings singleton could not be tested without one.
 
@@ -38,7 +38,7 @@ Progress is different: detached and cancelled loaders do not construct or enqueu
 
 ## Every delivery carries the URL it was loaded for
 
-`audioWaveform:didLoadData:forURL:`, the terminal-failure callback, and the BPM and key twins — because a delivery can land after the track has changed. Receivers must match it against their current track rather than assume it: `MainPlayerController+Delivery` and the iOS `PageWaveformCoordinator` each do. Failure is delivered only while that loader is still current; it makes the attempt terminal before delivery so a same-file request starts fresh. The BPM and key twins are optional and iOS implements neither, since analysis is macOS-only.
+`audioWaveform:didLoadData:forURL:`, the terminal-failure callback, and the BPM and key twins — because a delivery can land after the track has changed. Receivers must match it against their current track rather than assume it: `MainPlayerController+Delivery` and the iOS `PageWaveformCoordinator` each do. Failure is delivered only while that loader is still current; it makes the attempt terminal before delivery so a same-file request starts fresh. The BPM and key twins are optional; iOS implements the BPM one (the coordinator forwards it to `PlaybackController.noteDetectedBPM:forURL:`) and not the key, since key analysis is macOS-only.
 
 The cache captures that URL when the load starts (`_currentLoadURL`) rather than reading it back at delivery time, and **the reattach path must set it too**, or a resumed decode would deliver under the URL it was detached from.
 
