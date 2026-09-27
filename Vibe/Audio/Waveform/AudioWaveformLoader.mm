@@ -80,8 +80,9 @@
     // the analyzers directly and ignore this.
     //
     // The answer is asked of the provider rather than read from the settings,
-    // so this layer stays testable and iOS — which never analyzes — installs
-    // nothing. No provider means neither runs.
+    // so this layer stays testable: the tests install none, and no provider
+    // means neither runs. Each shell installs its own (iOS's asks for the
+    // tempo alone).
     VibeWaveformAnalysis analysis = self.analysisProvider ? self.analysisProvider()
                                                           : (VibeWaveformAnalysis){NO, NO};
     AudioBPMAnalyzer *bpmAnalyzer = analysis.bpm
