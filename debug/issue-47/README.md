@@ -283,6 +283,8 @@ In order of how much they mattered to #47. Commits are on `main` in `cmicali/vib
 
 ## Code map
 
+As of 2026-09-21. #66 then replaced AVAudioEngine with a hosted output unit (`Vibe/Audio/AudioOutputUnit.m`, `Mac/Devices/CLAUDE.md`): `AudioPlayer+Engine.m`, `startEngineAndPlayNode:`, `settleOutputUnitAfterHoggingSystemDefaultOnQueue:` and `recoverEngineConfigurationOnQueue` no longer exist.
+
 | Where | What |
 |---|---|
 | `Vibe/Audio/Mac/Devices/AudioPlayer+Devices.m` | Everything device- and bit-perfect-side. `acquireExclusiveOutputOnQueue` / `releaseExclusiveOutputOnQueue` (hog), `settleOutputUnitAfterHoggingSystemDefaultOnQueue:` (the follow-and-pin, with its TRAP comment), `recoverEngineConfigurationOnQueue` (engine configuration change → health check → rebuild), `publishBitPerfectReportOnQueue` (the status the header and Settings show), `prepareForTermination` (quit) |

@@ -1,6 +1,6 @@
 # Future: AirPlay targets as output devices (macOS)
 
-Written 2026-08-22. **Investigated and declined** — see the verdict below. Nothing in the repo has changed for it. The file:line anchors are against `main` at `c670e49` **with its uncommitted working tree**; re-check every anchor before acting.
+Written 2026-08-22. **Investigated and declined** — see the verdict below. Re-checked 2026-09-27: the verdict and the platform facts stand, but two things below moved for other reasons — piece 1's transport read landed with bit-perfect output (#26), and Settings > Audio got its own device table (#35), so the Output menu's builder no longer drives it. The file:line anchors are against `main` at `c670e49` **with its uncommitted working tree**; re-check every anchor before acting.
 
 ## The verdict, first
 
@@ -68,7 +68,7 @@ Three separable pieces, in increasing cost. The first two are defensible on thei
 
 ### 1. Transport-type sectioning — the only cheap part
 
-New `readTransportType:forDeviceID:` in `Vibe/Audio/Mac/Devices/CoreAudioUtil.m`, following that file's convention of returning `BOOL` success separately from the answer (see `readUID:forDeviceID:` at `:32`, `readName:forDeviceID:` at `:63`, `readHasOutputChannels:` at `:96`). A new `transportType` field on `AudioDevice` — today exactly four readonly properties, `name`/`uid`/`deviceId`/`isSystemDefault` (`AudioDevice.h:20-25`), with `isEqual:`/`hash` keyed on `deviceId` alone, which stays true.
+**Already built**, for bit-perfect eligibility (#26): `CoreAudioUtil`'s `readTransportType:forDeviceID:` and `AudioDevice.transportType`, read in `AudioDeviceManager`'s `readDeviceForID:` as an optional refinement, exactly as the trap below requires; `isEqual:`/`hash` are still keyed on `deviceId` alone. Settings > Audio's device table already labels each row by it, AirPlay included (`typeNameForDevice:symbolName:`). What remains of this piece is only the grouping.
 
 **TRAP: transport must not join the strict-sweep rule.** `enumerateOutputDevicesAcceptingPartial:` (`AudioDeviceManager.m:391`) discards a device outright when `readHasOutputChannels:` or `readDeviceForID:defaultID:device:` (`:524`) fails, and marks the whole sweep incomplete — which then keeps the prior snapshot and retries, up to `kMaxIncompleteSweeps` (`:35`). Transport is an *optional refinement*, not an identity: a failed read must degrade to "unknown transport, main section", or a driver with no transport property newly vanishes from a list it appears in today.
 
@@ -76,11 +76,11 @@ New `readTransportType:forDeviceID:` in `Vibe/Audio/Mac/Devices/CoreAudioUtil.m`
 
 ### 2. The sectioned list
 
-`Vibe/Mac/Menu/OutputDevicesMenuController.m` `menuNeedsUpdate:` (`:59`) is the **single builder**, driving both surfaces: the menu-bar Output menu (`MainMenuBuilder.m`, which sets the controller as the menu's delegate) and the Settings ▸ General popup (`SettingsGeneralViewController.m:51`, `refreshOutputPopUp` at `:138` calling `menuNeedsUpdate:` on the popup's own menu). One change moves both, which is the good news.
+There are two surfaces and two builders. `Vibe/Mac/Menu/OutputDevicesMenuController.m` `menuNeedsUpdate:` builds the menu-bar Output menu (`MainMenuBuilder.m`, which sets the controller as the menu's delegate). Settings > Audio has its own `NSTableView` of devices (`SettingsGeneralViewController.m`, `_outputTable`, reading `AudioDeviceManager.outputDevices` itself), so a section there is a separate change.
 
 The bad news is the arithmetic. The in-place resize is hardcoded to a **2-item prefix** — System Output at tag `-1`, then one separator — at `:76`, `:81`, `:95-98`. A second section changes that in one place, and the rebuild must stay in-place: it deliberately resizes rather than rebuilds so an *open* menu refreshes without losing tracking (which is also why `AudioDeviceManager` fans observers out with `CFRunLoopPerformBlock` in the common modes rather than `dispatch_async`).
 
-The repo has **no `NSMenuItem` section headers anywhere today**, so an "AirPlay" header is a new idiom, and it has to render acceptably in both an `NSMenu` and an `NSPopUpButton`. New strings beside `STR_MENU_OUTPUT*` (`Vibe/Common/VibeStrings.h:167-169`), then `make strings`.
+The repo has **no `NSMenuItem` section headers anywhere today**, so an "AirPlay" header is a new idiom in the `NSMenu`, and the Settings table needs its own group row. New strings beside `STR_MENU_OUTPUT*` (`Vibe/Common/VibeStrings.h:167-169`), then `make strings`.
 
 Note what this piece does and does not buy: it groups AirPlay devices **that already exist**, which is to say only after the user routed to one from Control Center — at which point it is already the system default and Vibe is already playing through it. The section would usually hold exactly one device, the one currently selected. That is a thin deliverable.
 
@@ -98,12 +98,11 @@ And the payoff is a row that cannot be acted on. The best available flow is: cli
 
 ## Files, if it were ever built
 
-- `Vibe/Audio/Mac/Devices/CoreAudioUtil.{h,m}` — `readTransportType:forDeviceID:`.
-- `Vibe/Audio/Mac/Devices/AudioDevice.{h,m}` — the `transportType` field; `isEqual:`/`hash` stay `deviceId`-only.
+- `Vibe/Audio/Mac/Devices/CoreAudioUtil.{h,m}`, `AudioDevice.{h,m}` — nothing; the transport read and field exist.
 - `Vibe/Audio/Mac/Devices/AudioDeviceManager.m` — the sweep at `:391` and `readDeviceForID:` at `:524`, with the "optional refinement, never discards" rule above.
 - `Vibe/Audio/Mac/Devices/CLAUDE.md` — the sweep's strictness paragraph names exactly which reads are load-bearing; a new optional read has to be named there as optional.
 - `Vibe/Mac/Menu/OutputDevicesMenuController.m` — `menuNeedsUpdate:` and the prefix arithmetic.
-- `Vibe/Mac/Settings/SettingsGeneralViewController.m` — nothing, if the section is built in the shared builder. Verify the popup renders a header item.
+- `Vibe/Mac/Settings/SettingsGeneralViewController.m` — the Settings > Audio device table, grouped separately from the menu.
 - `Vibe/Common/VibeStrings.h` — the section titles; `make strings` after.
 - `Vibe/Mac/App/Vibe.entitlements` and `project.yml` — only for piece 3.
 
@@ -112,7 +111,7 @@ And the payoff is a row that cannot be acted on. The best available flow is: cli
 Things a future implementer must verify rather than assume:
 
 1. **Does a Control Center AirPlay route actually produce a pinnable HAL device?** Not verified — the probe above ran with nothing routed. Whether the device carries `kAudioDeviceTransportTypeAirPlay`, whether Vibe can pin it explicitly rather than only follow it as the default, and whether it survives being deselected, all decide whether even piece 1 has anything to show. **Test this first; it is cheap and it may close the whole file.**
-2. **Does an AirPlay bind block?** `configureOutputDeviceOnQueue:` (`AudioPlayer+Devices.m`) rebinds through `setOutputUnitDevice:` synchronously on the **sole player queue**, with the output stopped, and there is no timeout on that HAL round trip. A network device is the first plausible way it stalls, and a stall there wedges playback.
+2. **Does an AirPlay bind block?** Since #53 the player queue does not wait: `setOutputUnitDevice:` records the bind and the output unit waits on the HAL on its own serial queue (`Mac/Devices/CLAUDE.md`). A stall there still holds every later bind, configure and start queued behind it, with no timeout of Vibe's own; a network device is the first plausible way to hit that, and it is unmeasured.
 3. **Multi-room AirPlay 2.** Does macOS expose several simultaneous targets as one aggregate device, and does that change what a "section" even means?
 
 ## Sources

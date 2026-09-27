@@ -12,11 +12,11 @@ Open **Settings > Appearance** (`⌘,`). Clicking a theme in the list applies it
 immediately — there is no separate Apply step. The **View > Theme** menu
 switches themes too, without opening Settings.
 
-The **Appearance** dropdown above the list (Auto / Light / Dark) is separate
-from the theme: it picks the window's light or dark look, and a theme that has
+The **Window appearance** dropdown below the list (Follow System / Light /
+Dark) is separate from the theme: it picks the window's light or dark look, and a theme that has
 both palettes follows it.
 
-The **Waveform** dropdown beneath it changes the waveform's drawing style
+The **Waveform style** dropdown above the list changes the waveform's drawing style
 without opening the theme editor. It is part of the theme — switching themes
 switches it too — but your pick here overrides the theme's own: over a
 built-in theme the override sticks, across relaunches, until you re-apply a
@@ -30,20 +30,21 @@ In **Settings > Appearance**:
    select the built-in theme closest to what you want and choose
    **Add > Duplicate**. Built-in themes are read-only; your copy is yours to
    edit.
-2. Click **Edit…** (or double-click the theme) to open the editor. Changes
+2. Click **Edit Theme…** (or double-click the theme) to open the editor. Changes
    apply live, so keep a track playing and watch the player as you go.
 3. Name it at the top of the editor page.
 
-The editor is organized the way the player is: **Window** (background, tint,
-corner radius), **Player** (default artwork, title and artist fonts and
-colors), **Info** (the file-info line, times, BPM and key), **Waveform**
-(style, colors, gradient), and **Playlist** (background, fonts, columns, row
-highlights).
+The editor is organized the way the player is: **App icon** (the app and
+Dock icons), **Window** (color modes, background, tint, corner radius),
+**Player display** (default artwork, the waveform's style, bars and colors,
+title and artist fonts and colors), **Playback buttons**, **Track
+information** (the file-info line, BPM and key), **Time display**, and
+**Playlist** (background, fonts, columns, row highlights).
 
 Two things worth knowing:
 
-- **Light & Dark Modes vs. Single Mode** — the editor's Appearance dropdown
-  decides whether your theme keeps a separate color set for light and dark
+- **Light & Dark Modes vs. Single Mode** — the editor's **Theme color modes**
+  dropdown decides whether your theme keeps a separate color set for light and dark
   (and follows the window's appearance), or one set of colors used
   everywhere. In Single Mode each color row shows one swatch instead of a
   Dark/Light pair. While editing a dual-mode theme, the sun/moon toggle in
@@ -54,7 +55,7 @@ Two things worth knowing:
 
 ## Custom artwork
 
-The **Default artwork** row in the Player section sets the placeholder drawn
+The **Default artwork** row in the Player display section sets the placeholder drawn
 when a track has no cover art — one image for dark, one for light (or a
 single image in Single Mode). Click a preview to choose your own image: a
 square JPEG or PNG, between 64 and 4096 pixels, up to 8 MB. Hover over a
@@ -74,7 +75,7 @@ Vibe suffixes the new one (“My Theme 2”), and imported artwork is re-validat
 on the way in.
 
 The exported JSON is meant to be readable: it stores only what your theme
-changes from the factory look, grouped by editor section. Hand-editing is
+changes from the factory look, grouped into sections. Hand-editing is
 safe to try — a value Vibe doesn't understand is ignored on import rather
 than breaking the theme.
 

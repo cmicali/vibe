@@ -47,7 +47,9 @@ copy/<lang>/<platform>/   platform is macos or ios
 screenshots/<lang>/macos/        composited 2880x1800 shots
 screenshots/<lang>/ios/iphone/   composited 1290x2796 shots
 screenshots/<lang>/ios/ipad/     composited 2048x2732 shots
-                                 (all three: make appstore-generate-store-screenshots)
+                                 (macOS: make appstore-generate-store-screenshots;
+                                 iOS: scripts/appstore-generate-store-screenshots.sh
+                                 --platform ios)
 ```
 
 `screenshots.json` is an ordered array of `{id, headline, subhead}`, and the
@@ -83,7 +85,9 @@ caption sits on one line.
 - `make appstore-validate-copy` validates every catalog language has all five files
   within ASC limits and captions that fit the screenshot layout.
 - `make appstore-generate-store-screenshots [LOCALE=de]` / `make appstore-generate-store-screenshots-all`
-  regenerates `screenshots/`.
+  regenerates the macOS `screenshots/`; the iOS sets need the script directly,
+  `scripts/appstore-generate-store-screenshots.sh --platform ios [lang]` (or
+  `--all --platform ios`).
 - `make appstore-upload-metadata` uploads copy and screenshots to App Store Connect
   (`scripts/appstore-upload-metadata.sh`, the Swift tool in
   `scripts/asc-upload/`).

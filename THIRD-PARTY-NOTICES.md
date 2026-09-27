@@ -2,7 +2,7 @@
 
 Vibe itself is licensed under Apache 2.0 (see `LICENSE`). It has no package
 manager: every third-party component is vendored under `Vibe/ThirdParty/` and
-compiled directly into the app target, so all of it ships inside the binary and
+compiled directly into both app targets, so all of it ships inside each binary and
 all of it is covered here.
 
 ## Summary
@@ -26,7 +26,7 @@ which are separately licensed and covered below.
 **Vibe elects the Mozilla Public License 1.1.**
 
 This is deliberate, not incidental. TagLib is *statically* compiled into the
-app target, and the LGPL's static-linking obligation — supplying object files
+app targets, and the LGPL's static-linking obligation — supplying object files
 or otherwise letting a user relink the application against a modified TagLib —
 cannot be satisfied through Mac App Store distribution. MPL 1.1 is file-level
 copyleft: it governs the TagLib files themselves and does not reach the

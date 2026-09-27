@@ -74,7 +74,7 @@ Flags via `ARGS`: `--locales de,fr`, `--skip-screenshots`, `--skip-text`, `--cre
 
 Traps and semantics:
 
-- **It targets the one *editable* macOS version.** After a release goes live there is none — the tool errors, listing every version's state. `--create-version <next>` opens the next version's page (the same version record a later `make appstore-upload-signed-build` build attaches to, so metadata-first is the normal order).
+- **It targets the one *editable* version on the chosen platform.** After a release goes live there is none — the tool errors, listing every version's state. `--create-version <next>` opens the next version's page (the same version record a later `make appstore-upload-signed-build[-ios]` build attaches to, so metadata-first is the normal order).
 - **Text is diffed, screenshots are not.** Unchanged text fields are skipped; each screenshot set is deleted and re-uploaded wholesale, ordered by file name. Don't read "uploaded 4 screenshots" as "they changed".
 - **macOS has one screenshot set per locale, iOS has two.** `APP_DESKTOP` against `APP_IPHONE_67` and `APP_IPAD_PRO_3GEN_129` — iPhone and iPad are separate sets, not two sizes of one, and the iPad set is required because `TARGETED_DEVICE_FAMILY` is `1,2`. **`APP_IPHONE_69` does not exist**; ASC's own enumeration of valid values tops out at 6.7", and bumping Bagbutik will not add it.
 - **`bg` is skipped by design** — the App Store has no Bulgarian product page; the translation ships in-app only. Catalog `nb` maps to ASC `no`. A new catalog language fails loudly until added to `ascLocale` in `ASCUpload.swift`.

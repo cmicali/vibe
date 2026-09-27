@@ -1,6 +1,6 @@
 # Waveform renderers
 
-The strategies both views draw through, the morph engine they share and the level mapping. `AudioWaveformRenderer` is the base; `WaveformRendererRegistry` is the one home of identifier → renderer and of the fallback chain for a persisted style, so the two platforms cannot drift on which styles exist. Every header here carries C++ — `.mm` importers only (`../CLAUDE.md`).
+The strategies both views draw through, the morph engine they share and the level mapping. `AudioWaveformRenderer` is the base; `WaveformRendererRegistry` is the one home of identifier → renderer and of the fallback chain for a persisted style, so the two platforms cannot drift on which styles exist. The renderer and morph-engine headers carry C++ — `.mm` importers only (`../CLAUDE.md`); `WaveformRendererRegistry.h` (plain ObjC) and `WaveformLevelMath.h` (plain C) are the two a `.m` may import.
 
 **Compare styles by identifier, never by class.** Variants share classes — Wiggle and Wiggle MC are `DetailedAudioWaveformRenderer`, the oversampling trio share a file, Cupertino subclasses Basic — and the resolved registry identifier is what persists. `wiggle` stays with Wiggle MC so saved selections keep their geometry.
 

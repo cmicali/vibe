@@ -28,8 +28,8 @@ H policy numbers · I platform differences · J open items · K non-goals.
   no-op for a local file). At most **one materialization operation exists per
   standardized path** at any time; every interested party joins it rather than starting
   a second transfer. This is the single most load-bearing rule in the subsystem.
-- **A3. Open.** Producing a usable `AudioFileHandle` for a purpose (playback,
-  prefetch, gapless). Purposes hold **independent handles** for the same path —
+- **A3. Open.** Producing a usable `AudioFileHandle` for a purpose (playback or
+  prefetch; gapless opens nothing, B6). Purposes hold **independent handles** for the same path —
   a handle has one stateful read position, so handles are never shared.
 - **A4. Roles.** Work competing for transfers is one of: playback, prefetch, metadata
   for the current track ("priority"), metadata for the playlist sweep ("scan"),
@@ -174,7 +174,7 @@ H policy numbers · I platform differences · J open items · K non-goals.
   and retries (at most **3 reads** per display pass, **2 s** per-row backoff).
 - **E3. The 128 px thumbnail is for list rows** (mac playlist, iOS library/mini).
   Rows retain compact encoded bytes only; decoded pixels live in one shared
-  **16k-entry ** LRU that only the display path populates. A cache miss
+  **16k-entry** LRU that only the display path populates. A cache miss
   never decodes on a drawing path.
 - **E4. The archived display rendition** (640 px mac / 1024 px iOS, beside the
   metadata entry, disk-resident, never retained per-row) is both big art surfaces'
@@ -232,7 +232,7 @@ H policy numbers · I platform differences · J open items · K non-goals.
 | Background transfers (running / pending / grace) | 1 / 6 / 10 s | same |
 | Initial classification probes (running / pending / grace) | 8 / 16 / 5 s | `AudioFileMaterializationCoordinator.m` |
 | Live handle runs (shared production coordinator) | 6 — immediate refusal; no pending/grace/configuration | `AudioFileMaterializationCoordinator.m` |
-| Prefetch depth | 1 | same |
+| Prefetch depth | 1 | `AudioLoadingConfiguration.m` |
 | Metadata attempts per path (total) | 3 | same (`metadataRetryCount` 2) |
 | Admission-exhausted retry delay | 0.25 s → 2 s escalating | `MetadataRetryRules.h` |
 | Parse concurrency | 4 | `AudioLoadingConfiguration.m` |
@@ -245,7 +245,7 @@ H policy numbers · I platform differences · J open items · K non-goals.
 | Thumbnail size | 128 px | — |
 | Display rendition bound | 640 px mac / 1024 px iOS | `PlatformImage.h` |
 | Full-art decode bound | 1024 px | — |
-| Metadata/waveform disk budget | 512 MiB | `PINCache+VibeAudioCache.m` |
+| Metadata/waveform disk budget | 1 GiB per cache, 6-month age limit | `PINCache+VibeAudioCache.m` |
 
 ## I. Platform differences
 
@@ -311,9 +311,9 @@ H policy numbers · I platform differences · J open items · K non-goals.
   key rebinds before the ceiling is checked; a new seventh run is refused immediately
   with the existing admission-exhausted result before materialization starts. The
   ceiling is the private `_handleRuns.count`, conservatively derived from one player's
-  three queue-confined open sources plus room for three stranded calls in aggregate.
-  It is purpose-blind: prefetch or gapless can consume all six and cause a later
-  playback key to be refused. That refusal contributes to the existing
+  two queue-confined open sources (playback and prefetch) plus room for four stranded
+  calls in aggregate. It is purpose-blind: prefetch can consume all six and cause a
+  later playback key to be refused. That refusal contributes to the existing
   `requestsAdmissionExhausted` outcome counter; there is no queue, pending allowance,
   grace, configuration value, duplicate counter, or watchdog. A run remains a member
   through an uncancellable open and any rebound restart until it actually finishes.
