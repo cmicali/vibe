@@ -2841,9 +2841,12 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         [_player runSyncOnQueue:^{}];
     }
     // The read released, the retired decoder leaves and the track plays on.
+    // The fixture is 2 s on the real timer: a runner that starves this thread
+    // that long sees the track finish, and its position reset, between polls.
     NSTimeInterval resumedFrom = _player.position;
-    [self settleUntil:^BOOL { return self->_player.position > resumedFrom + 0.1; }];
-    XCTAssertGreaterThan(_player.position, resumedFrom + 0.1, @"the track never played after the decoder left");
+    BOOL (^played)(void) = ^BOOL { return self->_player.position > resumedFrom + 0.1 || [self count:@"finish"] == 1; };
+    [self settleUntil:played];
+    XCTAssertTrue(played(), @"the track never played after the decoder left");
     XCTAssertNil(_playError);
     // TRAP: the re-voiced track's decoder reads through the swizzle until the
     // player stops, so removing the block while a read is in flight frees it
