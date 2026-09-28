@@ -250,7 +250,7 @@ H policy numbers · I platform differences · J open items · K non-goals.
 ## I. Platform differences
 
 - **I1.** Folder art, BPM/key analysis, and the DJ FX chain are macOS-only, each
-  switched off at one place (root `CLAUDE.md`); iOS reads no preference it cannot
+  switched off at one place (root `AGENTS.md`); iOS reads no preference it cannot
   act on.
 - **I2.** File > Close is macOS-only; iOS tears down via playlist replacement and
   backgrounding, and every G5 guarantee must hold on those edges instead (see J3).

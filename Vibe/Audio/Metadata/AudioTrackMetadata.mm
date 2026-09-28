@@ -365,25 +365,21 @@ static NSData *VibeEncodedArtData(VibeImage *image) {
 // Bytes within kVibeArchivedDisplayArtDimension verbatim, larger ones
 // downscaled with aspect kept (the square crop is display-time policy). Must
 // run while the original bytes exist.
-- (void)stashArchivedDisplayArtDataIfPossible {
+- (nullable NSData *)archivedDisplayArtDataForStorage {
     NSData *original = [self.artwork artDataForArchivedDisplayArt];
     if (!original) {
-        return;
+        return nil;
     }
     CGSize pixels = VibeEncodedImagePixelSize(original);
     CGFloat maxDimension = MAX(pixels.width, pixels.height);
     if (maxDimension <= 0) {
-        return;
+        return nil;
     }
     if (maxDimension <= kVibeArchivedDisplayArtDimension) {
-        [self.artwork stashArchivedDisplayArtDataForStorage:original];
-        return;
+        return original;
     }
     VibeImage *scaled = VibeDecodedImageWithData(original, kVibeArchivedDisplayArtDimension);
-    NSData *encoded = scaled ? VibeEncodedArtData(scaled) : nil;
-    if (encoded) {
-        [self.artwork stashArchivedDisplayArtDataForStorage:encoded];
-    }
+    return scaled ? VibeEncodedArtData(scaled) : nil;
 }
 
 - (instancetype)initWithURL:(NSURL *)url {
@@ -395,7 +391,8 @@ static NSData *VibeEncodedArtData(VibeImage *image) {
     return self;
 }
 
-+ (AudioTrackMetadata *)metadataWithURL:(NSURL *)url {
++ (AudioTrackMetadata *)metadataWithURL:(NSURL *)url
+                          displayArtData:(NSData *_Nullable __autoreleasing *_Nullable)displayArtData {
     AudioTrackMetadata *metadata = [[AudioTrackMetadata alloc] initWithURL:url];
     // Encoded here, off the display cache; the originals are released below.
     NSData *encodedThumbnail = [metadata encodeThumbnailDataIfNeeded];
@@ -404,8 +401,11 @@ static NSData *VibeEncodedArtData(VibeImage *image) {
         LogWarn(@"Thumbnail encode produced nothing for art-bearing %@",
                 url.path.lastPathComponent);
     }
-    // Before the discard; the loader's cache write consumes the stash.
-    [metadata stashArchivedDisplayArtDataIfPossible];
+    // Before the discard. An out-param, never row state: a skipped cache
+    // write must not leave the rendition pinned on the row.
+    if (displayArtData) {
+        *displayArtData = [metadata archivedDisplayArtDataForStorage];
+    }
     [metadata.artwork discardArtData];
     return metadata;
 }

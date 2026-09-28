@@ -156,7 +156,7 @@ targets:
       # THE DIRECTORY IS THE PLATFORM BOUNDARY: platform halves live in Mac/
       # and iOS/ subdirectories, so neither target needs a per-file or
       # feature-named exclude. Every shared entry carries "iOS/**" whether or
-      # not that half exists yet. See the root CLAUDE.md and make check-layout.
+      # not that half exists yet. See the root AGENTS.md and make check-layout.
       - path: Vibe/Audio
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/Common
@@ -178,7 +178,7 @@ targets:
       - path: Vibe/ThirdParty
         excludes:
           - "**/.DS_Store"
-          - "**/*.md"                         # nested CLAUDE.md guidance: keep UNbundled
+          - "**/*.md"                         # nested AGENTS.md guidance: keep UNbundled
           - "**/*.xcprivacy"                  # PIN privacy manifests: keep UNbundled
           - "**/*.txt"                        # vendored LICENSE.txt: keep UNbundled
           - "**/LICENSE.MPL"                  # TagLib's MPL 1.1 text: same, but not a .txt

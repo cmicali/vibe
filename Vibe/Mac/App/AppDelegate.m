@@ -126,7 +126,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     // drains only once the grants are back (bounded).
     [[FolderAccessManager sharedInstance] restoreGrantedAccessWithCompletion:^{
         // A launch-time open outranks the remembered playlist, and the restore
-        // is not an open (Mac/App/CLAUDE.md).
+        // is not an open (Mac/App/AGENTS.md).
         [self->_openBurstCoalescer finishLaunchRestoring:^BOOL{
             return [self.mainPlayerController restoreLastPlaylist];
         } revealEmpty:^{

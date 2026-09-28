@@ -16,7 +16,7 @@ The metadata lane once asked an advisory is-materializing query, then dispatched
 
 Record: `git show fabbc5da:docs/done/background-lane-wedged-open-starvation.md`; the decision is file-loading spec J8.
 
-A never-returning prefetch or gapless `AVAudioFile` call carried the sole background transfer slot forever. What shipped ends every transfer slot at stage-1 settlement and bounds live handle runs separately (six per coordinator, `Audio/Loading/CLAUDE.md`).
+A never-returning prefetch or gapless `AVAudioFile` call carried the sole background transfer slot forever. What shipped ends every transfer slot at stage-1 settlement and bounds live handle runs separately (six per coordinator, `Audio/Loading/AGENTS.md`).
 
 - **Raising `maximumBackgroundMaterializations` to 2.** One line, and validation already allows up to 4. It doubles concurrent background provider transfers against the foreground-priority rule the whole file-loading spec is built on, tolerates exactly one wedge, and leaves the category error — a transfer slot carried into a handle open — in place. A stopgap at most.
 - **A watchdog that reclaims a wedged run on a deadline.** Reclaiming lets stranded workers grow without bound. A never-returning call stays one of the six until process restart and holds no transfer slot, which is the bounded failure.

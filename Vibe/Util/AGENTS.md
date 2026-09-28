@@ -1,0 +1,29 @@
+# Util
+
+**Code with no feature.** That is the whole admission test, and it is stricter than it sounds: if you can name the feature a file serves, it belongs in that feature's directory however utility-shaped it looks. `Mac/` (AppKit) and `iOS/` (UIKit) have their own `AGENTS.md`, and neither target names the other's directory (root `AGENTS.md`, layout).
+
+**What `Util/` may not call is anything stateful** — a singleton, a setting, a grant, a panel. Stateless code is fair game wherever it lives: `NSURLUtil.m` imports `PlaylistFile` (a `+`-only parser) and `FolderArtRules.h` (`static inline`) directly, and neither can make the walk untestable. `HelperMacros.h` reaches every translation unit through the `.pch`, so anything added there is paid for everywhere.
+
+Two placements are not what the file names suggest. `NSURL+Hash` also carries `NSData (Hash)`'s `sha1Hex`, the one spelling of the hex-SHA-1 naming that the cache key's path hash and `AppTheme`'s content-addressed artwork names share — filed under the URL's name because the two are one rule, and the one thing here that `Common/` reaches for. `NSString+FormLabel.vibeFormLabel` drops a settings string's form-layout colon ("Output:", French "Sortie :"): **the catalogs keep the colon**, because that is the form most mac panes draw, and a grouped row — the mac's cards, every iOS settings row — asks here for the bare noun so one rule covers the French no-break space and CJK's fullwidth colon.
+
+## NSURLUtil is the disk walk, and it stays ignorant on purpose
+
+`NSURLUtil` expands whatever the user opened — a file, a folder, a playlist file — into an ordered list of audio URLs, on background workers, never the main thread. **It calls no one; what it discovers is reported through handler blocks the app installs at launch**: `setPlaylistFolderGrantHandler:` (the grant a playlist file's unreadable entries need, `Mac/App/`'s `FolderAccessManager+GrantPanel`), `setWalkedDirectoriesHandler:` and `setBulkOpenDirectoriesHandler:` (the folders it listed and the covers it saw, which the folder-art resolver takes rather than paying for its own I/O, `Audio/Metadata/`). **Unset handlers mean the walk still works and throws the extra facts away**, which is what the tests install — a walk that called a singleton behind a setting, a grant and a modal panel could not be exercised in a test, and this one is, fuzz suite included. `NSURLUtilInternal.h` exposes the synchronous expansion steps for those tests; do not import it outside `NSURLUtil.m` and them.
+
+**The folder-open order is a parameter, not a setting read.** `expandAndFilterList:sortedBy:completion:` and `audioFilesInDirectory:sortedBy:` take a `VibeFolderOpenSort` (`Common/FolderOpenSort.h`) that each shell reads on main with the rest of its open snapshot (root `AGENTS.md`), so one open cannot straddle a Settings change and the walk stays exercisable with no defaults store. Newest-first prefetches `NSURLContentModificationDateKey` in the enumeration and decorates the list once rather than reading inside the comparator, breaking equal dates — a folder copied in one go — by name. "Unsorted" is APFS hash order on a local volume, effectively random, and meaningful only on a file provider, whose listing order is what the choice exists for.
+
+**A symbolic link to a folder is a folder, and the walk is the only thing that can say so.** `NSURLIsDirectoryKey` is lstat-shaped and `NSFileManager` neither accepts a link as a walk root (ENOTDIR, every URL spelling) nor descends into one it meets, so left alone a dragged `~/Music/NAS` link ends the open in the empty state. `VibeResolvedDirectoryPath` resolves with `realpath(3)` — not `URLByResolvingSymlinksInPath`, which leaves a `/private` prefix as it found it — and the walk keeps its own work list of roots: each directory link becomes another root, held back until the current enumeration finishes so it can be tested against everything that enumeration covered. **The answer is spelled as the target, not the link**, which keeps the tracks and the walked-directories handler naming one folder. A `covered` set of every directory passed through ends a link cycle and, with `skipDescendants`, keeps a link into an already-listed subtree from listing it twice. A link to a *file* stays a file; a **dangling** one is dropped, because the emptiness filter answers NO to anything it cannot stat so that a sandbox denial reaches the real open (below) — which would otherwise leave a broken `Song.mp3` link as an unplayable row.
+
+The playable extension set is `Common/PlayableExtensions`, not this file: the walk's filter and `PlaylistFile`'s entry recovery both read it, so neither can grow a format the other has not got.
+
+## Traps
+
+**Every audio file is opened through `AudioFileHandle` (`Audio/`); `NSURL+AudioOpen` is `isEmptyOrDirectory` alone**, the stat-only test for list filtering. There is no preflight: a handle that fails to open leaks nothing, because the descriptor is this process's own (`AudioFileHandle.h`, `Audio/AGENTS.md`).
+
+**TRAP: the emptiness test is `st_size`, never `st_blocks` or `NSURLFileAllocatedSizeKey`**: a dataless cloud file has its true size but zero allocated blocks, so an allocation test would reject every cloud track. `stat()` never materializes the file.
+
+**TRAP: `isDatalessFile:` is `SF_DATALESS` alone, never an `NSURL` resource value** — NSURL memoizes those per instance, so a placeholder would read "not downloaded" for its `AudioTrack`'s whole life.
+
+## Categories
+
+**Behavior added to a foreign class is a category, never a free function taking that class as its first argument.** A category on an AppKit class belongs in `Mac/`, a portable one in `Categories/`, and one on the app's own classes beside that class. The deliberate exceptions are `Common/PlatformImage.h`'s and `PlatformColor.h`'s free functions, where the class differs per target (root `AGENTS.md`, Vocabulary).

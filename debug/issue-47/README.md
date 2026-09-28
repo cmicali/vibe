@@ -283,7 +283,7 @@ In order of how much they mattered to #47. Commits are on `main` in `cmicali/vib
 
 ## Code map
 
-As of 2026-09-21. #66 then replaced AVAudioEngine with a hosted output unit (`Vibe/Audio/AudioOutputUnit.m`, `Mac/Devices/CLAUDE.md`): `AudioPlayer+Engine.m`, `startEngineAndPlayNode:`, `settleOutputUnitAfterHoggingSystemDefaultOnQueue:` and `recoverEngineConfigurationOnQueue` no longer exist.
+As of 2026-09-21. #66 then replaced AVAudioEngine with a hosted output unit (`Vibe/Audio/AudioOutputUnit.m`, `Mac/Devices/AGENTS.md`): `AudioPlayer+Engine.m`, `startEngineAndPlayNode:`, `settleOutputUnitAfterHoggingSystemDefaultOnQueue:` and `recoverEngineConfigurationOnQueue` no longer exist.
 
 | Where | What |
 |---|---|
@@ -293,7 +293,7 @@ As of 2026-09-21. #66 then replaced AVAudioEngine with a hosted output unit (`Vi
 | `Vibe/Audio/Mac/Devices/CoreAudioUtil.m` | HAL reads/writes; `setHogOwnedByThisProcess:` (hog writes toggle — it reads first); `diagnosticDescriptionOfDeviceID:` |
 | `Vibe/Mac/Settings/` | The Settings panes; the storm lived in `SettingsPaneViewController.paneContentDidChange` and `SettingsFormViews.setCaption:` |
 | `Vibe/Mac/App/DebugInfo.m` | Save Debug Info's report builder |
-| `Vibe/Audio/Mac/Devices/CLAUDE.md`, `Vibe/Mac/Settings/CLAUDE.md` | The subsystem docs, including every trap met here |
+| `Vibe/Audio/Mac/Devices/AGENTS.md`, `Vibe/Mac/Settings/AGENTS.md` | The subsystem docs, including every trap met here |
 
 ---
 

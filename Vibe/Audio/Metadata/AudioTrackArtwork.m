@@ -300,7 +300,6 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     VibeImage *_embeddedArt;
     NSData *_embeddedArtData;
     AudioTrackArchivedDisplayArtProvider _archivedDisplayArtProvider;
-    NSData *_archivedDisplayArtDataForStorage;
     AudioTrackArtworkExtractor _extractor;
     // A read failure leaves Unknown, keeping the folder fallback closed.
     VibeEmbeddedArtFact _embeddedArtFact;
@@ -360,8 +359,7 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         // Like a cache hit: compact bytes only, full art re-read on demand.
         copy->_encodedThumbnailData = [_encodedThumbnailData copy];
         copy->_thumbnailDecoder = [_thumbnailDecoder copy];
-        // Same disk entry. The storage stash stays with the original, whose
-        // one cache write consumes it.
+        // Same disk entry.
         copy->_archivedDisplayArtProvider = _archivedDisplayArtProvider;
         copy->_embeddedUndecodable = _embeddedUndecodable;
         copy->_embeddedArtFact = VibeEmbeddedArtFactHasArt(_embeddedArtFact)
@@ -403,7 +401,6 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         _encodedThumbnailData = nil;
         // The loader re-stamps the provider once the fresh entry is written.
         _archivedDisplayArtProvider = nil;
-        _archivedDisplayArtDataForStorage = nil;
         _embeddedArtFact = artData != nil ? VibeEmbeddedArtFactHasArtSettled
                                           : VibeEmbeddedArtFactArtless;
         _embeddedExtractionInFlight = NO;
@@ -422,7 +419,6 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
         _thumbnailDecodePending = NO;
         _encodedThumbnailData = [encodedData copy];
         _archivedDisplayArtProvider = nil;
-        _archivedDisplayArtDataForStorage = nil;
         _embeddedArtFact = hasEmbeddedArt ? VibeEmbeddedArtFactHasArtNeedsRead
                                           : VibeEmbeddedArtFactArtless;
         _embeddedExtractionInFlight = NO;
@@ -453,20 +449,6 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
 - (NSData *)artDataForArchivedDisplayArt {
     @synchronized (self) {
         return _embeddedArtData;
-    }
-}
-
-- (void)stashArchivedDisplayArtDataForStorage:(NSData *)data {
-    @synchronized (self) {
-        _archivedDisplayArtDataForStorage = [data copy];
-    }
-}
-
-- (NSData *)takeArchivedDisplayArtDataForStorage {
-    @synchronized (self) {
-        NSData *data = _archivedDisplayArtDataForStorage;
-        _archivedDisplayArtDataForStorage = nil;
-        return data;
     }
 }
 

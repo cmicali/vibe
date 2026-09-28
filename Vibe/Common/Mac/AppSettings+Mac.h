@@ -262,7 +262,7 @@ static const double kVibeWaveformGainMaxDB = 12;
 
 // NO skips key detection; same caching caveat as the shared analyzeBPM.
 // Defaults off: detection is right about half the time on real dance music
-// (Audio/Analysis/CLAUDE.md).
+// (Audio/Analysis/AGENTS.md).
 - (BOOL)analyzeKey;
 - (void)setAnalyzeKey:(BOOL)analyze;
 

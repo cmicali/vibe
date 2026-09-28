@@ -1,144 +1,84 @@
 # Future: Shuffle mode
 
-Written 2026-08-20, planned but not implemented. Re-verified 2026-09-26: still unimplemented, but the model and iOS changed underneath it — playlist editing (#16), the gapless `advanceFromTrack:toTrack:` (#29) and an iOS successor prefetch (#43) — each corrected below. The file:line anchors are against branch `ios-app` at `a19c5c5` **with its uncommitted working tree** and predate all three; re-check every anchor before acting.
+**Status: planned, not implemented (verified 2026-09-27).**
 
-This plan is written to be executed phase by phase by an implementation agent. Each phase compiles, passes `make test`, and is verifiable on its own. Read the root `CLAUDE.md` (especially the successor-prefetch and settlement guarantees), `Vibe/Playlist/CLAUDE.md`, `Vibe/Playlist/Mac/CLAUDE.md`, `Vibe/iOS/CLAUDE.md`, `Vibe/Mac/Settings/CLAUDE.md` and `Tests/CLAUDE.md` first; strings need the `vibe-strings` skill, verification the `vibe-debug` skill.
+Written to be executed phase by phase. Each phase compiles, passes `make test`, and is verifiable on its own. Read the root `AGENTS.md` (the successor-prefetch, "On track end", and playlist-editing guarantees), `Vibe/Playlist/AGENTS.md`, `Vibe/Playlist/Mac/AGENTS.md`, `Vibe/iOS/AGENTS.md`, `Vibe/Mac/Settings/AGENTS.md`, and `Tests/AGENTS.md` first; strings need the `vibe-strings` skill, verification the `vibe-debug` skill.
 
 ## The feature
 
-A shuffle play mode: with it on, advancing plays every track in the playlist exactly once, in a random order, before the end is reached — the way iTunes/Music, Spotify and every DJ player implement shuffle, as a **shuffled permutation walked by a cursor**, not a per-advance random pick (which repeats some tracks and starves others).
+With shuffle on, advancing plays every track in the playlist exactly once, in a random order, before the end is reached: a **shuffled permutation walked by a cursor**, as every mainstream player does it, not a per-advance random pick (which repeats some tracks and starves others).
 
-Behavior spec, matching convention:
-
-- Turning it on shuffles the whole playlist into a hidden play order with the current track first. The visible playlist order never changes — only what "next" means.
-- **Next** walks forward through that order; **Previous** walks back through the tracks actually played, in reverse (the permutation *is* the history, so this falls out free).
-- The end of the play order behaves exactly like the end of the playlist today: park, don't restart. (Auto-reshuffle-and-continue is a repeat mode; the app has no repeat mode, and this plan deliberately doesn't add one.)
-- Manually picking a row (double-click on mac, row tap on iOS) plays that track and shuffle continues from it; the picked track is spliced into the cursor position so nothing else repeats.
-- Tracks appended while shuffling are inserted at random positions in the *unplayed* remainder.
+- Turning it on shuffles the whole playlist into a hidden play order with the current track first. The visible order never changes, only what "next" means.
+- **Next** walks forward through that order; **Previous** walks back through the tracks actually played (the permutation *is* the history).
+- The end of the play order behaves like the end of the playlist today: park, don't restart. Reshuffle-and-continue is a repeat mode, which the app does not have and this plan does not add.
+- Manually picking a row plays it and shuffle continues from it; the pick is spliced in at the cursor so nothing else repeats.
+- Tracks appended while shuffling land at random positions in the *unplayed* remainder.
 - Turning it off resumes linear order from the current track.
-- The mode persists across launches (the order itself does not — a fresh launch reshuffles).
+- The mode persists across launches; the order does not (a fresh launch reshuffles).
 
-**Naming, decided here**: the feature is **shuffle** — code and screen both. It is the term `MPRemoteCommandCenter` and the whole MediaPlayer API use (`changeShuffleModeCommand`), the term every other player puts in front of the user, and one word per pattern is the vocabulary rule. "Random" is not a synonym for it anywhere in the code, the strings or this plan.
+**Naming**: the feature is **shuffle**, in code and on screen. It is MediaPlayer's term (`changeShuffleModeCommand`) and every other player's, and "random" is not a synonym for it anywhere.
 
-## How advance works today (anchors verified at `a19c5c5`)
+## Where linear order leaks today
 
-- `Playlist` (shared, tested) owns `currentIndex` and the advance API, and its boundary predicates are *documented* as "the single source of truth for whether there is a track after or before the current one" (`Playlist.h:74-77`). `hasNextTrack` is `_currentIndex + 1 < _tracks.count`; `next`/`previous` move `currentIndex` through its setter (`Playlist.m:127-149`), which fires the one observer.
-- Both shells funnel through it: mac `PlaylistController.next/previous` advance the model then `play` (`PlaylistController.m:390-405`), with the model's `advanceFromTrack:toTrack:` (`Playlist.m`, shared) as the gapless splice's bookkeeping half — it checks the started track against `trackAtIndex:_currentIndex + 1`, a second linear-order leak that must ask the peek; iOS `PlaybackController.next/previous` call `[_playlist next/previous]` then `playCurrentTrack` (`PlaybackController.m:374-387`).
-- Track end funnels through `didFinishPlaying:` → `advanceOrParkAtTrackEnd`, which reads `hasNextTrack` *before* advancing (`MainPlayerController+PlayerEvents.m:196-215`).
-- **The linear-order leaks**: besides the model's own `advanceFromTrack:toTrack:` above, the mac's `successorPrefetchTrack` computes the gapless arm point as `trackAtIndex:currentIndex + 1` directly (`MainPlayerController.m:735-740`) instead of asking the model. Per the root `CLAUDE.md` guarantee, that parked handle is what a gapless splice advances into — so under shuffle it *must* answer the shuffled successor, or track ends splice into the linear neighbor while the UI expects the shuffled one.
-- **iOS has the same two leaks.** `PlaybackController.successorPrefetchTrack` parks a gapless successor as `trackAtIndex:currentIndex + 1`, and the boundary check in `PlaybackController+PlayerEvents.m` compares the started track against the same row; both must use `nextTrackPeek`.
-- `Playlist` also has row-level `removeTracksAtIndexes:`, `insertTracks:atIndexes:` and `moveTracksAtIndexes:toIndexes:` (mac editing, #16). `_playOrder` stores row indexes, so each must remap it — a removal drops its entries and shifts later indexes, an insert shifts them, a move permutes them — keeping the played/current/unplayed guarantee.
-- Menu validation gates Next/Previous on the same predicates (`MainPlayerController+Menus.m:54-57`); the Playback menu holds the transport items (`MainMenuBuilder.m:227-260`).
-- `changeShuffleModeCommand` is currently in Now Playing's deliberately-disabled set (`System/NowPlayingController.m:225`).
-- `PlaylistTests.m` exists — the model is pure logic, host-less.
+`Playlist` (shared, host-less, tested in `Tests/PlaylistTests.m`) owns `currentIndex`, `hasNextTrack`/`hasPreviousTrack` (documented as the single source of truth for the boundaries), and `next`/`previous`, which move `currentIndex` through its setter and fire the one observer. Both shells funnel every advance through it. Five places compute the successor as `currentIndex + 1` instead of asking the model, and every one must ask the model's peek under shuffle:
+
+- `Playlist.advanceFromTrack:toTrack:` — the gapless splice's bookkeeping half; it checks the started track against the next row.
+- `Playlist.forwardTrackAfterRemovingTracksAtIndexes:` — what plays after the current row is removed; it walks forward in row order past the removed rows.
+- `MainPlayerController.successorPrefetchTrack` — the mac's gapless arm point. The root guarantee makes the parked handle what a splice advances into, so a linear answer splices into the row neighbor while the UI expects the shuffled one.
+- `PlaybackController.successorPrefetchTrack` — the same on iOS.
+- The boundary check in `PlaybackController+PlayerEvents.m` (`didStartPlaying:`'s successor comparison) — compares the started track against the next row.
+
+`grep -rn 'currentIndex + 1' Vibe` is the completeness check. The mac's `advanceOrParkAtTrackEnd` and the iOS `didFinishPlaying:` need no change: they read `hasNextTrack` and call `next`, which Phase 1 makes shuffle-aware. Menu validation gates Next and Previous on the same predicates. `changeShuffleModeCommand` is in `NowPlayingController`'s deliberately-disabled command set.
 
 ## Phase 1 — Shuffle in the `Playlist` model
 
-The order lives **inside `Playlist`**, not in a controller: the boundary predicates are the declared single source of truth, both shells already funnel every advance through them, and the model is the one shared, tested home. Files: `Vibe/Playlist/Playlist.{h,m}` (shared — Foundation only, as now).
+The order lives **inside `Playlist`**: the boundary predicates are already the declared single source of truth, both shells funnel through them, and the model is the one shared, tested home. Foundation only, as now.
 
-### State
+State: `@property BOOL shuffleEnabled;` and an injectable `uint32_t (^randomBelow)(uint32_t)` defaulting to `arc4random_uniform` (tests inject; never date- or seed-based in production). Internally, `_playOrder` (a permutation of row indexes) and `_playOrderCursor`. The guarantee every rule below applies: **entries before the cursor are played, the cursor entry is the current row, entries after it are unplayed.**
 
-```objc
-@property (nonatomic) BOOL shuffleEnabled;
-// Injectable for tests; defaults to arc4random_uniform. Never Date/seed-based.
-@property (nonatomic, copy) uint32_t (^randomBelow)(uint32_t upperBound);
-```
+- **`setShuffleEnabled:YES`** — Fisher-Yates over all rows, swap the current row to position 0, cursor 0. **`NO`** — drop order and cursor; the linear predicates take over from `currentIndex` unchanged.
+- **`hasNextTrack`** under shuffle is `cursor + 1 < count`; **`hasPreviousTrack`** is `cursor > 0`.
+- **`next`/`previous`** under shuffle move the cursor, then set `currentIndex` through an internal write that skips the manual-pick splice below but still fires `currentIndexDidChangeFromIndex:`; observers must not care which mode moved it.
+- **`nextTrackPeek`** — new public accessor: the track `next` would land on, shuffled or linear, or nil at the boundary. Every leak above asks it.
+- **Manual pick** (`setCurrentIndex:` from outside `next`/`previous`) — swap the picked row's entry with the one at `cursor + 1` and advance to it. A played row is replayed and retires the slot it left, so nothing else repeats. Picking the current row changes nothing.
+- **`replaceAllWithURLs:` / `clear`** — regenerate or drop the order; `replaceAll` still starts on row 0, which the new permutation puts first.
+- **`appendURLs:`** — each new row lands at a `randomBelow`-chosen position in `(cursor, end]`.
+- **`removeTracksAtIndexes:`, `insertTracks:atIndexes:`, `moveTracksAtIndexes:toIndexes:`** — `_playOrder` stores row indexes, so each remaps it: a removal drops its entries and shifts later indexes, an insert shifts them (inserted rows join the unplayed span at random positions), a move permutes them. The played/current/unplayed guarantee holds across each.
+- **`replaceTrackAtIndex:withURL:`** (the convert swap) — no change: the swap moves no rows. Say so in the comment on `_playOrder`.
 
-Internal: `NSMutableArray<NSNumber *> *_playOrder` (a permutation of row indexes 0..count-1) and `NSUInteger _playOrderCursor`. The guarantee to keep true everywhere: **entries before the cursor are played, the cursor entry is the current row, entries after it are unplayed** — every rule below is an application of it.
+Tests (deterministic via `randomBelow`): every row visited exactly once walking to the boundary; the boundary parks; `previous` retraces the visited sequence; enabling puts the current row first; picking an unplayed row continues with no repeats; picking a played row replays it and still exhausts the remainder; appends land in the unplayed span; remove, insert, and move keep the guarantee; toggling off resumes linear; the convert swap changes nothing; `nextTrackPeek` always equals where `next` lands; `advanceFromTrack:toTrack:` accepts the shuffled successor and refuses the row neighbor; `forwardTrackAfterRemovingTracksAtIndexes:` answers the next unplayed track.
 
-### Rules
+**Acceptance**: `make test`, `make check-layout`, `make build-ios`.
 
-- **`setShuffleEnabled:YES`** — Fisher-Yates over all row indexes (using `randomBelow`), then swap the current row's entry to position 0, cursor = 0. **`NO`** — discard order and cursor; linear predicates take over from `currentIndex` unchanged.
-- **`hasNextTrack`** under shuffle: `_playOrderCursor + 1 < _playOrder.count`; **`hasPreviousTrack`**: `_playOrderCursor > 0`. Linear bodies unchanged otherwise.
-- **`next`/`previous`** under shuffle: move the cursor, then set `currentIndex` to the row at the cursor — through an internal index write that *skips* the manual-pick re-anchor below but still fires `currentIndexDidChangeFromIndex:` (the observers must not care which mode moved it). `advanceFromTrack:toTrack:` calls `next`, but its successor check must compare against `nextTrackPeek`, not the linear row.
-- **Successor peek** — new public accessor, the model-side answer the mac prefetch will use:
+## Phase 2 — macOS
 
-  ```objc
-  // The track next would advance to — shuffled successor or linear neighbor —
-  // or nil at the boundary. The gapless arm point must ask this, never
-  // trackAtIndex:currentIndex + 1.
-  - (nullable AudioTrack *)nextTrackPeek;
-  ```
+**Setting.** `AppSettings.h`, above the platform split: `shuffleEnabled`, key `Settings.shuffleEnabled`, default NO in the shared `registerDefaults`. The key string is permanent once shipped.
 
-- **Manual pick** (`setCurrentIndex:` from outside `next`/`previous`) under shuffle: find the picked row's entry in `_playOrder`, swap it with the entry at `cursor + 1`, advance the cursor to it. If the picked row was already played (its position ≤ cursor), the same swap replays it and retires the slot it left — nothing else repeats. A pick of the current row changes nothing (the setter already re-fires the observer for that case, `Playlist.h:47-49`).
-- **`replaceAllWithURLs:` / `clear`** — regenerate (or drop) the order; `replaceAll` resets `currentIndex` to 0 as today and the new permutation puts row 0 first. Opening a folder therefore still starts on the first row; shuffle governs what comes *next*, which is the conventional behavior.
-- **`appendURLs:`** — insert each new row index at a `randomBelow`-chosen position in `(cursor, end]`. Played history is untouched.
-- **`replaceTrackAtIndex:withURL:`** (the convert swap) — **no change needed**: the order stores row indexes, not tracks, and the swap moves no rows. State this in a comment on `_playOrder`.
+**Live effect.** Add `VibeSettingsLiveEffectShuffle` beside `VibeSettingsLiveEffectEndOfTrack` in `MainPlayerController+Settings`, applied by `applySettingsLiveEffects:` and at launch after the playlist restores. It pushes the setting into the model through a `PlaylistController` pass-through, then re-parks the successor with `prefetchTrack:self.successorPrefetchTrack`. **TRAP: without the re-park, a track end splices into the successor armed before the toggle.** Say in the `AppSettings.h` comment that a writer requests the effect, as the other live-effect settings do.
 
-### Tests (`Tests/PlaylistTests.m`, deterministic via an injected `randomBelow`)
+**Close the leak.** `successorPrefetchTrack` keeps its `pauseAtTrackEnd` gate (that guarantee outranks shuffle) and answers `nextTrackPeek` through a `PlaylistController` pass-through. Every other prefetch site already funnels through it.
 
-Every track visited exactly once walking `next` to the boundary; the boundary parks (`hasNextTrack` NO); `previous` retraces the exact visited sequence; enabling puts the current row first; manual pick of an unplayed row continues with no repeats; manual pick of a played row replays it and still exhausts the remainder; append lands every new row in the unplayed span; toggle off resumes linear from `currentIndex`; convert swap mid-shuffle changes nothing; `nextTrackPeek` always equals the row `next` then lands on (the guarantee Phase 2 leans on).
+**Menu.** A checkmarked Playback-menu item after Next in `MainMenuBuilder`, symbol `shuffle`, identifier `menu_shuffle`, no key equivalent (the bare transport keys belong to `TransportKeyMonitor`). Its action writes the setting and requests the live effect; `validateMenuItem:` keeps it enabled with the setting as its state. String `menu.playback.shuffle`, "Shuffle", then `make strings` and translations. No Settings-pane row: shuffle is transport state, not configuration.
 
-**Acceptance**: `make test`, `make check-layout`, `make build-ios` (shared file, both targets).
+**Acceptance**: `make test`, `make check-strings`, `make check-translations`; then through `vibe-debug`: toggle via `click_menu` and see it in `dump_state`; script a Next walk to the end and collect the sequence (a permutation, then park); toggle mid-track and confirm the next track end lands on a shuffled successor (the re-park); Previous retraces; a double-clicked row continues with no repeat; removing the playing row lands on the next unplayed track.
 
-## Phase 2 — macOS integration
+## Phase 3 — iOS
 
-### 2a. The setting
+- `PlaybackController` applies the setting to its `Playlist` at init and gains `toggleShuffle`, writing the setting and the model together and ending on `applyTrackTransitionSettings` so the successor is re-parked. `successorPrefetchTrack` and the `didStartPlaying:` boundary check ask `nextTrackPeek`. `next`, `previous`, and `selectTrackAtIndex:` already go through the model.
+- A shuffle button on the now-playing card's control row, tinted when active; `Vibe/iOS/Player/AGENTS.md` owns the card's layout conventions. The library rows and the mini player need nothing.
+- **Open decision: the pager.** `PlayerViewController+Pager` pages by row index, so a swipe to the neighboring page is a manual pick of the adjacent row, which splices into shuffle with no repeat. Either accept that (the pager shows the playlist, and swiping picks) or page in play order. Decide before building the button.
 
-`Vibe/Common/AppSettings.h`, **above** the platform split (both platforms shuffle): `- (BOOL)shuffleEnabled; - (void)setShuffleEnabled:(BOOL)enabled;`, key `Settings.shuffleEnabled`, default NO registered in the shared `registerDefaults` dictionary (`AppSettings.m:131-138`). BOOL — no normalize rule needed. The key string is permanent once shipped (`Common/CLAUDE.md` trap).
-
-### 2b. The one-place apply hook, and the re-park trap
-
-`MainPlayerController` (pattern: `applyEndOfTrackAction`, `MainPlayerController.m:742-748`):
-
-```objc
-- (void)applyShuffle {
-    self.playlistController.shuffleEnabled = AppSettings.sharedInstance.shuffleEnabled;  // add the pass-through to PlaylistController
-    // TRAP: the parked successor is the gapless arm point (root CLAUDE.md).
-    // Without this re-park a track end splices into the *linear* neighbor
-    // that was armed before the toggle. Same edge as applyEndOfTrackAction.
-    [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
-}
-```
-
-Called at launch (after the playlist restores) and by every writer of the setting. **Every future write of `shuffleEnabled` must go through it** — say so in the property comment in `AppSettings.h`, as `pauseAtTrackEnd`'s does.
-
-### 2c. Close the linear-order leak
-
-`successorPrefetchTrack` (`MainPlayerController.m:735-740`) keeps its `pauseAtTrackEnd` gate (that guarantee outranks shuffle) and replaces `trackAtIndex:currentIndex + 1` with the model peek, through a `PlaylistController` pass-through:
-
-```objc
-return [self.playlistController nextTrackPeek];
-```
-
-Audit the other prefetch call sites (`MainPlayerController.m:544`, `+PlayerEvents.m:129`, `+Convert.m:162`) — all already funnel through `successorPrefetchTrack`, which is the guarantee working as designed; none may bypass it.
-
-`advanceOrParkAtTrackEnd` needs **no change**: it reads `hasNextTrack` and calls `next:`, both of which Phase 1 made shuffle-aware.
-
-### 2d. Menu
-
-Playback menu, after the Next item (`MainMenuBuilder.m:231`): a checkmarked toggle, symbol `shuffle`, no key equivalent (the bare transport keys belong to `TransportKeyMonitor`; don't grow that set), identifier `menu_shuffle`. Action on `MainPlayerController`:
-
-```objc
-- (IBAction)toggleShuffle:(id)sender {
-    AppSettings.sharedInstance.shuffleEnabled = !AppSettings.sharedInstance.shuffleEnabled;
-    [self applyShuffle];
-}
-```
-
-Validation in `validateMenuItem:` (`+Menus.m:20`): always enabled, state = the setting. String: new `menu.playback.shuffle` — **"Shuffle"** — in `VibeStrings.h` via the `vibe-strings` skill, then `make strings` + translations.
-
-No Settings-pane row: this is transport state like play/pause, not configuration — it lives in the menu (and later the remote command), not in Settings > Playback.
-
-**Acceptance**: `make test`, `make check-strings`, `make check-translations`; then with the `vibe-debug` skill: `click_menu` the toggle, `dump_state` shows the setting; load a folder, walk Next to the end and confirm every row's play indicator is visited once (the debug channel's state dump names the current track — script the walk and collect the sequence); toggle shuffle mid-track and confirm the *next* track end lands on a shuffled successor (gapless re-park proof); Previous retraces; a double-clicked row continues shuffling with no repeat.
-
-## Phase 3 — iOS integration
-
-- `PlaybackController` gets the same pass-through: apply `AppSettings.sharedInstance.shuffleEnabled` to its `Playlist` at init and expose `- (void)toggleShuffle` writing the setting and the model together (iOS does park a gapless successor: route `successorPrefetchTrack` and the boundary check in `PlaybackController+PlayerEvents.m` through `nextTrackPeek`; `applyTrackTransitionSettings` is the iOS hook that re-parks on a toggle). `next`/`previous`/`selectTrackAtIndex:` already funnel through the model (`PlaybackController.m:374-395`) and inherit Phase 1.
-- UI: a shuffle button on the now-playing card's control row (`Vibe/iOS/Player/CLAUDE.md` owns the card's layout conventions — follow them; tinted when active, like the system players). The library rows and mini player need nothing: the visible order never changes.
-- The card's page-swipe navigation (`PlayerViewController+Pager.m`) previews neighbors — check what it uses for "next page": if it asks `trackAtIndex:currentIndex ± 1` anywhere, it must ask the model's peek instead, or the swiped-to page won't match the track that plays. This is the iOS twin of the mac's prefetch leak; grep for `currentIndex + 1` under `Vibe/iOS/` and fix every hit through the model.
-
-**Acceptance**: `make build-ios`; simulator loop (`launch-ios.sh`, `drive-ios.sh`): toggle shuffle, swipe and tap through tracks, confirm the no-repeat walk and that a page swipe lands on the same track advance would have chosen.
+**Acceptance**: `make build-ios`; on the simulator (`launch-ios.sh`, `drive-ios.sh`): toggle, advance through the folder, and confirm the no-repeat walk and the park at the end.
 
 ## Phase 4 (optional, separate decision) — Now Playing shuffle command
 
-`changeShuffleModeCommand` is in the deliberately-disabled set (`NowPlayingController.m:218-233`). Enabling it puts a shuffle toggle in Control Center / CarPlay and routes the system's shuffle state to `applyShuffle`. **TRAP: `MPRemoteCommandCenter` is process-global and the system may re-layout the compact transport when new commands appear** (the CarPlay doc's skip-command note) — verify on a real device that enabling it costs nothing on the lock screen before shipping. Keep this phase out of the initial landing; the feature is complete without it.
+Enabling `changeShuffleModeCommand` puts a shuffle toggle in Control Center and CarPlay and routes it to the setting and its apply. **TRAP: `MPRemoteCommandCenter` is process-global, and the system may re-lay out the compact transport when a command appears** (the CarPlay doc's skip-command note). Verify on a device that it costs the lock screen nothing before shipping. The feature is complete without it.
 
-## Phase 5 — Final verification
+## Final verification
 
-- The Phase 2 scripted walk on a 50+ track folder: collect the played sequence, assert it is a permutation (no repeat, no omission), assert park at the end.
-- Toggle off mid-walk → next advance is `currentIndex + 1` in visible order.
-- Append mid-walk (drop onto the Add well) → appended tracks all play before the end, none twice.
-- Convert a track mid-shuffle (the row swap) → order undisturbed, swapped row still plays once.
+- The scripted walk on a 50+ track folder: a permutation, no repeat or omission, park at the end.
+- Toggle off mid-walk: the next advance is the next visible row.
+- Append mid-walk: every appended track plays before the end, none twice.
+- Convert a track mid-shuffle: the order is undisturbed, and the swapped row still plays once.
 - `make test`, `make analyze CONFIG=Release`, `make check-layout`, `make check-vocabulary`, `make check-strings`, `make check-translations`, `make build-ios`.
-- A `vibe-stress` torture run with shuffle on (the suite hammers skips against the metadata scan; shuffle changes which row a skip lands on, which is exactly the delivery-race surface those oracles watch).
+- A `vibe-stress` torture run with shuffle on: shuffle changes which row a skip lands on, which is exactly the delivery-race surface its oracles watch.

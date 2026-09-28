@@ -16,6 +16,8 @@ libSystem_initializer → __guard_setup → wrap_strlcpy
 
 The process stays alive, logs nothing and never registers the channel, so from outside it is indistinguishable from the `log_path` trap. Being inside the container does not help: `log_path` is opened much later in startup, `suppressions` is not. Live with the framework noise and filter afterwards.
 
+**A long media-heavy TSan soak can die in TSan itself**: a crash whose stack is `__tsan::MetaMap::AllocBlock` → `Die`, under a VideoToolbox allocation, is the instrumentation's shadow metadata running out, not an app crash. It recurs on multi-hour soaks; shorten the run rather than chase it.
+
 ## Launching
 
 Options are environment variables. `open -a` cannot pass them, so `launchctl setenv` is the only route to an `open -a` launch; it is session-wide, so `launchctl unsetenv` when the run ends. A direct-exec launch takes them from the shell, but reaches files only through the corpus grant (`SKILL.md`, traps):

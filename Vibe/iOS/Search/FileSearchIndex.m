@@ -89,7 +89,7 @@ static NSArray<NSString *> *VibeStandardizedPaths(NSArray<NSURL *> *urls) {
         atomic_init(&_buildGeneration, 1);
         atomic_init(&_hitRequestGeneration, 1);
         // Utility: a provider listing is the same IPC the waited-on open needs,
-        // and the open outranks it (root CLAUDE.md).
+        // and the open outranks it (root AGENTS.md).
         dispatch_queue_attr_t attributes = dispatch_queue_attr_make_with_qos_class(
                 DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
         _walkQueue = dispatch_queue_create("FileSearchIndex", attributes);

@@ -60,7 +60,7 @@ Download progress (fake): 42% (5.0s) tone-long.wav   <- the stall, 2s of it
 
 ## Render tests
 
-`make test-audio` pumps PCM through the real player/FX pipeline without opening hardware and runs the comparator's corruption self-tests. `Tests/CLAUDE.md` describes the matrix, tolerances, failure WAV attachments and bounded frame clock. `make test-audio-summary` reports the results. The fixture generator's `--render-tests build/audio-fixtures` mode supplies seeded noise and analytical fixtures independently of the interactive corpus.
+`make test-audio` pumps PCM through the real player/FX pipeline without opening hardware and runs the comparator's corruption self-tests. `Tests/AGENTS.md` describes the matrix, tolerances, failure WAV attachments and bounded frame clock. `make test-audio-summary` reports the results. The fixture generator's `--render-tests build/audio-fixtures` mode supplies seeded noise and analytical fixtures independently of the interactive corpus.
 
 ## Bit-perfect acceptance
 

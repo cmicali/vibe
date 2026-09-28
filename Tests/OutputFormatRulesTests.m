@@ -731,7 +731,7 @@ static VibeBitPerfectReport Perfect(void) {
 static NSString *const kModesKey = @"AudioPlayer.outputModesByDeviceUID";
 
 // Removed rather than restored: writing a value back would materialize a key
-// that was never there (Tests/CLAUDE.md). The guard restores the domain at exit.
+// that was never there (Tests/AGENTS.md). The guard restores the domain at exit.
 - (void)withModeStore:(NSDictionary *)store run:(void (^)(void))block {
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
     [defaults setObject:store forKey:kModesKey];

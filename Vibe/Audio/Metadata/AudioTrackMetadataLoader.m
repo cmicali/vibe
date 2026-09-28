@@ -1329,9 +1329,11 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     // Before the parse, which can block for minutes: an invalidate during it
     // makes the result stale for the cache.
     uint64_t generation = owner.cacheGeneration;
+    // A local, so every skipped write below releases it with the frame.
+    NSData *displayArt = nil;
     AudioTrackMetadata *metadata = _fileParser
             ? _fileParser(track.url)
-            : [AudioTrackMetadata metadataWithURL:track.url];
+            : [AudioTrackMetadata metadataWithURL:track.url displayArtData:&displayArt];
     // Re-read: a stat failure at cache-check time may have healed.
     NSString *cacheKey = track.cacheKey;
     if (metadata.parsedOK && cacheKey) {
@@ -1345,7 +1347,6 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         if (generation == owner.cacheGeneration) {
             [owner.metadataCache.diskCache setObject:metadata forKey:cacheKey];
             // Same write-then-recheck pair for the rendition.
-            NSData *displayArt = [metadata.artwork takeArchivedDisplayArtDataForStorage];
             if (displayArt) {
                 [owner.metadataCache.diskCache setObject:displayArt
                                                   forKey:VibeArchivedDisplayArtKey(cacheKey)];

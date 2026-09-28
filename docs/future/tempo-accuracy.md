@@ -1,6 +1,6 @@
 # Future: improving tempo detection accuracy
 
-Written 2026-08-11, when `AudioBPMAnalyzer` scored **Accuracy1 85.1%, Accuracy2 92.6%** over the 652 scorable files of the GiantSteps tempo dataset (annotations v2). Re-measure before acting on any of this: `scripts/validate-tempo.py --jobs 6` takes about 35 seconds for the full set.
+**Status: not started (verified 2026-09-27; the analyzer and its constants are unchanged since the measurement).** Measured 2026-08-11: `AudioBPMAnalyzer` scored **Accuracy1 85.1%, Accuracy2 92.6%** over the 652 scorable files of the GiantSteps tempo dataset (annotations v2). Re-measure before acting on any of this: `scripts/validate-tempo.py --jobs 6` takes about 35 seconds for the full set.
 
 ## Where the remaining error actually is
 
@@ -37,7 +37,7 @@ Sketch:
 
 Expect the current constants to need re-sweeping afterwards: a better octave discriminator should let `kTempoPriorCenterBPM` move back toward neutral, which is what would recover the 47 double errors on slow material without giving back the drum-and-bass gains. **That recovery, not the raw accuracy number, is the real prize** — it would remove the current deliberate trade where sub-100 BPM tracks read as their double.
 
-Cost: streaming work scales with band count in the flux loop, but the FFT — the expensive part — is shared, so expect well under 4x on the 0.97 ms per audio-second the analyzer spends today. Measure with `dump_timing` or the `timing` object on `scan_bpm`.
+Cost: streaming work scales with band count in the flux loop, but the FFT — the expensive part — is shared, so expect well under 4x on the 0.97 ms per audio-second the analyzer spends today. Measure with `dump_timing` or the `timing` object on `scan_bpm`. BPM detection also runs on iOS now (#77), so measure on a phone too: the analyzer shares the decode pass there, and its cost lands on battery.
 
 Risk: moderate. It is a real change to a carefully tuned algorithm and it can come out worse. The validation harness makes that safe to discover — one build plus 35 seconds per experiment.
 
@@ -48,7 +48,7 @@ Every method above the mid-80s on this dataset is learned. Schreiber and Müller
 If that gap ever matters, the shape of the work:
 
 - **Inference** is the easy half. Core ML runs a small tempo CNN on the Neural Engine in far less time than the current DSP path, it is public API, and it ships in the App Store without trouble. A mel-spectrogram front end can reuse the existing decode pass, so this still costs no second file read.
-- **The model is the hard half.** Training needs a corpus and a pipeline neither of which exist here, and shipping someone else's weights means auditing their license — several published tempo models are research-only. `THIRD-PARTY-NOTICES.md` and the vendored-code rules in `ThirdParty/CLAUDE.md` apply to weights as much as to source.
+- **The model is the hard half.** Training needs a corpus and a pipeline neither of which exist here, and shipping someone else's weights means auditing their license — several published tempo models are research-only. `THIRD-PARTY-NOTICES.md` and the vendored-code rules in `ThirdParty/AGENTS.md` apply to weights as much as to source.
 - **Size and honesty about the payoff.** A tempo CNN is small, a few MB, so bundle size is not the objection. The objection is that it buys perhaps two points of Accuracy1 over a well-executed multi-band DSP analyzer, for a dependency on a trained artifact that cannot be reasoned about or hand-tuned the way the current ~550 lines can.
 
 **Do proposal 1 first.** It is cheap, it is reversible, it targets the same failures, and if it lands near 90% the case for a model largely evaporates.

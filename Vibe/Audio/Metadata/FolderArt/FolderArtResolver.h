@@ -4,7 +4,7 @@
 //
 // The cover beside an audio file that carries no art of its own, consulted by
 // AudioTrackArtwork. Per directory, lazy, never on the scan's path and never
-// persisted; the cost rules are FolderArt/CLAUDE.md's.
+// persisted; the cost rules are FolderArt/AGENTS.md's.
 //
 
 #import <Foundation/Foundation.h>

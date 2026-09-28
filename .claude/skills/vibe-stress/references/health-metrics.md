@@ -26,7 +26,7 @@ Runs `closeFile:` — stop, drop the prefetch handle, cancel the waveform load a
 
 ## What is stable at rest, measured over loading-profile runs
 
-- **Dead stable**: views 47, windows 1, hosted units (the varispeed and, once FX is enabled, the ten FX units; hosted once), every pending counter 0.
+- **Dead stable**: views 47 (until the Settings window has existed: closing it only hides it, `dump_health` counts hidden windows, and its ~176–229 views join the resting count for the rest of the run, so a resting-views failure starts with `dump_view_tree`'s window list), windows 1, hosted units (the varispeed and, once FX is enabled, the ten FX units; hosted once), every pending counter 0.
 - **Breathe with the loader pool**: threads 14–26, fds about 10–17 (4–6 at rest; torture, 2026-09-27).
 - **Layers are bistable at the chrome**, ~101 and ~350–356, moving in *both* directions within one run on the same binary, unmoved by row count, `quiesce`, or the pitch panel and playlist toggles; that part is AppKit's own glass and hosting-view machinery. On top of it the Sonic Cirrus style draws two layers per bar at a 4pt pitch from the drawn width, capped at 1,024 bars, so ~2,048 layers is a legitimate resting state for a wide window. The limit is +2400 in flight and at rest: a real layer leak is unbounded and clears it too, and views stay the sensitive UI metric.
 - **Resting footprint does not settle**: 47 to 335 MB, the same seed resting at 298 MB in one run and 51 MB in another. It is a gross-leak backstop (+256 MB), not a signal. `mallocLiveBytes` (+64 MB) is the sensitive metric: 37–52 MB across the same decodes that swung the footprint from 94 to 365 MB.

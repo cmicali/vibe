@@ -1,4 +1,4 @@
-// The suite is host-less and so unsandboxed (Tests/CLAUDE.md): a production
+// The suite is host-less and so unsandboxed (Tests/AGENTS.md): a production
 // path that resolves a standard user directory answers with the developer's
 // real ~/Library. AppTheme's artwork store would land in ~/Library/Application
 // Support/<main bundle identifier>/ThemeArt — here the XCTest tool's

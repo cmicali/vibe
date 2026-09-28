@@ -58,7 +58,7 @@ macOS instantiates an AirPlay HAL device **only when the system itself routes to
 
 This is half the verdict, so it is worth spelling out precisely.
 
-Vibe's "System Output" is not a device — it is a **durable policy**, `currentlyRequestedAudioDeviceId == -1`, meaning *follow whatever the system default is now or later* (`Vibe/Audio/Mac/Devices/CLAUDE.md`). When macOS routes to an AirPlay target it creates the HAL device and makes it the default; `AudioDeviceManager`'s `kAudioHardwarePropertyDefaultOutputDevice` listener fires, `systemDefaultOutputDeviceDidChange` (`AudioPlayer+Devices.m:29`) sees the requested id is `-1`, and re-pins the output unit to the new default. Playback moves to the HomePod.
+Vibe's "System Output" is not a device — it is a **durable policy**, `currentlyRequestedAudioDeviceId == -1`, meaning *follow whatever the system default is now or later* (`Vibe/Audio/Mac/Devices/AGENTS.md`). When macOS routes to an AirPlay target it creates the HAL device and makes it the default; `AudioDeviceManager`'s `kAudioHardwarePropertyDefaultOutputDevice` listener fires, `systemDefaultOutputDeviceDidChange` (`AudioPlayer+Devices.m:29`) sees the requested id is `-1`, and re-pins the output unit to the new default. Playback moves to the HomePod.
 
 **The one wrinkle worth knowing:** a device the user pinned *explicitly* does not follow the default — by design, and correctly. So the "AirPlay just works" story holds only while Vibe is on System Output, which is the shipped default and where most users will be.
 
@@ -100,7 +100,7 @@ And the payoff is a row that cannot be acted on. The best available flow is: cli
 
 - `Vibe/Audio/Mac/Devices/CoreAudioUtil.{h,m}`, `AudioDevice.{h,m}` — nothing; the transport read and field exist.
 - `Vibe/Audio/Mac/Devices/AudioDeviceManager.m` — the sweep at `:391` and `readDeviceForID:` at `:524`, with the "optional refinement, never discards" rule above.
-- `Vibe/Audio/Mac/Devices/CLAUDE.md` — the sweep's strictness paragraph names exactly which reads are load-bearing; a new optional read has to be named there as optional.
+- `Vibe/Audio/Mac/Devices/AGENTS.md` — the sweep's strictness paragraph names exactly which reads are load-bearing; a new optional read has to be named there as optional.
 - `Vibe/Mac/Menu/OutputDevicesMenuController.m` — `menuNeedsUpdate:` and the prefix arithmetic.
 - `Vibe/Mac/Settings/SettingsGeneralViewController.m` — the Settings > Audio device table, grouped separately from the menu.
 - `Vibe/Common/VibeStrings.h` — the section titles; `make strings` after.
@@ -111,7 +111,7 @@ And the payoff is a row that cannot be acted on. The best available flow is: cli
 Things a future implementer must verify rather than assume:
 
 1. **Does a Control Center AirPlay route actually produce a pinnable HAL device?** Not verified — the probe above ran with nothing routed. Whether the device carries `kAudioDeviceTransportTypeAirPlay`, whether Vibe can pin it explicitly rather than only follow it as the default, and whether it survives being deselected, all decide whether even piece 1 has anything to show. **Test this first; it is cheap and it may close the whole file.**
-2. **Does an AirPlay bind block?** Since #53 the player queue does not wait: `setOutputUnitDevice:` records the bind and the output unit waits on the HAL on its own serial queue (`Mac/Devices/CLAUDE.md`). A stall there still holds every later bind, configure and start queued behind it, with no timeout of Vibe's own; a network device is the first plausible way to hit that, and it is unmeasured.
+2. **Does an AirPlay bind block?** Since #53 the player queue does not wait: `setOutputUnitDevice:` records the bind and the output unit waits on the HAL on its own serial queue (`Mac/Devices/AGENTS.md`). A stall there still holds every later bind, configure and start queued behind it, with no timeout of Vibe's own; a network device is the first plausible way to hit that, and it is unmeasured.
 3. **Multi-room AirPlay 2.** Does macOS expose several simultaneous targets as one aggregate device, and does that change what a "section" even means?
 
 ## Sources

@@ -4,7 +4,7 @@
 //
 //  Settings > Appearance > Waveform theme; not a SettingsChoiceViewController
 //  because Custom brings four color wells. All four mac themes are offered;
-//  album art's color is per page (root CLAUDE.md).
+//  album art's color is per page (root AGENTS.md).
 //
 
 #import <UIKit/UIKit.h>

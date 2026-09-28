@@ -22,7 +22,7 @@
     return YES;
 }
 
-+ (instancetype)metadataWithURL:(NSURL *)url {
++ (instancetype)metadataWithURL:(NSURL *)url displayArtData:(NSData **)displayArtData {
     [NSException raise:NSInternalInconsistencyException
                 format:@"Metadata parser escaped its test seam for %@", url];
     return nil;

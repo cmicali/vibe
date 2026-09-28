@@ -1,19 +1,20 @@
 #!/bin/bash
-# Enforces the layout rule stated in CLAUDE.md: every directory directly under
+# Enforces the layout rule stated in AGENTS.md: every directory directly under
 # Vibe/ except Mac/, iOS/ and ThirdParty/ is a shared subsystem listed in both
 # targets, and within any subsystem Mac/ and iOS/ are the only platform
 # markers.
 #
-# Four assertions. The first three read project.yml, which settles which
+# Five assertions. The first three read project.yml, which settles which
 # SOURCES compile; the fourth reads the imports, which settles which HEADERS may
 # be named, since Xcode's project-wide headermap resolves any header from any
-# target.
+# target; the fifth keeps the agent instructions loadable.
 #   1. every exclude is on the whitelist — no feature-named exclude anywhere;
 #   2. no Vibe path names the other platform, and every shared entry carries
 #      its platform exclude;
 #   3. every top-level directory on disk is a source path in both targets;
 #   4. no source outside a platform's tree imports a header only that tree
-#      has, unguarded.
+#      has, unguarded;
+#   5. no CLAUDE.md or CLAUDE.local.md in the tree or above it.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -196,6 +197,28 @@ for platform in Mac iOS; do
         echo "$hits" >&2
     fi
 done
+
+# 5. The instructions are AGENTS.md. TRAP: one CLAUDE.md, .claude/CLAUDE.md or
+#    CLAUDE.local.md in the tree or a directory above it — /init writes one —
+#    makes Claude Code read that file alone and skip every AGENTS.md, silently.
+#    The worktrees hold other branches' checkouts; ~/.claude/CLAUDE.md is the
+#    user file, which does not count.
+strays=$(find . -path ./.git -prune -o -path ./build -prune -o -path ./.claude/worktrees -prune \
+              -o \( -name CLAUDE.md -o -name CLAUDE.local.md \) -print)
+dir=$(cd .. && pwd)
+while :; do
+    for f in CLAUDE.md CLAUDE.local.md .claude/CLAUDE.md; do
+        [ "$dir/$f" = "$HOME/.claude/CLAUDE.md" ] && continue
+        [ -e "$dir/$f" ] && strays="$strays"$'\n'"$dir/$f"
+    done
+    [ "$dir" = / ] && break
+    dir=$(dirname "$dir")
+done
+strays=$(echo "$strays" | sed '/^$/d')
+if [ -n "$strays" ]; then
+    fail "agent instructions are AGENTS.md; each file below makes Claude Code skip every AGENTS.md — rename its content into the AGENTS.md beside it:"
+    echo "$strays" >&2
+fi
 
 if [ "$status" -eq 0 ]; then
     echo "✅ layout OK"

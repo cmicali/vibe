@@ -1,6 +1,6 @@
 # The settings window's verbs
 
-`settings_open`, `dump_settings_ui`, `settings_click`, `settings_close` and `settings_resize` in detail: reply keys, how `settings_click` names a control, the control-kind table and the toolbar's reserved names. Read when driving a Settings pane; the traps are in `SKILL.md`'s settings section. The walker is `Vibe/Debug/Mac/DebugSettingsUI.m`, keyed off the pane classes in `Vibe/Mac/Settings/CLAUDE.md`.
+`settings_open`, `dump_settings_ui`, `settings_click`, `settings_close` and `settings_resize` in detail: reply keys, how `settings_click` names a control, the control-kind table and the toolbar's reserved names. Read when driving a Settings pane; the traps are in `SKILL.md`'s settings section. The walker is `Vibe/Debug/Mac/DebugSettingsUI.m`, keyed off the pane classes in `Vibe/Mac/Settings/AGENTS.md`.
 
 ```bash
 "$V" --debug-cmd settings_open appearance     # {ok, pane, paneTitle, panes, frame, paneFrame, paneFillsTabView, key, appearance} — opens (creating) the window and selects a pane by identifier (general|audio|playback|appearance|files|advanced|about), index or displayed title; bare settings_open just opens
