@@ -19,7 +19,28 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Four jobs, deliberately: the account runs five macOS jobs at once, shared by
+# every run in flight, so each job past that waits for a slot, and the wait was
+# once half the wall time. A new check joins a job below rather than adding one.
 jobs:
+  # The Release build of each app, analyzed. `xcodebuild analyze` compiles,
+  # links and signs the whole app before it analyzes, so the analyzing build IS
+  # the Release build, and a separate one would compile everything twice.
+  #
+  # clang's static analyzer fails the leg on any finding outside ThirdParty/.
+  # project.yml has had the analyzer's checks on all along
+  # (CLANG_ANALYZER_NONNULL, CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION); this job
+  # is what makes them a gate rather than a setting nobody ran. Findings are
+  # not config-independent — the first one this gate caught showed up in
+  # Release and not in Debug — and Release is the configuration that ships.
+  #
+  # Both targets, because the iOS leg is what analyzes Vibe/iOS and the iOS
+  # halves of the shared subsystems; it found two real findings the first time
+  # it ran. The Release iOS build matters on its own too: every source under
+  # Vibe/Debug wraps its body in #if DEBUG, so Release is the only
+  # configuration that compiles those translation units empty, and it is what
+  # `make appstore-build-ios` archives. The iOS leg runs against a generic
+  # simulator destination, so nothing has to be booted, and signs nothing.
   build:
     # Deployment target is macOS 13, but the code compiles against the macOS 26
     # SDK (Liquid Glass behind availability guards), so an older image's Xcode
@@ -31,7 +52,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        configuration: [Debug, Release]
+        leg: [macos, ios]
 
     steps:
       - uses: actions/checkout@v7
@@ -47,22 +68,24 @@ jobs:
       # this doesn't shell out to brew at all.
       - uses: ./.github/actions/setup-xcodegen
 
-      # Signs ad-hoc (project.yml CODE_SIGN_IDENTITY: "-"), so no certificates
-      # or secrets are needed. Distribution signing lives in scripts/release.sh.
-      - name: Build ${{ matrix.configuration }}
-        run: make build CONFIG=${{ matrix.configuration }}
+      # The macOS leg signs ad-hoc (project.yml CODE_SIGN_IDENTITY: "-"), so no
+      # certificates or secrets are needed. Distribution signing lives in
+      # scripts/release.sh.
+      - name: Build Release and analyze (${{ matrix.leg }})
+        run: scripts/analyze.sh Release ${{ matrix.leg }}
 
       - name: Verify code signature
+        if: matrix.leg == 'macos'
         run: |
           codesign --verify --deep --strict --verbose=2 \
-            "build/DerivedData/Build/Products/${{ matrix.configuration }}/Vibe.app"
+            build/AnalyzeDD/Build/Products/Release/Vibe.app
 
       # Parked, not deleted. The exclusive-output flag stays in the code; this
       # step comes back if App Store review rejects the hog-mode APIs and we
       # have to ship two builds, one with them and one without. Until then the
       # flag-off build is not exercised.
       # - name: Build without exclusive output
-      #   if: matrix.configuration == 'Release'
+      #   if: matrix.leg == 'macos'
       #   run: |
       #     xcodebuild -project Vibe.xcodeproj -scheme Vibe -configuration Release \
       #       -derivedDataPath build/DerivedData VIBE_ENABLE_EXCLUSIVE_OUTPUT=0 build
@@ -72,12 +95,13 @@ jobs:
       #       exit 1
       #     fi
 
-  # A job of its own rather than a step on the build matrix: the suite is
-  # Debug-only, so hanging it off a two-configuration matrix would either run
-  # it twice or run it in a leg where it doesn't belong. Separate also means it
-  # reports as its own check and runs alongside the builds rather than behind
-  # them.
-  test:
+  # Everything Debug: both apps' Debug builds (Vibe/Debug compiles only here,
+  # and the iOS one is the check that catches an AppKit leak into a shared
+  # directory), then both test suites. Nothing downstream uses these products,
+  # so they share one runner rather than each paying for a slot. The steps are
+  # independent, so each runs whatever an earlier one did (`!cancelled()`): a
+  # compile error in one app still reports the tests.
+  build-debug-and-test:
     runs-on: macos-26
     timeout-minutes: 30
 
@@ -85,6 +109,16 @@ jobs:
       - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-xcodegen
+
+      - name: Install fixture encoder
+        run: brew install ffmpeg
+
+      - name: Build Debug (macos)
+        run: make build CONFIG=Debug
+
+      - name: Build Debug (ios, simulator)
+        if: ${{ !cancelled() }}
+        run: make build-ios CONFIG=Debug
 
       # The VibeTests bundle is host-less pure logic: no app launch, no window
       # server, no audio hardware, no permissions — so it needs nothing from
@@ -93,14 +127,24 @@ jobs:
       # suited to unattended CI (it drives a real window and needs Screen
       # Recording and Accessibility grants).
       - name: Run unit tests
+        if: ${{ !cancelled() }}
         run: make test
 
-      # always(): the counts are most wanted precisely when the step above
-      # failed. It reads the .xcresult, so it reports the run either way and
-      # never changes the job's outcome.
+      # Real AudioPlayer/AudioFX graphs, pulled offline: no audio device or app.
+      - name: Render and compare audio
+        if: ${{ !cancelled() }}
+        run: make test-audio
+
+      # always(): the counts are most wanted precisely when a step above
+      # failed. They read the .xcresult, so they report the run either way and
+      # never change the job's outcome.
       - name: Test summary
         if: always()
         run: make test-summary
+
+      - name: Audio test summary
+        if: always()
+        run: make test-audio-summary
 
       - name: Upload result bundle
         if: failure()
@@ -109,21 +153,8 @@ jobs:
           name: TestResults.xcresult
           path: build/TestResults.xcresult
           retention-days: 7
+          if-no-files-found: ignore
 
-  # Real AudioPlayer/AudioFX graphs, pulled offline: no audio device or app.
-  test-audio:
-    runs-on: macos-26
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-xcodegen
-      - name: Install fixture encoder
-        run: brew install ffmpeg
-      - name: Render and compare audio
-        run: make test-audio
-      - name: Audio test summary
-        if: always()
-        run: make test-audio-summary
       - name: Upload audio failures and PCM attachments
         if: failure()
         uses: actions/upload-artifact@v7
@@ -131,69 +162,7 @@ jobs:
           name: AudioTestResults.xcresult
           path: build/AudioTestResults.xcresult
           retention-days: 7
-
-  # clang's static analyzer, failing on any finding outside ThirdParty/.
-  # project.yml has had the analyzer's checks on all along
-  # (CLANG_ANALYZER_NONNULL, CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION); this job
-  # is what makes them a gate rather than a setting nobody ran.
-  #
-  # It covers BOTH app targets. It used to be the macOS one alone, which left
-  # Vibe/iOS and the iOS halves of the shared subsystems — a few thousand lines
-  # — analyzed by nothing; the iOS leg found two real findings the first time
-  # it ran.
-  #
-  # A job of its own, and Release: it is a full analyzing build, so hanging it
-  # off the build matrix would double that matrix's cost, and the findings are
-  # not config-independent — the one this job was written against showed up in
-  # Release and not in Debug. Release is the configuration that ships.
-  #
-  # One matrix leg per target rather than both in one job: each leg is a full
-  # analyzing build, so serially they made this the workflow's longest job
-  # (~8 min) while in parallel each leg lands at or under the build matrix's
-  # own time. The iOS leg runs against a generic simulator destination, so
-  # nothing has to be booted.
-  analyze:
-    runs-on: macos-26
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        leg: [macos, ios]
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: ./.github/actions/setup-xcodegen
-
-      - name: Static analyzer (${{ matrix.leg }})
-        run: scripts/analyze.sh Release ${{ matrix.leg }}
-
-  # Compile coverage for the shared subset against the iOS SDK, with no
-  # signing (CODE_SIGNING_ALLOWED=NO): the point is that a TARGET_OS_OSX guard
-  # or an AppKit leak into a shared directory fails here, not when someone next
-  # opens the iOS target. The generic simulator destination builds without
-  # booting a simulator.
-  #
-  # Both configurations, matching the macOS `build` job, because they compile
-  # different code: every source under Vibe/Debug wraps its body in #if DEBUG,
-  # so Release is the only leg that compiles those translation units empty —
-  # and Release is what `make appstore-build-ios` archives. A Release-only
-  # break would otherwise surface for the first time during a release.
-  build-ios:
-    runs-on: macos-26
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        configuration: [Debug, Release]
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: ./.github/actions/setup-xcodegen
-
-      - name: Build VibeiOS (${{ matrix.configuration }}, simulator)
-        run: make build-ios CONFIG=${{ matrix.configuration }}
+          if-no-files-found: ignore
 
   # Everything that needs no XcodeGen, no generated project and no build —
   # only clang + xcstringstool (Xcode), jq (ships with macOS 15+), swiftc and

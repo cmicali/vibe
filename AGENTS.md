@@ -11,7 +11,7 @@ Vibe is a native music player for macOS (`Vibe` target) and iOS (`VibeiOS` targe
 | Command | What it does |
 | --- | --- |
 | `make build [CONFIG=Debug]` | macOS app; Release by default, into `build/DerivedData`. |
-| `make build-ios [CONFIG=Debug]` | iOS app, generic simulator destination, unsigned. Exactly CI's `build-ios` job. |
+| `make build-ios [CONFIG=Debug]` | iOS app, generic simulator destination, unsigned, arm64 only. With `CONFIG=Debug`, exactly CI's iOS Debug build. |
 | `make install-ios [CONFIG=Debug]` | iOS app onto a paired device, signed. `DEVICE=<name or id>` when more than one is paired. |
 | `make run` / `make install` | Launch; copy into `/Applications`. |
 | `make clean` | Removes `build/` and the generated project. |
@@ -69,7 +69,7 @@ Test audio: `Assets/test_audio_files/` (gitignored). If missing, generate with t
 
 Consequences: **a new file in a shared directory joins the iOS target automatically**, so it must be AppKit-free or `TARGET_OS_OSX`-guarded. A shared source may not `#import` a header that only one platform's tree has, unguarded — Xcode's project-wide headermap resolves it by basename whatever the target membership, so it compiles and then fails at runtime or link.
 
-`make check-layout` enforces the rule — its header states the five assertions, the last of which fails on any `CLAUDE.md` or `CLAUDE.local.md` in or above the tree, since one makes Claude Code skip every `AGENTS.md`, and it, not this prose, is the authority; CI's `build-ios` job catches an AppKit leak.
+`make check-layout` enforces the rule — its header states the five assertions, the last of which fails on any `CLAUDE.md` or `CLAUDE.local.md` in or above the tree, since one makes Claude Code skip every `AGENTS.md`, and it, not this prose, is the authority; CI's iOS builds catch an AppKit leak.
 
 ## Subsystem map
 

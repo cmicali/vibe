@@ -175,6 +175,9 @@ targets:
       # in neither.
       - path: Vibe/Debug
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
+      # Vendored code is not restyled, so the analyzer skips it: its findings
+      # would never be fixed, and it is a third of the files analyzed. The
+      # -Xclang pair only takes effect under the analyzer.
       - path: Vibe/ThirdParty
         excludes:
           - "**/.DS_Store"
@@ -183,24 +186,14 @@ targets:
           - "**/*.txt"                        # vendored LICENSE.txt: keep UNbundled
           - "**/LICENSE.MPL"                  # TagLib's MPL 1.1 text: same, but not a .txt
           - "**/PINDiskCache.m"               # re-added below with its per-file flags
-          - "**/PINMemoryCache.m"             # same
-      # The NumberObjectConversion checker flags PIN's own NSNumber-truthiness
-      # style. The gate skips ThirdParty but the findings still print, and
-      # vendored code is not restyled, so the checker is off for exactly these
-      # files. The -Xclang pair only takes effect under the analyzer.
+        compilerFlags: &third-party-flags
+          - "-Xclang"
+          - "-analyzer-disable-all-checks"
       - path: Vibe/ThirdParty/PINCache/PINDiskCache.m
-        compilerFlags:
+        compilerFlags: &pin-disk-cache-flags
           - "-fobjc-arc-exceptions"
           - "-Xclang"
-          - "-analyzer-disable-checker"
-          - "-Xclang"
-          - "osx.NumberObjectConversion"
-      - path: Vibe/ThirdParty/PINCache/PINMemoryCache.m
-        compilerFlags:
-          - "-Xclang"
-          - "-analyzer-disable-checker"
-          - "-Xclang"
-          - "osx.NumberObjectConversion"
+          - "-analyzer-disable-all-checks"
       - path: Vibe/Mac/App
         excludes:
           - "**/.DS_Store"
@@ -374,8 +367,8 @@ targets:
     platform: iOS
     sources:
       # A new file in a shared directory joins this target automatically, so it
-      # must be AppKit-free or TARGET_OS_OSX-guarded; CI's build-ios job
-      # enforces it. See the Vibe target above.
+      # must be AppKit-free or TARGET_OS_OSX-guarded; CI's iOS builds
+      # enforce it. See the Vibe target above.
       - path: Vibe/iOS
         excludes: ["**/.DS_Store", "**/*.md"]
       - path: Vibe/Audio
@@ -402,21 +395,10 @@ targets:
           - "**/*.txt"
           - "**/LICENSE.MPL"
           - "**/PINDiskCache.m"
-          - "**/PINMemoryCache.m"
-      # Same per-file flags as the macOS target above; see the comment there.
+        # Same flags as the macOS target above; see the comment there.
+        compilerFlags: *third-party-flags
       - path: Vibe/ThirdParty/PINCache/PINDiskCache.m
-        compilerFlags:
-          - "-fobjc-arc-exceptions"
-          - "-Xclang"
-          - "-analyzer-disable-checker"
-          - "-Xclang"
-          - "osx.NumberObjectConversion"
-      - path: Vibe/ThirdParty/PINCache/PINMemoryCache.m
-        compilerFlags:
-          - "-Xclang"
-          - "-analyzer-disable-checker"
-          - "-Xclang"
-          - "osx.NumberObjectConversion"
+        compilerFlags: *pin-disk-cache-flags
       - path: Resources/AppIcon.icon
       - path: Resources/Assets.xcassets       # record-bg, the no-art vinyl placeholder
       - path: Resources/PrivacyInfo.xcprivacy

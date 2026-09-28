@@ -35,13 +35,15 @@ ifeq ($(VIBE_SIGN_SIM),1)
 IOS_SIM_SIGN = CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=-
 endif
 
-# The iOS simulator slice — CI's build-ios job, in both configurations, and the
-# check that catches an AppKit leak into a shared directory. Locked: this and
-# `drive-ios.sh start` write the products directory the touch driver installs
-# from.
+# The iOS simulator slice — CI's Debug job; its Release leg is the analyze
+# build — and the check that catches an AppKit leak into a shared directory.
+# arm64 only: the generic destination would add an x86_64 slice, which only an
+# Intel Mac's simulator runs, and the device build is arm64 anyway. Locked:
+# this and `drive-ios.sh start` write the products directory the touch driver
+# installs from.
 build-ios: project
 	scripts/build-lock.sh xcodebuild -project Vibe.xcodeproj -scheme VibeiOS -configuration $(CONFIG) \
-	    -destination 'generic/platform=iOS Simulator' \
+	    -destination 'generic/platform=iOS Simulator' ARCHS=arm64 \
 	    -derivedDataPath build/DerivedData $(IOS_SIM_SIGN) build
 
 # Signed for a paired device and installed over the CoreDevice tunnel; needs a
@@ -60,7 +62,6 @@ test: project check-cloud-scenarios
 	    -configuration Debug \
 	    -derivedDataPath build/DerivedData \
 	    -resultBundlePath $(RESULT_BUNDLE) \
-	    -enableCodeCoverage YES \
 	    -collect-test-diagnostics never \
 	    test
 

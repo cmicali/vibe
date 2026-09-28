@@ -4,7 +4,7 @@ A single-folder player: **the current directory is the playlist.** The user pick
 
 This directory is the shell only. The iOS halves of shared subsystems are documented beside them: `Audio/iOS/`, `WaveformUI/iOS/`, `Util/iOS/`. Within this directory, `Player/` (the card: pager, page cell, route control, waveform coordinator), `Search/` (Favorites, Search and the folder stores) and `Settings/` each carry their own `AGENTS.md`.
 
-A new file in a shared directory joins this target automatically and must be AppKit-free or `TARGET_OS_OSX`-guarded (root `AGENTS.md`); CI's `build-ios` job catches a leak.
+A new file in a shared directory joins this target automatically and must be AppKit-free or `TARGET_OS_OSX`-guarded (root `AGENTS.md`); CI's iOS builds catch a leak.
 
 **Layout keys off view aspect, not device orientation.** iPad is a resizable window, all orientations, minimum 320×480 via `sizeRestrictions` in `VibeiOSSceneDelegate`.
 

@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 #
 # Run clang's static analyzer over BOTH app targets and fail on any finding
-# outside ThirdParty/ (vendored code is not restyled). Both, because CI's
-# build-ios job compiles the iOS sources without analyzing them.
+# outside ThirdParty/ (vendored code is not restyled; project.yml turns the
+# analyzer off for its sources, and the filter below drops what its headers
+# still report through ours).
 #
 # Usage: scripts/analyze.sh [Debug|Release] [macos|ios|all]
 #   configuration defaults to Debug (the schemes' analyze action); the leg to
-#   all. CI runs Release, one leg per matrix job.
+#   all. CI runs Release, one leg per matrix job, and the leg IS that
+#   platform's Release build: `xcodebuild analyze` compiles, links and signs
+#   the whole app first, into build/AnalyzeDD.
 set -euo pipefail
 
 CONFIGURATION="${1:-Debug}"
@@ -39,7 +42,9 @@ mkdir -p build
 
 # CLANG_ANALYZER_OUTPUT=text keeps findings in the log rather than in .plist
 # files nothing reads; PIPESTATUS keeps xcodebuild's own status through the tee.
-# The iOS leg needs a destination; a generic simulator one boots nothing.
+# The iOS leg needs a destination; a generic simulator one boots nothing, and
+# arm64 alone because it would otherwise also compile an x86_64 slice nothing
+# runs (the Makefile's build-ios says why that is safe).
 analyze_scheme() {   # analyze_scheme <scheme> <log-suffix> [extra xcodebuild args...]
     local scheme="$1" suffix="$2"
     shift 2
@@ -80,7 +85,7 @@ fi
 if [[ "$LEG" == "ios" || "$LEG" == "all" ]]; then
     analyze_scheme VibeiOS ios \
         -destination 'generic/platform=iOS Simulator' \
-        CODE_SIGNING_ALLOWED=NO
+        ARCHS=arm64 CODE_SIGNING_ALLOWED=NO
 fi
 
 case "$LEG" in
