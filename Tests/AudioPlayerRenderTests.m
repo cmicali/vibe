@@ -2958,7 +2958,6 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 // The path, stage by stage, as the Settings window and dump_audio_path read it.
 - (void)testAudioPathReportsEveryStage {
     [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
-    _player.resampler = VibeResamplerApple; // the converter's own report is under test
     [self play:[self fixture:@"noise-44100-16-2.wav"] paused:NO position:0];
     [self render:4800];
     NSArray<NSDictionary *> *path = _player.audioPathSnapshot;
@@ -2974,8 +2973,8 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertEqualObjects(decode[@"read"], @"converted");
     XCTAssertEqual([decode[@"fromSampleRate"] doubleValue], 44100.0);
     XCTAssertEqual([decode[@"toSampleRate"] doubleValue], 48000.0);
-    XCTAssertEqualObjects(decode[@"algorithm"], @"Mastering");
-    XCTAssertEqual([decode[@"quality"] integerValue], (NSInteger)kAudioConverterQuality_Max);
+    XCTAssertEqualObjects(decode[@"resampler"], VibeResamplerName(_player.resampler), @"the default resampler, as the bus holds it");
+    XCTAssertEqualObjects(decode[@"algorithm"], @"r8brain-free-src");
     XCTAssertFalse([decode[@"mixed"] boolValue]);
     XCTAssertEqual([bus[@"sampleRate"] doubleValue], 48000.0);
     XCTAssertEqual([bus[@"liveVoices"] intValue], 1);

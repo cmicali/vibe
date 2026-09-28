@@ -12,6 +12,7 @@
 //
 
 #import <AudioToolbox/AudioToolbox.h>
+#import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -20,6 +21,11 @@ typedef NS_ENUM(NSInteger, VibeResampler) {
     VibeResamplerApple = 0,   // AudioConverterRef at mastering complexity
     VibeResamplerR8brain,     // r8brain-free-src, linear phase, 24-bit preset
 };
+
+// The one spelling of each, for reports and the debug channel.
+static inline NSString *VibeResamplerName(VibeResampler resampler) {
+    return resampler == VibeResamplerR8brain ? @"r8brain" : @"apple";
+}
 
 // C linkage: the bus (.m) calls the .mm.
 #ifdef __cplusplus

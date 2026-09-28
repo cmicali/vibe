@@ -385,17 +385,18 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
                 NSString *arg = tokens.count == 2 ? tokens[1].lowercaseString : @"";
-                if (![arg isEqualToString:@"apple"] && ![arg isEqualToString:@"r8brain"]) {
+                NSString *r8brain = VibeResamplerName(VibeResamplerR8brain);
+                if (![arg isEqualToString:VibeResamplerName(VibeResamplerApple)] && ![arg isEqualToString:r8brain]) {
                     return VibeErrorJSON(@"usage: set_resampler <apple|r8brain>");
                 }
                 AudioPlayer *player = surface.debugPlayer;
-                player.resampler = [arg isEqualToString:@"r8brain"] ? VibeResamplerR8brain : VibeResamplerApple;
+                player.resampler = [arg isEqualToString:r8brain] ? VibeResamplerR8brain : VibeResamplerApple;
                 if (!player.isStopped) {
                     [player seekToPosition:player.position];
                 }
                 return VibeJSONString(@{
                     @"ok": @YES,
-                    @"resampler": player.resampler == VibeResamplerR8brain ? @"r8brain" : @"apple",
+                    @"resampler": VibeResamplerName(player.resampler),
                     @"conversion": player.debugCurrentConversion ?: [NSNull null],
                 });
             }),
@@ -410,7 +411,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 }
                 AudioPlayer *player = surface.debugPlayer;
                 return VibeJSONString(@{
-                    @"resampler": player.resampler == VibeResamplerR8brain ? @"r8brain" : @"apple",
+                    @"resampler": VibeResamplerName(player.resampler),
                     @"costs": [player debugResamplerCostsResetting:reset] ?: @{},
                     @"conversion": player.debugCurrentConversion ?: [NSNull null],
                 });

@@ -761,14 +761,13 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
         record->mixMap = VibeMixMap(source, _format);
         record->readBuffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:source frameCapacity:kDecodeChunkFrames];
         if (source.sampleRate == _format.sampleRate) {
-            [self setConversion:[self conversionFrom:source mixed:YES converter:nil] forRecord:record];
+            [self setConversion:[self conversionFrom:source record:record] forRecord:record];
             return record->readBuffer != nil; // the mix lands in the stage
         }
         fed = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32 sampleRate:source.sampleRate
                                                  channels:_format.channelCount interleaved:NO];
         record->mixBuffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:fed frameCapacity:kDecodeChunkFrames];
     }
-    AudioConverterRef converter = NULL;
     if (self.resampler == VibeResamplerR8brain) {
         record->r8brain = VibeR8ResamplerCreate(fed.sampleRate, _format.sampleRate, _format.channelCount);
         if (!record->r8brain) {
@@ -776,6 +775,7 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
         }
     }
     else {
+        AudioConverterRef converter = NULL;
         if (AudioConverterNew(fed.streamDescription, _format.streamDescription, &converter) != noErr || !converter) {
             return NO;
         }
@@ -797,25 +797,26 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
         record->converter = converter;
     }
     record->readBuffer = record->readBuffer ?: [[AVAudioPCMBuffer alloc] initWithPCMFormat:source frameCapacity:kDecodeChunkFrames];
-    [self setConversion:[self conversionFrom:source mixed:record->mixMap != nil converter:converter] forRecord:record];
+    [self setConversion:[self conversionFrom:source record:record] forRecord:record];
     return record->readBuffer && (!record->mixMap || record->mixBuffer);
 }
 
-- (NSDictionary<NSString *, id> *)conversionFrom:(AVAudioFormat *)source mixed:(BOOL)mixed
-                                       converter:(AudioConverterRef)converter {
+// What the prepared record does to `source`: read off the record, so the
+// report names the resampler the record holds.
+- (NSDictionary<NSString *, id> *)conversionFrom:(AVAudioFormat *)source record:(AudioVoiceRecord *)record {
     NSMutableDictionary *conversion = [@{
         @"fromSampleRate": @(source.sampleRate), @"toSampleRate": @(_format.sampleRate),
         @"fromChannels": @(source.channelCount), @"toChannels": @(_format.channelCount),
-        @"mixed": @(mixed), @"resampled": @(source.sampleRate != _format.sampleRate),
+        @"mixed": @(record->mixMap != nil), @"resampled": @(source.sampleRate != _format.sampleRate),
     } mutableCopy];
-    if (converter && source.sampleRate != _format.sampleRate) {
-        conversion[@"resampler"] = @"apple";
-        conversion[@"algorithm"] = VibeConverterAlgorithm(converter); // nil sets nothing
-        conversion[@"quality"] = @(VibeConverterQuality(converter));
-    }
-    else if (!converter && source.sampleRate != _format.sampleRate) {
-        conversion[@"resampler"] = @"r8brain";
+    if (record->r8brain) {
+        conversion[@"resampler"] = VibeResamplerName(VibeResamplerR8brain);
         conversion[@"algorithm"] = @"r8brain-free-src";
+    }
+    else if (record->converter && source.sampleRate != _format.sampleRate) {
+        conversion[@"resampler"] = VibeResamplerName(VibeResamplerApple);
+        conversion[@"algorithm"] = VibeConverterAlgorithm(record->converter); // nil sets nothing
+        conversion[@"quality"] = @(VibeConverterQuality(record->converter));
     }
     return conversion;
 }
@@ -1176,14 +1177,13 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
 
 - (NSDictionary<NSString *, id> *)debugResamplerCostsResetting:(BOOL)reset {
     NSMutableDictionary *costs = [NSMutableDictionary dictionary];
-    NSArray<NSString *> *names = @[@"apple", @"r8brain"];
-    for (int kind = 0; kind < 2; kind++) {
+    for (VibeResampler kind = VibeResamplerApple; kind <= VibeResamplerR8brain; kind++) {
         uint64_t nanos = reset ? atomic_exchange_explicit(&_debugResampleNanos[kind], 0, memory_order_relaxed)
                                : atomic_load_explicit(&_debugResampleNanos[kind], memory_order_relaxed);
         uint64_t frames = reset ? atomic_exchange_explicit(&_debugResampledFrames[kind], 0, memory_order_relaxed)
                                 : atomic_load_explicit(&_debugResampledFrames[kind], memory_order_relaxed);
         double seconds = frames / _format.sampleRate;
-        costs[names[kind]] = @{
+        costs[VibeResamplerName(kind)] = @{
             @"cpuSeconds": @(nanos / 1e9),
             @"audioSeconds": @(seconds),
             // Percent of one core to keep up in real time.
@@ -1739,7 +1739,7 @@ static OSStatus VibeConverterSupplyInput(AudioConverterRef converter, UInt32 *io
             : AudioConverterFillComplexBuffer(record->converter, VibeConverterSupplyInput, &input, &frames, output, NULL);
 #if DEBUG
     uint64_t spent = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) - started;
-    int kind = record->r8brain ? VibeResamplerR8brain : VibeResamplerApple;
+    VibeResampler kind = record->r8brain ? VibeResamplerR8brain : VibeResamplerApple;
     atomic_fetch_add_explicit(&_debugResampleNanos[kind], spent > input.readNanos ? spent - input.readNanos : 0,
                               memory_order_relaxed);
     atomic_fetch_add_explicit(&_debugResampledFrames[kind], frames, memory_order_relaxed);

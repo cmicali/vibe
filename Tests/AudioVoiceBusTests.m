@@ -1690,7 +1690,8 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 
 // The resampler across a gapless boundary at every rate pair the player
 // meets, the successor named early or late, at every pull size: the split's
-// output is an independent conversion of the unsplit file, frame for frame.
+// output is the unsplit file's, frame for frame. Apple's whole-file render is
+// checked against an independent conversion; r8brain's is its own reference.
 - (void)testTheResamplerContinuesAtEveryRatePairAndPullSize {
     NSArray<NSArray<NSNumber *> *> *pairs = @[@[@44100, @48000], @[@96000, @44100], @[@192000, @48000], @[@32000, @44100], @[@48000, @192000],
         @[@22050, @192000], @[@24000, @192000], @[@32000, @192000], @[@44100, @192000]];
@@ -1703,36 +1704,47 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
         NSURL *b = [self writePCM:[whole subdataWithRange:NSMakeRange(split * 8, (count - split) * 8)] rate:sourceRate channels:2 name:@"b.wav"];
         NSData *reference = [self referenceConversionOfURL:full toRate:busRate];
         uint64_t end = reference.length / (2 * sizeof(float));
-        [self makeBusAtRate:busRate channels:2];
-        VibeVoiceID voice = [self startFile:[self open:full] gain:1 ramp:[self unity] paused:NO];
-        NSData *clean = [self renderUntilEnded:voice blockSize:256 limit:500000];
-        XCTAssertEqual([self endedSnapshot:voice].endOfStream, end);
-        XCTAssertGreaterThanOrEqual(clean.length, reference.length);
-        double cleanPeak = 0;
-        const float *expected = reference.bytes, *actual = clean.bytes;
-        for (NSUInteger sample = 0; sample < end * 2; sample++) {
-            XCTAssertTrue(isfinite(actual[sample]));
-            cleanPeak = MAX(cleanPeak, fabs(actual[sample] - expected[sample]));
-        }
-        XCTAssertLessThanOrEqual(cleanPeak, 4 * FLT_EPSILON, @"%@ independent SRC peak error %g", pair, cleanPeak);
-        for (NSNumber *late in @[@NO, @YES]) {
-            for (NSNumber *block in @[@63, @1024, @4096]) {
-                [self makeBusAtRate:busRate channels:2];
-                voice = [self startFile:[self open:a] gain:1 ramp:[self unity] paused:NO];
-                if (late.boolValue) {
-                    [_bus fillInline];
+        for (NSNumber *resampler in @[@(VibeResamplerApple), @(VibeResamplerR8brain)]) {
+            NSString *label = [NSString stringWithFormat:@"%@ %@", pair, VibeResamplerName(resampler.integerValue)];
+            [self makeBusAtRate:busRate channels:2];
+            _bus.resampler = resampler.integerValue;
+            VibeVoiceID voice = [self startFile:[self open:full] gain:1 ramp:[self unity] paused:NO];
+            NSData *clean = [self renderUntilEnded:voice blockSize:256 limit:500000];
+            XCTAssertEqual([self endedSnapshot:voice].endOfStream, end, @"%@", label);
+            XCTAssertGreaterThanOrEqual(clean.length, reference.length);
+            const float *actual = clean.bytes;
+            for (NSUInteger sample = 0; sample < end * 2; sample++) {
+                XCTAssertTrue(isfinite(actual[sample]));
+            }
+            if (resampler.integerValue == VibeResamplerApple) {
+                double cleanPeak = 0;
+                const float *independent = reference.bytes;
+                for (NSUInteger sample = 0; sample < end * 2; sample++) {
+                    cleanPeak = MAX(cleanPeak, fabs(actual[sample] - independent[sample]));
                 }
-                AudioFileHandle *next = [self open:b];
-                XCTAssertTrue([_bus queueSuccessor:next forVoice:voice]);
-                NSData *capture = [self renderUntilEnded:voice blockSize:block.unsignedIntValue limit:500000];
-                XCTAssertEqual([self endedSnapshot:voice].endOfStream, end, @"%@ late %@ block %@", pair, late, block);
-                XCTAssertGreaterThanOrEqual(capture.length, end * 8);
-                double peak = 0;
-                const float *expected = reference.bytes, *actual = capture.bytes;
-                for (NSUInteger i = 0; i < end * 2; i++) {
-                    peak = MAX(peak, fabs(actual[i] - expected[i]));
+                XCTAssertLessThanOrEqual(cleanPeak, 4 * FLT_EPSILON, @"%@ independent SRC peak error %g", label, cleanPeak);
+            }
+            const float *expected = resampler.integerValue == VibeResamplerApple ? reference.bytes : clean.bytes;
+            for (NSNumber *late in @[@NO, @YES]) {
+                for (NSNumber *block in @[@63, @1024, @4096]) {
+                    [self makeBusAtRate:busRate channels:2];
+                    _bus.resampler = resampler.integerValue;
+                    voice = [self startFile:[self open:a] gain:1 ramp:[self unity] paused:NO];
+                    if (late.boolValue) {
+                        [_bus fillInline];
+                    }
+                    AudioFileHandle *next = [self open:b];
+                    XCTAssertTrue([_bus queueSuccessor:next forVoice:voice]);
+                    NSData *capture = [self renderUntilEnded:voice blockSize:block.unsignedIntValue limit:500000];
+                    XCTAssertEqual([self endedSnapshot:voice].endOfStream, end, @"%@ late %@ block %@", label, late, block);
+                    XCTAssertGreaterThanOrEqual(capture.length, end * 8);
+                    double peak = 0;
+                    const float *joined = capture.bytes;
+                    for (NSUInteger i = 0; i < end * 2; i++) {
+                        peak = MAX(peak, fabs(joined[i] - expected[i]));
+                    }
+                    XCTAssertLessThan(peak, 0.0001, @"%@ late %@ block %@", label, late, block);
                 }
-                XCTAssertLessThan(peak, 0.0001, @"%@ late %@ block %@", pair, late, block);
             }
         }
     }
