@@ -194,4 +194,24 @@
     XCTAssertEqualObjects([_formatters durationStringForFileDuration:7200 rate:2 elapsedDisplayTime:0.1 remaining:YES], @"-59:59");
 }
 
+#pragma mark - Info lines
+
+- (void)testInfoLineJoinsTheNonEmptyFieldsInOrder {
+    XCTAssertEqualObjects(([_formatters infoLineFromFields:@[@"FLAC", @"44.1 kHz"]]), @"FLAC | 44.1 kHz");
+    XCTAssertEqualObjects(([_formatters infoLineFromFields:@[@"", @"FLAC", @"", @"8A"]]), @"FLAC | 8A");
+    XCTAssertEqualObjects(([_formatters infoLineFromFields:@[@"FLAC"]]), @"FLAC");
+    XCTAssertEqualObjects(([_formatters infoLineFromFields:@[@"", @""]]), @"");
+    XCTAssertEqualObjects(([_formatters infoLineFromFields:@[]]), @"");
+}
+
+// Key last: the mac colors it as the line's suffix.
+- (void)testTempoLineDropsWhatIsMissing {
+    NSString *tempo = [_formatters bpmString:128];
+    XCTAssertEqualObjects([_formatters tempoLineWithBPM:128 keyText:@"8A"],
+                          ([NSString stringWithFormat:@"%@ | 8A", tempo]));
+    XCTAssertEqualObjects([_formatters tempoLineWithBPM:128 keyText:@""], tempo);
+    XCTAssertEqualObjects([_formatters tempoLineWithBPM:0 keyText:@"8A"], @"8A");
+    XCTAssertEqualObjects([_formatters tempoLineWithBPM:-1 keyText:@""], @"");
+}
+
 @end

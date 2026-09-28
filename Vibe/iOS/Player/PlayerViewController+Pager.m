@@ -18,7 +18,6 @@
 #import "Formatters.h"
 #import "PageWaveformCoordinator.h"
 #import "TrackPageCell.h"
-#import "VibeStrings.h"
 #import "WaveformScrubberView.h"
 
 // At one, a quick second swipe outruns the fetch (a file read and a decode)
@@ -179,14 +178,8 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
 // waveform load ran — and the key. Tagged only, in Camelot, the mac's default
 // notation: key analysis and the notation setting are macOS-only.
 - (NSString *)tempoInfoLineForTrack:(AudioTrack *)track {
-    NSMutableArray<NSString *> *fields = [NSMutableArray array];
-    if (track.bpm > 0) {
-        [fields addObject:[[Formatters sharedInstance] bpmString:track.bpm]];
-    }
-    if (VibeMusicalKeyIsValid(track.key)) {
-        [fields addObject:VibeMusicalKeyCamelotName(track.key)];
-    }
-    return [fields componentsJoinedByString:VibeNotLocalized(@" | ")];
+    return [[Formatters sharedInstance] tempoLineWithBPM:track.bpm
+                                                 keyText:VibeMusicalKeyCamelotName(track.key)];
 }
 
 - (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView

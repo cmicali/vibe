@@ -5,6 +5,7 @@
 
 #import "TrackPageCell.h"
 #import "FXPadView.h"
+#import "Formatters.h"
 #import "OutputRouteView.h"
 #import "UIImage+Blur.h"
 #import "UIImage+DominantColor.h"
@@ -784,17 +785,13 @@ static void VibeConfigureTimeLabel(UILabel *label) {
 // The codec line and the tempo line: the mac's two lines in landscape, one
 // joined line in portrait, whose band reserves a single line for them.
 - (void)applyFileInfoText {
-    NSMutableArray<NSString *> *lines = [NSMutableArray array];
-    if (_fileInfo.length > 0) {
-        [lines addObject:_fileInfo];
-    }
-    if (_tempoInfo.length > 0) {
-        [lines addObject:_tempoInfo];
-    }
-    _fileInfoLabel.text = [lines componentsJoinedByString:
-            (_landscapeActive ? @"\n" : VibeNotLocalized(@" | "))];
+    BOOL stacked = _landscapeActive && _fileInfo.length > 0 && _tempoInfo.length > 0;
+    NSString *line = stacked
+            ? [NSString stringWithFormat:@"%@\n%@", _fileInfo, _tempoInfo]
+            : [[Formatters sharedInstance] infoLineFromFields:@[_fileInfo ?: @"", _tempoInfo ?: @""]];
+    _fileInfoLabel.text = line;
     // Hidden, not blank: the band reserves a visible label's line.
-    BOOL hideFileInfo = lines.count == 0;
+    BOOL hideFileInfo = line.length == 0;
     if (hideFileInfo != _fileInfoLabel.hidden) {
         _fileInfoLabel.hidden = hideFileInfo;
         [self setNeedsLayout];

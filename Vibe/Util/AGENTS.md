@@ -16,6 +16,10 @@ Two placements are not what the file names suggest. `NSURL+Hash` also carries `N
 
 The playable extension set is `Common/PlayableExtensions`, not this file: the walk's filter and `PlaylistFile`'s entry recovery both read it, so neither can grow a format the other has not got.
 
+## Formatters joins every info line
+
+**`infoLineFromFields:` is the one join behind the codec line and the tempo line, and the only place the ` | ` separator is written**: it drops empty fields and joins the rest, so a caller hands over what it has. `tempoLineWithBPM:keyText:` is the tempo and key through it, for both shells; what each passes in is its own doc's. **The key is always the last field**: the mac colors it as the line's suffix.
+
 ## Traps
 
 **Every audio file is opened through `AudioFileHandle` (`Audio/`); `NSURL+AudioOpen` is `isEmptyOrDirectory` alone**, the stat-only test for list filtering. There is no preflight: a handle that fails to open leaks nothing, because the descriptor is this process's own (`AudioFileHandle.h`, `Audio/AGENTS.md`).
