@@ -106,6 +106,7 @@ Requirements, the `make` targets for building and testing from the command line,
 
 - **Localization** — adding a string, adding a language, testing one: [docs/localization.md](docs/localization.md)
 - **Releasing** — credentials, localized product-page assets, metadata upload, shipping a build: [docs/app-store-releasing.md](docs/app-store-releasing.md)
+- **Performance** — one benchmark run against every release, charted by version: [docs/performance.md](docs/performance.md)
 
 # License
 

@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" width="720" height="300" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" role="img" aria-label="App startup">
+<style>.bg{fill:#fcfcfb}.t{fill:#0b0b0b}.m{fill:#52514e}.g{stroke:#e4e3df}.a{stroke:#b9b8b2}.s0{stroke:#2a78d6;fill:#2a78d6}.s1{stroke:#eb6834;fill:#eb6834}.s2{stroke:#1baf7a;fill:#1baf7a}.s3{stroke:#eda100;fill:#eda100}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}.t{fill:#ffffff}.m{fill:#c3c2b7}.g{stroke:#2f2f2d}.a{stroke:#555550}.s0{stroke:#3987e5;fill:#3987e5}.s1{stroke:#d95926;fill:#d95926}.s2{stroke:#199e70;fill:#199e70}.s3{stroke:#c98500;fill:#c98500}}.l{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}</style>
+<rect class="bg" width="720" height="300" rx="8"/>
+<text class="t" x="56" y="24" font-size="15" font-weight="600">App startup</text>
+<text class="m" x="56" y="38" font-size="11">ms</text>
+<line class="a" x1="56" x2="570" y1="264.0" y2="264.0"/>
+<text class="m" x="48" y="268.0" font-size="11" text-anchor="end">0</text>
+<line class="g" x1="56" x2="570" y1="220.0" y2="220.0"/>
+<text class="m" x="48" y="224.0" font-size="11" text-anchor="end">50</text>
+<line class="g" x1="56" x2="570" y1="176.0" y2="176.0"/>
+<text class="m" x="48" y="180.0" font-size="11" text-anchor="end">100</text>
+<line class="g" x1="56" x2="570" y1="132.0" y2="132.0"/>
+<text class="m" x="48" y="136.0" font-size="11" text-anchor="end">150</text>
+<line class="g" x1="56" x2="570" y1="88.0" y2="88.0"/>
+<text class="m" x="48" y="92.0" font-size="11" text-anchor="end">200</text>
+<line class="g" x1="56" x2="570" y1="44.0" y2="44.0"/>
+<text class="m" x="48" y="48.0" font-size="11" text-anchor="end">250</text>
+<text class="m" x="92.7" y="282" font-size="11" text-anchor="middle">1.8</text>
+<text class="m" x="166.1" y="282" font-size="11" text-anchor="middle">1.9</text>
+<text class="m" x="239.6" y="282" font-size="11" text-anchor="middle">1.10</text>
+<text class="m" x="313.0" y="282" font-size="11" text-anchor="middle">1.11</text>
+<text class="m" x="386.4" y="282" font-size="11" text-anchor="middle">1.12</text>
+<text class="m" x="459.9" y="282" font-size="11" text-anchor="middle">1.13</text>
+<text class="m" x="533.3" y="282" font-size="11" text-anchor="middle">1.14</text>
+<path class="l s0" d="M92.7,87.2 L166.1,96.2 L239.6,99.1 L313.0,95.2 L386.4,89.4 L459.9,92.1 L533.3,88.3"/>
+<circle class="s0" cx="92.7" cy="87.2" r="4" stroke="none"><title>Window shown: 201 ms</title></circle>
+<circle class="s0" cx="166.1" cy="96.2" r="4" stroke="none"><title>Window shown: 191 ms</title></circle>
+<circle class="s0" cx="239.6" cy="99.1" r="4" stroke="none"><title>Window shown: 187 ms</title></circle>
+<circle class="s0" cx="313.0" cy="95.2" r="4" stroke="none"><title>Window shown: 192 ms</title></circle>
+<circle class="s0" cx="386.4" cy="89.4" r="4" stroke="none"><title>Window shown: 198 ms</title></circle>
+<circle class="s0" cx="459.9" cy="92.1" r="4" stroke="none"><title>Window shown: 195 ms</title></circle>
+<circle class="s0" cx="533.3" cy="88.3" r="4" stroke="none"><title>Window shown: 200 ms</title></circle>
+<path class="l s1" d="M92.7,75.9 L166.1,83.6 L239.6,87.4 L313.0,83.8 L386.4,74.8 L459.9,79.1 L533.3,85.5"/>
+<circle class="s1" cx="92.7" cy="75.9" r="4" stroke="none"><title>Ready: 214 ms</title></circle>
+<circle class="s1" cx="166.1" cy="83.6" r="4" stroke="none"><title>Ready: 205 ms</title></circle>
+<circle class="s1" cx="239.6" cy="87.4" r="4" stroke="none"><title>Ready: 201 ms</title></circle>
+<circle class="s1" cx="313.0" cy="83.8" r="4" stroke="none"><title>Ready: 205 ms</title></circle>
+<circle class="s1" cx="386.4" cy="74.8" r="4" stroke="none"><title>Ready: 215 ms</title></circle>
+<circle class="s1" cx="459.9" cy="79.1" r="4" stroke="none"><title>Ready: 210 ms</title></circle>
+<circle class="s1" cx="533.3" cy="85.5" r="4" stroke="none"><title>Ready: 203 ms</title></circle>
+<path class="l s2" d="M92.7,102.0 L166.1,107.9 L239.6,102.7 L313.0,98.1 L386.4,96.8 L459.9,88.5 L533.3,79.2"/>
+<circle class="s2" cx="92.7" cy="102.0" r="4" stroke="none"><title>First launch: 184 ms</title></circle>
+<circle class="s2" cx="166.1" cy="107.9" r="4" stroke="none"><title>First launch: 177 ms</title></circle>
+<circle class="s2" cx="239.6" cy="102.7" r="4" stroke="none"><title>First launch: 183 ms</title></circle>
+<circle class="s2" cx="313.0" cy="98.1" r="4" stroke="none"><title>First launch: 188 ms</title></circle>
+<circle class="s2" cx="386.4" cy="96.8" r="4" stroke="none"><title>First launch: 190 ms</title></circle>
+<circle class="s2" cx="459.9" cy="88.5" r="4" stroke="none"><title>First launch: 199 ms</title></circle>
+<circle class="s2" cx="533.3" cy="79.2" r="4" stroke="none"><title>First launch: 210 ms</title></circle>
+<rect class="s2" x="582" y="70.2" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="75.2" font-size="11">First launch</text>
+<text class="m" x="598" y="88.2" font-size="11">210</text>
+<rect class="s1" x="582" y="98.2" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="103.2" font-size="11">Ready</text>
+<text class="m" x="598" y="116.2" font-size="11">203</text>
+<rect class="s0" x="582" y="126.2" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="131.2" font-size="11">Window shown</text>
+<text class="m" x="598" y="144.2" font-size="11">200</text>
+</svg>

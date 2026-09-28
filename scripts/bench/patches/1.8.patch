@@ -1,0 +1,36 @@
+diff --git a/Vibe/Debug/DebugUtil.m b/Vibe/Debug/DebugUtil.m
+index ea07ab91..c4a88ea4 100644
+--- a/Vibe/Debug/DebugUtil.m
++++ b/Vibe/Debug/DebugUtil.m
+@@ -4,6 +4,7 @@
+ //
+ 
+ #import "DebugUtil.h"
++#import "AudioTrackMetadata.h"
+ 
+ #if DEBUG
+ 
+@@ -944,6 +945,23 @@ static BOOL VibeDragPointArgument(NSArray<NSString *> *tokens, NSWindow *window,
+             VibeCmd(@"dump_state", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                 return VibeJSONString(VibeStateDictionary(controller));
+             }),
++            // Backported for the performance benchmark (scripts/bench): the
++            // metadata-scan settle signal later versions ship as-is.
++            VibeCmd(@"dump_metadata_progress", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
++                NSUInteger total = 0, parsed = 0, attempted = 0;
++                for (AudioTrack *t in controller.playlistController.playlist) {
++                    total++;
++                    AudioTrackMetadata *metadata = t.metadata;
++                    if (!metadata) {
++                        continue;
++                    }
++                    attempted++;
++                    if (metadata.parsedOK) {
++                        parsed++;
++                    }
++                }
++                return VibeJSONString(@{@"total": @(total), @"parsed": @(parsed), @"attempted": @(attempted)});
++            }),
+             VibeCmd(@"dump_now_playing", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                 // The state we publish to the system Now Playing UI, in
+                 // Control Center and to the media keys. It cross-checks the

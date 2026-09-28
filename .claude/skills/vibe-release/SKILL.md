@@ -57,6 +57,8 @@ The page's Download button links the **universal** direct-DMG asset, `Vibe-macOS
 
 So the full sequence, all from a machine with `.release-env`: `make release`, `make github-release`, `make deploy-web`.
 
+**Then the performance charts.** Once the tag exists, `make bench VERSIONS="<version>"` builds that tag, runs the benchmark suite and redraws `docs/performance.md`; commit it and `docs/performance/`. It must run on the machine every earlier version was measured on, or the report leaves the new version out and says so ([docs/performance.md](../../../docs/performance.md)). The chart has one point per version, so measuring a version again replaces its point: a final `v1.14` supersedes the prerelease build that stood in for it (`VERSIONS="1.14=v1.14"`).
+
 ## Product-page metadata
 
 **One run writes ONE platform's page.** ASC localizations hang off a version and versions are per platform, so macOS and iOS each have their own description, keywords, promotional text, what's-new, captions and screenshots; `--platform macos` (the default) or `--platform ios` picks which. The iOS text is not the macOS text reworded — the macOS page sells BPM and key analysis, the pitch fader and the FX rack, all macOS-only, and says the formats are "decoded by macOS". A page describing features the app does not have is a review rejection.

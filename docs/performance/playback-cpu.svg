@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" width="720" height="300" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" role="img" aria-label="Playback CPU">
+<style>.bg{fill:#fcfcfb}.t{fill:#0b0b0b}.m{fill:#52514e}.g{stroke:#e4e3df}.a{stroke:#b9b8b2}.s0{stroke:#2a78d6;fill:#2a78d6}.s1{stroke:#eb6834;fill:#eb6834}.s2{stroke:#1baf7a;fill:#1baf7a}.s3{stroke:#eda100;fill:#eda100}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}.t{fill:#ffffff}.m{fill:#c3c2b7}.g{stroke:#2f2f2d}.a{stroke:#555550}.s0{stroke:#3987e5;fill:#3987e5}.s1{stroke:#d95926;fill:#d95926}.s2{stroke:#199e70;fill:#199e70}.s3{stroke:#c98500;fill:#c98500}}.l{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}</style>
+<rect class="bg" width="720" height="300" rx="8"/>
+<text class="t" x="56" y="24" font-size="15" font-weight="600">Playback CPU</text>
+<text class="m" x="56" y="38" font-size="11">% of one core</text>
+<line class="a" x1="56" x2="570" y1="264.0" y2="264.0"/>
+<text class="m" x="48" y="268.0" font-size="11" text-anchor="end">0</text>
+<line class="g" x1="56" x2="570" y1="220.0" y2="220.0"/>
+<text class="m" x="48" y="224.0" font-size="11" text-anchor="end">2</text>
+<line class="g" x1="56" x2="570" y1="176.0" y2="176.0"/>
+<text class="m" x="48" y="180.0" font-size="11" text-anchor="end">4</text>
+<line class="g" x1="56" x2="570" y1="132.0" y2="132.0"/>
+<text class="m" x="48" y="136.0" font-size="11" text-anchor="end">6</text>
+<line class="g" x1="56" x2="570" y1="88.0" y2="88.0"/>
+<text class="m" x="48" y="92.0" font-size="11" text-anchor="end">8</text>
+<line class="g" x1="56" x2="570" y1="44.0" y2="44.0"/>
+<text class="m" x="48" y="48.0" font-size="11" text-anchor="end">10</text>
+<text class="m" x="92.7" y="282" font-size="11" text-anchor="middle">1.8</text>
+<text class="m" x="166.1" y="282" font-size="11" text-anchor="middle">1.9</text>
+<text class="m" x="239.6" y="282" font-size="11" text-anchor="middle">1.10</text>
+<text class="m" x="313.0" y="282" font-size="11" text-anchor="middle">1.11</text>
+<text class="m" x="386.4" y="282" font-size="11" text-anchor="middle">1.12</text>
+<text class="m" x="459.9" y="282" font-size="11" text-anchor="middle">1.13</text>
+<text class="m" x="533.3" y="282" font-size="11" text-anchor="middle">1.14</text>
+<path class="l s0" d="M92.7,184.5 L166.1,183.3 L239.6,198.2 L313.0,196.5 L386.4,206.6 L459.9,201.0 L533.3,231.9"/>
+<circle class="s0" cx="92.7" cy="184.5" r="4" stroke="none"><title>MP3 320k: 3.6 % of one core</title></circle>
+<circle class="s0" cx="166.1" cy="183.3" r="4" stroke="none"><title>MP3 320k: 3.7 % of one core</title></circle>
+<circle class="s0" cx="239.6" cy="198.2" r="4" stroke="none"><title>MP3 320k: 3.0 % of one core</title></circle>
+<circle class="s0" cx="313.0" cy="196.5" r="4" stroke="none"><title>MP3 320k: 3.1 % of one core</title></circle>
+<circle class="s0" cx="386.4" cy="206.6" r="4" stroke="none"><title>MP3 320k: 2.6 % of one core</title></circle>
+<circle class="s0" cx="459.9" cy="201.0" r="4" stroke="none"><title>MP3 320k: 2.9 % of one core</title></circle>
+<circle class="s0" cx="533.3" cy="231.9" r="4" stroke="none"><title>MP3 320k: 1.5 % of one core</title></circle>
+<path class="l s1" d="M92.7,183.4 L166.1,199.8 L239.6,198.2 L313.0,193.8 L386.4,208.3 L459.9,203.5 L533.3,230.4"/>
+<circle class="s1" cx="92.7" cy="183.4" r="4" stroke="none"><title>FLAC 16/44.1: 3.7 % of one core</title></circle>
+<circle class="s1" cx="166.1" cy="199.8" r="4" stroke="none"><title>FLAC 16/44.1: 2.9 % of one core</title></circle>
+<circle class="s1" cx="239.6" cy="198.2" r="4" stroke="none"><title>FLAC 16/44.1: 3.0 % of one core</title></circle>
+<circle class="s1" cx="313.0" cy="193.8" r="4" stroke="none"><title>FLAC 16/44.1: 3.2 % of one core</title></circle>
+<circle class="s1" cx="386.4" cy="208.3" r="4" stroke="none"><title>FLAC 16/44.1: 2.5 % of one core</title></circle>
+<circle class="s1" cx="459.9" cy="203.5" r="4" stroke="none"><title>FLAC 16/44.1: 2.7 % of one core</title></circle>
+<circle class="s1" cx="533.3" cy="230.4" r="4" stroke="none"><title>FLAC 16/44.1: 1.5 % of one core</title></circle>
+<path class="l s2" d="M92.7,123.2 L166.1,146.1 L239.6,141.5 L313.0,145.0 L386.4,176.7 L459.9,170.8 L533.3,207.1"/>
+<circle class="s2" cx="92.7" cy="123.2" r="4" stroke="none"><title>FLAC 24/192: 6.4 % of one core</title></circle>
+<circle class="s2" cx="166.1" cy="146.1" r="4" stroke="none"><title>FLAC 24/192: 5.4 % of one core</title></circle>
+<circle class="s2" cx="239.6" cy="141.5" r="4" stroke="none"><title>FLAC 24/192: 5.6 % of one core</title></circle>
+<circle class="s2" cx="313.0" cy="145.0" r="4" stroke="none"><title>FLAC 24/192: 5.4 % of one core</title></circle>
+<circle class="s2" cx="386.4" cy="176.7" r="4" stroke="none"><title>FLAC 24/192: 4.0 % of one core</title></circle>
+<circle class="s2" cx="459.9" cy="170.8" r="4" stroke="none"><title>FLAC 24/192: 4.2 % of one core</title></circle>
+<circle class="s2" cx="533.3" cy="207.1" r="4" stroke="none"><title>FLAC 24/192: 2.6 % of one core</title></circle>
+<path class="l s3" d="M92.7,96.0 L166.1,101.8 L239.6,94.9 L313.0,109.8 L386.4,132.0 L459.9,121.4 L533.3,125.6"/>
+<circle class="s3" cx="92.7" cy="96.0" r="4" stroke="none"><title>24/192 + all FX: 7.6 % of one core</title></circle>
+<circle class="s3" cx="166.1" cy="101.8" r="4" stroke="none"><title>24/192 + all FX: 7.4 % of one core</title></circle>
+<circle class="s3" cx="239.6" cy="94.9" r="4" stroke="none"><title>24/192 + all FX: 7.7 % of one core</title></circle>
+<circle class="s3" cx="313.0" cy="109.8" r="4" stroke="none"><title>24/192 + all FX: 7.0 % of one core</title></circle>
+<circle class="s3" cx="386.4" cy="132.0" r="4" stroke="none"><title>24/192 + all FX: 6.0 % of one core</title></circle>
+<circle class="s3" cx="459.9" cy="121.4" r="4" stroke="none"><title>24/192 + all FX: 6.5 % of one core</title></circle>
+<circle class="s3" cx="533.3" cy="125.6" r="4" stroke="none"><title>24/192 + all FX: 6.3 % of one core</title></circle>
+<rect class="s3" x="582" y="116.6" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="121.6" font-size="11">24/192 + all FX</text>
+<text class="m" x="598" y="134.6" font-size="11">6.3</text>
+<rect class="s2" x="582" y="198.1" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="203.1" font-size="11">FLAC 24/192</text>
+<text class="m" x="598" y="216.1" font-size="11">2.6</text>
+<rect class="s1" x="582" y="226.1" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="231.1" font-size="11">FLAC 16/44.1</text>
+<text class="m" x="598" y="244.1" font-size="11">1.5</text>
+<rect class="s0" x="582" y="254.1" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="259.1" font-size="11">MP3 320k</text>
+<text class="m" x="598" y="272.1" font-size="11">1.5</text>
+</svg>

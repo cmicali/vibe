@@ -6,7 +6,7 @@ CONFIG ?= Release
 # it from. Under build/, so `make clean` takes it.
 RESULT_BUNDLE ?= build/TestResults.xcresult
 
-.PHONY: build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress torture release github-release deploy-web web-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
+.PHONY: bench bench-rerun bench-report build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress torture release github-release deploy-web web-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
 
 # Install the dev-tool dependencies (xcodegen, jq, gh) from the Brewfile.
 setup:
@@ -146,6 +146,23 @@ torture: APP ?= build/DerivedData/Build/Products/Debug/Vibe.app
 torture:
 	@test -n "$(PLAYLIST)" || { echo "usage: make torture PLAYLIST=<folder of audio files> [APP=<Vibe.app>]"; exit 64; }
 	.claude/skills/vibe-stress/scripts/run-torture.sh "$(APP)" "$(PLAYLIST)" $(ARGS)
+
+# The performance benchmark over released versions (docs/performance.md):
+# builds each tag, runs the same suite, redraws that page's table and charts.
+# About half an hour a version on an M4 Max; it launches the app over and over, so leave the Mac be.
+#   make bench VERSIONS="1.15"            a new release, tag v1.15
+#   make bench VERSIONS="1.15=<ref>"      measured at another ref
+#   make bench-rerun                      every version again (a new machine)
+#   make bench-report                     the page from results.json only
+bench:
+	@test -n "$(VERSIONS)" || { echo 'usage: make bench VERSIONS="1.15 [1.16=<ref>]"'; exit 64; }
+	python3 scripts/bench/bench.py run $(VERSIONS) $(ARGS)
+
+bench-rerun:
+	python3 scripts/bench/bench.py rerun $(ARGS)
+
+bench-report:
+	python3 scripts/bench/bench.py report
 
 # The rm matters: BSD cp -R copies INTO an existing destination directory, so
 # without it a second install produces /Applications/Vibe.app/Vibe.app.
