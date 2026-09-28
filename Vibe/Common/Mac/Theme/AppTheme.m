@@ -358,7 +358,7 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
                               LadderField(VibeNormalizedVolumeTint))];
         AddColorPair(rows, kVibeThemeColorVolumeTint, volume, @"tintColor");
         [rows addObject:Field(kFieldShowVolumeLabels, volume, @"showLabels", @YES, BoolField())];
-        [rows addObject:Field(kFieldVolumeLocation, volume, @"location", SETTINGS_VALUE_VOLUME_LOCATION_BOTTOM,
+        [rows addObject:Field(kFieldVolumeLocation, volume, @"location", SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT,
                               LadderField(VibeNormalizedVolumeLocation))];
 
         [rows addObject:Field(kFieldWaveformStyle, waveform, @"style",

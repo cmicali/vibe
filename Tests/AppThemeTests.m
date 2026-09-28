@@ -63,7 +63,7 @@
     XCTAssertEqualObjects(theme.buttonGradient, @"always");
     XCTAssertEqualObjects(theme.volumeTint, @"waveform");
     XCTAssertTrue(theme.showVolumeLabels);
-    XCTAssertEqualObjects(theme.volumeLocation, @"bottom");
+    XCTAssertEqualObjects(theme.volumeLocation, @"top_right");
     XCTAssertEqualObjects(theme.playlistButtonGlyph, @"list.bullet");
     XCTAssertEqualObjects(theme.playButtonGlyph, @"play.fill");
     XCTAssertEqualObjects(theme.pauseButtonGlyph, @"pause.fill");
@@ -713,7 +713,7 @@ static CGFloat Brightness(NSString *hex) {
     AppTheme *snapped = [[AppTheme alloc] initWithRecord:@{
         @"volumeTint": @"plaid", @"volumeLocation": @"bottom_left", @"showVolumeLabels": @"no"}];
     XCTAssertEqualObjects(snapped.volumeTint, @"waveform");
-    XCTAssertEqualObjects(snapped.volumeLocation, @"bottom");
+    XCTAssertEqualObjects(snapped.volumeLocation, @"top_right");
     XCTAssertTrue(snapped.showVolumeLabels);
     XCTAssertEqualObjects(snapped.dictionaryRepresentation, @{});
     for (NSString *tint in @[@"mono", @"artwork", @"custom"]) {
@@ -722,10 +722,10 @@ static CGFloat Brightness(NSString *hex) {
     }
 
     NSData *json = [@"{\"volume\":{\"tint\":\"custom\",\"tintColorDark\":\"#FF0000\","
-                     "\"showLabels\":false,\"location\":\"top_right\"}}"
+                     "\"showLabels\":false,\"location\":\"bottom\"}}"
             dataUsingEncoding:NSUTF8StringEncoding];
     NSDictionary *expected = @{@"volumeTint": @"custom", @"volumeTintColorDark": @"#FF0000",
-                               @"showVolumeLabels": @NO, @"volumeLocation": @"top_right"};
+                               @"showVolumeLabels": @NO, @"volumeLocation": @"bottom"};
     NSDictionary *record = [AppTheme recordFromJSONData:json name:NULL error:NULL];
     XCTAssertEqualObjects(record, expected);
     AppTheme *theme = [[AppTheme alloc] initWithRecord:record];
@@ -733,7 +733,7 @@ static CGFloat Brightness(NSString *hex) {
                           @"#FF0000");
     NSData *exported = [AppTheme JSONDataForRecord:record name:@"Volume"];
     NSDictionary *object = [NSJSONSerialization JSONObjectWithData:exported options:0 error:NULL];
-    XCTAssertEqualObjects(object[@"volume"][@"location"], @"top_right");
+    XCTAssertEqualObjects(object[@"volume"][@"location"], @"bottom");
     XCTAssertEqualObjects([AppTheme recordFromJSONData:exported name:NULL error:NULL], expected);
 }
 

@@ -259,7 +259,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 @property (nonatomic, copy) NSString *keyNotation;          // camelot/musical
 @property (nonatomic, copy) NSString *volumeTint;           // mono/artwork/waveform/custom
 @property (nonatomic) BOOL showVolumeLabels;                // "Vol" and the percentage
-@property (nonatomic, copy) NSString *volumeLocation;       // bottom/top_right
+@property (nonatomic, copy) NSString *volumeLocation;       // top_right (default)/bottom
 
 // An empty face is the built-in font. Faces are not validated: Fonts' never-nil
 // fallback resolves an uninstalled one. The size clamps are narrow because the

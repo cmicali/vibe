@@ -38,7 +38,7 @@ One theme, the type the theme system is written in terms of: a **sparse record**
 
 ## The volume slider
 
-`volumeTint` (`mono`/`artwork`/`waveform`/`custom`, default `waveform`, with the `kVibeThemeColorVolumeTint` pair), `showVolumeLabels` (default on) and `volumeLocation` (`bottom`/`top_right`) travel as `volume.tint`, `volume.showLabels` and `volume.location`. The pair's unset slots draw the system accent, so Custom starts from None's look. The dice roll the tint but never the labels or the location, which are layout, not look.
+`volumeTint` (`mono`/`artwork`/`waveform`/`custom`, default `waveform`, with the `kVibeThemeColorVolumeTint` pair), `showVolumeLabels` (default on) and `volumeLocation` (`top_right`, the default, or `bottom`) travel as `volume.tint`, `volume.showLabels` and `volume.location`. The pair's unset slots draw the system accent, so Custom starts from None's look. The dice roll the tint but never the labels or the location, which are layout, not look.
 
 ## Images
 

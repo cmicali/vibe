@@ -705,7 +705,6 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
         ]],
         _transportSection,
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_INFO_SECTION rows:infoRows],
-        _timeSection,
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_VOLUME_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_VOLUME_TINT control:_volumeTintPopUp],
             _volumeTintDarkRow,
@@ -715,6 +714,7 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
                                   caption:STR_SETTINGS_THEME_VOLUME_LOCATION_CAPTION
                                   control:_volumeLocationPopUp],
         ]],
+        _timeSection,
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYLIST_SECTION rows:playlistRows],
     ];
 

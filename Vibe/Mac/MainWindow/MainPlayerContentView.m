@@ -87,6 +87,8 @@ static const CGFloat kDropHintWidth = kTotalTimeX - kDropHintX;
 // with the drop hint or the readouts on hover (setControlsShown:animated:).
 static const CGFloat kVolumeSliderWidth = 100;
 static const CGFloat kVolumeGap = 6;
+// In the corner: the control's right end, in from the waveform's.
+static const CGFloat kVolumeCornerRightInset = 24;
 
 // The traffic lights: 13pt dots on 23pt centers, like the real macOS
 // controls, left-aligned with the playlist icon below.
@@ -446,14 +448,17 @@ static NSDictionary *VolumeTextAttributes(NSTextAlignment alignment, NSColor *co
 
 // Placed from its neighbors, never by the mask: in the time row its margins
 // are unequal, so AppKit's proportional share of a resize walks the control
-// toward the elapsed time. In the corner it is right-aligned on the codec
-// line, the bare slider to the waveform's edge rather than the text's.
+// toward the elapsed time. In the corner its bottom sits on the title's cap
+// height — the frame's top carries the ascender's headroom — measured on the
+// theme's face, not the refit one, so a long title does not move it.
 - (void)positionVolumeControl {
     NSRect frame = _volumeControlView.frame;
     if (AppSettings.sharedInstance.volumeAtTopRight) {
-        CGFloat inset = _volumeLabel.hidden ? kLabelInkInset : 0;
+        // Measured from the ink: a bare slider has no text inset of its own.
+        CGFloat inset = kVolumeCornerRightInset + (_volumeLabel.hidden ? kLabelInkInset : 0);
+        NSFont *title = [Fonts titleFont];
         frame.origin.x = NSMaxX(_fileMetadataTextField.frame) - inset - frame.size.width;
-        frame.origin.y = NSMinY(_fileMetadataTextField.frame);
+        frame.origin.y = round(NSMaxY(_titleTextField.frame) - (title.ascender - title.capHeight));
     } else {
         CGFloat center = (NSMaxX(_currentTimeTextField.frame) + NSMinX(_totalTimeTextField.frame)) / 2;
         frame.origin.x = round(center - frame.size.width / 2);
@@ -512,9 +517,10 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [self buildAlbumArt];
     [self buildTransportControlsWithTarget:target];
     [self buildHeaderLabels];
-    [self buildVolumeControlWithTarget:target];
     [self buildPlaylistPane];
     [self buildCornerReadouts];
+    // Above the corner readouts, which keep catching clicks at zero alpha.
+    [self buildVolumeControlWithTarget:target];
     [self applyThemedLabelFonts];
     [self applyThemedLabelColors];
     [self applyThemedTransportButtons];

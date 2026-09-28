@@ -55802,7 +55802,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_location.bottom": {
-      "comment": "Theme editor, volume slider location choice: between the elapsed and total time labels, below the waveform. The default.",
+      "comment": "Theme editor, volume slider location choice: between the elapsed and total time labels, below the waveform.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -56174,7 +56174,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_location.top_right": {
-      "comment": "Theme editor, volume slider location choice: the player window's top-right corner, above the waveform, in place of the track information.",
+      "comment": "Theme editor, volume slider location choice: the player window's top-right corner, above the waveform, where it swaps with the track information while the pointer is over the window. The default.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -75890,7 +75890,7 @@
       "extractionState": "manual"
     },
     "settings.general.volume_control": {
-      "comment": "Settings, Audio pane: switch above Declick, off by default, that adds a volume slider to the player window, between the elapsed and total time. Off, playback is always at full volume.",
+      "comment": "Settings, Audio pane: switch above Declick, off by default, that adds a volume slider to the player window, in its top-right corner unless the theme moves it. Off, playback is always at full volume.",
       "localizations": {
         "bg": {
           "stringUnit": {
