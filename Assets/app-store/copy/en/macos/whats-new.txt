@@ -1,7 +1,8 @@
 * New: Custom CoreAudio playback engine - faster, more stable, much better system event handling
+* New: Optional volume control (enable in Settings > Audio) with full theming support
 * New: Lock Window Position, in the View menu and Settings > General
-* New: Optional volume control (enable in Settings > Audio)
-* Changed: r8brain is now the default sample-rate converter (higher quality, less CPU)
+* Changed: dr_mp3/minimp3 is now the default MP3 decoder (higher quality, less CPU)
+* Changed: r8brain is now the sample-rate converter (higher quality, less CPU)
 * Changed: when another app takes exclusive use of the audio device, Vibe pauses and says so
 * Improved: play, pause, and skip no longer wait while Vibe switches audio devices or a device wakes up
 * Improved: a stuck network share no longer holds up a different track, or the tags and artwork of cloud files
