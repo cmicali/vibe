@@ -17,8 +17,9 @@ Live checks have covered macOS silent HAL transport, a 240-operation torture run
   - **Routes.** AirPods connected while playing: recover, the unit kept running. AirPods into their case: pause, an interruption Began (route-disconnected) that no Ended follows, and **iOS stops RemoteIO itself about 0.75 s after the route change**. AirPlay by a category change, with the rate follow at play start (48 → 44.1 kHz) and at resume.
   - **Lock screen and background.** A minute of playback past lock, commanded from the card; a cold launch beside Music leaves Music playing.
   - **The render clock stalls while iOS moves the hardware**: ~0.7 s after an interruption's resume and 0.2–1.8 s on a route move, the IO thread waiting inside the system. Nothing in the app's render is in the stack.
-- **Integer-format DAC negotiation** through `verify-bit-perfect --device-check` (`test-audio.md`), which neither [device lifecycle](#device-lifecycle-acceptance) pass ran. The physical power-cycle has run; one source of its player-queue holds is fixed and one is still unobserved (below).
-- **ASan/UBSan, and the owned-file migration's all-configuration binary audit.** Performance has had one pass, iOS only: Instruments on device against Release builds (#74), which lowered the iOS resampling quality to High by default and fixed the main-thread costs it found. macOS has had no comparable profile.
+- **The in-rebind player-queue holds** of the physical power-cycle; one source of its holds is fixed (below).
+
+Integer-format DAC negotiation, ASan/UBSan, TSan, the owned-file migration's all-configuration binary audit, a macOS profile, and the long and seeded HAL campaigns have run: [overnight acceptance](#overnight-acceptance). The one iOS performance pass is Instruments on device against Release builds (#74), which lowered the iOS resampling quality to High by default and fixed the main-thread costs it found.
 
 Use the [test instructions](../../Tests/AGENTS.md), the [hardware acceptance workflow](../../.claude/skills/vibe-debug/references/test-audio.md), and the [debug skill](../../.claude/skills/vibe-debug/SKILL.md). Keep hardware results distinct from the manual pump and the simulator.
 
@@ -54,12 +55,23 @@ A vanished device does not park playback. AUHAL moves a unit whose device vanish
 - **A start the HAL refuses because the device vanished mid-start parks playback.** An unplug 0.35 s after a replug refused the iD4's start (`'what'`), `outputUnitFailedOnQueue:` parked the voice Paused with `EngineStartFailed`, and the fallback 300 ms later kept it Paused. A clean unplug keeps Playing; this one loses it. Whether a refusal whose device is then confirmed gone should keep the playing intent is a policy question.
 - **Silent HAL playback and output auto-switching.** Launch with `VIBE_AUDIBLE=silent` (Now Playing stays suppressed unless `VIBE_NOW_PLAYING=1`) with auto-switching AirPods paired, and see whether playback still pulls them or moves the system output, once on System Output and once explicitly bound. Zero output samples and suppressed Now Playing do not by themselves establish isolation; the 2026-09-25 pass had no Bluetooth device. Hardware stays opt-in until this has evidence.
 
+## Overnight acceptance
+
+2026-09-28, MacBook Pro, macOS 27, `9fcdc73a`, the built-in speakers as System Output, each build in its own derived data; the corpus 432 local files (FLAC, MP3, AIFF, WAV):
+
+- **Integer-format DAC negotiation, Audient iD4, audible** (`verify-bit-perfect --device-check`; the verifier refuses a `--silent` app): 44.1/16, 48/24, 88.2/24 and 96/24 each Active, 24-bit integer on the device, `rateExact`, `formatConfirmed`, `depthOK` and `channelsMatch` true, the six-second idle release, and the device's 44.1 kHz format restored after each. A 48/32 float fixture cannot be bit-perfect on an integer-only device and correctly never reached Active.
+- **Binary audit:** no Debug or Release build of either app links `AVAudioFile`, `AVAudioEngine` or `AVAudioPlayerNode` (`nm`, with `AVAudioFormat` found in every binary as the control).
+- **ASan + UBSan:** 50,484 ops on `make-hostile-corpus.py`'s corpus (52 broken entries among 127 files) and 54,801 on the real corpus, no report. **TSan:** 76,292 ops on the `ui` profile, no report.
+- **Real HAL, silent:** a 90-minute `base` stress run, 109,661 ops and 506,270 render cycles, no violation or growth, 0 dropouts; a cold-cache torture over all 432 tracks, 9,600 ops, every `pending` counter clear at rest.
+- **One seed, pump and HAL:** seed 70030 on the `loading` profile for 30 min each, 26,606 and 26,580 ops, 16,295 and 15,984 handle opens, 0 failed requests under either.
+- **macOS profile** (an optimized Debug build, since Release has no debug channel; Time Profiler, silent HAL): steady playback 3.4% of one core, about 70% of it Apple's `Resampler2` taking 44.1 kHz files to the speakers' 48 kHz at Max quality, FLAC decode about 5%, the per-tick position UI about 3%; busy transport with the reverb send and pitch 7.6%, the FX chain and the varispeed the additions.
+
 ## Hardware stress campaigns
 
-The stress harness defaults to the manual pump (`--no-audio-hw --silent`). Before any change to that default:
+The stress harness defaults to the manual pump (`--no-audio-hw --silent`). The `base` and `loading` profiles and torture now have long HAL evidence ([overnight acceptance](#overnight-acceptance)). Before any change to that default:
 
-- **Long HAL campaigns.** Cloud/artwork and transport campaigns on real HAL, long enough to be a soak; the 240-operation torture run above is bounded evidence. Keep deliberate pump coverage if the default ever changes.
-- **Seeded campaigns under the pump and the output unit.** Repeat seeded campaigns and shrinking under the pump and under HAL, recording journals, endings, failures, and settled resource counters. A seed reproduces the generated operations, not callback timing, under either; retune waits only where the measurements show a need.
+- **Cloud and artwork campaigns on real HAL.** Keep deliberate pump coverage if the default ever changes.
+- **Shrinking under HAL.** Nothing failed to shrink; a seed reproduces the generated operations, not callback timing, under either; retune waits only where the measurements show a need.
 
 Independent of the default, the consistency oracle checks meter demand and output liveness but not that equalizer publications advance with nonzero signal. If that coverage is wanted, drive a known non-silent fixture and read the [equalizer counters](../../.claude/skills/vibe-debug/references/equalizer-counters.md); an occluded view, no demand, or genuine silence must not fail it, and the beta probe's independent meter hold must be respected.
 
