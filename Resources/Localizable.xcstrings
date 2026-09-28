@@ -56359,6 +56359,378 @@
       },
       "extractionState": "manual"
     },
+    "settings.appearance.theme.volume_knob": {
+      "comment": "Theme editor, Volume slider group: row beside the dropdown choosing the color of the volume slider's knob, the pill you drag — the bar's color, none (the standard white knob), the artwork color, the waveform color, or a custom color. Pairs with 'Bar'.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дръжка"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jezdec"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Knap"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regler"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Λαβή"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Knob"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tirador"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nuppi"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Curseur"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ručica"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gomb"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kenop"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cursore"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "つまみ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "손잡이"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Knott"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Knop"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suwak"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Puxador"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Puxador"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cursor"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ползунок"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jazdec"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Knopp"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ปุ่มเลื่อน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Düğme"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Повзунок"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Núm"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "滑块"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "滑塊"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.volume_knob.bar": {
+      "comment": "Theme editor, volume slider knob color choice: the knob takes whatever color the bar row chose. The default. 'bar' is the 'Bar' row above it.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Като лентата"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stejně jako pruh"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Samme som bjælken"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wie die Leiste"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Όπως η γραμμή"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Same as bar"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Igual que la barra"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sama kuin palkki"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comme la barre"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kao traka"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mint a sáv"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sama dengan bilah"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Come la barra"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バーと同じ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "막대와 동일"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Samme som linjen"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zelfde als balk"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jak pasek"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Igual à barra"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Igual à barra"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La fel ca bara"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Как у полосы"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rovnako ako pruh"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Samma som fältet"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เหมือนแถบ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çubukla aynı"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Як у смуги"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giống thanh"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "与滑条相同"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "與滑條相同"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.appearance.theme.volume_location": {
       "comment": "Theme editor, Volume slider group: row beside the dropdown choosing where the volume slider sits in the player window.",
       "localizations": {
@@ -57104,193 +57476,193 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_tint": {
-      "comment": "Theme editor, Volume slider group: row beside the dropdown choosing the color of the volume slider's filled track — none (the standard system slider), the artwork color, the waveform color, or a custom color.",
+      "comment": "Theme editor, Volume slider group: row beside the dropdown choosing the color of the volume slider's bar, the filled part of its track — none (the standard system slider), the artwork color, the waveform color, or a custom color. Pairs with 'Knob'.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Оттенък"
+            "value": "Лента"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Odstín"
+            "value": "Pruh"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nuance"
+            "value": "Bjælke"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tönung"
+            "value": "Leiste"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Απόχρωση"
+            "value": "Γραμμή"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tint"
+            "value": "Bar"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tinte"
+            "value": "Barra"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sävy"
+            "value": "Palkki"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Teinte"
+            "value": "Barre"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nijansa"
+            "value": "Traka"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Árnyalat"
+            "value": "Sáv"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rona"
+            "value": "Bilah"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tonalità"
+            "value": "Barra"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "色合い"
+            "value": "バー"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "색조"
+            "value": "막대"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nyanse"
+            "value": "Linje"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tint"
+            "value": "Balk"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Odcień"
+            "value": "Pasek"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tonalidade"
+            "value": "Barra"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Matiz"
+            "value": "Barra"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tentă"
+            "value": "Bară"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Оттенок"
+            "value": "Полоса"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Odtieň"
+            "value": "Pruh"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ton"
+            "value": "Fält"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "โทนสี"
+            "value": "แถบ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Renk tonu"
+            "value": "Çubuk"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Відтінок"
+            "value": "Смуга"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sắc thái màu"
+            "value": "Thanh"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "色调"
+            "value": "滑条"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "色調"
+            "value": "滑條"
           }
         }
       },
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_tint.waveform": {
-      "comment": "Theme editor, volume slider tint choice: the filled track takes the waveform's played color. The default. Pairs with 'Artwork color'.",
+      "comment": "Theme editor, volume slider bar or knob color choice: the waveform's played color. The bar's default. Pairs with 'Artwork color'.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -59708,7 +60080,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.volume_section": {
-      "comment": "Theme editor: heading above the player window's volume slider rows — its tint, its labels and where it sits.",
+      "comment": "Theme editor: heading above the player window's volume slider rows — its bar and knob colors, its labels and where it sits.",
       "localizations": {
         "bg": {
           "stringUnit": {

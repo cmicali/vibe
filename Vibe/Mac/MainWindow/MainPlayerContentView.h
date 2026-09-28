@@ -6,6 +6,7 @@
 #import <Cocoa/Cocoa.h>
 
 @class SymbolButton;
+@class VibeSlider;
 @class ArtworkImageView;
 @class AudioWaveformView;
 @class PlaylistTableView;
@@ -63,8 +64,9 @@ NS_ASSUME_NONNULL_BEGIN
 // The slider's own action, every tick of a drag and once at the release: the
 // percentage, and the hover held open while the knob is in hand.
 - (void)volumeSliderDidMove;
-// The slider's fill from the theme's volumeTint. Every resolution of the
-// waveform's theme calls it, so a waveform edit and an art color reach it.
+// The slider's fill and knob from the theme's volumeTint and volumeKnob.
+// Every resolution of the waveform's theme calls it, so a waveform edit and
+// an art color reach it.
 - (void)applyVolumeTint;
 
 // Plain views the artwork controller washes: the glass's own tintColor is
@@ -80,7 +82,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) NSTextField *currentTimeTextField;
 // "Vol", the slider and the percentage, which fade and hide as one.
 @property (readonly) NSView *volumeControlView;
-@property (readonly) NSSlider *volumeSlider;
+@property (readonly) VibeSlider *volumeSlider;
 @property (readonly) NSTextField *fileMetadataTextField;
 @property (readonly) NSTextField *bpmTextField;
 

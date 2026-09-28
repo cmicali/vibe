@@ -711,8 +711,10 @@ static CGFloat Brightness(NSString *hex) {
 // volume.* both ways.
 - (void)testVolumeFieldsSnapAndRoundTripUnderTheVolumeSection {
     AppTheme *snapped = [[AppTheme alloc] initWithRecord:@{
-        @"volumeTint": @"plaid", @"volumeLocation": @"bottom_left", @"showVolumeLabels": @"no"}];
+        @"volumeTint": @"plaid", @"volumeKnob": @"plaid", @"volumeLocation": @"bottom_left",
+        @"showVolumeLabels": @"no"}];
     XCTAssertEqualObjects(snapped.volumeTint, @"waveform");
+    XCTAssertEqualObjects(snapped.volumeKnob, @"bar");
     XCTAssertEqualObjects(snapped.volumeLocation, @"top_right");
     XCTAssertTrue(snapped.showVolumeLabels);
     XCTAssertEqualObjects(snapped.dictionaryRepresentation, @{});
@@ -720,17 +722,27 @@ static CGFloat Brightness(NSString *hex) {
         snapped.volumeTint = tint;
         XCTAssertEqualObjects(snapped.volumeTint, tint);
     }
+    for (NSString *knob in @[@"mono", @"artwork", @"waveform", @"custom"]) {
+        snapped.volumeKnob = knob;
+        XCTAssertEqualObjects(snapped.volumeKnob, knob);
+    }
+    snapped.volumeTint = @"bar";
+    XCTAssertEqualObjects(snapped.volumeTint, @"waveform", @"only the knob can follow the bar");
 
     NSData *json = [@"{\"volume\":{\"tint\":\"custom\",\"tintColorDark\":\"#FF0000\","
+                     "\"knob\":\"custom\",\"knobColorDark\":\"#00FF00\","
                      "\"showLabels\":false,\"location\":\"bottom\"}}"
             dataUsingEncoding:NSUTF8StringEncoding];
     NSDictionary *expected = @{@"volumeTint": @"custom", @"volumeTintColorDark": @"#FF0000",
+                               @"volumeKnob": @"custom", @"volumeKnobColorDark": @"#00FF00",
                                @"showVolumeLabels": @NO, @"volumeLocation": @"bottom"};
     NSDictionary *record = [AppTheme recordFromJSONData:json name:NULL error:NULL];
     XCTAssertEqualObjects(record, expected);
     AppTheme *theme = [[AppTheme alloc] initWithRecord:record];
     XCTAssertEqualObjects(VibeHexStringFromColor([theme colorForBase:kVibeThemeColorVolumeTint dark:YES]),
                           @"#FF0000");
+    XCTAssertEqualObjects(VibeHexStringFromColor([theme colorForBase:kVibeThemeColorVolumeKnob dark:YES]),
+                          @"#00FF00");
     NSData *exported = [AppTheme JSONDataForRecord:record name:@"Volume"];
     NSDictionary *object = [NSJSONSerialization JSONObjectWithData:exported options:0 error:NULL];
     XCTAssertEqualObjects(object[@"volume"][@"location"], @"bottom");

@@ -43,6 +43,7 @@ static NSString *const kFieldShowKey = @"showKey";
 static NSString *const kFieldKeyColorsEnabled = @"keyColorsEnabled";
 static NSString *const kFieldKeyNotation = @"keyNotation";
 static NSString *const kFieldVolumeTint = @"volumeTint";
+static NSString *const kFieldVolumeKnob = @"volumeKnob";
 static NSString *const kFieldShowVolumeLabels = @"showVolumeLabels";
 static NSString *const kFieldVolumeLocation = @"volumeLocation";
 static NSString *const kFieldTitleFontFace = @"titleFontFace";
@@ -92,6 +93,7 @@ NSString *const kVibeThemeColorPlaylistBackground = @"playlistBackgroundColor";
 NSString *const kVibeThemeColorPlaylistPlayingRow = @"playlistPlayingRowColor";
 NSString *const kVibeThemeColorPlaylistSelectedRow = @"playlistSelectedRowColor";
 NSString *const kVibeThemeColorVolumeTint = @"volumeTintColor";
+NSString *const kVibeThemeColorVolumeKnob = @"volumeKnobColor";
 NSString *const kVibeThemeColorPlaylistButton = @"playlistButtonColor";
 NSString *const kVibeThemeColorPlayButton = @"playButtonColor";
 NSString *const kVibeThemeColorNextButton = @"nextButtonColor";
@@ -357,6 +359,9 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
         [rows addObject:Field(kFieldVolumeTint, volume, @"tint", SETTINGS_VALUE_VOLUME_TINT_WAVEFORM,
                               LadderField(VibeNormalizedVolumeTint))];
         AddColorPair(rows, kVibeThemeColorVolumeTint, volume, @"tintColor");
+        [rows addObject:Field(kFieldVolumeKnob, volume, @"knob", SETTINGS_VALUE_VOLUME_KNOB_BAR,
+                              LadderField(VibeNormalizedVolumeKnob))];
+        AddColorPair(rows, kVibeThemeColorVolumeKnob, volume, @"knobColor");
         [rows addObject:Field(kFieldShowVolumeLabels, volume, @"showLabels", @YES, BoolField())];
         [rows addObject:Field(kFieldVolumeLocation, volume, @"location", SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT,
                               LadderField(VibeNormalizedVolumeLocation))];
@@ -559,6 +564,9 @@ static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
     }
     if ([base isEqualToString:kVibeThemeColorVolumeTint]) {
         return ResolvedForDark(NSColor.controlAccentColor, isDark);
+    }
+    if ([base isEqualToString:kVibeThemeColorVolumeKnob]) {
+        return NSColor.whiteColor;
     }
     if ([base isEqualToString:kVibeThemeColorWaveformPlayed]) {
         return isDark ? [NSColor colorWithRed:1 green:1 blue:1 alpha:0.75]
@@ -1277,6 +1285,9 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 - (NSString *)volumeTint { return [self stringForKey:kFieldVolumeTint]; }
 - (void)setVolumeTint:(NSString *)v { [self storeSanitized:v forKey:kFieldVolumeTint]; }
 
+- (NSString *)volumeKnob { return [self stringForKey:kFieldVolumeKnob]; }
+- (void)setVolumeKnob:(NSString *)v { [self storeSanitized:v forKey:kFieldVolumeKnob]; }
+
 - (BOOL)showVolumeLabels { return [self boolForKey:kFieldShowVolumeLabels]; }
 - (void)setShowVolumeLabels:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowVolumeLabels]; }
 
@@ -1416,6 +1427,8 @@ static id RandomPick(NSArray *choices) {
     self.playlistBackgroundStyle = RandomPick(backgrounds);
     self.playlistTint = RandomPick(tints);
     self.volumeTint = RandomPick([tints arrayByAddingObject:SETTINGS_VALUE_VOLUME_TINT_WAVEFORM]);
+    self.volumeKnob = RandomPick([tints arrayByAddingObjectsFromArray:
+            @[SETTINGS_VALUE_VOLUME_TINT_WAVEFORM, SETTINGS_VALUE_VOLUME_KNOB_BAR]]);
     self.showPlaylistNumberColumn = RandomChance(75);
     self.showPlaylistArtworkColumn = RandomChance(75);
     self.showPlaylistDurationColumn = RandomChance(75);
@@ -1470,6 +1483,9 @@ static NSColor *HueColor(CGFloat hue, BOOL dark, CGFloat alpha) {
     }
     if ([self.volumeTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM]) {
         self.volumeTint = SETTINGS_VALUE_VOLUME_TINT_WAVEFORM;
+    }
+    if ([self.volumeKnob isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM]) {
+        self.volumeKnob = SETTINGS_VALUE_VOLUME_KNOB_BAR;
     }
 
     CGFloat hue = RandomIndex(360) / 360.0;

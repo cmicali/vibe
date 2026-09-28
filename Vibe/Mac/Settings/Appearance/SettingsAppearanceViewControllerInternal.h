@@ -82,9 +82,10 @@ static const CGFloat kAppearancePopUpWidth = 220;
     SettingsRowView *_playlistBackgroundColorsRow;
     NSPopUpButton *_playlistTintPopUp;
     SettingsRowView *_playlistTintDarkRow, *_playlistTintLightRow;
-    NSPopUpButton *_volumeTintPopUp, *_volumeLocationPopUp;
+    NSPopUpButton *_volumeTintPopUp, *_volumeKnobPopUp, *_volumeLocationPopUp;
     NSSwitch *_volumeLabelsSwitch;
     SettingsRowView *_volumeTintDarkRow, *_volumeTintLightRow;
+    SettingsRowView *_volumeKnobDarkRow, *_volumeKnobLightRow;
     NSTextField *_titleFontValue, *_artistFontValue, *_infoFontValue, *_playlistFontValue;
     NSTextField *_playlistDurationFontValue;
     // None while the panel is not editing a slot; changeFont: no-ops then.

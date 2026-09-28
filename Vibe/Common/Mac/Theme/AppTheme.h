@@ -42,9 +42,12 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 #define SETTINGS_VALUE_BUTTON_GRADIENT_ARTWORK              @"artwork"
 #define SETTINGS_VALUE_BUTTON_GRADIENT_ALWAYS               @"always"
 
-// The volume slider's fill: the window tint's mono (the system slider),
-// artwork and custom, plus the waveform's played color (the default).
+// The volume slider's bar: the window tint's mono (the system slider),
+// artwork and custom, plus the waveform's played color (the default). Its knob
+// takes the same ladder, mono the system's white, plus the bar's color (the
+// default).
 #define SETTINGS_VALUE_VOLUME_TINT_WAVEFORM                 @"waveform"
+#define SETTINGS_VALUE_VOLUME_KNOB_BAR                      @"bar"
 // Top right swaps with the corner readouts on hover (MainWindow/APPEARANCE.md).
 #define SETTINGS_VALUE_VOLUME_LOCATION_BOTTOM               @"bottom"
 #define SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT            @"top_right"
@@ -103,8 +106,10 @@ FOUNDATION_EXPORT NSString *const kVibeThemeColorTime;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistBackground;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistPlayingRow;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistSelectedRow;
-// Unset draws the system slider's accent, so choosing Custom starts from None.
+// Unset, the bar draws the system accent and the knob white, so choosing
+// Custom starts from None.
 FOUNDATION_EXPORT NSString *const kVibeThemeColorVolumeTint;
+FOUNDATION_EXPORT NSString *const kVibeThemeColorVolumeKnob;
 // The transport buttons' resting glyph colors; hover and disabled derive by
 // SymbolButton's ratios. Keyed by the art UNDER the buttons, not the
 // appearance, so both sides stay live under single mode.
@@ -257,7 +262,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 @property (nonatomic) BOOL showPlaylistDurationColumn;            // the playlist's length column
 @property (nonatomic) BOOL keyColorsEnabled;
 @property (nonatomic, copy) NSString *keyNotation;          // camelot/musical
-@property (nonatomic, copy) NSString *volumeTint;           // mono/artwork/waveform/custom
+@property (nonatomic, copy) NSString *volumeTint;           // the bar: mono/artwork/waveform/custom
+@property (nonatomic, copy) NSString *volumeKnob;           // bar/mono/artwork/waveform/custom
 @property (nonatomic) BOOL showVolumeLabels;                // "Vol" and the percentage
 @property (nonatomic, copy) NSString *volumeLocation;       // top_right (default)/bottom
 
