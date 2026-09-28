@@ -6,6 +6,7 @@
 #import "AudioPlayer+Devices.h"
 #import "AudioPlayerInternal.h"
 #import "AudioFX.h"
+#import "AudioFXMath.h"
 #import "CoreAudioUtil.h"
 #import "AudioDevice.h"
 #import "VibeManualRenderPump.h"
@@ -470,6 +471,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 - (void)testRegularPlaybackAndInactiveFXAreTransparent {
     for (NSNumber *fx in @[@NO,@YES]) for (NSNumber *rate in @[@44100,@48000,@96000]) {
         [self startPlayerAt:rate.doubleValue channels:2 fx:fx.boolValue bitPerfect:NO automatic:NO];
+        _player.levelsEnabled=YES; // the equalizer's meter reads the output, never writes it
         NSURL *url=[self fixture:[NSString stringWithFormat:@"noise-%@-24-2.wav",rate]];
         NSData *reference=PCM([self read:url]); [self play:url paused:NO position:0];
         [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
@@ -1084,7 +1086,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         [_player runSyncOnQueue:^{
             XCTAssertEqualObjects([tap signalDiagnosticSnapshot][@"completion"], @"first signal");
         }];
-        [self assertReference:reference capture:_capture skip:[self startupSkip] tolerance:fx.boolValue?1e-10f:0];
+        [self assertReference:reference capture:_capture skip:[self startupSkip] tolerance:0];
     }
 }
 - (void)testSignalDiagnosticsBoundSilentCaptureAndRearm {
@@ -1285,7 +1287,71 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     [self play:url paused:NO position:0]; _player.fx.lowKillEnabled=YES; [self render:12000];
     _player.fx.lowKillEnabled=NO; [self render:60000];
     NSData *rest=[reference subdataWithRange:NSMakeRange(72000*8,24000*8)];
-    [self assertReference:rest capture:[self renderSeconds:0.6] skip:0 tolerance:1e-10f];
+    [self assertReference:rest capture:[self renderSeconds:0.6] skip:0 tolerance:0];
+}
+// Every way an effect is engaged — the mac's keys, the boost, the pad's cutoff
+// and sends, an off landing mid-sweep, a drag — rests once released, and at
+// rest the file replays exactly with no unit rendered. A low kill parked at the
+// floor instead of rested is a resonant high-pass still lifting the sub-bass.
+- (void)testEveryReleasedEffectRestsAndReplaysTheFileExactly {
+    NSDictionary<NSString *, void (^)(AudioFX *)> *engages = @{
+        @"low kill": ^(AudioFX *fx) { fx.lowKillEnabled = YES; },
+        @"low kill boosted": ^(AudioFX *fx) { fx.lowKillEnabled = YES; fx.lowKillBoostActive = YES; },
+        @"reverb": ^(AudioFX *fx) { fx.reverbSendEnabled = YES; },
+        @"delays": ^(AudioFX *fx) { fx.delaySendEnabled = YES; fx.shortDelaySendEnabled = YES; },
+        @"pad corner": ^(AudioFX *fx) {
+            fx.lowKillCutoffHz = VibeFXPadLowCutHz(1); fx.reverbSendLevel = VibeFXPadReverbLevel(1); fx.delaySendLevel = VibeFXPadDelayLevel(1);
+        },
+        @"pad near the floor": ^(AudioFX *fx) { fx.lowKillCutoffHz = VibeFXPadLowCutHz(0.01f); },
+    };
+    NSDictionary<NSString *, void (^)(AudioFX *)> *releases = @{
+        @"low kill": ^(AudioFX *fx) { fx.lowKillEnabled = NO; },
+        @"low kill boosted": ^(AudioFX *fx) { fx.lowKillBoostActive = NO; fx.lowKillEnabled = NO; },
+        @"reverb": ^(AudioFX *fx) { fx.reverbSendEnabled = NO; },
+        @"delays": ^(AudioFX *fx) { fx.delaySendEnabled = NO; fx.shortDelaySendEnabled = NO; },
+        // PlaybackController's lift: the corner, off on both axes.
+        @"pad corner": ^(AudioFX *fx) {
+            fx.lowKillCutoffHz = VibeFXPadLowCutHz(0); fx.reverbSendLevel = VibeFXPadReverbLevel(0); fx.delaySendLevel = VibeFXPadDelayLevel(0);
+        },
+        @"pad near the floor": ^(AudioFX *fx) { fx.lowKillCutoffHz = VibeFXPadLowCutHz(0); },
+    };
+    NSURL *url = [self fixture:@"noise-48000-24-2.wav"];
+    NSData *reference = PCM([self read:url]);
+    uint64_t (^unitRenders)(void) = ^uint64_t { return [self->_player.debugRenderCounts[@"unitRenders"] unsignedLongLongValue]; };
+    for (NSString *name in engages) for (NSNumber *interrupted in @[@NO, @YES]) {
+        [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
+        _player.levelsEnabled = YES;
+        _player.fx.delayTapBPM = 120;
+        [self play:url paused:NO position:0];
+        engages[name](_player.fx);
+        if (interrupted.boolValue) {
+            // Off and on again inside the 80 ms sweep; on the pad, a drag's
+            // steps, each close enough to be written to the engaged filter.
+            [self render:_blockSize];
+            releases[name](_player.fx); [self render:_blockSize];
+            engages[name](_player.fx); [self render:12000];
+            if ([name hasPrefix:@"pad"]) {
+                for (float hz = 300; hz < 400; hz *= 1.05f) {
+                    _player.fx.lowKillCutoffHz = hz; [self render:_blockSize];
+                }
+            }
+            releases[name](_player.fx); [self render:_blockSize];
+            engages[name](_player.fx);
+        }
+        [self render:12000];
+        XCTAssertGreaterThan(unitRenders(), 0ull, @"%@: the effect never rendered", name);
+        releases[name](_player.fx);
+        uint64_t rested = unitRenders();
+        for (int second = 0; second < 60; second++) {
+            rested = unitRenders();
+            [self render:48000];
+            if (unitRenders() == rested) break;
+        }
+        XCTAssertEqual(unitRenders(), rested, @"%@ (interrupted %@): never rested", name, interrupted);
+        [self play:url paused:NO position:0];
+        [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
+        XCTAssertEqual(unitRenders(), rested, @"%@ (interrupted %@): a released effect rendered", name, interrupted);
+    }
 }
 - (void)testDelayTimingStereoAndDecay {
     for (NSNumber *shortDelay in @[@NO,@YES]) for (NSNumber *bpm in @[@120,@160]) {
@@ -1639,7 +1705,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
             XCTAssertEqual([_player.debugRenderCounts[@"fxConnected"] boolValue], committedSystemOutput);
             XCTAssertEqual([_player.debugRenderCounts[@"varispeed"] boolValue], committedSystemOutput);
             [self assertReference:PCM([self read:url]) capture:[self renderSeconds:2.1]
-                             skip:[self startupSkip] tolerance:(committedSystemOutput ? 1e-10 : 0)];
+                             skip:[self startupSkip] tolerance:0];
         }
         }
     } @finally {
