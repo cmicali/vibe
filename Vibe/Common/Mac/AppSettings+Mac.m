@@ -869,11 +869,6 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     return self.volumeControl ? self.volume : 1.0;
 }
 
-- (BOOL)volumeAtTopRight {
-    return self.volumeControl && [self.currentTheme.volumeLocation
-            isEqualToString:SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT];
-}
-
 - (BOOL)audioFXAllowed {
     return self.audioFXEnabled && !self.bitPerfectOutput;
 }

@@ -560,10 +560,12 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     [self addItem:STR_SETTINGS_WINDOW_TINT_ARTWORK value:SETTINGS_VALUE_WINDOW_TINT_ARTWORK to:_volumeTintPopUp];
     [self addItem:STR_SETTINGS_THEME_VOLUME_TINT_WAVEFORM value:SETTINGS_VALUE_VOLUME_TINT_WAVEFORM to:_volumeTintPopUp];
     [self addItem:STR_SETTINGS_WINDOW_TINT_CUSTOM value:SETTINGS_VALUE_WINDOW_TINT_CUSTOM to:_volumeTintPopUp];
+    // Every waveform theme resolution re-resolves the slider's fill, so a
+    // drag takes that effect rather than Volume's relayout.
     _volumeTintDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL
-            control:[self wellForDark:YES base:kVibeThemeColorVolumeTint effect:VibeSettingsLiveEffectVolume]];
+            control:[self wellForDark:YES base:kVibeThemeColorVolumeTint effect:VibeSettingsLiveEffectWaveformTheme]];
     _volumeTintLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_LIGHT_LABEL
-            control:[self wellForDark:NO base:kVibeThemeColorVolumeTint effect:VibeSettingsLiveEffectVolume]];
+            control:[self wellForDark:NO base:kVibeThemeColorVolumeTint effect:VibeSettingsLiveEffectWaveformTheme]];
     _volumeLabelsSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectVolume
             write:^(AppTheme *theme, BOOL on) { theme.showVolumeLabels = on; }];
     _volumeLocationPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(volumeLocationChanged:)];
@@ -706,13 +708,13 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
         _transportSection,
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_INFO_SECTION rows:infoRows],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_VOLUME_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_VOLUME_TINT control:_volumeTintPopUp],
-            _volumeTintDarkRow,
-            _volumeTintLightRow,
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SHOW_VOLUME_LABELS control:_volumeLabelsSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_VOLUME_LOCATION
                                   caption:STR_SETTINGS_THEME_VOLUME_LOCATION_CAPTION
                                   control:_volumeLocationPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SHOW_VOLUME_LABELS control:_volumeLabelsSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_VOLUME_TINT control:_volumeTintPopUp],
+            _volumeTintDarkRow,
+            _volumeTintLightRow,
         ]],
         _timeSection,
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYLIST_SECTION rows:playlistRows],

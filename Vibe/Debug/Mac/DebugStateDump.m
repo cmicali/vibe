@@ -91,8 +91,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"volumeSlider": @{@"value": @(controller.playerContentView.volumeSlider.doubleValue),
                                @"hidden": @(controller.playerContentView.volumeControlView.isHidden),
                                @"alpha": @(controller.playerContentView.volumeControlView.alphaValue),
-                               // The drag's hold on the hover (volumeSliderDidMove), a private ivar.
-                               @"dragging": [controller.playerContentView valueForKey:@"_volumeDragging"],
+                               @"dragging": @(controller.playerContentView.volumeDragging),
                                @"fill": VibeHexStringFromColor(controller.playerContentView.volumeSlider.trackFillColor) ?: @""},
             @"converting": @(controller.fileConverter.isConverting),
             @"convertSweep": @(controller.trackDisplay.convertSweepFraction),
