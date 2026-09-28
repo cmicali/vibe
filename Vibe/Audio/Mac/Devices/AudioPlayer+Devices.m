@@ -443,8 +443,12 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
     if (_terminating) return NO;
     _rebindDeviceID = deviceID;
     // The device's own time is the output unit's, off this queue.
+    // A phase because the rebind stops the output first: without one the
+    // queue stall watcher parks, and a slow rebind holds plays unsampled.
     uint64_t reboundAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
-    BOOL rebound = [self rebindOutputOnQueueToDevice:deviceID];
+    BOOL rebound = [self performDiagnosticPhase:@"device rebind" device:deviceID operation:^BOOL{
+        return [self rebindOutputOnQueueToDevice:deviceID];
+    }];
     NSTimeInterval seconds =
             (double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - reboundAt) / NSEC_PER_SEC;
     BOOL slowRebind = seconds > kSlowDeviceRebindLogThresholdSeconds;
@@ -652,14 +656,38 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
     LogDebug(@"setOutputDevice: %@", @(outputDeviceID));
 
     AudioDeviceID newDeviceID = kAudioObjectUnknown;
+    NSArray<AudioDevice *> *devices = nil;
     if (outputDeviceID >= 0) {
         newDeviceID = (AudioDeviceID)outputDeviceID;
     }
-    else if (![CoreAudioUtil readSystemDefaultOutputDeviceID:&newDeviceID]) {
-        // Following System Output is still the durable policy, but a transient
-        // property-read failure says nothing about whether hardware exists. Do
-        // not tear down or park a graph on that unknown verdict.
-        LogWarn(@"AudioPlayer: could not read the system default output device");
+    else {
+        // TRAP: the default comes from the manager's snapshot, which it
+        // refreshes before either observer fires, never from the HAL: a read
+        // here waits behind whatever coreaudiod is doing (366 ms measured
+        // during a DAC replug), and every transport command waits behind it.
+        devices = AudioDeviceManager.sharedInstance.cachedOutputDevices;
+        for (AudioDevice *device in devices) {
+            if (device.isSystemDefault) {
+                newDeviceID = (AudioDeviceID)device.deviceId;
+                break;
+            }
+        }
+    }
+
+    if (newDeviceID == kAudioObjectUnknown && devices.count > 0) {
+        // Devices exist but none is the default: macOS names none for a moment
+        // while it moves the default (390 ms measured). The bound unit keeps
+        // playing, and the default's notification or one retry binds it.
+        LogWarn(@"AudioPlayer: no system default output device among %lu devices yet", (unsigned long)devices.count);
+        self.currentlyRequestedAudioDeviceId = -1;
+        [self notifyRequestedOutputDeviceOnQueue];
+        [self scheduleSystemOutputBindRetryOnQueue];
+        return NO;
+    }
+    if (newDeviceID == kAudioObjectUnknown && !devices) {
+        // No snapshot yet says nothing about whether hardware exists. Do not
+        // tear down or park a graph on that unknown verdict.
+        LogWarn(@"AudioPlayer: no device snapshot to find the system default output device in");
         self.currentlyRequestedAudioDeviceId = -1;
         [self notifyRequestedOutputDeviceOnQueue];
         [self scheduleSystemOutputBindRetryOnQueue];
@@ -669,10 +697,10 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
     }
 
     if (newDeviceID == kAudioObjectUnknown) {
-        // The default read succeeded and answered "none": no output device
-        // exists at all. Only the -1 path can land here — every concrete id
-        // is a real enumerated device — so following System Output remains
-        // the honest committed choice while nothing exists to bind.
+        // A published snapshot with no output device at all. Only the -1 path
+        // can land here — every concrete id is a real enumerated device — so
+        // following System Output remains the honest committed choice while
+        // nothing exists to bind.
         LogError(@"AudioPlayer: no output device exists to fall back to");
         [self parkPlaybackForMissingOutputDeviceOnQueue];
         self.currentlyRequestedAudioDeviceId = outputDeviceID;
