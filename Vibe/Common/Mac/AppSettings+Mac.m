@@ -155,6 +155,11 @@ const size_t kVibeUIUpdateHzCapPresetCount =
             legacyValues[field] = value;
         }
     }
+    NSString *waveformTheme = VibeMigratedWaveformTheme([defaults stringForKey:SETTING_WAVEFORM_THEME],
+                                                        [defaults stringForKey:SETTING_WAVEFORM_STYLE]);
+    if (waveformTheme) {
+        legacyValues[@"waveformTheme"] = waveformTheme;
+    }
     NSDictionary *record = [AppTheme migratedRecordFromLegacyValues:legacyValues];
     if (record) {
         NSString *identifier = NSUUID.UUID.UUIDString;

@@ -32,7 +32,6 @@ const size_t kVibeCrossfadePresetCount =
         // "no stored value", and objectForKey: consults the registration
         // domain, so a registered default would read as stored.
         [self migrateLegacyWaveformStyle];
-        [self migrateWaveformTheme];
 #if TARGET_OS_OSX
         [self migrateLooseAppearanceSettingsToTheme];
 #endif
@@ -155,15 +154,6 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
                                               forKey:SETTING_WIDGET_WAVEFORM_STYLE];
 }
 #endif
-
-- (void)migrateWaveformTheme {
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    NSString *migrated = VibeMigratedWaveformTheme([defaults stringForKey:SETTING_WAVEFORM_THEME],
-                                                   [defaults stringForKey:SETTING_WAVEFORM_STYLE]);
-    if (migrated) {
-        [defaults setObject:migrated forKey:SETTING_WAVEFORM_THEME];
-    }
-}
 
 #if !TARGET_OS_OSX
 - (NSString *)waveformTheme {

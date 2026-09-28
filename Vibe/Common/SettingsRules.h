@@ -188,11 +188,11 @@ static inline double VibeNormalizedWaveformGainDB(double gainDB) {
     double clamped = MAX(-kVibeWaveformGainMaxDB, MIN(kVibeWaveformGainMaxDB, gainDB));
     return round(clamped * 2) / 2;
 }
-#endif  // TARGET_OS_OSX
 
-// The theme to write, or nil. A stored sonic_cirrus style with no theme key
-// keeps the orange that style used to draw; any theme key means the
-// migration ran or the user chose.
+// The pre-theme mac store's waveform theme, or nil. A sonic_cirrus style with
+// no theme key keeps the orange that style used to draw; a stored theme key
+// was the user's choice. Pre-theme stores exist only on the mac: an iOS store
+// with no theme key is a user who never picked one.
 static inline NSString *_Nullable VibeMigratedWaveformTheme(NSString *_Nullable storedTheme,
                                                             NSString *_Nullable storedStyle) {
     if (storedTheme) {
@@ -200,6 +200,7 @@ static inline NSString *_Nullable VibeMigratedWaveformTheme(NSString *_Nullable 
     }
     return [storedStyle isEqualToString:@"sonic_cirrus"] ? SETTINGS_VALUE_WAVEFORM_THEME_ORANGE : nil;
 }
+#endif  // TARGET_OS_OSX
 
 // Reset to Defaults' enabled decision. A registered key counts only when its
 // stored value differs from the default, so a migration writing the default
