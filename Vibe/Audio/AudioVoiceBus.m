@@ -8,6 +8,7 @@
 #import "AudioPlayer+Debug.h"
 #endif
 #import "AudioFileHandle.h"
+#import "AudioResampler.h"
 
 #import <Accelerate/Accelerate.h>
 #import <AudioToolbox/AudioToolbox.h>
@@ -428,6 +429,7 @@ VIBE_REALTIME_END
     VibeVoiceID identifier;
     AudioFileHandle *file;
     AudioConverterRef converter;     // disposed with the record, or when it is re-prepared
+    VibeR8Resampler *r8brain;        // in the converter's place when the bus's resampler is r8brain
     AVAudioPCMBuffer *readBuffer;    // the file's processing format
     AVAudioPCMBuffer *mixBuffer;     // the bus's channels at the file's rate, what a converter takes after the mix
     AVAudioPCMBuffer *stageBuffer;   // the bus format, what the ring takes; one per slot for the bus's life
@@ -469,6 +471,15 @@ static void VibeDisposeConverter(AudioVoiceRecord *record) {
         AudioConverterDispose(record->converter);
         record->converter = NULL;
     }
+    if (record->r8brain) {
+        VibeR8ResamplerDispose(record->r8brain);
+        record->r8brain = NULL;
+    }
+}
+
+// Either resampler: the stream's end, the hold-open and the flush treat them alike.
+static inline BOOL VibeRecordConverts(AudioVoiceRecord *record) {
+    return record->converter || record->r8brain;
 }
 
 @implementation AudioVoiceRecord
@@ -496,6 +507,10 @@ static void VibeDisposeConverter(AudioVoiceRecord *record) {
     uint64_t _nextRetireOrder;
 #if DEBUG
     _Atomic int32_t _debugConversionRefused; // a test's failing converter
+    // Per VibeResampler: decode-thread CPU spent resampling (the fill less
+    // the file reads inside it), and the bus frames it produced.
+    _Atomic uint64_t _debugResampleNanos[2];
+    _Atomic uint64_t _debugResampledFrames[2];
 #endif
 }
 
@@ -510,6 +525,7 @@ static void VibeDisposeConverter(AudioVoiceRecord *record) {
         return nil;
     }
     _converterQuality = kAudioConverterQuality_Max;
+    _resampler = VibeResamplerApple;
     uint32_t capacity = 1;
     while (capacity < busFormat.sampleRate) {
         capacity <<= 1; // ≥ 1 s at the bus rate
@@ -753,25 +769,33 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
         record->mixBuffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:fed frameCapacity:kDecodeChunkFrames];
     }
     AudioConverterRef converter = NULL;
-    if (AudioConverterNew(fed.streamDescription, _format.streamDescription, &converter) != noErr || !converter) {
-        return NO;
-    }
-    UInt32 quality = self.converterQuality;
-    AudioConverterSetProperty(converter, kAudioConverterSampleRateConverterQuality, sizeof(quality), &quality);
-    if (fed.sampleRate != _format.sampleRate) {
-        // The read-back is the check: macOS reports the complexity it took,
-        // iOS reports none (its resampler has no selectable complexity) and
-        // runs at the quality alone.
-        UInt32 complexity = kAudioConverterSampleRateConverterComplexity_Mastering;
-        AudioConverterSetProperty(converter, kAudioConverterSampleRateConverterComplexity, sizeof(complexity), &complexity);
-        NSString *algorithm = VibeConverterAlgorithm(converter);
-        UInt32 took = VibeConverterQuality(converter);
-        if ((algorithm && ![algorithm isEqualToString:@"Mastering"]) || took != quality) {
-            LogWarn(@"AudioVoiceBus: the converter for %@ runs %@ at quality %u, not mastering at quality %u",
-                    file.url.lastPathComponent, algorithm, (unsigned)took, (unsigned)quality);
+    if (self.resampler == VibeResamplerR8brain) {
+        record->r8brain = VibeR8ResamplerCreate(fed.sampleRate, _format.sampleRate, _format.channelCount);
+        if (!record->r8brain) {
+            return NO;
         }
     }
-    record->converter = converter;
+    else {
+        if (AudioConverterNew(fed.streamDescription, _format.streamDescription, &converter) != noErr || !converter) {
+            return NO;
+        }
+        UInt32 quality = self.converterQuality;
+        AudioConverterSetProperty(converter, kAudioConverterSampleRateConverterQuality, sizeof(quality), &quality);
+        if (fed.sampleRate != _format.sampleRate) {
+            // The read-back is the check: macOS reports the complexity it took,
+            // iOS reports none (its resampler has no selectable complexity) and
+            // runs at the quality alone.
+            UInt32 complexity = kAudioConverterSampleRateConverterComplexity_Mastering;
+            AudioConverterSetProperty(converter, kAudioConverterSampleRateConverterComplexity, sizeof(complexity), &complexity);
+            NSString *algorithm = VibeConverterAlgorithm(converter);
+            UInt32 took = VibeConverterQuality(converter);
+            if ((algorithm && ![algorithm isEqualToString:@"Mastering"]) || took != quality) {
+                LogWarn(@"AudioVoiceBus: the converter for %@ runs %@ at quality %u, not mastering at quality %u",
+                        file.url.lastPathComponent, algorithm, (unsigned)took, (unsigned)quality);
+            }
+        }
+        record->converter = converter;
+    }
     record->readBuffer = record->readBuffer ?: [[AVAudioPCMBuffer alloc] initWithPCMFormat:source frameCapacity:kDecodeChunkFrames];
     [self setConversion:[self conversionFrom:source mixed:record->mixMap != nil converter:converter] forRecord:record];
     return record->readBuffer && (!record->mixMap || record->mixBuffer);
@@ -785,8 +809,13 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
         @"mixed": @(mixed), @"resampled": @(source.sampleRate != _format.sampleRate),
     } mutableCopy];
     if (converter && source.sampleRate != _format.sampleRate) {
+        conversion[@"resampler"] = @"apple";
         conversion[@"algorithm"] = VibeConverterAlgorithm(converter); // nil sets nothing
         conversion[@"quality"] = @(VibeConverterQuality(converter));
+    }
+    else if (!converter && source.sampleRate != _format.sampleRate) {
+        conversion[@"resampler"] = @"r8brain";
+        conversion[@"algorithm"] = @"r8brain-free-src";
     }
     return conversion;
 }
@@ -1143,6 +1172,25 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
 
 - (void)debugRefuseConversion:(BOOL)refuse {
     atomic_store_explicit(&_debugConversionRefused, refuse ? 1 : 0, memory_order_seq_cst);
+}
+
+- (NSDictionary<NSString *, id> *)debugResamplerCostsResetting:(BOOL)reset {
+    NSMutableDictionary *costs = [NSMutableDictionary dictionary];
+    NSArray<NSString *> *names = @[@"apple", @"r8brain"];
+    for (int kind = 0; kind < 2; kind++) {
+        uint64_t nanos = reset ? atomic_exchange_explicit(&_debugResampleNanos[kind], 0, memory_order_relaxed)
+                               : atomic_load_explicit(&_debugResampleNanos[kind], memory_order_relaxed);
+        uint64_t frames = reset ? atomic_exchange_explicit(&_debugResampledFrames[kind], 0, memory_order_relaxed)
+                                : atomic_load_explicit(&_debugResampledFrames[kind], memory_order_relaxed);
+        double seconds = frames / _format.sampleRate;
+        costs[names[kind]] = @{
+            @"cpuSeconds": @(nanos / 1e9),
+            @"audioSeconds": @(seconds),
+            // Percent of one core to keep up in real time.
+            @"corePercent": @(seconds > 0 ? 100.0 * nanos / 1e9 / seconds : 0),
+        };
+    }
+    return costs;
 }
 #endif
 
@@ -1561,6 +1609,7 @@ typedef struct {
     __unsafe_unretained AudioVoiceRecord *record;
     NSUInteger slot;
     BOOL flushing;
+    uint64_t readNanos;       // thread CPU inside the file's reads, which the resampler's cost excludes
 } VibeConverterInput;
 
 // The file ran dry with the stream open. Private, so the fill's caller can
@@ -1579,9 +1628,15 @@ static OSStatus VibeConverterSupplyInput(AudioConverterRef converter, UInt32 *io
     NSError *readError = nil;
     AVAudioFrameCount wanted = *ioPackets < kDecodeChunkFrames ? *ioPackets : kDecodeChunkFrames;
     if (!input->flushing && !record->failure) {
+#if DEBUG
+        uint64_t started = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID);
+#endif
         if (![record->file readIntoBuffer:readBuffer frameCount:wanted error:&readError]) {
             [input->bus recordFailure:readError forSlot:input->slot];
         }
+#if DEBUG
+        input->readNanos += clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) - started;
+#endif
     }
     if (!input->flushing && readBuffer.frameLength > 0) {
         record->fedFrames += readBuffer.frameLength;
@@ -1634,7 +1689,7 @@ static OSStatus VibeConverterSupplyInput(AudioConverterRef converter, UInt32 *io
     BOOL flushing = record->stream == VibeStreamFlushing;
     *final = NO;
     NSError *error = nil;
-    if (!record->converter) {
+    if (!VibeRecordConverts(record)) {
         if (flushing) {
             *final = YES; // nothing held back: the end is now
             return 0;
@@ -1675,9 +1730,19 @@ static OSStatus VibeConverterSupplyInput(AudioConverterRef converter, UInt32 *io
         }
     }
     UInt32 frames = (UInt32)MIN((uint64_t)kDecodeChunkFrames, left);
-    VibeConverterInput input = { self, record, slot, flushing };
-    OSStatus status = AudioConverterFillComplexBuffer(record->converter, VibeConverterSupplyInput, &input, &frames, output, NULL);
+    VibeConverterInput input = { self, record, slot, flushing, 0 };
 #if DEBUG
+    uint64_t started = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID);
+#endif
+    OSStatus status = record->r8brain
+            ? VibeR8ResamplerFill(record->r8brain, VibeConverterSupplyInput, &input, &frames, output)
+            : AudioConverterFillComplexBuffer(record->converter, VibeConverterSupplyInput, &input, &frames, output, NULL);
+#if DEBUG
+    uint64_t spent = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) - started;
+    int kind = record->r8brain ? VibeResamplerR8brain : VibeResamplerApple;
+    atomic_fetch_add_explicit(&_debugResampleNanos[kind], spent > input.readNanos ? spent - input.readNanos : 0,
+                              memory_order_relaxed);
+    atomic_fetch_add_explicit(&_debugResampledFrames[kind], frames, memory_order_relaxed);
     if (atomic_load_explicit(&_debugConversionRefused, memory_order_relaxed)) {
         status = kAudio_ParamError;
     }
@@ -1733,7 +1798,7 @@ static OSStatus VibeConverterSupplyInput(AudioConverterRef converter, UInt32 *io
             atomic_store_explicit(&s->successorState, VibeSuccessorNone, memory_order_release);
             return YES;
         }
-        if (!successor && record->converter && written - consumed >= kOpenStreamReserveFrames) {
+        if (!successor && VibeRecordConverts(record) && written - consumed >= kOpenStreamReserveFrames) {
             atomic_store_explicit(&record->heldOpenAt, written, memory_order_release);
             return NO;
         }
@@ -1782,7 +1847,7 @@ static OSStatus VibeConverterSupplyInput(AudioConverterRef converter, UInt32 *io
 // not `written`, which the resampler holds back by its filter's length until
 // the successor pushes it out, so the next track would promote early.
 - (uint64_t)streamEndForRecord:(AudioVoiceRecord *)record written:(uint64_t)written {
-    if (!record->converter) {
+    if (!VibeRecordConverts(record)) {
         return written;
     }
     double ratio = _format.sampleRate / record->file.processingFormat.sampleRate;

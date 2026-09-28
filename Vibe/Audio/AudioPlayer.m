@@ -1025,6 +1025,24 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     });
 }
 
+@synthesize resampler = _resampler;
+
+- (VibeResampler)resampler {
+    os_unfair_lock_lock(&_stateLock);
+    VibeResampler resampler = _resampler;
+    os_unfair_lock_unlock(&_stateLock);
+    return resampler;
+}
+
+- (void)setResampler:(VibeResampler)resampler {
+    os_unfair_lock_lock(&_stateLock);
+    _resampler = resampler;
+    os_unfair_lock_unlock(&_stateLock);
+    dispatch_async(_queue, ^{
+        self->_voiceBus.resampler = resampler;
+    });
+}
+
 - (float)pitch {
     os_unfair_lock_lock(&_stateLock);
     float pitch = _pitch;
@@ -1395,6 +1413,12 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     __block NSDictionary *conversion;
     [self runSyncOnQueue:^{ conversion = [self->_voiceBus conversionOfVoice:self->_voice]; }];
     return conversion;
+}
+
+- (NSDictionary<NSString *, id> *)debugResamplerCostsResetting:(BOOL)reset {
+    __block NSDictionary *costs;
+    [self runSyncOnQueue:^{ costs = [self->_voiceBus debugResamplerCostsResetting:reset]; }];
+    return costs;
 }
 
 static NSString *VibeAudioLevelNormalizationModeName(VibeAudioLevelNormalizationMode normalizationMode) {

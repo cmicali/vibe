@@ -1,12 +1,65 @@
 # Future: the resampler's cost
 
-**Status: not planned (measured 2026-09-28).** Apple's converter is most of what ordinary playback costs whenever the device runs at another rate than the file, and a third-party resampler measured far cheaper at the same quality. Adopting one would reverse the root `AGENTS.md`'s "Apple frameworks only" rule for playback, so it needs a reason stronger than CPU on a Mac.
+**Status: under evaluation on `claude/r8brain-resampler` (2026-09-28).** r8brain-free-src is vendored and wired into the voice bus beside Apple's converter, selectable per player and switched live by a debug verb; Apple's stays the default everywhere. Adopting r8brain would reverse the root `AGENTS.md`'s "Apple frameworks only" rule for playback, so the decision needs a reason stronger than CPU on a Mac. The measurements below say it costs nothing in quality and saves a great deal of CPU; what is left is the decision and an iOS device measurement.
 
-## What it costs
+## What Apple's converter costs
 
 - **macOS** converts at `kAudioConverterQuality_Max`, always (`Audio/AGENTS.md`). A Time Profiler pass on an optimized build (silent real HAL, 44.1 kHz FLAC and MP3 into the built-in speakers at 48 kHz) put steady playback at 3.4% of one core, about 70% of it in Apple's `Resampler2::ConvertSIMD_SmallIntegerRatio`; FLAC decode was about 5%, the per-tick position UI about 3%. A file at the device's rate converts nothing.
 - **iOS** lowered its default to `kAudioConverterQuality_High` for cost (#74): 1.8% of a core against 3.3% at Max on device, flat to 21 kHz with the same alias rejection.
 
-## The alternative
+## What is built
 
-r8brain-free-src matched Apple's quality and cost 4–8× less CPU than Apple at High. The bus already hides the converter behind `VibeConverterSupplyInput` and the voice's chunk production (`AudioVoiceBus.m`), so a swap is local; the SRC tail `TRAP:` there is Apple's behavior and would need re-measuring, not porting. Worth revisiting if iOS battery life under long sessions becomes a complaint, or if a profile shows conversion dominating somewhere the rate cannot be matched.
+- **`Vibe/ThirdParty/r8brain/`**: r8brain-free-src at upstream `9e73d2dd`, with its PFFFT double-precision FFT (`Vibe/ThirdParty/AGENTS.md` has the build flags and why).
+- **`Audio/AudioResampler.{h,mm}`**: r8brain behind `AudioConverterFillComplexBuffer`'s shape, so the bus's one input proc (`VibeConverterSupplyInput`) drives either resampler, and the stream-end, hold-open and flush logic is shared unchanged (`VibeRecordConverts`). One `CDSPResampler24` per channel, pulled until a fill is met.
+- **`AudioPlayer.resampler`** (`VibeResamplerApple` default, `VibeResamplerR8brain`), pushed to the bus like `resamplingQuality`, applying from the next conversion; `dump_audio_path`'s conversion stage reports `resampler`.
+- **Debug verbs** (both platforms, `DebugCommonVerbs.m`): `set_resampler <apple|r8brain>` switches and re-voices the current track at its position (a seek), so the change is heard at once; `dump_resampler_costs [reset]` reports each resampler's decode-thread CPU (the fill less the file reads inside it), the bus audio it produced and `corePercent`, the real-time cost, since the bus was made or the last reset. A rebuilt bus starts from zero.
+- **`Tests/ResamplerQualityTests.m`** (`make test`): both resamplers through the production bus at 44.1→48, 48→44.1, 44.1→96, 96→44.1, 88.2→44.1, 96→48, 192→48 and 44.1→192, each held to the same bounds and the measured table attached to the result bundle as "resampler quality". It covers stepped sines (ripple, −0.1/−3 dB edges, THD, THD+N, stopband, phase delay and linear phase), a −60 dBFS noise floor, a continuous sweep to the source's Nyquist (every spur, in band and past the output's Nyquist), a band-limited sawtooth (everything that is not a harmonic), a twenty-tone null against the ideal with no fit, the round trip there and back, CCIF and SMPTE intermodulation, the impulse response's magnitude and phase every 10 Hz, a sine with +3 dBFS inter-sample peaks, silence, DC, exact duration and CPU. `testR8brainContinuesAcrossAGaplessBoundary` shows a split file queued as a successor equals the unsplit one. The metric list follows the measures practitioners name for SRC quality (dsp.stackexchange #92001; KVR "resampler quality" thread 614986), less memory footprint.
+
+## Settings chosen, and why
+
+From r8brain's README and class documentation:
+
+- **`CDSPResampler24`** (`r8brr24`, about 180 dB stopband): documented for "24-bit resampling (including 32-bit floating point resampling)", and the bus is float32. The 206.91 dB default is for double-precision output nothing here keeps.
+- **Transition band 2%**, the default and the tight end of the "2 to 3 … most cases" range: linear below 0.965 × Nyquist (21.28 kHz from 44.1), −3 dB at 21.61 kHz. Apple's Mastering/Max passband is slightly wider (−3 dB at 21.77 kHz). A narrower band costs CPU and latency for content above 21 kHz.
+- **Linear phase**: the tests read zero phase delay and flat group delay at every pair, the latency removed inside.
+- **`aMaxInLen` 4096**, the most the bus's proc supplies in one call.
+- **`R8B_PFFFT_DOUBLE`** (Ooura's precision; the single-precision `R8B_PFFFT` is "not recommended" for professional audio) with **`PFFFT_ENABLE_NEON`**, and **`R8B_EXTFFT`** (longer FFT blocks; the extra initial delay only means a voice's first fill pulls a little more input). PFFFT's NEON path is opt-in: without the macro arm64 silently builds its scalar fallback, which the vendored files' suppressed warnings hide (x86_64 picks SSE2 on its own). Against the Ooura build, identical quality and r8brain's cost down 15–30% (44.1→48: 0.099% → 0.076% of a core; 44.1→192: 0.194% → 0.160%); scalar PFFFT had given only 5–15%. Intel IPP does not apply on Apple silicon.
+- **`-O3` in every configuration** for the two vendored translation units, since Debug is where the comparison runs and Apple's converter is always optimized.
+
+**Performance audit.** Every SIMD path is live: r8brain's own NEON (`R8B_NEON`, from `__aarch64__`; SSE2 on x86_64) in the interpolator and half-band filters, and PFFFT's NEON FFT and block convolution once `PFFFT_ENABLE_NEON` is set (`clang -H` also confirms the vendored set is exactly what compiles). Upstream deliberately leaves its shuffled interpolation off on Apple silicon ("inefficient on M1"). A standalone benchmark of the production shim, 120 s per pair, median of three, % of one core:
+
+| pair | PFFFT NEON + EXTFFT (shipped) | NEON, no EXTFFT | PFFFT scalar + EXTFFT | Ooura + EXTFFT | Ooura (stock) |
+| --- | --- | --- | --- | --- | --- |
+| 44.1→48 | 0.077 | 0.079 | 0.089 | 0.090 | 0.099 |
+| 48→44.1 | 0.080 | 0.084 | 0.095 | 0.093 | 0.105 |
+| 96→44.1 | 0.095 | 0.094 | 0.114 | 0.113 | 0.132 |
+| 44.1→96 | 0.106 | 0.107 | 0.119 | 0.118 | 0.127 |
+| 192→48 | 0.096 | 0.098 | 0.110 | 0.108 | 0.115 |
+| 44.1→192 | 0.152 | 0.160 | 0.178 | 0.183 | 0.196 |
+
+EXTFFT's extra startup costs at most 0.1 ms on a voice's first fill (0.13–0.33 ms in all), and making a resampler is under 0.1 ms, its filters cached across voices. Not taken: a 3% transition band saves only 4–8% (0.077 → 0.072 at 44.1→48) for a passband −3 dB near 21.4 kHz instead of 21.6; `-ffast-math`, which reorders float math in a path measured to −150 dB; and AVX for Intel Macs, which would need app-wide per-architecture flags where SSE2 already runs.
+
+**No dither.** r8brain computes in double and hands float32 to a float32 bus, whose rounding error scales with the signal rather than sitting at a fixed floor dither would decorrelate: the −60 dBFS tone's residual is −209 dBFS with both resamplers, THD at 1 kHz near −160 dB, no truncation harmonics. The one integer requantization is the output's float → device conversion (`Audio/Mac/Devices/AGENTS.md`), downstream of the resampler and shared with Apple's path; dithering there is a separate question that matters only for a 16-bit device, and it could never apply under bit-perfect output. The README's PRVHASH suggestion is for requantizing to integers, which the resampler never does.
+
+## Measured (Apple Silicon Mac, unit test, Debug build with the resamplers optimized)
+
+Worst THD+N across the passband tones, the multitone null against the ideal, the round trip, and the CPU to keep up in real time:
+
+| pair | Apple THD+N | r8brain THD+N | Apple null | r8brain null | Apple round trip | r8brain round trip | Apple core % | r8brain core % |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 44.1→48 | −145.8 | −149.0 | −145.6 | −149.0 | −143.3 | −149.8 | 0.85 | 0.076 |
+| 48→44.1 | −146.2 | −150.0 | −146.0 | −149.2 | −143.2 | −149.5 | 0.85 | 0.079 |
+| 44.1→96 | −145.9 | −149.7 | −145.6 | −149.0 | −145.7 | −151.3 | 1.68 | 0.113 |
+| 96→44.1 | −148.1 | −151.2 | −148.2 | −150.4 | −144.3 | −149.0 | 1.71 | 0.093 |
+| 88.2→44.1 | −148.7 | −152.4 | −147.3 | −151.7 | −142.7 | −150.2 | 1.54 | 0.047 |
+| 96→48 | −148.9 | −152.6 | −147.3 | −151.7 | −142.5 | −150.2 | 1.68 | 0.051 |
+| 192→48 | −147.9 | −152.5 | −150.3 | −151.7 | −145.8 | −149.6 | 3.37 | 0.098 |
+| 44.1→192 | −146.2 | −149.6 | −145.7 | −148.9 | −148.0 | −151.8 | 3.42 | 0.160 |
+
+r8brain is equal or better on every quality measure except passband width (160 Hz narrower at −3 dB from 44.1), with stopband and sweep aliasing 5–7 dB deeper, and costs 11–33× less CPU; power-of-two ratios take its half-band path and are cheapest. In the running Debug app (`--no-audio-hw`, 96 kHz FLAC to the pump's 44.1 kHz), `dump_resampler_costs` read Apple at 4.1–4.7% of a core and r8brain at 0.56%. Both pass every bound in the test; the full table is the result bundle's attachment.
+
+## What is left
+
+- **iOS on device**: the same verbs on a phone, against Apple at High (iOS's default) and Max, and an Instruments pass for battery-relevant cost. The unit test covers macOS only.
+- **The decision**: default to r8brain (and whether iOS's Resampling setting then goes away, since High exists only for cost), keep it opt-in, or remove it. Adopting it means rewording the root `AGENTS.md`'s playback rule. The SRC tail `TRAP:` describes Apple's flush bug, which r8brain does not have — but r8brain has no end-of-stream call at all, and feeding zeros until the input's length × ratio is out is upstream's own way to take its tail (`example.cpp`), so the bus's silence flush is already its native path and there is no Apple-only work to strip from it. If Apple's converter were removed, only the `TRAP:`'s wording would change.
+- **Listening**: `set_resampler` switches live for an A/B at any rate the device refuses.

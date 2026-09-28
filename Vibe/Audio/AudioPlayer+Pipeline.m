@@ -1036,6 +1036,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
         return NO;
     }
     bus.converterQuality = VibeConverterQualityForResampling(self.resamplingQuality);
+    bus.resampler = self.resampler;
     __weak AudioPlayer *weakSelf = self;
     bus.needsDrain = ^{ [weakSelf drainVoiceBusOnQueue]; };
     for (AudioFileHandle *file in _retiredDecoderFiles) {

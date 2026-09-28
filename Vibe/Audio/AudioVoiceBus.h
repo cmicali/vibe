@@ -45,6 +45,7 @@
 
 #import <AVFAudio/AVFAudio.h>
 #import "FadeMath.h"
+#import "AudioResampler.h"
 
 @class AudioFileHandle;
 
@@ -154,6 +155,9 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // a stream already converting keeps its quality until its voice ends.
 // kAudioConverterQuality_Max by default. Atomic: read on the decode queue.
 @property (atomic) UInt32 converterQuality;
+// Which resampler every conversion made after the write uses; converterQuality
+// is Apple's alone. VibeResamplerApple by default. Atomic: read on the decode queue.
+@property (atomic) VibeResampler resampler;
 
 // Starts rendering `file` from `frame` (file frames) at `gain`, with `ramp`
 // pending — or paused, which carries no ramp: the first ramp set later is the

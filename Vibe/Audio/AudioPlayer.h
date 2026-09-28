@@ -13,6 +13,7 @@
 
 #import "AudioError.h"     // domain, userInfo key and codes; re-exported here
 #import "PlaybackIntent.h"
+#import "AudioResampler.h"  // VibeResampler
 
 typedef NS_ENUM(NSInteger, VibeResamplingQuality) {
     VibeResamplingQualityMaximum = 0,
@@ -57,6 +58,11 @@ NS_ASSUME_NONNULL_BEGIN
 // alias rejection, for about half the CPU (1.8% vs 3.3% of a core on device).
 // Applies to conversions begun after the write.
 @property (atomic) VibeResamplingQuality resamplingQuality;
+
+// Which resampler converts a file at another rate than the output's: Apple's
+// (the default, at resamplingQuality) or r8brain. Applies to conversions
+// begun after the write.
+@property (atomic) VibeResampler resampler;
 
 // Whether the meter publishes band levels; the shells enable it only for
 // counted indicator demand, modeled output audio and material visibility.
