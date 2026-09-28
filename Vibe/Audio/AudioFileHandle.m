@@ -5,6 +5,7 @@
 
 #import "AudioFileHandle.h"
 
+#import <Accelerate/Accelerate.h>
 #import <AudioToolbox/AudioToolbox.h>
 
 #include "dr_mp3/dr_mp3.h"
@@ -22,6 +23,10 @@ static atomic_bool sAppleMPEGDecoder = true;
 // the start would.
 static const SInt64 kVibeMPEGSeekPrerollPackets = 10;
 
+// Packets asked of the parser at once. One at a time, it made about four
+// small reads per MP3 frame, a tenth of the whole decode's time.
+enum { kVibeMPEGReadPackets = 16 };
+
 @implementation AudioFileHandle {
     // The callback context: valid from open until AudioFileClose returns in
     // dealloc. -1 once closed, or for a QuickTime container (below), whose
@@ -35,9 +40,15 @@ static const SInt64 kVibeMPEGSeekPrerollPackets = 10;
     // dr_mp3's decode: the parser's packets on a timeline of packet ×
     // framesPerPacket, with _mpegSkip frames before logical frame 0.
     drmp3dec *_mpeg;
+    // Up to kVibeMPEGReadPackets packets as the parser read them, from
+    // packet _mpegReadFirst on; _mpegPacket is the one decoded last.
+    uint8_t *_mpegRead;
+    UInt32 _mpegReadCapacity;
+    AudioStreamPacketDescription _mpegReadPackets[kVibeMPEGReadPackets];
+    SInt64 _mpegReadFirst;
+    UInt32 _mpegReadCount;
     uint8_t *_mpegPacket;
-    UInt32 _mpegPacketCapacity;
-    UInt32 _mpegPacketBytes; // the last packet read; 0 when none is held
+    UInt32 _mpegPacketBytes; // 0 when none is held
     UInt32 _mpegFramesPerPacket;
     UInt32 _mpegDelay;       // the synthesis filterbank's, in frames
     SInt64 _mpegSkip;
@@ -355,9 +366,11 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         }
         return NO;
     }
-    _mpegPacketCapacity = MAX(upperBound, 4096u);
+    // At least 4096 bytes, more than any MPEG audio frame, so the parser can
+    // always return one whatever its upper bound says.
+    _mpegReadCapacity = MAX(kVibeMPEGReadPackets * upperBound, 4096u);
     _mpeg = calloc(1, sizeof(*_mpeg));
-    _mpegPacket = malloc(_mpegPacketCapacity);
+    _mpegRead = malloc(_mpegReadCapacity);
     _mpegPCM = calloc(DRMP3_MAX_SAMPLES_PER_FRAME, sizeof(float));
     _mpegFramesPerPacket = description.mFramesPerPacket;
     // The parser's priming is the encoder's alone: Apple's decoder removes its
@@ -393,7 +406,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         _codec = NULL;
     }
     free(_mpeg);
-    free(_mpegPacket);
+    free(_mpegRead);
     free(_mpegPCM);
     [self closeParser];
     if (_descriptor >= 0) {
@@ -420,7 +433,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         SInt64 packet = (_mpegPosition + _mpegSkip) / _mpegFramesPerPacket;
         _mpegNextPacket = MAX(0, packet - kVibeMPEGSeekPrerollPackets);
         memset(_mpeg, 0, sizeof(*_mpeg));
-        _mpegPCMFrames = _mpegPCMOffset = _mpegPacketBytes = 0;
+        _mpegPCMFrames = _mpegPCMOffset = _mpegPacketBytes = _mpegReadCount = 0;
         return YES;
     }
     OSStatus status = !_codec || _writing ? kAudio_ParamError : ExtAudioFileSeek(_codec, MAX(0, frame));
@@ -541,15 +554,12 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         }
         UInt32 frames = (UInt32)MIN((SInt64)MIN(_mpegPCMFrames - _mpegPCMOffset, wanted - total), _length - _mpegPosition);
         const float *from = _mpegPCM + (size_t)_mpegPCMOffset * channels;
-        if (interleaved) {
+        if (interleaved || channels == 1) {
             memcpy(planes[0] + (size_t)total * channels, from, (size_t)frames * channels * sizeof(float));
         } else {
-            for (UInt32 c = 0; c < channels; c++) {
-                float *to = planes[c] + total;
-                for (UInt32 f = 0; f < frames; f++) {
-                    to[f] = from[(size_t)f * channels + c];
-                }
-            }
+            // Stereo, the only other width the open accepts.
+            DSPSplitComplex planar = {planes[0] + total, planes[1] + total};
+            vDSP_ctoz((const DSPComplex *)from, 2, &planar, 1, frames);
         }
         _mpegPCMOffset += frames;
         _mpegPosition += frames;
@@ -573,21 +583,29 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         return YES;
     }
     if (!flush) {
-        UInt32 bytes = _mpegPacketCapacity;
-        UInt32 count = 1;
-        AudioStreamPacketDescription packet = {0};
-        OSStatus status = AudioFileReadPacketData(_parser, false, &bytes, &packet, _mpegNextPacket, &count, _mpegPacket);
-        if (status == kAudioFileEndOfFileError || (status == noErr && count == 0)) {
-            _mpegPacketCount = _mpegNextPacket;
-            return [self decodeNextMPEGPacket:error];
-        }
-        if (status != noErr) {
-            if (error) {
-                *error = VibeHandleError(status, [NSString stringWithFormat:@"Reading %@ failed (%d)", _url.lastPathComponent, (int)status]);
+        if (_mpegNextPacket < _mpegReadFirst || _mpegNextPacket >= _mpegReadFirst + _mpegReadCount) {
+            UInt32 bytes = _mpegReadCapacity;
+            UInt32 count = kVibeMPEGReadPackets;
+            OSStatus status = AudioFileReadPacketData(_parser, false, &bytes, _mpegReadPackets, _mpegNextPacket, &count, _mpegRead);
+            if (status == kAudioFileEndOfFileError && count > 0) {
+                status = noErr; // the file's last packets, fewer than asked
             }
-            return NO;
+            _mpegReadFirst = _mpegNextPacket;
+            _mpegReadCount = status == noErr ? count : 0;
+            if (status == kAudioFileEndOfFileError || (status == noErr && count == 0)) {
+                _mpegPacketCount = _mpegNextPacket;
+                return [self decodeNextMPEGPacket:error];
+            }
+            if (status != noErr) {
+                if (error) {
+                    *error = VibeHandleError(status, [NSString stringWithFormat:@"Reading %@ failed (%d)", _url.lastPathComponent, (int)status]);
+                }
+                return NO;
+            }
         }
-        _mpegPacketBytes = bytes >= sizeof(_mpeg->header) ? bytes : 0;
+        const AudioStreamPacketDescription *packet = &_mpegReadPackets[_mpegNextPacket - _mpegReadFirst];
+        _mpegPacket = _mpegRead + packet->mStartOffset;
+        _mpegPacketBytes = packet->mDataByteSize >= sizeof(_mpeg->header) ? packet->mDataByteSize : 0;
         // TRAP: a fresh decoder syncs only by finding the next frame's header
         // after this one, which a single packet lacks, and then scans the
         // payload for a false one. The parser has already framed the packet,
@@ -596,6 +614,8 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
             memcpy(_mpeg->header, _mpegPacket, sizeof(_mpeg->header));
         }
     } else {
+        // Written over the last packet in place: nothing reads it again,
+        // since only a seek moves the cursor back and a seek drops the read.
         memcpy(_mpegPacket, _mpeg->header, sizeof(_mpeg->header));
         memset(_mpegPacket + sizeof(_mpeg->header), 0, _mpegPacketBytes - sizeof(_mpeg->header));
     }
