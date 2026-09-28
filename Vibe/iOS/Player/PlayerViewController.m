@@ -424,7 +424,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     VibeOutputRouteKind kind = _playback.outputRouteKind;
     NSString *name = _playback.outputRouteName;
     for (TrackPageCell *cell in _pagesView.visibleCells) {
-        [cell.routeView setRouteKind:kind deviceName:name];
+        [cell setOutputRouteKind:kind deviceName:name];
     }
 }
 
