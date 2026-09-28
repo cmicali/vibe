@@ -30,6 +30,10 @@
     [self notifyDidChangePlayState];
 }
 
+- (void)audioPlayerOutputDidBecomeIdle:(AudioPlayer *)audioPlayer {
+    [_audioSession deactivateIfIdle];
+}
+
 - (void)audioPlayerDidInitialize:(AudioPlayer *)audioPlayer {
 }
 

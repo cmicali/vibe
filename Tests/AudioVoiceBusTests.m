@@ -957,7 +957,11 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     XCTAssertTrue([_bus queueSuccessor:next forVoice:voice]);
     AudioVoiceBus *bus = _bus;
     NSUInteger polls = 0, missing = 0;
-    for (int i = 0; i < 2000; i++) {
+    // Bounded by time, not renders: the decoder is a real queue, and a render
+    // that outruns it underruns and consumes nothing.
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:5];
+    uint64_t consumed = 0;
+    while (deadline.timeIntervalSinceNow > 0) {
         [self renderWithoutFilling:256 into:nil];
         [self drain];
         __block NSSet<AudioFileHandle *> *files;
@@ -966,6 +970,8 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
         if (![files containsObject:next]) missing++;
         VibeVoiceSnapshot snapshot = [_bus snapshotOfVoice:voice];
         if (snapshot.boundary != UINT64_MAX && snapshot.consumed > snapshot.boundary + 8192) break;
+        if (snapshot.consumed == consumed) usleep(100);
+        consumed = snapshot.consumed;
     }
     XCTAssertEqual(missing, 0u, @"%lu of %lu snapshots lacked the successor while the decoder could be inside it",
                    (unsigned long)missing, (unsigned long)polls);

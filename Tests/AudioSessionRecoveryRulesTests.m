@@ -90,6 +90,20 @@
     XCTAssertFalse(VibeAudioSessionMayAutomaticallyResume(NO, NO, YES));
 }
 
+- (void)testDeactivationWaitsForARequestAndAnIdleOutput {
+    XCTAssertTrue(VibeAudioSessionMayDeactivate(YES, NO, YES));
+    // A pause whose output still runs, an FX tail included.
+    XCTAssertFalse(VibeAudioSessionMayDeactivate(YES, NO, NO));
+    // An idle edge after a play or resume reclaimed the session.
+    XCTAssertFalse(VibeAudioSessionMayDeactivate(NO, NO, YES));
+    XCTAssertFalse(VibeAudioSessionMayDeactivate(NO, NO, NO));
+}
+
+- (void)testAnInterruptionHoldsDeactivationUntilItEnds {
+    XCTAssertFalse(VibeAudioSessionMayDeactivate(YES, YES, YES));
+    XCTAssertFalse(VibeAudioSessionMayDeactivate(YES, YES, NO));
+}
+
 - (void)testConfigurationFirstHeadphoneLossBlocksAutomaticResume {
     VibeAudioSessionConfigurationAction action =
             VibeAudioSessionConfigurationActionForRoutes(

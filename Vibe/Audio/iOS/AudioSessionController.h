@@ -8,7 +8,7 @@
 //  the player's output itself — the delegate maps the verdicts onto the
 //  player's public transport and recovery API.
 //
-//  Main thread only: activate, deactivateWhenIdle and every delegate verdict
+//  Main thread only: activate, both deactivations and every delegate verdict
 //  run there. The media-reset receipt edge is the sole exception, documented
 //  on that delegate method: it must establish the player's queue barrier
 //  before a later main-thread play can pass it.
@@ -57,6 +57,10 @@ NS_ASSUME_NONNULL_BEGIN
 // current answer rather than delivering a pair already moved past.
 - (void)audioSessionOutputRouteDidChange:(AudioSessionController *)controller;
 
+// Whether the player's output has stopped and nothing has started it since
+// (AudioPlayer.outputIdle). Asked at the moment of every deactivation.
+- (BOOL)audioSessionOutputIsIdle:(AudioSessionController *)controller;
+
 @end
 
 @interface AudioSessionController : NSObject
@@ -78,12 +82,15 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)activate;
 
 // Releases the session, with NotifyOthersOnDeactivation so the app Vibe
-// interrupted gets its resume hint, once playback has sat idle for a grace
-// period longer than the player's own idle stop. Call whenever playback
-// pauses or ends; a subsequent activate cancels it, and it holds off while an
-// interruption is in progress, because deactivating mid-interruption can
-// forfeit the interruption-ended notification the resume depends on.
+// interrupted gets its resume hint, once the player's output is idle: at
+// once when it already is, else at the next deactivateIfIdle. Call whenever
+// playback pauses or ends; a subsequent activate cancels it, and it holds off
+// while an interruption is in progress, because deactivating mid-interruption
+// can forfeit the interruption-ended notification the resume depends on.
 - (void)deactivateWhenIdle;
+
+// Re-asks a release still wanted. Call at audioPlayerOutputDidBecomeIdle:.
+- (void)deactivateIfIdle;
 
 // What the audio is coming out of. Written together under one lock, so the
 // pair is always one route's answer. BEFORE the first activate the session can

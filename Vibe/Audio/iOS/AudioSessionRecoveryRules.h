@@ -69,4 +69,15 @@ static inline BOOL VibeAudioSessionMayAutomaticallyResume(
             && !mediaServicesResetActive;
 }
 
+// The session is released only under an output that has actually stopped: a
+// fixed delay cannot know how long an FX tail keeps the output rendering, and
+// deactivating under a running RemoteIO cuts it. An interruption holds the
+// release, since deactivating inside one can forfeit its Ended notification.
+static inline BOOL VibeAudioSessionMayDeactivate(
+        BOOL deactivationWanted,
+        BOOL interruptionActive,
+        BOOL outputIdle) {
+    return deactivationWanted && !interruptionActive && outputIdle;
+}
+
 NS_ASSUME_NONNULL_END

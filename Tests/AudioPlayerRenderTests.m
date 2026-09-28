@@ -2067,6 +2067,10 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
 }
 
 - (void)audioPlayer:(AudioPlayer *)p didPausePlaying:(AudioTrack *)t { [self record:@"pause" track:t]; }
+// What the iOS shell's session reads at this edge: the answer now, not the edge's.
+- (void)audioPlayerOutputDidBecomeIdle:(AudioPlayer *)p {
+    [_events addObject:@{@"event": @"idle", @"outputIdle": @(p.outputIdle)}];
+}
 - (void)audioPlayer:(AudioPlayer *)p didResumePlaying:(AudioTrack *)t { [self record:@"resume" track:t]; }
 - (void)audioPlayer:(AudioPlayer *)p didFinishSeeking:(AudioTrack *)t { [self record:@"seek" track:t]; }
 - (void)audioPlayer:(AudioPlayer *)p didFinishPlaying:(AudioTrack *)t { [self record:@"finish" track:t]; }
@@ -2855,6 +2859,9 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         __block BOOL running = YES;
         [self->_player runSyncOnQueue:^{ running = [[target valueForKey:@"outputUnit"] running]; }];
         XCTAssertFalse(running, @"the refused unit is still asked to run");
+        // The attempt left idle; the idle stop the park armed answers it again.
+        XCTAssertFalse(self->_player.outputIdle);
+        [self renderPastIdleStopExpectingIdleEdges:1];
     }];
 }
 
@@ -2965,6 +2972,138 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     _player.fx.reverbSendEnabled = NO;
 }
 
+// Silence to the far side of the idle stop's 6 s, in blocks large enough that
+// the stretch costs nothing, then the edge `edges` counts.
+- (void)renderPastIdleStopExpectingIdleEdges:(NSUInteger)edges {
+    NSUInteger blockSize = _blockSize;
+    _blockSize = 4096;
+    [self renderSeconds:6.1];
+    _blockSize = blockSize;
+    [self settleUntil:^BOOL { return [self count:@"idle"] == edges; }];
+    XCTAssertTrue(_player.outputIdle);
+}
+
+// outputIdle is what the iOS session's release waits for. A pause, a stop and
+// a track's end: idle is the idle stop's edge, not the verb's.
+- (void)testTheOutputIsIdleOnlyOnceItsIdleStopHasStoppedIt {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    XCTAssertTrue(_player.outputIdle, @"an output never started has nothing to stop");
+    AudioTrack *track = [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
+    [self render:4800];
+    XCTAssertFalse(_player.outputIdle);
+    [_player pause]; [self render:2048];
+    XCTAssertTrue(_player.isPaused);
+    XCTAssertFalse(_player.outputIdle, @"idle under a running output");
+    [self renderPastIdleStopExpectingIdleEdges:1];
+    XCTAssertFalse([_player.debugRenderCounts[@"running"] boolValue]);
+    [_player resume]; [self render:4800];
+    XCTAssertFalse(_player.outputIdle);
+    [_player stop]; [self render:4800];
+    XCTAssertTrue(_player.isStopped);
+    XCTAssertFalse(_player.outputIdle, @"a stop leaves the output warm for the next play");
+    [self renderPastIdleStopExpectingIdleEdges:2];
+    [self play:track.url paused:NO position:1.9];
+    [self renderSeconds:0.5];
+    [self settleUntil:^BOOL { return [self count:@"finish"] == 1; }];
+    XCTAssertFalse(_player.outputIdle);
+    [self renderPastIdleStopExpectingIdleEdges:3];
+}
+
+// The delay at 60 BPM declares a 25 s tail: ten seconds after the pause the
+// output is still rendering it, which is when a fixed timer released the
+// session under it.
+- (void)testATailLongerThanTenSecondsHoldsTheOutputFromIdle {
+    [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
+    [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
+    _player.fx.delayTapBPM = 60;
+    _player.fx.delaySendEnabled = YES;
+    [self render:24000];
+    _player.fx.delaySendEnabled = NO;
+    [_player pause]; [self render:2048];
+    __block NSTimeInterval tail = 0;
+    [_player runSyncOnQueue:^{ tail = self->_player.fx.longestTailSeconds; }];
+    XCTAssertGreaterThan(tail, 10.0, @"a tail the old delay already covered proves nothing");
+    _blockSize = 4096;
+    [self renderSeconds:10.1];
+    XCTAssertTrue([_player.debugRenderCounts[@"running"] boolValue], @"the idle stop cut a ringing tail");
+    XCTAssertFalse(_player.outputIdle, @"idle under a ringing tail");
+    XCTAssertEqual([self count:@"idle"], 0u);
+    [self renderSeconds:tail + 1.5];
+    XCTAssertFalse([_player.debugRenderCounts[@"running"] boolValue]);
+    [self settleUntil:^BOOL { return [self count:@"idle"] == 1; }];
+    XCTAssertTrue(_player.outputIdle);
+}
+
+// A resume inside the idle stop's delay cancels it: no edge, then or later.
+- (void)testAResumeBeforeTheIdleStopLeavesNothingToRelease {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
+    [self render:4800];
+    [_player pause]; [self render:2048];
+    [self renderSeconds:5];
+    [_player resume];
+    [self renderSeconds:1.5]; // past the cancelled stop's deadline, short of the file's end
+    XCTAssertTrue(_player.isPlaying);
+    XCTAssertFalse(_player.outputIdle);
+    XCTAssertEqual([self count:@"idle"], 0u, @"the cancelled idle stop still reported");
+}
+
+// The idle edge is in flight to main when a new play starts the output: the
+// edge still arrives, and the answer it finds is the newer start's.
+- (void)testAnIdleEdgeOvertakenByANewPlayFindsTheOutputStarted {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    AudioTrack *track = [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
+    [self render:4800];
+    [_player pause]; [self render:2048];
+    // Rendered without a turn of main's run loop, so the edge stays queued.
+    for (NSUInteger rendered = 0; rendered < 48000 * 7 && !_player.outputIdle; rendered += 256) {
+        XCTAssertNotNil([_player debugRenderFrames:256 error:NULL]);
+    }
+    XCTAssertTrue(_player.outputIdle);
+    XCTAssertEqual([self count:@"idle"], 0u);
+    [_player play:track];
+    for (int spin = 0; spin < 50000 && _player.outputIdle; spin++) usleep(100);
+    XCTAssertFalse(_player.outputIdle, @"the play never started the output");
+    [self settleUntil:^BOOL { return [self count:@"idle"] == 1 && [self count:@"start"] == 2; }];
+    for (NSDictionary *event in _events) {
+        if ([event[@"event"] isEqual:@"idle"]) XCTAssertFalse([event[@"outputIdle"] boolValue], @"a stale edge read as idle");
+    }
+}
+
+// An open that fails, and one that lands parked, never started the output:
+// nothing will stop it later, so it must already answer idle.
+- (void)testAFailedOrParkedOpenLeavesTheOutputIdle {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    [_player play:[AudioTrack withURL:[_temporary URLByAppendingPathComponent:@"missing.wav"]]];
+    [self settleUntil:^BOOL { return self->_playError != nil; }];
+    XCTAssertTrue(_player.isStopped);
+    XCTAssertTrue(_player.outputIdle, @"a failed open waits for a stop that cannot come");
+    _playError = nil;
+    [self play:[self fixture:@"noise-48000-24-2.wav"] paused:YES position:0.5];
+    XCTAssertTrue(_player.isPaused);
+    XCTAssertTrue(_player.outputIdle, @"a parked open waits for a stop that cannot come");
+    [self renderSeconds:6.1];
+    XCTAssertEqual([self count:@"idle"], 0u, @"an output that never left idle has no edge");
+}
+
+// An interruption: the system stops the unit under the app and the verdict
+// pauses. The output still answers idle only at its idle stop.
+- (void)testASystemStopAnswersIdleAtItsIdleStop {
+    self.continueAfterFailure = YES;
+    [self withOutputUnitStartingAs:^OSStatus { return noErr; } body:^(AudioPlayer *target) {
+        [self->_player play:[AudioTrack withURL:[self fixture:@"noise-44100-24-2.wav"]]];
+        [self settleUntil:^BOOL { return [self count:@"start"] == 1; }];
+        __block AudioOutputUnit *unit = nil;
+        [self->_player runSyncOnQueue:^{ unit = [target valueForKey:@"outputUnit"]; }];
+        [unit waitUntilIdle];
+        unit.failureHandler(nil, unit.runGeneration, NO); // what RemoteIO's IsRunning listener reports
+        [self->_player pause];
+        [self settleUntil:^BOOL { return [self count:@"pause"] == 1; }];
+        XCTAssertFalse([self->_player.debugRenderCounts[@"running"] boolValue]);
+        XCTAssertFalse(self->_player.outputIdle, @"a system stop is not the idle stop");
+        [self renderPastIdleStopExpectingIdleEdges:1];
+    }];
+}
 
 - (void)checkDecodeFailureForSuccessor:(BOOL)successor afterFrames:(NSUInteger)after superseded:(BOOL)superseded repeatedURL:(BOOL)repeatedURL {
     NSData *pcm = PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);

@@ -913,6 +913,10 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     [self notifyDidChangeOutputRoute];
 }
 
+- (BOOL)audioSessionOutputIsIdle:(AudioSessionController *)controller {
+    return _player.outputIdle;
+}
+
 - (void)audioSessionShouldRecoverOutput:(AudioSessionController *)controller {
     [_player recoverOutput];
 }
