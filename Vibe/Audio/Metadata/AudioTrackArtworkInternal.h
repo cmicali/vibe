@@ -54,11 +54,6 @@ typedef NSData *_Nullable (^AudioTrackArchivedDisplayArtProvider)(void);
 // Metadata workers only.
 - (nullable NSData *)artDataForArchivedDisplayArt;
 
-// Held until the cache write takes it, once; never copied, so rows carry
-// only thumbnail bytes.
-- (void)stashArchivedDisplayArtDataForStorage:(nullable NSData *)data;
-- (nullable NSData *)takeArchivedDisplayArtDataForStorage;
-
 @property (readonly) BOOL hasEmbeddedArt;
 
 // Never inserts into the display cache, so a scan cannot evict visible
