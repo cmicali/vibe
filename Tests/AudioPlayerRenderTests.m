@@ -3248,7 +3248,9 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertTrue(_player.outputIdle);
     XCTAssertEqual([self count:@"idle"], 0u);
     [_player play:track];
-    for (int spin = 0; spin < 50000 && _player.outputIdle; spin++) usleep(100);
+    // Polled without a turn of main's run loop, which would deliver the queued edge.
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
+    while (_player.outputIdle && deadline.timeIntervalSinceNow > 0) usleep(100);
     XCTAssertFalse(_player.outputIdle, @"the play never started the output");
     [self settleUntil:^BOOL { return [self count:@"idle"] == 1 && [self count:@"start"] == 2; }];
     for (NSDictionary *event in _events) {
