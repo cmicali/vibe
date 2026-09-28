@@ -319,6 +319,23 @@ AUDIO_PY
         [ -s "$render_dir/hot.mp3" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -af volume=12dB,alimiter=limit=1:level=false -c:a libmp3lame -b:a 320k "$render_dir/hot.mp3"
         [ -s "$render_dir/lossy.qta" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -c:a aac -f mov "$render_dir/lossy.qta"
     fi
+    # The ISO/IEC 11172-4 Layer III compliance stream and its reference decode
+    # (float32), from FFmpeg's FATE mirror. They are ISO's, so they are fetched
+    # rather than committed, pinned by hash, and skipped when unreachable.
+    if [ ! -s "$render_dir/iso-compl.f32" ] && command -v rsync >/dev/null; then
+        fate=rsync://fate-suite.ffmpeg.org/fate-suite/mp3-conformance
+        if rsync --contimeout=20 --timeout=60 -q "$fate/compl.bit" "$render_dir/iso-compl.mp3" \
+                && rsync --contimeout=20 --timeout=60 -q "$fate/compl.f32" "$render_dir/iso-compl.f32" \
+                && printf '%s  %s\n%s  %s\n' \
+                    3b93f3675821a5af4826abcff7097fa2e42efcc46154e02c992995f7e31dbc8e "$render_dir/iso-compl.mp3" \
+                    f17b6744a4c01ab08c56c2eea9857e203291183dd6a2626ee6971cc19dc75fe7 "$render_dir/iso-compl.f32" \
+                    | shasum -a 256 -c --quiet; then
+            :
+        else
+            rm -f "$render_dir/iso-compl.mp3" "$render_dir/iso-compl.f32"
+            echo "note: the ISO compliance stream could not be fetched; its test will skip" >&2
+        fi
+    fi
     exit 0
 fi
 

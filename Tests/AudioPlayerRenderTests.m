@@ -506,6 +506,49 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 - (void)testMP3CBR { [self checkLossy:@"cbr.mp3" tolerance:0]; }
 - (void)testMP3VBR { [self checkLossy:@"vbr.mp3" tolerance:0]; }
 - (void)testMP2 { [self checkLossy:@"lossy.mp2" tolerance:0]; }
+// The ISO/IEC 11172-4 Layer III compliance stream, scored on its Annex A
+// thresholds against the reference decode: full accuracy is an RMS error
+// below 2^-15/sqrt(12) with no sample off by more than 2^-14. dr_mp3 passes with
+// the margin of a float decoder (about 140x measured, 50x required), so a
+// regression to 16-bit output fails here; Apple's 16-bit output sits on the
+// line, within limited accuracy. The handle drops the decoder's 529-frame
+// delay, so its frame 0 is the reference's frame 529. The last 529 frames are
+// left out of both scores: the stream ends in a truncated frame the reference
+// decoder decoded and CoreAudio's parser does not serve, so there dr_mp3's
+// drain and Apple's zero fill both meet audio the file does not hold.
+- (void)testDrMP3PassesTheISOComplianceStreamAtFullAccuracy {
+    NSURL *url = [self fixture:@"iso-compl.mp3"];
+    NSString *referencePath = [self fixture:@"iso-compl.f32"].path;
+    XCTSkipUnless([NSFileManager.defaultManager fileExistsAtPath:referencePath],
+                  @"The ISO compliance stream was not fetched (FFmpeg's FATE mirror unreachable); regenerate");
+    NSData *referenceBytes = [NSData dataWithContentsOfFile:referencePath];
+    const float *reference = referenceBytes.bytes;
+    NSUInteger referenceFrames = referenceBytes.length / sizeof(float) - 529;
+    const double fullRMS = 1.0 / 32768 / sqrt(12), fullMax = 1.0 / 16384, limitedRMS = 1.0 / 2048 / sqrt(12);
+    BOOL prior = AudioFileHandle.appleMPEGDecoder;
+    [self addTeardownBlock:^{ AudioFileHandle.appleMPEGDecoder = prior; }];
+    double rms[2], worst[2];
+    for (NSUInteger apple = 0; apple < 2; apple++) {
+        AudioFileHandle.appleMPEGDecoder = apple;
+        AVAudioPCMBuffer *decoded = [self read:url];
+        XCTAssertEqual(decoded.format.channelCount, 1u);
+        NSUInteger frames = MIN(decoded.frameLength - 529, referenceFrames);
+        XCTAssertGreaterThan(frames, 200000u);
+        double sum = 0, max = 0;
+        for (NSUInteger f = 0; f < frames; f++) {
+            double error = (double)decoded.floatChannelData[0][f] - reference[f + 529];
+            sum += error * error;
+            max = fmax(max, fabs(error));
+        }
+        rms[apple] = sqrt(sum / frames);
+        worst[apple] = max;
+    }
+    XCTAssertLessThan(rms[0], fullRMS / 50, @"dr_mp3 RMS error %g", rms[0]);
+    XCTAssertLessThanOrEqual(worst[0], fullMax, @"dr_mp3 max error %g", worst[0]);
+    XCTAssertLessThan(rms[1], limitedRMS, @"Apple RMS error %g", rms[1]);
+    XCTAssertGreaterThan(rms[1], fullRMS / 4, @"Apple's decoder is no longer 16-bit: RMS error %g", rms[1]);
+}
+
 // dr_mp3's decode is what Apple's rounds to 16 bits: one length, samples
 // within Apple's four LSBs but for the last 529 frames, which Apple zero-fills
 // where dr_mp3 drains its filterbank, and overs Apple clips kept. A seek decodes
