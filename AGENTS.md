@@ -69,7 +69,7 @@ Test audio: `Assets/test_audio_files/` (gitignored). If missing, generate with t
 
 Consequences: **a new file in a shared directory joins the iOS target automatically**, so it must be AppKit-free or `TARGET_OS_OSX`-guarded. A shared source may not `#import` a header that only one platform's tree has, unguarded — Xcode's project-wide headermap resolves it by basename whatever the target membership, so it compiles and then fails at runtime or link.
 
-`make check-layout` enforces the rule — its header states the four assertions, and it, not this prose, is the authority; CI's `build-ios` job catches an AppKit leak.
+`make check-layout` enforces the rule — its header states the five assertions, the last of which fails on any `CLAUDE.md` or `CLAUDE.local.md` in or above the tree, since one makes Claude Code skip every `AGENTS.md`, and it, not this prose, is the authority; CI's `build-ios` job catches an AppKit leak.
 
 ## Subsystem map
 

@@ -268,7 +268,7 @@ check-vocabulary:
 	scripts/check-vocabulary.sh
 
 # Fail if the tree breaks AGENTS.md's layout rule; the script's header states
-# the four assertions.
+# the five assertions.
 check-layout:
 	scripts/check-layout.sh
 
