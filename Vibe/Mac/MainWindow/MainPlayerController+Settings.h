@@ -54,7 +54,8 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     VibeSettingsLiveEffectBitPerfect       = 1UL << 23,
     VibeSettingsLiveEffectDeclick          = 1UL << 24,
     VibeSettingsLiveEffectWindowLock       = 1UL << 25, // not theme state
-    // Pushes effectiveVolume to the player and shows or hides the slider.
+    // Pushes effectiveVolume to the player, shows or hides the slider, and
+    // dresses it from the theme: tint, labels, and the corner it takes.
     VibeSettingsLiveEffectVolume           = 1UL << 26,
     // Pushes the MP3 decoder choice to AudioFileHandle and reopens the park.
     VibeSettingsLiveEffectMP3Decoder       = 1UL << 27,
@@ -69,7 +70,8 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
                                            | VibeSettingsLiveEffectPlaylistAppearance
                                            | VibeSettingsLiveEffectTrackDisplay
                                            | VibeSettingsLiveEffectAppIcon
-                                           | VibeSettingsLiveEffectTransportButtons,
+                                           | VibeSettingsLiveEffectTransportButtons
+                                           | VibeSettingsLiveEffectVolume,
     // Every bitPerfectOutput write requests this: the FX and crossfade
     // branches are what withdraw FX and drop the crossfade under the mode.
     VibeSettingsLiveEffectBitPerfectApply  = VibeSettingsLiveEffectBitPerfect

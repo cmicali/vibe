@@ -79,6 +79,18 @@ static inline NSString *VibeNormalizedPlaylistTint(NSString *_Nullable identifie
     return VibeNormalizedTint(identifier, SETTINGS_VALUE_WINDOW_TINT_MONO);
 }
 
+// The tint ladder plus the waveform's played color, its default.
+static inline NSString *VibeNormalizedVolumeTint(NSString *_Nullable identifier) {
+    return [identifier isEqualToString:SETTINGS_VALUE_VOLUME_TINT_WAVEFORM]
+            ? identifier : VibeNormalizedTint(identifier, SETTINGS_VALUE_VOLUME_TINT_WAVEFORM);
+}
+
+static inline NSString *VibeNormalizedVolumeLocation(NSString *_Nullable identifier) {
+    return [identifier isEqualToString:SETTINGS_VALUE_VOLUME_LOCATION_BOTTOM]
+            ? SETTINGS_VALUE_VOLUME_LOCATION_BOTTOM
+            : SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT;
+}
+
 // Each snaps an unknown value to its factory choice.
 static inline NSString *VibeNormalizedThemeMode(NSString *_Nullable identifier) {
     return [identifier isEqualToString:SETTINGS_VALUE_THEME_MODE_SINGLE]
@@ -188,11 +200,11 @@ static inline double VibeNormalizedWaveformGainDB(double gainDB) {
     double clamped = MAX(-kVibeWaveformGainMaxDB, MIN(kVibeWaveformGainMaxDB, gainDB));
     return round(clamped * 2) / 2;
 }
-#endif  // TARGET_OS_OSX
 
-// The theme to write, or nil. A stored sonic_cirrus style with no theme key
-// keeps the orange that style used to draw; any theme key means the
-// migration ran or the user chose.
+// The pre-theme mac store's waveform theme, or nil. A sonic_cirrus style with
+// no theme key keeps the orange that style used to draw; a stored theme key
+// was the user's choice. Pre-theme stores exist only on the mac: an iOS store
+// with no theme key is a user who never picked one.
 static inline NSString *_Nullable VibeMigratedWaveformTheme(NSString *_Nullable storedTheme,
                                                             NSString *_Nullable storedStyle) {
     if (storedTheme) {
@@ -200,6 +212,7 @@ static inline NSString *_Nullable VibeMigratedWaveformTheme(NSString *_Nullable 
     }
     return [storedStyle isEqualToString:@"sonic_cirrus"] ? SETTINGS_VALUE_WAVEFORM_THEME_ORANGE : nil;
 }
+#endif  // TARGET_OS_OSX
 
 // Reset to Defaults' enabled decision. A registered key counts only when its
 // stored value differs from the default, so a migration writing the default

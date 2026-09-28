@@ -20,6 +20,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // A stable WaveformRendererRegistry identifier, never a display name.
 #define SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT               @"oversampling_detailed_x4"
+#define SETTINGS_VALUE_WIDGET_WAVEFORM_STYLE_DEFAULT        @"wiggle_centered"
 
 // Waveform color theme identifiers, resolved to colors only by WaveformTheme.
 #define SETTINGS_VALUE_WAVEFORM_THEME_MONO                  @"mono"
@@ -53,8 +54,8 @@ FOUNDATION_EXPORT const size_t kVibeCrossfadePresetCount;
 - (NSString *)waveformStyle;
 - (void)setWaveformStyle:(NSString *)identifier;
 
-// The home-screen widget's own style; nil (the default, and what an empty
-// string reads as) matches the app's.
+// The home-screen widget's own style, Wiggle by default; nil matches the
+// app's, stored as an empty string so it outranks the registered default.
 - (nullable NSString *)widgetWaveformStyle;
 - (void)setWidgetWaveformStyle:(nullable NSString *)identifier;
 

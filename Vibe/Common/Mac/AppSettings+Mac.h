@@ -258,7 +258,8 @@ static const double kVibeWaveformGainMaxDB = 12;
 - (BOOL)declick;
 - (void)setDeclick:(BOOL)declick;
 
-// Volume control, default off: a volume slider in the player window, revealed
+// Volume control, default off: a volume slider in the player window, top
+// right unless the theme moves it (AppTheme.volumeLocation), revealed
 // on hover like the transport. `volume` is its position, 0..1, kept while the
 // control is off. The switch requests VibeSettingsLiveEffectVolume; the
 // slider's own drag pushes the player and its percentage directly.

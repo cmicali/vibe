@@ -32,7 +32,6 @@ const size_t kVibeCrossfadePresetCount =
         // "no stored value", and objectForKey: consults the registration
         // domain, so a registered default would read as stored.
         [self migrateLegacyWaveformStyle];
-        [self migrateWaveformTheme];
 #if TARGET_OS_OSX
         [self migrateLooseAppearanceSettingsToTheme];
 #endif
@@ -53,6 +52,8 @@ const size_t kVibeCrossfadePresetCount =
     } mutableCopy];
 #if TARGET_OS_OSX
     [self registerMacDefaultsInto:appDefaults];
+#else
+    appDefaults[SETTING_WIDGET_WAVEFORM_STYLE] = SETTINGS_VALUE_WIDGET_WAVEFORM_STYLE_DEFAULT;
 #endif
     return appDefaults;
 }
@@ -140,7 +141,8 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     [[NSUserDefaults standardUserDefaults] setObject:identifier forKey:SETTING_WAVEFORM_STYLE];
 }
 
-// Empty reads as nil too, so a hand-edited plist cannot name no style.
+// Match app is the stored empty string: removing the key would read back the
+// registered Wiggle.
 - (NSString *)widgetWaveformStyle {
     NSString *identifier = [[NSUserDefaults standardUserDefaults]
             stringForKey:SETTING_WIDGET_WAVEFORM_STYLE];
@@ -148,24 +150,10 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 }
 
 - (void)setWidgetWaveformStyle:(NSString *)identifier {
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    if (identifier.length) {
-        [defaults setObject:identifier forKey:SETTING_WIDGET_WAVEFORM_STYLE];
-    }
-    else {
-        [defaults removeObjectForKey:SETTING_WIDGET_WAVEFORM_STYLE];
-    }
+    [[NSUserDefaults standardUserDefaults] setObject:identifier ?: @""
+                                              forKey:SETTING_WIDGET_WAVEFORM_STYLE];
 }
 #endif
-
-- (void)migrateWaveformTheme {
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    NSString *migrated = VibeMigratedWaveformTheme([defaults stringForKey:SETTING_WAVEFORM_THEME],
-                                                   [defaults stringForKey:SETTING_WAVEFORM_STYLE]);
-    if (migrated) {
-        [defaults setObject:migrated forKey:SETTING_WAVEFORM_THEME];
-    }
-}
 
 #if !TARGET_OS_OSX
 - (NSString *)waveformTheme {
