@@ -49,6 +49,10 @@ NS_ASSUME_NONNULL_BEGIN
 // Disconnecting rests every unit and tail without changing intent.
 - (void)setConnected:(BOOL)connected format:(nullable AVAudioFormat *)format maximumFrameCount:(UInt32)maximumFrameCount;
 
+// Media-services reset, on the player queue after withdrawing the chain:
+// dispose orphaned units without messaging them; the next connect re-hosts.
+- (void)markDead;
+
 // Whether the segment is in the chain. Player-queue only.
 @property (nonatomic, readonly) BOOL connected;
 

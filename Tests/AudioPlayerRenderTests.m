@@ -2979,11 +2979,11 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 // the player queue waits for, and it waits at most its bound.
 - (void)testAHungDeviceRateReadHoldsThePlayerQueueOnlyForItsBound {
     dispatch_semaphore_t release = dispatch_semaphore_create(0);
-    __block BOOL returned = NO;
+    __block _Atomic bool returned = false;
     Method method = class_getClassMethod(CoreAudioUtil.class, @selector(readNominalSampleRate:forDeviceID:));
     IMP replacement = imp_implementationWithBlock(^BOOL(id cls, Float64 *rate, AudioDeviceID deviceID) {
         dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC));
-        returned = YES;
+        atomic_store(&returned, true);
         return NO;
     });
     [self withOutputUnitStartingAs:^OSStatus { return noErr; } body:^(AudioPlayer *target) {
@@ -2996,7 +2996,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
             XCTAssertLessThan(waited, 2.0, @"the player queue waited out the hung device");
         } @finally {
             dispatch_semaphore_signal(release);
-            [self settleUntil:^BOOL { return returned; }];
+            [self settleUntil:^BOOL { return atomic_load(&returned); }];
             [self settleUntil:^BOOL { return [CoreAudioUtil performBoundedRead:^{} within:0.1 late:nil]; }];
             method_setImplementation(method, original);
             imp_removeBlock(replacement);

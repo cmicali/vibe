@@ -48,6 +48,7 @@ static double VibeTestRMS(NSData *capture, int channel, NSUInteger from, NSUInte
     AudioFX *_fx;
     VibeManualRenderPump *_pump;
     VibeTestSource _source; // what the render fills its input from; nil is silence
+    NSMutableArray<dispatch_block_t> *_renderLeaveWork;
 }
 
 - (void)setUp {
@@ -59,7 +60,11 @@ static double VibeTestRMS(NSData *capture, int channel, NSUInteger from, NSUInte
     _fx = [[AudioFX alloc] initWithQueue:_queue scheduler:^(NSTimeInterval seconds, dispatch_block_t block) {
         AudioFXChainTests *strongSelf = weakSelf;
         [strongSelf->_pump scheduleAfter:seconds block:block];
-    } afterRenderLeaves:^(dispatch_block_t work) { work(); }];
+    } afterRenderLeaves:^(dispatch_block_t work) {
+        AudioFXChainTests *strongSelf = weakSelf;
+        if (strongSelf && strongSelf->_renderLeaveWork) [strongSelf->_renderLeaveWork addObject:[work copy]];
+        else work();
+    }];
     [self attachPumpAt:kRate];
 }
 
@@ -417,6 +422,54 @@ static double VibeTestRMS(NSData *capture, int channel, NSUInteger from, NSUInte
     const float *out = capture.bytes;
     for (NSUInteger i = 0; i < capture.length / sizeof(float); i++) {
         XCTAssertTrue(isfinite(out[i]));
+    }
+}
+
+- (void)testDeadUnitsAreRehostedAtTheSameRateWhileConnectedOrBypassed {
+    for (NSNumber *bypassed in @[@NO, @YES]) {
+        _fx.lowKillCutoffHz = 300;
+        _fx.reverbSendLevel = 0.6f;
+        _fx.delaySendEnabled = YES;
+        _fx.delayTapBPM = 135;
+        [self connectAt:kRate];
+        [self render:kBlock source:^float(uint64_t frame, int channel) { return VibeTestNoise(frame, channel); } into:nil];
+        VibeFXChain *old = _fx.chain;
+        [self onQueue:^{
+            self->_renderLeaveWork = [NSMutableArray array];
+            if (bypassed.boolValue) [self->_fx setConnected:NO format:nil maximumFrameCount:kMaxFrames];
+            for (NSUInteger i = 0; i < 10; i++) {
+                XCTAssertTrue([self->_fx debugUninitializeUnitAtIndex:i]);
+            }
+            [self->_fx markDead];
+            [self->_fx markDead];
+            XCTAssertFalse(self->_fx.connected);
+            XCTAssertEqual(self->_fx.hostedUnitCount, 0u);
+            XCTAssertTrue(self->_fx.chain == NULL);
+        }];
+        uint64_t rendered = _fx.unitRenders;
+        uint64_t first = _pump.renderedFrames;
+        NSMutableData *dry = [NSMutableData data];
+        // Old cutoff and swell steps run while the hosting is absent.
+        [self render:48000 source:^float(uint64_t frame, int channel) { return VibeTestNoise(frame, channel); } into:dry];
+        [self assertCapture:dry isNoiseFrom:first];
+        XCTAssertEqual(_fx.unitRenders, rendered);
+        XCTAssertEqualWithAccuracy(_fx.lowKillCutoffHz, 300, 1e-6);
+        XCTAssertEqualWithAccuracy(_fx.reverbSendLevel, 0.6f, 1e-6);
+        XCTAssertTrue(_fx.delaySendEnabled);
+        XCTAssertEqualWithAccuracy(_fx.delayTapBPM, 135, 1e-6);
+        [self connectAt:kRate];
+        XCTAssertTrue(_fx.chain != old, @"the dead hosting was reused at the unchanged rate");
+        [self onQueue:^{
+            XCTAssertGreaterThan(self->_renderLeaveWork.count, 0u);
+            for (dispatch_block_t work in self->_renderLeaveWork) work();
+            self->_renderLeaveWork = nil;
+        }];
+        NSMutableData *wet = [NSMutableData data];
+        uint64_t impulse = _pump.renderedFrames + 4800;
+        [self render:48000 source:^float(uint64_t frame, int channel) { return frame == impulse ? 0.5f : 0.0f; } into:wet];
+        XCTAssertGreaterThan(VibeTestRMS(wet, 0, 9600, 9600), 0.000001, @"the rebuilt effects produced no tail");
+        const float *out = wet.bytes;
+        for (NSUInteger i = 0; i < wet.length / sizeof(float); i++) XCTAssertTrue(isfinite(out[i]));
     }
 }
 

@@ -821,6 +821,8 @@ VIBE_REALTIME_END
         _drainTimer = nil;
     }
     atomic_store_explicit(&_masterBus->gate, 0, memory_order_seq_cst);
+    atomic_store_explicit(&_masterBus->chain, NULL, memory_order_seq_cst);
+    [self.fx markDead];
     [self dropVoiceBusOnQueue];
     [self dropLevelMeterOnQueue];
     [_outputUnit markDead];

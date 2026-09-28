@@ -161,6 +161,7 @@ typedef enum {
 // the object's stages and render counter; freed only once the render was
 // seen outside it.
 struct VibeFXChain {
+    BOOL dead; // queue-only: orphaned units may only be disposed
     _Atomic uint64_t *unitRenders; // the object's, for its life
     double sampleRate;
     float slewPerFrame;
@@ -479,7 +480,12 @@ static void VibeFXStageSet(VibeFXStage *stage, VibeFXUnitIndex firstUnit, int un
 
 static void VibeFXChainFree(VibeFXChain *chain) {
     for (int i = 0; i < VibeFXUnitCount; i++) {
-        VibeDisposeAudioUnit(&chain->units[i].unit);
+        if (chain->dead) {
+            if (chain->units[i].unit) AudioComponentInstanceDispose(chain->units[i].unit);
+        }
+        else {
+            VibeDisposeAudioUnit(&chain->units[i].unit);
+        }
     }
     free(chain->storage);
     free(chain);
@@ -495,6 +501,9 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
         return;
     }
     stage->gain = 0;
+    if (chain->dead) {
+        return;
+    }
     for (int u = 0; u < stage->unitCount; u++) {
         if (chain->units[stage->firstUnit + u].unit) {
             AudioUnitReset(chain->units[stage->firstUnit + u].unit, kAudioUnitScope_Global, 0);
@@ -734,14 +743,25 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
         atomic_store_explicit(&stage->active, 0, memory_order_seq_cst);
         atomic_store_explicit(&stage->target, 0, memory_order_relaxed);
     }
-    [self setLowKillBandsFlat:YES];
-    [self setLowKillFrequency:kLowKillParkedHz];
     VibeFXChain *chain = _chain;
+    if (!chain->dead) {
+        [self setLowKillBandsFlat:YES];
+        [self setLowKillFrequency:kLowKillParkedHz];
+    }
     _afterRenderLeaves(^{
         for (int i = 0; i < VibeFXStageCount; i++) {
             VibeFXRestStage(chain, &chain->stages[i]);
         }
     });
+}
+
+- (void)markDead {
+    if (!_chain) {
+        return;
+    }
+    _chain->dead = YES;
+    [self disconnectOnQueue];
+    [self retireChain];
 }
 
 // The hosting leaves the object now and is freed once the render has left it.
