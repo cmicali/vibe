@@ -107,6 +107,9 @@
     }
 
     self.isComplete = [self isDecodeComplete:&pass filename:filename];
+    if (self.isComplete) {
+        waveform->markComplete();
+    }
 
     [self stretchWaveform:waveform pass:&pass numChunks:numChunks];
 

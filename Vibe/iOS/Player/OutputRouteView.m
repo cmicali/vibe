@@ -33,7 +33,6 @@ static const CGFloat kRoutePressedAlpha = 0.35;
     UIStackView         *_content;
     UIImageView         *_symbolView;
     UILabel             *_nameLabel;
-
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {

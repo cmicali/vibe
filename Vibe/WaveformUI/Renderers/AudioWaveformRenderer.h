@@ -70,7 +70,7 @@ static inline AudioWaveformCacheChunk VibeWaveformEnergyColumnForBar(AudioWavefo
 static inline float VibeWaveformFullScaleRMSForWaveform(AudioWaveform * _Nullable waveform,
                                                         BOOL normalize,
                                                         NSUInteger count) {
-    float loudest = (normalize && waveform && waveform->isFullyLoaded())
+    float loudest = (normalize && waveform && waveform->isComplete())
             ? sqrtf(waveform->getMaxMeanSquare(MIN(count, kVibeWaveformEnergyColumns))) : 0;
     return loudest > 0 ? fminf(loudest, kVibeWaveformFullScaleRMS) : kVibeWaveformFullScaleRMS;
 }

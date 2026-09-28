@@ -20,7 +20,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class WaveformScrubberView;
 
-// Portrait's bottom capsule, which rounds its own ends.
+// The route capsule, which rounds its own ends.
 @interface TrackPageActionBarView : UIView
 @end
 

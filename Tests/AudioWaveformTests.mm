@@ -384,19 +384,27 @@
 }
 
 // A quiet intro decoded ahead of a louder passage must not draw at full height
-// and then shrink: a streaming load holds the fixed reference.
+// and then shrink: a streaming load holds the fixed reference, and so does
+// every snapshot of it.
 - (void)testNormalizationWaitsForTheWholeTrack {
-    std::vector<AudioWaveformCacheChunk> source(4, AudioWaveformCacheChunk());
-    source[0].set(-0.1f, 0.1f, 0.01f * 4, 4);
-    AudioWaveform partial(source.size(), source.data());
-    XCTAssertFalse(partial.isFullyLoaded());
-    XCTAssertEqual(VibeWaveformFullScaleRMSForWaveform(&partial, YES, 4), kVibeWaveformFullScaleRMS);
-    for (NSUInteger i = 1; i < 4; i++) {
-        source[i].set(-0.2f, 0.2f, 0.04f * 4, 4);
+    AudioWaveformCacheChunk quiet;
+    quiet.set(-0.1f, 0.1f, 0.01f * 4, 4);
+    AudioWaveform loading;
+    for (NSUInteger i = 0; i < loading.getNumChunks(); i++) {
+        loading.setChunkAtIndex(quiet, i);
     }
-    AudioWaveform whole(source.size(), source.data());
-    XCTAssertTrue(whole.isFullyLoaded());
-    XCTAssertEqualWithAccuracy(VibeWaveformFullScaleRMSForWaveform(&whole, YES, 4), 0.2f, 1e-6);
+    AudioWaveform snapshot(loading);
+    XCTAssertFalse(snapshot.isComplete());
+    XCTAssertEqual(VibeWaveformFullScaleRMSForWaveform(&snapshot, YES, 1024), kVibeWaveformFullScaleRMS);
+
+    loading.markComplete();
+    AudioWaveform whole(loading);
+    XCTAssertTrue(whole.isComplete());
+    XCTAssertEqualWithAccuracy(VibeWaveformFullScaleRMSForWaveform(&whole, YES, 1024), 0.1f, 1e-6);
+
+    // An archive is only written complete.
+    AudioWaveform archived(1, &quiet);
+    XCTAssertTrue(archived.isComplete());
 }
 
 #pragma mark - getMaxMeanSquare

@@ -156,14 +156,15 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     AudioTrack *track = [_playlist trackAtIndex:index];
     NSString *errorText = _playback.errorText;
     BOOL showError = index == _playlist.currentIndex && errorText != nil;
+    BOOL showsInfo = VibeShowsFileInfo();
     // Full-size art or the placeholder, never the soft 128px thumbnail.
     [cell configureWithTitle:track.displayTitle
                   titleColor:[UIColor labelColor]
                       artist:(showError ? errorText : (track.displayArtist ?: @""))
                  artistColor:(showError ? [UIColor systemRedColor]
                                         : [UIColor secondaryLabelColor])
-                    fileInfo:(VibeShowsFileInfo() ? track.metadata.fileInfoLine : nil)
-                   tempoInfo:(VibeShowsFileInfo() ? [self tempoInfoLineForTrack:track] : nil)
+                    fileInfo:(showsInfo ? track.metadata.fileInfoLine : nil)
+                   tempoInfo:(showsInfo ? [self tempoInfoLineForTrack:track] : nil)
                          art:(track.cachedArt ?: [UIImage imageNamed:@"record-bg"])];
     // The page's own index, so the last page arrives dimmed.
     [cell setNextEnabled:index + 1 < _playlist.count];
