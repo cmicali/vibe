@@ -59,9 +59,7 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
         device[@"channels"] = @(_outputUnit.format.channelCount); // what reaches the device: the unit's stereo pair on its channel map
         device[@"latencySeconds"] = @(_outputUnit.presentationLatency); // the device's own: its latency, safety offset and stream latency
         device[@"preparedForBitPerfect"] = @(_preparedDeviceID == deviceID);
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
         device[@"exclusive"] = @(_hoggedDeviceID == deviceID);
-#endif
         device[@"bitPerfect"] = [self bitPerfectReportDictionary];
     }
     return @[output, device];
@@ -84,20 +82,16 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
                                            @"Another app has exclusive use of the audio output device", nil);
         return NO;
     }
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     [self performDiagnosticPhase:@"exclusive setup" device:self.currentlyRequestedAudioDeviceId operation:^BOOL{
         [self acquireExclusiveOutputOnQueue];
         return YES;
     }];
-#endif
     [_outputUnit start]; // a refusal arrives later, at outputUnitFailedOnQueue:
     return YES;
 }
 
 - (void)releaseIdleOutputUnitOnQueue {
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     [self releaseExclusiveOutputOnQueue];
-#endif
 }
 - (BOOL)adoptOutputFormatOnQueue:(AVAudioFormat *)format {
     return [self applyOutputRateOnQueue:format.sampleRate];
@@ -514,16 +508,12 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
                      bitPerfectOutput:&bitPerfectOutput exclusiveOutput:&exclusiveOutput];
     BOOL previousBitPerfect = _bitPerfectWanted;
     _bitPerfectWanted = bitPerfectOutput;
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     BOOL previousExclusive = _exclusiveOutputWanted;
     _exclusiveOutputWanted = exclusiveOutput;
-#endif
     BOOL didBind = [self setOutputDeviceOnQueue:outputDeviceID];
     if (self.currentlyRequestedAudioDeviceId != outputDeviceID) {
         _bitPerfectWanted = previousBitPerfect;
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
         _exclusiveOutputWanted = previousExclusive;
-#endif
         // TRAP: a failed rebuild may already have rewired or prepared the
         // destination, so a Stopped player leaves it; a player still holding
         // its track keeps it.
@@ -598,11 +588,9 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
     if (!_bitPerfectWanted || (_preparedDeviceID != kAudioObjectUnknown && _preparedDeviceID != deviceID)) {
         [self leaveOutputDeviceOnQueue];
     }
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     else if (!_exclusiveOutputWanted) {
         [self releaseExclusiveOutputOnQueue];
     }
-#endif
 
     if (deviceID != kAudioObjectUnknown && ![self setOutputUnitDevice:deviceID]) {
         [self resetToStoppedStateOnQueue];
@@ -772,8 +760,11 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
         os_unfair_lock_unlock(&_stateLock);
     }
     run_on_main_thread({
-        [self.delegate audioPlayer:self didChangeOutputDevice:requested involuntaryFallbackUID:fallbackUID
-            involuntaryFallbackName:fallbackName carriedModesFromUID:modesUID];
+        id<AudioPlayerDelegate> delegate = self.delegate;
+        if ([delegate respondsToSelector:@selector(audioPlayer:didChangeOutputDevice:involuntaryFallbackUID:involuntaryFallbackName:carriedModesFromUID:)]) {
+            [delegate audioPlayer:self didChangeOutputDevice:requested involuntaryFallbackUID:fallbackUID
+                involuntaryFallbackName:fallbackName carriedModesFromUID:modesUID];
+        }
         if (modesUID.length && destinationUID.length) {
             os_unfair_lock_lock(&self->_stateLock);
             if ([self->_unpersistedOutputModeSources[destinationUID] isEqual:modesUID]) {
@@ -991,7 +982,6 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
     }
 }
 
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
 // The output is stopped at both ownership edges.
 - (void)acquireExclusiveOutputOnQueue {
     AudioDevice *device = [self bitPerfectDeviceOnQueue];
@@ -1049,7 +1039,6 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
     [self publishBitPerfectReportOnQueue];
 }
 
-#endif
 
 // Watch the prepared device's volume, balance, mute and nominal rate.
 // kAudioObjectUnknown removes the listener. Copy the HAL block before adding
@@ -1171,9 +1160,7 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
     [self reconcileFXOnQueue];
     [self restoreOutputFormatOnQueue];
     [self setPreparedDeviceOnQueue:kAudioObjectUnknown];
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     [self releaseExclusiveOutputOnQueue];
-#endif
 }
 
 // Computes the report from its owners — the mode, the graph, the chosen
@@ -1214,9 +1201,7 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
         NSArray<NSNumber *> *channelMap = _outputUnit.channelMap;
         BOOL readControls = !controlsCached;
         BOOL readOwner = NO;
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
         readOwner = _hoggedDeviceID == prepared;
-#endif
         __block AudioStreamBasicDescription devicePhysical = {0};
         __block BOOL formatRead = NO, controlsRead = NO, ownerRead = NO, mapPreserves = NO, deviceMuted = NO;
         __block Float32 deviceVolume = 1, deviceBalance = 0.5f;
@@ -1256,10 +1241,8 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
                         ? [NSString stringWithFormat:@"the output unit pulls at %.0f Hz", unitFormat.sampleRate]
                 : nil;
         report.formatConfirmed = (unconfirmed == nil);
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
         report.hogWanted = _exclusiveOutputWanted; // the device is eligible and prepared by here
         report.exclusive = readOwner && answered && ownerRead && owner == getpid();
-#endif
         if (readControls) {
             BOOL read = answered && controlsRead;
             _outputControlsVolume = read ? deviceVolume : 1;
@@ -1394,10 +1377,8 @@ static NSString *VibeBitPerfectStatusName(VibeBitPerfectStatus status) {
             @"pendingDeviceName": self->_pendingSavedDeviceName ?: @"",
             @"savedDeviceLookupInFlight": @(self->_pendingSavedDeviceLookupInFlight),
             @"bitPerfectWanted": @(self->_bitPerfectWanted),
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
             @"exclusiveOutputWanted": @(self->_exclusiveOutputWanted),
             @"hoggedDeviceId": @(self->_hoggedDeviceID == kAudioObjectUnknown ? -1 : (NSInteger)self->_hoggedDeviceID),
-#endif
             @"restoreOwedToDeviceId": @(self->_changedFormatDeviceID == kAudioObjectUnknown ? -1 : (NSInteger)self->_changedFormatDeviceID),
             @"preparedDeviceId": @(self->_preparedDeviceID == kAudioObjectUnknown ? -1 : (NSInteger)self->_preparedDeviceID),
             @"outputLevelListenerPresent": @(self->_outputLevelListener != nil),
@@ -1474,10 +1455,8 @@ static NSString *VibeBitPerfectStatusName(VibeBitPerfectStatus status) {
         self->_allowBitPerfectOnAnyDevice = allowAnyDevice;
         self->_fxEnabled = enableFX;
         self->_bitPerfectWanted = desiredBitPerfect;
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
         changed |= desiredBitPerfect && self->_exclusiveOutputWanted != desiredExclusive;
         self->_exclusiveOutputWanted = desiredExclusive;
-#endif
         // Reapplying settings must not interrupt playback. An exclusive
         // preference saved while bit-perfect is off cannot affect the graph.
         if (!changed) {

@@ -30,11 +30,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Glyphs draw at roughly 0.8 times it, centered in the bounds.
 @property (nonatomic) CGFloat symbolPointSize;
-@property (nonatomic) NSFontWeight symbolWeight;
 
 @property (nonatomic, strong) NSColor *symbolNormalColor;    // idle
 @property (nonatomic, strong) NSColor *symbolHighlightColor; // hover (a press shows it at half alpha)
-@property (nonatomic, strong) NSColor *symbolDisabledColor;
 
 @end
 

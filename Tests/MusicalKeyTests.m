@@ -23,10 +23,10 @@
 - (void)testMakeAndAccessors {
     VibeMusicalKey am = VibeMusicalKeyMake(9, YES);
     XCTAssertTrue(VibeMusicalKeyIsMinor(am));
-    XCTAssertEqual(VibeMusicalKeyPitchClass(am), 9);
+    XCTAssertEqual(am % 12, 9);
     VibeMusicalKey c = VibeMusicalKeyMake(0, NO);
     XCTAssertFalse(VibeMusicalKeyIsMinor(c));
-    XCTAssertEqual(VibeMusicalKeyPitchClass(c), 0);
+    XCTAssertEqual(c % 12, 0);
     XCTAssertEqual(VibeMusicalKeyMake(12, NO), VibeMusicalKeyNone);
     XCTAssertEqual(VibeMusicalKeyMake(-1, YES), VibeMusicalKeyNone);
 }

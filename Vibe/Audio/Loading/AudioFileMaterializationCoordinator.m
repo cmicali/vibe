@@ -385,6 +385,7 @@ static const NSUInteger kMaximumHandleRunCount = 6;
     VibeAudioFileMaterializationDatalessProbe _datalessProbe;
     VibeAudioFileMaterializationClock _clock;
     VibeAudioFileOpener _fileOpener;
+#if DEBUG
     // Atomic for the health probe's lock-free read; written on the state queue.
     _Atomic uint64_t _handleOpensStarted;
     _Atomic uint64_t _handleOpensCompleted;
@@ -392,6 +393,7 @@ static const NSUInteger kMaximumHandleRunCount = 6;
     uint64_t _requestsFailed;
     uint64_t _requestsYielded;
     uint64_t _requestsAdmissionExhausted;
+#endif
 }
 
 + (instancetype)sharedCoordinator {
@@ -583,14 +585,6 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
     }];
 }
 
-// Started first: an open racing the two loads reads low, never one high,
-// which quiescence's zero-at-rest check would report as a stranded open.
-- (uint64_t)handleOpensInFlight {
-    uint64_t started = atomic_load(&_handleOpensStarted);
-    uint64_t completed = atomic_load(&_handleOpensCompleted);
-    return started > completed ? started - completed : 0;
-}
-
 - (uint64_t)datalessProbesInFlight {
     return _datalessProbeActivity.attemptCount;
 }
@@ -641,6 +635,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
 
 // Counts per waiter: a claim four waiters joined settles four requests.
 - (void)countSettledRequest:(VibeAudioFileMaterializationResult)result {
+#if DEBUG
     switch (result) {
         case VibeAudioFileMaterializationResultReady: _requestsReady++; break;
         case VibeAudioFileMaterializationResultFailed: _requestsFailed++; break;
@@ -649,6 +644,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
             _requestsAdmissionExhausted++;
             break;
     }
+#endif
 }
 
 - (NSError *)missingFailureError {
@@ -1427,9 +1423,11 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
     }
     dispatch_queue_t workerQueue = run.purpose == VibeAudioFileOpenPurposePlayback
             ? _interactiveWorkerQueue : _backgroundWorkerQueue;
+#if DEBUG
     // Paired with the completed increment below, not finishHandleRun:, which
     // also runs for runs that never opened.
     atomic_fetch_add(&_handleOpensStarted, 1);
+#endif
     // Snapshotted on the state queue: the debug channel swaps the opener.
     VibeAudioFileOpener opener = _fileOpener;
     __weak AudioFileMaterializationCoordinator *weakSelf = self;
@@ -1441,7 +1439,9 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
         NSError *error = nil;
         AudioFileHandle *file = opener(run.url, &error);
         dispatch_async(strongSelf->_stateQueue, ^{
+#if DEBUG
             atomic_fetch_add(&strongSelf->_handleOpensCompleted, 1);
+#endif
             [strongSelf finishHandleRun:run runGeneration:runGeneration
                                    file:file error:error];
         });
@@ -1486,7 +1486,7 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
 }
 
 - (VibeAudioFileMaterializationCoordinatorSnapshot)stateSnapshotForTesting {
-    __block VibeAudioFileMaterializationCoordinatorSnapshot snapshot;
+    __block VibeAudioFileMaterializationCoordinatorSnapshot snapshot = {0};
     [self performStateSynchronously:^{
         snapshot.claimCount = self->_claims.count;
         snapshot.waiterCount = 0;
@@ -1500,20 +1500,26 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
         snapshot.handleRunCount = self->_handleRuns.count;
         snapshot.datalessProbesInFlight = [self datalessProbesInFlight];
         snapshot.foregroundTransferActive = [self foregroundTransferActiveLocked];
+#if DEBUG
         snapshot.handleOpensStarted = self->_handleOpensStarted;
         snapshot.handleOpensCompleted = self->_handleOpensCompleted;
         snapshot.requestsReady = self->_requestsReady;
         snapshot.requestsFailed = self->_requestsFailed;
         snapshot.requestsYielded = self->_requestsYielded;
         snapshot.requestsAdmissionExhausted = self->_requestsAdmissionExhausted;
+#endif
     }];
     return snapshot;
 }
 
-- (void)expirePendingClaimsForTesting {
-    [self performStateSynchronously:^{
-        [self expirePendingClaimsAtTime:self->_clock() drain:YES];
-    }];
+#if DEBUG
+// Started first: an open racing the two loads reads low, never one high,
+// which quiescence's zero-at-rest check would report as a stranded open.
+- (uint64_t)handleOpensInFlight {
+    uint64_t started = atomic_load(&_handleOpensStarted);
+    uint64_t completed = atomic_load(&_handleOpensCompleted);
+    return started > completed ? started - completed : 0;
 }
+#endif
 
 @end

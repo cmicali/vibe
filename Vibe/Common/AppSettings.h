@@ -39,15 +39,6 @@ FOUNDATION_EXPORT const size_t kVibeCrossfadePresetCount;
 
 @property(class, nonatomic, readonly) AppSettings *sharedInstance;
 
-// Both app delegates call this; only macOS does work in it.
-- (void)applicationDidFinishLaunching;
-
-// Settings > Advanced > Reset. Preserves custom themes on macOS; bookmarks,
-// stats and window frames live elsewhere. Clears the store only: the caller
-// owns the running-app effects.
-- (BOOL)allSettingsAtDefaults;
-- (void)resetToDefaults;
-
 // iOS-only. On macOS the theme migration consumed these keys, so a macOS
 // caller fails to build rather than reading a dead key; use currentTheme.
 #if !TARGET_OS_OSX

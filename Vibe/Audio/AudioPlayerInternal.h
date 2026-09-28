@@ -191,12 +191,10 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // The device configureOutputDeviceOnQueue: is rebinding to, for the
     // duration of that call, else kAudioObjectUnknown.
     AudioDeviceID           _rebindDeviceID;
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     BOOL                    _exclusiveOutputWanted;
     // Possible ownership, or kAudioObjectUnknown; retained until release is
     // confirmed, never overwritten by another device.
     AudioDeviceID           _hoggedDeviceID;
-#endif
     // The one device whose format this run changed and has not yet put back.
     AudioDeviceID           _changedFormatDeviceID;
     AudioStreamID           _changedFormatStreamID;

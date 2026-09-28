@@ -31,10 +31,6 @@ static inline VibeMusicalKey VibeMusicalKeyMake(NSInteger pitchClass, BOOL minor
     return pitchClass + (minor ? 12 : 0);
 }
 
-static inline NSInteger VibeMusicalKeyPitchClass(VibeMusicalKey key) {
-    return VibeMusicalKeyIsValid(key) ? key % 12 : -1;
-}
-
 // Camelot wheel positions, indexed by pitch class. Minor keys are the A ring,
 // major the B ring; adjacent numbers are a fifth apart and mix harmonically.
 static inline NSInteger VibeMusicalKeyCamelotNumber(VibeMusicalKey key) {

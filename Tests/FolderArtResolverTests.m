@@ -283,7 +283,7 @@
 
     XCTAssertNil([resolver displayImageForAudioFilePath:track]);
     XCTAssertNil([resolver cachedDisplayImageForAudioFilePath:track]);
-    XCTAssertNil([resolver cachedThumbnailForAudioFilePath:track resolveIfUnknown:YES]);
+    XCTAssertNil([resolver cachedThumbnailForAudioFilePath:track]);
     XCTAssertFalse([resolver needsBackgroundLoadForAudioFilePath:track]);
     XCTAssertEqual(fileSystemCalls, 0u);
 
@@ -338,26 +338,6 @@
         XCTAssertEqualObjects([resolver displayImageForAudioFilePath:track], decoded);
     }
     XCTAssertEqual(reads, 1u);
-}
-
-// The non-resolving accessor is what a playlist cell calls while drawing. It
-// must never schedule work, or scrolling a big playlist becomes a disk storm.
-- (void)testTheNonResolvingAccessorSchedulesNothing {
-    __block NSUInteger fileSystemCalls = 0;
-    FolderArtResolver *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
-        fileSystemCalls++;
-        return YES;
-    } dataReader:^NSData *(NSString *path) {
-        fileSystemCalls++;
-        return [NSData dataWithBytes:"x" length:1];
-    } decoder:^NSImage *(NSData *data, CGFloat maxPixelSize) {
-        return [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
-    }];
-    for (NSUInteger i = 0; i < 20; i++) {
-        XCTAssertNil([resolver cachedThumbnailForAudioFilePath:@"/Library/Albums/Cold/track.mp3"
-                                              resolveIfUnknown:NO]);
-    }
-    XCTAssertEqual(fileSystemCalls, 0u);
 }
 
 // A bulk open is already doing bulk I/O, so one listing buys every spelling;
@@ -525,13 +505,12 @@
 
     XCTestExpectation *redraw = [self expectationForNotification:FolderArtDidResolveNotification
                                                           object:resolver handler:nil];
-    XCTAssertNil([resolver cachedThumbnailForAudioFilePath:track resolveIfUnknown:YES],
+    XCTAssertNil([resolver cachedThumbnailForAudioFilePath:track],
                  @"the header still owns the directory's resolve claim");
 
     dispatch_semaphore_signal(continueProbe);
     [self waitForExpectations:@[displayFinished, redraw] timeout:VIBE_TEST_HANG_TIMEOUT];
-    XCTAssertEqualObjects([resolver cachedThumbnailForAudioFilePath:track
-                                                    resolveIfUnknown:NO], decoded);
+    XCTAssertEqualObjects([resolver cachedThumbnailForAudioFilePath:track], decoded);
 }
 
 - (void)testAReplacedCoverDoesNotCacheTheOldDecode {
@@ -718,7 +697,7 @@
     XCTAssertEqualObjects([resolver displayImageForAudioFilePath:track], decoded);
     XCTAssertEqual(reads, 1u);
     XCTAssertEqual(decodedSizes.count, 2u);
-    XCTAssertEqualObjects([resolver cachedThumbnailForAudioFilePath:track resolveIfUnknown:NO], decoded);
+    XCTAssertEqualObjects([resolver cachedThumbnailForAudioFilePath:track], decoded);
     XCTAssertEqual(reads, 1u);
 }
 

@@ -270,23 +270,6 @@ def live_unstarted_requests(events, role, files, snapshot_seq):
                         for start in starts)]
 
 
-def windows(events, role):
-    """[(start_seq, end_seq, file)] projected from transfer_spans()."""
-    return [(start["seq"], end["seq"] if end else None, start["file"])
-            for start, end in transfer_spans(events, role)]
-
-
-def role_events_inside(events, inner_role, outer_role, inner_event):
-    """Inner-role events occurring strictly inside an outer transfer."""
-    hits = []
-    outer = windows(events, outer_role)
-    for e in events_of(events, event=inner_event, role=inner_role):
-        for start, end, ofile in outer:
-            if start < e["seq"] and (end is None or e["seq"] < end):
-                hits.append((e["file"], ofile))
-    return hits
-
-
 def role_events_inside_requests(events, inner_role, outer_role, inner_event):
     """Inner events strictly inside an outer provider request's lifetime."""
     hits = []
@@ -298,11 +281,6 @@ def role_events_inside_requests(events, inner_role, outer_role, inner_event):
             if start < e["seq"] and (end is None or e["seq"] < end):
                 hits.append((e["file"], ofile))
     return hits
-
-
-def role_started_inside(events, inner_role, outer_role):
-    """Transfers of inner_role that began inside an outer_role transfer's span."""
-    return role_events_inside(events, inner_role, outer_role, "started")
 
 
 def expected_scan_order(rows, current_file, observed):

@@ -268,16 +268,6 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 - (NSString *)fontFaceForSlot:(VibeFontSlot)slot;
 - (CGFloat)fontSizeForSlot:(VibeFontSlot)slot;
 - (void)setFontFace:(NSString *)face size:(CGFloat)size forSlot:(VibeFontSlot)slot;
-@property (nonatomic, copy) NSString *titleFontFace;
-@property (nonatomic) CGFloat titleFontSize;                 // clamped [20, 26]
-@property (nonatomic, copy) NSString *artistFontFace;
-@property (nonatomic) CGFloat artistFontSize;      // clamped [12, 20]
-@property (nonatomic, copy) NSString *infoFontFace;
-@property (nonatomic) CGFloat infoFontSize;                 // clamped [10, 15]
-@property (nonatomic, copy) NSString *playlistFontFace;
-@property (nonatomic) CGFloat playlistFontSize;             // clamped [11, 16]
-@property (nonatomic, copy) NSString *playlistDurationFontFace;
-@property (nonatomic) CGFloat playlistDurationFontSize;     // clamped [10, 14]
 
 // The placeholder is the one appearance-keyed image pair: single mode reads
 // and writes its dark slot from either side, as for colors. Picking a glyph
@@ -299,39 +289,13 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 // the drawing appearance is the system's, not the window's.
 - (NSImage *)defaultArtworkImageForAppearance:(NSAppearance *)appearance;
 
-// Color pairs by base name; the typed accessors below are the same slots.
-// nil is unset. Alpha is meaningful throughout.
+// Color pairs by base name. nil is unset. Alpha is meaningful throughout.
 - (nullable VibeColor *)colorForBase:(NSString *)base dark:(BOOL)isDark;
 - (void)setColor:(nullable VibeColor *)color forBase:(NSString *)base dark:(BOOL)isDark;
 // The pair pinned to one side, for the editor's wells: the override, or what
 // an unset slot draws as, resolved under that side's appearance rather than
 // the pane's.
 - (VibeColor *)displayColorForBase:(NSString *)base dark:(BOOL)isDark;
-- (nullable VibeColor *)waveformPlayedColorForDark:(BOOL)isDark;
-- (void)setWaveformPlayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
-- (nullable VibeColor *)waveformUnplayedColorForDark:(BOOL)isDark;
-- (void)setWaveformUnplayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
-- (nullable VibeColor *)windowTintColorForDark:(BOOL)isDark;
-- (void)setWindowTintColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
-- (nullable VibeColor *)playlistTintColorForDark:(BOOL)isDark;
-- (void)setPlaylistTintColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
-- (nullable VibeColor *)windowBackgroundColorForDark:(BOOL)isDark;
-- (void)setWindowBackgroundColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
-- (nullable VibeColor *)titleColorForDark:(BOOL)isDark;
-- (void)setTitleColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
-- (nullable VibeColor *)artistColorForDark:(BOOL)isDark;
-- (void)setArtistColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
-- (nullable VibeColor *)infoColorForDark:(BOOL)isDark;
-- (void)setInfoColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
-- (nullable VibeColor *)timeColorForDark:(BOOL)isDark;
-- (void)setTimeColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
-- (nullable VibeColor *)playlistBackgroundColorForDark:(BOOL)isDark;
-- (void)setPlaylistBackgroundColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
-- (nullable VibeColor *)playlistPlayingRowColorForDark:(BOOL)isDark;
-- (void)setPlaylistPlayingRowColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
-- (nullable VibeColor *)playlistSelectedRowColorForDark:(BOOL)isDark;
-- (void)setPlaylistSelectedRowColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
-
 
 // Dark for a single-mode theme, else nil. Unset defaults then draw their
 // dark values, so a light background needs its label colors set too.

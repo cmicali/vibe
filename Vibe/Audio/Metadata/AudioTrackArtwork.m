@@ -858,7 +858,7 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     }
     // Non-blocking; an unresolved folder resolves in the background and its
     // notification redraws the row.
-    return [self.folderArt cachedThumbnailForAudioFilePath:path resolveIfUnknown:YES];
+    return [self.folderArt cachedThumbnailForAudioFilePath:path];
 }
 
 - (VibeImage *)cachedEmbeddedThumbnail {

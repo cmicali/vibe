@@ -28,7 +28,7 @@
     [self.audioPlayer seekToPosition:self.audioPlayer.duration * percentage];
 }
 
-- (void)audioWaveformView:(AudioWaveformView *)waveformView didResolvePlayedColor:(NSColor *)color {
+- (void)audioWaveformViewDidResolveTheme:(AudioWaveformView *)waveformView {
     [self.playerContentView applyVolumeTint];
 }
 

@@ -29,10 +29,8 @@ static const CGFloat kGeneralPopUpWidth = 280;
     BOOL _refreshingOutputList;
     NSSwitch *_bitPerfectSwitch;
     SettingsRowView *_bitPerfectRow;
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     NSSwitch *_exclusiveOutputSwitch;
     SettingsRowView *_exclusiveOutputRow;
-#endif
     NSSwitch *_declickSwitch;
     SettingsRowView *_declickRow;
     NSSwitch *_volumeControlSwitch;
@@ -127,12 +125,10 @@ static const CGFloat kGeneralPopUpWidth = 280;
     _bitPerfectRow = [SettingsRowView rowWithTitle:STR_SETTINGS_BIT_PERFECT
                                            caption:STR_SETTINGS_BIT_PERFECT_CAPTION_OFF
                                            control:_bitPerfectSwitch];
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     _exclusiveOutputSwitch = [self switchWithAction:@selector(toggleExclusiveOutput:)];
     _exclusiveOutputRow = [SettingsRowView rowWithTitle:STR_SETTINGS_EXCLUSIVE_OUTPUT
                                                caption:STR_SETTINGS_EXCLUSIVE_OUTPUT_CAPTION
                                                control:_exclusiveOutputSwitch];
-#endif
     _declickSwitch = [self switchWithAction:@selector(toggleDeclick:)];
     _declickRow = [SettingsRowView rowWithTitle:STR_SETTINGS_DECLICK
                                         caption:STR_SETTINGS_DECLICK_CAPTION
@@ -148,9 +144,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_DEVICE_SECTION rows:@[
             _bitPerfectRow,
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
             _exclusiveOutputRow,
-#endif
         ]],
         [SettingsSectionView sectionWithRows:@[
             _volumeControlRow,
@@ -205,7 +199,6 @@ static const CGFloat kGeneralPopUpWidth = 280;
         caption = STR_SETTINGS_BIT_PERFECT_CAPTION_OFF;
     }
     BOOL captionChanged = [_bitPerfectRow setCaption:caption];
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     BOOL exclusiveSupported = eligible
             && [CoreAudioUtil supportsHogModeForDeviceID:(AudioDeviceID)device.deviceId];
     [SettingsRowView setControl:_exclusiveOutputSwitch enabled:!pending && on && exclusiveSupported];
@@ -216,7 +209,6 @@ static const CGFloat kGeneralPopUpWidth = 280;
             : !exclusiveSupported ? STR_SETTINGS_EXCLUSIVE_OUTPUT_UNSUPPORTED
             : STR_SETTINGS_EXCLUSIVE_OUTPUT_CAPTION;
     captionChanged |= [_exclusiveOutputRow setCaption:exclusiveCaption];
-#endif
     _declickSwitch.state = AppSettings.sharedInstance.declick ? NSControlStateValueOn : NSControlStateValueOff;
     _volumeControlSwitch.state = AppSettings.sharedInstance.volumeControl ? NSControlStateValueOn : NSControlStateValueOff;
     if (captionChanged) {
@@ -230,13 +222,11 @@ static const CGFloat kGeneralPopUpWidth = 280;
     [self refreshOutputDevice];
 }
 
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
 - (void)toggleExclusiveOutput:(id)sender {
     AppSettings.sharedInstance.exclusiveOutput = (_exclusiveOutputSwitch.state == NSControlStateValueOn);
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfect];
     [self refreshBitPerfectRows];
 }
-#endif
 
 - (void)toggleDeclick:(id)sender {
     AppSettings.sharedInstance.declick = (_declickSwitch.state == NSControlStateValueOn);

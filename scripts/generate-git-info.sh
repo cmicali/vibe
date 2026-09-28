@@ -9,7 +9,7 @@
 set -euo pipefail
 
 REPO_ROOT="${SRCROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-OUTPUT_DIR="${VIBE_GENERATED_DIR:-$REPO_ROOT/build/generated}"
+OUTPUT_DIR="$REPO_ROOT/build/generated"
 OUTPUT="$OUTPUT_DIR/VibeGitInfo.h"
 
 commit="unknown"

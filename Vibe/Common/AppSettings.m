@@ -28,11 +28,10 @@ const size_t kVibeCrossfadePresetCount =
 - (instancetype)init {
     self = [super init];
     if (self) {
-        // Migrations run before registerDefaults: the theme migration keys on
-        // "no stored value", and objectForKey: consults the registration
-        // domain, so a registered default would read as stored.
-        [self migrateLegacyWaveformStyle];
 #if TARGET_OS_OSX
+        // Before registerDefaults: the migration keys on "no stored value", and
+        // objectForKey: consults the registration domain, so a registered
+        // default would read as stored.
         [self migrateLooseAppearanceSettingsToTheme];
 #endif
         [self registerDefaults];
@@ -42,8 +41,6 @@ const size_t kVibeCrossfadePresetCount =
 
 - (NSDictionary<NSString *, id> *)registeredSettingDefaults {
     NSMutableDictionary *appDefaults = [@{
-            SETTING_WAVEFORM_STYLE: SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT,
-            SETTING_WAVEFORM_THEME: SETTINGS_VALUE_WAVEFORM_THEME_MONO,
             SETTING_FOLDER_OPEN_SORT: SETTINGS_VALUE_FOLDER_OPEN_SORT_NAME,
             SETTING_CROSSFADE_MILLISECONDS: @(10),
             SETTING_PAUSE_AT_TRACK_END: @(NO),
@@ -53,6 +50,8 @@ const size_t kVibeCrossfadePresetCount =
 #if TARGET_OS_OSX
     [self registerMacDefaultsInto:appDefaults];
 #else
+    appDefaults[SETTING_WAVEFORM_STYLE] = SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT;
+    appDefaults[SETTING_WAVEFORM_THEME] = SETTINGS_VALUE_WAVEFORM_THEME_MONO;
     appDefaults[SETTING_WIDGET_WAVEFORM_STYLE] = SETTINGS_VALUE_WIDGET_WAVEFORM_STYLE_DEFAULT;
 #endif
     return appDefaults;
@@ -60,76 +59,6 @@ const size_t kVibeCrossfadePresetCount =
 
 - (void)registerDefaults {
     [[NSUserDefaults standardUserDefaults] registerDefaults:[self registeredSettingDefaults]];
-}
-
-// Keys with no registered default, where absent IS the default: the nullable
-// custom colors.
-- (NSArray<NSString *> *)nullableSettingKeys {
-    NSMutableArray<NSString *> *keys = [@[
-            SETTING_WAVEFORM_CUSTOM_PLAYED_DARK,
-            SETTING_WAVEFORM_CUSTOM_UNPLAYED_DARK,
-            SETTING_WAVEFORM_CUSTOM_PLAYED_LIGHT,
-            SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT,
-    ] mutableCopy];
-#if TARGET_OS_OSX
-    [self addMacNullableSettingKeysTo:keys];
-#endif
-    return keys;
-}
-
-// The persistent domain, not dictionaryRepresentation, which folds the
-// registration domain back in and would make every default read as stored.
-- (BOOL)allSettingsAtDefaults {
-    NSDictionary *stored = [[NSUserDefaults standardUserDefaults]
-            persistentDomainForName:NSBundle.mainBundle.bundleIdentifier];
-    return VibeSettingsAreAtDefaults(stored, [self registeredSettingDefaults],
-                                     [self nullableSettingKeys]);
-}
-
-- (void)resetToDefaults {
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    for (NSString *key in [self registeredSettingDefaults]) {
-        [defaults removeObjectForKey:key];
-    }
-    for (NSString *key in [self nullableSettingKeys]) {
-        [defaults removeObjectForKey:key];
-    }
-#if TARGET_OS_OSX
-    [self resetMacThemeState];
-#endif
-}
-
-- (void)applicationDidFinishLaunching {
-#if TARGET_OS_OSX
-    [self macApplicationDidFinishLaunching];
-#endif
-}
-
-// Old builds stored the renderer's English display name. Frozen: every value
-// ever written.
-static NSString *NormalizedWaveformStyle(NSString *stored) {
-    static NSDictionary<NSString *, NSString *> *legacy;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        legacy = @{
-            @"Basic":                    @"basic",
-            @"Detailed":                 @"detailed",
-            @"Sonic Cirrus":             @"sonic_cirrus",
-            @"Oversampling Detailed x2": @"oversampling_detailed_x2",
-            @"Oversampling Detailed x4": @"oversampling_detailed_x4",
-            @"Oversampling Detailed x8": @"oversampling_detailed_x8",
-        };
-    });
-    return stored ? (legacy[stored] ?: stored) : nil;
-}
-
-- (void)migrateLegacyWaveformStyle {
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    NSString *stored = [defaults stringForKey:SETTING_WAVEFORM_STYLE];
-    NSString *normalized = NormalizedWaveformStyle(stored);
-    if (stored && ![normalized isEqualToString:stored]) {
-        [defaults setObject:normalized forKey:SETTING_WAVEFORM_STYLE];
-    }
 }
 
 #if !TARGET_OS_OSX

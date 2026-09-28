@@ -488,9 +488,7 @@ NSString *VibeSyntheticFileDragHover(MainPlayerController *controller, NSArray<N
     if (!VibeDragPointArgument(tokens, window, &location, &x, &y, &errorJSON)) {
         return errorJSON;
     }
-    if ([window.dropDelegate respondsToSelector:@selector(mainWindow:fileDraggingUpdatedAtLocation:)]) {
-        [window.dropDelegate mainWindow:window fileDraggingUpdatedAtLocation:location];
-    }
+    [window.dropDelegate mainWindow:window fileDraggingUpdatedAtLocation:location];
     // What a drop here would do: the assertable part of the reply.
     PlaylistDropWellAction well = [controller.playerContentView.playlistDropZoneView
             dropActionForWindowPoint:location];
@@ -500,9 +498,7 @@ NSString *VibeSyntheticFileDragHover(MainPlayerController *controller, NSArray<N
 
 NSString *VibeSyntheticFileDragEnd(MainPlayerController *controller) {
     MainWindow *window = (MainWindow *)controller.window;
-    if ([window.dropDelegate respondsToSelector:@selector(mainWindowFileDraggingEnded:)]) {
-        [window.dropDelegate mainWindowFileDraggingEnded:window];
-    }
+    [window.dropDelegate mainWindowFileDraggingEnded:window];
     return VibeJSONString(@{@"ok": @YES, @"posted": @"file_drag_end"});
 }
 
@@ -530,14 +526,9 @@ NSString *VibeSyntheticFileDragDrop(MainPlayerController *controller, NSArray<NS
     // then draggingEnded's teardown. The funnel owns the expansion, so this
     // returns without waiting; poll dump_state for the playlist. As with
     // `open`, an ungranted path may be denied at read time.
-    BOOL append = NO;
-    if ([window.dropDelegate respondsToSelector:@selector(mainWindow:dropAppendsAtLocation:)]) {
-        append = [window.dropDelegate mainWindow:window dropAppendsAtLocation:location];
-    }
+    BOOL append = [window.dropDelegate mainWindow:window dropAppendsAtLocation:location];
     [(AppDelegate *)NSApp.delegate openDroppedURLs:@[[NSURL fileURLWithPath:path]] appending:append];
-    if ([window.dropDelegate respondsToSelector:@selector(mainWindowFileDraggingEnded:)]) {
-        [window.dropDelegate mainWindowFileDraggingEnded:window];
-    }
+    [window.dropDelegate mainWindowFileDraggingEnded:window];
     return VibeJSONString(@{@"ok": @YES, @"dropping": path,
                             @"x": @(x), @"y": @(y), @"well": VibeWellName(well)});
 }

@@ -227,10 +227,6 @@ static void VibeEqualizerDebugDisplayLinkStopped(void) {
     [self refreshActivity];
 }
 
-- (BOOL)isAudioReactive {
-    return _levelLink != nil;
-}
-
 // The color is re-resolved here because attaching to a window can change the
 // effective appearance without an appearance callback.
 - (void)didMoveToWindowShared {
@@ -372,9 +368,6 @@ static void VibeEqualizerDebugDisplayLinkStopped(void) {
     [link addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
     _levelLink = link;
 #endif
-    if (!_levelLink) {
-        return;
-    }
     VibeEqualizerDebugIncrement(&sActiveDisplayLinks);
 }
 

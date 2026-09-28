@@ -34,10 +34,6 @@ static inline VibeUncompressedContainer VibeUncompressedContainerForExtension(
     return VibeUncompressedContainerUnknown;
 }
 
-static inline BOOL VibeExtensionIsUncompressed(NSString *_Nullable ext) {
-    return VibeUncompressedContainerForExtension(ext) != VibeUncompressedContainerUnknown;
-}
-
 // Preliminary eligibility for menus and direct requests. The cached sniffed
 // type wins when present; while metadata is pending, the extension keeps a
 // fresh row enabled. Conversion still performs a mandatory header sniff.

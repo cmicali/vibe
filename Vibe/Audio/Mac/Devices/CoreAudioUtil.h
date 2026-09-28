@@ -115,9 +115,8 @@ NS_ASSUME_NONNULL_BEGIN
 // Another process holds the device in hog mode. TRAP: an output unit running
 // on it when the hog is taken reports running and gets no IO cycle until the
 // release (measured), yet one started under the hog plays, heard on a
-// loopback. So the start is refused on this answer, not left to the HAL. In
-// every build: exclusive output being compiled out does not stop other apps
-// taking it.
+// loopback. So the start is refused on this answer, not left to the HAL.
+// Independent of our own exclusive output: other apps take devices too.
 + (BOOL)deviceIsHeldByAnotherProcess:(AudioDeviceID)deviceID;
 
 // Everything the HAL will say about one device, for Save Debug Info: identity,
@@ -134,7 +133,6 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSString *)eventDescriptionOfProperty:(AudioObjectPropertyAddress)address object:(AudioObjectID)object;
 #endif
 
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
 // A writable hog property permits an attempt, not a promise of ownership.
 + (BOOL)supportsHogModeForDeviceID:(AudioDeviceID)deviceID;
 
@@ -145,7 +143,6 @@ NS_ASSUME_NONNULL_BEGIN
 // another process holds it is already true.
 + (BOOL)readHogOwner:(pid_t *)owner forDeviceID:(AudioDeviceID)deviceID;
 + (BOOL)setHogOwnedByThisProcess:(BOOL)owned forDeviceID:(AudioDeviceID)deviceID;
-#endif
 
 @end
 

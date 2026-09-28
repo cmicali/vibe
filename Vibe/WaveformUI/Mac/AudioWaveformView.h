@@ -55,8 +55,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)audioWaveformView:(AudioWaveformView *)waveformView didSeek:(float)percentage;
 // Every resolution of the theme: its settings, the appearance, the artwork
-// color. The played side's color, at its resting alpha.
-- (void)audioWaveformView:(AudioWaveformView *)waveformView didResolvePlayedColor:(NSColor *)color;
+// color.
+- (void)audioWaveformViewDidResolveTheme:(AudioWaveformView *)waveformView;
 
 @end
 

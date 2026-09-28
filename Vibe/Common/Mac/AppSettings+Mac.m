@@ -99,17 +99,28 @@ const size_t kVibeUIUpdateHzCapPresetCount =
     }];
 }
 
-- (void)addMacNullableSettingKeysTo:(NSMutableArray<NSString *> *)keys {
-    [keys addObject:SETTING_CURRENT_THEME];
-    [keys addObject:SETTING_OUTPUT_MODES_BY_DEVICE_UID];
+// Keys with no registered default, where absent IS the default.
+- (NSArray<NSString *> *)nullableSettingKeys {
+    return @[SETTING_CURRENT_THEME, SETTING_OUTPUT_MODES_BY_DEVICE_UID];
 }
 
-- (void)factoryReset {
-    [NSUserDefaults.standardUserDefaults removeObjectForKey:SETTING_USER_THEMES];
-    [self resetToDefaults];
+// The persistent domain, not dictionaryRepresentation, which folds the
+// registration domain back in and would make every default read as stored.
+- (BOOL)allSettingsAtDefaults {
+    NSDictionary *stored = [[NSUserDefaults standardUserDefaults]
+            persistentDomainForName:NSBundle.mainBundle.bundleIdentifier];
+    return VibeSettingsAreAtDefaults(stored, [self registeredSettingDefaults],
+                                     [self nullableSettingKeys]);
 }
 
-- (void)resetMacThemeState {
+- (void)resetToDefaults {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    for (NSString *key in [self registeredSettingDefaults]) {
+        [defaults removeObjectForKey:key];
+    }
+    for (NSString *key in [self nullableSettingKeys]) {
+        [defaults removeObjectForKey:key];
+    }
     _storedUserThemesCache = nil;
     [_currentTheme replaceWithRecord:nil];
     [self clearThemeHistory];
@@ -117,13 +128,36 @@ const size_t kVibeUIUpdateHzCapPresetCount =
     [self sweepUnreferencedThemeImages];
 }
 
-- (void)macApplicationDidFinishLaunching {
+- (void)factoryReset {
+    [NSUserDefaults.standardUserDefaults removeObjectForKey:SETTING_USER_THEMES];
+    [self resetToDefaults];
+}
+
+- (void)applicationDidFinishLaunching {
     [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"NSQuitAlwaysKeepsWindows"];
     [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"NSFullScreenMenuItemEverywhere"];
     [NSApplication sharedApplication].automaticCustomizeTouchBarMenuItemEnabled = NO;
 }
 
 #pragma mark Themes
+
+// Old builds stored the renderer's English display name. Frozen: every value
+// ever written.
+static NSString *NormalizedWaveformStyle(NSString *stored) {
+    static NSDictionary<NSString *, NSString *> *legacy;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        legacy = @{
+            @"Basic":                    @"basic",
+            @"Detailed":                 @"detailed",
+            @"Sonic Cirrus":             @"sonic_cirrus",
+            @"Oversampling Detailed x2": @"oversampling_detailed_x2",
+            @"Oversampling Detailed x4": @"oversampling_detailed_x4",
+            @"Oversampling Detailed x8": @"oversampling_detailed_x8",
+        };
+    });
+    return stored ? (legacy[stored] ?: stored) : nil;
+}
 
 // The pre-theme loose keys, by AppTheme field name. Runs once, before
 // registerDefaults (it keys on "no stored active theme"), and consumes every
@@ -157,8 +191,12 @@ const size_t kVibeUIUpdateHzCapPresetCount =
             legacyValues[field] = value;
         }
     }
+    NSString *waveformStyle = NormalizedWaveformStyle([defaults stringForKey:SETTING_WAVEFORM_STYLE]);
+    if (waveformStyle) {
+        legacyValues[@"waveformStyle"] = waveformStyle;
+    }
     NSString *waveformTheme = VibeMigratedWaveformTheme([defaults stringForKey:SETTING_WAVEFORM_THEME],
-                                                        [defaults stringForKey:SETTING_WAVEFORM_STYLE]);
+                                                        waveformStyle);
     if (waveformTheme) {
         legacyValues[@"waveformTheme"] = waveformTheme;
     }
@@ -839,22 +877,16 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
 }
 
 - (BOOL)exclusiveOutputForDeviceUID:(NSString *)deviceUID {
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     return [self outputMode:OUTPUT_MODE_EXCLUSIVE forDeviceUID:deviceUID];
-#else
-    return NO;
-#endif
 }
 
 - (BOOL)exclusiveOutput {
     return [self exclusiveOutputForDeviceUID:self.audioOutputDeviceUID];
 }
 
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
 - (void)setExclusiveOutput:(BOOL)enabled {
     [self setOutputMode:OUTPUT_MODE_EXCLUSIVE enabled:enabled];
 }
-#endif
 
 - (BOOL)declick {
     return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_DECLICK];

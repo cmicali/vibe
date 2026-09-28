@@ -23,6 +23,12 @@ def event(seq, kind, role, file="track.wav"):
     return {"seq": seq, "tMs": seq, "event": kind, "role": role, "file": file}
 
 
+def spans(events, role):
+    """transfer_spans() as (start_seq, end_seq, file)."""
+    return [(start["seq"], end["seq"] if end else None, start["file"])
+            for start, end in cloud.transfer_spans(events, role)]
+
+
 class FakeContext:
     def __init__(self, stats=None):
         self._stats = stats or {}
@@ -295,7 +301,7 @@ class TraceHelperTests(unittest.TestCase):
             event(2, "started", "metadata-priority", "b.wav"),
             event(3, "cancelled", "metadata-scan", "a.wav"),
         ]
-        self.assertEqual(cloud.windows(events, "metadata"), [
+        self.assertEqual(spans(events, "metadata"), [
             (1, 3, "a.wav"),
             (2, None, "b.wav"),
         ])
@@ -307,7 +313,7 @@ class TraceHelperTests(unittest.TestCase):
             event(3, "started", "metadata-scan"),
             event(4, "cancelled", "metadata-scan"),
         ]
-        self.assertEqual(cloud.windows(events, "metadata-scan"), [
+        self.assertEqual(spans(events, "metadata-scan"), [
             (1, 2, "track.wav"),
             (3, 4, "track.wav"),
         ])

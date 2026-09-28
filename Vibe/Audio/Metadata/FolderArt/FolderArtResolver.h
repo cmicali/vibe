@@ -21,10 +21,9 @@ extern NSNotificationName const FolderArtDidResolveNotification;
 + (instancetype)sharedInstance;
 
 // The row thumbnail, or nil. Never blocks or touches the filesystem, O(1)
-// under the lock, so safe while drawing; resolveIfUnknown schedules a
+// under the lock, so safe while drawing; an unknown folder schedules a
 // background resolve. Any thread.
-- (nullable VibeImage *)cachedThumbnailForAudioFilePath:(nullable NSString *)path
-                                       resolveIfUnknown:(BOOL)resolveIfUnknown;
+- (nullable VibeImage *)cachedThumbnailForAudioFilePath:(nullable NSString *)path;
 
 // The full cover if decoded now; non-blocking.
 - (nullable VibeImage *)cachedDisplayImageForAudioFilePath:(nullable NSString *)path;

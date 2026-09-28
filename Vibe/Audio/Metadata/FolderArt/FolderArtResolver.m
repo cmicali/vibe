@@ -135,8 +135,7 @@ static NSString *const kNoArtMarker = @"";
 
 #pragma mark - Accessors
 
-- (VibeImage *)cachedThumbnailForAudioFilePath:(NSString *)path
-                              resolveIfUnknown:(BOOL)resolveIfUnknown {
+- (VibeImage *)cachedThumbnailForAudioFilePath:(NSString *)path {
     NSString *directory = [self directoryForAudioFilePath:path];
     if (!directory) {
         return nil;
@@ -145,9 +144,7 @@ static NSString *const kNoArtMarker = @"";
     if (thumbnail) {
         return thumbnail;
     }
-    if (resolveIfUnknown) {
-        [self scheduleResolveOfDirectory:directory];
-    }
+    [self scheduleResolveOfDirectory:directory];
     return nil;
 }
 
@@ -278,7 +275,7 @@ static NSString *const kNoArtMarker = @"";
                 VibeFolderArtCandidateRank(artFilename) != NSNotFound;
         NSString *artPath = validFilename
                 ? [directory stringByAppendingPathComponent:artFilename] : kNoArtMarker;
-        FolderArtEntry *entry = [self entryLocked:directory create:YES];
+        FolderArtEntry *entry = [self entryLocked:directory];
         entry.preferListing = NO;
         // The same answer keeps its generation, so its images stay valid.
         if (entry.answerGeneration != 0 && [entry.artPath isEqualToString:artPath]) {
@@ -306,7 +303,7 @@ static NSString *const kNoArtMarker = @"";
         if (directory.length == 0 || _directories[directory].settled) {
             continue;
         }
-        [self entryLocked:directory create:YES].preferListing = YES;
+        [self entryLocked:directory].preferListing = YES;
     }
     [self trimLocked];
     os_unfair_lock_unlock(&_lock);
@@ -373,15 +370,14 @@ static NSString *const kNoArtMarker = @"";
     return directory.length > 0 ? directory : nil;
 }
 
-- (FolderArtEntry *)entryLocked:(NSString *)directory create:(BOOL)create {
+// Created when missing.
+- (FolderArtEntry *)entryLocked:(NSString *)directory {
     FolderArtEntry *entry = _directories[directory];
-    if (!entry && create) {
+    if (!entry) {
         entry = [FolderArtEntry new];
         _directories[directory] = entry;
     }
-    if (entry) {
-        [self touchLocked:entry];
-    }
+    [self touchLocked:entry];
     return entry;
 }
 
@@ -450,7 +446,7 @@ static NSString *const kNoArtMarker = @"";
 
 - (uint64_t)claimDirectory:(NSString *)directory {
     os_unfair_lock_lock(&_lock);
-    FolderArtEntry *entry = [self entryLocked:directory create:YES];
+    FolderArtEntry *entry = [self entryLocked:directory];
     uint64_t answerGeneration = 0;
     if (entry.resolving == 0) {
         answerGeneration = entry.answerGeneration != 0 ? entry.answerGeneration : [self newAnswerGenerationLocked];
@@ -541,7 +537,7 @@ static NSString *const kNoArtMarker = @"";
     BOOL skip = entry != nil && (entry.settledEmpty || entry.readBlockedWithoutGrant ||
             entry.resolving != 0 || entry.scheduled);
     if (!skip) {
-        [self entryLocked:directory create:YES].scheduled = YES;
+        [self entryLocked:directory].scheduled = YES;
     }
     os_unfair_lock_unlock(&_lock);
     if (skip) {
