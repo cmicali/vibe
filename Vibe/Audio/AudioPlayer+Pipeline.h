@@ -2,7 +2,8 @@
 //  AudioPlayer+Pipeline.h
 //  Vibe
 //
-//  voice bus -> [varispeed] -> [FX] -> [meter] -> the output unit's buffers.
+//  voice bus -> [varispeed] -> [FX] -> [meter] -> [volume] -> the output
+//  unit's buffers.
 //
 //  The player queue owns mutations. The render reads plain memory and atomics,
 //  admits one callback at a time and renders an output unit's larger cycle in
@@ -146,6 +147,9 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 // Gate closed, nothing hosted. Lives from the player's init to its dealloc,
 // so no queue-side reader finds it absent.
 VibeMasterBus *VibeMasterBusCreate(void);
+// The output volume's gain, 0..1, from any thread; the render ramps to it
+// across its next slice. 1, the default, leaves every sample untouched.
+void VibeMasterBusSetVolume(VibeMasterBus *master, float gain);
 // Whether a render is inside the pipeline right now.
 BOOL VibeMasterBusRenderInside(VibeMasterBus *master);
 // Disposes the hosted varispeed and frees the master bus; the output unit is

@@ -95,10 +95,15 @@ static const CGFloat kWaveformDragHysteresis = 4;
         return;
     }
     BOOL isDark = self.isDark;
-    _currentWaveformRenderer.theme = [WaveformTheme themeForAppTheme:AppSettings.sharedInstance.currentTheme
-                                                              isDark:isDark
-                                                        artworkColor:self.artworkThemeColor];
+    WaveformTheme *theme = [WaveformTheme themeForAppTheme:AppSettings.sharedInstance.currentTheme
+                                                    isDark:isDark
+                                              artworkColor:self.artworkThemeColor];
+    _currentWaveformRenderer.theme = theme;
     [_currentWaveformRenderer updateColors:isDark];
+    id<AudioWaveformViewDelegate> delegate = self.delegate;
+    if ([delegate respondsToSelector:@selector(audioWaveformView:didResolvePlayedColor:)]) {
+        [delegate audioWaveformView:self didResolvePlayedColor:theme.playedColor];
+    }
 }
 
 - (void)refreshThemeColors {

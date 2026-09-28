@@ -20,7 +20,6 @@
 @implementation TrackDisplayController {
     __weak AudioWaveformView *_waveformView;
     __weak NSTextField      *_bpmTextField;
-    __weak NSTextField      *_dropHintTextField;
     // The change guard for the elapsed label, in whole wall-clock seconds —
     // the formatter truncates, so that is when its text can change. A value
     // of -1 poisons it, so the next tick always writes, even from position 0.
@@ -48,7 +47,6 @@
         _currentTimeTextField = contentView.currentTimeTextField;
         _fileMetadataTextField = contentView.fileMetadataTextField;
         _bpmTextField = contentView.bpmTextField;
-        _dropHintTextField = contentView.dropHintTextField;
         _waveformView = contentView.waveformView;
         _contentView = contentView;
         _lastPosition = -1;
@@ -213,7 +211,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         self.titleTextField.alphaValue = 1.0;
         self.currentTimeTextField.alphaValue = 1.0;
         self.totalTimeTextField.alphaValue = 1.0;
-        _dropHintTextField.hidden = YES;
+        [_contentView setDropHintShown:NO];
         setStringValueIfChanged(self.artistTextField, track.displayArtist);
         [self setTitleLabelText:track.displayTitle];
         if (state == TrackDisplayStateLoading) {
@@ -243,7 +241,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         setStringValueIfChanged(self.currentTimeTextField, @"");
         // Text only: latched FX symbols are deck state and stay.
         [self setFileMetadataText:@""];
-        _dropHintTextField.hidden = YES;
+        [_contentView setDropHintShown:NO];
         _lastPosition = -1;
         break;
 
@@ -260,7 +258,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         self.titleTextField.alphaValue = 0.275;
         self.currentTimeTextField.alphaValue = 0.5;
         self.totalTimeTextField.alphaValue = 0.5;
-        _dropHintTextField.hidden = NO;
+        [_contentView setDropHintShown:YES];
         setStringValueIfChanged(self.totalTimeTextField, STR_LABEL_TIME_UNKNOWN);
         setStringValueIfChanged(self.currentTimeTextField, STR_LABEL_TIME_UNKNOWN);
         _lastPosition = -1;

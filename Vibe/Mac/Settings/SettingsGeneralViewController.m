@@ -35,6 +35,8 @@ static const CGFloat kGeneralPopUpWidth = 280;
 #endif
     NSSwitch *_declickSwitch;
     SettingsRowView *_declickRow;
+    NSSwitch *_volumeControlSwitch;
+    SettingsRowView *_volumeControlRow;
     NSButton *_defaultPlayerButton;
     NSSwitch *_alwaysOnTopSwitch;
     NSSwitch *_lockWindowPositionSwitch;
@@ -135,6 +137,10 @@ static const CGFloat kGeneralPopUpWidth = 280;
     _declickRow = [SettingsRowView rowWithTitle:STR_SETTINGS_DECLICK
                                         caption:STR_SETTINGS_DECLICK_CAPTION
                                         control:_declickSwitch];
+    _volumeControlSwitch = [self switchWithAction:@selector(toggleVolumeControl:)];
+    _volumeControlRow = [SettingsRowView rowWithTitle:STR_SETTINGS_VOLUME_CONTROL
+                                              caption:STR_SETTINGS_VOLUME_CONTROL_CAPTION
+                                              control:_volumeControlSwitch];
 
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_OUTPUT_LABEL rows:@[
@@ -142,6 +148,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
         ]],
         [SettingsSectionView sectionWithRows:@[
             _declickRow,
+            _volumeControlRow,
             _bitPerfectRow,
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
             _exclusiveOutputRow,
@@ -209,6 +216,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
     captionChanged |= [_exclusiveOutputRow setCaption:exclusiveCaption];
 #endif
     _declickSwitch.state = AppSettings.sharedInstance.declick ? NSControlStateValueOn : NSControlStateValueOff;
+    _volumeControlSwitch.state = AppSettings.sharedInstance.volumeControl ? NSControlStateValueOn : NSControlStateValueOff;
     if (captionChanged) {
         [self paneContentDidChange];
     }
@@ -231,6 +239,11 @@ static const CGFloat kGeneralPopUpWidth = 280;
 - (void)toggleDeclick:(id)sender {
     AppSettings.sharedInstance.declick = (_declickSwitch.state == NSControlStateValueOn);
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectDeclick];
+}
+
+- (void)toggleVolumeControl:(id)sender {
+    AppSettings.sharedInstance.volumeControl = (_volumeControlSwitch.state == NSControlStateValueOn);
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectVolume];
 }
 
 - (void)toggleAlwaysOnTop:(id)sender {

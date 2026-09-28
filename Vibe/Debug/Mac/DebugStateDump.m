@@ -42,6 +42,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
     [CoreAudioUtil readUID:&outputDeviceUID forDeviceID:(AudioDeviceID)outputDeviceID];
     [state[@"player"] addEntriesFromDictionary:@{
         @"pitch": @(player.pitch),
+        @"volume": @(player.volume),
         @"maxPitch": @(player.maxPitch),
         @"playbackRate": @(1.0 + player.pitch / 100.0),
         @"lowKill": @(player.fx.lowKillEnabled),
@@ -87,6 +88,10 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"playButtonColor": VibeHexStringFromColor(controller.playButton.symbolNormalColor) ?: @"",
             @"nextButtonEnabled": @(controller.nextButton.isEnabled),
             @"pitchFader": @(controller.pitchPanel.pitch),
+            @"volumeSlider": @{@"value": @(controller.playerContentView.volumeSlider.doubleValue),
+                               @"hidden": @(controller.playerContentView.volumeControlView.isHidden),
+                               @"alpha": @(controller.playerContentView.volumeControlView.alphaValue),
+                               @"fill": VibeHexStringFromColor(controller.playerContentView.volumeSlider.trackFillColor) ?: @""},
             @"converting": @(controller.fileConverter.isConverting),
             @"convertSweep": @(controller.trackDisplay.convertSweepFraction),
             @"canUndo": @(window.undoManager.canUndo),

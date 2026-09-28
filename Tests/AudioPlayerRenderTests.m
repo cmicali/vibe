@@ -2424,6 +2424,51 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertEqual([counts[@"varispeedHistoryWrites"] unsignedLongLongValue], historyWrites, @"the history ring was written at zero pitch");
 }
 
+// The volume is the render's last stage, after the meter. At full volume the
+// output is the file exactly; at half the fader it is the file times 1/8, the
+// cube, exactly, since that is a power of two; at zero it is silence while
+// the meter before it still sees the signal; and back at full volume every
+// frame continues the file exactly, mid-stream. Each change ramps across one
+// slice, which the captures skip.
+- (void)testVolumeIsExactAtFullAndSilentAtZero {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    NSURL *noise = [self fixture:@"noise-48000-24-2.wav"];
+    NSData *reference = PCM([self read:noise]);
+    XCTAssertEqual(_player.volume, 1.0f, @"full volume by default");
+    [self play:noise paused:NO position:0];
+    [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
+
+    [self play:noise paused:NO position:0];
+    [self render:_blockSize * 8];
+    _player.volume = 0.5f;
+    [self render:_blockSize];
+    NSMutableData *scaled = [[self renderSeconds:0.25] mutableCopy];
+    float *p = scaled.mutableBytes;
+    for (NSUInteger i = 0; i < scaled.length / sizeof(float); i++) p[i] *= 8;
+    XCTAssertEqual([self assertExactExcerptsOf:@[reference] inCapture:scaled rampFrames:0 ramped:NULL], 1u,
+                   @"half the fader is the file at exactly 1/8");
+
+    _player.levelsEnabled = YES;
+    _player.volume = 0;
+    [self render:_blockSize];
+    NSData *silence = [self renderSeconds:0.5];
+    const float *q = silence.bytes;
+    for (NSUInteger i = 0; i < silence.length / sizeof(float); i++) {
+        XCTAssertEqual(q[i], 0.0f, @"sample %lu at zero volume", (unsigned long)i);
+        if (q[i] != 0.0f) break;
+    }
+    [_player runSyncOnQueue:^{
+        NSDictionary *signal = [[self->_player debugLevelMeter] signalDiagnosticSnapshot];
+        XCTAssertTrue([signal[@"aboveThreshold"] boolValue], @"the meter is before the volume: %@", signal);
+    }];
+    _player.levelsEnabled = NO;
+
+    _player.volume = 1;
+    [self render:_blockSize];
+    XCTAssertEqual([self assertExactExcerptsOf:@[reference] inCapture:[self renderSeconds:0.5] rampFrames:0 ramped:NULL], 1u,
+                   @"back at full volume, every frame continues the file exactly");
+}
+
 // The output's rate moves under the pipeline (a device's or a route's under
 // the output unit, here the pump's): playing, the tone continues at the new
 // rate from the same position; paused, the position holds and the resume

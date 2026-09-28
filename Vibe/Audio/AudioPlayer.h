@@ -52,6 +52,15 @@ NS_ASSUME_NONNULL_BEGIN
 // so NO applies no gain at all.
 @property (atomic) BOOL declick;
 
+// The output volume, 0..1, the fader's position: the render's last stage,
+// after the meter, whose gain is its cube so the travel reads as loudness.
+// 1, the default, leaves every sample untouched; 0 is silence. A change
+// ramps across one render slice; below 1 under bit-perfect output, the
+// report says so (VibeBitPerfectStatusPlayerVolume). The mac's Volume control
+// setting drives it; iOS leaves it at 1, the system volume being the control
+// there.
+@property (atomic) float volume;
+
 // The resampler's quality when a file's rate differs from the output's.
 // Always Maximum on macOS. iOS defaults to High: flat to 21 kHz with the same
 // alias rejection, for about half the CPU (1.8% vs 3.3% of a core on device).

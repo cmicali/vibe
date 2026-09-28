@@ -205,6 +205,9 @@ static double SkipBaseBars(void) {
             }
             return [NSString stringWithFormat:STR_SETTINGS_BIT_PERFECT_VOLUME,
                     [formatters decimalString:report.softwareVolume * 100 fractionDigits:0]];
+        case VibeBitPerfectStatusPlayerVolume:
+            return [NSString stringWithFormat:STR_SETTINGS_BIT_PERFECT_PLAYER_VOLUME,
+                    [formatters decimalString:report.playerVolume * 100 fractionDigits:0]];
         case VibeBitPerfectStatusExclusiveRefused:
             return STR_SETTINGS_BIT_PERFECT_EXCLUSIVE_REFUSED;
         case VibeBitPerfectStatusSourceLossy:

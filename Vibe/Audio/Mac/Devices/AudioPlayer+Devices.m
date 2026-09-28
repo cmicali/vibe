@@ -1194,6 +1194,7 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
     uint64_t readStarted = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
 #endif
     report.enabled = _bitPerfectWanted;
+    report.playerVolume = self.volume;
     AudioDevice *device = _bitPerfectWanted ? [self eligibleRequestedDeviceOnQueue] : nil;
     report.eligibleDevice = (device != nil);
     if (device && (AudioDeviceID)device.deviceId == _preparedDeviceID) {
@@ -1333,6 +1334,7 @@ static NSString *VibeBitPerfectStatusName(VibeBitPerfectStatus status) {
         case VibeBitPerfectStatusDepthInsufficient: return @"depthInsufficient";
         case VibeBitPerfectStatusMuted:             return @"muted";
         case VibeBitPerfectStatusVolumeScaled:      return @"volumeScaled";
+        case VibeBitPerfectStatusPlayerVolume:      return @"playerVolume";
         case VibeBitPerfectStatusExclusiveRefused:  return @"exclusiveRefused";
         case VibeBitPerfectStatusSourceLossy:       return @"sourceLossy";
     }
@@ -1349,6 +1351,7 @@ static NSString *VibeBitPerfectStatusName(VibeBitPerfectStatus status) {
         @"isFloat": @(r.isFloat),
         @"softwareVolume": @(r.softwareVolume),
         @"balance": @(r.balance),
+        @"playerVolume": @(r.playerVolume),
         @"muted": @(r.muted),
         @"eligibleDevice": @(r.eligibleDevice),
         @"hasTrack": @(r.hasTrack),

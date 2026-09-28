@@ -508,7 +508,7 @@ static VibeBitPerfectReport Perfect(void) {
     return (VibeBitPerfectReport){
         .enabled = YES, .eligibleDevice = YES, .hasTrack = YES,
         .rateExact = YES, .formatConfirmed = YES, .channelsMatch = YES,
-        .depthOK = YES, .softwareVolume = 1.0f, .balance = 0.5f,
+        .depthOK = YES, .softwareVolume = 1.0f, .balance = 0.5f, .playerVolume = 1.0f,
         .hogWanted = YES, .exclusive = YES, .sourceLossless = YES,
     };
 }
@@ -557,6 +557,9 @@ static VibeBitPerfectReport Perfect(void) {
     r = Perfect();
     r.muted = YES;
     XCTAssertFalse(VibeBitPerfectReportsEqual(Perfect(), r));
+    r = Perfect();
+    r.playerVolume = 0.5f;
+    XCTAssertFalse(VibeBitPerfectReportsEqual(Perfect(), r));
 }
 
 - (void)testMuteAndChannelConversionEachPreventAnActiveReport {
@@ -576,6 +579,8 @@ static VibeBitPerfectReport Perfect(void) {
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusSourceLossy);
     r.exclusive = NO;
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusExclusiveRefused);
+    r.playerVolume = 0.5f;
+    XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusPlayerVolume);
     r.softwareVolume = 0.5f;
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusVolumeScaled);
     r.muted = YES;

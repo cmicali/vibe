@@ -10,6 +10,7 @@
 #import "AudioTrack.h"
 #import "PlaylistController.h"
 #import "TrackDisplayController.h"
+#import "MainPlayerContentView.h"
 
 @implementation MainPlayerController (Delivery)
 
@@ -25,6 +26,10 @@
 
 - (void)audioWaveformView:(AudioWaveformView *)waveformView didSeek:(float)percentage {
     [self.audioPlayer seekToPosition:self.audioPlayer.duration * percentage];
+}
+
+- (void)audioWaveformView:(AudioWaveformView *)waveformView didResolvePlayedColor:(NSColor *)color {
+    [self.playerContentView setVolumeFillColor:color];
 }
 
 // The cache cancels only when the next load starts, so between a slow track's

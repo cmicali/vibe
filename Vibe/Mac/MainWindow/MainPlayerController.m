@@ -123,6 +123,7 @@
                                                      delegate:self];
     self.audioPlayer.crossfadeMilliseconds = AppSettings.sharedInstance.effectiveCrossfadeMilliseconds;
     self.audioPlayer.declick = AppSettings.sharedInstance.declick;
+    self.audioPlayer.volume = (float)AppSettings.sharedInstance.effectiveVolume;
     [self.audioPlayer setBitPerfectOutput:AppSettings.sharedInstance.bitPerfectOutput
                          exclusiveOutput:AppSettings.sharedInstance.exclusiveOutput
                               enableFX:AppSettings.sharedInstance.audioFXEnabled allowAnyDevice:AppSettings.sharedInstance.allowBitPerfectOnAnyDevice];
@@ -979,6 +980,11 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 
 - (void)pitchControlPanelDidEndAdjusting:(PitchControlPanel *)panel {
     [self updateNowPlaying];
+}
+
+- (IBAction)volumeChanged:(NSSlider *)sender {
+    AppSettings.sharedInstance.volume = sender.doubleValue;
+    [self applySettingsLiveEffects:VibeSettingsLiveEffectVolume];
 }
 
 - (IBAction)toggleTimeDisplayMode:(id)sender {

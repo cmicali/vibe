@@ -70,6 +70,8 @@ typedef NS_ENUM(NSInteger, VibeBitPerfectStatus) {
     VibeBitPerfectStatusMuted,
     // Software volume below 1.0 or balance away from center.
     VibeBitPerfectStatusVolumeScaled,
+    // The player's own volume below full (AudioPlayer.volume).
+    VibeBitPerfectStatusPlayerVolume,
     // Hog held by another process.
     VibeBitPerfectStatusExclusiveRefused,
     // Everything held, but the file is lossy: its decoded audio plays at its
@@ -86,6 +88,7 @@ typedef struct {
     BOOL isFloat;
     float softwareVolume;
     float balance;         // 0 = left, 0.5 = center, 1 = right
+    float playerVolume;    // AudioPlayer.volume; 1 is full, every sample untouched
     // The fold's inputs.
     BOOL enabled;
     BOOL eligibleDevice;
@@ -106,7 +109,8 @@ static const UInt32 kVibeBitPerfectAssumedLosslessDepth = 24;
 static inline BOOL VibeBitPerfectReportsEqual(VibeBitPerfectReport a, VibeBitPerfectReport b) {
     return a.status == b.status && a.sampleRate == b.sampleRate
             && a.bitsPerChannel == b.bitsPerChannel && a.isFloat == b.isFloat
-            && a.softwareVolume == b.softwareVolume && a.balance == b.balance && a.enabled == b.enabled
+            && a.softwareVolume == b.softwareVolume && a.balance == b.balance
+            && a.playerVolume == b.playerVolume && a.enabled == b.enabled
             && a.eligibleDevice == b.eligibleDevice && a.hasTrack == b.hasTrack
             && a.rateExact == b.rateExact
             && a.formatConfirmed == b.formatConfirmed && a.channelsMatch == b.channelsMatch
@@ -315,7 +319,8 @@ static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription source
 
 // The fold over the report's inputs, in priority order, so two breakers never
 // race for the caption: Off > Idle > SwitchFailed >
-// RateUnsupported > ChannelConversion > DepthInsufficient > Muted > VolumeScaled > ExclusiveRefused >
+// RateUnsupported > ChannelConversion > DepthInsufficient > Muted > VolumeScaled > PlayerVolume >
+// ExclusiveRefused >
 // SourceLossy > Active. SourceLossy is last
 // before Active because it is the only status that says the chain is perfect
 // and the file is not. There is no pitch input: under the mode there is no
@@ -344,6 +349,9 @@ static inline VibeBitPerfectStatus VibeBitPerfectFold(VibeBitPerfectReport r) {
     }
     if (r.softwareVolume < 1.0f || r.balance != 0.5f) {
         return VibeBitPerfectStatusVolumeScaled;
+    }
+    if (r.playerVolume < 1.0f) {
+        return VibeBitPerfectStatusPlayerVolume;
     }
     if (r.hogWanted && !r.exclusive) {
         return VibeBitPerfectStatusExclusiveRefused;

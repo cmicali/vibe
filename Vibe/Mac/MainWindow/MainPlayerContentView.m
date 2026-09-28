@@ -13,6 +13,7 @@
 #import "PlaylistDropZoneView.h"
 #import "NSView+DarkMode.h"
 #import "Fonts.h"
+#import "Formatters.h"
 #import "MainWindowLayout.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
@@ -79,6 +80,12 @@ static const CGFloat kTimeLabelWidth = 59;
 static const CGFloat kTotalTimeX = kHeaderTextMaxX - kTimeLabelWidth;
 static const CGFloat kDropHintX = kHeaderContentX + kTimeLabelWidth;
 static const CGFloat kDropHintWidth = kTotalTimeX - kDropHintX;
+// The volume control — "Vol", the slider, the percentage — centered in the
+// same gap, which it fits at kMainWindowMinContentWidth in the factory face;
+// the drop hint outranks it. The side columns are measured
+// (layoutVolumeControl).
+static const CGFloat kVolumeSliderWidth = 100;
+static const CGFloat kVolumeGap = 6;
 
 // The traffic lights: 13pt dots on 23pt centers, like the real macOS
 // controls, left-aligned with the playlist icon below.
@@ -148,6 +155,10 @@ API_AVAILABLE(macos(26.0))
     __weak NSView *_windowHoverHost;
     // An input to the hover fade, not a second writer of the same alpha.
     BOOL _trafficLightsShown;
+    BOOL _dropHintShown;
+    NSTextField *_dropHintTextField;
+    NSTextField *_volumeLabel;
+    NSTextField *_volumePercentLabel;
     // Kept so a theme re-apply redraws the last requested state.
     BOOL _playShowsPause;
     BOOL _transportBackdropDark; // seeded dark for the factory placeholder
@@ -180,7 +191,7 @@ API_AVAILABLE(macos(26.0))
     CGFloat shadowOpacity = dark ? kLabelShadowOpacityDark : 0.0;
     for (NSTextField *field in @[ _artistTextField, _titleTextField,
                                   _totalTimeTextField, _currentTimeTextField,
-                                  _dropHintTextField,
+                                  _dropHintTextField, _volumeLabel, _volumePercentLabel,
                                   _fileMetadataTextField, _bpmTextField ]) {
         field.layer.shadowOpacity = shadowOpacity;
     }
@@ -319,12 +330,16 @@ API_AVAILABLE(macos(26.0))
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     BOOL transportShown = theme.showTransportButtons;
     CGFloat transport = (shown && transportShown) ? 1.0 : 0.0;
+    BOOL volumeShown = AppSettings.sharedInstance.volumeControl && !_dropHintShown;
+    CGFloat volume = (shown && volumeShown) ? 1.0 : 0.0;
     BOOL gradientEnabled = self.transportGradientEnabled;
     CGFloat gradient = gradientEnabled && (shown || ![theme.buttonGradient isEqualToString:SETTINGS_VALUE_BUTTON_GRADIENT_HOVER]) ? 1 : 0;
     _albumArtGradientView.hidden = !gradientEnabled;
     _playlistToggleButton.hidden = !transportShown;
     _playButton.hidden = !transportShown;
     _nextButton.hidden = !transportShown;
+    _volumeControlView.hidden = !volumeShown;
+    _dropHintTextField.hidden = !_dropHintShown;
     _closeButton.hidden = !_trafficLightsShown;
     _minimizeButton.hidden = !_trafficLightsShown;
     if (animated) {
@@ -335,6 +350,7 @@ API_AVAILABLE(macos(26.0))
             self->_playlistToggleButton.animator.alphaValue = transport;
             self->_playButton.animator.alphaValue = transport;
             self->_nextButton.animator.alphaValue = transport;
+            self->_volumeControlView.animator.alphaValue = volume;
             self->_albumArtGradientView.animator.alphaValue = gradient;
         }];
     } else {
@@ -343,8 +359,64 @@ API_AVAILABLE(macos(26.0))
         _playlistToggleButton.alphaValue = transport;
         _playButton.alphaValue = transport;
         _nextButton.alphaValue = transport;
+        _volumeControlView.alphaValue = volume;
         _albumArtGradientView.alphaValue = gradient;
     }
+}
+
+- (void)setDropHintShown:(BOOL)shown {
+    if (shown == _dropHintShown) {
+        return;
+    }
+    _dropHintShown = shown;
+    [self setControlsShown:[self isCursorOverWindow] animated:NO];
+}
+
+- (void)applyVolumeControl {
+    _volumeSlider.doubleValue = AppSettings.sharedInstance.volume;
+    [self renderVolumeLabels];
+    [self setControlsShown:[self isCursorOverWindow] animated:NO];
+}
+
+// The corner readouts' face and kerning (TrackDisplayController's corner
+// attributes), in the artist's color.
+static NSDictionary *VolumeTextAttributes(NSTextAlignment alignment) {
+    NSMutableParagraphStyle *paragraph = [[NSParagraphStyle new] mutableCopy];
+    paragraph.alignment = alignment;
+    return @{NSFontAttributeName: [Fonts infoFontBold:NO],
+             NSKernAttributeName: @(-1.2),
+             NSForegroundColorAttributeName: AppSettings.sharedInstance.currentTheme.resolvedArtistColor,
+             NSParagraphStyleAttributeName: paragraph};
+}
+
+- (void)renderVolumeLabels {
+    NSString *percent = [[Formatters sharedInstance] percentString:AppSettings.sharedInstance.volume];
+    _volumeLabel.attributedStringValue = [[NSAttributedString alloc] initWithString:STR_LABEL_VOLUME
+            attributes:VolumeTextAttributes(NSTextAlignmentRight)];
+    _volumePercentLabel.attributedStringValue = [[NSAttributedString alloc] initWithString:percent
+            attributes:VolumeTextAttributes(NSTextAlignmentLeft)];
+}
+
+// Both side columns are the wider of "Vol" and "100%" in the current face, so
+// neither clips and the slider sits at the gap's center.
+- (void)layoutVolumeControl {
+    NSDictionary *attributes = VolumeTextAttributes(NSTextAlignmentLeft);
+    NSString *full = [[Formatters sharedInstance] percentString:1.0];
+    CGFloat side = ceil(MAX([STR_LABEL_VOLUME sizeWithAttributes:attributes].width,
+                            [full sizeWithAttributes:attributes].width)) + 2 * kLabelInkInset;
+    CGFloat width = 2 * side + 2 * kVolumeGap + kVolumeSliderWidth;
+    NSRect frame = _volumeControlView.frame;
+    frame.origin.x = round(NSMidX(frame) - width / 2);
+    frame.size.width = width;
+    _volumeControlView.frame = frame;
+    _volumeLabel.frame = NSMakeRect(0, 0, side, kSmallLabelHeight);
+    _volumeSlider.frame = NSMakeRect(side + kVolumeGap, 0, kVolumeSliderWidth, kSmallLabelHeight);
+    _volumePercentLabel.frame = NSMakeRect(width - side, 0, side, kSmallLabelHeight);
+    [self renderVolumeLabels];
+}
+
+- (void)setVolumeFillColor:(NSColor *)color {
+    _volumeSlider.trackFillColor = [color colorWithAlphaComponent:1.0];
 }
 
 // updateMaterialForAppearance sets the opacity. A field that changes every
@@ -370,6 +442,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [self buildAlbumArt];
     [self buildTransportControlsWithTarget:target];
     [self buildHeaderLabels];
+    [self buildVolumeControlWithTarget:target];
     [self buildPlaylistPane];
     [self buildCornerReadouts];
     [self applyThemedLabelFonts];
@@ -565,6 +638,40 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [self addSubview:_dropHintTextField];
 }
 
+// One view, so the three fade and hide together; it starts at zero alpha,
+// like the transport (setControlsShown:animated:). The labels are the corner
+// readouts' text in the artist's color (renderVolumeLabels).
+- (void)buildVolumeControlWithTarget:(id)target {
+    // The gap's frame for now: layoutVolumeControl keeps its center.
+    _volumeControlView = [[NSView alloc] initWithFrame:
+            NSMakeRect(kDropHintX, kTimeRowY, kDropHintWidth, kSmallLabelHeight)];
+    _volumeControlView.alphaValue = 0.0;
+    _volumeControlView.autoresizingMask = NSViewMinXMargin | NSViewMaxXMargin | NSViewMinYMargin;
+    [self addSubview:_volumeControlView];
+
+    _volumeLabel = [MainPlayerContentView labelWithFrame:NSZeroRect];
+    configureLabelShadow(_volumeLabel, YES);
+    [_volumeControlView addSubview:_volumeLabel];
+
+    _volumePercentLabel = [MainPlayerContentView labelWithFrame:NSZeroRect];
+    // Not rasterized: it changes under a drag.
+    configureLabelShadow(_volumePercentLabel, NO);
+    [_volumeControlView addSubview:_volumePercentLabel];
+
+    _volumeSlider = [[NSSlider alloc] initWithFrame:NSZeroRect];
+    _volumeSlider.controlSize = NSControlSizeSmall;
+    _volumeSlider.minValue = 0;
+    _volumeSlider.maxValue = 1;
+    _volumeSlider.doubleValue = AppSettings.sharedInstance.volume;
+    _volumeSlider.continuous = YES;
+    _volumeSlider.refusesFirstResponder = YES;
+    _volumeSlider.accessibilityLabel = STR_A11Y_VOLUME;
+    _volumeSlider.target = target;
+    _volumeSlider.action = @selector(volumeChanged:);
+    [_volumeControlView addSubview:_volumeSlider];
+    [self applyVolumeControl];
+}
+
 // Bottom to top: the frost, the background layer, the tint wash, the table,
 // and the drop zone.
 - (void)buildPlaylistPane {
@@ -648,6 +755,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _titleTextField.font = [Fonts titleFont];
     _totalTimeTextField.font = [Fonts infoFontBold:YES];
     _currentTimeTextField.font = [Fonts infoFontBold:YES];
+    [self layoutVolumeControl];
     _fileMetadataTextField.font = [Fonts infoFontBold:NO];
     _bpmTextField.font = [Fonts infoFontBold:NO];
     // A font change moves the codec line's measure too.
@@ -662,6 +770,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _artistTextField.textColor = theme.resolvedArtistColor;
     _totalTimeTextField.textColor = theme.resolvedTimeColor;
     _currentTimeTextField.textColor = theme.resolvedTimeColor;
+    [self renderVolumeLabels];
 }
 
 // A glyph this macOS has, else the factory one, as Fonts falls back from an
