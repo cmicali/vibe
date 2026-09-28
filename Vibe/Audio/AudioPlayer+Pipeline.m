@@ -827,6 +827,7 @@ VIBE_REALTIME_END
     [self dropLevelMeterOnQueue];
     [_outputUnit markDead];
     _outputUnit = nil;
+    [self publishOutputIdleOnQueue:YES];
     [self refreshOutputAudioActiveOnQueue];
     [self cancelPlayOpenOnQueue];
     [self clearPrefetchOnQueue];
@@ -1116,6 +1117,9 @@ void VibeMasterBusFree(VibeMasterBus *master) {
         return NO;
     }
     _outputIdleStopGeneration++; // playback is starting: cancel any pending idle stop
+    // Before the unit can run, and kept by a failed start: only the idle
+    // stop its caller re-arms answers idle again.
+    [self publishOutputIdleOnQueue:NO];
     if (![self renderingOnQueue]) {
         // TRAP: only the manual pump may start without an output unit;
         // otherwise Playing and didStartPlaying: publish with no callback to
@@ -1189,7 +1193,10 @@ void VibeMasterBusFree(VibeMasterBus *master) {
             return;
         }
         [strongSelf stopOutputOnQueue];
+        // On iOS the release returns with the unit's stop landed, which is
+        // what lets the shell release the session on the edge below.
         [strongSelf releaseIdleOutputUnitOnQueue];
+        [strongSelf publishOutputIdleOnQueue:YES];
     }];
 }
 

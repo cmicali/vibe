@@ -175,6 +175,11 @@ NS_ASSUME_NONNULL_BEGIN
 // still fading out. An FX tail after the last voice is not modeled.
 @property (readonly) BOOL outputAudioActive;
 
+// Nothing has started the output since its last idle stop settled: no render
+// is pulling the pipeline, an FX tail included. NO from every start attempt,
+// a failed one too, until the idle stop that follows it.
+@property (readonly) BOOL outputIdle;
+
 // Exactly one is true. During Loading, whether the open will land playing or
 // parked. A pause reports paused the moment it is requested.
 - (BOOL)isPlaying;
@@ -251,6 +256,11 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier;
 // Main thread, only when outputAudioActive changes.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeOutputAudioActive:(BOOL)outputAudioActive;
+
+// Main thread, when outputIdle becomes YES: the idle stop has stopped the
+// output, any FX tail rung out. Read outputIdle before acting on it; a newer
+// start may already own the output.
+- (void)audioPlayerOutputDidBecomeIdle:(AudioPlayer *)audioPlayer;
 
 // macOS, main thread, only when bitPerfectReport changed. The report settles
 // asynchronously, so a read right after a setter sees the previous one; redraw
