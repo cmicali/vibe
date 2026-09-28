@@ -383,6 +383,30 @@
     XCTAssertEqual(rebuilds, 1u);
 }
 
+// A quiet intro decoded ahead of a louder passage must not draw at full height
+// and then shrink: a streaming load holds the fixed reference, and so does
+// every snapshot of it.
+- (void)testNormalizationWaitsForTheWholeTrack {
+    AudioWaveformCacheChunk quiet;
+    quiet.set(-0.1f, 0.1f, 0.01f * 4, 4);
+    AudioWaveform loading;
+    for (NSUInteger i = 0; i < loading.getNumChunks(); i++) {
+        loading.setChunkAtIndex(quiet, i);
+    }
+    AudioWaveform snapshot(loading);
+    XCTAssertFalse(snapshot.isComplete());
+    XCTAssertEqual(VibeWaveformFullScaleRMSForWaveform(&snapshot, YES, 1024), kVibeWaveformFullScaleRMS);
+
+    loading.markComplete();
+    AudioWaveform whole(loading);
+    XCTAssertTrue(whole.isComplete());
+    XCTAssertEqualWithAccuracy(VibeWaveformFullScaleRMSForWaveform(&whole, YES, 1024), 0.1f, 1e-6);
+
+    // An archive is only written complete.
+    AudioWaveform archived(1, &quiet);
+    XCTAssertTrue(archived.isComplete());
+}
+
 #pragma mark - getMaxMeanSquare
 
 // 64 chunks whose mean square is their index, so the loudest column at any

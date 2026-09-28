@@ -52,7 +52,7 @@
 }
 
 - (void)debugSetOutputRouteKind:(VibeOutputRouteKind)kind deviceName:(NSString *)name {
-    [_routeView setRouteKind:kind deviceName:name];
+    [_boundPage setOutputRouteKind:kind deviceName:name];
 }
 
 - (NSDictionary *)debugArtDictionary {

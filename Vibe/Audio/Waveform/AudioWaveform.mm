@@ -9,6 +9,7 @@
 
 AudioWaveform::AudioWaveform() {
     numChunks = NUM_CHUNKS;
+    complete = false;
     this->chunks = static_cast<AudioWaveformCacheChunk*>(calloc(this->numChunks, sizeof(AudioWaveformCacheChunk)));
     // A NULL allocation would make setChunkAtIndex dereference NULL, whereas a
     // zero count turns every access into a safe no-op.
@@ -17,6 +18,7 @@ AudioWaveform::AudioWaveform() {
 
 AudioWaveform::AudioWaveform(NSUInteger numChunks, const void* chunks) {
     this->numChunks = numChunks;
+    this->complete = true;
     this->chunks = static_cast<AudioWaveformCacheChunk*>(calloc(this->numChunks, sizeof(AudioWaveformCacheChunk)));
     if (this->chunks && chunks) {
         memcpy(this->chunks, chunks, this->getNumBytes());
@@ -27,6 +29,7 @@ AudioWaveform::AudioWaveform(NSUInteger numChunks, const void* chunks) {
 
 AudioWaveform::AudioWaveform(const AudioWaveform& other) {
     this->numChunks = other.numChunks;
+    this->complete = other.complete;
     this->chunks = static_cast<AudioWaveformCacheChunk*>(calloc(this->numChunks, sizeof(AudioWaveformCacheChunk)));
     if (this->chunks && other.chunks) {
         memcpy(this->chunks, other.chunks, this->getNumBytes());

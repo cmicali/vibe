@@ -33,6 +33,7 @@ static AudioWaveform *VibePreviewWaveform(void) {
             chunk.set(-level * (0.6f + 0.4f * fabsf(sinf(x * 17))), level, level * level * 0.5f, 1);
             waveform->setChunkAtIndex(chunk, i);
         }
+        waveform->markComplete();
     });
     return waveform;
 }

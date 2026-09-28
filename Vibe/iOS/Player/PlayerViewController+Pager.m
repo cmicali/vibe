@@ -156,34 +156,37 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     AudioTrack *track = [_playlist trackAtIndex:index];
     NSString *errorText = _playback.errorText;
     BOOL showError = index == _playlist.currentIndex && errorText != nil;
+    BOOL showsInfo = VibeShowsFileInfo();
     // Full-size art or the placeholder, never the soft 128px thumbnail.
     [cell configureWithTitle:track.displayTitle
                   titleColor:[UIColor labelColor]
                       artist:(showError ? errorText : (track.displayArtist ?: @""))
                  artistColor:(showError ? [UIColor systemRedColor]
                                         : [UIColor secondaryLabelColor])
-                    fileInfo:(VibeShowsFileInfo() ? [self fileInfoLineForTrack:track] : nil)
+                    fileInfo:(showsInfo ? track.metadata.fileInfoLine : nil)
+                   tempoInfo:(showsInfo ? [self tempoInfoLineForTrack:track] : nil)
                          art:(track.cachedArt ?: [UIImage imageNamed:@"record-bg"])];
     // The page's own index, so the last page arrives dimmed.
     [cell setNextEnabled:index + 1 < _playlist.count];
-    [cell.routeView setRouteKind:_playback.outputRouteKind
-                      deviceName:_playback.outputRouteName];
+    [cell setOutputRouteKind:_playback.outputRouteKind
+                  deviceName:_playback.outputRouteName];
     // The pad follows the setting, which the Playback screen's write carries
     // here through the display notification.
     [cell setFXPadShown:AppSettings.sharedInstance.audioFXEnabled];
 }
 
-// The codec line with the tempo after it when one is known — the tag, or
-// the analysis the waveform load ran — joined the way the line joins its own
-// fields. The mac gives the tempo a line of its own; this card has none.
-- (NSString *)fileInfoLineForTrack:(AudioTrack *)track {
-    NSString *line = track.metadata.fileInfoLine ?: @"";
-    float bpm = track.bpm;
-    if (bpm <= 0) {
-        return line;
+// The mac's second info line: the tempo — the tag, or the analysis the
+// waveform load ran — and the key. Tagged only, in Camelot, the mac's default
+// notation: key analysis and the notation setting are macOS-only.
+- (NSString *)tempoInfoLineForTrack:(AudioTrack *)track {
+    NSMutableArray<NSString *> *fields = [NSMutableArray array];
+    if (track.bpm > 0) {
+        [fields addObject:[[Formatters sharedInstance] bpmString:track.bpm]];
     }
-    NSString *tempo = [[Formatters sharedInstance] bpmString:bpm];
-    return line.length == 0 ? tempo : [@[line, tempo] componentsJoinedByString:VibeNotLocalized(@" | ")];
+    if (VibeMusicalKeyIsValid(track.key)) {
+        [fields addObject:VibeMusicalKeyCamelotName(track.key)];
+    }
+    return [fields componentsJoinedByString:VibeNotLocalized(@" | ")];
 }
 
 - (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView

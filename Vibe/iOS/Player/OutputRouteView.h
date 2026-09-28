@@ -28,9 +28,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)setRouteKind:(VibeOutputRouteKind)kind deviceName:(nullable NSString *)name;
 
-// The two page layouts differ; a change redraws the current route.
-@property (nonatomic) CGFloat glyphPointSize;
-
 // What it drew, for the debug state dump.
 @property (nonatomic, readonly, copy) NSString *symbolName;
 @property (nonatomic, readonly) BOOL showsDeviceName;

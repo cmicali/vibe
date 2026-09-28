@@ -9,8 +9,7 @@
 
 #import "VibeStrings.h"
 
-// For an owner that sets no glyph size.
-static const CGFloat kRouteDefaultGlyphPointSize = 15;
+static const CGFloat kRouteGlyphPointSize = 23;
 static const CGFloat kRouteContentSpacing = 5;
 // On the built-in speaker the content is a lone glyph, too narrow to hit.
 static const CGFloat kRouteMinimumTapWidth = 44;
@@ -34,16 +33,11 @@ static const CGFloat kRoutePressedAlpha = 0.35;
     UIStackView         *_content;
     UIImageView         *_symbolView;
     UILabel             *_nameLabel;
-
-    // Kept so a glyph-size change can redraw without a push.
-    VibeOutputRouteKind  _kind;
-    NSString            *_name;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
-        _glyphPointSize = kRouteDefaultGlyphPointSize;
         [self buildUI];
         [self setRouteKind:VibeOutputRouteKindNone deviceName:nil];
     }
@@ -124,23 +118,12 @@ static const CGFloat kRoutePressedAlpha = 0.35;
     ]];
 }
 
-- (void)setGlyphPointSize:(CGFloat)glyphPointSize {
-    if (_glyphPointSize == glyphPointSize) {
-        return;
-    }
-    _glyphPointSize = glyphPointSize;
-    // The page's layouts swap under a live cell.
-    [self setRouteKind:_kind deviceName:_name];
-}
-
 - (void)setRouteKind:(VibeOutputRouteKind)kind deviceName:(NSString *)name {
-    _kind = kind;
-    _name = [name copy];
     _symbolName = [VibeOutputRouteSymbolName(kind, name) copy];
     _showsDeviceName = VibeOutputRouteShowsDeviceName(kind, name);
 
     UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration
-            configurationWithPointSize:_glyphPointSize
+            configurationWithPointSize:kRouteGlyphPointSize
                                 weight:UIImageSymbolWeightMedium];
     _symbolView.image = [UIImage systemImageNamed:_symbolName withConfiguration:config];
     _nameLabel.text = _showsDeviceName ? name : nil;
