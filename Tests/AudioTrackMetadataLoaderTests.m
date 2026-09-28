@@ -967,6 +967,19 @@ materializationCoordinator:coordinator
     __block BOOL firstScanRead = YES;
     AudioTrackMetadata *cached = VibeLoaderTestMetadataResult(YES, @"cached-target");
 
+    // One worker, so the stage-one read cannot enter until the setup operation
+    // has installed the barrier. With more, a starved setup installs it after
+    // the priority cache check, the barrier waits on the read the test holds,
+    // and stage one never finishes.
+    VibeAudioLoadingConfigurationValues values =
+            VibeAudioLoadingProductionConfigurationValues();
+    values.localMetadataParseConcurrency = 1;
+    NSError *configurationError = nil;
+    AudioLoadingConfiguration *configuration = [[AudioLoadingConfiguration alloc]
+            initWithValues:values error:&configurationError];
+    XCTAssertNotNil(configuration);
+    XCTAssertNil(configurationError);
+
     VibeMetadataLoaderOperationController *controller =
             [[VibeMetadataLoaderOperationController alloc] init];
     controller.firstStartExpectation =
@@ -976,7 +989,7 @@ materializationCoordinator:coordinator
             [self expectationWithDescription:@"cache target and duplicate published"];
     delegate.deliveryExpectation.expectedFulfillmentCount = 2;
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
-            configuration:[self testConfiguration]
+            configuration:configuration
             delegate:delegate
             cacheReader:^AudioTrackMetadata *(AudioTrack *track) {
         if (track == cachedTarget) {
@@ -1510,11 +1523,14 @@ materializationCoordinator:coordinator
     [self waitForCondition:^BOOL{
         return [coordinator stateSnapshotForTesting].requestsFailed == 2;
     } description:@"duplicate path did not settle its shared attempt budget"];
+    [self waitForCondition:^BOOL{
+        NSDictionary *scan = [loader debugScanLaneState];
+        return [scan[@"pending"] count] == 0 && ![scan[@"inFlight"] boolValue];
+    } description:@"exhausted path did not drop its duplicate records"];
     [self waitForDelay:0.05];
 
     XCTAssertEqual(controller.startedURLs.count, 2u,
             @"duplicate rows must not multiply a per-path attempt budget");
-    XCTAssertEqualObjects([loader debugScanLaneState][@"pending"], (@[]));
     for (AudioTrack *track in duplicates) {
         XCTAssertNil(track.metadata);
     }
@@ -1574,6 +1590,14 @@ materializationCoordinator:coordinator
     [self waitForCondition:^BOOL{
         return [coordinator stateSnapshotForTesting].requestsFailed == 3;
     } description:@"three physical provider failures did not spend three attempts"];
+    [self waitForCondition:^BOOL{
+        NSDictionary *priority = [loader debugPriorityLaneState];
+        NSDictionary *scan = [loader debugScanLaneState];
+        return [priority[@"pending"] count] == 0
+                && ![priority[@"inFlight"] boolValue]
+                && [scan[@"pending"] count] == 0
+                && ![scan[@"inFlight"] boolValue];
+    } description:@"exhausted path did not drop its records from both slots"];
     [self waitForDelay:0.05];
 
     XCTAssertEqual(controller.startedURLs.count, 3u,
@@ -1583,8 +1607,6 @@ materializationCoordinator:coordinator
         @(VibeAudioFileMaterializationRoleMetadataPriority),
         @(VibeAudioFileMaterializationRoleMetadataPriority),
     ]));
-    XCTAssertEqualObjects([loader debugPriorityLaneState][@"pending"], (@[]));
-    XCTAssertEqualObjects([loader debugScanLaneState][@"pending"], (@[]));
     XCTAssertNil(scan.metadata);
     XCTAssertNil(priority.metadata);
 }
@@ -1613,13 +1635,15 @@ materializationCoordinator:coordinator
     [self waitForCondition:^BOOL{
         return [coordinator stateSnapshotForTesting].requestsFailed == 1;
     } description:@"failed priority attempt did not spend its path budget"];
+    [self waitForCondition:^BOOL{
+        NSDictionary *priority = [loader debugPriorityLaneState];
+        return [priority[@"pending"] count] == 0
+                && ![priority[@"inFlight"] boolValue]
+                && [priority[@"liveTokens"] unsignedIntegerValue] == 0;
+    } description:@"exhausted priority record did not settle out of its slot"];
     [self waitForDelay:0.05];
 
-    NSDictionary *priority = [loader debugPriorityLaneState];
     XCTAssertEqual(controller.startedURLs.count, 1u);
-    XCTAssertEqualObjects(priority[@"pending"], (@[]));
-    XCTAssertFalse([priority[@"inFlight"] boolValue]);
-    XCTAssertEqual([priority[@"liveTokens"] unsignedIntegerValue], 0u);
     XCTAssertNil(track.metadata);
 }
 
@@ -2115,7 +2139,9 @@ materializationCoordinator:coordinator
     [self waitForCondition:^BOOL{
         return [coordinator stateSnapshotForTesting].requestsAdmissionExhausted == 1;
     } description:@"loader request was not admission exhausted"];
-    [self waitForDelay:0.02];
+    [self waitForCondition:^BOOL{
+        return [[loader debugScanLaneState][@"delayed"] containsObject:@"delayed.wav"];
+    } description:@"admission-exhausted record did not enter the delayed set"];
     NSDictionary *delayedState = [loader debugScanLaneState];
     XCTAssertEqualObjects(delayedState[@"pending"], (@[]));
     XCTAssertEqualObjects(delayedState[@"delayed"], (@[@"delayed.wav"]));
