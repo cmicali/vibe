@@ -1671,6 +1671,42 @@ static const NSTimeInterval kProbeGateTimeout = 5;
     [self waitForExpectations:@[localReady] timeout:2];
 }
 
+// A local read that never returns — a hung network share, a sleeping disk —
+// must not hold the lane: nothing times a running read out, and the
+// background lane is one wide, so every cloud row's metadata waited behind it.
+- (void)testAStalledLocalRunLeavesTheLaneToTransfers {
+    VibeAudioLoadingConfigurationValues values =
+            VibeAudioLoadingProductionConfigurationValues();
+    values.maximumBackgroundMaterializations = 1;
+    [_probeController setResults:@[@NO] forName:@"stalled-local.wav"];
+    [self makeCoordinatorWithValues:values];
+
+    __unused AudioFileMaterializationRequestToken *stalled = [self requestName:@"stalled-local.wav"
+            role:VibeAudioFileMaterializationRoleMetadataScan
+            completion:^(VibeAudioFileMaterializationResult result, NSError *error, NSTimeInterval elapsed) {
+    }];
+    XCTAssertTrue([_controller waitForStartedCount:1]);
+    XCTAssertEqual([_coordinator stateSnapshotForTesting].backgroundRunningCount, 0u,
+                   @"a local run must not count against the lane");
+
+    XCTestExpectation *downloadReady = [self expectationWithDescription:@"download ready"];
+    __unused AudioFileMaterializationRequestToken *download = [self requestName:@"download.wav"
+            role:VibeAudioFileMaterializationRoleMetadataScan
+            completion:^(VibeAudioFileMaterializationResult result, NSError *error, NSTimeInterval elapsed) {
+        XCTAssertEqual(result, VibeAudioFileMaterializationResultReady);
+        [downloadReady fulfill];
+    }];
+    XCTAssertTrue([_controller waitForStartedCount:2],
+                  @"the transfer waited behind a local read that never returned");
+    VibeAudioFileMaterializationCoordinatorSnapshot snapshot = [_coordinator stateSnapshotForTesting];
+    XCTAssertEqual(snapshot.backgroundPendingCount, 0u);
+    XCTAssertEqual(snapshot.backgroundRunningCount, 1u);
+    [[_controller operationForLastPathComponent:@"download.wav"] completeReady:YES];
+    [self waitForExpectations:@[downloadReady] timeout:2];
+    XCTAssertEqual([_coordinator stateSnapshotForTesting].backgroundRunningCount, 0u);
+    [[_controller operationForLastPathComponent:@"stalled-local.wav"] completeReady:YES];
+}
+
 - (void)testBlockedDelayedRefreshLeavesStateResponsiveAndUsesItsFreshLocalAnswer {
     VibeAudioLoadingConfigurationValues values =
             VibeAudioLoadingProductionConfigurationValues();
@@ -1747,6 +1783,8 @@ static const NSTimeInterval kProbeGateTimeout = 5;
 
     XCTAssertTrue([_controller waitForStartedCount:2]);
     XCTAssertEqual([_probeController callCountForName:@"delayed-local.wav"], 2u);
+    XCTAssertEqual([_coordinator stateSnapshotForTesting].backgroundRunningCount, 0u,
+                   @"a refresh that finds the file local hands its slot back");
     [self drainMainQueue];
     XCTAssertFalse([CloudTransferRegistry.sharedRegistry
             isTransferringURL:[self URLNamed:@"delayed-local.wav"]]);
