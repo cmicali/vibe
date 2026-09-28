@@ -1544,12 +1544,16 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 }
 
 - (void)testFailedDeviceSwitchReconcilesOutputGraph {
-    AudioDeviceManager *devices = [[AudioDeviceManager alloc] initWithEnumerator:^NSArray *(BOOL partial) {
-        return @[];
-    } retryScheduler:nil];
+    // System Output's default comes from the manager's snapshot, so each case
+    // is a snapshot: the default present (its bind refused), none published
+    // yet, devices without a default, or no device at all.
+    AudioDevice *systemDefault = [[AudioDevice alloc] initWithName:@"Default" uid:@"default" deviceId:1
+                                                   isSystemDefault:YES transportType:kAudioDeviceTransportTypeVirtual];
+    AudioDevice *undefaulted = [[AudioDevice alloc] initWithName:@"Other" uid:@"other" deviceId:1
+                                                 isSystemDefault:NO transportType:kAudioDeviceTransportTypeVirtual];
+    __block NSArray<AudioDevice *> *snapshot = nil;
+    __block AudioDeviceManager *devices = nil;
     // Replace only the device I/O boundaries; the real rebuild and PCM path run.
-    __block BOOL defaultReadSucceeds = NO;
-    __block BOOL defaultBindRefused = NO;
     Method methods[] = {
         class_getClassMethod(AudioDeviceManager.class, @selector(sharedInstance)),
         class_getClassMethod(CoreAudioUtil.class, @selector(systemDefaultOutputDeviceID)),
@@ -1559,20 +1563,34 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     IMP replacements[] = {
         imp_implementationWithBlock(^AudioDeviceManager *(id cls) { return devices; }),
         imp_implementationWithBlock(^AudioDeviceID(id cls) { return 1; }),
-        imp_implementationWithBlock(^BOOL(id cls, AudioDeviceID *device) {
-            *device = defaultBindRefused ? 1 : kAudioObjectUnknown;
-            return defaultReadSucceeds;
-        }),
+        imp_implementationWithBlock(^BOOL(id cls, AudioDeviceID *device) { *device = 1; return YES; }),
         imp_implementationWithBlock(^BOOL(id player, AudioDeviceID device) { return NO; }),
     };
     IMP originals[4];
     for (NSUInteger i = 0; i < 4; i++) originals[i] = method_setImplementation(methods[i], replacements[i]);
     @try {
-        for (NSString *failure in @[@"concrete", @"system-refused", @"system-unreadable", @"system-missing"])
+        for (NSString *failure in @[@"concrete", @"system-refused", @"system-unpublished",
+                                    @"system-undefaulted", @"system-missing"]) {
+        BOOL publish = ![failure isEqualToString:@"concrete"] && ![failure isEqualToString:@"system-unpublished"];
+        snapshot = [failure isEqualToString:@"system-refused"] ? @[systemDefault]
+                 : [failure isEqualToString:@"system-undefaulted"] ? @[undefaulted] : @[];
+        devices = [[AudioDeviceManager alloc] initWithEnumerator:^NSArray *(BOOL partial) {
+            return publish ? snapshot : nil;
+        } retryScheduler:nil];
+        if (publish) {
+            dispatch_semaphore_t published = dispatch_semaphore_create(0);
+            [devices refreshOutputDevicesWithCompletion:^(BOOL ok) { dispatch_semaphore_signal(published); }];
+            XCTAssertEqual(dispatch_semaphore_wait(published,
+                    dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
+        }
         for (NSString *state in @[@"stopped", @"paused", @"playing"]) {
             BOOL systemOutput = [failure hasPrefix:@"system-"];
-            defaultBindRefused = [failure isEqualToString:@"system-refused"];
-            defaultReadSucceeds = defaultBindRefused || [failure isEqualToString:@"system-missing"];
+            BOOL defaultBindRefused = [failure isEqualToString:@"system-refused"];
+            // Only a published snapshot with no device at all parks the track,
+            // and a default missing among present devices is a moment's gap
+            // while macOS moves it, bound by the retry without an error.
+            BOOL parked = [failure isEqualToString:@"system-missing"];
+            BOOL reportsError = ![failure isEqualToString:@"system-undefaulted"];
             BOOL committedSystemOutput = systemOutput && !defaultBindRefused;
             [self startPlayerAt:44100 channels:2 fx:YES bitPerfect:YES automatic:NO];
             NSURL *url = [self fixture:@"noise-44100-24-2.wav"];
@@ -1602,14 +1620,14 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
                 completed = YES;
             }];
             [self settleUntil:^BOOL { return completed; }];
-            XCTAssertNotNil(_playError);
+            XCTAssertEqual(_playError != nil, reportsError, @"%@ %@: %@", failure, state, _playError);
             XCTAssertEqual(_player.currentlyRequestedAudioDeviceId, committedSystemOutput ? -1 : requestedDevice);
             XCTAssertEqual(_player.bitPerfectReport.enabled, !committedSystemOutput);
             XCTAssertEqual([_player.debugRenderCounts[@"fxConnected"] boolValue], committedSystemOutput);
             if (committedSystemOutput && ![state isEqualToString:@"stopped"]) {
                 XCTAssertEqual(_player.currentTrack, track);
                 XCTAssertEqualWithAccuracy(_player.position, position, 1.0 / _rate);
-                XCTAssertEqual(_player.isPaused, defaultReadSucceeds || [state isEqualToString:@"paused"]);
+                XCTAssertEqual(_player.isPaused, parked || [state isEqualToString:@"paused"]);
                 XCTAssertTrue([_player.debugRenderCounts[@"varispeed"] boolValue]);
             } else {
                 XCTAssertTrue(_player.isStopped);
@@ -1622,6 +1640,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
             XCTAssertEqual([_player.debugRenderCounts[@"varispeed"] boolValue], committedSystemOutput);
             [self assertReference:PCM([self read:url]) capture:[self renderSeconds:2.1]
                              skip:[self startupSkip] tolerance:(committedSystemOutput ? 1e-10 : 0)];
+        }
         }
     } @finally {
         [_player debugShutdown]; _player = nil;
