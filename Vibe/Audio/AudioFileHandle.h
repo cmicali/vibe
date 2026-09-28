@@ -52,7 +52,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)init NS_UNAVAILABLE;
 
 // Which decoder MPEG files opened from now on get: dr_mp3 (NO, the default;
-// docs/future/mp3-decoder.md) or Apple's (YES). The mac's Settings > Advanced
+// docs/audio-quality.md) or Apple's (YES). The mac's Settings > Advanced
 // chooses; iOS keeps the default. A handle keeps the decoder it opened with.
 @property (class, atomic) BOOL appleMPEGDecoder;
 // "dr_mp3" or "apple", for the audio-path report.

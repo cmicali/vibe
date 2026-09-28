@@ -80,7 +80,7 @@ How much that matters depends on the decoder. Apple's built-in decoders behave v
 
 ## The MP3 decoder
 
-Vibe decodes MP3 and MP2 files with its own decoder, **dr_mp3**, not the one built into macOS and iOS. On the Mac you can switch back in Settings > Advanced > MP3 decoder, which offers "Vibe (dr_mp3 HQ)", the default, and "Apple built-in". The iPhone always uses dr_mp3.
+Vibe decodes MP3 and MP2 files with its own decoder, **dr_mp3**, not the one built into macOS and iOS. On the Mac you can switch back in Settings > Advanced > MP3 decoder, which offers "Vibe (dr_mp3 HQ)", the default, and "Apple built-in". A change applies from the next track: a file already playing keeps its decoder, and the next track, which Vibe opens early, is opened again. The iPhone always uses dr_mp3.
 
 ### Why not Apple's decoder
 
@@ -105,6 +105,20 @@ We ran seven of the ISO test recordings through six decoders. The chart shows ho
 - **BASS is dr_mp3's close cousin.** BASS is a commercial audio library, and its notes say its MP3 decoding is based on minimp3, the same decoder dr_mp3 comes from. Its output matches dr_mp3's to within the last bit or two of a 32-bit float, about −134 dB. It keeps a loud master's peaks too.
 - **libmad has no edge any more.** It is famous for topping an older version of this comparison, from the early 2000s. Back then most decoders gave 16-bit output and libmad gave 24-bit. Against decoders with full-precision output, that advantage is gone.
 
+The numbers behind the chart, best first. "Average error" is on each decoder's worst recording.
+
+| Decoder | Average error | Largest single error | Times inside the limit | Result |
+| --- | --- | --- | --- | --- |
+| FFmpeg (`mp3float`) | −142.1 dBFS | 7.2e-7 | 112× | full accuracy on all 7 |
+| libmad 0.15.1b, accuracy build | −141.6 dBFS | 7.3e-7 | 106× | full accuracy on all 7 |
+| mpg123 1.33.7 | −141.6 dBFS | 7.0e-7 | 106× | full accuracy on all 7 |
+| dr_mp3 0.7.4 | −141.5 dBFS | 7.1e-7 | 105× | full accuracy on all 7 |
+| BASS 2.4.18 | −141.1 dBFS | 6.9e-7 | 100× | full accuracy on all 7 |
+| libmad 0.15.1b, default build | −140.2 dBFS | 9.2e-7 | 90× | full accuracy on all 7 |
+| Apple built-in | −100.8 dBFS | 2.4e-5 | 1× | full on 3, limited on 4 |
+
+The limit for full accuracy is an average error below −101.1 dBFS and no single error above 6.1e-5. We read libmad at its full internal precision, finer than the 24-bit output it is known for. Apple and BASS both remove the decoder's 529-sample start-up delay, so their output was lined up 529 samples later. The recordings come from FFmpeg's test-file mirror; `compl`, a −20 dB sine sweep, is the one the well-known Underbit compliance table used.
+
 A test runs this ISO check on every change and fails if dr_mp3 is ever less than 50 times inside the limit, so it would catch a slip back to 16-bit output. (The ISO's recordings aren't ours to include, so the test downloads them, and skips if it can't.)
 
 ### Speed and cost
@@ -121,21 +135,60 @@ dr_mp3 is also cheaper to run than Apple's decoder, on every measure except app 
 - **A third of the memory, and far less reading.** Each open file takes 60 KB with dr_mp3 and 177 KB with Apple's decoder. To play a 15 MB file, Apple's decoder read 235 MB from it and dr_mp3 read 17 MB.
 - **BASS comes second.** It used about 15% more CPU than dr_mp3 on both kinds of core, and about half as much as Apple's decoder. dr_mp3 was cheaper on every file on the fast cores; on the efficiency cores the two were within 3% of each other on four of the eleven, which is inside those cores' run-to-run noise.
 
-*How this was measured:* Vibe's own file reader with the app's Release build settings, switching between the two decoders run by run, on a Mac with an M4 Max. BASS 2.4.18 decoded the same files with its own file reader, in the same session. The files were one real 6.5-minute track encoded nine ways, plus two real 320 kbps tracks. Memory and data read are only for Vibe's reader, since BASS reads files its own way. No iPhone was measured.
+The whole comparison for a 320 kbps MP3, best first:
+
+| Measure | dr_mp3 | BASS | Apple |
+| --- | --- | --- | --- |
+| CPU to play, fast core | 0.042% of one core | 0.050% | 0.096% |
+| CPU to play, efficiency core | 0.12% | 0.14% | 0.32% |
+| Energy per hour of music | 8.1 J | 9.6 J | 16.8 J |
+| Decoding a whole 6.5-minute track | 161 ms | 188 ms | 361 ms |
+| Opening a file | 0.06 ms | not measured | 0.09 ms |
+| Seeking, then reading 4,096 frames | 0.15 ms | not measured | 0.17 ms |
+| Slowest 4,096-frame read on a fast core, any file | 0.75 ms | not measured | 2.4 ms |
+| Memory per open file | 60 KB | 30 KB* | 177 KB |
+| Data read to play a 15 MB file | 17 MB | 15.7 MB* | 235 MB |
+| Added to the app | 48 KB of code | a 0.9 MB library | nothing |
+
+\* BASS reads the file itself, while both of Vibe's decoders share macOS's file reader, so these two aren't like for like. With a real track's embedded artwork, BASS also held 174–414 KB of tags in memory.
+
+- **A read has plenty of time.** Each 4,096-frame read covers 93 ms of music, and the slowest took under 3 ms. On efficiency cores both decoders had rare reads of 45–77 ms, from the test's lowest thread priority waiting on a busy machine; the app's decode thread runs at the highest priority, and each track keeps at least a second of audio buffered.
+- **Where dr_mp3's memory goes:** 23 KB of decoder state, about 21 KB for 16 compressed frames read ahead, and 9 KB for one frame of sound. The rest is macOS's file reader.
+- **Why Apple's decoder reads so much:** it reads 64 KB at a time and rereads the same part of the file many times, 15 to 40 times the file's size over one playthrough. In our test the file was already in memory, so this cost time (about 10 ms per track, against 1–3 ms) and no disk reads. We didn't test a slow drive or a network share.
+
+*How this was measured:* Vibe's own file reader with the app's Release build settings, switching between the two decoders run by run, on a Mac with an M4 Max. BASS 2.4.18 decoded the same files with its own file reader, in the same session. The files were one real 6.5-minute track encoded nine ways, plus two real 320 kbps tracks. No iPhone was measured.
 
 ### How it fits in
 
-- **macOS still reads the file.** It opens the file, reads its tags and gapless information, and finds each frame of audio. dr_mp3 only turns those frames into sound. So every track has the same length and plays gaplessly exactly as with Apple's decoder.
-- **Seeking lands on the exact sample.** dr_mp3 warms up on a few frames before the target, so a seek gives exactly the same sound as playing from the start.
-- **Damaged and cut-off files end where Apple's do.** MP3 and MP2 inside WAV files work too.
+- **macOS still reads the file.** It opens the file, reads its tags and gapless information, and finds each frame of audio. dr_mp3 only turns those frames into sound. So every track has the same length and plays gaplessly exactly as with Apple's decoder. On 16 test files the lengths matched exactly, and the sound differed only by Apple's 16-bit rounding (at most 4 steps of a 16-bit value).
+- **Same timing as Apple.** Every MP3 decoder outputs its sound 529 samples late (241 for MP1 and MP2). Apple's decoder removes this delay, so Vibe removes the same amount. At the end, Vibe feeds dr_mp3 one silent frame so it gives up its last samples instead of dropping them.
+- **Seeking lands on the exact sample.** An MP3 frame can borrow data from the frames before it, so dr_mp3 starts ten frames before the target and throws them away. A seek then gives exactly the same sound as playing from the start.
+- **Damaged and cut-off files end where Apple's do.**
+- **MP3 and MP2 inside WAV files work too.** macOS opens these only when every frame is the same size, which 48 kHz CBR is; it refuses 44.1 kHz and VBR ones with either decoder. Rare "free-format" MP3s are also refused by macOS before either decoder sees them.
 - **MP2 now plays on the iPhone.** iOS has no MP2 decoder of its own, so MP2 files could never play there before. dr_mp3 decodes them.
-- **One trade-off.** A badly damaged frame can make a loud click with either decoder. Apple's 16-bit output happens to cap that click at full scale; dr_mp3 doesn't. At full volume they sound the same.
+- **One trade-off.** A badly damaged frame can make a loud click with either decoder. Apple's 16-bit output happens to cap that click at full scale; dr_mp3 doesn't (one damaged test file peaked at +15.5 dB). We don't clamp it, because a clamp would also have to let real peaks above full scale through, and damaged files are rare. At full volume they sound the same.
+- **Not tested yet:** MP1 files (we have no MP1 encoder; dr_mp3 decodes them with MP2's timing, which MP1 shares), and CPU use on an iPhone.
+
+### Tuning dr_mp3
+
+dr_mp3 is used unmodified. Two changes to how Vibe feeds it were worth making, and together they cut the decode time by 13–18%:
+
+- **Reading 16 frames at a time.** Asking macOS for one frame at a time made about four small file reads per frame, a tenth of the decode time. 16 at a time saved it; 4 saved half as much, and 64 no more than 16.
+- **One Accelerate call to split stereo.** dr_mp3 gives left and right samples mixed together, and playback wants them apart. A single `vDSP_ctoz` call does that, saving about 3%.
+
+What didn't help: build settings (`-O3`, what ships, was as fast as any; `-Os` is 8% slower and turning off dr_mp3's hand-written NEON code 16% slower), faster floating-point math, and Accelerate inside the decoder, whose transforms are too small to gain from it. About half the decode is reading the compressed bits, where each value depends on the one before, so no vector instructions can help.
 
 ### Why dr_mp3
 
-We looked at every MP3 decoder we could use. FFmpeg, libmad and mpg123 are as accurate as dr_mp3, but their licenses (GPL and LGPL) don't fit an app sold on the App Store, and libmad hasn't been updated since 2004. BASS is as accurate too, but it is closed source, needs a paid license, and used more CPU than dr_mp3. dr_mp3 is free to use (public domain, or the MIT No Attribution license), is a single file, and is maintained. It is built on minimp3, which is where its decoding comes from.
+We looked at every MP3 decoder we could use, best first:
 
-The full measurements, including every file, the tuning we tried and the decisions, are in `docs/future/mp3-decoder.md`.
+- **FFmpeg, libmad and mpg123** are as accurate as dr_mp3, but their licenses (GPL and LGPL) don't fit an app sold on the App Store. libmad also hasn't been updated since 2004, and its memory-safety bugs (CVE-2017-8372, -8373 and -8374) are fixed only in Linux distributions' patches.
+- **dr_mp3** is as accurate, cheaper to run than Apple's decoder or BASS, free to use (public domain, or the MIT No Attribution license), a single file, and maintained.
+- **BASS** is as accurate too, but it is closed source, needs a paid license, and used more CPU than dr_mp3.
+- **minimp3** is the decoder dr_mp3 and BASS are built on. Its decoding is the same as dr_mp3's, but it hasn't been updated since 2022.
+- **Helix MP3** has an awkward license, and **Symphonia** would add a Rust toolchain to the build.
+
+Apple's decoder stays one setting away on the Mac.
 
 ## The resampler
 
