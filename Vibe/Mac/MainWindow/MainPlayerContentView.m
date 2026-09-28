@@ -270,6 +270,7 @@ API_AVAILABLE(macos(26.0))
 - (void)resizeSubviewsWithOldSize:(NSSize)oldSize {
     [super resizeSubviewsWithOldSize:oldSize];
     [self capArtistLineAtCodecText];
+    [self centerVolumeControlInTimeRow];
 }
 
 #pragma mark - Hover reveal
@@ -400,12 +401,24 @@ static NSDictionary *VolumeTextAttributes(NSTextAlignment alignment, NSColor *co
                             [full sizeWithAttributes:attributes].width)) + 2 * kLabelInkInset;
     CGFloat width = 2 * side + 2 * kVolumeGap + kVolumeSliderWidth;
     NSRect frame = _volumeControlView.frame;
-    frame.origin.x = round(NSMidX(frame) - width / 2);
     frame.size.width = width;
     _volumeControlView.frame = frame;
+    [self centerVolumeControlInTimeRow];
     _volumeLabel.frame = NSMakeRect(0, 0, side, kSmallLabelHeight);
     _volumeSlider.frame = NSMakeRect(side + kVolumeGap, 0, kVolumeSliderWidth, kSmallLabelHeight);
     _volumePercentLabel.frame = NSMakeRect(width - side, 0, side, kSmallLabelHeight);
+}
+
+// Centered on the gap between the two time labels, never by the mask: its
+// margins are unequal, so AppKit's proportional share of a resize walks the
+// control toward the elapsed time.
+- (void)centerVolumeControlInTimeRow {
+    CGFloat center = (NSMaxX(_currentTimeTextField.frame) + NSMinX(_totalTimeTextField.frame)) / 2;
+    NSRect frame = _volumeControlView.frame;
+    frame.origin.x = round(center - frame.size.width / 2);
+    if (!NSEqualRects(frame, _volumeControlView.frame)) {
+        _volumeControlView.frame = frame;
+    }
 }
 
 - (void)setVolumeFillColor:(NSColor *)color {
@@ -634,11 +647,11 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 // One view, so the three fade and hide together; it starts at zero alpha,
 // like the transport (setControlsShown:animated:).
 - (void)buildVolumeControlWithTarget:(id)target {
-    // The gap's frame for now: layoutVolumeControl keeps its center.
+    // Sized and centered by layoutVolumeControl.
     _volumeControlView = [[NSView alloc] initWithFrame:
             NSMakeRect(kDropHintX, kTimeRowY, kDropHintWidth, kSmallLabelHeight)];
     _volumeControlView.alphaValue = 0.0;
-    _volumeControlView.autoresizingMask = NSViewMinXMargin | NSViewMaxXMargin | NSViewMinYMargin;
+    _volumeControlView.autoresizingMask = NSViewMinYMargin;
     [self addSubview:_volumeControlView];
 
     _volumeLabel = [MainPlayerContentView labelWithFrame:NSZeroRect];
