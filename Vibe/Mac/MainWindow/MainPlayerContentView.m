@@ -368,6 +368,17 @@ static NSView *FadeTarget(NSView *view, BOOL animated) {
     _playButton.hidden = !transportShown;
     _nextButton.hidden = !transportShown;
     _volumeControlView.hidden = !volumeShown;
+    // TRAP: AppKit draws an NSSlider through a SwiftUI host, whose first
+    // render brings up a Metal device and the GPU driver's 256 MB texture heap
+    // for about a second, hidden or not; so the slider is in the window only
+    // while the control is on.
+    if (volumeShown != (_volumeSlider.superview != nil)) {
+        if (volumeShown) {
+            [_volumeControlView addSubview:_volumeSlider];
+        } else {
+            [_volumeSlider removeFromSuperview];
+        }
+    }
     _dropHintTextField.hidden = !_dropHintShown;
     _closeButton.hidden = !_trafficLightsShown;
     _minimizeButton.hidden = !_trafficLightsShown;
@@ -774,7 +785,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _volumeSlider.accessibilityLabel = STR_A11Y_VOLUME;
     _volumeSlider.target = target;
     _volumeSlider.action = @selector(volumeChanged:);
-    [_volumeControlView addSubview:_volumeSlider];
+    // Added by setControlsShown:animated: once the control is on.
 }
 
 // Bottom to top: the frost, the background layer, the tint wash, the table,
