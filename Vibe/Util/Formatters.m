@@ -138,6 +138,17 @@
     return [NSString stringWithFormat:STR_LABEL_BPM, [self decimalString:bpm fractionDigits:1]];
 }
 
+- (NSString *)infoLineFromFields:(NSArray<NSString *> *)fields {
+    NSIndexSet *filled = [fields indexesOfObjectsPassingTest:^BOOL(NSString *field, NSUInteger i, BOOL *stop) {
+        return field.length > 0;
+    }];
+    return [[fields objectsAtIndexes:filled] componentsJoinedByString:VibeNotLocalized(@" | ")];
+}
+
+- (NSString *)tempoLineWithBPM:(double)bpm keyText:(NSString *)keyText {
+    return [self infoLineFromFields:@[bpm > 0 ? [self bpmString:bpm] : @"", keyText ?: @""]];
+}
+
 - (NSString *)decimalString:(double)value fractionDigits:(NSInteger)digits {
     if (isnan(value)) {
         value = 0;

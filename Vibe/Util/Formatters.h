@@ -25,6 +25,13 @@
 // "128.0 BPM": the tempo readout both platforms draw.
 - (NSString *)bpmString:(double)bpm;
 
+// The one join behind every info line: the non-empty fields, in order, with
+// the " | " separator. Layout punctuation, not prose, so never localized.
+- (NSString *)infoLineFromFields:(NSArray<NSString *> *)fields;
+// "128.0 BPM | 8A", either alone, or empty. A bpm of 0 or less is no tempo.
+// The key is always the LAST field: the mac colors it as the line's suffix.
+- (NSString *)tempoLineWithBPM:(double)bpm keyText:(NSString *)keyText;
+
 // The pitch readout: "+3.2%", "−3.2%" (U+2212), "0.0%", per locale.
 - (NSString *)signedPercentString:(double)percent;
 

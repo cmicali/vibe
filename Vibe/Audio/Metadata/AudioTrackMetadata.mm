@@ -583,7 +583,7 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void) {
     if (self.sampleRate != nil) {
         [parts addObject:[[Formatters sharedInstance] sampleRateString:self.sampleRate.doubleValue]];
     }
-    return [parts componentsJoinedByString:VibeNotLocalized(@" | ")];
+    return [[Formatters sharedInstance] infoLineFromFields:parts];
 }
 
 static NSData *getAlbumArtID3v2(TagLib::ID3v2::Tag *id3v2Tag) {
