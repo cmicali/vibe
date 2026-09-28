@@ -853,7 +853,10 @@ schemes:
     test:
       config: Debug
       targets:
-        - VibeTests
+        # Classes spread across parallel runner processes; TestFilesystemGuard.m
+        # gives each its own defaults suite and temp root.
+        - name: VibeTests
+          parallelizable: true
     profile:  { config: Release }
     analyze:  { config: Debug }
     archive:  { config: Release }

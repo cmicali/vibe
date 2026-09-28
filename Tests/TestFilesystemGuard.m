@@ -9,44 +9,62 @@
 // value, never unsetenv it: unset, the store resolves the real ~/Library, and
 // the leak lands under whichever class runs next.
 //
-// AppSettings writes land in the XCTest tool's shared defaults domain. Saving
-// and restoring a setting around a test does not help: reading an unset key
-// answers the registered default, so writing it back materializes a key that
-// was never on disk. Only the exit-time domain restore sees what any test
-// wrote.
+// Standard defaults would be the XCTest tool's domain, shared by every test
+// process on the machine: the parallel runner's clones and any concurrent
+// `make test` would read each other's writes. So +standardUserDefaults answers
+// a suite of this process's own, removed at exit. Saving and restoring a
+// setting around a test would not do: reading an unset key answers the
+// registered default, so writing it back materializes a key that was never on
+// disk.
 
 #import <Foundation/Foundation.h>
+#import <objc/runtime.h>
+
+static NSString *gRoot;
+static NSString *gToolDomain;
+static NSString *gSuite;
+
+// AppSettings reads its stored settings by the main bundle's identifier, which
+// here names the shared tool domain; answer this process's suite instead.
+@interface VibeTestUserDefaults : NSUserDefaults
+@end
+
+@implementation VibeTestUserDefaults
+
+- (NSDictionary<NSString *, id> *)persistentDomainForName:(NSString *)domainName {
+    return [super persistentDomainForName:
+            [domainName isEqualToString:gToolDomain] ? gSuite : domainName];
+}
+
+@end
 
 @interface VibeTestFilesystemGuard : NSObject
 @end
 
 @implementation VibeTestFilesystemGuard
 
-static NSString *gRoot;
-static NSString *gDefaultsDomain;
-static NSDictionary *gDefaultsSnapshot;
-
 static void VibeRestoreTestFilesystem(void) {
     [NSFileManager.defaultManager removeItemAtPath:gRoot error:NULL];
-    // An empty snapshot restores "no domain at all".
-    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
-    [defaults removePersistentDomainForName:gDefaultsDomain];
-    if (gDefaultsSnapshot.count) {
-        [defaults setPersistentDomain:gDefaultsSnapshot forName:gDefaultsDomain];
-    }
-    [defaults synchronize];
 }
 
 + (void)load {
     // Per process, so concurrent runs cannot delete each other's root at exit.
     gRoot = [NSTemporaryDirectory() stringByAppendingPathComponent:
             [NSString stringWithFormat:@"VibeTests-%d", getpid()]];
+    [NSFileManager.defaultManager createDirectoryAtPath:gRoot
+                            withIntermediateDirectories:YES attributes:nil error:NULL];
     setenv("VIBE_THEME_ART_DIR",
            [gRoot stringByAppendingPathComponent:@"ThemeArt"].UTF8String, 1);
 
-    gDefaultsDomain = NSBundle.mainBundle.bundleIdentifier ?: @"com.apple.dt.xctest.tool";
-    gDefaultsSnapshot = [[NSUserDefaults.standardUserDefaults
-            persistentDomainForName:gDefaultsDomain] copy];
+    // TRAP: an absolute-path suite, not a named one. A named suite's plist is
+    // written into ~/Library/Preferences by cfprefsd after the process has
+    // gone, so no exit-time delete can reach it; this one is inside the root.
+    gToolDomain = NSBundle.mainBundle.bundleIdentifier ?: @"com.apple.dt.xctest.tool";
+    gSuite = [gRoot stringByAppendingPathComponent:@"defaults"];
+    NSUserDefaults *defaults = [[VibeTestUserDefaults alloc] initWithSuiteName:gSuite];
+    method_setImplementation(
+            class_getClassMethod(NSUserDefaults.class, @selector(standardUserDefaults)),
+            imp_implementationWithBlock(^NSUserDefaults *(id self) { return defaults; }));
     atexit(VibeRestoreTestFilesystem);
 }
 
