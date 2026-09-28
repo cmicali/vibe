@@ -25,10 +25,15 @@ Eyeballing near-identical grays is unreliable; assert numerically with the probe
 `log stream` has no device mode on current macOS, and `idevicesyslog` (`brew install libimobiledevice`, over USB) carries SpringBoard and runningboardd chatter *about* the app but nothing the app logs — a third-party subsystem's `os_log` never reaches `syslog_relay`. Debug builds take `--log-stderr` (`Vibe-Prefix.pch`), which mirrors every `Log*` message to stderr, timestamped, alongside `os_log`; `devicectl` relays stderr back. Off by default, so the simulator and mac loops keep the unified log.
 
 ```bash
-xcodebuild -scheme VibeiOS -configuration Debug -destination 'generic/platform=iOS' -allowProvisioningUpdates -derivedDataPath build/DerivedData build   # signs with the team in project.yml
-xcrun devicectl device install app --device <udid> build/DerivedData/Build/Products/Debug-iphoneos/Vibe.app
-xcrun devicectl device process launch --device <udid> --console --terminate-existing \
-    com.commonwealthrecordings.Vibe --log-stderr
+make install-ios CONFIG=Debug          # signed build onto the one paired phone; DEVICE=<name or identifier> with several
+xcrun devicectl device process launch --device <identifier> --console --terminate-existing \
+    com.commonwealthrecordings.Vibe --log-stderr > build/device.log 2>&1   # run it in the background and read the file
+```
+
+`<identifier>` is devicectl's own (`xcrun devicectl list devices`), not the hardware UDID. A reinstall ends the console session, so relaunch after each one. The audio session's lines to read a pass by:
+
+```bash
+grep -E "AudioSession|AudioOutputUnit|idle stop|Scene:|no verdict" build/device.log
 ```
 
 The `--console` trap is in `SKILL.md`. The channel does not reach a device: it is command and response files in the app container, which the host cannot write directly. `xcrun devicectl device copy to/from --domain-type appDataContainer --domain-identifier com.commonwealthrecordings.Vibe` can, so the same protocol would work over it — unbuilt, which is why the device loop is log-only.

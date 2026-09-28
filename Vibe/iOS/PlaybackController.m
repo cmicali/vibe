@@ -194,6 +194,7 @@ static const NSUInteger kUIUpdateHz = 3;
         return;
     }
     _sceneActive = sceneActive;
+    LogInfo(@"Scene: %@", sceneActive ? @"active" : @"inactive");
     _updateTimer.windowVisible = sceneActive;
     [AudioPlayer noteSceneActive:sceneActive];
     [self syncLevelsEnabled];
