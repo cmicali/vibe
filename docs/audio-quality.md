@@ -70,6 +70,7 @@ How much that matters depends on the decoder. Vibe uses Apple's decoders, and th
 **MP3 and MP2** are different, because of Apple's decoder:
 
 - **Apple's MP3 decoder can only produce 16-bit samples.** It rounds the audio to 16 bits and chops off any peaks above the maximum before Vibe receives it. There is no setting to ask it for more; we checked what it offers, and a test now checks it on every build.
+- **Asking for floating-point output doesn't change that.** A common tip says you can get full-precision MP3s from Apple by requesting 32-bit float output (through `ExtAudioFile` or `AudioConverter`). We tried both. You do get floating-point numbers back, but every one of them is still a 16-bit value, and the loud peaks are still chopped off at the maximum. Core Audio converts the decoder's 16-bit output to float after the fact; it can't restore what was already rounded away. Vibe already requests float output for every file, which is what keeps AAC's full detail.
 - **So for MP3, the output format makes no difference.** 16-bit, 24-bit and floating-point outputs all play exactly the same samples. Choosing a different format for MP3s would change nothing you could measure.
 - **The only way to get more out of MP3s would be a different decoder.** A full-precision MP3 decoder (we compared ffmpeg's) keeps the detail below 16 bits (only 0.03% of its samples fit exactly in 16 bits) and the peaks (up to +0.49 dBFS on the same file). Vibe uses Apple's decoders; replacing the MP3 one would be a separate project.
 
