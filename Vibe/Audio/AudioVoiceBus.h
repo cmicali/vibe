@@ -146,8 +146,9 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 @property (nonatomic, readonly) BOOL inlineDecoding;
 // What VibeVoiceBusRender reads; valid for the bus's life.
 - (VibeVoiceMix *)mix;
-// Called on the player queue when decoding makes an event or capacity
-// available, including a stopped reader leaving a file wanted by a successor.
+// Called on the player queue when a voice goes live or fails before its
+// first frame, when a stopped voice's last turn has left its file, and when
+// a slot frees, so the player drains then rather than at its next poll.
 @property (nonatomic, copy, nullable) dispatch_block_t needsDrain;
 // A kAudioConverterQuality_* value for every converter made after the write;
 // a stream already converting keeps its quality until its voice ends.
@@ -185,7 +186,7 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 - (void)stopReadingThen:(dispatch_block_t)decoderLeft;
 
 // Every file a decoder of this bus may still be inside: each voice's, each
-// queued successor's, a pending start's. Player queue.
+// queued or waiting successor's, a pending start's. Player queue.
 - (NSSet<AudioFileHandle *> *)filesInUse;
 
 // A file a retired bus's decoder may still be inside: a voice started on it
@@ -203,9 +204,11 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // takes one while it is live: the decoder reopens the stream at the old end
 // with a converter of its own, unless the audio thread reached the end
 // first, in which case the voice ends as it would have and the successor
-// never begins. NO for a dead voice, one retired at declick length, one
-// already continuing. A file another decode queue is still reading is
-// accepted and published once that reader stops; no caller retry is needed.
+// never begins. NO for a withheld file, and for a voice that is dead, retired
+// at declick length, failed, or already continuing. A file another decode
+// queue is still reading is accepted and waits: the drain hands it to the
+// decoder once that queue has left it, and a voice that ends first ends as an
+// ordinary track end.
 - (BOOL)queueSuccessor:(AudioFileHandle *)file forVoice:(VibeVoiceID)voice;
 
 // Drops the queued successor. NO means the decoder had already claimed it:
