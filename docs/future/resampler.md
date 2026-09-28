@@ -43,6 +43,17 @@ EXTFFT's extra startup costs at most 0.1 ms on a voice's first fill (0.13–0.33
 
 ## Measured (Apple Silicon Mac, unit test, Debug build with the resamplers optimized)
 
+The charts are drawn from one `make test` run of `ResamplerQualityTests` and, for the frequency response, an impulse through each resampler at the bus's settings; `resampler/*.svg` are their light and dark versions.
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="resampler/cpu-dark.svg"><img alt="CPU per rate pair, Apple against r8brain" src="resampler/cpu-light.svg"></picture>
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="resampler/response-dark.svg"><img alt="Frequency response from an impulse, 44.1 to 96 kHz" src="resampler/response-light.svg"></picture>
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="resampler/noise-dark.svg"><img alt="Noise and distortion at every rate pair" src="resampler/noise-light.svg"></picture>
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="resampler/alias-dark.svg"><img alt="Aliasing and intermodulation" src="resampler/alias-light.svg"></picture>
+
+
 Worst THD+N across the passband tones, the multitone null against the ideal, the round trip, and the CPU to keep up in real time:
 
 | pair | Apple THD+N | r8brain THD+N | Apple null | r8brain null | Apple round trip | r8brain round trip | Apple core % | r8brain core % |
