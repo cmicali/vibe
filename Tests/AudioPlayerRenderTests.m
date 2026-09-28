@@ -506,6 +506,65 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 - (void)testMP3CBR { [self checkLossy:@"cbr.mp3" tolerance:0]; }
 - (void)testMP3VBR { [self checkLossy:@"vbr.mp3" tolerance:0]; }
 - (void)testMP2 { [self checkLossy:@"lossy.mp2" tolerance:0]; }
+// dr_mp3's decode is what Apple's rounds to 16 bits: one length, samples
+// within Apple's four LSBs but for the last 529 frames, which Apple zero-fills
+// where dr_mp3 drains its filterbank, and overs Apple clips kept. A seek decodes
+// exactly what the continuous read did at that frame.
+- (void)testDrMP3DecodesWhatAppleRoundsTo16Bits {
+    XCTSkipUnless([NSFileManager.defaultManager fileExistsAtPath:[self fixture:@"hot.mp3"].path],
+                  @"Optional encoder fixtures unavailable; install ffmpeg and regenerate");
+    [self addTeardownBlock:^{ AudioFileHandle.appleMPEGDecoder = NO; }];
+    for (NSString *name in @[@"cbr.mp3", @"vbr.mp3", @"lossy.mp2", @"hot.mp3"]) {
+        NSURL *url = [self fixture:name];
+        AudioFileHandle.appleMPEGDecoder = YES;
+        AVAudioPCMBuffer *apple = [self read:url];
+        AudioFileHandle.appleMPEGDecoder = NO;
+        AudioFileHandle *file = [[AudioFileHandle alloc] initForReading:url error:NULL];
+        AVAudioPCMBuffer *decoded = [self read:url];
+        XCTAssertEqualObjects(file.decoderName, @"dr_mp3");
+        XCTAssertEqual(decoded.frameLength, apple.frameLength, @"%@", name);
+        NSUInteger channels = decoded.format.channelCount, compared = MIN(decoded.frameLength, apple.frameLength) - 529;
+        NSUInteger far = 0, offGrid = 0, overs = 0, appleOvers = 0;
+        for (NSUInteger c = 0; c < channels; c++) for (NSUInteger f = 0; f < compared; f++) {
+            float d = decoded.floatChannelData[c][f], a = apple.floatChannelData[c][f];
+            BOOL clipped = fabsf(a) >= 32767.0f / 32768 && fabsf(d) > fabsf(a);
+            if (!clipped && fabsf(d - a) > 4.0f / 32768) far++;
+            if (d * 32768 != rintf(d * 32768)) offGrid++;
+            overs += fabsf(d) > 1;
+            appleOvers += fabsf(a) > 1;
+        }
+        XCTAssertEqual(far, 0u, @"%@ strays from Apple's rounding", name);
+        XCTAssertGreaterThan(offGrid, compared * channels / 2, @"%@ decoded to a 16-bit grid", name);
+        XCTAssertEqual(appleOvers, 0u, @"%@: Apple's decode was expected to clip", name);
+        if ([name isEqual:@"hot.mp3"]) XCTAssertGreaterThan(overs, 0u, @"the overs a float decode keeps");
+        for (NSNumber *at in @[@0, @1, @1151, @1153, @(file.length / 3), @(file.length - 700), @(file.length - 1)]) {
+            AVAudioPCMBuffer *slice = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat frameCapacity:3000];
+            XCTAssertTrue([file seekToFrame:at.longLongValue error:NULL]);
+            XCTAssertTrue([file readIntoBuffer:slice error:NULL]);
+            XCTAssertEqual((AVAudioFramePosition)slice.frameLength, MIN(3000, file.length - at.longLongValue));
+            for (NSUInteger c = 0; c < channels; c++)
+                XCTAssertEqual(memcmp(slice.floatChannelData[c], decoded.floatChannelData[c] + at.unsignedIntegerValue,
+                                      slice.frameLength * sizeof(float)), 0, @"%@ seek to %@", name, at);
+        }
+        // A partial download declares more packets than it holds; both end at
+        // the last one it does.
+        NSData *bytes = [NSData dataWithContentsOfURL:url];
+        NSURL *truncated = [_temporary URLByAppendingPathComponent:[@"truncated-" stringByAppendingString:name]];
+        XCTAssertTrue([[bytes subdataWithRange:NSMakeRange(0, bytes.length / 2)] writeToURL:truncated atomically:YES]);
+        NSUInteger frames[2];
+        for (NSUInteger apple = 0; apple < 2; apple++) {
+            AudioFileHandle.appleMPEGDecoder = apple;
+            AudioFileHandle *partial = [[AudioFileHandle alloc] initForReading:truncated error:NULL];
+            AVAudioPCMBuffer *chunk = [[AVAudioPCMBuffer alloc] initWithPCMFormat:partial.processingFormat frameCapacity:4096];
+            frames[apple] = 0;
+            while ([partial readIntoBuffer:chunk error:NULL] && chunk.frameLength) frames[apple] += chunk.frameLength;
+        }
+        AudioFileHandle.appleMPEGDecoder = NO;
+        XCTAssertEqual(frames[0], frames[1], @"%@ truncated", name);
+        XCTAssertGreaterThan(frames[0], 0u);
+        XCTAssertLessThan(frames[0], decoded.frameLength);
+    }
+}
 - (void)testQuickTimeAudio { [self checkLossy:@"lossy.qta" tolerance:kVibeAACDecodeTolerance]; }
 - (void)testFloatLimitsAndSilence {
     for (NSString *name in @[@"limits.wav",@"silence.wav"]) {

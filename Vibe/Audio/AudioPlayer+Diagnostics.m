@@ -440,6 +440,7 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
 #endif
         source[@"frames"] = @(file.length);
         source[@"decodedSampleFormat"] = VibeSampleFormatName(file.processingFormat);
+        source[@"decoder"] = file.decoderName;
     }
 
     NSDictionary *conversion = [_voiceBus conversionOfVoice:_voice];

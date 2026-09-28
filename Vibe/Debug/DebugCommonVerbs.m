@@ -5,6 +5,7 @@
 
 #import "DebugCommonVerbs.h"
 #import "AudioFX.h"
+#import "AudioFileHandle.h"
 #import "AudioLevelMath.h"
 
 #if DEBUG
@@ -398,6 +399,22 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                     @"ok": @YES,
                     @"resampler": VibeResamplerName(player.resampler),
                     @"conversion": player.debugCurrentConversion ?: [NSNull null],
+                });
+            }),
+            // The MPEG decoder comparison: which one decodes MP1, MP2 and MP3.
+            // A handle keeps the decoder it opened with, so it applies from
+            // the next open: replay the row to hear it.
+            VibeDebugCmd(@"set_decoder <apple|dr_mp3>", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                NSString *arg = tokens.count == 2 ? tokens[1].lowercaseString : @"";
+                if (![arg isEqualToString:@"apple"] && ![arg isEqualToString:@"dr_mp3"]) {
+                    return VibeErrorJSON(@"usage: set_decoder <apple|dr_mp3>");
+                }
+                AudioFileHandle.appleMPEGDecoder = [arg isEqualToString:@"apple"];
+                return VibeJSONString(@{
+                    @"ok": @YES,
+                    @"decoder": AudioFileHandle.appleMPEGDecoder ? @"apple" : @"dr_mp3",
                 });
             }),
             // Decode-thread CPU per resampler since the bus was made or the
