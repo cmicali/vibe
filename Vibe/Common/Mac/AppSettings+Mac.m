@@ -30,7 +30,7 @@
 #define SETTING_REOPEN_LAST_PLAYLIST                @"Playlist.reopenLast"
 #define SETTING_UI_UPDATE_HZ_CAP                    @"UI.updateHzCap"
 #define SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE      @"AudioPlayer.allowBitPerfectOnAnyDevice"
-#define SETTING_DR_MP3_DECODER                      @"AudioPlayer.drMP3Decoder"
+#define SETTING_APPLE_MPEG_DECODER                  @"AudioPlayer.appleMPEGDecoder"
 // { device UID: { mode: YES } }, holding only the modes that are on.
 #define SETTING_OUTPUT_MODES_BY_DEVICE_UID          @"AudioPlayer.outputModesByDeviceUID"
 #define OUTPUT_MODE_BIT_PERFECT                     @"bitPerfect"
@@ -86,7 +86,7 @@ const size_t kVibeUIUpdateHzCapPresetCount =
             SETTING_REOPEN_LAST_PLAYLIST:           @(NO),
             SETTING_UI_UPDATE_HZ_CAP:               @(30),
             SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE: @(NO),
-            SETTING_DR_MP3_DECODER:                 @(YES),
+            SETTING_APPLE_MPEG_DECODER:             @(NO),
             SETTING_DECLICK:                        @(YES),
             SETTING_VOLUME_CONTROL:                 @(NO),
             SETTING_VOLUME:                         @(1.0),
@@ -765,12 +765,12 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     [NSUserDefaults.standardUserDefaults setBool:allowed forKey:SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE];
 }
 
-- (BOOL)drMP3Decoder {
-    return [NSUserDefaults.standardUserDefaults boolForKey:SETTING_DR_MP3_DECODER];
+- (BOOL)appleMPEGDecoder {
+    return [NSUserDefaults.standardUserDefaults boolForKey:SETTING_APPLE_MPEG_DECODER];
 }
 
-- (void)setDrMP3Decoder:(BOOL)drMP3 {
-    [NSUserDefaults.standardUserDefaults setBool:drMP3 forKey:SETTING_DR_MP3_DECODER];
+- (void)setAppleMPEGDecoder:(BOOL)apple {
+    [NSUserDefaults.standardUserDefaults setBool:apple forKey:SETTING_APPLE_MPEG_DECODER];
 }
 
 // Off is absence, so the store names only devices with a mode on. An entry

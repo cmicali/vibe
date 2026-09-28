@@ -70,7 +70,10 @@
         self.audioPlayer.declick = settings.declick;
     }
     if (effects & VibeSettingsLiveEffectMP3Decoder) {
-        AudioFileHandle.appleMPEGDecoder = !settings.drMP3Decoder;
+        AudioFileHandle.appleMPEGDecoder = settings.appleMPEGDecoder;
+        // The parked next track was opened with the old decoder: reopen it.
+        [self.audioPlayer prefetchTrack:nil];
+        [self applyEndOfTrackAction];
     }
     if (effects & VibeSettingsLiveEffectVolume) {
         self.audioPlayer.volume = (float)settings.effectiveVolume;

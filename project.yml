@@ -217,9 +217,9 @@ targets:
           - "-analyzer-disable-all-checks"
       - path: Vibe/ThirdParty/r8brain/fft/pffft_double.c
         compilerFlags: *r8brain-flags
-      # dr_mp3's implementation unit, the MPEG decoder AudioFileHandle.m uses
-      # when Settings > Advanced chooses it: optimized in every configuration for the
-      # same reason as r8brain, since the comparison runs in Debug builds.
+      # dr_mp3's implementation unit, AudioFileHandle.m's default MPEG decoder:
+      # optimized in every configuration, as r8brain is, so a Debug build
+      # decodes as a shipped one does.
       - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
         compilerFlags: &dr-mp3-flags
           - "-O3"

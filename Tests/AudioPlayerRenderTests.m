@@ -506,6 +506,9 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 - (void)testMP3CBR { [self checkLossy:@"cbr.mp3" tolerance:0]; }
 - (void)testMP3VBR { [self checkLossy:@"vbr.mp3" tolerance:0]; }
 - (void)testMP2 { [self checkLossy:@"lossy.mp2" tolerance:0]; }
+// Layer III's synthesis delay: dr_mp3's drain and Apple's zero fill differ
+// over this many frames at a file's end, and the handle skips it at the start.
+static const NSUInteger kLayer3DecoderDelay = 529;
 // The ISO/IEC 11172-4 Layer III compliance stream, scored on its Annex A
 // thresholds against the reference decode: full accuracy is an RMS error
 // below 2^-15/sqrt(12) with no sample off by more than 2^-14. dr_mp3 passes with
@@ -523,7 +526,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
                   @"The ISO compliance stream was not fetched (FFmpeg's FATE mirror unreachable); regenerate");
     NSData *referenceBytes = [NSData dataWithContentsOfFile:referencePath];
     const float *reference = referenceBytes.bytes;
-    NSUInteger referenceFrames = referenceBytes.length / sizeof(float) - 529;
+    NSUInteger referenceFrames = referenceBytes.length / sizeof(float) - kLayer3DecoderDelay;
     const double fullRMS = 1.0 / 32768 / sqrt(12), fullMax = 1.0 / 16384, limitedRMS = 1.0 / 2048 / sqrt(12);
     BOOL prior = AudioFileHandle.appleMPEGDecoder;
     [self addTeardownBlock:^{ AudioFileHandle.appleMPEGDecoder = prior; }];
@@ -532,11 +535,11 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         AudioFileHandle.appleMPEGDecoder = apple;
         AVAudioPCMBuffer *decoded = [self read:url];
         XCTAssertEqual(decoded.format.channelCount, 1u);
-        NSUInteger frames = MIN(decoded.frameLength - 529, referenceFrames);
+        NSUInteger frames = MIN(decoded.frameLength - kLayer3DecoderDelay, referenceFrames);
         XCTAssertGreaterThan(frames, 200000u);
         double sum = 0, max = 0;
         for (NSUInteger f = 0; f < frames; f++) {
-            double error = (double)decoded.floatChannelData[0][f] - reference[f + 529];
+            double error = (double)decoded.floatChannelData[0][f] - reference[f + kLayer3DecoderDelay];
             sum += error * error;
             max = fmax(max, fabs(error));
         }
@@ -558,7 +561,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
                   @"Optional encoder fixtures unavailable; install ffmpeg and regenerate");
     BOOL prior = AudioFileHandle.appleMPEGDecoder;
     [self addTeardownBlock:^{ AudioFileHandle.appleMPEGDecoder = prior; }];
-    for (NSString *name in @[@"cbr.mp3", @"vbr.mp3", @"lossy.mp2", @"hot.mp3"]) {
+    for (NSString *name in @[@"cbr.mp3", @"vbr.mp3", @"lossy.mp2", @"hot.mp3", @"mp3-in.wav", @"mp2-in.wav"]) {
         NSURL *url = [self fixture:name];
         AudioFileHandle.appleMPEGDecoder = YES;
         AVAudioPCMBuffer *apple = [self read:url];
@@ -567,7 +570,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         AVAudioPCMBuffer *decoded = [self read:url];
         XCTAssertEqualObjects(file.decoderName, @"dr_mp3");
         XCTAssertEqual(decoded.frameLength, apple.frameLength, @"%@", name);
-        NSUInteger channels = decoded.format.channelCount, compared = MIN(decoded.frameLength, apple.frameLength) - 529;
+        NSUInteger channels = decoded.format.channelCount, compared = MIN(decoded.frameLength, apple.frameLength) - kLayer3DecoderDelay;
         NSUInteger far = 0, offGrid = 0, overs = 0, appleOvers = 0;
         for (NSUInteger c = 0; c < channels; c++) for (NSUInteger f = 0; f < compared; f++) {
             float d = decoded.floatChannelData[c][f], a = apple.floatChannelData[c][f];
@@ -591,7 +594,9 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
                                       slice.frameLength * sizeof(float)), 0, @"%@ seek to %@", name, at);
         }
         // A partial download declares more packets than it holds; both end at
-        // the last one it does.
+        // the last one it does. A truncated WAV serves none: CoreAudio counts
+        // zero packets, so there is nothing to compare.
+        if ([url.pathExtension isEqualToString:@"wav"]) continue;
         NSData *bytes = [NSData dataWithContentsOfURL:url];
         NSURL *truncated = [_temporary URLByAppendingPathComponent:[@"truncated-" stringByAppendingString:name]];
         XCTAssertTrue([[bytes subdataWithRange:NSMakeRange(0, bytes.length / 2)] writeToURL:truncated atomically:YES]);

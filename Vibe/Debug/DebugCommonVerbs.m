@@ -379,22 +379,18 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                                      id<VibeDebugPlayerSurface> surface) {
                 return VibeJSONString(@{@"stages": surface.debugPlayer.audioPathSnapshot});
             }),
-            // The MPEG decoder comparison: which one decodes MP1, MP2 and MP3, a
-            // session override of the mac's Settings > Advanced choice.
-            // A handle keeps the decoder it opened with, so it applies from
-            // the next open: replay the row to hear it.
+            // A session override of the MPEG decoder, iOS's only switch;
+            // applies from the next open, so replay the row to hear it.
             VibeDebugCmd(@"set_decoder <apple|dr_mp3>", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
                 NSString *arg = tokens.count == 2 ? tokens[1].lowercaseString : @"";
-                if (![arg isEqualToString:@"apple"] && ![arg isEqualToString:@"dr_mp3"]) {
+                BOOL apple = [arg isEqualToString:@"apple"];
+                if (!apple && ![arg isEqualToString:@"dr_mp3"]) {
                     return VibeErrorJSON(@"usage: set_decoder <apple|dr_mp3>");
                 }
-                AudioFileHandle.appleMPEGDecoder = [arg isEqualToString:@"apple"];
-                return VibeJSONString(@{
-                    @"ok": @YES,
-                    @"decoder": AudioFileHandle.appleMPEGDecoder ? @"apple" : @"dr_mp3",
-                });
+                AudioFileHandle.appleMPEGDecoder = apple;
+                return VibeJSONString(@{@"ok": @YES, @"decoder": arg});
             }),
             // The resampler's decode-thread CPU since the bus was made or the
             // last reset, file reads excluded; corePercent is the real-time cost.

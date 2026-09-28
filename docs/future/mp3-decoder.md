@@ -301,6 +301,7 @@ Whole-file decode in playback's read pattern, fastest of nine runs, before and a
 - **Decoder delay.** Every MP3 decoder outputs its audio 529 samples late (241 for MP1 and MP2). Apple removes this delay itself, so Vibe removes the same amount when dr_mp3 decodes. The timelines then match.
 - **Seeking.** A seek starts dr_mp3 ten frames before the target and throws those frames away. MP3 frames borrow data from earlier frames, so this warm-up makes the result exactly the same as reading from the start.
 - **Reading the file.** Vibe asks the parser for 16 frames at a time and hands them to dr_mp3 one by one. For playback, one `vDSP_ctoz` call splits dr_mp3's interleaved stereo into separate left and right buffers.
+- **MP3 or MP2 inside a WAV.** macOS gives such packets no descriptions of their own, because they are all one size. Vibe works out each packet's place from that size. macOS opens these files only when every frame is the same size, which 48 kHz CBR is; it refuses 44.1 kHz and VBR ones.
 - **The ending.** After the last frame, Vibe decodes one silent frame. This flushes the decoder's last 529 samples instead of replacing them with silence.
 - **Which readers use it:** everything that reads float audio through `AudioFileHandle`: playback, the waveform, and the FLAC converter's probe.
 
