@@ -27,8 +27,8 @@ Earlier live checks covered macOS silent HAL transport, a 240-operation torture 
   - **Cold launch** beside Music left Music playing.
 
   **Found in that pass:**
-  - iOS stopped the unit 6.5 s before it delivered the media-services reset, with no interruption; the transport read Playing over a dead output until the notification came. Fixed: a system stop no verdict follows within a second pauses. Not yet rerun on the phone.
-  - AirPods going into the case deliver an interruption Began (reason route-disconnected) that no Ended follows, so the release was held until the next play's `activate`. Fixed: that Began pauses and holds nothing. Not yet rerun on the phone.
+  - iOS stopped the unit 6.5 s before it delivered the media-services reset, with no interruption; the transport read Playing over a dead output until the notification came. Fixed: a system stop no verdict follows within a second pauses. Rerun on the phone: paused 1.6 s after the stop, 2.2 s before the reset arrived, and a declined and an answered call still resumed.
+  - AirPods going into the case deliver an interruption Began (reason route-disconnected) that no Ended follows, so the release was held until the next play's `activate`. Fixed: that Began pauses and holds nothing. Rerun on the phone: the session was released 6.4 s after the pause.
   - The output control's tap target was its 44pt glyph inside a capsule that reads as one button. Fixed and confirmed on the phone.
   - After an interruption's resume the render clock stalled ~0.7 s, and 0.3–1.8 s on a route move, the IO thread waiting inside the system each time. Left alone: the unit had started and the stall is iOS bringing the hardware back; nothing in the app's render is in the stack.
 
