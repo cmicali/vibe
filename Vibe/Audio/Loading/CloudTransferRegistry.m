@@ -9,13 +9,12 @@
 #import "AudioFileOpenRules.h"
 #import "DownloadProgressMonitor.h"
 
-// monitor is nil when the shell's monitor feeds the path (externallyFed) or
-// the factory built none.
+// monitor is nil when the shell's monitor feeds the path (_externallyFedPath)
+// or the factory built none.
 @interface VibeCloudTransferEntry : NSObject
 @property (nonatomic, strong) NSURL *url;
 @property (nonatomic) float progress;                 // <0 while indeterminate
 @property (nonatomic, strong, nullable) id<VibeCloudTransferMonitor> monitor;
-@property (nonatomic) BOOL externallyFed;
 @end
 
 @implementation VibeCloudTransferEntry
@@ -31,6 +30,8 @@
     // Every key's last component, so entryForURL: can rule a URL out cheaply.
     NSCountedSet<NSString *> *_fileNames;
     VibeCloudTransferMonitorFactory _monitorFactory;
+    // Outside the entries, so it survives a readmitted run's end-and-begin.
+    NSString *_externallyFedPath;
     BOOL _notifyPending;
 }
 
@@ -116,10 +117,12 @@
     entry.progress = -1;
     _entries[path] = entry;
     [_fileNames addObject:path.lastPathComponent];
-    __weak CloudTransferRegistry *weakSelf = self;
-    entry.monitor = _monitorFactory(url, ^(float fraction) {
-        [weakSelf monitorReportedProgress:fraction forPath:path];
-    });
+    if (![path isEqualToString:_externallyFedPath]) {
+        __weak CloudTransferRegistry *weakSelf = self;
+        entry.monitor = _monitorFactory(url, ^(float fraction) {
+            [weakSelf monitorReportedProgress:fraction forPath:path];
+        });
+    }
     [self scheduleObserverNotification];
 }
 
@@ -143,26 +146,36 @@
 
 - (void)monitorReportedProgress:(float)fraction forPath:(NSString *)path {
     VibeCloudTransferEntry *entry = _entries[path];
-    // Also drops a fraction already queued to main when the transfer ended.
-    if (!entry || entry.externallyFed) {
+    // Also drops a fraction already queued to main when the transfer ended
+    // or the shell declared the path.
+    if (!entry || [path isEqualToString:_externallyFedPath]) {
         return;
     }
     entry.progress = [self displayFraction:fraction over:entry.progress];
     [self scheduleObserverNotification];
 }
 
+- (void)beginExternalProgressForURL:(NSURL *)url {
+    NSParameterAssert(NSThread.isMainThread);
+    _externallyFedPath = VibeStandardizedAudioOpenPath(url);
+    if (!_externallyFedPath) {
+        return;
+    }
+    VibeCloudTransferEntry *entry = _entries[_externallyFedPath];
+    [entry.monitor cancel];
+    entry.monitor = nil;
+}
+
+- (void)endExternalProgress {
+    NSParameterAssert(NSThread.isMainThread);
+    _externallyFedPath = nil;
+}
+
 - (void)noteProgress:(float)fraction forURL:(NSURL *)url {
     NSParameterAssert(NSThread.isMainThread);
     VibeCloudTransferEntry *entry = [self entryForURL:url];
-    if (!entry) {
+    if (!entry || !_externallyFedPath || entry != _entries[_externallyFedPath]) {
         return;
-    }
-    if (!entry.externallyFed) {
-        // The shell's monitor owns this path now; cancel ours so the file is
-        // not watched twice.
-        entry.externallyFed = YES;
-        [entry.monitor cancel];
-        entry.monitor = nil;
     }
     entry.progress = [self displayFraction:fraction over:entry.progress];
     [self scheduleObserverNotification];

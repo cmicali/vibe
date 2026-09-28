@@ -94,6 +94,7 @@
     NSURL *indeterminate = [self urlForName:@"snapshot-indeterminate.wav"];
     [self beginForURL:moving];
     [self beginForURL:indeterminate];
+    [_registry beginExternalProgressForURL:moving];
     [_registry noteProgress:0.4f forURL:moving];
 
     NSDictionary<NSString *, NSNumber *> *snapshot = [_registry transferSnapshot];
@@ -114,6 +115,7 @@
     [self beginForURL:url];
     _monitors.firstObject.handler(0);
     XCTAssertEqual([_registry progressForURL:url], -1, @"zero is not progress");
+    [_registry beginExternalProgressForURL:url];
     [_registry noteProgress:0 forURL:url];
     XCTAssertEqual([_registry progressForURL:url], -1);
     [_registry noteProgress:0.3f forURL:url];
@@ -123,17 +125,55 @@
             @"a late zero must not blank a fill already shown");
 }
 
-- (void)testNoteProgressSuppressesTheRegistrysMonitor {
+// The playback claim begins at once; the shell declares at the slow-open
+// threshold, with no fraction yet to show for it.
+- (void)testADeclarationCancelsTheRegistrysMonitor {
     NSURL *url = [self urlForName:@"shell-fed.wav"];
     [self beginForURL:url];
     VibeTestTransferMonitor *minted = _monitors.firstObject;
-    [_registry noteProgress:0.25f forURL:url];
+    [_registry beginExternalProgressForURL:url];
     XCTAssertEqual(minted.cancelCount, 1u,
             @"the shell's monitor owns the path; the registry's would be a second subscription");
+    XCTAssertEqual([_registry progressForURL:url], -1);
+    [_registry noteProgress:0.25f forURL:url];
     XCTAssertEqualWithAccuracy([_registry progressForURL:url], 0.25f, 0.0001);
     // A late sample from the cancelled monitor must not overwrite the shell's.
     minted.handler(0.9f);
     XCTAssertEqualWithAccuracy([_registry progressForURL:url], 0.25f, 0.0001);
+}
+
+// A claim queued behind lane capacity begins after the shell declared.
+- (void)testABeginUnderADeclarationBuildsNoMonitor {
+    NSURL *url = [self urlForName:@"declared-first.wav"];
+    [_registry beginExternalProgressForURL:url];
+    [self beginForURL:url];
+    XCTAssertEqual(_monitors.count, 0u);
+    XCTAssertTrue([_registry isTransferringURL:url]);
+    [_registry noteProgress:0.5f forURL:url];
+    XCTAssertEqualWithAccuracy([_registry progressForURL:url], 0.5f, 0.0001);
+}
+
+- (void)testAReadmittedRunUnderADeclarationBuildsNoMonitor {
+    NSURL *url = [self urlForName:@"readmitted-declared.wav"];
+    [self beginForURL:url];
+    [_registry beginExternalProgressForURL:url];
+    [self endForURL:url];
+    [self beginForURL:url];
+    XCTAssertEqual(_monitors.count, 1u,
+            @"the declaration outlives the entry; a re-begin must not watch the file again");
+}
+
+- (void)testAReleasedDeclarationLetsTheRegistryWatchAgain {
+    NSURL *url = [self urlForName:@"released.wav"];
+    [_registry beginExternalProgressForURL:url];
+    [_registry endExternalProgress];
+    [self beginForURL:url];
+    XCTAssertEqual(_monitors.count, 1u);
+    [_registry noteProgress:0.5f forURL:url];
+    XCTAssertEqual([_registry progressForURL:url], -1,
+            @"an undeclared caller feeds nothing");
+    _monitors.firstObject.handler(0.2f);
+    XCTAssertEqualWithAccuracy([_registry progressForURL:url], 0.2f, 0.0001);
 }
 
 - (void)testEndCancelsTheMonitorSoNothingOutlivesItsTransfer {
@@ -164,6 +204,7 @@
     NSURL *second = [self urlForName:@"two.wav"];
     [self beginForURL:first];
     [self beginForURL:second];
+    [_registry beginExternalProgressForURL:first];
     [_registry noteProgress:0.5f forURL:first];
     [self drainMainQueue];
     XCTAssertEqual(_observerCallbacks, 1u,

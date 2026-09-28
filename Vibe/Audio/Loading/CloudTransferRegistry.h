@@ -39,8 +39,15 @@ NS_ASSUME_NONNULL_BEGIN
 // isTransferringURL: is the gate. A zero sample stays indeterminate.
 - (float)progressForURL:(NSURL *)url;
 
-// The shell's own monitor for the foreground open feeds this, so the registry
-// cancels its own and never watches that file twice.
+// The shell declares the file its own monitor watches, before building that
+// monitor, and releases it where it tears the monitor down. While declared the
+// registry runs no monitor for that path, across a readmitted run's end and
+// begin too, so no file is watched twice. One slot: each shell has one
+// monitor. A second declarer needs counted registration, not replacement.
+- (void)beginExternalProgressForURL:(NSURL *)url;
+- (void)endExternalProgress;
+
+// The declared file's fraction; any other URL's is dropped.
 - (void)noteProgress:(float)fraction forURL:(NSURL *)url;
 
 @end

@@ -20,6 +20,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataCache.h"
+#import "CloudTransferRegistry.h"
 #import "DownloadProgressMonitor.h"
 #import "FavoritesStore.h"
 #import "PlaybackDeliveryRules.h"
@@ -361,9 +362,7 @@ static const NSUInteger kUIUpdateHz = 3;
 // guards drop any callback already in flight.
 - (void)clearPlaylist {
     [_player stop];
-    [_downloadMonitor cancel];
-    _downloadMonitor = nil;
-    _downloadMonitorOpenRequestIdentifier = 0;
+    [self teardownDownloadMonitor];
     // TRAP: the session goes BEFORE the model. Clearing the model fires
     // playlistDidReplaceAllTracks:, which rebuilds the chrome; cleared after,
     // the session still answers folderURL and the bar keeps the old title and
@@ -579,6 +578,13 @@ static const NSUInteger kUIUpdateHz = 3;
     }
     // Never around successorPrefetchTrack: it holds On track end = Pause.
     [_player prefetchTrack:self.successorPrefetchTrack];
+}
+
+- (void)teardownDownloadMonitor {
+    [_downloadMonitor cancel];
+    _downloadMonitor = nil;
+    _downloadMonitorOpenRequestIdentifier = 0;
+    [CloudTransferRegistry.sharedRegistry endExternalProgress];
 }
 
 #pragma mark - The deferred metadata sweep

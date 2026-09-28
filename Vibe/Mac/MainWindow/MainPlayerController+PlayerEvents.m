@@ -62,6 +62,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     if (!_downloadMonitor
             || _downloadMonitorOpenRequestIdentifier != openRequestIdentifier) {
         __weak MainPlayerController *weakSelf = self;
+        [CloudTransferRegistry.sharedRegistry beginExternalProgressForURL:track.url];
         _downloadMonitor = [DownloadProgressMonitor
                 monitorReplacing:_downloadMonitor
                           forURL:track.url
