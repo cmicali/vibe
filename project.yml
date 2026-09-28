@@ -202,15 +202,14 @@ targets:
       # at -O0 it costs many times Apple's converter (always optimized), and a
       # Debug build is where the resampler comparison is run. The empty
       # R8BSRC_DECL is upstream's switch from a DLL to an object file;
-      # R8B_PFFFT_DOUBLE (NEON, double precision, Ooura's accuracy) and
-      # R8B_EXTFFT (longer FFT blocks, more initial delay, which the resampler
-      # removes itself) are its README's speed settings.
+      # R8B_PFFFT_DOUBLE (NEON, double precision, Ooura's accuracy) is its
+      # README's speed setting. Its other, R8B_EXTFFT, is left off: at the 1%
+      # transition band it costs 3-10% more, not less (docs/future/resampler.md).
       - path: Vibe/ThirdParty/r8brain/DLL/r8bsrc.cpp
         compilerFlags: &r8brain-flags
           - "-O3"
           - "-DR8BSRC_DECL="
           - "-DR8B_PFFFT_DOUBLE=1"
-          - "-DR8B_EXTFFT=1"
           - "-DPFFFT_ENABLE_NEON=1"           # PFFFT's NEON path is opt-in; without it arm64 builds its scalar fallback
           - "-w"                              # vendored C predates -Wstrict-prototypes; not ours to restyle
           - "-Xclang"

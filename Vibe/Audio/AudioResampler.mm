@@ -17,9 +17,11 @@
 
 // The bus's decode chunk: the most one proc call answers.
 static const int kVibeR8MaxInput = 4096;
-// The 24-bit preset (180 dB stopband) with the default transition band:
-// passband flat to 98% of the lower Nyquist, stopband from Nyquist.
-static const double kVibeR8TransitionBand = 2.0;
+// The 24-bit preset (180 dB stopband) with a 1% transition band, half
+// upstream's default: −0.1 dB at 21.72 kHz from 44.1, level with Apple's
+// Mastering filter, for about 20% more of a cost that is a twentieth of
+// Apple's (docs/future/resampler.md).
+static const double kVibeR8TransitionBand = 1.0;
 
 struct VibeR8ChannelDeleter {
     void operator()(void *resampler) const { r8b_delete(resampler); }
