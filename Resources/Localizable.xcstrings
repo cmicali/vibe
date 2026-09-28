@@ -32737,6 +32737,378 @@
       },
       "extractionState": "manual"
     },
+    "settings.advanced.mp3_decoder_caption": {
+      "comment": "Settings, Advanced pane: hint below MP3 decoder. Apple and dr_mp3 are product names and are not translated; 16-bit and 32-bit float describe the decoded audio's precision. A change takes effect when the next track starts playing. Uses a curly apostrophe (’). No trailing period.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Декодерът на Apple извежда 16-битов звук, dr_mp3 – 32-битов с плаваща запетая. Промените важат от следващия запис"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dekodér Apple vydává 16bitový zvuk, dr_mp3 32bitový s plovoucí čárkou. Změny platí od další skladby"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apples dekoder giver 16-bit lyd, dr_mp3 32-bit flydende komma. Ændringer gælder fra næste nummer"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Decoder von Apple liefert 16-Bit-Audio, dr_mp3 32-Bit-Gleitkomma. Änderungen gelten ab dem nächsten Titel"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ο αποκωδικοποιητής της Apple δίνει ήχο 16 bit, το dr_mp3 κινητής υποδιαστολής 32 bit. Οι αλλαγές ισχύουν από το επόμενο κομμάτι"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple’s decoder outputs 16-bit audio, dr_mp3 32-bit float. Changes apply from the next track"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El decodificador de Apple produce audio de 16 bits; dr_mp3, de 32 bits en coma flotante. Los cambios se aplican a partir de la siguiente pista"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Applen dekooderi tuottaa 16-bittistä ääntä, dr_mp3 32-bittistä liukulukua. Muutokset tulevat voimaan seuraavasta kappaleesta"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le décodeur d’Apple produit un son 16 bits, dr_mp3 un son 32 bits à virgule flottante. Les modifications s’appliquent à partir du morceau suivant"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appleov dekoder daje 16-bitni zvuk, dr_mp3 32-bitni s pomičnim zarezom. Promjene vrijede od sljedeće pjesme"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Az Apple dekódere 16 bites hangot ad, a dr_mp3 32 bites lebegőpontosat. A változások a következő számtól érvényesek"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dekoder Apple menghasilkan audio 16-bit, dr_mp3 32-bit floating point. Perubahan berlaku mulai trek berikutnya"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il decoder di Apple produce audio a 16 bit, dr_mp3 a 32 bit in virgola mobile. Le modifiche valgono dal brano successivo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appleのデコーダは16ビット、dr_mp3は32ビット浮動小数点で出力します。変更は次のトラックから適用されます"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple 디코더는 16비트, dr_mp3는 32비트 부동 소수점으로 출력합니다. 변경 사항은 다음 트랙부터 적용됩니다"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apples dekoder gir 16-biters lyd, dr_mp3 32-biters flyttall. Endringer gjelder fra neste spor"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De decoder van Apple levert 16-bits audio, dr_mp3 32-bits drijvende komma. Wijzigingen gelden vanaf het volgende nummer"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dekoder Apple zwraca dźwięk 16-bitowy, dr_mp3 – 32-bitowy zmiennoprzecinkowy. Zmiany obowiązują od następnego utworu"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O decodificador da Apple produz áudio de 16 bits; o dr_mp3, de 32 bits em ponto flutuante. As alterações valem a partir da próxima faixa"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O descodificador da Apple produz áudio de 16 bits; o dr_mp3, de 32 bits em vírgula flutuante. As alterações aplicam-se a partir da faixa seguinte"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Decodorul Apple produce audio pe 16 biți, dr_mp3 pe 32 de biți în virgulă mobilă. Modificările se aplică de la următoarea piesă"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Декодер Apple выдаёт 16-битный звук, dr_mp3 — 32-битный с плавающей запятой. Изменения применяются со следующего трека"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dekodér Apple vydáva 16-bitový zvuk, dr_mp3 32-bitový s pohyblivou desatinnou čiarkou. Zmeny platia od ďalšej skladby"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apples avkodare ger 16-bitars ljud, dr_mp3 32-bitars flyttal. Ändringar gäller från nästa spår"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ตัวถอดรหัสของ Apple ให้เสียง 16 บิต ส่วน dr_mp3 ให้ 32 บิตแบบทศนิยมลอยตัว การเปลี่ยนแปลงจะมีผลตั้งแต่แทร็กถัดไป"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple’ın kod çözücüsü 16 bit ses verir, dr_mp3 ise 32 bit kayan nokta. Değişiklikler sonraki parçadan itibaren geçerli olur"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Декодер Apple видає 16-бітний звук, dr_mp3 — 32-бітний з рухомою комою. Зміни діють із наступного треку"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bộ giải mã của Apple xuất âm thanh 16 bit, dr_mp3 xuất 32 bit dấu phẩy động. Thay đổi áp dụng từ bài tiếp theo"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple 的解码器输出 16 位音频，dr_mp3 输出 32 位浮点。更改从下一首曲目开始生效"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple 的解碼器輸出 16 位元音訊，dr_mp3 輸出 32 位元浮點。變更會從下一首曲目開始生效"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.advanced.mp3_decoder_label": {
+      "comment": "Settings, Advanced pane: label beside the dropdown choosing which decoder turns MP3 and MP2 files into audio. Its two choices are the product names Apple and dr_mp3, which are not translated. Ends with a colon.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MP3 декодер:"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dekodér MP3:"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MP3-dekoder:"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MP3-Decoder:"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αποκωδικοποιητής MP3:"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MP3 decoder:"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Decodificador MP3:"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MP3-dekooderi:"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Décodeur MP3 :"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MP3 dekoder:"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MP3-dekóder:"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dekoder MP3:"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Decoder MP3:"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MP3デコーダ:"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MP3 디코더:"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MP3-dekoder:"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MP3-decoder:"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dekoder MP3:"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Decodificador MP3:"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descodificador MP3:"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Decodor MP3:"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Декодер MP3:"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dekodér MP3:"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MP3-avkodare:"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ตัวถอดรหัส MP3:"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MP3 kod çözücü:"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Декодер MP3:"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bộ giải mã MP3:"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MP3 解码器："
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MP3 解碼器："
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.advanced.refresh_rate.high": {
       "comment": "Settings, Advanced pane, playhead refresh choice: up to sixty redraws a second, the smoothest and the most power-hungry. Hz is the international unit symbol for times per second and is not translated.",
       "localizations": {

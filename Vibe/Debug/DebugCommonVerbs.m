@@ -401,7 +401,8 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                     @"conversion": player.debugCurrentConversion ?: [NSNull null],
                 });
             }),
-            // The MPEG decoder comparison: which one decodes MP1, MP2 and MP3.
+            // The MPEG decoder comparison: which one decodes MP1, MP2 and MP3, a
+            // session override of the mac's Settings > Advanced choice.
             // A handle keeps the decoder it opened with, so it applies from
             // the next open: replay the row to hear it.
             VibeDebugCmd(@"set_decoder <apple|dr_mp3>", 0,

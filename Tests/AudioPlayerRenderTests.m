@@ -513,7 +513,8 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 - (void)testDrMP3DecodesWhatAppleRoundsTo16Bits {
     XCTSkipUnless([NSFileManager.defaultManager fileExistsAtPath:[self fixture:@"hot.mp3"].path],
                   @"Optional encoder fixtures unavailable; install ffmpeg and regenerate");
-    [self addTeardownBlock:^{ AudioFileHandle.appleMPEGDecoder = NO; }];
+    BOOL prior = AudioFileHandle.appleMPEGDecoder;
+    [self addTeardownBlock:^{ AudioFileHandle.appleMPEGDecoder = prior; }];
     for (NSString *name in @[@"cbr.mp3", @"vbr.mp3", @"lossy.mp2", @"hot.mp3"]) {
         NSURL *url = [self fixture:name];
         AudioFileHandle.appleMPEGDecoder = YES;
@@ -559,7 +560,6 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
             frames[apple] = 0;
             while ([partial readIntoBuffer:chunk error:NULL] && chunk.frameLength) frames[apple] += chunk.frameLength;
         }
-        AudioFileHandle.appleMPEGDecoder = NO;
         XCTAssertEqual(frames[0], frames[1], @"%@ truncated", name);
         XCTAssertGreaterThan(frames[0], 0u);
         XCTAssertLessThan(frames[0], decoded.frameLength);

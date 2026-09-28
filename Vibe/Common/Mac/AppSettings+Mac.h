@@ -220,6 +220,12 @@ static const double kVibeWaveformGainMaxDB = 12;
 - (BOOL)allowBitPerfectOnAnyDevice;
 - (void)setAllowBitPerfectOnAnyDevice:(BOOL)allowed;
 
+// Which decoder MP3 and MP2 files get: dr_mp3's float output (YES) or
+// Apple's 16-bit one (NO, the default). Changes request
+// VibeSettingsLiveEffectMP3Decoder and apply from the next file opened.
+- (BOOL)drMP3Decoder;
+- (void)setDrMP3Decoder:(BOOL)drMP3;
+
 // While on: no FX, no varispeed, the crossfade at the declick minimum, and
 // each track sets the device to the file's rate and word length.
 //

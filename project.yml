@@ -218,7 +218,7 @@ targets:
       - path: Vibe/ThirdParty/r8brain/fft/pffft_double.c
         compilerFlags: *r8brain-flags
       # dr_mp3's implementation unit, the MPEG decoder AudioFileHandle.m uses
-      # unless Apple's is chosen: optimized in every configuration for the
+      # when Settings > Advanced chooses it: optimized in every configuration for the
       # same reason as r8brain, since the comparison runs in Debug builds.
       - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
         compilerFlags: &dr-mp3-flags

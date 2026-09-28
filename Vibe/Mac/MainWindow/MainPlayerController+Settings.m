@@ -14,6 +14,7 @@
 #import "MainWindow.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
+#import "AudioFileHandle.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+Devices.h"
 #import "AudioWaveformView.h"
@@ -67,6 +68,9 @@
     }
     if (effects & VibeSettingsLiveEffectDeclick) {
         self.audioPlayer.declick = settings.declick;
+    }
+    if (effects & VibeSettingsLiveEffectMP3Decoder) {
+        AudioFileHandle.appleMPEGDecoder = !settings.drMP3Decoder;
     }
     if (effects & VibeSettingsLiveEffectVolume) {
         self.audioPlayer.volume = (float)settings.effectiveVolume;

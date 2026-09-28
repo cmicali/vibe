@@ -56,6 +56,8 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     VibeSettingsLiveEffectWindowLock       = 1UL << 25, // not theme state
     // Pushes effectiveVolume to the player and shows or hides the slider.
     VibeSettingsLiveEffectVolume           = 1UL << 26,
+    // Pushes the MP3 decoder choice to AudioFileHandle, for the next open.
+    VibeSettingsLiveEffectMP3Decoder       = 1UL << 27,
     // WindowAppearance is included because a single-mode theme pins the
     // window dark (AppTheme.requiredWindowAppearance).
     VibeSettingsLiveEffectThemeApply       = VibeSettingsLiveEffectWindowAppearance
