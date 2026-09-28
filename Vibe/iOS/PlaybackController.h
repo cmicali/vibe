@@ -144,10 +144,6 @@ NS_ASSUME_NONNULL_BEGIN
 // switch to Pause does not advance through an armed splice.
 - (void)applyTrackTransitionSettings;
 
-// The Resampling writer calls this. It takes effect from the next track or
-// seek, never interrupting what is playing.
-- (void)applyResamplingSetting;
-
 // Settings > Playback > Enable audio effects was written: the player connects
 // or disconnects the FX segment with the output stopped and puts a playing
 // track back; off also releases the pad. The card hides its pad from the

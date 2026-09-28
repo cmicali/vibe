@@ -2476,6 +2476,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     for (NSURL *url in @[[self fixture:@"cbr.mp3"], [self writeMonoAAC]]) {
         AVAudioPCMBuffer *decoded = [self read:url];
         [self startPlayerAt:96000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+        _player.resampler = VibeResamplerApple; // the converter's own report is under test
         [self play:url paused:NO position:0];
         NSDictionary *conversion = _player.debugCurrentConversion;
         XCTAssertEqualObjects(conversion[@"algorithm"], @"Mastering", @"%@", url.lastPathComponent);
@@ -2972,8 +2973,8 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertEqualObjects(decode[@"read"], @"converted");
     XCTAssertEqual([decode[@"fromSampleRate"] doubleValue], 44100.0);
     XCTAssertEqual([decode[@"toSampleRate"] doubleValue], 48000.0);
-    XCTAssertEqualObjects(decode[@"algorithm"], @"Mastering");
-    XCTAssertEqual([decode[@"quality"] integerValue], (NSInteger)kAudioConverterQuality_Max);
+    XCTAssertEqualObjects(decode[@"resampler"], VibeResamplerName(_player.resampler), @"the default resampler, as the bus holds it");
+    XCTAssertEqualObjects(decode[@"algorithm"], @"r8brain-free-src");
     XCTAssertFalse([decode[@"mixed"] boolValue]);
     XCTAssertEqual([bus[@"sampleRate"] doubleValue], 48000.0);
     XCTAssertEqual([bus[@"liveVoices"] intValue], 1);
@@ -3005,21 +3006,22 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertFalse([output[@"idleStopPending"] boolValue]);
 }
 
-// iOS's Resampling setting: a conversion begun after the write takes the
-// player's quality, and one already running keeps the converter it started
-// with until its voice ends — here, until a seek re-voices the file.
-- (void)testResamplingQualityAppliesFromTheNextConversion {
+// The resampler switch (set_resampler): a conversion begun after the write
+// takes the player's resampler, and one already running keeps the converter
+// it started with until its voice ends — here, until a seek re-voices the
+// file. Apple's runs at its maximum quality.
+- (void)testTheResamplerAppliesFromTheNextConversion {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
-    XCTAssertEqual(_player.resamplingQuality, VibeResamplingQualityMaximum, @"Maximum unless a shell asks");
-    _player.resamplingQuality = VibeResamplingQualityHigh;
+    XCTAssertEqual(_player.resampler, VibeResamplerR8brain, @"r8brain unless asked");
     [self play:[self fixture:@"noise-44100-16-2.wav"] paused:NO position:0];
     [self render:4800];
-    XCTAssertEqual([_player.debugCurrentConversion[@"quality"] integerValue], (NSInteger)kAudioConverterQuality_High);
-    _player.resamplingQuality = VibeResamplingQualityMaximum;
+    XCTAssertEqualObjects(_player.debugCurrentConversion[@"resampler"], VibeResamplerName(VibeResamplerR8brain));
+    _player.resampler = VibeResamplerApple;
     [self render:4800];
-    XCTAssertEqual([_player.debugCurrentConversion[@"quality"] integerValue], (NSInteger)kAudioConverterQuality_High,
-                   @"a running conversion keeps its converter");
+    XCTAssertEqualObjects(_player.debugCurrentConversion[@"resampler"], VibeResamplerName(VibeResamplerR8brain),
+                          @"a running conversion keeps its converter");
     [_player seekToPosition:1.0]; [self render:9600];
+    XCTAssertEqualObjects(_player.debugCurrentConversion[@"resampler"], VibeResamplerName(VibeResamplerApple));
     XCTAssertEqual([_player.debugCurrentConversion[@"quality"] integerValue], (NSInteger)kAudioConverterQuality_Max);
 }
 

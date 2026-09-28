@@ -13,6 +13,8 @@ all of it is covered here.
 | UTF8-CPP | `Vibe/ThirdParty/taglib/toolkit/utf8-cpp.*` | Boost-style permissive |
 | PINCache | `Vibe/ThirdParty/PINCache/` | Apache License 2.0 |
 | PINOperation | `Vibe/ThirdParty/PINOperation/` | Apache License 2.0 |
+| r8brain-free-src | `Vibe/ThirdParty/r8brain/` | MIT |
+| PFFFT (double) | `Vibe/ThirdParty/r8brain/fft/` | FFTPACK (BSD-style) |
 
 ## TagLib — and why the election matters
 
@@ -66,3 +68,26 @@ entry.
 
 Because Vibe is itself Apache 2.0, these two impose no obligation the project's
 own license does not already carry.
+
+## r8brain-free-src
+
+Sample rate converter designed by Aleksey Vaneev of Voxengo.
+
+Copyright (c) 2013-2026 Aleksey Vaneev. Licensed under the MIT License; the
+full text ships at `Vibe/ThirdParty/r8brain/LICENSE.txt` (upstream's `LICENSE`,
+renamed so the build leaves it out of the bundles). The author asks for the
+credit line above in the documentation of software that uses it.
+
+## PFFFT (double precision)
+
+`Vibe/ThirdParty/r8brain/fft/pffft_double.*`, `pffft_priv_impl.h` and
+`simd/` are the FFT r8brain-free-src runs on here (`R8B_PFFFT_DOUBLE`).
+
+Copyright (c) 2013 Julien Pommier. Copyright (c) 2020 Hayati Ayguen.
+Copyright (c) 2020 Dario Mambro. Based on FFTPACKv4 by Paul Swarztrauber,
+NCAR, released under the FFTPACKv5 license: redistribution in source and
+binary forms is permitted provided the copyright notices, the conditions and
+the disclaimer are retained (source) or reproduced in the documentation
+(binary), and the names of NCAR, UCAR and their contributors are not used to
+endorse the product. The full notice is at the head of
+`Vibe/ThirdParty/r8brain/fft/pffft_double.c`.

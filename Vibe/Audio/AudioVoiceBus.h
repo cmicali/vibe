@@ -45,6 +45,7 @@
 
 #import <AVFAudio/AVFAudio.h>
 #import "FadeMath.h"
+#import "AudioResampler.h"
 
 @class AudioFileHandle;
 
@@ -150,10 +151,10 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // first frame, when a stopped voice's last turn has left its file, and when
 // a slot frees, so the player drains then rather than at its next poll.
 @property (nonatomic, copy, nullable) dispatch_block_t needsDrain;
-// A kAudioConverterQuality_* value for every converter made after the write;
-// a stream already converting keeps its quality until its voice ends.
-// kAudioConverterQuality_Max by default. Atomic: read on the decode queue.
-@property (atomic) UInt32 converterQuality;
+// Which resampler every conversion made after the write uses; a stream
+// already converting keeps its own until its voice ends. VibeResamplerR8brain
+// by default. Atomic: read on the decode queue.
+@property (atomic) VibeResampler resampler;
 
 // Starts rendering `file` from `frame` (file frames) at `gain`, with `ramp`
 // pending — or paused, which carries no ramp: the first ramp set later is the

@@ -2,7 +2,7 @@
 
 Guidance for any coding agent working in this repository.
 
-Vibe is a native music player for macOS (`Vibe` target) and iOS (`VibeiOS` target), written in Objective-C and Objective-C++. Playback is Apple frameworks only — CoreAudio, AudioToolbox and AVFoundation, no third-party audio library. Formats: MP3, MP2, AAC, AIFF/AIF, WAV/WAVE/BWF, FLAC, M4A, MP4, QTA (`Common/PlayableExtensions`, the one home of the set). OGG is not supported.
+Vibe is a native music player for macOS (`Vibe` target) and iOS (`VibeiOS` target), written in Objective-C and Objective-C++. Playback is Apple frameworks only — CoreAudio, AudioToolbox and AVFoundation, no third-party audio library — except r8brain-free-src, vendored as the default resampler under evaluation (`docs/future/resampler.md`), Apple's converter one debug verb away. Formats: MP3, MP2, AAC, AIFF/AIF, WAV/WAVE/BWF, FLAC, M4A, MP4, QTA (`Common/PlayableExtensions`, the one home of the set). OGG is not supported.
 
 ## Building
 
@@ -21,7 +21,7 @@ Vibe is a native music player for macOS (`Vibe` target) and iOS (`VibeiOS` targe
 
 Releases go through the **`vibe-release` skill**: the Developer ID path (`make release`) and the App Store path (`make appstore-build`, `make appstore-upload-signed-build`) are not interchangeable — do not improvise from the scripts.
 
-There is no package manager. TagLib and PINCache/PINOperation are vendored under `Vibe/ThirdParty/` and compile into both app targets.
+There is no package manager. TagLib, PINCache/PINOperation and r8brain-free-src are vendored under `Vibe/ThirdParty/` and compile into both app targets.
 
 ## Checks
 

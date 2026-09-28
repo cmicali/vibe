@@ -13,11 +13,7 @@
 
 #import "AudioError.h"     // domain, userInfo key and codes; re-exported here
 #import "PlaybackIntent.h"
-
-typedef NS_ENUM(NSInteger, VibeResamplingQuality) {
-    VibeResamplingQualityMaximum = 0,
-    VibeResamplingQualityHigh,
-};
+#import "AudioResampler.h"  // VibeResampler
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -52,11 +48,10 @@ NS_ASSUME_NONNULL_BEGIN
 // so NO applies no gain at all.
 @property (atomic) BOOL declick;
 
-// The resampler's quality when a file's rate differs from the output's.
-// Always Maximum on macOS. iOS defaults to High: flat to 21 kHz with the same
-// alias rejection, for about half the CPU (1.8% vs 3.3% of a core on device).
-// Applies to conversions begun after the write.
-@property (atomic) VibeResamplingQuality resamplingQuality;
+// Which resampler converts a file at another rate than the output's: r8brain
+// (the default, under evaluation: docs/future/resampler.md) or Apple's, each
+// at its highest quality. Applies to conversions begun after the write.
+@property (atomic) VibeResampler resampler;
 
 // Whether the meter publishes band levels; the shells enable it only for
 // counted indicator demand, modeled output audio and material visibility.

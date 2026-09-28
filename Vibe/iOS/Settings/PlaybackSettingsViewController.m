@@ -13,22 +13,18 @@
 
 typedef NS_ENUM(NSInteger, VibePlaybackSection) {
     VibePlaybackSectionTransitions = 0,
-    VibePlaybackSectionSound,
     VibePlaybackSectionEffects,
     VibePlaybackSectionAnalysis,
     VibePlaybackSectionCount,
 };
 
-// The Track transitions rows; the other three sections hold one row each —
-// Resampling, the effects switch and the BPM detection switch.
+// The Track transitions rows; the other two sections hold one row each —
+// the effects switch and the BPM detection switch.
 typedef NS_ENUM(NSInteger, VibePlaybackRow) {
     VibePlaybackRowOnTrackEnd = 0,
     VibePlaybackRowCrossfade,
     VibePlaybackRowCount,
 };
-
-static const NSInteger kResamplingRowHigh    = 0;
-static const NSInteger kResamplingRowMaximum = 1;
 
 // Not a cast of the BOOL: a row index is a screen position.
 static const NSInteger kOnEndRowPlayNext = 0;
@@ -86,15 +82,6 @@ static NSString *const kValueCellIdentifier = @"value";
                                                        : STR_SETTINGS_ON_END_PLAY_NEXT;
 }
 
-- (NSInteger)currentResamplingIndex {
-    return AppSettings.sharedInstance.maximumResamplingQuality ? kResamplingRowMaximum
-                                                               : kResamplingRowHigh;
-}
-
-- (NSArray<NSString *> *)resamplingTitles {
-    return @[STR_SETTINGS_RESAMPLING_HIGH, STR_SETTINGS_RESAMPLING_MAXIMUM];
-}
-
 #pragma mark - Table
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
@@ -107,7 +94,6 @@ static NSString *const kValueCellIdentifier = @"value";
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
     switch ((VibePlaybackSection)section) {
-        case VibePlaybackSectionSound: return STR_SETTINGS_PLAYBACK_AUDIO_SECTION;
         case VibePlaybackSectionEffects: return STR_SETTINGS_FX_SECTION;
         case VibePlaybackSectionAnalysis: return STR_SETTINGS_ANALYSIS_SECTION;
         default: return STR_SETTINGS_TRANSITIONS_SECTION;
@@ -116,7 +102,6 @@ static NSString *const kValueCellIdentifier = @"value";
 
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
     switch ((VibePlaybackSection)section) {
-        case VibePlaybackSectionSound: return STR_SETTINGS_RESAMPLING_CAPTION;
         case VibePlaybackSectionEffects: return STR_SETTINGS_FX_CAPTION;
         case VibePlaybackSectionAnalysis: return STR_SETTINGS_DETECT_BPM_CAPTION;
         default: return nil;
@@ -142,11 +127,7 @@ static NSString *const kValueCellIdentifier = @"value";
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
     }
     UIListContentConfiguration *content = [UIListContentConfiguration valueCellConfiguration];
-    if (indexPath.section == VibePlaybackSectionSound) {
-        content.text = STR_SETTINGS_RESAMPLING_LABEL;
-        content.secondaryText = [self resamplingTitles][(NSUInteger)[self currentResamplingIndex]];
-    }
-    else if ((VibePlaybackRow)indexPath.row == VibePlaybackRowCrossfade) {
+    if ((VibePlaybackRow)indexPath.row == VibePlaybackRowCrossfade) {
         content.text = STR_SETTINGS_CROSSFADE_LABEL;
         content.secondaryText = [self crossfadeTitles][(NSUInteger)[self currentCrossfadeIndex]];
     }
@@ -165,9 +146,8 @@ static NSString *const kValueCellIdentifier = @"value";
     if (indexPath.section == VibePlaybackSectionEffects || indexPath.section == VibePlaybackSectionAnalysis) {
         return; // the switch rows
     }
-    UIViewController *next = indexPath.section == VibePlaybackSectionSound ? [self resamplingPicker]
-            : (VibePlaybackRow)indexPath.row == VibePlaybackRowCrossfade ? [self crossfadePicker]
-            : [self onTrackEndPicker];
+    UIViewController *next = (VibePlaybackRow)indexPath.row == VibePlaybackRowCrossfade ? [self crossfadePicker]
+                                                                              : [self onTrackEndPicker];
     [self.navigationController pushViewController:next animated:YES];
 }
 
@@ -183,18 +163,6 @@ static NSString *const kValueCellIdentifier = @"value";
                  onSelect:^(NSInteger index) {
         AppSettings.sharedInstance.pauseAtTrackEnd = (index == kOnEndRowPause);
         [playback applyTrackTransitionSettings];
-    }];
-}
-
-- (SettingsChoiceViewController *)resamplingPicker {
-    PlaybackController *playback = _playback;
-    return [[SettingsChoiceViewController alloc]
-            initWithTitle:STR_SETTINGS_RESAMPLING_LABEL
-                  choices:[self resamplingTitles]
-            selectedIndex:[self currentResamplingIndex]
-                 onSelect:^(NSInteger index) {
-        AppSettings.sharedInstance.maximumResamplingQuality = (index == kResamplingRowMaximum);
-        [playback applyResamplingSetting];
     }];
 }
 
