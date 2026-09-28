@@ -64,7 +64,7 @@ static NSString *const kValueCellIdentifier  = @"value";
     return [WaveformRendererRegistry displayNameForIdentifier:[self currentWaveformStyle]];
 }
 
-// Unset reads as Match app, NOT the app's style name, which would say the widget
+// Match app reads as itself, NOT the app's style name, which would say the widget
 // is pinned when it is following.
 - (NSString *)widgetWaveformStyleValueText {
     NSString *identifier = AppSettings.sharedInstance.widgetWaveformStyle;
