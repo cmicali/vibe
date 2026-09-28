@@ -2,11 +2,9 @@
 //  ResamplerQualityTests.m
 //  VibeTests
 //
-//  Both resamplers the voice bus can convert with — Apple's AudioConverter at
-//  mastering complexity and Maximum quality, and r8brain-free-src — measured
-//  through the production bus (inline decoding, the tests calling the render),
-//  at every rate pair the player meets, on the same signals and the same
-//  analysis:
+//  The voice bus's resampler, r8brain-free-src, measured through the production
+//  bus (inline decoding, the tests calling the render), at every rate pair the
+//  player meets:
 //
 //  - stepped sines at −1 dBFS: passband gain and ripple to 20 kHz, the −0.1 dB
 //    and −3 dB band edges, THD and THD+N, the stopband past the output's
@@ -32,10 +30,10 @@
 //  rectangular window, so the residual is everything that is not the tone,
 //  with no window leakage; a sweep or a sawtooth by a Kaiser (β 20) spectrum,
 //  whose own floor on the ideal signals is checked once, below every bound.
-//  Each signal is synthesized once per rate pair and read by both resamplers.
 //
 //  Every run attaches the measured table to the result bundle ("resampler
-//  quality", markdown) for comparison.
+//  quality", markdown); docs/audio-quality.md carries the comparison with
+//  Apple's converter, which it replaced.
 //
 
 #import <XCTest/XCTest.h>
@@ -53,7 +51,6 @@ static const RatePair kPairs[] = {
     {44100, 48000}, {48000, 44100}, {44100, 96000}, {96000, 44100},
     {88200, 44100}, {96000, 48000}, {192000, 48000}, {44100, 192000},
 };
-static const VibeResampler kResamplers[] = { VibeResamplerApple, VibeResamplerR8brain };
 
 static NSString *PairName(RatePair pair) {
     return [NSString stringWithFormat:@"%g>%g", pair.from / 1000, pair.to / 1000];
@@ -284,11 +281,11 @@ typedef struct {
     AudioVoiceBus *_bus;
     AudioBufferList *_output;
     float *_outputData[2];
-    // Each pair's signals, synthesized once and read by both resamplers.
-    NSMutableDictionary<NSString *, id> *_sources;
-    // Every conversion's resampling cost, per VibeResampler, since the pair began.
-    double _cpuSeconds[2];
-    double _audioSeconds[2];
+    // Each rate's ideal multitone, synthesized once across the pairs.
+    NSMutableDictionary<NSNumber *, NSData *> *_multitones;
+    // Every conversion's resampling cost since the pair began.
+    double _cpuSeconds;
+    double _audioSeconds;
 }
 
 - (void)setUp {
@@ -296,7 +293,7 @@ typedef struct {
     _temporary = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString]];
     [NSFileManager.defaultManager createDirectoryAtURL:_temporary withIntermediateDirectories:YES attributes:nil error:NULL];
     _queue = dispatch_queue_create("resampler-quality", DISPATCH_QUEUE_SERIAL);
-    _sources = [NSMutableDictionary dictionary];
+    _multitones = [NSMutableDictionary dictionary];
     _output = calloc(1, sizeof(AudioBufferList) + sizeof(AudioBuffer));
     _output->mNumberBuffers = 2;
     for (UInt32 c = 0; c < 2; c++) {
@@ -328,30 +325,23 @@ typedef struct {
     return url;
 }
 
-// The source named `name` at the pair's source rate: `build` fills `count`
-// samples the first time, and every later ask, the other resampler's, reads
-// the same file.
+// The source named `name` at the pair's source rate, `count` samples `build` fills.
 - (NSURL *)source:(NSString *)name pair:(RatePair)pair count:(NSUInteger)count build:(void (^)(double *samples))build {
     NSString *key = [NSString stringWithFormat:@"%@-%g-%g", name, pair.from, pair.to];
-    if (_sources[key]) {
-        return _sources[key];
-    }
     double *samples = calloc(count, sizeof(double));
     build(samples);
     NSURL *url = [self writeMono:samples count:count rate:pair.from name:[key stringByAppendingPathExtension:@"wav"]];
     free(samples);
-    _sources[key] = url;
     return url;
 }
 
-// The whole file through a fresh bus at `rate` with `resampler`: the left
+// The whole file through a fresh bus at `rate`: the left
 // channel, widened, to the stream's end, which must be round(N × ratio)
 // exactly. The right channel must equal it (the mono file is duplicated
 // before resampling). The bus's resampling cost joins the pair's tally.
-- (NSData *)convert:(NSURL *)url toRate:(double)rate resampler:(VibeResampler)resampler {
+- (NSData *)convert:(NSURL *)url toRate:(double)rate {
     AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:2];
     _bus = [[AudioVoiceBus alloc] initWithFormat:format queue:_queue inlineDecoding:YES];
-    _bus.resampler = resampler;
     NSError *error = nil;
     AudioFileHandle *file = [[AudioFileHandle alloc] initForReading:url error:&error];
     XCTAssertNotNil(file, @"%@", error);
@@ -391,10 +381,10 @@ typedef struct {
     XCTAssertTrue(ended, @"%@ never ended", url.lastPathComponent);
     XCTAssertFalse(mismatch, @"the channels differ");
     XCTAssertEqual((int64_t)endOfStream, llround((double)sourceFrames * rate / sourceRate),
-                   @"%@ %@ duration", url.lastPathComponent, VibeResamplerName(resampler));
-    NSDictionary *cost = [_bus debugResamplerCostsResetting:NO][VibeResamplerName(resampler)];
-    _cpuSeconds[resampler] += [cost[@"cpuSeconds"] doubleValue];
-    _audioSeconds[resampler] += [cost[@"audioSeconds"] doubleValue];
+                   @"%@ duration", url.lastPathComponent);
+    NSDictionary *cost = [_bus debugResamplerCostsResetting:NO];
+    _cpuSeconds += [cost[@"cpuSeconds"] doubleValue];
+    _audioSeconds += [cost[@"audioSeconds"] doubleValue];
     left.length = MIN(left.length, (NSUInteger)endOfStream * sizeof(double));
     return left;
 }
@@ -440,7 +430,7 @@ static NSArray<NSValue *> *TonesForPair(RatePair pair) {
     return tones;
 }
 
-- (void)measureTonesForPair:(RatePair)pair resampler:(VibeResampler)resampler into:(Quality *)q {
+- (void)measureTonesForPair:(RatePair)pair into:(Quality *)q {
     NSArray<NSValue *> *tones = TonesForPair(pair);
     double ratio = pair.to / pair.from;
     NSUInteger segmentIn = (NSUInteger)ceil(kSegmentOutputFrames / ratio);
@@ -453,7 +443,7 @@ static NSArray<NSValue *> *TonesForPair(RatePair pair) {
             }
         }
     }];
-    NSData *output = [self convert:url toRate:pair.to resampler:resampler];
+    NSData *output = [self convert:url toRate:pair.to];
     const double *y = output.bytes;
     NSUInteger available = output.length / sizeof(double);
 
@@ -574,7 +564,7 @@ static double SweepReference(KaiserSpectrum *spectrum, double rate, double *scra
     return reference;
 }
 
-- (void)measureSweepForPair:(RatePair)pair resampler:(VibeResampler)resampler into:(Quality *)q {
+- (void)measureSweepForPair:(RatePair)pair into:(Quality *)q {
     const double f0 = kSweepStart, k = SweepRate(pair);
     NSUInteger count = (NSUInteger)(kSweepSeconds * pair.from);
     NSURL *url = [self source:@"sweep" pair:pair count:count build:^(double *source) {
@@ -582,7 +572,7 @@ static double SweepReference(KaiserSpectrum *spectrum, double rate, double *scra
             source[m] = SweepAt(m / pair.from, pair);
         }
     }];
-    NSData *output = [self convert:url toRate:pair.to resampler:resampler];
+    NSData *output = [self convert:url toRate:pair.to];
     const double *y = output.bytes;
     NSUInteger available = output.length / sizeof(double);
 
@@ -656,12 +646,12 @@ static double SawSpur(const double *samples, double rate) {
     return DB(outside / fundamentalPower);
 }
 
-- (void)measureSawForPair:(RatePair)pair resampler:(VibeResampler)resampler into:(Quality *)q {
+- (void)measureSawForPair:(RatePair)pair into:(Quality *)q {
     NSUInteger count = (NSUInteger)(kSawSeconds * pair.from);
     NSURL *url = [self source:@"saw" pair:pair count:count build:^(double *source) {
         AddSaw(source, count, 0, (int)floor(0.999 * pair.from / 2 / kSawFundamental), pair.from);
     }];
-    NSData *output = [self convert:url toRate:pair.to resampler:resampler];
+    NSData *output = [self convert:url toRate:pair.to];
     const NSUInteger frame = kSawFrame;
     NSUInteger available = output.length / sizeof(double);
     XCTAssertGreaterThanOrEqual(available, frame + 8192);
@@ -670,13 +660,13 @@ static double SawSpur(const double *samples, double rate) {
 
 // A second of silence, two of DC at 0.5, a second of silence: the first half
 // second must be exact zeros, the plateau's middle second 0.5.
-- (void)measureSilenceAndDCForPair:(RatePair)pair resampler:(VibeResampler)resampler into:(Quality *)q {
+- (void)measureSilenceAndDCForPair:(RatePair)pair into:(Quality *)q {
     NSURL *url = [self source:@"dc" pair:pair count:(NSUInteger)(4 * pair.from) build:^(double *source) {
         for (NSUInteger m = (NSUInteger)pair.from; m < (NSUInteger)(3 * pair.from); m++) {
             source[m] = 0.5;
         }
     }];
-    NSData *output = [self convert:url toRate:pair.to resampler:resampler];
+    NSData *output = [self convert:url toRate:pair.to];
     const double *y = output.bytes;
     q->silencePeak = 0;
     for (NSUInteger n = 0; n < (NSUInteger)(pair.to / 2); n++) {
@@ -704,8 +694,7 @@ static void MultitoneTones(double *frequencies, double *phases) {
 
 // Two seconds of the multitone at `rate`, synthesized once.
 - (NSData *)multitoneAtRate:(double)rate {
-    NSString *key = [NSString stringWithFormat:@"multitone-ideal-%g", rate];
-    if (!_sources[key]) {
+    if (!_multitones[@(rate)]) {
         double frequencies[20], phases[20];
         MultitoneTones(frequencies, phases);
         NSUInteger count = (NSUInteger)(2 * rate);
@@ -716,9 +705,9 @@ static void MultitoneTones(double *frequencies, double *phases) {
                 y[n] += 0.04 * sin(2 * M_PI * frequencies[k] * n / rate + phases[k]);
             }
         }
-        _sources[key] = samples;
+        _multitones[@(rate)] = samples;
     }
-    return _sources[key];
+    return _multitones[@(rate)];
 }
 
 // The output less the ideal over its middle half, re the ideal.
@@ -733,22 +722,22 @@ static double Null(NSData *output, NSData *ideal) {
     return DB(error / signal);
 }
 
-- (void)measureMultitoneForPair:(RatePair)pair resampler:(VibeResampler)resampler into:(Quality *)q {
+- (void)measureMultitoneForPair:(RatePair)pair into:(Quality *)q {
     NSData *original = [self multitoneAtRate:pair.from];
     NSURL *url = [self source:@"multitone" pair:pair count:original.length / sizeof(double) build:^(double *source) {
         memcpy(source, original.bytes, original.length);
     }];
-    NSData *there = [self convert:url toRate:pair.to resampler:resampler];
+    NSData *there = [self convert:url toRate:pair.to];
     q->multitoneNullDB = Null(there, [self multitoneAtRate:pair.to]);
-    NSString *name = [NSString stringWithFormat:@"there-%@-%g-%g.wav", VibeResamplerName(resampler), pair.from, pair.to];
+    NSString *name = [NSString stringWithFormat:@"there-%g-%g.wav", pair.from, pair.to];
     NSURL *middle = [self writeMono:there.bytes count:there.length / sizeof(double) rate:pair.to name:name];
-    q->roundTripDB = Null([self convert:middle toRate:pair.from resampler:resampler], original);
+    q->roundTripDB = Null([self convert:middle toRate:pair.from], original);
 }
 
 // CCIF: 19 and 20 kHz at 0.25 each; SMPTE: 60 Hz at 0.4 and 7 kHz at 0.1. Each
 // is fitted jointly with its products, whose power is the measure. A linear
 // resampler makes none, so what shows is numerical error and folding.
-- (void)measureIntermodulationForPair:(RatePair)pair resampler:(VibeResampler)resampler into:(Quality *)q {
+- (void)measureIntermodulationForPair:(RatePair)pair into:(Quality *)q {
     NSUInteger half = (NSUInteger)(1.5 * pair.from);
     NSURL *url = [self source:@"imd" pair:pair count:2 * half build:^(double *source) {
         for (NSUInteger m = 0; m < half; m++) {
@@ -757,7 +746,7 @@ static double Null(NSData *output, NSData *ideal) {
             source[half + m] = 0.4 * sin(2 * M_PI * 60 * t) + 0.1 * sin(2 * M_PI * 7000 * t);
         }
     }];
-    NSData *output = [self convert:url toRate:pair.to resampler:resampler];
+    NSData *output = [self convert:url toRate:pair.to];
     const double *y = output.bytes;
     const NSUInteger window = 32768;
     double segmentOut = half * pair.to / pair.from;
@@ -788,12 +777,12 @@ static double Null(NSData *output, NSData *ideal) {
 // magnitude and phase, with zero delay as the reference — so a linear-phase
 // filter whose latency was removed exactly reads 0 dB and 0°. Read at every
 // bin of one FFT of the window, 20 Hz–20 kHz (bins 3–12 Hz apart).
-- (void)measureImpulseForPair:(RatePair)pair resampler:(VibeResampler)resampler into:(Quality *)q {
+- (void)measureImpulseForPair:(RatePair)pair into:(Quality *)q {
     NSUInteger count = (NSUInteger)pair.from, at = count / 2;
     NSURL *url = [self source:@"impulse" pair:pair count:count build:^(double *source) {
         source[at] = 1;
     }];
-    NSData *output = [self convert:url toRate:pair.to resampler:resampler];
+    NSData *output = [self convert:url toRate:pair.to];
     const double *y = output.bytes;
     double t0 = at / pair.from, scale = pair.to / pair.from;
     const vDSP_Length log2n = 14;
@@ -826,7 +815,7 @@ static double Null(NSData *output, NSData *ideal) {
 // A sine sampled so that no sample lands on its peak, scaled so the largest
 // sample is 0.999 while the waveform between samples reaches about +3 dBFS
 // (at 44.1 kHz, 11025 Hz at 45°): the float bus must carry it unclipped.
-- (void)measureOversForPair:(RatePair)pair resampler:(VibeResampler)resampler into:(Quality *)q {
+- (void)measureOversForPair:(RatePair)pair into:(Quality *)q {
     double periodSamples = 4;
     while (pair.from / periodSamples > 12500) {
         periodSamples *= 2;
@@ -838,7 +827,7 @@ static double Null(NSData *output, NSData *ideal) {
             source[m] = amplitude * sin(2 * M_PI * f * m / pair.from + M_PI / periodSamples);
         }
     }];
-    NSData *output = [self convert:url toRate:pair.to resampler:resampler];
+    NSData *output = [self convert:url toRate:pair.to];
     NSUInteger available = output.length / sizeof(double), window = 16384, first = available / 2 - window / 2;
     double a = 0, b = 0;
     double residual = FitTones((const double *)output.bytes + first, window, &f, 1, pair.to, first, 0, &a, &b);
@@ -847,34 +836,34 @@ static double Null(NSData *output, NSData *ideal) {
     q->oversTHDNdB = DB(residual / (fitted * fitted / 2));
 }
 
-- (Quality)qualityForPair:(RatePair)pair resampler:(VibeResampler)resampler {
+- (Quality)qualityForPair:(RatePair)pair {
     Quality q = {0};
-    _cpuSeconds[resampler] = 0;
-    _audioSeconds[resampler] = 0;
-    [self measureTonesForPair:pair resampler:resampler into:&q];
-    [self measureSweepForPair:pair resampler:resampler into:&q];
-    [self measureSawForPair:pair resampler:resampler into:&q];
-    [self measureSilenceAndDCForPair:pair resampler:resampler into:&q];
-    [self measureMultitoneForPair:pair resampler:resampler into:&q];
-    [self measureIntermodulationForPair:pair resampler:resampler into:&q];
-    [self measureImpulseForPair:pair resampler:resampler into:&q];
-    [self measureOversForPair:pair resampler:resampler into:&q];
-    q.corePercent = 100 * _cpuSeconds[resampler] / _audioSeconds[resampler];
+    _cpuSeconds = 0;
+    _audioSeconds = 0;
+    [self measureTonesForPair:pair into:&q];
+    [self measureSweepForPair:pair into:&q];
+    [self measureSawForPair:pair into:&q];
+    [self measureSilenceAndDCForPair:pair into:&q];
+    [self measureMultitoneForPair:pair into:&q];
+    [self measureIntermodulationForPair:pair into:&q];
+    [self measureImpulseForPair:pair into:&q];
+    [self measureOversForPair:pair into:&q];
+    q.corePercent = 100 * _cpuSeconds / _audioSeconds;
     return q;
 }
 
 static NSString *TableHeader(void) {
-    return @"| pair | resampler | ripple dB | -0.1dB Hz | -3dB Hz | worst THD+N dB | THD 1k | THD 6k | "
+    return @"| pair | ripple dB | -0.1dB Hz | -3dB Hz | worst THD+N dB | THD 1k | THD 6k | "
            "noise dBFS | stopband dB | stop edge dB | delay smp | phase spread smp | sweep in-band dB | sweep stop dB | "
            "saw spur dB | multitone null dB | round trip dB | IMD CCIF dB | IMD SMPTE dB | "
            "IR ripple dB | IR phase deg | overs gain dB | overs THD+N dB | silence | DC err | core % |\n"
-           "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n";
+           "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n";
 }
 
-static NSString *TableRow(RatePair pair, VibeResampler resampler, Quality q) {
-    return [NSString stringWithFormat:@"| %@ | %@ | %.1e | %.0f | %.0f | %.1f | %.1f | %.1f | %.1f | %.1f | %.1f | %.4f | %.5f | %.1f | %.1f | "
+static NSString *TableRow(RatePair pair, Quality q) {
+    return [NSString stringWithFormat:@"| %@ | %.1e | %.0f | %.0f | %.1f | %.1f | %.1f | %.1f | %.1f | %.1f | %.4f | %.5f | %.1f | %.1f | "
            "%.1f | %.1f | %.1f | %.1f | %.1f | %.1e | %.1e | %.1e | %.1f | %.2g | %.2g | %.3f |\n",
-           PairName(pair), VibeResamplerName(resampler), q.rippleDB, q.edge01Hz, q.edge3Hz, q.worstTHDNdB,
+           PairName(pair), q.rippleDB, q.edge01Hz, q.edge3Hz, q.worstTHDNdB,
            q.thd1kDB, q.thd6kDB, q.noiseFloorDBFS, q.stopbandDB, q.stopbandEdgeDB, q.delaySamples, q.phaseSpreadSamples,
            q.sweepInBandDB, q.sweepStopbandDB, q.sawSpurDB,
            q.multitoneNullDB, q.roundTripDB, q.imdCCIFdB, q.imdSMPTEdB, q.impulseRippleDB, q.impulsePhaseDeg,
@@ -882,10 +871,11 @@ static NSString *TableRow(RatePair pair, VibeResampler resampler, Quality q) {
            q.dcError, q.corePercent];
 }
 
-// The bar both resamplers are held to, at every pair. Measured values are in
-// the printed table; each bound sits a margin past the worse of the two.
-- (void)assertQuality:(Quality)q pair:(RatePair)pair resampler:(VibeResampler)resampler {
-    NSString *label = [NSString stringWithFormat:@"%@ %@", PairName(pair), VibeResamplerName(resampler)];
+// The bar the resampler is held to, at every pair. Measured values are in the
+// printed table; each bound sits a margin past the worse of r8brain and the
+// Apple converter it replaced.
+- (void)assertQuality:(Quality)q pair:(RatePair)pair {
+    NSString *label = PairName(pair);
     XCTAssertLessThan(q.rippleDB, 0.0001, @"%@ passband ripple to 20 kHz", label);
     XCTAssertGreaterThanOrEqual(q.edge01Hz, 20000, @"%@ flat to 20 kHz", label);
     XCTAssertLessThan(q.worstTHDNdB, -140, @"%@ THD+N in the passband", label);
@@ -913,15 +903,13 @@ static NSString *TableRow(RatePair pair, VibeResampler resampler, Quality q) {
     XCTAssertLessThan(q.dcError, 1e-6, @"%@ DC", label);
 }
 
-- (void)testBothResamplersAtEveryRatePair {
+- (void)testTheResamplerAtEveryRatePair {
     NSMutableString *table = [TableHeader() mutableCopy];
     for (size_t p = 0; p < sizeof(kPairs) / sizeof(kPairs[0]); p++) {
-        for (size_t r = 0; r < sizeof(kResamplers) / sizeof(kResamplers[0]); r++) {
-            Quality q = [self qualityForPair:kPairs[p] resampler:kResamplers[r]];
-            [table appendString:TableRow(kPairs[p], kResamplers[r], q)];
-            [self assertQuality:q pair:kPairs[p] resampler:kResamplers[r]];
-            XCTAssertGreaterThan(q.corePercent, 0, @"the bus accounted no resampling");
-        }
+        Quality q = [self qualityForPair:kPairs[p]];
+        [table appendString:TableRow(kPairs[p], q)];
+        [self assertQuality:q pair:kPairs[p]];
+        XCTAssertGreaterThan(q.corePercent, 0, @"the bus accounted no resampling");
     }
     XCTAttachment *attachment = [XCTAttachment attachmentWithString:table];
     attachment.name = @"resampler quality";

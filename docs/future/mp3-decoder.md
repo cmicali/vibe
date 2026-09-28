@@ -125,7 +125,7 @@ dr_mp3 is about twice as fast. Both are tiny compared with the resampler.
 2. Do a listening test on real music: quiet passages, fade-outs, and loud modern masters, with the volume control below full.
 3. Measure CPU on an iPhone.
 4. Decide whether to add an iOS setting. It would also bring MP2 playback to iOS, which has no Apple MP2 decoder. That still needs a check on the simulator.
-5. If those go well, make dr_mp3 the default. This would be the second exception to the "Apple frameworks only" rule, after r8brain (`resampler.md`). The code change is two lines: `AudioFileHandle`'s default and the setting's default.
+5. If those go well, make dr_mp3 the default. This would be the second exception to the "Apple frameworks only" rule, after r8brain (`docs/audio-quality.md`). The code change is two lines: `AudioFileHandle`'s default and the setting's default.
 
 ## Not yet tested
 

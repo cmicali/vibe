@@ -2,7 +2,7 @@
 
 Guidance for any coding agent working in this repository.
 
-Vibe is a native music player for macOS (`Vibe` target) and iOS (`VibeiOS` target), written in Objective-C and Objective-C++. Playback is Apple frameworks only — CoreAudio, AudioToolbox and AVFoundation, no third-party audio library — except r8brain-free-src, vendored as the default resampler under evaluation (`docs/future/resampler.md`), Apple's converter one debug verb away, and dr_mp3, an MPEG decoder the mac's Settings > Advanced offers beside Apple's default (`docs/future/mp3-decoder.md`). Formats: MP3, MP2, AAC, AIFF/AIF, WAV/WAVE/BWF, FLAC, M4A, MP4, QTA (`Common/PlayableExtensions`, the one home of the set). OGG is not supported.
+Vibe is a native music player for macOS (`Vibe` target) and iOS (`VibeiOS` target), written in Objective-C and Objective-C++. Playback is Apple frameworks — CoreAudio, AudioToolbox and AVFoundation — and two vendored libraries: r8brain-free-src, the resampler for every file whose rate is not the output's (`docs/audio-quality.md` has the measurements that chose it), and dr_mp3, an MP3 decoder the mac's Settings > Advanced offers beside Apple's default (`docs/future/mp3-decoder.md`); no other third-party audio code. Formats: MP3, MP2, AAC, AIFF/AIF, WAV/WAVE/BWF, FLAC, M4A, MP4, QTA (`Common/PlayableExtensions`, the one home of the set). OGG is not supported.
 
 ## Building
 
@@ -84,7 +84,7 @@ Nested `AGENTS.md` files hold the detail. An agent loads one only once it works 
 - **`Vibe/Util/`** — featureless helpers, with `Mac/` and `iOS/` halves. **`Vibe/Debug/`** — the debug channel, with `Mac/` and `iOS/` command tables.
 - **`Vibe/Mac/`** — the macOS app shell, one directory per piece: `App/` (application object, open funnel, sandbox grants, stats, the debug info report), `MainWindow/` (`MainPlayerController`; layout and chrome are its `APPEARANCE.md`; `Transport/` and `Convert/` carry their own docs), `Menu/`, `Controls/`, `Settings/` (`Appearance/` is the theme list and editor), `About/`.
 - **`Vibe/iOS/`** — the iPhone/iPad app shell: `PlaybackController` (the model), the tab shell and mini player; `Player/` is the now-playing card, `Search/` Favorites and search, `Settings/` the settings screens, each with a doc. The iOS halves of shared subsystems live under those subsystems, not here.
-- **`Vibe/ThirdParty/`** — vendored TagLib subset, PINCache/PINOperation, r8brain and dr_mp3.
+- **`Vibe/ThirdParty/`** — vendored TagLib subset, PINCache/PINOperation, r8brain-free-src and dr_mp3.
 
 ## Cross-directory guarantees
 
