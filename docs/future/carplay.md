@@ -1,6 +1,6 @@
 # Future: CarPlay
 
-Written 2026-08-16, planned but not implemented. Re-verified 2026-09-26: still unimplemented (the only CarPlay code is route classification, `VibeOutputRouteKindCarPlay`), but the iOS app changed underneath it — it now has an entitlements file, a fourth playback observer, and determinate download progress, all corrected below. The file:line anchors are against branch `ios-app` at `d457ad3` **with its uncommitted working tree** and have all moved since; re-check every anchor before acting.
+**Status: planned, not implemented (verified 2026-09-27).** The only CarPlay code is route classification, `VibeOutputRouteKindCarPlay`.
 
 ## The question this started from, and its answer
 
@@ -18,15 +18,15 @@ So the scrubber has no surface to live on, and even a static picture of one has 
 
 ## The seek story, which is the real value add
 
-`CPNowPlayingTemplate`'s progress display is system-drawn, and **whether it offers a draggable scrubber at all is up to the head unit**. On the author's own car it does not: there is no way to seek within a track in CarPlay's Now Playing screen, so `changePlaybackPositionCommand` — which the app already implements (`NowPlayingController.m:204`) — is simply unreachable there.
+`CPNowPlayingTemplate`'s progress display is system-drawn, and **whether it offers a draggable scrubber at all is up to the head unit**. On the author's own car it does not: there is no way to seek within a track in CarPlay's Now Playing screen, so `changePlaybackPositionCommand` — which the app already implements (`NowPlayingController`) — is simply unreachable there.
 
-That makes `skipForwardCommand` / `skipBackwardCommand` the only in-car seek on such a unit, and therefore the one genuinely new *capability* on this whole list rather than a nicety. Both are currently in the disabled set (`NowPlayingController.m:219`), correctly, because the app models neither.
+That makes `skipForwardCommand` / `skipBackwardCommand` the only in-car seek on such a unit, and therefore the one genuinely new *capability* on this whole list rather than a nicety. Both are currently in `NowPlayingController`'s disabled command set, correctly, because the app models neither.
 
 Notes for whoever implements them:
 
 - **They are seconds, not bars.** `MPSkipIntervalCommand.preferredIntervals` is a list of second counts, and the head unit draws the chosen number on the glyph. The mac's bar-based skip cannot be expressed through it, and a "±1 bar" that renders as "±7" is worse than 15/30.
 - **TRAP: enabling them changes the phone; verify before shipping.** `MPRemoteCommandCenter` is process-global — the same registration feeds CarPlay, the lock screen, Control Center, AirPods and the mac's media keys. The system has historically chosen between next/previous-track and skip-interval buttons in the compact transport when both are enabled, podcast-style. If enabling skip costs the lock screen its next/previous buttons, that is a bad trade for a phone-first music player and the commands may have to be enabled *only while a CarPlay scene is connected*. Check this on a real device before deciding; it is the one thing that could make this change not worth making.
-- Everything else the car needs is already live. `NowPlayingController` publishes title, artist, artwork, duration and rate, and routes play, pause, toggle, next and previous back to the same transport entry points the on-screen controls use (`PlaybackController+NowPlaying.m:40-68`).
+- Everything else the car needs is already live. `NowPlayingController` publishes title, artist, artwork, duration and rate, and routes play, pause, toggle, next and previous back to the same transport entry points the on-screen controls use (the `nowPlayingController…` delegate methods in `PlaybackController+NowPlaying.m`).
 
 ## What already works today, with no code at all
 
@@ -42,7 +42,7 @@ Simulator testing with the entitlement key present but not yet granted is *repor
 
 ### 2. A second scene, which collides with a documented decision
 
-CarPlay is a `CPTemplateApplicationSceneSessionRoleApplication` scene, live *alongside* the window scene. Today the app is deliberately single-scene, and `project.yml`'s manifest says why: `UIApplicationSupportsMultipleScenes: false`, commented "a second scene would spawn a second engine" — because `VibeiOSSceneDelegate` owns the one `PlaybackController` (`VibeiOSSceneDelegate.m:14,28`).
+CarPlay is a `CPTemplateApplicationSceneSessionRoleApplication` scene, live *alongside* the window scene. Today the app is deliberately single-scene, and `project.yml`'s manifest says why: `UIApplicationSupportsMultipleScenes: false`, commented "a second scene would spawn a second engine" — because `VibeiOSSceneDelegate` owns the one `PlaybackController` (its `_playback` ivar).
 
 CarPlay does not want a second engine; it wants a second *view* of the one that exists. The change is therefore:
 
@@ -50,7 +50,7 @@ CarPlay does not want a second engine; it wants a second *view* of the one that 
 - **Restate the guarantee as "one window scene", not "one scene"**, in `project.yml`'s manifest comment and in `Vibe/iOS/CLAUDE.md`'s "Multi-scene is off" paragraph. Whether the flag must literally flip to `true` for a template scene to coexist with the window scene needs checking against the current docs; the ownership move is required either way.
 - **The fan-out is already the right shape.** `PlaybackController` broadcasts to an ordered weak `NSPointerArray` of `PlaybackObserver`s on main precisely because several views describe the same playback at once — four today: the root, the library, the player and search. The CarPlay list and now-playing templates become a fifth observer and need no new plumbing.
 
-**`Vibe/iOS/Info.plist` is generated by XcodeGen and gitignored** (`.gitignore:32`) — every plist change above goes in `project.yml`'s `info.properties` block, never in the file.
+**`Vibe/iOS/Info.plist` is generated by XcodeGen and gitignored** (`.gitignore`) — every plist change above goes in `project.yml`'s `info.properties` block, never in the file.
 
 ### 3. The library problem, which is the interesting one
 
