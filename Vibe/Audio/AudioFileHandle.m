@@ -37,6 +37,8 @@ enum { kVibeMPEGReadPackets = 16 };
     ExtAudioFileRef _codec; // NULL while dr_mp3 decodes
     UInt32 _bytesPerFrame; // of the processing format, per buffer
     BOOL _writing;
+    BOOL _mpegChoiceApplies; // an MPEG file read as float32
+    BOOL _openedUnderApple;  // the choice when it opened
     // dr_mp3's decode: the parser's packets on a timeline of packet ×
     // framesPerPacket, with _mpegSkip frames before logical frame 0.
     drmp3dec *_mpeg;
@@ -71,6 +73,10 @@ enum { kVibeMPEGReadPackets = 16 };
 
 - (NSString *)decoderName {
     return _mpeg ? @"dr_mp3" : @"apple";
+}
+
+- (BOOL)decoderChoiceIsStale {
+    return _mpegChoiceApplies && _openedUnderApple != atomic_load(&sAppleMPEGDecoder);
 }
 
 // Short reads answered as such, and a read at or past EOF as the end-of-file
@@ -261,9 +267,10 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
                        description:[NSString stringWithFormat:@"%@ has a format this player cannot decode", name]];
     }
     UInt32 formatID = fileDescription.mFormatID;
-    if (format == AVAudioPCMFormatFloat32 && !atomic_load(&sAppleMPEGDecoder)
-            && (formatID == kAudioFormatMPEGLayer1 || formatID == kAudioFormatMPEGLayer2 || formatID == kAudioFormatMPEGLayer3)
-            && [self openMPEGWithDescription:fileDescription]) {
+    _mpegChoiceApplies = format == AVAudioPCMFormatFloat32
+            && (formatID == kAudioFormatMPEGLayer1 || formatID == kAudioFormatMPEGLayer2 || formatID == kAudioFormatMPEGLayer3);
+    _openedUnderApple = atomic_load(&sAppleMPEGDecoder);
+    if (_mpegChoiceApplies && !_openedUnderApple && [self openMPEGWithDescription:fileDescription]) {
         return self;
     }
     const AudioStreamBasicDescription *client = _processingFormat.streamDescription;

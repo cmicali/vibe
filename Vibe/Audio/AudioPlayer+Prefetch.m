@@ -246,7 +246,14 @@
         if (prefetchGeneration != strongSelf->_prefetchGeneration) {
             return; // a newer prefetch target, or an adoption, superseded this open
         }
-        if (file && file.length > 0) {
+        if (file.decoderChoiceIsStale) {
+            // The decoder changed while this open ran, and a re-prefetch of
+            // its path joined the run instead of restarting it. It has
+            // settled now, so this opens under the current choice.
+            [strongSelf clearPrefetchOnQueue];
+            [strongSelf prefetchOnQueue:track];
+        }
+        else if (file && file.length > 0) {
             strongSelf->_prefetchedFile = file;
             [strongSelf maybeArmSuccessorOnQueue];
         }

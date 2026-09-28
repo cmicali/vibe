@@ -57,6 +57,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (class, atomic) BOOL appleMPEGDecoder;
 // "dr_mp3" or "apple", for the audio-path report.
 @property (nonatomic, readonly) NSString *decoderName;
+// YES for an MPEG file opened under the other appleMPEGDecoder choice than
+// the current one: a handle opened before a change and handed on after it.
+@property (nonatomic, readonly) BOOL decoderChoiceIsStale;
 
 @property (nonatomic, readonly) NSURL *url;
 // The file's own format: codec, native rate, channels, and for PCM the depth.

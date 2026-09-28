@@ -14,6 +14,7 @@
 #import "AudioOutputUnitInternal.h"
 #import "AudioFixtures.h"
 #import <objc/runtime.h>
+#import "AudioFileMaterializationCoordinatorInternal.h"
 #include <float.h>
 #include <stdatomic.h>
 
@@ -830,6 +831,66 @@ static const NSUInteger kLayer3DecoderDelay = 529;
         [self render:52800 - before];
         XCTAssertEqual([self count:@"advance"], 1u, @"late %@", late);
         [self assertReference:reference capture:_capture skip:[self startupSkip] tolerance:0.0001f];
+    }
+}
+
+// The decoder changes after the next file's open has chosen its decoder but
+// before it settles: the re-prefetch of that path joins the running open, so
+// its handle carries the old decoder, and the park reopens it once it lands.
+// The track the gapless boundary promotes decodes under the new choice.
+- (void)testADecoderChangeDuringThePrefetchOpenReopensThePark {
+    NSURL *first = [self fixture:@"cbr.mp3"], *second = [self fixture:@"vbr.mp3"];
+    XCTSkipUnless([NSFileManager.defaultManager fileExistsAtPath:second.path],
+                  @"Optional encoder fixtures unavailable; install ffmpeg and regenerate");
+    BOOL prior = AudioFileHandle.appleMPEGDecoder;
+    AudioFileHandle.appleMPEGDecoder = NO;
+    dispatch_semaphore_t opened = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
+    __block BOOL held = NO;
+    SEL selector = @selector(initForReading:commonFormat:interleaved:error:);
+    Method initializer = class_getInstanceMethod(AudioFileHandle.class, selector);
+    __block IMP original;
+    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *url, AVAudioCommonFormat format, BOOL interleaved, NSError **error) {
+        id handle = ((id (*)(id, SEL, NSURL *, AVAudioCommonFormat, BOOL, NSError **))original)(receiver, selector, url, format, interleaved, error);
+        if ([url.path isEqualToString:second.path] && !held) {
+            held = YES;
+            dispatch_semaphore_signal(opened);
+            dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
+        }
+        return handle;
+    });
+    original = method_setImplementation(initializer, holding);
+    @try {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+        [self play:first paused:NO position:0];
+        [_player prefetchTrack:[AudioTrack withURL:second]];
+        XCTAssertEqual(dispatch_semaphore_wait(opened, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
+        AudioFileMaterializationCoordinator *coordinator = AudioFileMaterializationCoordinator.sharedCoordinator;
+        uint64_t started = coordinator.stateSnapshotForTesting.handleOpensStarted;
+        AudioFileHandle.appleMPEGDecoder = YES;
+        [_player prefetchTrack:nil]; // what VibeSettingsLiveEffectMP3Decoder sends
+        [_player prefetchTrack:[AudioTrack withURL:second]];
+        (void)_player.audioPathSnapshot; // a player-queue round trip: both requests have run
+        // Rebound to the held open: no new claim, and no second open begun.
+        VibeAudioFileMaterializationCoordinatorSnapshot joined = coordinator.stateSnapshotForTesting;
+        XCTAssertEqual(joined.claimCount, 0u);
+        XCTAssertEqual(joined.handleRunCount, 1u);
+        XCTAssertEqual(joined.handleOpensStarted, started, @"the replacement must join the held open, or this test proves nothing");
+        dispatch_semaphore_signal(release);
+        [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+        [self renderSeconds:2.2];
+        [self settleUntil:^BOOL { return [self count:@"advance"] > 0; }];
+        XCTAssertEqual([self count:@"advance"], 1u);
+        NSDictionary *source = nil;
+        for (NSDictionary *stage in _player.audioPathSnapshot) {
+            if ([stage[@"stage"] isEqual:@"source"]) source = stage;
+        }
+        XCTAssertEqualObjects(source[@"file"], second.lastPathComponent);
+        XCTAssertEqualObjects(source[@"decoder"], @"apple", @"the promoted track kept the decoder it opened with before the change");
+    } @finally {
+        dispatch_semaphore_signal(release);
+        method_setImplementation(initializer, original);
+        imp_removeBlock(holding);
+        AudioFileHandle.appleMPEGDecoder = prior;
     }
 }
 

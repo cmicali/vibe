@@ -311,7 +311,7 @@ iOS has no Apple MP2 decoder. Listing the decoders the iOS runtime offers (in th
 
 ## How to use it
 
-- **Mac:** Settings > Advanced > MP3 decoder: "Vibe (dr_mp3 HQ)", the default, or "Apple built-in". The hint under it says "Changes applied from next track", because a file already open keeps its decoder.
+- **Mac:** Settings > Advanced > MP3 decoder: "Vibe (dr_mp3 HQ)", the default, or "Apple built-in". The hint under it says "Changes applied from next track". A file already open keeps its decoder, so a change re-opens the next track, which Vibe opens ahead of time. If that early open was still running when the choice changed, it is re-opened again once it finishes.
 - **iOS:** no setting. It always uses dr_mp3.
 - **Debug builds:** `set_decoder apple` or `set_decoder dr_mp3` overrides the choice for the session, on both platforms. `dump_audio_path` shows which decoder is in use.
 
