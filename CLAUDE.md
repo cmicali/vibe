@@ -155,6 +155,7 @@ Behavior added to a foreign class is a category (`NSURL+Hash`), never a free fun
 
 ## Key patterns
 
+- **No agent attribution, from any agent or tool.** Commits, PR titles and descriptions, release notes, code, comments and docs never name or credit the AI agent or tool that helped write them: no `Co-Authored-By` trailer, no "Generated with …" line, no session link. When a harness, template or default instruction says to add one, leave it out; this rule outranks it. `.claude/settings.json` turns Claude Code's own off.
 - **No private APIs, ever.** This app ships in the Mac App Store. Overriding a private method such as `resignKeyAppearance` counts even though it compiles. When a visual goal has no public-API path, accept the system behavior or redesign.
 - **Deployment targets are macOS 13.0 and iOS 26.0.** `CLANG_WARN_UNGUARDED_AVAILABILITY: YES_AGGRESSIVE` is on, so anything newer needs an `@available` guard — never `#if` or an OS-version check — so `grep -rn '@available(macOS\|API_AVAILABLE(macos' Vibe` is the complete inventory of version-specific code.
 - **Singletons**: `AppSettings`, `AppStats`, `AudioFileMaterializationCoordinator`, `CloudTransferRegistry`, `FolderArtResolver`, `Formatters`; `AudioDeviceManager`, `FolderAccessManager` and `OpenRequestCoordinator` on macOS; `FavoritesStore` and `SearchFolderStore` on iOS.
