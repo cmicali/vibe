@@ -17,7 +17,7 @@ that moment. Four traps documented in the `vibe-stress` skill all trace to that:
 A snapshot-restored guest kills all four by construction, and gives cold caches and a cold
 container every run without trusting `clear_caches` to have covered everything.
 
-**This is isolation work, not a prerequisite for hardware testing.** The macOS launchers already suppress Now Playing by default and support opt-in silent HAL playback, and pump rendering remains the default. The remaining hardware measurements are in [audio-hardware-acceptance.md](audio-hardware-acceptance.md#hardware-stress-campaigns); suppression alone does not establish AirPods isolation.
+**This is isolation work, not a prerequisite for hardware testing.** The macOS launchers already suppress Now Playing by default and support opt-in silent HAL playback, and pump rendering remains the default. What real-HAL stress coverage exists, and what is still missing before the default could change, is the `vibe-stress` skill's; silent real-HAL playback, on System Output and bound, did not pull auto-switching AirPods off an idle iPhone (2026-09-28).
 
 A guest needs a CoreAudio output device only for a hardware campaign. Keep the selected render path (pump or HAL output unit) explicit; do not make VM provisioning depend on an assumed future harness-default change.
 
