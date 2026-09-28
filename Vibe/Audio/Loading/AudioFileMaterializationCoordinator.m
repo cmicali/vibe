@@ -135,6 +135,9 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
 @property (nonatomic) BOOL runWasCancelled;
 @property (nonatomic) NSUInteger inheritedCancelRestarts;
 @property (nonatomic) BOOL dataless;
+// The run counts against its lane's width. Only a dataless run does, so a
+// local read that stalls cannot keep a transfer waiting (releaseLaneForClaim:).
+@property (nonatomic) BOOL holdsLane;
 @property (nonatomic, strong, nullable) AudioWorkToken *probeToken;
 @property (nonatomic) BOOL yieldIfDatalessAfterProbe;
 @property (nonatomic, strong, nullable) id<AudioFileMaterializationOperation> operation;
@@ -823,14 +826,10 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     NSUInteger maximumRunning = lane == VibeMaterializationLaneInteractive
             ? _configuration.maximumInteractiveMaterializations
             : _configuration.maximumBackgroundMaterializations;
-    if (running < maximumRunning) {
-        [self startClaim:claim classificationFresh:classificationFresh];
-        return YES;
-    }
-    // Lanes bound provider transfers; a local file starts none, so it must not
-    // park behind one. A file evicted after classification downloads outside
+    // Lanes bound provider transfers; a local file starts none, so it never
+    // parks behind one. A file evicted after classification downloads outside
     // the bound, one transfer wide.
-    if (!claim.dataless) {
+    if (!claim.dataless || running < maximumRunning) {
         [self startClaim:claim classificationFresh:classificationFresh];
         return YES;
     }
@@ -913,6 +912,12 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     if (claim.dataless) {
         [self publishTransferBeginForClaim:claim];
     }
+    else {
+        // Local by the time its turn came: the reserved slot goes to the next
+        // transfer rather than wait out this read.
+        [self releaseLaneForClaim:claim];
+        [self drainPendingClaims];
+    }
     return YES;
 }
 
@@ -933,11 +938,14 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     }
     claim.operation = operation;
 
-    if (claim.lane == VibeMaterializationLaneInteractive) {
-        _interactiveRunningCount++;
-    }
-    else {
-        _backgroundRunningCount++;
+    claim.holdsLane = claim.dataless;
+    if (claim.holdsLane) {
+        if (claim.lane == VibeMaterializationLaneInteractive) {
+            _interactiveRunningCount++;
+        }
+        else {
+            _backgroundRunningCount++;
+        }
     }
 
     dispatch_queue_t workerQueue = claim.lane == VibeMaterializationLaneInteractive
@@ -1016,12 +1024,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
             [CloudTransferRegistry.sharedRegistry endedTransferForPath:transferPath];
         });
     }
-    if (claim.lane == VibeMaterializationLaneInteractive) {
-        if (_interactiveRunningCount > 0) _interactiveRunningCount--;
-    }
-    else {
-        if (_backgroundRunningCount > 0) _backgroundRunningCount--;
-    }
+    [self releaseLaneForClaim:claim];
     claim.operation = nil;
     if (ready) {
         claim.dataless = NO;
@@ -1068,6 +1071,24 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     }
     [self drainPendingClaims];
     [self reschedulePendingTimer];
+}
+
+// A run's slot goes back when it settles, or earlier when its start refresh
+// finds the file local. A local run holds none: nothing times a running read
+// out, so one stalled on a hung SMB or NFS share or a sleeping disk would keep
+// the one-wide background lane, and every cloud row's metadata behind it, for
+// as long as it blocked.
+- (void)releaseLaneForClaim:(VibeAudioFileMaterializationClaim *)claim {
+    if (!claim.holdsLane) {
+        return;
+    }
+    claim.holdsLane = NO;
+    if (claim.lane == VibeMaterializationLaneInteractive) {
+        if (_interactiveRunningCount > 0) _interactiveRunningCount--;
+    }
+    else {
+        if (_backgroundRunningCount > 0) _backgroundRunningCount--;
+    }
 }
 
 - (void)settleClaim:(VibeAudioFileMaterializationClaim *)claim
