@@ -102,7 +102,6 @@
     [VibeFakeCloud setTransferCapacity:0];
     [VibeFakeCloud setUniformDurations:YES];
     [VibeFakeCloud setProgressMode:VibeFakeCloudProgressStall];
-    [VibeFakeCloud setUnflaggedPlaceholders:YES];
     [VibeFakeCloud setStickyDataless:YES];
     [VibeFakeCloud setFailingBasename:@"bad.wav"];
 
@@ -113,7 +112,6 @@
     XCTAssertEqualObjects(stats[@"capacity"], @0);
     XCTAssertEqualObjects(stats[@"uniform"], @YES);
     XCTAssertEqualObjects(stats[@"progressMode"], @"stall");
-    XCTAssertEqualObjects(stats[@"unflagged"], @YES);
     XCTAssertEqualObjects(stats[@"sticky"], @YES);
     XCTAssertEqualObjects(stats[@"failingBasename"], @"bad.wav");
 
@@ -328,24 +326,6 @@
     XCTAssertEqual([VibeFakeCloud traceEvents].count, traceAfterFirst + 3);
     XCTAssertEqual([[VibeFakeCloud statistics][@"completed"] unsignedIntegerValue],
                    completedBefore + 2);
-}
-
-- (void)testUnflaggedProbeSaysLocalWhileTheProviderStillTransfers {
-    [VibeFakeCloud installWithTransferSeconds:0.001 datalessPercent:100];
-    [VibeFakeCloud setUniformDurations:YES];
-    [VibeFakeCloud setUnflaggedPlaceholders:YES];
-    NSURL *url = [NSURL fileURLWithPath:@"/fake/unflagged.wav"];
-    XCTAssertFalse([NSURLUtil isDatalessFile:url]);
-
-    CloudFileMaterializer *materializer = [CloudFileMaterializer new];
-    NSError *error = nil;
-    XCTAssertTrue([materializer materializeURL:url
-                                         token:[materializer prepareMaterialization] error:&error]);
-    XCTAssertNil(error);
-    XCTAssertFalse([NSURLUtil isDatalessFile:url]);
-    XCTAssertEqualObjects([[VibeFakeCloud traceEvents] valueForKey:@"event"],
-                          (@[@"requested", @"started", @"completed"]));
-    XCTAssertEqualObjects([VibeFakeCloud statistics][@"materialized"], @1);
 }
 
 - (void)testProviderFailureIsCancelledInTheTraceAndNeverMaterialized {

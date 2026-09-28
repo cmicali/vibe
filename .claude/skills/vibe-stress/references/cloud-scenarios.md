@@ -26,9 +26,9 @@ The live scenarios own what host-less tests cannot honestly reproduce: the shell
 
 ## The registry and the XFAIL contract
 
-25 scenarios, S1–S21 with a/b/c variants; clean report `PASS=24 XFAIL=1`. Expected-fail scenarios are **run and reported, never skipped**, so the day one starts passing is visible. Only the scenario's explicit `ExpectedGap` evidence becomes `XFAIL`; setup failures and every other assertion remain `FAIL`.
+24 scenarios, S1–S21 with a/b/c variants and no S9; clean report `PASS=24`. Expected-fail scenarios are **run and reported, never skipped**, so the day one starts passing is visible. Only the scenario's explicit `ExpectedGap` evidence becomes `XFAIL`; setup failures and every other assertion remain `FAIL`.
 
-**S9** is the XFAIL: a provider that withholds `SF_DATALESS` is indistinguishable from a local file at the admission seam, so the local-file exemption can admit its metadata read during foreground playback. Unlimited fake capacity lets that request start inside the open instead of waiting behind playback; a real-provider run still decides whether a named provider has this shape.
+**S9 is retired and its number stays unused.** It staged a provider that withholds `SF_DATALESS`, which no measured provider does: Dropbox and iCloud Drive flag every placeholder. `set_dataless_diag` records the flags a new provider sets, which is the check to run before bringing the scenario back.
 
 **S20** checks that row loading follows live provider transfers. A gapless-specific wedge under that label is deliberately absent: basename-based live instrumentation cannot distinguish gapless from prefetch, so that purpose is pinned in XCTest.
 

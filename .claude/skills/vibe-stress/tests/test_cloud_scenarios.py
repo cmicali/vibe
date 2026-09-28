@@ -602,17 +602,16 @@ class TraceHelperTests(unittest.TestCase):
             "capacity": 0,
             "uniform": True,
             "progressMode": "stall",
-            "unflagged": True,
             "sticky": True,
             "failingBasename": "bad.wav",
             "baseSeconds": 2.5,
         }
         FakeArmContext(good).arm(seconds=2.5, capacity=0, progress="stall",
-                                  unflagged=True, sticky=True, fail="bad.wav")
+                                  sticky=True, fail="bad.wav")
         wrong = dict(good, capacity=1)
         with self.assertRaisesRegex(cloud.Failed, "requested shape"):
             FakeArmContext(wrong).arm(seconds=2.5, capacity=0, progress="stall",
-                                       unflagged=True, sticky=True, fail="bad.wav")
+                                       sticky=True, fail="bad.wav")
 
     def test_corpus_shape_rejects_undersized_folders_before_scenarios_run(self):
         with tempfile.TemporaryDirectory() as temp:

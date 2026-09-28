@@ -170,9 +170,8 @@ static NSError *VibeMaterializationCancelledError(void) {
                  token:(CloudFileMaterializationToken *)token
                  error:(NSError *__autoreleasing *)error {
 #if DEBUG
-    // Asked ahead of the placeholder probe, so an unflagged-placeholder mode
-    // still costs the transfer; the provider answers 0 for a path already
-    // transferred.
+    // Asked ahead of the placeholder probe; the provider answers 0 for a path
+    // already transferred, which then takes the real path.
     NSTimeInterval (^fakeSeconds)(NSURL *, NSString *) = nil;
     BOOL (^acquireSlot)(NSURL *, NSString *, BOOL (^)(void)) = nil;
     void (^releaseSlot)(NSURL *, NSString *) = nil;

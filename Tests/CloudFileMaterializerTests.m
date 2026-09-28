@@ -77,10 +77,10 @@
     XCTAssertEqual(completions.count, 0u);
 }
 
-// A provider that never sets SF_DATALESS: the probe disowns the file, but the
-// transfer provider is asked first.
-- (void)testAnUnflaggedPlaceholderStillCostsItsTransfer {
-    NSURL *url = [NSURL fileURLWithPath:@"/fake/unflagged-track.flac"];
+// The fake's transfer provider is asked ahead of the dataless probe, so a
+// path it charges for transfers even where the probe answers local.
+- (void)testTheFakeTransferIsAskedAheadOfTheDatalessProbe {
+    NSURL *url = [NSURL fileURLWithPath:@"/fake/track.flac"];
     NSMutableArray<NSNumber *> *completions = [NSMutableArray array];
     [self installFakeCloudCompleting:completions
                      chargingSeconds:^NSTimeInterval(NSURL *candidate) { return 0.001; }];

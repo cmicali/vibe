@@ -320,9 +320,8 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     }
 }
 
-// Every miss takes the materialization path, even a local one (it settles at
-// once), so an unflagged placeholder cannot bypass the hold and wedge a
-// TagLib worker.
+// Every miss takes the materialization path, even a local one, which settles
+// at once: one route to TagLib whatever the probe answered.
 - (void)cacheCheckEntry:(MetadataScanEntry *)entry {
     AudioTrack *track = entry.track;
     // An earlier loader may have resolved it since it was queued.

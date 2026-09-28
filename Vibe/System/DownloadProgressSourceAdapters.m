@@ -80,9 +80,10 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
         }
 
         double fraction = MIN(1.0, (double)allocated / (double)logical);
-        // TRAP: a clear SF_DATALESS is not proof: some providers never set it,
-        // which would read a transfer not yet begun as a motionless 100%.
-        // Allocated blocks must agree.
+        // A clear SF_DATALESS and the allocated blocks must agree. Every
+        // measured provider flags its placeholders; the blocks guard one that
+        // would not, which would otherwise read a transfer not yet begun as a
+        // motionless 100%.
         BOOL materialized = !dataless && allocated >= logical;
         if (materialized) {
             fraction = 1.0;

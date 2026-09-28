@@ -53,7 +53,6 @@ static NSUInteger sCapacity; // 0 is unlimited
 static NSUInteger sExecuting, sQueued, sMaxObservedConcurrency;
 static BOOL sUniform;
 static VibeFakeCloudProgressMode sProgressMode;
-static BOOL sUnflagged;
 // Bounded; oldest dropped.
 static NSMutableArray<NSDictionary *> *sTrace;
 static NSUInteger sTraceSeq;
@@ -217,7 +216,6 @@ static void VibeResetScenarioLocked(void) {
     sCapacity = 1;
     sUniform = NO;
     sProgressMode = VibeFakeCloudProgressHashed;
-    sUnflagged = NO;
     sSamePathOverlapTransfers = 0;
     sForegroundContentionStarts = 0;
     sExecuting = 0;
@@ -250,10 +248,7 @@ static void VibeResetScenarioLocked(void) {
             return NO;
         }
         os_unfair_lock_lock(&sLock);
-        // Unflagged: the probe answers NO while the transfer side keeps
-        // working off the cloud draw, the mismatch the mode stages.
-        BOOL dataless = !sUnflagged
-                && (sSticky || ![sMaterialized containsObject:path])
+        BOOL dataless = (sSticky || ![sMaterialized containsObject:path])
                 && VibePathIsCloud(path, sPercent);
         os_unfair_lock_unlock(&sLock);
         return dataless;
@@ -481,12 +476,6 @@ static void VibeResetScenarioLocked(void) {
     os_unfair_lock_unlock(&sLock);
 }
 
-+ (void)setUnflaggedPlaceholders:(BOOL)unflagged {
-    os_unfair_lock_lock(&sLock);
-    sUnflagged = unflagged;
-    os_unfair_lock_unlock(&sLock);
-}
-
 + (void)setFailingBasename:(NSString *)basename {
     os_unfair_lock_lock(&sLock);
     sFailBasename = [basename copy];
@@ -536,7 +525,6 @@ static void VibeResetScenarioLocked(void) {
         @"capacity": @(sCapacity),
         @"uniform": @(sUniform),
         @"progressMode": modeNames[MIN((NSUInteger)sProgressMode, (NSUInteger)4)],
-        @"unflagged": @(sUnflagged),
         @"executing": @(sExecuting),
         @"queued": @(sQueued),
         @"maxConcurrency": @(sMaxObservedConcurrency),

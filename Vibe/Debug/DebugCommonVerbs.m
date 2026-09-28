@@ -628,7 +628,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             }),
             // See VibeFakeCloud.h for the modes. Seconds of 0 uninstalls.
             VibeDebugCmd(@"set_fake_cloud <seconds> [<percent>] [capacity=N] [uniform] "
-                         @"[progress=none|linear|sparse|stall] [unflagged] [sticky] "
+                         @"[progress=none|linear|sparse|stall] [sticky] "
                          @"[fail=<basename>]", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
@@ -661,7 +661,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 });
                 // Validated before the install re-arms, so a rejected command
                 // leaves the previous install untouched.
-                BOOL sticky = NO, uniform = NO, unflagged = NO, hasCapacity = NO;
+                BOOL sticky = NO, uniform = NO, hasCapacity = NO;
                 NSUInteger capacity = 0;
                 NSNumber *progressMode = nil;
                 NSString *failingBasename = nil;
@@ -672,9 +672,6 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                     }
                     else if ([option isEqualToString:@"uniform"]) {
                         uniform = YES;
-                    }
-                    else if ([option isEqualToString:@"unflagged"]) {
-                        unflagged = YES;
                     }
                     else if ([option hasPrefix:@"capacity="]) {
                         if (!VibeParseNonnegativeInteger(
@@ -706,9 +703,6 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 }
                 if (uniform) {
                     [VibeFakeCloud setUniformDurations:YES];
-                }
-                if (unflagged) {
-                    [VibeFakeCloud setUnflaggedPlaceholders:YES];
                 }
                 if (hasCapacity) {
                     [VibeFakeCloud setTransferCapacity:capacity];

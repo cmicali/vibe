@@ -22,8 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
 // listener or trip the player's open timeout. 0 means the real path, so a
 // mixed corpus needs no second switch; negative runs for the magnitude, then
 // fails. It must answer 0 for a path whose transfer completed, because
-// materializeURL: asks it ahead of the dataless probe, which is what keeps an
-// unflagged-placeholder mode transferring files the probe disowns. role is the
+// materializeURL: asks it ahead of the dataless probe. role is the
 // materializer's label: playback, prefetch or metadata.
 //
 // acquireSlot: blocks until the provider's shared slot is free, polling

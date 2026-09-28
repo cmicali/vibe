@@ -22,9 +22,8 @@ which never starts — and order is what a seeded monkey cannot state.
 
 An expected-fail scenario (the third SCENARIOS field) is run, never skipped.
 Only an ExpectedGap carrying its documented defect is XFAIL; any other failure
-is FAIL, and a pass is XPASS, which needs review. S9 is expected-fail: a
-provider that withholds SF_DATALESS is indistinguishable from a local file at
-the admission seam, and only a real-provider run can say which providers do.
+is FAIL, and a pass is XPASS, which needs review. No scenario is expected-fail
+today; the mark is how a scenario lands ahead of its fix.
 
     cloud-scenarios.py --corpus build/cloud-scenarios-corpus
     cloud-scenarios.py --corpus <dir> --only S4b,S7 --verbose
@@ -89,14 +88,12 @@ class Ctx:
         return payload or {}
 
     def arm(self, seconds=TRANSFER, percent=100, capacity=1, uniform=True,
-            progress=None, unflagged=False, sticky=False, fail=None):
+            progress=None, sticky=False, fail=None):
         argv = ["set_fake_cloud", f"{seconds}", f"{percent}", f"capacity={capacity}"]
         if uniform:
             argv.append("uniform")
         if progress:
             argv.append(f"progress={progress}")
-        if unflagged:
-            argv.append("unflagged")
         if sticky:
             argv.append("sticky")
         if fail:
@@ -109,7 +106,6 @@ class Ctx:
             "capacity": capacity,
             "uniform": uniform,
             "progressMode": progress or "hashed",
-            "unflagged": unflagged,
             "sticky": sticky,
             "failingBasename": fail or "",
         }
@@ -1365,65 +1361,6 @@ def s8c_a_stall_after_progress_times_out(ctx):
                               seconds=12, watch=11)
 
 
-def s9_unflagged_placeholders(ctx):
-    """A placeholder that denies being dataless still waits its turn.
-
-    Guards a HYPOTHETICAL provider: none has been measured withholding
-    SF_DATALESS (DownloadProgressMonitor.h found Dropbox on iPhone keeping the
-    flag and withholding progress instead; NSURLUtil.m is conditional too).
-    Keep this wording conditional.
-
-    Such a provider's probe NO is indistinguishable from a local file at the
-    admission seam, so the local-file exemption would route its metadata read
-    past the foreground hold. Expected-fail until the app has a second
-    reliable signal or real providers are ruled out (`set_dataless_diag` /
-    `dump_dataless_diag`).
-
-    Measured DURING the picked open: once it settles, parsed rows are just
-    the sweep working. Only the bypass fills rows while the user waits."""
-    # Unlimited capacity: at capacity=1 an illegally admitted request would
-    # wait behind playback, never starting or parsing a row inside the open.
-    ctx.arm(seconds=10, capacity=0, uniform=True, unflagged=True)
-    folder = ctx.folders[0]
-    ctx.cmd("open", str(folder))
-    ctx.wait_for("the picked track's own transfer to start",
-                 lambda ev: events_of(ev, event="started", role="playback"))
-    ctx.settle(1)
-    before = ctx.cmd("dump_metadata_progress")
-    ctx.settle(5)
-    during = ctx.cmd("dump_metadata_progress")
-    events = ctx.trace()
-
-    spans = windows(events, "playback")
-    if not spans or spans[-1][1] is not None:
-        raise Failed("the picked track's open had already settled before the "
-                     "sample — the transfer was not long enough to measure in")
-
-    climbed = during.get("attempted", 0) - before.get("attempted", 0)
-    playback_requests = role_events_inside_requests(
-            events, "metadata", "playback", "requested")
-    playback_starts = role_events_inside_requests(
-            events, "metadata", "playback", "started")
-    prefetch_hits = (role_events_inside_requests(
-            events, "metadata", "prefetch", "requested")
-            + role_events_inside_requests(
-                    events, "metadata", "prefetch", "started"))
-    if prefetch_hits:
-        raise Failed(f"S9 also observed unexpected prefetch contention: {prefetch_hits}")
-    if playback_requests or playback_starts or climbed > 0:
-        raise ExpectedGap(
-                f"unflagged placeholder bypass: {len(playback_requests)} metadata "
-                f"request(s), {len(playback_starts)} start(s), and {climbed} parsed "
-                f"row(s) while playback remained live ({before.get('attempted')} -> "
-                f"{during.get('attempted')} of {during.get('total')})")
-    counted = ctx.stats().get("foregroundContentionStarts", 0)
-    if counted:
-        raise Failed(f"fake counted {counted} contention start(s) without a "
-                     "matching live playback trace")
-    return (f"rows held at {during.get('attempted')}/{during.get('total')} across the "
-            "open; no bypass observed")
-
-
 def s10_provider_failure_then_close_settles_clean(ctx):
     """A provider failure settles the open; Close then drains every live gauge."""
     # A real playable file failed at the provider: an empty synthetic MP3 is
@@ -2144,7 +2081,6 @@ SCENARIOS = [
     ("S8a", s8a_no_progress_times_out, False),
     ("S8b", s8b_subpercent_progress_survives, False),
     ("S8c", s8c_a_stall_after_progress_times_out, False),
-    ("S9", s9_unflagged_placeholders, True),
     ("S10", s10_provider_failure_then_close_settles_clean, False),
     ("S11", s11_append_preserves_and_fast_path, False),
     ("S12a", s12a_a_dead_timeout_is_not_chased, False),

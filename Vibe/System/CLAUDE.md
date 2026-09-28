@@ -38,9 +38,9 @@ An `NSProgress` unpublish is not completion: it also covers an abandoned operati
 
 The UI fraction remains whole-percent coalesced, but transfer liveness is not. Only a finite, strictly positive raw increase is movement; initial zero, repeated, backward, negative and NaN samples never extend the player's deadline. The fake source passes zero through the same rule rather than silently hiding the provider's initial-value shape.
 
-Both of those decisions are `DownloadProgressRules.h`, header-only and tested: `VibeDownloadProgressIsMovement` is the liveness half, and `VibeDownloadPollShouldPublish` is the poll's — the two-part dataless-and-blocks test the trap below turns on.
+Both of those decisions are `DownloadProgressRules.h`, header-only and tested: `VibeDownloadProgressIsMovement` is the liveness half, and `VibeDownloadPollShouldPublish` is the poll's — the two-part dataless-and-blocks test below.
 
-**TRAP: a clear `SF_DATALESS` is not proof the file is here.** It is also what a provider that never sets the flag looks like, and treating that as materialized reported a motionless 100% for a download that had not begun. The flag being down and the allocated blocks being there must **both** hold; with no positive fraction the monitor reports nothing at all rather than a zero.
+**A clear `SF_DATALESS` and the allocated blocks must both say the file is here.** Every measured provider flags its placeholders (Dropbox on both platforms, iCloud Drive); the second half guards one that would not, which would otherwise read a download not yet begun as a motionless 100%. With no positive fraction the monitor reports nothing at all rather than a zero.
 
 **TRAP: `NSURLIsUbiquitousItemKey` is not an iCloud test.** Every File Provider item answers YES to it — a Dropbox file included — so it only gets as far as "some cloud". The `NSMetadataQuery` is what settles it, and it stops on an item iCloud does not index rather than idling for the length of the download.
 

@@ -57,11 +57,6 @@ typedef NS_ENUM(NSInteger, VibeFakeCloudProgressMode) {
 // Install resets to Hashed.
 + (void)setProgressMode:(VibeFakeCloudProgressMode)mode;
 
-// Placeholders carrying no SF_DATALESS, the provider shape isDatalessFile:'s
-// comment predicts: the probe answers NO while transfers still block, so lane
-// routing sees "local" files that still cost a download. Install resets to NO.
-+ (void)setUnflaggedPlaceholders:(BOOL)unflagged;
-
 // Transfers of this basename run to term, then fail: the provider-error
 // shape, which spends the metadata retry budget. nil clears.
 + (void)setFailingBasename:(NSString * _Nullable)basename;
