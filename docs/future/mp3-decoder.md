@@ -20,6 +20,23 @@ Apple's `MPEG-1/2 Layer III Decoder` and its Layer II sibling offer exactly one 
 
 A standalone harness over the production `AudioFileHandle.m` also passed CBR 320, V0, V9, untagged, mono 32 kbps, 48 kHz 32 kbps, MPEG-2 22.05 kHz, MPEG-2.5 11.025 kHz 8 kbps, MP2, a two-packet file and the three `Assets/test_audio_files` MP3s: equal lengths and processing formats, −100 dBFS RMS against Apple (its rounding), interleaved and planar reads identical, and seeks exact at twelve points. On the tagged files dr_mp3 matches mpg123 to −136…−147 dBFS; mpg123 aligns untagged files differently, so there Apple's timeline is the reference.
 
+## ISO 11172-4 compliance
+
+The ISO conformance streams (FFmpeg's FATE mirror, `mp3-conformance/`: `compl`, the −20 dBFS sweep Underbit's table was built on, and `he_32khz`, `he_44khz`, `he_48khz`, `hecommon`, `si`, `si_block`) against their float32 references, scored on Annex A's thresholds: full accuracy is RMS error below 2⁻¹⁵/√12 (8.81e-6) with no sample off by more than 2⁻¹⁴, limited is RMS below 2⁻¹¹/√12. Worst stream per decoder:
+
+| Decoder | Worst RMS error | Worst max error | Margin under the full-accuracy limit | Verdict |
+| --- | --- | --- | --- | --- |
+| dr_mp3 0.7.4 | 8.4e-8 (−141.5 dBFS) | 7.1e-7 | 105× | full on all 7 |
+| libmad 0.15.1b, `FPM_64BIT` | 9.8e-8 (−140.2 dBFS) | 9.2e-7 | 90× | full on all 7 |
+| libmad 0.15.1b, `FPM_64BIT` + `OPT_ACCURACY` | 8.3e-8 (−141.6 dBFS) | 7.3e-7 | 106× | full on all 7 |
+| mpg123 1.33.7 | 8.3e-8 (−141.6 dBFS) | 7.0e-7 | 106× | full on all 7 |
+| FFmpeg `mp3float` | 7.9e-8 (−142.1 dBFS) | 7.2e-7 | 112× | full on all 7 |
+| Apple | 9.1e-6 (−100.8 dBFS) | 2.4e-5 | 1.0× | full on 3, limited on 4 |
+
+MAD was read at its full 28-bit fixed-point precision, finer than the 24-bit output Underbit scored. The open decoders agree to within a few dB of each other, near the float32 reference's own resolution, so the reference cannot rank them further. Apple sits exactly on the full-accuracy line because that line is 16-bit quantization noise and its decoder's only output is 16-bit. Apple's first 529 frames (the delay it removes) and its zero-filled tail are excluded from its score; dr_mp3 needs no such exclusion.
+
+**Why not libmad**, despite Underbit's table: that table is from the era of 16-bit output, where MAD's 24-bit output was the difference; against float decoders it has none. It is GPL-2.0-or-later, which an Apache-2.0 app shipped through the App Store cannot take in, and it has been unmaintained since 0.15.1b (2004), with layer III memory-safety CVEs (CVE-2017-8372, -8373, -8374) fixed only in distributions' patches.
+
 ## Cost
 
 Decode only, `AudioFileHandle` reading the whole file, best of seven, M-series Mac: dr_mp3 0.030% of one core on a 120 s VBR file and 0.051% on 320 kbps CBR; Apple 0.064% and 0.103%. dr_mp3 is about twice as fast, and both are noise beside the resampler (`resampler.md`).
