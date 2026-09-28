@@ -2338,8 +2338,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
             [self->_player setValue:@"Saved DAC" forKey:@"boundDeviceName"];
         }];
         [_player audioOutputDevicesDidChange];
-        [_player runSyncOnQueue:^{}];
-        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.2]];
+        [self settleUntil:^BOOL { return self->_player.isPaused || [self count:@"finish"] > 0; }];
         [_player runSyncOnQueue:^{}];
         XCTAssertEqual([self count:@"finish"],0u,@"Losing the last output must park the track, not auto-advance: %@",_events);
         XCTAssertTrue(_player.isPaused,@"The track must remain resumable: %@",_events);
@@ -2604,18 +2603,16 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 // A lossy source at another rate and width is mixed on its own rate and then
 // resampled to the bus's: a 48 kHz file on a 96 kHz bus plays at its own
 // speed and a mono one lands in both channels. The reference is the decode
-// folded and resampled the same way, exact but for the AAC decode's rounding.
+// folded and resampled off the bus, exact but for the AAC decode's rounding.
 - (void)testALossyDecodeIsMixedThenResampledToTheBus {
     XCTSkipUnless([NSFileManager.defaultManager fileExistsAtPath:[self fixture:@"cbr.mp3"].path],
                   @"Optional encoder fixtures unavailable; install ffmpeg and regenerate");
     for (NSURL *url in @[[self fixture:@"cbr.mp3"], [self writeMonoAAC]]) {
         AVAudioPCMBuffer *decoded = [self read:url];
         [self startPlayerAt:96000 channels:2 fx:NO bitPerfect:YES automatic:NO];
-        _player.resampler = VibeResamplerApple; // the converter's own report is under test
         [self play:url paused:NO position:0];
         NSDictionary *conversion = _player.debugCurrentConversion;
-        XCTAssertEqualObjects(conversion[@"algorithm"], @"Mastering", @"%@", url.lastPathComponent);
-        XCTAssertEqual([conversion[@"quality"] integerValue], (NSInteger)kAudioConverterQuality_Max);
+        XCTAssertEqualObjects(conversion[@"algorithm"], @"r8brain-free-src", @"%@", url.lastPathComponent);
         XCTAssertEqual([conversion[@"mixed"] boolValue], decoded.format.channelCount == 1);
         NSData *capture = [self renderSeconds:decoded.frameLength / decoded.format.sampleRate + 0.1];
         // The finish reaches main by an async hop, which a loaded runner can
@@ -2623,7 +2620,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         // this waits, so the frame count the speed check rests on holds.
         [self settleUntil:^BOOL { return [self count:@"finish"] > 0; }];
         XCTAssertEqual([self count:@"finish"], 1u, @"%@ played at its own speed", url.lastPathComponent);
-        [self assertReference:PCM([self resample:[self stereo:decoded] to:96000]) capture:capture
+        [self assertReference:PCM(VibeReferenceResample([self stereo:decoded], 96000)) capture:capture
                          skip:[self startupSkip] tolerance:[url.pathExtension isEqual:@"m4a"] ? kVibeAACDecodeTolerance : 0];
     }
 }
@@ -2658,26 +2655,6 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     out.frameLength = buffer.frameLength;
     memcpy(out.floatChannelData[0], buffer.floatChannelData[0], buffer.frameLength * sizeof(float));
     memcpy(out.floatChannelData[1], buffer.floatChannelData[0], buffer.frameLength * sizeof(float));
-    return out;
-}
-
-// The same conversion the bus makes: mastering quality, the whole buffer.
-- (AVAudioPCMBuffer *)resample:(AVAudioPCMBuffer *)buffer to:(double)rate {
-    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:buffer.format.channelCount];
-    AVAudioConverter *converter = [[AVAudioConverter alloc] initFromFormat:buffer.format toFormat:format];
-    converter.sampleRateConverterQuality = AVAudioQualityMax;
-    converter.sampleRateConverterAlgorithm = AVSampleRateConverterAlgorithm_Mastering;
-    AVAudioFrameCount capacity = (AVAudioFrameCount)(buffer.frameLength * rate / buffer.format.sampleRate) + 4096;
-    AVAudioPCMBuffer *out = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:capacity];
-    __block BOOL supplied = NO;
-    NSError *error = nil;
-    AVAudioConverterOutputStatus status = [converter convertToBuffer:out error:&error withInputFromBlock:^AVAudioBuffer *(AVAudioPacketCount packets, AVAudioConverterInputStatus *inputStatus) {
-        if (supplied) { *inputStatus = AVAudioConverterInputStatus_EndOfStream; return nil; }
-        supplied = YES;
-        *inputStatus = AVAudioConverterInputStatus_HaveData;
-        return buffer;
-    }];
-    XCTAssertNotEqual(status, AVAudioConverterOutputStatus_Error, @"%@", error);
     return out;
 }
 
@@ -3111,7 +3088,6 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertEqualObjects(decode[@"read"], @"converted");
     XCTAssertEqual([decode[@"fromSampleRate"] doubleValue], 44100.0);
     XCTAssertEqual([decode[@"toSampleRate"] doubleValue], 48000.0);
-    XCTAssertEqualObjects(decode[@"resampler"], VibeResamplerName(_player.resampler), @"the default resampler, as the bus holds it");
     XCTAssertEqualObjects(decode[@"algorithm"], @"r8brain-free-src");
     XCTAssertFalse([decode[@"mixed"] boolValue]);
     XCTAssertEqual([bus[@"sampleRate"] doubleValue], 48000.0);
@@ -3142,25 +3118,6 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     output = _player.audioPathSnapshot[6];
     XCTAssertFalse([output[@"running"] boolValue]);
     XCTAssertFalse([output[@"idleStopPending"] boolValue]);
-}
-
-// The resampler switch (set_resampler): a conversion begun after the write
-// takes the player's resampler, and one already running keeps the converter
-// it started with until its voice ends — here, until a seek re-voices the
-// file. Apple's runs at its maximum quality.
-- (void)testTheResamplerAppliesFromTheNextConversion {
-    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
-    XCTAssertEqual(_player.resampler, VibeResamplerR8brain, @"r8brain unless asked");
-    [self play:[self fixture:@"noise-44100-16-2.wav"] paused:NO position:0];
-    [self render:4800];
-    XCTAssertEqualObjects(_player.debugCurrentConversion[@"resampler"], VibeResamplerName(VibeResamplerR8brain));
-    _player.resampler = VibeResamplerApple;
-    [self render:4800];
-    XCTAssertEqualObjects(_player.debugCurrentConversion[@"resampler"], VibeResamplerName(VibeResamplerR8brain),
-                          @"a running conversion keeps its converter");
-    [_player seekToPosition:1.0]; [self render:9600];
-    XCTAssertEqualObjects(_player.debugCurrentConversion[@"resampler"], VibeResamplerName(VibeResamplerApple));
-    XCTAssertEqual([_player.debugCurrentConversion[@"quality"] integerValue], (NSInteger)kAudioConverterQuality_Max);
 }
 
 // The idle stop waits for a send's tail: a reverb released before a pause

@@ -199,12 +199,12 @@ targets:
           - "-analyzer-disable-all-checks"
       # r8brain's own C entry points, where every one of its header templates
       # is instantiated, and its FFT: optimized in every configuration, since
-      # at -O0 it costs many times Apple's converter (always optimized), and a
-      # Debug build is where the resampler comparison is run. The empty
+      # at -O0 it costs many times its optimized self, and a Debug build is
+      # where the resampler's quality and cost tests run. The empty
       # R8BSRC_DECL is upstream's switch from a DLL to an object file;
       # R8B_PFFFT_DOUBLE (NEON, double precision, Ooura's accuracy) is its
       # README's speed setting. Its other, R8B_EXTFFT, is left off: at the 1%
-      # transition band it costs 3-10% more, not less (docs/future/resampler.md).
+      # transition band it costs 3-10% more, not less (docs/audio-quality.md).
       - path: Vibe/ThirdParty/r8brain/DLL/r8bsrc.cpp
         compilerFlags: &r8brain-flags
           - "-O3"

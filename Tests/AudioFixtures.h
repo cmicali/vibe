@@ -5,12 +5,14 @@
 //  Fixture writers shared by both test targets. VibeWriteWAV writes the bytes
 //  itself, so reading a fixture back through AudioFileHandle never makes the
 //  handle its own oracle; VibeWriteFixture uses the handle's writer for what a
-//  bare RIFF cannot carry — a channel layout, or a codec.
+//  bare RIFF cannot carry — a channel layout, or a codec. VibeReferenceResample
+//  is the one reference conversion.
 //
 
 #import <AVFoundation/AVFoundation.h>
 
 #import "AudioFileHandle.h"
+#import "AudioResampler.h"
 
 // A canonical 44-byte-header WAV of `bits` per sample (16 or 24 integer, 32
 // float), interleaved `samples` as the file stores them, little-endian.
@@ -65,4 +67,56 @@ static inline void VibeAppendPCM(NSMutableData *capture, AVAudioPCMBuffer *buffe
     for (NSUInteger frame = 0; frame < buffer.frameLength; frame++)
         for (NSUInteger channel = 0; channel < channels; channel++)
             out[frame * channels + channel] = buffer.floatChannelData[channel][frame];
+}
+
+typedef struct {
+    __unsafe_unretained AVAudioPCMBuffer *source;
+    AVAudioFrameCount next;
+} VibeReferenceFeed;
+
+static inline uint32_t VibeReferenceSupply(void *userData, uint32_t maxFrames, const float **channels) {
+    static float silence[4096];
+    VibeReferenceFeed *feed = (VibeReferenceFeed *)userData;
+    AVAudioFrameCount left = feed->source.frameLength - feed->next;
+    uint32_t count = MIN(maxFrames, 4096u);
+    if (left > 0) {
+        count = MIN(count, left);
+    }
+    for (AVAudioChannelCount c = 0; c < feed->source.format.channelCount; c++) {
+        channels[c] = left > 0 ? feed->source.floatChannelData[c] + feed->next : silence;
+    }
+    feed->next += left > 0 ? count : 0;
+    return count;
+}
+
+// The whole float32 non-interleaved `source` at `rate`: the resampler itself,
+// off the bus — no file handle, decoder, ring, render or stream-end logic —
+// its tail pushed out with silence and cut at round(N × ratio), as the bus's
+// flush does. nil when it cannot convert.
+static inline AVAudioPCMBuffer *VibeReferenceResample(AVAudioPCMBuffer *source, double rate) {
+    AVAudioChannelCount channels = source.format.channelCount;
+    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:channels];
+    AVAudioFrameCount length = (AVAudioFrameCount)llround((double)source.frameLength * rate / source.format.sampleRate);
+    AVAudioPCMBuffer *out = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:MAX(length, 1u)];
+    VibeConverter *converter = VibeConverterCreate(source.format.sampleRate, rate, channels);
+    if (!out || !converter) {
+        return nil;
+    }
+    float **into = (float **)calloc(channels, sizeof(float *));
+    VibeReferenceFeed feed = { source, 0 };
+    AVAudioFrameCount made = 0;
+    while (made < length) {
+        for (AVAudioChannelCount c = 0; c < channels; c++) {
+            into[c] = out.floatChannelData[c] + made;
+        }
+        uint32_t frames = VibeConverterFill(converter, VibeReferenceSupply, &feed, MIN(length - made, 4096u), into);
+        if (frames == 0) {
+            break;
+        }
+        made += frames;
+    }
+    free(into);
+    VibeConverterDispose(converter);
+    out.frameLength = made;
+    return made == length ? out : nil;
 }

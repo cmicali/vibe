@@ -151,10 +151,6 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // first frame, when a stopped voice's last turn has left its file, and when
 // a slot frees, so the player drains then rather than at its next poll.
 @property (nonatomic, copy, nullable) dispatch_block_t needsDrain;
-// Which resampler every conversion made after the write uses; a stream
-// already converting keeps its own until its voice ends. VibeResamplerR8brain
-// by default. Atomic: read on the decode queue.
-@property (atomic) VibeResampler resampler;
 
 // Starts rendering `file` from `frame` (file frames) at `gain`, with `ramp`
 // pending — or paused, which carries no ramp: the first ramp set later is the
@@ -234,7 +230,7 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // How the voice's file reaches the bus, for the audio-path report: nil when
 // read direct, else `fromSampleRate`, `toSampleRate`, `fromChannels`,
 // `toChannels`, `mixed`, `resampled`, and for a resample the converter's
-// `algorithm` and `quality` as read back. Any thread; nil for a pending or
+// `algorithm`. Any thread; nil for a pending or
 // unknown voice.
 - (nullable NSDictionary<NSString *, id> *)conversionOfVoice:(VibeVoiceID)voice;
 

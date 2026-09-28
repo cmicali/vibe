@@ -2,32 +2,18 @@
 //  AudioResampler.h
 //  Vibe
 //
-//  The voice bus's sample-rate converter: Apple's AudioConverterRef at
-//  mastering complexity and maximum quality, or r8brain-free-src
-//  (Vibe/ThirdParty/r8brain), behind one fill in AudioConverterFillComplexBuffer's
-//  shape, so the bus drives either through the same input proc: float32
-//  non-interleaved in and out, the proc pulled until a fill is met or the proc
-//  answers a nonzero status, which ends the fill with what it produced and
-//  leaves the filter primed. Neither is told the stream's end: N frames fed
-//  come out as round(N × ratio) once pushed through with silence, as the bus's
-//  flush does. Decode queue only; not realtime.
+//  The voice bus's sample-rate converter: r8brain-free-src
+//  (Vibe/ThirdParty/r8brain), linear phase, its 24-bit preset, a 1% transition
+//  band. A fill pulls float32 input through a callback until it has the frames
+//  it was asked for or the callback answers none, which ends the fill with
+//  what it produced and leaves the filter primed. It is never told the
+//  stream's end: N frames fed come out as round(N × ratio) once pushed through
+//  with silence, as the bus's flush does. Decode queue only; not realtime.
 //
 
-#import <AudioToolbox/AudioToolbox.h>
 #import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
-
-// Which resampler converts a file whose rate is not the bus's.
-typedef NS_ENUM(NSInteger, VibeResampler) {
-    VibeResamplerApple = 0,   // AudioConverterRef at mastering complexity, maximum quality
-    VibeResamplerR8brain,     // r8brain-free-src, linear phase, 24-bit preset, 1% transition band
-};
-
-// The one spelling of each, for reports and the debug channel.
-static inline NSString *VibeResamplerName(VibeResampler resampler) {
-    return resampler == VibeResamplerR8brain ? @"r8brain" : @"apple";
-}
 
 // C linkage: the bus (.m) calls the .mm.
 #ifdef __cplusplus
@@ -36,21 +22,18 @@ extern "C" {
 
 typedef struct VibeConverter VibeConverter;
 
-// Float32 non-interleaved `from` to `to`, the same channel count. NULL when
-// the converter could not be made.
-VibeConverter *_Nullable VibeConverterCreate(VibeResampler resampler, const AudioStreamBasicDescription *from,
-                                            const AudioStreamBasicDescription *to);
+// Points `channels[c]` at up to `maxFrames` frames of each channel's float32
+// input, valid until the next call, and returns how many; 0 is none for now.
+typedef uint32_t (*VibeConverterInputProc)(void *_Nullable userData, uint32_t maxFrames,
+                                           const float *_Nullable *_Nonnull channels);
+
+// NULL when the converter could not be made.
+VibeConverter *_Nullable VibeConverterCreate(double fromRate, double toRate, uint32_t channels);
 void VibeConverterDispose(VibeConverter *converter);
-VibeResampler VibeConverterResampler(const VibeConverter *converter);
 
-// The proc is asked for at most 4096 packets; under r8brain its converter
-// argument is not an AudioConverterRef and must not be used.
-OSStatus VibeConverterFill(VibeConverter *converter, AudioConverterComplexInputDataProc proc, void *_Nullable userData,
-                           UInt32 *ioFrames, AudioBufferList *output);
-
-// For the audio-path report: `resampler`, `algorithm`, and Apple's `quality`
-// as read back (iOS's resampler reports no algorithm).
-NSDictionary<NSString *, id> *VibeConverterReport(const VibeConverter *converter);
+// Up to `frames` into `output`, one buffer per channel; returns the frames made.
+uint32_t VibeConverterFill(VibeConverter *converter, VibeConverterInputProc input, void *_Nullable userData,
+                           uint32_t frames, float *const _Nonnull *_Nonnull output);
 
 #ifdef __cplusplus
 }
