@@ -1,6 +1,6 @@
 # Future: the resampler's cost
 
-**Status: under evaluation on `claude/r8brain-resampler` (2026-09-28).** r8brain-free-src is vendored and wired into the voice bus beside Apple's converter, selectable per player and switched live by a debug verb; **r8brain is the default on both platforms while it is tested**, Apple's converter one `set_resampler apple` away. Adopting r8brain would reverse the root `AGENTS.md`'s "Apple frameworks only" rule for playback, so the decision needs a reason stronger than CPU on a Mac. The measurements below say it costs nothing in quality and saves a great deal of CPU; what is left is the decision and an iOS device measurement.
+**Status: under evaluation on `claude/r8brain-resampler` (2026-09-28).** r8brain-free-src is vendored and wired into the voice bus beside Apple's converter, selectable per player and switched live by a debug verb; **r8brain is the default on both platforms while it is tested**, Apple's converter one `set_resampler apple` away. Adopting r8brain would reverse the root `AGENTS.md`'s "Apple frameworks only" rule for playback, so the decision needs a reason stronger than CPU on a Mac. The measurements below say it costs nothing in quality and saves a great deal of CPU; what is left is the decision and an iOS device measurement. BASS was measured as a third candidate and ruled out (below).
 
 ## What Apple's converter costs
 
@@ -91,6 +91,41 @@ r8brain is equal or better on every quality measure, band edge included, and win
 | Apple, Mastering at Maximum | 3.39% | 3.27% |
 
 About 6× less; Apple's figure matches the 3.3% at Maximum #74 measured, and against the 1.8% of the old iOS default (High) r8brain is still about 3× less.
+
+## BASS, measured and ruled out (2026-09-28)
+
+**BASS 2.4.18.3 with BASSmix 2.4.13** (un4seen's macOS dylibs) was measured as a third candidate the same way: a decoding BASSmix mixer resampling a `STREAMPROC` source, run as two more converters behind the shim through the production bus in `ResamplerQualityTests`, and the same benchmark (120 s per pair, median of three, stereo noise through the shim). Neither the patch nor the binaries were kept. Two `BASS_ATTRIB_SRC` levels: **2, its default** with NEON (16-point sinc), and **6, its highest** — 7 and above render identically, and its 126-frame lookahead says 256 points. BASS removes its own latency (an impulse lands at N × ratio), holds DC gain at 1 and every conversion came out at exactly round(N × ratio).
+
+**It passes 63 (16-point) and 67 (256-point) of the suite's 184 checks; Apple and r8brain pass all 184.** BASS columns are 16-point / 256-point, dB unless marked; "past Nyquist" is the sweep's worst alias when downsampling; CPU is the benchmark's, % of one core:
+
+| pair | −3 dB Hz | worst THD+N | noise dBFS | past Nyquist | multitone null | CPU: Apple / r8brain / 16-pt / 256-pt |
+| --- | --- | --- | --- | --- | --- | --- |
+| 44.1→48 | 17398 / 21565 | −34.1 / −38.6 | −132.7 / −133.0 | — | −15.6 / −47.1 | 0.864 / 0.090 / 0.081 / 1.159 |
+| 48→44.1 | 17213 / 21525 | −46.3 / −46.6 | −132.7 / −127.1 | −31.5 / −88.8 | −15.5 / −47.4 | 0.883 / 0.096 / 0.073 / 1.048 |
+| 44.1→96 | 18667 / 21565 | −19.8 / −43.2 | −128.8 / −129.2 | — | −20.5 / −50.1 | 1.751 / 0.121 / 0.157 / 2.274 |
+| 96→44.1 | 15899 / 20999 | −52.7 / −56.0 | −141.8 / −140.8 | −15.4 / −81.0 | −16.2 / −62.9 | 1.759 / 0.119 / 0.079 / 1.063 |
+| 88.2→44.1 | 16107 / 21079 | −141.6 / −138.3 | −208.2 / −200.5 | −16.2 / −84.5 | −16.2 / −94.7 | 1.588 / 0.059 / 0.077 / 1.052 |
+| 96→48 | 16810 / 22943 | −144.4 / −139.0 | −207.4 / −199.5 | −16.2 / −84.2 | −18.1 / −109.6 | 1.738 / 0.065 / 0.084 / 1.148 |
+| 192→48 | 15436 / 21545 | −145.8 / −142.5 | −212.3 / −201.0 | −9.9 / −76.3 | −17.8 / −90.4 | 3.481 / 0.108 / 0.091 / 1.160 |
+| 44.1→192 | 18667 / 21565 | −19.8 / −39.9 | −126.1 / −126.2 | — | −20.5 / −45.1 | 3.535 / 0.176 / 0.323 / 4.712 |
+
+- **The passband.** At 16 points the response is never within 0.1 dB of flat, drooping from low frequencies to −3 dB at 15.4–18.7 kHz; at 256 points it holds 0.1 dB to 20.0–22.1 kHz, against 21.72 kHz for both of the others.
+- **The filter's transition straddles the Nyquist**, so near-Nyquist content images and aliases: a 20 kHz tone's image at 24.1 kHz is why the worst THD+N sits at −20 to −56 dB wherever the ratio is not an integer. Downsampling, the worst alias is −10 to −32 dB at 16 points and −76 to −89 dB at 256, against −148 to −160 dB for Apple and r8brain.
+- **A −126 to −142 dBFS noise floor at every non-integer ratio, at both levels**, where the others reach −206 to −212. The exact 2:1 and 4:1 ratios reach −200 to −212, so the floor is BASS's coefficient interpolation, not float32.
+- **What it would sound like.** At 256 points, almost nothing: THD at 1 kHz is −113 to −153 dB, aliases −76 to −89 dB and the −130 dBFS floor are all below hearing, and the worst THD+N figures come from one image of a 20 kHz tone. At the default 16 points the treble is audibly down, −3 dB by 15–19 kHz. BASS is ruled out by the comparison, not by audibility: r8brain passes every bound at about the cost of BASS's lowest level.
+- **Cost is the filter's length, not the shim.** BASS on its own (a noise `STREAMPROC` into the mixer, 60 s, median of three) reads what the shim does, doubling per level and scaling with the output rate — a direct convolution, where Apple and r8brain buy their long filters with multi-stage and FFT designs:
+
+  | pair | 16-pt | 32-pt | 64-pt | 128-pt | 256-pt |
+  | --- | --- | --- | --- | --- | --- |
+  | 44.1→48 | 0.078 | 0.155 | 0.310 | 0.603 | 1.215 |
+  | 48→44.1 | 0.072 | 0.145 | 0.276 | 0.551 | 1.100 |
+  | 44.1→96 | 0.152 | 0.301 | 0.610 | 1.212 | 2.432 |
+  | 96→44.1 | 0.074 | 0.142 | 0.280 | 0.558 | 1.105 |
+  | 192→48 | 0.079 | 0.155 | 0.306 | 0.610 | 1.204 |
+  | 44.1→192 | 0.309 | 0.628 | 1.256 | 2.420 | 4.855 |
+
+  Against the others, 16 points costs about what r8brain does (0.7–1.8×) at far lower quality; 256 points costs about what Apple does (0.3–1.3×, more than Apple at 44.1→48, →96 and →192) and still misses Apple by 60–80 dB on aliasing and, at non-integer ratios, on noise. r8brain beats both levels on every measure at about the 16-point level's cost.
+- **And it is closed source**, free only for non-commercial use: an App Store app needs a paid licence, on top of the playback rule r8brain already asks to reword.
 
 ## What is left
 
