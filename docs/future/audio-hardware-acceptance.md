@@ -18,7 +18,21 @@ Earlier live checks covered macOS silent HAL transport, a 240-operation torture 
   - AirPlay to the speaker by a category change: paused, as external-to-built-in should. The rate follow ran at play start (48 → 44.1 kHz on AirPlay) and at resume (44.1 → 48 kHz on the speaker).
   - Background playback on the Home screen, out of the foreground for ~20 s at a time.
 
-  **Not yet run:** a route change that keeps playing *and* has iOS stop the unit, the path where `recoverOutput` restarts it (switching output from Control Center, or wired headphones, are the likely triggers); a rate follow mid-playback on a route change; a phone call ended with and without `ShouldResume` (the unit's `IsRunning` listener is what makes the resume start it again); a media-services reset re-making the unit; playback across the lock screen with Now Playing commanding it; and a cold launch leaving another app's audio playing. Provider-backed file access on a device is unverified too.
+  A second pass on the same phone, 2026-09-27 (Debug, `c9817a54` plus log lines), from a playlist in a CloudStorage provider folder:
+  - **Session release (#80).** A plain pause released the session 6.0 s later, 7–10 ms after RemoteIO's stop had landed, never before it. A pause under a released delay held the output and the session 18 s, to the end of the declared tail, where the old timer would have released at 10 s. A pause followed by leaving the app released in the background. A parked open released at once.
+  - **Interruptions.** A timer, a declined call and an answered call each stopped the unit, held the release ("interruption 1, output idle 1" when the idle stop fired inside one) and resumed on `ShouldResume`, the unit restarting in ~90–100 ms. Another app taking the audio ended without `ShouldResume` and released the session at that edge. A timer inside a ringing tail cut the tail and released at the idle stop. Siri ducks and interrupts nothing.
+  - **Media-services reset** (Settings > Developer): the unit was re-made, the track re-parked at its position and the next play started a new unit in 93 ms.
+  - **Routes.** Control Center to AirPods and back while playing, AirPods into the case, and a connect while paused behaved as the first pass recorded.
+  - **Lock screen.** A minute of playback past lock, with pause, play, next and scrub from the card.
+  - **Cold launch** beside Music left Music playing.
+
+  **Found in that pass:**
+  - iOS stopped the unit 6.5 s before it delivered the media-services reset, with no interruption; the transport read Playing over a dead output until the notification came. Fixed: a system stop no verdict follows within a second pauses. Not yet rerun on the phone.
+  - AirPods going into the case deliver an interruption Began (reason route-disconnected) that no Ended follows, so the release was held until the next play's `activate`. Fixed: that Began pauses and holds nothing. Not yet rerun on the phone.
+  - The output control's tap target was its 44pt glyph inside a capsule that reads as one button. Fixed and confirmed on the phone.
+  - After an interruption's resume the render clock stalled ~0.7 s, and 0.3–1.8 s on a route move, the IO thread waiting inside the system each time. Left alone: the unit had started and the stall is iOS bringing the hardware back; nothing in the app's render is in the stack.
+
+  **Not yet run:** a route change that keeps playing *and* has iOS stop the unit, the path where `recoverOutput` restarts it (wired headphones are the likely trigger; Control Center to AirPods did not stop it); and a rate follow mid-playback on a route change.
 - **Physical macOS power-cycle and wake:** [device lifecycle](#device-lifecycle-acceptance) below. Integer-format DAC negotiation through `verify-bit-perfect --device-check` (`test-audio.md`), which the pass did not run.
 - **ASan/UBSan, and the owned-file migration's all-configuration binary audit.** Performance has had one pass, iOS only: Instruments on device against Release builds (#74), which lowered the iOS resampling quality to High by default and fixed the main-thread costs it found. macOS has had no comparable profile.
 

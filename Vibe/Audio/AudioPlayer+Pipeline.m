@@ -26,6 +26,9 @@ static const NSTimeInterval kOutputIdleStopDelaySeconds = 6.0;
 // released send rests on its own before that, and one held through the
 // pause has nothing left to ring by then.
 static const NSTimeInterval kOutputIdleStopTailIntervalSeconds = 1.0;
+// A system stop's verdict (an interruption's pause, a route's recovery) lands
+// within milliseconds of it; past this, none is coming.
+static const NSTimeInterval kSystemStopVerdictSeconds = 1.0;
 // The hardware drain: the bus reports its events within this of their render.
 static const uint64_t kDrainIntervalNanos = 10 * NSEC_PER_MSEC;
 // An output start holding the player queue longer than this is worth a line
@@ -564,6 +567,22 @@ VIBE_REALTIME_END
     if (!error) {
         LogInfo(@"AudioPlayer: output stopped by the system while %@; the session's verdict decides the transport",
                 _state == VibePlayerStatePlaying && _voice ? @"playing" : @"not playing");
+        // TRAP: never paused here. The stop can land a millisecond before its
+        // interruption's Began, whose was-playing the Ended resume depends on.
+        // A stop no verdict follows (iOS stops the unit seconds before it
+        // delivers a media-services reset) would leave Playing published
+        // over a dead output, so the pause is what is left once the verdicts
+        // have had their time.
+        __weak AudioPlayer *weakSelf = self;
+        [self scheduleAfterSeconds:kSystemStopVerdictSeconds block:^{
+            AudioPlayer *strongSelf = weakSelf;
+            if (!strongSelf || strongSelf->_terminating || strongSelf->_state != VibePlayerStatePlaying
+                    || !strongSelf->_voice || [strongSelf renderingOnQueue]) {
+                return;
+            }
+            LogWarn(@"AudioPlayer: no verdict followed the system's stop; pausing");
+            [strongSelf pauseCurrentVoiceOnQueue];
+        }];
         return;
     }
     if (_state == VibePlayerStatePlaying && _voice) {
@@ -1188,6 +1207,9 @@ void VibeMasterBusFree(VibeMasterBus *master) {
         // device.
         AudioFX *fx = strongSelf.fx;
         if (fx.sendsActive && waited < fx.longestTailSeconds) {
+            if (waited == 0) {
+                LogInfo(@"AudioPlayer: the idle stop waits for an FX tail, at most %.1f s", fx.longestTailSeconds);
+            }
             [strongSelf armOutputIdleStopOnQueueAfter:kOutputIdleStopTailIntervalSeconds generation:generation
                                                waited:waited + kOutputIdleStopTailIntervalSeconds];
             return;

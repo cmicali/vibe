@@ -61,8 +61,8 @@ static const CGFloat kCellHeaderGapLandscape = 16;
 static const CGFloat kCellArtHeightFractionLandscape = 1.0 / 3.0;
 // No pull-up: the transport rides the time row, and would sit on the envelope.
 static const CGFloat kCellTimeWaveformGapLandscape = 3;
-// Landscape's route view shares the codec line, so it is capped tighter.
-static const CGFloat kCellRouteMaxWidth = 220;
+// Landscape's route view shares the codec line, so it is capped; portrait's
+// fills its capsule.
 static const CGFloat kCellRouteMaxWidthLandscape = 160;
 static const CGFloat kCellRouteGlyphPointSize = 23;
 static const CGFloat kCellRouteGlyphPointSizeLandscape = 15;
@@ -346,7 +346,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
                 constraintEqualToAnchor:_playPauseButton.trailingAnchor
                                constant:kTransportButtonGap];
         _routeMaxWidth = [_routeView.widthAnchor
-                constraintLessThanOrEqualToConstant:kCellRouteMaxWidth];
+                constraintLessThanOrEqualToConstant:kCellRouteMaxWidthLandscape];
 
         [NSLayoutConstraint activateConstraints:@[
             [_backdropView.topAnchor constraintEqualToAnchor:content.topAnchor],
@@ -362,7 +362,6 @@ static void VibeConfigureTimeLabel(UILabel *label) {
 
             [_transportView.centerXAnchor constraintEqualToAnchor:content.centerXAnchor],
             [_transportView.heightAnchor constraintEqualToConstant:kTransportButtonSide],
-            _routeMaxWidth,
             // Clears the transport row in both layouts; check the frames if
             // either moves.
             [_routeView.heightAnchor constraintEqualToConstant:44],
@@ -500,14 +499,14 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         [_actionBar.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor
                                                   constant:-kCellActionBarInset],
         [_actionBar.heightAnchor constraintEqualToConstant:kCellActionBarHeight],
-        [_routeView.centerXAnchor constraintEqualToAnchor:_actionBar.centerXAnchor],
         [_routeView.centerYAnchor constraintEqualToAnchor:_actionBar.centerYAnchor],
-        // Required, so the device name gives (it truncates) rather than the
-        // capsule: the width cap alone is wider than a narrow capsule.
-        [_routeView.leadingAnchor constraintGreaterThanOrEqualToAnchor:_actionBar.leadingAnchor
-                                                              constant:kCellActionBarContentInset],
-        [_routeView.trailingAnchor constraintLessThanOrEqualToAnchor:_actionBar.trailingAnchor
-                                                            constant:-kCellActionBarContentInset],
+        // TRAP: the route view IS the tap surface, so it spans the capsule.
+        // Hugging its content, a lone glyph left a 44pt target in the middle
+        // of a capsule that reads as one button. The name truncates inside.
+        [_routeView.leadingAnchor constraintEqualToAnchor:_actionBar.leadingAnchor
+                                                 constant:kCellActionBarContentInset],
+        [_routeView.trailingAnchor constraintEqualToAnchor:_actionBar.trailingAnchor
+                                                  constant:-kCellActionBarContentInset],
         // The pad's circle, at the bar's leading end.
         [_fxPadView.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor],
         [_fxPadView.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor
@@ -599,7 +598,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     // The bar's placement is in the portrait set alone, so landscape hides it.
     _playPauseGap.constant = landscape ? kTransportButtonGapLandscape : kTransportButtonGap;
     _nextGap.constant = _playPauseGap.constant;
-    _routeMaxWidth.constant = landscape ? kCellRouteMaxWidthLandscape : kCellRouteMaxWidth;
+    _routeMaxWidth.active = landscape;
     _routeView.glyphPointSize = landscape ? kCellRouteGlyphPointSizeLandscape
                                           : kCellRouteGlyphPointSize;
     _actionBar.hidden = landscape;

@@ -178,6 +178,7 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
     // Only this explicit path clears route-loss and reset ownership; the
     // interruption-ended resume enters activateSession without it.
     if ([self activateSession]) {
+        LogInfo(@"AudioSession: activated");
         return YES;
     }
     [self restoreConfigurationRecoveryBlockers:blockersToRestoreOnFailure];
@@ -222,8 +223,12 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
 // The output's answer is read now, never remembered, so an idle edge a newer
 // start has overtaken releases nothing.
 - (void)deactivateIfIdle {
-    if (!VibeAudioSessionMayDeactivate(_deactivationWanted, _interruptionActive,
-                                       [self.delegate audioSessionOutputIsIdle:self])) {
+    BOOL outputIdle = [self.delegate audioSessionOutputIsIdle:self];
+    if (!VibeAudioSessionMayDeactivate(_deactivationWanted, _interruptionActive, outputIdle)) {
+        if (_deactivationWanted) {
+            LogInfo(@"AudioSession: deactivation held (interruption %d, output idle %d)",
+                    _interruptionActive, outputIdle);
+        }
         return;
     }
     _deactivationWanted = NO;
@@ -410,6 +415,18 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
 - (void)handleInterruption:(NSNotification *)note {
     NSUInteger type = [note.userInfo[AVAudioSessionInterruptionTypeKey] unsignedIntegerValue];
     if (type == AVAudioSessionInterruptionTypeBegan) {
+        NSUInteger reason = [note.userInfo[AVAudioSessionInterruptionReasonKey] unsignedIntegerValue];
+        LogInfo(@"AudioSession: interruption began (reason %lu)", (unsigned long)reason);
+        if (reason == AVAudioSessionInterruptionReasonRouteDisconnected) {
+            // TRAP: no Ended follows this one (AirPods into their case,
+            // observed on device), so it must own nothing an Ended releases:
+            // held as an interruption it kept the session until the next
+            // play. The route loss beside it owns the pause and its blocker.
+            [self onMain:^{
+                [self.delegate audioSessionShouldPause:self];
+            }];
+            return;
+        }
         [self addConfigurationRecoveryBlocker:
                 VibeAudioSessionRecoveryBlockerInterruption];
         [self onMain:^{
@@ -426,6 +443,8 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
     }
     else if (type == AVAudioSessionInterruptionTypeEnded) {
         NSUInteger options = [note.userInfo[AVAudioSessionInterruptionOptionKey] unsignedIntegerValue];
+        LogInfo(@"AudioSession: interruption ended (should resume %d)",
+                (options & AVAudioSessionInterruptionOptionShouldResume) != 0);
         [self removeConfigurationRecoveryBlocker:
                 VibeAudioSessionRecoveryBlockerInterruption];
         [self onMain:^{
@@ -445,6 +464,7 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
             BOOL resumed = (options & AVAudioSessionInterruptionOptionShouldResume)
                     && wasPlaying && [self activateForInterruptionResume]
                     && [self deliverAutomaticResumeIfAllowed];
+            LogInfo(@"AudioSession: interruption matched, was playing %d, resumed %d", wasPlaying, resumed);
             if (!resumed) {
                 // Staying paused: release the session the interruption held.
                 [self deactivateWhenIdle];

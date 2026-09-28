@@ -3019,6 +3019,52 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertEqual([self count:@"idle"], 0u, @"an output that never left idle has no edge");
 }
 
+// iOS stops the unit seconds before it delivers a media-services reset, with
+// no interruption: the player pauses once the verdicts have had their time,
+// instead of publishing Playing over a dead output. Inside that time it has
+// not, since an interruption's Began reads was-playing from it.
+- (void)testASystemStopNoVerdictFollowsPauses {
+    self.continueAfterFailure = YES;
+    [self withOutputUnitStartingAs:^OSStatus { return noErr; } body:^(AudioPlayer *target) {
+        [self->_player play:[AudioTrack withURL:[self fixture:@"noise-44100-24-2.wav"]]];
+        [self settleUntil:^BOOL { return [self count:@"start"] == 1; }];
+        __block AudioOutputUnit *unit = nil;
+        [self->_player runSyncOnQueue:^{ unit = [target valueForKey:@"outputUnit"]; }];
+        [unit waitUntilIdle];
+        unit.failureHandler(nil, unit.runGeneration, NO);
+        [self->_player runSyncOnQueue:^{}];
+        [self renderSeconds:0.5];
+        XCTAssertTrue(self->_player.isPlaying, @"paused before a verdict could read was-playing");
+        XCTAssertEqual([self count:@"pause"], 0u);
+        [self renderSeconds:0.6];
+        [self settleUntil:^BOOL { return [self count:@"pause"] == 1; }];
+        XCTAssertTrue(self->_player.isPaused);
+        XCTAssertNil(self->_playError);
+        [self renderPastIdleStopExpectingIdleEdges:1];
+    }];
+}
+
+// A restart inside the verdict's time, as a route's recovery makes, is left
+// playing.
+- (void)testASystemStopARestartFollowsKeepsPlaying {
+    self.continueAfterFailure = YES;
+    [self withOutputUnitStartingAs:^OSStatus { return noErr; } body:^(AudioPlayer *target) {
+        [self->_player play:[AudioTrack withURL:[self fixture:@"noise-44100-24-2.wav"]]];
+        [self settleUntil:^BOOL { return [self count:@"start"] == 1; }];
+        __block AudioOutputUnit *unit = nil;
+        [self->_player runSyncOnQueue:^{ unit = [target valueForKey:@"outputUnit"]; }];
+        [unit waitUntilIdle];
+        unit.failureHandler(nil, unit.runGeneration, NO);
+        [self->_player runSyncOnQueue:^{
+            XCTAssertFalse([target renderingOnQueue]);
+            XCTAssertTrue([target startOutputOnQueue:NULL]);
+        }];
+        [self renderSeconds:1.5];
+        XCTAssertTrue(self->_player.isPlaying);
+        XCTAssertEqual([self count:@"pause"], 0u);
+    }];
+}
+
 // An interruption: the system stops the unit under the app and the verdict
 // pauses. The output still answers idle only at its idle stop.
 - (void)testASystemStopAnswersIdleAtItsIdleStop {
