@@ -110,7 +110,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         _maxPitch = kDefaultMaxPitchPercent;
         _volume = 1.0f;
         _crossfadeMilliseconds = kFadeDurationMilliseconds;
-        _resamplingQuality = VibeResamplingQualityMaximum;
+        _resampler = VibeResamplerR8brain;
         _declick = YES;
         _loadingConfiguration = [AudioLoadingConfiguration productionConfiguration];
         _retiringVoices = [NSMutableArray array];
@@ -1009,21 +1009,21 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 }
 
 // A bus built later takes it from here (ensureSourceSegmentOnQueueRebuilt:).
-@synthesize resamplingQuality = _resamplingQuality;
+@synthesize resampler = _resampler;
 
-- (VibeResamplingQuality)resamplingQuality {
+- (VibeResampler)resampler {
     os_unfair_lock_lock(&_stateLock);
-    VibeResamplingQuality quality = _resamplingQuality;
+    VibeResampler resampler = _resampler;
     os_unfair_lock_unlock(&_stateLock);
-    return quality;
+    return resampler;
 }
 
-- (void)setResamplingQuality:(VibeResamplingQuality)quality {
+- (void)setResampler:(VibeResampler)resampler {
     os_unfair_lock_lock(&_stateLock);
-    _resamplingQuality = quality;
+    _resampler = resampler;
     os_unfair_lock_unlock(&_stateLock);
     dispatch_async(_queue, ^{
-        self->_voiceBus.converterQuality = VibeConverterQualityForResampling(quality);
+        self->_voiceBus.resampler = resampler;
     });
 }
 
@@ -1418,6 +1418,12 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     __block NSDictionary *conversion;
     [self runSyncOnQueue:^{ conversion = [self->_voiceBus conversionOfVoice:self->_voice]; }];
     return conversion;
+}
+
+- (NSDictionary<NSString *, id> *)debugResamplerCostsResetting:(BOOL)reset {
+    __block NSDictionary *costs;
+    [self runSyncOnQueue:^{ costs = [self->_voiceBus debugResamplerCostsResetting:reset]; }];
+    return costs;
 }
 
 static NSString *VibeAudioLevelNormalizationModeName(VibeAudioLevelNormalizationMode normalizationMode) {

@@ -69,11 +69,6 @@ FOUNDATION_EXPORT const size_t kVibeCrossfadePresetCount;
 - (nullable VibeColor *)waveformCustomUnplayedColorForDark:(BOOL)isDark;
 - (void)setWaveformCustomUnplayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
 
-// NO (the default) resamples at High, YES at Maximum, the only quality macOS
-// uses (AudioPlayer.resamplingQuality). The writer applies it through
-// PlaybackController.
-- (BOOL)maximumResamplingQuality;
-- (void)setMaximumResamplingQuality:(BOOL)maximum;
 #endif  // !TARGET_OS_OSX
 
 // Track transitions. The store never applies either: the mac writer requests

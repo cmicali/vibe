@@ -185,7 +185,10 @@ targets:
           - "**/*.xcprivacy"                  # PIN privacy manifests: keep UNbundled
           - "**/*.txt"                        # vendored LICENSE.txt: keep UNbundled
           - "**/LICENSE.MPL"                  # TagLib's MPL 1.1 text: same, but not a .txt
+          - "**/*.inc"                        # r8brain's filter tables, #included by its headers: keep UNbundled
           - "**/PINDiskCache.m"               # re-added below with its per-file flags
+          - "**/r8bsrc.cpp"                   # same
+          - "**/pffft_double.c"               # same
         compilerFlags: &third-party-flags
           - "-Xclang"
           - "-analyzer-disable-all-checks"
@@ -194,6 +197,25 @@ targets:
           - "-fobjc-arc-exceptions"
           - "-Xclang"
           - "-analyzer-disable-all-checks"
+      # r8brain's own C entry points, where every one of its header templates
+      # is instantiated, and its FFT: optimized in every configuration, since
+      # at -O0 it costs many times Apple's converter (always optimized), and a
+      # Debug build is where the resampler comparison is run. The empty
+      # R8BSRC_DECL is upstream's switch from a DLL to an object file;
+      # R8B_PFFFT_DOUBLE (NEON, double precision, Ooura's accuracy) is its
+      # README's speed setting. Its other, R8B_EXTFFT, is left off: at the 1%
+      # transition band it costs 3-10% more, not less (docs/future/resampler.md).
+      - path: Vibe/ThirdParty/r8brain/DLL/r8bsrc.cpp
+        compilerFlags: &r8brain-flags
+          - "-O3"
+          - "-DR8BSRC_DECL="
+          - "-DR8B_PFFFT_DOUBLE=1"
+          - "-DPFFFT_ENABLE_NEON=1"           # PFFFT's NEON path is opt-in; without it arm64 builds its scalar fallback
+          - "-w"                              # vendored C predates -Wstrict-prototypes; not ours to restyle
+          - "-Xclang"
+          - "-analyzer-disable-all-checks"
+      - path: Vibe/ThirdParty/r8brain/fft/pffft_double.c
+        compilerFlags: *r8brain-flags
       - path: Vibe/Mac/App
         excludes:
           - "**/.DS_Store"
@@ -394,11 +416,18 @@ targets:
           - "**/*.xcprivacy"
           - "**/*.txt"
           - "**/LICENSE.MPL"
+          - "**/*.inc"
           - "**/PINDiskCache.m"
+          - "**/r8bsrc.cpp"
+          - "**/pffft_double.c"
         # Same flags as the macOS target above; see the comment there.
         compilerFlags: *third-party-flags
       - path: Vibe/ThirdParty/PINCache/PINDiskCache.m
         compilerFlags: *pin-disk-cache-flags
+      - path: Vibe/ThirdParty/r8brain/DLL/r8bsrc.cpp
+        compilerFlags: *r8brain-flags
+      - path: Vibe/ThirdParty/r8brain/fft/pffft_double.c
+        compilerFlags: *r8brain-flags
       - path: Resources/AppIcon.icon
       - path: Resources/Assets.xcassets       # record-bg, the no-art vinyl placeholder
       - path: Resources/PrivacyInfo.xcprivacy
@@ -639,6 +668,11 @@ targets:
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter+Sandbox.m
       - path: Vibe/Audio/AudioTrack.m
       - path: Vibe/Audio/AudioVoiceBus.m
+      - path: Vibe/Audio/AudioResampler.mm
+      - path: Vibe/ThirdParty/r8brain/DLL/r8bsrc.cpp
+        compilerFlags: *r8brain-flags
+      - path: Vibe/ThirdParty/r8brain/fft/pffft_double.c
+        compilerFlags: *r8brain-flags
       - path: Vibe/Audio/FX/AudioFX.m
       - path: Vibe/Debug/VibeManualRenderPump.m
       - path: Vibe/Audio/AudioFileFormat.m
@@ -779,6 +813,11 @@ targets:
       - path: Vibe/Audio/AudioPlayer+Prefetch.m
       - path: Vibe/Audio/AudioPlayer+Diagnostics.m
       - path: Vibe/Audio/AudioVoiceBus.m
+      - path: Vibe/Audio/AudioResampler.mm
+      - path: Vibe/ThirdParty/r8brain/DLL/r8bsrc.cpp
+        compilerFlags: *r8brain-flags
+      - path: Vibe/ThirdParty/r8brain/fft/pffft_double.c
+        compilerFlags: *r8brain-flags
       - path: Vibe/Audio/FX/AudioFX.m
       - path: Vibe/Audio/AudioTrack.m
       - path: Vibe/Audio/AudioFileFormat.m

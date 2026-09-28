@@ -22,7 +22,6 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTING_PAUSE_AT_TRACK_END                  @"Transport.pauseAtTrackEnd"
 #define SETTING_AUDIO_FX_ENABLED                    @"AudioPlayer.fxEnabled"
 #define SETTING_ANALYZE_BPM                         @"Audio.analyzeBPM"
-#define SETTING_MAXIMUM_RESAMPLING_QUALITY          @"AudioPlayer.maximumResamplingQuality"
 
 #if TARGET_OS_OSX
 

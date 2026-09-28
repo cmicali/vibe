@@ -31,6 +31,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // How the current voice's file reaches the bus; nil when it is read direct.
 - (nullable NSDictionary<NSString *, id> *)debugCurrentConversion;
+// The current bus's resampler costs (AudioVoiceBus's debugResamplerCostsResetting:);
+// nil before a bus exists. A rebuilt bus starts from zero.
+- (nullable NSDictionary<NSString *, id> *)debugResamplerCostsResetting:(BOOL)reset;
 
 // Moves the output's rate under the pump, as a device's would under the
 // output unit; the pipeline follows, keeping the track at its position and
@@ -100,6 +103,10 @@ NS_ASSUME_NONNULL_BEGIN
 // While set, every fill of a converting voice reports kAudio_ParamError in
 // place of its frames.
 - (void)debugRefuseConversion:(BOOL)refuse;
+// Per resampler ("apple", "r8brain"): decode-thread CPU spent resampling, the
+// file reads inside the fill excluded, against the bus audio it produced, and
+// that as a percent of one core. Since the bus was made, or the last reset.
+- (NSDictionary<NSString *, id> *)debugResamplerCostsResetting:(BOOL)reset;
 
 @end
 

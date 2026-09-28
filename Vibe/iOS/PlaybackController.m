@@ -55,7 +55,6 @@ static const NSUInteger kUIUpdateHz = 3;
                                                 enableFX:AppSettings.sharedInstance.audioFXEnabled
                                                 delegate:self];
         _player.crossfadeMilliseconds = AppSettings.sharedInstance.crossfadeMilliseconds;
-        [self applyResamplingSetting];
 
         __weak PlaybackController *weakSelf = self;
         _updateTimer = [[UIUpdateTimer alloc] initWithHz:kUIUpdateHz handler:^{
@@ -453,11 +452,6 @@ static const NSUInteger kUIUpdateHz = 3;
     // prefetchTrack:nil unschedules an armed splice, so a mid-track switch to
     // Pause does not advance anyway.
     [_player prefetchTrack:self.successorPrefetchTrack];
-}
-
-- (void)applyResamplingSetting {
-    _player.resamplingQuality = AppSettings.sharedInstance.maximumResamplingQuality
-            ? VibeResamplingQualityMaximum : VibeResamplingQualityHigh;
 }
 
 - (void)applyFXSetting {
