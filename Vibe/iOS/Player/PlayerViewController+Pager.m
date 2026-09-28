@@ -18,7 +18,6 @@
 #import "Formatters.h"
 #import "PageWaveformCoordinator.h"
 #import "TrackPageCell.h"
-#import "VibeStrings.h"
 #import "WaveformScrubberView.h"
 
 // At one, a quick second swipe outruns the fetch (a file read and a decode)

@@ -785,10 +785,10 @@ static void VibeConfigureTimeLabel(UILabel *label) {
 // The codec line and the tempo line: the mac's two lines in landscape, one
 // joined line in portrait, whose band reserves a single line for them.
 - (void)applyFileInfoText {
-    NSString *line = [[Formatters sharedInstance] infoLineFromFields:@[_fileInfo ?: @"", _tempoInfo ?: @""]];
-    if (_landscapeActive && _fileInfo.length > 0 && _tempoInfo.length > 0) {
-        line = [@[_fileInfo, _tempoInfo] componentsJoinedByString:@"\n"];
-    }
+    BOOL stacked = _landscapeActive && _fileInfo.length > 0 && _tempoInfo.length > 0;
+    NSString *line = stacked
+            ? [NSString stringWithFormat:@"%@\n%@", _fileInfo, _tempoInfo]
+            : [[Formatters sharedInstance] infoLineFromFields:@[_fileInfo ?: @"", _tempoInfo ?: @""]];
     _fileInfoLabel.text = line;
     // Hidden, not blank: the band reserves a visible label's line.
     BOOL hideFileInfo = line.length == 0;

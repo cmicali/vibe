@@ -204,6 +204,7 @@
     XCTAssertEqualObjects(([_formatters infoLineFromFields:@[]]), @"");
 }
 
+// Key last: the mac colors it as the line's suffix.
 - (void)testTempoLineDropsWhatIsMissing {
     NSString *tempo = [_formatters bpmString:128];
     XCTAssertEqualObjects([_formatters tempoLineWithBPM:128 keyText:@"8A"],
@@ -211,13 +212,6 @@
     XCTAssertEqualObjects([_formatters tempoLineWithBPM:128 keyText:@""], tempo);
     XCTAssertEqualObjects([_formatters tempoLineWithBPM:0 keyText:@"8A"], @"8A");
     XCTAssertEqualObjects([_formatters tempoLineWithBPM:-1 keyText:@""], @"");
-}
-
-// The mac colors the key as the last keyText.length characters of the line.
-- (void)testTempoLineEndsWithTheKey {
-    for (NSString *key in @[@"8A", @"12B", @"F#m"]) {
-        XCTAssertTrue([[_formatters tempoLineWithBPM:174 keyText:key] hasSuffix:key]);
-    }
 }
 
 @end

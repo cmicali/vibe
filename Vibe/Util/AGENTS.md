@@ -16,9 +16,9 @@ Two placements are not what the file names suggest. `NSURL+Hash` also carries `N
 
 The playable extension set is `Common/PlayableExtensions`, not this file: the walk's filter and `PlaylistFile`'s entry recovery both read it, so neither can grow a format the other has not got.
 
-## Formatters builds every info line
+## Formatters joins every info line
 
-**`infoLineFromFields:` is the one join behind the codec line and the tempo line, and the only place the ` | ` separator is written**: it drops empty fields and joins the rest, so a caller hands over what it has. `tempoLineWithBPM:keyText:` is the tempo and key through it, shared by the mac's second info line and the iOS card's. **What goes in stays each shell's**: the mac passes the tempo its pitch fader scaled and the key in the theme's notation, with its show gates applied first; iOS passes the track's own tempo and Camelot. **The key is always the last field** — the mac colors it as the line's suffix, and `FormattersTests` pins that.
+**`infoLineFromFields:` is the one join behind the codec line and the tempo line, and the only place the ` | ` separator is written**: it drops empty fields and joins the rest, so a caller hands over what it has. `tempoLineWithBPM:keyText:` is the tempo and key through it, for both shells; what each passes in is its own doc's. **The key is always the last field**: the mac colors it as the line's suffix.
 
 ## Traps
 

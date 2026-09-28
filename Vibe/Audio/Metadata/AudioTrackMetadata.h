@@ -68,8 +68,9 @@ FOUNDATION_EXPORT NSNotificationName const AudioTrackMetadataThumbnailDidLoadNot
 - (nullable VibeImage *)cachedThumbnail;
 
 // The codec line both screens render: file type, bitrate (lossy only) and
-// sample rate, joined with " | ", each only when present (a zero rate is
-// stored as nil); empty with no fileType. Main thread only (Formatters).
+// sample rate, through Formatters' info-line join, each only when present (a
+// zero rate is stored as nil); empty with no fileType. Main thread only
+// (Formatters).
 - (NSString *)fileInfoLine;
 
 @end

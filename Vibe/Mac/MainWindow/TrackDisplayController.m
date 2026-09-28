@@ -334,6 +334,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
                                                   attributes:self.cornerTextAttributes];
     NSColor *keyColor = camelotColor(colorKey);
     if (keyColor && keyText.length > 0) {
+        // The suffix: tempoLineWithBPM:keyText: puts the key last.
         NSRange range = NSMakeRange(text.length - keyText.length, keyText.length);
         [line addAttribute:NSForegroundColorAttributeName value:keyColor range:range];
         [line addAttribute:NSFontAttributeName value:[Fonts infoFontBold:YES] range:range];
