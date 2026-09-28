@@ -7,7 +7,8 @@
 - Apple's MP3 decoder only outputs 16-bit audio. That loses precision, clips loud masters, and cuts the last few milliseconds of some files.
 - dr_mp3 is a small open-source MP3 decoder. It outputs 32-bit float audio. On the official ISO test streams it is about 100 times more accurate than the ISO's own "full accuracy" limit. Apple is right on that limit.
 - dr_mp3's license (MIT No Attribution, or public domain) is safe for the App Store.
-- libmad, mpg123 and FFmpeg decode just as accurately, but their licenses (GPL or LGPL) don't fit an App Store app.
+- FFmpeg, libmad and mpg123 decode just as accurately, but their licenses (GPL or LGPL) don't fit an App Store app.
+- BASS, a commercial library, is just as accurate too. It is built on minimp3, like dr_mp3, but it is closed source, needs a paid license, and used about 15% more CPU than dr_mp3.
 - dr_mp3 is also cheaper to run. It uses about 2.5 times less CPU, half the energy, and a third of the memory per open file (see System performance). Both decoders are so cheap that neither would show up in Activity Monitor during playback.
 - The plan: ship dr_mp3 as the default, keep Apple's decoder one setting away on the Mac, and confirm it on real devices and real music.
 
@@ -32,6 +33,7 @@ This causes three problems:
 | mpg123 | LGPL 2.1 | Full ISO accuracy | LGPL is hard to meet with a statically linked App Store app |
 | FFmpeg (`mp3float`) | LGPL | Full ISO accuracy | Same license problem, and very large |
 | libmad (MAD) | GPL 2 or later | Full ISO accuracy | GPL can't ship in this app; unmaintained since 2004 |
+| BASS | Commercial, closed source | Full ISO accuracy; built on minimp3 | Needs a paid license, and uses more CPU than dr_mp3 |
 | Helix MP3 | RPSL | Fixed point | Awkward license |
 | Symphonia | MPL 2.0 | Good | Written in Rust; would add a Rust toolchain to the build |
 | Apple | Built in | 16-bit only | The current default |
@@ -47,23 +49,24 @@ The ISO standard for MP3 (ISO/IEC 11172-4) comes with official test streams and 
 
 The full-accuracy limit is exactly the size of 16-bit rounding. So any decoder that outputs 16-bit audio lands right on the line.
 
-We decoded seven ISO streams (from FFmpeg's test-file mirror) with six decoders. `compl` is the −20 dB sine sweep that Underbit's well-known compliance table is based on. This is the worst stream for each decoder:
+We decoded seven ISO streams (from FFmpeg's test-file mirror) with six decoders, one of them in two builds. `compl` is the −20 dB sine sweep that Underbit's well-known compliance table is based on. This is the worst stream for each decoder, best first:
 
 | Decoder | Worst average error | Worst single error | Distance below the full-accuracy limit | Result |
 | --- | --- | --- | --- | --- |
-| dr_mp3 0.7.4 | 8.4e-8 (−141.5 dBFS) | 7.1e-7 | 105× | full accuracy on all 7 |
-| libmad 0.15.1b | 9.8e-8 (−140.2 dBFS) | 9.2e-7 | 90× | full accuracy on all 7 |
+| FFmpeg `mp3float` | 7.9e-8 (−142.1 dBFS) | 7.2e-7 | 112× | full accuracy on all 7 |
 | libmad 0.15.1b, accuracy build | 8.3e-8 (−141.6 dBFS) | 7.3e-7 | 106× | full accuracy on all 7 |
 | mpg123 1.33.7 | 8.3e-8 (−141.6 dBFS) | 7.0e-7 | 106× | full accuracy on all 7 |
-| FFmpeg `mp3float` | 7.9e-8 (−142.1 dBFS) | 7.2e-7 | 112× | full accuracy on all 7 |
+| dr_mp3 0.7.4 | 8.4e-8 (−141.5 dBFS) | 7.1e-7 | 105× | full accuracy on all 7 |
+| BASS 2.4.18 | 8.8e-8 (−141.1 dBFS) | 6.9e-7 | 100× | full accuracy on all 7 |
+| libmad 0.15.1b | 9.8e-8 (−140.2 dBFS) | 9.2e-7 | 90× | full accuracy on all 7 |
 | Apple | 9.1e-6 (−100.8 dBFS) | 2.4e-5 | 1.0× | full on 3, limited on 4 |
 
 What this shows:
 
-- **The five open-source decoders are equally accurate.** They are within about 2 dB of each other. That is close to the precision of the reference files themselves, so this test can't rank them any further.
+- **Every decoder with float output is equally accurate,** BASS included. They are within about 2 dB of each other. That is close to the precision of the reference files themselves, so this test can't rank them any further.
 - **Apple is exactly on the line**, because its output is 16-bit.
 - **libmad is not more accurate than dr_mp3.** Underbit's table (2001–2004) shows MAD far ahead, but back then most decoders output 16-bit audio. MAD output 24-bit, which was its advantage. Float decoders remove that advantage. We read MAD at its full internal precision, which is even finer than the 24-bit output Underbit scored.
-- For fairness, Apple's score leaves out the first 529 samples (the decoder delay Apple removes on purpose) and its silent ending.
+- For fairness, Apple's and BASS's scores are lined up 529 samples later, because both remove the decoder delay on purpose, and Apple's leaves out its silent ending.
 
 ### 2. dr_mp3 against Apple, sample by sample
 
@@ -80,13 +83,22 @@ We ran Vibe's own file reader (`AudioFileHandle`) with both decoders on 16 test 
 - **A damaged frame can produce a loud spike.** With 300 bytes changed, dr_mp3 produced a spike at +15.5 dBFS. Apple clipped the same spike at full scale because of its 16-bit output. We decided not to clamp it (see Decisions).
 - **Free-format MP3s** (a rare type with no bitrate in the header) are refused by macOS before either decoder sees them. Nothing changes there.
 
-### 4. Speed
+### 4. BASS, a cousin of dr_mp3
+
+BASS (un4seen, version 2.4.18) is a commercial audio library with its own MP3 decoder. Its notes say that decoder is based on minimp3, the same code dr_mp3 comes from. We decoded to float with BASS's own file reader.
+
+- **Its output is nearly the same as dr_mp3's.** About a third of the samples are identical, bit for bit. The rest differ by at most 2.2e-7 (about −134 dBFS), the last bit or two of a 32-bit float. That is what two builds of the same decoder look like.
+- **Quiet passages and loud masters:** the same as dr_mp3. On the −70 dBFS passage, BASS's error was 127 dB below the music. On the loud test master it kept the same 36,125 samples above full scale, peaking at +0.93 dBFS.
+- **Speed:** about 15% more CPU than dr_mp3, and about half of Apple's (see System performance).
+- **Why not BASS:** it is closed source and needs a paid license for an app that is sold, and it is no more accurate than dr_mp3.
+
+### 5. Speed
 
 dr_mp3 is about two and a half times as fast. The next section has the full measurements.
 
 ## System performance
 
-**Short answer: dr_mp3 is cheaper than Apple's decoder on every measure except app size.** It uses about 2.5 times less CPU, half the energy, and a third of the memory. It opens files faster and seeks slightly faster. It reads far less from the file, in about as many read calls as Apple's.
+**Short answer: dr_mp3 is cheaper than Apple's decoder on every measure except app size.** BASS, timed for comparison, came between the two. It uses about 2.5 times less CPU, half the energy, and a third of the memory. It opens files faster and seeks slightly faster. It reads far less from the file, in about as many read calls as Apple's.
 
 Both decoders are very cheap. Playing a 320 kbps MP3 takes about 0.1% of one core with Apple's decoder and 0.04% with dr_mp3. **Neither choice will change how the app feels during normal playback.** The difference shows up in work that decodes a whole file at once, such as drawing the waveform, and on slower cores.
 
@@ -96,6 +108,7 @@ These numbers include two changes to how Vibe feeds dr_mp3 (see Tuning dr_mp3 be
 
 - **What ran:** Vibe's own file reader (`AudioFileHandle.m` from this branch), switching decoders with the same setting the app uses. It was built with the app's Release settings: `-Os` for Vibe's code, `-O3` for dr_mp3. Each test alternated between Apple and dr_mp3 run by run, so both decoders saw the same conditions.
 - **Machine:** Mac with an Apple M4 Max, macOS 27. Other work was running on it (load average 4–6), which is why a repeated measurement can move by about 5%. The comparisons within a row are fair; the alternation takes care of that.
+- **BASS:** version 2.4.18, decoding to float with its own file reader, in the same session as the CPU, energy and whole-file tests below. Those three tests were run again for this, so their Apple and dr_mp3 numbers are from that run. They came within 5% of the first run's.
 - **Files:** one real 6.5-minute track, encoded nine ways (LAME 4.0 for MP3, FFmpeg for MP2), plus two real 320 kbps tracks from a music library. That covers high and low bitrates, CBR and VBR, 48 kHz, mono, MPEG-2 (22.05 kHz), MPEG-2.5 (11.025 kHz), and MP2.
 - **Two kinds of core:** every CPU test ran on the fast performance cores. The decode, seek, and chunk tests also ran on the slower efficiency cores, which were forced with the lowest thread priority. Efficiency cores are the closest thing on a Mac to a phone saving battery. **No iPhone was measured.**
 - **Read shapes:** playback reads 4,096 frames at a time into separate left and right buffers. The waveform reads 65,536 frames at a time, interleaved. We tested both.
@@ -105,72 +118,72 @@ These numbers include two changes to how Vibe feeds dr_mp3 (see Tuning dr_mp3 be
 
 For a 320 kbps stereo MP3, the most common kind:
 
-| Measure | Apple | dr_mp3 | Which is better |
-| --- | --- | --- | --- |
-| CPU to play, performance core | 0.101% of one core | 0.044% | dr_mp3, 2.3× less |
-| CPU to play, efficiency core | 0.35% of one core | 0.11% | dr_mp3, 3.1× less |
-| Energy to decode one hour of music, performance core | 16.3 J | 7.9 J | dr_mp3, 2.1× less |
-| Time to decode a whole 6.5-minute track for the waveform | 391 ms | 176 ms | dr_mp3, 2.2× faster |
-| Opening a file | 0.09 ms | 0.06 ms | dr_mp3 |
-| Seeking, then reading the first 4,096 frames | 0.17 ms | 0.15 ms | About the same |
-| Memory per open file | 177 KB | 60 KB | dr_mp3, 3× less |
-| File reads per second of music | 9.6 | 9.6 | The same |
-| Bytes read from the file, 15 MB file | 235 MB | 17 MB | dr_mp3, 14× less |
-| Extra app size | none (built into macOS) | 48 KB of code | Apple |
+| Measure | dr_mp3 | BASS | Apple | Which is better |
+| --- | --- | --- | --- | --- |
+| CPU to play, performance core | 0.042% of one core | 0.050% | 0.096% | dr_mp3, 2.3× less than Apple |
+| CPU to play, efficiency core | 0.12% of one core | 0.14% | 0.32% | dr_mp3, 2.8× less than Apple |
+| Energy to decode one hour of music, performance core | 8.1 J | 9.6 J | 16.8 J | dr_mp3, 2.1× less than Apple |
+| Time to decode a whole 6.5-minute track for the waveform | 161 ms | 188 ms | 361 ms | dr_mp3, 2.2× faster than Apple |
+| Opening a file | 0.06 ms | not measured | 0.09 ms | dr_mp3 |
+| Seeking, then reading the first 4,096 frames | 0.15 ms | not measured | 0.17 ms | About the same |
+| Memory per open file | 60 KB | 30 KB (see Memory) | 177 KB | BASS, then dr_mp3 |
+| File reads per second of music | 9.6 | 5.5 | 9.6 | BASS |
+| Bytes read from the file, 15 MB file | 17 MB | 15.7 MB | 235 MB | BASS and dr_mp3, 14× less than Apple |
+| Extra app size | 48 KB of code | a 0.9 MB library | none (built into macOS) | Apple |
 
-Across all 11 files, dr_mp3 used on average **2.5× less CPU on performance cores and 3.0× less on efficiency cores**. It won on every file. The gap is smallest on mono files and largest on MP2.
+Across all 11 files, dr_mp3 used on average **2.5× less CPU on performance cores and 3.1× less on efficiency cores** than Apple's decoder. It won on every file. The gap is smallest on mono files and largest on MP2. BASS used on average 17% more than dr_mp3 on performance cores and 15% more on efficiency cores.
 
 ### CPU to play a file
 
-Share of one CPU core needed to keep up with playback, measured as the fastest of seven whole-file decodes. **Lower is better.**
+Share of one CPU core needed to keep up with playback, measured as the fastest of seven whole-file decodes. Decoders are listed best first. **Lower is better.**
 
-| File | Apple, performance core | dr_mp3, performance core | Apple, efficiency core | dr_mp3, efficiency core |
-| --- | --- | --- | --- | --- |
-| CBR 320 kbps | 0.101% | 0.044% | 0.35% | 0.11% |
-| CBR 128 kbps | 0.082% | 0.031% | 0.29% | 0.09% |
-| VBR V0 (about 280 kbps) | 0.099% | 0.043% | 0.37% | 0.11% |
-| VBR V5 (about 130 kbps) | 0.082% | 0.031% | 0.31% | 0.09% |
-| CBR 256 kbps, 48 kHz | 0.098% | 0.040% | 0.42% | 0.13% |
-| Mono 64 kbps | 0.043% | 0.020% | 0.17% | 0.07% |
-| MPEG-2, 22.05 kHz, 64 kbps | 0.045% | 0.017% | 0.18% | 0.06% |
-| MPEG-2.5, 11.025 kHz, 16 kbps | 0.018% | 0.007% | 0.07% | 0.02% |
-| MP2 256 kbps, 48 kHz | 0.067% | 0.023% | 0.33% | 0.11% |
-| Real track A, 320 kbps | 0.096% | 0.043% | 0.36% | 0.16% |
-| Real track B, 320 kbps | 0.098% | 0.043% | 0.45% | 0.17% |
+| File | dr_mp3, performance core | BASS, performance core | Apple, performance core | dr_mp3, efficiency core | BASS, efficiency core | Apple, efficiency core |
+| --- | --- | --- | --- | --- | --- | --- |
+| CBR 320 kbps | 0.042% | 0.050% | 0.096% | 0.12% | 0.14% | 0.32% |
+| CBR 128 kbps | 0.031% | 0.037% | 0.082% | 0.090% | 0.12% | 0.28% |
+| VBR V0 (about 280 kbps) | 0.042% | 0.048% | 0.100% | 0.14% | 0.14% | 0.42% |
+| VBR V5 (about 130 kbps) | 0.031% | 0.036% | 0.082% | 0.094% | 0.12% | 0.32% |
+| CBR 256 kbps, 48 kHz | 0.039% | 0.046% | 0.097% | 0.12% | 0.12% | 0.36% |
+| Mono 64 kbps | 0.019% | 0.023% | 0.042% | 0.065% | 0.066% | 0.17% |
+| MPEG-2, 22.05 kHz, 64 kbps | 0.017% | 0.019% | 0.043% | 0.047% | 0.052% | 0.16% |
+| MPEG-2.5, 11.025 kHz, 16 kbps | 0.007% | 0.007% | 0.018% | 0.021% | 0.021% | 0.065% |
+| MP2 256 kbps, 48 kHz | 0.023% | 0.030% | 0.066% | 0.092% | 0.095% | 0.29% |
+| Real track A, 320 kbps | 0.043% | 0.049% | 0.097% | 0.11% | 0.14% | 0.33% |
+| Real track B, 320 kbps | 0.042% | 0.048% | 0.096% | 0.11% | 0.14% | 0.34% |
 
 What this shows:
 
 - **dr_mp3 does less work, not the same work faster.** It ran 2.3 to 2.9 times fewer CPU instructions than Apple's decoder on every stereo file (2.1 times fewer on mono). That is why the saving holds on both kinds of core.
-- **Efficiency-core numbers are noisier.** Their clock speed varies from run to run, so compare the two decoders within a row, not rows with each other. dr_mp3 won every row.
-- **For scale:** converting 44.1 kHz to 48 kHz with r8brain costs about 0.09% of a performance core (`docs/audio-quality.md`). So on a 48 kHz output, playing a 44.1 kHz 320 kbps MP3 costs about 0.19% of a core with Apple's decoder and 0.14% with dr_mp3.
+- **Efficiency-core numbers are noisier.** Their clock speed varies from run to run, so compare the decoders within a row, not rows with each other. dr_mp3 beat Apple in every row. On efficiency cores dr_mp3 and BASS were within 3% of each other on four files, which is inside that noise.
+- **For scale:** converting 44.1 kHz to 48 kHz with r8brain costs about 0.09% of a performance core (`docs/audio-quality.md`). So on a 48 kHz output, playing a 44.1 kHz 320 kbps MP3 costs about 0.19% of a core with Apple's decoder and 0.13% with dr_mp3.
 - **The iPhone:** not measured. `docs/audio-quality.md` found r8brain about six times as expensive on an iPhone 17 Pro as on this Mac. If the decoders scale the same way, playing an MP3 would cost roughly 0.6% of a phone core with Apple's decoder and 0.3% with dr_mp3. That is an estimate only.
 
 ### Energy
 
-macOS's estimate of the CPU energy used to decode, per minute of music. **Lower is better.**
+macOS's estimate of the CPU energy used to decode, per minute of music. Decoders are listed best first. **Lower is better.**
 
-| File | Apple, performance core | dr_mp3, performance core | Apple, efficiency core | dr_mp3, efficiency core |
-| --- | --- | --- | --- | --- |
-| CBR 320 kbps | 271 mJ | 131 mJ | 43 mJ | 21 mJ |
-| CBR 128 kbps | 227 mJ | 105 mJ | 37 mJ | 17 mJ |
-| MP2 256 kbps | 180 mJ | 85 mJ | 25 mJ | 13 mJ |
-| Real track B, 320 kbps | 268 mJ | 133 mJ | 32 mJ | 15 mJ |
+| File | dr_mp3, performance core | BASS, performance core | Apple, performance core | dr_mp3, efficiency core | BASS, efficiency core | Apple, efficiency core |
+| --- | --- | --- | --- | --- | --- | --- |
+| CBR 320 kbps | 136 mJ | 159 mJ | 279 mJ | 19 mJ | 19 mJ | 41 mJ |
+| CBR 128 kbps | 104 mJ | 129 mJ | 233 mJ | 16 mJ | 16 mJ | 34 mJ |
+| MP2 256 kbps | 86 mJ | 106 mJ | 183 mJ | 14 mJ | 14 mJ | 28 mJ |
+| Real track B, 320 kbps | 133 mJ | 157 mJ | 269 mJ | 19 mJ | 22 mJ | 39 mJ |
 
-dr_mp3 used about **half the energy** on both kinds of core. The saving is real but very small. On efficiency cores, an hour of 320 kbps playback costs about 2.6 J to decode with Apple's decoder and 1.2 J with dr_mp3. An iPhone battery holds roughly 50,000 J.
+dr_mp3 used about **half the energy** of Apple's decoder on both kinds of core. BASS used about 18% more than dr_mp3 on performance cores and about the same on efficiency cores. The saving is real but very small. On efficiency cores, an hour of 320 kbps playback costs about 2.5 J to decode with Apple's decoder and 1.2 J with dr_mp3 or BASS. An iPhone battery holds roughly 50,000 J.
 
 Efficiency cores used about six times less energy than performance cores for the same decode. So where the decode thread runs matters far more to battery life than which decoder runs on it.
 
 ### Decoding a whole file (the waveform)
 
-The waveform decodes the whole track as fast as it can, 65,536 frames at a time. Time from opening the file to the last sample, median of seven runs, performance core. **Lower is better.**
+The waveform decodes the whole track as fast as it can, 65,536 frames at a time. Time from opening the file to the last sample, median of seven runs, performance core. Decoders are listed best first. **Lower is better.**
 
-| File (all 6.5 minutes unless noted) | Apple | dr_mp3 | Speed-up |
-| --- | --- | --- | --- |
-| CBR 320 kbps | 391 ms | 176 ms | 2.2× |
-| CBR 128 kbps | 324 ms | 127 ms | 2.5× |
-| VBR V0 | 396 ms | 175 ms | 2.3× |
-| MP2 256 kbps | 259 ms | 92 ms | 2.8× |
-| Real track B, 320 kbps, 7.3 minutes | 420 ms | 194 ms | 2.2× |
+| File (all 6.5 minutes unless noted) | dr_mp3 | BASS | Apple | dr_mp3's speed-up over Apple |
+| --- | --- | --- | --- | --- |
+| CBR 320 kbps | 161 ms | 188 ms | 361 ms | 2.2× |
+| CBR 128 kbps | 117 ms | 140 ms | 302 ms | 2.6× |
+| VBR V0 | 163 ms | 185 ms | 369 ms | 2.3× |
+| MP2 256 kbps | 90 ms | 116 ms | 254 ms | 2.8× |
+| Real track B, 320 kbps, 7.3 minutes | 185 ms | 209 ms | 403 ms | 2.2× |
 
 The waveform loader does more than decode, so its total time falls by less than this. The decode part of it more than halves.
 
@@ -178,12 +191,12 @@ The waveform loader does more than decode, so its total time falls by less than 
 
 Playback's decode thread reads 4,096 frames at a time into a buffer. At 44.1 kHz, each read covers 93 ms of music, so a read must finish in well under 93 ms. **Lower is better.**
 
-| File | Core | Apple typical | dr_mp3 typical | Apple slowest 1% | dr_mp3 slowest 1% | Apple slowest | dr_mp3 slowest |
+| File | Core | dr_mp3 typical | Apple typical | dr_mp3 slowest 1% | Apple slowest 1% | dr_mp3 slowest | Apple slowest |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| CBR 320 kbps | performance | 0.100 ms | 0.042 ms | 0.25 ms | 0.08 ms | 2.1 ms | 0.15 ms |
-| CBR 320 kbps | efficiency | 0.48 ms | 0.17 ms | 1.3 ms | 0.53 ms | 76 ms | 2.0 ms |
-| Real track B | performance | 0.097 ms | 0.042 ms | 0.13 ms | 0.06 ms | 0.41 ms | 0.13 ms |
-| Real track B | efficiency | 0.32 ms | 0.11 ms | 0.84 ms | 0.32 ms | 2.9 ms | 3.0 ms |
+| CBR 320 kbps | performance | 0.042 ms | 0.100 ms | 0.08 ms | 0.25 ms | 0.15 ms | 2.1 ms |
+| CBR 320 kbps | efficiency | 0.17 ms | 0.48 ms | 0.53 ms | 1.3 ms | 2.0 ms | 76 ms |
+| Real track B | performance | 0.042 ms | 0.097 ms | 0.06 ms | 0.13 ms | 0.13 ms | 0.41 ms |
+| Real track B | efficiency | 0.11 ms | 0.32 ms | 0.32 ms | 0.84 ms | 3.0 ms | 2.9 ms |
 
 - **On performance cores, neither decoder comes close to the budget.** dr_mp3's slowest read on any file was 0.75 ms, and Apple's 2.4 ms.
 - **On efficiency cores, both decoders had rare slow reads:** up to 77 ms for Apple and 45 ms for dr_mp3, each on a different file. They come from the test's lowest thread priority making it wait for other work on a busy machine, not from decoding. The app's decode threads run at the highest priority, and each track's buffer holds at least a second of audio, so one late read would not be heard.
@@ -192,14 +205,14 @@ Playback's decode thread reads 4,096 frames at a time into a buffer. At 44.1 kHz
 
 Median of 100 opens and of 300 random seeks, performance core. Each seek is followed by one 4,096-frame read, as when the user scrubs or jumps to a cue.
 
-| File | Open, Apple | Open, dr_mp3 | Seek and read, Apple | Seek and read, dr_mp3 |
+| File | Open, dr_mp3 | Open, Apple | Seek and read, dr_mp3 | Seek and read, Apple |
 | --- | --- | --- | --- | --- |
-| CBR 320 kbps | 0.09 ms | 0.06 ms | 0.17 ms | 0.15 ms |
-| CBR 128 kbps | 0.10 ms | 0.06 ms | 0.16 ms | 0.11 ms |
-| VBR V0 | 0.09 ms | 0.06 ms | 0.21 ms | 0.17 ms |
-| MPEG-2, 22.05 kHz | 0.10 ms | 0.07 ms | 0.14 ms | 0.08 ms |
-| MP2 256 kbps | 11.4 ms | 11.2 ms | 0.10 ms | 0.07 ms |
-| Real track B, 320 kbps | 0.11 ms | 0.08 ms | 0.16 ms | 0.16 ms |
+| CBR 320 kbps | 0.06 ms | 0.09 ms | 0.15 ms | 0.17 ms |
+| CBR 128 kbps | 0.06 ms | 0.10 ms | 0.11 ms | 0.16 ms |
+| VBR V0 | 0.06 ms | 0.09 ms | 0.17 ms | 0.21 ms |
+| MPEG-2, 22.05 kHz | 0.07 ms | 0.10 ms | 0.08 ms | 0.14 ms |
+| MP2 256 kbps | 11.2 ms | 11.4 ms | 0.07 ms | 0.10 ms |
+| Real track B, 320 kbps | 0.08 ms | 0.11 ms | 0.16 ms | 0.16 ms |
 
 - **Opening is faster with dr_mp3** because Vibe skips setting up Apple's decoder and format converter.
 - **Seeking is about the same on performance cores and faster on efficiency cores.** dr_mp3 decodes ten extra frames before each seek target to be sample-exact (see How it works). On performance cores that costs about as much as Apple's own seek. On efficiency cores dr_mp3 was faster on all 11 files, and a typical seek took about 1 ms or less with both.
@@ -209,29 +222,32 @@ Median of 100 opens and of 300 random seeks, performance core. Each seek is foll
 
 Extra heap memory for each open, playing file, averaged over 20 open files. **Lower is better.**
 
-| File | Apple | dr_mp3 |
+| File | dr_mp3 | Apple |
 | --- | --- | --- |
-| Stereo MP3 (any bitrate) | 177 KB | 60 KB |
-| Mono MP3 | 134 KB | 59 KB |
-| MPEG-2.5, 11.025 kHz | 196 KB | 80 KB |
-| MP2 256 kbps | 221 KB | 104 KB |
+| Stereo MP3 (any bitrate) | 60 KB | 177 KB |
+| Mono MP3 | 59 KB | 134 KB |
+| MPEG-2.5, 11.025 kHz | 80 KB | 196 KB |
+| MP2 256 kbps | 104 KB | 221 KB |
 
 Most of dr_mp3's 60 KB is its own: 23 KB of decoder state, about 21 KB to hold 16 compressed frames read ahead, and 9 KB for one frame of decoded audio. The rest is macOS's file parser, which both decoders use. Vibe keeps at most two files open for playback (the current track and the next one), so the saving is about 230 KB. That is small but real on an iPhone.
+
+BASS took 30–32 KB per open file on the same files, measured the same way. That is less, but it isn't a like-for-like number: BASS reads the file itself, while both of Vibe's decoders share macOS's parser. BASS also keeps a file's tags in memory, so a real track with embedded artwork took 174–414 KB.
 
 ### File reads
 
 How often each decoder asks for data from the file, for one whole playthrough.
 
-| File | Apple, reads | dr_mp3, reads | Apple, total bytes read | dr_mp3, total bytes read | File size |
+| File | dr_mp3, reads | Apple, reads | dr_mp3, total bytes read | Apple, total bytes read | File size |
 | --- | --- | --- | --- | --- | --- |
-| CBR 320 kbps | 3,781 (9.6 per second of music) | 3,777 (9.6 per second) | 235 MB | 17 MB | 15 MB |
-| CBR 128 kbps | 3,781 | 957 | 234 MB | 15 MB | 6 MB |
-| MP2 256 kbps | 36,850 | 33,780 | 28 MB | 28 MB | 12 MB |
-| Real track B, 320 kbps | 4,233 | 4,512 | 262 MB | 20 MB | 17 MB |
+| CBR 320 kbps | 3,777 (9.6 per second of music) | 3,781 (9.6 per second) | 17 MB | 235 MB | 15 MB |
+| CBR 128 kbps | 957 | 3,781 | 15 MB | 234 MB | 6 MB |
+| MP2 256 kbps | 33,780 | 36,850 | 28 MB | 28 MB | 12 MB |
+| Real track B, 320 kbps | 4,512 | 4,233 | 20 MB | 262 MB | 17 MB |
 
 - **Apple's decoder** reads MP3s 64 KB at a time and rereads the same part of the file many times, so it reads 15 to 40 times the file's size over one playthrough.
 - **dr_mp3** asks macOS's parser for 16 frames at a time and reads little more than the file itself.
 - **MP2 is read in small pieces with both decoders.** macOS's MP2 parser reads that way however many frames are asked for.
+- **BASS**, reading the file itself, read each file about once: 15.7 MB for the 15 MB file, in 5.5 reads per second of music, and 12.7 MB in 1,656 reads for the MP2.
 
 Because the file sits in the operating system's cache, none of these reads touch the disk. The reads took about 1–3 ms per 6.5-minute MP3 track with dr_mp3, and about 10 ms with Apple's decoder. We didn't test a network share or a slow drive with an empty cache, but dr_mp3 now makes about as many read calls as Apple's decoder, and reads far fewer bytes.
 
