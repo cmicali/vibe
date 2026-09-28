@@ -7,7 +7,7 @@ This page explains what Vibe does to your music between the file and your speake
 - **Vibe does not change your audio unless it has to.** At full volume, with the pitch fader at 0% and no DJ effect in use, the samples that reach the output are exactly the samples decoded from the file. Turning the effects on without using them changes nothing: an effect that is not in use is removed from the audio path completely.
 - **The one thing Vibe must sometimes change is the sample rate.** If a file's sample rate is different from your output's (a 44.1 kHz file on a 48 kHz output, say), Vibe converts it. It uses r8brain-free-src, which measured better than Apple's own converter on every test and uses a fraction of the CPU.
 - **Bit-perfect output (macOS) avoids even that.** Vibe switches your device to the file's sample rate and to a format with enough bits, so the DAC receives the file's samples untouched.
-- **Vibe never cuts lossy files down to 16 bits.** An AAC file decodes to more detail than 16 bits can hold, and Vibe keeps it. An MP3 decodes to exactly 16 bits on Apple's platforms, so it arrives unchanged whatever format your device uses.
+- **Vibe never cuts lossy files down to 16 bits.** An AAC file decodes to more detail than 16 bits can hold, and Vibe keeps it. An MP3 decodes to exactly 16 bits on Apple's platforms, so in bit-perfect mode it arrives unchanged whatever format your device uses.
 
 ## A few terms
 
@@ -63,15 +63,15 @@ How much that matters depends on the decoder. Vibe uses Apple's decoders, and th
 | Apple's decoder | What it can output | Samples that fit exactly in 16 bits | Peaks above the maximum (a loud master) | What sending it as 16-bit would do |
 | --- | --- | --- | --- | --- |
 | AAC | 32-bit float or 16-bit (Vibe asks for float) | 0.04% | kept: up to +0.79 dBFS | add a layer of noise (at −101 dBFS) and chop off every peak |
-| MP3 and MP2 | 16-bit only | 100% | chopped off by the decoder itself | nothing: the decoder already made it 16-bit |
+| MP3 and MP2 | 16-bit only | 100% | chopped off by the decoder itself | nothing, played unchanged: the decoder already made it 16-bit |
 
-**AAC** is the format of iTunes purchases, Apple Music downloads and most lossy files on Apple devices, and it is where this choice matters. A floating-point output keeps the decoded AAC exactly, peaks and all; a 24-bit output keeps it with any change far below hearing (at −149 dBFS). A 16-bit output would add noise that sits only 33 dB below a quiet fade-out, compared with 81 dB below at 24 bits.
+**AAC** is the format of iTunes purchases, Apple Music downloads and most lossy files on Apple devices, and it is where this choice matters. A floating-point output keeps the decoded AAC exactly, peaks and all. A 24-bit output keeps everything within the maximum level, with any change far below hearing (at −149 dBFS), but like any integer format it still chops off the peaks above the maximum; only floating point keeps those. A 16-bit output would add noise that sits only 33 dB below a quiet fade-out, compared with 81 dB below at 24 bits.
 
 **MP3 and MP2** are different, because of Apple's decoder:
 
 - **Apple's MP3 decoder can only produce 16-bit samples.** It rounds the audio to 16 bits and chops off any peaks above the maximum before Vibe receives it. There is no setting to ask it for more; we checked what it offers, and a test now checks it on every build.
 - **Asking for floating-point output doesn't change that.** A common tip says you can get full-precision MP3s from Apple by requesting 32-bit float output (through `ExtAudioFile` or `AudioConverter`). We tried both. You do get floating-point numbers back, but every one of them is still a 16-bit value, and the loud peaks are still chopped off at the maximum. Core Audio converts the decoder's 16-bit output to float after the fact; it can't restore what was already rounded away. Vibe already requests float output for every file, which is what keeps AAC's full detail.
-- **So for MP3, the output format makes no difference.** 16-bit, 24-bit and floating-point outputs all play exactly the same samples. Choosing a different format for MP3s would change nothing you could measure.
+- **So in bit-perfect mode, the output format makes no difference for MP3.** When Vibe plays the decoded samples unchanged (at the file's own sample rate, full volume, no effects), 16-bit, 24-bit and floating-point outputs all carry exactly the same samples. That stops being true once Vibe changes the audio: converting the sample rate, lowering the volume or using an effect produces new, full-precision samples that no longer fit in 16 bits, and a wider output keeps them.
 - **The only way to get more out of MP3s would be a different decoder.** A full-precision MP3 decoder (we compared ffmpeg's) keeps the detail below 16 bits (only 0.03% of its samples fit exactly in 16 bits) and the peaks (up to +0.49 dBFS on the same file). Vibe uses Apple's decoders; replacing the MP3 one would be a separate project.
 
 *How this was measured:* we made a test track that behaves like mastered music: tones and noise at CD quality (16-bit, dithered), loud for ten seconds with peaks just under the maximum, then fading out to −70 dB. A second, louder version was squashed right up to the maximum, like a modern loud master. We encoded them as MP3 (LAME at 320 kbps and V2) and AAC (Apple's encoder at 256 kbps), then decoded them the way Vibe does, and with ffmpeg for comparison.
