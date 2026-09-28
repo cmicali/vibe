@@ -15,7 +15,6 @@
 #import <os/lock.h>
 #include <sched.h>
 #include <stdatomic.h>
-#include <errno.h>
 
 enum {
     kVoiceSlots = 8,
@@ -142,8 +141,6 @@ struct VibeVoiceMix {
 // A decoder's wait for a render to leave the bus is bounded: a render stuck
 // past this is not waited for, and the wait's caller does without its verdict.
 static const uint64_t kRenderLeaveWaitNanos = 100 * NSEC_PER_MSEC;
-// Normal retire/recycle takes milliseconds; a stalled pool must fail a start.
-static const uint64_t kPendingStartWaitNanos = NSEC_PER_SEC;
 
 // Whether the decoder could write for the slot: its reads allowed, and no
 // end published — or a successor queued past one, which a turn reopens the
@@ -152,6 +149,10 @@ static inline BOOL VibeSlotCanWrite(VibeVoiceSlot *s) {
     return atomic_load_explicit(&s->readsAllowed, memory_order_acquire)
             && (atomic_load_explicit(&s->endOfStream, memory_order_relaxed) == kUnset
                 || atomic_load_explicit(&s->successorState, memory_order_relaxed) != VibeSuccessorNone);
+}
+
+static inline BOOL VibeSlotIsOccupied(VibeVoiceSlot *s) {
+    return atomic_load_explicit(&s->state, memory_order_acquire) != VibeVoiceStateNone;
 }
 
 #pragma mark - The audio thread
@@ -433,6 +434,7 @@ VIBE_REALTIME_END
     BOOL positioned;
     VibeStreamState stream;
     AudioFileHandle *successorFile;
+    AudioFileHandle *waitingSuccessor; // player queue: accepted, but another queue still owns its reads
     uint64_t retireOrder;            // when a retire ramp was submitted; 0 = not retiring
     _Atomic int32_t fillScheduled;
     // The decoder's: `written` when it last held a drained stream open for a
@@ -447,8 +449,7 @@ VIBE_REALTIME_END
     VibeVoiceRamp ramp;
     BOOL paused;
     BOOL readsStopped;
-    uint64_t pendingSince;           // uptime ns; a full decode pool has bounded admission
-    dispatch_queue_t decodeQueue;   // assigned at bind; shared only by voices using the same handle
+    dispatch_queue_t decodeQueue;   // bound before generation is published; recycle on this queue precedes any rebind
     BOOL readsWithheld;              // started on a withheld file: reads allowed once allowReadsOfFile: says so
 }
 @end
@@ -475,7 +476,7 @@ static void VibeDisposeConverter(AudioVoiceRecord *record) {
     VibeVoiceMix *_mix;
     AudioVoiceRecord *_records[kVoiceSlots];
     NSMutableArray<AudioVoiceRecord *> *_pending;
-    NSMutableArray<AudioVoiceRecord *> *_endedPending; // ended before a slot; retained through delivery
+    NSMutableArray<NSNumber *> *_endedPending; // killed before a slot; the next drain reports them ended
     // id → slot, for the one cross-thread lookup (snapshotOfVoice:). Never
     // taken by the audio thread; never held across a queue hop.
     os_unfair_lock _tableLock;
@@ -602,31 +603,10 @@ static void VibeDisposeConverter(AudioVoiceRecord *record) {
     return nil;
 }
 
-- (AudioVoiceRecord *)endedPendingRecordForIdentifier:(VibeVoiceID)identifier {
-    for (AudioVoiceRecord *record in _endedPending) {
-        if (record->identifier == identifier) return record;
-    }
-    return nil;
-}
-
-- (void)endPendingRecord:(AudioVoiceRecord *)record error:(NSError *)error {
-    os_unfair_lock_lock(&_tableLock);
-    [_pending removeObject:record];
-    record->failure = error;
-    [_endedPending addObject:record];
-    os_unfair_lock_unlock(&_tableLock);
-}
-
 // Pending records are queue-owned; the lock shields cross-thread snapshots.
-- (void)addPendingRecord:(AudioVoiceRecord *)record atFront:(BOOL)front {
-    if (!record->pendingSince) record->pendingSince = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+- (void)addPendingRecord:(AudioVoiceRecord *)record {
     os_unfair_lock_lock(&_tableLock);
-    if (front) {
-        [_pending insertObject:record atIndex:0];
-    }
-    else {
-        [_pending addObject:record];
-    }
+    [_pending addObject:record];
     os_unfair_lock_unlock(&_tableLock);
 }
 
@@ -845,9 +825,8 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
 - (NSError *)errorOfVoice:(VibeVoiceID)voice failedFile:(AudioFileHandle **)file {
     os_unfair_lock_lock(&_tableLock);
     NSUInteger slot = [self slotForIdentifier:voice];
-    AudioVoiceRecord *record = slot == NSNotFound ? [self endedPendingRecordForIdentifier:voice] : _records[slot];
-    NSError *failure = record ? record->failure : nil;
-    if (file) *file = failure ? record->file : nil;
+    NSError *failure = slot == NSNotFound ? nil : _records[slot]->failure;
+    if (file) *file = failure ? _records[slot]->file : nil;
     os_unfair_lock_unlock(&_tableLock);
     return failure;
 }
@@ -864,7 +843,7 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
             && atomic_compare_exchange_strong_explicit(&s->state, &armed, VibeVoiceStateDead,
                                                        memory_order_release, memory_order_relaxed)) {
         atomic_store_explicit(&s->diedAtRender, 0, memory_order_release);
-        if (!_inlineDecoding && _voiceWentLive) dispatch_async(_queue, _voiceWentLive);
+        if (!_inlineDecoding && _needsDrain) dispatch_async(_queue, _needsDrain);
     }
     else {
         [self markLiveIfReadyForSlot:slot];
@@ -902,16 +881,20 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     }
 }
 
-// The same handle stays on one queue across seeks and successor handoffs.
+// Overlapping reads of one handle stay on one queue.
 // Unrelated files take an unused queue, including when an old read is stuck.
+// Stopped reads release their files when their last turn leaves, even while
+// the buffered fade still occupies the slot.
 - (dispatch_queue_t)decodeQueueReadingFile:(AudioFileHandle *)file {
     if (!file) return nil;
     dispatch_queue_t queue = nil;
     os_unfair_lock_lock(&_tableLock);
     for (NSUInteger s = 0; s < kVoiceSlots; s++) {
         AudioVoiceRecord *record = _records[s];
-        if (atomic_load_explicit(&_mix->slots[s].state, memory_order_acquire) != VibeVoiceStateNone
-                && (record->file == file || record->successorFile == file)) {
+        VibeVoiceSlot *slot = &_mix->slots[s];
+        BOOL stopped = !atomic_load_explicit(&slot->readsAllowed, memory_order_acquire)
+                && !atomic_load_explicit(&record->fillScheduled, memory_order_acquire);
+        if (VibeSlotIsOccupied(slot) && !stopped && (record->file == file || record->successorFile == file)) {
             queue = record->decodeQueue;
             break;
         }
@@ -922,14 +905,12 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
 
 - (dispatch_queue_t)decodeQueueForRecord:(AudioVoiceRecord *)record {
     dispatch_queue_t queue = [self decodeQueueReadingFile:record->file];
-    dispatch_queue_t successorQueue = [self decodeQueueReadingFile:record->successorFile];
-    if (queue && successorQueue && queue != successorQueue) return nil;
-    if (queue || successorQueue) return queue ?: successorQueue;
+    if (queue) return queue;
+    // The slot being bound is free, so at most seven queues are in use.
     for (NSUInteger i = 0; i < kVoiceSlots; i++) {
         BOOL used = NO;
-        for (NSUInteger s = 0; s < kVoiceSlots; s++) {
-            used |= atomic_load_explicit(&_mix->slots[s].state, memory_order_acquire) != VibeVoiceStateNone
-                    && _records[s]->decodeQueue == _decodeQueues[i];
+        for (NSUInteger s = 0; s < kVoiceSlots && !used; s++) {
+            used = VibeSlotIsOccupied(&_mix->slots[s]) && _records[s]->decodeQueue == _decodeQueues[i];
         }
         if (!used) return _decodeQueues[i];
     }
@@ -951,28 +932,25 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     record->ramp = ramp;
     record->paused = paused;
     NSUInteger slot = _pending.count ? NSNotFound : [self freeSlot];
-    if (slot == NSNotFound) {
-        [self addPendingRecord:record atFront:NO];
-        return identifier;
+    if (slot == NSNotFound || ![self bindRecord:record toSlot:slot]) {
+        [self addPendingRecord:record];
     }
-    [self bindRecord:record toSlot:slot];
     return identifier;
 }
 
 // Allocates the slot for a start: counters carry on from where the slot left
 // off, the audio thread's fields are whatever the recycle left, and the
-// generation's release-store publishes it all.
+// generation's release-store publishes it all. NO leaves the record unbound
+// and the pending list to the caller.
 - (BOOL)bindRecord:(AudioVoiceRecord *)record toSlot:(NSUInteger)slot {
-    dispatch_queue_t decoder = _inlineDecoding ? nil : [self decodeQueueForRecord:record];
-    if (!_inlineDecoding && !decoder) {
-        [self addPendingRecord:record atFront:YES];
+    dispatch_queue_t decoder = nil;
+    if (!_inlineDecoding && !(decoder = [self decodeQueueForRecord:record])) {
         return NO;
     }
     VibeVoiceSlot *s = &_mix->slots[slot];
     int32_t expected = VibeVoiceStateNone;
     if (!atomic_compare_exchange_strong_explicit(&s->state, &expected, VibeVoiceStateArmed,
                                                  memory_order_acq_rel, memory_order_relaxed)) {
-        [self addPendingRecord:record atFront:YES];
         return NO;
     }
     // The slot's fields are a seqlock whose version is the generation: the
@@ -986,8 +964,8 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     bound->decodeQueue = decoder;
     bound->startFrame = record->startFrame;
     bound->positioned = NO;
-    // A successor queued while the start was pending rides into the slot.
-    bound->successorFile = record->successorFile;
+    // A pending start's successor waits independently of its own first read.
+    bound->waitingSuccessor = record->successorFile;
     bound->retireOrder = record->ramp.action == VibeVoiceActionRetire ? _nextRetireOrder++ : 0;
     atomic_store_explicit(&bound->fillScheduled, 0, memory_order_relaxed);
     atomic_store_explicit(&bound->heldOpenAt, kUnset, memory_order_relaxed);
@@ -999,8 +977,7 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     atomic_store_explicit(&s->armedConsumed, atomic_load_explicit(&s->consumed, memory_order_relaxed), memory_order_relaxed);
     bound->readsWithheld = !record->readsStopped && [_withheldFiles containsObject:record->file];
     atomic_store_explicit(&s->readsAllowed, prepared && !record->readsStopped && !bound->readsWithheld, memory_order_relaxed);
-    atomic_store_explicit(&s->successorState, record->successorFile ? VibeSuccessorQueued : VibeSuccessorNone,
-                          memory_order_relaxed);
+    atomic_store_explicit(&s->successorState, VibeSuccessorNone, memory_order_relaxed);
     atomic_store_explicit(&s->paused, record->paused, memory_order_relaxed);
     atomic_store_explicit(&s->gain, record->gain, memory_order_relaxed);
     s->rampSequence = 0;
@@ -1016,6 +993,7 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
         [self endFailedSlot:slot frames:0 written:atomic_load_explicit(&s->written, memory_order_relaxed)];
         return YES;
     }
+    if (bound->waitingSuccessor) [self queueSuccessor:bound->waitingSuccessor forVoice:bound->identifier];
     [self scheduleFillForSlot:slot];
     return YES;
 }
@@ -1023,18 +1001,11 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
 - (void)bindPendingVoices {
     while (_pending.count) {
         AudioVoiceRecord *record = _pending.firstObject;
-        if (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - record->pendingSince >= kPendingStartWaitNanos) {
-            [self endPendingRecord:record error:[NSError errorWithDomain:NSPOSIXErrorDomain code:EBUSY
-                    userInfo:@{NSLocalizedDescriptionKey: @"Audio decode capacity remained occupied",
-                               NSURLErrorKey: record->file.url}]];
-            continue;
-        }
         NSUInteger slot = [self freeSlot];
-        if (slot == NSNotFound) {
+        if (slot == NSNotFound || ![self bindRecord:record toSlot:slot]) {
             return;
         }
         [self removePendingRecord:record];
-        if (![self bindRecord:record toSlot:slot]) break;
     }
 }
 
@@ -1105,6 +1076,7 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
         }
         if (_records[s]->file) [files addObject:_records[s]->file];
         if (_records[s]->successorFile) [files addObject:_records[s]->successorFile];
+        if (_records[s]->waitingSuccessor) [files addObject:_records[s]->waitingSuccessor];
     }
     for (AudioVoiceRecord *record in _pending) {
         if (record->file) [files addObject:record->file];
@@ -1155,17 +1127,12 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     if ([_withheldFiles containsObject:file]) {
         return NO; // a retired decoder may be inside it; the transport asks again once it has left
     }
-    AudioVoiceRecord *pending = [self pendingRecordForIdentifier:voice];
-    dispatch_queue_t reader = [self decodeQueueReadingFile:file];
-    if (pending) {
-        dispatch_queue_t pendingQueue = [self decodeQueueReadingFile:pending->file];
-        if (reader && pendingQueue && reader != pendingQueue) return NO;
-        pending->successorFile = file;
-        return YES;
-    }
     NSUInteger slot = [self ownedSlotForIdentifier:voice];
     if (slot == NSNotFound) {
-        return NO;
+        AudioVoiceRecord *pending = [self pendingRecordForIdentifier:voice];
+        if (!pending) return NO;
+        pending->successorFile = file;
+        return YES;
     }
     VibeVoiceSlot *s = &_mix->slots[slot];
     int32_t state = atomic_load_explicit(&s->state, memory_order_acquire);
@@ -1176,10 +1143,13 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
         return NO; // dead, retired at declick length, failed, or already continuing
     }
     AudioVoiceRecord *record = _records[slot];
-    if (reader && reader != record->decodeQueue) return NO;
+    dispatch_queue_t reader = [self decodeQueueReadingFile:file];
+    BOOL waiting = reader && reader != record->decodeQueue;
     os_unfair_lock_lock(&_tableLock);
-    record->successorFile = file;
+    record->waitingSuccessor = waiting ? file : nil;
+    if (!waiting) record->successorFile = file;
     os_unfair_lock_unlock(&_tableLock);
+    if (waiting) return YES; // the drain publishes it once its previous reader leaves
     int32_t expected = VibeSuccessorNone;
     if (!atomic_compare_exchange_strong_explicit(&s->successorState, &expected, VibeSuccessorQueued,
                                                  memory_order_release, memory_order_relaxed)) {
@@ -1201,6 +1171,9 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     if (slot == NSNotFound) {
         return YES;
     }
+    os_unfair_lock_lock(&_tableLock);
+    _records[slot]->waitingSuccessor = nil;
+    os_unfair_lock_unlock(&_tableLock);
     VibeVoiceSlot *s = &_mix->slots[slot];
     int32_t expected = VibeSuccessorQueued;
     if (atomic_compare_exchange_strong_explicit(&s->successorState, &expected, VibeSuccessorNone,
@@ -1220,7 +1193,8 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
 - (void)killVoice:(VibeVoiceID)voice {
     AudioVoiceRecord *pending = [self pendingRecordForIdentifier:voice];
     if (pending) {
-        [self endPendingRecord:pending error:nil];
+        [self removePendingRecord:pending];
+        [_endedPending addObject:@(voice)];
         return;
     }
     NSUInteger slot = [self ownedSlotForIdentifier:voice];
@@ -1252,14 +1226,10 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     os_unfair_lock_lock(&_tableLock);
     NSUInteger slot = [self slotForIdentifier:voice];
     BOOL pending = slot == NSNotFound && [self pendingRecordForIdentifier:voice] != nil;
-    AudioVoiceRecord *ended = slot == NSNotFound ? [self endedPendingRecordForIdentifier:voice] : nil;
-    BOOL failed = ended && ended->failure;
     os_unfair_lock_unlock(&_tableLock);
     if (slot == NSNotFound) {
-        // A pending voice is armed, which is what it is; anything else
-        // unknown has been recycled.
-        snapshot.state = pending ? VibeVoiceStateArmed : failed ? VibeVoiceStateDead : VibeVoiceStateNone;
-        snapshot.ended = failed ? VibeVoiceEndFailed : VibeVoiceEndNone;
+        // A pending voice is armed; an unknown or cancelled identity is gone.
+        snapshot.state = pending ? VibeVoiceStateArmed : VibeVoiceStateNone;
         return snapshot;
     }
     VibeVoiceSlot *s = &_mix->slots[slot];
@@ -1335,6 +1305,9 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
         if (!identifier) {
             continue; // dead, its recycle already queued behind decode work
         }
+        if (record->waitingSuccessor && (state == VibeVoiceStateArmed || state == VibeVoiceStateLive)) {
+            [self queueSuccessor:record->waitingSuccessor forVoice:identifier];
+        }
         if (state == VibeVoiceStateArmed) {
             if (VibeSlotCanWrite(s)) {
                 [self scheduleFillForSlot:slot]; // withheld or stopped reads are re-asked for by whoever allows them
@@ -1389,14 +1362,10 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     }
     // After the recycles, so a slot this drain freed takes a pending start now.
     [self bindPendingVoices];
-    if (_endedPending.count) {
-        NSArray<AudioVoiceRecord *> *ended = [_endedPending copy];
-        for (AudioVoiceRecord *record in ended) {
-            handler(record->identifier, VibeVoiceEventEnded);
-            os_unfair_lock_lock(&_tableLock);
-            [_endedPending removeObject:record];
-            os_unfair_lock_unlock(&_tableLock);
-        }
+    NSArray<NSNumber *> *ended = [_endedPending copy];
+    [_endedPending removeAllObjects];
+    for (NSNumber *identifier in ended) {
+        handler(identifier.unsignedLongLongValue, VibeVoiceEventEnded);
     }
 }
 
@@ -1417,6 +1386,7 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     os_unfair_lock_lock(&_tableLock);
     record->file = nil;
     record->successorFile = nil;
+    record->waitingSuccessor = nil;
     record->failure = nil;
     os_unfair_lock_unlock(&_tableLock);
     VibeDisposeConverter(record);
@@ -1444,6 +1414,7 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     atomic_store_explicit(&s->startStamp.flags, 0, memory_order_relaxed); // no render of the next voice yet
     atomic_store_explicit(&s->generation, 0, memory_order_release);
     atomic_store_explicit(&s->state, VibeVoiceStateNone, memory_order_release);
+    if (!_inlineDecoding && _needsDrain) dispatch_async(_queue, _needsDrain);
 }
 
 // Inline decoding has no decode queue: fillInline reaches every slot.
@@ -1462,9 +1433,9 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
 }
 
 // One chunk per turn, re-dispatched while the ring wants more, so a start's
-// first chunk never queues behind another voice's full fill. A turn of a
-// voice since recycled touches nothing: the slot, its record and its fill
-// flag belong to whoever holds the slot now.
+// first chunk never queues behind a full fill of a voice sharing its queue.
+// A turn of a voice since recycled touches nothing: the slot, its record
+// and its fill flag belong to whoever holds the slot now.
 - (void)decodeTurnForSlot:(NSUInteger)slot identifier:(VibeVoiceID)identifier {
     atomic_fetch_add_explicit(&_decodeTurns, 1, memory_order_relaxed);
     AudioVoiceRecord *record = _records[slot];
@@ -1483,6 +1454,9 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     }
     else {
         atomic_store_explicit(&record->fillScheduled, 0, memory_order_release);
+        if (!atomic_load_explicit(&s->readsAllowed, memory_order_acquire) && _needsDrain) {
+            dispatch_async(_queue, _needsDrain);
+        }
     }
 }
 
@@ -1863,8 +1837,8 @@ static OSStatus VibeConverterSupplyInput(AudioConverterRef converter, UInt32 *io
     int32_t expected = VibeVoiceStateArmed;
     if (atomic_compare_exchange_strong_explicit(&s->state, &expected, VibeVoiceStateLive,
                                                 memory_order_acq_rel, memory_order_relaxed)
-            && !_inlineDecoding && _voiceWentLive) {
-        dispatch_async(_queue, _voiceWentLive);
+            && !_inlineDecoding && _needsDrain) {
+        dispatch_async(_queue, _needsDrain);
     }
 }
 

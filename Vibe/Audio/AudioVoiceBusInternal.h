@@ -15,7 +15,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface AudioVoiceBus (Rendering)
 
-// The bounded decode pool, nil under inline decoding: the race tests hold it.
+// A queue of the decode pool, nil past its last or under inline decoding: the
+// race tests hold it.
 - (nullable dispatch_queue_t)decodeQueueAtIndex:(NSUInteger)index;
 
 // Slots in each state, for the pool tests.

@@ -769,12 +769,10 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
                      @"Cancelled successor must not be audible");
 }
 
-// The seek's replacement voice reads the same AudioFileHandle as the voice it
-// retires: the old voice's reads must stop before the new voice positions the
-// shared cursor, or an old turn queued between the two advances it and the new
-// voice skips a chunk. The retire is held open with the decoder running.
-- (void)testSeekStopsTheOldVoiceReadingBeforeItsFileIsHandedOn {
-    self.continueAfterFailure = YES;
+// A bit-perfect 48 kHz player whose bus reads on its real decode queues under
+// the frame-driven pump, the pump's inline fill starved so only they fill.
+// The bus is made by the first play, so `play` runs with the init still forced.
+- (void)playOnTheDecodePool:(void (^)(void))play {
     Method initializer = class_getInstanceMethod(AudioVoiceBus.class, @selector(initWithFormat:queue:inlineDecoding:));
     __block IMP originalInit;
     IMP asyncInit = imp_implementationWithBlock(^id(id receiver, AVAudioFormat *format, dispatch_queue_t queue, BOOL inlineDecoding) {
@@ -783,18 +781,96 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     originalInit = method_setImplementation(initializer, asyncInit);
     @try {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
-        [_player debugStarveDecoder:YES]; // only the production decode queue fills
-        _player.declick = NO;
-        [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
+        [_player debugStarveDecoder:YES];
+        play();
     } @finally {
         method_setImplementation(initializer, originalInit);
         imp_removeBlock(asyncInit);
     }
+}
+
+// The old decoder can already be reading the parked file when crossfade
+// cancels its splice. Re-arming must wait out that read without waiting for
+// the paused output to resume and render the old voice's retirement.
+- (void)testRearmingABufferedSuccessorWaitsForItsOldReader {
+    self.continueAfterFailure = YES;
+    NSData *reference = [self sourcePCM:[self fixture:@"noise-48000-24-2.wav"]];
+    NSURL *first = [self write:[reference subdataWithRange:NSMakeRange(0, 12000 * 8)] rate:48000 channels:2 name:@"rearm-first.wav"];
+    NSURL *second = [self write:[reference subdataWithRange:NSMakeRange(12000 * 8, reference.length - 12000 * 8)] rate:48000 channels:2 name:@"rearm-second.wav"];
+    [self playOnTheDecodePool:^{
+        self->_player.declick = NO;
+        [self play:first paused:YES position:0];
+    }];
+    AudioTrack *next = [AudioTrack withURL:second];
     __block AudioVoiceBus *bus;
-    [_player runSyncOnQueue:^{ bus = [self->_player valueForKey:@"voiceBus"]; }];
+    __block VibeVoiceID old;
+    [_player runSyncOnQueue:^{
+        bus = [self->_player valueForKey:@"voiceBus"];
+        old = [[self->_player valueForKey:@"voice"] unsignedLongLongValue];
+    }];
+    dispatch_semaphore_t release = dispatch_semaphore_create(0), entered = dispatch_semaphore_create(0);
+    Method produce = class_getInstanceMethod(AudioVoiceBus.class, @selector(produceChunkForSlot:final:));
+    __block IMP originalProduce;
+    __block _Atomic(BOOL) held = NO;
+    IMP blocked = imp_implementationWithBlock(^uint32_t(id receiver, NSUInteger slot, BOOL *final) {
+        if (receiver == bus && slot == 0 && [bus snapshotOfVoice:old].boundary == 12000 && !atomic_exchange(&held, YES)) {
+            dispatch_semaphore_signal(entered);
+            dispatch_semaphore_wait(release, DISPATCH_TIME_FOREVER);
+        }
+        return ((uint32_t (*)(id, SEL, NSUInteger, BOOL *))originalProduce)(receiver, @selector(produceChunkForSlot:final:), slot, final);
+    });
+    originalProduce = method_setImplementation(produce, blocked);
+    @try {
+        [_player prefetchTrack:next];
+        [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+        XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        _player.crossfadeMilliseconds = 500;
+        [_player runSyncOnQueue:^{}];
+        XCTAssertFalse(_player.gaplessArmed);
+        _player.crossfadeMilliseconds = 0;
+        [_player runSyncOnQueue:^{}];
+        __block VibeVoiceID current;
+        [_player runSyncOnQueue:^{ current = [[self->_player valueForKey:@"voice"] unsignedLongLongValue]; }];
+        [self settleUntil:^BOOL { return [bus snapshotOfVoice:current].written == 12000; }];
+        XCTAssertEqual([bus snapshotOfVoice:current].boundary, UINT64_MAX, @"the old reader still owns the parked file");
+        dispatch_semaphore_signal(release);
+        [self settleUntil:^BOOL { return [bus snapshotOfVoice:current].written >= 48000; }];
+        XCTAssertTrue(_player.gaplessArmed);
+        [_player resume];
+        [_player runSyncOnQueue:^{}];
+        [self assertReference:reference capture:[self renderSeconds:2.1] skip:0 tolerance:0];
+        XCTAssertEqual([self count:@"advance"], 1u);
+        XCTAssertEqual([self count:@"finish"], 1u);
+        XCTAssertEqualObjects(_player.currentTrack, next);
+    } @finally {
+        dispatch_semaphore_signal(release);
+        dispatch_semaphore_t stopped = dispatch_semaphore_create(0);
+        [_player runSyncOnQueue:^{ [bus stopReadingThen:^{ dispatch_semaphore_signal(stopped); }]; }];
+        XCTAssertEqual(dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        method_setImplementation(produce, originalProduce);
+        imp_removeBlock(blocked);
+    }
+}
+
+// The seek's replacement voice reads the same AudioFileHandle as the voice it
+// retires: the old voice's reads must stop before the new voice positions the
+// shared cursor, or an old turn queued between the two advances it and the new
+// voice skips a chunk. The retire is held open with the decoder running.
+- (void)testSeekStopsTheOldVoiceReadingBeforeItsFileIsHandedOn {
+    self.continueAfterFailure = YES;
+    [self playOnTheDecodePool:^{
+        self->_player.declick = NO;
+        [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
+    }];
+    __block AudioVoiceBus *bus;
+    __block VibeVoiceID old;
+    [_player runSyncOnQueue:^{
+        bus = [self->_player valueForKey:@"voiceBus"];
+        old = [[self->_player valueForKey:@"voice"] unsignedLongLongValue];
+    }];
     dispatch_queue_t decoder = [bus decodeQueueAtIndex:0];
     XCTAssertNotNil(decoder);
-    for (int i = 0; i < 20; i++) dispatch_sync(decoder, ^{});
+    [self settleUntil:^BOOL { return [bus snapshotOfVoice:old].written >= 65536; }];
     dispatch_semaphore_t reading = dispatch_semaphore_create(0), letRead = dispatch_semaphore_create(0);
     Method produce = class_getInstanceMethod(AudioVoiceBus.class, @selector(produceChunkForSlot:final:));
     Method retire = class_getInstanceMethod(AudioPlayer.class, @selector(retireVoiceOnQueue:milliseconds:));
@@ -815,7 +891,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
             // Let the serial decoder run while the seek is between its two
             // halves, before the old voice's reads are stopped.
             dispatch_semaphore_signal(letRead);
-            for (int i = 0; i < 30; i++) dispatch_sync(decoder, ^{});
+            dispatch_sync(decoder, ^{}); // the held read has actually returned before retirement proceeds
         }
         ((void (*)(id, SEL, VibeVoiceID, uint64_t))originalRetire)(receiver, @selector(retireVoiceOnQueue:milliseconds:), voice, milliseconds);
     });
@@ -831,6 +907,9 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         [_player seekToPosition:0.5];
         [_player runSyncOnQueue:^{}];
         XCTAssertTrue(heldRetire);
+        __block VibeVoiceID current;
+        [_player runSyncOnQueue:^{ current = [[self->_player valueForKey:@"voice"] unsignedLongLongValue]; }];
+        [self settleUntil:^BOOL { return [bus snapshotOfVoice:current].written >= 16384; }];
         [_capture setLength:0];
         [self render:16384];
         NSData *whole = PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
@@ -2444,22 +2523,10 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 // a late successor's reopen waits for a render held inside the bus.
 - (void)testARebuildCompletesWhileAVoiceRenderIsStuck {
     self.continueAfterFailure = YES;
-    // The real decode queue under the frame-driven pump, as the seek test does.
-    Method initializer = class_getInstanceMethod(AudioVoiceBus.class, @selector(initWithFormat:queue:inlineDecoding:));
-    __block IMP originalInit;
-    IMP asyncInit = imp_implementationWithBlock(^id(id receiver, AVAudioFormat *format, dispatch_queue_t queue, BOOL inlineDecoding) {
-        return ((id (*)(id, SEL, AVAudioFormat *, dispatch_queue_t, BOOL))originalInit)(receiver, @selector(initWithFormat:queue:inlineDecoding:), format, queue, NO);
-    });
-    originalInit = method_setImplementation(initializer, asyncInit);
-    @try {
-        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
-        [_player debugStarveDecoder:YES];
+    [self playOnTheDecodePool:^{
         NSData *pcm = PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
         [self play:[self write:[pcm subdataWithRange:NSMakeRange(0, 2000 * 8)] rate:48000 channels:2 name:@"ended-short.wav"] paused:NO position:0];
-    } @finally {
-        method_setImplementation(initializer, originalInit);
-        imp_removeBlock(asyncInit);
-    }
+    }];
     __block AudioVoiceBus *bus;
     __block VibeVoiceID voice;
     [_player runSyncOnQueue:^{
@@ -3004,28 +3071,20 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     }];
 }
 
-
 - (void)testNewLocalPlayEscapesAStalledOldDecoder {
     self.continueAfterFailure = YES;
-    Method initializer = class_getInstanceMethod(AudioVoiceBus.class, @selector(initWithFormat:queue:inlineDecoding:));
-    __block IMP originalInit;
-    IMP asyncInit = imp_implementationWithBlock(^id(id receiver, AVAudioFormat *format, dispatch_queue_t queue, BOOL inlineDecoding) {
-        return ((id (*)(id, SEL, AVAudioFormat *, dispatch_queue_t, BOOL))originalInit)(receiver, @selector(initWithFormat:queue:inlineDecoding:), format, queue, NO);
-    });
-    originalInit = method_setImplementation(initializer, asyncInit);
-    @try {
-        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
-        [_player debugStarveDecoder:YES];
-        _player.declick = NO;
+    [self playOnTheDecodePool:^{
+        self->_player.declick = NO;
         [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
-    } @finally {
-        method_setImplementation(initializer, originalInit);
-        imp_removeBlock(asyncInit);
-    }
+    }];
     __block AudioVoiceBus *bus;
-    [_player runSyncOnQueue:^{ bus = [self->_player valueForKey:@"voiceBus"]; }];
+    __block VibeVoiceID old;
+    [_player runSyncOnQueue:^{
+        bus = [self->_player valueForKey:@"voiceBus"];
+        old = [[self->_player valueForKey:@"voice"] unsignedLongLongValue];
+    }];
     dispatch_queue_t decoder = [bus decodeQueueAtIndex:0];
-    for (int i = 0; i < 20; i++) dispatch_sync(decoder, ^{});
+    [self settleUntil:^BOOL { return [bus snapshotOfVoice:old].written >= 65536; }];
     dispatch_semaphore_t reading = dispatch_semaphore_create(0), letRead = dispatch_semaphore_create(0);
     Method produce = class_getInstanceMethod(AudioVoiceBus.class, @selector(produceChunkForSlot:final:));
     __block IMP originalProduce;
@@ -3045,11 +3104,13 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         NSURL *next = [self fixture:@"noise-48000-16-2.wav"];
         NSData *reference = [self sourcePCM:next];
         [self play:next paused:NO position:0];
-        for (int i = 0; i < 20; i++) dispatch_sync([bus decodeQueueAtIndex:1], ^{});
+        __block VibeVoiceID current;
+        [_player runSyncOnQueue:^{ current = [[self->_player valueForKey:@"voice"] unsignedLongLongValue]; }];
+        [self settleUntil:^BOOL { return [bus snapshotOfVoice:current].written >= 65536; }];
         NSData *blocked = [self renderSeconds:1];
         [self assertReference:[reference subdataWithRange:NSMakeRange(0, blocked.length)] capture:blocked skip:0 tolerance:0];
         dispatch_semaphore_signal(letRead);
-        for (int i = 0; i < 20; i++) dispatch_sync(decoder, ^{});
+        dispatch_sync(decoder, ^{});
         NSData *released = [self renderSeconds:0.25];
         [self assertReference:[reference subdataWithRange:NSMakeRange(blocked.length, released.length)] capture:released skip:0 tolerance:0];
         XCTAssertNil(_playError);

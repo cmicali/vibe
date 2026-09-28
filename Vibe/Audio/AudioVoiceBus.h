@@ -23,7 +23,7 @@
 //  - The PLAYER QUEUE calls every method here except snapshotOfVoice:. It
 //    allocates slots, submits ramps, queues successors, drains events.
 //  - The DECODE POOL owns eight serial queues; unrelated files use separate
-//    queues, and voices sharing a handle use the same queue. Only its assigned
+//    queues, and overlapping reads of a handle use one queue. Only its assigned
 //    queue touches an AudioFileHandle after startVoice or writes a voice's ring.
 //    The frame-driven test pump reads inline on the player queue instead.
 //  - The AUDIO THREAD runs VibeVoiceBusRender: plain memory and atomics, no
@@ -71,7 +71,7 @@ typedef NS_ENUM(int32_t, VibeVoiceEnd) {
     VibeVoiceEndNone = 0,
     VibeVoiceEndOfStream,     // every frame of the file (and successor) was rendered
     VibeVoiceEndRetired,      // a retire ramp landed
-    VibeVoiceEndFailed,       // capacity, seek, read or conversion failed; errorOfVoice:failedFile: before recycling
+    VibeVoiceEndFailed,       // seek, read or conversion failed; errorOfVoice:failedFile: before recycling
 };
 
 typedef NS_ENUM(NSInteger, VibeVoiceEvent) {
@@ -135,7 +135,7 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // format differs, a wider or narrower file mixed by layout as a mixer would.
 // inlineDecoding is the frame-driven test pump's mode: no decode queue
 // exists, fillInline does every read on the caller's thread, and the ring
-// keeps one producer. queue is the player queue, where voiceWentLive and
+// keeps one producer. queue is the player queue, where needsDrain and
 // every method here run.
 - (instancetype)initWithFormat:(AVAudioFormat *)busFormat
                          queue:(dispatch_queue_t)queue
@@ -146,9 +146,9 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 @property (nonatomic, readonly) BOOL inlineDecoding;
 // What VibeVoiceBusRender reads; valid for the bus's life.
 - (VibeVoiceMix *)mix;
-// Called on the queue when a voice goes live off the decode queue, so the
-// player can drain promptly rather than at its next poll.
-@property (nonatomic, copy, nullable) dispatch_block_t voiceWentLive;
+// Called on the player queue when decoding makes an event or capacity
+// available, including a stopped reader leaving a file wanted by a successor.
+@property (nonatomic, copy, nullable) dispatch_block_t needsDrain;
 // A kAudioConverterQuality_* value for every converter made after the write;
 // a stream already converting keeps its quality until its voice ends.
 // kAudioConverterQuality_Max by default. Atomic: read on the decode queue.
@@ -160,8 +160,7 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // the voice through VibeVoiceEndFailed; read errorOfVoice:failedFile: inside
 // the ended handler. Allocation always returns an id: a full pool cuts its
 // oldest retiring voice, and a start that still finds no slot is pending
-// until the drain frees one, failing with VibeVoiceEndFailed after one second
-// without capacity. Returns the voice's id.
+// until the drain frees one. Returns the voice's id.
 - (VibeVoiceID)startVoiceWithFile:(AudioFileHandle *)file
                           atFrame:(AVAudioFramePosition)frame
                              gain:(float)gain
@@ -177,7 +176,7 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 
 // Ends the bus's reading for good: every voice reads no more, and
 // `decoderLeft` runs on the bus's queue once all decoders have left every file
-// — the turn inside a read finishes on its own, however long a stalled mount
+// — a turn inside a read finishes on its own, however long a stalled mount
 // makes that, and none after it reads — so the files may then be handed to a
 // replacement bus; at once when decoding inline. Nothing is asked of the bus
 // after it. TRAP: never joined synchronously: a read on a stalled mount holds
@@ -204,8 +203,9 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // takes one while it is live: the decoder reopens the stream at the old end
 // with a converter of its own, unless the audio thread reached the end
 // first, in which case the voice ends as it would have and the successor
-// never begins. NO for a dead voice, one retired at declick length, or one
-// already continuing, or a file still assigned to a different decode queue.
+// never begins. NO for a dead voice, one retired at declick length, one
+// already continuing. A file another decode queue is still reading is
+// accepted and published once that reader stops; no caller retry is needed.
 - (BOOL)queueSuccessor:(AudioFileHandle *)file forVoice:(VibeVoiceID)voice;
 
 // Drops the queued successor. NO means the decoder had already claimed it:
