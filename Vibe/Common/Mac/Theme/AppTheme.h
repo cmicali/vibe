@@ -45,7 +45,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 // The volume slider's fill: the window tint's mono (the system slider),
 // artwork and custom, plus the waveform's played color (the default).
 #define SETTINGS_VALUE_VOLUME_TINT_WAVEFORM                 @"waveform"
-// Top right takes the corner readouts' place (AppSettings.volumeReplacesFileInfo).
+// Top right swaps with the corner readouts on hover (AppSettings.volumeAtTopRight).
 #define SETTINGS_VALUE_VOLUME_LOCATION_BOTTOM               @"bottom"
 #define SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT            @"top_right"
 

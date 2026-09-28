@@ -83,7 +83,8 @@ static const CGFloat kDropHintX = kHeaderContentX + kTimeLabelWidth;
 static const CGFloat kDropHintWidth = kTotalTimeX - kDropHintX;
 // The volume control's slider, and the gap either side of it; its side
 // columns are measured (layoutVolumeControl). It sits in the time row's gap,
-// or in the corner readouts' place (AppSettings.volumeReplacesFileInfo).
+// or in the corner readouts' place (AppSettings.volumeAtTopRight), and swaps
+// with the drop hint or the readouts on hover (setControlsShown:animated:).
 static const CGFloat kVolumeSliderWidth = 100;
 static const CGFloat kVolumeGap = 6;
 
@@ -107,6 +108,8 @@ static const CGFloat kTransportSymbolSize = 31;
 // The hover reveal fades to full opacity; each button's resting dimness lives
 // in its symbol colors, so a hovered dot reaches full saturation.
 static const CFTimeInterval kControlFadeDur = 0.2;
+// Like the rest of the empty state.
+static const CGFloat kDropHintAlpha = 0.5;
 
 // Light text on dark glass only; dark text needs no shadow.
 static const CGFloat kLabelShadowOpacityDark = 0.9;
@@ -260,12 +263,14 @@ API_AVAILABLE(macos(26.0))
     [self capArtistLineAtCodecText];
 }
 
-// The volume control in the corner is a fixed reservation, hover or not, so
-// the artist line never moves as the slider fades.
+// In the corner the line clears whichever of the codec text and the volume
+// control reaches further left, so it never moves as the two swap on hover.
 - (void)capArtistLineAtCodecText {
-    CGFloat clearX = (AppSettings.sharedInstance.volumeReplacesFileInfo
-            ? NSMinX(_volumeControlView.frame)
-            : NSMaxX(_fileMetadataTextField.frame) - _codecTextWidth) - kCodecColumnGutter;
+    CGFloat clearX = NSMaxX(_fileMetadataTextField.frame) - _codecTextWidth;
+    if (AppSettings.sharedInstance.volumeAtTopRight) {
+        clearX = MIN(clearX, NSMinX(_volumeControlView.frame));
+    }
+    clearX -= kCodecColumnGutter;
     NSRect frame = _artistTextField.frame;
     frame.size.width = MAX(0, clearX - NSMinX(frame));
     if (!NSEqualRects(frame, _artistTextField.frame)) {
@@ -339,9 +344,13 @@ API_AVAILABLE(macos(26.0))
     AppTheme *theme = settings.currentTheme;
     BOOL transportShown = theme.showTransportButtons;
     CGFloat transport = (shown && transportShown) ? 1.0 : 0.0;
-    // The hint shares only the time row.
-    BOOL volumeShown = settings.volumeControl && (!_dropHintShown || settings.volumeReplacesFileInfo);
+    // The volume control swaps with whatever shares its place: the corner
+    // readouts, or the time row's drop hint.
+    BOOL volumeShown = settings.volumeControl;
+    BOOL corner = settings.volumeAtTopRight;
     CGFloat volume = (shown && volumeShown) ? 1.0 : 0.0;
+    CGFloat readouts = (shown && corner) ? 0.0 : 1.0;
+    CGFloat hint = (shown && volumeShown && !corner) ? 0.0 : kDropHintAlpha;
     BOOL gradientEnabled = self.transportGradientEnabled;
     CGFloat gradient = gradientEnabled && (shown || ![theme.buttonGradient isEqualToString:SETTINGS_VALUE_BUTTON_GRADIENT_HOVER]) ? 1 : 0;
     _albumArtGradientView.hidden = !gradientEnabled;
@@ -361,6 +370,9 @@ API_AVAILABLE(macos(26.0))
             self->_playButton.animator.alphaValue = transport;
             self->_nextButton.animator.alphaValue = transport;
             self->_volumeControlView.animator.alphaValue = volume;
+            self->_fileMetadataTextField.animator.alphaValue = readouts;
+            self->_bpmTextField.animator.alphaValue = readouts;
+            self->_dropHintTextField.animator.alphaValue = hint;
             self->_albumArtGradientView.animator.alphaValue = gradient;
         }];
     } else {
@@ -370,6 +382,9 @@ API_AVAILABLE(macos(26.0))
         _playButton.alphaValue = transport;
         _nextButton.alphaValue = transport;
         _volumeControlView.alphaValue = volume;
+        _fileMetadataTextField.alphaValue = readouts;
+        _bpmTextField.alphaValue = readouts;
+        _dropHintTextField.alphaValue = hint;
         _albumArtGradientView.alphaValue = gradient;
     }
 }
@@ -404,8 +419,7 @@ static NSDictionary *VolumeTextAttributes(NSTextAlignment alignment, NSColor *co
 }
 
 // Both side columns are the wider of "Vol" and "100%" in the current face, so
-// neither clips and the slider sits at the control's center. In the corner,
-// the corner readouts give way whether or not the hover shows the slider.
+// neither clips and the slider sits at the control's center.
 - (void)layoutVolumeControl {
     BOOL labels = AppSettings.sharedInstance.currentTheme.showVolumeLabels;
     CGFloat side = 0, gap = 0;
@@ -426,9 +440,6 @@ static NSDictionary *VolumeTextAttributes(NSTextAlignment alignment, NSColor *co
     _volumeLabel.frame = NSMakeRect(0, 0, side, kSmallLabelHeight);
     _volumeSlider.frame = NSMakeRect(side + gap, 0, kVolumeSliderWidth, kSmallLabelHeight);
     _volumePercentLabel.frame = NSMakeRect(width - side, 0, side, kSmallLabelHeight);
-    BOOL corner = AppSettings.sharedInstance.volumeReplacesFileInfo;
-    _fileMetadataTextField.hidden = corner;
-    _bpmTextField.hidden = corner;
     [self positionVolumeControl];
     [self capArtistLineAtCodecText];
 }
@@ -439,7 +450,7 @@ static NSDictionary *VolumeTextAttributes(NSTextAlignment alignment, NSColor *co
 // line, the bare slider to the waveform's edge rather than the text's.
 - (void)positionVolumeControl {
     NSRect frame = _volumeControlView.frame;
-    if (AppSettings.sharedInstance.volumeReplacesFileInfo) {
+    if (AppSettings.sharedInstance.volumeAtTopRight) {
         CGFloat inset = _volumeLabel.hidden ? kLabelInkInset : 0;
         frame.origin.x = NSMaxX(_fileMetadataTextField.frame) - inset - frame.size.width;
         frame.origin.y = NSMinY(_fileMetadataTextField.frame);
@@ -690,7 +701,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     // Long translations ellipsize.
     _dropHintTextField.lineBreakMode = NSLineBreakByTruncatingTail;
     _dropHintTextField.maximumNumberOfLines = 1;
-    _dropHintTextField.alphaValue = 0.5; // like the rest of the empty state
+    _dropHintTextField.alphaValue = kDropHintAlpha;
     _dropHintTextField.hidden = YES;
     _dropHintTextField.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
     configureLabelShadow(_dropHintTextField, YES);

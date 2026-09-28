@@ -55429,559 +55429,187 @@
       },
       "extractionState": "manual"
     },
-    "settings.appearance.theme.volume_labels": {
-      "comment": "Theme editor, Volume slider group: row beside the dropdown that shows or hides the text around the slider — 'Vol' before it and the percentage after it.",
+    "settings.appearance.theme.show_volume_labels": {
+      "comment": "Theme editor, Volume slider group: switch that shows or hides the text around the slider — 'Vol' before it and the percentage after it. On by default. Match the other 'Show …' switches in the editor.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Етикети"
+            "value": "Показване на етикетите"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Popisky"
+            "value": "Zobrazit popisky"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Etiketter"
+            "value": "Vis etiketter"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Beschriftungen"
+            "value": "Beschriftungen einblenden"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ετικέτες"
+            "value": "Εμφάνιση ετικετών"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Labels"
+            "value": "Show labels"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Etiquetas"
+            "value": "Mostrar etiquetas"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tekstit"
+            "value": "Näytä tekstit"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Libellés"
+            "value": "Afficher les libellés"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Oznake"
+            "value": "Prikaži oznake"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Feliratok"
+            "value": "Feliratok megjelenítése"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Label"
+            "value": "Tampilkan label"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Etichette"
+            "value": "Mostra etichette"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ラベル"
+            "value": "ラベルを表示"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "레이블"
+            "value": "레이블 표시"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Etiketter"
+            "value": "Vis etiketter"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Labels"
+            "value": "Toon labels"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Etykiety"
+            "value": "Pokaż etykiety"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rótulos"
+            "value": "Mostrar rótulos"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Etiquetas"
+            "value": "Mostrar etiquetas"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Etichete"
+            "value": "Afișează etichetele"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Подписи"
+            "value": "Показывать подписи"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Popisy"
+            "value": "Zobraziť popisy"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Etiketter"
+            "value": "Visa etiketter"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ป้ายกำกับ"
+            "value": "แสดงป้ายกำกับ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Etiketler"
+            "value": "Etiketleri göster"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Підписи"
+            "value": "Показувати підписи"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nhãn"
+            "value": "Hiển thị nhãn"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "标签"
+            "value": "显示标签"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "標籤"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.appearance.theme.volume_labels.hide": {
-      "comment": "Theme editor, volume slider labels choice: the slider is drawn alone, with no text beside it.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Скриване"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skrýt"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skjul"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ausblenden"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Απόκρυψη"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hide"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ocultar"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Piilota"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Masquer"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sakrij"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Elrejtés"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sembunyikan"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nascondi"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "非表示"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "숨기기"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skjul"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verberg"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ukryj"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ocultar"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ocultar"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ascunde"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Скрывать"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skryť"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dölj"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ซ่อน"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gizle"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Приховувати"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ẩn"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "隐藏"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "隱藏"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.appearance.theme.volume_labels.show": {
-      "comment": "Theme editor, volume slider labels choice: 'Vol' and the percentage are drawn beside the slider. The default.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Показване"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zobrazit"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vis"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Einblenden"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Εμφάνιση"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostrar"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Näytä"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Afficher"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Prikaži"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Megjelenítés"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tampilkan"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostra"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "表示"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "표시"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vis"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Toon"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pokaż"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostrar"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostrar"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Afișează"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Показывать"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zobraziť"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Visa"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "แสดง"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Göster"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Показувати"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hiển thị"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "显示"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "顯示"
+            "value": "顯示標籤"
           }
         }
       },
@@ -56360,186 +55988,186 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_location.caption": {
-      "comment": "Theme editor: caption under the volume slider's Location row. In the top-right corner the slider takes the place of the file info, status icons, tempo and key. 'Track information' is the heading of the editor's group for those readouts. No trailing period.",
+      "comment": "Theme editor: caption under the volume slider's Location row. In the top-right corner the slider appears while the pointer is over the window, and the file info, status icons, tempo and key fade out for it; they come back when the pointer leaves. 'Track information' is the heading of the editor's group for those readouts. No trailing period.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Горе вдясно заменя информацията за песента"
+            "value": "Горе вдясно се сменя с информацията за песента при посочване"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vpravo nahoře nahradí informace o skladbě"
+            "value": "Vpravo nahoře se při najetí ukazatelem střídá s informacemi o skladbě"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Øverst til højre erstatter oplysningerne om nummeret"
+            "value": "Øverst til højre skifter plads med oplysningerne om nummeret, når markøren er over"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Oben rechts ersetzt die Titelinformationen"
+            "value": "Oben rechts tauscht beim Darüberfahren mit den Titelinformationen"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Πάνω δεξιά αντικαθιστά τις πληροφορίες κομματιού"
+            "value": "Πάνω δεξιά εναλλάσσεται με τις πληροφορίες κομματιού όταν περνά ο δείκτης"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Top right replaces the track information"
+            "value": "Top right swaps with the track information on hover"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Arriba a la derecha sustituye la información de la pista"
+            "value": "Arriba a la derecha se alterna con la información de la pista al pasar el puntero"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Oikealla ylhäällä korvaa kappaleen tiedot"
+            "value": "Oikealla ylhäällä vaihtaa paikkaa kappaleen tietojen kanssa, kun osoitin on päällä"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "En haut à droite remplace les informations sur le morceau"
+            "value": "En haut à droite, s’échange avec les informations sur le morceau au survol"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gore desno zamjenjuje informacije o pjesmi"
+            "value": "Gore desno mijenja se s informacijama o pjesmi kad je pokazivač iznad"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Jobbra fent a száminformációk helyére kerül"
+            "value": "Jobbra fent rámutatáskor helyet cserél a száminformációkkal"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kanan atas menggantikan informasi lagu"
+            "value": "Kanan atas bertukar dengan informasi lagu saat penunjuk diarahkan"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "In alto a destra sostituisce le informazioni sul brano"
+            "value": "In alto a destra si alterna alle informazioni sul brano al passaggio del puntatore"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "右上ではトラック情報の代わりに表示されます"
+            "value": "右上では、ポインタを重ねるとトラック情報と入れ替わります"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "오른쪽 상단에서는 트랙 정보를 대신합니다"
+            "value": "오른쪽 상단에서는 포인터를 올리면 트랙 정보와 바뀝니다"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Øverst til høyre erstatter sporinformasjonen"
+            "value": "Øverst til høyre bytter plass med sporinformasjonen når pekeren er over"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rechtsboven vervangt de nummerinformatie"
+            "value": "Rechtsboven wisselt met de nummerinformatie bij aanwijzen"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "W prawym górnym rogu zastępuje informacje o utworze"
+            "value": "W prawym górnym rogu zamienia się z informacjami o utworze po najechaniu kursorem"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "No canto superior direito, substitui as informações da faixa"
+            "value": "No canto superior direito, alterna com as informações da faixa ao passar o cursor"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "No canto superior direito, substitui as informações da faixa"
+            "value": "No canto superior direito, alterna com as informações da faixa ao passar o cursor"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dreapta sus înlocuiește informațiile despre piesă"
+            "value": "Dreapta sus se schimbă cu informațiile despre piesă la trecerea cursorului"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Вверху справа заменяет информацию о треке"
+            "value": "Вверху справа сменяет информацию о треке при наведении указателя"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vpravo hore nahradí informácie o skladbe"
+            "value": "Vpravo hore sa pri prejdení ukazovateľom strieda s informáciami o skladbe"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uppe till höger ersätter spårinformationen"
+            "value": "Uppe till höger byter plats med spårinformationen när pekaren är över"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "มุมขวาบนจะแสดงแทนข้อมูลแทร็ก"
+            "value": "มุมขวาบนจะสลับกับข้อมูลแทร็กเมื่อวางตัวชี้"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sağ üstte parça bilgilerinin yerini alır"
+            "value": "Sağ üstte, imleç üzerine gelince parça bilgileriyle yer değiştirir"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Угорі праворуч замінює інформацію про трек"
+            "value": "Угорі праворуч змінюється з інформацією про трек під час наведення"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Góc trên bên phải thay cho thông tin bản nhạc"
+            "value": "Góc trên bên phải sẽ đổi chỗ với thông tin bản nhạc khi di con trỏ qua"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "位于右上角时取代音轨信息"
+            "value": "位于右上角时，指针悬停会与音轨信息互换"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "位於右上角時取代音軌資訊"
+            "value": "位於右上角時，指標停留會與音軌資訊互換"
           }
         }
       },
