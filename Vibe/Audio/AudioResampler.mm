@@ -13,16 +13,13 @@
 // The bus's decode chunk: the most one proc call answers.
 static const int kVibeMaxInput = 4096;
 // The 24-bit preset (180 dB stopband) with a 1% transition band, half
-// upstream's default: −0.1 dB at 21.72 kHz from 44.1, level with Apple's
-// Mastering filter, for about 20% more of a cost that is a twentieth of
-// Apple's (docs/future/resampler.md).
+// upstream's default: −0.1 dB at 21.72 kHz from 44.1, for about 20% more cost
+// (docs/audio-quality.md).
 static const double kVibeR8TransitionBand = 1.0;
 
 struct VibeConverter {
-    VibeResampler resampler;
-    AudioConverterRef apple = NULL;
-    // r8brain: one per channel, identically configured, so every channel
-    // produces the same count per call.
+    // One per channel, identically configured, so every channel produces the
+    // same count per call.
     std::vector<CR8BResampler> channels;
     std::vector<double> widened;   // one channel's input
     // Each channel's last output, r8brain's own buffer: valid until that
@@ -33,59 +30,22 @@ struct VibeConverter {
     std::vector<uint8_t> inputList; // the AudioBufferList the proc points at its data
 
     ~VibeConverter() {
-        if (apple) {
-            AudioConverterDispose(apple);
-        }
         for (CR8BResampler channel : channels) {
             r8b_delete(channel);
         }
     }
 };
 
-// The resampler complexity as read back; nil where the read fails (iOS).
-static NSString *VibeAppleAlgorithm(AudioConverterRef converter) {
-    UInt32 complexity = 0, size = sizeof(complexity);
-    if (AudioConverterGetProperty(converter, kAudioConverterSampleRateConverterComplexity, &size, &complexity) != noErr) {
-        return nil;
-    }
-    switch (complexity) {
-        case kAudioConverterSampleRateConverterComplexity_Mastering: return @"Mastering";
-        case kAudioConverterSampleRateConverterComplexity_Normal: return @"Normal";
-        case kAudioConverterSampleRateConverterComplexity_MinimumPhase: return @"Minimum Phase";
-        case kAudioConverterSampleRateConverterComplexity_Linear: return @"Linear";
-    }
-    return [NSString stringWithFormat:@"%08x", (unsigned)complexity];
-}
-
-static UInt32 VibeAppleQuality(AudioConverterRef converter) {
-    UInt32 quality = 0, size = sizeof(quality);
-    return AudioConverterGetProperty(converter, kAudioConverterSampleRateConverterQuality, &size, &quality) == noErr ? quality : 0;
-}
-
-// Mastering complexity at maximum quality. The read-back is the check: macOS
-// reports the complexity it took, iOS reports none (its resampler has no
-// selectable complexity) and runs at the quality alone.
-static BOOL VibeMakeApple(VibeConverter *converter, const AudioStreamBasicDescription *from,
-                          const AudioStreamBasicDescription *to) {
-    if (AudioConverterNew(from, to, &converter->apple) != noErr || !converter->apple) {
-        converter->apple = NULL;
-        return NO;
-    }
-    UInt32 quality = kAudioConverterQuality_Max, complexity = kAudioConverterSampleRateConverterComplexity_Mastering;
-    AudioConverterSetProperty(converter->apple, kAudioConverterSampleRateConverterQuality, sizeof(quality), &quality);
-    AudioConverterSetProperty(converter->apple, kAudioConverterSampleRateConverterComplexity, sizeof(complexity), &complexity);
-    NSString *algorithm = VibeAppleAlgorithm(converter->apple);
-    UInt32 took = VibeAppleQuality(converter->apple);
-    if ((algorithm && ![algorithm isEqualToString:@"Mastering"]) || took != quality) {
-        LogWarn(@"AudioResampler: Apple's converter runs %@ at quality %u, not mastering at quality %u",
-                algorithm, (unsigned)took, (unsigned)quality);
-    }
-    return YES;
-}
-
-static BOOL VibeMakeR8brain(VibeConverter *converter, const AudioStreamBasicDescription *from,
-                            const AudioStreamBasicDescription *to) {
+VibeConverter *VibeConverterCreate(const AudioStreamBasicDescription *from, const AudioStreamBasicDescription *to) {
     UInt32 channels = to->mChannelsPerFrame;
+    if (from->mChannelsPerFrame == 0 || from->mChannelsPerFrame != channels
+            || from->mSampleRate <= 0 || to->mSampleRate <= 0) {
+        return NULL;
+    }
+    VibeConverter *converter = new (std::nothrow) VibeConverter();
+    if (!converter) {
+        return NULL;
+    }
     try {
         for (UInt32 c = 0; c < channels; c++) {
             converter->channels.push_back(r8b_create(from->mSampleRate, to->mSampleRate, kVibeMaxInput,
@@ -94,26 +54,8 @@ static BOOL VibeMakeR8brain(VibeConverter *converter, const AudioStreamBasicDesc
         converter->widened.resize(kVibeMaxInput);
         converter->produced.assign(channels, nullptr);
         converter->inputList.assign(offsetof(AudioBufferList, mBuffers) + channels * sizeof(AudioBuffer), 0);
-        return YES;
     }
     catch (const std::bad_alloc &) {
-        return NO;
-    }
-}
-
-VibeConverter *VibeConverterCreate(VibeResampler resampler, const AudioStreamBasicDescription *from,
-                                   const AudioStreamBasicDescription *to) {
-    if (from->mChannelsPerFrame == 0 || from->mChannelsPerFrame != to->mChannelsPerFrame
-            || from->mSampleRate <= 0 || to->mSampleRate <= 0) {
-        return NULL;
-    }
-    VibeConverter *converter = new (std::nothrow) VibeConverter();
-    if (!converter) {
-        return NULL;
-    }
-    converter->resampler = resampler;
-    BOOL made = resampler == VibeResamplerR8brain ? VibeMakeR8brain(converter, from, to) : VibeMakeApple(converter, from, to);
-    if (!made) {
         delete converter;
         return NULL;
     }
@@ -124,22 +66,12 @@ void VibeConverterDispose(VibeConverter *converter) {
     delete converter;
 }
 
-VibeResampler VibeConverterResampler(const VibeConverter *converter) {
-    return converter->resampler;
-}
-
 NSDictionary<NSString *, id> *VibeConverterReport(const VibeConverter *converter) {
-    if (converter->apple) {
-        NSMutableDictionary *report = [@{ @"resampler": VibeResamplerName(VibeResamplerApple),
-                                          @"quality": @(VibeAppleQuality(converter->apple)) } mutableCopy];
-        report[@"algorithm"] = VibeAppleAlgorithm(converter->apple); // nil sets nothing
-        return report;
-    }
-    return @{ @"resampler": VibeResamplerName(VibeResamplerR8brain), @"algorithm": @"r8brain-free-src" };
+    return @{ @"algorithm": @"r8brain-free-src" };
 }
 
-static OSStatus VibeR8brainFill(VibeConverter *converter, AudioConverterComplexInputDataProc proc, void *userData,
-                                UInt32 *ioFrames, AudioBufferList *output) {
+OSStatus VibeConverterFill(VibeConverter *converter, AudioConverterComplexInputDataProc proc, void *userData,
+                           UInt32 *ioFrames, AudioBufferList *output) {
     UInt32 wanted = *ioFrames, filled = 0, channels = (UInt32)converter->channels.size();
     OSStatus status = noErr;
     for (;;) {
@@ -180,12 +112,4 @@ static OSStatus VibeR8brainFill(VibeConverter *converter, AudioConverterComplexI
     }
     *ioFrames = filled;
     return status;
-}
-
-OSStatus VibeConverterFill(VibeConverter *converter, AudioConverterComplexInputDataProc proc, void *userData,
-                           UInt32 *ioFrames, AudioBufferList *output) {
-    if (converter->apple) {
-        return AudioConverterFillComplexBuffer(converter->apple, proc, userData, ioFrames, output, NULL);
-    }
-    return VibeR8brainFill(converter, proc, userData, ioFrames, output);
 }

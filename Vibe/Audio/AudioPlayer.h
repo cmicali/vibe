@@ -13,7 +13,6 @@
 
 #import "AudioError.h"     // domain, userInfo key and codes; re-exported here
 #import "PlaybackIntent.h"
-#import "AudioResampler.h"  // VibeResampler
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -52,11 +51,6 @@ NS_ASSUME_NONNULL_BEGIN
 // after the meter, whose gain is its cube so the travel reads as loudness.
 // 1, the default, leaves every sample untouched; 0 is silence.
 @property (atomic) float volume;
-
-// Which resampler converts a file at another rate than the output's: r8brain
-// (the default, under evaluation: docs/future/resampler.md) or Apple's, each
-// at its highest quality. Applies to conversions begun after the write.
-@property (atomic) VibeResampler resampler;
 
 // Whether the meter publishes band levels; the shells enable it only for
 // counted indicator demand, modeled output audio and material visibility.

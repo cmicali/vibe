@@ -103,9 +103,9 @@ NS_ASSUME_NONNULL_BEGIN
 // While set, every fill of a converting voice reports kAudio_ParamError in
 // place of its frames.
 - (void)debugRefuseConversion:(BOOL)refuse;
-// Per resampler ("apple", "r8brain"): decode-thread CPU spent resampling, the
-// file reads inside the fill excluded, against the bus audio it produced, and
-// that as a percent of one core. Since the bus was made, or the last reset.
+// Decode-thread CPU spent resampling, the file reads inside the fill excluded,
+// against the bus audio it produced, and that as a percent of one core. Since
+// the bus was made, or the last reset.
 - (NSDictionary<NSString *, id> *)debugResamplerCostsResetting:(BOOL)reset;
 
 @end

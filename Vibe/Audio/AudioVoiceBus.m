@@ -497,10 +497,10 @@ static void VibeDisposeConverter(AudioVoiceRecord *record) {
     uint64_t _nextRetireOrder;
 #if DEBUG
     _Atomic int32_t _debugConversionRefused; // a test's failing converter
-    // Per VibeResampler: decode-thread CPU spent resampling (the fill less
-    // the file reads inside it), and the bus frames it produced.
-    _Atomic uint64_t _debugResampleNanos[2];
-    _Atomic uint64_t _debugResampledFrames[2];
+    // Decode-thread CPU spent resampling (the fill less the file reads
+    // inside it), and the bus frames it produced.
+    _Atomic uint64_t _debugResampleNanos;
+    _Atomic uint64_t _debugResampledFrames;
 #endif
 }
 
@@ -514,7 +514,6 @@ static void VibeDisposeConverter(AudioVoiceRecord *record) {
             || busFormat.sampleRate <= 0) {
         return nil;
     }
-    _resampler = VibeResamplerR8brain;
     uint32_t capacity = 1;
     while (capacity < busFormat.sampleRate) {
         capacity <<= 1; // ≥ 1 s at the bus rate
@@ -737,7 +736,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
                                                  channels:_format.channelCount interleaved:NO];
         record->mixBuffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:fed frameCapacity:kDecodeChunkFrames];
     }
-    record->converter = VibeConverterCreate(self.resampler, fed.streamDescription, _format.streamDescription);
+    record->converter = VibeConverterCreate(fed.streamDescription, _format.streamDescription);
     if (!record->converter) {
         return NO;
     }
@@ -746,8 +745,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     return record->readBuffer && (!record->mixMap || record->mixBuffer);
 }
 
-// What the prepared record does to `source`: read off the record, so the
-// report names the resampler the record holds.
+// What the prepared record does to `source`, read off the record.
 - (NSDictionary<NSString *, id> *)conversionFrom:(AVAudioFormat *)source record:(AudioVoiceRecord *)record {
     NSMutableDictionary *conversion = [@{
         @"fromSampleRate": @(source.sampleRate), @"toSampleRate": @(_format.sampleRate),
@@ -1115,21 +1113,17 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 }
 
 - (NSDictionary<NSString *, id> *)debugResamplerCostsResetting:(BOOL)reset {
-    NSMutableDictionary *costs = [NSMutableDictionary dictionary];
-    for (VibeResampler kind = VibeResamplerApple; kind <= VibeResamplerR8brain; kind++) {
-        uint64_t nanos = reset ? atomic_exchange_explicit(&_debugResampleNanos[kind], 0, memory_order_relaxed)
-                               : atomic_load_explicit(&_debugResampleNanos[kind], memory_order_relaxed);
-        uint64_t frames = reset ? atomic_exchange_explicit(&_debugResampledFrames[kind], 0, memory_order_relaxed)
-                                : atomic_load_explicit(&_debugResampledFrames[kind], memory_order_relaxed);
-        double seconds = frames / _format.sampleRate;
-        costs[VibeResamplerName(kind)] = @{
-            @"cpuSeconds": @(nanos / 1e9),
-            @"audioSeconds": @(seconds),
-            // Percent of one core to keep up in real time.
-            @"corePercent": @(seconds > 0 ? 100.0 * nanos / 1e9 / seconds : 0),
-        };
-    }
-    return costs;
+    uint64_t nanos = reset ? atomic_exchange_explicit(&_debugResampleNanos, 0, memory_order_relaxed)
+                           : atomic_load_explicit(&_debugResampleNanos, memory_order_relaxed);
+    uint64_t frames = reset ? atomic_exchange_explicit(&_debugResampledFrames, 0, memory_order_relaxed)
+                            : atomic_load_explicit(&_debugResampledFrames, memory_order_relaxed);
+    double seconds = frames / _format.sampleRate;
+    return @{
+        @"cpuSeconds": @(nanos / 1e9),
+        @"audioSeconds": @(seconds),
+        // Percent of one core to keep up in real time.
+        @"corePercent": @(seconds > 0 ? 100.0 * nanos / 1e9 / seconds : 0),
+    };
 }
 #endif
 
@@ -1551,10 +1545,6 @@ typedef struct {
     uint64_t readNanos;       // thread CPU inside the file's reads, which the resampler's cost excludes
 } VibeConverterInput;
 
-// The file ran dry with the stream open. Private, so the fill's caller can
-// tell it from the converter's own failure.
-enum { kVibeConverterInputDry = 'vdry' };
-
 // Supplies the converter one read of the file, mixed to the bus's width
 // first when the widths differ. The converter calls this as often as one
 // chunk needs.
@@ -1592,11 +1582,10 @@ static OSStatus VibeConverterSupplyInput(AudioConverterRef converter, UInt32 *io
         return noErr;
     }
     if (input->flushing) {
-        // TRAP: silence, never zero packets, which is the end: at high
-        // up-conversion ratios Apple's end-of-stream flush gives up only part
-        // of its tail (measured: 915 frames short at 22.05 → 192 kHz on macOS,
-        // 3,989 on iOS). Silence pushes the whole tail out, and the fill stops
-        // at the frames fed (produceChunkForSlot:final:).
+        // TRAP: silence, never zero packets: r8brain has no end-of-stream
+        // call, and zero packets ends the fill with its filter's length of
+        // the file still inside it. Silence pushes the whole tail out, and
+        // the fill stops at the frames fed (produceChunkForSlot:final:).
         AVAudioPCMBuffer *silence = record->mixMap ? record->mixBuffer : readBuffer;
         silence.frameLength = wanted;
         for (AVAudioChannelCount c = 0; c < silence.format.channelCount; c++) {
@@ -1609,12 +1598,10 @@ static OSStatus VibeConverterSupplyInput(AudioConverterRef converter, UInt32 *io
         *ioPackets = wanted;
         return noErr;
     }
+    // Dry with the stream open: no packets end the fill with the filter primed.
     *ioPackets = 0;
-    // TRAP: dry with the stream open, never zero packets under noErr: that
-    // declares the end, and the resampler flushes its tail a filter's length
-    // early. This private status ends the fill and keeps the filter primed.
     record->stream = VibeStreamDrained;
-    return kVibeConverterInputDry;
+    return noErr;
 }
 
 // Reads one chunk of the voice's file into the stage buffer, in the bus
@@ -1676,15 +1663,14 @@ static OSStatus VibeConverterSupplyInput(AudioConverterRef converter, UInt32 *io
     OSStatus status = VibeConverterFill(record->converter, VibeConverterSupplyInput, &input, &frames, output);
 #if DEBUG
     uint64_t spent = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) - started;
-    VibeResampler kind = VibeConverterResampler(record->converter);
-    atomic_fetch_add_explicit(&_debugResampleNanos[kind], spent > input.readNanos ? spent - input.readNanos : 0,
+    atomic_fetch_add_explicit(&_debugResampleNanos, spent > input.readNanos ? spent - input.readNanos : 0,
                               memory_order_relaxed);
-    atomic_fetch_add_explicit(&_debugResampledFrames[kind], frames, memory_order_relaxed);
+    atomic_fetch_add_explicit(&_debugResampledFrames, frames, memory_order_relaxed);
     if (atomic_load_explicit(&_debugConversionRefused, memory_order_relaxed)) {
         status = kAudio_ParamError;
     }
 #endif
-    if (status != noErr && status != kVibeConverterInputDry) {
+    if (status != noErr) {
         [self recordFailure:[NSError errorWithDomain:NSOSStatusErrorDomain code:status userInfo:nil] forSlot:slot];
         *final = YES;
         return 0;

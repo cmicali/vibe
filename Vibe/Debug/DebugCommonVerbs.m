@@ -378,29 +378,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                                      id<VibeDebugPlayerSurface> surface) {
                 return VibeJSONString(@{@"stages": surface.debugPlayer.audioPathSnapshot});
             }),
-            // The resampler comparison: which one converts a file at another
-            // rate than the output's. The current track is re-voiced at its
-            // position (a seek), so the change is heard at once.
-            VibeDebugCmd(@"set_resampler <apple|r8brain>", 0,
-                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
-                                     id<VibeDebugPlayerSurface> surface) {
-                NSString *arg = tokens.count == 2 ? tokens[1].lowercaseString : @"";
-                NSString *r8brain = VibeResamplerName(VibeResamplerR8brain);
-                if (![arg isEqualToString:VibeResamplerName(VibeResamplerApple)] && ![arg isEqualToString:r8brain]) {
-                    return VibeErrorJSON(@"usage: set_resampler <apple|r8brain>");
-                }
-                AudioPlayer *player = surface.debugPlayer;
-                player.resampler = [arg isEqualToString:r8brain] ? VibeResamplerR8brain : VibeResamplerApple;
-                if (!player.isStopped) {
-                    [player seekToPosition:player.position];
-                }
-                return VibeJSONString(@{
-                    @"ok": @YES,
-                    @"resampler": VibeResamplerName(player.resampler),
-                    @"conversion": player.debugCurrentConversion ?: [NSNull null],
-                });
-            }),
-            // Decode-thread CPU per resampler since the bus was made or the
+            // The resampler's decode-thread CPU since the bus was made or the
             // last reset, file reads excluded; corePercent is the real-time cost.
             VibeDebugCmd(@"dump_resampler_costs [reset]", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
@@ -411,7 +389,6 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 }
                 AudioPlayer *player = surface.debugPlayer;
                 return VibeJSONString(@{
-                    @"resampler": VibeResamplerName(player.resampler),
                     @"costs": [player debugResamplerCostsResetting:reset] ?: @{},
                     @"conversion": player.debugCurrentConversion ?: [NSNull null],
                 });

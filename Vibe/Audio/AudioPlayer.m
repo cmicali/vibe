@@ -110,7 +110,6 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         _maxPitch = kDefaultMaxPitchPercent;
         _volume = 1.0f;
         _crossfadeMilliseconds = kFadeDurationMilliseconds;
-        _resampler = VibeResamplerR8brain;
         _declick = YES;
         _loadingConfiguration = [AudioLoadingConfiguration productionConfiguration];
         _retiringVoices = [NSMutableArray array];
@@ -1005,25 +1004,6 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
         else if (self->_successorTrack) {
             [self unqueueSuccessorOnQueue];
         }
-    });
-}
-
-// A bus built later takes it from here (ensureSourceSegmentOnQueueRebuilt:).
-@synthesize resampler = _resampler;
-
-- (VibeResampler)resampler {
-    os_unfair_lock_lock(&_stateLock);
-    VibeResampler resampler = _resampler;
-    os_unfair_lock_unlock(&_stateLock);
-    return resampler;
-}
-
-- (void)setResampler:(VibeResampler)resampler {
-    os_unfair_lock_lock(&_stateLock);
-    _resampler = resampler;
-    os_unfair_lock_unlock(&_stateLock);
-    dispatch_async(_queue, ^{
-        self->_voiceBus.resampler = resampler;
     });
 }
 
