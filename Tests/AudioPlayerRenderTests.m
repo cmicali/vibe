@@ -14,6 +14,7 @@
 #import "AudioOutputUnitInternal.h"
 #import "AudioFixtures.h"
 #import <objc/runtime.h>
+#import "AudioFileMaterializationCoordinatorInternal.h"
 #include <float.h>
 #include <stdatomic.h>
 
@@ -506,6 +507,113 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 - (void)testMP3CBR { [self checkLossy:@"cbr.mp3" tolerance:0]; }
 - (void)testMP3VBR { [self checkLossy:@"vbr.mp3" tolerance:0]; }
 - (void)testMP2 { [self checkLossy:@"lossy.mp2" tolerance:0]; }
+// Layer III's synthesis delay: dr_mp3's drain and Apple's zero fill differ
+// over this many frames at a file's end, and the handle skips it at the start.
+static const NSUInteger kLayer3DecoderDelay = 529;
+// The ISO/IEC 11172-4 Layer III compliance stream, scored on its Annex A
+// thresholds against the reference decode: full accuracy is an RMS error
+// below 2^-15/sqrt(12) with no sample off by more than 2^-14. dr_mp3 passes with
+// the margin of a float decoder (about 140x measured, 50x required), so a
+// regression to 16-bit output fails here; Apple's 16-bit output sits on the
+// line, within limited accuracy. The handle drops the decoder's 529-frame
+// delay, so its frame 0 is the reference's frame 529. The last 529 frames are
+// left out of both scores: the stream ends in a truncated frame the reference
+// decoder decoded and CoreAudio's parser does not serve, so there dr_mp3's
+// drain and Apple's zero fill both meet audio the file does not hold.
+- (void)testDrMP3PassesTheISOComplianceStreamAtFullAccuracy {
+    NSURL *url = [self fixture:@"iso-compl.mp3"];
+    NSString *referencePath = [self fixture:@"iso-compl.f32"].path;
+    XCTSkipUnless([NSFileManager.defaultManager fileExistsAtPath:referencePath],
+                  @"The ISO compliance stream was not fetched (FFmpeg's FATE mirror unreachable); regenerate");
+    NSData *referenceBytes = [NSData dataWithContentsOfFile:referencePath];
+    const float *reference = referenceBytes.bytes;
+    NSUInteger referenceFrames = referenceBytes.length / sizeof(float) - kLayer3DecoderDelay;
+    const double fullRMS = 1.0 / 32768 / sqrt(12), fullMax = 1.0 / 16384, limitedRMS = 1.0 / 2048 / sqrt(12);
+    BOOL prior = AudioFileHandle.appleMPEGDecoder;
+    [self addTeardownBlock:^{ AudioFileHandle.appleMPEGDecoder = prior; }];
+    double rms[2], worst[2];
+    for (NSUInteger apple = 0; apple < 2; apple++) {
+        AudioFileHandle.appleMPEGDecoder = apple;
+        AVAudioPCMBuffer *decoded = [self read:url];
+        XCTAssertEqual(decoded.format.channelCount, 1u);
+        NSUInteger frames = MIN(decoded.frameLength - kLayer3DecoderDelay, referenceFrames);
+        XCTAssertGreaterThan(frames, 200000u);
+        double sum = 0, max = 0;
+        for (NSUInteger f = 0; f < frames; f++) {
+            double error = (double)decoded.floatChannelData[0][f] - reference[f + kLayer3DecoderDelay];
+            sum += error * error;
+            max = fmax(max, fabs(error));
+        }
+        rms[apple] = sqrt(sum / frames);
+        worst[apple] = max;
+    }
+    XCTAssertLessThan(rms[0], fullRMS / 50, @"dr_mp3 RMS error %g", rms[0]);
+    XCTAssertLessThanOrEqual(worst[0], fullMax, @"dr_mp3 max error %g", worst[0]);
+    XCTAssertLessThan(rms[1], limitedRMS, @"Apple RMS error %g", rms[1]);
+    XCTAssertGreaterThan(rms[1], fullRMS / 4, @"Apple's decoder is no longer 16-bit: RMS error %g", rms[1]);
+}
+
+// dr_mp3's decode is what Apple's rounds to 16 bits: one length, samples
+// within Apple's four LSBs but for the last 529 frames, which Apple zero-fills
+// where dr_mp3 drains its filterbank, and overs Apple clips kept. A seek decodes
+// exactly what the continuous read did at that frame.
+- (void)testDrMP3DecodesWhatAppleRoundsTo16Bits {
+    XCTSkipUnless([NSFileManager.defaultManager fileExistsAtPath:[self fixture:@"hot.mp3"].path],
+                  @"Optional encoder fixtures unavailable; install ffmpeg and regenerate");
+    BOOL prior = AudioFileHandle.appleMPEGDecoder;
+    [self addTeardownBlock:^{ AudioFileHandle.appleMPEGDecoder = prior; }];
+    for (NSString *name in @[@"cbr.mp3", @"vbr.mp3", @"lossy.mp2", @"hot.mp3", @"mp3-in.wav", @"mp2-in.wav"]) {
+        NSURL *url = [self fixture:name];
+        AudioFileHandle.appleMPEGDecoder = YES;
+        AVAudioPCMBuffer *apple = [self read:url];
+        AudioFileHandle.appleMPEGDecoder = NO;
+        AudioFileHandle *file = [[AudioFileHandle alloc] initForReading:url error:NULL];
+        AVAudioPCMBuffer *decoded = [self read:url];
+        XCTAssertEqualObjects(file.decoderName, @"dr_mp3");
+        XCTAssertEqual(decoded.frameLength, apple.frameLength, @"%@", name);
+        NSUInteger channels = decoded.format.channelCount, compared = MIN(decoded.frameLength, apple.frameLength) - kLayer3DecoderDelay;
+        NSUInteger far = 0, offGrid = 0, overs = 0, appleOvers = 0;
+        for (NSUInteger c = 0; c < channels; c++) for (NSUInteger f = 0; f < compared; f++) {
+            float d = decoded.floatChannelData[c][f], a = apple.floatChannelData[c][f];
+            BOOL clipped = fabsf(a) >= 32767.0f / 32768 && fabsf(d) > fabsf(a);
+            if (!clipped && fabsf(d - a) > 4.0f / 32768) far++;
+            if (d * 32768 != rintf(d * 32768)) offGrid++;
+            overs += fabsf(d) > 1;
+            appleOvers += fabsf(a) > 1;
+        }
+        XCTAssertEqual(far, 0u, @"%@ strays from Apple's rounding", name);
+        XCTAssertGreaterThan(offGrid, compared * channels / 2, @"%@ decoded to a 16-bit grid", name);
+        XCTAssertEqual(appleOvers, 0u, @"%@: Apple's decode was expected to clip", name);
+        if ([name isEqual:@"hot.mp3"]) XCTAssertGreaterThan(overs, 0u, @"the overs a float decode keeps");
+        for (NSNumber *at in @[@0, @1, @1151, @1153, @(file.length / 3), @(file.length - 700), @(file.length - 1)]) {
+            AVAudioPCMBuffer *slice = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat frameCapacity:3000];
+            XCTAssertTrue([file seekToFrame:at.longLongValue error:NULL]);
+            XCTAssertTrue([file readIntoBuffer:slice error:NULL]);
+            XCTAssertEqual((AVAudioFramePosition)slice.frameLength, MIN(3000, file.length - at.longLongValue));
+            for (NSUInteger c = 0; c < channels; c++)
+                XCTAssertEqual(memcmp(slice.floatChannelData[c], decoded.floatChannelData[c] + at.unsignedIntegerValue,
+                                      slice.frameLength * sizeof(float)), 0, @"%@ seek to %@", name, at);
+        }
+        // A partial download declares more packets than it holds; both end at
+        // the last one it does. A truncated WAV serves none: CoreAudio counts
+        // zero packets, so there is nothing to compare.
+        if ([url.pathExtension isEqualToString:@"wav"]) continue;
+        NSData *bytes = [NSData dataWithContentsOfURL:url];
+        NSURL *truncated = [_temporary URLByAppendingPathComponent:[@"truncated-" stringByAppendingString:name]];
+        XCTAssertTrue([[bytes subdataWithRange:NSMakeRange(0, bytes.length / 2)] writeToURL:truncated atomically:YES]);
+        NSUInteger frames[2];
+        for (NSUInteger apple = 0; apple < 2; apple++) {
+            AudioFileHandle.appleMPEGDecoder = apple;
+            AudioFileHandle *partial = [[AudioFileHandle alloc] initForReading:truncated error:NULL];
+            AVAudioPCMBuffer *chunk = [[AVAudioPCMBuffer alloc] initWithPCMFormat:partial.processingFormat frameCapacity:4096];
+            frames[apple] = 0;
+            while ([partial readIntoBuffer:chunk error:NULL] && chunk.frameLength) frames[apple] += chunk.frameLength;
+        }
+        XCTAssertEqual(frames[0], frames[1], @"%@ truncated", name);
+        XCTAssertGreaterThan(frames[0], 0u);
+        XCTAssertLessThan(frames[0], decoded.frameLength);
+    }
+}
 - (void)testQuickTimeAudio { [self checkLossy:@"lossy.qta" tolerance:kVibeAACDecodeTolerance]; }
 - (void)testFloatLimitsAndSilence {
     for (NSString *name in @[@"limits.wav",@"silence.wav"]) {
@@ -723,6 +831,126 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         [self render:52800 - before];
         XCTAssertEqual([self count:@"advance"], 1u, @"late %@", late);
         [self assertReference:reference capture:_capture skip:[self startupSkip] tolerance:0.0001f];
+    }
+}
+
+// The decoder changes after the next file's open has chosen its decoder but
+// before it settles: the re-prefetch of that path joins the running open, so
+// its handle carries the old decoder, and the park reopens it once it lands.
+// The track the gapless boundary promotes decodes under the new choice.
+- (void)testADecoderChangeDuringThePrefetchOpenReopensThePark {
+    NSURL *first = [self fixture:@"cbr.mp3"], *second = [self fixture:@"vbr.mp3"];
+    XCTSkipUnless([NSFileManager.defaultManager fileExistsAtPath:second.path],
+                  @"Optional encoder fixtures unavailable; install ffmpeg and regenerate");
+    BOOL prior = AudioFileHandle.appleMPEGDecoder;
+    AudioFileHandle.appleMPEGDecoder = NO;
+    dispatch_semaphore_t opened = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
+    __block BOOL held = NO;
+    SEL selector = @selector(initForReading:commonFormat:interleaved:error:);
+    Method initializer = class_getInstanceMethod(AudioFileHandle.class, selector);
+    __block IMP original;
+    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *url, AVAudioCommonFormat format, BOOL interleaved, NSError **error) {
+        id handle = ((id (*)(id, SEL, NSURL *, AVAudioCommonFormat, BOOL, NSError **))original)(receiver, selector, url, format, interleaved, error);
+        if ([url.path isEqualToString:second.path] && !held) {
+            held = YES;
+            dispatch_semaphore_signal(opened);
+            dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
+        }
+        return handle;
+    });
+    original = method_setImplementation(initializer, holding);
+    @try {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+        [self play:first paused:NO position:0];
+        [_player prefetchTrack:[AudioTrack withURL:second]];
+        XCTAssertEqual(dispatch_semaphore_wait(opened, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
+        AudioFileMaterializationCoordinator *coordinator = AudioFileMaterializationCoordinator.sharedCoordinator;
+        uint64_t started = coordinator.stateSnapshotForTesting.handleOpensStarted;
+        AudioFileHandle.appleMPEGDecoder = YES;
+        [_player prefetchTrack:nil]; // what VibeSettingsLiveEffectMP3Decoder sends
+        [_player prefetchTrack:[AudioTrack withURL:second]];
+        (void)_player.audioPathSnapshot; // a player-queue round trip: both requests have run
+        // Rebound to the held open: no new claim, and no second open begun.
+        VibeAudioFileMaterializationCoordinatorSnapshot joined = coordinator.stateSnapshotForTesting;
+        XCTAssertEqual(joined.claimCount, 0u);
+        XCTAssertEqual(joined.handleRunCount, 1u);
+        XCTAssertEqual(joined.handleOpensStarted, started, @"the replacement must join the held open, or this test proves nothing");
+        dispatch_semaphore_signal(release);
+        [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+        [self renderSeconds:2.2];
+        [self settleUntil:^BOOL { return [self count:@"advance"] > 0; }];
+        XCTAssertEqual([self count:@"advance"], 1u);
+        NSDictionary *source = nil;
+        for (NSDictionary *stage in _player.audioPathSnapshot) {
+            if ([stage[@"stage"] isEqual:@"source"]) source = stage;
+        }
+        XCTAssertEqualObjects(source[@"file"], second.lastPathComponent);
+        XCTAssertEqualObjects(source[@"decoder"], @"apple", @"the promoted track kept the decoder it opened with before the change");
+    } @finally {
+        dispatch_semaphore_signal(release);
+        method_setImplementation(initializer, original);
+        imp_removeBlock(holding);
+        AudioFileHandle.appleMPEGDecoder = prior;
+    }
+}
+
+// The decoder changes and the same file is played while its prefetch still
+// opens under the old choice, and that stale open lands first: it must not
+// start the play, whose own open, begun after the change, does.
+- (void)testAStalePrefetchNeverStartsThePlayItRaces {
+    NSURL *first = [self fixture:@"cbr.mp3"], *second = [self fixture:@"vbr.mp3"];
+    XCTSkipUnless([NSFileManager.defaultManager fileExistsAtPath:second.path],
+                  @"Optional encoder fixtures unavailable; install ffmpeg and regenerate");
+    BOOL prior = AudioFileHandle.appleMPEGDecoder;
+    AudioFileHandle.appleMPEGDecoder = NO;
+    // The first open of the second file is the prefetch, the next the play's.
+    NSArray<dispatch_semaphore_t> *opened = @[dispatch_semaphore_create(0), dispatch_semaphore_create(0)];
+    NSArray<dispatch_semaphore_t> *release = @[dispatch_semaphore_create(0), dispatch_semaphore_create(0)];
+    __block NSInteger opens = 0;
+    SEL selector = @selector(initForReading:commonFormat:interleaved:error:);
+    Method initializer = class_getInstanceMethod(AudioFileHandle.class, selector);
+    __block IMP original;
+    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *url, AVAudioCommonFormat format, BOOL interleaved, NSError **error) {
+        id handle = ((id (*)(id, SEL, NSURL *, AVAudioCommonFormat, BOOL, NSError **))original)(receiver, selector, url, format, interleaved, error);
+        NSInteger index = -1;
+        if ([url.path isEqualToString:second.path]) {
+            @synchronized (self) { index = opens < 2 ? opens++ : -1; }
+        }
+        if (index >= 0) {
+            dispatch_semaphore_signal(opened[index]);
+            dispatch_semaphore_wait(release[index], dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
+        }
+        return handle;
+    });
+    original = method_setImplementation(initializer, holding);
+    dispatch_time_t (^guard)(void) = ^{ return dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC); };
+    @try {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+        [self play:first paused:NO position:0];
+        [_player prefetchTrack:[AudioTrack withURL:second]];
+        XCTAssertEqual(dispatch_semaphore_wait(opened[0], guard()), 0L);
+        AudioFileHandle.appleMPEGDecoder = YES;
+        AudioFileMaterializationCoordinator *coordinator = AudioFileMaterializationCoordinator.sharedCoordinator;
+        uint64_t completed = coordinator.stateSnapshotForTesting.handleOpensCompleted;
+        [_player play:[AudioTrack withURL:second] atPosition:0 startPaused:NO]; // Next, with the prefetch still opening
+        XCTAssertEqual(dispatch_semaphore_wait(opened[1], guard()), 0L, @"the play must run an open of its own");
+        dispatch_semaphore_signal(release[0]);
+        [self settleUntil:^BOOL { return coordinator.stateSnapshotForTesting.handleOpensCompleted > completed; }];
+        (void)_player.audioPathSnapshot; // a player-queue round trip: the stale result has been handled
+        dispatch_semaphore_signal(release[1]);
+        [self settleUntil:^BOOL { return [self count:@"start"] >= 2; }];
+        NSDictionary *source = nil;
+        for (NSDictionary *stage in _player.audioPathSnapshot) {
+            if ([stage[@"stage"] isEqual:@"source"]) source = stage;
+        }
+        XCTAssertEqualObjects(source[@"file"], second.lastPathComponent);
+        XCTAssertEqualObjects(source[@"decoder"], @"apple", @"the stale prefetch started the play");
+    } @finally {
+        dispatch_semaphore_signal(release[0]);
+        dispatch_semaphore_signal(release[1]);
+        method_setImplementation(initializer, original);
+        imp_removeBlock(holding);
+        AudioFileHandle.appleMPEGDecoder = prior;
     }
 }
 

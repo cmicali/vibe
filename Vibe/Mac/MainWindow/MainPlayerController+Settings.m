@@ -14,6 +14,7 @@
 #import "MainWindow.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
+#import "AudioFileHandle.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+Devices.h"
 #import "AudioWaveformView.h"
@@ -67,6 +68,12 @@
     }
     if (effects & VibeSettingsLiveEffectDeclick) {
         self.audioPlayer.declick = settings.declick;
+    }
+    if (effects & VibeSettingsLiveEffectMP3Decoder) {
+        AudioFileHandle.appleMPEGDecoder = settings.appleMPEGDecoder;
+        // The parked next track was opened with the old decoder: reopen it.
+        [self.audioPlayer prefetchTrack:nil];
+        [self applyEndOfTrackAction];
     }
     if (effects & VibeSettingsLiveEffectVolume) {
         self.audioPlayer.volume = (float)settings.effectiveVolume;
