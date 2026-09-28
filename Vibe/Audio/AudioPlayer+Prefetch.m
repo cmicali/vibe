@@ -233,12 +233,13 @@
         VibePlaybackRequest *request = strongSelf.pendingRequest.currentRequest;
         if (request && [path isEqualToString:request.path]) {
             // A play of this path is waiting on its own claim. Deliver on
-            // success only; whichever result consumes the request first
-            // detaches the other.
+            // success only, and never under a decoder choice since changed,
+            // which the play's own open reflects; whichever result consumes
+            // the request first detaches the other.
             if (prefetchGeneration == strongSelf->_prefetchGeneration) {
                 [strongSelf clearPrefetchOnQueue];
             }
-            if (file && file.length > 0) {
+            if (file && file.length > 0 && !file.decoderChoiceIsStale) {
                 [strongSelf finishPlayOnQueueWithFile:file error:error openRequestId:request.identifier];
             }
             return;

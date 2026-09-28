@@ -894,6 +894,66 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     }
 }
 
+// The decoder changes and the same file is played while its prefetch still
+// opens under the old choice, and that stale open lands first: it must not
+// start the play, whose own open, begun after the change, does.
+- (void)testAStalePrefetchNeverStartsThePlayItRaces {
+    NSURL *first = [self fixture:@"cbr.mp3"], *second = [self fixture:@"vbr.mp3"];
+    XCTSkipUnless([NSFileManager.defaultManager fileExistsAtPath:second.path],
+                  @"Optional encoder fixtures unavailable; install ffmpeg and regenerate");
+    BOOL prior = AudioFileHandle.appleMPEGDecoder;
+    AudioFileHandle.appleMPEGDecoder = NO;
+    // The first open of the second file is the prefetch, the next the play's.
+    NSArray<dispatch_semaphore_t> *opened = @[dispatch_semaphore_create(0), dispatch_semaphore_create(0)];
+    NSArray<dispatch_semaphore_t> *release = @[dispatch_semaphore_create(0), dispatch_semaphore_create(0)];
+    __block NSInteger opens = 0;
+    SEL selector = @selector(initForReading:commonFormat:interleaved:error:);
+    Method initializer = class_getInstanceMethod(AudioFileHandle.class, selector);
+    __block IMP original;
+    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *url, AVAudioCommonFormat format, BOOL interleaved, NSError **error) {
+        id handle = ((id (*)(id, SEL, NSURL *, AVAudioCommonFormat, BOOL, NSError **))original)(receiver, selector, url, format, interleaved, error);
+        NSInteger index = -1;
+        if ([url.path isEqualToString:second.path]) {
+            @synchronized (self) { index = opens < 2 ? opens++ : -1; }
+        }
+        if (index >= 0) {
+            dispatch_semaphore_signal(opened[index]);
+            dispatch_semaphore_wait(release[index], dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
+        }
+        return handle;
+    });
+    original = method_setImplementation(initializer, holding);
+    dispatch_time_t (^guard)(void) = ^{ return dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC); };
+    @try {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+        [self play:first paused:NO position:0];
+        [_player prefetchTrack:[AudioTrack withURL:second]];
+        XCTAssertEqual(dispatch_semaphore_wait(opened[0], guard()), 0L);
+        AudioFileHandle.appleMPEGDecoder = YES;
+        AudioFileMaterializationCoordinator *coordinator = AudioFileMaterializationCoordinator.sharedCoordinator;
+        uint64_t completed = coordinator.stateSnapshotForTesting.handleOpensCompleted;
+        [_player play:[AudioTrack withURL:second] atPosition:0 startPaused:NO]; // Next, with the prefetch still opening
+        XCTAssertEqual(dispatch_semaphore_wait(opened[1], guard()), 0L, @"the play must run an open of its own");
+        dispatch_semaphore_signal(release[0]);
+        [self settleUntil:^BOOL { return coordinator.stateSnapshotForTesting.handleOpensCompleted > completed; }];
+        (void)_player.audioPathSnapshot; // a player-queue round trip: the stale result has been handled
+        dispatch_semaphore_signal(release[1]);
+        [self settleUntil:^BOOL { return [self count:@"start"] >= 2; }];
+        NSDictionary *source = nil;
+        for (NSDictionary *stage in _player.audioPathSnapshot) {
+            if ([stage[@"stage"] isEqual:@"source"]) source = stage;
+        }
+        XCTAssertEqualObjects(source[@"file"], second.lastPathComponent);
+        XCTAssertEqualObjects(source[@"decoder"], @"apple", @"the stale prefetch started the play");
+    } @finally {
+        dispatch_semaphore_signal(release[0]);
+        dispatch_semaphore_signal(release[1]);
+        method_setImplementation(initializer, original);
+        imp_removeBlock(holding);
+        AudioFileHandle.appleMPEGDecoder = prior;
+    }
+}
+
 // Two 5.1 files in different channel orders under bit-perfect output: the bus
 // folds each by its own layout, so its center still reaches both sides.
 - (void)testBitPerfectFoldsEachChannelLayoutInsideTheStereoBus {
