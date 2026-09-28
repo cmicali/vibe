@@ -1194,6 +1194,7 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
     uint64_t readStarted = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
 #endif
     report.enabled = _bitPerfectWanted;
+    report.playerVolume = self.volume;
     AudioDevice *device = _bitPerfectWanted ? [self eligibleRequestedDeviceOnQueue] : nil;
     report.eligibleDevice = (device != nil);
     if (device && (AudioDeviceID)device.deviceId == _preparedDeviceID) {
@@ -1312,6 +1313,25 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
     if (unconfirmed) {
         LogWarn(@"bit-perfect: format not confirmed, because %@", unconfirmed);
     }
+    [self announceBitPerfectReportChange];
+}
+
+- (void)refoldBitPerfectReportForPlayerVolumeOnQueue:(float)volume {
+    os_unfair_lock_lock(&_stateLock);
+    VibeBitPerfectReport report = _bitPerfectReport;
+    report.playerVolume = volume;
+    report.status = VibeBitPerfectFold(report);
+    BOOL changed = report.enabled && !VibeBitPerfectReportsEqual(_bitPerfectReport, report);
+    if (changed) {
+        _bitPerfectReport = report;
+    }
+    os_unfair_lock_unlock(&_stateLock);
+    if (changed) {
+        [self announceBitPerfectReportChange];
+    }
+}
+
+- (void)announceBitPerfectReportChange {
     run_on_main_thread({
         id<AudioPlayerDelegate> delegate = self.delegate;
         if ([delegate respondsToSelector:@selector(audioPlayerDidChangeBitPerfectReport:)]) {
@@ -1349,6 +1369,7 @@ static NSString *VibeBitPerfectStatusName(VibeBitPerfectStatus status) {
         @"isFloat": @(r.isFloat),
         @"softwareVolume": @(r.softwareVolume),
         @"balance": @(r.balance),
+        @"playerVolume": @(r.playerVolume),
         @"muted": @(r.muted),
         @"eligibleDevice": @(r.eligibleDevice),
         @"hasTrack": @(r.hasTrack),

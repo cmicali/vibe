@@ -142,6 +142,12 @@ static NSMutableDictionary<NSString *, NSFont *> *slotCache;
     return [self fontForSlot:VibeFontSlotInfo bold:bold];
 }
 
++ (NSDictionary<NSAttributedStringKey, id> *)infoTextAttributesAligned:(NSTextAlignment)alignment {
+    NSMutableParagraphStyle *paragraph = [[NSParagraphStyle new] mutableCopy];
+    paragraph.alignment = alignment;
+    return @{NSKernAttributeName: @(-1.2), NSParagraphStyleAttributeName: paragraph};
+}
+
 + (NSFont *)playlistFont {
     return [self fontForSlot:VibeFontSlotPlaylist bold:NO];
 }

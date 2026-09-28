@@ -68,6 +68,10 @@
     if (effects & VibeSettingsLiveEffectDeclick) {
         self.audioPlayer.declick = settings.declick;
     }
+    if (effects & VibeSettingsLiveEffectVolume) {
+        self.audioPlayer.volume = (float)settings.effectiveVolume;
+        [self.playerContentView applyVolumeControl];
+    }
     if (effects & VibeSettingsLiveEffectBitPerfect) {
         BOOL bitPerfect = settings.bitPerfectOutput;
         if (bitPerfect) {

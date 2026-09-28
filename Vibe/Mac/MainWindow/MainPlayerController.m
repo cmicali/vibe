@@ -123,6 +123,7 @@
                                                      delegate:self];
     self.audioPlayer.crossfadeMilliseconds = AppSettings.sharedInstance.effectiveCrossfadeMilliseconds;
     self.audioPlayer.declick = AppSettings.sharedInstance.declick;
+    self.audioPlayer.volume = (float)AppSettings.sharedInstance.effectiveVolume;
     [self.audioPlayer setBitPerfectOutput:AppSettings.sharedInstance.bitPerfectOutput
                          exclusiveOutput:AppSettings.sharedInstance.exclusiveOutput
                               enableFX:AppSettings.sharedInstance.audioFXEnabled allowAnyDevice:AppSettings.sharedInstance.allowBitPerfectOnAnyDevice];
@@ -979,6 +980,14 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 
 - (void)pitchControlPanelDidEndAdjusting:(PitchControlPanel *)panel {
     [self updateNowPlaying];
+}
+
+// A drag tick: the slider moved itself and the control is on, so the
+// player and the percentage are all that follow.
+- (IBAction)volumeChanged:(NSSlider *)sender {
+    AppSettings.sharedInstance.volume = sender.doubleValue;
+    self.audioPlayer.volume = (float)AppSettings.sharedInstance.effectiveVolume;
+    [self.playerContentView renderVolumePercent];
 }
 
 - (IBAction)toggleTimeDisplayMode:(id)sender {

@@ -35,6 +35,8 @@
 #define OUTPUT_MODE_BIT_PERFECT                     @"bitPerfect"
 #define OUTPUT_MODE_EXCLUSIVE                       @"exclusive"
 #define SETTING_DECLICK                             @"AudioPlayer.declick"
+#define SETTING_VOLUME_CONTROL                      @"AudioPlayer.volumeControl"
+#define SETTING_VOLUME                              @"AudioPlayer.volume"
 #define SETTING_ANALYZE_KEY                         @"Audio.analyzeKey"
 #define SETTING_KEY_NOTATION                        @"Audio.keyNotation"
 #define SETTING_KEY_COLORS                          @"Appearance.keyColors"
@@ -84,6 +86,8 @@ const size_t kVibeUIUpdateHzCapPresetCount =
             SETTING_UI_UPDATE_HZ_CAP:               @(30),
             SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE: @(NO),
             SETTING_DECLICK:                        @(YES),
+            SETTING_VOLUME_CONTROL:                 @(NO),
+            SETTING_VOLUME:                         @(1.0),
             SETTING_ANALYZE_KEY:                    @(NO),
             SETTING_CONVERT_ASKS_WHERE_TO_SAVE:     @(NO),
             SETTING_FOLDER_ART:                     @(YES),
@@ -843,6 +847,26 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
 
 - (void)setDeclick:(BOOL)declick {
     [[NSUserDefaults standardUserDefaults] setBool:declick forKey:SETTING_DECLICK];
+}
+
+- (BOOL)volumeControl {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_VOLUME_CONTROL];
+}
+
+- (void)setVolumeControl:(BOOL)enabled {
+    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:SETTING_VOLUME_CONTROL];
+}
+
+- (double)volume {
+    return clampRange([[NSUserDefaults standardUserDefaults] doubleForKey:SETTING_VOLUME], 0, 1);
+}
+
+- (void)setVolume:(double)volume {
+    [[NSUserDefaults standardUserDefaults] setDouble:volume forKey:SETTING_VOLUME];
+}
+
+- (double)effectiveVolume {
+    return self.volumeControl ? self.volume : 1.0;
 }
 
 - (BOOL)audioFXAllowed {

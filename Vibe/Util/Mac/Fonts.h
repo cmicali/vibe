@@ -26,6 +26,9 @@
 + (NSFont *)titleFont;
 + (NSFont *)artistFont;
 + (NSFont *)infoFontBold:(BOOL)bold;
+// The info readouts' kerning and alignment. No face: each field carries its
+// own infoFontBold:.
++ (NSDictionary<NSAttributedStringKey, id> *)infoTextAttributesAligned:(NSTextAlignment)alignment;
 + (NSFont *)playlistFont;
 + (NSFont *)playlistDurationFont;
 

@@ -48,6 +48,11 @@ NS_ASSUME_NONNULL_BEGIN
 // so NO applies no gain at all.
 @property (atomic) BOOL declick;
 
+// The output volume, 0..1, the fader's position: the render's last stage,
+// after the meter, whose gain is its cube so the travel reads as loudness.
+// 1, the default, leaves every sample untouched; 0 is silence.
+@property (atomic) float volume;
+
 // Which resampler converts a file at another rate than the output's: r8brain
 // (the default, under evaluation: docs/future/resampler.md) or Apple's, each
 // at its highest quality. Applies to conversions begun after the write.

@@ -53,6 +53,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)playPause:(nullable id)sender;
 - (IBAction)next:(nullable id)sender;
 - (IBAction)previous:(nullable id)sender;
+// The header's volume slider: stores its position and pushes it to the player.
+- (IBAction)volumeChanged:(NSSlider *)sender;
 
 // Plays the selected row, as a double-click does.
 - (IBAction)playSelectedTrack:(nullable id)sender;

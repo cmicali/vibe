@@ -70,6 +70,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 @implementation AudioPlayer {
     float                   _maxPitch;
+    float                   _volume;
     AudioLoadingConfiguration *_loadingConfiguration;
     // The fade-in length for the play in flight: the user's crossfade when it
     // replaced an audibly playing track, the declick minimum otherwise.
@@ -107,6 +108,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         _outputIdle = YES;
         _pendingRequest = [PlaybackRequestCoordinator new];
         _maxPitch = kDefaultMaxPitchPercent;
+        _volume = 1.0f;
         _crossfadeMilliseconds = kFadeDurationMilliseconds;
         _resampler = VibeResamplerR8brain;
         _declick = YES;
@@ -981,7 +983,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     }
 }
 
-#pragma mark - Crossfade and pitch
+#pragma mark - Crossfade, volume and pitch
 
 @synthesize crossfadeMilliseconds = _crossfadeMilliseconds;
 
@@ -1023,6 +1025,30 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     dispatch_async(_queue, ^{
         self->_voiceBus.resampler = resampler;
     });
+}
+
+- (float)volume {
+    os_unfair_lock_lock(&_stateLock);
+    float volume = _volume;
+    os_unfair_lock_unlock(&_stateLock);
+    return volume;
+}
+
+- (void)setVolume:(float)volume {
+    volume = clampRange(volume, 0.0f, 1.0f);
+    os_unfair_lock_lock(&_stateLock);
+    BOOL changed = _volume != volume;
+    _volume = volume;
+    os_unfair_lock_unlock(&_stateLock);
+    if (!changed) {
+        return;
+    }
+    VibeMasterBusSetVolume(_masterBus, volume * volume * volume);
+#if TARGET_OS_OSX
+    dispatch_async(_queue, ^{
+        [self refoldBitPerfectReportForPlayerVolumeOnQueue:volume];
+    });
+#endif
 }
 
 - (float)pitch {

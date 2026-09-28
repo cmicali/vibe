@@ -2233,6 +2233,192 @@
       },
       "extractionState": "manual"
     },
+    "a11y.volume": {
+      "comment": "Accessibility label for the player window's volume slider. Read aloud by a screen reader, never drawn on screen.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сила на звука"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hlasitost"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lydstyrke"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lautstärke"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ένταση"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volume"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volumen"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Äänenvoimakkuus"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volume"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Glasnoća"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hangerő"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volume"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volume"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音量"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "볼륨"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volum"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volume"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Głośność"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volume"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volume"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volum"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Громкость"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hlasitosť"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volym"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ระดับเสียง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ses Düzeyi"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Гучність"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Âm lượng"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音量"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音量"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "a11y.waveform": {
       "comment": "Accessibility label for the waveform, which is a slider: it shows where playback has reached in the track and seeks when adjusted. Read aloud by a screen reader, never drawn on screen. Both platforms.",
       "localizations": {
@@ -8180,6 +8366,192 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$@ - %2$@"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "label.volume": {
+      "comment": "Label to the left of the player window's volume slider, beside the time labels. Abbreviated like a hardware mixer's legend. Very tight space — about 3 characters.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Звук"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hlas."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vol"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vol"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ένταση"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vol"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vol"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vol"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vol"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Glas."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hang"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vol"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vol"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音量"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "볼륨"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vol"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vol"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gł."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vol"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vol"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vol"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Гр."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hlas."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vol"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เสียง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ses"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Гучн."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Âm"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音量"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音量"
           }
         }
       },
@@ -30511,145 +30883,145 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Запазва настройките, аудиоустройствата и журнала от тази сесия за доклад за грешка"
+            "value": "Запазване на настройките, аудиоустройствата и журнала от тази сесия за доклад за грешка"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uloží nastavení, zvuková zařízení a protokol této relace pro hlášení chyby"
+            "value": "Uložit nastavení, zvuková zařízení a protokol této relace pro hlášení chyby"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Arkiverer indstillinger, lydenheder og loggen fra denne session til en fejlrapport"
+            "value": "Arkiver indstillinger, lydenheder og loggen fra denne session til en fejlrapport"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sichert Einstellungen, Audiogeräte und das Protokoll dieser Sitzung für einen Fehlerbericht"
+            "value": "Einstellungen, Audiogeräte und das Protokoll dieser Sitzung für einen Fehlerbericht sichern"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Αποθηκεύει τις ρυθμίσεις, τις συσκευές ήχου και το αρχείο καταγραφής αυτής της συνεδρίας για αναφορά σφάλματος"
+            "value": "Αποθήκευση των ρυθμίσεων, των συσκευών ήχου και του αρχείου καταγραφής αυτής της συνεδρίας για αναφορά σφάλματος"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Saves settings, audio devices, and this session's log for a bug report"
+            "value": "Save settings, audio devices, and this session's log for a bug report"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Guarda los ajustes, los dispositivos de audio y el registro de esta sesión para un informe de error"
+            "value": "Guardar los ajustes, los dispositivos de audio y el registro de esta sesión para un informe de error"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tallentaa asetukset, äänilaitteet ja tämän istunnon lokin virheraporttia varten"
+            "value": "Tallenna asetukset, äänilaitteet ja tämän istunnon loki virheraporttia varten"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Enregistre les réglages, les appareils audio et le journal de cette session pour un rapport de bug"
+            "value": "Enregistrer les réglages, les appareils audio et le journal de cette session pour un rapport de bug"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sprema postavke, audiouređaje i zapisnik ove sesije za prijavu pogreške"
+            "value": "Spremi postavke, audiouređaje i zapisnik ove sesije za prijavu pogreške"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Menti a beállításokat, a hangeszközöket és a munkamenet naplóját egy hibajelentéshez"
+            "value": "Mentsd a beállításokat, a hangeszközöket és a munkamenet naplóját egy hibajelentéshez"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Menyimpan pengaturan, perangkat audio, dan log sesi ini untuk laporan bug"
+            "value": "Simpan pengaturan, perangkat audio, dan log sesi ini untuk laporan bug"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Salva impostazioni, dispositivi audio e il registro di questa sessione per una segnalazione di bug"
+            "value": "Salvare impostazioni, dispositivi audio e il registro di questa sessione per una segnalazione di bug"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "設定、オーディオデバイス、このセッションのログをバグレポート用に保存します"
+            "value": "設定、オーディオデバイス、このセッションのログをバグレポート用に保存する"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "버그 보고를 위해 설정, 오디오 기기 및 이 세션의 로그를 저장합니다"
+            "value": "버그 보고를 위해 설정, 오디오 기기 및 이 세션의 로그 저장하기"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Arkiverer innstillinger, lydenheter og loggen fra denne økten til en feilrapport"
+            "value": "Arkiver innstillinger, lydenheter og loggen fra denne økten til en feilrapport"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bewaart instellingen, audioapparaten en het logboek van deze sessie voor een foutmelding"
+            "value": "Instellingen, audioapparaten en het logboek van deze sessie bewaren voor een foutmelding"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zachowuje ustawienia, urządzenia audio i dziennik tej sesji do zgłoszenia błędu"
+            "value": "Zapisz ustawienia, urządzenia audio i dziennik tej sesji do zgłoszenia błędu"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Salva os ajustes, os dispositivos de áudio e o registro desta sessão para um relatório de erro"
+            "value": "Salvar os ajustes, os dispositivos de áudio e o registro desta sessão para um relatório de erro"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Guarda as definições, os dispositivos de áudio e o registo desta sessão para um relatório de erro"
+            "value": "Guardar as definições, os dispositivos de áudio e o registo desta sessão para um relatório de erro"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Salvează setările, dispozitivele audio și jurnalul acestei sesiuni pentru un raport de eroare"
+            "value": "Salvați setările, dispozitivele audio și jurnalul acestei sesiuni pentru un raport de eroare"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Сохраняет настройки, аудиоустройства и журнал этого сеанса для отчета об ошибке"
+            "value": "Сохранить настройки, аудиоустройства и журнал этого сеанса для отчета об ошибке"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uloží nastavenia, zvukové zariadenia a denník tejto relácie pre hlásenie chyby"
+            "value": "Uložiť nastavenia, zvukové zariadenia a denník tejto relácie pre hlásenie chyby"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sparar inställningar, ljudenheter och loggen från den här sessionen för en felrapport"
+            "value": "Spara inställningar, ljudenheter och loggen från den här sessionen för en felrapport"
           }
         },
         "th": {
@@ -30661,13 +31033,13 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hata raporu için ayarları, ses aygıtlarını ve bu oturumun günlüğünü kaydeder"
+            "value": "Hata raporu için ayarları, ses aygıtlarını ve bu oturumun günlüğünü kaydet"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Зберігає налаштування, аудіопристрої та журнал цього сеансу для звіту про помилку"
+            "value": "Зберегти налаштування, аудіопристрої та журнал цього сеансу для звіту про помилку"
           }
         },
         "vi": {
@@ -31069,181 +31441,181 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Връща фабричните настройки, включително изтриване на персонализираните теми."
+            "value": "Връщане на всички настройки по подразбиране и изтриване на персонализираните теми"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Obnoví tovární nastavení a smaže vlastní motivy."
+            "value": "Obnovit výchozí hodnoty všech nastavení a smazat vlastní motivy"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nulstiller til fabriksindstillingerne og sletter tilpassede temaer."
+            "value": "Nulstil alle indstillinger til standardværdierne, og slet tilpassede temaer"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setzt auf die Werkseinstellungen zurück und löscht eigene Designs."
+            "value": "Alle Einstellungen auf die Standardwerte zurücksetzen und eigene Designs löschen"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Επαναφέρει τις εργοστασιακές ρυθμίσεις και διαγράφει τα προσαρμοσμένα θέματα."
+            "value": "Επαναφορά όλων των ρυθμίσεων στις προεπιλογές και διαγραφή των προσαρμοσμένων θεμάτων"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reset to factory defaults, including deleting custom themes"
+            "value": "Reset all settings to defaults and delete custom themes"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Restablece los ajustes de fábrica y elimina los temas personalizados."
+            "value": "Restablecer todos los ajustes predeterminados y eliminar los temas personalizados"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Palauttaa tehdasasetukset ja poistaa omat teemat."
+            "value": "Palauta kaikki asetukset oletusarvoihin ja poista omat teemat"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rétablit les réglages d’usine et supprime les thèmes personnalisés."
+            "value": "Rétablir tous les réglages par défaut et supprimer les thèmes personnalisés"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vraća tvorničke postavke i briše prilagođene teme."
+            "value": "Vrati sve postavke na zadane vrijednosti i izbriši prilagođene teme"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Visszaállítja a gyári beállításokat, és törli az egyéni témákat."
+            "value": "Állítsd vissza az összes beállítást az alapértékekre, és töröld az egyéni témákat"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mengatur ulang ke pengaturan pabrik dan menghapus tema khusus."
+            "value": "Atur ulang semua pengaturan ke default dan hapus tema khusus"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ripristina le impostazioni di fabbrica ed elimina i temi personalizzati."
+            "value": "Ripristinare tutte le impostazioni predefinite ed eliminare i temi personalizzati"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "工場出荷時の設定に戻し、カスタムテーマも削除します。"
+            "value": "すべての設定をデフォルトに戻し、カスタムテーマを削除する"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "초기 설정으로 재설정하고 사용자 설정 테마를 삭제합니다."
+            "value": "모든 설정을 기본값으로 재설정하고 사용자 설정 테마 삭제하기"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tilbakestiller til fabrikkinnstillingene og sletter egendefinerte temaer."
+            "value": "Tilbakestill alle innstillinger til standardverdiene, og slett egendefinerte temaer"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Herstelt de fabrieksinstellingen en verwijdert aangepaste thema’s."
+            "value": "Alle standaardinstellingen herstellen en aangepaste thema’s verwijderen"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Przywraca ustawienia fabryczne i usuwa własne motywy."
+            "value": "Przywróć domyślne wartości wszystkich ustawień i usuń własne motywy"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Restaura os ajustes de fábrica e apaga os temas personalizados."
+            "value": "Redefinir todos os ajustes para os padrões e apagar os temas personalizados"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Repõe as definições de fábrica e apaga os temas personalizados."
+            "value": "Repor todas as predefinições e apagar os temas personalizados"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Restabilește configurările din fabrică și șterge temele personalizate."
+            "value": "Restabiliți toate configurările implicite și ștergeți temele personalizate"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Восстанавливает заводские настройки и удаляет пользовательские темы."
+            "value": "Восстановить настройки по умолчанию и удалить пользовательские темы"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Obnoví výrobné nastavenia a vymaže vlastné témy."
+            "value": "Obnoviť predvolené hodnoty všetkých nastavení a vymazať vlastné témy"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Återställer fabriksinställningarna och raderar anpassade teman."
+            "value": "Återställ alla inställningar till standardvärdena och radera anpassade teman"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "รีเซ็ตเป็นค่าเริ่มต้นจากโรงงาน รวมถึงลบธีมที่กำหนดเอง"
+            "value": "รีเซ็ตการตั้งค่าทั้งหมดเป็นค่าเริ่มต้นและลบธีมที่กำหนดเอง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fabrika ayarlarına döndürür ve özel temaları siler."
+            "value": "Tüm ayarları saptanmış değerlere döndür ve özel temaları sil"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Відновлює заводські параметри та видаляє власні теми."
+            "value": "Відновити типові значення всіх параметрів і видалити власні теми"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Khôi phục cài đặt gốc và xóa các chủ đề tùy chỉnh."
+            "value": "Đặt lại tất cả cài đặt về mặc định và xóa các chủ đề tùy chỉnh"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "恢复出厂设置，包括删除自定义主题。"
+            "value": "将所有设置恢复为默认值，并删除自定义主题"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "恢復原廠設定，包括刪除自訂主題。"
+            "value": "將所有設定恢復為預設值，並刪除自訂主題"
           }
         }
       },
@@ -33115,181 +33487,181 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Връща всички настройки по подразбиране. Запазва персонализираните теми."
+            "value": "Връщане на всички настройки по подразбиране и запазване на персонализираните теми"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Obnoví výchozí hodnoty všech nastavení. Vlastní motivy zůstanou zachovány."
+            "value": "Obnovit výchozí hodnoty všech nastavení a zachovat vlastní motivy"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nulstiller alle indstillinger til standardværdierne. Beholder tilpassede temaer."
+            "value": "Nulstil alle indstillinger til standardværdierne, og behold tilpassede temaer"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setzt alle Einstellungen auf die Standardwerte zurück. Eigene Designs bleiben erhalten."
+            "value": "Alle Einstellungen auf die Standardwerte zurücksetzen und eigene Designs behalten"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Επαναφέρει όλες τις ρυθμίσεις στις προεπιλογές. Διατηρεί τα προσαρμοσμένα θέματα."
+            "value": "Επαναφορά όλων των ρυθμίσεων στις προεπιλογές με διατήρηση των προσαρμοσμένων θεμάτων"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reset all settings to defaults, keeps custom themes"
+            "value": "Reset all settings to defaults and keep custom themes"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Restablece todos los ajustes predeterminados. Conserva los temas personalizados."
+            "value": "Restablecer todos los ajustes predeterminados y conservar los temas personalizados"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Palauttaa kaikki asetukset oletusarvoihin. Säilyttää omat teemat."
+            "value": "Palauta kaikki asetukset oletusarvoihin ja säilytä omat teemat"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rétablit tous les réglages par défaut. Conserve les thèmes personnalisés."
+            "value": "Rétablir tous les réglages par défaut et conserver les thèmes personnalisés"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vraća sve postavke na zadane vrijednosti. Zadržava prilagođene teme."
+            "value": "Vrati sve postavke na zadane vrijednosti i zadrži prilagođene teme"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Az összes beállítás visszaállítása az alapértékekre. Az egyéni témák megmaradnak."
+            "value": "Állítsd vissza az összes beállítást az alapértékekre, és tartsd meg az egyéni témákat"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mengatur ulang semua pengaturan ke default. Tema khusus tetap disimpan."
+            "value": "Atur ulang semua pengaturan ke default dan simpan tema khusus"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ripristina tutte le impostazioni predefinite. Mantiene i temi personalizzati."
+            "value": "Ripristinare tutte le impostazioni predefinite e mantenere i temi personalizzati"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "すべての設定をデフォルトに戻します。カスタムテーマは保持されます。"
+            "value": "すべての設定をデフォルトに戻し、カスタムテーマは保持する"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "모든 설정을 기본값으로 재설정합니다. 사용자 설정 테마는 유지됩니다."
+            "value": "모든 설정을 기본값으로 재설정하고 사용자 설정 테마는 유지하기"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tilbakestiller alle innstillinger til standardverdiene. Beholder egendefinerte temaer."
+            "value": "Tilbakestill alle innstillinger til standardverdiene, og behold egendefinerte temaer"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Herstelt alle standaardinstellingen. Aangepaste thema’s blijven bewaard."
+            "value": "Alle standaardinstellingen herstellen en aangepaste thema’s bewaren"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Przywraca domyślne wartości wszystkich ustawień. Zachowuje własne motywy."
+            "value": "Przywróć domyślne wartości wszystkich ustawień i zachowaj własne motywy"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Redefine todos os ajustes para os padrões. Mantém os temas personalizados."
+            "value": "Redefinir todos os ajustes para os padrões e manter os temas personalizados"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Repõe todas as predefinições. Mantém os temas personalizados."
+            "value": "Repor todas as predefinições e manter os temas personalizados"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Restabilește toate configurările implicite. Păstrează temele personalizate."
+            "value": "Restabiliți toate configurările implicite și păstrați temele personalizate"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Восстанавливает настройки по умолчанию. Сохраняет пользовательские темы."
+            "value": "Восстановить настройки по умолчанию и сохранить пользовательские темы"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Obnoví predvolené hodnoty všetkých nastavení. Zachová vlastné témy."
+            "value": "Obnoviť predvolené hodnoty všetkých nastavení a zachovať vlastné témy"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Återställer alla inställningar till standardvärdena. Behåller anpassade teman."
+            "value": "Återställ alla inställningar till standardvärdena och behåll anpassade teman"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "รีเซ็ตการตั้งค่าทั้งหมดเป็นค่าเริ่มต้น โดยเก็บธีมที่กำหนดเองไว้"
+            "value": "รีเซ็ตการตั้งค่าทั้งหมดเป็นค่าเริ่มต้นและเก็บธีมที่กำหนดเองไว้"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tüm ayarları saptanmış değerlere döndürür. Özel temaları korur."
+            "value": "Tüm ayarları saptanmış değerlere döndür ve özel temaları koru"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Відновлює типові значення всіх параметрів. Зберігає власні теми."
+            "value": "Відновити типові значення всіх параметрів і зберегти власні теми"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Đặt lại tất cả cài đặt về mặc định. Giữ lại các chủ đề tùy chỉnh."
+            "value": "Đặt lại tất cả cài đặt về mặc định và giữ lại các chủ đề tùy chỉnh"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "将所有设置恢复为默认值。保留自定义主题。"
+            "value": "将所有设置恢复为默认值，并保留自定义主题"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "將所有設定恢復為預設值。保留自訂主題。"
+            "value": "將所有設定恢復為預設值，並保留自訂主題"
           }
         }
       },
@@ -59899,181 +60271,181 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Прилага се за всички теми. Променя само изгледа на вълновата форма. Силата на звука не се променя."
+            "value": "Настройване на височината на вълновата форма във всички теми, без промяна на силата на звука при възпроизвеждане"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Platí pro všechny motivy. Mění pouze zobrazení průběhu vlny. Hlasitost přehrávání se nemění."
+            "value": "Upravit výšku průběhu vlny ve všech motivech beze změny hlasitosti přehrávání"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gælder alle temaer. Ændrer kun bølgeformens visning. Afspilningslydstyrken ændres ikke."
+            "value": "Juster bølgeformens højde i alle temaer uden at ændre afspilningslydstyrken"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gilt für alle Themen. Ändert nur die Wellenformdarstellung. Die Wiedergabelautstärke bleibt unverändert."
+            "value": "Höhe der Wellenform in allen Designs anpassen, ohne die Wiedergabelautstärke zu ändern"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ισχύει για όλα τα θέματα. Αλλάζει μόνο την εμφάνιση της κυματομορφής. Η ένταση αναπαραγωγής δεν αλλάζει."
+            "value": "Προσαρμογή του ύψους της κυματομορφής σε όλα τα θέματα χωρίς αλλαγή της έντασης αναπαραγωγής"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Applies to all themes. Changes the waveform display only. Playback volume is unchanged."
+            "value": "Adjust the waveform's height in every theme without changing playback volume"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se aplica a todos los temas. Solo cambia la forma de onda mostrada. El volumen de reproducción no cambia."
+            "value": "Ajustar la altura de la forma de onda en todos los temas sin cambiar el volumen de reproducción"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Koskee kaikkia teemoja. Muuttaa vain aaltomuodon näkymää. Toiston äänenvoimakkuus ei muutu."
+            "value": "Säädä aaltomuodon korkeutta kaikissa teemoissa muuttamatta toiston äänenvoimakkuutta"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "S’applique à tous les thèmes. Modifie uniquement l’affichage de la forme d’onde. Le volume de lecture reste inchangé."
+            "value": "Ajuster la hauteur de la forme d’onde dans tous les thèmes sans modifier le volume de lecture"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Primjenjuje se na sve teme. Mijenja samo prikaz valnog oblika. Glasnoća reprodukcije ostaje ista."
+            "value": "Prilagodi visinu valnog oblika u svim temama bez promjene glasnoće reprodukcije"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Minden témára érvényes. Csak a hullámforma megjelenítését módosítja. A lejátszás hangereje nem változik."
+            "value": "Állítsd a hullámforma magasságát minden témában a lejátszás hangerejének módosítása nélkül"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Berlaku untuk semua tema. Hanya mengubah tampilan bentuk gelombang. Volume pemutaran tidak berubah."
+            "value": "Sesuaikan tinggi bentuk gelombang di semua tema tanpa mengubah volume pemutaran"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Si applica a tutti i temi. Modifica solo la forma d’onda visualizzata. Il volume di riproduzione rimane invariato."
+            "value": "Regolare l’altezza della forma d’onda in tutti i temi senza cambiare il volume di riproduzione"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "すべてのテーマに適用されます。波形の表示のみを変更します。再生音量は変わりません。"
+            "value": "すべてのテーマで波形の高さを調整する（再生音量は変わりません）"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "모든 테마에 적용됩니다. 파형 표시만 변경합니다. 재생 음량은 변경되지 않습니다."
+            "value": "재생 음량을 바꾸지 않고 모든 테마에서 파형 높이 조절하기"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gjelder alle temaer. Endrer bare bølgeformvisningen. Avspillingsvolumet endres ikke."
+            "value": "Juster bølgeformens høyde i alle temaer uten å endre avspillingsvolumet"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Geldt voor alle thema’s. Wijzigt alleen de golfvormweergave. Het afspeelvolume blijft gelijk."
+            "value": "Hoogte van de golfvorm in alle thema’s aanpassen zonder het afspeelvolume te wijzigen"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dotyczy wszystkich motywów. Zmienia tylko wyświetlanie przebiegu fali. Głośność odtwarzania pozostaje bez zmian."
+            "value": "Dostosuj wysokość przebiegu fali we wszystkich motywach bez zmiany głośności odtwarzania"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aplicado a todos os temas. Altera apenas a exibição da forma de onda. O volume de reprodução não muda."
+            "value": "Ajustar a altura da forma de onda em todos os temas sem alterar o volume de reprodução"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aplica-se a todos os temas. Altera apenas a apresentação da forma de onda. O volume de reprodução não muda."
+            "value": "Ajustar a altura da forma de onda em todos os temas sem alterar o volume de reprodução"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se aplică tuturor temelor. Modifică doar afișarea formei de undă. Volumul redării rămâne neschimbat."
+            "value": "Ajustați înălțimea formei de undă în toate temele fără a modifica volumul redării"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Применяется ко всем темам. Меняет только отображение формы волны. Громкость воспроизведения не меняется."
+            "value": "Настраивать высоту формы волны во всех темах, не меняя громкость воспроизведения"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Platí pre všetky motívy. Mení len zobrazenie priebehu vlny. Hlasitosť prehrávania sa nemení."
+            "value": "Upraviť výšku priebehu vlny vo všetkých motívoch bez zmeny hlasitosti prehrávania"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gäller alla teman. Ändrar bara vågformsvisningen. Uppspelningsvolymen ändras inte."
+            "value": "Justera vågformens höjd i alla teman utan att ändra uppspelningsvolymen"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ใช้กับทุกธีม เปลี่ยนเฉพาะการแสดงรูปคลื่น ระดับเสียงการเล่นไม่เปลี่ยนแปลง"
+            "value": "ปรับความสูงของรูปคลื่นในทุกธีมโดยไม่เปลี่ยนระดับเสียงการเล่น"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tüm temalar için geçerlidir. Yalnızca dalga biçimi görünümünü değiştirir. Çalma ses düzeyi değişmez."
+            "value": "Çalma ses düzeyini değiştirmeden tüm temalarda dalga biçiminin yüksekliğini ayarla"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Застосовується до всіх тем. Змінює лише відображення форми хвилі. Гучність відтворення не змінюється."
+            "value": "Налаштовувати висоту форми хвилі в усіх темах, не змінюючи гучність відтворення"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Áp dụng cho tất cả chủ đề. Chỉ thay đổi cách hiển thị dạng sóng. Âm lượng phát lại không thay đổi."
+            "value": "Điều chỉnh chiều cao dạng sóng trong mọi chủ đề mà không thay đổi âm lượng phát lại"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "适用于所有主题。仅更改波形显示，不改变播放音量。"
+            "value": "在所有主题中调整波形高度，不改变播放音量"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "適用於所有主題。僅更改波形顯示，不改變播放音量。"
+            "value": "在所有主題中調整波形高度，不改變播放音量"
           }
         }
       },
@@ -63608,6 +63980,192 @@
           "stringUnit": {
             "state": "translated",
             "value": "虛擬"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.audio.device_section": {
+      "comment": "Settings, Audio pane: heading above the switches that change how the selected output device is driven (Bit-perfect output, Exclusive output), below the output device list.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Устройство"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zařízení"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enhed"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gerät"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Συσκευή"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Device"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dispositivo"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Laite"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appareil"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uređaj"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eszköz"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perangkat"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dispositivo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デバイス"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기기"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enhet"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apparaat"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Urządzenie"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dispositivo"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dispositivo"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dispozitiv"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Устройство"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zariadenie"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enhet"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "อุปกรณ์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aygıt"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пристрій"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thiết bị"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设备"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "裝置"
           }
         }
       },
@@ -68083,145 +68641,145 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Настройва устройството според честотата на дискретизация и битовата дълбочина на всеки файл"
+            "value": "Настройване на устройството според честотата на дискретизация и битовата дълбочина на всеки файл"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nastaví zařízení na vzorkovací frekvenci a bitovou hloubku každého souboru"
+            "value": "Nastavit zařízení na vzorkovací frekvenci a bitovou hloubku každého souboru"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Indstiller enheden til hver fils samplingsfrekvens og bitdybde"
+            "value": "Indstil enheden til hver fils samplingsfrekvens og bitdybde"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Stellt das Gerät auf die Abtastrate und Bittiefe jeder Datei ein"
+            "value": "Gerät auf die Abtastrate und Bittiefe jeder Datei einstellen"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ρυθμίζει τη συσκευή στον ρυθμό δειγματοληψίας και το βάθος bit κάθε αρχείου"
+            "value": "Ρύθμιση της συσκευής στον ρυθμό δειγματοληψίας και το βάθος bit κάθε αρχείου"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sets the device to each file's sample rate and bit depth"
+            "value": "Set the device to each file's sample rate and bit depth"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ajusta el dispositivo a la frecuencia de muestreo y la profundidad de bits de cada archivo"
+            "value": "Ajustar el dispositivo a la frecuencia de muestreo y la profundidad de bits de cada archivo"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Asettaa laitteen kunkin tiedoston näytteenottotaajuudelle ja bittisyvyydelle"
+            "value": "Aseta laite kunkin tiedoston näytteenottotaajuudelle ja bittisyvyydelle"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Règle l’appareil sur la fréquence d’échantillonnage et la profondeur de bits de chaque fichier"
+            "value": "Régler l’appareil sur la fréquence d’échantillonnage et la profondeur de bits de chaque fichier"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Postavlja uređaj na frekvenciju uzorkovanja i dubinu bita svake datoteke"
+            "value": "Postavi uređaj na frekvenciju uzorkovanja i dubinu bita svake datoteke"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Az eszközt az egyes fájlok mintavételi frekvenciájára és bitmélységére állítja"
+            "value": "Állítsd az eszközt az egyes fájlok mintavételi frekvenciájára és bitmélységére"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mengatur perangkat ke laju sampel dan kedalaman bit setiap file"
+            "value": "Atur perangkat ke laju sampel dan kedalaman bit setiap file"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Imposta il dispositivo sulla frequenza di campionamento e la profondità di bit di ogni file"
+            "value": "Impostare il dispositivo sulla frequenza di campionamento e la profondità di bit di ogni file"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "各ファイルのサンプルレートとビット深度に合わせてデバイスを設定します"
+            "value": "デバイスを各ファイルのサンプルレートとビット深度に合わせる"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "각 파일의 샘플률과 비트 심도에 맞춰 기기를 설정합니다"
+            "value": "각 파일의 샘플률과 비트 심도에 맞춰 기기 설정하기"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setter enheten til samplingsfrekvensen og bitdybden til hver fil"
+            "value": "Sett enheten til samplingsfrekvensen og bitdybden til hver fil"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Stelt het apparaat in op de samplefrequentie en bitdiepte van elk bestand"
+            "value": "Apparaat instellen op de samplefrequentie en bitdiepte van elk bestand"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ustawia urządzenie na częstotliwość próbkowania i głębię bitową każdego pliku"
+            "value": "Ustaw urządzenie na częstotliwość próbkowania i głębię bitową każdego pliku"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ajusta o dispositivo à taxa de amostragem e à profundidade de bits de cada arquivo"
+            "value": "Ajustar o dispositivo à taxa de amostragem e à profundidade de bits de cada arquivo"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ajusta o dispositivo à frequência de amostragem e à profundidade de bits de cada ficheiro"
+            "value": "Ajustar o dispositivo à frequência de amostragem e à profundidade de bits de cada ficheiro"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Configurează dispozitivul la rata de eșantionare și adâncimea de biți ale fiecărui fișier"
+            "value": "Configurați dispozitivul la rata de eșantionare și adâncimea de biți ale fiecărui fișier"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Устанавливает для устройства частоту дискретизации и битовую глубину каждого файла"
+            "value": "Устанавливать для устройства частоту дискретизации и битовую глубину каждого файла"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nastaví zariadenie na vzorkovaciu frekvenciu a bitovú hĺbku každého súboru"
+            "value": "Nastaviť zariadenie na vzorkovaciu frekvenciu a bitovú hĺbku každého súboru"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ställer in enheten på varje fils samplingsfrekvens och bitdjup"
+            "value": "Ställ in enheten på varje fils samplingsfrekvens och bitdjup"
           }
         },
         "th": {
@@ -68233,13 +68791,13 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aygıtı her dosyanın örnekleme hızına ve bit derinliğine ayarlar"
+            "value": "Aygıtı her dosyanın örnekleme hızına ve bit derinliğine ayarla"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Установлює для пристрою частоту дискретизації та бітову глибину кожного файлу"
+            "value": "Установлювати для пристрою частоту дискретизації та бітову глибину кожного файлу"
           }
         },
         "vi": {
@@ -70123,6 +70681,192 @@
       },
       "extractionState": "manual"
     },
+    "settings.general.bit_perfect.player_volume": {
+      "comment": "Bit-perfect output status: the player window's own volume slider (Settings > Audio > Volume control) is below full, so the app is scaling the audio. %@ is the slider's position as a whole-number percentage; %% is a literal percent sign.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Плъзгачът за силата на звука е на %@%%; задайте 100%% за битово точен изход"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Posuvník hlasitosti je na %@%%; pro bitově přesný výstup jej nastavte na 100%%"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lydstyrkeskyderen står på %@%%; indstil den til 100%% for bitperfekt output"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Lautstärkeregler steht auf %@%%; stelle ihn für bitgenaue Ausgabe auf 100%%"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Το ρυθμιστικό έντασης είναι στο %@%%· ορίστε το στο 100%% για έξοδο bit-perfect"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volume slider is at %@%%: set to 100%% for bit-perfect output"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El regulador de volumen está al %@%%; ajústalo al 100%% para una salida bit-perfect"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Äänenvoimakkuuden liukusäädin on %@%%:ssa; aseta se 100%%:iin bittitarkkaa lähtöä varten"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le curseur de volume est à %@%% ; réglez-le sur 100%% pour une sortie bit-perfect"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klizač glasnoće je na %@%%; postavite ga na 100%% za bitovno točan izlaz"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A hangerő-csúszka %@%%-on áll; a bitpontos kimenethez állítsd 100%%-ra"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penggeser volume ada di %@%%; atur ke 100%% untuk output bit-perfect"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il cursore del volume è al %@%%; impostalo al 100%% per un’uscita bit-perfect"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音量スライダは%@%%です。ビットパーフェクト出力には100%%に設定してください"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "볼륨 슬라이더가 %@%%입니다. 비트 퍼펙트 출력을 위해 100%%로 설정하십시오"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volumskyveknappen står på %@%%; sett den til 100%% for bitperfekt utgang"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De volumeschuifknop staat op %@%%; stel hem in op 100%% voor bitperfecte uitvoer"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suwak głośności jest ustawiony na %@%%; ustaw go na 100%%, aby uzyskać wyjście bit-perfect"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O controle deslizante de volume está em %@%%; ajuste-o para 100%% para uma saída bit-perfect"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O cursor de volume está em %@%%; ajuste-o para 100%% para uma saída bit-perfect"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Glisorul de volum este la %@%%; setați-l la 100%% pentru ieșire bit-perfect"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ползунок громкости — %@%%; установите 100%% для побитово точного вывода"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Posuvník hlasitosti je na %@%%; pre bitovo presný výstup ho nastavte na 100%%"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volymreglaget står på %@%%; ställ in det på 100%% för bitperfekt utmatning"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "แถบเลื่อนระดับเสียงอยู่ที่ %@%% ให้ตั้งเป็น 100%% เพื่อใช้เอาต์พุตแบบบิตเพอร์เฟกต์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ses düzeyi sürgüsü %@%%; bit düzeyinde kusursuz çıkış için 100%% olarak ayarlayın"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Повзунок гучності — %@%%; установіть 100%% для побітово точного виведення"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thanh trượt âm lượng đang ở %@%%; hãy đặt thành 100%% để có đầu ra bit-perfect"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音量滑块为 %@%%，请将其设为 100%% 以实现比特完美输出"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音量滑桿為 %@%%，請將其設為 100%% 以實現位元完美輸出"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.general.bit_perfect.rate_unsupported": {
       "comment": "Bit-perfect output status: the device cannot run at the file's sample rate, so the audio is resampled. %@ is the rate the device is running at, already formatted with its unit (e.g. '88.2 kHz').",
       "localizations": {
@@ -70868,7 +71612,7 @@
       "extractionState": "manual"
     },
     "settings.general.declick": {
-      "comment": "Settings, Audio pane: switch above Bit-perfect output. On, playback ramps the volume over the first and last few milliseconds of every start, stop, pause, seek and track change so the edge cannot click; off, it cuts, leaving every sample untouched. A short noun phrase for removing clicks.",
+      "comment": "Settings, Audio pane: switch below Volume control. On, playback ramps the volume over the first and last few milliseconds of every start, stop, pause, seek and track change so the edge cannot click; off, it cuts, leaving every sample untouched. A short noun phrase for removing clicks.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -71059,181 +71803,181 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Използва плавни промени на силата на звука, за да намали щракането"
+            "value": "Използване на много кратки плавни промени на силата на звука за намаляване на щракането и пукането"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Používá plynulé změny hlasitosti, aby omezilo lupání"
+            "value": "Používat velmi krátké plynulé změny hlasitosti k omezení cvakání a lupání"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bruger bløde lydstyrkeovergange for at mindske klik"
+            "value": "Brug meget korte lydstyrkeovergange til at mindske klik og pop"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Blendet die Lautstärke kurz ein und aus, um Knacken zu vermeiden"
+            "value": "Sehr kurze Lautstärkerampen verwenden, um Klicken und Knacken zu vermeiden"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Χρησιμοποιεί ομαλές μεταβολές έντασης για να μειώσει τα κλικ"
+            "value": "Χρήση πολύ σύντομων ομαλών μεταβολών έντασης για λιγότερα κλικ και σκασίματα"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uses volume ramps to reduce clicking"
+            "value": "Use very short volume ramps to reduce clicks and pops"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usa rampas de volumen para reducir los clics"
+            "value": "Usar rampas de volumen muy cortas para reducir clics y chasquidos"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Käyttää pehmeitä äänenvoimakkuuden liukuja napsahdusten vähentämiseksi"
+            "value": "Käytä hyvin lyhyitä äänenvoimakkuuden liukuja napsahdusten ja poksahdusten vähentämiseksi"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Utilise des rampes de volume pour réduire les clics"
+            "value": "Utiliser de très courtes rampes de volume pour réduire les clics et les pops"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Koristi postupne promjene glasnoće kako bi smanjio klikove"
+            "value": "Koristi vrlo kratke postupne promjene glasnoće za smanjenje klikova i pucketanja"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fokozatos hangerőváltással csökkenti a kattanásokat"
+            "value": "Használj nagyon rövid, fokozatos hangerőváltásokat a kattanások és pattanások csökkentésére"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Menggunakan perubahan volume bertahap untuk mengurangi klik"
+            "value": "Gunakan perubahan volume bertahap yang sangat singkat untuk mengurangi bunyi klik dan letupan"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usa rampe di volume per ridurre i clic"
+            "value": "Usare rampe di volume molto brevi per ridurre clic e schiocchi"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "音量をなめらかに変化させてクリックノイズを抑えます"
+            "value": "ごく短い音量の変化でクリックノイズやポップノイズを抑える"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "볼륨을 부드럽게 조절하여 클릭 노이즈를 줄입니다"
+            "value": "매우 짧은 볼륨 램프로 클릭 및 팝 노이즈 줄이기"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bruker myke volumoverganger for å redusere klikk"
+            "value": "Bruk svært korte volumoverganger for å redusere klikk og smell"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gebruikt geleidelijke volumeovergangen om klikken te verminderen"
+            "value": "Zeer korte volumeovergangen gebruiken om klikken en ploppen te verminderen"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Używa płynnych zmian głośności, aby ograniczyć trzaski"
+            "value": "Używaj bardzo krótkich płynnych zmian głośności, aby ograniczyć trzaski i stuki"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usa rampas de volume para reduzir cliques"
+            "value": "Usar rampas de volume muito curtas para reduzir cliques e estalos"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usa rampas de volume para reduzir cliques"
+            "value": "Usar rampas de volume muito curtas para reduzir cliques e estalos"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Folosește rampe de volum pentru a reduce clicurile"
+            "value": "Folosiți rampe de volum foarte scurte pentru a reduce clicurile și pocniturile"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Плавно изменяет громкость, чтобы уменьшить щелчки"
+            "value": "Использовать очень короткие плавные изменения громкости, чтобы уменьшить щелчки и хлопки"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Používa plynulé zmeny hlasitosti, aby obmedzilo praskanie"
+            "value": "Používať veľmi krátke plynulé zmeny hlasitosti na obmedzenie cvakania a praskania"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Använder mjuka volymövergångar för att minska klick"
+            "value": "Använd mycket korta volymövergångar för att minska klick och knäppar"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ใช้การปรับระดับเสียงแบบค่อยเป็นค่อยไปเพื่อลดเสียงคลิก"
+            "value": "ใช้การปรับระดับเสียงแบบค่อยเป็นค่อยไปช่วงสั้นมากเพื่อลดเสียงคลิกและเสียงป๊อป"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tıklamaları azaltmak için ses düzeyini kademeli olarak değiştirir"
+            "value": "Tıklama ve patlama seslerini azaltmak için çok kısa ses düzeyi geçişleri kullan"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Плавно змінює гучність, щоб зменшити клацання"
+            "value": "Використовувати дуже короткі плавні зміни гучності, щоб зменшити клацання й хлопки"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dùng thay đổi âm lượng dần để giảm tiếng click"
+            "value": "Dùng thay đổi âm lượng dần rất ngắn để giảm tiếng click và tiếng bụp"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "通过音量渐变减少爆音"
+            "value": "使用极短的音量渐变减少咔嗒声和爆音"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "透過音量漸變減少爆音"
+            "value": "使用極短的音量漸變減少咔嗒聲和爆音"
           }
         }
       },
@@ -71989,145 +72733,145 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Не позволява на други приложения да използват изходното устройство по време на възпроизвеждане"
+            "value": "Забраняване на други приложения да използват изходното устройство по време на възпроизвеждане"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Během přehrávání zabrání ostatním aplikacím používat výstupní zařízení"
+            "value": "Během přehrávání zabránit ostatním aplikacím v používání výstupního zařízení"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Forhindrer andre apps i at bruge outputenheden under afspilning"
+            "value": "Forhindr andre apps i at bruge outputenheden under afspilning"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verhindert, dass andere Apps das Ausgabegerät während der Wiedergabe verwenden"
+            "value": "Andere Apps während der Wiedergabe vom Ausgabegerät fernhalten"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Εμποδίζει άλλες εφαρμογές να χρησιμοποιούν τη συσκευή εξόδου κατά την αναπαραγωγή"
+            "value": "Αποτροπή άλλων εφαρμογών από τη χρήση της συσκευής εξόδου κατά την αναπαραγωγή"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Stops other apps from using the output device while playing"
+            "value": "Stop other apps from using the output device while playing"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Impide que otras apps usen el dispositivo de salida durante la reproducción"
+            "value": "Impedir que otras apps usen el dispositivo de salida durante la reproducción"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Estää muita appeja käyttämästä lähtölaitetta toiston aikana"
+            "value": "Estä muita appeja käyttämästä lähtölaitetta toiston aikana"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Empêche les autres apps d’utiliser l’appareil de sortie pendant la lecture"
+            "value": "Empêcher les autres apps d’utiliser l’appareil de sortie pendant la lecture"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sprječava druge aplikacije da koriste izlazni uređaj tijekom reprodukcije"
+            "value": "Spriječi druge aplikacije da koriste izlazni uređaj tijekom reprodukcije"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lejátszás közben megakadályozza, hogy más appok használják a kimeneti eszközt"
+            "value": "Akadályozd meg, hogy lejátszás közben más appok használják a kimeneti eszközt"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mencegah app lain menggunakan perangkat output selama pemutaran"
+            "value": "Cegah app lain menggunakan perangkat output selama pemutaran"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Impedisce alle altre app di usare il dispositivo di uscita durante la riproduzione"
+            "value": "Impedire alle altre app di usare il dispositivo di uscita durante la riproduzione"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "再生中にほかのアプリが出力デバイスを使用することを防ぎます"
+            "value": "再生中にほかのアプリが出力デバイスを使用できないようにする"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "재생 중에 다른 앱이 출력 기기를 사용하지 못하게 합니다"
+            "value": "재생 중에 다른 앱이 출력 기기를 사용하지 못하게 하기"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hindrer andre apper i å bruke utgangsenheten under avspilling"
+            "value": "Stopp andre apper fra å bruke utgangsenheten under avspilling"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Voorkomt dat andere apps het uitvoerapparaat gebruiken tijdens het afspelen"
+            "value": "Voorkomen dat andere apps het uitvoerapparaat gebruiken tijdens het afspelen"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uniemożliwia innym aplikacjom korzystanie z urządzenia wyjściowego podczas odtwarzania"
+            "value": "Nie pozwalaj innym aplikacjom korzystać z urządzenia wyjściowego podczas odtwarzania"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Impede que outros apps usem o dispositivo de saída durante a reprodução"
+            "value": "Impedir que outros apps usem o dispositivo de saída durante a reprodução"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Impede que outras aplicações usem o dispositivo de saída durante a reprodução"
+            "value": "Impedir que outras aplicações usem o dispositivo de saída durante a reprodução"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Împiedică alte aplicații să folosească dispozitivul de ieșire în timpul redării"
+            "value": "Împiedicați alte aplicații să folosească dispozitivul de ieșire în timpul redării"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Не позволяет другим приложениям использовать устройство вывода во время воспроизведения"
+            "value": "Не позволять другим приложениям использовать устройство вывода во время воспроизведения"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Počas prehrávania zabráni ostatným apkám používať výstupné zariadenie"
+            "value": "Počas prehrávania zabrániť ostatným apkám používať výstupné zariadenie"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hindrar andra appar från att använda utmatningsenheten under uppspelning"
+            "value": "Hindra andra appar från att använda utmatningsenheten under uppspelning"
           }
         },
         "th": {
@@ -72139,13 +72883,13 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Çalma sırasında diğer uygulamaların çıkış aygıtını kullanmasını engeller"
+            "value": "Çalma sırasında diğer uygulamaların çıkış aygıtını kullanmasını engelle"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Не дозволяє іншим програмам використовувати пристрій виведення під час відтворення"
+            "value": "Не дозволяти іншим програмам використовувати пристрій виведення під час відтворення"
           }
         },
         "vi": {
@@ -73291,181 +74035,181 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Плейлистът се запазва при изход и се зарежда при следващото стартиране"
+            "value": "Запазване на плейлиста при изход и зареждане при стартиране"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playlist se uloží při ukončení a načte při příštím spuštění"
+            "value": "Uložit playlist při ukončení a načíst při spuštění"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spillelisten gemmes ved afslutning og indlæses ved næste start"
+            "value": "Gem spillelisten ved afslutning, og indlæs den ved start"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die Wiedergabeliste wird beim Beenden gesichert und beim nächsten Start geladen"
+            "value": "Wiedergabeliste beim Beenden sichern und beim Start laden"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Η λίστα αναπαραγωγής αποθηκεύεται κατά την έξοδο και φορτώνεται στην επόμενη εκκίνηση"
+            "value": "Αποθήκευση της λίστας αναπαραγωγής κατά την έξοδο και φόρτωσή της κατά την εκκίνηση"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playlist is saved on quit and loaded on next launch"
+            "value": "Save playlist on quit and load at launch"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La lista de reproducción se guarda al salir y se carga en el siguiente inicio"
+            "value": "Guardar la lista de reproducción al salir y cargarla al iniciar"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Soittolista tallennetaan lopetettaessa ja ladataan seuraavalla käynnistyskerralla"
+            "value": "Tallenna soittolista lopetettaessa ja lataa se käynnistettäessä"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "La liste de lecture est enregistrée à la fermeture et chargée au prochain démarrage"
+            "value": "Enregistrer la liste de lecture à la fermeture et la charger au démarrage"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Popis pjesama sprema se pri izlasku i učitava pri sljedećem pokretanju"
+            "value": "Spremi popis pjesama pri izlasku i učitaj ga pri pokretanju"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "A lejátszási lista kilépéskor mentődik, és a következő indításkor betöltődik"
+            "value": "Mentsd a lejátszási listát kilépéskor, és töltsd be indításkor"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playlist disimpan saat keluar dan dimuat pada saat mulai berikutnya"
+            "value": "Simpan playlist saat keluar dan muat saat mulai"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "La playlist viene salvata all'uscita e caricata all'avvio successivo"
+            "value": "Salvare la playlist all’uscita e caricarla all’avvio"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "終了時にプレイリストを保存し、次回起動時に読み込みます"
+            "value": "終了時にプレイリストを保存し、起動時に読み込む"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "종료 시 재생목록을 저장하고 다음 시작 시 불러옵니다"
+            "value": "종료 시 재생목록을 저장하고 시작 시 불러오기"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spillelisten arkiveres ved avslutning og lastes inn ved neste oppstart"
+            "value": "Arkiver spillelisten ved avslutning, og last den inn ved oppstart"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "De afspeellijst wordt bewaard bij het stoppen en geladen bij de volgende start"
+            "value": "Afspeellijst bij het stoppen bewaren en bij het starten laden"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playlista jest zachowywana przy zakończeniu i wczytywana przy następnym uruchomieniu"
+            "value": "Zapisz playlistę przy zakończeniu i wczytaj ją przy uruchomieniu"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "A playlist é salva ao sair e carregada na próxima inicialização"
+            "value": "Salvar a playlist ao sair e carregá-la ao iniciar"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "A lista de reprodução é guardada ao sair e carregada no próximo arranque"
+            "value": "Guardar a lista de reprodução ao sair e carregá-la no arranque"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playlistul este salvat la ieșire și încărcat la următoarea pornire"
+            "value": "Salvați playlistul la ieșire și încărcați-l la pornire"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Плейлист сохраняется при выходе и загружается при следующем запуске"
+            "value": "Сохранять плейлист при выходе и загружать при запуске"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playlist sa uloží pri ukončení a načíta pri ďalšom spustení"
+            "value": "Uložiť playlist pri ukončení a načítať pri spustení"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spellistan sparas när du avslutar och läses in vid nästa start"
+            "value": "Spara spellistan när du avslutar och läs in den vid start"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "เพลย์ลิสต์จะถูกบันทึกเมื่อออกและโหลดในการเริ่มต้นครั้งถัดไป"
+            "value": "บันทึกเพลย์ลิสต์เมื่อออกและโหลดเมื่อเริ่มต้น"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Çalma listesi çıkışta kaydedilir ve bir sonraki başlangıçta yüklenir"
+            "value": "Çalma listesini çıkışta kaydet ve başlangıçta yükle"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Плейлист зберігається під час виходу й завантажується під час наступного запуску"
+            "value": "Зберігати плейлист під час виходу й завантажувати під час запуску"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Danh sách phát được lưu khi thoát và tải ở lần khởi động tiếp theo"
+            "value": "Lưu danh sách phát khi thoát và tải khi khởi động"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "退出时保存播放列表，下次启动时加载"
+            "value": "退出时保存播放列表，启动时载入"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "結束時儲存播放列表，下次啟動時載入"
+            "value": "結束時儲存播放列表，啟動時載入"
           }
         }
       },
@@ -73652,6 +74396,378 @@
           "stringUnit": {
             "state": "translated",
             "value": "啟動"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.volume_control": {
+      "comment": "Settings, Audio pane: switch above Declick, off by default, that adds a volume slider to the player window, between the elapsed and total time. Off, playback is always at full volume.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Регулиране на звука"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ovládání hlasitosti"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lydstyrkekontrol"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lautstärkeregler"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Έλεγχος έντασης"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volume control"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Control de volumen"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Äänenvoimakkuuden säädin"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contrôle du volume"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kontrola glasnoće"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hangerő-szabályzó"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kontrol volume"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controllo volume"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音量コントロール"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "볼륨 조절"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volumkontroll"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volumeregeling"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regulacja głośności"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controle de volume"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controlo de volume"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Control volum"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Регулятор громкости"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ovládanie hlasitosti"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volymkontroll"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ตัวควบคุมระดับเสียง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ses denetimi"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Регулятор гучності"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Điều khiển âm lượng"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音量控制"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音量控制"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.volume_control.caption": {
+      "comment": "Settings: Volume control explanation. The slider appears when the pointer is over the window, like the play buttons. No trailing period.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показване на плъзгач за силата на звука в прозореца на плейъра"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zobrazit posuvník hlasitosti v okně přehrávače"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vis en lydstyrkeskyder i afspillervinduet"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lautstärkeregler im Player-Fenster anzeigen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Εμφάνιση ρυθμιστικού έντασης στο παράθυρο αναπαραγωγής"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show a volume slider in the player window"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar un regulador de volumen en la ventana del reproductor"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Näytä äänenvoimakkuuden liukusäädin soitinikkunassa"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afficher un curseur de volume dans la fenêtre du lecteur"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prikaži klizač glasnoće u prozoru playera"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jeleníts meg hangerő-csúszkát a lejátszóablakban"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tampilkan penggeser volume di jendela pemutar"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrare un cursore del volume nella finestra del player"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プレーヤーウインドウに音量スライダを表示する"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "플레이어 윈도우에 볼륨 슬라이더 표시하기"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vis en volumskyveknapp i spillervinduet"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volumeschuifknop tonen in het spelervenster"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pokaż suwak głośności w oknie odtwarzacza"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar um controle deslizante de volume na janela do reprodutor"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar um cursor de volume na janela do leitor"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afișați un glisor de volum în fereastra playerului"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показывать ползунок громкости в окне плеера"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zobraziť posuvník hlasitosti v okne prehrávača"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Visa ett volymreglage i spelarfönstret"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "แสดงแถบเลื่อนระดับเสียงในหน้าต่างเครื่องเล่น"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oynatıcı penceresinde bir ses düzeyi sürgüsü göster"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показувати повзунок гучності у вікні плеєра"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hiển thị thanh trượt âm lượng trong cửa sổ trình phát"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在播放器窗口中显示音量滑块"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在播放器視窗中顯示音量滑桿"
           }
         }
       },
@@ -77569,181 +78685,181 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Анализира темпото на всяка песен, докато се зарежда вълновата ѝ форма. Ако файлът вече има етикет за BPM, се използва той."
+            "value": "Анализиране на темпото на всяка песен, докато се зарежда вълновата ѝ форма, освен ако файлът вече има етикет за BPM."
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Analyzuje tempo každé skladby při načítání jejího tvaru vlny. Pokud už je BPM uvedeno v souboru, použije se tato hodnota."
+            "value": "Analyzovat tempo každé skladby při načítání jejího průběhu vlny, pokud už soubor nemá značku BPM."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Analyserer hvert nummers tempo, mens bølgeformen indlæses. Hvis filen allerede har et BPM-mærke, bruges det i stedet."
+            "value": "Analyser hvert nummers tempo, mens bølgeformen indlæses, medmindre filen allerede har et BPM-mærke."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Analysiert das Tempo jedes Titels, während seine Wellenform geladen wird. Ist in der Datei bereits ein BPM-Wert eingetragen, wird dieser verwendet."
+            "value": "Tempo jedes Titels analysieren, während seine Wellenform geladen wird, sofern die Datei nicht bereits einen BPM-Wert enthält."
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Αναλύει το τέμπο κάθε κομματιού ενώ φορτώνεται η κυματομορφή του. Αν το αρχείο έχει ήδη ετικέτα BPM, χρησιμοποιείται αυτή."
+            "value": "Ανάλυση του τέμπο κάθε κομματιού ενώ φορτώνεται η κυματομορφή του, εκτός αν το αρχείο έχει ήδη ετικέτα BPM."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Analyzes each track's tempo while its waveform loads. A BPM already tagged in the file is used instead."
+            "value": "Analyze each track's tempo while its waveform loads, unless the file already has a BPM tag."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Analiza el tempo de cada pista mientras se carga su forma de onda. Si el archivo ya tiene una etiqueta de BPM, se usa esa."
+            "value": "Analizar el tempo de cada pista mientras se carga su forma de onda, salvo que el archivo ya tenga una etiqueta de BPM."
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Analysoi kunkin kappaleen tempon aaltomuodon latautuessa. Jos tiedostossa on jo BPM-merkintä, käytetään sitä."
+            "value": "Analysoi kunkin kappaleen tempo aaltomuodon latautuessa, ellei tiedostossa ole jo BPM-merkintää."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Analyse le tempo de chaque morceau pendant le chargement de sa forme d’onde. Si le fichier contient déjà un BPM, celui-ci est utilisé."
+            "value": "Analyser le tempo de chaque morceau pendant le chargement de sa forme d’onde, sauf si le fichier contient déjà un BPM."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Analizira tempo svake pjesme dok se učitava njezin valni oblik. Ako datoteka već ima oznaku BPM-a, koristi se ona."
+            "value": "Analiziraj tempo svake pjesme dok se učitava njezin valni oblik, osim ako datoteka već ima oznaku BPM-a."
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Elemzi minden szám tempóját, miközben a hullámformája betöltődik. Ha a fájlban már van BPM-címke, az lesz használva."
+            "value": "Elemezd minden szám tempóját, miközben a hullámformája betöltődik, kivéve ha a fájlban már van BPM-címke."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Menganalisis tempo setiap lagu saat bentuk gelombangnya dimuat. Jika file sudah memiliki tag BPM, tag itulah yang digunakan."
+            "value": "Analisis tempo setiap lagu saat bentuk gelombangnya dimuat, kecuali file sudah memiliki tag BPM."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Analizza il tempo di ogni brano mentre viene caricata la forma d’onda. Se il file contiene già un tag BPM, viene usato quello."
+            "value": "Analizzare il tempo di ogni brano mentre viene caricata la forma d’onda, a meno che il file non contenga già un tag BPM."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "波形の読み込み中に各トラックのテンポを解析します。ファイルにBPMタグがある場合は、そちらが使用されます。"
+            "value": "波形の読み込み中に各トラックのテンポを解析する（ファイルにBPMタグがある場合を除く）。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "파형을 불러오는 동안 각 트랙의 템포를 분석합니다. 파일에 BPM 태그가 이미 있으면 그 값이 사용됩니다."
+            "value": "파형을 불러오는 동안 각 트랙의 템포 분석하기(파일에 BPM 태그가 이미 있는 경우 제외)."
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Analyserer tempoet til hvert spor mens bølgeformen lastes inn. Hvis filen allerede har en BPM-tagg, brukes den i stedet."
+            "value": "Analyser tempoet til hvert spor mens bølgeformen lastes inn, med mindre filen allerede har en BPM-tagg."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Analyseert het tempo van elk nummer terwijl de golfvorm wordt geladen. Als het bestand al een BPM-tag heeft, wordt die gebruikt."
+            "value": "Het tempo van elk nummer analyseren terwijl de golfvorm wordt geladen, tenzij het bestand al een BPM-tag heeft."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Analizuje tempo każdego utworu podczas wczytywania jego kształtu fali. Jeśli plik ma już znacznik BPM, używana jest ta wartość."
+            "value": "Analizuj tempo każdego utworu podczas wczytywania jego kształtu fali, chyba że plik ma już znacznik BPM."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Analisa o andamento de cada faixa enquanto a forma de onda é carregada. Se o arquivo já tiver uma etiqueta de BPM, ela será usada."
+            "value": "Analisar o andamento de cada faixa enquanto a forma de onda é carregada, a menos que o arquivo já tenha uma etiqueta de BPM."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Analisa o andamento de cada faixa enquanto a forma de onda é carregada. Se o ficheiro já tiver uma etiqueta de BPM, é essa a utilizada."
+            "value": "Analisar o andamento de cada faixa enquanto a forma de onda é carregada, a menos que o ficheiro já tenha uma etiqueta de BPM."
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Analizează tempoul fiecărei piese în timp ce se încarcă forma de undă. Dacă fișierul are deja o etichetă BPM, se folosește aceasta."
+            "value": "Analizați tempoul fiecărei piese în timp ce se încarcă forma de undă, cu excepția cazului în care fișierul are deja o etichetă BPM."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Анализирует темп каждого трека во время загрузки его волновой формы. Если в файле уже указан BPM, используется это значение."
+            "value": "Анализировать темп каждого трека во время загрузки его волновой формы, если в файле еще не указан BPM."
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Analyzuje tempo každej skladby počas načítavania jej vlnového priebehu. Ak je už BPM uvedené v súbore, použije sa táto hodnota."
+            "value": "Analyzovať tempo každej skladby počas načítavania jej vlnového priebehu, ak už súbor nemá značku BPM."
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Analyserar varje spårs tempo medan vågformen läses in. Om filen redan har en BPM-tagg används den i stället."
+            "value": "Analysera varje spårs tempo medan vågformen läses in, om inte filen redan har en BPM-tagg."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "วิเคราะห์เทมโปของแต่ละแทร็กขณะโหลดรูปคลื่น หากไฟล์มีแท็ก BPM อยู่แล้ว จะใช้ค่านั้นแทน"
+            "value": "วิเคราะห์เทมโปของแต่ละแทร็กขณะโหลดรูปคลื่น เว้นแต่ไฟล์จะมีแท็ก BPM อยู่แล้ว"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dalga biçimi yüklenirken her parçanın temposunu analiz eder. Dosyada zaten bir BPM etiketi varsa o kullanılır."
+            "value": "Dosyada zaten bir BPM etiketi yoksa, dalga biçimi yüklenirken her parçanın temposunu analiz et."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Аналізує темп кожного треку під час завантаження його хвильової форми. Якщо у файлі вже вказано BPM, використовується це значення."
+            "value": "Аналізувати темп кожного треку під час завантаження його хвильової форми, якщо у файлі ще не вказано BPM."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Phân tích nhịp độ của từng bài hát trong khi tải dạng sóng. Nếu tệp đã có thẻ BPM thì thẻ đó sẽ được dùng."
+            "value": "Phân tích nhịp độ của từng bài hát trong khi tải dạng sóng, trừ khi tệp đã có thẻ BPM."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在加载波形时分析每首曲目的速度。如果文件中已有 BPM 标签，则使用该标签。"
+            "value": "在加载波形时分析每首曲目的速度，除非文件中已有 BPM 标签。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "在載入波形時分析每首曲目的速度。如果檔案中已有 BPM 標籤，則使用該標籤。"
+            "value": "在載入波形時分析每首曲目的速度，除非檔案中已有 BPM 標籤。"
           }
         }
       },
@@ -78127,145 +79243,145 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Добавя FX пад към плейъра: плъзнете нагоре за low cut, надясно за reverb и delay."
+            "value": "Добавяне на FX пад към плейъра: плъзнете нагоре за low cut, надясно за reverb и delay."
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Přidá do přehrávače FX pad: tažením nahoru low cut, doprava reverb a delay."
+            "value": "Přidat do přehrávače FX pad: tažením nahoru low cut, doprava reverb a delay."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Føjer en FX-pad til afspilleren: træk op for low cut, til højre for reverb og delay."
+            "value": "Føj en FX-pad til afspilleren: træk op for low cut, til højre for reverb og delay."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fügt dem Player ein FX-Pad hinzu: nach oben für Low Cut, nach rechts für Reverb und Delay."
+            "value": "Dem Player ein FX-Pad hinzufügen: nach oben für Low Cut, nach rechts für Reverb und Delay."
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Προσθέτει ένα FX pad στο πρόγραμμα αναπαραγωγής: σύρετε προς τα πάνω για low cut, προς τα δεξιά για reverb και delay."
+            "value": "Προσθήκη ενός FX pad στο πρόγραμμα αναπαραγωγής: σύρετε προς τα πάνω για low cut, προς τα δεξιά για reverb και delay."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Adds an FX pad to the player: slide up for a low cut, right for reverb and delay."
+            "value": "Add an FX pad to the player: slide up for a low cut, right for reverb and delay."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Añade un pad de FX al reproductor: desliza hacia arriba para el low cut y hacia la derecha para reverb y delay."
+            "value": "Añadir un pad de FX al reproductor: desliza hacia arriba para el low cut y hacia la derecha para reverb y delay."
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lisää soittimeen FX-padin: liu’uta ylös low cutia varten, oikealle reverbiä ja delayta varten."
+            "value": "Lisää soittimeen FX-pad: liu’uta ylös low cutia varten, oikealle reverbiä ja delayta varten."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ajoute un pad FX au lecteur : faites glisser vers le haut pour le low cut, vers la droite pour la reverb et le delay."
+            "value": "Ajouter un pad FX au lecteur : faites glisser vers le haut pour le low cut, vers la droite pour la reverb et le delay."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dodaje FX pad u reproduktor: povucite prema gore za low cut, udesno za reverb i delay."
+            "value": "Dodaj FX pad u reproduktor: povucite prema gore za low cut, udesno za reverb i delay."
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "FX padot ad a lejátszóhoz: húzd felfelé a low cuthoz, jobbra a reverbhöz és a delay-hez."
+            "value": "Adj FX padot a lejátszóhoz: húzd felfelé a low cuthoz, jobbra a reverbhöz és a delay-hez."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Menambahkan pad FX ke pemutar: geser ke atas untuk low cut, ke kanan untuk reverb dan delay."
+            "value": "Tambahkan pad FX ke pemutar: geser ke atas untuk low cut, ke kanan untuk reverb dan delay."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aggiunge un pad FX al player: scorri verso l’alto per il low cut, verso destra per reverb e delay."
+            "value": "Aggiungere un pad FX al player: scorri verso l’alto per il low cut, verso destra per reverb e delay."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "プレーヤーにFXパッドを追加します。上にスライドでローカット、右にスライドでリバーブとディレイがかかります。"
+            "value": "プレーヤーにFXパッドを追加する。上にスライドでローカット、右にスライドでリバーブとディレイがかかります。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "플레이어에 FX 패드를 추가합니다. 위로 밀면 로우 컷, 오른쪽으로 밀면 리버브와 딜레이가 적용됩니다."
+            "value": "플레이어에 FX 패드 추가하기. 위로 밀면 로우 컷, 오른쪽으로 밀면 리버브와 딜레이가 적용됩니다."
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Legger til en FX-pad i spilleren: dra opp for low cut, til høyre for reverb og delay."
+            "value": "Legg til en FX-pad i spilleren: dra opp for low cut, til høyre for reverb og delay."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Voegt een FX-pad toe aan de speler: veeg omhoog voor low cut, naar rechts voor reverb en delay."
+            "value": "Een FX-pad aan de speler toevoegen: veeg omhoog voor low cut, naar rechts voor reverb en delay."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dodaje pad FX do odtwarzacza: przesuń w górę, aby użyć low cut, w prawo, aby użyć reverb i delay."
+            "value": "Dodaj pad FX do odtwarzacza: przesuń w górę, aby użyć low cut, w prawo, aby użyć reverb i delay."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Adiciona um pad de FX ao player: deslize para cima para o low cut e para a direita para reverb e delay."
+            "value": "Adicionar um pad de FX ao player: deslize para cima para o low cut e para a direita para reverb e delay."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Adiciona um pad de FX ao leitor: deslize para cima para o low cut e para a direita para reverb e delay."
+            "value": "Adicionar um pad de FX ao leitor: deslize para cima para o low cut e para a direita para reverb e delay."
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Adaugă un pad FX în player: glisați în sus pentru low cut, la dreapta pentru reverb și delay."
+            "value": "Adăugați un pad FX în player: glisați în sus pentru low cut, la dreapta pentru reverb și delay."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Добавляет в плеер FX-пэд: проведите вверх для low cut, вправо — для reverb и delay."
+            "value": "Добавить в плеер FX-пэд: проведите вверх для low cut, вправо — для reverb и delay."
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pridá do prehrávača FX pad: ťahaním nahor low cut, doprava reverb a delay."
+            "value": "Pridať do prehrávača FX pad: ťahaním nahor low cut, doprava reverb a delay."
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lägger till en FX-pad i spelaren: dra uppåt för low cut, åt höger för reverb och delay."
+            "value": "Lägg till en FX-pad i spelaren: dra uppåt för low cut, åt höger för reverb och delay."
           }
         },
         "th": {
@@ -78277,13 +79393,13 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Oynatıcıya bir FX pedi ekler: low cut için yukarı, reverb ve delay için sağa kaydırın."
+            "value": "Oynatıcıya bir FX pedi ekle: low cut için yukarı, reverb ve delay için sağa kaydır."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Додає до плеєра FX-пед: проведіть угору для low cut, праворуч — для reverb і delay."
+            "value": "Додати до плеєра FX-пед: проведіть угору для low cut, праворуч — для reverb і delay."
           }
         },
         "vi": {
@@ -80359,181 +81475,181 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Търсенето обхваща отворената папка и всичко, което добавите тук, включително подпапките. Без папка %@ не може да търси във вашите файлове."
+            "value": "Търсене в отворената папка и във всички папки, които добавите тук, включително подпапките им. %@ не може да търси във вашите файлове, докато не му дадете папка."
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hledání prochází otevřenou složku a vše, co sem přidáte, včetně podsložek. Bez složky nemůže %@ vaše soubory prohledávat."
+            "value": "Prohledat otevřenou složku a všechny složky, které sem přidáte, včetně jejich podsložek. %@ nemůže vaše soubory prohledávat, dokud mu nedáte složku."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Søgningen gennemgår den åbne mappe og alt, du tilføjer her, inklusive undermapper. %@ kan ikke søge i dine filer uden først at få en mappe."
+            "value": "Søg i den åbne mappe og alle mapper, du tilføjer her, inklusive deres undermapper. %@ kan ikke søge i dine filer, før du giver den en mappe."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die Suche durchsucht den geöffneten Ordner und alles, was du hier hinzufügst, einschließlich Unterordnern. Ohne einen Ordner kann %@ deine Dateien nicht durchsuchen."
+            "value": "Den geöffneten Ordner und alle Ordner, die du hier hinzufügst, samt Unterordnern durchsuchen. %@ kann deine Dateien erst durchsuchen, wenn du einen Ordner angibst."
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Η αναζήτηση εξετάζει τον ανοιχτό φάκελο και ό,τι προσθέσετε εδώ, μαζί με τους υποφακέλους. Χωρίς φάκελο, το %@ δεν μπορεί να αναζητήσει στα αρχεία σας."
+            "value": "Αναζήτηση στον ανοιχτό φάκελο και σε όσους φακέλους προσθέσετε εδώ, μαζί με τους υποφακέλους τους. Το %@ δεν μπορεί να αναζητήσει στα αρχεία σας μέχρι να του δώσετε έναν φάκελο."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Search looks through the folder you have open and anything you add here, including subfolders. %@ cannot search your files without being given a folder first."
+            "value": "Search the folder you have open and any folders you add here, including their subfolders. %@ can't search your files until you give it a folder."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La búsqueda recorre la carpeta que tienes abierta y todo lo que añadas aquí, incluidas las subcarpetas. %@ no puede buscar en tus archivos sin que antes le des una carpeta."
+            "value": "Buscar en la carpeta que tienes abierta y en las carpetas que añadas aquí, incluidas sus subcarpetas. %@ no puede buscar en tus archivos hasta que le des una carpeta."
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Haku käy läpi avoinna olevan kansion ja kaiken tähän lisäämäsi, alikansiot mukaan lukien. %@ ei voi etsiä tiedostoistasi ilman kansiota."
+            "value": "Hae avoinna olevasta kansiosta ja kaikista tähän lisäämistäsi kansioista alikansioineen. %@ ei voi etsiä tiedostoistasi ennen kuin annat sille kansion."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "La recherche parcourt le dossier ouvert et tout ce que vous ajoutez ici, sous-dossiers compris. Sans dossier, %@ ne peut pas rechercher dans vos fichiers."
+            "value": "Rechercher dans le dossier ouvert et dans les dossiers que vous ajoutez ici, sous-dossiers compris. %@ ne peut pas rechercher dans vos fichiers tant que vous ne lui avez pas donné de dossier."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pretraživanje obuhvaća otvorenu mapu i sve što ovdje dodate, uključujući podmape. Bez mape %@ ne može pretraživati vaše datoteke."
+            "value": "Pretraži otvorenu mapu i sve mape koje ovdje dodate, uključujući njihove podmape. %@ ne može pretraživati vaše datoteke dok mu ne date mapu."
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "A keresés az éppen megnyitott mappát és mindent átnéz, amit itt hozzáadsz, az almappákkal együtt. Mappa nélkül a %@ nem tud a fájljaid között keresni."
+            "value": "Keress az éppen megnyitott mappában és minden itt hozzáadott mappában, az almappáikkal együtt. A %@ addig nem tud a fájljaid között keresni, amíg nem adsz meg neki egy mappát."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pencarian menelusuri folder yang sedang dibuka dan semua yang Anda tambahkan di sini, termasuk subfolder. %@ tidak dapat mencari file Anda tanpa diberi folder terlebih dahulu."
+            "value": "Cari di folder yang sedang Anda buka dan folder yang Anda tambahkan di sini, termasuk subfoldernya. %@ tidak dapat mencari file Anda sampai Anda memberinya folder."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "La ricerca esamina la cartella aperta e tutto ciò che aggiungi qui, sottocartelle comprese. Senza una cartella, %@ non può cercare nei tuoi file."
+            "value": "Cercare nella cartella aperta e nelle cartelle che aggiungi qui, sottocartelle comprese. %@ non può cercare nei tuoi file finché non gli dai una cartella."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "検索は、開いているフォルダとここに追加したもの（サブフォルダを含む）を対象にします。フォルダが与えられていないと、%@はファイルを検索できません。"
+            "value": "開いているフォルダと、ここに追加したフォルダ（サブフォルダを含む）を検索する。フォルダを指定するまで、%@はファイルを検索できません。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "검색은 열려 있는 폴더와 여기에 추가한 모든 항목(하위 폴더 포함)을 살펴봅니다. 폴더를 먼저 지정하지 않으면 %@는 파일을 검색할 수 없습니다."
+            "value": "열려 있는 폴더와 여기에 추가한 폴더(하위 폴더 포함) 검색하기. 폴더를 지정하기 전에는 %@는 파일을 검색할 수 없습니다."
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Søket går gjennom den åpne mappen og alt du legger til her, inkludert undermapper. %@ kan ikke søke i filene dine uten først å få en mappe."
+            "value": "Søk i den åpne mappen og alle mapper du legger til her, inkludert undermappene deres. %@ kan ikke søke i filene dine før du gir den en mappe."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zoeken doorzoekt de geopende map en alles wat je hier toevoegt, inclusief submappen. Zonder een map kan %@ niet in je bestanden zoeken."
+            "value": "Zoeken in de geopende map en in de mappen die je hier toevoegt, inclusief hun submappen. %@ kan pas in je bestanden zoeken als je een map opgeeft."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wyszukiwanie obejmuje otwarty folder i wszystko, co tu dodasz, łącznie z podfolderami. Bez wskazanego folderu %@ nie może przeszukiwać plików."
+            "value": "Przeszukuj otwarty folder i wszystkie foldery dodane tutaj, łącznie z ich podfolderami. %@ nie może przeszukiwać plików, dopóki nie wskażesz folderu."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "A busca percorre a pasta aberta e tudo o que você adicionar aqui, incluindo subpastas. O %@ não pode buscar nos seus arquivos sem antes receber uma pasta."
+            "value": "Buscar na pasta aberta e nas pastas que você adicionar aqui, incluindo suas subpastas. O %@ não pode buscar nos seus arquivos até você indicar uma pasta."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "A pesquisa percorre a pasta aberta e tudo o que adicionar aqui, incluindo subpastas. O %@ não pode pesquisar nos seus ficheiros sem primeiro receber uma pasta."
+            "value": "Pesquisar na pasta aberta e nas pastas que adicionar aqui, incluindo as respetivas subpastas. O %@ não pode pesquisar nos seus ficheiros até indicar uma pasta."
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Căutarea parcurge dosarul deschis și tot ce adăugați aici, inclusiv subdosarele. Fără un dosar, %@ nu poate căuta în fișierele dvs."
+            "value": "Căutați în dosarul deschis și în dosarele pe care le adăugați aici, inclusiv în subdosarele lor. %@ nu poate căuta în fișierele dvs. până nu îi dați un dosar."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Поиск охватывает открытую папку и все, что вы добавите здесь, включая вложенные папки. Без папки %@ не может искать в ваших файлах."
+            "value": "Искать в открытой папке и в папках, которые вы добавите здесь, включая их вложенные папки. %@ не может искать в ваших файлах, пока вы не укажете папку."
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vyhľadávanie prechádza otvorený priečinok a všetko, čo sem pridáte, vrátane podpriečinkov. Bez priečinka nemôže %@ vaše súbory prehľadávať."
+            "value": "Prehľadať otvorený priečinok a všetky priečinky, ktoré sem pridáte, vrátane ich podpriečinkov. %@ nemôže vaše súbory prehľadávať, kým mu nedáte priečinok."
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sökningen går igenom den öppna mappen och allt du lägger till här, inklusive undermappar. %@ kan inte söka i dina filer utan att först få en mapp."
+            "value": "Sök i den öppna mappen och alla mappar du lägger till här, inklusive deras undermappar. %@ kan inte söka i dina filer förrän du ger den en mapp."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "การค้นหาจะครอบคลุมโฟลเดอร์ที่เปิดอยู่และทุกสิ่งที่คุณเพิ่มที่นี่ รวมถึงโฟลเดอร์ย่อย %@ ไม่สามารถค้นหาไฟล์ของคุณได้หากยังไม่ได้รับโฟลเดอร์"
+            "value": "ค้นหาในโฟลเดอร์ที่เปิดอยู่และโฟลเดอร์ที่คุณเพิ่มที่นี่ รวมถึงโฟลเดอร์ย่อย %@ ไม่สามารถค้นหาไฟล์ของคุณได้จนกว่าคุณจะให้โฟลเดอร์"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Arama, açık olan klasörü ve buraya eklediğiniz her şeyi, alt klasörler dahil, tarar. Önce bir klasör verilmeden %@ dosyalarınızda arama yapamaz."
+            "value": "Açık olan klasörde ve buraya eklediğiniz klasörlerde, alt klasörleri dahil, ara. Siz bir klasör verene kadar %@ dosyalarınızda arama yapamaz."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Пошук охоплює відкриту папку та все, що ви додасте тут, включно з вкладеними папками. Без папки %@ не може шукати у ваших файлах."
+            "value": "Шукати у відкритій папці та в папках, які ви додасте тут, включно з їхніми вкладеними папками. %@ не може шукати у ваших файлах, доки ви не вкажете папку."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tìm kiếm sẽ quét thư mục bạn đang mở và mọi thứ bạn thêm ở đây, bao gồm cả thư mục con. %@ không thể tìm trong tệp của bạn nếu chưa được cấp một thư mục."
+            "value": "Tìm trong thư mục bạn đang mở và các thư mục bạn thêm ở đây, bao gồm cả thư mục con của chúng. %@ không thể tìm trong tệp của bạn cho đến khi bạn cấp cho nó một thư mục."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "搜索会查找你打开的文件夹以及在此添加的所有内容，包括子文件夹。未提供文件夹时，%@ 无法搜索你的文件。"
+            "value": "搜索你打开的文件夹以及在此添加的文件夹，包括其子文件夹。在你提供文件夹之前，%@ 无法搜索你的文件。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "搜尋會查找你開啟的檔案夾以及在此加入的所有內容，包括子檔案夾。未提供檔案夾時，%@ 無法搜尋你的檔案。"
+            "value": "搜尋你開啟的檔案夾以及在此加入的檔案夾，包括其子檔案夾。在你提供檔案夾之前，%@ 無法搜尋你的檔案。"
           }
         }
       },

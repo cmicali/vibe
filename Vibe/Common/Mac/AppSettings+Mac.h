@@ -253,6 +253,18 @@ static const double kVibeWaveformGainMaxDB = 12;
 - (BOOL)declick;
 - (void)setDeclick:(BOOL)declick;
 
+// Volume control, default off: a volume slider in the player window, revealed
+// on hover like the transport. `volume` is its position, 0..1, kept while the
+// control is off. The switch requests VibeSettingsLiveEffectVolume; the
+// slider's own drag pushes the player and its percentage directly.
+- (BOOL)volumeControl;
+- (void)setVolumeControl:(BOOL)enabled;
+- (double)volume;
+- (void)setVolume:(double)volume;
+// What the player is told: the stored volume while the control is on, full
+// volume, which passes every sample untouched, otherwise.
+- (double)effectiveVolume;
+
 // audioFXEnabled and not bitPerfectOutput. Every UI gate reads this; only the
 // player's output-mode rebuild takes the raw choice, beside bitPerfectOutput.
 - (BOOL)audioFXAllowed;

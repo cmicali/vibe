@@ -53,6 +53,16 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) SymbolButton *nextButton;
 
 - (void)setTrafficLightsShown:(BOOL)shown;
+// The empty state's hint, in the time row's gap, where it outranks the
+// volume control.
+- (void)setDropHintShown:(BOOL)shown;
+// The Volume live effect's body: the slider's position and percentage, and
+// whether the hover reveals them (AppSettings.volumeControl).
+- (void)applyVolumeControl;
+// The percentage alone, for a drag of the slider, which moved itself.
+- (void)renderVolumePercent;
+// The waveform's played color, at full alpha, as the slider's fill.
+- (void)setVolumeFillColor:(NSColor *)color;
 
 // Plain views the artwork controller washes: the glass's own tintColor is
 // dropped while the window is inactive.
@@ -65,7 +75,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) NSTextField *titleTextField;
 @property (readonly) NSTextField *totalTimeTextField;
 @property (readonly) NSTextField *currentTimeTextField;
-@property (readonly) NSTextField *dropHintTextField;
+// "Vol", the slider and the percentage, which fade and hide as one.
+@property (readonly) NSView *volumeControlView;
+@property (readonly) NSSlider *volumeSlider;
 @property (readonly) NSTextField *fileMetadataTextField;
 @property (readonly) NSTextField *bpmTextField;
 

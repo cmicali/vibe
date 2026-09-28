@@ -54,6 +54,8 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     VibeSettingsLiveEffectBitPerfect       = 1UL << 23,
     VibeSettingsLiveEffectDeclick          = 1UL << 24,
     VibeSettingsLiveEffectWindowLock       = 1UL << 25, // not theme state
+    // Pushes effectiveVolume to the player and shows or hides the slider.
+    VibeSettingsLiveEffectVolume           = 1UL << 26,
     // WindowAppearance is included because a single-mode theme pins the
     // window dark (AppTheme.requiredWindowAppearance).
     VibeSettingsLiveEffectThemeApply       = VibeSettingsLiveEffectWindowAppearance

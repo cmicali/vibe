@@ -20,7 +20,6 @@
 @implementation TrackDisplayController {
     __weak AudioWaveformView *_waveformView;
     __weak NSTextField      *_bpmTextField;
-    __weak NSTextField      *_dropHintTextField;
     // The change guard for the elapsed label, in whole wall-clock seconds —
     // the formatter truncates, so that is when its text can change. A value
     // of -1 poisons it, so the next tick always writes, even from position 0.
@@ -48,7 +47,6 @@
         _currentTimeTextField = contentView.currentTimeTextField;
         _fileMetadataTextField = contentView.fileMetadataTextField;
         _bpmTextField = contentView.bpmTextField;
-        _dropHintTextField = contentView.dropHintTextField;
         _waveformView = contentView.waveformView;
         _contentView = contentView;
         _lastPosition = -1;
@@ -69,23 +67,13 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     }
 }
 
-// The codec corner's style, shared by the file-metadata and BPM labels.
-static NSDictionary *kernedRightAlignedAttributes(void) {
-    NSMutableParagraphStyle *paragraph = [[NSParagraphStyle new] mutableCopy];
-    paragraph.alignment = NSTextAlignmentRight;
-    return @{
-        NSKernAttributeName: @(-1.2),
-        NSParagraphStyleAttributeName: paragraph,
-    };
-}
-
 // Both corner labels dim in the text color, not the field alpha: the codec
 // field also carries the FX symbols, which a field alpha would dim too. The
 // color must stay dynamic, since these strings rebuild only on content change.
 // Cached until resetRenderGuards; the fader recomposes the BPM line per tick.
 - (NSDictionary *)cornerTextAttributes {
     if (!_cornerTextAttributes) {
-        NSMutableDictionary *attributes = [kernedRightAlignedAttributes() mutableCopy];
+        NSMutableDictionary *attributes = [[Fonts infoTextAttributesAligned:NSTextAlignmentRight] mutableCopy];
         attributes[NSForegroundColorAttributeName] =
                 AppSettings.sharedInstance.currentTheme.resolvedInfoColor;
         _cornerTextAttributes = attributes;
@@ -213,7 +201,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         self.titleTextField.alphaValue = 1.0;
         self.currentTimeTextField.alphaValue = 1.0;
         self.totalTimeTextField.alphaValue = 1.0;
-        _dropHintTextField.hidden = YES;
+        [_contentView setDropHintShown:NO];
         setStringValueIfChanged(self.artistTextField, track.displayArtist);
         [self setTitleLabelText:track.displayTitle];
         if (state == TrackDisplayStateLoading) {
@@ -243,7 +231,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         setStringValueIfChanged(self.currentTimeTextField, @"");
         // Text only: latched FX symbols are deck state and stay.
         [self setFileMetadataText:@""];
-        _dropHintTextField.hidden = YES;
+        [_contentView setDropHintShown:NO];
         _lastPosition = -1;
         break;
 
@@ -260,7 +248,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         self.titleTextField.alphaValue = 0.275;
         self.currentTimeTextField.alphaValue = 0.5;
         self.totalTimeTextField.alphaValue = 0.5;
-        _dropHintTextField.hidden = NO;
+        [_contentView setDropHintShown:YES];
         setStringValueIfChanged(self.totalTimeTextField, STR_LABEL_TIME_UNKNOWN);
         setStringValueIfChanged(self.currentTimeTextField, STR_LABEL_TIME_UNKNOWN);
         _lastPosition = -1;
@@ -399,7 +387,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     [line appendAttributedString:[[NSAttributedString alloc] initWithString:_fileMetadataText
                                                                 attributes:self.cornerTextAttributes]];
     // Kern and paragraph style only, so the per-run colors survive.
-    [line addAttributes:kernedRightAlignedAttributes() range:NSMakeRange(0, line.length)];
+    [line addAttributes:[Fonts infoTextAttributesAligned:NSTextAlignmentRight] range:NSMakeRange(0, line.length)];
     self.fileMetadataTextField.attributedStringValue = line;
     [_contentView layoutArtistLineClearOfCodecLine];
 }
