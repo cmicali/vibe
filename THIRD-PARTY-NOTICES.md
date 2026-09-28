@@ -15,6 +15,7 @@ all of it is covered here.
 | PINOperation | `Vibe/ThirdParty/PINOperation/` | Apache License 2.0 |
 | r8brain-free-src | `Vibe/ThirdParty/r8brain/` | MIT |
 | PFFFT (double) | `Vibe/ThirdParty/r8brain/fft/` | FFTPACK (BSD-style) |
+| dr_mp3 | `Vibe/ThirdParty/dr_mp3/` | MIT No Attribution (or public domain, at the recipient's choice) |
 
 ## TagLib — and why the election matters
 
@@ -91,3 +92,11 @@ the disclaimer are retained (source) or reproduced in the documentation
 (binary), and the names of NCAR, UCAR and their contributors are not used to
 endorse the product. The full notice is at the head of
 `Vibe/ThirdParty/r8brain/fft/pffft_double.c`.
+
+## dr_mp3
+
+MPEG audio decoder by David Reid, based on minimp3 by Lion (lieff). Copyright
+2023 David Reid. Offered as public domain (the Unlicense) or under the MIT
+No Attribution license, at the recipient's choice; Vibe uses it under MIT
+No Attribution. Both texts are at the end of
+`Vibe/ThirdParty/dr_mp3/dr_mp3.h`. minimp3, the decoder it carries, is CC0.

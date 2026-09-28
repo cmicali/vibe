@@ -29,7 +29,7 @@
 }
 
 - (void)audioWaveformView:(AudioWaveformView *)waveformView didResolvePlayedColor:(NSColor *)color {
-    [self.playerContentView setVolumeFillColor:color];
+    [self.playerContentView applyVolumeTint];
 }
 
 // The cache cancels only when the next load starts, so between a slow track's

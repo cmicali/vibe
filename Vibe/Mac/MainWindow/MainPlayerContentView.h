@@ -53,16 +53,19 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) SymbolButton *nextButton;
 
 - (void)setTrafficLightsShown:(BOOL)shown;
-// The empty state's hint, in the time row's gap, where it outranks the
-// volume control.
+// The empty state's hint, in the time row's gap, where the volume control
+// swaps with it on hover.
 - (void)setDropHintShown:(BOOL)shown;
-// The Volume live effect's body: the slider's position and percentage, and
-// whether the hover reveals them (AppSettings.volumeControl).
+// The Volume live effect's body: the slider's position and percentage,
+// whether the hover reveals them (AppSettings.volumeControl), and the theme's
+// tint, labels and corner.
 - (void)applyVolumeControl;
-// The percentage alone, for a drag of the slider, which moved itself.
-- (void)renderVolumePercent;
-// The waveform's played color, at full alpha, as the slider's fill.
-- (void)setVolumeFillColor:(NSColor *)color;
+// The slider's own action, every tick of a drag and once at the release: the
+// percentage, and the hover held open while the knob is in hand.
+- (void)volumeSliderDidMove;
+// The slider's fill from the theme's volumeTint. Every resolution of the
+// waveform's theme calls it, so a waveform edit and an art color reach it.
+- (void)applyVolumeTint;
 
 // Plain views the artwork controller washes: the glass's own tintColor is
 // dropped while the window is inactive.

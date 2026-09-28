@@ -10,6 +10,7 @@
 #if DEBUG
 
 #import "MainPlayerController.h"
+#import "MainPlayerContentView.h"
 // For the convert_to_flac, undo and redo verbs.
 #import "MainPlayerController+Convert.h"
 
@@ -32,6 +33,11 @@ NS_ASSUME_NONNULL_BEGIN
 // The container mirror as read back from disk: {exists, rows, currentIndex}.
 - (NSDictionary *)debugLastPlaylistDictionary;
 
+@end
+
+@interface MainPlayerContentView (Debug)
+// The drag's hold on the hover (volumeSliderDidMove).
+@property (readonly) BOOL volumeDragging;
 @end
 
 NS_ASSUME_NONNULL_END

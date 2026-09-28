@@ -16,6 +16,12 @@
 //  read, write and close operations belong to one consumer at a time (the
 //  bus's decoder after a voice starts, AudioVoiceBus.h).
 //
+//  An MPEG file (MP1, MP2, MP3) read as float32 is decoded by dr_mp3 instead
+//  of ExtAudioFile unless Apple's is chosen, since Apple's MPEG decoder's only
+//  output is 16-bit integers: clipped at full scale and rounded without
+//  dither. CoreAudio's parser still finds its packets, priming and length, so
+//  gapless trims and durations are the ones every other reader sees.
+//
 
 #import <AVFAudio/AVFAudio.h>
 #import <AudioToolbox/AudioToolbox.h>
@@ -44,6 +50,16 @@ NS_ASSUME_NONNULL_BEGIN
                        processingFormat:(AVAudioFormat *)processingFormat
                                   error:(NSError * _Nullable __autoreleasing * _Nullable)error NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
+
+// Which decoder MPEG files opened from now on get: dr_mp3 (NO, the default;
+// docs/future/mp3-decoder.md) or Apple's (YES). The mac's Settings > Advanced
+// chooses; iOS keeps the default. A handle keeps the decoder it opened with.
+@property (class, atomic) BOOL appleMPEGDecoder;
+// "dr_mp3" or "apple", for the audio-path report.
+@property (nonatomic, readonly) NSString *decoderName;
+// YES for an MPEG file opened under the other appleMPEGDecoder choice than
+// the current one: a handle opened before a change and handed on after it.
+@property (nonatomic, readonly) BOOL decoderChoiceIsStale;
 
 @property (nonatomic, readonly) NSURL *url;
 // The file's own format: codec, native rate, channels, and for PCM the depth.
