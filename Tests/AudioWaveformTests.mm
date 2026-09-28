@@ -383,6 +383,22 @@
     XCTAssertEqual(rebuilds, 1u);
 }
 
+// A quiet intro decoded ahead of a louder passage must not draw at full height
+// and then shrink: a streaming load holds the fixed reference.
+- (void)testNormalizationWaitsForTheWholeTrack {
+    std::vector<AudioWaveformCacheChunk> source(4, AudioWaveformCacheChunk());
+    source[0].set(-0.1f, 0.1f, 0.01f * 4, 4);
+    AudioWaveform partial(source.size(), source.data());
+    XCTAssertFalse(partial.isFullyLoaded());
+    XCTAssertEqual(VibeWaveformFullScaleRMSForWaveform(&partial, YES, 4), kVibeWaveformFullScaleRMS);
+    for (NSUInteger i = 1; i < 4; i++) {
+        source[i].set(-0.2f, 0.2f, 0.04f * 4, 4);
+    }
+    AudioWaveform whole(source.size(), source.data());
+    XCTAssertTrue(whole.isFullyLoaded());
+    XCTAssertEqualWithAccuracy(VibeWaveformFullScaleRMSForWaveform(&whole, YES, 4), 0.2f, 1e-6);
+}
+
 #pragma mark - getMaxMeanSquare
 
 // 64 chunks whose mean square is their index, so the loudest column at any

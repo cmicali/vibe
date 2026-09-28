@@ -65,10 +65,12 @@ static inline AudioWaveformCacheChunk VibeWaveformEnergyColumnForBar(AudioWavefo
 // Normalize only raises levels: its reference cannot exceed the fixed one.
 // Match the drawn energy windows, including the finer styles' 1/1024 floor.
 // Silence and empty waveforms keep the fixed reference to avoid division by zero.
+// A streaming load keeps it too: its loudest column is only the loudest SO
+// FAR, and a reference that rises per delivery shrinks bars already drawn.
 static inline float VibeWaveformFullScaleRMSForWaveform(AudioWaveform * _Nullable waveform,
                                                         BOOL normalize,
                                                         NSUInteger count) {
-    float loudest = (normalize && waveform)
+    float loudest = (normalize && waveform && waveform->isFullyLoaded())
             ? sqrtf(waveform->getMaxMeanSquare(MIN(count, kVibeWaveformEnergyColumns))) : 0;
     return loudest > 0 ? fminf(loudest, kVibeWaveformFullScaleRMS) : kVibeWaveformFullScaleRMS;
 }

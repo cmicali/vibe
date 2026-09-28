@@ -38,6 +38,7 @@ struct AudioWaveformCacheChunk {
     // Mean of the squared samples across every frame merged in — sqrt of it is
     // the chunk's RMS. 0 for an empty chunk.
     inline float getMeanSquare() const noexcept { return values[3] > 0 ? values[2] / values[3] : 0; }
+    inline bool isEmpty() const noexcept { return values[3] <= 0; }
     inline void set(float min, float max) noexcept { set(min, max, 0, 0); }
     inline void set(float min, float max, float sumSquares, float frameCount) noexcept {
         values[0] = min; values[1] = max; values[2] = sumSquares; values[3] = frameCount;
@@ -92,6 +93,11 @@ public:
     // square, as getMeanSquare — which the renderers' Normalize draws at
     // full height. 0 for an empty or silent waveform.
     float getMaxMeanSquare(NSUInteger columns);
+    // A decode fills the chunks in order and the last one only as it
+    // completes, so an empty last chunk is a load still streaming.
+    inline bool isFullyLoaded() const noexcept {
+        return chunks != nullptr && numChunks > 0 && !chunks[numChunks - 1].isEmpty();
+    }
     inline void setChunkAtIndex(AudioWaveformCacheChunk chunk, NSUInteger index) {
         if (index < numChunks) { chunks[index] = chunk; }
     }
