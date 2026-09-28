@@ -91,3 +91,27 @@ caption sits on one line.
 - `make appstore-upload-metadata` uploads copy and screenshots to App Store Connect
   (`scripts/appstore-upload-metadata.sh`, the Swift tool in
   `scripts/asc-upload/`).
+
+## iOS screenshot music
+
+The iOS captures use fictional artist/title metadata and the four new sleeve
+designs in `demo-music/artwork/`. `demo-music/catalog.json` maps those names to
+the local source recordings; `artwork-prompts.json` records the cover briefs.
+The audio is copied from the original FLAC files and kept unchanged. Only the
+tags and embedded artwork are replaced.
+
+`demo-music/tracks/` is local and gitignored; the recordings are not distributed
+with the screenshot assets.
+The originals in the music library are untouched. Decoded PCM SHA-256 hashes
+of all twelve copies match their sources. The player and widget use **Soft
+Relay** (the audio from **Memorandum**); the seek shot uses **Negative Space**
+(the audio from **Trouble Symphony**). macOS captures keep their existing music.
+
+Seed the copied FLACs with `launch-ios.sh` and open the seeded Music directory
+through `debug-ios.sh`. Capture at 1290×2796 (iPhone 15 Pro Max) and 2048×2732
+(iPad Pro 12.9-inch), with the status bar set to 9:41. Use the signed simulator
+build for the widget, add it through the widget gallery, and check
+`dump_state.widget.placed` before capturing. `drive-ios.sh springboard …`
+drives that gallery without returning to the player between touches. Rebuild
+all iOS locales with `scripts/appstore-generate-store-screenshots.sh --all
+--platform ios` after replacing the eight source captures.

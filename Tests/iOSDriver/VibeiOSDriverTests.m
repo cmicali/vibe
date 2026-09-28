@@ -110,6 +110,30 @@ static void DisableQuiescenceWaits(void) {
     NSString *verb = tokens.firstObject ?: @"";
     double a1 = 0, a2 = 0, a3 = 0, a4 = 0;
 
+    if ([verb isEqualToString:@"springboard"]) {
+        if (tokens.count < 2 || ![@[@"tap", @"press", @"drag", @"type", @"tap_label", @"tree"] containsObject:tokens[1]]) {
+            return JSONString(@{@"error": @"springboard needs: tap|press|drag|type|tap_label|tree and arguments"});
+        }
+        XCUIApplication *player = _app;
+        _app = [[XCUIApplication alloc] initWithBundleIdentifier:@"com.apple.springboard"];
+        @try {
+            return [self performCommand:[tokens subarrayWithRange:NSMakeRange(1, tokens.count - 1)] quit:quit];
+        }
+        @finally {
+            _app = player;
+        }
+    }
+
+    if ([verb isEqualToString:@"tree"]) {
+        return JSONString(@{@"tree": _app.debugDescription});
+    }
+    if ([verb isEqualToString:@"tap_label"]) {
+        if (tokens.count != 2) return JSONString(@{@"error": @"tap_label needs: label"});
+        XCUIElement *element = [[_app descendantsMatchingType:XCUIElementTypeAny] matchingIdentifier:tokens[1]].firstMatch;
+        if (!element.exists) return JSONString(@{@"error": @"label not found"});
+        [element tap];
+        return JSONString(@{@"ok": @YES});
+    }
     if ([verb isEqualToString:@"quit"]) {
         *quit = YES;
         return JSONString(@{@"ok": @YES, @"quit": @YES});
@@ -220,8 +244,8 @@ static void DisableQuiescenceWaits(void) {
     return JSONString(@{@"error": [NSString stringWithFormat:
             @"unknown command '%@'. Commands: tap <x> <y>, double_tap <x> <y>, "
             @"press <x> <y> <seconds>, drag <x1> <y1> <x2> <y2> [seconds], "
-            @"pinch <scale> <velocity>, type <text>, "
-            @"rotate portrait|left|right, home, quit", verb]});
+            @"pinch <scale> <velocity>, type <text>, tap_label <label>, tree, "
+            @"rotate portrait|left|right, home, springboard <gesture> [args], quit", verb]});
 }
 
 // Returns YES when the command asked the session to end.

@@ -24,6 +24,9 @@
 #                               #   window, so a tap on a key hits the app behind
 #   drive-ios.sh rotate left    # portrait|left|right
 #   drive-ios.sh home
+#   drive-ios.sh springboard tap 201 640  # Home-screen widgets and gallery
+#   drive-ios.sh springboard tree         # accessibility hierarchy
+#   drive-ios.sh springboard tap_label "Add Widget"
 #
 # A reply means the gesture was performed, not that it landed: verify with
 # dump_state or a screenshot. Exit: 0 ok, 1 no response, 2 command error,
@@ -79,10 +82,12 @@ start)
     # xcodebuild and two builds clobber one products directory.
     vibe_build_lock_acquire
     ( cd "$ROOT" && xcodegen generate >/dev/null )
+    SIGNING=(CODE_SIGNING_ALLOWED=NO)
+    [ "${VIBE_SIGN_SIM:-}" != 1 ] || SIGNING=(CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=- GENERATE_INFOPLIST_FILE=YES)
     ( cd "$ROOT" && TEST_RUNNER_VIBE_DRIVER_DIR="$TMP" \
         nohup xcodebuild test -project Vibe.xcodeproj -scheme VibeiOSDriver \
             -destination "id=$UDID" -derivedDataPath build/DerivedData \
-            CODE_SIGNING_ALLOWED=NO > "$LOG" 2>&1 & echo $! > "$TMP/xcodebuild.pid" )
+            "${SIGNING[@]}" > "$LOG" 2>&1 & echo $! > "$TMP/xcodebuild.pid" )
     BUILD_PID="$(cat "$TMP/xcodebuild.pid")"
     for _ in $(seq 1 240); do
         if [ -f "$TMP/$READY_NAME" ]; then

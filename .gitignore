@@ -71,3 +71,6 @@ __pycache__/
 .claude/worktrees/
 
 /debug/
+
+# Local retagged copies of the screenshot author's music; never publish recordings.
+/Assets/app-store/demo-music/tracks/

@@ -1,0 +1,190 @@
+[
+  {
+    "artist": "Miro Venn",
+    "title": "Soft Relay",
+    "album": "Soft Relay",
+    "file": "tracks/Miro Venn - Soft Relay.flac",
+    "artwork": "artwork/soft-relay.png",
+    "source": "The Mountain People - Memorandum.flac",
+    "source_pcm_md5": "d1e605b8e0e835fa6ea717f343ebd3ec",
+    "duration": 410.018,
+    "bpm": [
+      "125"
+    ],
+    "key": [
+      "3m"
+    ]
+  },
+  {
+    "artist": "Miro Venn",
+    "title": "Glass Hours",
+    "album": "Soft Relay",
+    "file": "tracks/Miro Venn - Glass Hours.flac",
+    "artwork": "artwork/soft-relay.png",
+    "source": "The Mountain People - Semper.flac",
+    "source_pcm_md5": "4d7db4ae5292ffd758e0e764717d0bca",
+    "duration": 355.203,
+    "bpm": [
+      "125"
+    ],
+    "key": [
+      "12m"
+    ]
+  },
+  {
+    "artist": "Miro Venn",
+    "title": "Side Room",
+    "album": "Soft Relay",
+    "file": "tracks/Miro Venn - Side Room.flac",
+    "artwork": "artwork/soft-relay.png",
+    "source": "The Mountain People - Mountain021.1 (Edit & Remaster).flac",
+    "source_pcm_md5": "b0a201a3864f8f622b9b32f9dde72fa0",
+    "duration": 440.0,
+    "bpm": [],
+    "key": [
+      "9d"
+    ]
+  },
+  {
+    "artist": "Serein Assembly",
+    "title": "Basement Hours",
+    "album": "Basement Hours",
+    "file": "tracks/Serein Assembly - Basement Hours.flac",
+    "artwork": "artwork/basement-hours.png",
+    "source": "Jon Sable - Imperfect Circuit.flac",
+    "source_pcm_md5": "cd57eb334a7bee8a666563736dbc979b",
+    "duration": 352.5,
+    "bpm": [
+      "131"
+    ],
+    "key": [
+      "2m"
+    ]
+  },
+  {
+    "artist": "Serein Assembly",
+    "title": "Static Garden",
+    "album": "Basement Hours",
+    "file": "tracks/Serein Assembly - Static Garden.flac",
+    "artwork": "artwork/basement-hours.png",
+    "source": "Dorisburg - Mima.flac",
+    "source_pcm_md5": "b36a2d15d77620e16158964188b2b5f7",
+    "duration": 327.54,
+    "bpm": [
+      "125"
+    ],
+    "key": [
+      "11d"
+    ]
+  },
+  {
+    "artist": "Serein Assembly",
+    "title": "Low Season",
+    "album": "Basement Hours",
+    "file": "tracks/Serein Assembly - Low Season.flac",
+    "artwork": "artwork/basement-hours.png",
+    "source": "Pender Street Steppers - Falling.flac",
+    "source_pcm_md5": "9ac2c8216c1e88a0e7fd0157b8be89ff",
+    "duration": 266.0,
+    "bpm": [],
+    "key": [
+      "Abm"
+    ]
+  },
+  {
+    "artist": "Orra Vale",
+    "title": "Afterimage",
+    "album": "Afterimage",
+    "file": "tracks/Orra Vale - Afterimage.flac",
+    "artwork": "artwork/afterimage.png",
+    "source": "Steve O'Sullivan - Tribal Dub (Original Mix).flac",
+    "source_pcm_md5": "95cc3eee82bf76b25fe16a4dd71bea8d",
+    "duration": 394.777,
+    "bpm": [
+      "129"
+    ],
+    "key": [
+      "9m"
+    ]
+  },
+  {
+    "artist": "Orra Vale",
+    "title": "Warm Circuit",
+    "album": "Afterimage",
+    "file": "tracks/Orra Vale - Warm Circuit.flac",
+    "artwork": "artwork/afterimage.png",
+    "source": "Silat Beksi - Shushu.flac",
+    "source_pcm_md5": "9f84e734b46c45fa6e4653a5e979b1b2",
+    "duration": 504.194,
+    "bpm": [
+      "124"
+    ],
+    "key": [
+      "8m"
+    ]
+  },
+  {
+    "artist": "Orra Vale",
+    "title": "Between Stations",
+    "album": "Afterimage",
+    "file": "tracks/Orra Vale - Between Stations.flac",
+    "artwork": "artwork/afterimage.png",
+    "source": "Talismantra - Warmth Reheated.flac",
+    "source_pcm_md5": "f1946d035fd59df11cec0fe14c3c4431",
+    "duration": 421.333,
+    "bpm": [
+      "125"
+    ],
+    "key": [
+      "4d"
+    ]
+  },
+  {
+    "artist": "Tessel District",
+    "title": "Negative Space",
+    "album": "Negative Space",
+    "file": "tracks/Tessel District - Negative Space.flac",
+    "artwork": "artwork/negative-space.png",
+    "source": "DJ Tennis Carlita - Trouble Symphony.flac",
+    "source_pcm_md5": "00000000000000000000000000000000",
+    "duration": 236.399,
+    "bpm": [
+      "130"
+    ],
+    "key": [
+      "1m"
+    ]
+  },
+  {
+    "artist": "Tessel District",
+    "title": "Service Tunnel",
+    "album": "Negative Space",
+    "file": "tracks/Tessel District - Service Tunnel.flac",
+    "artwork": "artwork/negative-space.png",
+    "source": "Traumer - Senses.flac",
+    "source_pcm_md5": "3eff7d039d9afa3af287b83328f0a0d7",
+    "duration": 416.343,
+    "bpm": [
+      "128"
+    ],
+    "key": [
+      "6m"
+    ]
+  },
+  {
+    "artist": "Tessel District",
+    "title": "Last Platform",
+    "album": "Negative Space",
+    "file": "tracks/Tessel District - Last Platform.flac",
+    "artwork": "artwork/negative-space.png",
+    "source": "Der Dritte Raum - Irrfahrt.flac",
+    "source_pcm_md5": "bf447d3cc17915817a72a665b8168043",
+    "duration": 444.758,
+    "bpm": [
+      "135"
+    ],
+    "key": [
+      "7d"
+    ]
+  }
+]
