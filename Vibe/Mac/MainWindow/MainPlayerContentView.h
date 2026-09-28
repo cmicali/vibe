@@ -60,8 +60,9 @@ NS_ASSUME_NONNULL_BEGIN
 // whether the hover reveals them (AppSettings.volumeControl), and the theme's
 // tint, labels and corner.
 - (void)applyVolumeControl;
-// The percentage alone, for a drag of the slider, which moved itself.
-- (void)renderVolumePercent;
+// The slider's own action, every tick of a drag and once at the release: the
+// percentage, and the hover held open while the knob is in hand.
+- (void)volumeSliderDidMove;
 // The waveform's played color, for the Waveform tint; every resolution of the
 // waveform's theme, the art color's included, lands here.
 - (void)setWaveformPlayedColor:(NSColor *)color;

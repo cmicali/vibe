@@ -87,8 +87,6 @@ static const CGFloat kDropHintWidth = kTotalTimeX - kDropHintX;
 // with the drop hint or the readouts on hover (setControlsShown:animated:).
 static const CGFloat kVolumeSliderWidth = 100;
 static const CGFloat kVolumeGap = 6;
-// In the corner: the control's right end, in from the waveform's.
-static const CGFloat kVolumeCornerRightInset = 24;
 
 // The traffic lights: 13pt dots on 23pt centers, like the real macOS
 // controls, left-aligned with the playlist icon below.
@@ -161,6 +159,7 @@ API_AVAILABLE(macos(26.0))
     // An input to the hover fade, not a second writer of the same alpha.
     BOOL _trafficLightsShown;
     BOOL _dropHintShown;
+    BOOL _volumeDragging;
     NSTextField *_dropHintTextField;
     NSTextField *_volumeLabel;
     NSTextField *_volumePercentLabel;
@@ -341,6 +340,7 @@ API_AVAILABLE(macos(26.0))
 // The one place button visibility is decided, so a hidden button never fades
 // to full alpha behind its hidden flag.
 - (void)setControlsShown:(BOOL)shown animated:(BOOL)animated {
+    shown = shown || _volumeDragging;
     CGFloat traffic   = (shown && _trafficLightsShown) ? 1.0 : 0.0;
     AppSettings *settings = AppSettings.sharedInstance;
     AppTheme *theme = settings.currentTheme;
@@ -407,6 +407,20 @@ API_AVAILABLE(macos(26.0))
     [self setControlsShown:[self isCursorOverWindow] animated:NO];
 }
 
+// TRAP: the pointer can leave the window mid-drag, and hiding the control
+// then strands the knob macOS 26 lifts off the track while tracking — it
+// draws outside the faded view and keeps setting the volume. The drag holds
+// the hover open; the release re-decides it from the pointer.
+- (void)volumeSliderDidMove {
+    [self renderVolumePercent];
+    NSEventType type = NSApp.currentEvent.type;
+    BOOL dragging = type == NSEventTypeLeftMouseDown || type == NSEventTypeLeftMouseDragged;
+    if (dragging != _volumeDragging) {
+        _volumeDragging = dragging;
+        [self setControlsShown:[self isCursorOverWindow] animated:YES];
+    }
+}
+
 - (void)renderVolumePercent {
     NSString *percent = [[Formatters sharedInstance] percentString:AppSettings.sharedInstance.volume];
     _volumePercentLabel.attributedStringValue = [[NSAttributedString alloc] initWithString:percent
@@ -442,22 +456,38 @@ static NSDictionary *VolumeTextAttributes(NSTextAlignment alignment, NSColor *co
     _volumeLabel.frame = NSMakeRect(0, 0, side, kSmallLabelHeight);
     _volumeSlider.frame = NSMakeRect(side + gap, 0, kVolumeSliderWidth, kSmallLabelHeight);
     _volumePercentLabel.frame = NSMakeRect(width - side, 0, side, kSmallLabelHeight);
+    [self applyVolumePercentStyle];
     [self positionVolumeControl];
     [self capArtistLineAtCodecText];
 }
 
+// In the time row the percentage hugs the slider; in the corner it is
+// right-aligned on the total time's edge, like the time, so the two stack.
+// TRAP: never centered. The readouts' negative kern makes the measured width
+// short of the drawn one, and a centered cell then drops "100%"'s last glyph
+// until the column is ~4pt wider than the text; left and right alignment draw
+// it at the measured width.
+- (void)applyVolumePercentStyle {
+    AppSettings *settings = AppSettings.sharedInstance;
+    _volumePercentAttributes = VolumeTextAttributes(
+            settings.volumeAtTopRight ? NSTextAlignmentRight : NSTextAlignmentLeft,
+            settings.currentTheme.resolvedArtistColor);
+    [self renderVolumePercent];
+}
+
 // Placed from its neighbors, never by the mask: in the time row its margins
 // are unequal, so AppKit's proportional share of a resize walks the control
-// toward the elapsed time. In the corner its bottom sits on the title's cap
-// height — the frame's top carries the ascender's headroom — measured on the
-// theme's face, not the refit one, so a long title does not move it.
+// toward the elapsed time. In the corner it ends where the total time below
+// does, and its bottom sits on the title's cap height — the frame's top
+// carries the ascender's headroom — measured on the theme's face, not the
+// refit one, so a long title does not move it.
 - (void)positionVolumeControl {
     NSRect frame = _volumeControlView.frame;
     if (AppSettings.sharedInstance.volumeAtTopRight) {
-        // Measured from the ink: a bare slider has no text inset of its own.
-        CGFloat inset = kVolumeCornerRightInset + (_volumeLabel.hidden ? kLabelInkInset : 0);
+        // A bare slider has no text inset of its own, so it ends at the ink.
+        CGFloat inset = _volumeLabel.hidden ? kLabelInkInset : 0;
         NSFont *title = [Fonts titleFont];
-        frame.origin.x = NSMaxX(_fileMetadataTextField.frame) - inset - frame.size.width;
+        frame.origin.x = NSMaxX(_totalTimeTextField.frame) - inset - frame.size.width;
         frame.origin.y = round(NSMaxY(_titleTextField.frame) - (title.ascender - title.capHeight));
     } else {
         CGFloat center = (NSMaxX(_currentTimeTextField.frame) + NSMinX(_totalTimeTextField.frame)) / 2;
@@ -846,11 +876,9 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _artistTextField.textColor = theme.resolvedArtistColor;
     _totalTimeTextField.textColor = theme.resolvedTimeColor;
     _currentTimeTextField.textColor = theme.resolvedTimeColor;
-    NSColor *volumeColor = theme.resolvedArtistColor;
     _volumeLabel.attributedStringValue = [[NSAttributedString alloc] initWithString:STR_LABEL_VOLUME
-            attributes:VolumeTextAttributes(NSTextAlignmentRight, volumeColor)];
-    _volumePercentAttributes = VolumeTextAttributes(NSTextAlignmentLeft, volumeColor);
-    [self renderVolumePercent];
+            attributes:VolumeTextAttributes(NSTextAlignmentRight, theme.resolvedArtistColor)];
+    [self applyVolumePercentStyle];
 }
 
 // A glyph this macOS has, else the factory one, as Fonts falls back from an
