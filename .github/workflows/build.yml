@@ -131,6 +131,9 @@ jobs:
         run: make test
 
       # Real AudioPlayer/AudioFX graphs, pulled offline: no audio device or app.
+      # After the unit tests, not beside them (`make -j2`): run together on a
+      # saturated machine, utility-QoS work misses the suites' 2 s waits, and
+      # this runner has three cores and always starts cold.
       - name: Render and compare audio
         if: ${{ !cancelled() }}
         run: make test-audio

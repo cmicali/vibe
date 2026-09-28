@@ -120,9 +120,10 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     float peak = 0; for (NSUInteger i = 0; i < kLevelBandCount; i++) peak = MAX(peak, levels[i]); return peak;
 }
 
-@interface AudioPlayerRenderTests : XCTestCase <AudioPlayerDelegate>
-@end
-@implementation AudioPlayerRenderTests {
+// The shared fixture: capture, comparisons, the delegate trace and setup.
+// It holds no tests, so it runs none; each subclass below is one topic, and
+// the runner spreads the subclasses across its processes.
+@interface AudioPlayerRenderTests : XCTestCase <AudioPlayerDelegate> {
     AudioPlayer *_player;
     NSMutableArray<NSDictionary *> *_events;
     NSError *_playError;
@@ -135,6 +136,9 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     NSUInteger _nextPrefetch;
     void (^_outputModesProvider)(NSString *, BOOL *, BOOL *);
 }
+@end
+
+@implementation AudioPlayerRenderTests
 - (void)setUp {
     [super setUp]; self.continueAfterFailure = NO;
     _events = [NSMutableArray array]; _blockSize = 256;
@@ -310,6 +314,115 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     for (NSUInteger i=0;i<data.length/sizeof(float);i++) { XCTAssertTrue(isfinite(p[i])); XCTAssertLessThanOrEqual(fabsf(p[i]),peak); }
 }
 
+
+// Every audible frame of capture must continue an exact excerpt of one of the
+// references: bit-perfect output may cut between excerpts, never scale a
+// sample. Each excerpt is found by an exact 32-frame match, so a ramp's scaled
+// samples match nothing; with declick on, a run of up to `rampFrames` of them
+// is allowed between excerpts and counted in `ramped`. Returns the excerpts found.
+- (NSUInteger)assertExactExcerptsOf:(NSArray<NSData *> *)references inCapture:(NSData *)capture
+                         rampFrames:(NSUInteger)rampFrames ramped:(NSUInteger *)ramped {
+    NSUInteger channels = _channels, frames = capture.length / sizeof(float) / channels, excerpts = 0, run = 0;
+    const float *a = capture.bytes;
+    const float *r = NULL;
+    NSUInteger at = 0, length = 0; // the current excerpt's next reference frame
+    for (NSUInteger f = 0; f < frames; f++) {
+        const float *frame = a + f * channels;
+        BOOL silent = YES;
+        for (NSUInteger c = 0; c < channels; c++) silent &= frame[c] == 0;
+        if (r && at < length && memcmp(frame, r + at * channels, channels * sizeof(float)) == 0) {
+            at++; run = 0;
+            continue;
+        }
+        r = NULL;
+        if (silent) { run = 0; continue; }
+        for (NSData *reference in references) {
+            const float *candidate = reference.bytes;
+            NSUInteger candidateFrames = reference.length / sizeof(float) / channels;
+            for (NSUInteger start = 0; !r && f + 32 <= frames && start + 32 <= candidateFrames; start++) {
+                if (memcmp(frame, candidate + start * channels, 32 * channels * sizeof(float)) == 0) {
+                    r = candidate; at = start + 1; length = candidateFrames;
+                }
+            }
+            if (r) break;
+        }
+        if (!r) {
+            if (++run <= rampFrames) {
+                if (ramped) (*ramped)++;
+                continue;
+            }
+            XCTFail(@"Frame %lu is audible but continues no exact excerpt: %g", (unsigned long)f, frame[0]);
+            return excerpts;
+        }
+        run = 0;
+        excerpts++;
+    }
+    return excerpts;
+}
+
+// A bit-perfect 48 kHz player whose bus reads on its real decode queues under
+// the frame-driven pump, the pump's inline fill starved so only they fill.
+// The bus is made by the first play, so `play` runs with the init still forced.
+- (void)playOnTheDecodePool:(void (^)(void))play {
+    Method initializer = class_getInstanceMethod(AudioVoiceBus.class, @selector(initWithFormat:queue:inlineDecoding:));
+    __block IMP originalInit;
+    IMP asyncInit = imp_implementationWithBlock(^id(id receiver, AVAudioFormat *format, dispatch_queue_t queue, BOOL inlineDecoding) {
+        return ((id (*)(id, SEL, AVAudioFormat *, dispatch_queue_t, BOOL))originalInit)(receiver, @selector(initWithFormat:queue:inlineDecoding:), format, queue, NO);
+    });
+    originalInit = method_setImplementation(initializer, asyncInit);
+    @try {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+        [_player debugStarveDecoder:YES];
+        play();
+    } @finally {
+        method_setImplementation(initializer, originalInit);
+        imp_removeBlock(asyncInit);
+    }
+}
+
+- (void)record:(NSString *)event track:(AudioTrack *)track {
+    [_events addObject:@{@"event":event,@"track":track.url.path?:@"",@"position":@(_player.position),@"render":_player.debugRenderCounts?:@{}}];
+}
+- (void)audioPlayerDidInitialize:(AudioPlayer *)p { [self record:@"init" track:nil]; }
+- (void)audioPlayer:(AudioPlayer *)p didStartPlaying:(AudioTrack *)t {
+    [self record:@"start" track:t];
+    if (_chain && _nextPrefetch<_chain.count) [p prefetchTrack:_chain[_nextPrefetch]];
+}
+
+- (void)audioPlayer:(AudioPlayer *)p didPausePlaying:(AudioTrack *)t { [self record:@"pause" track:t]; }
+// What the iOS shell's session reads at this edge: the answer now, not the edge's.
+- (void)audioPlayerOutputDidBecomeIdle:(AudioPlayer *)p {
+    [_events addObject:@{@"event": @"idle", @"outputIdle": @(p.outputIdle)}];
+}
+- (void)audioPlayer:(AudioPlayer *)p didResumePlaying:(AudioTrack *)t { [self record:@"resume" track:t]; }
+- (void)audioPlayer:(AudioPlayer *)p didFinishSeeking:(AudioTrack *)t { [self record:@"seek" track:t]; }
+- (void)audioPlayer:(AudioPlayer *)p didFinishPlaying:(AudioTrack *)t { [self record:@"finish" track:t]; }
+- (void)audioPlayer:(AudioPlayer *)p didAutoAdvanceFromTrack:(AudioTrack *)a toTrack:(AudioTrack *)b {
+    [self record:@"advance" track:b];
+    _nextPrefetch++;
+    if (_chain && _nextPrefetch<_chain.count) [p prefetchTrack:_chain[_nextPrefetch]];
+}
+- (void)audioPlayer:(AudioPlayer *)p didBeginLoading:(AudioTrack *)t openRequestIdentifier:(uint64_t)i { [self record:@"loading" track:t]; }
+- (void)audioPlayer:(AudioPlayer *)p didChangeLoadingPaused:(BOOL)paused forTrack:(AudioTrack *)t {}
+- (void)audioPlayer:(AudioPlayer *)player outputModesForDeviceUID:(NSString *)uid
+  bitPerfectOutput:(BOOL *)bitPerfect exclusiveOutput:(BOOL *)exclusive {
+    if (_outputModesProvider) _outputModesProvider(uid, bitPerfect, exclusive);
+}
+- (void)audioPlayer:(AudioPlayer *)p didChangeOutputDevice:(NSInteger)d involuntaryFallbackUID:(NSString *)fallbackUID
+involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *)carriedUID {
+    [_events addObject:@{@"event": @"device", @"device": @(d),
+            @"fallback": fallbackUID ?: @"",
+            @"carriedModes": carriedUID ?: @""}];
+}
+- (void)audioPlayer:(AudioPlayer *)p error:(NSError *)error { _playError=error; [self record:@"error" track:nil]; }
+
+@end
+
+// The oracle itself, the bit-perfect matrix, every container and codec, float limits and wide sources.
+@interface AudioPlayerRenderFidelityTests : AudioPlayerRenderTests
+@end
+@implementation AudioPlayerRenderFidelityTests
+
 - (void)testOracleRejectsCorruption {
     _channels=2;
     NSData *reference=PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
@@ -421,50 +534,13 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         else XCTAssertGreaterThan(mismatched,compared/2,@"%@: %@",name,full);
     }
 }
-// Every audible frame of capture must continue an exact excerpt of one of the
-// references: bit-perfect output may cut between excerpts, never scale a
-// sample. Each excerpt is found by an exact 32-frame match, so a ramp's scaled
-// samples match nothing; with declick on, a run of up to `rampFrames` of them
-// is allowed between excerpts and counted in `ramped`. Returns the excerpts found.
-- (NSUInteger)assertExactExcerptsOf:(NSArray<NSData *> *)references inCapture:(NSData *)capture
-                         rampFrames:(NSUInteger)rampFrames ramped:(NSUInteger *)ramped {
-    NSUInteger channels = _channels, frames = capture.length / sizeof(float) / channels, excerpts = 0, run = 0;
-    const float *a = capture.bytes;
-    const float *r = NULL;
-    NSUInteger at = 0, length = 0; // the current excerpt's next reference frame
-    for (NSUInteger f = 0; f < frames; f++) {
-        const float *frame = a + f * channels;
-        BOOL silent = YES;
-        for (NSUInteger c = 0; c < channels; c++) silent &= frame[c] == 0;
-        if (r && at < length && memcmp(frame, r + at * channels, channels * sizeof(float)) == 0) {
-            at++; run = 0;
-            continue;
-        }
-        r = NULL;
-        if (silent) { run = 0; continue; }
-        for (NSData *reference in references) {
-            const float *candidate = reference.bytes;
-            NSUInteger candidateFrames = reference.length / sizeof(float) / channels;
-            for (NSUInteger start = 0; !r && f + 32 <= frames && start + 32 <= candidateFrames; start++) {
-                if (memcmp(frame, candidate + start * channels, 32 * channels * sizeof(float)) == 0) {
-                    r = candidate; at = start + 1; length = candidateFrames;
-                }
-            }
-            if (r) break;
-        }
-        if (!r) {
-            if (++run <= rampFrames) {
-                if (ramped) (*ramped)++;
-                continue;
-            }
-            XCTFail(@"Frame %lu is audible but continues no exact excerpt: %g", (unsigned long)f, frame[0]);
-            return excerpts;
-        }
-        run = 0;
-        excerpts++;
-    }
-    return excerpts;
-}
+
+@end
+
+// Transport edges, declick, gapless handoffs and successor cancellation.
+@interface AudioPlayerRenderTransportTests : AudioPlayerRenderTests
+@end
+@implementation AudioPlayerRenderTransportTests
 
 - (void)testBitPerfectTransportCutsWithoutChangingSamples {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
@@ -769,25 +845,6 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
                      @"Cancelled successor must not be audible");
 }
 
-// A bit-perfect 48 kHz player whose bus reads on its real decode queues under
-// the frame-driven pump, the pump's inline fill starved so only they fill.
-// The bus is made by the first play, so `play` runs with the init still forced.
-- (void)playOnTheDecodePool:(void (^)(void))play {
-    Method initializer = class_getInstanceMethod(AudioVoiceBus.class, @selector(initWithFormat:queue:inlineDecoding:));
-    __block IMP originalInit;
-    IMP asyncInit = imp_implementationWithBlock(^id(id receiver, AVAudioFormat *format, dispatch_queue_t queue, BOOL inlineDecoding) {
-        return ((id (*)(id, SEL, AVAudioFormat *, dispatch_queue_t, BOOL))originalInit)(receiver, @selector(initWithFormat:queue:inlineDecoding:), format, queue, NO);
-    });
-    originalInit = method_setImplementation(initializer, asyncInit);
-    @try {
-        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
-        [_player debugStarveDecoder:YES];
-        play();
-    } @finally {
-        method_setImplementation(initializer, originalInit);
-        imp_removeBlock(asyncInit);
-    }
-}
 
 // The old decoder can already be reading the parked file when crossfade
 // cancels its splice. Re-arming must wait out that read without waiting for
@@ -927,6 +984,13 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         imp_removeBlock(heldRetirement);
     }
 }
+
+@end
+
+// The level meter and the signal diagnostics.
+@interface AudioPlayerRenderSignalTests : AudioPlayerRenderTests
+@end
+@implementation AudioPlayerRenderSignalTests
 
 // The meter is kept across demand toggles, so an install must forget the
 // accumulator, and the analyzer's partial window and references with it.
@@ -1184,6 +1248,14 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     XCTAssertEqualWithAccuracy([signal[@"firstSignalAfterStartMS"] doubleValue], 700, 2, @"%@", signal);
     XCTAssertEqualWithAccuracy([signal[@"observedLeadingSilenceMS"] doubleValue], 700, 2);
 }
+
+@end
+
+// FX, pitch and SRC quality, stuck renders, routing, device switches, and transport under stress.
+@interface AudioPlayerRenderPipelineTests : AudioPlayerRenderTests
+@end
+@implementation AudioPlayerRenderPipelineTests
+
 - (void)testLowKillResponseAndReturnToTransparency {
     for (NSString *tone in @[@"20.wav",@"100.wav",@"1000.wav",@"8000.wav"]) {
         [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
@@ -1805,14 +1877,13 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     XCTAssertEqual(RMS([self renderSeconds:0.1],2,0,NSMakeRange(0,4800)),0);
 }
 
-- (void)record:(NSString *)event track:(AudioTrack *)track {
-    [_events addObject:@{@"event":event,@"track":track.url.path?:@"",@"position":@(_player.position),@"render":_player.debugRenderCounts?:@{}}];
-}
-- (void)audioPlayerDidInitialize:(AudioPlayer *)p { [self record:@"init" track:nil]; }
-- (void)audioPlayer:(AudioPlayer *)p didStartPlaying:(AudioTrack *)t {
-    [self record:@"start" track:t];
-    if (_chain && _nextPrefetch<_chain.count) [p prefetchTrack:_chain[_nextPrefetch]];
-}
+@end
+
+// Saved, fallback and launch devices, and the modes carried between them.
+@interface AudioPlayerRenderDeviceTests : AudioPlayerRenderTests
+@end
+@implementation AudioPlayerRenderDeviceTests
+
 - (void)testSavedDeviceFailureDoesNotReenter {
     AudioDevice *device = [[AudioDevice alloc] initWithName:@"Saved DAC" uid:@"saved" deviceId:2 isSystemDefault:NO transportType:kAudioDeviceTransportTypeVirtual];
     AudioDeviceManager *devices = [[AudioDeviceManager alloc] initWithEnumerator:^NSArray *(BOOL partial) { return @[device]; } retryScheduler:nil];
@@ -2066,32 +2137,6 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     }
 }
 
-- (void)audioPlayer:(AudioPlayer *)p didPausePlaying:(AudioTrack *)t { [self record:@"pause" track:t]; }
-// What the iOS shell's session reads at this edge: the answer now, not the edge's.
-- (void)audioPlayerOutputDidBecomeIdle:(AudioPlayer *)p {
-    [_events addObject:@{@"event": @"idle", @"outputIdle": @(p.outputIdle)}];
-}
-- (void)audioPlayer:(AudioPlayer *)p didResumePlaying:(AudioTrack *)t { [self record:@"resume" track:t]; }
-- (void)audioPlayer:(AudioPlayer *)p didFinishSeeking:(AudioTrack *)t { [self record:@"seek" track:t]; }
-- (void)audioPlayer:(AudioPlayer *)p didFinishPlaying:(AudioTrack *)t { [self record:@"finish" track:t]; }
-- (void)audioPlayer:(AudioPlayer *)p didAutoAdvanceFromTrack:(AudioTrack *)a toTrack:(AudioTrack *)b {
-    [self record:@"advance" track:b];
-    _nextPrefetch++;
-    if (_chain && _nextPrefetch<_chain.count) [p prefetchTrack:_chain[_nextPrefetch]];
-}
-- (void)audioPlayer:(AudioPlayer *)p didBeginLoading:(AudioTrack *)t openRequestIdentifier:(uint64_t)i { [self record:@"loading" track:t]; }
-- (void)audioPlayer:(AudioPlayer *)p didChangeLoadingPaused:(BOOL)paused forTrack:(AudioTrack *)t {}
-- (void)audioPlayer:(AudioPlayer *)player outputModesForDeviceUID:(NSString *)uid
-  bitPerfectOutput:(BOOL *)bitPerfect exclusiveOutput:(BOOL *)exclusive {
-    if (_outputModesProvider) _outputModesProvider(uid, bitPerfect, exclusive);
-}
-- (void)audioPlayer:(AudioPlayer *)p didChangeOutputDevice:(NSInteger)d involuntaryFallbackUID:(NSString *)fallbackUID
-involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *)carriedUID {
-    [_events addObject:@{@"event": @"device", @"device": @(d),
-            @"fallback": fallbackUID ?: @"",
-            @"carriedModes": carriedUID ?: @""}];
-}
-- (void)audioPlayer:(AudioPlayer *)p error:(NSError *)error { _playError=error; [self record:@"error" track:nil]; }
 - (void)testFailedManualSelectionDoesNotOverwriteReadoptedModes {
     AudioDevice *a = [[AudioDevice alloc] initWithName:@"A" uid:@"a" deviceId:2 isSystemDefault:NO transportType:kAudioDeviceTransportTypeVirtual];
     AudioDevice *b = [[AudioDevice alloc] initWithName:@"B" uid:@"b" deviceId:3 isSystemDefault:NO transportType:kAudioDeviceTransportTypeVirtual];
@@ -2260,7 +2305,12 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     }
 }
 
-#pragma mark - The varispeed at zero, the output's rate, the 16-bit decode, disabled FX, the path
+@end
+
+// The varispeed at zero, the output's rate and path, output-unit failures, idle stop and decode failures.
+@interface AudioPlayerRenderOutputTests : AudioPlayerRenderTests
+@end
+@implementation AudioPlayerRenderOutputTests
 
 // At zero pitch the varispeed is hosted but not in the chain, so the output is
 // the file exactly. Leaving and returning to zero engages and disengages it

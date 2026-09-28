@@ -54,6 +54,8 @@ install-ios: project
 
 # The host-less unit tests (VibeTests) plus the cloud-runner oracle tests.
 # The rm matters: xcodebuild refuses to write over an existing result bundle.
+# `make -j2 test test-audio` runs both suites at once: test-audio has its own
+# derived data, since two xcodebuilds cannot share one.
 test: project check-cloud-scenarios
 	rm -rf $(RESULT_BUNDLE)
 	xcodebuild \
@@ -92,9 +94,8 @@ test-audio: project build/verify-bit-perfect
 	.claude/skills/vibe-debug/scripts/generate-test-audio.sh --render-tests build/audio-fixtures
 	rm -rf $(AUDIO_RESULT_BUNDLE)
 	scripts/build-lock.sh xcodebuild -project Vibe.xcodeproj -scheme VibeAudioTests \
-	    -configuration Debug -destination 'platform=macOS' -derivedDataPath build/DerivedData \
-	    -resultBundlePath $(AUDIO_RESULT_BUNDLE) -parallel-testing-enabled NO \
-	    -collect-test-diagnostics never $(ARGS) test
+	    -configuration Debug -destination 'platform=macOS' -derivedDataPath build/AudioDerivedData \
+	    -resultBundlePath $(AUDIO_RESULT_BUNDLE) -collect-test-diagnostics never $(ARGS) test
 
 test-audio-summary:
 	scripts/test-summary.sh $(AUDIO_RESULT_BUNDLE)

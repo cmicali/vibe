@@ -821,7 +821,9 @@ schemes:
     test:
       config: Debug
       targets:
-        - VibeAudioTests
+        # One class per topic, spread across runner processes like VibeTests.
+        - name: VibeAudioTests
+          parallelizable: true
       environmentVariables:
         VIBE_AUDIO_FIXTURES: "$(SRCROOT)/build/audio-fixtures"
   VibeiOS:
