@@ -1,77 +1,97 @@
 # Audio quality
 
-What Vibe does to the audio between the file and your DAC, what it never does, and how each claim is measured. Every number here comes from a test that runs on every change, or from a measurement described next to it.
+This page explains what Vibe does to your music between the file and your speakers or DAC, what it never does, and how we know. Every number comes from an automated test that runs on every change, or from a measurement described next to it.
 
 ## The short version
 
-- **At full volume, 0% pitch and no effect engaged, Vibe hands the output the decoded samples unchanged** whenever the file's sample rate is the output's. The DJ effects and the pitch fader leave the signal path entirely when unused, so "enabled but idle" is exactly the same as "off".
-- **When the rates differ, one resampler converts: r8brain-free-src**, a linear-phase, double-precision resampler with a 180 dB stopband. It replaced Apple's converter at every quality measure, at 8–30× less CPU (below).
-- **Bit-perfect output (macOS) switches the device to the file** — its sample rate and a format deep enough to carry it — so nothing between the decoder and the DAC changes a sample. Other apps can be kept off the device with exclusive mode.
-- **Lossy files are never rounded down to 16 bits for being lossy.** Apple's AAC decoder produces float samples with more than 16 bits of detail, which a 24-bit or float output keeps; its MP3 decoder produces 16-bit samples, which every output format carries exactly.
+- **Vibe does not change your audio unless it has to.** At full volume, with the pitch fader at 0% and no DJ effect in use, the samples that reach the output are exactly the samples decoded from the file. Turning the effects on without using them changes nothing: an effect that is not in use is removed from the audio path completely.
+- **The one thing Vibe must sometimes change is the sample rate.** If a file's sample rate is different from your output's (a 44.1 kHz file on a 48 kHz output, say), Vibe converts it. It uses r8brain-free-src, which measured better than Apple's own converter on every test and uses a fraction of the CPU.
+- **Bit-perfect output (macOS) avoids even that.** Vibe switches your device to the file's sample rate and to a format with enough bits, so the DAC receives the file's samples untouched.
+- **Vibe never cuts lossy files down to 16 bits.** An AAC file decodes to more detail than 16 bits can hold, and Vibe keeps it. An MP3 decodes to exactly 16 bits on Apple's platforms, so it arrives unchanged whatever format your device uses.
 
-## Where the samples go
+## A few terms
+
+- **Sample rate**: how many samples per second a recording has, such as 44.1 kHz (CD) or 96 kHz.
+- **Bit depth**: how finely each sample is measured. 16 bits is CD quality; 24 bits and 32-bit float are finer. More bits means a lower noise floor.
+- **Resampling**: converting audio from one sample rate to another. Doing it well takes careful filtering; doing it badly adds noise, distortion and false tones.
+- **dB and dBFS**: a way of measuring levels. 0 dBFS is the loudest a digital signal can be. Each −20 dB is ten times quieter, so −140 dB is ten million times quieter than the music. Most of the errors measured here are far below anything you can hear; the numbers show which method is *more exact*.
+- **Aliasing**: false tones that appear when sound above the new sample rate's limit is not filtered out. A good resampler removes them.
+
+## Where the audio goes
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/signal-path-dark.svg"><img alt="The signal path in regular output, bit-perfect output and on iOS" src="audio-quality/signal-path-light.svg"></picture>
 
-Every file is decoded to 32-bit float. From there, every stage drawn dashed runs only while it has something to do, and passes the samples through untouched — not multiplied by 1.0, not filtered flat, but skipped — otherwise:
+Every file is first decoded to 32-bit floating point. After that, each dashed step in the diagram only runs when it is needed. When it is not needed, it is skipped entirely. It does not "process at 100%"; the audio simply does not go through it.
 
-- **Resample**: only when the file's rate is not the output's.
-- **Declick**: a 10 ms fade at a start, pause, seek or stop, so an edge never clicks. Every other sample is untouched. Settings > Audio > Declick turns it off, and an edge becomes a clean cut. A crossfade between tracks, if you choose one, is the only longer fade.
-- **Pitch**: the varispeed runs only while the fader is off 0%. At 0% it is taken out of the path, because even Apple's varispeed at a ratio of exactly 1.0 changes the samples. The fader snaps to exactly 0 at its center.
-- **DJ effects**: each effect runs only while engaged, or while its tail still rings, and is then reset and removed. A released low cut sweeps down to 20 Hz, turns into a flat filter so nothing jumps, and a quarter of a second later is removed completely — a high-pass left parked at 20 Hz would still lift the sub-bass through its resonance.
-- **Volume**: Vibe's own fader. At full it touches nothing.
+- **Resample**: only when the file's sample rate is different from the output's.
+- **Declick**: a 10-millisecond fade when you start, pause, seek or stop, so you never hear a click. It never touches the music in between. You can turn it off in Settings > Audio > Declick, and then those moments become clean cuts. A crossfade between tracks, if you turn one on, is the only longer fade.
+- **Pitch**: only runs while the pitch fader is away from 0%. At 0% it is removed. We remove it rather than set it to "normal speed" because Apple's pitch processor still changes the samples slightly even at normal speed. The fader clicks into exactly 0% at its center.
+- **DJ effects**: each effect only runs while you are using it, or while its echo or reverb is still dying away. Then it is reset and removed. When you release the low cut, it glides down, turns itself flat so there is no jump in sound, and a quarter of a second later is removed completely. We had a bug where a released low cut stayed in the path and slightly boosted the deep bass; a test now prevents that.
+- **Volume**: Vibe's own volume fader. At full volume it does nothing at all.
 
-The level meters behind the equalizer bars read the output and never write it.
+The equalizer bars read a copy of the output. They never change it.
 
 ### Regular output
 
-The pipeline runs at the output device's current sample rate. A file at another rate is resampled once, by r8brain; the effects and the pitch fader are available. macOS then mixes Vibe with other apps and converts to the device's format, and its own volume applies after Vibe's.
+Vibe plays at whatever sample rate your output device is currently set to. A file at a different rate is converted once, by r8brain. The DJ effects and pitch fader are available. After Vibe, macOS mixes in any other apps' sound, converts to your device's format, and applies the system volume.
 
 ### Bit-perfect output (macOS)
 
-Settings > Audio > Bit-perfect output, remembered per device; it needs a chosen device rather than System Output. Before a track plays, Vibe switches the device:
+Turn it on in Settings > Audio > Bit-perfect output. It is remembered for each device, and it needs a specific device chosen, not "System Output". Before each track plays, Vibe sets up your device:
 
-- **The sample rate to the file's.** If the device cannot run at it, the smallest whole multiple it offers (a 44.1 kHz file on a 88.2-only device), which r8brain reaches by a whole-number ratio; if neither, the device's own rate, reported as not bit-perfect.
-- **The format to one that carries the file's depth**: an integer depth equal to the file's or the next above it (a 16-bit file on a 24-bit format arrives exact, its low bits zero), or float for a float file. A 32-bit integer or 64-bit float file is carried at float32's 24-bit precision, which the status reports.
-- **Nothing in between.** The effects and the pitch fader are unavailable; a crossfade is held to the 10 ms declick, and with Declick off no gain is applied at all. Exclusive output (a separate option) takes the device so no other app can mix into it.
+- **The sample rate is set to the file's.** If your device can't run at that rate, Vibe uses the lowest exact multiple it can (a 44.1 kHz file on a device that only offers 88.2 kHz is doubled, cleanly). If there is no multiple either, it plays at the device's own rate, and the status says it is not bit-perfect.
+- **The format is set to one with enough bits for the file.** A 16-bit file gets 16 bits, or 24 bits if the device has no 16-bit mode; that is still exact, because the extra bits are just zeros. A floating-point file gets a floating-point format. Files with more detail than 24 bits (32-bit integer or 64-bit float files, which are rare) are played at 24-bit precision, and the status says so.
+- **Nothing else touches the audio.** The DJ effects and pitch fader are turned off. Crossfades are limited to the 10 ms declick, and with Declick off there is no fade at all.
+- **Exclusive output** (a separate switch) locks the device so no other app can play through it at the same time.
 
-The caption under the switch says whether the current track is actually bit-perfect, with the format the device settled on, and if not, the first reason: the rate, a channel conversion, a depth the device cannot carry, the device muted, a volume below full (Vibe's, macOS's, or a balance off center), exclusive access refused, or a lossy source. Only direct outputs qualify — built-in, USB, FireWire, Thunderbolt, PCI, HDMI, DisplayPort, AVB and virtual devices — never Bluetooth or AirPlay, which re-encode, or aggregate devices.
+The caption under the switch tells you whether the current track really is bit-perfect, and the format your device is using. If it isn't, it gives the reason: the sample rate, a change in the number of channels, a device that can't take the file's bit depth, a muted device, a volume below full (Vibe's, the system's, or the balance), another app holding the device, or a lossy file (which is decoded before it can be played, so it can't be "bit-perfect" to the file itself).
+
+Only direct connections can be bit-perfect: built-in audio, USB, FireWire, Thunderbolt, PCI, HDMI, DisplayPort, AVB and virtual devices. Bluetooth and AirPlay can't, because they re-compress the audio, and neither can aggregate devices.
 
 ### iOS
 
-iOS owns the output's sample rate, which follows the route (the speaker, wired headphones, a USB DAC). Vibe resamples to it with the same r8brain resampler, and otherwise follows the regular path. There is no bit-perfect mode.
+On iPhone and iPad, iOS decides the output's sample rate based on where the sound is going (the speaker, headphones, a USB DAC). Vibe converts to that rate with r8brain when needed, and otherwise works like regular output. There is no bit-perfect mode on iOS.
 
 ## Lossy files and bit depth
 
-**Some players choose a 16-bit output for MP3 because an MP3 is "a 16-bit file". It isn't: an MP3 or AAC file stores no bit depth at all.** The decoder rebuilds the waveform from frequency coefficients, and a decoder working in float produces samples finer than 16 bits and peaks above full scale. Rounding that to 16 bits adds noise; clipping it to full scale adds distortion.
+**MP3 and AAC files don't have a bit depth.** They store the sound in a compressed form, and the decoder rebuilds the waveform when you play it. Some players send MP3s to the DAC as 16-bit on the idea that "MP3s are 16-bit". But a decoder that works at full precision produces more detail than 16 bits can hold, and its loudest moments can go slightly above the digital maximum. Cutting that down to 16 bits adds noise, and chopping off the peaks adds distortion.
 
-So under bit-perfect output a lossy file gets the device's float format, else its widest integer format — never 16 bits for being lossy. What that preserves depends on the decoder, and Vibe uses Apple's:
+So in bit-perfect mode, Vibe gives lossy files your device's floating-point format if it has one, and otherwise its highest bit depth. It never picks 16 bits just because a file is lossy.
 
-| Apple's decoder | Its only outputs | Samples on the 16-bit grid | Overshoot on a hot master | What a 16-bit output would do |
+How much that matters depends on the decoder. Vibe uses Apple's decoders, and they behave very differently:
+
+| Apple's decoder | What it can output | Samples that fit exactly in 16 bits | Peaks above the maximum (a loud master) | What sending it as 16-bit would do |
 | --- | --- | --- | --- | --- |
-| AAC | float32 or Int16 (Vibe asks for float32) | 0.04% | kept: +0.79 dBFS peak, 1,071 samples over | add noise at −101 dBFS RMS (33 dB under a −68 dBFS fade, against 81 dB at 24 bits) and clip every overshoot |
-| MP3, MP2 | Int16 only | 100% | clipped by the decoder: pinned at 0 dBFS | nothing: the decode is already 16-bit |
+| AAC | 32-bit float or 16-bit (Vibe asks for float) | 0.04% | kept: up to +0.79 dBFS | add a layer of noise (at −101 dBFS) and chop off every peak |
+| MP3 and MP2 | 16-bit only | 100% | chopped off by the decoder itself | nothing: the decoder already made it 16-bit |
 
-- **AAC** — the iTunes and Apple Music format, and most lossy files on Apple devices — is where the rule matters. The float output keeps the decode exactly, overshoots included; a 24-bit output keeps it to −149 dBFS.
-- **MP3 and MP2** reach Vibe already rounded to 16 bits and clipped at full scale, inside Apple's decoder, which offers no other output. A 16-bit, 24-bit or float output plays identical samples. For comparison, ffmpeg's float MP3 decoder on the same file puts only 0.03% of its samples on the 16-bit grid and peaks at +0.49 dBFS: the precision and headroom a float MP3 decoder would recover. Vibe uses Apple's decoders only.
+**AAC** is the format of iTunes purchases, Apple Music downloads and most lossy files on Apple devices, and it is where this choice matters. A floating-point output keeps the decoded AAC exactly, peaks and all; a 24-bit output keeps it with any change far below hearing (at −149 dBFS). A 16-bit output would add noise that sits only 33 dB below a quiet fade-out, compared with 81 dB below at 24 bits.
 
-Measured on a stand-in for a mastered track: harmonic tones and pink noise, TPDF-dithered to 16 bits, peaking at −0.1 dBFS for ten seconds and then fading to −70 dB; a second, hotter master was soft-clipped to full scale. Encoded with LAME at 320 kbps and V2, and with Apple's AAC encoder at 256 kbps; decoded through Apple's decoders as Vibe reads a file, and through ffmpeg. The decoders' output formats are pinned by a test, so an Apple decoder that changed would fail the suite.
+**MP3 and MP2** are different, because of Apple's decoder:
+
+- **Apple's MP3 decoder can only produce 16-bit samples.** It rounds the audio to 16 bits and chops off any peaks above the maximum before Vibe receives it. There is no setting to ask it for more; we checked what it offers, and a test now checks it on every build.
+- **So for MP3, the output format makes no difference.** 16-bit, 24-bit and floating-point outputs all play exactly the same samples. Choosing a different format for MP3s would change nothing you could measure.
+- **The only way to get more out of MP3s would be a different decoder.** A full-precision MP3 decoder (we compared ffmpeg's) keeps the detail below 16 bits (only 0.03% of its samples fit exactly in 16 bits) and the peaks (up to +0.49 dBFS on the same file). Vibe uses Apple's decoders; replacing the MP3 one would be a separate project.
+
+*How this was measured:* we made a test track that behaves like mastered music: tones and noise at CD quality (16-bit, dithered), loud for ten seconds with peaks just under the maximum, then fading out to −70 dB. A second, louder version was squashed right up to the maximum, like a modern loud master. We encoded them as MP3 (LAME at 320 kbps and V2) and AAC (Apple's encoder at 256 kbps), then decoded them the way Vibe does, and with ffmpeg for comparison.
 
 ## The resampler
 
-Resampling is the one stage that must change samples, so it is held to the most demanding bar. Apple's `AudioConverter` at its highest setting (Mastering complexity, Maximum quality) was the resampler until r8brain-free-src replaced it; both were measured through the same playback engine, on the same signals, at the eight rate pairs a library meets:
+Changing the sample rate is the one job where Vibe has to change the samples, so we hold it to the strictest standard. Vibe used Apple's converter at its highest quality setting until r8brain-free-src replaced it. We measured both through Vibe's own playback engine, with the same test signals, at the eight rate changes a music library is likely to need:
 
-- **Stepped sines** at −1 dBFS: passband ripple to 20 kHz, the −0.1 dB and −3 dB band edges, THD and THD+N, the stopband past the output's Nyquist, and phase (timing and linear phase).
-- **A −60 dBFS sine**: the noise floor under a quiet signal.
-- **A sine sweep to the source's Nyquist**: every spur — alias, image, distortion, noise — frame by frame, in band and past the output's Nyquist.
-- **A band-limited sawtooth**: everything that is not one of its harmonics.
-- **Twenty tones against their ideal**, computed at the output rate with no fitting, so gain, phase and timing errors all count; and the same there and back (the round trip).
-- **CCIF (19 + 20 kHz) and SMPTE (60 Hz + 7 kHz) intermodulation.**
-- **An impulse**: magnitude and phase every 10 Hz to 20 kHz.
-- **A sine with +3 dBFS peaks between samples**: carried unclipped.
-- **Silence, DC, exact duration and CPU.**
+- **Pure tones** at nearly full level: whether the volume stays flat up to 20 kHz, where the top end starts to roll off, how much distortion and noise is added (THD+N: "total harmonic distortion plus noise"), and whether timing stays exact.
+- **A very quiet tone**, to measure the noise floor underneath quiet music.
+- **A tone sweeping from low to high**, to catch any false tone at any frequency.
+- **A sawtooth wave**, rich in overtones, to catch anything that isn't one of its overtones.
+- **Twenty tones at once, compared with a perfect mathematical copy.** No adjustment is allowed, so any error in level, timing or tone counts. Then the same converted there and back again.
+- **Two standard intermodulation tests** (CCIF and SMPTE), which show distortion created when two tones interact.
+- **A single click (impulse)**, to measure the exact frequency and timing response.
+- **A tone whose peaks fall between samples** and go above the maximum, to check nothing is clipped.
+- **Silence, a steady level, the exact length, and CPU use.**
 
-**r8brain is equal or better on every quality measure and wins 90 of the 103 per-pair noise, distortion and aliasing comparisons; Apple's eight wins are all between −157 and −173 dB.** It rejects aliases 4–9 dB further and costs 8–30× less CPU.
+**r8brain was equal or better on every quality measure.** Across 103 measurements of noise, distortion and false tones, it did better in 90. Apple's converter did better in 8, all at levels between −157 and −173 dB, which is far below hearing. r8brain also removed false tones 4–9 dB more thoroughly, and used 8 to 30 times less CPU.
+
+In all four charts below, **lower is better** (less noise, less distortion, less CPU).
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/response-dark.svg"><img alt="Frequency response from an impulse, 44.1 to 96 kHz" src="audio-quality/response-light.svg"></picture>
 
@@ -81,9 +101,9 @@ Resampling is the one stage that must change samples, so it is held to the most 
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/cpu-dark.svg"><img alt="CPU per rate pair, Apple against r8brain" src="audio-quality/cpu-light.svg"></picture>
 
-Worst THD+N across the passband tones, the twenty-tone null against the ideal, the round trip, and the CPU to keep up in real time (dB; the CPU figures come from the test run, with other tests running beside it):
+The key numbers. The first six columns are in dB, where **more negative is better**: the worst distortion plus noise across all the tones, the twenty tones compared with their perfect copy, and the same after converting there and back. The last two columns are the share of one CPU core needed to keep up in real time, where **lower is better**; they were measured while other tests ran alongside, so they are a little noisy.
 
-| pair | Apple THD+N | r8brain THD+N | Apple null | r8brain null | Apple round trip | r8brain round trip | Apple core % | r8brain core % |
+| Rate change | Apple distortion + noise | r8brain distortion + noise | Apple twenty tones | r8brain twenty tones | Apple there and back | r8brain there and back | Apple CPU % | r8brain CPU % |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 44.1→48 | −145.8 | −149.2 | −145.6 | −149.0 | −143.3 | −149.9 | 0.89 | 0.098 |
 | 48→44.1 | −146.2 | −150.0 | −146.0 | −149.1 | −143.2 | −149.4 | 0.90 | 0.116 |
@@ -94,31 +114,31 @@ Worst THD+N across the passband tones, the twenty-tone null against the ideal, t
 | 192→48 | −147.9 | −152.5 | −150.3 | −151.7 | −145.8 | −149.5 | 3.49 | 0.115 |
 | 44.1→192 | −146.2 | −149.6 | −145.7 | −148.9 | −148.0 | −151.8 | 3.53 | 0.180 |
 
-**On an iPhone 17 Pro**, a 44.1 kHz file to the phone's 48 kHz output, 60 s per resampler, twice: r8brain 0.54% and 0.56% of a core, Apple's 3.39% and 3.27% — about 6× less.
+**On an iPhone 17 Pro**, converting a 44.1 kHz file to the phone's 48 kHz output: r8brain used 0.54–0.56% of a CPU core, and Apple's converter 3.27–3.39%. That's about six times less.
 
 ### How r8brain is set up
 
-- **Its 24-bit preset**, about 180 dB of stopband, documented for 24-bit and 32-bit float resampling; the playback engine is float32.
-- **A 1% transition band**, half r8brain's default: −0.1 dB at 21.72 kHz and −3 dB at 21.83 kHz from a 44.1 kHz file, level with Apple's filter (21.72 and 21.77 kHz), where the default stopped at 21.39 and 21.61. Every noise, distortion and aliasing figure is unchanged by it; the cost rises about 20%, a few thousandths of a core.
-- **Linear phase**, its latency removed inside: zero phase delay and flat group delay at every pair.
-- **Double precision throughout**, on its NEON-accelerated FFT; the result is rounded once to float32.
+- **Its highest-precision setting**, made for 24-bit and floating-point audio. It removes false tones by about 180 dB.
+- **A steep filter at the top of the range.** From a 44.1 kHz file, the response stays flat to 21.72 kHz and is 3 dB down at 21.83 kHz, matching Apple's converter. r8brain's default setting starts rolling off earlier, at 21.39 kHz. The steeper setting costs about 20% more CPU, which is still tiny.
+- **Exact timing.** Every frequency comes out at the same moment it went in, with no delay added.
+- **Full 64-bit precision internally**, rounded once to 32-bit float at the end.
 
-**No dither.** r8brain computes in double and hands float32 to a float32 engine, whose rounding error scales with the signal rather than sitting at a fixed floor dither would decorrelate: a −60 dBFS tone's residual is −209 dBFS, THD at 1 kHz near −160 dB, and there are no truncation harmonics. The one integer rounding is the output's conversion to the device's format, after the resampler. The cases where Apple measured better (all below −157 dB) were rerun with r8brain in double precision and with dither:
+**Why there is no dither.** Dither is a small amount of added noise that hides the effect of rounding. r8brain works at 64-bit precision and rounds once to 32-bit float, and that rounding error is already tiny: a very quiet tone's error measures −209 dBFS. We tested whether dither would help in the few cases where Apple's converter measured better. It would lower those particular distortion figures, but it would also raise the overall noise by the same amount, which makes the more important measurements worse. In the table, **more negative is better**:
 
-| Case | Apple | r8brain in double | r8brain rounded (shipped) | r8brain, TPDF ±1 ULP |
+| Measurement | Apple | r8brain before its final rounding | r8brain as shipped | r8brain with dither |
 | --- | --- | --- | --- | --- |
-| CCIF IMD 44.1→48 | −173.1 | −172.4 | −167.5 | −173.7 |
-| CCIF IMD 44.1→96 | −171.1 | −172.4 | −166.6 | −171.8 |
-| SMPTE IMD 48→44.1 | −160.0 | −162.6 | −158.4 | −161.8 |
-| THD 6 kHz 48→44.1 | −165.8 | −169.7 | −161.6 | −170.0 |
-| THD 1 kHz 192→48 | −161.7 | −165.9 | −157.2 | −165.6 |
-| *everything else (noise)* | | −153 to −180 | −150 to −157 | −147 to −148 |
+| CCIF intermodulation, 44.1→48 | −173.1 | −172.4 | −167.5 | −173.7 |
+| CCIF intermodulation, 44.1→96 | −171.1 | −172.4 | −166.6 | −171.8 |
+| SMPTE intermodulation, 48→44.1 | −160.0 | −162.6 | −158.4 | −161.8 |
+| Distortion of a 6 kHz tone, 48→44.1 | −165.8 | −169.7 | −161.6 | −170.0 |
+| Distortion of a 1 kHz tone, 192→48 | −161.7 | −165.9 | −157.2 | −165.6 |
+| Everything else (noise) | | −153 to −180 | −150 to −157 | −147 to −148 |
 
-In double, r8brain matches or beats Apple everywhere, so the gap is the rounding to float32, not the resampler. Dither would lower those products 3–9 dB but raise the broadband noise 3–9 dB, taking the worst THD+N from −149…−152 dB to Apple's −147…−148 — giving up the measures that count for eight cosmetic ones.
+Before its final rounding, r8brain matches or beats Apple's converter everywhere, so these few gaps come from rounding to 32-bit float, not from r8brain itself. All of them are far below hearing.
 
-**The CPU**, from a standalone benchmark (120 s of stereo per pair, median of three, % of one core):
+**CPU use in detail**, from a separate, quieter benchmark (two minutes of stereo audio per rate change, the middle of three runs, as a share of one CPU core; **lower is better**). The first column is what Vibe ships; the others are setups we tried and rejected:
 
-| pair | r8brain (shipped) | with r8brain's FFT padding | scalar FFT, with padding | Ooura FFT | the default 2% band, with padding |
+| Rate change | Shipped | With extra FFT padding | With padding, without Apple silicon's vector instructions | With a different FFT library | r8brain's default filter, with padding |
 | --- | --- | --- | --- | --- | --- |
 | 44.1→48 | **0.092** | 0.102 | 0.110 | 0.107 | 0.077 |
 | 48→44.1 | **0.098** | 0.105 | 0.116 | 0.114 | 0.080 |
@@ -127,19 +147,21 @@ In double, r8brain matches or beats Apple everywhere, so the gap is the rounding
 | 192→48 | **0.113** | 0.117 | 0.126 | 0.127 | 0.096 |
 | 44.1→192 | **0.175** | 0.181 | 0.202 | 0.211 | 0.152 |
 
-A track's first conversion costs at most 0.45 ms; making a resampler, under 0.1 ms.
+r8brain's default filter is cheaper, but it starts rolling off the top end earlier, so we use the steeper one. Starting a conversion takes under half a millisecond.
 
-### BASS, measured and ruled out
+### BASS, tested and not used
 
-**BASS 2.4.18.3 with BASSmix 2.4.13**, un4seen's widely used audio library, was measured the same way at two settings of its resampler: its default (16-point sinc) and its highest (256-point). It removes its own latency, holds DC gain at 1 and produces the exact length, but it passes 63 (16-point) and 67 (256-point) of the suite's 184 checks, where Apple's and r8brain pass all 184.
+**BASS** (version 2.4.18.3, with its BASSmix add-on) is a popular audio library used by many players. We tested its resampler the same way, at its default setting (16-point) and its highest (256-point). It keeps the level and length right, but it passed only 63 (default) and 67 (highest) of the 184 checks. Apple's converter and r8brain both pass all 184.
+
+In both charts, **lower is better**.
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/resamplers-quality-dark.svg"><img alt="Noise, distortion and aliasing for Apple, r8brain and BASS at every rate pair" src="audio-quality/resamplers-quality-light.svg"></picture>
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/resamplers-cpu-dark.svg"><img alt="CPU to resample in real time for Apple, r8brain and BASS" src="audio-quality/resamplers-cpu-light.svg"></picture>
 
-BASS columns are 16-point / 256-point, dB unless marked; "past Nyquist" is the worst alias when downsampling:
+The numbers, shown as default / highest. The first column is where the top end is 3 dB down (**higher is better**, up to about 22 kHz). The rest are in dB (**more negative is better**). "False tones" is the loudest false tone when converting down to a lower rate:
 
-| pair | −3 dB Hz | worst THD+N | noise dBFS | past Nyquist | twenty-tone null |
+| Rate change | Top end, −3 dB (Hz) | Worst distortion + noise | Noise under a quiet tone (dBFS) | False tones | Twenty tones vs. perfect copy |
 | --- | --- | --- | --- | --- | --- |
 | 44.1→48 | 17398 / 21565 | −34.1 / −38.6 | −132.7 / −133.0 | — | −15.6 / −47.1 |
 | 48→44.1 | 17213 / 21525 | −46.3 / −46.6 | −132.7 / −127.1 | −31.5 / −88.8 | −15.5 / −47.4 |
@@ -150,13 +172,15 @@ BASS columns are 16-point / 256-point, dB unless marked; "past Nyquist" is the w
 | 192→48 | 15436 / 21545 | −145.8 / −142.5 | −212.3 / −201.0 | −9.9 / −76.3 | −17.8 / −90.4 |
 | 44.1→192 | 18667 / 21565 | −19.8 / −39.9 | −126.1 / −126.2 | — | −20.5 / −45.1 |
 
-- **The passband.** At 16 points the response droops from low frequencies to −3 dB at 15.4–18.7 kHz; at 256 points it holds 0.1 dB to 20.0–22.1 kHz, against 21.72 kHz for Apple and r8brain.
-- **Its filter's transition straddles the Nyquist**, so content near it images and aliases: a 20 kHz tone's image at 24.1 kHz is why the worst THD+N sits at −20 to −56 dB wherever the ratio is not a whole number. Downsampling, the worst alias is −10 to −32 dB at 16 points and −76 to −89 dB at 256, against −148 to −160 dB for the other two.
-- **A −126 to −142 dBFS noise floor at every uneven ratio, at both settings**, where the others reach −206 to −212. At the exact 2:1 and 4:1 ratios BASS reaches −200 to −212, so the floor comes from how it interpolates its filter, not from float precision.
-- **What it would sound like.** At 256 points, almost nothing: THD at 1 kHz is −113 to −153 dB, and the aliases and the noise floor are below hearing; the worst THD+N figures come from one image of a 20 kHz tone. At the default 16 points the treble is audibly down, 3 dB by 15–19 kHz. BASS is ruled out by the comparison, not by audibility: r8brain passes every bound at about the CPU of BASS's lowest setting.
-- **The cost is the filter's length.** BASS on its own reads the same as through Vibe's engine, doubling with each setting — a direct convolution, where Apple and r8brain reach their long filters with multi-stage and FFT designs:
+What the numbers mean:
 
-  | pair | 16-pt | 32-pt | 64-pt | 128-pt | 256-pt |
+- **The top end.** At its default setting, BASS starts rolling off the treble early: it is 3 dB down by 15–19 kHz, which you can hear. At its highest setting it stays flat to 20–22 kHz, like the others.
+- **False tones near the top.** BASS's filter doesn't fully block sound near the sample rate's limit, so some of it comes back as false tones. That is why a 20 kHz test tone shows so much distortion. When converting down, BASS's loudest false tone is at −10 to −32 dB at the default setting and −76 to −89 dB at the highest. Apple's converter and r8brain keep it at −148 to −160 dB.
+- **A higher noise floor.** For most rate changes BASS adds noise at about −126 to −142 dBFS, where the others reach about −206 to −212. For exact 2:1 and 4:1 changes, BASS is as quiet as the others, so this noise comes from how BASS calculates in-between samples, not from a lack of precision.
+- **What you would hear.** At the highest setting, almost certainly nothing; these errors are below hearing. At the default setting, slightly dull treble. We didn't choose BASS because r8brain is more accurate on every measure, and at its highest setting BASS also uses more CPU than r8brain.
+- **Why BASS gets expensive.** BASS's CPU use doubles with each quality step, because it does the filtering the direct way. Apple's converter and r8brain use smarter methods that stay cheap even with steep filters. BASS on its own, as a share of one CPU core (**lower is better**):
+
+  | Rate change | 16-point | 32-point | 64-point | 128-point | 256-point |
   | --- | --- | --- | --- | --- | --- |
   | 44.1→48 | 0.078 | 0.155 | 0.310 | 0.603 | 1.215 |
   | 48→44.1 | 0.072 | 0.145 | 0.276 | 0.551 | 1.100 |
@@ -165,15 +189,15 @@ BASS columns are 16-point / 256-point, dB unless marked; "past Nyquist" is the w
   | 192→48 | 0.079 | 0.155 | 0.306 | 0.610 | 1.204 |
   | 44.1→192 | 0.309 | 0.628 | 1.256 | 2.420 | 4.855 |
 
-- **And it is closed source**, free only for non-commercial use.
+- **Licensing.** BASS is closed source and free only for non-commercial use.
 
-## How it is tested
+## How we test it
 
-Every change runs these in continuous integration, with no audio hardware involved:
+These tests run automatically on every change, without any audio hardware:
 
-- **The playback engine, sample for sample.** The real player renders into memory and every frame of every channel is compared with the file: 44.1 to 192 kHz, 16-bit, 24-bit and float, mono and stereo, lossless and lossy containers. Bit-perfect and regular playback must match exactly — only a declick's first 50 ms is excused, and nothing with Declick off. The comparison catches a single changed bit, a dropped or repeated frame, a swapped channel and a polarity flip.
-- **Transparency when idle.** With the effects enabled but idle, with the level meter running, at 0% pitch, and after every effect has been engaged and released — each key, the boost, the iOS pad, an effect switched off halfway through its sweep — the file must play back exactly: not within a tolerance, exactly. A low cut left parked as a flat filter differs by about 7 × 10⁻¹³, and only an exact comparison sees that.
-- **The resampler**, against every bound above, at eight rate pairs; across a gapless track change at every rate pair and buffer size, which must continue the unsplit file frame for frame; and against the same conversion made independently of the engine, which must match exactly.
-- **Lossy decoding**: each lossy format against its own decode, exact except AAC, whose independent decodes differ by four float rounding steps (below −126 dBFS); and the decoders' output formats, as above.
+- **Every sample is checked.** The real player plays into memory, and every sample of every channel is compared with the file. This covers 44.1 kHz to 192 kHz; 16-bit, 24-bit and float; mono and stereo; and every supported format. Bit-perfect and regular playback must match the file exactly. The only exception is the first 50 ms, while the declick fades in, and not even that when Declick is off. The check catches a single changed bit, a dropped or repeated sample, swapped channels, or flipped polarity.
+- **Unused features change nothing.** The file must play back exactly with the effects turned on but unused, with the equalizer bars running, with the pitch fader at 0%, and after every effect has been used and released: each effect key, the boost, the iOS effects pad, and an effect switched off partway through. "Exactly" means exactly, not "within a tolerance". A released low cut left in the path changes the audio by about 0.0000000000007, and only an exact comparison catches that.
+- **The resampler** must pass every measurement above at all eight rate changes. It must also continue seamlessly across gapless track changes, and match the same conversion done separately from the player, exactly.
+- **Lossy files** must match their own decoded audio exactly. AAC is allowed a difference of four tiny rounding steps (below −126 dBFS), because two runs of Apple's AAC decoder can differ that much. The test also checks which formats Apple's decoders can output, so we'll know if that ever changes.
 
-On macOS, an opt-in loopback run plays through a real output device and captures it again, to prove the samples reach the hardware as rendered.
+On macOS there is also an optional test that plays through a real output device and records it back, to prove the samples reach the hardware as rendered.
