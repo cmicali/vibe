@@ -126,17 +126,15 @@ jobs:
       # running app lives in the vibe-debug command channel, which is not
       # suited to unattended CI (it drives a real window and needs Screen
       # Recording and Accessibility grants).
-      - name: Run unit tests
+      #
+      # Beside it, the render suite: real AudioPlayer/AudioFX graphs, pulled
+      # offline, no audio device or app. The two share nothing but the project
+      # (test-audio has its own derived data), and -k keeps one suite's failure
+      # from stopping the other. Their logs interleave; the summaries below
+      # read each suite's own result bundle.
+      - name: Run unit and audio tests
         if: ${{ !cancelled() }}
-        run: make test
-
-      # Real AudioPlayer/AudioFX graphs, pulled offline: no audio device or app.
-      # After the unit tests, not beside them (`make -j2`): this job already
-      # ends before the analyzing builds, so on three cores the pair would only
-      # contend.
-      - name: Render and compare audio
-        if: ${{ !cancelled() }}
-        run: make test-audio
+        run: make -k -j2 test test-audio
 
       # always(): the counts are most wanted precisely when a step above
       # failed. They read the .xcresult, so they report the run either way and
