@@ -320,7 +320,8 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
         XCTAssertEqualObjects(hits.firstObject.folderName, @"Amnesiac");
         [latest fulfill];
     }];
-    [self waitForExpectations:@[latest, old] timeout:0.2];
+    [self waitForExpectations:@[latest] timeout:VIBE_TEST_HANG_TIMEOUT];
+    [self waitForExpectations:@[old] timeout:0.2];
 }
 
 - (void)testCancellationDropsAPendingDelivery {

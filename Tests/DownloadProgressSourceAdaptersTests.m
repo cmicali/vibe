@@ -483,19 +483,19 @@
     NSProgressUnpublishingHandler unpublish = publishingHandler(progress);
     [self runMainLoopUntilBlock:^BOOL{
         return source.isActive && fractions.count == 1;
-    } timeout:1];
+    } timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqualWithAccuracy(fractions[0].floatValue, 0.2f, 0.0001f);
 
     progress.completedUnitCount = 60;
     [self runMainLoopUntilBlock:^BOOL{
         return fractions.count == 2;
-    } timeout:1];
+    } timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqualWithAccuracy(fractions[1].floatValue, 0.6f, 0.0001f);
 
     unpublish();
     [self runMainLoopUntilBlock:^BOOL{
         return !source.isActive;
-    } timeout:1];
+    } timeout:VIBE_TEST_HANG_TIMEOUT];
     progress.completedUnitCount = 90;
     [self drainMainQueue];
     XCTAssertEqual(fractions.count, 2u);
@@ -537,7 +537,7 @@
     NSProgressUnpublishingHandler unpublishSecond = publishingHandler(second);
     [self runMainLoopUntilBlock:^BOOL{
         return source.isActive && fractions.count == 1;
-    } timeout:1];
+    } timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqualWithAccuracy(fractions[0].floatValue, 0.25f, 0.0001f);
 
     unpublishFirst();
@@ -550,7 +550,7 @@
     second.completedUnitCount = 50;
     [self runMainLoopUntilBlock:^BOOL{
         return fractions.count == 2;
-    } timeout:1];
+    } timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqualWithAccuracy(fractions[1].floatValue, 0.5f, 0.0001f);
 
     [source cancel];

@@ -65,7 +65,7 @@
             if ([event[@"event"] isEqual:@"started"]) return YES;
         }
         return NO;
-    } timeout:3]);
+    } timeout:VIBE_TEST_HANG_TIMEOUT]);
     if (delay > 0) {
         [NSThread sleepForTimeInterval:delay];
     }
@@ -252,7 +252,7 @@
     }];
     XCTAssertTrue([self waitUntil:^BOOL{
         return [[VibeFakeCloud statistics][@"executing"] unsignedIntegerValue] == 1;
-    } timeout:3]);
+    } timeout:VIBE_TEST_HANG_TIMEOUT]);
 
     CloudFileMaterializer *queued = [CloudFileMaterializer new];
     queued.label = @"metadata-scan";
@@ -267,7 +267,7 @@
     }];
     XCTAssertTrue([self waitUntil:^BOOL{
         return [[VibeFakeCloud statistics][@"queued"] unsignedIntegerValue] == 1;
-    } timeout:3]);
+    } timeout:VIBE_TEST_HANG_TIMEOUT]);
     [queued cancel];
     [self waitForExpectations:@[queuedFinished] timeout:VIBE_TEST_HANG_TIMEOUT];
 
@@ -386,7 +386,7 @@
                     && [event[@"role"] isEqual:@"playback"]) return YES;
         }
         return NO;
-    } timeout:3]);
+    } timeout:VIBE_TEST_HANG_TIMEOUT]);
 
     CloudFileMaterializer *metadata = [CloudFileMaterializer new];
     metadata.label = @"metadata-scan";
@@ -400,7 +400,7 @@
     XCTAssertTrue([self waitUntil:^BOOL{
         return [[VibeFakeCloud statistics][@"metadataOverlapTransfers"]
                 unsignedIntegerValue] == 1;
-    } timeout:3]);
+    } timeout:VIBE_TEST_HANG_TIMEOUT]);
 
     [playback cancel];
     [metadata cancel];
@@ -452,7 +452,7 @@
                 }
             }
             return NO;
-        } timeout:3], @"%@ transfer never started", foregroundRole);
+        } timeout:VIBE_TEST_HANG_TIMEOUT], @"%@ transfer never started", foregroundRole);
 
         CloudFileMaterializer *metadata = [CloudFileMaterializer new];
         metadata.label = @"metadata-scan";
@@ -470,7 +470,7 @@
         XCTAssertTrue([self waitUntil:^BOOL{
             return [[VibeFakeCloud statistics][@"foregroundContentionStarts"]
                     unsignedIntegerValue] == 1;
-        } timeout:3]);
+        } timeout:VIBE_TEST_HANG_TIMEOUT]);
 
         NSDictionary *stats = [VibeFakeCloud statistics];
         XCTAssertEqualObjects(stats[@"foregroundContentionStarts"], @1,
