@@ -83,8 +83,17 @@ Worst THD+N across the passband tones, the multitone null against the ideal, the
 
 r8brain is equal or better on every quality measure, band edge included, and wins 90 of the 103 per-pair noise, distortion and aliasing comparisons (Apple 8, ties 5); Apple's eight are all between −157 and −173 dB. It rejects aliases 4–9 dB further and costs 8–30× less CPU (these unit-test figures run with the suite's classes in parallel; the benchmark above is the quieter measure); power-of-two ratios take its half-band path and are cheapest. In the running Debug app (`--no-audio-hw`, 96 kHz FLAC to the pump's 44.1 kHz), `dump_resampler_costs` read Apple at 4.1–4.7% of a core and r8brain at 0.56% (measured at 2%). Both pass every bound in the test; the full table is the result bundle's attachment.
 
+**On an iPhone 17 Pro** (Debug build, 2026-09-28): a 44.1 kHz file to the phone's 48 kHz output, `--silent` (the real RemoteIO output, samples zeroed), 60 s per resampler, twice, `dump_resampler_costs` read over USB (the debug channel's command and response files copied through `devicectl device copy to/from` the app's `tmp/`):
+
+| resampler | round 1 | round 2 |
+| --- | --- | --- |
+| r8brain | 0.54% of a core | 0.56% |
+| Apple, Mastering at Maximum | 3.39% | 3.27% |
+
+About 6× less; Apple's figure matches the 3.3% at Maximum #74 measured, and against the 1.8% of the old iOS default (High) r8brain is still about 3× less.
+
 ## What is left
 
-- **iOS on device**: the same verbs on a phone, against Apple at High (iOS's default) and Max, and an Instruments pass for battery-relevant cost. The unit test covers macOS only.
+- **Battery on iOS**: measured for CPU (below); an Instruments energy pass over a long session is the one thing not yet done.
 - **The decision**: keep r8brain the default, return it to opt-in, or remove it (iOS's Resampling setting is already gone, since only Apple's converter read it). Adopting it means rewording the root `AGENTS.md`'s playback rule. The SRC tail `TRAP:` describes Apple's flush bug, which r8brain does not have — but r8brain has no end-of-stream call at all, and feeding zeros until the input's length × ratio is out is upstream's own way to take its tail (`example.cpp`), so the bus's silence flush is already its native path and there is no Apple-only work to strip from it. If Apple's converter were removed, only the `TRAP:`'s wording would change.
 - **Listening**: `set_resampler` switches live for an A/B at any rate the device refuses.
