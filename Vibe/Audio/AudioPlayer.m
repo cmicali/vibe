@@ -104,6 +104,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     if (self) {
         _stateLock = OS_UNFAIR_LOCK_INIT;
         _state = VibePlayerStateStopped;
+        _outputIdle = YES;
         _pendingRequest = [PlaybackRequestCoordinator new];
         _maxPitch = kDefaultMaxPitchPercent;
         _crossfadeMilliseconds = kFadeDurationMilliseconds;
@@ -1222,6 +1223,22 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
         id<AudioPlayerDelegate> delegate = self.delegate;
         if ([delegate respondsToSelector:@selector(audioPlayer:didChangeOutputAudioActive:)]) {
             [delegate audioPlayer:self didChangeOutputAudioActive:active];
+        }
+    });
+}
+
+- (void)publishOutputIdleOnQueue:(BOOL)idle {
+    os_unfair_lock_lock(&_stateLock);
+    BOOL changed = _outputIdle != idle;
+    _outputIdle = idle;
+    os_unfair_lock_unlock(&_stateLock);
+    if (!changed || !idle) {
+        return;
+    }
+    run_on_main_thread({
+        id<AudioPlayerDelegate> delegate = self.delegate;
+        if ([delegate respondsToSelector:@selector(audioPlayerOutputDidBecomeIdle:)]) {
+            [delegate audioPlayerOutputDidBecomeIdle:self];
         }
     });
 }

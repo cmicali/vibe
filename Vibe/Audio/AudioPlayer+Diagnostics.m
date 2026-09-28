@@ -486,6 +486,7 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
         @"running": @([self renderingOnQueue]),
         // Running with nothing to play: the deferred idle stop is pending.
         @"idleStopPending": @([self renderingOnQueue] && (_state == VibePlayerStateStopped || _state == VibePlayerStatePaused)),
+        @"idle": @(self.outputIdle),
         @"silent": renderFacts[@"silent"],
         @"framesRendered": renderFacts[@"framesRendered"],
     } mutableCopy];

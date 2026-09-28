@@ -36,7 +36,13 @@
     return YES;
 }
 
-- (void)releaseIdleOutputUnitOnQueue {}
+// TRAP: the stop before this is only queued, and `running` answers the state
+// the unit is headed for. What follows tells the shell it may release the
+// session, and a session deactivated under a RemoteIO still running cuts it,
+// so the unit's own stop is waited out first.
+- (void)releaseIdleOutputUnitOnQueue {
+    [_outputUnit waitUntilIdle];
+}
 
 // Stopped, as every caller has it. Before the first start there is no unit,
 // and the next start makes one at the format set here.

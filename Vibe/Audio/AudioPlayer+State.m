@@ -47,6 +47,13 @@
     return active;
 }
 
+- (BOOL)outputIdle {
+    os_unfair_lock_lock(&_stateLock);
+    BOOL idle = _outputIdle;
+    os_unfair_lock_unlock(&_stateLock);
+    return idle;
+}
+
 - (NSTimeInterval)duration {
     os_unfair_lock_lock(&_stateLock);
     double sampleRate = _fileSampleRate;

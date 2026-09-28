@@ -8,11 +8,6 @@
 #import <AVFAudio/AVFAudio.h>
 #import <os/lock.h>
 
-// How long a pause or stop must stand before the session is released. Longer
-// than the player's own ~6s idle stop, so the session is never deactivated
-// under a still-running output unit, whose I/O makes setActive:NO fail.
-static const NSTimeInterval kDeactivateDelaySeconds = 10.0;
-
 typedef NS_OPTIONS(NSUInteger, VibeAudioSessionRecoveryBlocker) {
     VibeAudioSessionRecoveryBlockerInterruption = 1 << 0,
     VibeAudioSessionRecoveryBlockerRouteLoss = 1 << 1,
@@ -122,11 +117,10 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
     // follow mid-interruption (the route moves to the call's receiver) must
     // not overwrite the verdict the Ended resume depends on.
     BOOL _wasPlayingAtInterruption;
-    // An interruption is in progress; deactivateWhenIdle holds off while set.
+    // An interruption is in progress; the deactivation holds off while set.
     BOOL _interruptionActive;
-    // Cancels a pending deactivation: activate and every newer schedule bump
-    // it, and the deferred block no-ops when its captured value went stale.
-    uint64_t _activationGeneration;
+    // A pause or end asked for the release; activate reclaims it.
+    BOOL _deactivationWanted;
 
     // Route, interruption and reset notifications arrive on separate system
     // queues. The lock makes their receipt order authoritative before any
@@ -169,7 +163,7 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
 }
 
 - (BOOL)activate {
-    _activationGeneration++; // cancel any pending idle deactivation
+    _deactivationWanted = NO;
     // Clear the old blockers before entering AVAudioSession. A notification
     // racing the synchronous calls then adds a fresh blocker that success
     // cannot erase; failure restores only the blockers this attempt inherited.
@@ -214,36 +208,36 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
 }
 
 - (BOOL)activateForInterruptionResume {
-    _activationGeneration++; // cancel any pending idle deactivation
+    _deactivationWanted = NO;
     // An Ended resume is a system suggestion, not explicit user intent. It
     // must never release a route-loss or media-reset block as activate does.
     return [self mayAutomaticallyResume] && [self activateSession];
 }
 
 - (void)deactivateWhenIdle {
-    uint64_t generation = ++_activationGeneration;
-    __weak AudioSessionController *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kDeactivateDelaySeconds * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-        AudioSessionController *strongSelf = weakSelf;
-        if (!strongSelf || generation != strongSelf->_activationGeneration) {
-            return; // a play or resume reclaimed the session, or a newer schedule owns it
-        }
-        if (strongSelf->_interruptionActive) {
-            // Deactivating mid-interruption can forfeit the Ended
-            // notification; the Ended handler reschedules when no resume
-            // follows.
-            return;
-        }
-        NSError *error = nil;
-        if (![[AVAudioSession sharedInstance] setActive:NO
-                        withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
-                              error:&error]) {
-            // Benign: playback may be winding down, or the system already
-            // reclaimed the session.
-            LogWarn(@"AudioSession: deactivate failed (%@)", error);
-        }
-    });
+    _deactivationWanted = YES;
+    [self deactivateIfIdle];
+}
+
+// The output's answer is read now, never remembered, so an idle edge a newer
+// start has overtaken releases nothing.
+- (void)deactivateIfIdle {
+    if (!VibeAudioSessionMayDeactivate(_deactivationWanted, _interruptionActive,
+                                       [self.delegate audioSessionOutputIsIdle:self])) {
+        return;
+    }
+    _deactivationWanted = NO;
+    NSError *error = nil;
+    // TRAP: a NO here is not a refusal. With audio objects still running the
+    // session goes inactive all the same and stops them, so the only thing
+    // that keeps a tail from being cut is the idle rule above.
+    if (![[AVAudioSession sharedInstance] setActive:NO
+                    withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
+                          error:&error]) {
+        LogWarn(@"AudioSession: deactivate failed (%@)", error);
+        return;
+    }
+    LogInfo(@"AudioSession: deactivated");
 }
 
 // Session notifications can arrive on any thread; the delegate's transport
@@ -445,15 +439,14 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
             if (!matchedActiveInterruption) {
                 // activate may already have declared an orphaned interruption
                 // over and reclaimed the session for a user play. A late Ended
-                // then owns neither a resume nor a new idle-deactivation timer.
+                // then owns neither a resume nor a deactivation.
                 return;
             }
             BOOL resumed = (options & AVAudioSessionInterruptionOptionShouldResume)
                     && wasPlaying && [self activateForInterruptionResume]
                     && [self deliverAutomaticResumeIfAllowed];
             if (!resumed) {
-                // Staying paused: release the session claim the interruption
-                // handler's own deactivation deferred.
+                // Staying paused: release the session the interruption held.
                 [self deactivateWhenIdle];
             }
         }];
@@ -515,7 +508,7 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
     // destroyed by a reset queued later from main.
     [self.delegate audioSessionDidReceiveMediaServicesReset:self];
     [self onMain:^{
-        self->_activationGeneration++; // every pending session operation belonged to the dead server
+        self->_deactivationWanted = NO; // the session died with the server
         self->_interruptionActive = NO; // whatever was in progress died with the server
         self->_wasPlayingAtInterruption = NO;
     }];

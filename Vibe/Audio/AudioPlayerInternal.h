@@ -93,6 +93,7 @@ static inline UInt32 VibeConverterQualityForResampling(VibeResamplingQuality qua
     uint64_t                _promotedBaseFrames; // bus frames the voice consumed before its current file began
     BOOL                    _gaplessArmedForUI;
     BOOL                    _outputAudioActive;
+    BOOL                    _outputIdle;
     float                   _pitch;             // percent; see the trap below
     // Minted on main by every explicit play; only ever increments.
     uint64_t                _nextSubmittedPlayIdentifier;
@@ -303,6 +304,8 @@ static inline UInt32 VibeConverterQualityForResampling(VibeResamplingQuality qua
 // Recomputes and, on an edge, publishes the output-liveness fold: the output
 // running and either the current voice playing or a retiring voice alive.
 - (void)refreshOutputAudioActiveOnQueue;
+// Publishes outputIdle; only the YES edge reaches the delegate.
+- (void)publishOutputIdleOnQueue:(BOOL)idle;
 
 - (void)sendDelegateError:(NSError *)error;
 // Any thread. Checked inside every main-thread delivery: what matters is
