@@ -59,9 +59,9 @@ NS_ASSUME_NONNULL_BEGIN
 // Applies to conversions begun after the write.
 @property (atomic) VibeResamplingQuality resamplingQuality;
 
-// Which resampler converts a file at another rate than the output's: Apple's
-// (the default, at resamplingQuality) or r8brain. Applies to conversions
-// begun after the write.
+// Which resampler converts a file at another rate than the output's: r8brain
+// (the default, under evaluation: docs/future/resampler.md) or Apple's, at
+// resamplingQuality. Applies to conversions begun after the write.
 @property (atomic) VibeResampler resampler;
 
 // Whether the meter publishes band levels; the shells enable it only for

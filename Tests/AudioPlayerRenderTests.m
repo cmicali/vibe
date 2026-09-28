@@ -2476,6 +2476,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     for (NSURL *url in @[[self fixture:@"cbr.mp3"], [self writeMonoAAC]]) {
         AVAudioPCMBuffer *decoded = [self read:url];
         [self startPlayerAt:96000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+        _player.resampler = VibeResamplerApple; // the converter's own report is under test
         [self play:url paused:NO position:0];
         NSDictionary *conversion = _player.debugCurrentConversion;
         XCTAssertEqualObjects(conversion[@"algorithm"], @"Mastering", @"%@", url.lastPathComponent);
@@ -2957,6 +2958,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 // The path, stage by stage, as the Settings window and dump_audio_path read it.
 - (void)testAudioPathReportsEveryStage {
     [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
+    _player.resampler = VibeResamplerApple; // the converter's own report is under test
     [self play:[self fixture:@"noise-44100-16-2.wav"] paused:NO position:0];
     [self render:4800];
     NSArray<NSDictionary *> *path = _player.audioPathSnapshot;
@@ -3011,6 +3013,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 - (void)testResamplingQualityAppliesFromTheNextConversion {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
     XCTAssertEqual(_player.resamplingQuality, VibeResamplingQualityMaximum, @"Maximum unless a shell asks");
+    _player.resampler = VibeResamplerApple; // the quality is Apple's converter's alone
     _player.resamplingQuality = VibeResamplingQualityHigh;
     [self play:[self fixture:@"noise-44100-16-2.wav"] paused:NO position:0];
     [self render:4800];

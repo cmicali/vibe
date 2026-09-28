@@ -109,6 +109,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         _maxPitch = kDefaultMaxPitchPercent;
         _crossfadeMilliseconds = kFadeDurationMilliseconds;
         _resamplingQuality = VibeResamplingQualityMaximum;
+        _resampler = VibeResamplerR8brain;
         _declick = YES;
         _loadingConfiguration = [AudioLoadingConfiguration productionConfiguration];
         _retiringVoices = [NSMutableArray array];
