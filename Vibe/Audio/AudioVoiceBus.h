@@ -22,9 +22,10 @@
 //
 //  - The PLAYER QUEUE calls every method here except snapshotOfVoice:. It
 //    allocates slots, submits ramps, queues successors, drains events.
-//  - The DECODE QUEUE (a serial queue the bus owns; inline on the player queue
-//    under the frame-driven test pump) reads the files and writes the rings.
-//    It is the only thing that touches an AudioFileHandle after startVoice.
+//  - The DECODE POOL owns eight serial queues; unrelated files use separate
+//    queues, and voices sharing a handle use the same queue. Only its assigned
+//    queue touches an AudioFileHandle after startVoice or writes a voice's ring.
+//    The frame-driven test pump reads inline on the player queue instead.
 //  - The AUDIO THREAD runs VibeVoiceBusRender: plain memory and atomics, no
 //    lock, allocation, Objective-C or dispatch call, enforced by the compiler.
 //    It never signals anyone; the queue polls.
@@ -70,7 +71,7 @@ typedef NS_ENUM(int32_t, VibeVoiceEnd) {
     VibeVoiceEndNone = 0,
     VibeVoiceEndOfStream,     // every frame of the file (and successor) was rendered
     VibeVoiceEndRetired,      // a retire ramp landed
-    VibeVoiceEndFailed,       // seek, read or conversion failed; errorOfVoice:failedFile: before recycling
+    VibeVoiceEndFailed,       // capacity, seek, read or conversion failed; errorOfVoice:failedFile: before recycling
 };
 
 typedef NS_ENUM(NSInteger, VibeVoiceEvent) {
@@ -159,7 +160,8 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // the voice through VibeVoiceEndFailed; read errorOfVoice:failedFile: inside
 // the ended handler. Allocation always returns an id: a full pool cuts its
 // oldest retiring voice, and a start that still finds no slot is pending
-// until the drain frees one. Returns the voice's id.
+// until the drain frees one, failing with VibeVoiceEndFailed after one second
+// without capacity. Returns the voice's id.
 - (VibeVoiceID)startVoiceWithFile:(AudioFileHandle *)file
                           atFrame:(AVAudioFramePosition)frame
                              gain:(float)gain
@@ -174,7 +176,7 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 - (void)stopReadingForVoice:(VibeVoiceID)voice;
 
 // Ends the bus's reading for good: every voice reads no more, and
-// `decoderLeft` runs on the bus's queue once the decoder has left every file
+// `decoderLeft` runs on the bus's queue once all decoders have left every file
 // — the turn inside a read finishes on its own, however long a stalled mount
 // makes that, and none after it reads — so the files may then be handed to a
 // replacement bus; at once when decoding inline. Nothing is asked of the bus
@@ -203,7 +205,7 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // with a converter of its own, unless the audio thread reached the end
 // first, in which case the voice ends as it would have and the successor
 // never begins. NO for a dead voice, one retired at declick length, or one
-// already continuing.
+// already continuing, or a file still assigned to a different decode queue.
 - (BOOL)queueSuccessor:(AudioFileHandle *)file forVoice:(VibeVoiceID)voice;
 
 // Drops the queued successor. NO means the decoder had already claimed it:

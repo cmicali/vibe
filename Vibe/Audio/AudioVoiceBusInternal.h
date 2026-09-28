@@ -15,8 +15,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface AudioVoiceBus (Rendering)
 
-// The decode queue, nil under inline decoding: the race tests hold it.
-@property (nonatomic, readonly, nullable) dispatch_queue_t decodeQueue;
+// The bounded decode pool, nil under inline decoding: the race tests hold it.
+- (nullable dispatch_queue_t)decodeQueueAtIndex:(NSUInteger)index;
 
 // Slots in each state, for the pool tests.
 - (NSUInteger)slotCountInState:(VibeVoiceState)state;

@@ -792,7 +792,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     }
     __block AudioVoiceBus *bus;
     [_player runSyncOnQueue:^{ bus = [self->_player valueForKey:@"voiceBus"]; }];
-    dispatch_queue_t decoder = bus.decodeQueue;
+    dispatch_queue_t decoder = [bus decodeQueueAtIndex:0];
     XCTAssertNotNil(decoder);
     for (int i = 0; i < 20; i++) dispatch_sync(decoder, ^{});
     dispatch_semaphore_t reading = dispatch_semaphore_create(0), letRead = dispatch_semaphore_create(0);
@@ -2466,7 +2466,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         bus = [self->_player valueForKey:@"voiceBus"];
         voice = [[self->_player valueForKey:@"voice"] unsignedLongLongValue];
     }];
-    dispatch_sync(bus.decodeQueue, ^{});
+    dispatch_sync([bus decodeQueueAtIndex:0], ^{});
     XCTAssertEqual([bus snapshotOfVoice:voice].endOfStream, 2000u);
     dispatch_group_t stuck = dispatch_group_create();
     dispatch_group_t rebuild = dispatch_group_create();
@@ -2558,7 +2558,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     [_player runSyncOnQueue:^{ bus = [self->_player valueForKey:@"voiceBus"]; }];
     method_setImplementation(read, original);
     [_player debugShutdown]; _player = nil;
-    if (bus.decodeQueue) dispatch_sync(bus.decodeQueue, ^{});
+    if ([bus decodeQueueAtIndex:0]) dispatch_sync([bus decodeQueueAtIndex:0], ^{});
     imp_removeBlock(blocked);
 }
 
@@ -3002,6 +3002,66 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
             imp_removeBlock(replacement);
         }
     }];
+}
+
+
+- (void)testNewLocalPlayEscapesAStalledOldDecoder {
+    self.continueAfterFailure = YES;
+    Method initializer = class_getInstanceMethod(AudioVoiceBus.class, @selector(initWithFormat:queue:inlineDecoding:));
+    __block IMP originalInit;
+    IMP asyncInit = imp_implementationWithBlock(^id(id receiver, AVAudioFormat *format, dispatch_queue_t queue, BOOL inlineDecoding) {
+        return ((id (*)(id, SEL, AVAudioFormat *, dispatch_queue_t, BOOL))originalInit)(receiver, @selector(initWithFormat:queue:inlineDecoding:), format, queue, NO);
+    });
+    originalInit = method_setImplementation(initializer, asyncInit);
+    @try {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+        [_player debugStarveDecoder:YES];
+        _player.declick = NO;
+        [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
+    } @finally {
+        method_setImplementation(initializer, originalInit);
+        imp_removeBlock(asyncInit);
+    }
+    __block AudioVoiceBus *bus;
+    [_player runSyncOnQueue:^{ bus = [self->_player valueForKey:@"voiceBus"]; }];
+    dispatch_queue_t decoder = [bus decodeQueueAtIndex:0];
+    for (int i = 0; i < 20; i++) dispatch_sync(decoder, ^{});
+    dispatch_semaphore_t reading = dispatch_semaphore_create(0), letRead = dispatch_semaphore_create(0);
+    Method produce = class_getInstanceMethod(AudioVoiceBus.class, @selector(produceChunkForSlot:final:));
+    __block IMP originalProduce;
+    __block _Atomic(BOOL) heldRead = NO;
+    IMP heldProduce = imp_implementationWithBlock(^uint32_t(id receiver, NSUInteger slot, BOOL *final) {
+        if (receiver == bus && !heldRead) {
+            heldRead = YES;
+            dispatch_semaphore_signal(reading);
+            dispatch_semaphore_wait(letRead, DISPATCH_TIME_FOREVER);
+        }
+        return ((uint32_t (*)(id, SEL, NSUInteger, BOOL *))originalProduce)(receiver, @selector(produceChunkForSlot:final:), slot, final);
+    });
+    originalProduce = method_setImplementation(produce, heldProduce);
+    @try {
+        for (int i = 0; i < 64 && !heldRead; i++) [self render:1024];
+        XCTAssertEqual(dispatch_semaphore_wait(reading, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        NSURL *next = [self fixture:@"noise-48000-16-2.wav"];
+        NSData *reference = [self sourcePCM:next];
+        [self play:next paused:NO position:0];
+        for (int i = 0; i < 20; i++) dispatch_sync([bus decodeQueueAtIndex:1], ^{});
+        NSData *blocked = [self renderSeconds:1];
+        [self assertReference:[reference subdataWithRange:NSMakeRange(0, blocked.length)] capture:blocked skip:0 tolerance:0];
+        dispatch_semaphore_signal(letRead);
+        for (int i = 0; i < 20; i++) dispatch_sync(decoder, ^{});
+        NSData *released = [self renderSeconds:0.25];
+        [self assertReference:[reference subdataWithRange:NSMakeRange(blocked.length, released.length)] capture:released skip:0 tolerance:0];
+        XCTAssertNil(_playError);
+        XCTAssertEqual([self count:@"finish"], 0u, @"releasing the old read must not finish the new song");
+    } @finally {
+        dispatch_semaphore_signal(letRead);
+        dispatch_semaphore_t stopped = dispatch_semaphore_create(0);
+        [_player runSyncOnQueue:^{ [bus stopReadingThen:^{ dispatch_semaphore_signal(stopped); }]; }];
+        XCTAssertEqual(dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        method_setImplementation(produce, originalProduce);
+        imp_removeBlock(heldProduce);
+    }
 }
 
 @end
