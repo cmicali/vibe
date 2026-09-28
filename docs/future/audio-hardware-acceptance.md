@@ -1,6 +1,6 @@
 # Audio pipeline: hardware acceptance
 
-**Status: the pipeline work is done; what remains is evidence only real hardware gives (verified 2026-09-28).** The output-unit split, owned-file migration, waveform consolidation, conversion-policy naming, metering cleanup, and explicit decoder-error handling are implemented. Their contracts live in [Audio/AGENTS.md](../../Vibe/Audio/AGENTS.md), [Devices/AGENTS.md](../../Vibe/Audio/Mac/Devices/AGENTS.md), and [iOS/AGENTS.md](../../Vibe/Audio/iOS/AGENTS.md).
+**Status: accepted on hardware (2026-09-28); one item is watched rather than open — the in-rebind player-queue holds, which the rebind phase samples if they recur.** The output-unit split, owned-file migration, waveform consolidation, conversion-policy naming, metering cleanup, and explicit decoder-error handling are implemented. Their contracts live in [Audio/AGENTS.md](../../Vibe/Audio/AGENTS.md), [Devices/AGENTS.md](../../Vibe/Audio/Mac/Devices/AGENTS.md), and [iOS/AGENTS.md](../../Vibe/Audio/iOS/AGENTS.md).
 
 ## Resolved: Apple SRC tail length
 
@@ -8,16 +8,15 @@ Apple's converter, told the end of its stream, gives up only part of its filter'
 
 ## Remaining acceptance evidence
 
-Live checks have covered macOS silent HAL transport, a 240-operation torture run (seed 660925), iOS simulator transport, owned-file waveform/analysis and WAV→FLAC conversion, and the Advanced Bluetooth eligibility override. The [device lifecycle](#device-lifecycle-acceptance) pass covered the macOS rebind path, the stale-device and rebuild symptoms, and exclusive ownership on three DACs. The [hardware layer](#device-lifecycle-acceptance) of #50 and #53 has since run on a real USB DAC. They do not establish:
+Live checks have covered macOS silent HAL transport, a 240-operation torture run (seed 660925), iOS simulator transport, owned-file waveform/analysis and WAV→FLAC conversion, and the Advanced Bluetooth eligibility override. The [device lifecycle](#device-lifecycle-acceptance) pass covered the macOS rebind path, the stale-device and rebuild symptoms, and exclusive ownership on three DACs. The [hardware layer](#device-lifecycle-acceptance) of #50 and #53 has since run on a real USB DAC. Watched: **the in-rebind player-queue holds** of the physical power-cycle; one source of its holds is fixed (below).
 
-- **Two physical iOS route cases.** A route change that keeps playing *and* has iOS stop the unit, the path where `recoverOutput` restarts it (wired headphones are the likely trigger; Control Center to AirPods does not stop it), and a rate follow mid-playback on a route change. The rest of the iOS pass has run, on an iPhone 17 Pro (iOS 27), 2026-09-26 and 2026-09-27, playing from a CloudStorage provider folder:
+**Closed unless seen live: two physical iOS route cases** — a route change that keeps playing *and* has iOS stop the unit, the path where `recoverOutput` restarts it (wired headphones are the likely trigger; Control Center to AirPods does not stop it), and a rate follow mid-playback on a route change. The rest of the iOS pass has run, on an iPhone 17 Pro (iOS 27), 2026-09-26 and 2026-09-27, playing from a CloudStorage provider folder:
   - **Session release.** A pause releases the session 6 s later, 7–10 ms after RemoteIO's stop has landed; under a released delay, at the end of its declared tail (18 s); in the background too; and at once for a parked open.
   - **Interruptions.** A timer, a declined call and an answered call stop the unit, hold the release and resume on `ShouldResume`, the unit restarting in ~90–100 ms. Another app taking the audio ends without `ShouldResume` and releases the session at that edge. Siri ducks and interrupts nothing.
   - **Media-services reset** (Settings > Developer). iOS stops the unit seconds before it delivers the notification (6.5 s and 3.8 s measured), with no interruption; the player pauses a second after the stop, and the reset re-makes the unit and re-parks the track.
   - **Routes.** AirPods connected while playing: recover, the unit kept running. AirPods into their case: pause, an interruption Began (route-disconnected) that no Ended follows, and **iOS stops RemoteIO itself about 0.75 s after the route change**. AirPlay by a category change, with the rate follow at play start (48 → 44.1 kHz) and at resume.
   - **Lock screen and background.** A minute of playback past lock, commanded from the card; a cold launch beside Music leaves Music playing.
   - **The render clock stalls while iOS moves the hardware**: ~0.7 s after an interruption's resume and 0.2–1.8 s on a route move, the IO thread waiting inside the system. Nothing in the app's render is in the stack.
-- **The in-rebind player-queue holds** of the physical power-cycle; one source of its holds is fixed (below).
 
 Integer-format DAC negotiation, ASan/UBSan, TSan, the owned-file migration's all-configuration binary audit, a macOS profile, and the long and seeded HAL campaigns have run: [overnight acceptance](#overnight-acceptance). The one iOS performance pass is Instruments on device against Release builds (#74), which lowered the iOS resampling quality to High by default and fixed the main-thread costs it found.
 
@@ -52,8 +51,10 @@ A vanished device does not park playback. AUHAL moves a unit whose device vanish
 **Still open.**
 
 - **#53, the in-rebind holds.** The phase now samples the player queue during a rebind; a hold over 250 ms names its call. Until one recurs, the first two runs' three are unexplained.
-- **A start the HAL refuses because the device vanished mid-start parks playback.** An unplug 0.35 s after a replug refused the iD4's start (`'what'`), `outputUnitFailedOnQueue:` parked the voice Paused with `EngineStartFailed`, and the fallback 300 ms later kept it Paused. A clean unplug keeps Playing; this one loses it. Whether a refusal whose device is then confirmed gone should keep the playing intent is a policy question.
-- **Silent HAL playback and output auto-switching.** Launch with `VIBE_AUDIBLE=silent` (Now Playing stays suppressed unless `VIBE_NOW_PLAYING=1`) with auto-switching AirPods paired, and see whether playback still pulls them or moves the system output, once on System Output and once explicitly bound. Zero output samples and suppressed Now Playing do not by themselves establish isolation; the 2026-09-25 pass had no Bluetooth device. Hardware stays opt-in until this has evidence.
+
+**Decided: a start the HAL refuses because the device vanished mid-start parks playback, and that stays.** An unplug 0.35 s after a replug refused the iD4's start (`'what'`), `outputUnitFailedOnQueue:` parked the voice Paused with `EngineStartFailed`, and the fallback 300 ms later kept it Paused, where a clean unplug keeps Playing. A refused start parks whatever its cause.
+
+**Output auto-switching** (2026-09-28, AirPods Pro connected to an idle iPhone, the Mac's "Connect to This Mac" Automatic, its output the built-in speakers, Now Playing suppressed): 60 s of Debug playback on real HAL, silent on System Output, silent explicitly bound to the speakers, and audible on System Output. In none did the Mac's default output move or the AirPods leave the phone. Unrelated to Vibe, the AirPods once returned to the Mac on their own before the runs, with no Vibe running.
 
 ## Overnight acceptance
 
