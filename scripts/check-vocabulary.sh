@@ -1,6 +1,6 @@
 #!/bin/bash
-# Enforces the mechanical half of CLAUDE.md's Vocabulary section. Keep the rule
-# count in step with the numbered list in the root CLAUDE.md.
+# Enforces the mechanical half of AGENTS.md's Vocabulary section. Keep the rule
+# count in step with the numbered list in the root AGENTS.md.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 

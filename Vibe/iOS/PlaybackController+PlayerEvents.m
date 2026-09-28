@@ -171,7 +171,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         return;
     }
     [[AppStats sharedInstance] playbackStopped];
-    // The second of On track end's two reads (root CLAUDE.md): this one
+    // The second of On track end's two reads (root AGENTS.md): this one
     // decides from the playlist alone.
     if (VibePlaybackShouldAdvanceAtTrackEnd(_playlist.hasNextTrack,
                                             AppSettings.sharedInstance.pauseAtTrackEnd)

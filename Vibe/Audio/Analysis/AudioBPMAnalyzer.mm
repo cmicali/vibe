@@ -36,7 +36,7 @@ static const float kMinConfidence = 1.3f;
 // center places that crossover — here at 187 BPM, which keeps drum and bass at
 // 174 rather than halving it to 87 — and the spread only sets how hard the
 // prior can override the comb. Both were swept against GiantSteps, and the
-// prior is load-bearing; see Audio/Analysis/CLAUDE.md.
+// prior is load-bearing; see Audio/Analysis/AGENTS.md.
 static const double kTempoPriorCenterBPM = 140.0;
 static const double kTempoPriorSpreadBPM = 80.0;
 

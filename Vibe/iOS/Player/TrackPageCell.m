@@ -689,7 +689,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     [super prepareForReuse];
     // TRAP: a page recycled under a held pad — a track ending mid-hold scrolls
     // the outgoing page away — must release, or the effects stay engaged and
-    // the pager stays locked (the scrubber's release trap, Player/CLAUDE.md).
+    // the pager stays locked (the scrubber's release trap, Player/AGENTS.md).
     [_fxPadView cancelInteraction];
     [_waveformView prepareForWaveformLoad];
     _elapsedLabel.text = STR_LABEL_TIME_UNKNOWN;

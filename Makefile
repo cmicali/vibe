@@ -262,12 +262,12 @@ strings:
 check-strings:
 	scripts/extract-strings.sh --check
 
-# Fail on a break of CLAUDE.md's mechanical vocabulary rules, listed in the
+# Fail on a break of AGENTS.md's mechanical vocabulary rules, listed in the
 # script.
 check-vocabulary:
 	scripts/check-vocabulary.sh
 
-# Fail if the tree breaks CLAUDE.md's layout rule; the script's header states
+# Fail if the tree breaks AGENTS.md's layout rule; the script's header states
 # the four assertions.
 check-layout:
 	scripts/check-layout.sh

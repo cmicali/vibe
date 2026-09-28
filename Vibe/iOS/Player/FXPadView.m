@@ -33,7 +33,7 @@ static const NSTimeInterval kFXPadCollapseDuration = 0.18;
     // this view owns the finger from the press, wherever it goes.
     // Glass only under a finger: at rest the effect is nil and the view
     // hidden, so the live backdrop filter costs nothing while the pad is
-    // unused (Util/iOS/CLAUDE.md on why the page itself has none).
+    // unused (Util/iOS/AGENTS.md on why the page itself has none).
     UIVisualEffectView          *_padView;
     // The circle's fill at rest, the owner's; cleared under the glass, which
     // would otherwise refract it as a disc in the pad's corner.

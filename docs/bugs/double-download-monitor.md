@@ -6,11 +6,11 @@ Bounded resource waste plus a violated guarantee — no wrong pixels, no crash, 
 
 ## The guarantee it breaks
 
-Root `CLAUDE.md` (the loading-bar guarantee):
+Root `AGENTS.md` (the loading-bar guarantee):
 
 > The playing row's fraction comes from the shell's own monitor via `noteProgress:forURL:`, **so no file is watched twice.**
 
-Restated in `Vibe/Audio/Loading/CLAUDE.md` ("The transfer registry") ("one `DownloadProgressMonitor` per transferring path unless the shell's own monitor already feeds that path"). The code does not keep either sentence. As with the display-art stash, the docs state the intent correctly, so the fix restores a rule already written rather than inventing one.
+Restated in `Vibe/Audio/Loading/AGENTS.md` ("The transfer registry") ("one `DownloadProgressMonitor` per transferring path unless the shell's own monitor already feeds that path"). The code does not keep either sentence. As with the display-art stash, the docs state the intent correctly, so the fix restores a rule already written rather than inventing one.
 
 ## The mechanism
 
@@ -33,7 +33,7 @@ That last row is not a corner case. `DownloadProgressMonitor.h`'s class comment 
 The finding costs the overlap as *"two NSMetadataQuery instances plus two File Provider subscriptions per file"*. Neither is the dominant cost, and one does not exist in the case it calls worst:
 
 1. **The File Provider subscription is macOS-only** — `DownloadFileProviderProgressSource` is inside `#if TARGET_OS_OSX` in `DownloadProgressSourceAdapters.m`. It is not doubled on iOS, which is exactly the platform where the overlap lasts longest.
-2. **The `NSMetadataQuery` is real but short-lived off iCloud.** It starts for any item answering `NSURLIsUbiquitousItemKey`, which per `System/CLAUDE.md` includes Dropbox — but `queryUpdated:` cancels it at `DidFinishGathering` when the item is not iCloud-indexed (`DownloadICloudProgressSource`, `DownloadProgressSourceAdapters.m`). So two queries, both self-limiting.
+2. **The `NSMetadataQuery` is real but short-lived off iCloud.** It starts for any item answering `NSURLIsUbiquitousItemKey`, which per `System/AGENTS.md` includes Dropbox — but `queryUpdated:` cancels it at `DidFinishGathering` when the item is not iCloud-indexed (`DownloadICloudProgressSource`, `DownloadProgressSourceAdapters.m`). So two queries, both self-limiting.
 
 ## What the audit missed
 
@@ -125,9 +125,9 @@ Update `testAZeroSampleNeverLeavesOrReentersIndeterminate` and `testNoteProgress
 
 Both guarantee statements read as though the first fraction is what enforces the rule. Rewrite to say ownership is declared and outlives entry churn:
 
-- root `CLAUDE.md`, the loading-bar guarantee ("A row shows the loading bar only while …")
-- `Vibe/Audio/Loading/CLAUDE.md` ("The transfer registry")
-- one clause in `Vibe/System/CLAUDE.md`'s `+monitorReplacing:forURL:currentURL:movement:handler:` paragraph, which currently ends at "preserving it when a same-row replay still owns the same underlying open identifier"
+- root `AGENTS.md`, the loading-bar guarantee ("A row shows the loading bar only while …")
+- `Vibe/Audio/Loading/AGENTS.md` ("The transfer registry")
+- one clause in `Vibe/System/AGENTS.md`'s `+monitorReplacing:forURL:currentURL:movement:handler:` paragraph, which currently ends at "preserving it when a same-row replay still owns the same underlying open identifier"
 
 ### 6. Optional — make the guarantee observable
 

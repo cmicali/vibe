@@ -33,7 +33,7 @@ NS_ASSUME_NONNULL_BEGIN
           didScrubToProgress:(CGFloat)progress;
 
 // On release, not per frame. The value is the REQUEST, which is what the owner
-// persists and shares across pages (Vibe/iOS/Player/CLAUDE.md).
+// persists and shares across pages (Vibe/iOS/Player/AGENTS.md).
 - (void)waveformScrubberView:(WaveformScrubberView *)view
     didChangeVisibleFraction:(CGFloat)fraction;
 

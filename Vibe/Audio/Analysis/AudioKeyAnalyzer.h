@@ -39,7 +39,7 @@ NS_ASSUME_NONNULL_BEGIN
 // A=440 sits near 0; a large offset means the chroma is being folded onto the
 // wrong semitones and the key estimate is unreliable. Measured before
 // deciding whether per-track tuning correction is worth building — see
-// Audio/Analysis/CLAUDE.md.
+// Audio/Analysis/AGENTS.md.
 @property (readonly) double tuningCents;
 
 @end

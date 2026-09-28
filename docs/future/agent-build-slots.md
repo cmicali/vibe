@@ -86,7 +86,7 @@ another path, so our container) fails hard, kills nothing, and prints the `ps` l
 `lsregister -f` remedy; another slot or a stock instance is a stderr note, never touched; the
 answering-binary warning becomes an error when slotted. `vibe-debug/SKILL.md` gains a Slots section
 (source, override, opt-out, derived names, match by pid) and `process ==` in its log predicate;
-the root `CLAUDE.md`'s `make build` row names the slot's DerivedData.
+the root `AGENTS.md`'s `make build` row names the slot's DerivedData.
 
 **Release.** `release.sh` and `release-appstore.sh` export `VIBE_NO_SLOT=1` and unset the `VIBE_*`
 names, never refusing, since every agent shell has a session id. `vibe_assert_stock_bundle`

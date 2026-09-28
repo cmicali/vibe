@@ -119,7 +119,7 @@ static NSTimeInterval VibeTransferSecondsForPath(NSString *path, NSTimeInterval 
 
 // The Hashed mode's fraction. Quantized to kProgressChunks because a real
 // provider reports in ~1 Hz steps the indicator eases between (WaveformUI/
-// CLAUDE.md); a per-tick ramp would exercise easing production never sees. A
+// AGENTS.md); a per-tick ramp would exercise easing production never sees. A
 // third of the corpus stalls partway and resumes, the only way to test that
 // the fill never runs past what was reported. Which files stall, and where,
 // come off the path hash.

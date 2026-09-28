@@ -1,5 +1,5 @@
 // Measures whether hogging the system default output drags an output unit off
-// the device it was bound to (Audio/Mac/Devices/CLAUDE.md). Run it against the
+// the device it was bound to (Audio/Mac/Devices/AGENTS.md). Run it against the
 // device that IS the default, or pass --make-default for the run:
 //
 //   swift hogfollow.swift <deviceID> [engine|hal] [--make-default]

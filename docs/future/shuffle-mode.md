@@ -2,7 +2,7 @@
 
 **Status: planned, not implemented (verified 2026-09-27).**
 
-Written to be executed phase by phase. Each phase compiles, passes `make test`, and is verifiable on its own. Read the root `CLAUDE.md` (the successor-prefetch, "On track end", and playlist-editing guarantees), `Vibe/Playlist/CLAUDE.md`, `Vibe/Playlist/Mac/CLAUDE.md`, `Vibe/iOS/CLAUDE.md`, `Vibe/Mac/Settings/CLAUDE.md`, and `Tests/CLAUDE.md` first; strings need the `vibe-strings` skill, verification the `vibe-debug` skill.
+Written to be executed phase by phase. Each phase compiles, passes `make test`, and is verifiable on its own. Read the root `AGENTS.md` (the successor-prefetch, "On track end", and playlist-editing guarantees), `Vibe/Playlist/AGENTS.md`, `Vibe/Playlist/Mac/AGENTS.md`, `Vibe/iOS/AGENTS.md`, `Vibe/Mac/Settings/AGENTS.md`, and `Tests/AGENTS.md` first; strings need the `vibe-strings` skill, verification the `vibe-debug` skill.
 
 ## The feature
 
@@ -65,7 +65,7 @@ Tests (deterministic via `randomBelow`): every row visited exactly once walking 
 ## Phase 3 — iOS
 
 - `PlaybackController` applies the setting to its `Playlist` at init and gains `toggleShuffle`, writing the setting and the model together and ending on `applyTrackTransitionSettings` so the successor is re-parked. `successorPrefetchTrack` and the `didStartPlaying:` boundary check ask `nextTrackPeek`. `next`, `previous`, and `selectTrackAtIndex:` already go through the model.
-- A shuffle button on the now-playing card's control row, tinted when active; `Vibe/iOS/Player/CLAUDE.md` owns the card's layout conventions. The library rows and the mini player need nothing.
+- A shuffle button on the now-playing card's control row, tinted when active; `Vibe/iOS/Player/AGENTS.md` owns the card's layout conventions. The library rows and the mini player need nothing.
 - **Open decision: the pager.** `PlayerViewController+Pager` pages by row index, so a swipe to the neighboring page is a manual pick of the adjacent row, which splices into shuffle with no repeat. Either accept that (the pager shows the playlist, and swiping picks) or page in play order. Decide before building the button.
 
 **Acceptance**: `make build-ios`; on the simulator (`launch-ios.sh`, `drive-ios.sh`): toggle, advance through the folder, and confirm the no-repeat walk and the park at the end.

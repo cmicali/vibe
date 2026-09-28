@@ -1,5 +1,5 @@
 #!/bin/bash
-# Enforces the layout rule stated in CLAUDE.md: every directory directly under
+# Enforces the layout rule stated in AGENTS.md: every directory directly under
 # Vibe/ except Mac/, iOS/ and ThirdParty/ is a shared subsystem listed in both
 # targets, and within any subsystem Mac/ and iOS/ are the only platform
 # markers.

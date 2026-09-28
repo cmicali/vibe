@@ -164,7 +164,7 @@ Do not verify this with `codesign -d --entitlements`, which reads the *signature
 - TRAP: **`appStale: true` (`drive-ios.sh status`) invalidates every gesture result since the rebuild** — a stale app launches, answers, and accepts touches exactly like a fresh one, so nothing else will tell you. Rerun `launch-ios.sh` after any rebuild.
 - **TRAP: a folder added with `add_search_folder` is NOT security-scoped**, so the scope round trip goes unexercised — yet it is persisted as a plain bookmark and restored at the next launch unless that no longer resolves. Remove what a test adds; `dump_search` after a relaunch shows whether it came back.
 - **TRAP: `tap_favorite_star`'s ADD is asynchronous** (the bookmark is minted off main) — `ok:true` means the handler ran; poll `dump_favorites` for the row.
-- **Check `ui.waveformBaked` after `expand_player`.** The card animates by transform so the scrubbers never re-bake; `waveformBaked:false` means something animated its bounds again (`Vibe/iOS/CLAUDE.md`).
+- **Check `ui.waveformBaked` after `expand_player`.** The card animates by transform so the scrubbers never re-bake; `waveformBaked:false` means something animated its bounds again (`Vibe/iOS/AGENTS.md`).
 - **Logs stream from the HOST** (the simulator writes into the mac's unified log; `simctl spawn … log stream` is refused): the same `/usr/bin/log stream` line as macOS.
 - **Simulator blind spots** — interruptions, route changes, background audio past lock, the lock-screen card — need a real device; report them as unverified rather than driving a phone (`references/ios-verbs.md`).
 

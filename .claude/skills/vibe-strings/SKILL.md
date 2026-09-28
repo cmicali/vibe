@@ -5,7 +5,7 @@ description: The localization pipeline — VibeStrings.h registry conventions, t
 
 # Localization pipeline
 
-The always-loaded rules live in the root `CLAUDE.md` (every string is a `STR_*` in `VibeStrings.h`; `make strings` after touching UI strings; display names are never identifiers). This skill holds the machinery.
+The always-loaded rules live in the root `AGENTS.md` (every string is a `STR_*` in `VibeStrings.h`; `make strings` after touching UI strings; display names are never identifiers). This skill holds the machinery.
 
 ## Languages and catalogs
 

@@ -1,0 +1,65 @@
+# App (macOS)
+
+The application object and the app-wide services it owns. The test for this directory is ownership: **`AppDelegate` creates it, or the OS hands it to `AppDelegate`.** A service used by several features but owned by none of them lives here; a service owned by one feature lives with that feature.
+
+The bootstrap starts outside: `main.m` at the repo root creates the `AppDelegate` and keeps it alive in a global, because `NSApplication.delegate` is weak. `applicationWillFinishLaunching:` creates `MainPlayerController` and installs the menu bar through `MainMenuBuilder`. See `Mac/Menu/AGENTS.md`.
+
+`AppDelegate` also installs `NSURLUtil`'s handler blocks at launch — the playlist-grant handler and the two folder-art harvest handlers — which is how a path utility in `Vibe/Util/` reports what it saw without reaching into an app singleton behind a setting and a sandbox grant.
+
+## Opening files is a funnel, not an event
+
+Every way a file can arrive — a Finder double-click, `⌘O`, Open Recent, a drop on the window, argv — lands in `AppDelegate` and comes out as one playlist. Two pieces make that true, and they are two because the OS delivers opens in two different broken shapes. Both are tested.
+
+- **`OpenBurstCoalescer`** — Launch Services splits a multi-file open across several `application:openURLs:` calls. The first batch plays immediately, because a double-clicked file must not wait out a delay; later batches inside a **0.3-second quiet period** are appended instead of replacing.
+- **`OpenRequestCoordinator`** — expansion (the folder walk, the CUE/M3U read) runs concurrently, so results come back out of order. One instance serves the whole app, shared with the window's drop funnel. It buffers appends within the surviving burst and lets a newer **deliberate** replacement supersede every unfinished older result. An expansion that never finishes — a mount that stops answering — holds a later finished batch at most **ten seconds** before it is abandoned, or one wedged batch would swallow every later batch in its burst.
+
+`⌘O`, Open Recent and window drops enter through `openDeliberateURLs:appending:` and bypass the burst, so a deliberate action ends a Launch Services burst in progress rather than joining it. Drops are the one deliberate open that carries its own append decision.
+
+**Close invalidates the open coordinator before unloading the playlist.** A pending folder walk or buffered append cannot reopen files after the user closed them; replacement opens share the same invalidation method.
+
+The walk itself is `NSURLUtil` (`Vibe/Util/`), on a four-wide queue, so an unreachable mount cannot hold every later open hostage and cannot spawn a thread per drop either.
+
+`DocumentTypes` is **not** here — it is `Vibe/Common/`, since it reads the bundle and touches no AppKit, and both targets declare document types. The `⌘O` panel's filter and `DefaultAppRegistration` (`Mac/Settings/`) both read it, so the two cannot disagree about what a supported file is.
+
+## Sandbox grants
+
+`FolderAccessManager` is the bookmark store: resolve at launch, merge what an open or a drop grants, persist, and answer `canReadInsideDirectory:` for anything that wants to know before it touches the disk. It is here rather than in `Mac/Settings/` because that pane is only its *display* — the readers are the app delegate, the folder-art resolver and the main window.
+
+**Asking is separate from storing.** The one path that raises a panel — the grant a playlist file needs for the folder its entries live in — is `FolderAccessManager+GrantPanel`, split out because it is a modal AppKit run loop that blocks a background worker until a human answers, and the only part of the manager a unit test can never reach. The rest is non-blocking and covered by `FolderAccessCoverageTests`.
+
+**A row's state costs no I/O to know.** `grantedFolders` answers `VibeGrantedFolderState` per row — `Active`, `Restoring` or `Unavailable` — from the resolve the manager already did. **Never stat a row to decide that**: `viewForTableColumn:` runs on the main thread for every reload, and a dead path's mount can block a stat for an automounter timeout.
+
+**TRAP: launch resolution never mounts a volume or shows UI** (`NSURLBookmarkResolutionWithoutMounting | WithoutUI`). Nobody asked for it, so a grant on a server that is not mounted fails at once and sits Unavailable until a launch finds the volume mounted; without the flags the resolver tries the mount itself, which can raise a connect dialog at every launch and pin a utility lane for the automounter timeout.
+
+**TRAP: an unresolved stored bookmark is not authority.** A stored row is visible immediately but authorizes nothing until restoration has started its security scope. Folder art never probes a directory the app holds no *active* grant for — unasked-for background work must never raise a permission panel. `FolderAccessManagerDidChangeNotification` is what says a scope has settled.
+
+**TRAP: inside the sandbox, both `NSHomeDirectory` and `NSHomeDirectoryForUser` answer with the container**, which silently turns the ~/Music rule into a test against a path no music sits under. `+realHomeDirectory` uses `getpwuid`, the documented way to the on-disk home.
+
+**TRAP: coverage has two spellings and the callers need different ones** (`FolderAccessRules.h`). `path:isCoveredByAnyOf:` is case-**sensitive** and is the auto-add's duplicate check, over canonical spellings. `readablePath:isCoveredByAnyOf:` is case-**insensitive** and is the read test (`canReadInsideDirectory:`), and the same folding rule decides whether an open must wait for a grant — those paths come straight off Launch Services, a pasteboard or a track URL, and under-matching would walk a folder before its grant is restored or refuse a readable one.
+
+**Every wait for a grant is deadlined at two seconds**, the launch drain's and each open's alike. Waiting is an optimization: proceeding without the grant merely risks an unreadable folder, which every open path handles, while waiting forever on a mount that never answers leaves the window in its launch grace with a blank header and no way out.
+
+Restoration has three utility workers plus one user-initiated lane reserved for a queued grant an open is waiting on. Four concurrent launch bookmark resolutions is the ceiling, while a relevant grant does not sit behind unrelated blocked restores. When remembered grants nest, the most-specific sufficient one takes that lane; once an active grant covers each requested URL, a still-resolving overlapping parent no longer holds the open. It posts its change notification **coalesced to one per run-loop turn**, because it settles one bookmark at a time and each observer does real work; the user-driven add and remove post directly, so the pane redraws in the same turn as the click.
+
+## Stats
+
+`AppStats` lives in `Vibe/Common/` and counts for **both** platforms; this shell feeds it from `deliverExpandedURLs:` (the open funnel) and from the player's output-audio activity event, and `applicationWillTerminate:` folds the in-progress listening run. See `Common/AGENTS.md` for the store and for what the two platforms do differently about keeping a running clock honest.
+
+## The last playlist
+
+Launch order is grants → drain → restore → empty state: inside `restoreGrantedAccessWithCompletion:`, the tested `OpenBurstCoalescer.finishLaunchRestoring:revealEmpty:` calls `startAndDrainQueue` first, and only when nothing drained does `MainPlayerController.restoreLastPlaylist` run, and only when that finds nothing does `revealEmptyState`. **A launch-time open outranks the remembered playlist, and the restore is not an open**: it enters neither the coalescer — an empty drain arms no burst, so a Finder open a beat later replaces rather than appends — nor `openURLs:appending:`, so it records no stats and mints no bookmarks; what its parked start refreshes, Open Recent included, is the ordinary per-track refresh. `applicationWillTerminate:` calls `saveLastPlaylist` beside the stats flush, and it runs on every quit: the app does not opt into sudden termination, under which an idle quit is a SIGKILL with no callback.
+
+## Quitting
+
+**A quit leaves the screen first and finishes afterwards.** `applicationShouldTerminate:` orders out every window, drops the Dock tile and menu bar (`NSApplicationActivationPolicyProhibited`), detaches the playback delegate to prevent auto-advance, then waits off main for what a quit owes — `AudioPlayer.prepareForTermination`, which cancels transport work and puts a bit-perfect device's format back and releases its hog and so waits on the device (~0.2 s on a USB DAC, bounded at 1.5 s), and a conversion's cancel — before replying. `applicationWillTerminate:` then only flushes stats and the last playlist. **TRAP: the reply goes through the main run loop's block queue (`CFRunLoopPerformBlock`), never the main dispatch queue.** A quit issued from inside a main-queue block (the debug channel's `quit`, anything dispatched to main) runs `terminate:`'s wait loop inside that block, libdispatch does not drain the main queue re-entrantly, and a reply queued there never runs: Vibe sits hidden and never exits. The converter's settlement, which the quit waits on mid-encode, takes the same queue for the same reason (`Audio/Mac/Convert/AGENTS.md`).
+
+## Debug info
+
+`DebugInfo` is the report behind Settings > Advanced > Save Debug Info, and the debug channel's `dump_debug_info` returns the same text without the save panel. It replaces the round trips a bug report costs — the device, the build, the language, a timing log — with one attached file. **It is passive**: it reads and changes nothing, so it is safe to save in the middle of the problem it is about.
+
+It is two calls because of two threads. `VibeDebugInfoSnapshot` reads what only main may — the controller, the windows, every stored setting — and is cheap. `VibeDebugInfoText` does the slow part off main: it collects this process's persisted log first, then allows two seconds each, in turn, for the fresh hardware, player and audio-path sections. A timeout explicitly returns cached data with its capture timestamp, or unavailable. Each section permits one outstanding worker across all exports, so a hung driver cannot accumulate workers. The main snapshot reads `position`, which is the voice's own counter and never waits on the player queue. Both the button and `dump_debug_info` run collection off main; the verb replies asynchronously. `block_player` provides a bounded debug-only fault for validating export during a queue stall.
+
+- **Settings are the whole stored domain, not a curated list**, so a setting added later is reported without anyone remembering to add it. **Data values go by size only**: a security-scoped bookmark would put an access grant into a file meant for sharing.
+- **The log is all of Vibe's own lines, the audio frameworks' at any stored level** (device trouble is reported there, not by us), **and anyone's errors**, capped at the newest 100,000 lines. What it holds depends on `VIBE_VERBOSE_LOGGING` (root `AGENTS.md`): without it Vibe's info and debug lines were never stored, and the report cannot recover them.
+- **It covers this run only**: the log store is scoped to the current process, so a user must save before quitting.
+- **The audio path** (`audioPath`) is the render chain stage by stage, source file to output device — the model behind Settings > Advanced's Audio group and the debug channel's `dump_audio_path` — read fresh off the player queue with the other live diagnostics.

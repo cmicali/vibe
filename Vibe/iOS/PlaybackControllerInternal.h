@@ -82,7 +82,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Nil at the end of the playlist and under On track end = Pause. Every
 // prefetchTrack: call site asks this; a bypass splices past a track end the
-// setting says to park on (root CLAUDE.md).
+// setting says to park on (root AGENTS.md).
 - (nullable AudioTrack *)successorPrefetchTrack;
 
 #pragma mark - Transport follow-ups

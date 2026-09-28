@@ -171,7 +171,7 @@ static NSString *const kValueCellIdentifier = @"value";
     [self.navigationController pushViewController:next animated:YES];
 }
 
-// The store applies no effects (Common/CLAUDE.md): every write ends on the
+// The store applies no effects (Common/AGENTS.md): every write ends on the
 // model.
 - (SettingsChoiceViewController *)onTrackEndPicker {
     PlaybackController *playback = _playback;

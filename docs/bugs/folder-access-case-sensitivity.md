@@ -65,7 +65,7 @@ Host-less, in `Tests/FolderAccessCoverageTests.m`, with injected modes:
 
 ## Docs to update
 
-- `Vibe/Mac/App/CLAUDE.md`: the "coverage has two spellings" trap becomes the three-question split.
+- `Vibe/Mac/App/AGENTS.md`: the "coverage has two spellings" trap becomes the three-question split.
 - `Vibe/Mac/App/FolderAccessManager.h`: drop `+readablePath:isCoveredByAnyOf:`; the read test follows each root's volume.
 - `Vibe/Mac/App/FolderAccessRules.h`: the folding rule's `TRAP:` names restoration matching and a case-insensitive root as its only uses.
 

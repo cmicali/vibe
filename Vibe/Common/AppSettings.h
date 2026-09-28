@@ -87,7 +87,7 @@ FOUNDATION_EXPORT const size_t kVibeCrossfadePresetCount;
 
 // YES parks on the finished track as the end of the playlist does. Each shell
 // enforces it at the successor prefetch and the end callback (root
-// CLAUDE.md); a writer must re-park, or a mid-track switch to Pause leaves an
+// AGENTS.md); a writer must re-park, or a mid-track switch to Pause leaves an
 // armed gapless splice that advances anyway.
 - (BOOL)pauseAtTrackEnd;
 - (void)setPauseAtTrackEnd:(BOOL)pause;

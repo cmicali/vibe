@@ -1,6 +1,6 @@
 # Audio pipeline: hardware acceptance
 
-**Status: the pipeline work is done; what remains is evidence only real hardware gives (verified 2026-09-27).** The output-unit split, owned-file migration, waveform consolidation, conversion-policy naming, metering cleanup, and explicit decoder-error handling are implemented. Their contracts live in [Audio/CLAUDE.md](../../Vibe/Audio/CLAUDE.md), [Devices/CLAUDE.md](../../Vibe/Audio/Mac/Devices/CLAUDE.md), and [iOS/CLAUDE.md](../../Vibe/Audio/iOS/CLAUDE.md).
+**Status: the pipeline work is done; what remains is evidence only real hardware gives (verified 2026-09-27).** The output-unit split, owned-file migration, waveform consolidation, conversion-policy naming, metering cleanup, and explicit decoder-error handling are implemented. Their contracts live in [Audio/AGENTS.md](../../Vibe/Audio/AGENTS.md), [Devices/AGENTS.md](../../Vibe/Audio/Mac/Devices/AGENTS.md), and [iOS/AGENTS.md](../../Vibe/Audio/iOS/AGENTS.md).
 
 ## Resolved: Apple SRC tail length
 
@@ -22,19 +22,19 @@ Earlier live checks covered macOS silent HAL transport, a 240-operation torture 
 - **Physical macOS power-cycle and wake:** [device lifecycle](#device-lifecycle-acceptance) below. Integer-format DAC negotiation through `verify-bit-perfect --device-check` (`test-audio.md`), which the pass did not run.
 - **ASan/UBSan, and the owned-file migration's all-configuration binary audit.** Performance has had one pass, iOS only: Instruments on device against Release builds (#74), which lowered the iOS resampling quality to High by default and fixed the main-thread costs it found. macOS has had no comparable profile.
 
-Use the [test instructions](../../Tests/CLAUDE.md), the [hardware acceptance workflow](../../.claude/skills/vibe-debug/references/test-audio.md), and the [debug skill](../../.claude/skills/vibe-debug/SKILL.md). Keep hardware results distinct from the manual pump and the simulator.
+Use the [test instructions](../../Tests/AGENTS.md), the [hardware acceptance workflow](../../.claude/skills/vibe-debug/references/test-audio.md), and the [debug skill](../../.claude/skills/vibe-debug/SKILL.md). Keep hardware results distinct from the manual pump and the simulator.
 
 ## Device lifecycle acceptance
 
 Issues #50, #53, #56, and #57 were closed because the mechanism each described no longer exists; their *symptoms* are what the output unit must show absent. On 2026-09-25 (Mac Studio, macOS 27, Debug `ed0361dd`, real HAL, silent, Now Playing suppressed; Fireface 802, Audient iD4, FiiO E10, BlackHole 2ch) the software layer passed everywhere, #53 after its fix:
 
 - **#50, software layer:** 750 `device-flap.py` vanish flaps over three DACs and 1,800 move flaps across six device pairs, with no silent stop, dropout, refusal, consistency violation, or pending counter; the at-rest heap matched a no-flap control.
-- **#53:** a play submitted during a bind waited it out (median 127 ms, max 270 ms across 104 plays) while the rebind ran on the player queue. The output unit now waits on the HAL, and reads the device's latencies, on its own queue (`Mac/Devices/CLAUDE.md`); rerun, every play submitted during a bind was admitted within 3.4 ms (109 plays, median 0.1 ms), and the rest of this pass passed again on the fix.
+- **#53:** a play submitted during a bind waited it out (median 127 ms, max 270 ms across 104 plays) while the rebind ran on the player queue. The output unit now waits on the HAL, and reads the device's latencies, on its own queue (`Mac/Devices/AGENTS.md`); rerun, every play submitted during a bind was admitted within 3.4 ms (109 plays, median 0.1 ms), and the rest of this pass passed again on the fix.
 - **#56:** 40 BlackHole `--ordinary` loopback captures, each spanning 8–9 system-default changes between two other DACs, all PCM-exact, with no rebind and continuous render cycles.
 - **#57:** all three cases against the app's own HAL reads, including 20 vanish/return cycles of an explicitly bound device (a fixed-UID aggregate) while playing and paused: `pendingDeviceUID` carried the lost UID, and the return re-bound under a new id, at once when paused and at the next pause when playing, by `VibeCanBindSavedOutputDevice`'s design.
 - **Exclusive + bit-perfect:** `bitperfect-soak.py --rounds 2` on each DAC; every rate Active or correctly `rateUnsupported`, hogs released, formats restored.
 
-A vanished device does not park playback. AUHAL moves a unit whose device vanishes to the system default and keeps pulling, and the device-list observer's rebind to System Output restores the track as it was, Playing included; only no output device at all, or another app's hog, parks it (`Mac/Devices/CLAUDE.md`). That is why the vanished aggregate kept playing on System Output in every playing cycle.
+A vanished device does not park playback. AUHAL moves a unit whose device vanishes to the system default and keeps pulling, and the device-list observer's rebind to System Output restores the track as it was, Playing included; only no output device at all, or another app's hog, parks it (`Mac/Devices/AGENTS.md`). That is why the vanished aggregate kept playing on System Output in every playing cycle.
 
 **Still open.**
 
