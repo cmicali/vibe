@@ -31,7 +31,7 @@
     } failureQueue:dispatch_get_main_queue() admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
         XCTFail(@"running work was rejected");
     }];
-    [self waitForExpectations:@[runningStarted] timeout:1];
+    [self waitForExpectations:@[runningStarted] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTestExpectation *pendingDidNotRun = [self expectationWithDescription:@"pending did not run"];
     pendingDidNotRun.inverted = YES;
@@ -65,7 +65,7 @@
     } failureQueue:dispatch_get_main_queue() admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
         XCTFail(@"running work was rejected");
     }];
-    [self waitForExpectations:@[runningStarted] timeout:1];
+    [self waitForExpectations:@[runningStarted] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTestExpectation *parkedRan = [self expectationWithDescription:@"parked ran"];
     [scheduler submitWork:^{
@@ -89,10 +89,10 @@
     }
     // All 1,000 are decided at submission: their failures drain while the
     // worker is still parked.
-    [self waitForExpectations:@[allRejected] timeout:2];
+    [self waitForExpectations:@[allRejected] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(rejected, 1000u);
     dispatch_semaphore_signal(releaseRunning);
-    [self waitForExpectations:@[parkedRan] timeout:1];
+    [self waitForExpectations:@[parkedRan] timeout:VIBE_TEST_HANG_TIMEOUT];
 }
 
 // An inline refusal would re-enter a caller submitting from a serial queue
@@ -111,7 +111,7 @@
     } failureQueue:failureQueue admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
         XCTFail(@"running work was rejected");
     }];
-    [self waitForExpectations:@[runningStarted] timeout:1];
+    [self waitForExpectations:@[runningStarted] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     // The parked one expires; the one past the bound is refused immediately.
     XCTestExpectation *expiredOnQueue = [self expectationWithDescription:@"expiry on failureQueue"];
@@ -141,7 +141,7 @@
         submitting = NO;
     });
 
-    [self waitForExpectations:@[refusedOnQueue, expiredOnQueue] timeout:2];
+    [self waitForExpectations:@[refusedOnQueue, expiredOnQueue] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertFalse(rejectedInline, @"the refusal must not run before submitWork: returns");
     dispatch_semaphore_signal(releaseRunning);
 }
@@ -156,7 +156,7 @@
     } failureQueue:dispatch_get_main_queue() admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
         XCTFail(@"running work was rejected");
     }];
-    [self waitForExpectations:@[runningStarted] timeout:1];
+    [self waitForExpectations:@[runningStarted] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTestExpectation *pendingDidNotRun = [self expectationWithDescription:@"expired work did not run"];
     pendingDidNotRun.inverted = YES;
@@ -168,7 +168,7 @@
         XCTAssertEqual(failure, VibeAudioWorkAdmissionFailureWaitExpired);
         [admissionFailed fulfill];
     }];
-    [self waitForExpectations:@[admissionFailed] timeout:1];
+    [self waitForExpectations:@[admissionFailed] timeout:VIBE_TEST_HANG_TIMEOUT];
     dispatch_semaphore_signal(releaseRunning);
     [self waitForExpectations:@[pendingDidNotRun] timeout:0.05];
 }
@@ -183,7 +183,7 @@
     } failureQueue:dispatch_get_main_queue() admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
         XCTFail(@"running work was rejected");
     }];
-    [self waitForExpectations:@[runningStarted] timeout:1];
+    [self waitForExpectations:@[runningStarted] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertFalse([running cancelIfPending]);
 
     XCTestExpectation *rejected = [self expectationWithDescription:@"rejected"];
@@ -194,7 +194,7 @@
         [rejected fulfill];
     }];
     // Decided at submission, so it arrives while the slot's owner is blocked.
-    [self waitForExpectations:@[rejected] timeout:1];
+    [self waitForExpectations:@[rejected] timeout:VIBE_TEST_HANG_TIMEOUT];
     dispatch_semaphore_signal(releaseRunning);
 }
 
@@ -213,7 +213,7 @@
         } failureQueue:dispatch_get_main_queue() admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
             XCTFail(@"work was rejected");
         }];
-        [self waitForExpectations:@[ran] timeout:1];
+        [self waitForExpectations:@[ran] timeout:VIBE_TEST_HANG_TIMEOUT];
     }
     // Past the grace, so a surviving timer would have fired into a freed object.
     XCTestExpectation *outlivedItsGrace = [self expectationWithDescription:@"quiet"];
@@ -222,7 +222,7 @@
         XCTAssertNil(weakScheduler, @"the scheduler must not outlive its last reference");
         [outlivedItsGrace fulfill];
     });
-    [self waitForExpectations:@[outlivedItsGrace] timeout:2];
+    [self waitForExpectations:@[outlivedItsGrace] timeout:VIBE_TEST_HANG_TIMEOUT];
 }
 
 @end

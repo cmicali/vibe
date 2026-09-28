@@ -23,7 +23,7 @@
             if (!NSThread.isMainThread) {
                 dispatch_semaphore_signal(readerReached);
                 dispatch_semaphore_wait(resumeReader,
-                        dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
+                        dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
             }
             return captured;
         } accessProvider:^BOOL(NSString *directory) {
@@ -37,11 +37,11 @@
             [finished fulfill];
         });
         XCTAssertEqual(dispatch_semaphore_wait(readerReached,
-                dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0);
+                dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
         enabled = !enabled;
         [resolver folderArtSettingDidChange];
         dispatch_semaphore_signal(resumeReader);
-        [self waitForExpectations:@[finished] timeout:3];
+        [self waitForExpectations:@[finished] timeout:VIBE_TEST_HANG_TIMEOUT];
         XCTAssertEqual([resolver needsBackgroundLoadForAudioFilePath:track], enabled);
     }
 }
@@ -68,7 +68,9 @@
         return [NSData dataWithBytes:"x" length:1];
     } decoder:^NSImage *(NSData *data, CGFloat maxPixelSize) {
         dispatch_semaphore_signal(decodeStarted);
-        dispatch_semaphore_wait(continueDecode, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC));
+        dispatch_semaphore_wait(continueDecode, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
+        // Relayed, so the thumbnail decode after the display one passes too.
+        dispatch_semaphore_signal(continueDecode);
         return decoded;
     }];
     NSString *directory = @"/Library/Albums/One";
@@ -83,10 +85,10 @@
         [finished fulfill];
     });
     XCTAssertEqual(dispatch_semaphore_wait(decodeStarted,
-            dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+            dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
     [resolver invalidate];
     dispatch_semaphore_signal(continueDecode);
-    [self waitForExpectations:@[finished] timeout:2.0];
+    [self waitForExpectations:@[finished] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertNil(result);
     XCTAssertNil([resolver cachedDisplayImageForAudioFilePath:track]);
@@ -100,7 +102,7 @@
     FolderArtResolver *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
         if ([path.lastPathComponent isEqualToString:@"cover.jpg"]) {
             dispatch_semaphore_signal(probeStarted);
-            dispatch_semaphore_wait(continueProbe, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC));
+            dispatch_semaphore_wait(continueProbe, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
         }
         return YES;
     } dataReader:^NSData *(NSString *path) {
@@ -118,11 +120,11 @@
         [oldProbeFinished fulfill];
     });
     XCTAssertEqual(dispatch_semaphore_wait(probeStarted,
-            dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+            dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
     [resolver noteListedDirectories:[NSSet setWithObject:directory]
              artFilenameByDirectory:@{directory: @"folder.jpg"}];
     dispatch_semaphore_signal(continueProbe);
-    [self waitForExpectations:@[oldProbeFinished] timeout:2.0];
+    [self waitForExpectations:@[oldProbeFinished] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqualObjects([resolver displayImageForAudioFilePath:track], decoded);
     XCTAssertEqualObjects(readPath, [directory stringByAppendingPathComponent:@"folder.jpg"]);
@@ -464,7 +466,7 @@
     FolderArtResolver *resolver = [self resolverWithFileInfo:^BOOL(NSString *path, unsigned long long *size) {
         @synchronized (self) { probes++; }
         dispatch_semaphore_signal(probeStarted);
-        dispatch_semaphore_wait(continueProbe, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
+        dispatch_semaphore_wait(continueProbe, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
         return YES;
     } dataReader:^NSData *(NSString *path) {
         return [NSData dataWithBytes:"x" length:1];
@@ -479,7 +481,7 @@
         [first fulfill];
     });
     XCTAssertEqual(dispatch_semaphore_wait(probeStarted,
-            dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+            dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
 
     // The second arrives while the first still holds the claim.
     XCTestExpectation *second = [self expectationWithDescription:@"second ask"];
@@ -488,11 +490,11 @@
         loser = [resolver displayImageForAudioFilePath:track];
         [second fulfill];
     });
-    [self waitForExpectations:@[second] timeout:5.0];
+    [self waitForExpectations:@[second] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertNil(loser, @"it goes without for this pass rather than walking the folder again");
 
     dispatch_semaphore_signal(continueProbe);
-    [self waitForExpectations:@[first] timeout:5.0];
+    [self waitForExpectations:@[first] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(probes, 1u, @"one walk, not two");
 }
 
@@ -504,7 +506,7 @@
             NSString *path, unsigned long long *size) {
         dispatch_semaphore_signal(probeStarted);
         dispatch_semaphore_wait(continueProbe,
-                dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
+                dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
         return YES;
     } dataReader:^NSData *(NSString *path) {
         return [NSData dataWithBytes:"x" length:1];
@@ -519,7 +521,7 @@
         [displayFinished fulfill];
     });
     XCTAssertEqual(dispatch_semaphore_wait(probeStarted,
-            dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+            dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
 
     XCTestExpectation *redraw = [self expectationForNotification:FolderArtDidResolveNotification
                                                           object:resolver handler:nil];
@@ -527,7 +529,7 @@
                  @"the header still owns the directory's resolve claim");
 
     dispatch_semaphore_signal(continueProbe);
-    [self waitForExpectations:@[displayFinished, redraw] timeout:5.0];
+    [self waitForExpectations:@[displayFinished, redraw] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqualObjects([resolver cachedThumbnailForAudioFilePath:track
                                                     resolveIfUnknown:NO], decoded);
 }
@@ -546,7 +548,9 @@
     } decoder:^NSImage *(NSData *data, CGFloat maxPixelSize) {
         if ([readPath.lastPathComponent isEqualToString:@"cover.jpg"]) {
             dispatch_semaphore_signal(decodeStarted);
-            dispatch_semaphore_wait(continueDecode, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
+            dispatch_semaphore_wait(continueDecode, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
+            // Relayed, so the thumbnail decode after the display one passes too.
+            dispatch_semaphore_signal(continueDecode);
             return stale;
         }
         return fresh;
@@ -563,12 +567,12 @@
         [finished fulfill];
     });
     XCTAssertEqual(dispatch_semaphore_wait(decodeStarted,
-            dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+            dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
     // The folder is re-listed with a different cover while that decode runs.
     [resolver noteListedDirectories:[NSSet setWithObject:directory]
              artFilenameByDirectory:@{directory: @"folder.jpg"}];
     dispatch_semaphore_signal(continueDecode);
-    [self waitForExpectations:@[finished] timeout:5.0];
+    [self waitForExpectations:@[finished] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertNil(result, @"the answer it decoded is no longer the folder's answer");
     XCTAssertNotEqualObjects([resolver cachedDisplayImageForAudioFilePath:track], stale);
@@ -731,7 +735,9 @@
         return [NSData dataWithBytes:"x" length:1];
     } decoder:^NSImage *(NSData *data, CGFloat maxPixelSize) {
         dispatch_semaphore_signal(decodeStarted);
-        dispatch_semaphore_wait(continueDecode, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
+        dispatch_semaphore_wait(continueDecode, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
+        // Relayed, so the thumbnail decode after the display one passes too.
+        dispatch_semaphore_signal(continueDecode);
         return decoded;
     }];
     NSString *directory = @"/Library/Albums/Pinned";
@@ -746,7 +752,7 @@
         [finished fulfill];
     });
     XCTAssertEqual(dispatch_semaphore_wait(decodeStarted,
-            dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+            dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
     // Overflow the history while that decode is still running.
     NSMutableSet<NSString *> *flood = [NSMutableSet set];
     for (NSUInteger index = 0; index < 5000; index++) {
@@ -754,7 +760,7 @@
     }
     [resolver noteListedDirectories:flood artFilenameByDirectory:@{}];
     dispatch_semaphore_signal(continueDecode);
-    [self waitForExpectations:@[finished] timeout:5.0];
+    [self waitForExpectations:@[finished] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqualObjects(result, decoded);
 }

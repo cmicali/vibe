@@ -133,7 +133,7 @@ static int VibeOpenDescriptorCount(void) {
         handle = [[AudioFileHandle alloc] initForReading:url error:&error];
         [returned fulfill];
     });
-    [self waitForExpectations:@[returned] timeout:2];
+    [self waitForExpectations:@[returned] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertNil(handle);
     XCTAssertEqualObjects(error.domain, NSOSStatusErrorDomain);
 }
@@ -384,7 +384,7 @@ static int VibeOpenDescriptorCount(void) {
     [input markAsFinished];
     XCTestExpectation *finished = [self expectationWithDescription:@"finishWriting"];
     [writer finishWritingWithCompletionHandler:^{ [finished fulfill]; }];
-    [self waitForExpectations:@[finished] timeout:10];
+    [self waitForExpectations:@[finished] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(writer.status, AVAssetWriterStatusCompleted, @"%@", writer.error);
 
     AudioFileHandle *handle = [self open:url];

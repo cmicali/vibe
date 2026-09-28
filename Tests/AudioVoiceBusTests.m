@@ -799,13 +799,13 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 - (void)stopReadingAndWait {
     dispatch_semaphore_t stopped = dispatch_semaphore_create(0);
     [_bus stopReadingThen:^{ dispatch_semaphore_signal(stopped); }];
-    XCTAssertEqual(dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+    XCTAssertEqual(dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
 }
 
 // Waits for `condition` on the main thread, a run-loop turn at a time, up
-// to five seconds; the bus's threads keep running meanwhile.
+// to the hang timeout; the bus's threads keep running meanwhile.
 - (BOOL)waitUntil:(BOOL (^)(void))condition {
-    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:5];
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
     while (!condition() && deadline.timeIntervalSinceNow > 0) {
         [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.001]];
     }
@@ -835,14 +835,14 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     XCTAssertTrue([self waitUntil:^BOOL { return [self->_bus snapshotOfVoice:voice].endOfStream == UINT64_MAX; }]);
     dispatch_semaphore_t stopped = dispatch_semaphore_create(0);
     [_bus stopReadingThen:^{ dispatch_semaphore_signal(stopped); }];
-    XCTAssertEqual(dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0L,
+    XCTAssertEqual(dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L,
                    @"the decoder stayed in its wait for the stuck render after its reads were stopped");
     XCTAssertEqual(_bus.debugRendersHeld, 1u, @"the render was still stuck when the decoder left its wait");
     VibeVoiceSnapshot snapshot = [_bus snapshotOfVoice:voice];
     XCTAssertEqual(snapshot.endOfStream, 2000u, @"the withdrawn end goes back");
     XCTAssertEqual(snapshot.boundary, UINT64_MAX, @"no boundary over a stream whose verdict was never read");
     [_bus debugHoldRender:NO];
-    XCTAssertEqual(dispatch_group_wait(stuck, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+    XCTAssertEqual(dispatch_group_wait(stuck, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
     // The voice ends at its end, the successor never begun.
     [self renderWithoutFilling:4096 into:nil];
     [self drain];
@@ -871,14 +871,14 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     dispatch_group_async(idle, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         dispatch_sync(decoder, ^{});
     });
-    XCTAssertEqual(dispatch_group_wait(idle, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0L,
+    XCTAssertEqual(dispatch_group_wait(idle, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L,
                    @"the decoder waited past its bound for the stuck render");
     XCTAssertEqual(_bus.debugRendersHeld, 1u);
     VibeVoiceSnapshot snapshot = [_bus snapshotOfVoice:voice];
     XCTAssertEqual(snapshot.endOfStream, 2000u, @"the withdrawn end goes back");
     XCTAssertEqual(snapshot.boundary, UINT64_MAX);
     [_bus debugHoldRender:NO];
-    XCTAssertEqual(dispatch_group_wait(stuck, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+    XCTAssertEqual(dispatch_group_wait(stuck, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
     [self renderWithoutFilling:4096 into:nil];
     [self drain];
     XCTAssertEqual([_bus snapshotOfVoice:voice].state, VibeVoiceStateNone, @"the voice ends at its restored end");
@@ -930,13 +930,13 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     }
     @try {
         for (NSUInteger i = 0; i < 8; i++)
-            XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+            XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
         [_bus stopReadingThen:^{ dispatch_semaphore_signal(left); }];
         for (NSUInteger i = 0; i < 7; i++) dispatch_semaphore_signal(releases[i]);
         XCTAssertNotEqual(dispatch_semaphore_wait(left, dispatch_time(DISPATCH_TIME_NOW, 200 * NSEC_PER_MSEC)), 0L,
                           @"a decoder was reported gone while its turn was still inside");
         dispatch_semaphore_signal(releases[7]);
-        XCTAssertEqual(dispatch_semaphore_wait(left, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        XCTAssertEqual(dispatch_semaphore_wait(left, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
         XCTAssertNotEqual(dispatch_semaphore_wait(left, DISPATCH_TIME_NOW), 0L);
     } @finally {
         for (NSUInteger i = 0; i < 8; i++) dispatch_semaphore_signal(releases[i]);
@@ -959,7 +959,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     NSUInteger polls = 0, missing = 0;
     // Bounded by time, not renders: the decoder is a real queue, and a render
     // that outruns it underruns and consumes nothing.
-    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:5];
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
     uint64_t consumed = 0;
     while (deadline.timeIntervalSinceNow > 0) {
         [self renderWithoutFilling:256 into:nil];
@@ -978,7 +978,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     XCTAssertNotEqual([_bus snapshotOfVoice:voice].boundary, UINT64_MAX, @"the handoff never happened");
     dispatch_semaphore_t stopped = dispatch_semaphore_create(0);
     [_bus stopReadingThen:^{ dispatch_semaphore_signal(stopped); }];
-    dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+    dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC));
 }
 
 - (void)testADeadVoiceQueuesOnlyOneRecycleWhileTheDecoderIsHeld {
@@ -1081,7 +1081,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     original = method_setImplementation(method, replacement);
     @try {
         XCTAssertTrue([_bus queueSuccessor:successor forVoice:voice]);
-        XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
         if (ending) {
             [self renderWithoutFilling:2000 into:nil];
             XCTAssertEqual([_bus snapshotOfVoice:voice].state, VibeVoiceStateDead);
@@ -1292,7 +1292,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     original = method_setImplementation(method, replacement);
     @try {
         [old startVoiceWithFile:file atFrame:0 gain:1 ramp:[self unity] paused:NO];
-        XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
         // The rebuild: the old bus is told to stop while its decoder is inside
         // the first read, which finishes a moment later.
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 20 * NSEC_PER_MSEC), dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
@@ -1300,7 +1300,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
         });
         dispatch_semaphore_t stopped = dispatch_semaphore_create(0);
         [old stopReadingThen:^{ dispatch_semaphore_signal(stopped); }];
-        XCTAssertEqual(dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        XCTAssertEqual(dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
         XCTAssertEqual(file.framePosition, 4096); // the read that was in flight, and no more
     }
     @finally {
@@ -1609,13 +1609,13 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     __block VibeVoiceID current = 0;
     @try {
         VibeVoiceID old = [self startFile:oldFile gain:1 ramp:[self unity] paused:NO];
-        XCTAssertEqual(dispatch_semaphore_wait(reading, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        XCTAssertEqual(dispatch_semaphore_wait(reading, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
         [bus killVoice:old];
         [bus drainWithOutputRunning:NO handler:^(VibeVoiceID voice, VibeVoiceEvent event) {}];
         dispatch_semaphore_signal(letRead); // the read finishes and re-dispatches a turn behind the recycle
-        XCTAssertEqual(dispatch_semaphore_wait(recycled, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        XCTAssertEqual(dispatch_semaphore_wait(recycled, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
         dispatch_async(_queue, ^{ current = [self startFile:newFile gain:1 ramp:[self unity] paused:NO]; });
-        XCTAssertEqual(dispatch_semaphore_wait(preparing, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        XCTAssertEqual(dispatch_semaphore_wait(preparing, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
         dispatch_semaphore_signal(letRecycle); // the old voice's turn runs against the half-bound slot
         dispatch_sync(decoder, ^{});
         dispatch_semaphore_signal(letPrepare);
@@ -1632,7 +1632,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
         dispatch_sync(_queue, ^{});
         dispatch_semaphore_t stopped = dispatch_semaphore_create(0);
         [bus stopReadingThen:^{ dispatch_semaphore_signal(stopped); }];
-        dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)); // the swizzled reads must be over before their IMPs go
+        dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)); // the swizzled reads must be over before their IMPs go
         method_setImplementation(produce, originalProduce);
         method_setImplementation(recycle, originalRecycle);
         method_setImplementation(prepare, originalPrepare);

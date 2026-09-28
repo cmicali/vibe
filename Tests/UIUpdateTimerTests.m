@@ -48,7 +48,7 @@ static XCTestExpectation *sReachedTarget;
     XCTestExpectation *waited = [self expectationWithDescription:@"waited"];
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{ [waited fulfill]; });
-    [self waitForExpectations:@[waited] timeout:seconds + 5.0];
+    [self waitForExpectations:@[waited] timeout:seconds + VIBE_TEST_HANG_TIMEOUT];
     return sTicks;
 }
 

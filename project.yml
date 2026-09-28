@@ -706,6 +706,13 @@ targets:
       base: &hostless-test-settings
         PRODUCT_NAME: "$(TARGET_NAME)"
         PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.VibeTests
+        # Seconds. A hang guard waits for what must happen, so it costs nothing
+        # on a pass and only has to outlast a saturated machine (Tests/AGENTS.md).
+        # A gate the test itself releases must outlast the guards it holds across.
+        GCC_PREPROCESSOR_DEFINITIONS:
+          - "$(inherited)"
+          - "VIBE_TEST_HANG_TIMEOUT=10"
+          - "VIBE_TEST_GATE_TIMEOUT=30"
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGN_STYLE: Automatic

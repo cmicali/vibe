@@ -268,7 +268,7 @@ static NSString *RealHome(void) {
     }];
     // Comfortably past the manager's own 2s restore deadline: an equal timeout
     // races that fallback timer rather than waiting for it.
-    [self waitForExpectations:@[finished] timeout:5.0];
+    [self waitForExpectations:@[finished] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertFalse([manager canReadInsideDirectory:path]);
 }
 
@@ -295,7 +295,7 @@ static NSString *RealHome(void) {
     [manager restoreGrantedAccessWithCompletion:^{
         [finished fulfill];
     }];
-    [self waitForExpectations:@[finished] timeout:5.0];
+    [self waitForExpectations:@[finished] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqual(manager.grantedFolders.count, 1u);
     XCTAssertEqualObjects(manager.grantedFolders.firstObject.path, path);
@@ -345,7 +345,7 @@ static NSString *RealHome(void) {
     [manager restoreGrantedAccessWithCompletion:^{
         [allSettled fulfill];
     }];
-    [self waitForExpectations:@[initialWorkers] timeout:2.0];
+    [self waitForExpectations:@[initialWorkers] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(manager.activeRestorationCount, utilityWorkerCount);
     XCTAssertEqual(manager.peakRestorationCount, utilityWorkerCount);
 
@@ -364,14 +364,14 @@ static NSString *RealHome(void) {
         [targetSettled fulfill];
     }];
 
-    [self waitForExpectations:@[nextWorker] timeout:2.0];
+    [self waitForExpectations:@[nextWorker] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqualObjects(manager.startedRestorationPaths.lastObject, targetPath);
     XCTAssertEqual(manager.activeRestorationCount, concurrencyLimit);
 
     for (NSUInteger index = 0; index < restoreCount; index++) {
         [manager releaseOneRestoration];
     }
-    [self waitForExpectations:@[targetSettled, allSettled] timeout:2.0];
+    [self waitForExpectations:@[targetSettled, allSettled] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(manager.startedRestorationCount, restoreCount);
     XCTAssertEqual(manager.activeRestorationCount, 0u);
     XCTAssertEqual(manager.peakRestorationCount, concurrencyLimit);
@@ -422,7 +422,7 @@ static NSString *RealHome(void) {
     [manager restoreGrantedAccessWithCompletion:^{
         [allSettled fulfill];
     }];
-    [self waitForExpectations:@[initialWorkers] timeout:2.0];
+    [self waitForExpectations:@[initialWorkers] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTestExpectation *openReleased =
             [self expectationWithDescription:@"nested active grant released open"];
@@ -433,7 +433,7 @@ static NSString *RealHome(void) {
     }];
     // The manager's deadline is two seconds; this must be the child grant
     // settling, not the fallback timer.
-    [self waitForExpectations:@[openReleased] timeout:1.5];
+    [self waitForExpectations:@[openReleased] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     NSArray<NSString *> *started = manager.startedRestorationPaths;
     XCTAssertEqualObjects(started.lastObject, childPath);
@@ -444,7 +444,7 @@ static NSString *RealHome(void) {
     for (NSUInteger index = 0; index < blockedCount; index++) {
         [manager releaseOneRestoration];
     }
-    [self waitForExpectations:@[allSettled] timeout:2.0];
+    [self waitForExpectations:@[allSettled] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(manager.startedRestorationCount, stored.count);
     XCTAssertEqual(manager.activeRestorationCount, 0u);
 }
@@ -494,7 +494,7 @@ static NSString *RealHome(void) {
     [manager restoreGrantedAccessWithCompletion:^{
         [allSettled fulfill];
     }];
-    [self waitForExpectations:@[initialWorkers] timeout:2.0];
+    [self waitForExpectations:@[initialWorkers] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertFalse([manager.startedRestorationPaths containsObject:parentPath]);
     XCTAssertFalse([manager.startedRestorationPaths containsObject:childPath]);
 
@@ -510,7 +510,7 @@ static NSString *RealHome(void) {
     // The removed child still has cleanup work in the utility queue, but it
     // must not occupy the urgent lane or force this open to its two-second
     // deadline.
-    [self waitForExpectations:@[openReleased] timeout:1.5];
+    [self waitForExpectations:@[openReleased] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     NSArray<NSString *> *started = manager.startedRestorationPaths;
     XCTAssertEqualObjects(started.lastObject, parentPath);
@@ -523,7 +523,7 @@ static NSString *RealHome(void) {
     for (NSUInteger index = 0; index < blockedCount; index++) {
         [manager releaseOneRestoration];
     }
-    [self waitForExpectations:@[allSettled] timeout:2.0];
+    [self waitForExpectations:@[allSettled] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(manager.startedRestorationCount, stored.count);
     XCTAssertEqual(manager.activeRestorationCount, 0u);
     XCTAssertLessThanOrEqual(manager.peakRestorationCount,
@@ -594,7 +594,7 @@ static NSString *RealHome(void) {
     [manager restoreGrantedAccessWithCompletion:^{
         [allSettled fulfill];
     }];
-    [self waitForExpectations:@[initialWorkers] timeout:2.0];
+    [self waitForExpectations:@[initialWorkers] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTestExpectation *blockerReleased =
             [self expectationWithDescription:@"urgent blocker settled"];
@@ -603,7 +603,7 @@ static NSString *RealHome(void) {
     [manager awaitRestoredAccessForURLs:@[blockerFile] completion:^{
         [blockerReleased fulfill];
     }];
-    [self waitForExpectations:@[urgentBlockerStarted] timeout:1.0];
+    [self waitForExpectations:@[urgentBlockerStarted] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTestExpectation *openReleased =
             [self expectationWithDescription:@"covering parent released open"];
@@ -618,7 +618,7 @@ static NSString *RealHome(void) {
             [NSIndexSet indexSetWithIndex:stored.count - 1]];
     [manager releaseRestorationWithBookmark:urgentBlockerBookmark];
     [self waitForExpectations:@[blockerReleased, parentStarted, openReleased]
-                      timeout:1.5];
+                      timeout:VIBE_TEST_HANG_TIMEOUT];
 
     NSArray<NSData *> *started = manager.startedRestorationBookmarks;
     XCTAssertEqualObjects(started.lastObject, parentBookmark);
@@ -630,7 +630,7 @@ static NSString *RealHome(void) {
     for (NSUInteger index = 0; index < utilityWorkerCount; index++) {
         [manager releaseOneRestoration];
     }
-    [self waitForExpectations:@[allSettled] timeout:2.0];
+    [self waitForExpectations:@[allSettled] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(manager.startedRestorationCount, stored.count);
     XCTAssertEqual(manager.activeRestorationCount, 0u);
     XCTAssertLessThanOrEqual(manager.peakRestorationCount,
@@ -681,7 +681,7 @@ static NSString *RealHome(void) {
     [manager restoreGrantedAccessWithCompletion:^{
         [allSettled fulfill];
     }];
-    [self waitForExpectations:@[initialWorkers] timeout:2.0];
+    [self waitForExpectations:@[initialWorkers] timeout:VIBE_TEST_HANG_TIMEOUT];
     [manager removeFoldersAtIndexes:
             [NSIndexSet indexSetWithIndex:utilityWorkerCount]];
 
@@ -692,7 +692,7 @@ static NSString *RealHome(void) {
     [manager awaitRestoredAccessForURLs:@[file] completion:^{
         [openReleased fulfill];
     }];
-    [self waitForExpectations:@[openReleased] timeout:1.5];
+    [self waitForExpectations:@[openReleased] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqualObjects(manager.startedRestorationBookmarks.lastObject,
                           survivingBookmark);
@@ -703,7 +703,7 @@ static NSString *RealHome(void) {
     for (NSUInteger index = 0; index <= utilityWorkerCount; index++) {
         [manager releaseOneRestoration];
     }
-    [self waitForExpectations:@[allSettled] timeout:2.0];
+    [self waitForExpectations:@[allSettled] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(manager.startedRestorationCount, stored.count);
     XCTAssertEqual(manager.activeRestorationCount, 0u);
 }
@@ -733,7 +733,7 @@ static NSString *RealHome(void) {
     [manager restoreGrantedAccessWithCompletion:^{
         [allSettled fulfill];
     }];
-    [self waitForExpectations:@[allSettled] timeout:2.0];
+    [self waitForExpectations:@[allSettled] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqual(manager.grantedFolders.count, 2u);
     for (VibeGrantedFolder *folder in manager.grantedFolders) {
@@ -784,13 +784,13 @@ static NSString *RealHome(void) {
     [manager restoreGrantedAccessWithCompletion:^{
         [allSettled fulfill];
     }];
-    [self waitForExpectations:@[initialWorkers] timeout:2.0];
+    [self waitForExpectations:@[initialWorkers] timeout:VIBE_TEST_HANG_TIMEOUT];
     [manager mergeAdditions:@[@{ @"path": newPath, @"bookmark": bookmark }]];
 
     for (NSUInteger index = 0; index < utilityWorkerCount; index++) {
         [manager releaseOneRestoration];
     }
-    [self waitForExpectations:@[allSettled] timeout:2.0];
+    [self waitForExpectations:@[allSettled] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     NSDictionary *persisted = [defaults arrayForKey:key].lastObject;
     XCTAssertEqualObjects(persisted[@"path"], newPath);

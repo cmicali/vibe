@@ -637,7 +637,7 @@ static VibeBitPerfectReport Perfect(void) {
             [self->_deviceRetries addObject:[retry copy]];
         }
     }];
-    [self waitForExpectations:@[started] timeout:2];
+    [self waitForExpectations:@[started] timeout:VIBE_TEST_HANG_TIMEOUT];
     [manager outputDevices]; // waits out the listener setup
     return manager;
 }
@@ -650,7 +650,7 @@ static VibeBitPerfectReport Perfect(void) {
         XCTAssertEqual(published, expected);
         [done fulfill];
     }];
-    [self waitForExpectations:@[done] timeout:2];
+    [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
 }
 
 - (void)testUnpublishedSnapshotIsUnknownWhilePublishedEmptyMeansAbsent {
@@ -721,7 +721,7 @@ static VibeBitPerfectReport Perfect(void) {
     [self refresh:manager snapshot:nil published:NO];
     XCTAssertEqual(deliveries, 0u);
     [self refresh:manager snapshot:@[device] published:YES];
-    [self waitForExpectations:@[resolved] timeout:2];
+    [self waitForExpectations:@[resolved] timeout:VIBE_TEST_HANG_TIMEOUT];
     [self refresh:manager snapshot:@[] published:YES];
     XCTAssertEqual(deliveries, 2u);
 }
@@ -834,7 +834,7 @@ static NSString *const kModesKey = @"AudioPlayer.outputModesByDeviceUID";
             [resolved fulfill];
         }];
     }
-    [self waitForExpectations:@[resolved] timeout:2];
+    [self waitForExpectations:@[resolved] timeout:VIBE_TEST_HANG_TIMEOUT];
 }
 
 - (void)testAuthoritativeEmptySnapshotCompletesAnUnmatchedLookup {
@@ -849,7 +849,7 @@ static NSString *const kModesKey = @"AudioPlayer.outputModesByDeviceUID";
     [self refresh:manager snapshot:nil published:NO];
     XCTAssertEqual(deliveries, 0u, @"Unknown discovery must not disable an armed mode");
     [self refresh:manager snapshot:@[] published:YES];
-    [self waitForExpectations:@[resolved] timeout:2];
+    [self waitForExpectations:@[resolved] timeout:VIBE_TEST_HANG_TIMEOUT];
     [self refresh:manager snapshot:@[] published:YES];
     XCTAssertEqual(deliveries, 1u);
 }
@@ -867,7 +867,7 @@ static NSString *const kModesKey = @"AudioPlayer.outputModesByDeviceUID";
     @synchronized (self) { _nextDeviceSnapshot = @[device]; }
     dispatch_block_t retry = _deviceRetries.firstObject;
     retry();
-    [self waitForExpectations:@[notified] timeout:2];
+    [self waitForExpectations:@[notified] timeout:VIBE_TEST_HANG_TIMEOUT];
     [manager removeObserver:self];
     _deviceChangeHandler = nil;
     [self refresh:manager snapshot:nil published:NO];
@@ -1226,14 +1226,14 @@ static int32_t VibeGate(AudioOutputUnit *unit) {
     dispatch_semaphore_t entered = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
     VibeWithHALStart(^OSStatus {
         dispatch_semaphore_signal(entered);
-        dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+        dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
         return noErr;
     }, ^{
         uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
         [unit start];
         XCTAssertLessThan((clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - began) / 1e6, 20.0, @"the start waited for the device");
         XCTAssertTrue(unit.running);
-        XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0);
+        XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
         XCTAssertEqual(VibeGate(unit), 1, @"the gate opens before the device starts, so its first cycle renders");
         [unit stop];
         XCTAssertEqual(VibeGate(unit), 0, @"a stop closes the gate before it returns");
@@ -1253,12 +1253,12 @@ static int32_t VibeGate(AudioOutputUnit *unit) {
     VibeWithHALStart(^OSStatus {
         if (++starts == 1) {
             dispatch_semaphore_signal(entered);
-            dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+            dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
         }
         return noErr;
     }, ^{
         [unit start];
-        XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0);
+        XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
         [unit stop];
         [unit start]; // superseded by the stop below before the queue reaches it
         [unit stop];
@@ -1343,12 +1343,12 @@ static int32_t VibeGate(AudioOutputUnit *unit) {
     VibeWithHALStart(^OSStatus {
         if (++starts == 1) {
             dispatch_semaphore_signal(entered);
-            dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+            dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
         }
         return noErr;
     }, ^{
         [unit start];
-        XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0);
+        XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
         [unit stop];
         [unit start]; // queued behind the device's slow start when the reset lands
         [unit markDead];
@@ -1371,7 +1371,7 @@ static int32_t VibeGate(AudioOutputUnit *unit) {
     XCTestExpectation *late = [self expectationWithDescription:@"the late answer"];
     uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     XCTAssertFalse([CoreAudioUtil performBoundedRead:^{
-        dispatch_semaphore_wait(hung, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+        dispatch_semaphore_wait(hung, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
     } within:0.05 late:^{ [late fulfill]; }]);
     double waited = (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - began) / 1e6;
     XCTAssertGreaterThanOrEqual(waited, 45.0);
@@ -1381,7 +1381,7 @@ static int32_t VibeGate(AudioOutputUnit *unit) {
     XCTAssertLessThan((clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - began) / 1e6, 20.0,
                       @"a read queued behind an overdue one must not wait for it");
     dispatch_semaphore_signal(hung);
-    [self waitForExpectations:@[late] timeout:2];
+    [self waitForExpectations:@[late] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertTrue([CoreAudioUtil performBoundedRead:^{} within:1 late:nil], @"the queue waits again once it drained");
 }
 
@@ -1390,7 +1390,7 @@ static int32_t VibeGate(AudioOutputUnit *unit) {
 - (void)testAbsenceDoesNotWaitForTheFirstSnapshot {
     dispatch_semaphore_t publish = dispatch_semaphore_create(0);
     AudioDeviceManager *manager = [[AudioDeviceManager alloc] initWithEnumerator:^NSArray *(BOOL partial) {
-        dispatch_semaphore_wait(publish, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+        dispatch_semaphore_wait(publish, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
         return @[];
     } retryScheduler:nil];
     uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);

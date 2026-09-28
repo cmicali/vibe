@@ -170,9 +170,9 @@
         ready = [materializer materializeURL:url token:token error:&finishError];
         [returned fulfill];
     });
-    [self waitForExpectations:@[acquired] timeout:2];
+    [self waitForExpectations:@[acquired] timeout:VIBE_TEST_HANG_TIMEOUT];
     [materializer cancel];
-    [self waitForExpectations:@[returned] timeout:2];
+    [self waitForExpectations:@[returned] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertFalse(ready);
     XCTAssertEqualObjects(finishError.domain, NSCocoaErrorDomain);

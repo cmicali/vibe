@@ -226,7 +226,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     NSUInteger count=0; for (NSDictionary *entry in _events) if ([entry[@"event"] isEqual:event]) count++; return count;
 }
 - (void)settleUntil:(BOOL (^)(void))condition {
-    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:5];
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
     while (!condition() && deadline.timeIntervalSinceNow > 0)
         [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.0001]];
     XCTAssertTrue(condition(), @"Timed out; events %@; error %@", _events, _playError);
@@ -880,7 +880,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     @try {
         [_player prefetchTrack:next];
         [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
-        XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
         _player.crossfadeMilliseconds = 500;
         [_player runSyncOnQueue:^{}];
         XCTAssertFalse(_player.gaplessArmed);
@@ -903,7 +903,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         dispatch_semaphore_signal(release);
         dispatch_semaphore_t stopped = dispatch_semaphore_create(0);
         [_player runSyncOnQueue:^{ [bus stopReadingThen:^{ dispatch_semaphore_signal(stopped); }]; }];
-        XCTAssertEqual(dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        XCTAssertEqual(dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
         method_setImplementation(produce, originalProduce);
         imp_removeBlock(blocked);
     }
@@ -960,7 +960,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         for (int i = 0; i < 64 && !heldRead; i++) {
             [self render:1024];
         }
-        XCTAssertEqual(dispatch_semaphore_wait(reading, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        XCTAssertEqual(dispatch_semaphore_wait(reading, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
         [_player seekToPosition:0.5];
         [_player runSyncOnQueue:^{}];
         XCTAssertTrue(heldRetire);
@@ -977,7 +977,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         dispatch_semaphore_signal(letRead);
         dispatch_semaphore_t stopped = dispatch_semaphore_create(0);
         [bus stopReadingThen:^{ dispatch_semaphore_signal(stopped); }];
-        dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)); // the swizzled read must be over before its IMP goes
+        dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)); // the swizzled read must be over before its IMP goes
         method_setImplementation(produce, originalProduce);
         method_setImplementation(retire, originalRetire);
         imp_removeBlock(heldProduce);
@@ -1042,7 +1042,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     [tap remove];
     [tap install];
     [tap debugHoldRender:NO];
-    XCTAssertEqual(dispatch_group_wait(stalled, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L,
+    XCTAssertEqual(dispatch_group_wait(stalled, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L,
                    @"the stalled callback did not finish once the hold lifted");
     float levels[kLevelBandCount] = {0};
     XCTAssertFalse([publisher copyLevels:levels count:kLevelBandCount sequence:NULL],
@@ -1405,7 +1405,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertNotNil(tap, @"the meter was freed under a render another render followed");
     XCTAssertNotNil(bus, @"the bus was freed under a render another render followed");
     [_player debugHoldRenderInside:NO];
-    XCTAssertEqual(dispatch_group_wait(stuck, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L,
+    XCTAssertEqual(dispatch_group_wait(stuck, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L,
                    @"the held render did not leave once the hold lifted");
     XCTAssertEqual([_player.debugRenderCounts[@"rendersHeld"] unsignedIntegerValue], 0u);
     NSUInteger refusals = [_player.debugRenderCounts[@"renderRefusals"] unsignedIntegerValue];
@@ -2045,7 +2045,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
                 isSystemDefault:NO transportType:kAudioDeviceTransportTypeVirtual]];
         XCTestExpectation *published = [self expectationWithDescription:@"device returned"];
         [devices refreshOutputDevicesWithCompletion:^(BOOL success) { [published fulfill]; }];
-        [self waitForExpectations:@[published] timeout:2];
+        [self waitForExpectations:@[published] timeout:VIBE_TEST_HANG_TIMEOUT];
         [_player audioOutputDevicesDidChange];
         [_player runSyncOnQueue:^{}];
         XCTAssertEqual(_player.currentlyRequestedAudioDeviceId, 2);
@@ -2098,7 +2098,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
             isSystemDefault:NO transportType:kAudioDeviceTransportTypeVirtual];
     dispatch_semaphore_t publish = dispatch_semaphore_create(0);
     AudioDeviceManager *devices = [[AudioDeviceManager alloc] initWithEnumerator:^NSArray *(BOOL partial) {
-        dispatch_semaphore_wait(publish, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+        dispatch_semaphore_wait(publish, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
         return @[device];
     } retryScheduler:nil];
     Method methods[] = {
@@ -2202,7 +2202,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
             [self->_player setValue:@"A" forKey:@"pendingSavedDeviceName"];
         }];
         [self render:100000];
-        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.1]];
+        [self settleUntil:^BOOL { return [self count:@"finish"] >= 1; }];
         XCTAssertEqual([self count:@"finish"],1u,@"Device bind failure must not eat the completed track's end: %@",_events);
     } @finally {
         [_player debugShutdown]; _player=nil;
@@ -2602,14 +2602,14 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         dispatch_group_async(rebuild, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
             XCTAssertTrue([self->_player debugSetOutputRate:96000]);
         });
-        XCTAssertEqual(dispatch_group_wait(rebuild, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0L,
+        XCTAssertEqual(dispatch_group_wait(rebuild, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L,
                        @"the rate change completes within its bound while a render is held inside the bus");
         XCTAssertEqual(bus.debugRendersHeld, 1u, @"the render was still stuck when the rebuild completed");
         XCTAssertEqualWithAccuracy([_player.debugRenderCounts[@"outputRate"] doubleValue], 96000, 0);
     } @finally {
         [bus debugHoldRender:NO];
-        XCTAssertEqual(dispatch_group_wait(stuck, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
-        XCTAssertEqual(dispatch_group_wait(rebuild, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        XCTAssertEqual(dispatch_group_wait(stuck, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
+        XCTAssertEqual(dispatch_group_wait(rebuild, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
     }
     [_player runSyncOnQueue:^{ [self->_player drainVoiceBusOnQueue]; }];
     [self assertFinite:[self renderSeconds:0.1] peak:1.0f];
@@ -2640,17 +2640,17 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     long rebuildWait = 0, queueWait = 0;
     @try {
         [self play:url paused:NO position:0];
-        XCTAssertEqual(dispatch_semaphore_wait(reading, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        XCTAssertEqual(dispatch_semaphore_wait(reading, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
         AudioPlayer *player = _player;
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
             XCTAssertTrue([player debugSetOutputRate:96000]);
             dispatch_semaphore_signal(rebuilt);
         });
-        rebuildWait = dispatch_semaphore_wait(rebuilt, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
+        rebuildWait = dispatch_semaphore_wait(rebuilt, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC));
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
             [player runSyncOnQueue:^{ dispatch_semaphore_signal(responsive); }];
         });
-        queueWait = dispatch_semaphore_wait(responsive, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
+        queueWait = dispatch_semaphore_wait(responsive, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC));
         XCTAssertEqual(rebuildWait, 0L, @"the rate change waited on the stalled read");
         XCTAssertEqual(queueWait, 0L, @"the player queue waited on the stalled read");
         XCTAssertEqualWithAccuracy([_player.debugRenderCounts[@"outputRate"] doubleValue], 96000, 0);
@@ -2662,8 +2662,8 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         XCTAssertEqualWithAccuracy(_player.position, before, 0.0001, @"the file was read under the stalled decoder");
     } @finally {
         dispatch_semaphore_signal(releaseRead);
-        if (rebuildWait) dispatch_semaphore_wait(rebuilt, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
-        if (queueWait) dispatch_semaphore_wait(responsive, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+        if (rebuildWait) dispatch_semaphore_wait(rebuilt, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC));
+        if (queueWait) dispatch_semaphore_wait(responsive, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC));
         [_player runSyncOnQueue:^{}];
     }
     // The read released, the retired decoder leaves and the track plays on.
@@ -2873,12 +2873,12 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     dispatch_semaphore_t entered = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
     [self withOutputUnitStartingAs:^OSStatus {
         dispatch_semaphore_signal(entered);
-        dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC));
+        dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
         return noErr;
     } body:^(AudioPlayer *target) {
         [self->_player play:[AudioTrack withURL:[self fixture:@"noise-44100-24-2.wav"]]];
         [self settleUntil:^BOOL { return [self count:@"start"] > 0 || self->_playError; }];
-        XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0,
+        XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0,
                        @"the device start never began");
         XCTAssertNil(self->_playError);
         XCTAssertEqual([self count:@"start"], 1u, @"the play settled only once the device had started");
@@ -3284,7 +3284,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     __block _Atomic bool returned = false;
     Method method = class_getClassMethod(CoreAudioUtil.class, @selector(readNominalSampleRate:forDeviceID:));
     IMP replacement = imp_implementationWithBlock(^BOOL(id cls, Float64 *rate, AudioDeviceID deviceID) {
-        dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC));
+        dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
         atomic_store(&returned, true);
         return NO;
     });
@@ -3335,7 +3335,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     originalProduce = method_setImplementation(produce, heldProduce);
     @try {
         for (int i = 0; i < 64 && !heldRead; i++) [self render:1024];
-        XCTAssertEqual(dispatch_semaphore_wait(reading, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        XCTAssertEqual(dispatch_semaphore_wait(reading, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
         NSURL *next = [self fixture:@"noise-48000-16-2.wav"];
         NSData *reference = [self sourcePCM:next];
         [self play:next paused:NO position:0];
@@ -3354,7 +3354,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         dispatch_semaphore_signal(letRead);
         dispatch_semaphore_t stopped = dispatch_semaphore_create(0);
         [_player runSyncOnQueue:^{ [bus stopReadingThen:^{ dispatch_semaphore_signal(stopped); }]; }];
-        XCTAssertEqual(dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        XCTAssertEqual(dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
         method_setImplementation(produce, originalProduce);
         imp_removeBlock(heldProduce);
     }

@@ -50,7 +50,7 @@
     self.buildFinished = [self expectationWithDescription:@"index built"];
     [index setRoots:@[root]];
     [index beginBuildIfNeeded];
-    [self waitForExpectations:@[self.buildFinished] timeout:1.0];
+    [self waitForExpectations:@[self.buildFinished] timeout:VIBE_TEST_HANG_TIMEOUT];
     index.delegate = nil;
     self.buildFinished = nil;
     return index;
@@ -280,7 +280,7 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
         excludedPath = hits.firstObject.url.path;
         [foundExcluded fulfill];
     }];
-    [self waitForExpectations:@[foundExcluded] timeout:1.0];
+    [self waitForExpectations:@[foundExcluded] timeout:VIBE_TEST_HANG_TIMEOUT];
     if (!excludedPath) {
         return;
     }
@@ -298,7 +298,7 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
         [delivered fulfill];
     }];
     requestReturned = YES;
-    [self waitForExpectations:@[delivered] timeout:1.0];
+    [self waitForExpectations:@[delivered] timeout:VIBE_TEST_HANG_TIMEOUT];
 }
 
 - (void)testNewRequestDeterministicallySupersedesPendingFiltering {
@@ -349,7 +349,7 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
         XCTAssertEqual(hits.count, 1u);
         [initial fulfill];
     }];
-    [self waitForExpectations:@[initial] timeout:1.0];
+    [self waitForExpectations:@[initial] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(index.lastFilterEvaluationCountForTesting, 2u);
 
     NSURL *newURL = [NSURL fileURLWithPath:@"/Music/Kid A/02 Kid A.flac"];
@@ -360,7 +360,7 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
         XCTAssertEqual(hits.count, 2u);
         [incremental fulfill];
     }];
-    [self waitForExpectations:@[incremental] timeout:1.0];
+    [self waitForExpectations:@[incremental] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(index.lastFilterEvaluationCountForTesting, 1u);
 }
 

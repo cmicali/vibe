@@ -199,7 +199,7 @@
         [completed fulfill];
     }];
 
-    [self waitForExpectations:@[materializationStarted] timeout:1];
+    [self waitForExpectations:@[materializationStarted] timeout:VIBE_TEST_HANG_TIMEOUT];
     [stateLock lock];
     VibeAudioFileMaterializationRole finalRole = observedRole;
     NSUInteger countBeforeRelease = extractionCount;
@@ -207,7 +207,7 @@
     XCTAssertEqual(finalRole, VibeAudioFileMaterializationRoleMetadataPriority);
     XCTAssertEqual(countBeforeRelease, 0u);
     dispatch_semaphore_signal(releaseMaterialization);
-    [self waitForExpectations:@[completed] timeout:1];
+    [self waitForExpectations:@[completed] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertFalse(artwork.artLoadPending);
 }
 
@@ -257,7 +257,7 @@
         XCTAssertNil(image);
         [completed fulfill];
     }];
-    [self waitForExpectations:@[completed] timeout:2];
+    [self waitForExpectations:@[completed] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     [stateLock lock];
     NSUInteger finalMaterializationCount = materializationCount;
@@ -294,7 +294,7 @@
         XCTAssertNotNil(image);
         [completed fulfill];
     }];
-    [self waitForExpectations:@[completed] timeout:2];
+    [self waitForExpectations:@[completed] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqual(materialization.attemptCount, 4u,
                    @"three yields do not exhaust the three-failure budget");
@@ -329,7 +329,7 @@
         [completed fulfill];
     }];
     XCTAssertTrue(artwork.artLoadPending);
-    [self waitForExpectations:@[completed] timeout:2];
+    [self waitForExpectations:@[completed] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqual(materialization.attemptCount, 4u);
     XCTAssertEqual(completionCount, 1u);
@@ -354,7 +354,7 @@
       admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
         XCTFail(@"blocker was rejected: %ld", (long)failure);
     }];
-    [self waitForExpectations:@[blockerStarted] timeout:1];
+    [self waitForExpectations:@[blockerStarted] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     [AudioTrackArtwork installArtLoadServicesForTesting:
             [self materializationWithFactory:^id<AudioFileMaterializationOperation>(
@@ -382,7 +382,7 @@
     }];
     XCTAssertTrue(artwork.artLoadPending);
     dispatch_semaphore_signal(releaseBlocker);
-    [self waitForExpectations:@[completed] timeout:2];
+    [self waitForExpectations:@[completed] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqual(completionCount, 1u);
     XCTAssertFalse(artwork.artLoadPending);
@@ -407,7 +407,7 @@
       admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
         XCTFail(@"blocker was rejected: %ld", (long)failure);
     }];
-    [self waitForExpectations:@[blockerStarted] timeout:1];
+    [self waitForExpectations:@[blockerStarted] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     NSLock *stateLock = [NSLock new];
     __block NSUInteger parkedWorkCount = 0;
@@ -460,12 +460,12 @@
         XCTAssertNotNil(image);
         [completed fulfill];
     }];
-    [self waitForExpectations:@[workerRejected] timeout:1];
+    [self waitForExpectations:@[workerRejected] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     scheduler.rejectionObserved = nil;
     XCTAssertTrue([parked cancelIfPending]);
     dispatch_semaphore_signal(releaseBlocker);
-    [self waitForExpectations:@[completed] timeout:2];
+    [self waitForExpectations:@[completed] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     [stateLock lock];
     NSUInteger finalMaterializationCount = materializationCount;
@@ -510,7 +510,7 @@
         XCTAssertNotNil(image);
         [completed fulfill];
     }];
-    [self waitForExpectations:@[completed] timeout:2];
+    [self waitForExpectations:@[completed] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     [stateLock lock];
     NSUInteger finalOperationRunCount = operationRunCount;
@@ -553,7 +553,7 @@
         XCTAssertNil(image);
         [completed fulfill];
     }];
-    [self waitForExpectations:@[completed] timeout:2];
+    [self waitForExpectations:@[completed] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     [stateLock lock];
     NSUInteger finalOperationRunCount = operationRunCount;
@@ -605,7 +605,7 @@
     }];
     XCTAssertFalse(waiting.artLoadPending);
 
-    [self waitForExpectations:completed timeout:2];
+    [self waitForExpectations:completed timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(waitingCompletionCount, 0u);
 
     // The row recovers by re-requesting — the redraw path's job — once
@@ -617,7 +617,7 @@
         [retried fulfill];
     }];
     XCTAssertTrue(waiting.artLoadPending);
-    [self waitForExpectations:@[retried] timeout:2];
+    [self waitForExpectations:@[retried] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(waitingCompletionCount, 1u);
     XCTAssertFalse(waiting.artLoadPending);
 }
@@ -687,7 +687,7 @@
                     completion:^(NSImage *image) { [completed fulfill]; }];
         }
     }
-    [self waitForExpectations:@[firstStarted, secondStarted] timeout:1];
+    [self waitForExpectations:@[firstStarted, secondStarted] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     firstWanted = NO;
     secondWanted = NO;
@@ -718,7 +718,7 @@
     for (NSUInteger index = 0; index < 5; index++) {
         dispatch_semaphore_signal(releaseBaseMaterializations);
     }
-    [self waitForExpectations:wantedCompletions timeout:2];
+    [self waitForExpectations:wantedCompletions timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(staleCompletionCount, 0u);
 
     // The redraw's re-request finds capacity and completes; the rows were
@@ -733,13 +733,13 @@
                 completion:^(NSImage *image) { [completed fulfill]; }];
         XCTAssertTrue(artwork.artLoadPending);
     }
-    [self waitForExpectations:retried timeout:2];
+    [self waitForExpectations:retried timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertFalse(newEdges[0].artLoadPending);
     XCTAssertFalse(newEdges[1].artLoadPending);
 
     // Wanted completions do not imply the uncancellable stale read settled.
     dispatch_semaphore_signal(releaseSecondRead);
-    [self waitForExpectations:@[workersSettled] timeout:2];
+    [self waitForExpectations:@[workersSettled] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(staleCompletionCount, 0u);
 }
 
@@ -792,7 +792,7 @@
 
     [artwork loadArtIfNeededWithLabel:@"redisplayed"
                           stillWanted:stillWanted completion:completion];
-    [self waitForExpectations:@[firstReadStarted] timeout:1];
+    [self waitForExpectations:@[firstReadStarted] timeout:VIBE_TEST_HANG_TIMEOUT];
     wanted = NO;
     [artwork discardDecodedArt];
     wanted = YES;
@@ -802,7 +802,7 @@
                    @"the old read keeps the single-flight extraction claim");
 
     dispatch_semaphore_signal(releaseFirstRead);
-    [self waitForExpectations:@[completed] timeout:2];
+    [self waitForExpectations:@[completed] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     [stateLock lock];
     NSUInteger finalMaterializationCount = materializationCount;

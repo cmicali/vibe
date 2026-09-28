@@ -201,7 +201,7 @@ BOOL VibeCopyTagsToFLAC(NSString *source, NSString *output, VibeUncompressedCont
     self.record.sourceTrashURL = nil;
     self.settled = [self expectationWithDescription:@"unknown location settles"];
     [self.manager undo];
-    [self waitForExpectations:@[self.settled] timeout:1];
+    [self waitForExpectations:@[self.settled] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqualObjects(self.events, (@[@"settled"]));
     XCTAssertEqualObjects(self.settlements.lastObject[@"reason"], @"replacement_location_unknown");
 }
@@ -260,14 +260,14 @@ BOOL VibeCopyTagsToFLAC(NSString *source, NSString *output, VibeUncompressedCont
         [self.converter cancelConversionWithCompletion:^{ [order addObject:@"new-cancel"]; }];
         [first fulfill];
     }];
-    [self waitForExpectations:@[first] timeout:1];
+    [self waitForExpectations:@[first] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqualObjects(order, (@[@"request-one", @"cancel-one", @"cancel-two"]));
     XCTestExpectation *second = [self expectationWithDescription:@"second settlement"];
     [self.converter settleConversionWithURL:nil error:nil completion:^(NSURL *url, NSError *error) {
         [order addObject:@"request-two"];
         [second fulfill];
     }];
-    [self waitForExpectations:@[second] timeout:1];
+    [self waitForExpectations:@[second] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqualObjects(order, (@[@"request-one", @"cancel-one", @"cancel-two", @"request-two", @"new-cancel"]));
 }
 
@@ -282,7 +282,7 @@ BOOL VibeCopyTagsToFLAC(NSString *source, NSString *output, VibeUncompressedCont
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
             [self.converter settleConversionWithURL:nil error:nil completion:^(NSURL *url, NSError *error) {}];
         });
-        NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:2];
+        NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
         while (!cancelled && deadline.timeIntervalSinceNow > 0) {
             CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.05, true);
         }
@@ -290,7 +290,7 @@ BOOL VibeCopyTagsToFLAC(NSString *source, NSString *output, VibeUncompressedCont
         XCTAssertFalse(self.converter.isConverting);
         [done fulfill];
     });
-    [self waitForExpectations:@[done] timeout:5];
+    [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
 }
 
 - (void)testIdleCancellationCompletesAsynchronously {
@@ -298,7 +298,7 @@ BOOL VibeCopyTagsToFLAC(NSString *source, NSString *output, VibeUncompressedCont
     XCTestExpectation *done = [self expectationWithDescription:@"idle cancel"];
     [self.converter cancelConversionWithCompletion:^{ completions++; [done fulfill]; }];
     XCTAssertEqual(completions, 0u);
-    [self waitForExpectations:@[done] timeout:1];
+    [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(completions, 1u);
 }
 @end

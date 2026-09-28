@@ -190,7 +190,7 @@ static NSArray<NSURL *> *OpenFiles(NSUInteger count) {
 
 // Spins the run loop rather than sleeping, because the deadline fires on main.
 - (void)waitForDeliveryCount:(NSUInteger)count {
-    NSDate *limit = [NSDate dateWithTimeIntervalSinceNow:2.0];
+    NSDate *limit = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
     while (_deliveries.count < count && limit.timeIntervalSinceNow > 0) {
         [NSRunLoop.currentRunLoop runMode:NSDefaultRunLoopMode
                                beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];

@@ -546,7 +546,7 @@ materializationCoordinator:coordinator
         return;
     }
     XCTestExpectation *settled = [self expectationWithDescription:description];
-    CFAbsoluteTime deadline = CFAbsoluteTimeGetCurrent() + 2;
+    CFAbsoluteTime deadline = CFAbsoluteTimeGetCurrent() + VIBE_TEST_HANG_TIMEOUT;
     __block dispatch_block_t poll = nil;
     poll = ^{
         if (condition() || CFAbsoluteTimeGetCurrent() >= deadline) {
@@ -558,7 +558,7 @@ materializationCoordinator:coordinator
                        dispatch_get_main_queue(), poll);
     };
     dispatch_async(dispatch_get_main_queue(), poll);
-    [self waitForExpectations:@[settled] timeout:3];
+    [self waitForExpectations:@[settled] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertTrue(condition(), @"%@", description);
 }
 
@@ -568,7 +568,7 @@ materializationCoordinator:coordinator
                    dispatch_get_main_queue(), ^{
         [elapsed fulfill];
     });
-    [self waitForExpectations:@[elapsed] timeout:delay + 1];
+    [self waitForExpectations:@[elapsed] timeout:delay + VIBE_TEST_HANG_TIMEOUT];
 }
 
 - (void)testStageOneFullyDrainsBeforeExactNeighborhoodOrderedScanStarts {
@@ -620,13 +620,13 @@ materializationCoordinator:coordinator
     [loader setNeighborhoodURLs:@[tracks[2].url, tracks[1].url]];
     [loader load:tracks];
 
-    [self waitForExpectations:@[checksEntered] timeout:2];
+    [self waitForExpectations:@[checksEntered] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(controller.startedURLs.count, 0u,
             @"stage 2 began while stage-1 cache checks were still blocked");
     for (NSUInteger index = 0; index < tracks.count; index++) {
         dispatch_semaphore_signal(cacheGate);
     }
-    [self waitForExpectations:@[controller.allStartsExpectation, parsed] timeout:2];
+    [self waitForExpectations:@[controller.allStartsExpectation, parsed] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqualObjects(controller.startedURLs, (@[
         tracks[2].url, tracks[1].url, tracks[0].url, tracks[3].url
@@ -658,7 +658,7 @@ materializationCoordinator:coordinator
     }];
     [loader setNeighborhoodURLs:@[first.url]];
     [loader load:@[first, second]];
-    [self waitForExpectations:@[controller.firstStartExpectation] timeout:2];
+    [self waitForExpectations:@[controller.firstStartExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
     [self waitForCondition:^BOOL{
         return [[loader debugScanLaneState][@"liveTokens"] unsignedIntegerValue] == 1;
     } description:@"scan token was not installed"];
@@ -675,7 +675,7 @@ materializationCoordinator:coordinator
             @"a scan token must not be reported as a priority token");
 
     [loader cancel];
-    [self waitForExpectations:@[controller.cancellationExpectation] timeout:2];
+    [self waitForExpectations:@[controller.cancellationExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
 }
 
 - (void)testPriorityRecordBypassesStageOneAndIsNotResubmittedByTheScan {
@@ -718,14 +718,14 @@ materializationCoordinator:coordinator
 
     [loader prioritizeTrack:priority];
     [loader load:@[priority, first, second]];
-    [self waitForExpectations:@[controller.firstStartExpectation, ordinaryChecks] timeout:2];
+    [self waitForExpectations:@[controller.firstStartExpectation, ordinaryChecks] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqualObjects(controller.startedURLs, (@[priority.url]));
     XCTAssertEqualObjects(controller.startedRoles,
             (@[@(VibeAudioFileMaterializationRoleMetadataPriority)]));
 
     dispatch_semaphore_signal(cacheGate);
     dispatch_semaphore_signal(cacheGate);
-    [self waitForExpectations:@[controller.allStartsExpectation, parsed] timeout:2];
+    [self waitForExpectations:@[controller.allStartsExpectation, parsed] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqualObjects(controller.startedURLs,
             (@[priority.url, first.url, second.url]));
     XCTAssertEqualObjects(controller.startedRoles, (@[
@@ -761,7 +761,7 @@ materializationCoordinator:coordinator
     }];
 
     [loader load:@[first, removed, last]];
-    [self waitForExpectations:@[controller.firstStartExpectation] timeout:2];
+    [self waitForExpectations:@[controller.firstStartExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     [loader abandonQueuedTrack:removed];
     controller.blocksUntilCancelled = NO;
@@ -810,11 +810,11 @@ materializationCoordinator:coordinator
     }];
 
     [loader load:@[track]];
-    [self waitForExpectations:@[pickEntered] timeout:2];
+    [self waitForExpectations:@[pickEntered] timeout:VIBE_TEST_HANG_TIMEOUT];
     [loader prioritizeTrack:track];
     [loader debugSetBeforeScanPickValidation:nil];
     dispatch_semaphore_signal(pickGate);
-    [self waitForExpectations:@[controller.firstStartExpectation, parsed] timeout:2];
+    [self waitForExpectations:@[controller.firstStartExpectation, parsed] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqualObjects(controller.startedURLs, (@[track.url]));
     XCTAssertEqualObjects(controller.startedRoles,
@@ -838,13 +838,13 @@ materializationCoordinator:coordinator
     }];
 
     [loader load:@[track]];
-    [self waitForExpectations:@[controller.firstStartExpectation] timeout:2];
+    [self waitForExpectations:@[controller.firstStartExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
     [self waitForCondition:^BOOL{
         return [[loader debugScanLaneState][@"liveTokens"] unsignedIntegerValue] == 1;
     } description:@"scan token was not installed"];
     [loader prioritizeTrack:track];
     [controller completeFirstReady];
-    [self waitForExpectations:@[parsed] timeout:2];
+    [self waitForExpectations:@[parsed] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqualObjects(controller.startedRoles,
             (@[@(VibeAudioFileMaterializationRoleMetadataScan)]));
@@ -887,7 +887,7 @@ materializationCoordinator:coordinator
     }];
 
     [loader load:@[blocker, target]];
-    [self waitForExpectations:@[blockerEntered] timeout:2];
+    [self waitForExpectations:@[blockerEntered] timeout:VIBE_TEST_HANG_TIMEOUT];
     [self waitForCondition:^BOOL{
         return [loader debugParseQualityOfServiceForTrack:target]
                 == NSQualityOfServiceUtility;
@@ -898,7 +898,7 @@ materializationCoordinator:coordinator
                    NSQualityOfServiceUserInitiated);
 
     dispatch_semaphore_signal(blockerGate);
-    [self waitForExpectations:@[bothParsed] timeout:2];
+    [self waitForExpectations:@[bothParsed] timeout:VIBE_TEST_HANG_TIMEOUT];
     [self waitForCondition:^BOOL{
         return [loader debugParseQualityOfServiceForTrack:target]
                 == NSQualityOfServiceDefault;
@@ -935,7 +935,7 @@ materializationCoordinator:coordinator
     }];
 
     [loader load:@[target]];
-    [self waitForExpectations:@[parserEntered] timeout:2];
+    [self waitForExpectations:@[parserEntered] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual([loader debugParseQualityOfServiceForTrack:target],
                    NSQualityOfServiceUtility);
 
@@ -946,7 +946,7 @@ materializationCoordinator:coordinator
                    NSQualityOfServiceUserInitiated);
 
     dispatch_semaphore_signal(parserGate);
-    [self waitForExpectations:@[parserReturned] timeout:2];
+    [self waitForExpectations:@[parserReturned] timeout:VIBE_TEST_HANG_TIMEOUT];
     [self waitForCondition:^BOOL{
         return [loader debugParseQualityOfServiceForTrack:target]
                 == NSQualityOfServiceDefault;
@@ -999,10 +999,10 @@ materializationCoordinator:coordinator
     }];
 
     [loader load:@[scanDuplicate]];
-    [self waitForExpectations:@[scanCacheEntered] timeout:2];
+    [self waitForExpectations:@[scanCacheEntered] timeout:VIBE_TEST_HANG_TIMEOUT];
     [loader prioritizeTrack:cachedTarget];
     dispatch_semaphore_signal(scanCacheGate);
-    [self waitForExpectations:@[targetCacheEntered] timeout:2];
+    [self waitForExpectations:@[targetCacheEntered] timeout:VIBE_TEST_HANG_TIMEOUT];
     [self waitForCondition:^BOOL{
         NSDictionary *state = [loader debugScanLaneState];
         return [state[@"stageOneFinished"] boolValue]
@@ -1014,7 +1014,7 @@ materializationCoordinator:coordinator
     dispatch_semaphore_signal(targetCacheGate);
     [self waitForExpectations:@[
         controller.firstStartExpectation, delegate.deliveryExpectation
-    ] timeout:2];
+    ] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqualObjects(controller.startedURLs, (@[scanDuplicate.url]));
     XCTAssertEqualObjects(controller.startedRoles,
@@ -1073,7 +1073,7 @@ materializationCoordinator:coordinator
     [loader load:@[first, second]];
     [self waitForExpectations:@[
         controller.firstStartExpectation, secondCacheEntered
-    ] timeout:2];
+    ] timeout:VIBE_TEST_HANG_TIMEOUT];
     [loader prioritizeTrack:second];
     controller.allStartsExpectation =
             [self expectationWithDescription:@"new target priority started"];
@@ -1087,7 +1087,7 @@ materializationCoordinator:coordinator
     dispatch_semaphore_signal(secondCacheGate);
     [self waitForExpectations:@[
         controller.allStartsExpectation, delegate.deliveryExpectation
-    ] timeout:2];
+    ] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqualObjects(controller.startedURLs, (@[first.url, second.url]));
     XCTAssertEqualObjects(controller.startedRoles, (@[
@@ -1154,16 +1154,16 @@ materializationCoordinator:coordinator
     }];
 
     [loader load:@[scanBlocker, scanDuplicate]];
-    [self waitForExpectations:@[controller.firstStartExpectation] timeout:2];
+    [self waitForExpectations:@[controller.firstStartExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
     controller.allStartsExpectation =
             [self expectationWithDescription:@"target priority started"];
     [loader prioritizeTrack:parseTarget];
-    [self waitForExpectations:@[controller.allStartsExpectation] timeout:2];
+    [self waitForExpectations:@[controller.allStartsExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
     [self waitForCondition:^BOOL{
         return [[loader debugPriorityLaneState][@"liveTokens"] unsignedIntegerValue] == 1;
     } description:@"target priority token was not installed"];
     [controller completeLastReady];
-    [self waitForExpectations:@[parserEntered] timeout:2];
+    [self waitForExpectations:@[parserEntered] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     [loader prioritizeTrack:parseTarget];
     controller.blocksUntilCancelled = NO;
@@ -1180,7 +1180,7 @@ materializationCoordinator:coordinator
     dispatch_semaphore_signal(parserGate);
     [self waitForExpectations:@[
         controller.allStartsExpectation, allParsed, delegate.deliveryExpectation
-    ] timeout:2];
+    ] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqualObjects(controller.startedRoles, (@[
         @(VibeAudioFileMaterializationRoleMetadataScan),
@@ -1215,7 +1215,7 @@ materializationCoordinator:coordinator
     }];
 
     [loader load:@[track]];
-    [self waitForExpectations:@[delegate.deliveryExpectation] timeout:2];
+    [self waitForExpectations:@[delegate.deliveryExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqual(track.metadata, cached);
     XCTAssertEqualObjects(delegate.deliveredTracks, (@[track]));
@@ -1263,14 +1263,14 @@ materializationCoordinator:coordinator
     }];
 
     [loader load:@[first, second]];
-    [self waitForExpectations:@[parserEntered] timeout:2];
+    [self waitForExpectations:@[parserEntered] timeout:VIBE_TEST_HANG_TIMEOUT];
     [self waitForCondition:^BOOL{
         return parseCoordinator.pendingCounts[@"waiters"].unsignedIntegerValue == 1;
     } description:@"duplicate row did not join the parse owner"];
     dispatch_semaphore_signal(parserGate);
     [self waitForExpectations:@[
         controller.allStartsExpectation, delegate.deliveryExpectation
-    ] timeout:2];
+    ] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqual(cacheReads, 3u,
             @"two stage-1 reads plus the owner's post-claim read are required");
@@ -1330,12 +1330,12 @@ materializationCoordinator:coordinator
     }];
 
     [loader load:@[first, second]];
-    [self waitForExpectations:@[secondCacheEntered] timeout:2];
+    [self waitForExpectations:@[secondCacheEntered] timeout:VIBE_TEST_HANG_TIMEOUT];
     [self waitForCondition:^BOOL{
         return parseCoordinator.pendingCounts[@"waiters"].unsignedIntegerValue == 1;
     } description:@"duplicate row did not join while the second cache read was held"];
     dispatch_semaphore_signal(secondCacheGate);
-    [self waitForExpectations:@[delegate.deliveryExpectation] timeout:2];
+    [self waitForExpectations:@[delegate.deliveryExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqual(cacheReads, 4u,
             @"the waiter must retry cache before copying the owner's result");
@@ -1384,12 +1384,12 @@ materializationCoordinator:coordinator
     }];
 
     [loader load:@[first, second]];
-    [self waitForExpectations:@[parserEntered] timeout:2];
+    [self waitForExpectations:@[parserEntered] timeout:VIBE_TEST_HANG_TIMEOUT];
     [self waitForCondition:^BOOL{
         return parseCoordinator.pendingCounts[@"waiters"].unsignedIntegerValue == 1;
     } description:@"fallback waiter did not join the parse owner"];
     dispatch_semaphore_signal(parserGate);
-    [self waitForExpectations:@[delegate.deliveryExpectation] timeout:2];
+    [self waitForExpectations:@[delegate.deliveryExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqual(fileParses, 1u);
     XCTAssertNotNil(first.metadata);
@@ -1437,7 +1437,7 @@ materializationCoordinator:coordinator
     [loader load:@[first, second]];
     [self waitForExpectations:@[
         controller.allStartsExpectation, delegate.deliveryExpectation
-    ] timeout:2];
+    ] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqualObjects(controller.startedURLs,
             (@[first.url, second.url, first.url]));
@@ -1470,7 +1470,7 @@ materializationCoordinator:coordinator
     }];
 
     [loader load:@[track]];
-    [self waitForExpectations:@[controller.allStartsExpectation] timeout:2];
+    [self waitForExpectations:@[controller.allStartsExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
     AudioFileMaterializationCoordinator *coordinator = _coordinators.lastObject;
     [self waitForCondition:^BOOL{
         return [coordinator stateSnapshotForTesting].requestsFailed == 2;
@@ -1505,7 +1505,7 @@ materializationCoordinator:coordinator
     }];
 
     [loader load:duplicates];
-    [self waitForExpectations:@[controller.allStartsExpectation] timeout:2];
+    [self waitForExpectations:@[controller.allStartsExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
     AudioFileMaterializationCoordinator *coordinator = _coordinators.lastObject;
     [self waitForCondition:^BOOL{
         return [coordinator stateSnapshotForTesting].requestsFailed == 2;
@@ -1535,7 +1535,7 @@ materializationCoordinator:coordinator
     [controller setAfterFailureCheck:^{
         [holdDecisionReached fulfill];
         long waitResult = dispatch_semaphore_wait(holdDecisionGate,
-                dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+                dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
         XCTAssertEqual(waitResult, 0L, @"hold decision gate timed out");
     }];
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
@@ -1551,7 +1551,7 @@ materializationCoordinator:coordinator
         [loader load:@[scan, priority]];
         [self waitForExpectations:@[
             controller.firstStartExpectation, holdDecisionReached
-        ] timeout:2];
+        ] timeout:VIBE_TEST_HANG_TIMEOUT];
         [loader prioritizeTrack:priority];
         [self waitForCondition:^BOOL{
             NSDictionary *lane = [loader debugPriorityLaneState];
@@ -1605,7 +1605,7 @@ materializationCoordinator:coordinator
     }];
 
     [loader prioritizeTrack:track];
-    [self waitForExpectations:@[controller.firstStartExpectation] timeout:2];
+    [self waitForExpectations:@[controller.firstStartExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
     [loader prioritizeTrack:track];
     [controller completeFirstFailed];
 
@@ -1662,21 +1662,21 @@ materializationCoordinator:coordinator
         foregroundSettledAt = CFAbsoluteTimeGetCurrent();
         [foregroundCompleted fulfill];
     }];
-    [self waitForExpectations:@[controller.firstStartExpectation] timeout:2];
+    [self waitForExpectations:@[controller.firstStartExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     controller.allStartsExpectation =
             [self expectationWithDescription:@"timer admitted gated scan"];
     AudioTrack *track = [self trackNamed:@"real-timer-scan.wav"];
     [loader load:@[track]];
-    [self waitForExpectations:@[cacheChecked] timeout:2];
+    [self waitForExpectations:@[cacheChecked] timeout:VIBE_TEST_HANG_TIMEOUT];
     [self waitForDelay:0.1];
     XCTAssertEqual(controller.startedURLs.count, 1u,
             @"dataless scan entered while foreground was active");
 
     controller.blocksUntilCancelled = NO;
     [controller completeFirstReady];
-    [self waitForExpectations:@[foregroundCompleted] timeout:2];
-    [self waitForExpectations:@[controller.allStartsExpectation, parsed] timeout:2];
+    [self waitForExpectations:@[foregroundCompleted] timeout:VIBE_TEST_HANG_TIMEOUT];
+    [self waitForExpectations:@[controller.allStartsExpectation, parsed] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertGreaterThanOrEqual(CFAbsoluteTimeGetCurrent() - foregroundSettledAt, 0.65,
             @"scan reopened before the production gated timer fired");
@@ -1715,7 +1715,7 @@ materializationCoordinator:coordinator
         XCTAssertEqual(result, VibeAudioFileMaterializationResultReady);
         [foregroundCompleted fulfill];
     }];
-    [self waitForExpectations:@[controller.firstStartExpectation] timeout:2];
+    [self waitForExpectations:@[controller.firstStartExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     AudioTrack *priority = [self trackNamed:@"yielded-local.wav"];
     [loader prioritizeTrack:priority];
@@ -1737,9 +1737,9 @@ materializationCoordinator:coordinator
     [self markLocal:priority.url];
     controller.blocksUntilCancelled = NO;
     [controller completeFirstReady];
-    [self waitForExpectations:@[foregroundCompleted] timeout:2];
+    [self waitForExpectations:@[foregroundCompleted] timeout:VIBE_TEST_HANG_TIMEOUT];
     [loader recheckForegroundGate];
-    [self waitForExpectations:@[controller.allStartsExpectation, parsed] timeout:2];
+    [self waitForExpectations:@[controller.allStartsExpectation, parsed] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     for (NSUInteger tick = 0; tick < 8; tick++) {
         [loader recheckForegroundGate];
@@ -1782,7 +1782,7 @@ materializationCoordinator:coordinator
         XCTAssertEqual(result, VibeAudioFileMaterializationResultReady);
         [foregroundCompleted fulfill];
     }];
-    [self waitForExpectations:@[controller.firstStartExpectation] timeout:2];
+    [self waitForExpectations:@[controller.firstStartExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     AudioTrack *priority = [self trackNamed:@"yielded-dataless.wav"];
     [loader prioritizeTrack:priority];
@@ -1796,9 +1796,9 @@ materializationCoordinator:coordinator
             [self expectationWithDescription:@"demoted scan started"];
     controller.blocksUntilCancelled = NO;
     [controller completeFirstReady];
-    [self waitForExpectations:@[foregroundCompleted] timeout:2];
+    [self waitForExpectations:@[foregroundCompleted] timeout:VIBE_TEST_HANG_TIMEOUT];
     [loader recheckForegroundGate];
-    [self waitForExpectations:@[controller.allStartsExpectation, parsed] timeout:2];
+    [self waitForExpectations:@[controller.allStartsExpectation, parsed] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     for (NSUInteger tick = 0; tick < 8; tick++) {
         [loader recheckForegroundGate];
@@ -1842,7 +1842,7 @@ materializationCoordinator:coordinator
                              NSError *error, NSTimeInterval elapsed) {
         [foregroundCompleted fulfill];
     }];
-    [self waitForExpectations:@[controller.firstStartExpectation] timeout:2];
+    [self waitForExpectations:@[controller.firstStartExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     AudioTrack *priority = [self trackNamed:@"idle-kick-dataless.wav"];
     [loader prioritizeTrack:priority];
@@ -1857,9 +1857,9 @@ materializationCoordinator:coordinator
             [self expectationWithDescription:@"idle kick started ordinary scan"];
     controller.blocksUntilCancelled = NO;
     [controller completeFirstReady];
-    [self waitForExpectations:@[foregroundCompleted] timeout:2];
+    [self waitForExpectations:@[foregroundCompleted] timeout:VIBE_TEST_HANG_TIMEOUT];
     [loader setNeighborhoodURLs:@[priority.url]];
-    [self waitForExpectations:@[controller.allStartsExpectation, parsed] timeout:2];
+    [self waitForExpectations:@[controller.allStartsExpectation, parsed] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqualObjects(controller.startedRoles, (@[
         @(VibeAudioFileMaterializationRolePlayback),
@@ -1895,7 +1895,7 @@ materializationCoordinator:coordinator
                              NSError *error, NSTimeInterval elapsed) {
         [firstCompleted fulfill];
     }];
-    [self waitForExpectations:@[controller.firstStartExpectation] timeout:2];
+    [self waitForExpectations:@[controller.firstStartExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     AudioTrack *priority = [self trackNamed:@"same-path-repeat.wav"];
     [loader prioritizeTrack:priority];
@@ -1908,7 +1908,7 @@ materializationCoordinator:coordinator
     controller.allStartsExpectation =
             [self expectationWithDescription:@"same-path playback started"];
     [controller completeFirstReady];
-    [self waitForExpectations:@[firstCompleted] timeout:2];
+    [self waitForExpectations:@[firstCompleted] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTestExpectation *samePathCompleted =
             [self expectationWithDescription:@"same-path playback completed"];
     __unused AudioFileMaterializationRequestToken *samePathToken = [coordinator
@@ -1919,7 +1919,7 @@ materializationCoordinator:coordinator
                              NSError *error, NSTimeInterval elapsed) {
         [samePathCompleted fulfill];
     }];
-    [self waitForExpectations:@[controller.allStartsExpectation] timeout:2];
+    [self waitForExpectations:@[controller.allStartsExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     [loader prioritizeTrack:priority];
     [self waitForCondition:^BOOL{
@@ -1932,7 +1932,7 @@ materializationCoordinator:coordinator
     } description:@"repeat edge did not join the active same-path claim"];
 
     [controller completeLastReady];
-    [self waitForExpectations:@[samePathCompleted, parsed] timeout:2];
+    [self waitForExpectations:@[samePathCompleted, parsed] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqualObjects(controller.startedRoles, (@[
         @(VibeAudioFileMaterializationRolePlayback),
@@ -1973,7 +1973,7 @@ materializationCoordinator:coordinator
         XCTAssertEqual(result, VibeAudioFileMaterializationResultReady);
         [foregroundCompleted fulfill];
     }];
-    [self waitForExpectations:@[controller.firstStartExpectation] timeout:2];
+    [self waitForExpectations:@[controller.firstStartExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     AudioTrack *priority = [self trackNamed:@"priority-generation.wav"];
     [loader prioritizeTrack:priority];
@@ -2006,13 +2006,13 @@ materializationCoordinator:coordinator
 
     controller.blocksUntilCancelled = NO;
     [controller completeFirstReady];
-    [self waitForExpectations:@[foregroundCompleted, probeEntered] timeout:2];
+    [self waitForExpectations:@[foregroundCompleted, probeEntered] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     controller.allStartsExpectation =
             [self expectationWithDescription:@"fresh priority mark retried"];
     [loader prioritizeTrack:priority];
     dispatch_semaphore_signal(probeGate);
-    [self waitForExpectations:@[controller.allStartsExpectation, parsed] timeout:2];
+    [self waitForExpectations:@[controller.allStartsExpectation, parsed] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqualObjects(controller.startedURLs, (@[
         [self URLNamed:@"foreground-priority-generation.wav"], priority.url
@@ -2047,7 +2047,7 @@ materializationCoordinator:coordinator
                              NSError *error, NSTimeInterval elapsed) {
         [foregroundCompleted fulfill];
     }];
-    [self waitForExpectations:@[controller.firstStartExpectation] timeout:2];
+    [self waitForExpectations:@[controller.firstStartExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     AudioTrack *priority = [self trackNamed:@"yielded-cancel.wav"];
     [loader prioritizeTrack:priority];
@@ -2060,7 +2060,7 @@ materializationCoordinator:coordinator
 
     controller.blocksUntilCancelled = NO;
     [controller completeFirstReady];
-    [self waitForExpectations:@[foregroundCompleted] timeout:2];
+    [self waitForExpectations:@[foregroundCompleted] timeout:VIBE_TEST_HANG_TIMEOUT];
     for (NSUInteger tick = 0; tick < 8; tick++) {
         [loader recheckForegroundGate];
     }
@@ -2100,7 +2100,7 @@ materializationCoordinator:coordinator
            completionQueue:completionQueue
                 completion:^(VibeAudioFileMaterializationResult result,
                              NSError *error, NSTimeInterval elapsed) {}];
-    [self waitForExpectations:@[controller.firstStartExpectation] timeout:2];
+    [self waitForExpectations:@[controller.firstStartExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
     AudioFileMaterializationRequestToken *pending = [coordinator
             materializeURL:[self URLNamed:@"pending-background.wav"]
                       role:VibeAudioFileMaterializationRoleMetadataScan
@@ -2173,7 +2173,7 @@ materializationCoordinator:coordinator
         XCTAssertEqual(result, VibeAudioFileMaterializationResultReady);
         [runningCompleted fulfill];
     }];
-    [self waitForExpectations:@[controller.firstStartExpectation] timeout:2];
+    [self waitForExpectations:@[controller.firstStartExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
     AudioFileMaterializationRequestToken *pending = [coordinator
             materializeURL:[self URLNamed:@"retry-pending-background.wav"]
                       role:VibeAudioFileMaterializationRoleMetadataScan
@@ -2202,10 +2202,10 @@ materializationCoordinator:coordinator
     } description:@"cancelled pending claim retained its capacity"];
     controller.blocksUntilCancelled = NO;
     [controller completeFirstReady];
-    [self waitForExpectations:@[runningCompleted] timeout:2];
+    [self waitForExpectations:@[runningCompleted] timeout:VIBE_TEST_HANG_TIMEOUT];
     [self waitForExpectations:@[
         controller.allStartsExpectation, delegate.deliveryExpectation
-    ] timeout:2];
+    ] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqual(parseCount, 1u);
     XCTAssertTrue(target.metadata.parsedOK);
@@ -2240,9 +2240,9 @@ materializationCoordinator:coordinator
         [self trackNamed:@"old-one.wav"],
         [self trackNamed:@"old-two.wav"],
     ]];
-    [self waitForExpectations:@[oldController.firstStartExpectation] timeout:2];
+    [self waitForExpectations:@[oldController.firstStartExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
     [oldLoader cancel];
-    [self waitForExpectations:@[oldController.cancellationExpectation] timeout:2];
+    [self waitForExpectations:@[oldController.cancellationExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     VibeMetadataLoaderOperationController *newController =
             [[VibeMetadataLoaderOperationController alloc] init];
@@ -2255,14 +2255,14 @@ materializationCoordinator:coordinator
         return VibeLoaderTestMetadataResult(YES, url.lastPathComponent);
     }];
     [replacement load:@[[self trackNamed:@"new.wav"]]];
-    [self waitForExpectations:@[newController.firstStartExpectation, replacementParsed] timeout:2];
+    [self waitForExpectations:@[newController.firstStartExpectation, replacementParsed] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTestExpectation *oldCallbackDrained = [self expectationWithDescription:@"old callback drained"];
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 50 * NSEC_PER_MSEC),
                    dispatch_get_main_queue(), ^{
         [oldCallbackDrained fulfill];
     });
-    [self waitForExpectations:@[oldCallbackDrained] timeout:1];
+    [self waitForExpectations:@[oldCallbackDrained] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(oldController.startedURLs.count, 1u,
             @"cancelled loader admitted another pending record");
 }

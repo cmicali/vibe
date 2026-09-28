@@ -84,10 +84,10 @@
             }
         }];
     }];
-    [self waitForExpectations:@[reported] timeout:3];
+    [self waitForExpectations:@[reported] timeout:VIBE_TEST_HANG_TIMEOUT];
     [self onMain:^{ [monitor cancel]; }];
     [materializer cancel];
-    [self waitForExpectations:@[transferFinished] timeout:3];
+    [self waitForExpectations:@[transferFinished] timeout:VIBE_TEST_HANG_TIMEOUT];
     return first;
 }
 
@@ -183,7 +183,7 @@
             XCTAssertNil(error);
             [ready fulfill];
         }];
-        [self waitForExpectations:@[ready] timeout:1];
+        [self waitForExpectations:@[ready] timeout:VIBE_TEST_HANG_TIMEOUT];
     }
 
     NSArray<NSDictionary *> *requests = [[VibeFakeCloud traceEvents]
@@ -269,13 +269,13 @@
         return [[VibeFakeCloud statistics][@"queued"] unsignedIntegerValue] == 1;
     } timeout:3]);
     [queued cancel];
-    [self waitForExpectations:@[queuedFinished] timeout:3];
+    [self waitForExpectations:@[queuedFinished] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     NSDictionary *whileFirstRuns = [VibeFakeCloud statistics];
     XCTAssertEqualObjects(whileFirstRuns[@"executing"], @1);
     XCTAssertEqualObjects(whileFirstRuns[@"queued"], @0);
     [first cancel];
-    [self waitForExpectations:@[firstFinished] timeout:3];
+    [self waitForExpectations:@[firstFinished] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertFalse(firstReady);
     XCTAssertEqualObjects(firstError.domain, NSCocoaErrorDomain);
@@ -404,7 +404,7 @@
 
     [playback cancel];
     [metadata cancel];
-    [self waitForExpectations:@[playbackFinished, metadataFinished] timeout:3];
+    [self waitForExpectations:@[playbackFinished, metadataFinished] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertFalse(playbackReady);
     XCTAssertEqualObjects(playbackError.domain, NSCocoaErrorDomain);
@@ -480,7 +480,7 @@
 
         [foreground cancel];
         [metadata cancel];
-        [self waitForExpectations:@[foregroundFinished, metadataFinished] timeout:3];
+        [self waitForExpectations:@[foregroundFinished, metadataFinished] timeout:VIBE_TEST_HANG_TIMEOUT];
         XCTAssertFalse(foregroundReady);
         XCTAssertEqualObjects(foregroundError.domain, NSCocoaErrorDomain);
         XCTAssertEqual(foregroundError.code, NSUserCancelledError);

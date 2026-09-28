@@ -67,7 +67,7 @@
 - (void)drainMainQueue {
     XCTestExpectation *drained = [self expectationWithDescription:@"main drained"];
     dispatch_async(dispatch_get_main_queue(), ^{ [drained fulfill]; });
-    [self waitForExpectations:@[drained] timeout:1];
+    [self waitForExpectations:@[drained] timeout:VIBE_TEST_HANG_TIMEOUT];
 }
 
 - (void)testBeginAndEndPairKeyedByStandardizedPath {

@@ -312,13 +312,13 @@ static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
     });
 
     XCTAssertEqual(dispatch_semaphore_wait(
-            cacheRead, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+            cacheRead, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
     XCTAssertTrue([track installMetadataIfUnresolved:(AudioTrackMetadata *)adopted]);
     @synchronized (track) {
         publications++;
     }
     dispatch_semaphore_signal(allowCacheInstall);
-    [self waitForExpectations:@[cacheAttemptFinished] timeout:1];
+    [self waitForExpectations:@[cacheAttemptFinished] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertFalse(cacheInstalled);
     XCTAssertEqual(track.metadata, (AudioTrackMetadata *)adopted);
@@ -351,7 +351,7 @@ static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
     });
 
     XCTAssertEqual(dispatch_semaphore_wait(
-            fallbackEnqueued, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+            fallbackEnqueued, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
     XCTAssertTrue([track installMetadataIfUnresolved:(AudioTrackMetadata *)cached]);
     dispatch_async(dispatch_get_main_queue(), ^{
         BOOL delivered = [track
@@ -361,7 +361,7 @@ static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
         [cacheDelivered fulfill];
     });
 
-    [self waitForExpectations:@[fallbackAttempted, cacheDelivered] timeout:1];
+    [self waitForExpectations:@[fallbackAttempted, cacheDelivered] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertFalse(fallbackWasDelivered);
     XCTAssertEqual(track.metadata, (AudioTrackMetadata *)cached);
     XCTAssertEqual(publications, 1u);
@@ -387,7 +387,7 @@ static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
             dispatch_semaphore_signal(installerFinished);
         });
         XCTAssertEqual(dispatch_semaphore_wait(
-                installerStarted, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+                installerStarted, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
         XCTAssertNotEqual(dispatch_semaphore_wait(installerFinished,
                 dispatch_time(DISPATCH_TIME_NOW, 50 * NSEC_PER_MSEC)), 0);
         XCTAssertEqual(track.metadata, (AudioTrackMetadata *)fallback);
@@ -395,7 +395,7 @@ static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
 
     XCTAssertTrue(fallbackDelivered);
     XCTAssertEqual(dispatch_semaphore_wait(
-            installerFinished, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+            installerFinished, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
     XCTAssertTrue(cacheInstalled);
     XCTAssertEqual(track.metadata, (AudioTrackMetadata *)cached);
 }

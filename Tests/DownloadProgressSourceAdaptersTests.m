@@ -183,7 +183,7 @@
     dispatch_async(dispatch_get_main_queue(), ^{
         drained = YES;
     });
-    [self runMainLoopUntil:&drained timeout:1];
+    [self runMainLoopUntil:&drained timeout:VIBE_TEST_HANG_TIMEOUT];
 }
 
 - (void)testAllocatedFileReportsMaterializedAtOne {
@@ -203,7 +203,7 @@
     }];
     [_sources addObject:source];
     [source start];
-    [self runMainLoopUntil:&reported timeout:3];
+    [self runMainLoopUntil:&reported timeout:VIBE_TEST_HANG_TIMEOUT];
 }
 
 - (void)testSparseFileReportsPartialAllocationWithoutClaimingMaterialized {
@@ -232,7 +232,7 @@
     }];
     [_sources addObject:source];
     [source start];
-    [self runMainLoopUntil:&reported timeout:3];
+    [self runMainLoopUntil:&reported timeout:VIBE_TEST_HANG_TIMEOUT];
 }
 
 - (void)testEmptyFilePublishesNoMisleadingFraction {

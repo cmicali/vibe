@@ -78,7 +78,7 @@
         decoded = image;
         [completed fulfill];
     }]);
-    [self waitForExpectations:@[completed] timeout:2.0];
+    [self waitForExpectations:@[completed] timeout:VIBE_TEST_HANG_TIMEOUT];
     return decoded;
 }
 
@@ -230,7 +230,7 @@
         return [subject.cachedThumbnail isEqual:self->_folderCover];
     }];
     [self expectationForPredicate:resolved evaluatedWithObject:artwork handler:nil];
-    [self waitForExpectationsWithTimeout:5.0 handler:nil];
+    [self waitForExpectationsWithTimeout:VIBE_TEST_HANG_TIMEOUT handler:nil];
 }
 
 // The iOS-written entry archives no thumbnail; the has-art flag is the only
@@ -429,11 +429,11 @@
         [staleExtractionFinished fulfill];
     });
     XCTAssertEqual(dispatch_semaphore_wait(extractionStarted,
-                                           dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+                                           dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
 
     [artwork discardDecodedArt];
     dispatch_semaphore_signal(finishStaleExtraction);
-    [self waitForExpectations:@[staleExtractionFinished] timeout:2.0];
+    [self waitForExpectations:@[staleExtractionFinished] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     for (NSUInteger attempt = 0; attempt < 3; attempt++) {
         XCTAssertNil([artwork loadArtBlocking]);
@@ -554,12 +554,12 @@
         [completed fulfill];
     }]);
     XCTAssertEqual(dispatch_semaphore_wait(decoderStarted,
-                                           dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+                                           dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
     XCTAssertFalse([artwork requestEmbeddedThumbnailDecodeWithCompletion:^(NSImage *image) {
         XCTFail(@"a duplicate request owns no second completion");
     }]);
     os_unfair_lock_unlock(decoderGatePointer);
-    [self waitForExpectations:@[completed] timeout:2.0];
+    [self waitForExpectations:@[completed] timeout:VIBE_TEST_HANG_TIMEOUT];
     [countLock lock];
     NSUInteger finalDecodeCount = decodeCount;
     [countLock unlock];
@@ -607,7 +607,7 @@
         return departed == nil;
     }];
     [self waitForExpectations:@[[[XCTNSPredicateExpectation alloc] initWithPredicate:gone object:nil]]
-                      timeout:5.0];
+                      timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(AudioTrackArtwork.decodedThumbnailCacheCountForTesting, cached - 1);
 }
 
@@ -651,14 +651,14 @@
         [secondCompleted fulfill];
     }]);
     XCTAssertEqual(dispatch_semaphore_wait(decoderStarted,
-                                           dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+                                           dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
     XCTAssertEqual(dispatch_semaphore_wait(decoderStarted,
-                                           dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+                                           dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
     // In-flight pixels are not cache entries; the retained set stays full.
     XCTAssertEqual([AudioTrackArtwork decodedThumbnailCacheCountForTesting], limit);
 
     os_unfair_lock_unlock(decoderGatePointer);
-    [self waitForExpectations:@[firstCompleted, secondCompleted] timeout:2.0];
+    [self waitForExpectations:@[firstCompleted, secondCompleted] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual([AudioTrackArtwork decodedThumbnailCacheCountForTesting], limit);
     XCTAssertTrue(first.decodedThumbnailIsCachedForTesting);
     XCTAssertTrue(second.decodedThumbnailIsCachedForTesting);
@@ -721,7 +721,7 @@
         [staleCompleted fulfill];
     }]);
     XCTAssertEqual(dispatch_semaphore_wait(staleDecodeStarted,
-                                           dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
+                                           dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
 
     [artwork adoptParsedArtData:freshBytes];
     XCTestExpectation *freshCompleted = [self expectationWithDescription:@"fresh decode"];
@@ -731,7 +731,7 @@
     }], @"the rotation must hand single-flight to the new data's request");
 
     os_unfair_lock_unlock(staleGatePointer);
-    [self waitForExpectations:@[staleCompleted, freshCompleted] timeout:2.0];
+    [self waitForExpectations:@[staleCompleted, freshCompleted] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqualObjects(artwork.cachedThumbnail, freshImage);
 }
 
@@ -746,7 +746,7 @@
         XCTAssertNil(image);
         [failed fulfill];
     }]);
-    [self waitForExpectations:@[failed] timeout:2.0];
+    [self waitForExpectations:@[failed] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertNil(artwork.encodedThumbnailDataForStorage,
                  @"the corrupt compact bytes must not be re-archived");
     XCTAssertTrue(artwork.hasEmbeddedArt, @"the file still carries art; only the copy was bad");
@@ -765,7 +765,7 @@
         XCTAssertNil(image);
         [failed fulfill];
     }]);
-    [self waitForExpectations:@[failed] timeout:2.0];
+    [self waitForExpectations:@[failed] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertFalse([artwork requestEmbeddedThumbnailDecodeWithCompletion:^(NSImage *image) {
         XCTFail(@"no bytes remain to decode");
     }]);
