@@ -10,7 +10,7 @@
 #include <new>
 #include <vector>
 
-// The bus's decode chunk: the most one proc call answers.
+// The bus's decode chunk: the most one input call answers.
 static const int kVibeMaxInput = 4096;
 // The 24-bit preset (180 dB stopband) with a 1% transition band, half
 // upstream's default: −0.1 dB at 21.72 kHz from 44.1, for about 20% more cost
@@ -21,13 +21,13 @@ struct VibeConverter {
     // One per channel, identically configured, so every channel produces the
     // same count per call.
     std::vector<CR8BResampler> channels;
-    std::vector<double> widened;   // one channel's input
+    std::vector<const float *> input; // where the input proc points each channel
+    std::vector<double> widened;      // one channel's input
     // Each channel's last output, r8brain's own buffer: valid until that
     // channel's next process call, so it is handed out before the next pull.
     std::vector<double *> produced;
     size_t producedStart = 0;
     size_t producedCount = 0;
-    std::vector<uint8_t> inputList; // the AudioBufferList the proc points at its data
 
     ~VibeConverter() {
         for (CR8BResampler channel : channels) {
@@ -36,10 +36,8 @@ struct VibeConverter {
     }
 };
 
-VibeConverter *VibeConverterCreate(const AudioStreamBasicDescription *from, const AudioStreamBasicDescription *to) {
-    UInt32 channels = to->mChannelsPerFrame;
-    if (from->mChannelsPerFrame == 0 || from->mChannelsPerFrame != channels
-            || from->mSampleRate <= 0 || to->mSampleRate <= 0) {
+VibeConverter *VibeConverterCreate(double fromRate, double toRate, uint32_t channels) {
+    if (channels == 0 || fromRate <= 0 || toRate <= 0) {
         return NULL;
     }
     VibeConverter *converter = new (std::nothrow) VibeConverter();
@@ -47,13 +45,12 @@ VibeConverter *VibeConverterCreate(const AudioStreamBasicDescription *from, cons
         return NULL;
     }
     try {
-        for (UInt32 c = 0; c < channels; c++) {
-            converter->channels.push_back(r8b_create(from->mSampleRate, to->mSampleRate, kVibeMaxInput,
-                                                     kVibeR8TransitionBand, r8brr24));
+        for (uint32_t c = 0; c < channels; c++) {
+            converter->channels.push_back(r8b_create(fromRate, toRate, kVibeMaxInput, kVibeR8TransitionBand, r8brr24));
         }
+        converter->input.assign(channels, nullptr);
         converter->widened.resize(kVibeMaxInput);
         converter->produced.assign(channels, nullptr);
-        converter->inputList.assign(offsetof(AudioBufferList, mBuffers) + channels * sizeof(AudioBuffer), 0);
     }
     catch (const std::bad_alloc &) {
         delete converter;
@@ -66,50 +63,36 @@ void VibeConverterDispose(VibeConverter *converter) {
     delete converter;
 }
 
-NSDictionary<NSString *, id> *VibeConverterReport(const VibeConverter *converter) {
-    return @{ @"algorithm": @"r8brain-free-src" };
-}
-
-OSStatus VibeConverterFill(VibeConverter *converter, AudioConverterComplexInputDataProc proc, void *userData,
-                           UInt32 *ioFrames, AudioBufferList *output) {
-    UInt32 wanted = *ioFrames, filled = 0, channels = (UInt32)converter->channels.size();
-    OSStatus status = noErr;
+uint32_t VibeConverterFill(VibeConverter *converter, VibeConverterInputProc input, void *userData, uint32_t frames,
+                           float *const *output) {
+    uint32_t filled = 0, channels = (uint32_t)converter->channels.size();
     for (;;) {
-        size_t take = MIN(converter->producedCount, (size_t)(wanted - filled));
-        for (UInt32 c = 0; c < channels; c++) {
-            vDSP_vdpsp(converter->produced[c] + converter->producedStart, 1,
-                       (float *)output->mBuffers[c].mData + filled, 1, take);
+        size_t take = MIN(converter->producedCount, (size_t)(frames - filled));
+        for (uint32_t c = 0; c < channels; c++) {
+            vDSP_vdpsp(converter->produced[c] + converter->producedStart, 1, output[c] + filled, 1, take);
         }
-        filled += (UInt32)take;
+        filled += (uint32_t)take;
         converter->producedStart += take;
         converter->producedCount -= take;
-        if (filled == wanted) {
+        if (filled == frames) {
             break;
         }
-        AudioBufferList *input = (AudioBufferList *)converter->inputList.data();
-        input->mNumberBuffers = channels;
-        for (UInt32 c = 0; c < channels; c++) {
-            input->mBuffers[c] = (AudioBuffer){ 1, 0, NULL };
-        }
-        UInt32 packets = kVibeMaxInput;
-        // The proc's converter argument is nonnull and the bus's proc never
-        // reads it; this handle stands in.
-        status = proc((AudioConverterRef)(void *)converter, &packets, input, NULL, userData);
-        if (status != noErr || packets == 0) {
+        // TRAP: MIN here can be <sys/param.h>'s, which evaluates its
+        // arguments twice: wrapped around the input call, a pull that
+        // answered under the maximum (a file's last read) read again and
+        // lost it, breaking every gapless boundary (measured).
+        uint32_t fed = input(userData, kVibeMaxInput, converter->input.data());
+        fed = MIN(fed, (uint32_t)kVibeMaxInput);
+        if (fed == 0) {
             break;
         }
-        packets = MIN(packets, (UInt32)kVibeMaxInput);
         int count = 0;
-        for (UInt32 c = 0; c < channels; c++) {
-            vDSP_vspdp((const float *)input->mBuffers[c].mData, 1, converter->widened.data(), 1, packets);
-            count = r8b_process(converter->channels[c], converter->widened.data(), (int)packets, converter->produced[c]);
+        for (uint32_t c = 0; c < channels; c++) {
+            vDSP_vspdp(converter->input[c], 1, converter->widened.data(), 1, fed);
+            count = r8b_process(converter->channels[c], converter->widened.data(), (int)fed, converter->produced[c]);
         }
         converter->producedStart = 0;
         converter->producedCount = (size_t)count;
     }
-    for (UInt32 c = 0; c < output->mNumberBuffers; c++) {
-        output->mBuffers[c].mDataByteSize = filled * sizeof(float);
-    }
-    *ioFrames = filled;
-    return status;
+    return filled;
 }

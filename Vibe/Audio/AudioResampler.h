@@ -4,16 +4,13 @@
 //
 //  The voice bus's sample-rate converter: r8brain-free-src
 //  (Vibe/ThirdParty/r8brain), linear phase, its 24-bit preset, a 1% transition
-//  band, behind one fill in AudioConverterFillComplexBuffer's shape: float32
-//  non-interleaved in and out, the proc pulled until a fill is met or the proc
-//  answers no packets, which ends the fill with what it produced and leaves
-//  the filter primed; a nonzero status ends it and is returned. It is never
-//  told the stream's end: N frames fed come out as round(N × ratio) once
-//  pushed through with silence, as the bus's flush does. Decode queue only;
-//  not realtime.
+//  band. A fill pulls float32 input through a callback until it has the frames
+//  it was asked for or the callback answers none, which ends the fill with
+//  what it produced and leaves the filter primed. It is never told the
+//  stream's end: N frames fed come out as round(N × ratio) once pushed through
+//  with silence, as the bus's flush does. Decode queue only; not realtime.
 //
 
-#import <AudioToolbox/AudioToolbox.h>
 #import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -25,18 +22,18 @@ extern "C" {
 
 typedef struct VibeConverter VibeConverter;
 
-// Float32 non-interleaved `from` to `to`, the same channel count. NULL when
-// the converter could not be made.
-VibeConverter *_Nullable VibeConverterCreate(const AudioStreamBasicDescription *from, const AudioStreamBasicDescription *to);
+// Points `channels[c]` at up to `maxFrames` frames of each channel's float32
+// input, valid until the next call, and returns how many; 0 is none for now.
+typedef uint32_t (*VibeConverterInputProc)(void *_Nullable userData, uint32_t maxFrames,
+                                           const float *_Nullable *_Nonnull channels);
+
+// NULL when the converter could not be made.
+VibeConverter *_Nullable VibeConverterCreate(double fromRate, double toRate, uint32_t channels);
 void VibeConverterDispose(VibeConverter *converter);
 
-// The proc is asked for at most 4096 packets; its converter argument is not an
-// AudioConverterRef and must not be used.
-OSStatus VibeConverterFill(VibeConverter *converter, AudioConverterComplexInputDataProc proc, void *_Nullable userData,
-                           UInt32 *ioFrames, AudioBufferList *output);
-
-// For the audio-path report: the `algorithm`.
-NSDictionary<NSString *, id> *VibeConverterReport(const VibeConverter *converter);
+// Up to `frames` into `output`, one buffer per channel; returns the frames made.
+uint32_t VibeConverterFill(VibeConverter *converter, VibeConverterInputProc input, void *_Nullable userData,
+                           uint32_t frames, float *const _Nonnull *_Nonnull output);
 
 #ifdef __cplusplus
 }

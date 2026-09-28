@@ -1696,14 +1696,8 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
         VibeVoiceID voice = [self startFile:[self open:full] gain:1 ramp:[self unity] paused:NO];
         NSData *clean = [self renderUntilEnded:voice blockSize:256 limit:500000];
         XCTAssertEqual([self endedSnapshot:voice].endOfStream, end, @"%@", pair);
-        XCTAssertGreaterThanOrEqual(clean.length, reference.length);
-        const float *actual = clean.bytes;
-        double cleanPeak = 0;
-        for (NSUInteger sample = 0; sample < end * 2; sample++) {
-            XCTAssertTrue(isfinite(actual[sample]));
-            cleanPeak = MAX(cleanPeak, fabs(actual[sample] - expected[sample]));
-        }
-        XCTAssertEqual(cleanPeak, 0, @"%@ whole file against the reference", pair);
+        XCTAssertTrue(clean.length >= reference.length && memcmp(clean.bytes, expected, reference.length) == 0,
+                      @"%@ whole file against the reference", pair);
         for (NSNumber *late in @[@NO, @YES]) {
             for (NSNumber *block in @[@63, @1024, @4096]) {
                 [self makeBusAtRate:busRate channels:2];
@@ -1849,17 +1843,6 @@ static double ToneAmplitude(const float *interleaved, NSUInteger channels, NSUIn
         XCTAssertEqual([_bus slotCountInState:VibeVoiceStateDead], 0u);
     }
     @finally { method_setImplementation(method, original); imp_removeBlock(replacement); }
-}
-
-- (void)testConverterOutputFailureIsNotEOF {
-    AudioFileHandle *file = [self open:[self writePCM:[self noiseFrames:1000 channels:2 seed:9]
-            rate:44100 channels:2 name:@"converter-refused.wav"]];
-    [self makeBusAtRate:kRate channels:2];
-    [_bus debugRefuseConversion:YES];
-    VibeVoiceID voice = [self startFile:file gain:1 ramp:[self unity] paused:NO];
-    [self render:256 into:nil];
-    XCTAssertTrue([self hasEnded:voice]);
-    XCTAssertEqual(_endedErrors[@(voice)].code, kAudio_ParamError);
 }
 
 @end

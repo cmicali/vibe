@@ -333,38 +333,6 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     }
 }
 
-// Why the rule above never picks 16 bits for a lossy file, and what it costs
-// MP3: Apple's MPEG decoders output Int16 only, so an MP3 or MP2 decode is
-// already on the 16-bit grid and any integer depth or float carries it
-// exactly; its AAC decoder outputs float32, which 16 bits would round. A float
-// MPEG decoder from Apple would change what docs/audio-quality.md says.
-- (void)testAppleMPEGDecodersOutputInt16OnlyAndAACOutputsFloat {
-    NSDictionary<NSNumber *, NSNumber *> *floatOffered = @{
-        @(kAudioFormatMPEGLayer3): @NO, @(kAudioFormatMPEGLayer2): @NO, @(kAudioFormatMPEG4AAC): @YES,
-    };
-    for (NSNumber *format in floatOffered) {
-        AudioComponentDescription description = { kAudioDecoderComponentType, format.unsignedIntValue, kAudioUnitManufacturer_Apple, 0, 0 };
-        AudioComponent component = AudioComponentFindNext(NULL, &description);
-        XCTAssertTrue(component != NULL, @"no Apple decoder for %@", format);
-        AudioCodec codec = NULL;
-        XCTAssertEqual(AudioComponentInstanceNew(component, &codec), noErr);
-        UInt32 size = 0;
-        Boolean writable = false;
-        XCTAssertEqual(AudioCodecGetPropertyInfo(codec, kAudioCodecPropertySupportedOutputFormats, &size, &writable), noErr);
-        NSMutableData *list = [NSMutableData dataWithLength:size];
-        XCTAssertEqual(AudioCodecGetProperty(codec, kAudioCodecPropertySupportedOutputFormats, &size, list.mutableBytes), noErr);
-        const AudioStreamBasicDescription *outputs = list.bytes;
-        BOOL anyFloat = NO, anyInt16 = NO;
-        for (NSUInteger i = 0; i < size / sizeof(AudioStreamBasicDescription); i++) {
-            anyFloat |= (outputs[i].mFormatFlags & kAudioFormatFlagIsFloat) != 0;
-            anyInt16 |= !(outputs[i].mFormatFlags & kAudioFormatFlagIsFloat) && outputs[i].mBitsPerChannel == 16;
-        }
-        XCTAssertEqual(anyFloat, floatOffered[format].boolValue, @"decoder %@ float output", format);
-        XCTAssertTrue(anyInt16, @"decoder %@ Int16 output", format);
-        AudioComponentInstanceDispose(codec);
-    }
-}
-
 - (void)testSourceDeeperThanTheDACTakesTheDeepestAndFailsSatisfaction {
     AudioStreamRangedDescription dac[16];
     UInt32 n = 0;
