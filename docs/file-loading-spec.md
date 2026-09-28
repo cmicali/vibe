@@ -324,7 +324,7 @@ H policy numbers · I platform differences · J open items · K non-goals.
   on SMB, NFS, or a sleeping external disk can hold its transfer lane indefinitely;
   metadata and artwork callers have no deadline that guarantees cancellation. A fix
   needs explicit slow-volume, caller-deadline, and retry policy; see the
-  [bug record](bugs/no-deadline-on-a-running-materialization.md).
+  [bug record](https://github.com/cmicali/vibe/issues/96).
 - **J10. Deferred readability items (OPEN, no behavior at stake).** Two were set
   aside by the file-load refactor: `AudioTrackArtwork`'s extraction-state
   booleans could be one enum, but `_embeddedExtractionInFlight` survived
