@@ -101,7 +101,7 @@ dr_mp3 is about twice as fast. Both are tiny compared with the resampler.
 
 ## How to use it
 
-- **Mac:** Settings > Advanced > MP3 decoder: Apple (default) or dr_mp3. A change applies from the next track, because a file already open keeps its decoder.
+- **Mac:** Settings > Advanced > MP3 decoder: "Apple (default)" or "dr_mp3 (best)". The hint under it says "Changes applied from next track", because a file already open keeps its decoder.
 - **iOS:** no setting. It always uses Apple's decoder.
 - **Debug builds:** `set_decoder apple` or `set_decoder dr_mp3` overrides the choice for the session, on both platforms. `dump_audio_path` shows which decoder is in use.
 
