@@ -1132,11 +1132,12 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     voice = [self startFile:[self open:a] gain:1 ramp:[self unity] paused:NO];
     if (late) {
         // The whole file is decoded, and the stream is still open for a
-        // successor: the mastering resampler holds its filter's length of
-        // the tail back until one arrives or the stream flushes.
+        // successor: the resampler holds its filter's length of the tail
+        // back, under a chunk for either, until one arrives or the stream
+        // flushes.
         [_bus fillInline];
         uint64_t written = [_bus snapshotOfVoice:voice].written;
-        XCTAssertGreaterThan(written, 24000u - 2048);
+        XCTAssertGreaterThan(written, 24000u - 4096);
         XCTAssertLessThanOrEqual(written, 24000u + 64);
         XCTAssertEqual([_bus snapshotOfVoice:voice].endOfStream, UINT64_MAX);
     }
@@ -1215,19 +1216,33 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 
 // With no successor named, a converter's stream stays open past its file
 // while the render is far from the end, and is ended — the tail flushed,
-// the end declared — once the render is within two chunks of it.
+// the end declared — by the first fill that finds the render within two
+// chunks of what is written, however much tail the resampler holds back.
 - (void)testAConverterStaysOpenPastItsFileUntilTheRenderNears {
     NSURL *url = [self writePCM:[self noiseFrames:22050 channels:2 seed:928] rate:44100 channels:2 name:@"short441.wav"];
     [self makeBusAtRate:48000 channels:2];
     VibeVoiceID voice = [self startFile:[self open:url] gain:1 ramp:[self unity] paused:NO];
     [_bus fillInline];
     XCTAssertEqual([_bus snapshotOfVoice:voice].endOfStream, UINT64_MAX);
-    for (NSUInteger rendered = 0; rendered < 15000; rendered += 1000) {
-        [self render:1000 into:nil]; // about 9000 frames left buffered: still open
+    for (NSUInteger rendered = 0; rendered < 10000; rendered += 1000) {
+        [self render:1000 into:nil]; // over two chunks left buffered: still open
     }
     XCTAssertEqual([_bus snapshotOfVoice:voice].endOfStream, UINT64_MAX);
-    [self render:1024 into:nil];     // under two chunks: the next fill ends it
-    [_bus fillInline];
+    BOOL ended = NO;
+    for (int step = 0; step < 20 && !ended; step++) {
+        VibeVoiceSnapshot before = [_bus snapshotOfVoice:voice];
+        [_bus fillInline];
+        ended = [_bus snapshotOfVoice:voice].endOfStream != UINT64_MAX;
+        if (ended) {
+            XCTAssertLessThan(before.written - before.consumed, 2 * 4096u, @"ended while the render was far from it");
+        }
+        else {
+            XCTAssertGreaterThanOrEqual(before.written - before.consumed, 2 * 4096u, @"held open with the render near");
+            [self renderWithoutFilling:1024 into:nil];
+            [self drain];
+        }
+    }
+    XCTAssertTrue(ended);
     XCTAssertEqualWithAccuracy((double)[_bus snapshotOfVoice:voice].endOfStream, 24000, 2);
     [self renderUntilEnded:voice blockSize:1024 limit:100000];
     XCTAssertEqualWithAccuracy((double)[self endedSnapshot:voice].endOfStream, 24000, 2);

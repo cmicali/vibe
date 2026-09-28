@@ -3006,22 +3006,22 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertFalse([output[@"idleStopPending"] boolValue]);
 }
 
-// iOS's Resampling setting: a conversion begun after the write takes the
-// player's quality, and one already running keeps the converter it started
-// with until its voice ends — here, until a seek re-voices the file.
-- (void)testResamplingQualityAppliesFromTheNextConversion {
+// The resampler switch (set_resampler): a conversion begun after the write
+// takes the player's resampler, and one already running keeps the converter
+// it started with until its voice ends — here, until a seek re-voices the
+// file. Apple's runs at its maximum quality.
+- (void)testTheResamplerAppliesFromTheNextConversion {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
-    XCTAssertEqual(_player.resamplingQuality, VibeResamplingQualityMaximum, @"Maximum unless a shell asks");
-    _player.resampler = VibeResamplerApple; // the quality is Apple's converter's alone
-    _player.resamplingQuality = VibeResamplingQualityHigh;
+    XCTAssertEqual(_player.resampler, VibeResamplerR8brain, @"r8brain unless asked");
     [self play:[self fixture:@"noise-44100-16-2.wav"] paused:NO position:0];
     [self render:4800];
-    XCTAssertEqual([_player.debugCurrentConversion[@"quality"] integerValue], (NSInteger)kAudioConverterQuality_High);
-    _player.resamplingQuality = VibeResamplingQualityMaximum;
+    XCTAssertEqualObjects(_player.debugCurrentConversion[@"resampler"], VibeResamplerName(VibeResamplerR8brain));
+    _player.resampler = VibeResamplerApple;
     [self render:4800];
-    XCTAssertEqual([_player.debugCurrentConversion[@"quality"] integerValue], (NSInteger)kAudioConverterQuality_High,
-                   @"a running conversion keeps its converter");
+    XCTAssertEqualObjects(_player.debugCurrentConversion[@"resampler"], VibeResamplerName(VibeResamplerR8brain),
+                          @"a running conversion keeps its converter");
     [_player seekToPosition:1.0]; [self render:9600];
+    XCTAssertEqualObjects(_player.debugCurrentConversion[@"resampler"], VibeResamplerName(VibeResamplerApple));
     XCTAssertEqual([_player.debugCurrentConversion[@"quality"] integerValue], (NSInteger)kAudioConverterQuality_Max);
 }
 
