@@ -1,24 +1,12 @@
-This beta replaces Vibe's playback engine. Vibe now reads, mixes and plays
-every track itself, straight to your audio device, instead of going through
-macOS's general-purpose audio engine. Please report anything that sounds or
-behaves differently from 1.13.
-
-* New: a Declick switch in Settings > Audio. On, the default, every start,
-  stop, pause, seek and track change ramps the volume over a few milliseconds
-  so it cannot click, with Bit-perfect output on too. Off, playback cuts
-  instantly and leaves every sample untouched.
-* Changed: with Bit-perfect output on, MP3 and AAC files reach your device at
-  their full decoded precision, rounded only to your device's own bit depth,
-  instead of being rounded to 16 bits first.
-* Improved: a file that is slow to read, such as one still downloading, no
-  longer holds up play, pause or skip.
-* Improved: a reverb or delay still ringing when you pause now rings out in
-  full instead of being cut off after 6 seconds.
-* Improved: when nothing is playing, Vibe does no background work, and the
-  Settings window does none while it is closed.
-* Changed: Control Center and the lock screen show your theme's no-artwork
-  image for a track without cover art, instead of a blank tile.
-* New: Settings > Advanced > Allow bit-perfect on any device, for testing
-  Bit-perfect output on Bluetooth and other devices it is normally off for.
-* New: Settings > Advanced can list every stage your audio passes through,
-  from the file to the device. Click the Version row seven times to show it.
+* New: Custom CoreAudio playback engine - faster, more stable, much better system event handling
+* New: Lock Window Position, in the View menu and Settings > General
+* New: Optional volume control (enable in Settings > Audio)
+* Changed: r8brain is now the default sample-rate converter (higher quality, less CPU)
+* Changed: when another app takes exclusive use of the audio device, Vibe pauses and says so
+* Improved: play, pause, and skip no longer wait while Vibe switches audio devices or a device wakes up
+* Improved: a stuck network share no longer holds up a different track, or the tags and artwork of cloud files
+* Improved: Vibe frees the artwork thumbnails of a playlist you replace
+* Fixed: System Output could stop playback while macOS briefly had no default device
+* Fixed: the last few milliseconds of a track could be cut off at high up-conversion rates
+* Fixed: the Control Center placeholder art could show the wrong light or dark side
+* Fixed: undoing a playlist reorder could leave a blank row
