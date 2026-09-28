@@ -55,6 +55,11 @@ NS_ASSUME_NONNULL_BEGIN
 // The renderers' default before a view resolves anything.
 + (WaveformTheme *)monochromeThemeIsDark:(BOOL)isDark;
 
+// album_art's clamp: the art color at full alpha, pushed toward the
+// appearance's contrast pole until it reads; nil for no color or too gray a
+// one.
++ (nullable VibeColor *)legibleArtworkColor:(nullable VibeColor *)color isDark:(BOOL)isDark;
+
 @end
 
 NS_ASSUME_NONNULL_END

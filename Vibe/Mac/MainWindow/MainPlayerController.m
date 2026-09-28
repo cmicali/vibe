@@ -987,7 +987,7 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 - (IBAction)volumeChanged:(NSSlider *)sender {
     AppSettings.sharedInstance.volume = sender.doubleValue;
     self.audioPlayer.volume = (float)AppSettings.sharedInstance.effectiveVolume;
-    [self.playerContentView renderVolumePercent];
+    [self.playerContentView volumeSliderDidMove];
 }
 
 - (IBAction)toggleTimeDisplayMode:(id)sender {

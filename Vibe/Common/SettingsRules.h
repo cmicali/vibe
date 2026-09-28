@@ -79,6 +79,18 @@ static inline NSString *VibeNormalizedPlaylistTint(NSString *_Nullable identifie
     return VibeNormalizedTint(identifier, SETTINGS_VALUE_WINDOW_TINT_MONO);
 }
 
+// The tint ladder plus the waveform's played color, its default.
+static inline NSString *VibeNormalizedVolumeTint(NSString *_Nullable identifier) {
+    return [identifier isEqualToString:SETTINGS_VALUE_VOLUME_TINT_WAVEFORM]
+            ? identifier : VibeNormalizedTint(identifier, SETTINGS_VALUE_VOLUME_TINT_WAVEFORM);
+}
+
+static inline NSString *VibeNormalizedVolumeLocation(NSString *_Nullable identifier) {
+    return [identifier isEqualToString:SETTINGS_VALUE_VOLUME_LOCATION_BOTTOM]
+            ? SETTINGS_VALUE_VOLUME_LOCATION_BOTTOM
+            : SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT;
+}
+
 // Each snaps an unknown value to its factory choice.
 static inline NSString *VibeNormalizedThemeMode(NSString *_Nullable identifier) {
     return [identifier isEqualToString:SETTINGS_VALUE_THEME_MODE_SINGLE]
