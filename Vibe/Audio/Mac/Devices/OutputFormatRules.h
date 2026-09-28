@@ -68,10 +68,9 @@ typedef NS_ENUM(NSInteger, VibeBitPerfectStatus) {
     VibeBitPerfectStatusChannelConversion,
     VibeBitPerfectStatusDepthInsufficient,
     VibeBitPerfectStatusMuted,
-    // Software volume below 1.0 or balance away from center.
+    // Software volume below 1.0, balance away from center, or the player's
+    // own volume below full.
     VibeBitPerfectStatusVolumeScaled,
-    // The player's own volume below full (AudioPlayer.volume).
-    VibeBitPerfectStatusPlayerVolume,
     // Hog held by another process.
     VibeBitPerfectStatusExclusiveRefused,
     // Everything held, but the file is lossy: its decoded audio plays at its
@@ -88,7 +87,7 @@ typedef struct {
     BOOL isFloat;
     float softwareVolume;
     float balance;         // 0 = left, 0.5 = center, 1 = right
-    float playerVolume;    // AudioPlayer.volume; 1 is full, every sample untouched
+    float playerVolume;    // AudioPlayer.volume
     // The fold's inputs.
     BOOL enabled;
     BOOL eligibleDevice;
@@ -319,8 +318,7 @@ static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription source
 
 // The fold over the report's inputs, in priority order, so two breakers never
 // race for the caption: Off > Idle > SwitchFailed >
-// RateUnsupported > ChannelConversion > DepthInsufficient > Muted > VolumeScaled > PlayerVolume >
-// ExclusiveRefused >
+// RateUnsupported > ChannelConversion > DepthInsufficient > Muted > VolumeScaled > ExclusiveRefused >
 // SourceLossy > Active. SourceLossy is last
 // before Active because it is the only status that says the chain is perfect
 // and the file is not. There is no pitch input: under the mode there is no
@@ -347,11 +345,8 @@ static inline VibeBitPerfectStatus VibeBitPerfectFold(VibeBitPerfectReport r) {
     if (r.muted) {
         return VibeBitPerfectStatusMuted;
     }
-    if (r.softwareVolume < 1.0f || r.balance != 0.5f) {
+    if (r.softwareVolume < 1.0f || r.balance != 0.5f || r.playerVolume < 1.0f) {
         return VibeBitPerfectStatusVolumeScaled;
-    }
-    if (r.playerVolume < 1.0f) {
-        return VibeBitPerfectStatusPlayerVolume;
     }
     if (r.hogWanted && !r.exclusive) {
         return VibeBitPerfectStatusExclusiveRefused;

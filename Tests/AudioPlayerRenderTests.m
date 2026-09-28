@@ -2517,12 +2517,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     _player.levelsEnabled = YES;
     _player.volume = 0;
     [self render:_blockSize];
-    NSData *silence = [self renderSeconds:0.5];
-    const float *q = silence.bytes;
-    for (NSUInteger i = 0; i < silence.length / sizeof(float); i++) {
-        XCTAssertEqual(q[i], 0.0f, @"sample %lu at zero volume", (unsigned long)i);
-        if (q[i] != 0.0f) break;
-    }
+    [self assertFinite:[self renderSeconds:0.5] peak:0];
     [_player runSyncOnQueue:^{
         NSDictionary *signal = [[self->_player debugLevelMeter] signalDiagnosticSnapshot];
         XCTAssertTrue([signal[@"aboveThreshold"] boolValue], @"the meter is before the volume: %@", signal);

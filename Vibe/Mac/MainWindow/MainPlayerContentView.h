@@ -54,11 +54,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)setTrafficLightsShown:(BOOL)shown;
 // The empty state's hint, in the time row's gap, where it outranks the
-// volume slider.
+// volume control.
 - (void)setDropHintShown:(BOOL)shown;
 // The Volume live effect's body: the slider's position and percentage, and
 // whether the hover reveals them (AppSettings.volumeControl).
 - (void)applyVolumeControl;
+// The percentage alone, for a drag of the slider, which moved itself.
+- (void)renderVolumePercent;
 // The waveform's played color, at full alpha, as the slider's fill.
 - (void)setVolumeFillColor:(NSColor *)color;
 

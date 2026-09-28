@@ -50,11 +50,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The output volume, 0..1, the fader's position: the render's last stage,
 // after the meter, whose gain is its cube so the travel reads as loudness.
-// 1, the default, leaves every sample untouched; 0 is silence. A change
-// ramps across one render slice; below 1 under bit-perfect output, the
-// report says so (VibeBitPerfectStatusPlayerVolume). The mac's Volume control
-// setting drives it; iOS leaves it at 1, the system volume being the control
-// there.
+// 1, the default, leaves every sample untouched; 0 is silence.
 @property (atomic) float volume;
 
 // Which resampler converts a file at another rate than the output's: r8brain

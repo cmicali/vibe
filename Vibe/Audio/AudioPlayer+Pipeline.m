@@ -86,9 +86,8 @@ struct VibeMasterBus {
     _Atomic uint64_t frames;         // the output timeline: frames rendered
     _Atomic uint32_t pendingFrames;  // the slice in flight
     _Atomic int32_t silent;          // --silent: the meter sees the signal, the device zeros
-    // The output volume, after the meter: the queue's target gain, and the
-    // gain the render last landed on, which it ramps from across one slice.
-    // At exactly 1 settled the stage is skipped, so every sample is untouched.
+    // The output volume: the queue's target gain, and the gain the render last
+    // landed on, which it ramps from.
     _Atomic float volume;
     float volumeApplied;
     _Atomic(VibeVoiceMix *) mix;     // the bus; NULL until the first settlement
@@ -132,11 +131,7 @@ static inline OSStatus VibeMasterBusRenderVarispeed(VibeMasterBus *master, Audio
     atomic_fetch_add_explicit(&master->varispeedRenders, 1, memory_order_relaxed);
     return AudioUnitRender(varispeed, &flags, stamp, 0, frames, data);
 }
-static inline void VibeMasterBusScale(float *samples, float gain, UInt32 frames) CA_REALTIME_API {
-    vDSP_vsmul(samples, 1, &gain, samples, 1, frames);
-}
-
-// `start` onward by `step` per frame.
+// `start` onward by `step` per frame; a step of 0 scales exactly.
 static inline void VibeMasterBusRamp(float *samples, float start, float step, UInt32 frames) CA_REALTIME_API {
     vDSP_vrampmul(samples, 1, &start, &step, samples, 1, frames);
 }
@@ -392,10 +387,8 @@ static OSStatus VibeMasterBusRenderSource(VibeMasterBus *master, VibeVoiceMix *m
     return status;
 }
 
-// The last stage before the device, after the meter, so the equalizer shows
-// the signal whatever the volume. A change ramps linearly across one slice,
-// so a fader drag cannot zipper; 1 settled touches nothing and 0 settled is
-// silence.
+// After the meter, so the equalizer shows the signal whatever the volume. A
+// change ramps linearly across one slice, so a drag cannot zipper.
 static void VibeMasterBusApplyVolume(VibeMasterBus *master, AudioBufferList *list, uint32_t channels,
                                      UInt32 frames) CA_REALTIME_API {
     float target = atomic_load_explicit(&master->volume, memory_order_relaxed);
@@ -403,19 +396,9 @@ static void VibeMasterBusApplyVolume(VibeMasterBus *master, AudioBufferList *lis
     if (from == target && target == 1.0f) {
         return;
     }
-    if (from == target && target == 0.0f) {
-        VibeMasterBusZero(list, 0, frames);
-        return;
-    }
     float step = (target - from) / (float)frames;
     for (uint32_t c = 0; c < channels; c++) {
-        float *samples = list->mBuffers[c].mData;
-        if (from == target) {
-            VibeMasterBusScale(samples, target, frames);
-        }
-        else {
-            VibeMasterBusRamp(samples, from, step, frames);
-        }
+        VibeMasterBusRamp(list->mBuffers[c].mData, from, step, frames);
     }
     master->volumeApplied = target;
 }
@@ -1309,7 +1292,6 @@ void VibeMasterBusFree(VibeMasterBus *master) {
              @"fxInRender": @(atomic_load_explicit(&master->chain, memory_order_relaxed) != NULL),
              @"meterInRender": @(atomic_load_explicit(&master->meter, memory_order_relaxed) != NULL),
              @"silent": @(atomic_load_explicit(&master->silent, memory_order_relaxed) != 0),
-             @"volume": @(atomic_load_explicit(&master->volume, memory_order_relaxed)),
              @"framesRendered": @(atomic_load_explicit(&master->frames, memory_order_relaxed))};
 }
 

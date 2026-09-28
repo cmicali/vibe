@@ -255,8 +255,8 @@ static const double kVibeWaveformGainMaxDB = 12;
 
 // Volume control, default off: a volume slider in the player window, revealed
 // on hover like the transport. `volume` is its position, 0..1, kept while the
-// control is off. Allowed under bit-perfect output, whose report then says the
-// volume is scaled. Writers request VibeSettingsLiveEffectVolume.
+// control is off. The switch requests VibeSettingsLiveEffectVolume; the
+// slider's own drag pushes the player and its percentage directly.
 - (BOOL)volumeControl;
 - (void)setVolumeControl:(BOOL)enabled;
 - (double)volume;

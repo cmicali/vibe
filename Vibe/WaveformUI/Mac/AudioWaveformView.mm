@@ -100,10 +100,7 @@ static const CGFloat kWaveformDragHysteresis = 4;
                                               artworkColor:self.artworkThemeColor];
     _currentWaveformRenderer.theme = theme;
     [_currentWaveformRenderer updateColors:isDark];
-    id<AudioWaveformViewDelegate> delegate = self.delegate;
-    if ([delegate respondsToSelector:@selector(audioWaveformView:didResolvePlayedColor:)]) {
-        [delegate audioWaveformView:self didResolvePlayedColor:theme.playedColor];
-    }
+    [self.delegate audioWaveformView:self didResolvePlayedColor:theme.playedColor];
 }
 
 - (void)refreshThemeColors {

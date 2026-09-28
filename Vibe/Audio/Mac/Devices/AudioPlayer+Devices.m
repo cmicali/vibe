@@ -1313,6 +1313,25 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
     if (unconfirmed) {
         LogWarn(@"bit-perfect: format not confirmed, because %@", unconfirmed);
     }
+    [self announceBitPerfectReportChange];
+}
+
+- (void)refoldBitPerfectReportForPlayerVolumeOnQueue:(float)volume {
+    os_unfair_lock_lock(&_stateLock);
+    VibeBitPerfectReport report = _bitPerfectReport;
+    report.playerVolume = volume;
+    report.status = VibeBitPerfectFold(report);
+    BOOL changed = report.enabled && !VibeBitPerfectReportsEqual(_bitPerfectReport, report);
+    if (changed) {
+        _bitPerfectReport = report;
+    }
+    os_unfair_lock_unlock(&_stateLock);
+    if (changed) {
+        [self announceBitPerfectReportChange];
+    }
+}
+
+- (void)announceBitPerfectReportChange {
     run_on_main_thread({
         id<AudioPlayerDelegate> delegate = self.delegate;
         if ([delegate respondsToSelector:@selector(audioPlayerDidChangeBitPerfectReport:)]) {
@@ -1334,7 +1353,6 @@ static NSString *VibeBitPerfectStatusName(VibeBitPerfectStatus status) {
         case VibeBitPerfectStatusDepthInsufficient: return @"depthInsufficient";
         case VibeBitPerfectStatusMuted:             return @"muted";
         case VibeBitPerfectStatusVolumeScaled:      return @"volumeScaled";
-        case VibeBitPerfectStatusPlayerVolume:      return @"playerVolume";
         case VibeBitPerfectStatusExclusiveRefused:  return @"exclusiveRefused";
         case VibeBitPerfectStatusSourceLossy:       return @"sourceLossy";
     }

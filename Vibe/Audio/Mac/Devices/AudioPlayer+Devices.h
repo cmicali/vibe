@@ -144,6 +144,9 @@ NS_ASSUME_NONNULL_BEGIN
 // the end of a device switch, the two hog edges, the mode toggle, a
 // volume/balance/mute change and a system-default change.
 - (void)publishBitPerfectReportOnQueue;
+// The player's volume alone moved: refolds the published report with it, no
+// device read, since a slider drag lands here every tick.
+- (void)refoldBitPerfectReportForPlayerVolumeOnQueue:(float)volume;
 
 @end
 

@@ -146,13 +146,15 @@ static const CGFloat kGeneralPopUpWidth = 280;
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_OUTPUT_LABEL rows:@[
             [SettingsRowView rowWithTableView:_outputTable rowCount:7],
         ]],
-        [SettingsSectionView sectionWithRows:@[
-            _declickRow,
-            _volumeControlRow,
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_DEVICE_SECTION rows:@[
             _bitPerfectRow,
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
             _exclusiveOutputRow,
 #endif
+        ]],
+        [SettingsSectionView sectionWithRows:@[
+            _volumeControlRow,
+            _declickRow,
         ]],
     ]];
     _refreshingOutputList = NO;

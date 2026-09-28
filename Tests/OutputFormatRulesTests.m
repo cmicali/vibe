@@ -580,7 +580,7 @@ static VibeBitPerfectReport Perfect(void) {
     r.exclusive = NO;
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusExclusiveRefused);
     r.playerVolume = 0.5f;
-    XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusPlayerVolume);
+    XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusVolumeScaled);
     r.softwareVolume = 0.5f;
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusVolumeScaled);
     r.muted = YES;

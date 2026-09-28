@@ -862,7 +862,7 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
 }
 
 - (void)setVolume:(double)volume {
-    [[NSUserDefaults standardUserDefaults] setDouble:clampRange(volume, 0, 1) forKey:SETTING_VOLUME];
+    [[NSUserDefaults standardUserDefaults] setDouble:volume forKey:SETTING_VOLUME];
 }
 
 - (double)effectiveVolume {

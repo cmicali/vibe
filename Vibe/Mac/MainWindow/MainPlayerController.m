@@ -982,9 +982,12 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
     [self updateNowPlaying];
 }
 
+// A drag tick: the slider moved itself and the control is on, so the
+// player and the percentage are all that follow.
 - (IBAction)volumeChanged:(NSSlider *)sender {
     AppSettings.sharedInstance.volume = sender.doubleValue;
-    [self applySettingsLiveEffects:VibeSettingsLiveEffectVolume];
+    self.audioPlayer.volume = (float)AppSettings.sharedInstance.effectiveVolume;
+    [self.playerContentView renderVolumePercent];
 }
 
 - (IBAction)toggleTimeDisplayMode:(id)sender {

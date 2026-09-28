@@ -1037,13 +1037,16 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 - (void)setVolume:(float)volume {
     volume = clampRange(volume, 0.0f, 1.0f);
     os_unfair_lock_lock(&_stateLock);
+    BOOL changed = _volume != volume;
     _volume = volume;
     os_unfair_lock_unlock(&_stateLock);
+    if (!changed) {
+        return;
+    }
     VibeMasterBusSetVolume(_masterBus, volume * volume * volume);
 #if TARGET_OS_OSX
-    // Below full, the bitstream is scaled: the report's PlayerVolume.
     dispatch_async(_queue, ^{
-        [self publishBitPerfectReportOnQueue];
+        [self refoldBitPerfectReportForPlayerVolumeOnQueue:volume];
     });
 #endif
 }

@@ -67,23 +67,13 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
     }
 }
 
-// The codec corner's style, shared by the file-metadata and BPM labels.
-static NSDictionary *kernedRightAlignedAttributes(void) {
-    NSMutableParagraphStyle *paragraph = [[NSParagraphStyle new] mutableCopy];
-    paragraph.alignment = NSTextAlignmentRight;
-    return @{
-        NSKernAttributeName: @(-1.2),
-        NSParagraphStyleAttributeName: paragraph,
-    };
-}
-
 // Both corner labels dim in the text color, not the field alpha: the codec
 // field also carries the FX symbols, which a field alpha would dim too. The
 // color must stay dynamic, since these strings rebuild only on content change.
 // Cached until resetRenderGuards; the fader recomposes the BPM line per tick.
 - (NSDictionary *)cornerTextAttributes {
     if (!_cornerTextAttributes) {
-        NSMutableDictionary *attributes = [kernedRightAlignedAttributes() mutableCopy];
+        NSMutableDictionary *attributes = [[Fonts infoTextAttributesAligned:NSTextAlignmentRight] mutableCopy];
         attributes[NSForegroundColorAttributeName] =
                 AppSettings.sharedInstance.currentTheme.resolvedInfoColor;
         _cornerTextAttributes = attributes;
@@ -397,7 +387,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     [line appendAttributedString:[[NSAttributedString alloc] initWithString:_fileMetadataText
                                                                 attributes:self.cornerTextAttributes]];
     // Kern and paragraph style only, so the per-run colors survive.
-    [line addAttributes:kernedRightAlignedAttributes() range:NSMakeRange(0, line.length)];
+    [line addAttributes:[Fonts infoTextAttributesAligned:NSTextAlignmentRight] range:NSMakeRange(0, line.length)];
     self.fileMetadataTextField.attributedStringValue = line;
     [_contentView layoutArtistLineClearOfCodecLine];
 }
