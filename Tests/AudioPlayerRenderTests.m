@@ -2338,8 +2338,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
             [self->_player setValue:@"Saved DAC" forKey:@"boundDeviceName"];
         }];
         [_player audioOutputDevicesDidChange];
-        [_player runSyncOnQueue:^{}];
-        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.2]];
+        [self settleUntil:^BOOL { return self->_player.isPaused || [self count:@"finish"] > 0; }];
         [_player runSyncOnQueue:^{}];
         XCTAssertEqual([self count:@"finish"],0u,@"Losing the last output must park the track, not auto-advance: %@",_events);
         XCTAssertTrue(_player.isPaused,@"The track must remain resumable: %@",_events);
