@@ -23,6 +23,14 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSUInteger)debugHungOpenCount;
 @end
 
+// Implemented in AudioFileMaterializationCoordinator.m, beside the counters it
+// reads.
+@interface AudioFileMaterializationCoordinator (DebugCounters)
+// Outstanding AudioFileHandle calls, lock-free, for the health probe. Never
+// overstates; a racing open may read low.
+- (uint64_t)handleOpensInFlight;
+@end
+
 NS_ASSUME_NONNULL_END
 
 #endif

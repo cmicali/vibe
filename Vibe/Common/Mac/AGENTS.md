@@ -32,4 +32,4 @@
 
 ## The loose-settings migration
 
-**`migrateLooseAppearanceSettingsToTheme` runs at `AppSettings` init BEFORE `registerDefaults`** — the ordering is load-bearing, since its presence checks must not see the registration domain. `+[AppTheme migratedRecordFromLegacyValues:]` decides the record; the migration consumes the loose keys it reads, the shared-named waveform keys included: this is the Mac store, and iOS is a separate app over a separate one.
+**`migrateLooseAppearanceSettingsToTheme` runs at `AppSettings` init BEFORE `registerDefaults`** — the ordering is load-bearing, since its presence checks must not see the registration domain. `+[AppTheme migratedRecordFromLegacyValues:]` decides the record, after the migration maps an old build's display-name style to its identifier and gives a themeless Sonic Cirrus store the orange it drew (`VibeMigratedWaveformTheme`); the migration consumes the loose keys it reads, the shared-named waveform keys included: this is the Mac store, and iOS is a separate app over a separate one.

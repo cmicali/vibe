@@ -45,11 +45,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL audioOutputActive;
 @property (nonatomic) BOOL presentationVisible;
 
-// The derived state after source, attachment, and nonempty geometry have also
-// been checked. Useful for live diagnostics without exposing debug-only API in
-// a shipping header.
-@property (nonatomic, readonly, getter=isAudioReactive) BOOL audioReactive;
-
 // Overrides the appearance-derived bar color. nil returns to the white or
 // black default.
 @property (nonatomic, strong, nullable) VibeColor *barColor;

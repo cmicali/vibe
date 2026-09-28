@@ -62,11 +62,9 @@ static void VibeApplyOutputModesWhenSelectionSettles(MainPlayerController *contr
     if (bitPerfect) {
         AppSettings.sharedInstance.bitPerfectOutput = bitPerfect.boolValue;
     }
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     if (exclusive) {
         AppSettings.sharedInstance.exclusiveOutput = exclusive.boolValue;
     }
-#endif
     [controller applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply];
     LogWarn(@"set_output_device: applied bit-perfect=%@ exclusive=%@ after selection settled",
             bitPerfect ?: @"-", exclusive ?: @"-");

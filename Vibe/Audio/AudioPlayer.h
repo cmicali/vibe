@@ -220,6 +220,9 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier;
     didAutoAdvanceFromTrack:(AudioTrack *)finishedTrack
                     toTrack:(AudioTrack *)startedTrack;
 
+- (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error;
+
+@optional
 // macOS only, main thread, sent on EVERY settled device mutation, the id
 // moved or not: the shell persists the choice and drives the menu. A fallback
 // to System Output (-1) the user did NOT choose — the bound device vanished or
@@ -235,9 +238,6 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier;
   involuntaryFallbackName:(nullable NSString *)fallbackName
       carriedModesFromUID:(nullable NSString *)carriedModesUID;
 
-- (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error;
-
-@optional
 // macOS device settings, read on main at submission and on the player queue
 // before a bind or mode edit. The provider must support both threads.
 // No UI work: the UID can differ from the shell's last settled preference.

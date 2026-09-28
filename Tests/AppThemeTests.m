@@ -79,7 +79,7 @@
     XCTAssertTrue(theme.showPlaylistNumberColumn);
     XCTAssertTrue(theme.showPlaylistArtworkColumn);
     XCTAssertTrue(theme.showPlaylistDurationColumn);
-    XCTAssertEqual(theme.playlistDurationFontSize, 12);
+    XCTAssertEqual([theme fontSizeForSlot:VibeFontSlotPlaylistDuration], 12);
     XCTAssertEqualObjects(theme.mode, @"dual");
     XCTAssertFalse(theme.showRemainingTime);
     XCTAssertTrue(theme.showBPM);
@@ -90,11 +90,11 @@
         XCTAssertFalse([theme playlistColorEnabledForBase:base], @"%@", base);
     }
     XCTAssertEqualObjects(theme.keyNotation, @"camelot");
-    XCTAssertEqualObjects(theme.titleFontFace, @"");
-    XCTAssertEqual(theme.titleFontSize, 23);
-    XCTAssertEqual(theme.infoFontSize, 13);
-    XCTAssertEqual(theme.playlistFontSize, 14);
-    XCTAssertNil([theme titleColorForDark:YES]);
+    XCTAssertEqualObjects([theme fontFaceForSlot:VibeFontSlotTitle], @"");
+    XCTAssertEqual([theme fontSizeForSlot:VibeFontSlotTitle], 23);
+    XCTAssertEqual([theme fontSizeForSlot:VibeFontSlotInfo], 13);
+    XCTAssertEqual([theme fontSizeForSlot:VibeFontSlotPlaylist], 14);
+    XCTAssertNil([theme colorForBase:kVibeThemeColorTitle dark:YES]);
     XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
 }
 
@@ -337,9 +337,9 @@
         @"waveformBarWidth": @50,
     }];
     XCTAssertEqual(theme.windowCornerRadius, 36);
-    XCTAssertEqual(theme.titleFontSize, 20);
-    XCTAssertEqual(theme.infoFontSize, 15);
-    XCTAssertEqual(theme.playlistFontSize, 11);
+    XCTAssertEqual([theme fontSizeForSlot:VibeFontSlotTitle], 20);
+    XCTAssertEqual([theme fontSizeForSlot:VibeFontSlotInfo], 15);
+    XCTAssertEqual([theme fontSizeForSlot:VibeFontSlotPlaylist], 11);
     XCTAssertEqual(theme.waveformBarDensity, 2);
     XCTAssertEqual(theme.waveformBarWidth, 2);
     theme.waveformBarWidth = -1;
@@ -381,8 +381,8 @@
         @"infoFontFace": @"  Menlo-Regular  ",
         @"titleFontFace": longFace,
     }];
-    XCTAssertEqualObjects(theme.infoFontFace, @"Menlo-Regular");
-    XCTAssertEqual(theme.titleFontFace.length, 64u);
+    XCTAssertEqualObjects([theme fontFaceForSlot:VibeFontSlotInfo], @"Menlo-Regular");
+    XCTAssertEqual([theme fontFaceForSlot:VibeFontSlotTitle].length, 64u);
 }
 
 // None is what an unset control tag or a zero-filled ivar holds, so it must
@@ -401,13 +401,13 @@
 
 - (void)testColorsRoundTripThroughHexWithAlpha {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
-    [theme setPlaylistPlayingRowColor:VibeColorFromHexString(@"#FF6600AA") forDark:YES];
+    [theme setColor:VibeColorFromHexString(@"#FF6600AA") forBase:kVibeThemeColorPlaylistPlayingRow dark:YES];
     XCTAssertEqualObjects(theme.dictionaryRepresentation,
                           @{@"playlistPlayingRowColorDark": @"#FF6600AA"});
-    XCTAssertEqualObjects(VibeHexStringFromColor([theme playlistPlayingRowColorForDark:YES]),
+    XCTAssertEqualObjects(VibeHexStringFromColor([theme colorForBase:kVibeThemeColorPlaylistPlayingRow dark:YES]),
                           @"#FF6600AA");
-    XCTAssertNil([theme playlistPlayingRowColorForDark:NO]);
-    [theme setPlaylistPlayingRowColor:nil forDark:YES];
+    XCTAssertNil([theme colorForBase:kVibeThemeColorPlaylistPlayingRow dark:NO]);
+    [theme setColor:nil forBase:kVibeThemeColorPlaylistPlayingRow dark:YES];
     XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
 }
 
@@ -451,7 +451,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
                           [theme displayColorForBase:kVibeThemeColorTitle dark:YES]);
     XCTAssertEqualObjects([theme displayColorForBase:kVibeThemeColorPlaylistNumber dark:NO],
                           [theme displayColorForBase:kVibeThemeColorArtist dark:NO]);
-    [theme setTitleColor:VibeColorFromHexString(@"#FF0000") forDark:YES];
+    [theme setColor:VibeColorFromHexString(@"#FF0000") forBase:kVibeThemeColorTitle dark:YES];
     XCTAssertEqualObjects(VibeHexStringFromColor([theme displayColorForBase:kVibeThemeColorPlaylistTitle dark:YES]),
                           @"#FF0000");
     XCTAssertEqualObjects(HexInAppearance([theme resolvedPlaylistColorForBase:kVibeThemeColorPlaylistTitle],
@@ -465,7 +465,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     XCTAssertEqualObjects(HexInAppearance([theme resolvedPlaylistColorForBase:kVibeThemeColorPlaylistTitle],
                                           NSAppearanceNameDarkAqua), @"#00FF00");
     // The unset light side of an enabled pair still inherits.
-    [theme setTitleColor:VibeColorFromHexString(@"#0000FF") forDark:NO];
+    [theme setColor:VibeColorFromHexString(@"#0000FF") forBase:kVibeThemeColorTitle dark:NO];
     XCTAssertEqualObjects(HexInAppearance([theme resolvedPlaylistColorForBase:kVibeThemeColorPlaylistTitle],
                                           NSAppearanceNameAqua), @"#0000FF");
     [theme setPlaylistColorEnabled:NO forBase:kVibeThemeColorPlaylistTitle];
@@ -494,7 +494,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
 
 - (void)testRandomizeSettingsRollsTheLookAndLeavesTheRestAlone {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
-    [theme setTitleColor:VibeColorFromHexString(@"#FF000080") forDark:YES];
+    [theme setColor:VibeColorFromHexString(@"#FF000080") forBase:kVibeThemeColorTitle dark:YES];
     [theme setPlaylistColorEnabled:YES forBase:kVibeThemeColorPlaylistTitle];
     theme.showFileInfo = NO;
     theme.keyNotation = @"musical";
@@ -505,7 +505,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     NSSet<NSNumber *> *radii = [NSSet setWithArray:@[@0, @8, @12, @16, @20, @28, @36]];
     for (int roll = 0; roll < 40; roll++) {
         [theme randomizeSettingsWithWaveformStyles:styles];
-        XCTAssertEqualObjects(VibeHexStringFromColor([theme titleColorForDark:YES]), @"#FF000080");
+        XCTAssertEqualObjects(VibeHexStringFromColor([theme colorForBase:kVibeThemeColorTitle dark:YES]), @"#FF000080");
         XCTAssertTrue([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistTitle]);
         XCTAssertFalse(theme.showFileInfo);
         XCTAssertEqualObjects(theme.keyNotation, @"musical");
@@ -518,15 +518,15 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
         XCTAssertNotEqualObjects(theme.playlistTint, @"custom");
         XCTAssertTrue([radii containsObject:@(theme.windowCornerRadius)]);
         XCTAssertEqualObjects(theme.pauseButtonGlyph, VibePauseGlyphForPlayGlyph(theme.playButtonGlyph));
-        XCTAssertTrue([faces containsObject:theme.titleFontFace], @"%@", theme.titleFontFace);
-        XCTAssertEqualObjects(theme.artistFontFace, theme.titleFontFace);
-        XCTAssertEqualObjects(theme.playlistFontFace, theme.titleFontFace);
-        XCTAssertTrue([faces containsObject:theme.infoFontFace], @"%@", theme.infoFontFace);
-        XCTAssertEqual(theme.titleFontSize, kVibeThemeTitleFontBaseSize);
-        XCTAssertEqual(theme.artistFontSize, kVibeThemeArtistFontBaseSize);
-        XCTAssertEqual(theme.infoFontSize, kVibeThemeInfoFontBaseSize);
-        XCTAssertEqual(theme.playlistFontSize, kVibeThemePlaylistFontBaseSize);
-        XCTAssertEqual(theme.playlistDurationFontSize, kVibeThemePlaylistDurationFontBaseSize);
+        XCTAssertTrue([faces containsObject:[theme fontFaceForSlot:VibeFontSlotTitle]], @"%@", [theme fontFaceForSlot:VibeFontSlotTitle]);
+        XCTAssertEqualObjects([theme fontFaceForSlot:VibeFontSlotArtist], [theme fontFaceForSlot:VibeFontSlotTitle]);
+        XCTAssertEqualObjects([theme fontFaceForSlot:VibeFontSlotPlaylist], [theme fontFaceForSlot:VibeFontSlotTitle]);
+        XCTAssertTrue([faces containsObject:[theme fontFaceForSlot:VibeFontSlotInfo]], @"%@", [theme fontFaceForSlot:VibeFontSlotInfo]);
+        XCTAssertEqual([theme fontSizeForSlot:VibeFontSlotTitle], kVibeThemeTitleFontBaseSize);
+        XCTAssertEqual([theme fontSizeForSlot:VibeFontSlotArtist], kVibeThemeArtistFontBaseSize);
+        XCTAssertEqual([theme fontSizeForSlot:VibeFontSlotInfo], kVibeThemeInfoFontBaseSize);
+        XCTAssertEqual([theme fontSizeForSlot:VibeFontSlotPlaylist], kVibeThemePlaylistFontBaseSize);
+        XCTAssertEqual([theme fontSizeForSlot:VibeFontSlotPlaylistDuration], kVibeThemePlaylistDurationFontBaseSize);
     }
 }
 
@@ -536,15 +536,15 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     theme.windowCornerRadius = 8;
     theme.playlistButtonGlyph = @"list.dash";
     [theme setFontFace:@"Georgia" size:23 forSlot:VibeFontSlotTitle];
-    [theme setPlaylistBackgroundColor:VibeColorFromHexString(@"#101010F0") forDark:YES];
+    [theme setColor:VibeColorFromHexString(@"#101010F0") forBase:kVibeThemeColorPlaylistBackground dark:YES];
     for (int roll = 0; roll < 40; roll++) {
         [theme randomizeColors];
         XCTAssertEqualObjects(theme.waveformStyle, @"detailed");
         XCTAssertEqual(theme.windowCornerRadius, 8);
         XCTAssertEqualObjects(theme.playlistButtonGlyph, @"list.dash");
-        XCTAssertEqualObjects(theme.titleFontFace, @"Georgia");
+        XCTAssertEqualObjects([theme fontFaceForSlot:VibeFontSlotTitle], @"Georgia");
         // No scheme paints the playlist cover, so a stale pair is cleared.
-        XCTAssertNil([theme playlistBackgroundColorForDark:YES]);
+        XCTAssertNil([theme colorForBase:kVibeThemeColorPlaylistBackground dark:YES]);
         NSUInteger painted = 0;
         for (NSString *key in theme.dictionaryRepresentation) {
             if ([key hasSuffix:@"ColorDark"] || [key hasSuffix:@"ColorLight"]) {
@@ -614,13 +614,13 @@ static CGFloat Brightness(NSString *hex) {
     AppTheme *first = [[AppTheme alloc] initWithRecord:nil];
     first.waveformStyle = @"detailed";
     first.windowBackgroundStyle = @"solid";
-    first.infoFontSize = 11;
-    [first setWindowBackgroundColor:VibeColorFromHexString(@"#101014F0") forDark:YES];
-    [first setTitleColor:VibeColorFromHexString(@"#FFFFFF") forDark:NO];
+    [first setFontFace:@"" size:11 forSlot:VibeFontSlotInfo];
+    [first setColor:VibeColorFromHexString(@"#101014F0") forBase:kVibeThemeColorWindowBackground dark:YES];
+    [first setColor:VibeColorFromHexString(@"#FFFFFF") forBase:kVibeThemeColorTitle dark:NO];
     AppTheme *second = [[AppTheme alloc] initWithRecord:first.dictionaryRepresentation];
     XCTAssertEqualObjects(second.dictionaryRepresentation, first.dictionaryRepresentation);
     XCTAssertEqualObjects(second.waveformStyle, @"detailed");
-    XCTAssertEqual(second.infoFontSize, 11);
+    XCTAssertEqual([second fontSizeForSlot:VibeFontSlotInfo], 11);
 }
 
 - (void)testReplaceWithRecordSwitchesEveryField {
@@ -810,16 +810,16 @@ static CGFloat Brightness(NSString *hex) {
 
         for (NSNumber *dark in @[@NO, @YES]) {
             BOOL isDark = dark.boolValue;
-            XCTAssertNotNil([theme waveformPlayedColorForDark:isDark], @"%@", identifier);
-            XCTAssertNotNil([theme waveformUnplayedColorForDark:isDark], @"%@", identifier);
-            XCTAssertNotNil([theme windowBackgroundColorForDark:isDark], @"%@", identifier);
-            XCTAssertNotNil([theme playlistBackgroundColorForDark:isDark], @"%@", identifier);
-            XCTAssertNotNil([theme titleColorForDark:isDark], @"%@", identifier);
-            XCTAssertNotNil([theme artistColorForDark:isDark], @"%@", identifier);
-            XCTAssertNotNil([theme infoColorForDark:isDark], @"%@", identifier);
-            XCTAssertNotNil([theme timeColorForDark:isDark], @"%@", identifier);
-            XCTAssertNotNil([theme playlistPlayingRowColorForDark:isDark], @"%@", identifier);
-            XCTAssertNotNil([theme playlistSelectedRowColorForDark:isDark], @"%@", identifier);
+            XCTAssertNotNil([theme colorForBase:kVibeThemeColorWaveformPlayed dark:isDark], @"%@", identifier);
+            XCTAssertNotNil([theme colorForBase:kVibeThemeColorWaveformUnplayed dark:isDark], @"%@", identifier);
+            XCTAssertNotNil([theme colorForBase:kVibeThemeColorWindowBackground dark:isDark], @"%@", identifier);
+            XCTAssertNotNil([theme colorForBase:kVibeThemeColorPlaylistBackground dark:isDark], @"%@", identifier);
+            XCTAssertNotNil([theme colorForBase:kVibeThemeColorTitle dark:isDark], @"%@", identifier);
+            XCTAssertNotNil([theme colorForBase:kVibeThemeColorArtist dark:isDark], @"%@", identifier);
+            XCTAssertNotNil([theme colorForBase:kVibeThemeColorInfo dark:isDark], @"%@", identifier);
+            XCTAssertNotNil([theme colorForBase:kVibeThemeColorTime dark:isDark], @"%@", identifier);
+            XCTAssertNotNil([theme colorForBase:kVibeThemeColorPlaylistPlayingRow dark:isDark], @"%@", identifier);
+            XCTAssertNotNil([theme colorForBase:kVibeThemeColorPlaylistSelectedRow dark:isDark], @"%@", identifier);
         }
         // Dual, so a solid background never outranks the appearance setting.
         XCTAssertNil(theme.requiredWindowAppearance, @"%@", identifier);
@@ -860,13 +860,13 @@ static CGFloat Brightness(NSString *hex) {
 
 - (void)testSingleModeUsesOneColorSlotFromEitherSide {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"mode": @"single"}];
-    [theme setTitleColor:VibeColorFromHexString(@"#FF2200") forDark:NO];
+    [theme setColor:VibeColorFromHexString(@"#FF2200") forBase:kVibeThemeColorTitle dark:NO];
     XCTAssertEqualObjects(theme.dictionaryRepresentation, (@{
         @"mode": @"single",
         @"titleColorDark": @"#FF2200",
     }));
-    XCTAssertEqualObjects(VibeHexStringFromColor([theme titleColorForDark:YES]), @"#FF2200");
-    XCTAssertEqualObjects(VibeHexStringFromColor([theme titleColorForDark:NO]), @"#FF2200");
+    XCTAssertEqualObjects(VibeHexStringFromColor([theme colorForBase:kVibeThemeColorTitle dark:YES]), @"#FF2200");
+    XCTAssertEqualObjects(VibeHexStringFromColor([theme colorForBase:kVibeThemeColorTitle dark:NO]), @"#FF2200");
 }
 
 - (void)testModeFlipsPreserveBothPalettes {
@@ -875,16 +875,16 @@ static CGFloat Brightness(NSString *hex) {
         @"titleColorLight": @"#EEEEEE",
     }];
     theme.mode = @"single";
-    XCTAssertEqualObjects(VibeHexStringFromColor([theme titleColorForDark:NO]), @"#111111");
+    XCTAssertEqualObjects(VibeHexStringFromColor([theme colorForBase:kVibeThemeColorTitle dark:NO]), @"#111111");
     XCTAssertEqualObjects(theme.dictionaryRepresentation[@"titleColorLight"], @"#EEEEEE");
     theme.mode = @"dual";
-    XCTAssertEqualObjects(VibeHexStringFromColor([theme titleColorForDark:NO]), @"#EEEEEE");
+    XCTAssertEqualObjects(VibeHexStringFromColor([theme colorForBase:kVibeThemeColorTitle dark:NO]), @"#EEEEEE");
 }
 
 - (void)testSingleModeAlwaysPinsTheDarkAppearance {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"mode": @"single"}];
     XCTAssertEqualObjects(theme.requiredWindowAppearance.name, NSAppearanceNameDarkAqua);
-    [theme setWindowBackgroundColor:VibeColorFromHexString(@"#FFFFFF") forDark:YES];
+    [theme setColor:VibeColorFromHexString(@"#FFFFFF") forBase:kVibeThemeColorWindowBackground dark:YES];
     theme.windowBackgroundStyle = @"solid";
     XCTAssertEqualObjects(theme.requiredWindowAppearance.name, NSAppearanceNameDarkAqua);
     theme.mode = @"dual";

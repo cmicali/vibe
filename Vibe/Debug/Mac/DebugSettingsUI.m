@@ -128,9 +128,7 @@ void VibeDebugSettingsRefreshSelectedPane(void) {
 // own accessibilityRole reads AXUnknown until an accessibility client attaches.
 // The CELL's role is the one AppKit fills in eagerly, and it is exact.
 static NSString *VibeButtonKind(NSButton *button) {
-    NSCell *cell = button.cell;
-    NSAccessibilityRole role = [cell respondsToSelector:@selector(accessibilityRole)]
-            ? cell.accessibilityRole : nil;
+    NSAccessibilityRole role = button.cell.accessibilityRole;
     if ([role isEqualToString:NSAccessibilityRadioButtonRole]) {
         return @"radio";
     }

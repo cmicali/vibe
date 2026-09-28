@@ -56,6 +56,14 @@ static const double kVibeWaveformGainMaxDB = 12;
 
 #pragma mark - macOS only
 
+- (void)applicationDidFinishLaunching;
+
+// Settings > Advanced > Reset. Preserves custom themes; bookmarks, stats and
+// window frames live elsewhere. Clears the store only: the caller owns the
+// running-app effects.
+- (BOOL)allSettingsAtDefaults;
+- (void)resetToDefaults;
+
 - (NSString *)audioOutputDeviceName;
 - (void)setAudioOutputDeviceName:(NSString *)deviceName;
 
@@ -238,14 +246,11 @@ static const double kVibeWaveformGainMaxDB = 12;
 // For the same model on a new USB port. Never overwrites toUID's modes.
 - (void)carryOutputModesFromDeviceUID:(NSString *)fromUID toDeviceUID:(NSString *)toUID;
 
-// Exclusive access under bit-perfect output, per device like it. Reads NO
-// when compiled out, whatever is stored. Writers request
-// VibeSettingsLiveEffectBitPerfect.
+// Exclusive access under bit-perfect output, per device like it. Writers
+// request VibeSettingsLiveEffectBitPerfect.
 - (BOOL)exclusiveOutput;
 - (BOOL)exclusiveOutputForDeviceUID:(nullable NSString *)deviceUID;
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
 - (void)setExclusiveOutput:(BOOL)enabled;
-#endif
 
 // One choice for every device: a transport edge ramps ≤10 ms, or cuts leaving
 // every sample untouched. A longer crossfade fades either way. Writers

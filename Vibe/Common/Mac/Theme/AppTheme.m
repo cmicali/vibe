@@ -1260,36 +1260,6 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 - (NSString *)keyNotation { return [self stringForKey:kFieldKeyNotation]; }
 - (void)setKeyNotation:(NSString *)v { [self storeSanitized:v forKey:kFieldKeyNotation]; }
 
-- (NSString *)titleFontFace { return [self stringForKey:kFieldTitleFontFace]; }
-- (void)setTitleFontFace:(NSString *)v { [self storeSanitized:v forKey:kFieldTitleFontFace]; }
-
-- (CGFloat)titleFontSize { return [self floatForKey:kFieldTitleFontSize]; }
-- (void)setTitleFontSize:(CGFloat)v { [self storeSanitized:@(v) forKey:kFieldTitleFontSize]; }
-
-- (NSString *)artistFontFace { return [self stringForKey:kFieldArtistFontFace]; }
-- (void)setArtistFontFace:(NSString *)v { [self storeSanitized:v forKey:kFieldArtistFontFace]; }
-
-- (CGFloat)artistFontSize { return [self floatForKey:kFieldArtistFontSize]; }
-- (void)setArtistFontSize:(CGFloat)v { [self storeSanitized:@(v) forKey:kFieldArtistFontSize]; }
-
-- (NSString *)infoFontFace { return [self stringForKey:kFieldInfoFontFace]; }
-- (void)setInfoFontFace:(NSString *)v { [self storeSanitized:v forKey:kFieldInfoFontFace]; }
-
-- (CGFloat)infoFontSize { return [self floatForKey:kFieldInfoFontSize]; }
-- (void)setInfoFontSize:(CGFloat)v { [self storeSanitized:@(v) forKey:kFieldInfoFontSize]; }
-
-- (NSString *)playlistFontFace { return [self stringForKey:kFieldPlaylistFontFace]; }
-- (void)setPlaylistFontFace:(NSString *)v { [self storeSanitized:v forKey:kFieldPlaylistFontFace]; }
-
-- (CGFloat)playlistFontSize { return [self floatForKey:kFieldPlaylistFontSize]; }
-- (void)setPlaylistFontSize:(CGFloat)v { [self storeSanitized:@(v) forKey:kFieldPlaylistFontSize]; }
-
-- (NSString *)playlistDurationFontFace { return [self stringForKey:kFieldPlaylistDurationFontFace]; }
-- (void)setPlaylistDurationFontFace:(NSString *)v { [self storeSanitized:v forKey:kFieldPlaylistDurationFontFace]; }
-
-- (CGFloat)playlistDurationFontSize { return [self floatForKey:kFieldPlaylistDurationFontSize]; }
-- (void)setPlaylistDurationFontSize:(CGFloat)v { [self storeSanitized:@(v) forKey:kFieldPlaylistDurationFontSize]; }
-
 // Exhaustive, no default: an unhandled new slot must fail the build.
 static void FontSlotKeys(VibeFontSlot slot, NSString **faceKey, NSString **sizeKey) {
     switch (slot) {
@@ -1566,41 +1536,5 @@ static NSColor *HueColor(CGFloat hue, BOOL dark, CGFloat alpha) {
     return self.isSingleMode
             ? [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua] : nil;
 }
-
-- (VibeColor *)waveformPlayedColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorWaveformPlayed dark:isDark]; }
-- (void)setWaveformPlayedColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorWaveformPlayed dark:isDark]; }
-
-- (VibeColor *)waveformUnplayedColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorWaveformUnplayed dark:isDark]; }
-- (void)setWaveformUnplayedColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorWaveformUnplayed dark:isDark]; }
-
-- (VibeColor *)windowTintColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorWindowTint dark:isDark]; }
-- (void)setWindowTintColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorWindowTint dark:isDark]; }
-
-- (VibeColor *)playlistTintColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorPlaylistTint dark:isDark]; }
-- (void)setPlaylistTintColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorPlaylistTint dark:isDark]; }
-
-- (VibeColor *)windowBackgroundColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorWindowBackground dark:isDark]; }
-- (void)setWindowBackgroundColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorWindowBackground dark:isDark]; }
-
-- (VibeColor *)titleColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorTitle dark:isDark]; }
-- (void)setTitleColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorTitle dark:isDark]; }
-
-- (VibeColor *)artistColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorArtist dark:isDark]; }
-- (void)setArtistColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorArtist dark:isDark]; }
-
-- (VibeColor *)infoColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorInfo dark:isDark]; }
-- (void)setInfoColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorInfo dark:isDark]; }
-
-- (VibeColor *)timeColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorTime dark:isDark]; }
-- (void)setTimeColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorTime dark:isDark]; }
-
-- (VibeColor *)playlistBackgroundColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorPlaylistBackground dark:isDark]; }
-- (void)setPlaylistBackgroundColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorPlaylistBackground dark:isDark]; }
-
-- (VibeColor *)playlistPlayingRowColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorPlaylistPlayingRow dark:isDark]; }
-- (void)setPlaylistPlayingRowColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorPlaylistPlayingRow dark:isDark]; }
-
-- (VibeColor *)playlistSelectedRowColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorPlaylistSelectedRow dark:isDark]; }
-- (void)setPlaylistSelectedRowColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorPlaylistSelectedRow dark:isDark]; }
 
 @end

@@ -237,11 +237,11 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     FadeLayerToColor(_headerTintView.layer,
             [self resolvedWashForTint:theme.windowTint
-                          customColor:[theme windowTintColorForDark:dark]
+                          customColor:[theme colorForBase:kVibeThemeColorWindowTint dark:dark]
                                isDark:dark]);
     FadeLayerToColor(_playlistTintView.layer,
             [self resolvedWashForTint:theme.playlistTint
-                          customColor:[theme playlistTintColorForDark:dark]
+                          customColor:[theme colorForBase:kVibeThemeColorPlaylistTint dark:dark]
                                isDark:dark]);
     // The placeholder is one dynamic image whose pixels follow the drawing
     // appearance, so it is re-sampled under the window's appearance on every

@@ -46,7 +46,6 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 @protocol FileDropDelegate <NSObject>
-@optional
 
 // Whether a drop at this window point appends rather than replaces, which the
 // empty-state wells decide. Answered synchronously, at drop time.

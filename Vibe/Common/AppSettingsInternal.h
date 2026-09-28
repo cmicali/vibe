@@ -42,15 +42,14 @@ NS_ASSUME_NONNULL_BEGIN
 }
 @end
 
-// The macOS halves of the shared entry points, implemented in
-// Mac/AppSettings+Mac.m. A named category, since an extension's methods must
-// be in the primary @implementation.
+// The seam both ways: the macOS halves of the shared entry points, implemented
+// in Mac/AppSettings+Mac.m, and what registerDefaults registers, in
+// AppSettings.m. A named category, since an extension's methods must be in the
+// primary @implementation.
 @interface AppSettings (MacInternal)
 - (void)migrateLooseAppearanceSettingsToTheme;
 - (void)registerMacDefaultsInto:(NSMutableDictionary *)defaults;
-- (void)addMacNullableSettingKeysTo:(NSMutableArray<NSString *> *)keys;
-- (void)resetMacThemeState;
-- (void)macApplicationDidFinishLaunching;
+- (NSDictionary<NSString *, id> *)registeredSettingDefaults;
 // The edit funnel with an explicit time, so tests exercise coalescing without
 // sleeping.
 - (void)currentThemeDidChangeContinuous:(BOOL)continuous atTime:(NSTimeInterval)time;

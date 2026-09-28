@@ -210,12 +210,6 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [self audioPlayer:audioPlayer didStartPlaying:startedTrack];
 }
 
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didChangeOutputDevice:(NSInteger)newDeviceID
-involuntaryFallbackUID:(NSString *)fallbackUID involuntaryFallbackName:(NSString *)fallbackName
-carriedModesFromUID:(NSString *)carriedModesUID {
-    // macOS only.
-}
-
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error {
     if ([error.domain isEqualToString:kVibeAudioErrorDomain]
             && error.code == VibeAudioErrorNotPlaying) {

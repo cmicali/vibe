@@ -610,14 +610,12 @@ static NSArray<NSString *> *VibeReadAvailableRates(AudioDeviceID deviceID) {
     VibeAddUInt32(d, @"alive", deviceID, kAudioDevicePropertyDeviceIsAlive, kAudioObjectPropertyScopeGlobal);
     VibeAddUInt32(d, @"runningSomewhere", deviceID, kAudioDevicePropertyDeviceIsRunningSomewhere,
                   kAudioObjectPropertyScopeGlobal);
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     d[@"exclusiveSupported"] = @([self supportsHogModeForDeviceID:deviceID]);
     pid_t owner = -1;
     if ([self readHogOwner:&owner forDeviceID:deviceID]) {
         d[@"exclusiveOwnerPID"] = @(owner);
         d[@"exclusiveOwnedByVibe"] = @(owner == getpid());
     }
-#endif
     Float64 rate = 0;
     if ([self readNominalSampleRate:&rate forDeviceID:deviceID]) d[@"nominalSampleRate"] = @(rate);
     d[@"availableNominalSampleRates"] = VibeReadAvailableRates(deviceID);
@@ -730,7 +728,6 @@ static NSArray<NSString *> *VibeReadAvailableRates(AudioDeviceID deviceID) {
 }
 #endif
 
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
 + (BOOL)supportsHogModeForDeviceID:(AudioDeviceID)deviceID {
     AudioObjectPropertyAddress address = {
         kAudioDevicePropertyHogMode, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain
@@ -762,6 +759,5 @@ static NSArray<NSString *> *VibeReadAvailableRates(AudioDeviceID deviceID) {
     }
     return owned ? owner == me : owner != me;
 }
-#endif
 
 @end

@@ -298,9 +298,6 @@ static const CGFloat kWidgetWaveformScale = 3;
     // nil widget style means "match app".
     NSString *style = [WaveformRendererRegistry
             resolveStyleIdentifier:settings.widgetWaveformStyle ?: settings.waveformStyle];
-    // Matches the scrubber: Normalize and Gain are macOS-only.
-    const BOOL normalize = YES;
-    const float gainDB = 0;
     VibeColor *played = [settings waveformCustomPlayedColorForDark:YES];
     VibeColor *unplayed = [settings waveformCustomUnplayedColorForDark:YES];
 
@@ -313,10 +310,10 @@ static const CGFloat kWidgetWaveformScale = 3;
                                               customUnplayed:unplayed];
     // The RESOLVED palette, not the inputs, so a cover arriving under a theme
     // that ignores it bakes nothing.
-    NSString *signature = [NSString stringWithFormat:@"%@|%@|%@|%d|%.4f|%p",
+    NSString *signature = [NSString stringWithFormat:@"%@|%@|%@|%p",
                            style, VibeHexStringFromColor(theme.playedColor) ?: @"",
                            VibeHexStringFromColor(theme.unplayedColor) ?: @"",
-                           normalize, gainDB, (void *)_waveformTrack];
+                           (void *)_waveformTrack];
     if (VibeNowPlayingStringsEqual(signature, _bakedSignature)) {
         return;
     }
@@ -330,9 +327,9 @@ static const CGFloat kWidgetWaveformScale = 3;
         // The whole envelope in each side's colours; the widget reveals the
         // played one up to the playhead without a re-render.
         [self writeWaveformImage:waveform progress:1 style:style theme:theme
-                       normalize:normalize gainDB:gainDB toURL:state.waveformPlayedURL];
+                           toURL:state.waveformPlayedURL];
         [self writeWaveformImage:waveform progress:0 style:style theme:theme
-                       normalize:normalize gainDB:gainDB toURL:state.waveformUnplayedURL];
+                           toURL:state.waveformUnplayedURL];
         // The widget re-renders only on a reload.
         [self scheduleReload];
     });
@@ -341,14 +338,15 @@ static const CGFloat kWidgetWaveformScale = 3;
 
 - (void)writeWaveformImage:(CodableAudioWaveform *)waveform progress:(CGFloat)progress
                      style:(NSString *)style theme:(WaveformTheme *)theme
-                 normalize:(BOOL)normalize gainDB:(float)gainDB toURL:(NSURL *)url {
+                     toURL:(NSURL *)url {
     if (!url) {
         return;
     }
+    // Matches the scrubber: Normalize and Gain are macOS-only.
     CGImageRef baked = [WaveformRendererRegistry newImageForCodableWaveform:waveform
             identifier:style pointSize:kWidgetWaveformSize scale:kWidgetWaveformScale
               progress:progress dark:YES theme:theme
-            barDensity:1 barWidth:1 normalize:normalize gainDB:gainDB];
+            barDensity:1 barWidth:1 normalize:YES gainDB:0];
     if (!baked) {
         return;
     }

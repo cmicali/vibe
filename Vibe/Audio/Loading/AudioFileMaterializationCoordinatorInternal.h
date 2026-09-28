@@ -38,9 +38,10 @@ typedef struct {
     NSUInteger handleRunCount;
     uint64_t datalessProbesInFlight;
     BOOL foregroundTransferActive;
-    // Cumulative: the gauges above cannot tell idle from busy, which is what a
-    // silent stall looks like. handleOpensStarted - handleOpensCompleted is the
-    // outstanding AudioFileHandle calls, zero at rest.
+    // Cumulative, and zero outside debug builds: the gauges above cannot tell
+    // idle from busy, which is what a silent stall looks like.
+    // handleOpensStarted - handleOpensCompleted is the outstanding
+    // AudioFileHandle calls, zero at rest.
     uint64_t handleOpensStarted;
     uint64_t handleOpensCompleted;
     uint64_t requestsReady;
@@ -68,16 +69,11 @@ typedef struct {
 // Swappable on a live coordinator; the debug channel reads it back to wrap it.
 @property (nonatomic, copy) VibeAudioFileOpener fileOpener;
 
-// Outstanding AudioFileHandle calls, lock-free, for the health probe. Never
-// overstates; a racing open may read low.
-- (uint64_t)handleOpensInFlight;
-
 // Dataless probes outstanding, queued or running, including one whose last
 // waiter detached. Lock-free, for quiescence.
 - (uint64_t)datalessProbesInFlight;
 
 - (VibeAudioFileMaterializationCoordinatorSnapshot)stateSnapshotForTesting;
-- (void)expirePendingClaimsForTesting;
 
 @end
 

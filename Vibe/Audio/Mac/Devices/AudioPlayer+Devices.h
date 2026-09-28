@@ -128,7 +128,6 @@ NS_ASSUME_NONNULL_BEGIN
 // format the report reads live against.
 - (void)prepareOutputOnQueueForFile:(AudioFileHandle *)file;
 
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
 // Hogs the bit-perfect device (the requested one, or a switch's destination)
 // when the setting, an eligible device and writable HAL hog mode all hold.
 // Idempotent through the HAL read; a rebuild on the device already hogged
@@ -136,7 +135,6 @@ NS_ASSUME_NONNULL_BEGIN
 // hosted unit stays.
 - (void)acquireExclusiveOutputOnQueue;
 - (void)releaseExclusiveOutputOnQueue;
-#endif
 
 // Computes the report from its owners and publishes the copy the shell
 // reads, announcing it to the delegate when it differs. Its edges are

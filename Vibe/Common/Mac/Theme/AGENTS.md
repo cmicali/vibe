@@ -18,7 +18,7 @@ One theme, the type the theme system is written in terms of: a **sparse record**
 
 ## Colors
 
-**A pair is keyed by its exported base name** (`kVibeThemeColor*`): `colorForBase:dark:` and `setColor:forBase:dark:` are the slots, the typed `*ColorForDark:` accessors the same slots by name. Under single mode both force the dark-keyed slot from either side; the light halves lie dormant, never mirrored or consumed, so a mode flip round-trips. `requiredWindowAppearance` is nil for a dual theme.
+**A pair is keyed by its exported base name** (`kVibeThemeColor*`): `colorForBase:dark:` and `setColor:forBase:dark:` are the slots, and the only way in. Under single mode both force the dark-keyed slot from either side; the light halves lie dormant, never mirrored or consumed, so a mode flip round-trips. `requiredWindowAppearance` is nil for a dual theme.
 
 **The four `resolved*Color` accessors are the one home of override-over-semantic-fallback**, and `DefaultColorForBase` the only spelling of what an unset slot draws as (the label pairs' semantic fallback under that side, the solid cover, the neutral tint wash and row fill, Mono's resting levels): the window and playlist covers, the row fills, the editor's wells and the seed a popup writes when it reveals a pair all read it. `displayColorForBase:dark:` pins any pair to one side for the wells.
 

@@ -161,10 +161,8 @@
 
     settings.audioOutputDeviceUID = @"dac";
     settings.bitPerfectOutput = YES;
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     settings.exclusiveOutput = YES;
     XCTAssertTrue(settings.exclusiveOutput);
-#endif
     XCTAssertTrue(settings.bitPerfectOutput);
     XCTAssertFalse(settings.audioFXAllowed);
 
@@ -179,14 +177,10 @@
 
     settings.audioOutputDeviceUID = @"dac";
     XCTAssertTrue(settings.bitPerfectOutput);
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     // Exclusive survives a bit-perfect toggle, so the entry stays for it alone.
     settings.bitPerfectOutput = NO;
     XCTAssertEqualObjects([defaults dictionaryForKey:key], @{@"dac": @{@"exclusive": @YES}});
     settings.exclusiveOutput = NO;
-#else
-    settings.bitPerfectOutput = NO;
-#endif
     XCTAssertNil([defaults objectForKey:key]);
     settings.bitPerfectOutput = YES;
     [settings resetToDefaults];

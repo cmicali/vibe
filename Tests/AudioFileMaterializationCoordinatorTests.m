@@ -5,6 +5,7 @@
 
 #import <XCTest/XCTest.h>
 
+#import "AudioFileMaterializationCoordinator+Debug.h"
 #import "AudioFileMaterializationCoordinatorInternal.h"
 #import "CloudTransferRegistry.h"
 

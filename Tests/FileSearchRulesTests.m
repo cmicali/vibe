@@ -117,26 +117,6 @@
     XCTAssertTrue(VibeSearchTrackMatchesQuery(nil, nil, @"x.mp3", @""));
 }
 
-#pragma mark - Files
-
-// A found file has no tags, so its folder stands in for album and artist.
-- (void)testFileMatchesItsFolderName {
-    XCTAssertTrue(VibeSearchFileMatchesQuery(@"01.mp3", @"Kid A", @"kid a"));
-    XCTAssertTrue(VibeSearchFileMatchesQuery(@"Idioteque.mp3", @"Kid A", @"idiot"));
-    XCTAssertFalse(VibeSearchFileMatchesQuery(@"01.mp3", @"Kid A", @"amnesiac"));
-}
-
-// Unlike the text rule: an empty query browses the playlist but must never dump
-// the file tree.
-- (void)testEmptyQueryMatchesNoFile {
-    XCTAssertFalse(VibeSearchFileMatchesQuery(@"01.mp3", @"Kid A", @""));
-}
-
-- (void)testFileWithNoFolderNameStillMatchesOnItsOwnName {
-    XCTAssertTrue(VibeSearchFileMatchesQuery(@"Idioteque.mp3", nil, @"idiot"));
-    XCTAssertTrue(VibeSearchFileMatchesQuery(@"Idioteque.mp3", @"", @"idiot"));
-}
-
 #pragma mark - Root coverage
 
 // Shared by the index's pruning and the settings list's "already covered".
@@ -298,6 +278,37 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
         [delivered fulfill];
     }];
     requestReturned = YES;
+    [self waitForExpectations:@[delivered] timeout:VIBE_TEST_HANG_TIMEOUT];
+}
+
+// A found file has no tags, so its folder stands in for album and artist.
+- (void)testFileMatchesItsFolderName {
+    FileSearchIndex *index = [self indexWithRelativeFilePaths:@[
+        @"Music/Kid A/01.mp3",
+        @"Music/Amnesiac/Idioteque.mp3"
+    ]];
+    XCTestExpectation *delivered = [self expectationWithDescription:@"hits delivered"];
+    [index requestHitsMatchingQuery:@"kid a" excluding:nil limit:10
+                         completion:^(NSArray<FileSearchHit *> *hits) {
+        XCTAssertEqual(hits.count, 1u);
+        XCTAssertEqualObjects(hits.firstObject.fileName, @"01.mp3");
+        [delivered fulfill];
+    }];
+    [self waitForExpectations:@[delivered] timeout:VIBE_TEST_HANG_TIMEOUT];
+}
+
+// Unlike the playlist's text rule: an empty query browses the playlist but must
+// never dump the file tree.
+- (void)testEmptyQueryFindsNoFile {
+    FileSearchIndex *index = [self indexWithRelativeFilePaths:@[
+        @"Music/Kid A/01.mp3"
+    ]];
+    XCTestExpectation *delivered = [self expectationWithDescription:@"hits delivered"];
+    [index requestHitsMatchingQuery:@"" excluding:nil limit:10
+                         completion:^(NSArray<FileSearchHit *> *hits) {
+        XCTAssertEqual(hits.count, 0u);
+        [delivered fulfill];
+    }];
     [self waitForExpectations:@[delivered] timeout:VIBE_TEST_HANG_TIMEOUT];
 }
 

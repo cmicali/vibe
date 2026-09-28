@@ -120,7 +120,6 @@ static NSDictionary *VibeAppDictionary(void) {
         @"launched": launched.description ?: @"",
         @"runningSeconds": @(launched ? (NSInteger)-launched.timeIntervalSinceNow : 0),
         @"verboseLogging": @((BOOL)VIBE_VERBOSE_LOGGING),
-        @"exclusiveOutputBuilt": @((BOOL)VIBE_ENABLE_EXCLUSIVE_OUTPUT),
     };
 }
 

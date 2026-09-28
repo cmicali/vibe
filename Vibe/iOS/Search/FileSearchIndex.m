@@ -78,7 +78,9 @@ static NSArray<NSString *> *VibeStandardizedPaths(NSArray<NSURL *> *urls) {
     NSUInteger                  _cachedFilterLimit;
     NSUInteger                  _cachedFilteredFileCount;
     NSArray<FileSearchHit *>   *_cachedFileHits;
+#if DEBUG
     NSUInteger                  _lastFilterEvaluationCount;
+#endif
 }
 
 - (instancetype)init {
@@ -243,14 +245,18 @@ static NSArray<NSString *> *VibeStandardizedPaths(NSArray<NSURL *> *urls) {
         NSMutableArray<FileSearchHit *> *hits = canContinue
                 ? [self->_cachedFileHits mutableCopy]
                 : [NSMutableArray arrayWithCapacity:MIN(limit, (NSUInteger)64)];
+#if DEBUG
         NSUInteger evaluations = 0;
+#endif
         if (foldedQuery.length > 0 && limit > 0 && hits.count < limit) {
             for (NSUInteger index = startIndex; index < files.count; index++) {
                 if (atomic_load(&self->_hitRequestGeneration) != generation) {
                     return;
                 }
                 IndexedSearchFile *file = files[index];
+#if DEBUG
                 evaluations++;
+#endif
                 if ([excludedSnapshot containsObject:file.path]) {
                     continue;
                 }
@@ -271,7 +277,9 @@ static NSArray<NSString *> *VibeStandardizedPaths(NSArray<NSURL *> *urls) {
         self->_cachedFilterLimit = limit;
         self->_cachedFilteredFileCount = files.count;
         self->_cachedFileHits = result;
+#if DEBUG
         self->_lastFilterEvaluationCount = evaluations;
+#endif
         dispatch_async(dispatch_get_main_queue(), ^{
             if (atomic_load(&self->_hitRequestGeneration) == generation) {
                 completion(result);
@@ -330,10 +338,12 @@ static NSArray<NSString *> *VibeStandardizedPaths(NSArray<NSURL *> *urls) {
 }
 
 - (NSUInteger)lastFilterEvaluationCountForTesting {
-    __block NSUInteger count;
+    __block NSUInteger count = 0;
+#if DEBUG
     dispatch_sync(_filterQueue, ^{
         count = self->_lastFilterEvaluationCount;
     });
+#endif
     return count;
 }
 

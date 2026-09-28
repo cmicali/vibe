@@ -79,8 +79,8 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
     WaveformTheme *resolved = [self themeForIdentifier:theme.waveformTheme
                                                 isDark:isDark
                                           artworkColor:artworkColor
-                                          customPlayed:[theme waveformPlayedColorForDark:isDark]
-                                        customUnplayed:[theme waveformUnplayedColorForDark:isDark]];
+                                          customPlayed:[theme colorForBase:kVibeThemeColorWaveformPlayed dark:isDark]
+                                        customUnplayed:[theme colorForBase:kVibeThemeColorWaveformUnplayed dark:isDark]];
     resolved.flatFill = !theme.waveformGradient;
     return resolved;
 }

@@ -4,6 +4,7 @@
 //
 
 #import "DebugConsistency.h"
+#import "AudioFileMaterializationCoordinator+Debug.h"
 #import "AudioFileMaterializationCoordinatorInternal.h"
 
 #if DEBUG

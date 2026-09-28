@@ -80,21 +80,6 @@ jobs:
           codesign --verify --deep --strict --verbose=2 \
             build/AnalyzeDD/Build/Products/Release/Vibe.app
 
-      # Parked, not deleted. The exclusive-output flag stays in the code; this
-      # step comes back if App Store review rejects the hog-mode APIs and we
-      # have to ship two builds, one with them and one without. Until then the
-      # flag-off build is not exercised.
-      # - name: Build without exclusive output
-      #   if: matrix.leg == 'macos'
-      #   run: |
-      #     xcodebuild -project Vibe.xcodeproj -scheme Vibe -configuration Release \
-      #       -derivedDataPath build/DerivedData VIBE_ENABLE_EXCLUSIVE_OUTPUT=0 build
-      #     nm build/DerivedData/Build/Products/Release/Vibe.app/Contents/MacOS/Vibe > /tmp/vibe-symbols.txt
-      #     if grep -Eq 'readHogOwner|setHogOwnedByThisProcess|acquireExclusiveOutputOnQueue|releaseExclusiveOutputOnQueue|toggleExclusiveOutput' /tmp/vibe-symbols.txt; then
-      #       echo 'Exclusive output methods survived the disabled build'
-      #       exit 1
-      #     fi
-
   # Everything Debug: both apps' Debug builds (Vibe/Debug compiles only here,
   # and the iOS one is the check that catches an AppKit leak into a shared
   # directory), then both test suites. Nothing downstream uses these products,

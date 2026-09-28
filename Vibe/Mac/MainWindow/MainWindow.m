@@ -200,15 +200,11 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 }
 
 - (void)notifyFileDraggingUpdated:(id<NSDraggingInfo>)sender {
-    if ([self.dropDelegate respondsToSelector:@selector(mainWindow:fileDraggingUpdatedAtLocation:)]) {
-        [self.dropDelegate mainWindow:self fileDraggingUpdatedAtLocation:sender.draggingLocation];
-    }
+    [self.dropDelegate mainWindow:self fileDraggingUpdatedAtLocation:sender.draggingLocation];
 }
 
 - (void)notifyFileDraggingEnded {
-    if ([self.dropDelegate respondsToSelector:@selector(mainWindowFileDraggingEnded:)]) {
-        [self.dropDelegate mainWindowFileDraggingEnded:self];
-    }
+    [self.dropDelegate mainWindowFileDraggingEnded:self];
 }
 
 - (BOOL)performDragOperation:(id<NSDraggingInfo>)sender {
@@ -227,10 +223,7 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
         [urls addObject:path ? [NSURL fileURLWithPath:path] : url];
     }
     // Synchronously: the session is gone by the time the expansion lands.
-    BOOL append = NO;
-    if ([self.dropDelegate respondsToSelector:@selector(mainWindow:dropAppendsAtLocation:)]) {
-        append = [self.dropDelegate mainWindow:self dropAppendsAtLocation:sender.draggingLocation];
-    }
+    BOOL append = [self.dropDelegate mainWindow:self dropAppendsAtLocation:sender.draggingLocation];
     // The whole open funnel, or a drop skips a tail step such as
     // revealEmptyState.
     [(AppDelegate *)NSApp.delegate openDroppedURLs:urls appending:append];

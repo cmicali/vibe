@@ -76,7 +76,6 @@ build/verify-bit-perfect: .claude/skills/vibe-debug/scripts/verify-bit-perfect.s
 # Opt-in live acceptance, never CI: the test drivers from build-test-blackhole,
 # and the Debug app already running on VibeBlackHole 16ch. See
 # vibe-debug/references/test-audio.md.
-.PHONY: build-test-blackhole
 build-test-blackhole:
 	@.claude/skills/vibe-debug/scripts/generate-test-audio.sh --blackhole-drivers
 

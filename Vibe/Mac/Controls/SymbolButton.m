@@ -28,10 +28,10 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
     // What _maskLayer was rasterized for, so layout skips redundant passes.
     NSString *_renderedSymbolName;
     CGFloat _renderedPointSize;
-    NSFontWeight _renderedWeight;
     CGFloat _renderedScale;
     BOOL _hovering;
     BOOL _mouseDown;   // a press that began inside
+    NSColor *_symbolDisabledColor;
 }
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
@@ -39,7 +39,6 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
     if (self) {
         self.wantsLayer = YES;
         _symbolPointSize = kDefaultSymbolPointSize;
-        _symbolWeight = NSFontWeightRegular;
         // CALayer cannot tint its contents, so the symbol is a mask over an
         // animatable color layer.
         _colorLayer = [CALayer layer];
@@ -122,7 +121,6 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
     if (_maskLayer.contents &&
         [_renderedSymbolName isEqualToString:_symbolName] &&
         _renderedPointSize == _symbolPointSize &&
-        _renderedWeight == _symbolWeight &&
         _renderedScale == scale) {
         [self centerMaskLayer];
         return;
@@ -133,7 +131,7 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
                                         : nil;
     image = [image imageWithSymbolConfiguration:
             [NSImageSymbolConfiguration configurationWithPointSize:_symbolPointSize
-                                                           weight:_symbolWeight]];
+                                                           weight:NSFontWeightRegular]];
     NSSize size = image ? image.size : NSZeroSize;
     if (size.width <= 0 || size.height <= 0) {
         _maskLayer.contents = nil;
@@ -162,7 +160,6 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
     _maskLayer.contents = (__bridge id)rep.CGImage; // CALayer retains it
     _renderedSymbolName = [_symbolName copy];
     _renderedPointSize = _symbolPointSize;
-    _renderedWeight = _symbolWeight;
     _renderedScale = scale;
     [self centerMaskLayer];
 }
@@ -297,11 +294,6 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
     self.needsLayout = YES;
 }
 
-- (void)setSymbolWeight:(NSFontWeight)symbolWeight {
-    _symbolWeight = symbolWeight;
-    self.needsLayout = YES;
-}
-
 - (void)setEnabled:(BOOL)enabled {
     [super setEnabled:enabled];
     [self applyColorAnimated:YES];
@@ -314,11 +306,6 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
 
 - (void)setSymbolHighlightColor:(NSColor *)color {
     _symbolHighlightColor = color;
-    [self applyColorAnimated:NO];
-}
-
-- (void)setSymbolDisabledColor:(NSColor *)color {
-    _symbolDisabledColor = color;
     [self applyColorAnimated:NO];
 }
 

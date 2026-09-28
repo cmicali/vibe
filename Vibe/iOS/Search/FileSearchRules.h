@@ -58,18 +58,6 @@ static inline BOOL VibeSearchTrackMatchesQuery(NSString *_Nullable title,
             || VibeSearchTextMatchesQuery(fileName, query);
 }
 
-// No tags (each would be a download), so the path. The folder counts: on a
-// music tree it is the album or the artist.
-static inline BOOL VibeSearchFileMatchesQuery(NSString *fileName,
-                                              NSString *_Nullable folderName,
-                                              NSString *query) {
-    if (query.length == 0) {
-        return NO;
-    }
-    return VibeSearchTextMatchesQuery(fileName, query)
-            || (folderName.length > 0 && VibeSearchTextMatchesQuery(folderName, query));
-}
-
 // The root IS the path or contains it. Both must be standardized; no disk. The
 // separator on BOTH sides keeps "/Music" from covering "/Music Videos" while an
 // exact match still counts.
