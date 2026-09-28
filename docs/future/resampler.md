@@ -42,6 +42,19 @@ A voice's first fill costs at most 0.45 ms, and making a resampler is under 0.1 
 
 **No dither.** r8brain computes in double and hands float32 to a float32 bus, whose rounding error scales with the signal rather than sitting at a fixed floor dither would decorrelate: the −60 dBFS tone's residual is −209 dBFS with both resamplers, THD at 1 kHz near −160 dB, no truncation harmonics. The one integer requantization is the output's float → device conversion (`Audio/Mac/Devices/AGENTS.md`), downstream of the resampler and shared with Apple's path; dithering there is a separate question that matters only for a 16-bit device, and it could never apply under bit-perfect output. The README's PRVHASH suggestion is for requantizing to integers, which the resampler never does.
 
+Nor would dither close the cases where Apple measures better (all below −157 dB). Each was rerun with r8brain in double precision, then rounded to float32 three ways, measured as the test measures (dB; the rounded column reproduces the test's figures):
+
+| Case | Apple | r8brain in double | r8brain rounded (shipped) | r8brain, TPDF ±1 ULP |
+| --- | --- | --- | --- | --- |
+| CCIF IMD 44.1→48 | −173.1 | −172.4 | −167.5 | −173.7 |
+| CCIF IMD 44.1→96 | −171.1 | −172.4 | −166.6 | −171.8 |
+| SMPTE IMD 48→44.1 | −160.0 | −162.6 | −158.4 | −161.8 |
+| THD 6 kHz 48→44.1 | −165.8 | −169.7 | −161.6 | −170.0 |
+| THD 1 kHz 192→48 | −161.7 | −165.9 | −157.2 | −165.6 |
+| *everything else (noise)* | | −153 to −180 | −150 to −157 | −147 to −148 |
+
+In double r8brain matches or beats Apple in every case, so the gap is the rounding to float32, not the resampler. Dither decorrelates that rounding: the products drop 3–9 dB, past Apple's, but the broadband noise rises 3–9 dB, taking r8brain's worst THD+N from −149…−152 dB to Apple's −147…−148 and giving up its lead on the measures that count for eight cosmetic ones, for a random number per sample. Not taken.
+
 ## Measured (Apple Silicon Mac, unit test, Debug build with the resamplers optimized)
 
 The charts are drawn from one `make test` run of `ResamplerQualityTests` and, for the frequency response, an impulse through each resampler at the bus's settings; `resampler/*.svg` are their light and dark versions.
