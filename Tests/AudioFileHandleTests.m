@@ -408,8 +408,8 @@ static int VibeOpenDescriptorCount(void) {
 
 // Apple's MPEG decoders output Int16 only, so an MP3 or MP2 decode is already
 // on the 16-bit grid and any integer depth or float carries it exactly; its
-// AAC decoder outputs float32, which 16 bits would round. The lossy output
-// rule (OutputFormatRules.h) and docs/audio-quality.md rest on this.
+// AAC decoder outputs float32, which 16 bits would round. docs/audio-quality.md's
+// findings for Apple's MPEG decoder rest on this.
 - (void)testAppleMPEGDecodersOutputInt16OnlyAndAACOutputsFloat {
     NSDictionary<NSNumber *, NSNumber *> *floatOffered = @{
         @(kAudioFormatMPEGLayer3): @NO, @(kAudioFormatMPEGLayer2): @NO, @(kAudioFormatMPEG4AAC): @YES,
