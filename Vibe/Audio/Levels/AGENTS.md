@@ -34,7 +34,7 @@ Normalization mode is immutable for one `AudioLevelMeter`. Debug `set_equalizer_
 
 The tunable audio half is `AudioLevelMath.h` — analysis cadence, band edges, energy aggregation, normalization and running references — header-only and tested. Display target threshold and attack/release animation durations live separately in `../../Controls/EqualizerAnimationMath.h`, so changing visual motion cannot increase FFT work.
 
-**`--silent` zeroes the output's buffers *after* the meter**, so the bars are live under the debug scripts' default launch (`--no-audio-hw --silent`) and under `--silent` alone; `dump_equalizer` reports the flags. `--no-audio-hw` drives the same render from the debug pump and is suitable for functional bar/counter checks, but not audible-start-latency measurements. On the iOS simulator use `VIBE_AUDIBLE=1` for reactive validation.
+**`--silent` zeroes the output's buffers *after* the meter** — it is the volume stage's target of 0 — so the bars are live under the debug scripts' default launch (`--no-audio-hw --silent`) and under `--silent` alone; `dump_equalizer` reports the flags. `--no-audio-hw` drives the same render from the debug pump and is suitable for functional bar/counter checks, but not audible-start-latency measurements. On the iOS simulator use `VIBE_AUDIBLE=1` for reactive validation.
 
 ## Beta signal probe
 

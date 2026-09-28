@@ -148,7 +148,8 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 // so no queue-side reader finds it absent.
 VibeMasterBus *VibeMasterBusCreate(void);
 // The output volume's gain, 0..1, from any thread; the render ramps to it
-// across its next slice. 1, the default, leaves every sample untouched.
+// across its next slice, or lands on it at the next output start. 1, the
+// default, leaves every sample untouched.
 void VibeMasterBusSetVolume(VibeMasterBus *master, float gain);
 // Whether a render is inside the pipeline right now.
 BOOL VibeMasterBusRenderInside(VibeMasterBus *master);

@@ -85,10 +85,13 @@ struct VibeMasterBus {
     _Atomic uint64_t refusedRenders; // renders the door turned away; a soak holds it at zero
     _Atomic uint64_t frames;         // the output timeline: frames rendered
     _Atomic uint32_t pendingFrames;  // the slice in flight
-    _Atomic int32_t silent;          // --silent: the meter sees the signal, the device zeros
+    _Atomic int32_t silent;          // --silent: the volume's target is 0, so the meter sees the signal and the device zeros
     // The output volume: the queue's target gain, and the gain the render last
-    // landed on, which it ramps from.
+    // landed on, which it ramps from. volumeSnap, raised by every output
+    // start, lands the next slice on the target instead: nothing sounded
+    // since the last one, so a start plays at the volume it was left at.
     _Atomic float volume;
+    _Atomic int32_t volumeSnap;
     float volumeApplied;
     _Atomic(VibeVoiceMix *) mix;     // the bus; NULL until the first settlement
     _Atomic(VibeFXChain *) chain;    // the FX segment while it is connected; NULL otherwise
@@ -388,12 +391,21 @@ static OSStatus VibeMasterBusRenderSource(VibeMasterBus *master, VibeVoiceMix *m
 }
 
 // After the meter, so the equalizer shows the signal whatever the volume. A
-// change ramps linearly across one slice, so a drag cannot zipper.
+// change ramps linearly across one slice, so a drag cannot zipper. Settled at
+// 0 it writes zeros rather than a product, which a NaN would survive.
 static void VibeMasterBusApplyVolume(VibeMasterBus *master, AudioBufferList *list, uint32_t channels,
                                      UInt32 frames) CA_REALTIME_API {
-    float target = atomic_load_explicit(&master->volume, memory_order_relaxed);
+    float target = atomic_load_explicit(&master->silent, memory_order_relaxed)
+            ? 0.0f : atomic_load_explicit(&master->volume, memory_order_relaxed);
+    if (atomic_exchange_explicit(&master->volumeSnap, 0, memory_order_acquire)) {
+        master->volumeApplied = target;
+    }
     float from = master->volumeApplied;
     if (from == target && target == 1.0f) {
+        return;
+    }
+    if (from == target && target == 0.0f) {
+        VibeMasterBusZero(list, 0, frames);
         return;
     }
     float step = (target - from) / (float)frames;
@@ -466,9 +478,6 @@ static OSStatus VibeMasterBusRenderSlice(VibeMasterBus *master, const AudioTimeS
         VibeLevelMeterRender(meter, feed, channels, frames, &stamp);
     }
     VibeMasterBusApplyVolume(master, list, channels, frames);
-    if (atomic_load_explicit(&master->silent, memory_order_relaxed)) {
-        VibeMasterBusZero(list, 0, frames);
-    }
     atomic_store_explicit(&master->frames, rendered + frames, memory_order_release);
     atomic_store_explicit(&master->pendingFrames, 0, memory_order_release);
     return status;
@@ -958,6 +967,7 @@ VibeMasterBus *VibeMasterBusCreate(void) {
     // TRAP: a zero-filled volume is silence.
     atomic_init(&master->volume, 1.0f);
     master->volumeApplied = 1.0f;
+    atomic_init(&master->volumeSnap, 1);
     return master;
 }
 
@@ -1177,6 +1187,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
         // TRAP: only the manual pump may start without an output unit;
         // otherwise Playing and didStartPlaying: publish with no callback to
         // advance the voice, and the shell gets neither audio nor an error.
+        atomic_store_explicit(&_masterBus->volumeSnap, 1, memory_order_release);
         atomic_store_explicit(&_masterBus->gate, 1, memory_order_seq_cst);
         NSError *error = nil;
         uint64_t startedAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);

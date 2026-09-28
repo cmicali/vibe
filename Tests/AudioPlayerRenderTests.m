@@ -2530,6 +2530,35 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
                    @"back at full volume, every frame continues the file exactly");
 }
 
+// A start plays at the volume it was left at, never ramping from full: with
+// Declick off, the first sample is already the file at exactly 1/8, and so is
+// the first after a resume from the idle stop.
+- (void)testAStartPlaysAtTheVolumeItWasLeftAt {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    _player.declick = NO;
+    _player.volume = 0.5f;
+    NSURL *noise = [self fixture:@"noise-48000-24-2.wav"];
+    NSData *reference = PCM([self read:noise]);
+    [self play:noise paused:NO position:0];
+    NSMutableData *scaled = [[self renderSeconds:0.25] mutableCopy];
+    float *p = scaled.mutableBytes;
+    for (NSUInteger i = 0; i < scaled.length / sizeof(float); i++) p[i] *= 8;
+    XCTAssertEqual(memcmp(scaled.bytes, reference.bytes, 64 * 2 * sizeof(float)), 0, @"the first frames ramped");
+    XCTAssertEqual([self assertExactExcerptsOf:@[reference] inCapture:scaled rampFrames:0 ramped:NULL], 1u);
+
+    // Moved while the idle stop holds the output: the resume lands on 1/64.
+    [_player pause];
+    [self renderSeconds:6.1];
+    XCTAssertFalse([_player.debugRenderCounts[@"running"] boolValue]);
+    _player.volume = 0.25f;
+    [_player resume];
+    scaled = [[self renderSeconds:0.25] mutableCopy];
+    p = scaled.mutableBytes;
+    for (NSUInteger i = 0; i < scaled.length / sizeof(float); i++) p[i] *= 64;
+    XCTAssertEqual([self assertExactExcerptsOf:@[reference] inCapture:scaled rampFrames:0 ramped:NULL], 1u,
+                   @"the resume ramped");
+}
+
 // The output's rate moves under the pipeline (a device's or a route's under
 // the output unit, here the pump's): playing, the tone continues at the new
 // rate from the same position; paused, the position holds and the resume
