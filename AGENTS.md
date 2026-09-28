@@ -2,7 +2,7 @@
 
 Guidance for any coding agent working in this repository.
 
-Vibe is a native music player for macOS (`Vibe` target) and iOS (`VibeiOS` target), written in Objective-C and Objective-C++. Playback is Apple frameworks — CoreAudio, AudioToolbox and AVFoundation — and two vendored libraries: r8brain-free-src, the resampler for every file whose rate is not the output's (`docs/audio-quality.md` has the measurements that chose it), and dr_mp3, an MP3 decoder the mac's Settings > Advanced offers beside Apple's default (`docs/future/mp3-decoder.md`); no other third-party audio code. Formats: MP3, MP2, AAC, AIFF/AIF, WAV/WAVE/BWF, FLAC, M4A, MP4, QTA (`Common/PlayableExtensions`, the one home of the set). OGG is not supported.
+Vibe is a native music player for macOS (`Vibe` target) and iOS (`VibeiOS` target), written in Objective-C and Objective-C++. Playback is Apple frameworks — CoreAudio, AudioToolbox and AVFoundation — and two vendored libraries: r8brain-free-src, the resampler for every file whose rate is not the output's (`docs/audio-quality.md` has the measurements that chose it), and dr_mp3, the MP3 decoder by default, Apple's one choice away in the mac's Settings > Advanced (`docs/future/mp3-decoder.md`); no other third-party audio code. Formats: MP3, MP2, AAC, AIFF/AIF, WAV/WAVE/BWF, FLAC, M4A, MP4, QTA (`Common/PlayableExtensions`, the one home of the set). OGG is not supported.
 
 ## Building
 

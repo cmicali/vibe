@@ -86,7 +86,7 @@ const size_t kVibeUIUpdateHzCapPresetCount =
             SETTING_REOPEN_LAST_PLAYLIST:           @(NO),
             SETTING_UI_UPDATE_HZ_CAP:               @(30),
             SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE: @(NO),
-            SETTING_DR_MP3_DECODER:                 @(NO),
+            SETTING_DR_MP3_DECODER:                 @(YES),
             SETTING_DECLICK:                        @(YES),
             SETTING_VOLUME_CONTROL:                 @(NO),
             SETTING_VOLUME:                         @(1.0),

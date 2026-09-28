@@ -15,7 +15,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-static atomic_bool sAppleMPEGDecoder = true;
+static atomic_bool sAppleMPEGDecoder;
 
 // Packets decoded and dropped before a seek's own: enough to refill the bit
 // reservoir (511 bytes back at most, seven frames at MPEG-1's lowest bitrate)

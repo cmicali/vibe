@@ -1,6 +1,6 @@
 # Future: the MP3 decoder
 
-**Status (2026-09-28):** built and tested on branch `claude/apple-mp3-decoder-alternatives-17c658`. Apple's decoder is still the default. On the Mac, Settings > Advanced > MP3 decoder lets the user switch to dr_mp3.
+**Status (2026-09-28):** built and tested on branch `claude/apple-mp3-decoder-alternatives-17c658`. dr_mp3 is now the default on the Mac and the iPhone. On the Mac, Settings > Advanced > MP3 decoder can switch back to Apple's built-in decoder.
 
 ## Summary
 
@@ -9,7 +9,7 @@
 - dr_mp3's license (MIT No Attribution, or public domain) is safe for the App Store.
 - libmad, mpg123 and FFmpeg decode just as accurately, but their licenses (GPL or LGPL) don't fit an App Store app.
 - dr_mp3 is also cheaper to run. It uses about 2.5 times less CPU, half the energy, and a third of the memory per open file (see System performance). Both decoders are so cheap that neither would show up in Activity Monitor during playback.
-- The plan: ship the setting with Apple as the default, collect listening and device results, and then decide whether dr_mp3 should become the default.
+- The plan: ship dr_mp3 as the default, keep Apple's decoder one setting away on the Mac, and confirm it on real devices and real music.
 
 ## The problem with Apple's decoder
 
@@ -304,10 +304,14 @@ Whole-file decode in playback's read pattern, fastest of nine runs, before and a
 - **The ending.** After the last frame, Vibe decodes one silent frame. This flushes the decoder's last 529 samples instead of replacing them with silence.
 - **Which readers use it:** everything that reads float audio through `AudioFileHandle`: playback, the waveform, and the FLAC converter's probe.
 
+## MP2 on the iPhone
+
+iOS has no Apple MP2 decoder. Listing the decoders the iOS runtime offers (in the iOS 27 Simulator) shows AAC, MP3, ALAC and FLAC, and no MP2; macOS lists one. The iOS app has declared MP2 files (`public.mp2`) since it was first built, so it offered to open them, but they could never play. dr_mp3 decodes MP2 itself, so with it as the default MP2 now plays on the iPhone. Three MP2 files (192 kbps, 384 kbps, 48 kHz mono) played on an iPhone 17 Pro.
+
 ## How to use it
 
-- **Mac:** Settings > Advanced > MP3 decoder: "Apple (default)" or "dr_mp3 (best)". The hint under it says "Changes applied from next track", because a file already open keeps its decoder.
-- **iOS:** no setting. It always uses Apple's decoder.
+- **Mac:** Settings > Advanced > MP3 decoder: "Vibe (dr_mp3 HQ)", the default, or "Apple built-in". The hint under it says "Changes applied from next track", because a file already open keeps its decoder.
+- **iOS:** no setting. It always uses dr_mp3.
 - **Debug builds:** `set_decoder apple` or `set_decoder dr_mp3` overrides the choice for the session, on both platforms. `dump_audio_path` shows which decoder is in use.
 
 ## Tests
@@ -320,20 +324,19 @@ Whole-file decode in playback's read pattern, fastest of nine runs, before and a
 
 - **dr_mp3 over minimp3:** the same decoder, with a maintained API and a public-domain or MIT-0 license.
 - **Not libmad, mpg123 or FFmpeg:** no more accurate than dr_mp3, and their GPL or LGPL licenses don't fit the App Store. libmad is also unmaintained, with memory-safety bugs (CVE-2017-8372, -8373 and -8374) fixed only in Linux distributions' patches.
-- **Apple stays the default:** dr_mp3 is new, and the project's rule is Apple frameworks for playback unless there's a strong reason. The setting lets people try it first.
-- **No clamp on damaged-frame spikes:** a clamp would also have to leave room for real peaks above full scale. Since Apple is the default, the choice is left to the user.
+- **dr_mp3 is the default:** it is more accurate, keeps loud peaks, ends files properly, and uses less CPU, energy and memory. That is the strong reason the project's "Apple frameworks for playback" rule asks for, as r8brain was. Apple's decoder stays one setting away on the Mac.
+- **No clamp on damaged-frame spikes:** a clamp would also have to leave room for real peaks above full scale, and damaged files are rare.
 - **The ISO files are downloaded, not committed:** they belong to ISO.
 
 ## Plan
 
-1. Ship the setting with Apple as the default.
+1. Ship dr_mp3 as the default on both platforms, with Apple's decoder one setting away on the Mac.
 2. Do a listening test on real music: quiet passages, fade-outs, and loud modern masters, with the volume control below full.
-3. Measure CPU on an iPhone.
-4. Decide whether to add an iOS setting. It would also bring MP2 playback to iOS, which has no Apple MP2 decoder. That still needs a check on the simulator.
-5. If those go well, make dr_mp3 the default. This would be the second exception to the "Apple frameworks only" rule, after r8brain (`docs/audio-quality.md`). The code change is two lines: `AudioFileHandle`'s default and the setting's default.
+3. Test on an iPhone: playback, seeking, gapless and CPU.
+4. Decide whether iOS needs a setting of its own.
 
 ## Not yet tested
 
 - **MP1 files:** we have no MP1 encoder. dr_mp3 decodes MP1, and it uses MP2's 241-sample delay, which MP1 shares.
 - **The live app:** the setting was not clicked through in the running app. Another session's debug app was using the debug channel. `make test-audio` plays MP3 and MP2 through the real player.
-- **iOS device speed and a listening test.**
+- **iOS device speed and a listening test.** An iPhone build is being tested.

@@ -32738,372 +32738,372 @@
       "extractionState": "manual"
     },
     "settings.advanced.mp3_decoder.apple": {
-      "comment": "Settings, Advanced pane, MP3 decoder choice: Apple's built-in decoder, the default. Apple is a product name and is not translated; translate only 'default'.",
+      "comment": "Settings, Advanced pane, MP3 decoder choice: the decoder built into macOS. Apple is a product name and is not translated; translate only 'built-in'.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (по подразбиране)"
+            "value": "Вграден от Apple"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (výchozí)"
+            "value": "Vestavěný od Applu"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (standard)"
+            "value": "Apples indbyggede"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (Standard)"
+            "value": "Apple integriert"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (προεπιλογή)"
+            "value": "Ενσωματωμένος της Apple"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (default)"
+            "value": "Apple built-in"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (predeterminado)"
+            "value": "Integrado de Apple"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (oletus)"
+            "value": "Applen sisäänrakennettu"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (par défaut)"
+            "value": "Apple intégré"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (zadano)"
+            "value": "Appleov ugrađeni"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (alapértelmezett)"
+            "value": "Apple beépített"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (default)"
+            "value": "Bawaan Apple"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (predefinito)"
+            "value": "Integrato di Apple"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple（デフォルト）"
+            "value": "Apple内蔵"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple(기본값)"
+            "value": "Apple 내장"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (standard)"
+            "value": "Apples innebygde"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (standaard)"
+            "value": "Apple ingebouwd"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (domyślny)"
+            "value": "Wbudowany Apple"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (padrão)"
+            "value": "Integrado da Apple"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (predefinido)"
+            "value": "Integrado da Apple"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (implicit)"
+            "value": "Integrat Apple"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (по умолчанию)"
+            "value": "Встроенный Apple"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (predvolený)"
+            "value": "Vstavaný od Apple"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (standard)"
+            "value": "Apples inbyggda"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (ค่าเริ่มต้น)"
+            "value": "ในตัวของ Apple"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (varsayılan)"
+            "value": "Apple yerleşik"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (за замовчуванням)"
+            "value": "Вбудований Apple"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple (mặc định)"
+            "value": "Tích hợp của Apple"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple（默认）"
+            "value": "Apple 内置"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple（預設）"
+            "value": "Apple 內建"
           }
         }
       },
       "extractionState": "manual"
     },
     "settings.advanced.mp3_decoder.dr_mp3": {
-      "comment": "Settings, Advanced pane, MP3 decoder choice: the dr_mp3 decoder, which gives the best sound quality. dr_mp3 is a product name and is not translated; translate only 'best', meaning best quality.",
+      "comment": "Settings, Advanced pane, MP3 decoder choice, the default: Vibe's own high-quality decoder, dr_mp3. Vibe and dr_mp3 are product names and HQ (high quality) is kept as is; only the parentheses follow the language's style.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (най-добро качество)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (nejlepší kvalita)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (bedste kvalitet)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (beste Qualität)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (καλύτερη ποιότητα)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (best)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (mejor calidad)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (paras laatu)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (meilleure qualité)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (najbolja kvaliteta)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (legjobb minőség)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (kualitas terbaik)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (qualità migliore)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3（最高品質）"
+            "value": "Vibe（dr_mp3 HQ）"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3(최고 품질)"
+            "value": "Vibe(dr_mp3 HQ)"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (best kvalitet)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (beste kwaliteit)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (najlepsza jakość)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (melhor qualidade)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (melhor qualidade)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (cea mai bună calitate)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (лучшее качество)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (najlepšia kvalita)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (bäst kvalitet)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (คุณภาพดีที่สุด)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (en iyi kalite)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (найкраща якість)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3 (chất lượng tốt nhất)"
+            "value": "Vibe (dr_mp3 HQ)"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3（最佳音质）"
+            "value": "Vibe（dr_mp3 HQ）"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "dr_mp3（最佳音質）"
+            "value": "Vibe（dr_mp3 HQ）"
           }
         }
       },
