@@ -113,8 +113,11 @@ jobs:
       - name: Install fixture encoder
         run: brew install ffmpeg
 
-      - name: Build Debug (macos)
-        run: make build CONFIG=Debug
+      # The x86_64 slice, not the runner's arm64: the analyzing Release build
+      # compiles arm64 alone, so this is where the shipping app's Intel half
+      # (and its architecture #ifs) is proven to compile. Same cost either way.
+      - name: Build Debug (macos, x86_64)
+        run: make build CONFIG=Debug ARGS='ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO'
 
       - name: Build Debug (ios, simulator)
         if: ${{ !cancelled() }}

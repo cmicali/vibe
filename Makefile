@@ -20,8 +20,9 @@ project:
 	scripts/build-lock.sh xcodegen generate
 
 # The macOS app. `project` has already regenerated, so build.sh skips its own.
+# ARGS reaches xcodebuild: CI's Debug build is ARGS='ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO'.
 build: project
-	SKIP_GENERATE=1 scripts/build.sh $(CONFIG)
+	SKIP_GENERATE=1 scripts/build.sh $(CONFIG) $(ARGS)
 
 # Unsigned by default, which is what CI wants: no credentials, no keychain.
 #

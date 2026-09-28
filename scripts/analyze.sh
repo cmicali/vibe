@@ -9,7 +9,9 @@
 #   configuration defaults to Debug (the schemes' analyze action); the leg to
 #   all. CI runs Release, one leg per matrix job, and the leg IS that
 #   platform's Release build: `xcodebuild analyze` compiles, links and signs
-#   the whole app first, into build/AnalyzeDD.
+#   the whole app first, into build/AnalyzeDD. arm64 only on both: analysis
+#   reads one slice anyway, and CI compiles the mac's x86_64 slice in its
+#   Debug job instead.
 set -euo pipefail
 
 CONFIGURATION="${1:-Debug}"
@@ -42,9 +44,9 @@ mkdir -p build
 
 # CLANG_ANALYZER_OUTPUT=text keeps findings in the log rather than in .plist
 # files nothing reads; PIPESTATUS keeps xcodebuild's own status through the tee.
-# The iOS leg needs a destination; a generic simulator one boots nothing, and
-# arm64 alone because it would otherwise also compile an x86_64 slice nothing
-# runs (the Makefile's build-ios says why that is safe).
+# The iOS leg needs a destination; a generic simulator one boots nothing.
+# Implicit modules: explicit ones add a dependency scan per file, about a
+# twentieth of this build.
 analyze_scheme() {   # analyze_scheme <scheme> <log-suffix> [extra xcodebuild args...]
     local scheme="$1" suffix="$2"
     shift 2
@@ -58,6 +60,7 @@ analyze_scheme() {   # analyze_scheme <scheme> <log-suffix> [extra xcodebuild ar
         -configuration "$CONFIGURATION" \
         -derivedDataPath build/AnalyzeDD \
         "$@" \
+        ARCHS=arm64 CLANG_ENABLE_EXPLICIT_MODULES=NO \
         CLANG_ANALYZER_OUTPUT=text 2>&1 | tee "$log"
     local build_status="${PIPESTATUS[0]}"
     set -e
@@ -85,7 +88,7 @@ fi
 if [[ "$LEG" == "ios" || "$LEG" == "all" ]]; then
     analyze_scheme VibeiOS ios \
         -destination 'generic/platform=iOS Simulator' \
-        ARCHS=arm64 CODE_SIGNING_ALLOWED=NO
+        CODE_SIGNING_ALLOWED=NO
 fi
 
 case "$LEG" in
