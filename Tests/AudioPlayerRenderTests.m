@@ -462,6 +462,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
             NSData *capture=[self renderSeconds:2.1];
             [self assertReference:reference capture:capture skip:[self startupSkip] tolerance:0];
             XCTAssertFalse([_player.debugRenderCounts[@"varispeed"] boolValue]);
+            [self settleUntil:^BOOL { return [self count:@"finish"] >= 1; }];
             XCTAssertEqual([self count:@"finish"],1u);
         }
     }
@@ -655,6 +656,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     [_player resume];
     NSData *tail=[reference subdataWithRange:NSMakeRange(sourceFrame*8,reference.length-sourceFrame*8)];
     [self assertReference:tail capture:[self renderSeconds:2.1-position] skip:[self startupSkip] tolerance:0];
+    [self settleUntil:^BOOL { return [self count:@"resume"] >= 1; }];
     XCTAssertEqual([self count:@"resume"],1u);
 }
 - (void)testStopRestartAndSameTrackReplay {
@@ -678,6 +680,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         [self play:url paused:paused.boolValue position:0.5];
         if (!paused.boolValue) [self render:4096];
         [_capture setLength:0]; [_player seekToPosition:target.doubleValue]; [self render:2048];
+        [self settleUntil:^BOOL { return [self count:@"seek"] >= 1; }];
         XCTAssertEqual([self count:@"seek"],1u);
         if (paused.boolValue) {
             XCTAssertTrue(_player.isPaused); XCTAssertEqualWithAccuracy(_player.position,target.doubleValue,1/_rate);
@@ -693,6 +696,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
             NSData *tail=[reference subdataWithRange:NSMakeRange(start*8,reference.length-start*8)];
             [self assertReference:tail capture:_capture skip:MIN(2400,tail.length/8-480) tolerance:0];
         }
+        [self settleUntil:^BOOL { return [self count:@"finish"] >= 1; }];
         XCTAssertEqual([self count:@"finish"],1u);
     }
 }
@@ -840,6 +844,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     NSData *tail = [self renderSeconds:1.5];
     XCTAssertEqualObjects(_player.currentTrack, current);
     XCTAssertEqual([self count:@"advance"], 0u);
+    [self settleUntil:^BOOL { return [self count:@"finish"] >= 1; }];
     XCTAssertEqual([self count:@"finish"], 1u, @"The current track must finish after the cancelled boundary");
     XCTAssertLessThan(ToneAmplitude(tail, 2, 0, 48000, 1000, NSMakeRange(36000, 24000)), 0.01,
                      @"Cancelled successor must not be audible");
@@ -896,7 +901,9 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         [_player resume];
         [_player runSyncOnQueue:^{}];
         [self assertReference:reference capture:[self renderSeconds:2.1] skip:0 tolerance:0];
+        [self settleUntil:^BOOL { return [self count:@"advance"] >= 1; }];
         XCTAssertEqual([self count:@"advance"], 1u);
+        [self settleUntil:^BOOL { return [self count:@"finish"] >= 1; }];
         XCTAssertEqual([self count:@"finish"], 1u);
         XCTAssertEqualObjects(_player.currentTrack, next);
     } @finally {
@@ -1230,6 +1237,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     [self render:48000 * 5];
     NSDictionary *signal = [self settledSignalSnapshot];
     XCTAssertEqualObjects(_player.currentTrack, next);
+    [self settleUntil:^BOOL { return [self count:@"advance"] >= 1; }];
     XCTAssertEqual([self count:@"advance"], 1u);
     XCTAssertTrue([signal[@"aboveThreshold"] boolValue]);
     XCTAssertEqualWithAccuracy([signal[@"firstSignalAfterStartMS"] doubleValue], 700, 2, @"%@", signal);
@@ -1321,7 +1329,9 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         NSData *data=[self renderSeconds:1]; double ratio=1+pitch.doubleValue/100;
         XCTAssertEqualWithAccuracy(ToneAmplitude(data,2,0,48000,1000*ratio,NSMakeRange(12000,24000)),0.25,0.002);
         XCTAssertEqualWithAccuracy(_player.position,ratio,0.02);
-        [self render:(NSUInteger)(48000*(4/ratio-1+0.1))]; XCTAssertEqual([self count:@"finish"],1u);
+        [self render:(NSUInteger)(48000*(4/ratio-1+0.1))];
+        [self settleUntil:^BOOL { return [self count:@"finish"] >= 1; }];
+        XCTAssertEqual([self count:@"finish"],1u);
     }
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
     [self play:[self fixture:@"1000.wav"] paused:NO position:0];
@@ -1352,7 +1362,9 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         XCTAssertEqualWithAccuracy(_player.position,1,0.02);
         double signal=amplitude/sqrt(2), rms=RMS(data,2,0,window);
         XCTAssertLessThan(fabs(rms-signal),0.00001);
-        [self render:(NSUInteger)(_rate*3.1)]; XCTAssertEqual([self count:@"finish"],1u);
+        [self render:(NSUInteger)(_rate*3.1)];
+        [self settleUntil:^BOOL { return [self count:@"finish"] >= 1; }];
+        XCTAssertEqual([self count:@"finish"],1u);
         [self startPlayerAt:rate.doubleValue channels:2 fx:NO bitPerfect:YES automatic:NO];
         [self play:[self fixture:@"23000.wav"] paused:NO position:0]; data=[self renderSeconds:1];
         if (_rate<48000) XCTAssertLessThan(RMS(data,2,0,window),0.000032); // -90 dBFS alias ceiling
@@ -1468,11 +1480,13 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
             [self assertFinite:[self renderSeconds:0.1] peak:0.3];
         }
         XCTAssertEqual([self count:@"finish"], 0u);
+        [self settleUntil:^BOOL { return [self count:@"start"] >= 1; }];
         XCTAssertEqual([self count:@"start"], 1u);
         [_player setBitPerfectOutput:YES exclusiveOutput:NO enableFX:YES allowAnyDevice:NO];
         [self play:url paused:NO position:0];
         [self assertReference:PCM([self read:url]) capture:[self renderSeconds:2.1]
                          skip:[self startupSkip] tolerance:0];
+        [self settleUntil:^BOOL { return [self count:@"finish"] >= 1; }];
         XCTAssertEqual([self count:@"finish"], 1u);
     }
 }
@@ -1716,7 +1730,9 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         XCTAssertEqualWithAccuracy(_player.position,1,0.02);
         double signal=amplitude/sqrt(2), rms=RMS(data,2,0,window);
         XCTAssertLessThan(fabs(rms-signal),0.00001);
-        [self render:(NSUInteger)(_rate*3.1)]; XCTAssertEqual([self count:@"finish"],1u);
+        [self render:(NSUInteger)(_rate*3.1)];
+        [self settleUntil:^BOOL { return [self count:@"finish"] >= 1; }];
+        XCTAssertEqual([self count:@"finish"],1u);
         [self startPlayerAt:rate.doubleValue channels:2 fx:NO bitPerfect:NO automatic:NO];
         [self play:[self fixture:@"23000.wav"] paused:NO position:0]; data=[self renderSeconds:1];
         if (_rate<48000) XCTAssertLessThan(RMS(data,2,0,window),0.000032); // -90 dBFS alias ceiling
@@ -1749,6 +1765,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     [self assertFinite:tail peak:2.0];
     XCTAssertEqual([_player.debugRenderCounts[@"retiredFades"] unsignedIntegerValue],0u);
     XCTAssertEqual([_player.debugRenderCounts[@"liveVoices"] unsignedIntegerValue],1u);
+    [self settleUntil:^BOOL { return [self count:@"start"] >= 31; }];
     XCTAssertEqual([self count:@"start"],31u); XCTAssertEqual([self count:@"finish"],0u);
     XCTAssertTrue(_player.isPlaying); XCTAssertEqualObjects(_player.currentTrack.url,urls[0]); // the thirtieth skip landed on a
 }
@@ -1851,6 +1868,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
         NSURL *url=[self write:[reference subdataWithRange:NSMakeRange(0,length.unsignedIntegerValue*8)] rate:48000 channels:2 name:@"boundary.wav"];
         [self play:url paused:NO position:0]; [self render:length.unsignedIntegerValue+4096];
+        [self settleUntil:^BOOL { return [self count:@"finish"] >= 1; }];
         XCTAssertEqual([self count:@"finish"],1u); XCTAssertTrue(_player.isStopped);
         [self assertFinite:_capture peak:0.251];
     }
@@ -2408,6 +2426,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertEqualWithAccuracy(ToneAmplitude(data, 2, 0, 96000, 1000, NSMakeRange(9600, 24000)), 0.25, 0.005);
     XCTAssertEqualWithAccuracy(_player.position, before + 0.5, 0.01);
     XCTAssertEqual([self count:@"finish"], 0u);
+    [self settleUntil:^BOOL { return [self count:@"start"] >= 1; }];
     XCTAssertEqual([self count:@"start"], 1u, @"a restore is not a new play");
 
     [_player pause]; [self render:4800];
@@ -2881,6 +2900,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0,
                        @"the device start never began");
         XCTAssertNil(self->_playError);
+        [self settleUntil:^BOOL { return [self count:@"start"] >= 1; }];
         XCTAssertEqual([self count:@"start"], 1u, @"the play settled only once the device had started");
         XCTAssertTrue(self->_player.isPlaying);
         uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
@@ -3247,6 +3267,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
             if (successor && after == 0) {
                 XCTAssertNil(_playError, @"an unheard successor failed against the current row");
                 XCTAssertEqual([self count:@"advance"], 0u);
+                [self settleUntil:^BOOL { return [self count:@"finish"] >= 1; }];
                 XCTAssertEqual([self count:@"finish"], 1u);
             }
             else {
@@ -3254,7 +3275,10 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
                 XCTAssertEqualObjects(_playError.userInfo[kVibeAudioErrorTrackURLKey], failedURL);
                 XCTAssertEqual([self count:@"finish"], 0u, @"a failed decode auto-advanced as clean EOF");
                 XCTAssertTrue(_player.isStopped);
-                if (successor) XCTAssertEqual([self count:@"advance"], 1u);
+                if (successor) {
+                    [self settleUntil:^BOOL { return [self count:@"advance"] >= 1; }];
+                    XCTAssertEqual([self count:@"advance"], 1u);
+                }
             }
         }
     }
