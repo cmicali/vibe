@@ -56,13 +56,15 @@ NS_ASSUME_NONNULL_BEGIN
 // The empty state's hint, in the time row's gap, where it outranks the
 // volume control.
 - (void)setDropHintShown:(BOOL)shown;
-// The Volume live effect's body: the slider's position and percentage, and
-// whether the hover reveals them (AppSettings.volumeControl).
+// The Volume live effect's body: the slider's position and percentage,
+// whether the hover reveals them (AppSettings.volumeControl), and the theme's
+// tint, labels and corner.
 - (void)applyVolumeControl;
 // The percentage alone, for a drag of the slider, which moved itself.
 - (void)renderVolumePercent;
-// The waveform's played color, at full alpha, as the slider's fill.
-- (void)setVolumeFillColor:(NSColor *)color;
+// The waveform's played color, for the Waveform tint; every resolution of the
+// waveform's theme, the art color's included, lands here.
+- (void)setWaveformPlayedColor:(NSColor *)color;
 
 // Plain views the artwork controller washes: the glass's own tintColor is
 // dropped while the window is inactive.

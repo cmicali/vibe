@@ -82,6 +82,8 @@ static const CGFloat kAppearancePopUpWidth = 220;
     SettingsRowView *_playlistBackgroundColorsRow;
     NSPopUpButton *_playlistTintPopUp;
     SettingsRowView *_playlistTintDarkRow, *_playlistTintLightRow;
+    NSPopUpButton *_volumeTintPopUp, *_volumeLabelsPopUp, *_volumeLocationPopUp;
+    SettingsRowView *_volumeTintDarkRow, *_volumeTintLightRow;
     NSTextField *_titleFontValue, *_artistFontValue, *_infoFontValue, *_playlistFontValue;
     NSTextField *_playlistDurationFontValue;
     // None while the panel is not editing a slot; changeFont: no-ops then.

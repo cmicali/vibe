@@ -555,6 +555,24 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     _playlistTintLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_LIGHT_LABEL
             control:[self wellForDark:NO base:kVibeThemeColorPlaylistTint effect:VibeSettingsLiveEffectWindowTint]];
 
+    _volumeTintPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(volumeTintChanged:)];
+    [self addItem:STR_SETTINGS_WINDOW_TINT_NONE value:SETTINGS_VALUE_WINDOW_TINT_MONO to:_volumeTintPopUp];
+    [self addItem:STR_SETTINGS_WINDOW_TINT_ARTWORK value:SETTINGS_VALUE_WINDOW_TINT_ARTWORK to:_volumeTintPopUp];
+    [self addItem:STR_SETTINGS_THEME_VOLUME_TINT_WAVEFORM value:SETTINGS_VALUE_VOLUME_TINT_WAVEFORM to:_volumeTintPopUp];
+    [self addItem:STR_SETTINGS_WINDOW_TINT_CUSTOM value:SETTINGS_VALUE_WINDOW_TINT_CUSTOM to:_volumeTintPopUp];
+    _volumeTintDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL
+            control:[self wellForDark:YES base:kVibeThemeColorVolumeTint effect:VibeSettingsLiveEffectVolume]];
+    _volumeTintLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_LIGHT_LABEL
+            control:[self wellForDark:NO base:kVibeThemeColorVolumeTint effect:VibeSettingsLiveEffectVolume]];
+    _volumeLabelsPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(volumeLabelsChanged:)];
+    [self addItem:STR_SETTINGS_THEME_VOLUME_LABELS_SHOW value:@YES to:_volumeLabelsPopUp];
+    [self addItem:STR_SETTINGS_THEME_VOLUME_LABELS_HIDE value:@NO to:_volumeLabelsPopUp];
+    _volumeLocationPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(volumeLocationChanged:)];
+    [self addItem:STR_SETTINGS_THEME_VOLUME_LOCATION_BOTTOM value:SETTINGS_VALUE_VOLUME_LOCATION_BOTTOM
+               to:_volumeLocationPopUp];
+    [self addItem:STR_SETTINGS_THEME_VOLUME_LOCATION_TOP_RIGHT value:SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT
+               to:_volumeLocationPopUp];
+
     _playlistColorSwitches = [NSMutableDictionary dictionary];
     _playlistColorRows = [NSMutableDictionary dictionary];
     NSMutableArray<SettingsRowView *> *playlistColorRows = [NSMutableArray array];
@@ -689,6 +707,15 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
         _transportSection,
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_INFO_SECTION rows:infoRows],
         _timeSection,
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_VOLUME_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_VOLUME_TINT control:_volumeTintPopUp],
+            _volumeTintDarkRow,
+            _volumeTintLightRow,
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_VOLUME_LABELS control:_volumeLabelsPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_VOLUME_LOCATION
+                                  caption:STR_SETTINGS_THEME_VOLUME_LOCATION_CAPTION
+                                  control:_volumeLocationPopUp],
+        ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYLIST_SECTION rows:playlistRows],
     ];
 
@@ -758,6 +785,8 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
                                            : STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL];
     [_playlistTintDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLOR_LABEL
                                              : STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL];
+    [_volumeTintDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLOR_LABEL
+                                           : STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL];
     [_customDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLORS_LABEL
                                        : STR_SETTINGS_WAVEFORM_CUSTOM_DARK_LABEL];
     for (NSStackView *pair in _darkLightPairs) {
@@ -779,6 +808,9 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     _playlistTintLightRow.hidden = !customPlaylistTint || single;
     _playlistBackgroundColorsRow.hidden = ![theme.playlistBackgroundStyle
             isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
+    BOOL customVolumeTint = [theme.volumeTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
+    _volumeTintDarkRow.hidden = !customVolumeTint;
+    _volumeTintLightRow.hidden = !customVolumeTint || single;
     for (NSString *base in _playlistColorRows) {
         _playlistColorRows[base].hidden = ![theme playlistColorEnabledForBase:base];
     }
@@ -864,6 +896,9 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     }
     [self selectValue:theme.playlistBackgroundStyle in:_playlistBackgroundPopUp];
     [self selectValue:theme.playlistTint in:_playlistTintPopUp];
+    [self selectValue:theme.volumeTint in:_volumeTintPopUp];
+    [self selectValue:@(theme.showVolumeLabels) in:_volumeLabelsPopUp];
+    [self selectValue:theme.volumeLocation in:_volumeLocationPopUp];
 
     [self refreshFontValueLabels];
 
@@ -871,13 +906,17 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     // The built-in page's one live control sits inside the swept stack.
     [SettingsRowView setControl:_duplicateButton enabled:YES];
     if (!builtIn) {
-        BOOL info = theme.showFileInfo;
+        // The volume slider in the corner draws in the readouts' place.
+        BOOL replaced = settings.volumeReplacesFileInfo;
+        BOOL info = theme.showFileInfo && !replaced;
         for (SettingsRowView *row in _fileInfoRows) {
             [SettingsRowView setControlsInView:row enabled:info];
         }
+        [SettingsRowView setControl:_fileInfoSwitch enabled:!replaced];
+        [SettingsRowView setControl:_statusIconsSwitch enabled:!replaced];
         // One font shared by three readouts.
         [SettingsRowView setControlsInView:_infoFontRow
-                                   enabled:info || theme.showStatusIcons || theme.showTimeLabels];
+                                   enabled:info || (theme.showStatusIcons && !replaced) || theme.showTimeLabels];
         [SettingsRowView setControlsInView:_transportSection enabled:theme.showTransportButtons];
         [SettingsRowView setControl:_transportButtonsSwitch enabled:YES];
         [SettingsRowView setControlsInView:_timeSection enabled:theme.showTimeLabels];
@@ -1101,6 +1140,27 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 - (void)keyNotationChanged:(id)sender {
     AppSettings.sharedInstance.currentTheme.keyNotation = _keyNotationPopUp.selectedItem.representedObject;
     [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
+}
+
+#pragma mark - Editor: volume slider
+
+- (void)volumeTintChanged:(id)sender {
+    [self chooseFromPopUp:_volumeTintPopUp revealing:SETTINGS_VALUE_WINDOW_TINT_CUSTOM
+                    wells:@[_volumeTintDarkRow, _volumeTintLightRow] effect:VibeSettingsLiveEffectVolume
+                    write:^(AppTheme *theme, NSString *identifier) { theme.volumeTint = identifier; }];
+}
+
+- (void)volumeLabelsChanged:(id)sender {
+    AppSettings.sharedInstance.currentTheme.showVolumeLabels =
+            [_volumeLabelsPopUp.selectedItem.representedObject boolValue];
+    [self themeFieldDidChange:VibeSettingsLiveEffectVolume];
+}
+
+// The corner takes the Info card's readouts, so their controls re-enable.
+- (void)volumeLocationChanged:(id)sender {
+    AppSettings.sharedInstance.currentTheme.volumeLocation = _volumeLocationPopUp.selectedItem.representedObject;
+    [self themeFieldDidChange:VibeSettingsLiveEffectVolume];
+    [self refreshEditorFromSettings];
 }
 
 #pragma mark - Editor: waveform

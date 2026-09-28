@@ -61,6 +61,9 @@
     XCTAssertEqualObjects(theme.dockIcon, @"album_art");
     XCTAssertTrue(theme.appIconShape);
     XCTAssertEqualObjects(theme.buttonGradient, @"always");
+    XCTAssertEqualObjects(theme.volumeTint, @"waveform");
+    XCTAssertTrue(theme.showVolumeLabels);
+    XCTAssertEqualObjects(theme.volumeLocation, @"bottom");
     XCTAssertEqualObjects(theme.playlistButtonGlyph, @"list.bullet");
     XCTAssertEqualObjects(theme.playButtonGlyph, @"play.fill");
     XCTAssertEqualObjects(theme.pauseButtonGlyph, @"pause.fill");
@@ -516,6 +519,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
         XCTAssertNotEqualObjects(theme.waveformTheme, @"custom");
         XCTAssertNotEqualObjects(theme.windowTint, @"custom");
         XCTAssertNotEqualObjects(theme.playlistTint, @"custom");
+        XCTAssertNotEqualObjects(theme.volumeTint, @"custom");
         XCTAssertTrue([radii containsObject:@(theme.windowCornerRadius)]);
         XCTAssertEqualObjects(theme.pauseButtonGlyph, VibePauseGlyphForPlayGlyph(theme.playButtonGlyph));
         XCTAssertTrue([faces containsObject:theme.titleFontFace], @"%@", theme.titleFontFace);
@@ -701,6 +705,36 @@ static CGFloat Brightness(NSString *hex) {
                                                    name:NULL error:&error];
     XCTAssertNil(error);
     XCTAssertEqualObjects(record, @{});
+}
+
+// The volume slider's section: its ladders snap, and its JSON home is
+// volume.* both ways.
+- (void)testVolumeFieldsSnapAndRoundTripUnderTheVolumeSection {
+    AppTheme *snapped = [[AppTheme alloc] initWithRecord:@{
+        @"volumeTint": @"plaid", @"volumeLocation": @"bottom_left", @"showVolumeLabels": @"no"}];
+    XCTAssertEqualObjects(snapped.volumeTint, @"waveform");
+    XCTAssertEqualObjects(snapped.volumeLocation, @"bottom");
+    XCTAssertTrue(snapped.showVolumeLabels);
+    XCTAssertEqualObjects(snapped.dictionaryRepresentation, @{});
+    for (NSString *tint in @[@"mono", @"artwork", @"custom"]) {
+        snapped.volumeTint = tint;
+        XCTAssertEqualObjects(snapped.volumeTint, tint);
+    }
+
+    NSData *json = [@"{\"volume\":{\"tint\":\"custom\",\"tintColorDark\":\"#FF0000\","
+                     "\"showLabels\":false,\"location\":\"top_right\"}}"
+            dataUsingEncoding:NSUTF8StringEncoding];
+    NSDictionary *expected = @{@"volumeTint": @"custom", @"volumeTintColorDark": @"#FF0000",
+                               @"showVolumeLabels": @NO, @"volumeLocation": @"top_right"};
+    NSDictionary *record = [AppTheme recordFromJSONData:json name:NULL error:NULL];
+    XCTAssertEqualObjects(record, expected);
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:record];
+    XCTAssertEqualObjects(VibeHexStringFromColor([theme colorForBase:kVibeThemeColorVolumeTint dark:YES]),
+                          @"#FF0000");
+    NSData *exported = [AppTheme JSONDataForRecord:record name:@"Volume"];
+    NSDictionary *object = [NSJSONSerialization JSONObjectWithData:exported options:0 error:NULL];
+    XCTAssertEqualObjects(object[@"volume"][@"location"], @"top_right");
+    XCTAssertEqualObjects([AppTheme recordFromJSONData:exported name:NULL error:NULL], expected);
 }
 
 - (void)testButtonGradientModesAndLegacyBooleansRoundTrip {

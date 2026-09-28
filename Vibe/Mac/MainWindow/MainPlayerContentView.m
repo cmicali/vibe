@@ -9,6 +9,7 @@
 #import "SymbolButton.h"
 #import "ArtworkImageView.h"
 #import "AudioWaveformView.h"
+#import "WaveformTheme.h"
 #import "PlaylistTableView.h"
 #import "PlaylistDropZoneView.h"
 #import "NSView+DarkMode.h"
@@ -81,7 +82,8 @@ static const CGFloat kTotalTimeX = kHeaderTextMaxX - kTimeLabelWidth;
 static const CGFloat kDropHintX = kHeaderContentX + kTimeLabelWidth;
 static const CGFloat kDropHintWidth = kTotalTimeX - kDropHintX;
 // The volume control's slider, and the gap either side of it; its side
-// columns are measured (layoutVolumeControl).
+// columns are measured (layoutVolumeControl). It sits in the time row's gap,
+// or in the corner readouts' place (AppSettings.volumeReplacesFileInfo).
 static const CGFloat kVolumeSliderWidth = 100;
 static const CGFloat kVolumeGap = 6;
 
@@ -158,6 +160,7 @@ API_AVAILABLE(macos(26.0))
     NSTextField *_volumeLabel;
     NSTextField *_volumePercentLabel;
     NSDictionary *_volumePercentAttributes; // rebuilt with the theme's colors
+    NSColor *_waveformPlayedColor;
     // Kept so a theme re-apply redraws the last requested state.
     BOOL _playShowsPause;
     BOOL _transportBackdropDark; // seeded dark for the factory placeholder
@@ -194,6 +197,7 @@ API_AVAILABLE(macos(26.0))
                                   _fileMetadataTextField, _bpmTextField ]) {
         field.layer.shadowOpacity = shadowOpacity;
     }
+    [self applyVolumeTint];
 }
 
 - (void)viewDidChangeEffectiveAppearance {
@@ -256,8 +260,12 @@ API_AVAILABLE(macos(26.0))
     [self capArtistLineAtCodecText];
 }
 
+// The volume control in the corner is a fixed reservation, hover or not, so
+// the artist line never moves as the slider fades.
 - (void)capArtistLineAtCodecText {
-    CGFloat clearX = NSMaxX(_fileMetadataTextField.frame) - _codecTextWidth - kCodecColumnGutter;
+    CGFloat clearX = (AppSettings.sharedInstance.volumeReplacesFileInfo
+            ? NSMinX(_volumeControlView.frame)
+            : NSMaxX(_fileMetadataTextField.frame) - _codecTextWidth) - kCodecColumnGutter;
     NSRect frame = _artistTextField.frame;
     frame.size.width = MAX(0, clearX - NSMinX(frame));
     if (!NSEqualRects(frame, _artistTextField.frame)) {
@@ -269,8 +277,8 @@ API_AVAILABLE(macos(26.0))
 // re-measured per frame.
 - (void)resizeSubviewsWithOldSize:(NSSize)oldSize {
     [super resizeSubviewsWithOldSize:oldSize];
+    [self positionVolumeControl];
     [self capArtistLineAtCodecText];
-    [self centerVolumeControlInTimeRow];
 }
 
 #pragma mark - Hover reveal
@@ -327,10 +335,12 @@ API_AVAILABLE(macos(26.0))
 // to full alpha behind its hidden flag.
 - (void)setControlsShown:(BOOL)shown animated:(BOOL)animated {
     CGFloat traffic   = (shown && _trafficLightsShown) ? 1.0 : 0.0;
-    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    AppSettings *settings = AppSettings.sharedInstance;
+    AppTheme *theme = settings.currentTheme;
     BOOL transportShown = theme.showTransportButtons;
     CGFloat transport = (shown && transportShown) ? 1.0 : 0.0;
-    BOOL volumeShown = AppSettings.sharedInstance.volumeControl && !_dropHintShown;
+    // The hint shares only the time row.
+    BOOL volumeShown = settings.volumeControl && (!_dropHintShown || settings.volumeReplacesFileInfo);
     CGFloat volume = (shown && volumeShown) ? 1.0 : 0.0;
     BOOL gradientEnabled = self.transportGradientEnabled;
     CGFloat gradient = gradientEnabled && (shown || ![theme.buttonGradient isEqualToString:SETTINGS_VALUE_BUTTON_GRADIENT_HOVER]) ? 1 : 0;
@@ -375,6 +385,8 @@ API_AVAILABLE(macos(26.0))
 - (void)applyVolumeControl {
     _volumeSlider.doubleValue = AppSettings.sharedInstance.volume;
     [self renderVolumePercent];
+    [self layoutVolumeControl];
+    [self applyVolumeTint];
     [self setControlsShown:[self isCursorOverWindow] animated:NO];
 }
 
@@ -392,37 +404,78 @@ static NSDictionary *VolumeTextAttributes(NSTextAlignment alignment, NSColor *co
 }
 
 // Both side columns are the wider of "Vol" and "100%" in the current face, so
-// neither clips and the slider sits at the gap's center.
+// neither clips and the slider sits at the control's center. In the corner,
+// the corner readouts give way whether or not the hover shows the slider.
 - (void)layoutVolumeControl {
-    NSMutableDictionary *attributes = [[Fonts infoTextAttributesAligned:NSTextAlignmentLeft] mutableCopy];
-    attributes[NSFontAttributeName] = _volumeLabel.font;
-    NSString *full = [[Formatters sharedInstance] percentString:1.0];
-    CGFloat side = ceil(MAX([STR_LABEL_VOLUME sizeWithAttributes:attributes].width,
-                            [full sizeWithAttributes:attributes].width)) + 2 * kLabelInkInset;
-    CGFloat width = 2 * side + 2 * kVolumeGap + kVolumeSliderWidth;
+    BOOL labels = AppSettings.sharedInstance.currentTheme.showVolumeLabels;
+    CGFloat side = 0, gap = 0;
+    if (labels) {
+        NSMutableDictionary *attributes = [[Fonts infoTextAttributesAligned:NSTextAlignmentLeft] mutableCopy];
+        attributes[NSFontAttributeName] = _volumeLabel.font;
+        NSString *full = [[Formatters sharedInstance] percentString:1.0];
+        side = ceil(MAX([STR_LABEL_VOLUME sizeWithAttributes:attributes].width,
+                        [full sizeWithAttributes:attributes].width)) + 2 * kLabelInkInset;
+        gap = kVolumeGap;
+    }
+    CGFloat width = 2 * side + 2 * gap + kVolumeSliderWidth;
     NSRect frame = _volumeControlView.frame;
     frame.size.width = width;
     _volumeControlView.frame = frame;
-    [self centerVolumeControlInTimeRow];
+    _volumeLabel.hidden = !labels;
+    _volumePercentLabel.hidden = !labels;
     _volumeLabel.frame = NSMakeRect(0, 0, side, kSmallLabelHeight);
-    _volumeSlider.frame = NSMakeRect(side + kVolumeGap, 0, kVolumeSliderWidth, kSmallLabelHeight);
+    _volumeSlider.frame = NSMakeRect(side + gap, 0, kVolumeSliderWidth, kSmallLabelHeight);
     _volumePercentLabel.frame = NSMakeRect(width - side, 0, side, kSmallLabelHeight);
+    BOOL corner = AppSettings.sharedInstance.volumeReplacesFileInfo;
+    _fileMetadataTextField.hidden = corner;
+    _bpmTextField.hidden = corner;
+    [self positionVolumeControl];
+    [self capArtistLineAtCodecText];
 }
 
-// Centered on the gap between the two time labels, never by the mask: its
-// margins are unequal, so AppKit's proportional share of a resize walks the
-// control toward the elapsed time.
-- (void)centerVolumeControlInTimeRow {
-    CGFloat center = (NSMaxX(_currentTimeTextField.frame) + NSMinX(_totalTimeTextField.frame)) / 2;
+// Placed from its neighbors, never by the mask: in the time row its margins
+// are unequal, so AppKit's proportional share of a resize walks the control
+// toward the elapsed time. In the corner it is right-aligned on the codec
+// line, the bare slider to the waveform's edge rather than the text's.
+- (void)positionVolumeControl {
     NSRect frame = _volumeControlView.frame;
-    frame.origin.x = round(center - frame.size.width / 2);
+    if (AppSettings.sharedInstance.volumeReplacesFileInfo) {
+        CGFloat inset = _volumeLabel.hidden ? kLabelInkInset : 0;
+        frame.origin.x = NSMaxX(_fileMetadataTextField.frame) - inset - frame.size.width;
+        frame.origin.y = NSMinY(_fileMetadataTextField.frame);
+    } else {
+        CGFloat center = (NSMaxX(_currentTimeTextField.frame) + NSMinX(_totalTimeTextField.frame)) / 2;
+        frame.origin.x = round(center - frame.size.width / 2);
+        frame.origin.y = NSMinY(_currentTimeTextField.frame);
+    }
     if (!NSEqualRects(frame, _volumeControlView.frame)) {
         _volumeControlView.frame = frame;
     }
 }
 
-- (void)setVolumeFillColor:(NSColor *)color {
-    _volumeSlider.trackFillColor = [color colorWithAlphaComponent:1.0];
+- (void)setWaveformPlayedColor:(NSColor *)color {
+    _waveformPlayedColor = color;
+    [self applyVolumeTint];
+}
+
+// None is the system slider. Artwork is the album_art waveform's legible art
+// color, Mono's for gray or no art; custom is used exactly as picked.
+- (void)applyVolumeTint {
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    NSString *tint = theme.volumeTint;
+    BOOL dark = self.isDark;
+    NSColor *fill = nil;
+    if ([tint isEqualToString:SETTINGS_VALUE_VOLUME_TINT_WAVEFORM]) {
+        fill = [_waveformPlayedColor colorWithAlphaComponent:1.0];
+    } else if ([tint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_ARTWORK]) {
+        fill = [[WaveformTheme themeForIdentifier:SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART isDark:dark
+                                     artworkColor:_waveformView.artworkThemeColor
+                                     customPlayed:nil customUnplayed:nil].playedColor
+                colorWithAlphaComponent:1.0];
+    } else if ([tint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM]) {
+        fill = [theme displayColorForBase:kVibeThemeColorVolumeTint dark:dark];
+    }
+    _volumeSlider.trackFillColor = fill;
 }
 
 // updateMaterialForAppearance sets the opacity. A field that changes every

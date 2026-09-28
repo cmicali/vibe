@@ -264,6 +264,9 @@ static const double kVibeWaveformGainMaxDB = 12;
 // What the player is told: the stored volume while the control is on, full
 // volume, which passes every sample untouched, otherwise.
 - (double)effectiveVolume;
+// The slider is on and the theme puts it in the top-right corner, where it
+// takes the place of the file info, status icons, tempo and key.
+- (BOOL)volumeReplacesFileInfo;
 
 // audioFXEnabled and not bitPerfectOutput. Every UI gate reads this; only the
 // player's output-mode rebuild takes the raw choice, beside bitPerfectOutput.
