@@ -153,9 +153,6 @@ static void VibeConfigureTimeLabel(UILabel *label) {
 }
 @end
 
-@implementation TrackPageTransportView
-@end
-
 @implementation TrackPageActionBarView
 - (void)layoutSubviews {
     [super layoutSubviews];
@@ -300,7 +297,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         _remainingTimeControl.translatesAutoresizingMaskIntoConstraints = NO;
         [content addSubview:_remainingTimeControl];
 
-        _transportView = [[TrackPageTransportView alloc] init];
+        _transportView = [[UIView alloc] init];
         _transportView.translatesAutoresizingMaskIntoConstraints = NO;
         [content addSubview:_transportView];
 
@@ -706,8 +703,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
 
 // TRAP: a system button dims its own template image when disabled, so an alpha
 // on top compounds. setGlyph:onButton:pointSize: installs a pre-tinted
-// AlwaysOriginal disabled image carrying the alpha. Swallowing the tap is
-// TrackPageTransportView's job.
+// AlwaysOriginal disabled image carrying the alpha.
 - (void)setNextEnabled:(BOOL)enabled {
     _nextButton.enabled = enabled;
     _nextButton.accessibilityTraits = enabled

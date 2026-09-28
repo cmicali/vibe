@@ -5,7 +5,8 @@
 # provisioning profile for com.commonwealthrecordings.Vibe.
 #
 # Usage: scripts/install-ios.sh [Debug|Release]   (default: Release)
-#   DEVICE=<name or identifier>  pick a device when more than one is paired.
+#   DEVICE=<name, identifier or UDID>  pick a phone when more than one is paired.
+#   Simulators are never candidates: devicectl lists them as paired too.
 #
 # Output: build/DerivedData/Build/Products/<configuration>-iphoneos/Vibe.app
 set -euo pipefail
@@ -32,8 +33,10 @@ xcrun devicectl list devices --json-output "$DEVICES_JSON" >/dev/null
 MATCHES="$(jq -r --arg want "${DEVICE:-}" '
     .result.devices[]
     | select(.hardwareProperties.platform == "iOS")
+    | select(.hardwareProperties.reality == "physical")
     | select(.connectionProperties.pairingState == "paired")
-    | select($want == "" or .identifier == $want or .deviceProperties.name == $want)
+    | select($want == "" or .identifier == $want or .hardwareProperties.udid == $want
+             or .deviceProperties.name == $want)
     | "\(.identifier)\t\(.deviceProperties.name)"
 ' "$DEVICES_JSON")"
 

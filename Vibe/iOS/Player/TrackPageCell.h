@@ -17,14 +17,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class WaveformScrubberView;
 
-// A class of its own so the card's tap-to-pause declines the whole row.
-// TRAP: a UIControl check is not enough. Hit-testing does NOT hand back a
-// disabled button, so a tap on a dimmed next falls through and pauses.
-@interface TrackPageTransportView : UIView
-@end
-
-// Portrait's bottom capsule; a class of its own for the same reason: the
-// backdrop between controls is not a UIControl.
+// Portrait's bottom capsule, which rounds its own ends.
 @interface TrackPageActionBarView : UIView
 @end
 
@@ -44,7 +37,7 @@ NS_ASSUME_NONNULL_BEGIN
 // One mode for the whole app, so the controller owns the target.
 @property (nonatomic, readonly) TrackPageTimeControl *remainingTimeControl;
 
-@property (nonatomic, readonly) TrackPageTransportView *transportView;
+@property (nonatomic, readonly) UIView *transportView;
 @property (nonatomic, readonly) OutputRouteView *routeView;
 // Exposed so the controller can fade it with the chrome.
 @property (nonatomic, readonly) TrackPageActionBarView *actionBar;

@@ -60,7 +60,6 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
 
     UIView                  *_grabberView;
     UIButton                *_grabberTarget;
-    UITapGestureRecognizer  *_screenTap;
     UIPanGestureRecognizer  *_minimizePan;
 }
 
@@ -202,12 +201,6 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     [root addSubview:grabberTarget];
     _grabberTarget = grabberTarget;
 
-    // Off the waveform and the controls, a tap toggles play/pause.
-    _screenTap = [[UITapGestureRecognizer alloc] initWithTarget:self
-                                                          action:@selector(screenTapped)];
-    _screenTap.delegate = self;
-    [root addGestureRecognizer:_screenTap];
-
     // A paging scroll view's pan begins on movement in ANY direction, so the
     // pager waits for this one, which fails itself on the first horizontal
     // move (gestureRecognizerShouldBegin:).
@@ -279,18 +272,14 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
        shouldReceiveTouch:(UITouch *)touch {
-    // By class, not frame: every page carries its own waveform. The transport
-    // row and the action bar decline as a whole, because hit-testing hands
-    // back neither a disabled button nor the capsule between controls, and
-    // the tap would reach the pause. What hit-tests in the route view is
-    // AVKit's, so it is declined by our own class.
+    // The minimize pan's. By class, not frame: every page carries its own
+    // waveform. What hit-tests in the route view is AVKit's, so it is
+    // declined by our own class.
     for (UIView *view = touch.view; view && view != self.view; view = view.superview) {
         if (view == _grabberTarget) {
             return gestureRecognizer == _minimizePan;
         }
         if ([view isKindOfClass:[UIControl class]]
-                || [view isKindOfClass:[TrackPageTransportView class]]
-                || [view isKindOfClass:[TrackPageActionBarView class]]
                 || [view isKindOfClass:[OutputRouteView class]]
                 || [view isKindOfClass:[FXPadView class]]
                 || [view isKindOfClass:[WaveformScrubberView class]]) {
@@ -542,10 +531,6 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
         }
     }
     [self updatePlaybackUI];
-}
-
-- (void)screenTapped {
-    [_playback playPause];
 }
 
 - (void)minimizeTapped {

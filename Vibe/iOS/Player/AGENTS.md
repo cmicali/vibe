@@ -36,10 +36,9 @@ The track pager and the chrome over it. It observes `PlaybackController` and own
 
 One full-screen page: blurred art (a baked image, `Util/iOS/AGENTS.md`), header, transport row. Two constraint sets swapped on the cell's own aspect in `layoutSubviews`: portrait is the centered card, landscape the mac window transplanted. Geometry constants are private to the cell.
 
-**The transport is always up**; only the empty state fades it, with the action bar, the route control and the FX pad (`chromeAlpha`). A tap anywhere else pauses. **Next dims at the end of the playlist, from the PAGE's index**, so the last page arrives dimmed. Two traps under that button:
+**The transport is always up**; only the empty state fades it, with the action bar, the route control and the FX pad (`chromeAlpha`). **Only the play button pauses**: the card has no tap of its own. **Next dims at the end of the playlist, from the PAGE's index**, so the last page arrives dimmed. One trap under that button:
 
 - **TRAP: the disabled look is drawn, not delegated.** A system button dims its own template image, so an alpha on top compounds. `setGlyph:onButton:pointSize:` installs a pre-tinted `AlwaysOriginal` image for the disabled state.
-- **TRAP: hit-testing does not hand back a disabled button**; the touch falls through to the card's pause. `TrackPageTransportView` and `TrackPageActionBarView` are classes of their own so the row and the bar decline as a whole in `gestureRecognizer:shouldReceiveTouch:`, beside `UIControl`, `FXPadView` and `WaveformScrubberView`.
 
 **Portrait is four bands and only the art band moves**: grabber strip, art band (the leftover height, art centered in it), fixed label band, and the action bar, transport and waveform off the safe bottom with the time row off the waveform. **The art is capped twice**: a width fraction (the binding cap on tall screens) and the band (short screens).
 
