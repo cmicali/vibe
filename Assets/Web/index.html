@@ -63,7 +63,7 @@
   ],
   "featureList": [
     "Seekable full-track waveform",
-    "Plays MP3, MP2, AAC, FLAC, MP4/M4A, AIFF and WAV, decoded by macOS itself",
+    "Plays MP3, MP2, AAC, FLAC, MP4/M4A, AIFF and WAV through its own CoreAudio engine",
     "Lossless playback at full resolution",
     "No library or database to import",
     "Tags, artwork and BPM read in the background and cached",
@@ -149,8 +149,8 @@
       <p>Vibe is built to be small and fast. Tags, artwork, and waveforms are read in the background and cached, so the next open is instant.</p>
     </li>
     <li>
-      <h3><svg class="card-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="7" y="7" width="10" height="10" rx="2.5"/><path d="M9.5 3v4M14.5 3v4M9.5 17v4M14.5 17v4M3 9.5h4M3 14.5h4M17 9.5h4M17 14.5h4"/></svg>Decoded by macOS</h3>
-      <p>MP3, AAC, MP4/M4A, MP2, AIFF, WAV, and FLAC files are played bit-perfect through the system APIs.</p>
+      <h3><svg class="card-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="7" y="7" width="10" height="10" rx="2.5"/><path d="M9.5 3v4M14.5 3v4M9.5 17v4M14.5 17v4M3 9.5h4M3 14.5h4M17 9.5h4M17 14.5h4"/></svg>Vibe’s own audio engine</h3>
+      <p>MP3, AAC, MP4/M4A, MP2, AIFF, WAV, and FLAC, played through Vibe’s own CoreAudio engine, with high-quality sample-rate conversion and bit-perfect output. Lossless files play at full resolution.</p>
     </li>
     <li>
       <h3><svg class="card-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3.5 7.2a2 2 0 0 1 2-2h3.6a2 2 0 0 1 1.5.7l1.2 1.4h6.7a2 2 0 0 1 2 2v8.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>No library to import</h3>

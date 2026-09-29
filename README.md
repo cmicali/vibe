@@ -15,7 +15,7 @@ A fast, minimal player for your music files for the Mac, iPhone, and iPad. No th
 - **Waveform seek bar** — a SoundCloud-style waveform; click it to seek
 - **Drag and drop** — drop files or folders on the window or the dock icon to play them
 - **Themes** — restyle the whole player; build your own in Settings and share it as a file
-- **Formats** — MP3, MP2, AAC, FLAC, MP4/M4A, QTA (Voice Memos), AIFF and WAV, all decoded natively by CoreAudio
+- **Formats** — MP3, MP2, AAC, FLAC, MP4/M4A, QTA (Voice Memos), AIFF and WAV, all played by Vibe's own CoreAudio engine
 - **Metadata and artwork** — read with TagLib, then cached to disk
 - **Keyboard transport** — `Space` plays and pauses, `B` and `N` change track, `A`–`D` and `Z`–`C` skip by bars
 - **Performance FX** — a low-kill filter, a reverb wash and BPM-synced delays on `Q`–`T`; tap to latch, hold for momentary
