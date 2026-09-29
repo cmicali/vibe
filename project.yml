@@ -24,8 +24,8 @@ settingGroups:
   # A release bumps these two lines and nothing else; the release scripts read
   # the number back out of the BUILT app.
   vibe-version:
-    MARKETING_VERSION: "1.14-beta3"
-    CURRENT_PROJECT_VERSION: 302
+    MARKETING_VERSION: "1.14-beta4"
+    CURRENT_PROJECT_VERSION: 303
 
   vibe-header-paths:
     HEADER_SEARCH_PATHS:
