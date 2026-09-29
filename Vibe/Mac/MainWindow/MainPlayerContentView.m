@@ -527,7 +527,7 @@ static CGFloat LabelCellWidth(NSTextField *label, NSString *string, NSTextAlignm
 }
 
 // None's knob is the system's white pill; Same as bar takes the fill's
-// answer, None's included. Both default to Waveform.
+// answer, None's included, and is the knob's default.
 - (void)applyVolumeColors {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     NSColor *fill = [self volumeColorForChoice:theme.volumeBar base:kVibeThemeColorVolumeBar theme:theme];

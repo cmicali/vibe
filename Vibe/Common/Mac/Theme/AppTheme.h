@@ -263,7 +263,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 @property (nonatomic) BOOL keyColorsEnabled;
 @property (nonatomic, copy) NSString *keyNotation;          // camelot/musical
 @property (nonatomic, copy) NSString *volumeBar;            // mono/artwork/waveform (default)/custom
-@property (nonatomic, copy) NSString *volumeKnob;           // mono/bar/artwork/waveform (default)/custom
+@property (nonatomic, copy) NSString *volumeKnob;           // mono/bar (default)/artwork/waveform/custom
 @property (nonatomic) BOOL showVolumeLabels;                // "Vol" and the percentage
 @property (nonatomic, copy) NSString *volumeLocation;       // top_right (default)/bottom
 
