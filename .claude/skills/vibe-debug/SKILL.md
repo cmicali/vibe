@@ -16,7 +16,7 @@ V="$APP/Contents/MacOS/Vibe"      # the binary is its own CLI client (same sandb
 ## macOS: launch, drive, inspect
 
 ```bash
-.claude/skills/vibe-debug/scripts/launch.sh [audio-file ...]   # quit, open -a, poll the channel, print dump_state; honors $VIBE_APP, VIBE_LANGUAGE=de
+.claude/skills/vibe-debug/scripts/launch.sh [audio-file ...]   # quit, open -a, poll the channel, print dump_state, raise the window; honors $VIBE_APP, VIBE_LANGUAGE=de
 "$V" --debug-cmd dump_state                                     # {player, currentTrack, playlist, ui, window, settings}
 "$V" --debug-cmd check_consistency                              # the app's own rules against live state; re-check after a settle
 "$V" --debug-cmd dump_screenshot - > shot.png                   # always the `-` form: a path reply is inside the container, and reading it trips TCC

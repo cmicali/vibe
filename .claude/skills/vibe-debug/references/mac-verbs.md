@@ -40,6 +40,7 @@ Action replies are a compact `{ok, state, index, count, position, pitch, lowKill
 "$V" --debug-cmd set_window_width 900  # {ok, frame, bodyWidth} — body width in points (pitch panel excluded); optional height and seconds (0..10): `set_window_width 1400 650 2` resizes at 60 Hz through public frame changes and replies on completion. Exercises layout, not AppKit's live-resize event lifecycle
 "$V" --debug-cmd set_loading 0.42    # {ok, fraction} for a number, {ok, loading: "off"} for off, {ok, fraction: -1} for indeterminate — the waveform loading indicator directly. Draws the control with no play behind it; for a REAL Loading state use set_fake_cloud
 "$V" --debug-cmd set_appearance dark # {ok, windowAppearance} — light|dark|system, applied live
+"$V" --debug-cmd raise_window        # {ok, visible, displayAsleep} — orders the window front without activating (the frontmost app keeps the keyboard); launch.sh and run-torture.sh call it after every launch. visible:false with displayAsleep:true means a sleeping display or locked screen, which no ordering fixes
 "$V" --debug-cmd click_menu menu_show_pitch  # {ok, clicked, action} — by identifier (preferred) or exact title; refuses a disabled item
 ```
 

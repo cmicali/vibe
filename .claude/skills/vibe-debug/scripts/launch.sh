@@ -115,6 +115,17 @@ for _ in 1 2 3 4 5 6; do
             "$V"*) ;;
             *) echo "warning: running binary is: $RUNNING" >&2 ;;
         esac
+        # The launch lands behind the frontmost app, and an occluded, paused
+        # app is deferred by the OS until the channel times out (raise_window's
+        # TRAP). A sleeping display or locked screen occludes every window.
+        RAISED="$("$V" --debug-cmd raise_window 2>/dev/null || true)"
+        if ! printf '%s' "$RAISED" | jq -e '.visible' >/dev/null 2>&1; then
+            if printf '%s' "$RAISED" | jq -e '.displayAsleep' >/dev/null 2>&1; then
+                echo "warning: the display is asleep or the screen locked, so the window stays occluded and a paused Vibe will be deferred; wake and unlock the Mac" >&2
+            else
+                echo "warning: the window is still occluded after raise_window" >&2
+            fi
+        fi
         exit 0
     fi
 done
