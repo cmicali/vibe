@@ -9,8 +9,8 @@ Spela filer på din iPhone, i iCloud Drive eller i Dropbox — från appen Filer
 Inget bibliotek att importera
 Det finns ingen databas att bygga om och inget att synka.
 
-Avkodas av iOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV och FLAC, alla spelade genom systemets API:er. Lossless-filer spelas i full upplösning.
+Vibes egen ljudmotor
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV och FLAC, spelade genom Vibes egen ljudmotor med högkvalitativ samplingsfrekvenskonvertering. Lossless-filer spelas i full upplösning.
 
 Widgetar
 Den lilla och den mellanstora widgeten visar aktuell låt med omslag och en vågform du kan söka i.

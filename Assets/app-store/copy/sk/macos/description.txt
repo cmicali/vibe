@@ -9,8 +9,8 @@ Vibe je stavaný tak, aby bol malý a rýchly. Tagy, obaly a vlnové priebehy sa
 Jednoducho prehrá vaše súbory
 Pretiahnite súbor alebo priečinok — z disku, z iCloud Drive alebo z Dropboxu — a hrá. Niet databázy na prestavbu ani knižnice na údržbu.
 
-Dekóduje macOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV a FLAC, všetky prehrávané cez systémové API. Bezstratové súbory hrajú v plnom rozlíšení.
+Vlastný audio engine Vibe
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV a FLAC, prehrávané cez vlastný CoreAudio engine Vibe s vysokokvalitnou konverziou vzorkovacej frekvencie. Bezstratové súbory hrajú v plnom rozlíšení.
 
 Režim bit-perfect
 Bit-perfect a exkluzívny režim posielajú zvuk do výstupného zariadenia presne tak, ako je, pre najlepšiu možnú kvalitu.

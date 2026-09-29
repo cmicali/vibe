@@ -9,8 +9,8 @@ Play files on your iPhone, in iCloud Drive, or in Dropbox from the Files app or 
 No library to import
 There is no database to rebuild and nothing to sync.
 
-Decoded by iOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV, and FLAC, all played through the system APIs. Lossless files play at full resolution.
+Vibe's own audio engine
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV, and FLAC, played through Vibe's own audio engine with high-quality sample-rate conversion. Lossless files play at full resolution.
 
 Widgets
 Small and medium widgets show the current track with its artwork and seekable waveform.

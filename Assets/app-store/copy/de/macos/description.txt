@@ -9,8 +9,8 @@ Vibe ist klein und schnell gebaut. Tags, Artwork und Wellenformen liest Vibe im 
 Spielt einfach deine Dateien
 Lege eine Datei oder einen Ordner ab — von deiner Festplatte, aus iCloud Drive oder Dropbox — und sie spielt. Keine Datenbank, die neu aufgebaut werden muss, und keine Mediathek, die gepflegt werden will.
 
-Von macOS dekodiert
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV und FLAC, alle über die System-APIs abgespielt. Lossless-Dateien spielen in voller Auflösung.
+Vibes eigene Audio-Engine
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV und FLAC, abgespielt über Vibes eigene CoreAudio-Engine mit hochwertiger Abtastratenkonvertierung. Lossless-Dateien spielen in voller Auflösung.
 
 Bit-perfekter Modus
 Bit-perfekt und Exclusive Mode geben Audio exakt unverändert an dein Ausgabegerät weiter, für die bestmögliche Klangqualität.

@@ -9,8 +9,8 @@ iPhone'unuzdaki, iCloud Drive'daki veya Dropbox'taki dosyaları çalın — Dosy
 İçe Aktarılacak Kitaplık Yok
 Yeniden oluşturulacak bir veritabanı ya da eşitlenecek bir şey yok.
 
-iOS tarafından çözülür
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV ve FLAC, hepsi sistem API'leri üzerinden çalınır. Kayıpsız dosyalar tam çözünürlükte çalar.
+Vibe'ın kendi ses motoru
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV ve FLAC, Vibe'ın kendi ses motoru üzerinden yüksek kaliteli örnekleme hızı dönüşümüyle çalınır. Kayıpsız dosyalar tam çözünürlükte çalar.
 
 Widget'lar
 Küçük ve orta boy widget'lar çalan parçayı kapak görseli ve üzerinde ilerleyebileceğiniz bir dalga biçimiyle gösterir.

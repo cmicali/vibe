@@ -9,8 +9,8 @@ Spiel Dateien auf deinem iPhone, in iCloud Drive oder in Dropbox — aus der Dat
 Keine Mediathek zum Importieren
 Keine Datenbank, die neu aufgebaut werden muss, und nichts zu synchronisieren.
 
-Von iOS dekodiert
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV und FLAC, alle über die System-APIs abgespielt. Lossless-Dateien spielen in voller Auflösung.
+Vibes eigene Audio-Engine
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV und FLAC, abgespielt über Vibes eigene Audio-Engine mit hochwertiger Abtastratenkonvertierung. Lossless-Dateien spielen in voller Auflösung.
 
 Widgets
 Kleine und mittlere Widgets zeigen den aktuellen Titel mit Artwork und einer Wellenform zum Scrubben.

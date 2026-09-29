@@ -9,8 +9,8 @@ Afspil filer på din iPhone, i iCloud Drive eller i Dropbox — fra appen Filer 
 Intet bibliotek at importere
 Der er ingen database at genopbygge og intet at synkronisere.
 
-Afkodet af iOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV og FLAC, alle afspillet gennem systemets API’er. Lossless-filer afspilles i fuld opløsning.
+Vibes egen lydmotor
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV og FLAC, afspillet gennem Vibes egen lydmotor med samplerate-konvertering i høj kvalitet. Lossless-filer afspilles i fuld opløsning.
 
 Widgets
 Den lille og den mellemstore widget viser det aktuelle nummer med albumbillede og en bølgeform, du kan spole i.

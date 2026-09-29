@@ -9,8 +9,8 @@ Prehrávajte súbory vo svojom iPhone, na iCloud Drive alebo v Dropboxe — z ap
 Žiadna knižnica na import
 Niet databázy na prestavbu ani nič na synchronizáciu.
 
-Dekóduje iOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV a FLAC, všetky prehrávané cez systémové API. Bezstratové súbory hrajú v plnom rozlíšení.
+Vlastný audio engine Vibe
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV a FLAC, prehrávané cez vlastný audio engine Vibe s vysokokvalitnou konverziou vzorkovacej frekvencie. Bezstratové súbory hrajú v plnom rozlíšení.
 
 Widgety
 Malý a stredný widget ukazujú práve hrajúcu skladbu s obalom a vlnovým priebehom, po ktorom sa môžete posúvať.

@@ -9,8 +9,8 @@ Vibe được dựng để nhỏ gọn và nhanh. Thẻ, ảnh bìa và dạng s
 Chỉ việc phát tệp của bạn
 Thả một tệp hoặc một thư mục — từ ổ đĩa của bạn, từ iCloud Drive hay Dropbox — là nhạc chạy. Không có cơ sở dữ liệu nào phải dựng lại và không có thư viện nào phải trông nom.
 
-Được macOS giải mã
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV và FLAC, tất cả đều phát qua API hệ thống. Tệp lossless phát ở độ phân giải đầy đủ.
+Bộ máy âm thanh riêng của Vibe
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV và FLAC, phát qua bộ máy CoreAudio riêng của Vibe, với khả năng chuyển đổi tần số lấy mẫu chất lượng cao. Tệp lossless phát ở độ phân giải đầy đủ.
 
 Chế độ bit-perfect
 Chế độ bit-perfect và chế độ độc quyền gửi âm thanh tới thiết bị đầu ra đúng nguyên trạng, cho chất lượng tốt nhất có thể.

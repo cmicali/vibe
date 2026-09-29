@@ -9,8 +9,8 @@ Reproduza ficheiros no seu iPhone, no iCloud Drive ou no Dropbox — a partir da
 Nenhuma biblioteca para importar
 Não há base de dados para reconstruir nem nada para sincronizar.
 
-Descodificado pelo iOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV e FLAC, todos reproduzidos através das APIs do sistema. Os ficheiros lossless são reproduzidos em resolução total.
+O motor de áudio do Vibe
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV e FLAC, reproduzidos através do motor de áudio próprio do Vibe, com conversão de frequência de amostragem de alta qualidade. Os ficheiros lossless são reproduzidos em resolução total.
 
 Widgets
 Os widgets pequeno e médio mostram a faixa actual com a capa e uma forma de onda que pode percorrer.

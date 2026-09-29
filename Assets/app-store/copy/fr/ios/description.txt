@@ -9,8 +9,8 @@ Lisez vos fichiers sur votre iPhone, dans iCloud Drive ou dans Dropbox — depui
 Aucune bibliothèque à importer
 Aucune base de données à reconstruire et rien à synchroniser.
 
-Décodé par iOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV et FLAC, tous lus via les API du système. Les fichiers lossless sont lus en pleine résolution.
+Le moteur audio de Vibe
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV et FLAC, lus par le moteur audio propre à Vibe, avec une conversion de fréquence d’échantillonnage de haute qualité. Les fichiers lossless sont lus en pleine résolution.
 
 Widgets
 Les widgets petit et moyen affichent le morceau en cours avec sa pochette et une forme d’onde que vous pouvez parcourir.

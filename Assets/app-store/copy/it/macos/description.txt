@@ -9,8 +9,8 @@ Vibe è costruito per restare leggero e rapido. Tag, copertine e forme d’onda 
 Riproduce e basta
 Trascina un file o una cartella — dal tuo disco, da iCloud Drive o da Dropbox — e parte. Non c’è nessun database da ricostruire e nessuna libreria da gestire.
 
-Decodificato da macOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV e FLAC, tutti riprodotti tramite le API di sistema. I file lossless suonano a piena risoluzione.
+Il motore audio di Vibe
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV e FLAC, riprodotti tramite il motore CoreAudio sviluppato da Vibe, con conversione della frequenza di campionamento di alta qualità. I file lossless suonano a piena risoluzione.
 
 Modalità bit-perfect
 La modalità bit-perfect ed esclusiva inviano l’audio al dispositivo di uscita esattamente com’è, per la migliore qualità possibile.

@@ -9,8 +9,8 @@ Vibe är byggd liten och snabb. Taggar, omslag och vågformer läses i bakgrunde
 Spelar bara dina filer
 Släpp en fil eller en mapp — från din disk, iCloud Drive eller Dropbox — och den spelar. Det finns ingen databas att bygga om och inget bibliotek att sköta.
 
-Avkodas av macOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV och FLAC, alla spelade genom systemets API:er. Lossless-filer spelas i full upplösning.
+Vibes egen ljudmotor
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV och FLAC, spelade genom Vibes egen CoreAudio-motor med högkvalitativ samplingsfrekvenskonvertering. Lossless-filer spelas i full upplösning.
 
 Bit-perfect-läge
 Bit-perfect och exklusivt läge skickar ljudet till din utgångsenhet precis som det är, för bästa möjliga ljudkvalitet.

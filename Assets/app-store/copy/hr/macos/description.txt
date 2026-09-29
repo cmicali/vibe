@@ -9,8 +9,8 @@ Vibe je građen da bude malen i brz. Tagovi, omoti i valni oblici čitaju se u p
 Jednostavno svira vaše datoteke
 Ispustite datoteku ili mapu — s diska, iz iCloud Drivea ili Dropboxa — i svira. Nema baze podataka za ponovnu izgradnju ni biblioteke za održavanje.
 
-Dekodira macOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV i FLAC, svi reproducirani kroz sistemske API-je. Lossless datoteke sviraju u punoj rezoluciji.
+Vlastiti audiomehanizam Vibea
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV i FLAC, reproducirani kroz vlastiti CoreAudio mehanizam Vibea, uz visokokvalitetnu pretvorbu frekvencije uzorkovanja. Lossless datoteke sviraju u punoj rezoluciji.
 
 Bit-perfect način
 Bit-perfect i ekskluzivni način šalju zvuk na vaš izlazni uređaj točno onakav kakav jest, za najbolju moguću kvalitetu.

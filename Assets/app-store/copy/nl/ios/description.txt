@@ -9,8 +9,8 @@ Speel bestanden op je iPhone, in iCloud Drive of in Dropbox — vanuit de Bestan
 Geen bibliotheek om te importeren
 Er is geen database om opnieuw op te bouwen en niets om te synchroniseren.
 
-Gedecodeerd door iOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV en FLAC, allemaal afgespeeld via de systeem-API’s. Lossless bestanden spelen op volle resolutie.
+Vibes eigen audio-engine
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV en FLAC, afgespeeld via Vibes eigen audio-engine, met hoogwaardige samplerateconversie. Lossless bestanden spelen op volle resolutie.
 
 Widgets
 De kleine en middelgrote widgets tonen het huidige nummer met artwork en een golfvorm waarover je kunt zoeken.

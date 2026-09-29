@@ -9,8 +9,8 @@ Vibe está hecho para ser pequeño y veloz. Las etiquetas, las carátulas y las 
 Simplemente suena
 Suelta un archivo o una carpeta —desde tu disco, iCloud Drive o Dropbox— y suena. No hay base de datos que reconstruir ni biblioteca que mantener.
 
-Decodificado por macOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV y FLAC, todos reproducidos a través de las APIs del sistema. Los archivos sin pérdida suenan a resolución completa.
+El motor de audio propio de Vibe
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV y FLAC, reproducidos a través del motor CoreAudio propio de Vibe, con conversión de frecuencia de muestreo de alta calidad. Los archivos sin pérdida suenan a resolución completa.
 
 Modo bit-perfect
 El modo bit-perfect y el modo exclusivo envían el audio a tu dispositivo de salida exactamente tal cual, para la mejor calidad posible.

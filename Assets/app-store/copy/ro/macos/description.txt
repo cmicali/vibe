@@ -9,8 +9,8 @@ Vibe e construit să fie mic și rapid. Etichetele, coperțile și formele de un
 Pur și simplu îți redă fișierele
 Trage un fișier sau un folder — de pe disc, din iCloud Drive sau din Dropbox — și pornește. Nu există bază de date de reconstruit și nicio bibliotecă de întreținut.
 
-Decodat de macOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV și FLAC, toate redate prin API-urile sistemului. Fișierele lossless se redau la rezoluție completă.
+Motorul audio propriu Vibe
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV și FLAC, redate prin motorul CoreAudio propriu al Vibe, cu conversie a ratei de eșantionare de înaltă calitate. Fișierele lossless se redau la rezoluție completă.
 
 Mod bit-perfect
 Modul bit-perfect și modul exclusiv trimit sunetul către dispozitivul de ieșire exact așa cum este, pentru cea mai bună calitate posibilă.

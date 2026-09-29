@@ -9,8 +9,8 @@ Riproduci i file sul tuo iPhone, in iCloud Drive o in Dropbox — dall’app Fil
 Nessuna libreria da importare
 Non c’è nessun database da ricostruire e niente da sincronizzare.
 
-Decodificato da iOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV e FLAC, tutti riprodotti tramite le API di sistema. I file lossless suonano a piena risoluzione.
+Il motore audio di Vibe
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV e FLAC, riprodotti tramite il motore audio sviluppato da Vibe, con conversione della frequenza di campionamento di alta qualità. I file lossless suonano a piena risoluzione.
 
 Widget
 I widget piccolo e medio mostrano il brano in riproduzione con la copertina e una forma d’onda su cui puoi spostarti.

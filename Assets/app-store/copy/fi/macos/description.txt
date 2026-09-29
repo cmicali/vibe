@@ -9,8 +9,8 @@ Vibe on rakennettu pieneksi ja nopeaksi. Tagit, kansikuvat ja aaltomuodot luetaa
 Soittaa vain tiedostosi
 Pudota tiedosto tai kansio — levyltäsi, iCloud Drivesta tai Dropboxista — ja se soi. Ei tietokantaa rakennettavaksi uudelleen eikä kirjastoa ylläpidettäväksi.
 
-macOS dekoodaa
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV ja FLAC, kaikki toistetaan järjestelmän omilla rajapinnoilla. Häviöttömät tiedostot soivat täydellä tarkkuudella.
+Viben oma äänimoottori
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV ja FLAC, kaikki toistetaan Viben omalla CoreAudio-moottorilla ja laadukkaalla näytteenottotaajuuden muunnoksella. Häviöttömät tiedostot soivat täydellä tarkkuudella.
 
 Bit-perfect-tila
 Bit-perfect ja yksinoikeustila lähettävät äänen ulostulolaitteellesi täsmälleen sellaisenaan, parhaan mahdollisen äänenlaadun vuoksi.

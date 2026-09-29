@@ -9,8 +9,8 @@ Vibe jest zbudowany tak, by był mały i szybki. Tagi, okładki i fale są odczy
 Po prostu odtwarza Twoje pliki
 Upuść plik albo folder — z dysku, z iCloud Drive lub z Dropboxa — i gra. Nie ma bazy danych do przebudowania ani biblioteki do pielęgnowania.
 
-Dekodowanie przez macOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV i FLAC — wszystkie odtwarzane przez systemowe API. Pliki bezstratne grają w pełnej rozdzielczości.
+Własny silnik audio Vibe
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV i FLAC — odtwarzane przez własny silnik CoreAudio Vibe z wysokiej jakości konwersją częstotliwości próbkowania. Pliki bezstratne grają w pełnej rozdzielczości.
 
 Tryb bit-perfect
 Tryb bit-perfect i tryb wyłączny wysyłają dźwięk do urządzenia wyjściowego dokładnie takim, jaki jest, dla najlepszej możliwej jakości.

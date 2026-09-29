@@ -9,8 +9,8 @@ Redă fișiere de pe iPhone, din iCloud Drive sau din Dropbox — din aplicația
 Nicio bibliotecă de importat
 Nu există bază de date de reconstruit și nimic de sincronizat.
 
-Decodat de iOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV și FLAC, toate redate prin API-urile sistemului. Fișierele lossless se redau la rezoluție completă.
+Motorul audio propriu Vibe
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV și FLAC, redate prin motorul audio propriu al Vibe, cu conversie a ratei de eșantionare de înaltă calitate. Fișierele lossless se redau la rezoluție completă.
 
 Widgeturi
 Widgeturile mic și mediu arată piesa curentă cu coperta și o formă de undă pe care te poți deplasa.

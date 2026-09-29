@@ -9,8 +9,8 @@ Játssz le fájlokat az iPhone-odról, az iCloud Drive-ról vagy a Dropboxból �
 Nincs importálandó könyvtár
 Nincs újraépítendő adatbázis és nincs mit szinkronizálni.
 
-Az iOS dekódolja
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV és FLAC, mind a rendszer API-jain keresztül szól. A veszteségmentes fájlok teljes felbontásban szólnak.
+A Vibe saját hangmotorja
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV és FLAC, a Vibe saját hangmotorján keresztül szól, kiváló minőségű mintavételezésifrekvencia-átalakítással. A veszteségmentes fájlok teljes felbontásban szólnak.
 
 Widgetek
 A kis és a közepes widget a szóló számot mutatja a borítóval és egy hullámformával, amelyen tekerhetsz.

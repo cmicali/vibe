@@ -9,8 +9,8 @@ Phát các tệp trên iPhone, trong iCloud Drive hoặc trong Dropbox — từ 
 Không có thư viện nào phải nhập
 Không có cơ sở dữ liệu nào phải dựng lại và không có gì phải đồng bộ.
 
-Được iOS giải mã
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV và FLAC, tất cả đều phát qua API hệ thống. Tệp lossless phát ở độ phân giải đầy đủ.
+Bộ máy âm thanh riêng của Vibe
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV và FLAC, phát qua bộ máy âm thanh riêng của Vibe với khả năng chuyển đổi tần số lấy mẫu chất lượng cao. Tệp lossless phát ở độ phân giải đầy đủ.
 
 Widget
 Widget nhỏ và vừa hiển thị bản nhạc đang phát cùng ảnh bìa và một dạng sóng bạn có thể kéo để đổi vị trí.

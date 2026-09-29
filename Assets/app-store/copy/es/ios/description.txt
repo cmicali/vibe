@@ -9,8 +9,8 @@ Reproduce archivos de tu iPhone, de iCloud Drive o de Dropbox —desde la app Ar
 Sin biblioteca que importar
 No hay base de datos que reconstruir ni nada que sincronizar.
 
-Decodificado por iOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV y FLAC, todos reproducidos a través de las APIs del sistema. Los archivos sin pérdida suenan a resolución completa.
+El motor de audio propio de Vibe
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV y FLAC, reproducidos a través del motor de audio propio de Vibe, con conversión de frecuencia de muestreo de alta calidad. Los archivos sin pérdida suenan a resolución completa.
 
 Widgets
 Los widgets pequeño y mediano muestran la pista actual con su carátula y una forma de onda por la que puedes moverte.

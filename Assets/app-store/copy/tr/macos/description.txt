@@ -9,8 +9,8 @@ Vibe küçük ve hızlı olacak şekilde yapıldı. Etiketler, kapak görselleri
 Sadece Dosyalarınızı Çalar
 Bir dosyayı ya da klasörü bırakın — diskinizden, iCloud Drive'dan veya Dropbox'tan — ve çalmaya başlasın. Yeniden oluşturulacak bir veritabanı ya da bakımı yapılacak bir kitaplık yok.
 
-macOS tarafından çözülür
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV ve FLAC, hepsi sistem API'leri üzerinden çalınır. Kayıpsız dosyalar tam çözünürlükte çalar.
+Vibe'ın kendi ses motoru
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV ve FLAC, Vibe'ın kendi CoreAudio motoru üzerinden, yüksek kaliteli örnekleme hızı dönüşümüyle çalınır. Kayıpsız dosyalar tam çözünürlükte çalar.
 
 Bit-perfect Modu
 Bit-perfect ve ayrıcalıklı mod, sesi çıkış aygıtınıza tam olduğu gibi gönderir; mümkün olan en iyi ses kalitesi için.
