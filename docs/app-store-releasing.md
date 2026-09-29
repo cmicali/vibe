@@ -134,9 +134,9 @@ pipeline as the macOS ones, with `--platform ios`
 (`scripts/appstore-generate-store-screenshots.sh`).
 
 The iOS copy deliberately does not reuse the macOS text, and must not: that
-copy sells BPM and key analysis, the pitch fader and the FX rack, and says the
-formats are "decoded by macOS" — all macOS-only by construction (root
-`AGENTS.md`, "Four features are macOS-only"). A product page describing
+copy sells key analysis, the pitch fader and bit-perfect output, all
+macOS-only by construction (root `AGENTS.md`, "Four features are
+macOS-only"; bit-perfect output is `Audio/Mac/Devices/`). A product page describing
 features the app does not have is a review rejection, not a cosmetic
 problem.
 

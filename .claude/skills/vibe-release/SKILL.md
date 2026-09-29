@@ -61,7 +61,7 @@ So the full sequence, all from a machine with `.release-env`: `make release`, `m
 
 ## Product-page metadata
 
-**One run writes ONE platform's page.** ASC localizations hang off a version and versions are per platform, so macOS and iOS each have their own description, keywords, promotional text, what's-new, captions and screenshots; `--platform macos` (the default) or `--platform ios` picks which. The iOS text is not the macOS text reworded — the macOS page sells BPM and key analysis, the pitch fader and the FX rack, all macOS-only, and says the formats are "decoded by macOS". A page describing features the app does not have is a review rejection.
+**One run writes ONE platform's page.** ASC localizations hang off a version and versions are per platform, so macOS and iOS each have their own description, keywords, promotional text, what's-new, captions and screenshots; `--platform macos` (the default) or `--platform ios` picks which. The iOS text is not the macOS text reworded — the macOS page sells key analysis, the pitch fader and bit-perfect output, all macOS-only. A page describing features the app does not have is a review rejection.
 
 The build upload carries no product-page content. Localized copy and screenshots live in `Assets/app-store/` (per-locale format: its README) and upload separately with `make appstore-upload-metadata` — `scripts/appstore-upload-metadata.sh` driving the Swift/Bagbutik tool in `scripts/asc-upload/`, authenticated by the same shared key (metadata itself needs only App Manager, so the Admin key more than covers it).
 
