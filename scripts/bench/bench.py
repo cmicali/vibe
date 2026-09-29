@@ -183,6 +183,18 @@ def library_count():
 libc = ctypes.CDLL('/usr/lib/libSystem.B.dylib')
 libc.notify_post.argtypes = [ctypes.c_char_p]
 libc.proc_pid_rusage.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_void_p]
+libc.clock_gettime_nsec_np.argtypes = [ctypes.c_int]
+libc.clock_gettime_nsec_np.restype = ctypes.c_uint64
+CLOCK_UPTIME_RAW = 8
+
+
+def uptime_ns():
+    """The probe's clock, so its launch stamps and these compare.
+
+    TRAP: not time.monotonic_ns(). Its origin depends on the Python: the
+    Xcode/system 3.9 counts from its own process start, so an interval from a
+    probe stamp came out as minus the machine's awake time since boot."""
+    return libc.clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
 
 
 class MachTimebase(ctypes.Structure):
@@ -204,7 +216,7 @@ def rusage(pid):
         raise ProcessLookupError(pid)
     words = list(buf)[2:]  # the uuid
     return {
-        't': time.monotonic_ns(),
+        't': uptime_ns(),
         # TRAP: the CPU times are mach absolute units, not ns, on Apple silicon.
         'cpu_ns': (words[RU_USER] + words[RU_SYSTEM]) * MACH_NS,
         'wakeups': words[RU_IDLE_WKUPS] + words[RU_INTERRUPT_WKUPS],
@@ -344,15 +356,15 @@ class App:
         staging = self.tmp / f'.staging-{cid}'
         staging.write_text(json.dumps({'id': cid, 'args': [str(a) for a in args]}))
         staging.rename(path)
-        sent = time.monotonic_ns()
+        sent = uptime_ns()
         libc.notify_post(b'com.vibe.debug.command')
         deadline = sent + timeout * 1e9
         handled, polls = None, 0
-        while time.monotonic_ns() < deadline:
+        while uptime_ns() < deadline:
             if handled is None and not path.exists():
-                handled = time.monotonic_ns()
+                handled = uptime_ns()
             if reply_path.exists():
-                received = time.monotonic_ns()
+                received = uptime_ns()
                 text = reply_path.read_text()
                 reply_path.unlink()
                 reply = json.loads(text)

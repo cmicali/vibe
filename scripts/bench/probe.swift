@@ -5,8 +5,8 @@
 // Usage: probe <executable> [args ...]
 //        probe --device-id <CoreAudio device UID>
 // Prints {"pid": N, "t0": ns, "windowNs": ns} on stdout and exits, leaving
-// the app running. t0 and windowNs are CLOCK_UPTIME_RAW, the clock Python's
-// time.monotonic_ns() reads on macOS. The child inherits this environment.
+// the app running. t0 and windowNs are CLOCK_UPTIME_RAW, the clock bench.py's
+// uptime_ns() reads. The child inherits this environment.
 // Window owner and bounds need no Screen Recording permission; titles would.
 import CoreAudio
 import CoreGraphics
