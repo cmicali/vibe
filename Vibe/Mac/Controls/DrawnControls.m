@@ -458,7 +458,8 @@ static NSString *const kSwitchKnobPositionKey = @"knobPosition";
         return;
     }
     _tracking = NO;
-    if (NSPointInRect([self convertPoint:event.locationInWindow fromView:nil], self.bounds)) {
+    // A device refresh can disable Bit-perfect output under a held press.
+    if (self.isEnabled && NSPointInRect([self convertPoint:event.locationInWindow fromView:nil], self.bounds)) {
         [self toggle];
     }
 }
