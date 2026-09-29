@@ -2,8 +2,6 @@
 
 A fast, minimal player for your music files for the Mac, iPhone, and iPad. No third-party engine, no account, no subscription. 
 
-**[vibeplayer.app](https://vibeplayer.app)** — website, downloads, and [privacy policy](https://vibeplayer.app/privacy).
-
 ![Vibe screenshot](Assets/screenshot-basic.png)
 
 [![Download on the Mac App Store](https://toolbox.marketingtools.apple.com/api/v2/badges/download-on-the-mac-app-store/black/en-us?releaseDate=1374883200)](https://apps.apple.com/us/app/vibe-music-player/id1582482361?mt=12)
@@ -21,6 +19,11 @@ A fast, minimal player for your music files for the Mac, iPhone, and iPad. No th
 - **Performance FX** — a low-kill filter, a reverb wash and BPM-synced delays on `Q`–`T`; tap to latch, hold for momentary
 - **Pitch adjust** — an optional SL-1200-style pitch fader
 - **Bit-perfect output** — Bit-perfect and exclusive mode send audio to your output device exactly as-is, for the best possible audio quality
+
+Website: **[vibeplayer.app](https://vibeplayer.app)**
+
+Audio quality guide: [audio-quality.md](https://github.com/cmicali/vibe/blob/main/docs/audio-quality.md)
+
 
 ![Vibe screenshot](Assets/screenshot-playlist.png)
 
