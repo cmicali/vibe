@@ -400,6 +400,26 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 [controller applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
                 return VibeJSONString(@{@"ok": @YES, @"windowAppearance": tokens[1]});
             }),
+            // TRAP: a shell-driven launch lands behind the frontmost app (the
+            // launch's cooperative activate is declined), and once the window
+            // is occluded and playback paused the OS defers the whole app: its
+            // timers and the channel's wake-up stall for up to ~20s. Ordered
+            // front without activating, so the frontmost app keeps the
+            // keyboard. No ordering helps a sleeping display or a locked
+            // screen, where every window reads occluded. Occlusion settles
+            // asynchronously, hence the spin.
+            VibeDebugCmd(@"raise_window", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                NSWindow *window = controller.window;
+                [window orderFrontRegardless];
+                NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:1.0];
+                while (!(window.occlusionState & NSWindowOcclusionStateVisible) && deadline.timeIntervalSinceNow > 0) {
+                    [NSRunLoop.currentRunLoop runMode:NSDefaultRunLoopMode
+                                           beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
+                }
+                return VibeJSONString(@{@"ok": @YES,
+                        @"visible": @((BOOL)((window.occlusionState & NSWindowOcclusionStateVisible) != 0)),
+                        @"displayAsleep": @((BOOL)(CGDisplayIsAsleep(CGMainDisplayID()) != 0))});
+            }),
             // App-side, not a CLI prefs write: the key display lives on the
             // current theme, an in-memory object a cross-process defaults
             // write cannot reach.

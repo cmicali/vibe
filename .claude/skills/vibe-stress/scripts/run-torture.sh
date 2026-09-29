@@ -80,6 +80,17 @@ echo "  exe: $exe"
 [ "$exe" = "$V" ] || { echo "ABORT: wrong binary running ($exe)" >&2; exit 2; }
 echo "  verified: intended binary"
 
+# As in launch.sh: an occluded, paused app is deferred by the OS until the
+# channel times out (raise_window's TRAP in DebugCommandTable.m).
+raised=$("$V" --debug-cmd raise_window 2>/dev/null)
+if printf '%s' "$raised" | jq -e '.visible' >/dev/null 2>&1; then
+    echo "  window: raised, visible"
+elif printf '%s' "$raised" | jq -e '.displayAsleep' >/dev/null 2>&1; then
+    echo "  WARNING: the display is asleep or the screen locked; the window stays occluded and a paused Vibe will be deferred" >&2
+else
+    echo "  WARNING: the window is still occluded after raise_window" >&2
+fi
+
 # Load-bearing: the delivery races this hunts need a scan still in flight as
 # playback starts, which a warm cache never has.
 "$V" --debug-cmd clear_caches >/dev/null 2>&1
