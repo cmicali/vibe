@@ -35,6 +35,12 @@ Each App Store pair works the same way: `appstore-build[-ios]` stops after valid
 
 Both preflight `asc_require_translations` before the archive: a key missing any catalog language fails the release outright, because nothing else catches it — `make check-strings` compares the catalog to the source and the build compiles a partial key without complaint, so it would ship English in that locale alone. Fix by translating, not by skipping; the **vibe-strings** skill has the conventions. This is separate from the product-page copy below — that's ASC metadata, this is the in-app catalog.
 
+## The release commit
+
+A release commit bumps `project.yml`'s `vibe-version` lines and rewrites `whats-new.txt`. **A stable release also sets `VIBE_VERBOSE_LOGGING: 0` in that same commit; a beta keeps 1.** The flag compiles in the beta instrumentation — every log level persisted at Default, the `Timeline:`, `Callback:`, `Signal:` and `Stall:` lines, the stall watchers and the signal probe (`Vibe/Audio/AGENTS.md`) — and those lines put the user's file paths in the unified log as public text. Cost is not the reason: on 1.14, turning it off moved playback CPU and power only within noise. **No script flips it**, which is how 1.13 and 1.14 shipped with it on. The commit that opens the next version on `main` sets it back to 1, so betas and everyday builds keep the instrumentation.
+
+Before publishing a stable release, `strings -a build/release/export/Vibe.app/Contents/MacOS/Vibe | grep -c 'Timeline: play'` must print 0 (a verbose build prints about 20). The flag is a compile-time setting, so it governs the App Store builds too.
+
 ## The marketing page
 
 `Assets/Web/` is a static site with no build step, served from two hosts: Cloudflare Pages at **vibeplayer.app** (canonical) and GitHub Pages at cmicali.github.io/vibe. Its own `README.md` has the detail.

@@ -21,8 +21,9 @@ configs:
 settingGroups:
   # THE version, for every target: both apps ship under one bundle identifier,
   # so they must carry the same number, and a per-target copy drifts silently.
-  # A release bumps these two lines and nothing else; the release scripts read
-  # the number back out of the BUILT app.
+  # A release bumps these two lines, and a stable one also sets
+  # VIBE_VERBOSE_LOGGING to 0 (the vibe-release skill); the release scripts
+  # read the number back out of the BUILT app.
   vibe-version:
     MARKETING_VERSION: "1.15"
     CURRENT_PROJECT_VERSION: 305
