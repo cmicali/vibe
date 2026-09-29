@@ -61,7 +61,7 @@
     XCTAssertEqualObjects(theme.dockIcon, @"album_art");
     XCTAssertTrue(theme.appIconShape);
     XCTAssertEqualObjects(theme.buttonGradient, @"always");
-    XCTAssertEqualObjects(theme.volumeTint, @"waveform");
+    XCTAssertEqualObjects(theme.volumeBar, @"waveform");
     XCTAssertTrue(theme.showVolumeLabels);
     XCTAssertEqualObjects(theme.volumeLocation, @"top_right");
     XCTAssertEqualObjects(theme.playlistButtonGlyph, @"list.bullet");
@@ -519,7 +519,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
         XCTAssertNotEqualObjects(theme.waveformTheme, @"custom");
         XCTAssertNotEqualObjects(theme.windowTint, @"custom");
         XCTAssertNotEqualObjects(theme.playlistTint, @"custom");
-        XCTAssertNotEqualObjects(theme.volumeTint, @"custom");
+        XCTAssertNotEqualObjects(theme.volumeBar, @"custom");
         XCTAssertTrue([radii containsObject:@(theme.windowCornerRadius)]);
         XCTAssertEqualObjects(theme.pauseButtonGlyph, VibePauseGlyphForPlayGlyph(theme.playButtonGlyph));
         XCTAssertTrue([faces containsObject:[theme fontFaceForSlot:VibeFontSlotTitle]], @"%@", [theme fontFaceForSlot:VibeFontSlotTitle]);
@@ -711,35 +711,35 @@ static CGFloat Brightness(NSString *hex) {
 // volume.* both ways.
 - (void)testVolumeFieldsSnapAndRoundTripUnderTheVolumeSection {
     AppTheme *snapped = [[AppTheme alloc] initWithRecord:@{
-        @"volumeTint": @"plaid", @"volumeKnob": @"plaid", @"volumeLocation": @"bottom_left",
+        @"volumeBar": @"plaid", @"volumeKnob": @"plaid", @"volumeLocation": @"bottom_left",
         @"showVolumeLabels": @"no"}];
-    XCTAssertEqualObjects(snapped.volumeTint, @"waveform");
-    XCTAssertEqualObjects(snapped.volumeKnob, @"bar");
+    XCTAssertEqualObjects(snapped.volumeBar, @"waveform");
+    XCTAssertEqualObjects(snapped.volumeKnob, @"waveform");
     XCTAssertEqualObjects(snapped.volumeLocation, @"top_right");
     XCTAssertTrue(snapped.showVolumeLabels);
     XCTAssertEqualObjects(snapped.dictionaryRepresentation, @{});
-    for (NSString *tint in @[@"mono", @"artwork", @"custom"]) {
-        snapped.volumeTint = tint;
-        XCTAssertEqualObjects(snapped.volumeTint, tint);
+    for (NSString *bar in @[@"mono", @"artwork", @"custom"]) {
+        snapped.volumeBar = bar;
+        XCTAssertEqualObjects(snapped.volumeBar, bar);
     }
-    for (NSString *knob in @[@"mono", @"artwork", @"waveform", @"custom"]) {
+    for (NSString *knob in @[@"mono", @"bar", @"artwork", @"custom"]) {
         snapped.volumeKnob = knob;
         XCTAssertEqualObjects(snapped.volumeKnob, knob);
     }
-    snapped.volumeTint = @"bar";
-    XCTAssertEqualObjects(snapped.volumeTint, @"waveform", @"only the knob can follow the bar");
+    snapped.volumeBar = @"bar";
+    XCTAssertEqualObjects(snapped.volumeBar, @"waveform", @"only the knob can follow the bar");
 
-    NSData *json = [@"{\"volume\":{\"tint\":\"custom\",\"tintColorDark\":\"#FF0000\","
+    NSData *json = [@"{\"volume\":{\"bar\":\"custom\",\"barColorDark\":\"#FF0000\","
                      "\"knob\":\"custom\",\"knobColorDark\":\"#00FF00\","
                      "\"showLabels\":false,\"location\":\"bottom\"}}"
             dataUsingEncoding:NSUTF8StringEncoding];
-    NSDictionary *expected = @{@"volumeTint": @"custom", @"volumeTintColorDark": @"#FF0000",
+    NSDictionary *expected = @{@"volumeBar": @"custom", @"volumeBarColorDark": @"#FF0000",
                                @"volumeKnob": @"custom", @"volumeKnobColorDark": @"#00FF00",
                                @"showVolumeLabels": @NO, @"volumeLocation": @"bottom"};
     NSDictionary *record = [AppTheme recordFromJSONData:json name:NULL error:NULL];
     XCTAssertEqualObjects(record, expected);
     AppTheme *theme = [[AppTheme alloc] initWithRecord:record];
-    XCTAssertEqualObjects(VibeHexStringFromColor([theme colorForBase:kVibeThemeColorVolumeTint dark:YES]),
+    XCTAssertEqualObjects(VibeHexStringFromColor([theme colorForBase:kVibeThemeColorVolumeBar dark:YES]),
                           @"#FF0000");
     XCTAssertEqualObjects(VibeHexStringFromColor([theme colorForBase:kVibeThemeColorVolumeKnob dark:YES]),
                           @"#00FF00");

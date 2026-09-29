@@ -23,6 +23,12 @@ static NSColor *AppearanceColor(CGFloat darkWhite, CGFloat darkAlpha, CGFloat li
     }];
 }
 
+// Resolved under the drawing appearance, so it answers for a dynamic color too.
+static BOOL IsDarkColor(NSColor *color) {
+    NSColor *rgb = [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
+    return rgb && 0.2126 * rgb.redComponent + 0.7152 * rgb.greenComponent + 0.0722 * rgb.blueComponent < 0.5;
+}
+
 @implementation VibeSlider {
     double _value;
     BOOL _tracking; // a press that began enabled
@@ -117,15 +123,17 @@ static NSColor *AppearanceColor(CGFloat darkWhite, CGFloat darkAlpha, CGFloat li
 - (void)drawRect:(NSRect)dirtyRect {
     // NSSlider's, measured: the unfilled track, the fill of a window that is
     // not key, and the knob.
-    static NSColor *trackColor, *inactiveFillColor, *systemKnobColor, *knobEdgeColor;
+    static NSColor *trackColor, *inactiveFillColor, *systemKnobColor, *knobEdgeColor, *darkKnobEdgeColor;
     static NSShadow *knobShadow;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         trackColor = AppearanceColor(1, 0.1, 0, 0.1);
         inactiveFillColor = AppearanceColor(1, 0.23, 0, 0.23);
         systemKnobColor = AppearanceColor(0.87, 1, 1, 1);
-        // Keeps the knob apart from a fill of its own color.
-        knobEdgeColor = [NSColor colorWithWhite:0 alpha:0.1];
+        // Keeps the knob apart from a fill of its own color, the default:
+        // dark on a light knob, light on a dark one.
+        knobEdgeColor = [NSColor colorWithWhite:0 alpha:0.15];
+        darkKnobEdgeColor = [NSColor colorWithWhite:1 alpha:0.4];
         // Drawn past the bounds, which a view may do from macOS 14.
         knobShadow = [[NSShadow alloc] init];
         knobShadow.shadowColor = [NSColor colorWithWhite:0 alpha:0.16];
@@ -160,14 +168,15 @@ static NSColor *AppearanceColor(CGFloat darkWhite, CGFloat darkAlpha, CGFloat li
                                                              xRadius:kKnobHeight / 2 yRadius:kKnobHeight / 2];
     [NSGraphicsContext saveGraphicsState];
     [knobShadow set];
-    [(_knobColor ?: systemKnobColor) setFill];
+    NSColor *knobFill = _knobColor ?: systemKnobColor;
+    [knobFill setFill];
     [knobPath fill];
     [NSGraphicsContext restoreGraphicsState];
     NSRect edge = NSInsetRect(knob, 0.25, 0.25);
     NSBezierPath *edgePath = [NSBezierPath bezierPathWithRoundedRect:edge
                                                              xRadius:NSHeight(edge) / 2 yRadius:NSHeight(edge) / 2];
     edgePath.lineWidth = 0.5;
-    [knobEdgeColor setStroke];
+    [(IsDarkColor(knobFill) ? darkKnobEdgeColor : knobEdgeColor) setStroke];
     [edgePath stroke];
 
     if (!self.isEnabled) {

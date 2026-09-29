@@ -206,7 +206,7 @@ API_AVAILABLE(macos(26.0))
                                   _fileMetadataTextField, _bpmTextField ]) {
         field.layer.shadowOpacity = shadowOpacity;
     }
-    [self applyVolumeTint];
+    [self applyVolumeColors];
 }
 
 - (void)viewDidChangeEffectiveAppearance {
@@ -399,7 +399,7 @@ static NSView *FadeTarget(NSView *view, BOOL animated) {
     _volumeSlider.doubleValue = AppSettings.sharedInstance.volume;
     [self layoutVolumeControl]; // renders the percentage
     [self capArtistLineAtCodecText];
-    [self applyVolumeTint];
+    [self applyVolumeColors];
     [self setControlsShown:[self isCursorOverWindow] animated:NO];
 }
 
@@ -513,7 +513,7 @@ static CGFloat LabelCellWidth(NSTextField *label, NSString *string, NSTextAlignm
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     BOOL dark = self.isDark;
     NSColor *art = _waveformView.artworkThemeColor;
-    if ([choice isEqualToString:SETTINGS_VALUE_VOLUME_TINT_WAVEFORM]) {
+    if ([choice isEqualToString:SETTINGS_VALUE_VOLUME_WAVEFORM]) {
         return [[WaveformTheme themeForAppTheme:theme isDark:dark artworkColor:art].playedColor
                 colorWithAlphaComponent:1.0];
     }
@@ -527,10 +527,11 @@ static CGFloat LabelCellWidth(NSTextField *label, NSString *string, NSTextAlignm
     return nil;
 }
 
-// The knob's default is the bar's color, None's included.
-- (void)applyVolumeTint {
+// None's knob is the system's white pill; Same as bar takes the fill's
+// answer, None's included. Both default to Waveform.
+- (void)applyVolumeColors {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    NSColor *fill = [self volumeColorForChoice:theme.volumeTint base:kVibeThemeColorVolumeTint];
+    NSColor *fill = [self volumeColorForChoice:theme.volumeBar base:kVibeThemeColorVolumeBar];
     _volumeSlider.trackFillColor = fill;
     _volumeSlider.knobColor = [theme.volumeKnob isEqualToString:SETTINGS_VALUE_VOLUME_KNOB_BAR]
             ? fill : [self volumeColorForChoice:theme.volumeKnob base:kVibeThemeColorVolumeKnob];

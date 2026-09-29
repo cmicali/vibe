@@ -140,7 +140,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"windowTint": theme.windowTint,
             @"playlistTint": theme.playlistTint,
             @"volumeControl": @(AppSettings.sharedInstance.volumeControl),
-            @"volumeTint": theme.volumeTint,
+            @"volumeBar": theme.volumeBar,
             @"volumeKnob": theme.volumeKnob,
             @"showVolumeLabels": @(theme.showVolumeLabels),
             @"volumeLocation": theme.volumeLocation,
