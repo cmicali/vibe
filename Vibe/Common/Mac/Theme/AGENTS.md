@@ -38,7 +38,7 @@ One theme, the type the theme system is written in terms of: a **sparse record**
 
 ## The volume slider
 
-`volumeBar` (`mono`/`artwork`/`waveform`/`custom`, default `waveform`, with the `kVibeThemeColorVolumeBar` pair), `volumeKnob` (the same ladder plus `bar`, the default, whatever the bar resolves to, None's system look included; with the `kVibeThemeColorVolumeKnob` pair), `showVolumeLabels` (default on) and `volumeLocation` (`top_right`, the default, or `bottom`) travel as `volume.bar`, `volume.barColor`, `volume.knob`, `volume.knobColor`, `volume.showLabels` and `volume.location`. The pairs' unset slots draw the system accent and the white knob, so Custom starts from None's look. The dice roll both colors but never the labels or the location, which are layout, not look.
+`volumeBar` (`mono`/`artwork`/`waveform`/`custom`, default `waveform`, with the `kVibeThemeColorVolumeBar` pair), `volumeKnob` (the same ladder plus `bar`, the default, whatever color the bar draws, the system accent under None; with the `kVibeThemeColorVolumeKnob` pair), `showVolumeLabels` (default on) and `volumeLocation` (`top_right`, the default, or `bottom`) travel as `volume.bar`, `volume.barColor`, `volume.knob`, `volume.knobColor`, `volume.showLabels` and `volume.location`. The pairs' unset slots draw the system accent and the white knob, so Custom starts from None's look. The dice roll both colors but never the labels or the location, which are layout, not look.
 
 ## Images
 

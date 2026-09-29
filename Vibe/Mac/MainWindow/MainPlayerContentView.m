@@ -526,14 +526,16 @@ static CGFloat LabelCellWidth(NSTextField *label, NSString *string, NSTextAlignm
     return nil;
 }
 
-// None's knob is the system's white pill; Same as bar takes the fill's
-// answer, None's included, and is the knob's default.
+// None's knob is the system's white pill. Same as bar, the knob's default, is
+// the color the bar draws: under None that is the system accent, not the nil
+// that means a white knob.
 - (void)applyVolumeColors {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     NSColor *fill = [self volumeColorForChoice:theme.volumeBar base:kVibeThemeColorVolumeBar theme:theme];
     _volumeSlider.trackFillColor = fill;
     _volumeSlider.knobColor = [theme.volumeKnob isEqualToString:SETTINGS_VALUE_VOLUME_KNOB_BAR]
-            ? fill : [self volumeColorForChoice:theme.volumeKnob base:kVibeThemeColorVolumeKnob theme:theme];
+            ? (fill ?: NSColor.controlAccentColor)
+            : [self volumeColorForChoice:theme.volumeKnob base:kVibeThemeColorVolumeKnob theme:theme];
 }
 
 // updateMaterialForAppearance sets the opacity. A field that changes every
