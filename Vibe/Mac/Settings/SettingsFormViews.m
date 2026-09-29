@@ -168,7 +168,10 @@ static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat
     NSMutableSet<SettingsRowView *> *rows = [NSMutableSet set];
     for (NSControl *control in controls) {
         control.enabled = enabled;
-        if (!enabled && [control isKindOfClass:NSColorWell.class]) [(NSColorWell *)control deactivate];
+        // Only an active one: deactivate creates the shared color panel (closeEditorPanels).
+        if (!enabled && [control isKindOfClass:NSColorWell.class] && ((NSColorWell *)control).isActive) {
+            [(NSColorWell *)control deactivate];
+        }
         SettingsRowView *row = [self rowContaining:control];
         if (row) [rows addObject:row];
         else control.alphaValue = enabled ? 1 : 0.5;

@@ -1297,14 +1297,17 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 }
 
 // A well stays bound to the shared color panel until deactivated, even
-// disabled or hidden, and would take the panel's next pick.
+// disabled or hidden, and would take the panel's next pick. TRAP: only an
+// active well is deactivated: deactivate creates the shared color panel when
+// none exists, and the panel's first layout brings up RenderBox's Metal
+// device and the GPU driver's 256 MB texture heap (SettingsFormViews.h).
 - (void)closeEditorPanels {
     _fontEditingSlot = VibeFontSlotNone;
     if (NSFontPanel.sharedFontPanelExists) {
         [NSFontPanel.sharedFontPanel orderOut:nil];
     }
     ForEachDescendantView(self.view, ^(NSView *subview) {
-        if ([subview isKindOfClass:NSColorWell.class]) {
+        if ([subview isKindOfClass:NSColorWell.class] && ((NSColorWell *)subview).isActive) {
             [(NSColorWell *)subview deactivate];
         }
     });
