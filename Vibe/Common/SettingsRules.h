@@ -85,11 +85,10 @@ static inline NSString *VibeNormalizedVolumeBar(NSString *_Nullable identifier) 
             ? identifier : VibeNormalizedTint(identifier, SETTINGS_VALUE_VOLUME_WAVEFORM);
 }
 
-// The bar's ladder, the waveform's played color its default too, plus the
-// bar's own color.
+// The bar's ladder plus the bar's own color, its default.
 static inline NSString *VibeNormalizedVolumeKnob(NSString *_Nullable identifier) {
-    return [identifier isEqualToString:SETTINGS_VALUE_VOLUME_KNOB_BAR]
-            ? identifier : VibeNormalizedVolumeBar(identifier);
+    return [identifier isEqualToString:SETTINGS_VALUE_VOLUME_WAVEFORM]
+            ? identifier : VibeNormalizedTint(identifier, SETTINGS_VALUE_VOLUME_KNOB_BAR);
 }
 
 static inline NSString *VibeNormalizedVolumeLocation(NSString *_Nullable identifier) {

@@ -56365,181 +56365,181 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Лента"
+            "value": "Цвят на лентата"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pruh"
+            "value": "Barva pruhu"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bjælke"
+            "value": "Bjælkefarve"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Leiste"
+            "value": "Leistenfarbe"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Γραμμή"
+            "value": "Χρώμα γραμμής"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bar"
+            "value": "Bar color"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Barra"
+            "value": "Color de la barra"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Palkki"
+            "value": "Palkin väri"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Barre"
+            "value": "Couleur de la barre"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Traka"
+            "value": "Boja trake"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sáv"
+            "value": "Sáv színe"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bilah"
+            "value": "Warna bilah"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Barra"
+            "value": "Colore della barra"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "バー"
+            "value": "バーの色"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "막대"
+            "value": "막대 색상"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Linje"
+            "value": "Linjefarge"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Balk"
+            "value": "Balkkleur"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pasek"
+            "value": "Kolor paska"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Barra"
+            "value": "Cor da barra"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Barra"
+            "value": "Cor da barra"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bară"
+            "value": "Culoarea barei"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Полоса"
+            "value": "Цвет полосы"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pruh"
+            "value": "Farba pruhu"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fält"
+            "value": "Fältfärg"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "แถบ"
+            "value": "สีแถบ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Çubuk"
+            "value": "Çubuk rengi"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Смуга"
+            "value": "Колір смуги"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Thanh"
+            "value": "Màu thanh"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "滑条"
+            "value": "滑条颜色"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "滑條"
+            "value": "滑條顏色"
           }
         }
       },
@@ -56551,188 +56551,188 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Дръжка"
+            "value": "Цвят на дръжката"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Jezdec"
+            "value": "Barva jezdce"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Knap"
+            "value": "Knapfarve"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Regler"
+            "value": "Reglerfarbe"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Λαβή"
+            "value": "Χρώμα λαβής"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Knob"
+            "value": "Knob color"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tirador"
+            "value": "Color del tirador"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nuppi"
+            "value": "Nupin väri"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Curseur"
+            "value": "Couleur du curseur"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ručica"
+            "value": "Boja ručice"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gomb"
+            "value": "Gomb színe"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kenop"
+            "value": "Warna kenop"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cursore"
+            "value": "Colore del cursore"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "つまみ"
+            "value": "つまみの色"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "손잡이"
+            "value": "손잡이 색상"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Knott"
+            "value": "Knottfarge"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Knop"
+            "value": "Knopkleur"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Suwak"
+            "value": "Kolor suwaka"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Puxador"
+            "value": "Cor do puxador"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Puxador"
+            "value": "Cor do puxador"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cursor"
+            "value": "Culoarea cursorului"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ползунок"
+            "value": "Цвет ползунка"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Jazdec"
+            "value": "Farba jazdca"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Knopp"
+            "value": "Knoppfärg"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ปุ่มเลื่อน"
+            "value": "สีปุ่มเลื่อน"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Düğme"
+            "value": "Düğme rengi"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Повзунок"
+            "value": "Колір повзунка"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Núm"
+            "value": "Màu núm"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "滑块"
+            "value": "滑块颜色"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "滑塊"
+            "value": "滑塊顏色"
           }
         }
       },
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_knob.bar": {
-      "comment": "Theme editor, volume slider knob color choice: the knob takes whatever color the bar row chose. 'bar' is the 'Bar' row above it.",
+      "comment": "Theme editor, volume slider knob color choice: the knob takes whatever color the bar row chose. 'bar' is the 'Bar color' row above it.",
       "localizations": {
         "bg": {
           "stringUnit": {

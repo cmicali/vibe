@@ -359,7 +359,7 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
         [rows addObject:Field(kFieldVolumeBar, volume, @"bar", SETTINGS_VALUE_VOLUME_WAVEFORM,
                               LadderField(VibeNormalizedVolumeBar))];
         AddColorPair(rows, kVibeThemeColorVolumeBar, volume, @"barColor");
-        [rows addObject:Field(kFieldVolumeKnob, volume, @"knob", SETTINGS_VALUE_VOLUME_WAVEFORM,
+        [rows addObject:Field(kFieldVolumeKnob, volume, @"knob", SETTINGS_VALUE_VOLUME_KNOB_BAR,
                               LadderField(VibeNormalizedVolumeKnob))];
         AddColorPair(rows, kVibeThemeColorVolumeKnob, volume, @"knobColor");
         [rows addObject:Field(kFieldShowVolumeLabels, volume, @"showLabels", @YES, BoolField())];
@@ -1485,7 +1485,7 @@ static NSColor *HueColor(CGFloat hue, BOOL dark, CGFloat alpha) {
         self.volumeBar = SETTINGS_VALUE_VOLUME_WAVEFORM;
     }
     if ([self.volumeKnob isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM]) {
-        self.volumeKnob = SETTINGS_VALUE_VOLUME_WAVEFORM;
+        self.volumeKnob = SETTINGS_VALUE_VOLUME_KNOB_BAR;
     }
 
     CGFloat hue = RandomIndex(360) / 360.0;

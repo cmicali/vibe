@@ -41,18 +41,18 @@ static const CGFloat kAppearancePopUpWidth = 220;
     SettingsRowView *_windowTintDarkRow, *_windowTintLightRow;
     NSSlider *_cornerRadiusSlider; // a VibeDetentSlider
     NSTextField *_cornerRadiusValue;
-    NSSwitch *_fileInfoSwitch;
-    NSSwitch *_transportButtonsSwitch, *_statusIconsSwitch, *_timeLabelsSwitch;
+    VibeSwitch *_fileInfoSwitch;
+    VibeSwitch *_transportButtonsSwitch, *_statusIconsSwitch, *_timeLabelsSwitch;
     NSButton *_timeTotalRadio, *_timeRemainingRadio;
-    NSSwitch *_showBPMSwitch, *_showKeySwitch;
+    VibeSwitch *_showBPMSwitch, *_showKeySwitch;
     NSPopUpButton *_keyNotationPopUp;
-    NSSwitch *_keyColorsSwitch;
-    NSSwitch *_waveformGradientSwitch;
-    NSSwitch *_playlistNumberSwitch, *_playlistArtworkSwitch;
+    VibeSwitch *_keyColorsSwitch;
+    VibeSwitch *_waveformGradientSwitch;
+    VibeSwitch *_playlistNumberSwitch, *_playlistArtworkSwitch;
     NSPopUpButton *_modePopUp;
     NSPopUpButton *_dockIconPopUp;
-    NSSwitch *_appIconShapeSwitch;
-    NSSwitch *_customCornerRadiusSwitch;
+    VibeSwitch *_appIconShapeSwitch;
+    VibeSwitch *_customCornerRadiusSwitch;
     NSPopUpButton *_buttonGradientPopUp;
     // The image fields' preview clusters by field key (kVibeThemeImage*).
     NSMutableDictionary<NSString *, NSButton *> *_imagePreviews;
@@ -62,15 +62,15 @@ static const CGFloat kAppearancePopUpWidth = 220;
     NSMutableDictionary<NSString *, NSPopUpButton *> *_glyphPopUps;
     NSMutableDictionary<NSString *, SettingsRowView *> *_buttonColorRows;
     NSMutableDictionary<NSString *, NSArray<SettingsRowView *> *> *_buttonImageRows;
-    NSSwitch *_playlistDurationSwitch;
+    VibeSwitch *_playlistDurationSwitch;
     // The playlist columns' text colors by pair base.
-    NSMutableDictionary<NSString *, NSSwitch *> *_playlistColorSwitches;
+    NSMutableDictionary<NSString *, VibeSwitch *> *_playlistColorSwitches;
     NSMutableDictionary<NSString *, SettingsRowView *> *_playlistColorRows;
     // Every Dark/Light well pair, for Single Mode's collapse to one well.
     NSMutableArray<NSStackView *> *_darkLightPairs;
     // Every themed color well → its pair's base key, side and effect.
     NSMapTable<NSColorWell *, NSDictionary *> *_wellBindings;
-    NSMapTable<NSSwitch *, void (^)(AppTheme *, BOOL)> *_themeSwitchWrites;
+    NSMapTable<VibeSwitch *, void (^)(AppTheme *, BOOL)> *_themeSwitchWrites;
     NSPopUpButton *_waveformPopUp;
     NSSlider *_waveformBarDensitySlider;
     NSTextField *_waveformBarDensityValue;
@@ -83,7 +83,7 @@ static const CGFloat kAppearancePopUpWidth = 220;
     NSPopUpButton *_playlistTintPopUp;
     SettingsRowView *_playlistTintDarkRow, *_playlistTintLightRow;
     NSPopUpButton *_volumeBarPopUp, *_volumeKnobPopUp, *_volumeLocationPopUp;
-    NSSwitch *_volumeLabelsSwitch;
+    VibeSwitch *_volumeLabelsSwitch;
     SettingsRowView *_volumeBarDarkRow, *_volumeBarLightRow;
     SettingsRowView *_volumeKnobDarkRow, *_volumeKnobLightRow;
     NSTextField *_titleFontValue, *_artistFontValue, *_infoFontValue, *_playlistFontValue;

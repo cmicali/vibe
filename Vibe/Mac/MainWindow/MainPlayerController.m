@@ -15,7 +15,7 @@
 #import "AppDelegate.h"
 #import "AudioDeviceManager.h"
 #import "MainPlayerContentView.h"
-#import "VibeSlider.h"
+#import "DrawnControls.h"
 #import "AudioFileHandle.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+Devices.h"

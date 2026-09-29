@@ -22,12 +22,12 @@ static NSString *const kOnEndPause = @"pause";
     NSButton *_pitchRange16;
     NSPopUpButton *_skipStepsPopUp;
     NSPopUpButton *_crossfadePopUp;
-    NSSwitch *_enableFXSwitch;
+    VibeSwitch *_enableFXSwitch;
     // Their captions change with bit-perfect output, which disables both.
     SettingsRowView *_crossfadeRow;
     SettingsRowView *_enableFXRow;
-    NSSwitch *_detectBPMSwitch;
-    NSSwitch *_detectKeySwitch;
+    VibeSwitch *_detectBPMSwitch;
+    VibeSwitch *_detectKeySwitch;
 }
 
 - (void)loadView {

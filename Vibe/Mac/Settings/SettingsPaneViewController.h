@@ -9,6 +9,7 @@
 //
 
 #import <Cocoa/Cocoa.h>
+#import "DrawnControls.h"
 #import "SettingsFormViews.h"
 
 @class MainPlayerController;
@@ -64,7 +65,7 @@ static const CGFloat kPanePadding = 20;
 - (void)selectValue:(nullable id)value in:(NSPopUpButton *)popUp;
 
 // Reads and writes NSControlStateValueOn/Off, like a checkbox.
-- (NSSwitch *)switchWithAction:(SEL)action;
+- (VibeSwitch *)switchWithAction:(SEL)action;
 
 // Resolves only state that changes the pane's measured layout (rows hidden or
 // revealed). The shared-size pass calls it on every pane, so it must not start

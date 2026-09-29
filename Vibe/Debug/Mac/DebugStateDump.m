@@ -12,7 +12,7 @@
 #import "AudioPlayer+Devices.h"
 #import "CoreAudioUtil.h"
 #import "SettingsRules.h"
-#import "VibeSlider.h"
+#import "DrawnControls.h"
 
 #if DEBUG
 

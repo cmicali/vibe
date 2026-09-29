@@ -347,11 +347,10 @@ static const CGFloat kInlineTitleInset = 10;
     }
 }
 
-- (NSSwitch *)switchWithAction:(SEL)action {
-    NSSwitch *toggle = [[NSSwitch alloc] init];
+- (VibeSwitch *)switchWithAction:(SEL)action {
+    VibeSwitch *toggle = [[VibeSwitch alloc] init];
     toggle.target = self;
     toggle.action = action;
-    toggle.controlSize = NSControlSizeSmall;
     return toggle;
 }
 

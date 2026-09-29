@@ -714,7 +714,7 @@ static CGFloat Brightness(NSString *hex) {
         @"volumeBar": @"plaid", @"volumeKnob": @"plaid", @"volumeLocation": @"bottom_left",
         @"showVolumeLabels": @"no"}];
     XCTAssertEqualObjects(snapped.volumeBar, @"waveform");
-    XCTAssertEqualObjects(snapped.volumeKnob, @"waveform");
+    XCTAssertEqualObjects(snapped.volumeKnob, @"bar");
     XCTAssertEqualObjects(snapped.volumeLocation, @"top_right");
     XCTAssertTrue(snapped.showVolumeLabels);
     XCTAssertEqualObjects(snapped.dictionaryRepresentation, @{});
@@ -722,7 +722,7 @@ static CGFloat Brightness(NSString *hex) {
         snapped.volumeBar = bar;
         XCTAssertEqualObjects(snapped.volumeBar, bar);
     }
-    for (NSString *knob in @[@"mono", @"bar", @"artwork", @"custom"]) {
+    for (NSString *knob in @[@"mono", @"waveform", @"artwork", @"custom"]) {
         snapped.volumeKnob = knob;
         XCTAssertEqualObjects(snapped.volumeKnob, knob);
     }

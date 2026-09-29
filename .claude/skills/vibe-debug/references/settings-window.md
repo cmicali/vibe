@@ -37,7 +37,7 @@ The wrong value for a kind is an error, never a silent no-op.
 | kind | value | what happens |
 | --- | --- | --- |
 | `button` | none | `performClick:` |
-| `switch` | `on`, `off`, `toggle` (default) | a state flip plus one action send — `NSSwitch` has no cell, so `performClick:` is not its click path; `on`/`off` are idempotent |
+| `switch` | `on`, `off`, `toggle` (default) | `performClick:`, the `VibeSwitch`'s own toggle: a state flip plus one action send; `on`/`off` are idempotent |
 | `checkbox` | `on`, `off`, `toggle` (default) | the real click path; already there replies `action: "unchanged"` |
 | `radio` | none, `on` or `toggle` | `off` is refused: clicking a radio cannot turn one off |
 | `popup` | item title, `represented` identifier or `#index` | selects it, then sends the item's action if it has one, else the button's; the reply's `chose` names the item |

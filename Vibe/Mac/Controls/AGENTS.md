@@ -12,9 +12,12 @@ Each button sets its own `symbolPointSize` and the icon is drawn centered in the
 
 **The three state colors keep one relationship**, the factory ratios of the resting alpha (0.55) to hover (0.8), pressed (half of hover) and disabled (0.19): `setSymbolColorsFromRestingColor:` derives all three from one picked color, alpha included, which is how a theme dresses a button with a single color well. **A custom `image` replaces the symbol**: a second layer beside the color layer draws the picture in its own colors, aspect-fit into the box a glyph of the configured point size fills, and the same states fade its opacity by the same ratios over full strength at hover. Set, the symbol and the colors are ignored; nil returns to the mask the color layer still holds.
 
-## VibeSlider
+## Drawn controls
 
-The main window's volume slider: a 0-1 `NSControl` drawn in `drawRect:`, the fill `trackFillColor` or the system accent, a VoiceOver slider stepping 5%. **TRAP: never an `NSSlider`** — AppKit draws one through a SwiftUI host whose first render reserves the GPU driver's 256 MB texture heap (`MainWindow/APPEARANCE.md`). The action goes out from the down, every moving drag and, always, the up, each from its own event handler, so `NSApp.currentEvent` tells the volume control's drag hold which it was.
+`DrawnControls.{h,m}`: controls drawn in `drawRect:` in place of AppKit's, to its measured metrics and colors, graying while the window is not key and dimming to half when disabled. **TRAP: never an `NSSlider` or an `NSSwitch`.** Under the macOS 26 design AppKit draws both through a SwiftUI host whose first render brings up RenderBox's Metal device, and the GPU driver's 256 MB texture heap with it, for about a second, hidden or not. A switch has no public opt-out: AppKit picks its host from a private app config alone. A slider subclass that draws for itself is AppKit-drawn — `VibeDetentSlider` (Settings > Appearance) overrides `drawRect:` and was measured unhosted — so re-measure (`_NSCoreHostingView` in `dump_view_tree`) before changing one.
+
+- **`VibeSlider`** — the main window's volume slider: 0-1, the fill `trackFillColor` or the system accent, a VoiceOver slider stepping 5%. The action goes out from the down, every moving drag and, always, the up, each from its own event handler, so `NSApp.currentEvent` tells the volume control's drag hold which it was.
+- **`VibeSwitch`** — every Settings switch (`switchWithAction:`): the small `NSSwitch`, with its slide, space under full keyboard access, and a VoiceOver checkbox of the switch subrole. Setting `state` neither slides nor sends the action.
 
 ## Image views
 
