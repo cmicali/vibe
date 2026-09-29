@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" width="720" height="300" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" role="img" aria-label="Waveform + tempo analysis, long files">
+<style>.bg{fill:#fcfcfb}.t{fill:#0b0b0b}.m{fill:#52514e}.g{stroke:#e4e3df}.a{stroke:#b9b8b2}.s0{stroke:#2a78d6;fill:#2a78d6}.s1{stroke:#eb6834;fill:#eb6834}.s2{stroke:#1baf7a;fill:#1baf7a}.s3{stroke:#eda100;fill:#eda100}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}.t{fill:#ffffff}.m{fill:#c3c2b7}.g{stroke:#2f2f2d}.a{stroke:#555550}.s0{stroke:#3987e5;fill:#3987e5}.s1{stroke:#d95926;fill:#d95926}.s2{stroke:#199e70;fill:#199e70}.s3{stroke:#c98500;fill:#c98500}}.l{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}</style>
+<rect class="bg" width="720" height="300" rx="8"/>
+<text class="t" x="56" y="24" font-size="15" font-weight="600">Waveform + tempo analysis, long files</text>
+<text class="m" x="56" y="38" font-size="11">s</text>
+<line class="a" x1="56" x2="570" y1="264.0" y2="264.0"/>
+<text class="m" x="48" y="268.0" font-size="11" text-anchor="end">0</text>
+<line class="g" x1="56" x2="570" y1="227.3" y2="227.3"/>
+<text class="m" x="48" y="231.3" font-size="11" text-anchor="end">1</text>
+<line class="g" x1="56" x2="570" y1="190.7" y2="190.7"/>
+<text class="m" x="48" y="194.7" font-size="11" text-anchor="end">2</text>
+<line class="g" x1="56" x2="570" y1="154.0" y2="154.0"/>
+<text class="m" x="48" y="158.0" font-size="11" text-anchor="end">3</text>
+<line class="g" x1="56" x2="570" y1="117.3" y2="117.3"/>
+<text class="m" x="48" y="121.3" font-size="11" text-anchor="end">4</text>
+<line class="g" x1="56" x2="570" y1="80.7" y2="80.7"/>
+<text class="m" x="48" y="84.7" font-size="11" text-anchor="end">5</text>
+<line class="g" x1="56" x2="570" y1="44.0" y2="44.0"/>
+<text class="m" x="48" y="48.0" font-size="11" text-anchor="end">6</text>
+<text class="m" x="92.7" y="282" font-size="11" text-anchor="middle">1.8</text>
+<text class="m" x="166.1" y="282" font-size="11" text-anchor="middle">1.9</text>
+<text class="m" x="239.6" y="282" font-size="11" text-anchor="middle">1.10</text>
+<text class="m" x="313.0" y="282" font-size="11" text-anchor="middle">1.11</text>
+<text class="m" x="386.4" y="282" font-size="11" text-anchor="middle">1.12</text>
+<text class="m" x="459.9" y="282" font-size="11" text-anchor="middle">1.13</text>
+<text class="m" x="533.3" y="282" font-size="11" text-anchor="middle">1.14</text>
+<path class="l s0" d="M92.7,86.8 L166.1,88.1 L239.6,88.0 L313.0,88.2 L386.4,88.0 L459.9,87.9 L533.3,183.6"/>
+<circle class="s0" cx="92.7" cy="86.8" r="4" stroke="none"><title>MP3 320k, 60 min: 4.8 s</title></circle>
+<circle class="s0" cx="166.1" cy="88.1" r="4" stroke="none"><title>MP3 320k, 60 min: 4.8 s</title></circle>
+<circle class="s0" cx="239.6" cy="88.0" r="4" stroke="none"><title>MP3 320k, 60 min: 4.8 s</title></circle>
+<circle class="s0" cx="313.0" cy="88.2" r="4" stroke="none"><title>MP3 320k, 60 min: 4.8 s</title></circle>
+<circle class="s0" cx="386.4" cy="88.0" r="4" stroke="none"><title>MP3 320k, 60 min: 4.8 s</title></circle>
+<circle class="s0" cx="459.9" cy="87.9" r="4" stroke="none"><title>MP3 320k, 60 min: 4.8 s</title></circle>
+<circle class="s0" cx="533.3" cy="183.6" r="4" stroke="none"><title>MP3 320k, 60 min: 2.2 s</title></circle>
+<path class="l s1" d="M92.7,235.2 L166.1,235.6 L239.6,235.5 L313.0,235.6 L386.4,235.6 L459.9,235.5 L533.3,234.3"/>
+<circle class="s1" cx="92.7" cy="235.2" r="4" stroke="none"><title>FLAC 24/352.8, 1 min: 0.8 s</title></circle>
+<circle class="s1" cx="166.1" cy="235.6" r="4" stroke="none"><title>FLAC 24/352.8, 1 min: 0.8 s</title></circle>
+<circle class="s1" cx="239.6" cy="235.5" r="4" stroke="none"><title>FLAC 24/352.8, 1 min: 0.8 s</title></circle>
+<circle class="s1" cx="313.0" cy="235.6" r="4" stroke="none"><title>FLAC 24/352.8, 1 min: 0.8 s</title></circle>
+<circle class="s1" cx="386.4" cy="235.6" r="4" stroke="none"><title>FLAC 24/352.8, 1 min: 0.8 s</title></circle>
+<circle class="s1" cx="459.9" cy="235.5" r="4" stroke="none"><title>FLAC 24/352.8, 1 min: 0.8 s</title></circle>
+<circle class="s1" cx="533.3" cy="234.3" r="4" stroke="none"><title>FLAC 24/352.8, 1 min: 0.8 s</title></circle>
+<rect class="s0" x="582" y="174.6" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="179.6" font-size="11">MP3 320k, 60 min</text>
+<text class="m" x="598" y="192.6" font-size="11">2.2</text>
+<rect class="s1" x="582" y="225.3" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="230.3" font-size="11">FLAC 24/352.8, 1 min</text>
+<text class="m" x="598" y="243.3" font-size="11">0.8</text>
+</svg>

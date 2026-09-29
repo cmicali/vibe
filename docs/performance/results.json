@@ -5,362 +5,816 @@
       "ref": "v1.8",
       "commit": "a59f7eea0d573253ea3df2e55b790e5f1148f449",
       "measured": "2026-09-28",
-      "reps": 3,
-      "corpus": "65e9656c071f84ef",
+      "reps": 5,
+      "corpus": "911f823547f3298e",
       "machine": {
-        "chip": "Apple M4 Max",
-        "cores": 16,
-        "memory_gb": 64,
-        "macos": "27.0",
-        "xcode": "Xcode 27.0"
+        "chip": "Apple M2 Pro",
+        "cores": 12,
+        "memory_gb": 32,
+        "macos": "26.5.2",
+        "xcode": "Xcode 26.6"
       },
       "metrics": {
-        "system_idle_pct": 89.685,
-        "launch_cold_window_ms": 184.097,
-        "launch_cold_ready_ms": 193.439,
-        "idle_cpu_pct": 0.024,
+        "system_idle_pct": 91.715,
+        "idle_cpu_pct": 0.029,
         "idle_wakeups_per_s": 0.799,
-        "idle_footprint_mb": 33.673,
-        "launch_warm_window_ms": 200.958,
-        "launch_warm_ready_ms": 213.736,
-        "ttp_ms.mp3-320": 73.415,
-        "play_cpu_pct.mp3-320": 3.615,
-        "play_minstr_per_s.mp3-320": 67.458,
-        "play_power_mw.mp3-320": 4.216,
-        "ttp_ms.mp3-v0": 32.942,
-        "play_cpu_pct.mp3-v0": 3.252,
-        "play_minstr_per_s.mp3-v0": 67.077,
-        "play_power_mw.mp3-v0": 3.54,
-        "seek_ms.mp3-v0": 52.919,
+        "idle_footprint_mb": 28.548,
+        "launch_cold_window_ms": 181.272,
+        "launch_cold_ready_ms": 186.276,
+        "launch_warm_window_ms": 180.611,
+        "launch_warm_ready_ms": 185.933,
+        "ttp_ms.mp3-320": 65.124,
+        "play_cpu_pct.mp3-320": 4.724,
+        "play_minstr_per_s.mp3-320": 64.811,
+        "play_power_mw.mp3-320": 3.713,
+        "ttp_ms.mp3-v0": 35.638,
+        "play_cpu_pct.mp3-v0": 4.584,
+        "play_minstr_per_s.mp3-v0": 64.621,
+        "play_power_mw.mp3-v0": 3.851,
+        "seek_ms.mp3-v0": 52.526,
         "seek_stalls.mp3-v0": 0,
-        "ttp_ms.aac-256": 34.141,
-        "play_cpu_pct.aac-256": 3.457,
-        "play_minstr_per_s.aac-256": 56.396,
-        "play_power_mw.aac-256": 3.127,
-        "seek_ms.aac-256": 52.341,
+        "ttp_ms.aac-256": 38.086,
+        "play_cpu_pct.aac-256": 4.194,
+        "play_minstr_per_s.aac-256": 53.397,
+        "play_power_mw.aac-256": 3.267,
+        "seek_ms.aac-256": 53.476,
         "seek_stalls.aac-256": 0,
-        "ttp_ms.flac-16-44": 36.18,
-        "play_cpu_pct.flac-16-44": 3.665,
-        "play_minstr_per_s.flac-16-44": 71.944,
-        "play_power_mw.flac-16-44": 3.401,
-        "ttp_ms.flac-24-96": 32.446,
-        "play_cpu_pct.flac-24-96": 4.844,
-        "play_minstr_per_s.flac-24-96": 127.634,
-        "play_power_mw.flac-24-96": 5.551,
-        "ttp_ms.flac-24-192": 40.567,
-        "play_cpu_pct.flac-24-192": 6.399,
-        "play_minstr_per_s.flac-24-192": 212.957,
-        "play_power_mw.flac-24-192": 9.483,
-        "seek_ms.flac-24-192": 52.606,
+        "ttp_ms.flac-16-44": 33.518,
+        "play_cpu_pct.flac-16-44": 4.485,
+        "play_minstr_per_s.flac-16-44": 65.219,
+        "play_power_mw.flac-16-44": 3.476,
+        "ttp_ms.flac-24-96": 35.965,
+        "play_cpu_pct.flac-24-96": 5.637,
+        "play_minstr_per_s.flac-24-96": 108.711,
+        "play_power_mw.flac-24-96": 5.618,
+        "ttp_ms.flac-24-192": 35.595,
+        "play_cpu_pct.flac-24-192": 7.333,
+        "play_minstr_per_s.flac-24-192": 176.72,
+        "play_power_mw.flac-24-192": 9.769,
+        "seek_ms.flac-24-192": 52.543,
         "seek_stalls.flac-24-192": 0,
-        "ttp_ms.wav-24-96": 31.631,
-        "play_cpu_pct.wav-24-96": 3.843,
-        "play_minstr_per_s.wav-24-96": 67.189,
-        "play_power_mw.wav-24-96": 3.35,
-        "play_cpu_pct.fx": 7.638,
-        "play_power_mw.fx": 12.337,
-        "paused_cpu_pct": 4.286,
-        "paused_wakeups_per_s": 1.998,
-        "playback_footprint_mb": 71.407,
-        "waveform_ms.mp3-320": 198.501,
-        "waveform_ms.flac-16-44": 191.771,
-        "waveform_ms.flac-24-192": 1249.918,
-        "library_list_ms": 29.704,
-        "library_scan_cold_ms": 256.478,
-        "library_scan_cpu_s": 0.821,
-        "library_footprint_mb": 105.517,
-        "peak_footprint_mb": 107.704,
-        "library_scan_warm_ms": 123.331
+        "ttp_ms.wav-24-96": 31.532,
+        "play_cpu_pct.wav-24-96": 4.698,
+        "play_minstr_per_s.wav-24-96": 63.218,
+        "play_power_mw.wav-24-96": 3.715,
+        "ttp_ms.mp3-320-48k": 33.269,
+        "play_cpu_pct.mp3-320-48k": 4.779,
+        "play_minstr_per_s.mp3-320-48k": 67.192,
+        "play_power_mw.mp3-320-48k": 3.83,
+        "ttp_ms.mp3-320-60min": 33.955,
+        "play_cpu_pct.mp3-320-60min": 4.483,
+        "play_minstr_per_s.mp3-320-60min": 65.423,
+        "play_power_mw.mp3-320-60min": 3.489,
+        "seek_ms.mp3-320-60min": 52.66,
+        "seek_stalls.mp3-320-60min": 0,
+        "ttp_ms.mp3-v0-60min": 32.802,
+        "play_cpu_pct.mp3-v0-60min": 4.58,
+        "play_minstr_per_s.mp3-v0-60min": 65.252,
+        "play_power_mw.mp3-v0-60min": 3.336,
+        "seek_ms.mp3-v0-60min": 53.385,
+        "seek_stalls.mp3-v0-60min": 0,
+        "ttp_ms.mp3-v0-noxing": 42.783,
+        "play_cpu_pct.mp3-v0-noxing": 4.638,
+        "play_minstr_per_s.mp3-v0-noxing": 64.524,
+        "play_power_mw.mp3-v0-noxing": 4.045,
+        "seek_ms.mp3-v0-noxing": 52.942,
+        "seek_stalls.mp3-v0-noxing": 0,
+        "ttp_ms.flac-24-88": 36.557,
+        "play_cpu_pct.flac-24-88": 5.61,
+        "play_minstr_per_s.flac-24-88": 103.034,
+        "play_power_mw.flac-24-88": 5.596,
+        "ttp_ms.flac-24-176": 28.668,
+        "play_cpu_pct.flac-24-176": 7.067,
+        "play_minstr_per_s.flac-24-176": 165.126,
+        "play_power_mw.flac-24-176": 8.96,
+        "ttp_ms.flac-24-352": 35.846,
+        "play_cpu_pct.flac-24-352": 10.961,
+        "play_minstr_per_s.flac-24-352": 292.962,
+        "play_power_mw.flac-24-352": 21.705,
+        "ttp_ms.flac-16-22-mono": 34.968,
+        "play_cpu_pct.flac-16-22-mono": 3.479,
+        "play_minstr_per_s.flac-16-22-mono": 46.166,
+        "play_power_mw.flac-16-22-mono": 2.568,
+        "play_cpu_pct.fx": 10.736,
+        "play_power_mw.fx": 13.344,
+        "play_cpu_pct.pitch.flac-24-192": 9.98,
+        "play_cpu_pct.pitch.mp3-320": 4.683,
+        "paused_cpu_pct": 2.443,
+        "paused_wakeups_per_s": 1.398,
+        "playback_footprint_mb": 68.407,
+        "waveform_ms.mp3-320": 248.804,
+        "waveform_ms.flac-16-44": 193.924,
+        "waveform_ms.flac-24-192": 1246.005,
+        "waveform_ms.mp3-320-60min": 4832.321,
+        "waveform_ms.flac-24-352": 786.611,
+        "library_list_ms": 34.109,
+        "library_scan_cold_ms": 281.509,
+        "library_scan_cpu_s": 0.976,
+        "library_footprint_mb": 100.751,
+        "peak_footprint_mb": 103.063,
+        "library_scan_warm_ms": 139.344
       },
       "samples": {
         "system_idle_pct": [
-          90.22,
-          87.33,
-          92.95,
-          92.11,
-          89.15,
-          92.3,
-          87.95,
-          83.5,
-          86.0,
-          92.44,
-          93.59,
-          88.48
-        ],
-        "launch_cold_window_ms": [
-          190.546,
-          181.684,
-          184.097
-        ],
-        "launch_cold_ready_ms": [
-          212.195,
-          193.439,
-          193.402
+          96.99,
+          86.91,
+          98.6,
+          95.57,
+          96.21,
+          90.24,
+          91.55,
+          86.49,
+          97.4,
+          91.88,
+          92.63,
+          89.71,
+          91.47,
+          86.3,
+          92.38,
+          91.43,
+          84.3,
+          92.19,
+          92.99,
+          90.5
         ],
         "idle_cpu_pct": [
-          0.026,
-          0.024,
-          0.024
+          0.032,
+          0.03,
+          0.022,
+          0.029,
+          0.026
         ],
         "idle_wakeups_per_s": [
-          1.199,
+          0.599,
           0.799,
+          0.599,
+          0.8,
           0.799
         ],
         "idle_footprint_mb": [
-          34.767,
-          33.673,
-          33.673
+          28.938,
+          28.313,
+          28.548,
+          28.548,
+          28.454
+        ],
+        "launch_cold_window_ms": [
+          179.515,
+          177.113,
+          181.272,
+          188.621,
+          186.658
+        ],
+        "launch_cold_ready_ms": [
+          184.219,
+          183.224,
+          186.276,
+          194.662,
+          191.899
         ],
         "launch_warm_window_ms": [
-          204.485,
-          199.818,
-          200.958
+          180.611,
+          179.721,
+          178.276,
+          186.01,
+          182.546
         ],
         "launch_warm_ready_ms": [
-          213.736,
-          212.169,
-          217.704
+          185.933,
+          185.129,
+          184.075,
+          191.838,
+          188.324
         ],
         "ttp_ms.mp3-320": [
-          73.415,
-          74.004,
-          66.436
+          63.478,
+          65.124,
+          66.503,
+          71.168,
+          61.401
         ],
         "play_cpu_pct.mp3-320": [
-          3.904,
-          3.615,
-          3.262
+          4.53,
+          4.727,
+          4.604,
+          4.74,
+          4.724
         ],
         "play_minstr_per_s.mp3-320": [
-          78.887,
-          67.433,
-          67.458
+          64.756,
+          64.793,
+          64.811,
+          65.758,
+          64.825
         ],
         "play_power_mw.mp3-320": [
-          7.187,
-          3.588,
-          4.216
+          4.6,
+          3.498,
+          3.676,
+          3.743,
+          3.713
         ],
         "ttp_ms.mp3-v0": [
-          31.712,
-          32.942,
-          38.799
+          32.424,
+          35.342,
+          40.716,
+          38.57,
+          35.638
         ],
         "play_cpu_pct.mp3-v0": [
-          2.902,
-          3.771,
-          3.252
+          4.584,
+          4.626,
+          4.704,
+          4.181,
+          4.575
         ],
         "play_minstr_per_s.mp3-v0": [
-          63.166,
-          67.077,
-          68.373
+          64.596,
+          64.548,
+          64.621,
+          64.766,
+          64.744
         ],
         "play_power_mw.mp3-v0": [
-          3.54,
-          3.195,
-          4.505
+          4.611,
+          3.482,
+          3.624,
+          5.812,
+          3.851
         ],
         "seek_ms.mp3-v0": [
-          51.614,
-          53.926,
-          52.919
+          51.829,
+          53.458,
+          52.703,
+          52.382,
+          52.526
         ],
         "seek_stalls.mp3-v0": [
+          0,
+          0,
           0,
           0,
           0
         ],
         "ttp_ms.aac-256": [
-          28.303,
-          34.141,
-          42.273
+          38.086,
+          47.792,
+          33.83,
+          37.816,
+          40.217
         ],
         "play_cpu_pct.aac-256": [
-          2.646,
-          3.533,
-          3.457
+          3.486,
+          4.194,
+          4.204,
+          4.172,
+          4.341
         ],
         "play_minstr_per_s.aac-256": [
-          51.868,
-          57.709,
-          56.396
+          53.456,
+          53.337,
+          53.371,
+          53.397,
+          53.444
         ],
         "play_power_mw.aac-256": [
-          3.127,
-          3.455,
-          2.906
+          7.891,
+          3.034,
+          3.101,
+          3.267,
+          3.334
         ],
         "seek_ms.aac-256": [
-          50.652,
-          52.341,
-          53.926
+          54.331,
+          52.333,
+          53.591,
+          53.476,
+          53.135
         ],
         "seek_stalls.aac-256": [
+          0,
+          0,
           0,
           0,
           0
         ],
         "ttp_ms.flac-16-44": [
-          36.18,
-          40.557,
-          30.602
+          35.136,
+          34.852,
+          33.518,
+          26.986,
+          30.023
         ],
         "play_cpu_pct.flac-16-44": [
-          2.818,
-          3.881,
-          3.665
+          3.726,
+          4.485,
+          4.484,
+          4.705,
+          4.51
         ],
         "play_minstr_per_s.flac-16-44": [
-          67.598,
-          71.944,
-          72.458
+          65.246,
+          65.219,
+          65.175,
+          65.321,
+          65.2
         ],
         "play_power_mw.flac-16-44": [
-          3.401,
-          3.013,
-          3.694
+          8.698,
+          3.44,
+          3.276,
+          3.476,
+          3.676
         ],
         "ttp_ms.flac-24-96": [
-          31.681,
-          32.446,
-          43.602
+          44.406,
+          37.5,
+          34.621,
+          31.991,
+          35.965
         ],
         "play_cpu_pct.flac-24-96": [
-          4.041,
-          4.972,
-          4.844
+          4.095,
+          5.768,
+          5.935,
+          5.539,
+          5.637
         ],
         "play_minstr_per_s.flac-24-96": [
-          123.165,
-          127.634,
-          127.748
+          108.513,
+          108.786,
+          108.585,
+          108.716,
+          108.711
         ],
         "play_power_mw.flac-24-96": [
-          6.756,
-          4.974,
-          5.551
+          12.974,
+          5.618,
+          5.439,
+          5.827,
+          5.448
         ],
         "ttp_ms.flac-24-192": [
-          40.567,
-          38.725,
-          42.422
+          32.588,
+          43.584,
+          36.509,
+          34.813,
+          35.595
         ],
         "play_cpu_pct.flac-24-192": [
-          5.492,
-          6.527,
-          6.399
+          7.64,
+          7.333,
+          7.276,
+          7.357,
+          7.323
         ],
         "play_minstr_per_s.flac-24-192": [
-          208.481,
-          212.957,
-          213.039
+          176.544,
+          176.755,
+          176.72,
+          176.66,
+          176.756
         ],
         "play_power_mw.flac-24-192": [
-          13.401,
-          9.161,
-          9.483
+          10.679,
+          9.712,
+          11.518,
+          9.68,
+          9.769
         ],
         "seek_ms.flac-24-192": [
-          52.606,
-          53.058,
-          52.338
+          52.019,
+          50.919,
+          52.886,
+          52.543,
+          54.007
         ],
         "seek_stalls.flac-24-192": [
+          0,
+          0,
           0,
           0,
           0
         ],
         "ttp_ms.wav-24-96": [
-          31.631,
-          28.905,
-          39.965
+          31.532,
+          37.237,
+          30.672,
+          30.633,
+          34.133
         ],
         "play_cpu_pct.wav-24-96": [
-          2.976,
-          3.858,
-          3.843
+          4.763,
+          4.698,
+          4.67,
+          4.537,
+          4.809
         ],
         "play_minstr_per_s.wav-24-96": [
-          63.161,
-          67.516,
-          67.189
+          63.119,
+          63.218,
+          63.29,
+          63.214,
+          63.252
         ],
         "play_power_mw.wav-24-96": [
-          3.393,
-          3.35,
-          3.015
+          3.642,
+          3.705,
+          3.852,
+          4.057,
+          3.715
+        ],
+        "ttp_ms.mp3-320-48k": [
+          31.834,
+          34.259,
+          32.86,
+          33.955,
+          33.269
+        ],
+        "play_cpu_pct.mp3-320-48k": [
+          4.811,
+          4.779,
+          4.912,
+          4.766,
+          4.758
+        ],
+        "play_minstr_per_s.mp3-320-48k": [
+          67.182,
+          67.192,
+          67.267,
+          66.495,
+          67.304
+        ],
+        "play_power_mw.mp3-320-48k": [
+          3.704,
+          3.713,
+          3.901,
+          3.838,
+          3.83
+        ],
+        "ttp_ms.mp3-320-60min": [
+          32.241,
+          40.002,
+          33.955,
+          35.246,
+          33.05
+        ],
+        "play_cpu_pct.mp3-320-60min": [
+          4.698,
+          4.674,
+          4.477,
+          4.483,
+          4.395
+        ],
+        "play_minstr_per_s.mp3-320-60min": [
+          65.423,
+          65.385,
+          65.526,
+          65.522,
+          64.77
+        ],
+        "play_power_mw.mp3-320-60min": [
+          3.489,
+          3.327,
+          3.598,
+          3.42,
+          3.514
+        ],
+        "seek_ms.mp3-320-60min": [
+          52.344,
+          54.29,
+          53.029,
+          52.66,
+          52.545
+        ],
+        "seek_stalls.mp3-320-60min": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ttp_ms.mp3-v0-60min": [
+          32.802,
+          32.1,
+          35.756,
+          37.335,
+          31.702
+        ],
+        "play_cpu_pct.mp3-v0-60min": [
+          4.589,
+          4.562,
+          4.58,
+          4.581,
+          4.565
+        ],
+        "play_minstr_per_s.mp3-v0-60min": [
+          65.258,
+          64.502,
+          65.252,
+          65.412,
+          64.627
+        ],
+        "play_power_mw.mp3-v0-60min": [
+          3.336,
+          3.293,
+          3.647,
+          3.519,
+          3.271
+        ],
+        "seek_ms.mp3-v0-60min": [
+          54.353,
+          53.915,
+          52.52,
+          52.828,
+          53.385
+        ],
+        "seek_stalls.mp3-v0-60min": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ttp_ms.mp3-v0-noxing": [
+          43.691,
+          42.783,
+          31.872,
+          48.769,
+          37.437
+        ],
+        "play_cpu_pct.mp3-v0-noxing": [
+          4.638,
+          4.962,
+          4.689,
+          3.593,
+          3.707
+        ],
+        "play_minstr_per_s.mp3-v0-noxing": [
+          64.524,
+          64.749,
+          64.465,
+          64.479,
+          64.72
+        ],
+        "play_power_mw.mp3-v0-noxing": [
+          3.491,
+          4.045,
+          3.362,
+          4.493,
+          4.368
+        ],
+        "seek_ms.mp3-v0-noxing": [
+          53.622,
+          51.69,
+          53.362,
+          52.942,
+          52.922
+        ],
+        "seek_stalls.mp3-v0-noxing": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ttp_ms.flac-24-88": [
+          32.617,
+          37.327,
+          28.602,
+          36.557,
+          37.461
+        ],
+        "play_cpu_pct.flac-24-88": [
+          5.836,
+          5.658,
+          5.61,
+          5.363,
+          5.485
+        ],
+        "play_minstr_per_s.flac-24-88": [
+          100.729,
+          100.812,
+          103.035,
+          103.034,
+          103.15
+        ],
+        "play_power_mw.flac-24-88": [
+          5.345,
+          6.336,
+          5.34,
+          5.596,
+          5.639
+        ],
+        "ttp_ms.flac-24-176": [
+          28.668,
+          36.54,
+          26.946,
+          27.883,
+          36.271
+        ],
+        "play_cpu_pct.flac-24-176": [
+          6.015,
+          7.429,
+          7.238,
+          7.062,
+          7.067
+        ],
+        "play_minstr_per_s.flac-24-176": [
+          165.196,
+          164.999,
+          165.117,
+          165.126,
+          165.202
+        ],
+        "play_power_mw.flac-24-176": [
+          10.974,
+          9.253,
+          8.937,
+          8.935,
+          8.96
+        ],
+        "ttp_ms.flac-24-352": [
+          30.771,
+          33.514,
+          35.846,
+          37.331,
+          37.231
+        ],
+        "play_cpu_pct.flac-24-352": [
+          10.732,
+          11.173,
+          10.961,
+          11.193,
+          10.789
+        ],
+        "play_minstr_per_s.flac-24-352": [
+          292.915,
+          297.584,
+          298.567,
+          292.962,
+          291.052
+        ],
+        "play_power_mw.flac-24-352": [
+          19.513,
+          18.892,
+          24.165,
+          21.705,
+          24.326
+        ],
+        "ttp_ms.flac-16-22-mono": [
+          41.555,
+          26.785,
+          34.968,
+          26.323,
+          36.206
+        ],
+        "play_cpu_pct.flac-16-22-mono": [
+          3.727,
+          3.734,
+          3.394,
+          3.455,
+          3.479
+        ],
+        "play_minstr_per_s.flac-16-22-mono": [
+          46.15,
+          46.163,
+          46.166,
+          46.225,
+          46.399
+        ],
+        "play_power_mw.flac-16-22-mono": [
+          2.544,
+          2.532,
+          2.68,
+          2.568,
+          2.641
         ],
         "play_cpu_pct.fx": [
-          7.137,
-          7.638,
-          8.901
+          11.358,
+          11.272,
+          10.736,
+          10.377,
+          10.502
         ],
         "play_power_mw.fx": [
-          12.337,
-          23.615,
-          10.832
+          13.344,
+          13.501,
+          13.25,
+          14.059,
+          12.983
+        ],
+        "play_cpu_pct.pitch.flac-24-192": [
+          10.64,
+          10.836,
+          9.958,
+          9.98,
+          9.812
+        ],
+        "play_cpu_pct.pitch.mp3-320": [
+          4.612,
+          4.683,
+          4.85,
+          4.65,
+          4.756
         ],
         "paused_cpu_pct": [
-          4.286,
-          3.304,
-          4.401
+          2.321,
+          2.321,
+          2.455,
+          2.443,
+          2.508
         ],
         "paused_wakeups_per_s": [
-          1.798,
-          1.998,
-          2.198
+          1.399,
+          0.998,
+          1.398,
+          1.398,
+          0.999
         ],
         "playback_footprint_mb": [
-          71.735,
-          71.407,
-          70.454
+          64.173,
+          68.407,
+          64.579,
+          70.907,
+          70.954
         ],
         "waveform_ms.mp3-320": [
-          194.132,
-          198.501,
-          204.169
+          249.71,
+          251.914,
+          247.268,
+          248.105,
+          248.804
         ],
         "waveform_ms.flac-16-44": [
-          194.128,
-          191.509,
-          191.771
+          191.425,
+          192.006,
+          194.92,
+          194.607,
+          193.924
         ],
         "waveform_ms.flac-24-192": [
-          1283.923,
-          1249.918,
-          1237.625
+          1241.911,
+          1242.614,
+          1257.426,
+          1246.005,
+          1256.414
+        ],
+        "waveform_ms.mp3-320-60min": [
+          4798.108,
+          4832.321,
+          4872.638,
+          4810.532,
+          4868.023
+        ],
+        "waveform_ms.flac-24-352": [
+          777.455,
+          789.911,
+          787.343,
+          786.381,
+          786.611
         ],
         "library_list_ms": [
-          29.068,
-          31.788,
-          29.704
+          36.52,
+          34.109,
+          28.807,
+          26.971,
+          36.75
         ],
         "library_scan_cold_ms": [
-          255.842,
-          257.374,
-          256.478
+          308.439,
+          281.509,
+          276.237,
+          296.2,
+          267.49
         ],
         "library_scan_cpu_s": [
-          0.822,
-          0.821,
-          0.815
+          0.976,
+          0.985,
+          0.957,
+          0.984,
+          0.964
         ],
         "library_footprint_mb": [
-          105.423,
-          106.079,
-          105.517
+          99.501,
+          101.501,
+          103.173,
+          100.548,
+          100.751
         ],
         "peak_footprint_mb": [
-          107.595,
-          108.11,
-          107.704
+          101.767,
+          103.813,
+          105.501,
+          102.829,
+          103.063
         ],
         "library_scan_warm_ms": [
-          123.331,
-          124.89,
-          114.305
+          134.287,
+          140.578,
+          145.676,
+          135.8,
+          139.344
         ]
       }
     },
@@ -368,362 +822,816 @@
       "ref": "v1.9",
       "commit": "143b0b2325ce428d5eb47b8ef8f2097f93fd859d",
       "measured": "2026-09-28",
-      "reps": 3,
-      "corpus": "65e9656c071f84ef",
+      "reps": 5,
+      "corpus": "911f823547f3298e",
       "machine": {
-        "chip": "Apple M4 Max",
-        "cores": 16,
-        "memory_gb": 64,
-        "macos": "27.0",
-        "xcode": "Xcode 27.0"
+        "chip": "Apple M2 Pro",
+        "cores": 12,
+        "memory_gb": 32,
+        "macos": "26.5.2",
+        "xcode": "Xcode 26.6"
       },
       "metrics": {
-        "system_idle_pct": 91.155,
-        "launch_cold_window_ms": 177.353,
-        "launch_cold_ready_ms": 190.592,
-        "idle_cpu_pct": 0.019,
-        "idle_wakeups_per_s": 0.8,
-        "idle_footprint_mb": 33.657,
-        "launch_warm_window_ms": 190.736,
-        "launch_warm_ready_ms": 205.015,
-        "ttp_ms.mp3-320": 75.721,
-        "play_cpu_pct.mp3-320": 3.669,
-        "play_minstr_per_s.mp3-320": 74.91,
-        "play_power_mw.mp3-320": 8.329,
-        "ttp_ms.mp3-v0": 32.346,
-        "play_cpu_pct.mp3-v0": 2.914,
-        "play_minstr_per_s.mp3-v0": 63.028,
-        "play_power_mw.mp3-v0": 5.372,
-        "seek_ms.mp3-v0": 50.998,
+        "system_idle_pct": 96.56,
+        "idle_cpu_pct": 0.03,
+        "idle_wakeups_per_s": 0.798,
+        "idle_footprint_mb": 28.938,
+        "launch_cold_window_ms": 178.562,
+        "launch_cold_ready_ms": 184.628,
+        "launch_warm_window_ms": 179.886,
+        "launch_warm_ready_ms": 184.822,
+        "ttp_ms.mp3-320": 67.602,
+        "play_cpu_pct.mp3-320": 4.541,
+        "play_minstr_per_s.mp3-320": 64.889,
+        "play_power_mw.mp3-320": 3.615,
+        "ttp_ms.mp3-v0": 31.582,
+        "play_cpu_pct.mp3-v0": 4.47,
+        "play_minstr_per_s.mp3-v0": 64.624,
+        "play_power_mw.mp3-v0": 3.651,
+        "seek_ms.mp3-v0": 52.777,
         "seek_stalls.mp3-v0": 0,
-        "ttp_ms.aac-256": 33.407,
-        "play_cpu_pct.aac-256": 2.679,
-        "play_minstr_per_s.aac-256": 51.936,
-        "play_power_mw.aac-256": 3.112,
-        "seek_ms.aac-256": 52.869,
+        "ttp_ms.aac-256": 38.383,
+        "play_cpu_pct.aac-256": 4.129,
+        "play_minstr_per_s.aac-256": 53.381,
+        "play_power_mw.aac-256": 3.074,
+        "seek_ms.aac-256": 53.21,
         "seek_stalls.aac-256": 0,
-        "ttp_ms.flac-16-44": 32.228,
-        "play_cpu_pct.flac-16-44": 2.916,
-        "play_minstr_per_s.flac-16-44": 67.559,
-        "play_power_mw.flac-16-44": 3.417,
-        "ttp_ms.flac-24-96": 30.621,
-        "play_cpu_pct.flac-24-96": 3.798,
-        "play_minstr_per_s.flac-24-96": 123.147,
-        "play_power_mw.flac-24-96": 7.446,
-        "ttp_ms.flac-24-192": 36.419,
-        "play_cpu_pct.flac-24-192": 5.361,
-        "play_minstr_per_s.flac-24-192": 208.506,
-        "play_power_mw.flac-24-192": 12.216,
-        "seek_ms.flac-24-192": 52.177,
+        "ttp_ms.flac-16-44": 37.221,
+        "play_cpu_pct.flac-16-44": 4.362,
+        "play_minstr_per_s.flac-16-44": 65.252,
+        "play_power_mw.flac-16-44": 3.497,
+        "ttp_ms.flac-24-96": 37.508,
+        "play_cpu_pct.flac-24-96": 5.79,
+        "play_minstr_per_s.flac-24-96": 108.612,
+        "play_power_mw.flac-24-96": 5.567,
+        "ttp_ms.flac-24-192": 37.594,
+        "play_cpu_pct.flac-24-192": 7.624,
+        "play_minstr_per_s.flac-24-192": 176.606,
+        "play_power_mw.flac-24-192": 9.99,
+        "seek_ms.flac-24-192": 53.585,
         "seek_stalls.flac-24-192": 0,
-        "ttp_ms.wav-24-96": 30.573,
-        "play_cpu_pct.wav-24-96": 3.042,
-        "play_minstr_per_s.wav-24-96": 62.999,
-        "play_power_mw.wav-24-96": 3.787,
-        "play_cpu_pct.fx": 7.374,
-        "play_power_mw.fx": 21.181,
-        "paused_cpu_pct": 3.909,
-        "paused_wakeups_per_s": 1.599,
-        "playback_footprint_mb": 70.907,
-        "waveform_ms.mp3-320": 194.947,
-        "waveform_ms.flac-16-44": 187.919,
-        "waveform_ms.flac-24-192": 1236.258,
-        "library_list_ms": 31.11,
-        "library_scan_cold_ms": 284.381,
-        "library_scan_cpu_s": 0.814,
-        "library_footprint_mb": 107.751,
-        "peak_footprint_mb": 109.548,
-        "library_scan_warm_ms": 123.128
+        "ttp_ms.wav-24-96": 30.494,
+        "play_cpu_pct.wav-24-96": 4.609,
+        "play_minstr_per_s.wav-24-96": 63.195,
+        "play_power_mw.wav-24-96": 3.709,
+        "ttp_ms.mp3-320-48k": 32.461,
+        "play_cpu_pct.mp3-320-48k": 4.657,
+        "play_minstr_per_s.mp3-320-48k": 67.156,
+        "play_power_mw.mp3-320-48k": 3.925,
+        "ttp_ms.mp3-320-60min": 32.031,
+        "play_cpu_pct.mp3-320-60min": 4.546,
+        "play_minstr_per_s.mp3-320-60min": 64.678,
+        "play_power_mw.mp3-320-60min": 3.497,
+        "seek_ms.mp3-320-60min": 53.784,
+        "seek_stalls.mp3-320-60min": 0,
+        "ttp_ms.mp3-v0-60min": 33.329,
+        "play_cpu_pct.mp3-v0-60min": 4.314,
+        "play_minstr_per_s.mp3-v0-60min": 64.523,
+        "play_power_mw.mp3-v0-60min": 3.765,
+        "seek_ms.mp3-v0-60min": 53.94,
+        "seek_stalls.mp3-v0-60min": 0,
+        "ttp_ms.mp3-v0-noxing": 44.163,
+        "play_cpu_pct.mp3-v0-noxing": 4.388,
+        "play_minstr_per_s.mp3-v0-noxing": 64.458,
+        "play_power_mw.mp3-v0-noxing": 3.789,
+        "seek_ms.mp3-v0-noxing": 53.461,
+        "seek_stalls.mp3-v0-noxing": 0,
+        "ttp_ms.flac-24-88": 35.771,
+        "play_cpu_pct.flac-24-88": 5.633,
+        "play_minstr_per_s.flac-24-88": 102.917,
+        "play_power_mw.flac-24-88": 5.269,
+        "ttp_ms.flac-24-176": 33.686,
+        "play_cpu_pct.flac-24-176": 7.313,
+        "play_minstr_per_s.flac-24-176": 164.916,
+        "play_power_mw.flac-24-176": 9.305,
+        "ttp_ms.flac-24-352": 36.432,
+        "play_cpu_pct.flac-24-352": 11.534,
+        "play_minstr_per_s.flac-24-352": 297.842,
+        "play_power_mw.flac-24-352": 20.534,
+        "ttp_ms.flac-16-22-mono": 32.836,
+        "play_cpu_pct.flac-16-22-mono": 3.595,
+        "play_minstr_per_s.flac-16-22-mono": 46.215,
+        "play_power_mw.flac-16-22-mono": 2.828,
+        "play_cpu_pct.fx": 11.24,
+        "play_power_mw.fx": 13.278,
+        "play_cpu_pct.pitch.flac-24-192": 10.824,
+        "play_cpu_pct.pitch.mp3-320": 4.548,
+        "paused_cpu_pct": 2.19,
+        "paused_wakeups_per_s": 1.597,
+        "playback_footprint_mb": 62.032,
+        "waveform_ms.mp3-320": 246.394,
+        "waveform_ms.flac-16-44": 191.421,
+        "waveform_ms.flac-24-192": 1240.224,
+        "waveform_ms.mp3-320-60min": 4798.603,
+        "waveform_ms.flac-24-352": 775.161,
+        "library_list_ms": 36.723,
+        "library_scan_cold_ms": 313.321,
+        "library_scan_cpu_s": 0.982,
+        "library_footprint_mb": 103.392,
+        "peak_footprint_mb": 105.22,
+        "library_scan_warm_ms": 142.894
       },
       "samples": {
         "system_idle_pct": [
-          89.57,
-          82.72,
-          90.6,
-          88.12,
-          93.92,
-          94.83,
-          92.29,
-          92.71,
-          91.71,
-          93.16,
-          87.86,
-          89.5
-        ],
-        "launch_cold_window_ms": [
-          177.353,
-          160.694,
-          183.732
-        ],
-        "launch_cold_ready_ms": [
-          190.592,
-          175.883,
-          190.94
+          89.33,
+          82.48,
+          89.11,
+          97.1,
+          96.83,
+          92.24,
+          96.61,
+          97.62,
+          95.99,
+          85.77,
+          96.51,
+          97.2,
+          96.61,
+          90.54,
+          97.8,
+          97.52,
+          96.75,
+          90.4,
+          98.71,
+          93.66
         ],
         "idle_cpu_pct": [
-          0.019,
-          0.019,
-          0.037
+          0.022,
+          0.03,
+          0.031,
+          0.03,
+          0.03
         ],
         "idle_wakeups_per_s": [
           0.8,
-          0.8,
-          0.8
+          0.798,
+          0.799,
+          0.599,
+          0.798
         ],
         "idle_footprint_mb": [
-          33.907,
-          32.095,
-          33.657
+          28.938,
+          28.798,
+          28.813,
+          29.11,
+          29.126
+        ],
+        "launch_cold_window_ms": [
+          189.696,
+          177.52,
+          178.562,
+          178.238,
+          179.52
+        ],
+        "launch_cold_ready_ms": [
+          196.193,
+          182.725,
+          184.649,
+          183.95,
+          184.628
         ],
         "launch_warm_window_ms": [
-          192.127,
-          189.891,
-          190.736
+          186.455,
+          180.751,
+          178.253,
+          179.886,
+          177.945
         ],
         "launch_warm_ready_ms": [
-          204.748,
-          205.192,
-          205.015
+          191.561,
+          186.004,
+          184.688,
+          184.822,
+          184.101
         ],
         "ttp_ms.mp3-320": [
-          70.721,
-          76.035,
-          75.721
+          70.702,
+          67.183,
+          67.602,
+          72.659,
+          67.293
         ],
         "play_cpu_pct.mp3-320": [
-          3.541,
-          3.837,
-          3.669
+          4.446,
+          4.726,
+          4.601,
+          4.451,
+          4.541
         ],
         "play_minstr_per_s.mp3-320": [
-          74.91,
-          86.165,
-          68.009
+          64.98,
+          64.85,
+          64.889,
+          64.918,
+          64.813
         ],
         "play_power_mw.mp3-320": [
-          8.329,
-          10.359,
-          4.596
+          4.846,
+          3.555,
+          3.615,
+          3.996,
+          3.57
         ],
         "ttp_ms.mp3-v0": [
-          30.171,
-          33.071,
-          32.346
+          31.582,
+          36.766,
+          27.069,
+          41.393,
+          29.962
         ],
         "play_cpu_pct.mp3-v0": [
-          3.076,
-          2.688,
-          2.914
+          4.622,
+          4.629,
+          4.457,
+          4.458,
+          4.47
         ],
         "play_minstr_per_s.mp3-v0": [
-          67.361,
-          63.023,
-          63.028
+          64.758,
+          64.657,
+          64.556,
+          64.624,
+          64.613
         ],
         "play_power_mw.mp3-v0": [
-          5.372,
-          5.507,
-          4.432
+          3.844,
+          3.633,
+          3.547,
+          3.996,
+          3.651
         ],
         "seek_ms.mp3-v0": [
-          52.549,
-          50.276,
-          50.998
+          53.892,
+          52.206,
+          52.777,
+          51.814,
+          52.834
         ],
         "seek_stalls.mp3-v0": [
+          0,
+          0,
           0,
           0,
           0
         ],
         "ttp_ms.aac-256": [
-          33.407,
-          42.489,
-          31.819
+          32.698,
+          38.383,
+          46.564,
+          40.02,
+          38.114
         ],
         "play_cpu_pct.aac-256": [
-          2.718,
-          2.519,
-          2.679
+          4.35,
+          4.242,
+          4.129,
+          4.03,
+          4.057
         ],
         "play_minstr_per_s.aac-256": [
-          51.773,
-          51.936,
-          51.936
+          53.485,
+          53.381,
+          53.417,
+          53.325,
+          53.341
         ],
         "play_power_mw.aac-256": [
-          2.997,
-          3.125,
-          3.112
+          3.287,
+          3.042,
+          3.074,
+          3.52,
+          3.018
         ],
         "seek_ms.aac-256": [
-          54.372,
-          50.354,
-          52.869
+          52.989,
+          53.21,
+          53.759,
+          53.919,
+          53.107
         ],
         "seek_stalls.aac-256": [
+          0,
+          0,
           0,
           0,
           0
         ],
         "ttp_ms.flac-16-44": [
-          32.228,
-          43.352,
-          28.981
+          32.365,
+          39.111,
+          35.813,
+          38.324,
+          37.221
         ],
         "play_cpu_pct.flac-16-44": [
-          3.109,
-          2.714,
-          2.916
+          4.548,
+          4.362,
+          4.317,
+          4.332,
+          4.42
         ],
         "play_minstr_per_s.flac-16-44": [
-          67.629,
-          67.559,
-          67.553
+          65.381,
+          65.177,
+          65.252,
+          65.192,
+          65.269
         ],
         "play_power_mw.flac-16-44": [
-          3.174,
-          4.942,
-          3.417
+          3.497,
+          3.865,
+          3.404,
+          3.563,
+          3.243
         ],
         "ttp_ms.flac-24-96": [
-          30.035,
-          44.243,
-          30.621
+          31.625,
+          42.233,
+          40.15,
+          37.508,
+          37.494
         ],
         "play_cpu_pct.flac-24-96": [
-          3.798,
-          3.489,
-          3.813
+          5.748,
+          6.004,
+          5.79,
+          5.66,
+          5.856
         ],
         "play_minstr_per_s.flac-24-96": [
-          123.101,
-          123.197,
-          123.147
+          108.805,
+          108.613,
+          108.612,
+          108.598,
+          108.588
         ],
         "play_power_mw.flac-24-96": [
-          7.446,
-          13.367,
-          7.238
+          5.567,
+          5.377,
+          6.209,
+          6.092,
+          5.377
         ],
         "ttp_ms.flac-24-192": [
-          41.179,
-          36.419,
-          32.039
+          37.594,
+          36.832,
+          41.511,
+          37.301,
+          37.876
         ],
         "play_cpu_pct.flac-24-192": [
-          5.361,
-          4.695,
-          5.365
+          7.36,
+          7.714,
+          7.624,
+          7.49,
+          7.75
         ],
         "play_minstr_per_s.flac-24-192": [
-          208.506,
-          208.302,
-          208.72
+          176.691,
+          176.661,
+          176.606,
+          176.564,
+          176.521
         ],
         "play_power_mw.flac-24-192": [
-          12.216,
-          26.219,
-          11.024
+          9.587,
+          9.99,
+          10.129,
+          10.907,
+          9.538
         ],
         "seek_ms.flac-24-192": [
-          52.177,
-          53.344,
-          51.606
+          53.191,
+          53.585,
+          54.287,
+          52.901,
+          54.803
         ],
         "seek_stalls.flac-24-192": [
+          0,
+          0,
           0,
           0,
           0
         ],
         "ttp_ms.wav-24-96": [
-          29.956,
-          30.573,
-          37.986
+          28.965,
+          28.224,
+          42.145,
+          33.824,
+          30.494
         ],
         "play_cpu_pct.wav-24-96": [
-          3.042,
-          2.817,
-          3.384
+          4.698,
+          4.803,
+          4.547,
+          4.458,
+          4.609
         ],
         "play_minstr_per_s.wav-24-96": [
-          62.999,
-          62.965,
-          67.505
+          63.248,
+          63.079,
+          63.195,
+          63.229,
+          63.139
         ],
         "play_power_mw.wav-24-96": [
-          3.384,
-          3.787,
-          5.718
+          3.709,
+          3.465,
+          3.897,
+          4.364,
+          3.435
+        ],
+        "ttp_ms.mp3-320-48k": [
+          27.283,
+          37.449,
+          34.255,
+          32.461,
+          28.83
+        ],
+        "play_cpu_pct.mp3-320-48k": [
+          4.829,
+          4.735,
+          4.615,
+          4.568,
+          4.657
+        ],
+        "play_minstr_per_s.mp3-320-48k": [
+          67.394,
+          67.131,
+          67.196,
+          67.156,
+          67.09
+        ],
+        "play_power_mw.mp3-320-48k": [
+          4.101,
+          3.623,
+          3.925,
+          4.008,
+          3.795
+        ],
+        "ttp_ms.mp3-320-60min": [
+          32.031,
+          31.397,
+          29.513,
+          34.571,
+          41.775
+        ],
+        "play_cpu_pct.mp3-320-60min": [
+          4.644,
+          4.546,
+          4.423,
+          4.447,
+          4.64
+        ],
+        "play_minstr_per_s.mp3-320-60min": [
+          65.658,
+          64.678,
+          64.605,
+          64.629,
+          65.451
+        ],
+        "play_power_mw.mp3-320-60min": [
+          3.744,
+          3.419,
+          3.497,
+          3.757,
+          3.327
+        ],
+        "seek_ms.mp3-320-60min": [
+          52.679,
+          54.249,
+          53.648,
+          53.784,
+          53.98
+        ],
+        "seek_stalls.mp3-320-60min": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ttp_ms.mp3-v0-60min": [
+          33.329,
+          34.933,
+          28.314,
+          31.537,
+          37.013
+        ],
+        "play_cpu_pct.mp3-v0-60min": [
+          2.722,
+          4.719,
+          4.277,
+          4.314,
+          4.517
+        ],
+        "play_minstr_per_s.mp3-v0-60min": [
+          64.484,
+          64.551,
+          64.523,
+          64.512,
+          65.305
+        ],
+        "play_power_mw.mp3-v0-60min": [
+          7.362,
+          3.282,
+          3.991,
+          3.765,
+          3.204
+        ],
+        "seek_ms.mp3-v0-60min": [
+          52.47,
+          53.946,
+          54.273,
+          53.287,
+          53.94
+        ],
+        "seek_stalls.mp3-v0-60min": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ttp_ms.mp3-v0-noxing": [
+          36.559,
+          50.089,
+          49.78,
+          44.163,
+          42.088
+        ],
+        "play_cpu_pct.mp3-v0-noxing": [
+          4.281,
+          4.603,
+          4.34,
+          4.388,
+          4.428
+        ],
+        "play_minstr_per_s.mp3-v0-noxing": [
+          64.451,
+          64.472,
+          64.458,
+          64.458,
+          64.514
+        ],
+        "play_power_mw.mp3-v0-noxing": [
+          4.706,
+          3.446,
+          3.904,
+          3.789,
+          3.346
+        ],
+        "seek_ms.mp3-v0-noxing": [
+          53.461,
+          53.047,
+          53.619,
+          54.54,
+          53.192
+        ],
+        "seek_stalls.mp3-v0-noxing": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ttp_ms.flac-24-88": [
+          41.558,
+          38.053,
+          35.771,
+          28.212,
+          28.914
+        ],
+        "play_cpu_pct.flac-24-88": [
+          5.052,
+          5.861,
+          5.379,
+          5.633,
+          5.696
+        ],
+        "play_minstr_per_s.flac-24-88": [
+          100.797,
+          102.976,
+          100.747,
+          102.925,
+          102.917
+        ],
+        "play_power_mw.flac-24-88": [
+          7.372,
+          5.05,
+          5.837,
+          5.269,
+          4.78
+        ],
+        "ttp_ms.flac-24-176": [
+          34.869,
+          33.686,
+          29.806,
+          27.063,
+          45.802
+        ],
+        "play_cpu_pct.flac-24-176": [
+          5.601,
+          7.426,
+          7.228,
+          7.313,
+          7.514
+        ],
+        "play_minstr_per_s.flac-24-176": [
+          164.975,
+          164.891,
+          164.983,
+          164.914,
+          164.916
+        ],
+        "play_power_mw.flac-24-176": [
+          15.671,
+          9.271,
+          9.712,
+          9.305,
+          8.717
+        ],
+        "ttp_ms.flac-24-352": [
+          27.45,
+          37.776,
+          36.432,
+          31.173,
+          38.317
+        ],
+        "play_cpu_pct.flac-24-352": [
+          10.519,
+          11.579,
+          11.418,
+          11.534,
+          11.584
+        ],
+        "play_minstr_per_s.flac-24-352": [
+          298.016,
+          295.032,
+          297.842,
+          296.792,
+          302.539
+        ],
+        "play_power_mw.flac-24-352": [
+          23.026,
+          20.534,
+          20.532,
+          20.092,
+          20.658
+        ],
+        "ttp_ms.flac-16-22-mono": [
+          33.868,
+          15.932,
+          32.836,
+          33.358,
+          26.605
+        ],
+        "play_cpu_pct.flac-16-22-mono": [
+          3.999,
+          3.765,
+          3.554,
+          3.595,
+          3.526
+        ],
+        "play_minstr_per_s.flac-16-22-mono": [
+          46.102,
+          46.215,
+          46.239,
+          46.215,
+          46.26
+        ],
+        "play_power_mw.flac-16-22-mono": [
+          3.637,
+          2.538,
+          2.833,
+          2.828,
+          2.595
         ],
         "play_cpu_pct.fx": [
-          7.553,
-          7.374,
-          6.952
+          8.893,
+          11.24,
+          10.952,
+          11.33,
+          11.331
         ],
         "play_power_mw.fx": [
-          15.204,
-          25.857,
-          21.181
+          18.919,
+          13.147,
+          14.114,
+          13.278,
+          13.254
+        ],
+        "play_cpu_pct.pitch.flac-24-192": [
+          11.274,
+          10.824,
+          10.302,
+          10.506,
+          10.947
+        ],
+        "play_cpu_pct.pitch.mp3-320": [
+          5.101,
+          4.62,
+          4.467,
+          4.467,
+          4.548
         ],
         "paused_cpu_pct": [
-          3.909,
-          4.109,
-          3.555
+          2.801,
+          2.328,
+          2.19,
+          2.151,
+          2.176
         ],
         "paused_wakeups_per_s": [
-          1.599,
           1.799,
-          0.999
+          0.998,
+          1.597,
+          1.797,
+          1.2
         ],
         "playback_footprint_mb": [
-          70.907,
-          71.048,
-          70.751
+          65.86,
+          57.97,
+          62.032,
+          61.845,
+          63.142
         ],
         "waveform_ms.mp3-320": [
-          201.753,
-          194.947,
-          193.22
+          246.201,
+          249.527,
+          246.15,
+          246.394,
+          246.869
         ],
         "waveform_ms.flac-16-44": [
-          186.805,
-          187.919,
-          194.013
+          191.17,
+          191.372,
+          191.421,
+          191.56,
+          191.608
         ],
         "waveform_ms.flac-24-192": [
-          1228.605,
-          1236.258,
-          1287.712
+          1240.224,
+          1242.287,
+          1238.75,
+          1241.568,
+          1238.409
+        ],
+        "waveform_ms.mp3-320-60min": [
+          4798.603,
+          4799.994,
+          4789.382,
+          4806.166,
+          4786.342
+        ],
+        "waveform_ms.flac-24-352": [
+          775.161,
+          775.389,
+          773.328,
+          775.695,
+          772.019
         ],
         "library_list_ms": [
-          31.11,
-          29.021,
-          31.295
+          31.842,
+          36.732,
+          36.707,
+          36.723,
+          36.764
         ],
         "library_scan_cold_ms": [
-          256.885,
-          284.381,
-          292.676
+          316.189,
+          290.579,
+          330.515,
+          313.321,
+          309.545
         ],
         "library_scan_cpu_s": [
-          0.811,
-          0.814,
-          0.88
+          0.982,
+          0.974,
+          0.997,
+          0.977,
+          0.999
         ],
         "library_footprint_mb": [
-          107.298,
-          108.657,
-          107.751
+          103.392,
+          102.704,
+          103.813,
+          103.892,
+          103.142
         ],
         "peak_footprint_mb": [
-          109.001,
-          110.267,
-          109.548
+          105.22,
+          104.642,
+          105.72,
+          105.798,
+          105.079
         ],
         "library_scan_warm_ms": [
-          123.128,
-          129.964,
-          120.323
+          136.084,
+          147.651,
+          143.915,
+          142.894,
+          140.651
         ]
       }
     },
@@ -731,362 +1639,816 @@
       "ref": "v1.10",
       "commit": "162cf0c7f86badc05d56e73f9e3a082ce9271b36",
       "measured": "2026-09-28",
-      "reps": 3,
-      "corpus": "65e9656c071f84ef",
+      "reps": 5,
+      "corpus": "911f823547f3298e",
       "machine": {
-        "chip": "Apple M4 Max",
-        "cores": 16,
-        "memory_gb": 64,
-        "macos": "27.0",
-        "xcode": "Xcode 27.0"
+        "chip": "Apple M2 Pro",
+        "cores": 12,
+        "memory_gb": 32,
+        "macos": "26.5.2",
+        "xcode": "Xcode 26.6"
       },
       "metrics": {
-        "system_idle_pct": 90.915,
-        "launch_cold_window_ms": 183.334,
-        "launch_cold_ready_ms": 189.686,
-        "idle_cpu_pct": 0.02,
-        "idle_wakeups_per_s": 0.799,
-        "idle_footprint_mb": 36.454,
-        "launch_warm_window_ms": 187.378,
-        "launch_warm_ready_ms": 200.64,
-        "ttp_ms.mp3-320": 74.719,
-        "play_cpu_pct.mp3-320": 2.99,
-        "play_minstr_per_s.mp3-320": 69.945,
-        "play_power_mw.mp3-320": 5.516,
-        "ttp_ms.mp3-v0": 42.144,
-        "play_cpu_pct.mp3-v0": 3.233,
-        "play_minstr_per_s.mp3-v0": 67.546,
-        "play_power_mw.mp3-v0": 5.308,
-        "seek_ms.mp3-v0": 52.129,
+        "system_idle_pct": 96.105,
+        "idle_cpu_pct": 0.031,
+        "idle_wakeups_per_s": 0.599,
+        "idle_footprint_mb": 29.235,
+        "launch_cold_window_ms": 179.247,
+        "launch_cold_ready_ms": 183.784,
+        "launch_warm_window_ms": 180.659,
+        "launch_warm_ready_ms": 187.114,
+        "ttp_ms.mp3-320": 68.6,
+        "play_cpu_pct.mp3-320": 4.586,
+        "play_minstr_per_s.mp3-320": 65.008,
+        "play_power_mw.mp3-320": 3.471,
+        "ttp_ms.mp3-v0": 36.154,
+        "play_cpu_pct.mp3-v0": 4.524,
+        "play_minstr_per_s.mp3-v0": 64.768,
+        "play_power_mw.mp3-v0": 3.401,
+        "seek_ms.mp3-v0": 52.787,
         "seek_stalls.mp3-v0": 0,
-        "ttp_ms.aac-256": 40.647,
-        "play_cpu_pct.aac-256": 3.082,
-        "play_minstr_per_s.aac-256": 56.658,
-        "play_power_mw.aac-256": 3.366,
-        "seek_ms.aac-256": 52.319,
+        "ttp_ms.aac-256": 41.859,
+        "play_cpu_pct.aac-256": 4.098,
+        "play_minstr_per_s.aac-256": 53.45,
+        "play_power_mw.aac-256": 2.934,
+        "seek_ms.aac-256": 53.587,
         "seek_stalls.aac-256": 0,
-        "ttp_ms.flac-16-44": 39.269,
-        "play_cpu_pct.flac-16-44": 2.989,
-        "play_minstr_per_s.flac-16-44": 67.686,
-        "play_power_mw.flac-16-44": 3.92,
-        "ttp_ms.flac-24-96": 42.323,
-        "play_cpu_pct.flac-24-96": 4.314,
-        "play_minstr_per_s.flac-24-96": 127.677,
-        "play_power_mw.flac-24-96": 11.229,
-        "ttp_ms.flac-24-192": 38.381,
-        "play_cpu_pct.flac-24-192": 5.57,
-        "play_minstr_per_s.flac-24-192": 208.597,
-        "play_power_mw.flac-24-192": 17.521,
-        "seek_ms.flac-24-192": 51.578,
+        "ttp_ms.flac-16-44": 36.838,
+        "play_cpu_pct.flac-16-44": 4.392,
+        "play_minstr_per_s.flac-16-44": 65.34,
+        "play_power_mw.flac-16-44": 3.218,
+        "ttp_ms.flac-24-96": 36.944,
+        "play_cpu_pct.flac-24-96": 5.936,
+        "play_minstr_per_s.flac-24-96": 108.774,
+        "play_power_mw.flac-24-96": 5.29,
+        "ttp_ms.flac-24-192": 34.686,
+        "play_cpu_pct.flac-24-192": 7.892,
+        "play_minstr_per_s.flac-24-192": 176.722,
+        "play_power_mw.flac-24-192": 9.81,
+        "seek_ms.flac-24-192": 53.422,
         "seek_stalls.flac-24-192": 0,
-        "ttp_ms.wav-24-96": 31.371,
-        "play_cpu_pct.wav-24-96": 3.148,
-        "play_minstr_per_s.wav-24-96": 63.071,
-        "play_power_mw.wav-24-96": 3.179,
-        "play_cpu_pct.fx": 7.685,
-        "play_power_mw.fx": 20.033,
-        "paused_cpu_pct": 3.901,
-        "paused_wakeups_per_s": 1.999,
-        "playback_footprint_mb": 56.454,
-        "waveform_ms.mp3-320": 189.148,
-        "waveform_ms.flac-16-44": 195.295,
-        "waveform_ms.flac-24-192": 1278.957,
-        "library_list_ms": 31.164,
-        "library_scan_cold_ms": 400.501,
-        "library_scan_cpu_s": 1.131,
-        "library_footprint_mb": 65.329,
-        "peak_footprint_mb": 67.095,
-        "library_scan_warm_ms": 126.46
+        "ttp_ms.wav-24-96": 32.288,
+        "play_cpu_pct.wav-24-96": 4.664,
+        "play_minstr_per_s.wav-24-96": 63.271,
+        "play_power_mw.wav-24-96": 3.348,
+        "ttp_ms.mp3-320-48k": 34.142,
+        "play_cpu_pct.mp3-320-48k": 4.69,
+        "play_minstr_per_s.mp3-320-48k": 67.153,
+        "play_power_mw.mp3-320-48k": 3.441,
+        "ttp_ms.mp3-320-60min": 35.281,
+        "play_cpu_pct.mp3-320-60min": 4.483,
+        "play_minstr_per_s.mp3-320-60min": 64.835,
+        "play_power_mw.mp3-320-60min": 3.311,
+        "seek_ms.mp3-320-60min": 53.951,
+        "seek_stalls.mp3-320-60min": 0,
+        "ttp_ms.mp3-v0-60min": 30.692,
+        "play_cpu_pct.mp3-v0-60min": 4.46,
+        "play_minstr_per_s.mp3-v0-60min": 64.707,
+        "play_power_mw.mp3-v0-60min": 3.248,
+        "seek_ms.mp3-v0-60min": 53.596,
+        "seek_stalls.mp3-v0-60min": 0,
+        "ttp_ms.mp3-v0-noxing": 42.008,
+        "play_cpu_pct.mp3-v0-noxing": 4.51,
+        "play_minstr_per_s.mp3-v0-noxing": 64.737,
+        "play_power_mw.mp3-v0-noxing": 3.318,
+        "seek_ms.mp3-v0-noxing": 53.415,
+        "seek_stalls.mp3-v0-noxing": 0,
+        "ttp_ms.flac-24-88": 37.092,
+        "play_cpu_pct.flac-24-88": 5.634,
+        "play_minstr_per_s.flac-24-88": 103.021,
+        "play_power_mw.flac-24-88": 4.903,
+        "ttp_ms.flac-24-176": 37.102,
+        "play_cpu_pct.flac-24-176": 7.542,
+        "play_minstr_per_s.flac-24-176": 165.136,
+        "play_power_mw.flac-24-176": 8.817,
+        "ttp_ms.flac-24-352": 35.389,
+        "play_cpu_pct.flac-24-352": 11.59,
+        "play_minstr_per_s.flac-24-352": 302.907,
+        "play_power_mw.flac-24-352": 19.945,
+        "ttp_ms.flac-16-22-mono": 36.889,
+        "play_cpu_pct.flac-16-22-mono": 3.59,
+        "play_minstr_per_s.flac-16-22-mono": 46.38,
+        "play_power_mw.flac-16-22-mono": 2.529,
+        "play_cpu_pct.fx": 11.313,
+        "play_power_mw.fx": 12.501,
+        "play_cpu_pct.pitch.flac-24-192": 10.828,
+        "play_cpu_pct.pitch.mp3-320": 4.541,
+        "paused_cpu_pct": 2.284,
+        "paused_wakeups_per_s": 1.597,
+        "playback_footprint_mb": 51.36,
+        "waveform_ms.mp3-320": 249.316,
+        "waveform_ms.flac-16-44": 191.708,
+        "waveform_ms.flac-24-192": 1242.203,
+        "waveform_ms.mp3-320-60min": 4798.698,
+        "waveform_ms.flac-24-352": 776.027,
+        "library_list_ms": 32.998,
+        "library_scan_cold_ms": 482.133,
+        "library_scan_cpu_s": 1.32,
+        "library_footprint_mb": 60.423,
+        "peak_footprint_mb": 62.251,
+        "library_scan_warm_ms": 139.212
       },
       "samples": {
         "system_idle_pct": [
-          91.6,
-          91.72,
-          91.56,
-          86.49,
-          86.18,
-          91.8,
-          90.3,
-          91.53,
-          86.65,
-          83.94,
-          88.91,
-          92.82
-        ],
-        "launch_cold_window_ms": [
-          183.334,
-          185.396,
-          175.989
-        ],
-        "launch_cold_ready_ms": [
-          185.603,
-          194.327,
-          189.686
+          92.79,
+          94.16,
+          98.42,
+          98.42,
+          97.55,
+          89.94,
+          95.61,
+          94.82,
+          96.51,
+          86.81,
+          98.29,
+          98.58,
+          97.74,
+          90.36,
+          94.37,
+          95.7,
+          97.66,
+          90.77,
+          98.42,
+          98.36
         ],
         "idle_cpu_pct": [
-          0.02,
-          0.014,
-          0.11
+          0.031,
+          0.029,
+          0.03,
+          0.034,
+          0.036
         ],
         "idle_wakeups_per_s": [
+          0.599,
+          0.8,
           0.799,
-          0.799,
-          9.398
+          0.599,
+          0.599
         ],
         "idle_footprint_mb": [
-          36.454,
-          36.657,
-          36.298
+          28.72,
+          28.97,
+          29.251,
+          29.235,
+          29.235
+        ],
+        "launch_cold_window_ms": [
+          179.247,
+          181.031,
+          177.92,
+          181.145,
+          177.228
+        ],
+        "launch_cold_ready_ms": [
+          183.507,
+          184.573,
+          183.784,
+          188.355,
+          183.508
         ],
         "launch_warm_window_ms": [
-          187.378,
-          193.411,
-          187.278
+          180.754,
+          180.911,
+          180.242,
+          180.52,
+          180.659
         ],
         "launch_warm_ready_ms": [
-          200.64,
-          200.944,
-          199.306
+          186.004,
+          186.956,
+          187.114,
+          187.376,
+          187.352
         ],
         "ttp_ms.mp3-320": [
-          74.233,
-          76.547,
-          74.719
+          76.191,
+          68.57,
+          68.6,
+          69.299,
+          65.587
         ],
         "play_cpu_pct.mp3-320": [
-          2.962,
-          3.631,
-          2.99
+          4.628,
+          4.54,
+          4.572,
+          4.592,
+          4.586
         ],
         "play_minstr_per_s.mp3-320": [
-          66.122,
-          69.945,
-          70.206
+          65.027,
+          65.014,
+          64.947,
+          65.008,
+          65.0
         ],
         "play_power_mw.mp3-320": [
-          5.122,
-          5.516,
-          6.967
+          3.471,
+          3.53,
+          3.392,
+          3.537,
+          3.416
         ],
         "ttp_ms.mp3-v0": [
-          33.326,
-          42.144,
-          47.998
+          39.592,
+          36.154,
+          29.706,
+          34.729,
+          38.418
         ],
         "play_cpu_pct.mp3-v0": [
-          3.233,
-          3.635,
-          3.07
+          4.502,
+          4.562,
+          4.567,
+          4.523,
+          4.524
         ],
         "play_minstr_per_s.mp3-v0": [
-          67.546,
-          68.388,
-          65.046
+          64.756,
+          64.768,
+          64.698,
+          64.814,
+          64.819
         ],
         "play_power_mw.mp3-v0": [
-          6.668,
-          4.546,
-          5.308
+          3.562,
+          3.355,
+          3.323,
+          3.401,
+          3.53
         ],
         "seek_ms.mp3-v0": [
-          52.602,
-          51.279,
-          52.129
+          52.507,
+          53.383,
+          52.787,
+          52.626,
+          52.942
         ],
         "seek_stalls.mp3-v0": [
+          0,
+          0,
           0,
           0,
           0
         ],
         "ttp_ms.aac-256": [
-          38.278,
-          42.896,
-          40.647
+          42.34,
+          42.247,
+          41.859,
+          41.706,
+          38.137
         ],
         "play_cpu_pct.aac-256": [
-          3.082,
-          3.454,
-          2.723
+          4.112,
+          4.015,
+          4.037,
+          4.098,
+          4.098
         ],
         "play_minstr_per_s.aac-256": [
-          56.658,
-          56.692,
-          52.001
+          53.45,
+          53.507,
+          53.395,
+          53.461,
+          53.44
         ],
         "play_power_mw.aac-256": [
-          5.636,
-          3.366,
-          2.922
+          2.934,
+          3.147,
+          3.091,
+          2.912,
+          2.837
         ],
         "seek_ms.aac-256": [
-          52.319,
-          51.283,
-          53.239
+          54.213,
+          52.707,
+          54.716,
+          53.587,
+          52.598
         ],
         "seek_stalls.aac-256": [
+          0,
+          0,
           0,
           0,
           0
         ],
         "ttp_ms.flac-16-44": [
-          32.943,
-          47.592,
-          39.269
+          35.518,
+          41.313,
+          42.566,
+          29.786,
+          36.838
         ],
         "play_cpu_pct.flac-16-44": [
-          2.989,
-          3.53,
-          2.934
+          4.458,
+          4.392,
+          4.399,
+          4.36,
+          4.275
         ],
         "play_minstr_per_s.flac-16-44": [
-          67.686,
-          71.987,
-          67.624
+          65.335,
+          65.372,
+          65.331,
+          65.34,
+          65.34
         ],
         "play_power_mw.flac-16-44": [
-          3.671,
-          4.367,
-          3.92
+          3.397,
+          3.162,
+          3.215,
+          3.218,
+          3.531
         ],
         "ttp_ms.flac-24-96": [
-          42.323,
-          39.744,
-          43.695
+          38.387,
+          32.558,
+          36.944,
+          40.504,
+          31.395
         ],
         "play_cpu_pct.flac-24-96": [
-          4.314,
-          4.694,
-          4.06
+          5.86,
+          5.71,
+          5.961,
+          5.956,
+          5.936
         ],
         "play_minstr_per_s.flac-24-96": [
-          127.821,
-          127.677,
-          126.578
+          108.67,
+          108.802,
+          108.774,
+          108.791,
+          108.701
         ],
         "play_power_mw.flac-24-96": [
-          11.229,
-          7.64,
-          11.466
+          5.29,
+          6.032,
+          5.158,
+          5.33,
+          5.157
         ],
         "ttp_ms.flac-24-192": [
-          30.058,
-          39.718,
-          38.381
+          34.686,
+          30.571,
+          39.261,
+          41.805,
+          31.379
         ],
         "play_cpu_pct.flac-24-192": [
-          5.57,
-          6.013,
-          5.14
+          7.828,
+          7.847,
+          7.946,
+          7.909,
+          7.892
         ],
         "play_minstr_per_s.flac-24-192": [
-          208.597,
-          219.061,
-          208.48
+          176.687,
+          176.757,
+          176.722,
+          176.715,
+          176.738
         ],
         "play_power_mw.flac-24-192": [
-          10.29,
-          20.562,
-          17.521
+          10.094,
+          9.749,
+          9.81,
+          9.719,
+          9.81
         ],
         "seek_ms.flac-24-192": [
-          51.329,
-          53.985,
-          51.578
+          54.69,
+          53.306,
+          52.945,
+          53.422,
+          53.871
         ],
         "seek_stalls.flac-24-192": [
+          0,
+          0,
           0,
           0,
           0
         ],
         "ttp_ms.wav-24-96": [
-          31.169,
-          31.371,
-          41.27
+          32.288,
+          35.463,
+          28.539,
+          29.685,
+          40.278
         ],
         "play_cpu_pct.wav-24-96": [
-          3.148,
-          3.468,
-          3.012
+          4.664,
+          4.61,
+          4.656,
+          4.676,
+          4.693
         ],
         "play_minstr_per_s.wav-24-96": [
-          63.071,
-          67.341,
-          62.96
+          63.219,
+          63.329,
+          63.196,
+          63.271,
+          63.32
         ],
         "play_power_mw.wav-24-96": [
-          3.116,
+          3.341,
+          3.431,
+          3.348,
+          3.353,
+          3.331
+        ],
+        "ttp_ms.mp3-320-48k": [
+          37.15,
+          29.406,
+          31.967,
+          34.142,
+          37.865
+        ],
+        "play_cpu_pct.mp3-320-48k": [
+          4.663,
           4.69,
-          3.179
+          4.599,
+          4.703,
+          4.728
+        ],
+        "play_minstr_per_s.mp3-320-48k": [
+          67.127,
+          67.167,
+          67.087,
+          67.153,
+          67.166
+        ],
+        "play_power_mw.mp3-320-48k": [
+          3.675,
+          3.441,
+          3.729,
+          3.417,
+          3.393
+        ],
+        "ttp_ms.mp3-320-60min": [
+          30.811,
+          35.281,
+          36.132,
+          27.076,
+          35.345
+        ],
+        "play_cpu_pct.mp3-320-60min": [
+          4.469,
+          4.483,
+          4.518,
+          4.537,
+          4.39
+        ],
+        "play_minstr_per_s.mp3-320-60min": [
+          64.809,
+          65.642,
+          64.835,
+          65.64,
+          64.799
+        ],
+        "play_power_mw.mp3-320-60min": [
+          3.324,
+          3.369,
+          3.109,
+          3.229,
+          3.311
+        ],
+        "seek_ms.mp3-320-60min": [
+          52.591,
+          54.36,
+          53.951,
+          53.014,
+          54.439
+        ],
+        "seek_stalls.mp3-320-60min": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ttp_ms.mp3-v0-60min": [
+          30.692,
+          30.478,
+          43.237,
+          32.765,
+          30.433
+        ],
+        "play_cpu_pct.mp3-v0-60min": [
+          4.466,
+          4.489,
+          4.445,
+          4.46,
+          4.446
+        ],
+        "play_minstr_per_s.mp3-v0-60min": [
+          64.68,
+          64.768,
+          64.707,
+          64.745,
+          64.693
+        ],
+        "play_power_mw.mp3-v0-60min": [
+          3.224,
+          3.248,
+          3.675,
+          3.255,
+          3.138
+        ],
+        "seek_ms.mp3-v0-60min": [
+          53.687,
+          53.502,
+          53.596,
+          53.475,
+          54.012
+        ],
+        "seek_stalls.mp3-v0-60min": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ttp_ms.mp3-v0-noxing": [
+          42.729,
+          40.334,
+          40.543,
+          42.008,
+          42.51
+        ],
+        "play_cpu_pct.mp3-v0-noxing": [
+          4.496,
+          4.498,
+          4.548,
+          4.574,
+          4.51
+        ],
+        "play_minstr_per_s.mp3-v0-noxing": [
+          64.692,
+          64.737,
+          64.807,
+          64.805,
+          64.694
+        ],
+        "play_power_mw.mp3-v0-noxing": [
+          3.318,
+          3.242,
+          3.44,
+          3.277,
+          3.356
+        ],
+        "seek_ms.mp3-v0-noxing": [
+          54.016,
+          52.92,
+          52.375,
+          54.23,
+          53.415
+        ],
+        "seek_stalls.mp3-v0-noxing": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ttp_ms.flac-24-88": [
+          38.942,
+          34.335,
+          29.659,
+          37.092,
+          38.871
+        ],
+        "play_cpu_pct.flac-24-88": [
+          5.706,
+          5.723,
+          5.634,
+          5.631,
+          5.591
+        ],
+        "play_minstr_per_s.flac-24-88": [
+          103.008,
+          103.021,
+          103.309,
+          101.403,
+          103.059
+        ],
+        "play_power_mw.flac-24-88": [
+          4.887,
+          4.903,
+          5.624,
+          4.8,
+          5.08
+        ],
+        "ttp_ms.flac-24-176": [
+          31.938,
+          39.83,
+          29.473,
+          37.102,
+          44.803
+        ],
+        "play_cpu_pct.flac-24-176": [
+          7.57,
+          7.392,
+          7.599,
+          7.525,
+          7.542
+        ],
+        "play_minstr_per_s.flac-24-176": [
+          165.136,
+          165.226,
+          165.135,
+          165.122,
+          165.17
+        ],
+        "play_power_mw.flac-24-176": [
+          8.664,
+          9.17,
+          8.763,
+          9.073,
+          8.817
+        ],
+        "ttp_ms.flac-24-352": [
+          32.282,
+          40.247,
+          35.389,
+          30.946,
+          47.115
+        ],
+        "play_cpu_pct.flac-24-352": [
+          11.885,
+          9.788,
+          11.558,
+          11.59,
+          11.704
+        ],
+        "play_minstr_per_s.flac-24-352": [
+          302.985,
+          303.049,
+          297.854,
+          297.952,
+          302.907
+        ],
+        "play_power_mw.flac-24-352": [
+          19.351,
+          33.468,
+          20.274,
+          19.614,
+          19.945
+        ],
+        "ttp_ms.flac-16-22-mono": [
+          41.133,
+          28.381,
+          37.587,
+          36.889,
+          32.544
+        ],
+        "play_cpu_pct.flac-16-22-mono": [
+          3.584,
+          3.511,
+          3.59,
+          3.612,
+          3.822
+        ],
+        "play_minstr_per_s.flac-16-22-mono": [
+          46.301,
+          46.366,
+          46.38,
+          46.43,
+          46.438
+        ],
+        "play_power_mw.flac-16-22-mono": [
+          2.49,
+          2.756,
+          2.529,
+          2.46,
+          4.096
         ],
         "play_cpu_pct.fx": [
-          7.207,
-          8.381,
-          7.685
+          11.167,
+          11.468,
+          11.327,
+          11.294,
+          11.313
         ],
         "play_power_mw.fx": [
-          22.693,
-          19.618,
-          20.033
+          12.485,
+          12.71,
+          12.395,
+          12.501,
+          13.59
+        ],
+        "play_cpu_pct.pitch.flac-24-192": [
+          10.865,
+          10.769,
+          10.868,
+          10.828,
+          10.809
+        ],
+        "play_cpu_pct.pitch.mp3-320": [
+          4.559,
+          4.565,
+          4.541,
+          4.504,
+          4.466
         ],
         "paused_cpu_pct": [
-          4.081,
-          3.535,
-          3.901
+          2.466,
+          2.236,
+          2.244,
+          2.284,
+          2.306
         ],
         "paused_wakeups_per_s": [
-          1.999,
-          1.599,
-          1.999
+          0.998,
+          1.597,
+          1.798,
+          1.397,
+          1.796
         ],
         "playback_footprint_mb": [
-          57.829,
-          56.454,
-          56.314
+          52.501,
+          51.251,
+          51.36,
+          51.485,
+          51.251
         ],
         "waveform_ms.mp3-320": [
-          193.156,
-          188.459,
-          189.148
+          248.74,
+          250.523,
+          248.0,
+          249.316,
+          249.492
         ],
         "waveform_ms.flac-16-44": [
-          195.295,
-          190.182,
-          195.468
+          191.708,
+          191.302,
+          191.812,
+          191.716,
+          191.125
         ],
         "waveform_ms.flac-24-192": [
-          1278.957,
-          1259.232,
-          1290.986
+          1242.854,
+          1239.272,
+          1242.203,
+          1238.496,
+          1242.46
+        ],
+        "waveform_ms.mp3-320-60min": [
+          4798.698,
+          4788.799,
+          4801.428,
+          4796.319,
+          4800.689
+        ],
+        "waveform_ms.flac-24-352": [
+          776.027,
+          771.491,
+          776.207,
+          773.41,
+          776.294
         ],
         "library_list_ms": [
-          31.164,
-          30.607,
-          34.143
+          34.001,
+          36.792,
+          30.261,
+          29.84,
+          32.998
         ],
         "library_scan_cold_ms": [
-          431.293,
-          399.41,
-          400.501
+          467.328,
+          482.51,
+          486.03,
+          475.532,
+          482.133
         ],
         "library_scan_cpu_s": [
-          1.131,
-          1.129,
-          1.137
+          1.32,
+          1.345,
+          1.317,
+          1.338,
+          1.316
         ],
         "library_footprint_mb": [
-          65.329,
-          67.689,
-          65.267
+          60.423,
+          60.485,
+          59.438,
+          61.017,
+          59.782
         ],
         "peak_footprint_mb": [
-          67.095,
-          69.251,
-          66.97
+          62.251,
+          62.345,
+          61.267,
+          62.845,
+          61.579
         ],
         "library_scan_warm_ms": [
-          126.46,
-          129.694,
-          122.944
+          139.683,
+          137.153,
+          139.212,
+          138.485,
+          147.21
         ]
       }
     },
@@ -1094,362 +2456,816 @@
       "ref": "v1.11",
       "commit": "75d0dadf3f78fda5a62942155eafa48906680327",
       "measured": "2026-09-28",
-      "reps": 3,
-      "corpus": "65e9656c071f84ef",
+      "reps": 5,
+      "corpus": "911f823547f3298e",
       "machine": {
-        "chip": "Apple M4 Max",
-        "cores": 16,
-        "memory_gb": 64,
-        "macos": "27.0",
-        "xcode": "Xcode 27.0"
+        "chip": "Apple M2 Pro",
+        "cores": 12,
+        "memory_gb": 32,
+        "macos": "26.5.2",
+        "xcode": "Xcode 26.6"
       },
       "metrics": {
-        "system_idle_pct": 91.495,
-        "launch_cold_window_ms": 188.493,
-        "launch_cold_ready_ms": 196.702,
-        "idle_cpu_pct": 0.02,
-        "idle_wakeups_per_s": 0.8,
-        "idle_footprint_mb": 37.157,
-        "launch_warm_window_ms": 191.843,
-        "launch_warm_ready_ms": 204.748,
-        "ttp_ms.mp3-320": 77.184,
-        "play_cpu_pct.mp3-320": 3.07,
-        "play_minstr_per_s.mp3-320": 64.477,
-        "play_power_mw.mp3-320": 3.336,
-        "ttp_ms.mp3-v0": 37.983,
-        "play_cpu_pct.mp3-v0": 3.211,
-        "play_minstr_per_s.mp3-v0": 67.46,
-        "play_power_mw.mp3-v0": 6.68,
-        "seek_ms.mp3-v0": 51.794,
+        "system_idle_pct": 97.805,
+        "idle_cpu_pct": 0.034,
+        "idle_wakeups_per_s": 0.799,
+        "idle_footprint_mb": 29.891,
+        "launch_cold_window_ms": 181.927,
+        "launch_cold_ready_ms": 188.378,
+        "launch_warm_window_ms": 184.926,
+        "launch_warm_ready_ms": 190.463,
+        "ttp_ms.mp3-320": 68.438,
+        "play_cpu_pct.mp3-320": 4.555,
+        "play_minstr_per_s.mp3-320": 64.867,
+        "play_power_mw.mp3-320": 3.446,
+        "ttp_ms.mp3-v0": 36.906,
+        "play_cpu_pct.mp3-v0": 4.486,
+        "play_minstr_per_s.mp3-v0": 64.644,
+        "play_power_mw.mp3-v0": 3.467,
+        "seek_ms.mp3-v0": 52.777,
         "seek_stalls.mp3-v0": 0,
-        "ttp_ms.aac-256": 33.881,
-        "play_cpu_pct.aac-256": 2.713,
-        "play_minstr_per_s.aac-256": 52.054,
-        "play_power_mw.aac-256": 3.185,
-        "seek_ms.aac-256": 52.408,
+        "ttp_ms.aac-256": 37.133,
+        "play_cpu_pct.aac-256": 4.069,
+        "play_minstr_per_s.aac-256": 53.345,
+        "play_power_mw.aac-256": 2.948,
+        "seek_ms.aac-256": 52.564,
         "seek_stalls.aac-256": 0,
-        "ttp_ms.flac-16-44": 37.472,
-        "play_cpu_pct.flac-16-44": 3.192,
-        "play_minstr_per_s.flac-16-44": 67.665,
-        "play_power_mw.flac-16-44": 2.915,
-        "ttp_ms.flac-24-96": 35.16,
-        "play_cpu_pct.flac-24-96": 3.872,
-        "play_minstr_per_s.flac-24-96": 123.288,
-        "play_power_mw.flac-24-96": 9.226,
-        "ttp_ms.flac-24-192": 34.521,
-        "play_cpu_pct.flac-24-192": 5.409,
-        "play_minstr_per_s.flac-24-192": 208.581,
-        "play_power_mw.flac-24-192": 13.787,
-        "seek_ms.flac-24-192": 51.717,
+        "ttp_ms.flac-16-44": 36.031,
+        "play_cpu_pct.flac-16-44": 4.345,
+        "play_minstr_per_s.flac-16-44": 65.208,
+        "play_power_mw.flac-16-44": 3.192,
+        "ttp_ms.flac-24-96": 29.994,
+        "play_cpu_pct.flac-24-96": 5.777,
+        "play_minstr_per_s.flac-24-96": 108.548,
+        "play_power_mw.flac-24-96": 5.496,
+        "ttp_ms.flac-24-192": 35.057,
+        "play_cpu_pct.flac-24-192": 7.741,
+        "play_minstr_per_s.flac-24-192": 176.541,
+        "play_power_mw.flac-24-192": 10.101,
+        "seek_ms.flac-24-192": 53.145,
         "seek_stalls.flac-24-192": 0,
-        "ttp_ms.wav-24-96": 30.172,
-        "play_cpu_pct.wav-24-96": 2.903,
-        "play_minstr_per_s.wav-24-96": 63.001,
-        "play_power_mw.wav-24-96": 3.683,
-        "play_cpu_pct.fx": 7.011,
-        "play_power_mw.fx": 18.87,
-        "paused_cpu_pct": 3.993,
-        "paused_wakeups_per_s": 1.199,
-        "playback_footprint_mb": 57.673,
-        "waveform_ms.mp3-320": 192.253,
-        "waveform_ms.flac-16-44": 196.032,
-        "waveform_ms.flac-24-192": 1283.767,
-        "library_list_ms": 30.44,
-        "library_scan_cold_ms": 412.491,
-        "library_scan_cpu_s": 1.162,
-        "library_footprint_mb": 65.392,
-        "peak_footprint_mb": 66.985,
-        "library_scan_warm_ms": 121.407
+        "ttp_ms.wav-24-96": 33.564,
+        "play_cpu_pct.wav-24-96": 4.627,
+        "play_minstr_per_s.wav-24-96": 63.194,
+        "play_power_mw.wav-24-96": 3.426,
+        "ttp_ms.mp3-320-48k": 34.355,
+        "play_cpu_pct.mp3-320-48k": 4.648,
+        "play_minstr_per_s.mp3-320-48k": 67.012,
+        "play_power_mw.mp3-320-48k": 3.487,
+        "ttp_ms.mp3-320-60min": 36.176,
+        "play_cpu_pct.mp3-320-60min": 4.39,
+        "play_minstr_per_s.mp3-320-60min": 64.703,
+        "play_power_mw.mp3-320-60min": 3.226,
+        "seek_ms.mp3-320-60min": 54.276,
+        "seek_stalls.mp3-320-60min": 0,
+        "ttp_ms.mp3-v0-60min": 34.807,
+        "play_cpu_pct.mp3-v0-60min": 4.414,
+        "play_minstr_per_s.mp3-v0-60min": 64.554,
+        "play_power_mw.mp3-v0-60min": 3.162,
+        "seek_ms.mp3-v0-60min": 53.726,
+        "seek_stalls.mp3-v0-60min": 0,
+        "ttp_ms.mp3-v0-noxing": 46.717,
+        "play_cpu_pct.mp3-v0-noxing": 4.475,
+        "play_minstr_per_s.mp3-v0-noxing": 64.647,
+        "play_power_mw.mp3-v0-noxing": 3.316,
+        "seek_ms.mp3-v0-noxing": 53.575,
+        "seek_stalls.mp3-v0-noxing": 0,
+        "ttp_ms.flac-24-88": 36.576,
+        "play_cpu_pct.flac-24-88": 5.687,
+        "play_minstr_per_s.flac-24-88": 102.916,
+        "play_power_mw.flac-24-88": 5.066,
+        "ttp_ms.flac-24-176": 35.855,
+        "play_cpu_pct.flac-24-176": 7.514,
+        "play_minstr_per_s.flac-24-176": 165.003,
+        "play_power_mw.flac-24-176": 8.823,
+        "ttp_ms.flac-24-352": 36.099,
+        "play_cpu_pct.flac-24-352": 11.648,
+        "play_minstr_per_s.flac-24-352": 302.568,
+        "play_power_mw.flac-24-352": 21.228,
+        "ttp_ms.flac-16-22-mono": 34.201,
+        "play_cpu_pct.flac-16-22-mono": 3.585,
+        "play_minstr_per_s.flac-16-22-mono": 46.251,
+        "play_power_mw.flac-16-22-mono": 2.527,
+        "play_cpu_pct.fx": 11.433,
+        "play_power_mw.fx": 12.749,
+        "play_cpu_pct.pitch.flac-24-192": 10.866,
+        "play_cpu_pct.pitch.mp3-320": 4.505,
+        "paused_cpu_pct": 2.243,
+        "paused_wakeups_per_s": 1.198,
+        "playback_footprint_mb": 52.298,
+        "waveform_ms.mp3-320": 248.365,
+        "waveform_ms.flac-16-44": 191.629,
+        "waveform_ms.flac-24-192": 1239.779,
+        "waveform_ms.mp3-320-60min": 4794.376,
+        "waveform_ms.flac-24-352": 773.365,
+        "library_list_ms": 36.684,
+        "library_scan_cold_ms": 485.188,
+        "library_scan_cpu_s": 1.379,
+        "library_footprint_mb": 62.407,
+        "peak_footprint_mb": 64.188,
+        "library_scan_warm_ms": 140.912
       },
       "samples": {
         "system_idle_pct": [
-          92.52,
-          93.32,
-          91.37,
-          88.78,
-          90.66,
-          93.42,
-          96.6,
-          89.56,
-          85.9,
-          94.68,
-          91.39,
-          91.6
-        ],
-        "launch_cold_window_ms": [
-          185.344,
-          196.913,
-          188.493
-        ],
-        "launch_cold_ready_ms": [
-          192.675,
-          204.114,
-          196.702
+          97.95,
+          91.16,
+          98.65,
+          86.86,
+          93.5,
+          93.49,
+          98.57,
+          98.11,
+          97.66,
+          91.26,
+          98.57,
+          98.73,
+          94.32,
+          89.38,
+          98.73,
+          98.64,
+          97.59,
+          89.71,
+          98.7,
+          98.57
         ],
         "idle_cpu_pct": [
-          0.019,
-          0.024,
-          0.02
+          0.058,
+          0.034,
+          0.034,
+          0.033,
+          0.033
         ],
         "idle_wakeups_per_s": [
+          0.599,
           0.8,
-          1.4,
+          0.798,
+          0.8,
           0.799
         ],
         "idle_footprint_mb": [
-          37.157,
-          37.345,
-          36.142
+          29.891,
+          29.704,
+          30.641,
+          29.891,
+          29.72
+        ],
+        "launch_cold_window_ms": [
+          183.389,
+          181.479,
+          181.927,
+          181.421,
+          183.763
+        ],
+        "launch_cold_ready_ms": [
+          190.425,
+          187.476,
+          188.673,
+          186.799,
+          188.378
         ],
         "launch_warm_window_ms": [
-          191.843,
-          196.503,
-          185.193
+          184.926,
+          184.118,
+          185.789,
+          186.209,
+          184.292
         ],
         "launch_warm_ready_ms": [
-          204.827,
-          204.748,
-          202.203
+          189.351,
+          190.463,
+          190.99,
+          191.597,
+          189.676
         ],
         "ttp_ms.mp3-320": [
-          78.169,
-          76.784,
-          77.184
+          64.821,
+          68.785,
+          68.581,
+          68.438,
+          65.162
         ],
         "play_cpu_pct.mp3-320": [
-          3.07,
-          2.848,
-          3.568
+          4.693,
+          4.535,
+          4.555,
+          4.513,
+          4.622
         ],
         "play_minstr_per_s.mp3-320": [
-          63.123,
-          64.477,
-          67.45
+          64.959,
+          64.866,
+          64.867,
+          64.806,
+          64.942
         ],
         "play_power_mw.mp3-320": [
-          3.336,
-          4.594,
-          2.99
+          3.385,
+          3.528,
+          3.548,
+          3.446,
+          3.37
         ],
         "ttp_ms.mp3-v0": [
-          41.886,
-          31.567,
-          37.983
+          36.906,
+          37.058,
+          30.135,
+          41.996,
+          27.184
         ],
         "play_cpu_pct.mp3-v0": [
-          3.364,
-          3.167,
-          3.211
+          4.477,
+          4.486,
+          4.534,
+          4.57,
+          4.484
         ],
         "play_minstr_per_s.mp3-v0": [
-          67.46,
-          67.401,
-          73.947
+          64.677,
+          64.581,
+          64.726,
+          64.644,
+          64.537
         ],
         "play_power_mw.mp3-v0": [
-          5.983,
-          6.872,
-          6.68
+          3.557,
+          3.467,
+          3.454,
+          3.384,
+          3.54
         ],
         "seek_ms.mp3-v0": [
-          51.335,
-          54.107,
-          51.794
+          53.053,
+          52.777,
+          52.78,
+          52.747,
+          52.105
         ],
         "seek_stalls.mp3-v0": [
+          0,
+          0,
           0,
           0,
           0
         ],
         "ttp_ms.aac-256": [
-          41.891,
-          33.881,
-          32.345
+          39.149,
+          46.969,
+          37.133,
+          36.551,
+          34.935
         ],
         "play_cpu_pct.aac-256": [
-          2.713,
-          2.666,
-          2.916
+          4.069,
+          4.103,
+          4.046,
+          4.059,
+          4.086
         ],
         "play_minstr_per_s.aac-256": [
-          52.054,
-          52.036,
-          56.472
+          53.409,
+          53.362,
+          53.328,
+          53.331,
+          53.345
         ],
         "play_power_mw.aac-256": [
-          3.121,
-          3.185,
-          5.837
+          3.13,
+          2.948,
+          2.91,
+          2.879,
+          3.05
         ],
         "seek_ms.aac-256": [
-          52.408,
-          51.042,
-          53.062
+          52.106,
+          52.745,
+          52.558,
+          52.564,
+          53.597
         ],
         "seek_stalls.aac-256": [
+          0,
+          0,
           0,
           0,
           0
         ],
         "ttp_ms.flac-16-44": [
-          36.229,
-          43.315,
-          37.472
+          36.09,
+          38.995,
+          33.936,
+          36.031,
+          29.814
         ],
         "play_cpu_pct.flac-16-44": [
-          3.225,
-          2.955,
-          3.192
+          4.376,
+          4.281,
+          4.371,
+          4.338,
+          4.345
         ],
         "play_minstr_per_s.flac-16-44": [
-          67.615,
-          68.809,
-          67.665
+          65.155,
+          65.191,
+          65.208,
+          65.258,
+          65.215
         ],
         "play_power_mw.flac-16-44": [
-          2.805,
-          4.692,
-          2.915
+          3.184,
+          3.316,
+          3.192,
+          3.144,
+          3.331
         ],
         "ttp_ms.flac-24-96": [
-          30.745,
-          40.064,
-          35.16
+          33.589,
+          33.68,
+          29.543,
+          29.994,
+          28.364
         ],
         "play_cpu_pct.flac-24-96": [
-          4.147,
-          3.646,
-          3.872
+          5.867,
+          5.779,
+          5.722,
+          5.729,
+          5.777
         ],
         "play_minstr_per_s.flac-24-96": [
-          123.288,
-          120.088,
-          123.366
+          108.9,
+          108.248,
+          108.636,
+          108.497,
+          108.548
         ],
         "play_power_mw.flac-24-96": [
-          7.793,
-          9.226,
-          9.357
+          5.469,
+          5.1,
+          5.645,
+          5.496,
+          5.568
         ],
         "ttp_ms.flac-24-192": [
-          37.221,
-          29.71,
-          34.521
+          44.09,
+          30.867,
+          38.484,
+          32.795,
+          35.057
         ],
         "play_cpu_pct.flac-24-192": [
-          5.409,
-          5.411,
-          5.349
+          7.695,
+          7.813,
+          7.882,
+          7.673,
+          7.741
         ],
         "play_minstr_per_s.flac-24-192": [
-          208.46,
-          210.876,
-          208.581
+          176.521,
+          176.541,
+          176.623,
+          176.542,
+          176.498
         ],
         "play_power_mw.flac-24-192": [
-          13.787,
-          17.631,
-          13.735
+          9.696,
+          10.101,
+          9.552,
+          10.869,
+          10.119
         ],
         "seek_ms.flac-24-192": [
-          51.717,
-          53.784,
-          50.457
+          53.145,
+          52.322,
+          53.071,
+          53.623,
+          53.549
         ],
         "seek_stalls.flac-24-192": [
+          0,
+          0,
           0,
           0,
           0
         ],
         "ttp_ms.wav-24-96": [
-          28.028,
-          30.172,
-          32.27
+          33.564,
+          37.975,
+          26.825,
+          28.393,
+          37.608
         ],
         "play_cpu_pct.wav-24-96": [
-          2.82,
-          2.957,
-          2.903
+          4.587,
+          4.627,
+          4.67,
+          4.577,
+          4.667
         ],
         "play_minstr_per_s.wav-24-96": [
-          62.971,
-          63.001,
-          63.242
+          63.195,
+          63.137,
+          63.194,
+          63.21,
+          63.163
         ],
         "play_power_mw.wav-24-96": [
-          3.683,
-          3.146,
-          3.721
+          3.468,
+          3.375,
+          3.363,
+          3.497,
+          3.426
+        ],
+        "ttp_ms.mp3-320-48k": [
+          31.153,
+          37.465,
+          37.506,
+          34.355,
+          33.987
+        ],
+        "play_cpu_pct.mp3-320-48k": [
+          4.634,
+          4.667,
+          4.725,
+          4.616,
+          4.648
+        ],
+        "play_minstr_per_s.mp3-320-48k": [
+          66.981,
+          67.08,
+          67.012,
+          67.011,
+          67.055
+        ],
+        "play_power_mw.mp3-320-48k": [
+          3.487,
+          3.554,
+          3.382,
+          3.487,
+          3.469
+        ],
+        "ttp_ms.mp3-320-60min": [
+          43.435,
+          36.176,
+          31.811,
+          37.647,
+          27.028
+        ],
+        "play_cpu_pct.mp3-320-60min": [
+          4.45,
+          4.378,
+          4.493,
+          4.39,
+          4.37
+        ],
+        "play_minstr_per_s.mp3-320-60min": [
+          64.757,
+          64.689,
+          64.73,
+          64.703,
+          64.69
+        ],
+        "play_power_mw.mp3-320-60min": [
+          3.204,
+          3.328,
+          3.16,
+          3.226,
+          3.337
+        ],
+        "seek_ms.mp3-320-60min": [
+          54.335,
+          54.244,
+          54.883,
+          53.459,
+          54.276
+        ],
+        "seek_stalls.mp3-320-60min": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ttp_ms.mp3-v0-60min": [
+          32.692,
+          43.921,
+          34.524,
+          34.807,
+          39.477
+        ],
+        "play_cpu_pct.mp3-v0-60min": [
+          4.462,
+          4.32,
+          3.588,
+          4.433,
+          4.414
+        ],
+        "play_minstr_per_s.mp3-v0-60min": [
+          64.578,
+          64.554,
+          64.645,
+          64.528,
+          64.536
+        ],
+        "play_power_mw.mp3-v0-60min": [
+          3.162,
+          3.559,
+          8.311,
+          3.128,
+          3.159
+        ],
+        "seek_ms.mp3-v0-60min": [
+          53.695,
+          53.726,
+          52.768,
+          53.754,
+          53.866
+        ],
+        "seek_stalls.mp3-v0-60min": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ttp_ms.mp3-v0-noxing": [
+          32.805,
+          47.554,
+          46.717,
+          44.248,
+          55.401
+        ],
+        "play_cpu_pct.mp3-v0-noxing": [
+          4.418,
+          4.475,
+          4.559,
+          4.427,
+          4.528
+        ],
+        "play_minstr_per_s.mp3-v0-noxing": [
+          64.647,
+          64.69,
+          64.733,
+          64.601,
+          64.644
+        ],
+        "play_power_mw.mp3-v0-noxing": [
+          3.28,
+          3.331,
+          5.076,
+          3.316,
+          3.183
+        ],
+        "seek_ms.mp3-v0-noxing": [
+          53.575,
+          55.971,
+          52.707,
+          54.532,
+          53.324
+        ],
+        "seek_stalls.mp3-v0-noxing": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ttp_ms.flac-24-88": [
+          37.719,
+          37.301,
+          27.732,
+          30.595,
+          36.576
+        ],
+        "play_cpu_pct.flac-24-88": [
+          5.687,
+          5.653,
+          6.43,
+          5.689,
+          5.615
+        ],
+        "play_minstr_per_s.flac-24-88": [
+          103.282,
+          102.91,
+          102.922,
+          102.916,
+          102.814
+        ],
+        "play_power_mw.flac-24-88": [
+          5.066,
+          4.934,
+          5.226,
+          4.884,
+          5.146
+        ],
+        "ttp_ms.flac-24-176": [
+          37.903,
+          36.228,
+          28.726,
+          33.193,
+          35.855
+        ],
+        "play_cpu_pct.flac-24-176": [
+          7.514,
+          7.591,
+          8.131,
+          7.419,
+          7.506
+        ],
+        "play_minstr_per_s.flac-24-176": [
+          165.003,
+          165.022,
+          165.103,
+          164.963,
+          164.98
+        ],
+        "play_power_mw.flac-24-176": [
+          8.685,
+          8.823,
+          9.072,
+          9.08,
+          8.776
+        ],
+        "ttp_ms.flac-24-352": [
+          48.149,
+          38.223,
+          31.782,
+          36.099,
+          32.42
+        ],
+        "play_cpu_pct.flac-24-352": [
+          11.208,
+          11.263,
+          11.709,
+          11.648,
+          11.687
+        ],
+        "play_minstr_per_s.flac-24-352": [
+          302.57,
+          294.232,
+          302.512,
+          302.568,
+          302.597
+        ],
+        "play_power_mw.flac-24-352": [
+          22.254,
+          20.926,
+          21.48,
+          21.228,
+          20.947
+        ],
+        "ttp_ms.flac-16-22-mono": [
+          34.201,
+          28.159,
+          37.322,
+          33.865,
+          37.29
+        ],
+        "play_cpu_pct.flac-16-22-mono": [
+          3.532,
+          3.585,
+          4.35,
+          3.556,
+          3.603
+        ],
+        "play_minstr_per_s.flac-16-22-mono": [
+          46.212,
+          46.251,
+          46.313,
+          46.262,
+          46.231
+        ],
+        "play_power_mw.flac-16-22-mono": [
+          2.559,
+          2.469,
+          2.692,
+          2.527,
+          2.478
         ],
         "play_cpu_pct.fx": [
-          7.011,
-          7.562,
-          6.631
+          11.427,
+          11.433,
+          11.995,
+          11.44,
+          11.24
         ],
         "play_power_mw.fx": [
-          18.87,
-          11.105,
-          21.626
+          12.529,
+          12.749,
+          13.221,
+          13.138,
+          12.74
+        ],
+        "play_cpu_pct.pitch.flac-24-192": [
+          10.812,
+          10.874,
+          11.084,
+          10.793,
+          10.866
+        ],
+        "play_cpu_pct.pitch.mp3-320": [
+          4.429,
+          4.488,
+          5.318,
+          4.516,
+          4.505
         ],
         "paused_cpu_pct": [
-          3.993,
-          3.948,
-          4.232
+          2.192,
+          2.272,
+          2.673,
+          2.208,
+          2.243
         ],
         "paused_wakeups_per_s": [
-          1.399,
-          1.199,
-          1.0
+          0.998,
+          1.198,
+          1.4,
+          1.198,
+          1.4
         ],
         "playback_footprint_mb": [
-          55.36,
-          57.673,
-          57.72
+          52.548,
+          51.798,
+          52.61,
+          52.298,
+          51.626
         ],
         "waveform_ms.mp3-320": [
-          189.915,
-          192.253,
-          203.062
+          246.589,
+          250.712,
+          248.365,
+          247.938,
+          249.845
         ],
         "waveform_ms.flac-16-44": [
-          196.032,
-          197.883,
-          190.58
+          190.652,
+          191.75,
+          191.749,
+          191.629,
+          191.427
         ],
         "waveform_ms.flac-24-192": [
-          1292.388,
-          1283.767,
-          1244.631
+          1239.779,
+          1243.278,
+          1238.81,
+          1241.889,
+          1237.642
+        ],
+        "waveform_ms.mp3-320-60min": [
+          4794.376,
+          4802.131,
+          4791.349,
+          4801.662,
+          4788.99
+        ],
+        "waveform_ms.flac-24-352": [
+          772.609,
+          775.281,
+          773.365,
+          776.648,
+          772.903
         ],
         "library_list_ms": [
-          30.44,
-          31.233,
-          29.611
+          90.214,
+          36.684,
+          36.554,
+          36.58,
+          36.691
         ],
         "library_scan_cold_ms": [
-          434.166,
-          412.491,
-          409.222
+          672.17,
+          485.188,
+          485.034,
+          471.066,
+          507.017
         ],
         "library_scan_cpu_s": [
-          1.209,
-          1.159,
-          1.162
+          1.435,
+          1.372,
+          1.375,
+          1.379,
+          1.397
         ],
         "library_footprint_mb": [
-          70.173,
-          65.392,
-          64.829
+          60.985,
+          63.048,
+          62.407,
+          61.392,
+          62.548
         ],
         "peak_footprint_mb": [
-          71.923,
-          66.985,
-          66.673
+          63.907,
+          64.845,
+          64.188,
+          63.204,
+          64.345
         ],
         "library_scan_warm_ms": [
-          135.83,
-          120.942,
-          121.407
+          140.912,
+          135.021,
+          148.451,
+          140.041,
+          151.279
         ]
       }
     },
@@ -1457,362 +3273,816 @@
       "ref": "v1.12",
       "commit": "b569cdb91775d4424126fcb595225fe929679177",
       "measured": "2026-09-28",
-      "reps": 3,
-      "corpus": "65e9656c071f84ef",
+      "reps": 5,
+      "corpus": "911f823547f3298e",
       "machine": {
-        "chip": "Apple M4 Max",
-        "cores": 16,
-        "memory_gb": 64,
-        "macos": "27.0",
-        "xcode": "Xcode 27.0"
+        "chip": "Apple M2 Pro",
+        "cores": 12,
+        "memory_gb": 32,
+        "macos": "26.5.2",
+        "xcode": "Xcode 26.6"
       },
       "metrics": {
-        "system_idle_pct": 91.19,
-        "launch_cold_window_ms": 189.993,
-        "launch_cold_ready_ms": 200.073,
-        "idle_cpu_pct": 0.037,
-        "idle_wakeups_per_s": 0.799,
-        "idle_footprint_mb": 31.314,
-        "launch_warm_window_ms": 198.391,
-        "launch_warm_ready_ms": 215.017,
-        "ttp_ms.mp3-320": 74.718,
-        "play_cpu_pct.mp3-320": 2.609,
-        "play_minstr_per_s.mp3-320": 51.958,
-        "play_power_mw.mp3-320": 3.429,
-        "ttp_ms.mp3-v0": 40.486,
-        "play_cpu_pct.mp3-v0": 2.552,
-        "play_minstr_per_s.mp3-v0": 53.108,
-        "play_power_mw.mp3-v0": 3.546,
-        "seek_ms.mp3-v0": 71.166,
+        "system_idle_pct": 96.855,
+        "idle_cpu_pct": 0.032,
+        "idle_wakeups_per_s": 0.798,
+        "idle_footprint_mb": 28.548,
+        "launch_cold_window_ms": 185.773,
+        "launch_cold_ready_ms": 190.815,
+        "launch_warm_window_ms": 188.956,
+        "launch_warm_ready_ms": 193.931,
+        "ttp_ms.mp3-320": 67.726,
+        "play_cpu_pct.mp3-320": 3.845,
+        "play_minstr_per_s.mp3-320": 54.245,
+        "play_power_mw.mp3-320": 2.871,
+        "ttp_ms.mp3-v0": 35.106,
+        "play_cpu_pct.mp3-v0": 3.783,
+        "play_minstr_per_s.mp3-v0": 53.957,
+        "play_power_mw.mp3-v0": 2.89,
+        "seek_ms.mp3-v0": 74.218,
         "seek_stalls.mp3-v0": 0,
-        "ttp_ms.aac-256": 40.306,
-        "play_cpu_pct.aac-256": 2.312,
-        "play_minstr_per_s.aac-256": 41.182,
-        "play_power_mw.aac-256": 2.672,
-        "seek_ms.aac-256": 72.832,
+        "ttp_ms.aac-256": 37.467,
+        "play_cpu_pct.aac-256": 3.309,
+        "play_minstr_per_s.aac-256": 42.644,
+        "play_power_mw.aac-256": 2.453,
+        "seek_ms.aac-256": 74.235,
         "seek_stalls.aac-256": 0,
-        "ttp_ms.flac-16-44": 31.642,
-        "play_cpu_pct.flac-16-44": 2.532,
-        "play_minstr_per_s.flac-16-44": 56.5,
-        "play_power_mw.flac-16-44": 2.801,
-        "ttp_ms.flac-24-96": 38.016,
-        "play_cpu_pct.flac-24-96": 3.254,
-        "play_minstr_per_s.flac-24-96": 98.865,
-        "play_power_mw.flac-24-96": 5.61,
-        "ttp_ms.flac-24-192": 40.517,
-        "play_cpu_pct.flac-24-192": 3.97,
-        "play_minstr_per_s.flac-24-192": 159.898,
-        "play_power_mw.flac-24-192": 8.94,
-        "seek_ms.flac-24-192": 72.017,
+        "ttp_ms.flac-16-44": 37.294,
+        "play_cpu_pct.flac-16-44": 3.565,
+        "play_minstr_per_s.flac-16-44": 54.491,
+        "play_power_mw.flac-16-44": 2.726,
+        "ttp_ms.flac-24-96": 36.005,
+        "play_cpu_pct.flac-24-96": 4.427,
+        "play_minstr_per_s.flac-24-96": 86.611,
+        "play_power_mw.flac-24-96": 4.293,
+        "ttp_ms.flac-24-192": 34.064,
+        "play_cpu_pct.flac-24-192": 5.086,
+        "play_minstr_per_s.flac-24-192": 133.87,
+        "play_power_mw.flac-24-192": 7.694,
+        "seek_ms.flac-24-192": 75.092,
         "seek_stalls.flac-24-192": 0,
-        "ttp_ms.wav-24-96": 32.33,
-        "play_cpu_pct.wav-24-96": 2.382,
-        "play_minstr_per_s.wav-24-96": 38.815,
-        "play_power_mw.wav-24-96": 2.255,
-        "play_cpu_pct.fx": 6.002,
-        "play_power_mw.fx": 10.573,
-        "paused_cpu_pct": 2.955,
-        "paused_wakeups_per_s": 1.798,
-        "playback_footprint_mb": 51.235,
-        "waveform_ms.mp3-320": 205.298,
-        "waveform_ms.flac-16-44": 189.419,
-        "waveform_ms.flac-24-192": 1240.796,
-        "library_list_ms": 31.081,
-        "library_scan_cold_ms": 379.747,
-        "library_scan_cpu_s": 1.035,
-        "library_footprint_mb": 59.829,
-        "peak_footprint_mb": 60.235,
-        "library_scan_warm_ms": 93.473
+        "ttp_ms.wav-24-96": 33.164,
+        "play_cpu_pct.wav-24-96": 3.173,
+        "play_minstr_per_s.wav-24-96": 41.149,
+        "play_power_mw.wav-24-96": 2.291,
+        "ttp_ms.mp3-320-48k": 38.949,
+        "play_cpu_pct.mp3-320-48k": 3.859,
+        "play_minstr_per_s.mp3-320-48k": 55.495,
+        "play_power_mw.mp3-320-48k": 2.802,
+        "ttp_ms.mp3-320-60min": 33.068,
+        "play_cpu_pct.mp3-320-60min": 3.672,
+        "play_minstr_per_s.mp3-320-60min": 53.953,
+        "play_power_mw.mp3-320-60min": 2.808,
+        "seek_ms.mp3-320-60min": 74.826,
+        "seek_stalls.mp3-320-60min": 0,
+        "ttp_ms.mp3-v0-60min": 30.249,
+        "play_cpu_pct.mp3-v0-60min": 3.657,
+        "play_minstr_per_s.mp3-v0-60min": 53.711,
+        "play_power_mw.mp3-v0-60min": 2.782,
+        "seek_ms.mp3-v0-60min": 74.976,
+        "seek_stalls.mp3-v0-60min": 0,
+        "ttp_ms.mp3-v0-noxing": 44.097,
+        "play_cpu_pct.mp3-v0-noxing": 3.689,
+        "play_minstr_per_s.mp3-v0-noxing": 53.981,
+        "play_power_mw.mp3-v0-noxing": 2.828,
+        "seek_ms.mp3-v0-noxing": 75.227,
+        "seek_stalls.mp3-v0-noxing": 0,
+        "ttp_ms.flac-24-88": 36.021,
+        "play_cpu_pct.flac-24-88": 4.414,
+        "play_minstr_per_s.flac-24-88": 82.687,
+        "play_power_mw.flac-24-88": 3.851,
+        "ttp_ms.flac-24-176": 37.111,
+        "play_cpu_pct.flac-24-176": 4.966,
+        "play_minstr_per_s.flac-24-176": 125.762,
+        "play_power_mw.flac-24-176": 6.733,
+        "ttp_ms.flac-24-352": 31.266,
+        "play_cpu_pct.flac-24-352": 6.579,
+        "play_minstr_per_s.flac-24-352": 222.668,
+        "play_power_mw.flac-24-352": 15.522,
+        "ttp_ms.flac-16-22-mono": 30.443,
+        "play_cpu_pct.flac-16-22-mono": 3.149,
+        "play_minstr_per_s.flac-16-22-mono": 41.785,
+        "play_power_mw.flac-16-22-mono": 2.336,
+        "play_cpu_pct.fx": 8.596,
+        "play_power_mw.fx": 10.745,
+        "play_cpu_pct.pitch.flac-24-192": 10.398,
+        "play_cpu_pct.pitch.mp3-320": 4.29,
+        "paused_cpu_pct": 1.795,
+        "paused_wakeups_per_s": 0.998,
+        "playback_footprint_mb": 48.173,
+        "waveform_ms.mp3-320": 249.296,
+        "waveform_ms.flac-16-44": 191.63,
+        "waveform_ms.flac-24-192": 1241.303,
+        "waveform_ms.mp3-320-60min": 4798.671,
+        "waveform_ms.flac-24-352": 775.369,
+        "library_list_ms": 32.218,
+        "library_scan_cold_ms": 432.369,
+        "library_scan_cpu_s": 1.257,
+        "library_footprint_mb": 57.11,
+        "peak_footprint_mb": 57.532,
+        "library_scan_warm_ms": 108.532
       },
       "samples": {
         "system_idle_pct": [
-          88.59,
-          90.5,
-          93.8,
-          87.96,
-          84.94,
-          85.84,
-          93.12,
-          93.8,
-          87.18,
-          91.88,
-          92.5,
-          93.9
-        ],
-        "launch_cold_window_ms": [
-          190.009,
-          189.993,
-          181.424
-        ],
-        "launch_cold_ready_ms": [
-          199.394,
-          203.264,
-          200.073
+          96.71,
+          92.2,
+          98.35,
+          98.57,
+          97.41,
+          89.98,
+          98.5,
+          94.91,
+          97.73,
+          90.88,
+          95.61,
+          98.65,
+          96.72,
+          90.44,
+          93.87,
+          98.12,
+          96.99,
+          92.11,
+          98.25,
+          97.89
         ],
         "idle_cpu_pct": [
-          0.037,
-          0.05,
-          0.03
+          0.035,
+          0.032,
+          0.033,
+          0.032,
+          0.032
         ],
         "idle_wakeups_per_s": [
-          0.799,
-          1.2,
-          0.799
+          0.798,
+          0.599,
+          0.798,
+          0.8,
+          0.8
         ],
         "idle_footprint_mb": [
-          31.47,
-          31.204,
-          31.314
+          27.595,
+          28.47,
+          28.61,
+          28.563,
+          28.548
+        ],
+        "launch_cold_window_ms": [
+          187.718,
+          186.473,
+          185.773,
+          185.216,
+          185.398
+        ],
+        "launch_cold_ready_ms": [
+          193.139,
+          190.815,
+          192.331,
+          189.577,
+          189.315
         ],
         "launch_warm_window_ms": [
-          198.391,
-          222.284,
-          196.134
+          188.477,
+          188.379,
+          190.875,
+          188.956,
+          193.631
         ],
         "launch_warm_ready_ms": [
-          213.127,
-          232.804,
-          215.017
+          193.931,
+          192.961,
+          194.469,
+          193.566,
+          198.631
         ],
         "ttp_ms.mp3-320": [
-          75.044,
-          74.718,
-          74.324
+          72.131,
+          64.917,
+          67.726,
+          64.648,
+          68.366
         ],
         "play_cpu_pct.mp3-320": [
-          2.343,
-          2.7,
-          2.609
+          3.845,
+          3.902,
+          3.82,
+          3.882,
+          3.714
         ],
         "play_minstr_per_s.mp3-320": [
-          52.257,
-          51.958,
-          51.91
+          54.264,
+          54.226,
+          54.245,
+          54.222,
+          54.289
         ],
         "play_power_mw.mp3-320": [
-          4.014,
-          3.429,
-          3.046
+          2.871,
+          2.835,
+          2.81,
+          2.997,
+          3.545
         ],
         "ttp_ms.mp3-v0": [
-          41.029,
-          38.238,
-          40.486
+          27.179,
+          38.158,
+          35.106,
+          34.586,
+          43.867
         ],
         "play_cpu_pct.mp3-v0": [
-          2.552,
-          2.472,
-          2.646
+          3.853,
+          3.752,
+          3.723,
+          3.783,
+          3.799
         ],
         "play_minstr_per_s.mp3-v0": [
-          53.108,
-          53.345,
-          53.035
+          54.011,
+          53.873,
+          53.932,
+          53.986,
+          53.957
         ],
         "play_power_mw.mp3-v0": [
-          3.581,
-          3.389,
-          3.546
+          2.89,
+          2.77,
+          2.778,
+          3.039,
+          3.006
         ],
         "seek_ms.mp3-v0": [
-          71.166,
-          71.576,
-          70.957
+          75.006,
+          73.023,
+          72.583,
+          74.218,
+          74.747
         ],
         "seek_stalls.mp3-v0": [
+          0,
+          0,
           0,
           0,
           0
         ],
         "ttp_ms.aac-256": [
-          40.306,
-          38.068,
-          42.206
+          37.467,
+          42.043,
+          36.819,
+          37.086,
+          41.607
         ],
         "play_cpu_pct.aac-256": [
-          2.28,
-          2.312,
-          2.449
+          3.253,
+          3.362,
+          3.309,
+          3.298,
+          3.311
         ],
         "play_minstr_per_s.aac-256": [
-          41.182,
-          41.252,
-          41.157
+          42.652,
+          42.655,
+          42.644,
+          42.575,
+          42.591
         ],
         "play_power_mw.aac-256": [
-          2.672,
-          2.743,
-          2.423
+          2.453,
+          2.355,
+          2.422,
+          2.479,
+          2.486
         ],
         "seek_ms.aac-256": [
-          70.499,
-          73.601,
-          72.832
+          73.838,
+          73.746,
+          75.408,
+          76.248,
+          74.235
         ],
         "seek_stalls.aac-256": [
+          0,
+          0,
           0,
           0,
           0
         ],
         "ttp_ms.flac-16-44": [
-          31.642,
-          40.409,
-          30.944
+          41.288,
+          37.294,
+          32.302,
+          38.217,
+          34.466
         ],
         "play_cpu_pct.flac-16-44": [
-          2.619,
-          2.532,
-          2.526
+          3.534,
+          3.565,
+          3.566,
+          3.587,
+          3.493
         ],
         "play_minstr_per_s.flac-16-44": [
-          56.496,
-          56.542,
-          56.5
+          54.479,
+          54.491,
+          54.457,
+          54.495,
+          54.538
         ],
         "play_power_mw.flac-16-44": [
-          2.791,
-          3.019,
-          2.801
+          2.657,
+          2.726,
+          2.722,
+          2.726,
+          3.007
         ],
         "ttp_ms.flac-24-96": [
-          38.016,
-          31.36,
-          39.531
+          32.474,
+          36.005,
+          35.806,
+          36.458,
+          36.471
         ],
         "play_cpu_pct.flac-24-96": [
-          3.254,
-          3.077,
-          3.298
+          4.47,
+          4.368,
+          4.343,
+          4.431,
+          4.427
         ],
         "play_minstr_per_s.flac-24-96": [
-          98.899,
-          98.843,
-          98.865
+          86.611,
+          86.59,
+          86.589,
+          86.708,
+          86.678
         ],
         "play_power_mw.flac-24-96": [
-          5.61,
-          6.535,
-          4.356
+          4.23,
+          4.447,
+          4.205,
+          4.293,
+          4.369
         ],
         "ttp_ms.flac-24-192": [
-          31.043,
-          40.517,
-          42.565
+          34.064,
+          36.259,
+          28.891,
+          31.743,
+          41.01
         ],
         "play_cpu_pct.flac-24-192": [
-          3.657,
-          3.97,
-          4.098
+          5.072,
+          5.288,
+          5.086,
+          4.861,
+          5.147
         ],
         "play_minstr_per_s.flac-24-192": [
-          159.865,
-          159.898,
-          159.923
+          133.937,
+          133.87,
+          133.876,
+          133.78,
+          133.819
         ],
         "play_power_mw.flac-24-192": [
-          15.662,
-          8.94,
-          6.795
+          7.694,
+          7.46,
+          7.258,
+          8.353,
+          7.87
         ],
         "seek_ms.flac-24-192": [
-          70.599,
-          74.123,
-          72.017
+          75.211,
+          74.392,
+          75.301,
+          74.174,
+          75.092
         ],
         "seek_stalls.flac-24-192": [
+          0,
+          0,
           0,
           0,
           0
         ],
         "ttp_ms.wav-24-96": [
-          34.45,
-          32.094,
-          32.33
+          44.124,
+          33.164,
+          27.338,
+          37.685,
+          30.993
         ],
         "play_cpu_pct.wav-24-96": [
-          2.481,
-          2.325,
-          2.382
+          3.141,
+          3.209,
+          3.117,
+          3.173,
+          3.183
         ],
         "play_minstr_per_s.wav-24-96": [
-          43.13,
-          38.735,
-          38.815
+          41.149,
+          41.173,
+          41.1,
+          41.16,
+          41.14
         ],
         "play_power_mw.wav-24-96": [
-          4.565,
-          2.255,
-          2.224
+          2.265,
+          2.25,
+          2.291,
+          2.297,
+          2.485
+        ],
+        "ttp_ms.mp3-320-48k": [
+          29.821,
+          39.268,
+          34.295,
+          43.628,
+          38.949
+        ],
+        "play_cpu_pct.mp3-320-48k": [
+          3.859,
+          3.863,
+          3.829,
+          3.77,
+          3.904
+        ],
+        "play_minstr_per_s.mp3-320-48k": [
+          55.491,
+          55.573,
+          55.553,
+          55.495,
+          55.436
+        ],
+        "play_power_mw.mp3-320-48k": [
+          2.88,
+          2.778,
+          2.802,
+          2.99,
+          2.771
+        ],
+        "ttp_ms.mp3-320-60min": [
+          36.705,
+          30.718,
+          35.591,
+          29.536,
+          33.068
+        ],
+        "play_cpu_pct.mp3-320-60min": [
+          3.614,
+          3.672,
+          3.743,
+          3.038,
+          3.691
+        ],
+        "play_minstr_per_s.mp3-320-60min": [
+          53.917,
+          54.647,
+          53.924,
+          54.719,
+          53.953
+        ],
+        "play_power_mw.mp3-320-60min": [
+          2.757,
+          2.808,
+          2.598,
+          4.803,
+          2.856
+        ],
+        "seek_ms.mp3-320-60min": [
+          74.761,
+          74.912,
+          74.826,
+          76.104,
+          74.685
+        ],
+        "seek_stalls.mp3-320-60min": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ttp_ms.mp3-v0-60min": [
+          33.642,
+          28.944,
+          30.249,
+          30.905,
+          29.69
+        ],
+        "play_cpu_pct.mp3-v0-60min": [
+          3.657,
+          3.673,
+          3.61,
+          3.577,
+          3.691
+        ],
+        "play_minstr_per_s.mp3-v0-60min": [
+          54.458,
+          53.711,
+          53.662,
+          53.695,
+          54.477
+        ],
+        "play_power_mw.mp3-v0-60min": [
+          2.759,
+          2.585,
+          2.851,
+          3.099,
+          2.782
+        ],
+        "seek_ms.mp3-v0-60min": [
+          75.773,
+          74.84,
+          75.849,
+          74.976,
+          74.232
+        ],
+        "seek_stalls.mp3-v0-60min": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ttp_ms.mp3-v0-noxing": [
+          44.952,
+          42.185,
+          44.736,
+          42.541,
+          44.097
+        ],
+        "play_cpu_pct.mp3-v0-noxing": [
+          3.689,
+          3.653,
+          3.885,
+          3.759,
+          3.687
+        ],
+        "play_minstr_per_s.mp3-v0-noxing": [
+          53.995,
+          53.922,
+          53.981,
+          53.985,
+          53.958
+        ],
+        "play_power_mw.mp3-v0-noxing": [
+          2.738,
+          2.833,
+          2.812,
+          2.828,
+          3.049
+        ],
+        "seek_ms.mp3-v0-noxing": [
+          75.322,
+          75.172,
+          74.895,
+          75.866,
+          75.227
+        ],
+        "seek_stalls.mp3-v0-noxing": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ttp_ms.flac-24-88": [
+          35.396,
+          28.614,
+          36.021,
+          42.852,
+          37.463
+        ],
+        "play_cpu_pct.flac-24-88": [
+          4.431,
+          4.414,
+          4.378,
+          4.215,
+          4.458
+        ],
+        "play_minstr_per_s.flac-24-88": [
+          82.739,
+          82.687,
+          82.61,
+          81.164,
+          82.687
+        ],
+        "play_power_mw.flac-24-88": [
+          3.773,
+          3.851,
+          3.834,
+          4.35,
+          4.114
+        ],
+        "ttp_ms.flac-24-176": [
+          28.426,
+          37.111,
+          38.052,
+          35.306,
+          37.595
+        ],
+        "play_cpu_pct.flac-24-176": [
+          4.947,
+          4.96,
+          5.006,
+          5.005,
+          4.966
+        ],
+        "play_minstr_per_s.flac-24-176": [
+          125.795,
+          125.762,
+          125.81,
+          125.747,
+          125.713
+        ],
+        "play_power_mw.flac-24-176": [
+          6.724,
+          6.733,
+          6.657,
+          7.262,
+          6.933
+        ],
+        "ttp_ms.flac-24-352": [
+          37.054,
+          31.266,
+          27.59,
+          30.219,
+          34.138
+        ],
+        "play_cpu_pct.flac-24-352": [
+          6.52,
+          6.579,
+          6.706,
+          6.687,
+          6.566
+        ],
+        "play_minstr_per_s.flac-24-352": [
+          214.535,
+          222.667,
+          222.724,
+          222.668,
+          222.716
+        ],
+        "play_power_mw.flac-24-352": [
+          14.415,
+          15.369,
+          15.522,
+          15.838,
+          16.231
+        ],
+        "ttp_ms.flac-16-22-mono": [
+          30.361,
+          38.785,
+          43.244,
+          29.245,
+          30.443
+        ],
+        "play_cpu_pct.flac-16-22-mono": [
+          3.149,
+          3.222,
+          3.102,
+          3.127,
+          3.16
+        ],
+        "play_minstr_per_s.flac-16-22-mono": [
+          41.785,
+          42.205,
+          41.741,
+          41.778,
+          42.056
+        ],
+        "play_power_mw.flac-16-22-mono": [
+          2.281,
+          2.336,
+          2.251,
+          2.579,
+          2.392
         ],
         "play_cpu_pct.fx": [
-          6.002,
-          5.844,
-          6.066
+          8.305,
+          8.755,
+          8.478,
+          8.735,
+          8.596
         ],
         "play_power_mw.fx": [
-          12.147,
-          10.129,
-          10.573
+          10.45,
+          10.322,
+          11.169,
+          10.745,
+          11.673
+        ],
+        "play_cpu_pct.pitch.flac-24-192": [
+          10.624,
+          10.349,
+          10.655,
+          10.339,
+          10.398
+        ],
+        "play_cpu_pct.pitch.mp3-320": [
+          4.365,
+          4.366,
+          4.29,
+          4.2,
+          4.28
         ],
         "paused_cpu_pct": [
-          2.92,
-          2.955,
-          3.002
+          1.739,
+          1.85,
+          1.79,
+          1.937,
+          1.795
         ],
         "paused_wakeups_per_s": [
-          1.798,
+          0.798,
           0.999,
-          1.799
+          0.599,
+          1.198,
+          0.998
         ],
         "playback_footprint_mb": [
-          53.954,
-          51.235,
-          49.61
+          48.767,
+          51.063,
+          48.173,
+          47.892,
+          47.704
         ],
         "waveform_ms.mp3-320": [
-          182.79,
-          205.854,
-          205.298
+          249.296,
+          246.831,
+          249.391,
+          250.134,
+          249.15
         ],
         "waveform_ms.flac-16-44": [
-          198.29,
-          189.419,
-          187.264
+          191.63,
+          191.719,
+          191.461,
+          191.634,
+          191.393
         ],
         "waveform_ms.flac-24-192": [
-          1302.879,
-          1240.796,
-          1238.805
+          1241.303,
+          1240.353,
+          1242.428,
+          1240.343,
+          1242.698
+        ],
+        "waveform_ms.mp3-320-60min": [
+          4798.671,
+          4791.296,
+          4802.327,
+          4785.626,
+          4812.088
+        ],
+        "waveform_ms.flac-24-352": [
+          775.369,
+          773.78,
+          777.197,
+          772.641,
+          776.057
         ],
         "library_list_ms": [
-          27.109,
-          31.094,
-          31.081
+          32.845,
+          27.948,
+          33.767,
+          32.218,
+          30.06
         ],
         "library_scan_cold_ms": [
-          376.996,
-          380.781,
-          379.747
+          477.76,
+          428.844,
+          448.474,
+          431.981,
+          432.369
         ],
         "library_scan_cpu_s": [
-          1.041,
-          1.027,
-          1.035
+          1.241,
+          1.257,
+          1.246,
+          1.257,
+          1.258
         ],
         "library_footprint_mb": [
-          58.626,
-          59.829,
-          61.329
+          57.657,
+          56.642,
+          57.11,
+          56.376,
+          57.407
         ],
         "peak_footprint_mb": [
-          59.173,
-          60.235,
-          61.97
+          57.985,
+          57.142,
+          57.532,
+          56.438,
+          57.923
         ],
         "library_scan_warm_ms": [
-          93.473,
-          93.039,
-          95.184
+          99.404,
+          100.55,
+          110.772,
+          108.532,
+          111.01
         ]
       }
     },
@@ -1820,362 +4090,816 @@
       "ref": "6992feca",
       "commit": "6992feca246cfc00bfc2970ea8c425005d6aed1a",
       "measured": "2026-09-28",
-      "reps": 3,
-      "corpus": "65e9656c071f84ef",
+      "reps": 5,
+      "corpus": "911f823547f3298e",
       "machine": {
-        "chip": "Apple M4 Max",
-        "cores": 16,
-        "memory_gb": 64,
-        "macos": "27.0",
-        "xcode": "Xcode 27.0"
+        "chip": "Apple M2 Pro",
+        "cores": 12,
+        "memory_gb": 32,
+        "macos": "26.5.2",
+        "xcode": "Xcode 26.6"
       },
       "metrics": {
-        "system_idle_pct": 93.03,
-        "launch_cold_window_ms": 199.409,
-        "launch_cold_ready_ms": 208.206,
-        "idle_cpu_pct": 0.031,
+        "system_idle_pct": 96.92,
+        "idle_cpu_pct": 0.032,
         "idle_wakeups_per_s": 0.799,
-        "idle_footprint_mb": 31.423,
-        "launch_warm_window_ms": 195.289,
-        "launch_warm_ready_ms": 210.134,
-        "ttp_ms.mp3-320": 69.068,
-        "play_cpu_pct.mp3-320": 2.862,
-        "play_minstr_per_s.mp3-320": 52.075,
-        "play_power_mw.mp3-320": 3.284,
-        "ttp_ms.mp3-v0": 39.067,
-        "play_cpu_pct.mp3-v0": 2.867,
-        "play_minstr_per_s.mp3-v0": 53.005,
-        "play_power_mw.mp3-v0": 3.054,
-        "seek_ms.mp3-v0": 72.28,
+        "idle_footprint_mb": 30.845,
+        "launch_cold_window_ms": 186.071,
+        "launch_cold_ready_ms": 192.132,
+        "launch_warm_window_ms": 192.047,
+        "launch_warm_ready_ms": 196.506,
+        "ttp_ms.mp3-320": 74.475,
+        "play_cpu_pct.mp3-320": 3.803,
+        "play_minstr_per_s.mp3-320": 54.236,
+        "play_power_mw.mp3-320": 2.863,
+        "ttp_ms.mp3-v0": 35.667,
+        "play_cpu_pct.mp3-v0": 3.757,
+        "play_minstr_per_s.mp3-v0": 53.967,
+        "play_power_mw.mp3-v0": 2.872,
+        "seek_ms.mp3-v0": 74.285,
         "seek_stalls.mp3-v0": 0,
-        "ttp_ms.aac-256": 40.055,
-        "play_cpu_pct.aac-256": 2.578,
-        "play_minstr_per_s.aac-256": 45.388,
-        "play_power_mw.aac-256": 5.629,
-        "seek_ms.aac-256": 73.422,
+        "ttp_ms.aac-256": 38.091,
+        "play_cpu_pct.aac-256": 3.298,
+        "play_minstr_per_s.aac-256": 42.647,
+        "play_power_mw.aac-256": 2.401,
+        "seek_ms.aac-256": 73.499,
         "seek_stalls.aac-256": 0,
-        "ttp_ms.flac-16-44": 42.614,
-        "play_cpu_pct.flac-16-44": 2.748,
-        "play_minstr_per_s.flac-16-44": 56.37,
-        "play_power_mw.flac-16-44": 2.939,
-        "ttp_ms.flac-24-96": 31.693,
-        "play_cpu_pct.flac-24-96": 3.455,
-        "play_minstr_per_s.flac-24-96": 98.78,
-        "play_power_mw.flac-24-96": 4.963,
-        "ttp_ms.flac-24-192": 41.317,
-        "play_cpu_pct.flac-24-192": 4.235,
-        "play_minstr_per_s.flac-24-192": 159.689,
-        "play_power_mw.flac-24-192": 7.759,
-        "seek_ms.flac-24-192": 70.96,
+        "ttp_ms.flac-16-44": 37.003,
+        "play_cpu_pct.flac-16-44": 3.552,
+        "play_minstr_per_s.flac-16-44": 54.481,
+        "play_power_mw.flac-16-44": 2.678,
+        "ttp_ms.flac-24-96": 34.196,
+        "play_cpu_pct.flac-24-96": 4.339,
+        "play_minstr_per_s.flac-24-96": 86.705,
+        "play_power_mw.flac-24-96": 4.361,
+        "ttp_ms.flac-24-192": 34.665,
+        "play_cpu_pct.flac-24-192": 5.176,
+        "play_minstr_per_s.flac-24-192": 133.858,
+        "play_power_mw.flac-24-192": 7.324,
+        "seek_ms.flac-24-192": 75.711,
         "seek_stalls.flac-24-192": 0,
-        "ttp_ms.wav-24-96": 32.531,
-        "play_cpu_pct.wav-24-96": 2.401,
-        "play_minstr_per_s.wav-24-96": 38.812,
-        "play_power_mw.wav-24-96": 1.953,
-        "play_cpu_pct.fx": 6.484,
-        "play_power_mw.fx": 11.269,
-        "paused_cpu_pct": 3.105,
-        "paused_wakeups_per_s": 1.199,
-        "playback_footprint_mb": 52.282,
-        "waveform_ms.mp3-320": 205.676,
-        "waveform_ms.flac-16-44": 189.172,
-        "waveform_ms.flac-24-192": 1242.218,
-        "library_list_ms": 31.097,
-        "library_scan_cold_ms": 383.435,
-        "library_scan_cpu_s": 1.035,
-        "library_footprint_mb": 59.657,
-        "peak_footprint_mb": 60.345,
-        "library_scan_warm_ms": 97.136
+        "ttp_ms.wav-24-96": 36.289,
+        "play_cpu_pct.wav-24-96": 3.149,
+        "play_minstr_per_s.wav-24-96": 41.048,
+        "play_power_mw.wav-24-96": 2.274,
+        "ttp_ms.mp3-320-48k": 37.578,
+        "play_cpu_pct.mp3-320-48k": 3.843,
+        "play_minstr_per_s.mp3-320-48k": 55.442,
+        "play_power_mw.mp3-320-48k": 2.867,
+        "ttp_ms.mp3-320-60min": 37.514,
+        "play_cpu_pct.mp3-320-60min": 3.657,
+        "play_minstr_per_s.mp3-320-60min": 53.824,
+        "play_power_mw.mp3-320-60min": 2.668,
+        "seek_ms.mp3-320-60min": 74.114,
+        "seek_stalls.mp3-320-60min": 0,
+        "ttp_ms.mp3-v0-60min": 35.893,
+        "play_cpu_pct.mp3-v0-60min": 3.676,
+        "play_minstr_per_s.mp3-v0-60min": 53.679,
+        "play_power_mw.mp3-v0-60min": 2.706,
+        "seek_ms.mp3-v0-60min": 73.776,
+        "seek_stalls.mp3-v0-60min": 0,
+        "ttp_ms.mp3-v0-noxing": 45.866,
+        "play_cpu_pct.mp3-v0-noxing": 3.666,
+        "play_minstr_per_s.mp3-v0-noxing": 53.781,
+        "play_power_mw.mp3-v0-noxing": 2.737,
+        "seek_ms.mp3-v0-noxing": 72.982,
+        "seek_stalls.mp3-v0-noxing": 0,
+        "ttp_ms.flac-24-88": 36.892,
+        "play_cpu_pct.flac-24-88": 4.298,
+        "play_minstr_per_s.flac-24-88": 82.8,
+        "play_power_mw.flac-24-88": 4.225,
+        "ttp_ms.flac-24-176": 34.665,
+        "play_cpu_pct.flac-24-176": 4.96,
+        "play_minstr_per_s.flac-24-176": 125.943,
+        "play_power_mw.flac-24-176": 6.878,
+        "ttp_ms.flac-24-352": 37.68,
+        "play_cpu_pct.flac-24-352": 6.575,
+        "play_minstr_per_s.flac-24-352": 222.799,
+        "play_power_mw.flac-24-352": 15.659,
+        "ttp_ms.flac-16-22-mono": 31.237,
+        "play_cpu_pct.flac-16-22-mono": 3.138,
+        "play_minstr_per_s.flac-16-22-mono": 41.951,
+        "play_power_mw.flac-16-22-mono": 2.294,
+        "play_cpu_pct.fx": 8.544,
+        "play_power_mw.fx": 10.592,
+        "play_cpu_pct.pitch.flac-24-192": 10.424,
+        "play_cpu_pct.pitch.mp3-320": 4.422,
+        "paused_cpu_pct": 1.839,
+        "paused_wakeups_per_s": 0.998,
+        "playback_footprint_mb": 52.032,
+        "waveform_ms.mp3-320": 254.742,
+        "waveform_ms.flac-16-44": 191.531,
+        "waveform_ms.flac-24-192": 1240.717,
+        "waveform_ms.mp3-320-60min": 4803.493,
+        "waveform_ms.flac-24-352": 776.545,
+        "library_list_ms": 36.264,
+        "library_scan_cold_ms": 449.887,
+        "library_scan_cpu_s": 1.273,
+        "library_footprint_mb": 59.626,
+        "peak_footprint_mb": 60.204,
+        "library_scan_warm_ms": 107.925
       },
       "samples": {
         "system_idle_pct": [
-          90.94,
-          90.62,
-          92.94,
-          94.37,
-          91.64,
-          90.91,
-          94.61,
-          93.12,
-          91.73,
-          94.2,
-          93.14,
-          93.71
-        ],
-        "launch_cold_window_ms": [
-          206.25,
-          199.409,
-          186.613
-        ],
-        "launch_cold_ready_ms": [
-          217.686,
-          208.206,
-          205.454
+          96.64,
+          93.8,
+          98.41,
+          98.27,
+          97.44,
+          89.79,
+          89.0,
+          98.43,
+          96.53,
+          89.92,
+          97.83,
+          98.35,
+          97.29,
+          90.9,
+          98.48,
+          98.28,
+          97.2,
+          90.69,
+          90.8,
+          93.6
         ],
         "idle_cpu_pct": [
-          0.031,
-          0.029,
-          0.035
+          0.033,
+          0.032,
+          0.032,
+          0.032,
+          0.031
         ],
         "idle_wakeups_per_s": [
           0.799,
-          0.599,
+          0.799,
+          0.6,
+          0.798,
           0.799
         ],
         "idle_footprint_mb": [
-          31.345,
-          33.032,
-          31.423
+          28.579,
+          30.938,
+          30.782,
+          30.845,
+          30.876
+        ],
+        "launch_cold_window_ms": [
+          199.653,
+          186.071,
+          188.346,
+          184.834,
+          185.665
+        ],
+        "launch_cold_ready_ms": [
+          204.326,
+          192.132,
+          193.266,
+          190.15,
+          190.33
         ],
         "launch_warm_window_ms": [
-          195.289,
-          200.862,
-          190.259
+          192.86,
+          187.364,
+          192.047,
+          188.378,
+          192.235
         ],
         "launch_warm_ready_ms": [
-          210.134,
-          212.475,
-          209.782
+          198.251,
+          193.243,
+          199.276,
+          193.185,
+          196.506
         ],
         "ttp_ms.mp3-320": [
-          74.039,
-          69.068,
-          67.555
+          79.249,
+          70.635,
+          74.11,
+          74.475,
+          78.711
         ],
         "play_cpu_pct.mp3-320": [
-          2.493,
-          2.941,
-          2.862
+          3.803,
+          3.895,
+          4.296,
+          3.799,
+          3.792
         ],
         "play_minstr_per_s.mp3-320": [
-          52.062,
-          55.209,
-          52.075
+          54.264,
+          54.236,
+          54.223,
+          54.197,
+          54.262
         ],
         "play_power_mw.mp3-320": [
+          3.057,
+          2.814,
           3.284,
-          3.384,
-          2.398
+          2.768,
+          2.863
         ],
         "ttp_ms.mp3-v0": [
-          43.94,
-          33.048,
-          39.067
+          29.721,
+          40.736,
+          35.667,
+          32.863,
+          37.372
         ],
         "play_cpu_pct.mp3-v0": [
-          2.876,
-          2.834,
-          2.867
+          3.848,
+          3.776,
+          3.757,
+          3.629,
+          3.753
         ],
         "play_minstr_per_s.mp3-v0": [
-          53.005,
-          55.939,
-          52.947
+          54.057,
+          53.932,
+          53.958,
+          54.016,
+          53.967
         ],
         "play_power_mw.mp3-v0": [
-          3.054,
-          4.125,
-          2.851
+          3.047,
+          2.764,
+          2.872,
+          3.046,
+          2.854
         ],
         "seek_ms.mp3-v0": [
-          71.502,
-          72.28,
-          73.807
+          74.285,
+          74.823,
+          74.536,
+          73.323,
+          73.466
         ],
         "seek_stalls.mp3-v0": [
+          0,
+          0,
           0,
           0,
           0
         ],
         "ttp_ms.aac-256": [
-          44.471,
-          26.882,
-          40.055
+          39.379,
+          42.653,
+          38.091,
+          34.848,
+          33.838
         ],
         "play_cpu_pct.aac-256": [
-          2.453,
-          2.69,
-          2.578
+          3.35,
+          3.374,
+          3.298,
+          3.298,
+          3.294
         ],
         "play_minstr_per_s.aac-256": [
-          45.388,
-          56.087,
-          41.299
+          42.661,
+          42.626,
+          42.631,
+          42.661,
+          42.647
         ],
         "play_power_mw.aac-256": [
-          5.629,
-          9.52,
-          2.109
+          3.07,
+          2.393,
+          2.334,
+          2.409,
+          2.401
         ],
         "seek_ms.aac-256": [
-          73.422,
-          72.991,
-          75.012
+          73.26,
+          73.898,
+          73.499,
+          71.943,
+          74.835
         ],
         "seek_stalls.aac-256": [
+          0,
+          0,
           0,
           0,
           0
         ],
         "ttp_ms.flac-16-44": [
-          31.453,
-          42.614,
-          45.878
+          40.118,
+          32.167,
+          37.181,
+          34.772,
+          37.003
         ],
         "play_cpu_pct.flac-16-44": [
-          2.57,
-          2.748,
-          2.793
+          3.61,
+          3.552,
+          3.6,
+          3.544,
+          2.872
         ],
         "play_minstr_per_s.flac-16-44": [
-          56.37,
-          60.967,
-          56.37
+          54.481,
+          54.457,
+          54.498,
+          54.466,
+          54.519
         ],
         "play_power_mw.flac-16-44": [
-          2.939,
-          6.525,
-          2.415
+          2.888,
+          2.649,
+          2.674,
+          2.678,
+          4.602
         ],
         "ttp_ms.flac-24-96": [
-          31.693,
-          30.655,
-          36.864
+          37.239,
+          30.373,
+          37.582,
+          34.196,
+          32.05
         ],
         "play_cpu_pct.flac-24-96": [
-          3.286,
-          3.455,
-          3.456
+          4.304,
+          4.499,
+          4.339,
+          4.385,
+          4.199
         ],
         "play_minstr_per_s.flac-24-96": [
-          98.78,
-          99.165,
-          98.778
+          86.724,
+          86.705,
+          86.622,
+          86.718,
+          86.692
         ],
         "play_power_mw.flac-24-96": [
-          6.193,
-          4.963,
-          4.593
+          4.501,
+          4.165,
+          4.606,
+          4.095,
+          4.361
         ],
         "ttp_ms.flac-24-192": [
-          40.234,
-          43.384,
-          41.317
+          27.006,
+          32.795,
+          42.24,
+          34.665,
+          37.183
         ],
         "play_cpu_pct.flac-24-192": [
-          4.136,
-          4.235,
-          4.283
+          4.954,
+          5.295,
+          5.113,
+          5.176,
+          5.277
         ],
         "play_minstr_per_s.flac-24-192": [
-          159.689,
-          159.648,
-          159.732
+          133.931,
+          133.987,
+          133.753,
+          133.85,
+          133.858
         ],
         "play_power_mw.flac-24-192": [
-          7.855,
-          7.596,
-          7.759
+          8.13,
+          7.118,
+          7.324,
+          7.127,
+          9.314
         ],
         "seek_ms.flac-24-192": [
-          70.96,
-          73.959,
-          70.178
+          75.711,
+          77.086,
+          73.794,
+          76.049,
+          74.973
         ],
         "seek_stalls.flac-24-192": [
+          0,
+          0,
           0,
           0,
           0
         ],
         "ttp_ms.wav-24-96": [
-          32.067,
-          32.531,
-          33.627
+          37.623,
+          30.177,
+          36.289,
+          34.847,
+          40.253
         ],
         "play_cpu_pct.wav-24-96": [
-          2.275,
-          2.401,
-          2.445
+          3.132,
+          3.225,
+          3.464,
+          3.149,
+          3.145
         ],
         "play_minstr_per_s.wav-24-96": [
-          38.808,
-          38.812,
-          38.814
+          41.079,
+          41.021,
+          41.048,
+          41.049,
+          41.032
         ],
         "play_power_mw.wav-24-96": [
-          1.972,
-          1.953,
-          1.839
+          2.611,
+          2.253,
+          4.824,
+          2.215,
+          2.274
+        ],
+        "ttp_ms.mp3-320-48k": [
+          37.578,
+          30.219,
+          40.007,
+          45.658,
+          33.131
+        ],
+        "play_cpu_pct.mp3-320-48k": [
+          3.887,
+          3.793,
+          3.792,
+          3.843,
+          3.896
+        ],
+        "play_minstr_per_s.mp3-320-48k": [
+          55.46,
+          55.442,
+          55.395,
+          55.388,
+          55.533
+        ],
+        "play_power_mw.mp3-320-48k": [
+          3.08,
+          2.839,
+          3.35,
+          2.81,
+          2.867
+        ],
+        "ttp_ms.mp3-320-60min": [
+          44.149,
+          37.514,
+          35.151,
+          27.149,
+          37.62
+        ],
+        "play_cpu_pct.mp3-320-60min": [
+          3.546,
+          3.642,
+          3.71,
+          3.657,
+          3.665
+        ],
+        "play_minstr_per_s.mp3-320-60min": [
+          54.433,
+          53.818,
+          53.812,
+          53.824,
+          54.585
+        ],
+        "play_power_mw.mp3-320-60min": [
+          4.918,
+          2.668,
+          2.658,
+          2.744,
+          2.659
+        ],
+        "seek_ms.mp3-320-60min": [
+          74.114,
+          74.891,
+          74.188,
+          73.89,
+          73.845
+        ],
+        "seek_stalls.mp3-320-60min": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ttp_ms.mp3-v0-60min": [
+          30.132,
+          37.79,
+          40.233,
+          31.935,
+          35.893
+        ],
+        "play_cpu_pct.mp3-v0-60min": [
+          3.676,
+          3.696,
+          3.838,
+          3.652,
+          3.674
+        ],
+        "play_minstr_per_s.mp3-v0-60min": [
+          54.483,
+          53.679,
+          53.659,
+          53.693,
+          53.617
+        ],
+        "play_power_mw.mp3-v0-60min": [
+          2.977,
+          2.706,
+          2.751,
+          2.579,
+          2.545
+        ],
+        "seek_ms.mp3-v0-60min": [
+          73.618,
+          73.597,
+          74.698,
+          73.938,
+          73.776
+        ],
+        "seek_stalls.mp3-v0-60min": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ttp_ms.mp3-v0-noxing": [
+          43.0,
+          45.866,
+          46.97,
+          47.47,
+          43.284
+        ],
+        "play_cpu_pct.mp3-v0-noxing": [
+          3.62,
+          3.709,
+          3.732,
+          3.665,
+          3.666
+        ],
+        "play_minstr_per_s.mp3-v0-noxing": [
+          53.819,
+          53.745,
+          53.784,
+          53.781,
+          53.76
+        ],
+        "play_power_mw.mp3-v0-noxing": [
+          3.138,
+          2.577,
+          2.627,
+          3.08,
+          2.737
+        ],
+        "seek_ms.mp3-v0-noxing": [
+          72.166,
+          72.916,
+          74.454,
+          72.982,
+          74.401
+        ],
+        "seek_stalls.mp3-v0-noxing": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ttp_ms.flac-24-88": [
+          36.892,
+          37.488,
+          36.484,
+          37.415,
+          32.221
+        ],
+        "play_cpu_pct.flac-24-88": [
+          4.356,
+          4.298,
+          4.233,
+          4.353,
+          4.25
+        ],
+        "play_minstr_per_s.flac-24-88": [
+          82.868,
+          82.791,
+          82.8,
+          82.818,
+          82.76
+        ],
+        "play_power_mw.flac-24-88": [
+          4.286,
+          4.715,
+          4.225,
+          3.889,
+          4.093
+        ],
+        "ttp_ms.flac-24-176": [
+          34.665,
+          28.71,
+          37.861,
+          37.164,
+          30.998
+        ],
+        "play_cpu_pct.flac-24-176": [
+          4.889,
+          4.895,
+          4.96,
+          5.134,
+          5.041
+        ],
+        "play_minstr_per_s.flac-24-176": [
+          126.016,
+          126.023,
+          125.943,
+          125.927,
+          125.92
+        ],
+        "play_power_mw.flac-24-176": [
+          6.878,
+          7.215,
+          6.578,
+          6.903,
+          6.855
+        ],
+        "ttp_ms.flac-24-352": [
+          42.083,
+          37.68,
+          40.179,
+          37.361,
+          33.931
+        ],
+        "play_cpu_pct.flac-24-352": [
+          6.677,
+          6.443,
+          6.756,
+          6.575,
+          6.568
+        ],
+        "play_minstr_per_s.flac-24-352": [
+          222.799,
+          214.557,
+          222.768,
+          222.854,
+          222.901
+        ],
+        "play_power_mw.flac-24-352": [
+          16.353,
+          14.931,
+          15.631,
+          15.903,
+          15.659
+        ],
+        "ttp_ms.flac-16-22-mono": [
+          31.237,
+          35.991,
+          25.779,
+          32.438,
+          28.487
+        ],
+        "play_cpu_pct.flac-16-22-mono": [
+          3.138,
+          3.133,
+          3.107,
+          3.222,
+          3.184
+        ],
+        "play_minstr_per_s.flac-16-22-mono": [
+          41.838,
+          41.829,
+          42.006,
+          41.951,
+          41.983
+        ],
+        "play_power_mw.flac-16-22-mono": [
+          2.344,
+          2.294,
+          2.38,
+          2.257,
+          2.212
         ],
         "play_cpu_pct.fx": [
-          6.501,
-          6.484,
-          6.409
+          8.544,
+          8.662,
+          8.443,
+          8.769,
+          7.482
         ],
         "play_power_mw.fx": [
-          8.859,
-          11.654,
-          11.269
+          10.471,
+          10.209,
+          10.592,
+          12.021,
+          10.983
+        ],
+        "play_cpu_pct.pitch.flac-24-192": [
+          10.424,
+          8.361,
+          10.611,
+          10.893,
+          9.059
+        ],
+        "play_cpu_pct.pitch.mp3-320": [
+          4.422,
+          4.762,
+          4.298,
+          4.966,
+          4.238
         ],
         "paused_cpu_pct": [
-          3.039,
-          3.105,
-          3.24
+          1.839,
+          2.24,
+          1.776,
+          2.075,
+          1.709
         ],
         "paused_wakeups_per_s": [
-          1.799,
-          1.199,
-          1.199
+          0.799,
+          1.198,
+          0.999,
+          0.998,
+          0.998
         ],
         "playback_footprint_mb": [
-          52.282,
-          53.298,
-          51.72
+          53.157,
+          51.642,
+          51.86,
+          52.032,
+          52.157
         ],
         "waveform_ms.mp3-320": [
-          200.798,
-          206.259,
-          205.676
+          253.849,
+          254.742,
+          253.372,
+          256.925,
+          257.632
         ],
         "waveform_ms.flac-16-44": [
-          195.623,
-          189.172,
-          186.036
+          191.531,
+          190.345,
+          191.277,
+          191.991,
+          193.912
         ],
         "waveform_ms.flac-24-192": [
-          1294.941,
-          1242.218,
-          1225.564
+          1240.717,
+          1240.599,
+          1238.396,
+          1241.692,
+          1249.422
+        ],
+        "waveform_ms.mp3-320-60min": [
+          4794.357,
+          4793.236,
+          4808.995,
+          4803.493,
+          4891.002
+        ],
+        "waveform_ms.flac-24-352": [
+          772.963,
+          773.58,
+          792.437,
+          776.545,
+          785.937
         ],
         "library_list_ms": [
-          31.097,
-          31.379,
-          27.602
+          35.197,
+          33.36,
+          36.264,
+          36.408,
+          36.459
         ],
         "library_scan_cold_ms": [
-          383.435,
-          386.124,
-          379.536
+          475.232,
+          469.793,
+          447.608,
+          449.887,
+          440.367
         ],
         "library_scan_cpu_s": [
-          1.052,
-          1.031,
-          1.035
+          1.279,
+          1.26,
+          1.273,
+          1.259,
+          1.275
         ],
         "library_footprint_mb": [
-          61.939,
-          58.954,
-          59.657
+          59.626,
+          58.095,
+          58.298,
+          60.204,
+          60.485
         ],
         "peak_footprint_mb": [
-          62.657,
-          59.548,
-          60.345
+          60.204,
+          58.423,
+          58.876,
+          60.454,
+          60.907
         ],
         "library_scan_warm_ms": [
-          98.504,
-          95.645,
-          97.136
+          108.241,
+          97.099,
+          115.95,
+          107.925,
+          107.839
         ]
       }
     },
@@ -2183,362 +4907,816 @@
       "ref": "8ae57716",
       "commit": "8ae57716b2eea835223560b812b7f256d74c151f",
       "measured": "2026-09-28",
-      "reps": 3,
-      "corpus": "65e9656c071f84ef",
+      "reps": 5,
+      "corpus": "911f823547f3298e",
       "machine": {
-        "chip": "Apple M4 Max",
-        "cores": 16,
-        "memory_gb": 64,
-        "macos": "27.0",
-        "xcode": "Xcode 27.0"
+        "chip": "Apple M2 Pro",
+        "cores": 12,
+        "memory_gb": 32,
+        "macos": "26.5.2",
+        "xcode": "Xcode 26.6"
       },
       "metrics": {
-        "system_idle_pct": 93.64,
-        "launch_cold_window_ms": 210.011,
-        "launch_cold_ready_ms": 217.96,
-        "idle_cpu_pct": 0.032,
-        "idle_wakeups_per_s": 1.399,
-        "idle_footprint_mb": 46.642,
-        "launch_warm_window_ms": 199.678,
-        "launch_warm_ready_ms": 202.86,
-        "ttp_ms.mp3-320": 37.979,
-        "play_cpu_pct.mp3-320": 1.458,
-        "play_minstr_per_s.mp3-320": 30.443,
-        "play_power_mw.mp3-320": 3.439,
-        "ttp_ms.mp3-v0": 6.449,
-        "play_cpu_pct.mp3-v0": 1.409,
-        "play_minstr_per_s.mp3-v0": 29.921,
-        "play_power_mw.mp3-v0": 2.827,
-        "seek_ms.mp3-v0": 1.475,
+        "system_idle_pct": 92.295,
+        "idle_cpu_pct": 0.045,
+        "idle_wakeups_per_s": 1.599,
+        "idle_footprint_mb": 39.751,
+        "launch_cold_window_ms": 207.729,
+        "launch_cold_ready_ms": 214.504,
+        "launch_warm_window_ms": 207.966,
+        "launch_warm_ready_ms": 216.084,
+        "ttp_ms.mp3-320": 43.607,
+        "play_cpu_pct.mp3-320": 1.81,
+        "play_minstr_per_s.mp3-320": 31.647,
+        "play_power_mw.mp3-320": 2.85,
+        "ttp_ms.mp3-v0": 1.67,
+        "play_cpu_pct.mp3-v0": 1.708,
+        "play_minstr_per_s.mp3-v0": 30.811,
+        "play_power_mw.mp3-v0": 3.105,
+        "seek_ms.mp3-v0": 2.647,
         "seek_stalls.mp3-v0": 0,
-        "ttp_ms.aac-256": 0.67,
-        "play_cpu_pct.aac-256": 1.327,
-        "play_minstr_per_s.aac-256": 29.446,
-        "play_power_mw.aac-256": 2.546,
-        "seek_ms.aac-256": 1.514,
+        "ttp_ms.aac-256": 3.211,
+        "play_cpu_pct.aac-256": 1.646,
+        "play_minstr_per_s.aac-256": 29.484,
+        "play_power_mw.aac-256": 3.735,
+        "seek_ms.aac-256": 2.489,
         "seek_stalls.aac-256": 0,
-        "ttp_ms.flac-16-44": 0.0,
-        "play_cpu_pct.flac-16-44": 1.529,
-        "play_minstr_per_s.flac-16-44": 44.743,
-        "play_power_mw.flac-16-44": 3.148,
-        "ttp_ms.flac-24-96": 0.0,
-        "play_cpu_pct.flac-24-96": 1.98,
-        "play_minstr_per_s.flac-24-96": 80.52,
-        "play_power_mw.flac-24-96": 4.63,
-        "ttp_ms.flac-24-192": 2.779,
-        "play_cpu_pct.flac-24-192": 2.586,
-        "play_minstr_per_s.flac-24-192": 155.188,
-        "play_power_mw.flac-24-192": 17.22,
-        "seek_ms.flac-24-192": 32.224,
+        "ttp_ms.flac-16-44": 3.481,
+        "play_cpu_pct.flac-16-44": 1.834,
+        "play_minstr_per_s.flac-16-44": 42.593,
+        "play_power_mw.flac-16-44": 3.477,
+        "ttp_ms.flac-24-96": 3.008,
+        "play_cpu_pct.flac-24-96": 2.156,
+        "play_minstr_per_s.flac-24-96": 71.747,
+        "play_power_mw.flac-24-96": 5.789,
+        "ttp_ms.flac-24-192": 7.678,
+        "play_cpu_pct.flac-24-192": 2.722,
+        "play_minstr_per_s.flac-24-192": 130.61,
+        "play_power_mw.flac-24-192": 19.229,
+        "seek_ms.flac-24-192": 7.344,
         "seek_stalls.flac-24-192": 0,
-        "ttp_ms.wav-24-96": 0.226,
-        "play_cpu_pct.wav-24-96": 1.178,
-        "play_minstr_per_s.wav-24-96": 20.206,
-        "play_power_mw.wav-24-96": 1.509,
-        "play_cpu_pct.fx": 6.289,
-        "play_power_mw.fx": 18.763,
-        "paused_cpu_pct": 3.757,
-        "paused_wakeups_per_s": 100.147,
-        "playback_footprint_mb": 72.142,
-        "waveform_ms.mp3-320": 90.126,
-        "waveform_ms.flac-16-44": 207.018,
-        "waveform_ms.flac-24-192": 1310.029,
-        "library_list_ms": 41.801,
-        "library_scan_cold_ms": 349.269,
-        "library_scan_cpu_s": 1.042,
-        "library_footprint_mb": 73.548,
-        "peak_footprint_mb": 329.657,
-        "library_scan_warm_ms": 99.872
+        "ttp_ms.wav-24-96": 1.422,
+        "play_cpu_pct.wav-24-96": 1.55,
+        "play_minstr_per_s.wav-24-96": 23.246,
+        "play_power_mw.wav-24-96": 2.211,
+        "ttp_ms.mp3-320-48k": 2.663,
+        "play_cpu_pct.mp3-320-48k": 1.28,
+        "play_minstr_per_s.mp3-320-48k": 15.949,
+        "play_power_mw.mp3-320-48k": 1.362,
+        "ttp_ms.mp3-320-60min": 0.396,
+        "play_cpu_pct.mp3-320-60min": 1.599,
+        "play_minstr_per_s.mp3-320-60min": 30.758,
+        "play_power_mw.mp3-320-60min": 2.84,
+        "seek_ms.mp3-320-60min": 5.04,
+        "seek_stalls.mp3-320-60min": 0,
+        "ttp_ms.mp3-v0-60min": 3.275,
+        "play_cpu_pct.mp3-v0-60min": 1.568,
+        "play_minstr_per_s.mp3-v0-60min": 30.44,
+        "play_power_mw.mp3-v0-60min": 3.034,
+        "seek_ms.mp3-v0-60min": 5.291,
+        "seek_stalls.mp3-v0-60min": 0,
+        "ttp_ms.mp3-v0-noxing": 25.361,
+        "play_cpu_pct.mp3-v0-noxing": 1.718,
+        "play_minstr_per_s.mp3-v0-noxing": 28.706,
+        "play_power_mw.mp3-v0-noxing": 2.91,
+        "seek_ms.mp3-v0-noxing": 2.129,
+        "seek_stalls.mp3-v0-noxing": 0,
+        "ttp_ms.flac-24-88": 5.298,
+        "play_cpu_pct.flac-24-88": 2.496,
+        "play_minstr_per_s.flac-24-88": 82.887,
+        "play_power_mw.flac-24-88": 9.264,
+        "ttp_ms.flac-24-176": 14.905,
+        "play_cpu_pct.flac-24-176": 2.85,
+        "play_minstr_per_s.flac-24-176": 133.936,
+        "play_power_mw.flac-24-176": 24.398,
+        "ttp_ms.flac-24-352": 6.02,
+        "play_cpu_pct.flac-24-352": 4.112,
+        "play_minstr_per_s.flac-24-352": 239.103,
+        "play_power_mw.flac-24-352": 44.99,
+        "ttp_ms.flac-16-22-mono": 0.0,
+        "play_cpu_pct.flac-16-22-mono": 1.512,
+        "play_minstr_per_s.flac-16-22-mono": 23.445,
+        "play_power_mw.flac-16-22-mono": 2.005,
+        "play_cpu_pct.fx": 6.83,
+        "play_power_mw.fx": 24.291,
+        "play_cpu_pct.pitch.flac-24-192": 6.681,
+        "play_cpu_pct.pitch.mp3-320": 2.186,
+        "paused_cpu_pct": 0.411,
+        "paused_wakeups_per_s": 60.506,
+        "playback_footprint_mb": 55.501,
+        "waveform_ms.mp3-320": 121.311,
+        "waveform_ms.flac-16-44": 204.123,
+        "waveform_ms.flac-24-192": 1286.537,
+        "waveform_ms.mp3-320-60min": 2193.559,
+        "waveform_ms.flac-24-352": 809.346,
+        "library_list_ms": 30.595,
+        "library_scan_cold_ms": 405.666,
+        "library_scan_cpu_s": 1.255,
+        "library_footprint_mb": 64.485,
+        "peak_footprint_mb": 66.267,
+        "library_scan_warm_ms": 108.529
       },
       "samples": {
         "system_idle_pct": [
-          84.42,
-          88.36,
-          97.13,
-          96.99,
-          95.9,
-          94.31,
-          96.19,
-          93.65,
-          91.7,
-          93.63,
-          93.27,
-          93.5
-        ],
-        "launch_cold_window_ms": [
-          336.827,
-          209.065,
-          210.011
-        ],
-        "launch_cold_ready_ms": [
-          339.181,
-          211.192,
-          217.96
+          91.82,
+          87.98,
+          93.21,
+          92.8,
+          91.98,
+          85.26,
+          93.1,
+          92.47,
+          92.0,
+          85.75,
+          92.86,
+          90.89,
+          92.12,
+          84.52,
+          98.66,
+          95.54,
+          97.67,
+          84.75,
+          98.49,
+          96.15
         ],
         "idle_cpu_pct": [
-          0.032,
-          0.031,
-          0.041
+          0.049,
+          0.04,
+          0.042,
+          0.047,
+          0.045
         ],
         "idle_wakeups_per_s": [
-          1.399,
+          1.599,
           1.4,
-          1.399
+          1.6,
+          1.597,
+          1.996
         ],
         "idle_footprint_mb": [
-          45.095,
-          48.501,
-          46.642
+          40.266,
+          39.751,
+          39.673,
+          39.845,
+          39.235
+        ],
+        "launch_cold_window_ms": [
+          208.125,
+          207.729,
+          205.521,
+          209.839,
+          195.495
+        ],
+        "launch_cold_ready_ms": [
+          216.156,
+          217.413,
+          213.104,
+          214.504,
+          201.2
         ],
         "launch_warm_window_ms": [
-          199.678,
-          194.623,
-          207.537
+          211.673,
+          207.831,
+          207.966,
+          209.202,
+          195.377
         ],
         "launch_warm_ready_ms": [
-          201.95,
-          202.86,
-          215.141
+          217.241,
+          216.137,
+          216.084,
+          214.654,
+          201.958
         ],
         "ttp_ms.mp3-320": [
-          38.918,
-          37.979,
-          35.016
+          43.607,
+          39.28,
+          45.161,
+          43.835,
+          38.346
         ],
         "play_cpu_pct.mp3-320": [
-          1.262,
-          1.458,
-          1.561
+          1.906,
+          1.81,
+          1.792,
+          1.704,
+          2.245
         ],
         "play_minstr_per_s.mp3-320": [
-          27.565,
-          34.466,
-          30.443
+          31.647,
+          31.723,
+          31.598,
+          31.682,
+          31.538
         ],
         "play_power_mw.mp3-320": [
-          3.439,
-          4.089,
-          2.358
+          2.813,
+          2.935,
+          2.85,
+          3.154,
+          2.534
         ],
         "ttp_ms.mp3-v0": [
-          6.449,
-          9.247,
+          5.3,
+          1.67,
+          0.0,
+          7.476,
           0.0
         ],
         "play_cpu_pct.mp3-v0": [
-          1.409,
-          1.312,
-          1.516
+          1.659,
+          1.708,
+          1.381,
+          1.763,
+          2.035
         ],
         "play_minstr_per_s.mp3-v0": [
-          29.921,
-          32.254,
-          29.487
+          30.811,
+          30.831,
+          30.802,
+          30.901,
+          30.756
         ],
         "play_power_mw.mp3-v0": [
-          2.827,
-          4.621,
-          1.686
+          3.779,
+          3.105,
+          6.281,
+          2.732,
+          2.849
         ],
         "seek_ms.mp3-v0": [
-          1.564,
-          1.26,
-          1.475
+          3.351,
+          2.647,
+          2.475,
+          3.162,
+          2.336
         ],
         "seek_stalls.mp3-v0": [
+          0,
+          0,
           0,
           0,
           0
         ],
         "ttp_ms.aac-256": [
+          5.511,
           0.0,
-          9.664,
-          0.67
+          0.0,
+          3.211,
+          16.484
         ],
         "play_cpu_pct.aac-256": [
-          1.29,
-          1.327,
-          1.482
+          1.433,
+          1.502,
+          1.646,
+          1.861,
+          2.016
         ],
         "play_minstr_per_s.aac-256": [
-          30.638,
-          27.06,
-          29.446
+          29.517,
+          29.434,
+          29.541,
+          29.484,
+          29.287
         ],
         "play_power_mw.aac-256": [
-          7.287,
-          2.546,
-          2.277
+          5.791,
+          3.807,
+          3.735,
+          2.596,
+          2.762
         ],
         "seek_ms.aac-256": [
-          1.093,
-          2.484,
-          1.514
+          1.986,
+          3.061,
+          2.304,
+          2.489,
+          2.575
         ],
         "seek_stalls.aac-256": [
+          0,
+          0,
           0,
           0,
           0
         ],
         "ttp_ms.flac-16-44": [
-          0.0,
-          0.0,
+          5.272,
+          3.481,
+          7.456,
+          0.351,
           0.0
         ],
         "play_cpu_pct.flac-16-44": [
-          1.02,
-          1.529,
-          1.781
+          1.834,
+          1.839,
+          1.697,
+          1.772,
+          2.264
         ],
         "play_minstr_per_s.flac-16-44": [
-          44.494,
-          44.743,
-          47.406
+          42.593,
+          42.521,
+          42.667,
+          42.604,
+          42.5
         ],
         "play_power_mw.flac-16-44": [
-          8.802,
-          3.148,
-          2.486
+          3.502,
+          3.399,
+          4.515,
+          3.477,
+          3.165
         ],
         "ttp_ms.flac-24-96": [
-          0.0,
-          8.795,
+          2.915,
+          8.404,
+          5.286,
+          3.008,
           0.0
         ],
         "play_cpu_pct.flac-24-96": [
-          1.522,
-          1.98,
-          2.059
+          2.293,
+          2.156,
+          2.128,
+          2.099,
+          2.226
         ],
         "play_minstr_per_s.flac-24-96": [
-          81.849,
-          77.749,
-          80.52
+          71.709,
+          71.708,
+          71.752,
+          71.747,
+          71.774
         ],
         "play_power_mw.flac-24-96": [
-          14.701,
-          4.607,
-          4.63
+          5.248,
+          5.789,
+          6.933,
+          5.542,
+          6.477
         ],
         "ttp_ms.flac-24-192": [
-          0.0,
-          2.779,
-          6.427
+          10.966,
+          5.263,
+          11.619,
+          6.898,
+          7.678
         ],
         "play_cpu_pct.flac-24-192": [
-          2.561,
-          2.586,
-          2.848
+          2.753,
+          2.592,
+          2.722,
+          2.651,
+          3.516
         ],
         "play_minstr_per_s.flac-24-192": [
-          155.188,
-          152.169,
-          159.414
+          130.596,
+          130.661,
+          130.702,
+          130.61,
+          130.42
         ],
         "play_power_mw.flac-24-192": [
-          21.663,
-          16.954,
-          17.22
+          19.229,
+          21.357,
+          18.202,
+          20.078,
+          12.092
         ],
         "seek_ms.flac-24-192": [
-          35.798,
-          29.706,
-          32.224
+          7.247,
+          7.527,
+          7.269,
+          7.344,
+          7.956
         ],
         "seek_stalls.flac-24-192": [
+          0,
+          0,
           0,
           0,
           0
         ],
         "ttp_ms.wav-24-96": [
+          1.422,
+          9.818,
           0.0,
-          0.551,
-          0.226
+          0.0,
+          10.826
         ],
         "play_cpu_pct.wav-24-96": [
-          0.998,
-          1.178,
-          1.374
+          1.55,
+          1.494,
+          1.55,
+          1.45,
+          1.929
         ],
         "play_minstr_per_s.wav-24-96": [
-          20.206,
-          20.195,
-          22.685
+          23.211,
+          23.382,
+          23.314,
+          23.246,
+          23.169
         ],
         "play_power_mw.wav-24-96": [
-          2.892,
-          1.509,
-          1.308
+          2.106,
+          2.572,
+          2.211,
+          2.263,
+          1.758
+        ],
+        "ttp_ms.mp3-320-48k": [
+          1.191,
+          7.165,
+          0.759,
+          5.743,
+          2.663
+        ],
+        "play_cpu_pct.mp3-320-48k": [
+          1.249,
+          1.28,
+          1.314,
+          1.19,
+          1.511
+        ],
+        "play_minstr_per_s.mp3-320-48k": [
+          15.949,
+          16.006,
+          16.053,
+          15.917,
+          15.884
+        ],
+        "play_power_mw.mp3-320-48k": [
+          1.362,
+          1.42,
+          1.24,
+          1.465,
+          1.099
+        ],
+        "ttp_ms.mp3-320-60min": [
+          5.304,
+          0.396,
+          3.39,
+          0.0,
+          0.0
+        ],
+        "play_cpu_pct.mp3-320-60min": [
+          1.474,
+          1.599,
+          1.67,
+          1.514,
+          2.028
+        ],
+        "play_minstr_per_s.mp3-320-60min": [
+          30.753,
+          30.758,
+          30.763,
+          30.795,
+          30.714
+        ],
+        "play_power_mw.mp3-320-60min": [
+          3.736,
+          2.84,
+          2.712,
+          3.111,
+          2.65
+        ],
+        "seek_ms.mp3-320-60min": [
+          5.04,
+          4.752,
+          4.414,
+          5.116,
+          5.366
+        ],
+        "seek_stalls.mp3-320-60min": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ttp_ms.mp3-v0-60min": [
+          4.833,
+          0.0,
+          4.913,
+          3.275,
+          0.0
+        ],
+        "play_cpu_pct.mp3-v0-60min": [
+          1.524,
+          1.586,
+          1.568,
+          1.539,
+          2.016
+        ],
+        "play_minstr_per_s.mp3-v0-60min": [
+          30.447,
+          30.425,
+          30.44,
+          30.525,
+          30.415
+        ],
+        "play_power_mw.mp3-v0-60min": [
+          3.034,
+          2.839,
+          3.512,
+          3.123,
+          2.402
+        ],
+        "seek_ms.mp3-v0-60min": [
+          5.291,
+          5.088,
+          5.152,
+          5.552,
+          5.506
+        ],
+        "seek_stalls.mp3-v0-60min": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ttp_ms.mp3-v0-noxing": [
+          20.604,
+          22.576,
+          25.361,
+          26.82,
+          31.002
+        ],
+        "play_cpu_pct.mp3-v0-noxing": [
+          1.718,
+          1.534,
+          1.596,
+          1.971,
+          2.106
+        ],
+        "play_minstr_per_s.mp3-v0-noxing": [
+          28.652,
+          28.714,
+          28.696,
+          28.706,
+          30.322
+        ],
+        "play_power_mw.mp3-v0-noxing": [
+          2.406,
+          2.926,
+          2.769,
+          2.91,
+          3.062
+        ],
+        "seek_ms.mp3-v0-noxing": [
+          2.05,
+          3.226,
+          3.212,
+          2.073,
+          2.129
+        ],
+        "seek_stalls.mp3-v0-noxing": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ttp_ms.flac-24-88": [
+          6.761,
+          4.906,
+          5.298,
+          5.245,
+          15.116
+        ],
+        "play_cpu_pct.flac-24-88": [
+          2.496,
+          2.456,
+          2.359,
+          3.096,
+          3.061
+        ],
+        "play_minstr_per_s.flac-24-88": [
+          82.888,
+          83.012,
+          82.887,
+          82.686,
+          82.726
+        ],
+        "play_power_mw.flac-24-88": [
+          9.264,
+          9.91,
+          9.756,
+          7.771,
+          7.87
+        ],
+        "ttp_ms.flac-24-176": [
+          0.0,
+          15.535,
+          16.237,
+          10.156,
+          14.905
+        ],
+        "play_cpu_pct.flac-24-176": [
+          2.736,
+          2.85,
+          2.752,
+          3.785,
+          3.523
+        ],
+        "play_minstr_per_s.flac-24-176": [
+          133.936,
+          134.209,
+          133.972,
+          133.745,
+          133.892
+        ],
+        "play_power_mw.flac-24-176": [
+          25.643,
+          24.398,
+          26.197,
+          14.429,
+          16.654
+        ],
+        "ttp_ms.flac-24-352": [
+          0.0,
+          5.2,
+          13.233,
+          6.02,
+          15.859
+        ],
+        "play_cpu_pct.flac-24-352": [
+          3.996,
+          4.017,
+          4.112,
+          5.163,
+          5.001
+        ],
+        "play_minstr_per_s.flac-24-352": [
+          239.103,
+          239.251,
+          239.191,
+          238.806,
+          238.862
+        ],
+        "play_power_mw.flac-24-352": [
+          47.125,
+          46.74,
+          44.99,
+          32.18,
+          32.685
+        ],
+        "ttp_ms.flac-16-22-mono": [
+          6.41,
+          5.289,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "play_cpu_pct.flac-16-22-mono": [
+          1.474,
+          1.472,
+          1.512,
+          1.89,
+          1.832
+        ],
+        "play_minstr_per_s.flac-16-22-mono": [
+          23.445,
+          23.52,
+          23.544,
+          23.328,
+          23.363
+        ],
+        "play_power_mw.flac-16-22-mono": [
+          2.027,
+          2.034,
+          2.005,
+          1.606,
+          1.711
         ],
         "play_cpu_pct.fx": [
-          6.219,
-          6.463,
-          6.289
+          6.563,
+          6.66,
+          6.83,
+          8.834,
+          8.704
         ],
         "play_power_mw.fx": [
-          18.785,
-          16.562,
-          18.763
+          25.937,
+          24.291,
+          24.568,
+          16.688,
+          16.187
+        ],
+        "play_cpu_pct.pitch.flac-24-192": [
+          6.681,
+          6.544,
+          6.639,
+          8.419,
+          8.559
+        ],
+        "play_cpu_pct.pitch.mp3-320": [
+          2.156,
+          2.186,
+          2.123,
+          2.778,
+          2.727
         ],
         "paused_cpu_pct": [
-          3.682,
-          3.924,
-          3.757
+          0.407,
+          0.411,
+          0.401,
+          0.423,
+          0.472
         ],
         "paused_wakeups_per_s": [
-          100.525,
-          100.147,
-          100.129
+          60.499,
+          60.563,
+          60.477,
+          60.786,
+          60.506
         ],
         "playback_footprint_mb": [
-          72.142,
-          73.314,
-          71.126
+          56.829,
+          57.017,
+          55.501,
+          55.267,
+          55.048
         ],
         "waveform_ms.mp3-320": [
-          89.518,
-          90.126,
-          99.804
+          123.37,
+          121.311,
+          121.231,
+          119.919,
+          121.954
         ],
         "waveform_ms.flac-16-44": [
-          207.018,
-          210.238,
-          203.76
+          204.123,
+          204.649,
+          204.997,
+          203.52,
+          202.9
         ],
         "waveform_ms.flac-24-192": [
-          1310.029,
-          1311.119,
-          1280.813
+          1295.367,
+          1286.537,
+          1298.962,
+          1281.553,
+          1278.984
+        ],
+        "waveform_ms.mp3-320-60min": [
+          2207.587,
+          2182.594,
+          2207.072,
+          2180.085,
+          2193.559
+        ],
+        "waveform_ms.flac-24-352": [
+          809.346,
+          799.432,
+          810.843,
+          798.155,
+          813.185
         ],
         "library_list_ms": [
-          41.019,
-          41.801,
-          41.92
+          33.933,
+          30.595,
+          48.268,
+          29.296,
+          26.894
         ],
         "library_scan_cold_ms": [
-          357.735,
-          349.269,
-          325.939
+          450.219,
+          397.566,
+          427.337,
+          401.724,
+          405.666
         ],
         "library_scan_cpu_s": [
-          1.039,
-          1.047,
-          1.042
+          1.263,
+          1.265,
+          1.247,
+          1.238,
+          1.255
         ],
         "library_footprint_mb": [
-          73.548,
-          72.97,
-          329.048
+          64.485,
+          64.392,
+          65.11,
+          63.954,
+          64.501
         ],
         "peak_footprint_mb": [
-          330.079,
-          329.392,
-          329.657
+          65.907,
+          66.267,
+          66.876,
+          65.532,
+          66.438
         ],
         "library_scan_warm_ms": [
-          99.872,
-          102.293,
-          98.488
+          108.529,
+          108.803,
+          109.501,
+          94.567,
+          105.105
         ]
       }
     }

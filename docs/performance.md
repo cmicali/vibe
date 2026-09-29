@@ -2,27 +2,36 @@
 
 <!-- performance:begin -->
 
-The same benchmark suite, run against every release on one machine (Apple M4 Max, 64 GB, macOS 27.0); lower is better everywhere. What each number measures and how to run it is below the charts.
+The same benchmark suite, run against every release on one machine (Apple M2 Pro, 32 GB, macOS 26.5.2); lower is better everywhere. What each number measures and how to run it is below the charts.
 
 | | 1.8 | 1.9 | 1.10 | 1.11 | 1.12 | 1.13 | 1.14 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| App startup, window shown (ms) | 201 | 191 | 187 | 192 | 198 | 195 | 200 |
-| Time to play, first file after launch (ms) | 73 | 76 | 75 | 77 | 75 | 69 | 38 |
-| Time to play, track switch, mean of 6 formats (ms) | 35 | 33 | 39 | 35 | 37 | 38 | 2 |
-| Seek latency, 3 min files, mean of 3 formats (ms) | 53 | 52 | 52 | 52 | 72 | 72 | 12 |
-| Playback CPU, MP3 320k (% core) | 3.6 | 3.7 | 3.0 | 3.1 | 2.6 | 2.9 | 1.5 |
-| Playback CPU, FLAC 24/192 (% core) | 6.4 | 5.4 | 5.6 | 5.4 | 4.0 | 4.2 | 2.6 |
-| Playback CPU, FLAC 24/192 + FX (% core) | 7.6 | 7.4 | 7.7 | 7.0 | 6.0 | 6.5 | 6.3 |
-| Waveform analysis, FLAC 16/44.1, 3 min (ms) | 192 | 188 | 195 | 196 | 189 | 189 | 207 |
-| Library metadata scan, cold (s) | 0.26 | 0.28 | 0.40 | 0.41 | 0.38 | 0.38 | 0.35 |
-| Memory, idle (MB) | 34 | 34 | 36 | 37 | 31 | 31 | 47 |
-| Memory, peak (MB) | 108 | 110 | 67 | 67 | 60 | 60 | 330 |
+| App startup, window shown (ms) | 181 | 180 | 181 | 185 | 189 | 192 | 208 |
+| Time to play, first file after launch (ms) | 65 | 68 | 69 | 68 | 68 | 74 | 44 |
+| Time to play, track switch, mean of 6 formats (ms) | 35 | 35 | 36 | 35 | 36 | 36 | 3 |
+| Seek latency, 3 min files, mean of 3 formats (ms) | 53 | 53 | 53 | 53 | 75 | 74 | 4 |
+| Seek latency, 60 min VBR MP3 (ms) | 53 | 54 | 54 | 54 | 75 | 74 | 5 |
+| Seek latency, VBR MP3 without Xing (ms) | 53 | 53 | 53 | 54 | 75 | 73 | 2 |
+| Playback CPU, MP3 320k (% core) | 4.7 | 4.5 | 4.6 | 4.6 | 3.8 | 3.8 | 1.8 |
+| Playback CPU, FLAC 24/192 (% core) | 7.3 | 7.6 | 7.9 | 7.7 | 5.1 | 5.2 | 2.7 |
+| Playback CPU, FLAC 24/192 + FX (% core) | 10.7 | 11.2 | 11.3 | 11.4 | 8.6 | 8.5 | 6.8 |
+| Playback CPU, FLAC 24/352.8 (% core) | 11.0 | 11.5 | 11.6 | 11.6 | 6.6 | 6.6 | 4.1 |
+| Playback CPU, FLAC 24/192 at +8% pitch (% core) | 10.0 | 10.8 | 10.8 | 10.9 | 10.4 | 10.4 | 6.7 |
+| Waveform analysis, FLAC 16/44.1, 3 min (ms) | 194 | 191 | 192 | 192 | 192 | 192 | 204 |
+| Waveform analysis, MP3 320k, 60 min (s) | 4.8 | 4.8 | 4.8 | 4.8 | 4.8 | 4.8 | 2.2 |
+| Library metadata scan, cold (s) | 0.28 | 0.31 | 0.48 | 0.49 | 0.43 | 0.45 | 0.41 |
+| Memory, idle (MB) | 29 | 29 | 29 | 30 | 29 | 31 | 40 |
+| Memory, peak (MB) | 103 | 105 | 62 | 64 | 58 | 60 | 66 |
 
 ![App startup](performance/startup.svg)
 ![Time to play a file never opened before](performance/time-to-play.svg)
 ![Seek latency](performance/seek.svg)
+![Long MP3s: open and seek](performance/long-mp3.svg)
 ![Playback CPU](performance/playback-cpu.svg)
+![Playback CPU, resampled to 48 kHz](performance/resampler-cpu.svg)
+![Playback CPU, pitch fader at full throw](performance/pitch-cpu.svg)
 ![Waveform + tempo analysis, 3 min file](performance/waveform.svg)
+![Waveform + tempo analysis, long files](performance/waveform-long.svg)
 ![600-file library: open and metadata scan](performance/library.svg)
 ![Memory footprint](performance/memory.svg)
 ![Background cost](performance/idle.svg)

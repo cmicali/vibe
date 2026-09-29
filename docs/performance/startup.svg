@@ -22,37 +22,37 @@
 <text class="m" x="386.4" y="282" font-size="11" text-anchor="middle">1.12</text>
 <text class="m" x="459.9" y="282" font-size="11" text-anchor="middle">1.13</text>
 <text class="m" x="533.3" y="282" font-size="11" text-anchor="middle">1.14</text>
-<path class="l s0" d="M92.7,87.2 L166.1,96.2 L239.6,99.1 L313.0,95.2 L386.4,89.4 L459.9,92.1 L533.3,88.3"/>
-<circle class="s0" cx="92.7" cy="87.2" r="4" stroke="none"><title>Window shown: 201 ms</title></circle>
-<circle class="s0" cx="166.1" cy="96.2" r="4" stroke="none"><title>Window shown: 191 ms</title></circle>
-<circle class="s0" cx="239.6" cy="99.1" r="4" stroke="none"><title>Window shown: 187 ms</title></circle>
-<circle class="s0" cx="313.0" cy="95.2" r="4" stroke="none"><title>Window shown: 192 ms</title></circle>
-<circle class="s0" cx="386.4" cy="89.4" r="4" stroke="none"><title>Window shown: 198 ms</title></circle>
-<circle class="s0" cx="459.9" cy="92.1" r="4" stroke="none"><title>Window shown: 195 ms</title></circle>
-<circle class="s0" cx="533.3" cy="88.3" r="4" stroke="none"><title>Window shown: 200 ms</title></circle>
-<path class="l s1" d="M92.7,75.9 L166.1,83.6 L239.6,87.4 L313.0,83.8 L386.4,74.8 L459.9,79.1 L533.3,85.5"/>
-<circle class="s1" cx="92.7" cy="75.9" r="4" stroke="none"><title>Ready: 214 ms</title></circle>
-<circle class="s1" cx="166.1" cy="83.6" r="4" stroke="none"><title>Ready: 205 ms</title></circle>
-<circle class="s1" cx="239.6" cy="87.4" r="4" stroke="none"><title>Ready: 201 ms</title></circle>
-<circle class="s1" cx="313.0" cy="83.8" r="4" stroke="none"><title>Ready: 205 ms</title></circle>
-<circle class="s1" cx="386.4" cy="74.8" r="4" stroke="none"><title>Ready: 215 ms</title></circle>
-<circle class="s1" cx="459.9" cy="79.1" r="4" stroke="none"><title>Ready: 210 ms</title></circle>
-<circle class="s1" cx="533.3" cy="85.5" r="4" stroke="none"><title>Ready: 203 ms</title></circle>
-<path class="l s2" d="M92.7,102.0 L166.1,107.9 L239.6,102.7 L313.0,98.1 L386.4,96.8 L459.9,88.5 L533.3,79.2"/>
-<circle class="s2" cx="92.7" cy="102.0" r="4" stroke="none"><title>First launch: 184 ms</title></circle>
-<circle class="s2" cx="166.1" cy="107.9" r="4" stroke="none"><title>First launch: 177 ms</title></circle>
-<circle class="s2" cx="239.6" cy="102.7" r="4" stroke="none"><title>First launch: 183 ms</title></circle>
-<circle class="s2" cx="313.0" cy="98.1" r="4" stroke="none"><title>First launch: 188 ms</title></circle>
-<circle class="s2" cx="386.4" cy="96.8" r="4" stroke="none"><title>First launch: 190 ms</title></circle>
-<circle class="s2" cx="459.9" cy="88.5" r="4" stroke="none"><title>First launch: 199 ms</title></circle>
-<circle class="s2" cx="533.3" cy="79.2" r="4" stroke="none"><title>First launch: 210 ms</title></circle>
-<rect class="s2" x="582" y="70.2" width="10" height="3" rx="1.5" stroke="none"/>
-<text class="t" x="598" y="75.2" font-size="11">First launch</text>
-<text class="m" x="598" y="88.2" font-size="11">210</text>
-<rect class="s1" x="582" y="98.2" width="10" height="3" rx="1.5" stroke="none"/>
-<text class="t" x="598" y="103.2" font-size="11">Ready</text>
-<text class="m" x="598" y="116.2" font-size="11">203</text>
-<rect class="s0" x="582" y="126.2" width="10" height="3" rx="1.5" stroke="none"/>
-<text class="t" x="598" y="131.2" font-size="11">Window shown</text>
-<text class="m" x="598" y="144.2" font-size="11">200</text>
+<path class="l s0" d="M92.7,105.1 L166.1,105.7 L239.6,105.0 L313.0,101.3 L386.4,97.7 L459.9,95.0 L533.3,81.0"/>
+<circle class="s0" cx="92.7" cy="105.1" r="4" stroke="none"><title>Window shown: 181 ms</title></circle>
+<circle class="s0" cx="166.1" cy="105.7" r="4" stroke="none"><title>Window shown: 180 ms</title></circle>
+<circle class="s0" cx="239.6" cy="105.0" r="4" stroke="none"><title>Window shown: 181 ms</title></circle>
+<circle class="s0" cx="313.0" cy="101.3" r="4" stroke="none"><title>Window shown: 185 ms</title></circle>
+<circle class="s0" cx="386.4" cy="97.7" r="4" stroke="none"><title>Window shown: 189 ms</title></circle>
+<circle class="s0" cx="459.9" cy="95.0" r="4" stroke="none"><title>Window shown: 192 ms</title></circle>
+<circle class="s0" cx="533.3" cy="81.0" r="4" stroke="none"><title>Window shown: 208 ms</title></circle>
+<path class="l s1" d="M92.7,100.4 L166.1,101.4 L239.6,99.3 L313.0,96.4 L386.4,93.3 L459.9,91.1 L533.3,73.8"/>
+<circle class="s1" cx="92.7" cy="100.4" r="4" stroke="none"><title>Ready: 186 ms</title></circle>
+<circle class="s1" cx="166.1" cy="101.4" r="4" stroke="none"><title>Ready: 185 ms</title></circle>
+<circle class="s1" cx="239.6" cy="99.3" r="4" stroke="none"><title>Ready: 187 ms</title></circle>
+<circle class="s1" cx="313.0" cy="96.4" r="4" stroke="none"><title>Ready: 190 ms</title></circle>
+<circle class="s1" cx="386.4" cy="93.3" r="4" stroke="none"><title>Ready: 194 ms</title></circle>
+<circle class="s1" cx="459.9" cy="91.1" r="4" stroke="none"><title>Ready: 197 ms</title></circle>
+<circle class="s1" cx="533.3" cy="73.8" r="4" stroke="none"><title>Ready: 216 ms</title></circle>
+<path class="l s2" d="M92.7,104.5 L166.1,106.9 L239.6,106.3 L313.0,103.9 L386.4,100.5 L459.9,100.3 L533.3,81.2"/>
+<circle class="s2" cx="92.7" cy="104.5" r="4" stroke="none"><title>First launch: 181 ms</title></circle>
+<circle class="s2" cx="166.1" cy="106.9" r="4" stroke="none"><title>First launch: 179 ms</title></circle>
+<circle class="s2" cx="239.6" cy="106.3" r="4" stroke="none"><title>First launch: 179 ms</title></circle>
+<circle class="s2" cx="313.0" cy="103.9" r="4" stroke="none"><title>First launch: 182 ms</title></circle>
+<circle class="s2" cx="386.4" cy="100.5" r="4" stroke="none"><title>First launch: 186 ms</title></circle>
+<circle class="s2" cx="459.9" cy="100.3" r="4" stroke="none"><title>First launch: 186 ms</title></circle>
+<circle class="s2" cx="533.3" cy="81.2" r="4" stroke="none"><title>First launch: 208 ms</title></circle>
+<rect class="s1" x="582" y="64.8" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="69.8" font-size="11">Ready</text>
+<text class="m" x="598" y="82.8" font-size="11">216</text>
+<rect class="s0" x="582" y="92.8" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="97.8" font-size="11">Window shown</text>
+<text class="m" x="598" y="110.8" font-size="11">208</text>
+<rect class="s2" x="582" y="120.8" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="125.8" font-size="11">First launch</text>
+<text class="m" x="598" y="138.8" font-size="11">208</text>
 </svg>

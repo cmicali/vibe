@@ -4,17 +4,19 @@
 <text class="t" x="56" y="24" font-size="15" font-weight="600">Background cost</text>
 <text class="m" x="56" y="38" font-size="11">% of one core</text>
 <line class="a" x1="56" x2="570" y1="264.0" y2="264.0"/>
-<text class="m" x="48" y="268.0" font-size="11" text-anchor="end">0</text>
-<line class="g" x1="56" x2="570" y1="220.0" y2="220.0"/>
-<text class="m" x="48" y="224.0" font-size="11" text-anchor="end">1</text>
-<line class="g" x1="56" x2="570" y1="176.0" y2="176.0"/>
-<text class="m" x="48" y="180.0" font-size="11" text-anchor="end">2</text>
-<line class="g" x1="56" x2="570" y1="132.0" y2="132.0"/>
-<text class="m" x="48" y="136.0" font-size="11" text-anchor="end">3</text>
-<line class="g" x1="56" x2="570" y1="88.0" y2="88.0"/>
-<text class="m" x="48" y="92.0" font-size="11" text-anchor="end">4</text>
+<text class="m" x="48" y="268.0" font-size="11" text-anchor="end">0.0</text>
+<line class="g" x1="56" x2="570" y1="227.3" y2="227.3"/>
+<text class="m" x="48" y="231.3" font-size="11" text-anchor="end">0.5</text>
+<line class="g" x1="56" x2="570" y1="190.7" y2="190.7"/>
+<text class="m" x="48" y="194.7" font-size="11" text-anchor="end">1.0</text>
+<line class="g" x1="56" x2="570" y1="154.0" y2="154.0"/>
+<text class="m" x="48" y="158.0" font-size="11" text-anchor="end">1.5</text>
+<line class="g" x1="56" x2="570" y1="117.3" y2="117.3"/>
+<text class="m" x="48" y="121.3" font-size="11" text-anchor="end">2.0</text>
+<line class="g" x1="56" x2="570" y1="80.7" y2="80.7"/>
+<text class="m" x="48" y="84.7" font-size="11" text-anchor="end">2.5</text>
 <line class="g" x1="56" x2="570" y1="44.0" y2="44.0"/>
-<text class="m" x="48" y="48.0" font-size="11" text-anchor="end">5</text>
+<text class="m" x="48" y="48.0" font-size="11" text-anchor="end">3.0</text>
 <text class="m" x="92.7" y="282" font-size="11" text-anchor="middle">1.8</text>
 <text class="m" x="166.1" y="282" font-size="11" text-anchor="middle">1.9</text>
 <text class="m" x="239.6" y="282" font-size="11" text-anchor="middle">1.10</text>
@@ -22,26 +24,26 @@
 <text class="m" x="386.4" y="282" font-size="11" text-anchor="middle">1.12</text>
 <text class="m" x="459.9" y="282" font-size="11" text-anchor="middle">1.13</text>
 <text class="m" x="533.3" y="282" font-size="11" text-anchor="middle">1.14</text>
-<path class="l s0" d="M92.7,262.9 L166.1,263.2 L239.6,263.1 L313.0,263.1 L386.4,262.4 L459.9,262.6 L533.3,262.6"/>
-<circle class="s0" cx="92.7" cy="262.9" r="4" stroke="none"><title>Idle, empty: 0.02 % of one core</title></circle>
-<circle class="s0" cx="166.1" cy="263.2" r="4" stroke="none"><title>Idle, empty: 0.02 % of one core</title></circle>
-<circle class="s0" cx="239.6" cy="263.1" r="4" stroke="none"><title>Idle, empty: 0.02 % of one core</title></circle>
-<circle class="s0" cx="313.0" cy="263.1" r="4" stroke="none"><title>Idle, empty: 0.02 % of one core</title></circle>
-<circle class="s0" cx="386.4" cy="262.4" r="4" stroke="none"><title>Idle, empty: 0.04 % of one core</title></circle>
-<circle class="s0" cx="459.9" cy="262.6" r="4" stroke="none"><title>Idle, empty: 0.03 % of one core</title></circle>
-<circle class="s0" cx="533.3" cy="262.6" r="4" stroke="none"><title>Idle, empty: 0.03 % of one core</title></circle>
-<path class="l s1" d="M92.7,75.4 L166.1,92.0 L239.6,92.4 L313.0,88.3 L386.4,134.0 L459.9,127.4 L533.3,98.7"/>
-<circle class="s1" cx="92.7" cy="75.4" r="4" stroke="none"><title>Paused: 4.29 % of one core</title></circle>
-<circle class="s1" cx="166.1" cy="92.0" r="4" stroke="none"><title>Paused: 3.91 % of one core</title></circle>
-<circle class="s1" cx="239.6" cy="92.4" r="4" stroke="none"><title>Paused: 3.90 % of one core</title></circle>
-<circle class="s1" cx="313.0" cy="88.3" r="4" stroke="none"><title>Paused: 3.99 % of one core</title></circle>
-<circle class="s1" cx="386.4" cy="134.0" r="4" stroke="none"><title>Paused: 2.96 % of one core</title></circle>
-<circle class="s1" cx="459.9" cy="127.4" r="4" stroke="none"><title>Paused: 3.10 % of one core</title></circle>
-<circle class="s1" cx="533.3" cy="98.7" r="4" stroke="none"><title>Paused: 3.76 % of one core</title></circle>
-<rect class="s1" x="582" y="89.7" width="10" height="3" rx="1.5" stroke="none"/>
-<text class="t" x="598" y="94.7" font-size="11">Paused</text>
-<text class="m" x="598" y="107.7" font-size="11">3.76</text>
-<rect class="s0" x="582" y="253.6" width="10" height="3" rx="1.5" stroke="none"/>
-<text class="t" x="598" y="258.6" font-size="11">Idle, empty</text>
-<text class="m" x="598" y="271.6" font-size="11">0.03</text>
+<path class="l s0" d="M92.7,261.9 L166.1,261.8 L239.6,261.7 L313.0,261.5 L386.4,261.7 L459.9,261.7 L533.3,260.7"/>
+<circle class="s0" cx="92.7" cy="261.9" r="4" stroke="none"><title>Idle, empty: 0.03 % of one core</title></circle>
+<circle class="s0" cx="166.1" cy="261.8" r="4" stroke="none"><title>Idle, empty: 0.03 % of one core</title></circle>
+<circle class="s0" cx="239.6" cy="261.7" r="4" stroke="none"><title>Idle, empty: 0.03 % of one core</title></circle>
+<circle class="s0" cx="313.0" cy="261.5" r="4" stroke="none"><title>Idle, empty: 0.03 % of one core</title></circle>
+<circle class="s0" cx="386.4" cy="261.7" r="4" stroke="none"><title>Idle, empty: 0.03 % of one core</title></circle>
+<circle class="s0" cx="459.9" cy="261.7" r="4" stroke="none"><title>Idle, empty: 0.03 % of one core</title></circle>
+<circle class="s0" cx="533.3" cy="260.7" r="4" stroke="none"><title>Idle, empty: 0.04 % of one core</title></circle>
+<path class="l s1" d="M92.7,84.8 L166.1,103.4 L239.6,96.5 L313.0,99.5 L386.4,132.4 L459.9,129.1 L533.3,233.9"/>
+<circle class="s1" cx="92.7" cy="84.8" r="4" stroke="none"><title>Paused: 2.44 % of one core</title></circle>
+<circle class="s1" cx="166.1" cy="103.4" r="4" stroke="none"><title>Paused: 2.19 % of one core</title></circle>
+<circle class="s1" cx="239.6" cy="96.5" r="4" stroke="none"><title>Paused: 2.28 % of one core</title></circle>
+<circle class="s1" cx="313.0" cy="99.5" r="4" stroke="none"><title>Paused: 2.24 % of one core</title></circle>
+<circle class="s1" cx="386.4" cy="132.4" r="4" stroke="none"><title>Paused: 1.79 % of one core</title></circle>
+<circle class="s1" cx="459.9" cy="129.1" r="4" stroke="none"><title>Paused: 1.84 % of one core</title></circle>
+<circle class="s1" cx="533.3" cy="233.9" r="4" stroke="none"><title>Paused: 0.41 % of one core</title></circle>
+<rect class="s1" x="582" y="224.9" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="229.9" font-size="11">Paused</text>
+<text class="m" x="598" y="242.9" font-size="11">0.41</text>
+<rect class="s0" x="582" y="252.9" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="257.9" font-size="11">Idle, empty</text>
+<text class="m" x="598" y="270.9" font-size="11">0.04</text>
 </svg>
