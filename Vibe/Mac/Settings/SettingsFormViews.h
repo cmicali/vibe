@@ -28,20 +28,6 @@ NS_ASSUME_NONNULL_BEGIN
 @interface SettingsStackView : NSStackView
 @end
 
-// The small on/off switch, drawn in drawRect: to NSSwitch's measured metrics
-// and colors. TRAP: never an NSSwitch. Under the macOS 26 design AppKit draws
-// every NSSwitch through a SwiftUI host whose first render brings up
-// RenderBox's Metal device, and the GPU driver's 256 MB texture heap with it,
-// for about a second, and unlike NSSlider no public override opts it out:
-// each pane's first showing took the footprint from ~40 MB to ~350 MB.
-//
-// A click, space (under full keyboard access) or an accessibility press
-// toggles it, slides the knob and sends the action; setting state does
-// neither.
-@interface VibeSwitch : NSControl
-@property (nonatomic) NSControlStateValue state;
-@end
-
 // Where a form row's title starts within its card.
 static const CGFloat kSettingsRowInset = 16;
 

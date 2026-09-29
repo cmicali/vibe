@@ -351,7 +351,6 @@ static const CGFloat kInlineTitleInset = 10;
     VibeSwitch *toggle = [[VibeSwitch alloc] init];
     toggle.target = self;
     toggle.action = action;
-    toggle.controlSize = NSControlSizeSmall;
     return toggle;
 }
 

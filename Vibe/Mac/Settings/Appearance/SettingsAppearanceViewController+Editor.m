@@ -1300,7 +1300,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 // disabled or hidden, and would take the panel's next pick. TRAP: only an
 // active well is deactivated: deactivate creates the shared color panel when
 // none exists, and the panel's first layout brings up RenderBox's Metal
-// device and the GPU driver's 256 MB texture heap (SettingsFormViews.h).
+// device and the GPU driver's 256 MB texture heap.
 - (void)closeEditorPanels {
     _fontEditingSlot = VibeFontSlotNone;
     if (NSFontPanel.sharedFontPanelExists) {

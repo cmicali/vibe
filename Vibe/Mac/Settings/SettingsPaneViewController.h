@@ -9,6 +9,7 @@
 //
 
 #import <Cocoa/Cocoa.h>
+#import "DrawnControls.h"
 #import "SettingsFormViews.h"
 
 @class MainPlayerController;

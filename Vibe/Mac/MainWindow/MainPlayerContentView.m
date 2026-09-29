@@ -7,7 +7,7 @@
 #import "MainPlayerController.h"
 #import "MainPlayerController+Window.h" // declares the button action selectors
 #import "SymbolButton.h"
-#import "VibeSlider.h"
+#import "DrawnControls.h"
 #import "ArtworkImageView.h"
 #import "AudioWaveformView.h"
 #import "WaveformTheme.h"
@@ -509,8 +509,7 @@ static CGFloat LabelCellWidth(NSTextField *label, NSString *string, NSTextAlignm
 // None (nil) is the system slider's. Waveform is the played color the
 // waveform draws; Artwork is the album_art clamp of the art color, Mono's
 // played color for no art or too gray a one; Custom is used exactly as picked.
-- (NSColor *)volumeColorForChoice:(NSString *)choice base:(NSString *)base {
-    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+- (NSColor *)volumeColorForChoice:(NSString *)choice base:(NSString *)base theme:(AppTheme *)theme {
     BOOL dark = self.isDark;
     NSColor *art = _waveformView.artworkThemeColor;
     if ([choice isEqualToString:SETTINGS_VALUE_VOLUME_WAVEFORM]) {
@@ -531,10 +530,10 @@ static CGFloat LabelCellWidth(NSTextField *label, NSString *string, NSTextAlignm
 // answer, None's included. Both default to Waveform.
 - (void)applyVolumeColors {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    NSColor *fill = [self volumeColorForChoice:theme.volumeBar base:kVibeThemeColorVolumeBar];
+    NSColor *fill = [self volumeColorForChoice:theme.volumeBar base:kVibeThemeColorVolumeBar theme:theme];
     _volumeSlider.trackFillColor = fill;
     _volumeSlider.knobColor = [theme.volumeKnob isEqualToString:SETTINGS_VALUE_VOLUME_KNOB_BAR]
-            ? fill : [self volumeColorForChoice:theme.volumeKnob base:kVibeThemeColorVolumeKnob];
+            ? fill : [self volumeColorForChoice:theme.volumeKnob base:kVibeThemeColorVolumeKnob theme:theme];
 }
 
 // updateMaterialForAppearance sets the opacity. A field that changes every

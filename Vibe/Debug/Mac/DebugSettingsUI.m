@@ -13,6 +13,7 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "DebugWireFormat.h"
+#import "DrawnControls.h"
 #import "PlatformColor.h"
 #import "SettingsFormViews.h"
 #import "SettingsWindowController.h"
