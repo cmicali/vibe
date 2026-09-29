@@ -60,16 +60,16 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
 
 #pragma mark - Construction
 
-- (NSSwitch *)themeSwitchWithEffect:(VibeSettingsLiveEffect)effect
+- (VibeSwitch *)themeSwitchWithEffect:(VibeSettingsLiveEffect)effect
                               write:(void (^)(AppTheme *, BOOL))write {
-    NSSwitch *toggle = [self switchWithAction:@selector(themeSwitchChanged:)];
+    VibeSwitch *toggle = [self switchWithAction:@selector(themeSwitchChanged:)];
     toggle.tag = effect;
     if (!_themeSwitchWrites) _themeSwitchWrites = [NSMapTable strongToStrongObjectsMapTable];
     [_themeSwitchWrites setObject:[write copy] forKey:toggle];
     return toggle;
 }
 
-- (void)themeSwitchChanged:(NSSwitch *)sender {
+- (void)themeSwitchChanged:(VibeSwitch *)sender {
     void (^write)(AppTheme *, BOOL) = [_themeSwitchWrites objectForKey:sender];
     write(AppSettings.sharedInstance.currentTheme, sender.state == NSControlStateValueOn);
     [self themeFieldDidChange:(VibeSettingsLiveEffect)sender.tag];
@@ -599,7 +599,7 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     ];
     for (NSArray *column in playlistColumns) {
         NSString *base = column[0];
-        NSSwitch *toggle = [self themeSwitchWithEffect:VibeSettingsLiveEffectPlaylistAppearance
+        VibeSwitch *toggle = [self themeSwitchWithEffect:VibeSettingsLiveEffectPlaylistAppearance
                 write:^(AppTheme *theme, BOOL on) { [theme setPlaylistColorEnabled:on forBase:base]; }];
         _playlistColorSwitches[base] = toggle;
         SettingsRowView *pairRow = [SettingsRowView rowWithTitle:column[2]

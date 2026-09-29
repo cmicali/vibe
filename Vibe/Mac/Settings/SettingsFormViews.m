@@ -551,3 +551,211 @@ static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat
 }
 
 @end
+
+// VibeSwitch's small size on macOS 27, measured: a 44x20 pill track, a 26x16
+// capsule knob inset 2 points.
+static const CGFloat kSwitchWidth = 44;
+static const CGFloat kSwitchHeight = 20;
+static const CGFloat kSwitchKnobWidth = 26;
+static const CGFloat kSwitchKnobInset = 2;
+// On top of the row's own 0.5, as VibeSwitch dims itself.
+static const CGFloat kSwitchDisabledAlpha = 0.5;
+static const NSTimeInterval kSwitchSlideDuration = 0.2;
+static NSString *const kSwitchKnobPositionKey = @"knobPosition";
+
+static NSColor *SwitchColor(CGFloat darkWhite, CGFloat darkAlpha, CGFloat lightWhite, CGFloat lightAlpha) {
+    return [NSColor colorWithName:nil dynamicProvider:^NSColor *(NSAppearance *appearance) {
+        return appearance.isDark ? [NSColor colorWithWhite:darkWhite alpha:darkAlpha]
+                                 : [NSColor colorWithWhite:lightWhite alpha:lightAlpha];
+    }];
+}
+
+@interface VibeSwitch ()
+// 0 off, 1 on; animated between by a toggle.
+@property (nonatomic) CGFloat knobPosition;
+@end
+
+@implementation VibeSwitch {
+    BOOL _tracking; // a press that began enabled
+}
+
++ (id)defaultAnimationForKey:(NSAnimatablePropertyKey)key {
+    return [key isEqualToString:kSwitchKnobPositionKey] ? [CABasicAnimation animation]
+                                                        : [super defaultAnimationForKey:key];
+}
+
+- (NSSize)intrinsicContentSize {
+    return NSMakeSize(kSwitchWidth, kSwitchHeight);
+}
+
+- (BOOL)mouseDownCanMoveWindow {
+    return NO;
+}
+
+- (BOOL)acceptsFirstResponder {
+    return self.isEnabled && NSApp.isFullKeyboardAccessEnabled;
+}
+
+- (void)setState:(NSControlStateValue)state {
+    state = state == NSControlStateValueOff ? NSControlStateValueOff : NSControlStateValueOn;
+    if (state != _state) {
+        _state = state;
+        self.knobPosition = state == NSControlStateValueOn;
+    }
+}
+
+- (void)setKnobPosition:(CGFloat)position {
+    _knobPosition = position;
+    self.needsDisplay = YES;
+}
+
+- (void)setEnabled:(BOOL)enabled {
+    [super setEnabled:enabled];
+    self.needsDisplay = YES;
+}
+
+- (void)viewDidChangeEffectiveAppearance {
+    [super viewDidChangeEffectiveAppearance];
+    self.needsDisplay = YES;
+}
+
+- (void)viewWillMoveToWindow:(NSWindow *)newWindow {
+    NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
+    for (NSNotificationName name in @[NSWindowDidBecomeKeyNotification, NSWindowDidResignKeyNotification]) {
+        if (self.window) {
+            [center removeObserver:self name:name object:self.window];
+        }
+        if (newWindow) {
+            [center addObserver:self selector:@selector(windowKeyStateDidChange:) name:name object:newWindow];
+        }
+    }
+    [super viewWillMoveToWindow:newWindow];
+}
+
+- (void)windowKeyStateDidChange:(NSNotification *)notification {
+    self.needsDisplay = YES;
+}
+
+- (void)toggle {
+    _state = _state == NSControlStateValueOn ? NSControlStateValueOff : NSControlStateValueOn;
+    [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
+        context.duration = NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion
+                ? 0 : kSwitchSlideDuration;
+        self.animator.knobPosition = self->_state == NSControlStateValueOn;
+    }];
+    [NSApp sendAction:self.action to:self.target from:self];
+    NSAccessibilityPostNotification(self, NSAccessibilityValueChangedNotification);
+}
+
+- (void)performClick:(id)sender {
+    if (self.isEnabled) [self toggle];
+}
+
+#pragma mark - Drawing
+
+- (void)drawRect:(NSRect)dirtyRect {
+    // VibeSwitch's, measured: the off track, the on track of a window that is
+    // not key, and the knob.
+    static NSColor *offTrackColor, *inactiveOnTrackColor, *knobColor;
+    static NSShadow *knobShadow;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        offTrackColor = SwitchColor(1, 0.09, 0, 0.1);
+        inactiveOnTrackColor = SwitchColor(1, 0.14, 0, 0.14);
+        knobColor = SwitchColor(1, 0.86, 1, 1);
+        knobShadow = [[NSShadow alloc] init];
+        knobShadow.shadowColor = [NSColor colorWithWhite:0 alpha:0.16];
+        knobShadow.shadowOffset = NSMakeSize(0, -0.5);
+        knobShadow.shadowBlurRadius = 2;
+    });
+
+    NSRect track = NSMakeRect(0, round(NSMidY(self.bounds) - kSwitchHeight / 2), NSWidth(self.bounds), kSwitchHeight);
+    CGContextRef context = NSGraphicsContext.currentContext.CGContext;
+    CGContextSetAlpha(context, self.isEnabled ? 1 : kSwitchDisabledAlpha);
+    CGContextBeginTransparencyLayer(context, NULL);
+
+    NSBezierPath *trackPath = [NSBezierPath bezierPathWithRoundedRect:track
+                                                              xRadius:kSwitchHeight / 2 yRadius:kSwitchHeight / 2];
+    [offTrackColor setFill];
+    [trackPath fill];
+    NSColor *onColor = self.window.isKeyWindow ? NSColor.controlAccentColor : inactiveOnTrackColor;
+    [[onColor colorWithAlphaComponent:onColor.alphaComponent * _knobPosition] setFill];
+    [trackPath fill];
+
+    CGFloat travel = NSWidth(track) - 2 * kSwitchKnobInset - kSwitchKnobWidth;
+    NSRect knob = NSMakeRect(NSMinX(track) + kSwitchKnobInset + _knobPosition * travel,
+                             NSMinY(track) + kSwitchKnobInset,
+                             kSwitchKnobWidth, kSwitchHeight - 2 * kSwitchKnobInset);
+    [NSGraphicsContext saveGraphicsState];
+    [knobShadow set];
+    [knobColor setFill];
+    [[NSBezierPath bezierPathWithRoundedRect:knob xRadius:NSHeight(knob) / 2 yRadius:NSHeight(knob) / 2] fill];
+    [NSGraphicsContext restoreGraphicsState];
+
+    CGContextEndTransparencyLayer(context);
+}
+
+- (void)drawFocusRingMask {
+    [[NSBezierPath bezierPathWithRoundedRect:self.bounds
+                                     xRadius:kSwitchHeight / 2 yRadius:kSwitchHeight / 2] fill];
+}
+
+- (NSRect)focusRingMaskBounds {
+    return self.bounds;
+}
+
+#pragma mark - Events
+
+- (void)mouseDown:(NSEvent *)event {
+    _tracking = self.isEnabled;
+}
+
+- (void)mouseUp:(NSEvent *)event {
+    if (!_tracking) {
+        return;
+    }
+    _tracking = NO;
+    if (NSPointInRect([self convertPoint:event.locationInWindow fromView:nil], self.bounds)) {
+        [self toggle];
+    }
+}
+
+- (void)keyDown:(NSEvent *)event {
+    if (self.isEnabled && [event.charactersIgnoringModifiers isEqualToString:@" "]) {
+        [self toggle];
+    } else {
+        [super keyDown:event];
+    }
+}
+
+#pragma mark - Accessibility
+
+- (BOOL)isAccessibilityElement {
+    return YES;
+}
+
+- (NSAccessibilityRole)accessibilityRole {
+    return NSAccessibilityCheckBoxRole;
+}
+
+- (NSAccessibilitySubrole)accessibilitySubrole {
+    return NSAccessibilitySwitchSubrole;
+}
+
+- (BOOL)isAccessibilityEnabled {
+    return self.isEnabled;
+}
+
+- (id)accessibilityValue {
+    return @(_state == NSControlStateValueOn);
+}
+
+- (BOOL)accessibilityPerformPress {
+    if (!self.isEnabled) {
+        return NO;
+    }
+    [self toggle];
+    return YES;
+}
+
+@end

@@ -33,7 +33,7 @@ static const double kWaveformGainDetentDB = 0.75;
 
 @implementation SettingsAppearanceViewController {
     NSPopUpButton *_appearancePopUp;
-    NSSwitch *_trafficLightsSwitch;
+    VibeSwitch *_trafficLightsSwitch;
     NSTableView *_themeTable;
     NSButton *_removeThemeButton;
     // Store order, built-ins first. Rows include group headers (identifierForRow:).
@@ -41,7 +41,7 @@ static const double kWaveformGainDetentDB = 0.75;
     NSArray<NSView *> *_listSections;
     // The same theme field as the editor's _waveformPopUp.
     NSPopUpButton *_listWaveformPopUp;
-    NSSwitch *_waveformNormalizeSwitch;
+    VibeSwitch *_waveformNormalizeSwitch;
     SettingsRowView *_appearanceRow, *_currentThemeRow;
     NSArray<SettingsRowView *> *_waveformLevelRows;
     NSButton *_waveformLevelsDisclosure, *_editThemeButton, *_revertThemeButton;
