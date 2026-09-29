@@ -119,7 +119,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - The download monitor
 
-// The one reset of the monitor and its open-request identifier together.
+// The one teardown for the monitor, its open identifier and the registry's
+// declaration, so none outlives the others.
 - (void)teardownDownloadMonitor;
 
 #pragma mark - The successor prefetch

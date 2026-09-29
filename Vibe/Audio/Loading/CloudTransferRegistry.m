@@ -9,8 +9,9 @@
 #import "AudioFileOpenRules.h"
 #import "DownloadProgressMonitor.h"
 
-// monitor is nil when the shell's monitor feeds the path (_externallyFedPath)
-// or the factory built none.
+// monitor is nil when the shell's monitor feeds the path (_externallyFedPath),
+// when the shell released it with the transfer still running, or when the
+// factory built none.
 @interface VibeCloudTransferEntry : NSObject
 @property (nonatomic, strong) NSURL *url;
 @property (nonatomic) float progress;                 // <0 while indeterminate
@@ -158,9 +159,6 @@
 - (void)beginExternalProgressForURL:(NSURL *)url {
     NSParameterAssert(NSThread.isMainThread);
     _externallyFedPath = VibeStandardizedAudioOpenPath(url);
-    if (!_externallyFedPath) {
-        return;
-    }
     VibeCloudTransferEntry *entry = _entries[_externallyFedPath];
     [entry.monitor cancel];
     entry.monitor = nil;
@@ -174,7 +172,7 @@
 - (void)noteProgress:(float)fraction forURL:(NSURL *)url {
     NSParameterAssert(NSThread.isMainThread);
     VibeCloudTransferEntry *entry = [self entryForURL:url];
-    if (!entry || !_externallyFedPath || entry != _entries[_externallyFedPath]) {
+    if (!entry || entry != _entries[_externallyFedPath]) {
         return;
     }
     entry.progress = [self displayFraction:fraction over:entry.progress];
