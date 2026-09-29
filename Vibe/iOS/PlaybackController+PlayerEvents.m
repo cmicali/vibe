@@ -49,6 +49,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     if (!_downloadMonitor
             || _downloadMonitorOpenRequestIdentifier != openRequestIdentifier) {
         __weak PlaybackController *weakSelf = self;
+        [CloudTransferRegistry.sharedRegistry beginExternalProgressForURL:track.url];
         _downloadMonitor = [DownloadProgressMonitor
                 monitorReplacing:_downloadMonitor
                           forURL:track.url
@@ -92,9 +93,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // Includes the parked seek that OPENED this file, which gets no
     // didFinishSeeking:.
     _seekInFlight = NO;
-    [_downloadMonitor cancel];
-    _downloadMonitor = nil;
-    _downloadMonitorOpenRequestIdentifier = 0;
+    [self teardownDownloadMonitor];
     // Before the repaint and the metadata kicks, so a quick second Next finds
     // the successor parked.
     [_player prefetchTrack:self.successorPrefetchTrack];
@@ -224,9 +223,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     _errorText = VibeStatusForPlayError(error);
     _seekInFlight = NO;
     _trackStartPending = NO;
-    [_downloadMonitor cancel];
-    _downloadMonitor = nil;
-    _downloadMonitorOpenRequestIdentifier = 0;
+    [self teardownDownloadMonitor];
     [self startPendingMetadataLoad];
     [self notifyDidFailCurrentTrack];
     if (current) {

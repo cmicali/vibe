@@ -26,6 +26,7 @@
 #import "AudioWaveformCache.h"
 #import "AudioWaveformView.h"
 #import "AudioFileConverter.h"
+#import "CloudTransferRegistry.h"
 #import "FolderArtResolver.h"
 #import "FolderAccessManager.h"
 #import "PlaylistController.h"
@@ -610,11 +611,13 @@
 
 // One teardown for the pair: a monitor surviving its identifier — or the
 // reverse — lets didBeginLoading:'s identifier-reuse check keep a monitor for
-// an open it no longer observes, or rebuild one it already has.
+// an open it no longer observes, or rebuild one it already has. The
+// registry's declaration ends with them, or it outlives the monitor it names.
 - (void)teardownDownloadMonitor {
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
     _downloadMonitorOpenRequestIdentifier = 0;
+    [CloudTransferRegistry.sharedRegistry endExternalProgress];
 }
 
 // stop sends no callback, so nothing auto-advances; didFinishPlaying:'s stale

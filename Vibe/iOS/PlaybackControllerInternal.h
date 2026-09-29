@@ -91,6 +91,10 @@ NS_ASSUME_NONNULL_BEGIN
 // decides what.
 - (void)prefetchSuccessor;
 
+// The one teardown for the monitor, its open identifier and the registry's
+// declaration, so none outlives the others.
+- (void)teardownDownloadMonitor;
+
 #pragma mark - The deferred metadata sweep
 
 // Starts the deferred sweep if one is still pending.
