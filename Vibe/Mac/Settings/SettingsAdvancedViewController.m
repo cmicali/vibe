@@ -24,7 +24,7 @@ static const CGFloat kAdvancedPopUpWidth = 200;
 
 @implementation SettingsAdvancedViewController {
     NSPopUpButton *_refreshRatePopUp;
-    NSSwitch *_allowBitPerfectAnyDeviceSwitch;
+    VibeSwitch *_allowBitPerfectAnyDeviceSwitch;
     NSPopUpButton *_mp3DecoderPopUp;
     NSButton *_resetButton;
     NSButton *_factoryResetButton;

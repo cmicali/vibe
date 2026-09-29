@@ -7,6 +7,7 @@
 #import "MainPlayerController.h"
 #import "MainPlayerController+Window.h" // declares the button action selectors
 #import "SymbolButton.h"
+#import "DrawnControls.h"
 #import "ArtworkImageView.h"
 #import "AudioWaveformView.h"
 #import "WaveformTheme.h"
@@ -205,7 +206,7 @@ API_AVAILABLE(macos(26.0))
                                   _fileMetadataTextField, _bpmTextField ]) {
         field.layer.shadowOpacity = shadowOpacity;
     }
-    [self applyVolumeTint];
+    [self applyVolumeColors];
 }
 
 - (void)viewDidChangeEffectiveAppearance {
@@ -398,16 +399,15 @@ static NSView *FadeTarget(NSView *view, BOOL animated) {
     _volumeSlider.doubleValue = AppSettings.sharedInstance.volume;
     [self layoutVolumeControl]; // renders the percentage
     [self capArtistLineAtCodecText];
-    [self applyVolumeTint];
+    [self applyVolumeColors];
     [self setControlsShown:[self isCursorOverWindow] animated:NO];
 }
 
-// TRAP: the pointer can leave the window mid-drag, and hiding the control
-// then strands the knob macOS 26 lifts off the track while tracking — it
-// draws outside the faded view and keeps setting the volume. The drag holds
-// the hover open; the release re-decides it from the pointer. The hold rests
-// on the slider sending its action once more at the mouse-up: nothing else
-// clears it.
+// TRAP: the pointer can leave the window mid-drag, and fading the control
+// then leaves the knob in hand invisible, still setting the volume. The drag
+// holds the hover open; the release re-decides it from the pointer. The hold
+// rests on the slider sending its action once more at the mouse-up: nothing
+// else clears it.
 - (void)volumeSliderDidMove {
     [self renderVolumePercent];
     NSEventType type = NSApp.currentEvent.type;
@@ -506,25 +506,36 @@ static CGFloat LabelCellWidth(NSTextField *label, NSString *string, NSTextAlignm
     }
 }
 
-// None is the system slider. Waveform is the played color the waveform
-// draws; Artwork is the album_art clamp of the art color, Mono's played color
-// for no art or too gray a one; Custom is used exactly as picked.
-- (void)applyVolumeTint {
-    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    NSString *tint = theme.volumeTint;
+// None (nil) is the system slider's. Waveform is the played color the
+// waveform draws; Artwork is the album_art clamp of the art color, Mono's
+// played color for no art or too gray a one; Custom is used exactly as picked.
+- (NSColor *)volumeColorForChoice:(NSString *)choice base:(NSString *)base theme:(AppTheme *)theme {
     BOOL dark = self.isDark;
     NSColor *art = _waveformView.artworkThemeColor;
-    NSColor *fill = nil;
-    if ([tint isEqualToString:SETTINGS_VALUE_VOLUME_TINT_WAVEFORM]) {
-        fill = [[WaveformTheme themeForAppTheme:theme isDark:dark artworkColor:art].playedColor
+    if ([choice isEqualToString:SETTINGS_VALUE_VOLUME_WAVEFORM]) {
+        return [[WaveformTheme themeForAppTheme:theme isDark:dark artworkColor:art].playedColor
                 colorWithAlphaComponent:1.0];
-    } else if ([tint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_ARTWORK]) {
-        fill = [WaveformTheme legibleArtworkColor:art isDark:dark]
-                ?: [[WaveformTheme monochromeThemeIsDark:dark].playedColor colorWithAlphaComponent:1.0];
-    } else if ([tint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM]) {
-        fill = [theme displayColorForBase:kVibeThemeColorVolumeTint dark:dark];
     }
+    if ([choice isEqualToString:SETTINGS_VALUE_WINDOW_TINT_ARTWORK]) {
+        return [WaveformTheme legibleArtworkColor:art isDark:dark]
+                ?: [[WaveformTheme monochromeThemeIsDark:dark].playedColor colorWithAlphaComponent:1.0];
+    }
+    if ([choice isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM]) {
+        return [theme displayColorForBase:base dark:dark];
+    }
+    return nil;
+}
+
+// None's knob is the system's white pill. Same as bar, the knob's default, is
+// the color the bar draws: under None that is the system accent, not the nil
+// that means a white knob.
+- (void)applyVolumeColors {
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    NSColor *fill = [self volumeColorForChoice:theme.volumeBar base:kVibeThemeColorVolumeBar theme:theme];
     _volumeSlider.trackFillColor = fill;
+    _volumeSlider.knobColor = [theme.volumeKnob isEqualToString:SETTINGS_VALUE_VOLUME_KNOB_BAR]
+            ? (fill ?: NSColor.controlAccentColor)
+            : [self volumeColorForChoice:theme.volumeKnob base:kVibeThemeColorVolumeKnob theme:theme];
 }
 
 // updateMaterialForAppearance sets the opacity. A field that changes every
@@ -764,13 +775,8 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     configureLabelShadow(_volumePercentLabel, NO);
     [_volumeControlView addSubview:_volumePercentLabel];
 
-    _volumeSlider = [[NSSlider alloc] initWithFrame:NSZeroRect];
-    _volumeSlider.controlSize = NSControlSizeSmall;
-    _volumeSlider.minValue = 0;
-    _volumeSlider.maxValue = 1;
+    _volumeSlider = [[VibeSlider alloc] initWithFrame:NSZeroRect];
     _volumeSlider.doubleValue = AppSettings.sharedInstance.volume;
-    _volumeSlider.continuous = YES;
-    _volumeSlider.refusesFirstResponder = YES;
     _volumeSlider.accessibilityLabel = STR_A11Y_VOLUME;
     _volumeSlider.target = target;
     _volumeSlider.action = @selector(volumeChanged:);

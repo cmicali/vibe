@@ -15,6 +15,7 @@
 #import "AppDelegate.h"
 #import "AudioDeviceManager.h"
 #import "MainPlayerContentView.h"
+#import "DrawnControls.h"
 #import "AudioFileHandle.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+Devices.h"
@@ -987,7 +988,7 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 
 // A drag tick: the slider moved itself and the control is on, so the
 // player and the percentage are all that follow.
-- (IBAction)volumeChanged:(NSSlider *)sender {
+- (IBAction)volumeChanged:(VibeSlider *)sender {
     AppSettings.sharedInstance.volume = sender.doubleValue;
     self.audioPlayer.volume = (float)AppSettings.sharedInstance.effectiveVolume;
     [self.playerContentView volumeSliderDidMove];

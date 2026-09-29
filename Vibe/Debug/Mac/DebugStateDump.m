@@ -12,6 +12,7 @@
 #import "AudioPlayer+Devices.h"
 #import "CoreAudioUtil.h"
 #import "SettingsRules.h"
+#import "DrawnControls.h"
 
 #if DEBUG
 
@@ -92,7 +93,8 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
                                @"hidden": @(controller.playerContentView.volumeControlView.isHidden),
                                @"alpha": @(controller.playerContentView.volumeControlView.alphaValue),
                                @"dragging": @(controller.playerContentView.volumeDragging),
-                               @"fill": VibeHexStringFromColor(controller.playerContentView.volumeSlider.trackFillColor) ?: @""},
+                               @"fill": VibeHexStringFromColor(controller.playerContentView.volumeSlider.trackFillColor) ?: @"",
+                               @"knob": VibeHexStringFromColor(controller.playerContentView.volumeSlider.knobColor) ?: @""},
             @"converting": @(controller.fileConverter.isConverting),
             @"convertSweep": @(controller.trackDisplay.convertSweepFraction),
             @"canUndo": @(window.undoManager.canUndo),
@@ -138,7 +140,8 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"windowTint": theme.windowTint,
             @"playlistTint": theme.playlistTint,
             @"volumeControl": @(AppSettings.sharedInstance.volumeControl),
-            @"volumeTint": theme.volumeTint,
+            @"volumeBar": theme.volumeBar,
+            @"volumeKnob": theme.volumeKnob,
             @"showVolumeLabels": @(theme.showVolumeLabels),
             @"volumeLocation": theme.volumeLocation,
             @"deleteOriginalAfterConvert": @(AppSettings.sharedInstance.deleteOriginalAfterConvert),

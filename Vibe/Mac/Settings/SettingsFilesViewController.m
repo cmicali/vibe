@@ -47,7 +47,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     NSButton *_removeButton;
     NSPopUpButton *_albumArtPopUp;
     NSPopUpButton *_folderSortPopUp;
-    NSSwitch *_convertEnabledSwitch, *_deleteOriginalSwitch;
+    VibeSwitch *_convertEnabledSwitch, *_deleteOriginalSwitch;
     NSPopUpButton *_convertDestinationPopUp;
     NSArray<VibeGrantedFolder *> *_folders;
     // Probed off main: two candidates are file-provider roots, where a stat
@@ -295,13 +295,13 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
 
 #pragma mark - Actions
 
-- (void)toggleConversion:(NSSwitch *)sender {
+- (void)toggleConversion:(VibeSwitch *)sender {
     AppSettings.sharedInstance.convertEnabled = sender.state == NSControlStateValueOn;
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectConvertMenu];
     [self refreshFromSettings];
 }
 
-- (void)toggleDeleteOriginal:(NSSwitch *)sender {
+- (void)toggleDeleteOriginal:(VibeSwitch *)sender {
     AppSettings.sharedInstance.deleteOriginalAfterConvert = sender.state == NSControlStateValueOn;
 }
 

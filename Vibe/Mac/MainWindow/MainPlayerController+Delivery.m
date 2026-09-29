@@ -29,7 +29,7 @@
 }
 
 - (void)audioWaveformViewDidResolveTheme:(AudioWaveformView *)waveformView {
-    [self.playerContentView applyVolumeTint];
+    [self.playerContentView applyVolumeColors];
 }
 
 // The cache cancels only when the next load starts, so between a slow track's

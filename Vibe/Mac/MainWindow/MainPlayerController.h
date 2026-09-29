@@ -11,6 +11,7 @@
 @class AudioWaveformCache;
 @class AudioFileConverter;
 @class OutputDevicesMenuController;
+@class VibeSlider;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -54,7 +55,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)next:(nullable id)sender;
 - (IBAction)previous:(nullable id)sender;
 // The header's volume slider: stores its position and pushes it to the player.
-- (IBAction)volumeChanged:(NSSlider *)sender;
+- (IBAction)volumeChanged:(VibeSlider *)sender;
 
 // Plays the selected row, as a double-click does.
 - (IBAction)playSelectedTrack:(nullable id)sender;

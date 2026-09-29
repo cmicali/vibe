@@ -13,6 +13,7 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "DebugWireFormat.h"
+#import "DrawnControls.h"
 #import "PlatformColor.h"
 #import "SettingsFormViews.h"
 #import "SettingsWindowController.h"
@@ -157,7 +158,7 @@ static NSString *VibeElementKind(NSView *view) {
     if ([view isKindOfClass:NSSlider.class]) {
         return @"slider";
     }
-    if ([view isKindOfClass:NSSwitch.class]) {
+    if ([view isKindOfClass:VibeSwitch.class]) {
         return @"switch";
     }
     if ([view isKindOfClass:NSColorWell.class]) {
@@ -357,7 +358,7 @@ static NSDictionary *VibeElementStateJSON(VibeSettingsElement *element) {
         node[@"selectedRows"] = selected;
     }
     else if ([element.kind isEqualToString:@"switch"]) {
-        node[@"state"] = VibeStateName(((NSSwitch *)view).state);
+        node[@"state"] = VibeStateName(((VibeSwitch *)view).state);
     }
     else if ([element.kind isEqualToString:@"slider"]) {
         NSSlider *slider = (NSSlider *)view;
@@ -575,11 +576,10 @@ static NSString *VibeClickButton(VibeSettingsElement *element, NSString *value) 
     return VibeClickReply(element, @"clicked");
 }
 
-// A switch has no cell, so performClick: is not its click path; a real toggle
-// is a state flip plus one action send, and that is what this does. on|off is
-// idempotent like the checkbox's.
+// performClick: is the switch's own toggle: the state flip, the slide and
+// one action send. on|off is idempotent like the checkbox's.
 static NSString *VibeToggleSwitch(VibeSettingsElement *element, NSString *value) {
-    NSSwitch *toggle = (NSSwitch *)element.view;
+    VibeSwitch *toggle = (VibeSwitch *)element.view;
     NSString *wanted = value.lowercaseString ?: @"toggle";
     if (![wanted isEqualToString:@"toggle"] &&
             ![wanted isEqualToString:@"on"] && ![wanted isEqualToString:@"off"]) {
@@ -590,10 +590,7 @@ static NSString *VibeToggleSwitch(VibeSettingsElement *element, NSString *value)
     if (isOn == wantOn) {
         return VibeClickReply(element, @"unchanged");
     }
-    toggle.state = wantOn ? NSControlStateValueOn : NSControlStateValueOff;
-    if (toggle.action && ![NSApp sendAction:toggle.action to:toggle.target from:toggle]) {
-        return VibeErrorJSON(@"no responder handled %@", NSStringFromSelector(toggle.action));
-    }
+    [toggle performClick:nil];
     return VibeClickReply(element, @"clicked");
 }
 
