@@ -1,3 +1,5 @@
+# v1.15 (unreleased)
+
 # v1.14
 
 * Added a rebuilt playback engine that plays every track straight to your audio device - faster, more stable, and better at handling devices coming and going
