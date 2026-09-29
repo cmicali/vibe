@@ -1,8 +1,12 @@
-Première version de Vibe pour iPhone et iPad.
-
-* Ouvrez un dossier depuis Fichiers ou le sélecteur intégré — sur l’appareil, dans iCloud Drive ou dans Dropbox
-* Parcours sur toute la forme d’onde, balayage pour changer de morceau
-* Widgets petit et moyen sur l’écran d’accueil, avec forme d’onde
-* Favoris et recherche dans les dossiers que vous avez ouverts
-* Lecture en arrière-plan, avec commandes sur l’écran verrouillé et AirPlay
-* MP3, AAC, MP4/M4A, MP2, AIFF, WAV et FLAC en pleine résolution
+* Nouveau : pad FX – maintenez le cercle sur l’écran À l’écoute et faites glisser pour le low cut, la reverb et un delay synchronisé au tempo
+* Nouveau : détection du BPM, affiché à côté du format et de la tonalité (Réglages > Lecture)
+* Nouveau : disposition en mode paysage
+* Nouveau : un moteur de lecture repensé, avec un décodage MP3 et une conversion de fréquence d’échantillonnage de meilleure qualité, et moins de CPU
+* Modifié : la forme d’onde du widget de l’écran d’accueil utilise par défaut le style Wiggle
+* Modifié : seul le bouton de lecture met en pause ; toucher l’illustration ne le fait plus
+* Amélioré : défilement, rééchantillonnage et relance plus rapides avec les grandes bibliothèques
+* Amélioré : le bouton de l’appareil de sortie répond sur toute sa surface
+* Amélioré : une forme d’onde normalisée ne rétrécit plus pendant son chargement
+* Corrigé : une erreur de lecture pouvait rester affichée après la reprise de la lecture
+* Corrigé : la lecture pouvait apparaître en cours alors que le système avait arrêté l’audio
+* Corrigé : une longue queue de reverb ou de delay pouvait être coupée lors de la mise en pause

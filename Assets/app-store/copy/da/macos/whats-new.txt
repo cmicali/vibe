@@ -1,12 +1,19 @@
-* Bit-perfect-afspilning og eksklusiv tilstand for udgangsenheder
-* Arkiv > Arkivér afspilningsliste… (⌘S) eksporterer listen som en M3U-fil
-* Ny indstilling til at indlæse den seneste afspilningsliste ved start
-* Mere tematilpasning, inklusive transportknapper og appsymbolet
-* Nye temaer Glassy, Snake og Tangerine, plus fortryd og tilfældig i temaeditoren
-* Nye bølgeformstile Wiggle og Wiggle MC
-* Bølgeformnormalisering hæver nu kun stille numre
-* Omarbejdede indstillinger med en ny vælger til lydenheder
-* Aktivering af lydeffekter kræver ikke længere genstart
-* Hurtigere indlæsning af store mapper og mere jævn ændring af vinduesstørrelse
-* Rettet en let farvet lyd, når lavpasfilteret var slået fra
-* Rettet at albumbilledet i Dock ikke blev opdateret efter temaskift
+* Nyt: en ombygget afspilningsmotor, der sender hvert nummer direkte til din lydenhed – hurtigere, mere stabil og bedre til enheder, der kommer og går
+* Nyt: valgfri lydstyrkekontrol (Indstillinger > Lydoutput), som kan tilpasses med temaer
+* Nyt: Lås vinduets placering i menuen Oversigt og i Indstillinger > Generelt
+* Nyt: Vibe husker den valgte udgangsenhed, når den slukkes eller frakobles, og skifter tilbage til den med dens indstillinger for bitperfekt output og eksklusiv lydudgang, når den vender tilbage
+* Nyt: et USB-lydinterface, der sættes i en anden port, beholder sine indstillinger for bitperfekt output og eksklusiv lydudgang
+* Ændret: MP3-afkodning og samplingfrekvenskonvertering i højere kvalitet, der bruger mindre CPU
+* Ændret: når en anden app tager eneret på din lydenhed, sætter Vibe på pause og fortæller det
+* Ændret: mister du lydudgangen midt i et nummer, sættes der nu på pause i stedet for at springe videre
+* Forbedret: afspil, pause og spring venter ikke længere, mens en lydenhed skifter eller vågner
+* Forbedret: et netværksdrev, der hænger, forsinker ikke længere andre numre eller tags og illustrationer for filer i skyen
+* Forbedret: Vibe afsluttes med det samme og gendanner din lydenhed i baggrunden
+* Forbedret: en normaliseret bølgeform skrumper ikke længere, mens den indlæses
+* Rettet: start af et nummer eller træk i positionen kunne få afspilningen til at fryse i et sekund eller to
+* Rettet: nogle MP3-filer med ekstra data efter deres tags kunne ikke afspilles
+* Rettet: en lydenhed, der var slukket, da Vibe blev åbnet, bruges, så snart du tænder den
+* Rettet: Systemoutput kunne stoppe afspilningen, mens macOS kortvarigt ikke havde nogen standardenhed
+* Rettet: de sidste millisekunder af et nummer kunne blive skåret af ved høje samplingfrekvenser
+* Rettet: fortrydelse af en ny rækkefølge i afspilningslisten kunne efterlade en tom række
+* Rettet: pladsholderillustrationen i Kontrolcenter kunne vise den forkerte lyse eller mørke version

@@ -1,12 +1,19 @@
-* Riproduzione bit-perfect e modalità esclusiva per i dispositivi di uscita
-* Archivio > Salva playlist… (⌘S) esporta la playlist come file M3U
-* Nuova impostazione per caricare l’ultima playlist all’avvio
-* Più personalizzazione dei temi, compresi i pulsanti di trasporto e l’icona dell’app
-* Nuovi temi Glassy, Snake e Tangerine, con annulla e casuale nell’editor dei temi
-* Nuovi stili di forma d’onda Wiggle e Wiggle MC
-* La normalizzazione della forma d’onda ora alza solo i brani più silenziosi
-* Impostazioni ridisegnate, con un nuovo selettore del dispositivo audio
-* Attivare gli effetti audio non richiede più di riavviare l’app
-* Caricamento più rapido delle cartelle grandi e ridimensionamento più fluido
-* Corretto un suono leggermente colorato con il filtro taglia-bassi disattivato
-* Corretta la copertina nel Dock che non si aggiornava dopo un cambio di tema
+* Novità: un motore di riproduzione rinnovato che invia ogni brano direttamente al tuo dispositivo audio: più veloce, più stabile e più affidabile quando i dispositivi vengono collegati e scollegati
+* Novità: controllo del volume opzionale (Impostazioni > Uscita audio), personalizzabile con i temi
+* Novità: “Blocca la posizione della finestra”, nel menu Vista e in Impostazioni > Generali
+* Novità: Vibe ricorda il dispositivo di uscita scelto quando viene spento o scollegato e, al suo ritorno, torna a usarlo con le relative impostazioni bit-perfect ed esclusiva
+* Novità: un’interfaccia audio USB collegata a un’altra porta mantiene le sue impostazioni bit-perfect ed esclusiva
+* Modifica: decodifica MP3 e conversione della frequenza di campionamento di qualità superiore, con un minore uso della CPU
+* Modifica: quando un’altra app prende l’uso esclusivo del tuo dispositivo audio, Vibe va in pausa e te lo segnala
+* Modifica: se l’uscita audio viene persa a metà brano, ora la riproduzione va in pausa invece di passare al brano successivo
+* Miglioramento: riproduzione, pausa e salto non attendono più mentre un dispositivo audio cambia o si riattiva
+* Miglioramento: una condivisione di rete bloccata non rallenta più gli altri brani, né i tag e le copertine dei file nel cloud
+* Miglioramento: l’uscita da Vibe è istantanea; il dispositivo audio viene ripristinato in background
+* Miglioramento: una forma d’onda normalizzata non si restringe più durante il caricamento
+* Correzione: avviare un brano o trascinare la posizione poteva bloccare la riproduzione per un secondo o due
+* Correzione: alcuni file MP3 con dati aggiuntivi dopo i tag non venivano riprodotti
+* Correzione: un dispositivo audio spento all’apertura di Vibe viene usato non appena lo accendi
+* Correzione: “Uscita di sistema” poteva interrompere la riproduzione quando macOS restava brevemente senza dispositivo predefinito
+* Correzione: gli ultimi millisecondi di un brano potevano venire tagliati a frequenze di campionamento elevate
+* Correzione: annullare un riordinamento della playlist poteva lasciare una riga vuota
+* Correzione: la copertina segnaposto nel Centro di Controllo poteva mostrare la versione chiara o scura sbagliata

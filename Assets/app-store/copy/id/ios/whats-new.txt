@@ -1,8 +1,12 @@
-Versi pertama Vibe untuk iPhone dan iPad.
-
-* Buka folder dari Files atau dari pemilih bawaan — di perangkat, di iCloud Drive, atau di Dropbox
-* Geser posisi di seluruh bentuk gelombang, usap untuk berganti lagu
-* Widget kecil dan sedang di Layar Utama, dengan bentuk gelombang
-* Favorit dan pencarian di folder yang pernah Anda buka
-* Pemutaran di latar belakang, dengan kontrol di layar terkunci dan AirPlay
-* MP3, AAC, MP4/M4A, MP2, AIFF, WAV, dan FLAC pada resolusi penuh
+* Baru: pad FX - tahan lingkaran di layar Sedang Diputar lalu geser untuk low cut, reverb, dan delay yang sinkron dengan tempo
+* Baru: deteksi BPM, ditampilkan di samping format dan kunci nada (Pengaturan > Pemutaran)
+* Baru: tata letak lanskap
+* Baru: mesin pemutaran yang dibangun ulang dengan dekode MP3 dan konversi laju sampel berkualitas lebih tinggi, serta penggunaan CPU lebih rendah
+* Perubahan: bentuk gelombang widget Layar Utama kini menggunakan gaya Wiggle secara default
+* Perubahan: hanya tombol putar yang menjeda; mengetuk gambar sampul tidak lagi menjeda
+* Peningkatan: menggulir, resampling, dan membuka ulang lebih cepat dengan perpustakaan besar
+* Peningkatan: tombol perangkat output merespons ketukan di bagian mana saja pada tombolnya
+* Peningkatan: bentuk gelombang yang dinormalisasi tidak lagi menyusut saat dimuat
+* Perbaikan: kesalahan pemutaran dapat tetap tampil di layar setelah pemutaran dilanjutkan
+* Perbaikan: pemutaran dapat tetap tampil berjalan setelah sistem menghentikan audio
+* Perbaikan: ekor reverb atau delay yang panjang dapat terpotong saat menjeda

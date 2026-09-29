@@ -1,12 +1,19 @@
-* Lecture bit-perfect et mode exclusif pour les périphériques de sortie
-* Fichier > Enregistrer la liste de lecture… (⌘S) exporte la liste en M3U
-* Nouveau réglage : charger la dernière liste de lecture au démarrage
-* Davantage de personnalisation des thèmes, y compris les boutons de transport et l’icône de l’app
-* Nouveaux thèmes Glassy, Snake et Tangerine, avec annulation et tirage aléatoire dans l’éditeur
-* Nouveaux styles de forme d’onde Wiggle et Wiggle MC
-* La normalisation de la forme d’onde ne rehausse plus que les morceaux discrets
-* Réglages repensés, avec un nouveau sélecteur de périphérique audio
-* L’activation des effets audio ne demande plus de redémarrer l’app
-* Chargement plus rapide des grands dossiers et redimensionnement plus fluide
-* Correction d’un son légèrement coloré quand le filtre coupe-bas était désactivé
-* Correction de la pochette du Dock qui ne se mettait pas à jour après un changement de thème
+* Nouveau : un moteur de lecture repensé qui envoie chaque morceau directement à votre appareil audio – plus rapide, plus stable et plus à l’aise quand des appareils se connectent ou se déconnectent
+* Nouveau : contrôle du volume facultatif (Réglages > Sortie audio), personnalisable par thème
+* Nouveau : « Verrouiller la position de la fenêtre », dans le menu Présentation et dans Réglages > Général
+* Nouveau : Vibe mémorise l’appareil de sortie choisi lorsqu’il est éteint ou débranché, et y revient à son retour, avec ses réglages bit-perfect et exclusif
+* Nouveau : une interface audio USB branchée sur un autre port conserve ses réglages bit-perfect et exclusif
+* Modifié : décodage MP3 et conversion de fréquence d’échantillonnage de meilleure qualité, avec moins de CPU
+* Modifié : quand une autre app prend l’usage exclusif de votre appareil audio, Vibe se met en pause et vous le signale
+* Modifié : la perte de la sortie audio en cours de morceau met désormais en pause au lieu de passer au suivant
+* Amélioré : lecture, pause et saut n’attendent plus qu’un appareil audio change ou sorte de veille
+* Amélioré : un partage réseau bloqué ne retarde plus les autres morceaux, ni les tags et illustrations des fichiers dans le cloud
+* Amélioré : Vibe quitte instantanément et restaure votre appareil audio en arrière-plan
+* Amélioré : une forme d’onde normalisée ne rétrécit plus pendant son chargement
+* Corrigé : lancer un morceau ou faire glisser la position pouvait figer la lecture une ou deux secondes
+* Corrigé : certains fichiers MP3 contenant des données supplémentaires après leurs tags ne se lisaient pas
+* Corrigé : un appareil audio éteint à l’ouverture de Vibe est utilisé dès que vous l’allumez
+* Corrigé : « Sortie système » pouvait arrêter la lecture lorsque macOS n’avait brièvement aucun appareil par défaut
+* Corrigé : les dernières millisecondes d’un morceau pouvaient être coupées aux fréquences d’échantillonnage élevées
+* Corrigé : annuler une réorganisation de la liste de lecture pouvait laisser une ligne vide
+* Corrigé : l’illustration provisoire du Centre de contrôle pouvait s’afficher dans la mauvaise version, claire ou sombre

@@ -1,8 +1,12 @@
-Primeira versão do Vibe para iPhone e iPad.
-
-* Abra uma pasta pelo app Arquivos ou pelo seletor integrado — no dispositivo, no iCloud Drive ou no Dropbox
-* Percurso por toda a forma de onda, deslizar troca de faixa
-* Widgets pequeno e médio na tela de início, com forma de onda
-* Favoritos e busca nas pastas que você abriu
-* Reprodução em segundo plano, com controles na tela bloqueada e AirPlay
-* MP3, AAC, MP4/M4A, MP2, AIFF, WAV e FLAC em resolução total
+* Novo: pad de FX – mantenha o círculo pressionado na tela Tocando Agora e deslize para low cut, reverb e um delay sincronizado ao tempo
+* Novo: detecção de BPM, exibida ao lado do formato e do tom (Ajustes > Reprodução)
+* Novo: layout na horizontal
+* Novo: um mecanismo de reprodução reconstruído com decodificação de MP3 e conversão de taxa de amostragem de maior qualidade, usando menos CPU
+* Alterado: a forma de onda do widget da Tela de Início usa o estilo Wiggle por padrão
+* Alterado: só o botão de reproduzir pausa; tocar na capa não pausa mais
+* Melhorado: rolagem, reamostragem e reabertura mais rápidas com bibliotecas grandes
+* Melhorado: o botão do dispositivo de saída responde em qualquer ponto da sua área
+* Melhorado: uma forma de onda normalizada não encolhe mais enquanto carrega
+* Corrigido: um erro de reprodução podia continuar na tela após a reprodução ser retomada
+* Corrigido: a reprodução podia aparecer como ativa depois que o sistema interrompia o áudio
+* Corrigido: uma cauda longa de reverb ou delay podia ser cortada ao pausar

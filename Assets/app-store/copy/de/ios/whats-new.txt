@@ -1,8 +1,12 @@
-Erste Version von Vibe für iPhone und iPad.
-
-* Ordner aus Dateien oder der eingebauten Dateiauswahl öffnen — auf dem Gerät, in iCloud Drive oder in Dropbox
-* Scrubben über die ganze Wellenform, Wischen wechselt den Titel
-* Kleine und mittlere Home-Bildschirm-Widgets mit Wellenform
-* Favoriten und Suche über die geöffneten Ordner
-* Wiedergabe im Hintergrund, mit Sperrbildschirm- und AirPlay-Steuerung
-* MP3, AAC, MP4/M4A, MP2, AIFF, WAV und FLAC in voller Auflösung
+* Neu: FX-Pad – halte den Kreis im Bildschirm „Aktueller Titel“ gedrückt und wische für Low Cut, Reverb und ein temposynchrones Delay
+* Neu: BPM-Erkennung, angezeigt neben Format und Tonart (Einstellungen > Wiedergabe)
+* Neu: Querformat-Layout
+* Neu: eine neu entwickelte Wiedergabe-Engine mit hochwertigerer MP3-Dekodierung und Abtastratenkonvertierung bei geringerer CPU-Last
+* Geändert: die Wellenform im Home-Bildschirm-Widget nutzt standardmäßig den Stil Wiggle
+* Geändert: nur noch die Wiedergabetaste pausiert; Tippen auf das Cover nicht mehr
+* Verbessert: schnelleres Scrollen, Resampling und Neustarten bei großen Mediatheken
+* Verbessert: die Taste für das Ausgabegerät reagiert auf ihrer ganzen Fläche
+* Verbessert: eine normalisierte Wellenform schrumpft beim Laden nicht mehr
+* Behoben: ein Wiedergabefehler konnte sichtbar bleiben, nachdem die Wiedergabe fortgesetzt wurde
+* Behoben: die Wiedergabe konnte als laufend angezeigt werden, obwohl das System den Ton gestoppt hatte
+* Behoben: ein langer Reverb- oder Delay-Ausklang konnte beim Pausieren abgeschnitten werden

@@ -1,8 +1,12 @@
-Vibe ensimmäinen versio iPhonelle ja iPadille.
-
-* Avaa kansio Tiedostot-apista tai sisäänrakennetusta valitsimesta — laitteella, iCloud Drivessa tai Dropboxissa
-* Kelaus koko aaltomuodon yli, pyyhkäisy vaihtaa kappaletta
-* Pieni ja keskikokoinen Koti-valikon widget aaltomuodolla
-* Suosikit ja haku avaamissasi kansioissa
-* Toisto taustalla, lukitusnäytön säätimillä ja AirPlaylla
-* MP3, AAC, MP4/M4A, MP2, AIFF, WAV ja FLAC täydellä tarkkuudella
+* Uutta: FX-pad – pidä ympyrää painettuna Toistossa-näkymässä ja liu’uta saadaksesi low cutin, reverbin ja tempoon tahdistetun delayn
+* Uutta: BPM-tunnistus, näytetään formaatin ja sävellajin vieressä (Asetukset > Toisto)
+* Uutta: vaakasuuntainen asettelu
+* Uutta: uudistettu toistomoottori, jonka MP3-dekoodaus ja näytteenottotaajuuden muunnos ovat laadukkaampia ja kuluttavat vähemmän CPU:ta
+* Muutettu: Koti-valikon widgetin aaltomuoto käyttää oletuksena Wiggle-tyyliä
+* Muutettu: vain toistopainike keskeyttää; kansikuvan napauttaminen ei enää keskeytä
+* Parannettu: nopeampi vieritys, näytteenottotaajuuden muunnos ja uudelleenkäynnistys suurilla kirjastoilla
+* Parannettu: ulostulolaitteen painike reagoi missä tahansa kohdassa painiketta
+* Parannettu: normalisoitu aaltomuoto ei enää kutistu latautuessaan
+* Korjattu: toistovirhe saattoi jäädä näytölle toiston jatkuttua
+* Korjattu: toisto saattoi näkyä käynnissä olevana, vaikka järjestelmä oli pysäyttänyt äänen
+* Korjattu: pitkä reverbin tai delayn häntä saattoi katketa keskeytettäessä

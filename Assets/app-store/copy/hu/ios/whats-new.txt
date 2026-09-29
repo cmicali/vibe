@@ -1,8 +1,12 @@
-A Vibe első verziója iPhone-ra és iPadre.
-
-* Nyiss meg egy mappát a Fájlokból vagy a beépített fájlválasztóból — az eszközön, az iCloud Drive-on vagy a Dropboxban
-* Tekerés a teljes hullámformán, csúsztatás vált számot
-* Kis és közepes widget a Home képernyőn, hullámformával
-* Kedvencek és keresés a megnyitott mappákban
-* Háttérben lejátszás, zárolási képernyős és AirPlay vezérléssel
-* MP3, AAC, MP4/M4A, MP2, AIFF, WAV és FLAC teljes felbontásban
+* Új: FX pad – tartsd lenyomva a kört a lejátszási képernyőn, és csúsztasd a low cuthoz, a reverbhöz és a tempóhoz igazított delay-hez
+* Új: BPM-észlelés, a formátum és a hangnem mellett megjelenítve (Beállítások > Lejátszás)
+* Új: fekvő elrendezés
+* Új: újraépített lejátszómotor jobb minőségű MP3-dekódolással és mintavételezésifrekvencia-átalakítással, kevesebb CPU-használattal
+* Változás: a Főképernyő-widget hullámformája alapértelmezés szerint Wiggle stílusú
+* Változás: csak a lejátszás gomb szüneteltet; a borítóra koppintás már nem
+* Fejlesztés: gyorsabb görgetés, átmintavételezés és újraindítás nagy könyvtáraknál
+* Fejlesztés: a kimeneti eszköz gombja a kapszula bármely pontján reagál
+* Fejlesztés: a normalizált hullámforma már nem zsugorodik össze betöltés közben
+* Javítás: egy lejátszási hiba a képernyőn maradhatott a lejátszás folytatása után
+* Javítás: a lejátszás folyamatban lévőként látszhatott, miután a rendszer leállította a hangot
+* Javítás: a hosszú reverb- vagy delay-lecsengés levágódhatott szüneteltetéskor

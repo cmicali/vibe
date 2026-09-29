@@ -1,12 +1,19 @@
-* Přehrávání bit-perfect a exkluzivní režim pro výstupní zařízení
-* Soubor > Uložit playlist… (⌘S) exportuje playlist jako soubor M3U
-* Nové nastavení pro načtení posledního playlistu při spuštění
-* Více úprav motivů, včetně ovládacích tlačítek a ikony aplikace
-* Nové motivy Glassy, Snake a Tangerine, plus zpět a náhodný výběr v editoru motivů
-* Nové styly vlny Wiggle a Wiggle MC
-* Normalizace vlny nyní zesiluje jen tiché skladby
-* Přepracovaná nastavení s novým výběrem zvukového zařízení
-* Zapnutí zvukových efektů už nevyžaduje restart aplikace
-* Rychlejší načítání velkých složek a plynulejší změna velikosti okna
-* Opraven mírně zabarvený zvuk při vypnutém filtru dolní propusti
-* Opraven obal v Docku, který se po změně motivu neaktualizoval
+* Nové: přepracovaný přehrávací engine, který posílá každou skladbu přímo do vašeho zvukového zařízení – rychlejší, stabilnější a lépe si poradí s připojováním a odpojováním zařízení
+* Nové: volitelné ovládání hlasitosti (Nastavení > Zvukový výstup), přizpůsobitelné motivy
+* Nové: Zamknout polohu okna v nabídce Zobrazení a v Nastavení > Obecné
+* Nové: Vibe si pamatuje zvolené výstupní zařízení, když ho vypnete nebo odpojíte, a jakmile se vrátí, přepne zpět na něj i s nastavením bitově přesného a výhradního zvukového výstupu
+* Nové: zvukové rozhraní USB připojené do jiného portu si zachová nastavení bitově přesného a výhradního zvukového výstupu
+* Změna: kvalitnější dekódování MP3 a převod vzorkovací frekvence s nižší zátěží CPU
+* Změna: když jiná aplikace převezme výhradní přístup k vašemu zvukovému zařízení, Vibe pozastaví přehrávání a oznámí to
+* Změna: ztráta zvukového výstupu uprostřed skladby nyní přehrávání pozastaví, místo aby přeskočila dál
+* Vylepšení: přehrání, pozastavení a přeskočení už nečekají, než se zvukové zařízení přepne nebo probudí
+* Vylepšení: zaseknuté síťové sdílení už nezdržuje ostatní skladby ani tagy a obaly souborů v cloudu
+* Vylepšení: ukončení je okamžité; Vibe obnoví vaše zvukové zařízení na pozadí
+* Vylepšení: normalizovaný tvar vlny se při načítání už nezmenšuje
+* Opraveno: spuštění skladby nebo přetažení pozice mohlo na sekundu či dvě zmrazit přehrávání
+* Opraveno: některé soubory MP3 s dalšími daty za tagy nešly přehrát
+* Opraveno: zvukové zařízení, které bylo při otevření Vibe vypnuté, se použije, jakmile ho zapnete
+* Opraveno: Systémový výstup mohl zastavit přehrávání, když macOS krátce neměl žádné výchozí zařízení
+* Opraveno: posledních několik milisekund skladby se při vysokých vzorkovacích frekvencích mohlo useknout
+* Opraveno: vrácení změny pořadí v playlistu mohlo zanechat prázdný řádek
+* Opraveno: zástupný obal v Ovládacím centru mohl zobrazit nesprávnou světlou nebo tmavou verzi

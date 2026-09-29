@@ -1,12 +1,19 @@
-* Çıkış aygıtları için bit-perfect çalma ve ayrıcalıklı mod
-* Dosya > Çalma Listesini Kaydet… (⌘S) listeyi M3U dosyası olarak dışa aktarır
-* Açılışta son çalma listesini yükleyen yeni ayar
-* Daha fazla tema özelleştirmesi; kontrol düğmeleri ve uygulama simgesi dahil
-* Yeni Glassy, Snake ve Tangerine temaları, tema düzenleyicide geri alma ve rastgele seçim
-* Yeni dalga biçimi stilleri: Wiggle ve Wiggle MC
-* Dalga biçimi normalleştirmesi artık yalnızca sessiz parçaları yükseltiyor
-* Yenilenen ayarlar ve yeni ses aygıtı seçici
-* Ses efektlerini açmak artık uygulamayı yeniden başlatmayı gerektirmiyor
-* Büyük klasörler daha hızlı yükleniyor, pencere daha akıcı boyutlanıyor
-* Alçak kesme filtresi kapalıyken sesin hafif renklenmesi düzeltildi
-* Tema değiştirdikten sonra Dock kapağının güncellenmemesi düzeltildi
+* Yeni: her parçayı doğrudan ses aygıtınıza çalan, yeniden oluşturulmuş çalma motoru - daha hızlı, daha kararlı ve aygıtların bağlanıp ayrılmasına karşı daha dayanıklı
+* Yeni: isteğe bağlı ses denetimi (Ayarlar > Ses Çıkışı), temalarla özelleştirilebilir
+* Yeni: “Pencere Konumunu Kilitle”, Görüntü menüsünde ve Ayarlar > Genel’de
+* Yeni: Vibe, seçtiğiniz çıkış aygıtı kapatıldığında veya çıkarıldığında onu hatırlar ve aygıt geri geldiğinde bit düzeyinde kusursuz çıkış ve özel çıkış ayarlarıyla birlikte ona geri geçer
+* Yeni: farklı bir bağlantı noktasına takılan USB ses arabirimi, bit düzeyinde kusursuz çıkış ve özel çıkış ayarlarını korur
+* Değişiklik: daha az CPU kullanan, daha yüksek kaliteli MP3 kod çözme ve örnekleme hızı dönüştürme
+* Değişiklik: başka bir uygulama ses aygıtınızı özel olarak kullandığında Vibe duraklar ve bunu bildirir
+* Değişiklik: parça ortasında ses çıkışı kaybolursa artık sonraki parçaya geçmek yerine duraklatılır
+* İyileştirme: bir ses aygıtı değişirken veya uyanırken çalma, duraklatma ve atlama artık beklemiyor
+* İyileştirme: takılan bir ağ paylaşımı artık diğer parçaları ya da bulut dosyalarının etiketlerini ve resimlerini bekletmiyor
+* İyileştirme: çıkış artık anında; Vibe ses aygıtınızı arka planda geri yükler
+* İyileştirme: normalleştirilmiş dalga biçimi artık yüklenirken küçülmüyor
+* Düzeltme: bir parçayı başlatmak veya konumu sürüklemek çalmayı bir iki saniye dondurabiliyordu
+* Düzeltme: etiketlerinden sonra fazladan veri bulunan bazı MP3 dosyaları çalınmıyordu
+* Düzeltme: Vibe açıldığında kapalı olan bir ses aygıtı artık siz onu açar açmaz kullanılıyor
+* Düzeltme: macOS kısa süreliğine varsayılan aygıtsız kaldığında Sistem Çıkışı çalmayı durdurabiliyordu
+* Düzeltme: yüksek örnekleme hızlarında parçanın son birkaç milisaniyesi kesilebiliyordu
+* Düzeltme: çalma listesi yeniden sıralamasını geri almak boş bir satır bırakabiliyordu
+* Düzeltme: Denetim Merkezi’ndeki yer tutucu resim yanlış açık veya koyu sürümü gösterebiliyordu

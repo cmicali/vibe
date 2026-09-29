@@ -1,12 +1,19 @@
-* Bit-perfect reprodukcija i ekskluzivni način za izlazne uređaje
-* Datoteka > Spremi popis za reprodukciju… (⌘S) izvozi popis kao M3U datoteku
-* Nova postavka za učitavanje zadnjeg popisa pri pokretanju
-* Više prilagodbe tema, uključujući tipke transporta i ikonu aplikacije
-* Nove teme Glassy, Snake i Tangerine, uz poništavanje i nasumični odabir u uređivaču tema
-* Novi stilovi valnog oblika Wiggle i Wiggle MC
-* Normalizacija valnog oblika sada pojačava samo tihe pjesme
-* Preuređene postavke s novim odabirom audiouređaja
-* Uključivanje audioefekata više ne traži ponovno pokretanje aplikacije
-* Brže učitavanje velikih mapa i glađa promjena veličine prozora
-* Ispravljen blago obojen zvuk kad je niskopropusni filtar isključen
-* Ispravljen omot u Docku koji se nije osvježavao nakon promjene teme
+* Novo: iznova izgrađen mehanizam reprodukcije koji svaku pjesmu šalje izravno na vaš audiouređaj — brži, stabilniji i bolji u radu s uređajima koji se spajaju i odspajaju
+* Novo: opcionalna kontrola glasnoće (Postavke > Audio izlaz), prilagodljiva temama
+* Novo: Zaključaj položaj prozora, u izborniku Prikaz i u odjeljku Postavke > Općenito
+* Novo: Vibe pamti odabrani izlazni uređaj kad se isključi ili odspoji te se na njega vraća, s postavkama Bitovno točan izlaz i Isključivi audioizlaz, kad se ponovno pojavi
+* Novo: USB audiosučelje priključeno u drugi priključak zadržava postavke Bitovno točan izlaz i Isključivi audioizlaz
+* Promijenjeno: kvalitetnije dekodiranje MP3 datoteka i pretvorba frekvencije uzorkovanja, uz manje opterećenje CPU-a
+* Promijenjeno: kad druga aplikacija preuzme isključivo korištenje vašeg audiouređaja, Vibe pauzira i to vam javlja
+* Promijenjeno: gubitak audioizlaza usred pjesme sada pauzira reprodukciju umjesto preskakanja na sljedeću
+* Poboljšano: reprodukcija, pauza i preskakanje više ne čekaju dok se audiouređaj prebacuje ili budi
+* Poboljšano: zaglavljeni mrežni dijeljeni resurs više ne zadržava druge pjesme ni oznake i omote datoteka u oblaku
+* Poboljšano: zatvaranje je trenutačno; Vibe vraća vaš audiouređaj u prethodno stanje u pozadini
+* Poboljšano: normalizirani valni oblik više se ne smanjuje tijekom učitavanja
+* Ispravljeno: pokretanje pjesme ili povlačenje položaja moglo je zamrznuti reprodukciju na sekundu-dvije
+* Ispravljeno: neke MP3 datoteke s dodatnim podacima iza oznaka nisu se reproducirale
+* Ispravljeno: audiouređaj koji je bio isključen pri otvaranju Vibea koristi se čim ga uključite
+* Ispravljeno: Izlaz sustava mogao je zaustaviti reprodukciju dok macOS nakratko nije imao zadani uređaj
+* Ispravljeno: posljednjih nekoliko milisekundi pjesme moglo se odrezati pri visokim frekvencijama uzorkovanja
+* Ispravljeno: poništavanje promjene redoslijeda popisa za reprodukciju moglo je ostaviti prazan redak
+* Ispravljeno: zamjenska slika u Kontrolnom centru mogla se prikazati u pogrešnoj, svijetloj ili tamnoj inačici

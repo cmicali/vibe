@@ -1,8 +1,12 @@
-Prva verzija Vibea za iPhone i iPad.
-
-* Otvorite mapu iz Datoteka ili iz ugrađenog odabirnika — na uređaju, u iCloud Driveu ili u Dropboxu
-* Pomicanje po cijelom valnom obliku, prelazak prstom mijenja pjesmu
-* Mali i srednji widget na početnom zaslonu, s valnim oblikom
-* Favoriti i pretraga po mapama koje ste otvorili
-* Reprodukcija u pozadini, s kontrolama na zaključanom zaslonu i AirPlayem
-* MP3, AAC, MP4/M4A, MP2, AIFF, WAV i FLAC u punoj rezoluciji
+* Novo: FX pad — zadržite prst na krugu na zaslonu reprodukcije i povucite za low cut, reverb i delay usklađen s tempom
+* Novo: prepoznavanje BPM-a, prikazano pokraj formata i tonaliteta (Postavke > Reprodukcija)
+* Novo: vodoravni prikaz
+* Novo: iznova izgrađen mehanizam reprodukcije s kvalitetnijim dekodiranjem MP3 datoteka i pretvorbom frekvencije uzorkovanja, uz manje opterećenje CPU-a
+* Promijenjeno: valni oblik widgeta na početnom zaslonu zadano ima stil Wiggle
+* Promijenjeno: reprodukciju pauzira samo tipka za reprodukciju; dodir omota to više ne čini
+* Poboljšano: brže pomicanje, preuzorkovanje i ponovno pokretanje s velikim zbirkama
+* Poboljšano: tipka izlaznog uređaja reagira bilo gdje na svojoj kapsuli
+* Poboljšano: normalizirani valni oblik više se ne smanjuje tijekom učitavanja
+* Ispravljeno: pogreška reprodukcije mogla je ostati na zaslonu nakon nastavka reprodukcije
+* Ispravljeno: reprodukcija se mogla prikazivati kao aktivna nakon što je sustav zaustavio zvuk
+* Ispravljeno: dugi rep reverba ili delaya mogao se odrezati pri pauziranju

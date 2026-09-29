@@ -1,8 +1,12 @@
-Første version af Vibe til iPhone og iPad.
-
-* Åbn en mappe fra Filer eller den indbyggede filvælger — på enheden, i iCloud Drive eller i Dropbox
-* Spoling hen over hele bølgeformen, stryg for at skifte nummer
-* Små og mellemstore widgets på hjemmeskærmen, med bølgeform
-* Favoritter og søgning i de mapper, du har åbnet
-* Afspilning i baggrunden, med betjening på låseskærmen og AirPlay
-* MP3, AAC, MP4/M4A, MP2, AIFF, WAV og FLAC i fuld opløsning
+* Nyt: FX-pad – hold på cirklen på skærmen Afspiller nu, og træk for low cut, reverb og et tempo-synkroniseret delay
+* Nyt: BPM-registrering, vist ved siden af format og toneart (Indstillinger > Afspilning)
+* Nyt: layout i liggende format
+* Nyt: en ombygget afspilningsmotor med MP3-afkodning og samplingfrekvenskonvertering i højere kvalitet, der bruger mindre CPU
+* Ændret: bølgeformen i widgetten på hjemmeskærmen bruger nu stilen Wiggle som standard
+* Ændret: kun afspilningsknappen sætter på pause; et tryk på illustrationen gør det ikke længere
+* Forbedret: hurtigere rulning, samplingfrekvenskonvertering og genstart med store biblioteker
+* Forbedret: knappen til udgangsenheden reagerer overalt på knappen
+* Forbedret: en normaliseret bølgeform skrumper ikke længere, mens den indlæses
+* Rettet: en afspilningsfejl kunne blive stående på skærmen, efter at afspilningen var genoptaget
+* Rettet: afspilningen kunne vises som i gang, efter at systemet havde stoppet lyden
+* Rettet: en lang reverb- eller delayhale kunne blive skåret af ved pause

@@ -1,8 +1,12 @@
-První verze Vibe pro iPhone a iPad.
-
-* Otevřete složku ze Souborů nebo z vestavěného výběru — v zařízení, na iCloud Drive nebo v Dropboxu
-* Posun po celé vlně, přejetím přepnete skladbu
-* Malý a střední widget na plochu, s vlnou
-* Oblíbené a hledání ve složkách, které jste otevřeli
-* Přehrávání na pozadí, s ovládáním na zamčené obrazovce a přes AirPlay
-* MP3, AAC, MP4/M4A, MP2, AIFF, WAV a FLAC v plném rozlišení
+* Nové: FX pad – podržte kruh na obrazovce Právě hraje a tažením přidejte low cut, reverb a delay synchronizovaný s tempem
+* Nové: zjišťování BPM, zobrazené vedle formátu a tóniny (Nastavení > Přehrávání)
+* Nové: rozvržení na šířku
+* Nové: přepracovaný přehrávací engine s kvalitnějším dekódováním MP3 a převodem vzorkovací frekvence a nižší zátěží CPU
+* Změna: tvar vlny ve widgetu na ploše má nyní výchozí styl Wiggle
+* Změna: pozastavuje jen tlačítko přehrávání; klepnutí na obal už ne
+* Vylepšení: rychlejší posouvání, převod vzorkovací frekvence a opětovné spuštění u velkých knihoven
+* Vylepšení: tlačítko výstupního zařízení reaguje na klepnutí kamkoli na něj
+* Vylepšení: normalizovaný tvar vlny se při načítání už nezmenšuje
+* Opraveno: chyba přehrávání mohla zůstat na obrazovce i po obnovení přehrávání
+* Opraveno: přehrávání se mohlo zobrazovat jako spuštěné i poté, co systém zvuk zastavil
+* Opraveno: dlouhý dozvuk reverbu nebo delaye se mohl při pozastavení useknout

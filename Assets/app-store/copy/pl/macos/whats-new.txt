@@ -1,12 +1,19 @@
-* Odtwarzanie bit-perfect i tryb wyłączny dla urządzeń wyjściowych
-* Plik > Zapisz playlistę… (⌘S) eksportuje playlistę jako plik M3U
-* Nowe ustawienie wczytywania ostatniej playlisty przy starcie
-* Więcej personalizacji motywów, w tym przyciski transportu i ikona aplikacji
-* Nowe motywy Glassy, Snake i Tangerine, a w edytorze cofanie i losowanie
-* Nowe style fali Wiggle i Wiggle MC
-* Normalizacja fali podbija teraz tylko ciche utwory
-* Przeprojektowane ustawienia z nowym wyborem urządzenia audio
-* Włączenie efektów dźwiękowych nie wymaga już restartu aplikacji
-* Szybsze wczytywanie dużych folderów i płynniejsza zmiana rozmiaru okna
-* Poprawiono lekko zabarwiony dźwięk przy wyłączonym filtrze dolnoprzepustowym
-* Poprawiono okładkę w Docku, która nie odświeżała się po zmianie motywu
+* Nowość: przebudowany silnik odtwarzania, który wysyła każdy utwór prosto do urządzenia audio – szybszy, stabilniejszy i lepiej radzący sobie z podłączaniem i odłączaniem urządzeń
+* Nowość: opcjonalna regulacja głośności (Ustawienia > Wyjście audio), z obsługą motywów
+* Nowość: Zablokuj położenie okna w menu Widok i w Ustawienia > Ogólne
+* Nowość: Vibe pamięta wybrane urządzenie wyjściowe, gdy zostanie wyłączone lub odłączone, i wraca do niego wraz z ustawieniami wyjścia bit-perfect i wyłącznego wyjścia audio, gdy znów się pojawi
+* Nowość: interfejs audio USB podłączony do innego portu zachowuje ustawienia wyjścia bit-perfect i wyłącznego wyjścia audio
+* Zmiana: wyższa jakość dekodowania MP3 i konwersji częstotliwości próbkowania przy mniejszym użyciu CPU
+* Zmiana: gdy inna aplikacja przejmie wyłączny dostęp do urządzenia audio, Vibe wstrzymuje odtwarzanie i o tym informuje
+* Zmiana: utrata wyjścia audio w trakcie utworu wstrzymuje teraz odtwarzanie zamiast przechodzić dalej
+* Ulepszenie: odtwarzanie, wstrzymywanie i przechodzenie nie czekają już, gdy urządzenie audio się przełącza lub wybudza
+* Ulepszenie: zawieszony udział sieciowy nie blokuje już innych utworów ani tagów i okładek plików w chmurze
+* Ulepszenie: zamykanie jest natychmiastowe; Vibe przywraca urządzenie audio w tle
+* Ulepszenie: znormalizowany kształt fali nie kurczy się już podczas wczytywania
+* Poprawka: rozpoczęcie utworu lub przeciąganie pozycji mogło zamrozić odtwarzanie na sekundę lub dwie
+* Poprawka: niektóre pliki MP3 z dodatkowymi danymi za tagami nie były odtwarzane
+* Poprawka: urządzenie audio wyłączone w chwili otwarcia Vibe jest używane, gdy tylko je włączysz
+* Poprawka: Wyjście systemowe mogło zatrzymać odtwarzanie, gdy macOS przez chwilę nie miał domyślnego urządzenia
+* Poprawka: ostatnie milisekundy utworu mogły zostać ucięte przy wysokich częstotliwościach próbkowania
+* Poprawka: cofnięcie zmiany kolejności na playliście mogło zostawić pusty wiersz
+* Poprawka: zastępcza okładka w Centrum sterowania mogła pokazywać złą, jasną lub ciemną wersję

@@ -1,12 +1,19 @@
-* Phát bit-perfect và chế độ độc quyền cho thiết bị đầu ra
-* Tệp > Lưu danh sách phát… (⌘S) xuất danh sách thành tệp M3U
-* Tuỳ chọn mới để nạp danh sách phát gần nhất khi khởi động
-* Nhiều tuỳ chỉnh chủ đề hơn, gồm cả nút điều khiển và biểu tượng ứng dụng
-* Chủ đề mới Glassy, Snake và Tangerine, kèm hoàn tác và ngẫu nhiên trong trình soạn chủ đề
-* Kiểu dạng sóng mới Wiggle và Wiggle MC
-* Chuẩn hoá dạng sóng giờ chỉ nâng những bản nhạc nhỏ tiếng
-* Thiết lập được làm lại, với bộ chọn thiết bị âm thanh mới
-* Bật hiệu ứng âm thanh không còn cần khởi động lại ứng dụng
-* Thư mục lớn nạp nhanh hơn và thay đổi kích thước cửa sổ mượt hơn
-* Sửa lỗi âm thanh hơi bị nhuốm màu khi tắt bộ lọc cắt trầm
-* Sửa lỗi ảnh bìa trên Dock không cập nhật sau khi đổi chủ đề
+* Mới: công cụ phát được xây dựng lại, phát mọi bài hát thẳng đến thiết bị âm thanh của bạn - nhanh hơn, ổn định hơn và xử lý tốt hơn khi thiết bị được kết nối hoặc ngắt kết nối
+* Mới: điều khiển âm lượng tùy chọn (Cài đặt > Đầu ra âm thanh), có thể tùy chỉnh theo chủ đề
+* Mới: “Khóa vị trí cửa sổ”, trong menu Xem và Cài đặt > Cài đặt chung
+* Mới: Vibe ghi nhớ thiết bị đầu ra bạn đã chọn khi thiết bị bị tắt hoặc rút ra, và chuyển lại sang thiết bị đó cùng các cài đặt bit-perfect và độc quyền khi thiết bị trở lại
+* Mới: giao diện âm thanh USB cắm vào cổng khác vẫn giữ các cài đặt bit-perfect và độc quyền
+* Thay đổi: giải mã MP3 và chuyển đổi tần số lấy mẫu chất lượng cao hơn, dùng ít CPU hơn
+* Thay đổi: khi một ứng dụng khác độc chiếm thiết bị âm thanh của bạn, Vibe sẽ tạm dừng và thông báo
+* Thay đổi: mất đầu ra âm thanh giữa bài giờ sẽ tạm dừng thay vì chuyển sang bài tiếp theo
+* Cải thiện: phát, tạm dừng và bỏ qua không còn phải chờ khi thiết bị âm thanh đang chuyển đổi hoặc thức dậy
+* Cải thiện: ổ chia sẻ mạng bị treo không còn làm chậm các bài hát khác, hay thẻ và ảnh bìa của tệp trên đám mây
+* Cải thiện: thoát ngay lập tức; Vibe khôi phục thiết bị âm thanh của bạn trong nền
+* Cải thiện: dạng sóng đã chuẩn hóa không còn co lại khi đang tải
+* Sửa lỗi: bắt đầu một bài hát hoặc kéo vị trí phát có thể làm việc phát bị đứng một hai giây
+* Sửa lỗi: một số tệp MP3 có dữ liệu thừa sau thẻ không phát được
+* Sửa lỗi: thiết bị âm thanh đang tắt khi mở Vibe giờ được dùng ngay khi bạn bật lên
+* Sửa lỗi: Đầu ra hệ thống có thể dừng phát khi macOS tạm thời không có thiết bị mặc định
+* Sửa lỗi: vài mili giây cuối của bài hát có thể bị cắt ở tần số lấy mẫu cao
+* Sửa lỗi: hoàn tác việc sắp xếp lại danh sách phát có thể để lại một hàng trống
+* Sửa lỗi: ảnh bìa giữ chỗ trong Trung tâm điều khiển có thể hiển thị sai phiên bản sáng hoặc tối

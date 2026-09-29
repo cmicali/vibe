@@ -1,8 +1,12 @@
-First release of Vibe for iPhone and iPad.
-
-* Open a folder from Files or the built-in file picker - on your device, in iCloud Drive, or in Dropbox
-* Full-waveform scrubbing, swipe to switch tracks
-* Small and medium home-screen widgets, with waveform
-* Favorites and search across the folders you have opened
-* Background playback with lock screen and AirPlay controls
-* MP3, AAC, MP4/M4A, MP2, AIFF, WAV, and FLAC at full resolution
+* New: FX pad - hold the circle on the now-playing screen and slide for low cut, reverb, and a tempo-synced delay
+* New: BPM detection, shown beside the format and key (Settings > Playback)
+* New: landscape layout
+* New: a rebuilt playback engine with higher-quality MP3 decoding and sample-rate conversion, using less CPU
+* Changed: the home-screen widget's waveform defaults to the Wiggle style
+* Changed: only the play button pauses; tapping the artwork no longer does
+* Improved: faster scrolling, resampling, and relaunch with large libraries
+* Improved: the output device button responds anywhere on its pill
+* Improved: a normalized waveform no longer shrinks while it loads
+* Fixed: a playback error could stay on screen after playback resumed
+* Fixed: playback could show as playing after the system stopped the audio
+* Fixed: a long reverb or delay tail could be cut off when pausing

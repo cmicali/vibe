@@ -1,12 +1,19 @@
-* Reproducción bit-perfect y modo exclusivo para dispositivos de salida
-* Archivo > Guardar lista de reproducción… (⌘S) exporta la lista como archivo M3U
-* Nuevo ajuste para cargar la última lista de reproducción al arrancar
-* Más personalización de temas, incluidos los botones de transporte y el icono de la app
-* Nuevos temas Glassy, Snake y Tangerine, con deshacer y aleatorio en el editor de temas
-* Nuevos estilos de forma de onda Wiggle y Wiggle MC
-* La normalización de la forma de onda ahora solo realza las pistas silenciosas
-* Ajustes rediseñados, con un nuevo selector de dispositivo de audio
-* Activar los efectos de audio ya no requiere reiniciar la app
-* Carga más rápida de carpetas grandes y redimensionado más fluido
-* Corregido un sonido ligeramente coloreado con el filtro de graves desactivado
-* Corregida la carátula del Dock, que no se actualizaba al cambiar de tema
+* Novedad: un motor de reproducción renovado que envía cada pista directamente a tu dispositivo de audio: más rápido, más estable y mejor preparado para dispositivos que se conectan y desconectan
+* Novedad: control de volumen opcional (Ajustes > Salida de audio), personalizable con temas
+* Novedad: “Bloquear la posición de la ventana”, en el menú Visualización y en Ajustes > General
+* Novedad: Vibe recuerda el dispositivo de salida que elegiste cuando se apaga o se desconecta, y vuelve a él, con sus ajustes bit-perfect y exclusivo, cuando regresa
+* Novedad: una interfaz de audio USB conectada a otro puerto conserva sus ajustes bit-perfect y exclusivo
+* Cambio: decodificación MP3 y conversión de frecuencia de muestreo de mayor calidad, con menos uso de CPU
+* Cambio: cuando otra app toma el uso exclusivo de tu dispositivo de audio, Vibe se pone en pausa y te lo indica
+* Cambio: si se pierde la salida de audio a mitad de una pista, ahora se pausa en lugar de saltar a la siguiente
+* Mejora: reproducir, pausar y saltar ya no esperan mientras un dispositivo de audio cambia o se activa
+* Mejora: una unidad de red bloqueada ya no retrasa otras pistas ni las etiquetas y carátulas de los archivos en la nube
+* Mejora: salir es instantáneo; Vibe restaura tu dispositivo de audio en segundo plano
+* Mejora: una forma de onda normalizada ya no se encoge mientras carga
+* Corrección: iniciar una pista o arrastrar la posición podía congelar la reproducción uno o dos segundos
+* Corrección: algunos archivos MP3 con datos adicionales tras sus etiquetas no se reproducían
+* Corrección: un dispositivo de audio que estaba apagado al abrir Vibe se usa en cuanto lo enciendes
+* Corrección: “Salida del sistema” podía detener la reproducción cuando macOS se quedaba brevemente sin dispositivo predeterminado
+* Corrección: los últimos milisegundos de una pista podían cortarse con frecuencias de muestreo altas
+* Corrección: deshacer una reordenación de la lista de reproducción podía dejar una fila vacía
+* Corrección: la carátula provisional del Centro de control podía mostrar la versión clara u oscura equivocada

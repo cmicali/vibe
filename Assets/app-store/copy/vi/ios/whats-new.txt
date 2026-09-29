@@ -1,8 +1,12 @@
-Phiên bản đầu tiên của Vibe cho iPhone và iPad.
-
-* Mở một thư mục từ Tệp hoặc từ bộ chọn tích hợp — trên máy, trong iCloud Drive hoặc trong Dropbox
-* Đổi vị trí trên toàn bộ dạng sóng, vuốt để chuyển bản nhạc
-* Widget nhỏ và vừa trên Màn hình chính, có dạng sóng
-* Mục yêu thích và tìm kiếm trong các thư mục bạn đã mở
-* Phát ở nền, với điều khiển trên màn hình khoá và AirPlay
-* MP3, AAC, MP4/M4A, MP2, AIFF, WAV và FLAC ở độ phân giải đầy đủ
+* Mới: pad FX - chạm và giữ vòng tròn trên màn hình Đang phát rồi trượt để dùng low cut, reverb và delay đồng bộ theo nhịp độ
+* Mới: phát hiện BPM, hiển thị cạnh định dạng và tông (Cài đặt > Phát lại)
+* Mới: bố cục ngang
+* Mới: công cụ phát được xây dựng lại với giải mã MP3 và chuyển đổi tần số lấy mẫu chất lượng cao hơn, dùng ít CPU hơn
+* Thay đổi: dạng sóng của tiện ích trên Màn hình chính mặc định dùng kiểu Wiggle
+* Thay đổi: chỉ nút phát mới tạm dừng; chạm vào ảnh bìa không còn tạm dừng nữa
+* Cải thiện: cuộn, lấy mẫu lại và mở lại nhanh hơn với thư viện lớn
+* Cải thiện: nút thiết bị đầu ra phản hồi khi chạm vào bất kỳ đâu trên nút
+* Cải thiện: dạng sóng đã chuẩn hóa không còn co lại khi đang tải
+* Sửa lỗi: lỗi phát lại có thể vẫn hiển thị trên màn hình sau khi đã phát tiếp
+* Sửa lỗi: có thể vẫn hiển thị đang phát sau khi hệ thống đã dừng âm thanh
+* Sửa lỗi: phần đuôi dài của reverb hoặc delay có thể bị cắt khi tạm dừng

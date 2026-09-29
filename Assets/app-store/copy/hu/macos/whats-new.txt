@@ -1,12 +1,19 @@
-* Bit-perfect lejátszás és kizárólagos mód a kimeneti eszközökhöz
-* Fájl > Lejátszási lista mentése… (⌘S) M3U-fájlként exportálja a listát
-* Új beállítás az utolsó lejátszási lista betöltésére induláskor
-* Több témabeállítás, köztük a vezérlőgombok és az app ikonja
-* Új Glassy, Snake és Tangerine témák, valamint visszavonás és véletlenszerűsítés a témaszerkesztőben
-* Új Wiggle és Wiggle MC hullámformastílusok
-* A hullámforma-normalizálás mostantól csak a halk számokat emeli meg
-* Átdolgozott beállítások, új hangeszköz-választóval
-* A hangeffektek bekapcsolása már nem igényel újraindítást
-* Gyorsabb betöltés nagy mappáknál és simább ablakátméretezés
-* Javítva a kissé elszínezett hang, amikor a mélyvágó ki volt kapcsolva
-* Javítva a Dock borítója, amely témaváltás után nem frissült
+* Új: újraépített lejátszómotor, amely minden számot közvetlenül a hangeszközödre játszik le – gyorsabb, stabilabb, és jobban kezeli az eszközök csatlakoztatását és leválasztását
+* Új: opcionális hangerő-szabályzó (Beállítások > Hangkimenet), témázható
+* Új: Ablak helyzetének rögzítése a Nézet menüben és a Beállítások > Általános panelen
+* Új: a Vibe megjegyzi a választott kimeneti eszközt, ha kikapcsolod vagy kihúzod, és amikor újra elérhető, visszavált rá a Bitpontos kimenet és a Kizárólagos hangkimenet beállításaival együtt
+* Új: a másik portba dugott USB-s hangkártya megtartja a Bitpontos kimenet és a Kizárólagos hangkimenet beállításait
+* Változás: jobb minőségű MP3-dekódolás és mintavételezésifrekvencia-átalakítás, kevesebb CPU-használattal
+* Változás: ha egy másik app kizárólagosan lefoglalja a hangeszközödet, a Vibe szünetel, és jelzi is ezt
+* Változás: ha szám közben megszűnik a hangkimenet, a Vibe mostantól szünetel ahelyett, hogy továbblépne
+* Fejlesztés: a lejátszás, a szünet és a léptetés már nem vár, amíg egy hangeszköz vált vagy felébred
+* Fejlesztés: egy elakadt hálózati megosztás már nem tartja fel a többi számot, sem a felhőben lévő fájlok címkéit és borítóit
+* Fejlesztés: a kilépés azonnali; a Vibe a háttérben állítja vissza a hangeszközödet
+* Fejlesztés: a normalizált hullámforma már nem zsugorodik össze betöltés közben
+* Javítás: egy szám indítása vagy a pozíció húzása egy-két másodpercre megakaszthatta a lejátszást
+* Javítás: egyes MP3-fájlok, amelyekben a címkék után extra adat van, nem játszódtak le
+* Javítás: a Vibe megnyitásakor kikapcsolt hangeszközt most már rögtön használja, amint bekapcsolod
+* Javítás: a Rendszerkimenet leállíthatta a lejátszást, amikor a macOS-nek rövid ideig nem volt alapértelmezett eszköze
+* Javítás: magas mintavételezési frekvencián levágódhatott a szám utolsó néhány ezredmásodperce
+* Javítás: a lejátszási lista átrendezésének visszavonása üres sort hagyhatott maga után
+* Javítás: a Vezérlőközpont helyettesítő borítója rossz (világos vagy sötét) változatban jelenhetett meg

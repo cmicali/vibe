@@ -1,12 +1,19 @@
-* Bit-perfect-uppspelning och exklusivt läge för utgångsenheter
-* Arkiv > Spara spellista… (⌘S) exporterar spellistan som en M3U-fil
-* Ny inställning för att läsa in den senaste spellistan vid start
-* Mer temaanpassning, inklusive transportknappar och appsymbolen
-* Nya teman Glassy, Snake och Tangerine, plus ångra och slumpa i temaredigeraren
-* Nya vågformsstilar Wiggle och Wiggle MC
-* Vågformsnormalisering höjer nu bara tysta låtar
-* Omarbetade inställningar med en ny väljare för ljudenhet
-* Att slå på ljudeffekter kräver inte längre omstart
-* Snabbare inläsning av stora mappar och mjukare fönsterändring
-* Åtgärdat ett lätt färgat ljud när lågpassfiltret var avstängt
-* Åtgärdat att Dock-omslaget inte uppdaterades efter temabyte
+* Nytt: en ombyggd uppspelningsmotor som spelar varje spår direkt till din ljudenhet – snabbare, stabilare och bättre på enheter som kommer och går
+* Nytt: valfri volymkontroll (Inställningar > Ljudutmatning), som kan anpassas med teman
+* Nytt: Lås fönstrets position i menyn Visa och i Inställningar > Allmänt
+* Nytt: Vibe kommer ihåg ljudenheten du valde när den stängs av eller kopplas från och växlar tillbaka till den, med dess inställningar för bitperfekt utmatning och exklusiv ljudutmatning, när den kommer tillbaka
+* Nytt: ett USB-ljudgränssnitt som ansluts till en annan port behåller sina inställningar för bitperfekt utmatning och exklusiv ljudutmatning
+* Ändrat: MP3-avkodning och samplingsfrekvenskonvertering med högre kvalitet och lägre CPU-användning
+* Ändrat: när en annan app tar exklusiv åtkomst till din ljudenhet pausar Vibe och talar om det
+* Ändrat: om ljudutmatningen försvinner mitt i ett spår pausas nu uppspelningen i stället för att hoppa vidare
+* Förbättrat: spela upp, pausa och hoppa väntar inte längre medan en ljudenhet växlar eller vaknar
+* Förbättrat: en nätverksdelning som hänger sig håller inte längre upp andra spår eller taggar och omslagsbilder för filer i molnet
+* Förbättrat: Vibe avslutas direkt och återställer din ljudenhet i bakgrunden
+* Förbättrat: en normaliserad vågform krymper inte längre medan den läses in
+* Åtgärdat: uppspelningen kunde frysa en sekund eller två när ett spår startade eller positionen drogs
+* Åtgärdat: vissa MP3-filer med extra data efter taggarna kunde inte spelas upp
+* Åtgärdat: en ljudenhet som var avstängd när Vibe öppnades används så fort du slår på den
+* Åtgärdat: Systemutmatning kunde stoppa uppspelningen medan macOS tillfälligt saknade standardenhet
+* Åtgärdat: de sista millisekunderna av ett spår kunde klippas bort vid höga samplingsfrekvenser
+* Åtgärdat: att ångra en ändrad ordning i spellistan kunde lämna en tom rad
+* Åtgärdat: platshållarbilden i Kontrollcenter kunde visa fel ljus eller mörk version

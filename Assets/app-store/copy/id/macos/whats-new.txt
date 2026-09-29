@@ -1,12 +1,19 @@
-* Pemutaran bit-perfect dan mode eksklusif untuk perangkat keluaran
-* File > Simpan Daftar Putar… (⌘S) mengekspor daftar putar sebagai berkas M3U
-* Pengaturan baru untuk memuat daftar putar terakhir saat dijalankan
-* Lebih banyak penyesuaian tema, termasuk tombol transport dan ikon aplikasi
-* Tema baru Glassy, Snake, dan Tangerine, plus urungkan dan acak di editor tema
-* Gaya bentuk gelombang baru: Wiggle dan Wiggle MC
-* Normalisasi bentuk gelombang kini hanya mengangkat lagu yang pelan
-* Pengaturan yang dirombak, dengan pemilih perangkat audio baru
-* Mengaktifkan efek audio tidak lagi memerlukan memulai ulang aplikasi
-* Folder besar dimuat lebih cepat dan jendela diubah ukurannya lebih mulus
-* Memperbaiki suara yang sedikit berwarna saat filter low-cut dimatikan
-* Memperbaiki sampul di Dock yang tidak diperbarui setelah berganti tema
+* Baru: mesin pemutaran yang dibangun ulang, memutar setiap lagu langsung ke perangkat audio Anda - lebih cepat, lebih stabil, dan lebih andal saat perangkat tersambung dan terputus
+* Baru: kontrol volume opsional (Pengaturan > Output Audio), dapat disesuaikan dengan tema
+* Baru: “Kunci Posisi Jendela”, di menu Tampilan dan Pengaturan > Umum
+* Baru: Vibe mengingat perangkat output yang Anda pilih saat perangkat dimatikan atau dicabut, lalu beralih kembali ke perangkat tersebut, beserta pengaturan bit-perfect dan eksklusifnya, saat perangkat kembali
+* Baru: antarmuka audio USB yang dicolokkan ke port lain tetap mempertahankan pengaturan bit-perfect dan eksklusifnya
+* Perubahan: dekode MP3 dan konversi laju sampel berkualitas lebih tinggi, dengan penggunaan CPU lebih rendah
+* Perubahan: saat app lain menggunakan perangkat audio Anda secara eksklusif, Vibe menjeda dan memberi tahu Anda
+* Perubahan: kehilangan output audio di tengah lagu kini menjeda pemutaran, bukan melompat ke lagu berikutnya
+* Peningkatan: putar, jeda, dan lewati tidak lagi menunggu saat perangkat audio beralih atau aktif kembali
+* Peningkatan: berbagi jaringan yang macet tidak lagi menahan lagu lain, atau tag dan gambar sampul file cloud
+* Peningkatan: keluar kini instan; Vibe memulihkan perangkat audio Anda di latar belakang
+* Peningkatan: bentuk gelombang yang dinormalisasi tidak lagi menyusut saat dimuat
+* Perbaikan: memulai lagu atau menyeret posisi putar dapat membekukan pemutaran selama satu atau dua detik
+* Perbaikan: beberapa file MP3 dengan data tambahan setelah tagnya tidak dapat diputar
+* Perbaikan: perangkat audio yang mati saat Vibe dibuka kini langsung digunakan begitu Anda menyalakannya
+* Perbaikan: Output Sistem dapat menghentikan pemutaran saat macOS sesaat tidak memiliki perangkat default
+* Perbaikan: beberapa milidetik terakhir lagu dapat terpotong pada laju sampel tinggi
+* Perbaikan: mengurungkan pengurutan ulang daftar putar dapat meninggalkan baris kosong
+* Perbaikan: gambar sampul pengganti di Pusat Kontrol dapat menampilkan versi terang atau gelap yang salah

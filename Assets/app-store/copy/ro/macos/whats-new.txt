@@ -1,12 +1,19 @@
-* Redare bit-perfect și mod exclusiv pentru dispozitivele de ieșire
-* Fișier > Salvează playlistul… (⌘S) exportă playlistul ca fișier M3U
-* Setare nouă pentru încărcarea ultimului playlist la pornire
-* Mai multă personalizare a temelor, inclusiv butoanele de transport și pictograma aplicației
-* Teme noi Glassy, Snake și Tangerine, plus anulare și aleatoriu în editorul de teme
-* Stiluri noi de formă de undă, Wiggle și Wiggle MC
-* Normalizarea formei de undă ridică acum doar piesele silențioase
-* Setări regândite, cu un nou selector de dispozitiv audio
-* Activarea efectelor audio nu mai cere repornirea aplicației
-* Încărcare mai rapidă a folderelor mari și redimensionare mai fluidă
-* Corectat un sunet ușor colorat când filtrul trece-jos era dezactivat
-* Corectată coperta din Dock, care nu se actualiza după schimbarea temei
+* Nou: un motor de redare reconstruit, care trimite fiecare piesă direct către dispozitivul audio — mai rapid, mai stabil și mai bun la gestionarea dispozitivelor conectate și deconectate
+* Nou: control opțional al volumului (Configurări > Ieșire audio), compatibil cu temele
+* Nou: Blocați poziția ferestrei, în meniul Vizualizare și în Configurări > General
+* Nou: Vibe ține minte dispozitivul de ieșire ales atunci când este oprit sau deconectat și revine la el, cu setările Ieșire bit-perfect și Ieșire audio exclusivă, când acesta reapare
+* Nou: o interfață audio USB conectată la alt port își păstrează setările Ieșire bit-perfect și Ieșire audio exclusivă
+* Modificat: decodare MP3 și conversie a ratei de eșantionare de calitate superioară, cu un consum mai mic de CPU
+* Modificat: când altă aplicație preia utilizarea exclusivă a dispozitivului audio, Vibe pune redarea pe pauză și vă anunță
+* Modificat: pierderea ieșirii audio în timpul unei piese pune acum redarea pe pauză în loc să treacă mai departe
+* Îmbunătățit: redarea, pauza și saltul nu mai așteaptă cât timp un dispozitiv audio se comută sau se trezește
+* Îmbunătățit: o partajare de rețea blocată nu mai întârzie alte piese și nici etichetele și coperțile fișierelor din cloud
+* Îmbunătățit: închiderea este instantanee; Vibe restabilește dispozitivul audio în fundal
+* Îmbunătățit: o formă de undă normalizată nu se mai micșorează în timpul încărcării
+* Remediat: pornirea unei piese sau tragerea poziției putea bloca redarea pentru o secundă sau două
+* Remediat: unele fișiere MP3 cu date suplimentare după etichete nu puteau fi redate
+* Remediat: un dispozitiv audio oprit la deschiderea Vibe este folosit imediat ce îl porniți
+* Remediat: Ieșire sistem putea opri redarea cât timp macOS nu avea, pentru scurt timp, un dispozitiv implicit
+* Remediat: ultimele câteva milisecunde ale unei piese puteau fi tăiate la rate de eșantionare mari
+* Remediat: anularea unei reordonări a listei de redare putea lăsa un rând gol
+* Remediat: imaginea substitut din Centrul de control putea apărea în varianta greșită, luminoasă sau întunecată

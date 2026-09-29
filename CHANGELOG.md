@@ -1,3 +1,35 @@
+# v1.14
+
+* Added a rebuilt playback engine that plays every track straight to your audio device - faster, more stable, and better at handling devices coming and going
+* Improved MP3 decoding and sample-rate conversion: higher quality, less CPU
+* Improved: a normalized waveform no longer shrinks while it loads
+* mac: Added optional volume control (Settings > Audio Output), themable
+* mac: Added Lock Window Position, in the View menu and Settings > General
+* mac: Added remembering the chosen output device when it's switched off or unplugged, and switching back to it, with its Bit-perfect and Exclusive settings, when it returns
+* mac: Added keeping a USB audio interface's Bit-perfect and Exclusive settings when it's plugged into a different port
+* mac: Changed: when another app takes exclusive use of the audio device, Vibe pauses and says so
+* mac: Changed: losing the audio output mid-track now pauses instead of skipping ahead
+* mac: Improved play, pause, and skip to no longer wait while an audio device switches or wakes up
+* mac: Improved: a stuck network share no longer holds up other tracks, or the tags and artwork of cloud files
+* mac: Improved quitting to be instant; Vibe restores the audio device in the background
+* mac: Fixed starting a track or dragging the position freezing playback for a second or two
+* mac: Fixed some MP3 files with extra data after their tags not playing
+* mac: Fixed an audio device that was off when Vibe opened not being used when turned on
+* mac: Fixed System Output stopping playback while macOS briefly had no default device
+* mac: Fixed the last few milliseconds of a track being cut off at high sample rates
+* mac: Fixed undoing a playlist reorder leaving a blank row
+* mac: Fixed the Control Center placeholder art showing the wrong light or dark version
+* ios: Added the FX pad: hold the circle on the now-playing screen and slide for low cut, reverb, and a tempo-synced delay
+* ios: Added BPM detection, shown beside the format and key (Settings > Playback)
+* ios: Added landscape layout
+* ios: Changed the home-screen widget's waveform default to the Wiggle style
+* ios: Changed: only the play button pauses; tapping the artwork no longer does
+* ios: Improved scrolling, resampling, and relaunch speed with large libraries
+* ios: Improved the output device button to respond anywhere on its pill
+* ios: Fixed a playback error staying on screen after playback resumed
+* ios: Fixed playback showing as playing after the system stopped the audio
+* ios: Fixed a long reverb or delay tail being cut off when pausing
+
 # v1.12
 
 * mac: Added bit-perfect playback and exclusive mode for audio output devices

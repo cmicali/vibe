@@ -1,12 +1,19 @@
-* Bit-perfect weergave en exclusieve modus voor audio-uitvoerapparaten
-* Archief > Afspeellijst bewaren… (⌘S) exporteert de lijst als M3U-bestand
-* Nieuwe instelling om de laatste afspeellijst bij het starten te laden
-* Meer thema-aanpassingen, inclusief transportknoppen en het app-symbool
-* Nieuwe thema’s Glassy, Snake en Tangerine, plus ongedaan maken en willekeurig in de thema-editor
-* Nieuwe golfvormstijlen Wiggle en Wiggle MC
-* Golfvormnormalisatie versterkt nu alleen nog stille nummers
-* Vernieuwde instellingen, met een nieuwe keuzelijst voor audioapparaten
-* Audio-effecten inschakelen vereist niet langer een herstart
-* Grote mappen laden sneller en het venster schaalt vloeiender
-* Licht gekleurd geluid bij uitgeschakelde low-cut verholpen
-* Dock-artwork werkt nu wel bij na het wisselen van thema
+* Nieuw: een vernieuwde afspeelengine die elk nummer rechtstreeks naar je audioapparaat stuurt – sneller, stabieler en beter bestand tegen apparaten die komen en gaan
+* Nieuw: optionele volumeregeling (Instellingen > Audio-uitvoer), aan te passen per thema
+* Nieuw: ‘Vergrendel vensterpositie’, in het menu Weergave en in Instellingen > Algemeen
+* Nieuw: Vibe onthoudt het gekozen uitvoerapparaat als het wordt uitgeschakeld of losgekoppeld, en schakelt er zodra het terug is weer naar over, met de instellingen voor bitperfecte en exclusieve uitvoer
+* Nieuw: een USB-audio-interface op een andere poort behoudt zijn instellingen voor bitperfecte en exclusieve uitvoer
+* Gewijzigd: MP3-decodering en samplefrequentieconversie van hogere kwaliteit, met minder CPU-gebruik
+* Gewijzigd: als een andere app je audioapparaat exclusief in gebruik neemt, pauzeert Vibe en meldt het dat
+* Gewijzigd: als de audio-uitvoer midden in een nummer wegvalt, pauzeert het afspelen nu in plaats van door te springen
+* Verbeterd: afspelen, pauzeren en overslaan wachten niet meer terwijl een audioapparaat wisselt of ontwaakt
+* Verbeterd: een vastgelopen netwerkschijf houdt andere nummers en de tags en illustraties van cloudbestanden niet meer op
+* Verbeterd: stoppen gaat direct; Vibe herstelt je audioapparaat op de achtergrond
+* Verbeterd: een genormaliseerde golfvorm krimpt niet meer tijdens het laden
+* Opgelost: het starten van een nummer of verslepen van de positie kon het afspelen een seconde of twee bevriezen
+* Opgelost: sommige MP3-bestanden met extra gegevens na hun tags werden niet afgespeeld
+* Opgelost: een audioapparaat dat uit stond toen Vibe werd geopend, wordt gebruikt zodra je het aanzet
+* Opgelost: ‘Systeemuitvoer’ kon het afspelen stoppen als macOS even geen standaardapparaat had
+* Opgelost: de laatste milliseconden van een nummer konden bij hoge samplefrequenties wegvallen
+* Opgelost: het ongedaan maken van een herschikking van de afspeellijst kon een lege rij achterlaten
+* Opgelost: de tijdelijke illustratie in het Bedieningspaneel kon de verkeerde lichte of donkere versie tonen

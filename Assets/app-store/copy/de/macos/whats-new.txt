@@ -1,12 +1,19 @@
-* Bit-perfekte Wiedergabe und Exclusive Mode für Ausgabegeräte
-* Ablage > Wiedergabeliste sichern… (⌘S) exportiert die Liste als M3U-Datei
-* Neue Einstellung: zuletzt geöffnete Wiedergabeliste beim Start laden
-* Mehr Theme-Anpassungen, auch für Transport-Tasten und das App-Symbol
-* Neue Themes Glassy, Snake und Tangerine, dazu Widerrufen und Zufall im Theme-Editor
-* Neue Wellenformstile Wiggle und Wiggle MC
-* Wellenform-Normalisierung hebt jetzt nur noch leise Titel an
-* Überarbeitete Einstellungen mit neuer Auswahl für Ausgabegeräte
-* Audioeffekte lassen sich jetzt ohne Neustart aktivieren
-* Schnelleres Laden großer Ordner und flüssigeres Ändern der Fenstergröße
-* Leicht gefärbter Klang bei deaktiviertem Low-Cut behoben
-* Dock-Artwork aktualisiert sich jetzt nach einem Theme-Wechsel
+* Neu: eine neu entwickelte Wiedergabe-Engine, die jeden Titel direkt an dein Audiogerät ausgibt – schneller, stabiler und souveräner, wenn Geräte kommen und gehen
+* Neu: optionaler Lautstärkeregler (Einstellungen > Audioausgabe), per Theme anpassbar
+* Neu: „Fensterposition sperren“ im Menü „Darstellung“ und unter Einstellungen > Allgemein
+* Neu: Vibe merkt sich dein gewähltes Ausgabegerät, wenn es ausgeschaltet oder getrennt wird, und wechselt samt seiner Einstellungen für bitgenaue und exklusive Ausgabe dorthin zurück, sobald es wieder da ist
+* Neu: ein USB-Audiointerface behält seine Einstellungen für bitgenaue und exklusive Ausgabe auch an einem anderen Anschluss
+* Geändert: hochwertigere MP3-Dekodierung und Abtastratenkonvertierung bei geringerer CPU-Last
+* Geändert: belegt eine andere App dein Audiogerät exklusiv, pausiert Vibe und weist darauf hin
+* Geändert: fällt die Audioausgabe mitten im Titel weg, pausiert die Wiedergabe jetzt, statt weiterzuspringen
+* Verbessert: Abspielen, Pausieren und Springen warten nicht mehr, während ein Audiogerät wechselt oder aufwacht
+* Verbessert: eine hängende Netzwerkfreigabe hält weder andere Titel noch die Tags und Cover von Cloud-Dateien auf
+* Verbessert: Beenden geht sofort; Vibe stellt dein Audiogerät im Hintergrund wieder her
+* Verbessert: eine normalisierte Wellenform schrumpft beim Laden nicht mehr
+* Behoben: beim Starten eines Titels oder Ziehen der Position konnte die Wiedergabe ein, zwei Sekunden einfrieren
+* Behoben: manche MP3-Dateien mit zusätzlichen Daten nach ihren Tags ließen sich nicht abspielen
+* Behoben: ein Audiogerät, das beim Öffnen von Vibe ausgeschaltet war, wird genutzt, sobald du es einschaltest
+* Behoben: „Systemausgabe“ konnte die Wiedergabe stoppen, wenn macOS kurzzeitig kein Standardgerät hatte
+* Behoben: die letzten Millisekunden eines Titels konnten bei hohen Abtastraten abgeschnitten werden
+* Behoben: das Widerrufen einer Umsortierung der Wiedergabeliste konnte eine leere Zeile hinterlassen
+* Behoben: das Platzhalter-Cover im Kontrollzentrum konnte die falsche helle oder dunkle Variante zeigen
