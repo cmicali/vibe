@@ -61,12 +61,11 @@
     // mark. Only setErrorMaskForTrack:status: and clearErrorMask write it.
     __weak AudioTrack*          _erroredTrack;
     NSString*                   _errorStatus;
-    // The playlist the empty header names
-    // (revealEmptyStateForUnplayablePlaylist:); cleared by every load and by
-    // Close.
-    NSURL*                      _unplayablePlaylistURL;
-    // The launch grace (revealEmptyStateForUnplayablePlaylist:). Once cleared,
-    // never set again.
+    // The playlist the empty header names (revealEmptyStateNamingPlaylist:);
+    // cleared by every load and by Close.
+    NSString*                   _unplayablePlaylistName;
+    // The launch grace (revealEmptyStateNamingPlaylist:). Once cleared, never
+    // set again.
     BOOL                        _emptyStateSuppressed;
     // The generation pairs each deferred-load fallback timer with its own
     // playlist, so a timer armed for playlist A cannot start B's load while
@@ -438,9 +437,8 @@
                              track:(state == TrackDisplayStateError ? track : displayTrack)
                           duration:self.audioPlayer.duration
                               rate:self.playbackRate
-                       errorStatus:(track ? (track == _erroredTrack ? _errorStatus : nil)
-                                          : (_unplayablePlaylistURL ? STR_ERROR_PLAYLIST_FILES_UNAVAILABLE : nil))
-                        errorTitle:_unplayablePlaylistURL.lastPathComponent];
+                       errorStatus:(track && track == _erroredTrack ? _errorStatus : nil)
+            unplayablePlaylistName:_unplayablePlaylistName];
     [self effectiveTempoDidChange];
     [self updateFXIndicators];
     [_artworkController updateForTrack:displayTrack];
@@ -538,13 +536,10 @@
     }
 }
 
-- (void)revealEmptyStateForUnplayablePlaylist:(NSURL *)playlist {
-    NSURL *unplayable = self.playlistController.currentTrack ? nil : playlist;
-    if (_emptyStateSuppressed || unplayable != _unplayablePlaylistURL) {
-        _emptyStateSuppressed = NO;
-        _unplayablePlaylistURL = unplayable;
-        [self updateUI];
-    }
+- (void)revealEmptyStateNamingPlaylist:(NSString *)name {
+    _emptyStateSuppressed = NO;
+    _unplayablePlaylistName = [name copy];
+    [self updateUI];
 }
 
 - (void)play:(NSArray<AudioTrack *> *)tracks {
@@ -554,7 +549,7 @@
 // An open and the launch restore differ only in row and whether it sounds.
 - (void)loadTracks:(NSArray<AudioTrack *> *)tracks selectingIndex:(NSUInteger)index startPaused:(BOOL)startPaused {
     _emptyStateSuppressed = NO; // a real track supersedes the launch grace
-    _unplayablePlaylistURL = nil;
+    _unplayablePlaylistName = nil;
     // The old scan dies before the new first track is submitted: its cloud
     // transfer would compete with this open, and its queue would pin the
     // departed playlist. Replacement only — next and previous keep the sweep.
@@ -642,7 +637,7 @@
     [self cancelDeferredMetadataLoad];
     [self.metadataCache cancelScan];
     [self clearErrorMask];
-    _unplayablePlaylistURL = nil;
+    _unplayablePlaylistName = nil;
     _emptyStateSuppressed = NO; // Close explicitly asks for the empty state
     _currentTrackDuration = 0;
     [self pauseUIUpdateTimer];

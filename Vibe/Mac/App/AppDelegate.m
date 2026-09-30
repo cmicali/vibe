@@ -131,7 +131,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
         [self->_openBurstCoalescer finishLaunchRestoring:^BOOL{
             return [self.mainPlayerController restoreLastPlaylist];
         } revealEmpty:^{
-            [self.mainPlayerController revealEmptyStateForUnplayablePlaylist:nil];
+            [self.mainPlayerController revealEmptyStateNamingPlaylist:nil];
         }];
     }];
 }
@@ -220,19 +220,18 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
                   appending:(BOOL)append
                    fromURLs:(NSArray<NSURL *> *)urls {
     [[AppStats sharedInstance] recordOpenedFiles:rows.count folders:folderCount];
-    // Nothing playable must not wipe the playlist.
+    // Nothing playable must not wipe the playlist. The empty header names an
+    // opened playlist, extension kept so it reads as the sheet rather than its
+    // album, and the launch grace ends, or the header would stay blank.
     if (rows.count == 0) {
-        // Nothing played, so a playlist among the opened listed nothing it
-        // could: the empty header names it. Ends the launch grace too, or the
-        // header would stay blank.
-        NSURL *playlist = nil;
+        NSString *playlist = nil;
         for (NSURL *url in urls) {
             if ([PlaylistFile isPlaylistExtension:url.pathExtension.lowercaseString]) {
-                playlist = url;
+                playlist = url.lastPathComponent;
                 break;
             }
         }
-        [self.mainPlayerController revealEmptyStateForUnplayablePlaylist:playlist];
+        [self.mainPlayerController revealEmptyStateNamingPlaylist:playlist];
         return;
     }
     if (append) {

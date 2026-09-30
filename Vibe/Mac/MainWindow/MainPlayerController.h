@@ -40,11 +40,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)addTracks:(NSArray<AudioTrack *> *)tracks;
 
 // Ends the launch grace, which keeps the header blank rather than flashing the
-// empty state while a launch-time open resolves. play: ends it too. Idempotent.
-// `playlist` is an opened playlist that listed nothing playable: with nothing
-// loaded, the empty header names it until the next load; with a playlist
-// loaded, nothing is said and the playlist stands.
-- (void)revealEmptyStateForUnplayablePlaylist:(nullable NSURL *)playlist;
+// empty state while a launch-time open resolves. play: ends it too. `name` is
+// an opened playlist that listed nothing playable, which the empty header
+// shows until the next load or Close; nil for none. Idempotent.
+- (void)revealEmptyStateNamingPlaylist:(nullable NSString *)name;
 
 // YES when the mirror came back, parked on its last current row; NO when the
 // setting is off or nothing was saved. Not an open (Mac/App/AGENTS.md).
