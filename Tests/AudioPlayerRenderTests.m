@@ -990,8 +990,14 @@ static const NSUInteger kLayer3DecoderDelay = 529;
         @"wav-UI8.wav", @"wav-ulaw.wav", @"wav-alaw.wav", @"aifc-BEI8.aif", @"aifc-BEI16.aif", @"aifc-BEI24.aif", @"aifc-BEI32.aif",
         @"aifc-BEF32.aif", @"aifc-BEF64.aif", @"aifc-ulaw.aif", @"aifc-alaw.aif", @"aifc-ima4.aif", @"aifc-ima4-mono.aif",
         @"wav-ima-adpcm.wav", @"wav-ms-adpcm.wav"];
+    NSMutableArray<NSString *> *missing = [NSMutableArray array];
     for (NSString *name in names) {
-        NSURL *url = [name containsString:@"adpcm"] ? [self optionalFixture:name] : [self fixture:name];
+        NSURL *url = [self fixture:name];
+        // The ADPCM WAVs need ffmpeg; one missing skips the test only once the rest has run.
+        if ([name containsString:@"adpcm"] && ![NSFileManager.defaultManager fileExistsAtPath:url.path]) {
+            [missing addObject:name];
+            continue;
+        }
         AudioFileHandle *file = [self open:url decoder:@"dr_wav"];
         NSData *decoded = [self readToEnd:file], *apple = [self appleDecodeOf:url];
         NSUInteger frameBytes = file.processingFormat.channelCount * sizeof(float);
@@ -1009,6 +1015,7 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     [self open:mpeg decoder:@"dr_mp3"];
     AudioFileHandle.appleMPEGDecoder = YES;
     [self open:mpeg decoder:@"apple"];
+    XCTSkipIf(missing.count, @"Optional encoder fixtures %@ unavailable; install ffmpeg and regenerate", missing);
 }
 // The body of a RIFF or IFF file's first chunk of that ID.
 - (NSRange)chunk:(const char *)name of:(NSData *)file bigEndian:(BOOL)bigEndian {
