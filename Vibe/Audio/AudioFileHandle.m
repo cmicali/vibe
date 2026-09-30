@@ -797,43 +797,25 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     return YES;
 }
 
-// dr_flac's or dr_wav's decode, straight into the buffer, all that is asked in
-// one call: interleaved, or a channel to each plane. Reads stop at the length,
-// where dr_flac's would read on.
+// dr_flac's or dr_wav's decode, straight into the buffer in one call: a channel
+// to each plane, or interleaved. Each reads all that is asked but at the end of
+// the stream. Reads stop at the length, where dr_flac's would read on.
 - (BOOL)readStreamIntoBuffer:(AVAudioPCMBuffer *)buffer frameCount:(AVAudioFrameCount)wanted error:(NSError **)error {
-    UInt32 channels = _processingFormat.channelCount;
-    BOOL planar = !_processingFormat.isInterleaved && channels > 1;
     float *const *planes = buffer.floatChannelData;
-    wanted = (AVAudioFrameCount)MIN((SInt64)wanted, MAX(0, _length - self.framePosition));
-    AVAudioFrameCount total = 0;
-    while (total < wanted) {
-        AVAudioFrameCount frames = wanted - total;
-        UInt32 got;
-        if (planar) {
-            float *at[channels];
-            for (UInt32 c = 0; c < channels; c++) {
-                at[c] = planes[c] + total;
-            }
-            got = (UInt32)(_flac ? drflac_read_pcm_frames_f32_planar(_flac, (drflac_uint64)frames, at)
-                                 : drwav_read_pcm_frames_f32_planar(_wav, (drwav_uint64)frames, at));
-        } else {
-            float *into = planes[0] + (size_t)total * channels;
-            got = (UInt32)(_flac ? drflac_read_pcm_frames_f32(_flac, (drflac_uint64)frames, into)
-                                 : drwav_read_pcm_frames_f32(_wav, (drwav_uint64)frames, into));
-        }
-        if (_streamReadFailed) {
-            buffer.frameLength = total;
-            if (error) {
-                *error = VibeHandleError(kAudioFilePositionError, [NSString stringWithFormat:@"Reading %@ failed", _url.lastPathComponent]);
-            }
-            return NO;
-        }
-        if (got == 0) {
-            break; // the end
-        }
-        total += got;
+    drflac_uint64 frames = (drflac_uint64)MIN((SInt64)wanted, MAX(0, _length - self.framePosition));
+    drflac_uint64 got;
+    if (!_processingFormat.isInterleaved) {
+        got = _flac ? drflac_read_pcm_frames_f32_planar(_flac, frames, planes) : drwav_read_pcm_frames_f32_planar(_wav, frames, planes);
+    } else {
+        got = _flac ? drflac_read_pcm_frames_f32(_flac, frames, planes[0]) : drwav_read_pcm_frames_f32(_wav, frames, planes[0]);
     }
-    buffer.frameLength = total;
+    buffer.frameLength = (AVAudioFrameCount)got;
+    if (_streamReadFailed) {
+        if (error) {
+            *error = VibeHandleError(kAudioFilePositionError, [NSString stringWithFormat:@"Reading %@ failed", _url.lastPathComponent]);
+        }
+        return NO;
+    }
     return YES;
 }
 
