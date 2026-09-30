@@ -8,8 +8,11 @@
 #import <Accelerate/Accelerate.h>
 #import <AudioToolbox/AudioToolbox.h>
 
+#include "dr_flac/dr_flac.h"
 #include "dr_mp3/dr_mp3.h"
+#include "dr_wav/dr_wav.h"
 
+#include <errno.h>
 #include <fcntl.h>
 #include <stdatomic.h>
 #include <sys/stat.h>
@@ -17,24 +20,41 @@
 
 static atomic_bool sAppleMPEGDecoder;
 
-// Packets decoded and dropped before a seek's own: enough to refill the bit
-// reservoir (511 bytes back at most, seven frames at MPEG-1's lowest bitrate)
-// and the filterbank's history, so a seek decodes exactly what reading from
-// the start would.
+// Packets decoded and dropped before a seek's own, so a seek decodes exactly
+// what reading from the start would: the packet before the target, whose
+// second granule the target's first overlaps and whose last 480 frames are
+// the filterbank's history, and the payload its main_data_begin reaches back
+// over, 511 bytes, which is nine packets at MPEG-1's smallest (32 kbps at
+// 48 kHz, stereo, with a CRC: 58 bytes each). MPEG-2's frames can be far
+// smaller, so seekToFrame: walks back further for those, never less far: on
+// a damaged stream it takes that long for the reservoir to fall into step.
 static const SInt64 kVibeMPEGSeekPrerollPackets = 10;
+
+// dr_mp3 never clamps, and one damaged frame can decode past +90 dBFS: the
+// FX's reverb and delay then ring at full scale for seconds, the equalizer's
+// reference stays up for half a minute, and the track's detected tempo moves.
+// The bound, +12 dBFS, sits well above any real master's overs
+// (docs/audio-quality.md).
+static const float kVibeMPEGSampleBound = 4.0f;
 
 // Packets asked of the parser at once, sparing it about four small reads
 // per MP3 frame, which were a tenth of the whole decode's time.
 enum { kVibeMPEGReadPackets = 16 };
 
+// Frames dr_flac decodes at once into the scratch a planar read splits.
+enum { kVibeFLACReadFrames = 4096 };
+
+// CoreAudio's Ogg reader (.ogg, .oga, .opus). The SDK names no constant.
+static const AudioFileTypeID kVibeOggFileType = 'Oggf';
+
 @implementation AudioFileHandle {
-    // The callback context: valid from open until AudioFileClose returns in
-    // dealloc. -1 once closed, or for a QuickTime container (below), whose
-    // parser reads through its own descriptor.
+    // What the parser's callbacks read, and dr_flac's and dr_wav's: valid from open until
+    // dealloc has closed both. -1 once closed, or for a QuickTime container
+    // (below), whose parser reads through its own descriptor.
     int _descriptor;
     SInt64 _size;
     AudioFileID _parser;
-    ExtAudioFileRef _codec; // NULL while dr_mp3 decodes
+    ExtAudioFileRef _codec; // NULL while dr_mp3, dr_flac or dr_wav decodes
     UInt32 _bytesPerFrame; // of the processing format, per buffer
     BOOL _writing;
     BOOL _mpegChoiceApplies; // an MPEG file read as float32
@@ -61,6 +81,14 @@ enum { kVibeMPEGReadPackets = 16 };
     float *_mpegPCM;      // one packet's frames, interleaved
     UInt32 _mpegPCMFrames;
     UInt32 _mpegPCMOffset;
+    // dr_flac's or dr_wav's decode, at most one: the stream read through the
+    // descriptor at a cursor of its own.
+    drflac *_flac;
+    drwav *_wav; // &_wavState once drwav_init has succeeded
+    drwav _wavState;
+    SInt64 _streamCursor;
+    BOOL _streamReadFailed; // a pread failed, which neither decoder can tell from the end
+    float *_flacPCM;        // kVibeFLACReadFrames frames, interleaved, for a planar read; NULL otherwise
 }
 
 + (BOOL)appleMPEGDecoder {
@@ -72,7 +100,7 @@ enum { kVibeMPEGReadPackets = 16 };
 }
 
 - (NSString *)decoderName {
-    return _mpeg ? @"dr_mp3" : @"apple";
+    return _mpeg ? @"dr_mp3" : _flac ? @"dr_flac" : _wav ? @"dr_wav" : @"apple";
 }
 
 - (BOOL)decoderChoiceIsStale {
@@ -95,6 +123,74 @@ static OSStatus VibeHandleRead(void *clientData, SInt64 position, UInt32 request
 
 static SInt64 VibeHandleSize(void *clientData) {
     return ((__bridge AudioFileHandle *)clientData)->_size;
+}
+
+// dr_flac's and dr_wav's reads, over the parser's descriptor at their own
+// cursor. Both take a short read for the end of the stream, so a read is filled
+// but at the end. TRAP: a failed read ends it short too, so it is remembered
+// here and reported by the read or seek it happened in: a read error must never
+// become a clean end.
+static size_t VibeStreamRead(void *user, void *buffer, size_t count) {
+    AudioFileHandle *handle = (__bridge AudioFileHandle *)user;
+    size_t filled = 0;
+    while (filled < count) {
+        ssize_t got = pread(handle->_descriptor, (uint8_t *)buffer + filled, count - filled, handle->_streamCursor);
+        if (got < 0 && errno == EINTR) {
+            continue;
+        }
+        if (got < 0) {
+            handle->_streamReadFailed = YES;
+        }
+        if (got <= 0) {
+            break;
+        }
+        filled += (size_t)got;
+        handle->_streamCursor += got;
+    }
+    return filled;
+}
+
+// A position past the end is refused: nothing is there to read, and a damaged
+// seek table's offset or chunk size can be exabytes out.
+static drflac_bool32 VibeStreamSeek(void *user, int offset, int origin) {
+    AudioFileHandle *handle = (__bridge AudioFileHandle *)user;
+    SInt64 base = origin == 0 ? 0 : origin == 1 ? handle->_streamCursor : handle->_size;
+    SInt64 target;
+    if (__builtin_add_overflow(base, (SInt64)offset, &target) || target < 0 || target > handle->_size) {
+        return DRFLAC_FALSE;
+    }
+    handle->_streamCursor = target;
+    return DRFLAC_TRUE;
+}
+
+static drflac_bool32 VibeFLACSeek(void *user, int offset, drflac_seek_origin origin) {
+    _Static_assert(DRFLAC_SEEK_SET == 0 && DRFLAC_SEEK_CUR == 1 && DRFLAC_SEEK_END == 2, "VibeStreamSeek's origins");
+    return VibeStreamSeek(user, offset, (int)origin);
+}
+
+static drwav_bool32 VibeWAVSeek(void *user, int offset, drwav_seek_origin origin) {
+    _Static_assert(DRWAV_SEEK_SET == 0 && DRWAV_SEEK_CUR == 1 && DRWAV_SEEK_END == 2, "VibeStreamSeek's origins");
+    return VibeStreamSeek(user, offset, (int)origin);
+}
+
+// One tell for both: their tell procs are the same type.
+static drflac_bool32 VibeStreamTell(void *user, drflac_int64 *cursor) {
+    *cursor = ((__bridge AudioFileHandle *)user)->_streamCursor;
+    return DRFLAC_TRUE;
+}
+
+// Interleaved frames into a planar buffer from frame `offset` on.
+static void VibeDeinterleave(const float *from, UInt32 channels, float *const *planes, AVAudioFrameCount offset, UInt32 frames) {
+    if (channels == 2) {
+        DSPSplitComplex planar = {planes[0] + offset, planes[1] + offset};
+        vDSP_ctoz((const DSPComplex *)from, 2, &planar, 1, frames);
+        return;
+    }
+    for (UInt32 c = 0; c < channels; c++) {
+        for (UInt32 f = 0; f < frames; f++) {
+            planes[c][offset + f] = from[(size_t)f * channels + c];
+        }
+    }
 }
 
 // The type CoreAudio registers for an extension: the hint AudioFileOpenURL
@@ -250,6 +346,18 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         return [self failWithError:error status:status ?: kAudioFileUnsupportedDataFormatError
                        description:[NSString stringWithFormat:@"%@ reports no audio format", name]];
     }
+    // TRAP: CoreAudio's Ogg reader opens FLAC in Ogg but reports no length
+    // and decodes only its first page (macOS 27), so the file would play for
+    // a second and end as if whole. Refused, it fails as any undecodable file
+    // does. Vorbis and Opus in Ogg read in full.
+    AudioFileTypeID container = 0;
+    size = sizeof(container);
+    if (fileDescription.mFormatID == kAudioFormatFLAC
+            && AudioFileGetProperty(_parser, kAudioFilePropertyFileFormat, &size, &container) == noErr
+            && container == kVibeOggFileType) {
+        return [self failWithError:error status:kAudioFileUnsupportedDataFormatError
+                       description:[NSString stringWithFormat:@"%@ is FLAC in Ogg, which CoreAudio truncates", name]];
+    }
     // The processing format carries the file's layout when it states one, and
     // a discrete layout for a wider file that does not: a converter between
     // more than two channels is refused without one.
@@ -271,6 +379,12 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
             && (formatID == kAudioFormatMPEGLayer1 || formatID == kAudioFormatMPEGLayer2 || formatID == kAudioFormatMPEGLayer3);
     _openedUnderApple = atomic_load(&sAppleMPEGDecoder);
     if (_mpegChoiceApplies && !_openedUnderApple && [self openMPEGWithDescription:fileDescription]) {
+        return self;
+    }
+    // Before the client format below, which Apple's FLAC codec refuses for
+    // some legal streams dr_flac plays: block sizes of 16 and 65535, rates
+    // past 655 kHz, 32-bit samples.
+    if (format == AVAudioPCMFormatFloat32 && _descriptor >= 0 && ((formatID == kAudioFormatFLAC && [self openFLAC]) || [self openWAV])) {
         return self;
     }
     const AudioStreamBasicDescription *client = _processingFormat.streamDescription;
@@ -383,6 +497,88 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     return YES;
 }
 
+// Takes the file over for dr_flac, or leaves it to ExtAudioFile when dr_flac
+// cannot open it, finds no frame in it or reads it differently. dr_flac
+// answers the length, STREAMINFO's or, for a stream that leaves it unknown,
+// the end of its last frame (ThirdParty/AGENTS.md).
+- (BOOL)openFLAC {
+    _streamCursor = 0;
+    _streamReadFailed = NO;
+    _flac = drflac_open(VibeStreamRead, VibeFLACSeek, VibeStreamTell, (__bridge void *)self, NULL);
+    // A planar read without its scratch would write every channel into the
+    // first plane, so one that cannot have it is ExtAudioFile's.
+    BOOL planar = !_processingFormat.isInterleaved && _processingFormat.channelCount > 1;
+    _flacPCM = _flac && planar ? malloc(sizeof(float) * kVibeFLACReadFrames * _processingFormat.channelCount) : NULL;
+    if (!_flac || (planar && !_flacPCM)
+            || ![self adoptStreamDecoderWithChannels:_flac->channels rate:_flac->sampleRate length:_flac->totalPCMFrameCount]) {
+        [self closeStreamDecoder];
+        return NO;
+    }
+    return YES;
+}
+
+// Takes a WAV, W64, RF64 or AIFF(-C) file over for dr_wav, as openFLAC does
+// for dr_flac, when it holds a coding dr_wav decodes; anything else, a file of
+// another container or one dr_wav reads differently is left to ExtAudioFile.
+// dr_wav answers the length: the frames the data holds, a COMM or fact count
+// only when it is no more.
+- (BOOL)openWAV {
+    _streamCursor = 0;
+    _streamReadFailed = NO;
+    if (!drwav_init(&_wavState, VibeStreamRead, VibeWAVSeek, VibeStreamTell, (__bridge void *)self, NULL)) {
+        return NO;
+    }
+    _wav = &_wavState;
+    drwav_uint16 tag = _wav->translatedFormatTag;
+    BOOL decodable = tag == DR_WAVE_FORMAT_PCM || tag == DR_WAVE_FORMAT_ALAW || tag == DR_WAVE_FORMAT_MULAW
+            || tag == DR_WAVE_FORMAT_ADPCM || tag == DR_WAVE_FORMAT_DVI_ADPCM
+            || (tag == DR_WAVE_FORMAT_IEEE_FLOAT && (_wav->bitsPerSample == 32 || _wav->bitsPerSample == 64));
+    if (!decodable || ![self adoptStreamDecoderWithChannels:_wav->channels rate:_wav->sampleRate length:_wav->totalPCMFrameCount]) {
+        [self closeStreamDecoder];
+        return NO;
+    }
+    // TRAP: CoreAudio's parser describes a sowt AIFF-C as 16-bit whatever its
+    // COMM says, so a 24 or 32-bit one would report 16 as its depth and have
+    // bit-perfect output choose 16 bits. The file's description takes the
+    // width dr_wav decodes wherever the two disagree on a sample's size in
+    // bytes; a 20-bit sample in 3 is both's.
+    const AudioStreamBasicDescription *parsed = _fileFormat.streamDescription;
+    UInt32 bytesPerFrame = (_wav->bitsPerSample + 7) / 8 * _wav->channels;
+    if (parsed->mFormatID == kAudioFormatLinearPCM && parsed->mBytesPerFrame != bytesPerFrame) {
+        AudioStreamBasicDescription described = *parsed;
+        described.mBitsPerChannel = _wav->bitsPerSample;
+        described.mBytesPerFrame = described.mBytesPerPacket = bytesPerFrame;
+        _fileFormat = [[AVAudioFormat alloc] initWithStreamDescription:&described channelLayout:_fileFormat.channelLayout] ?: _fileFormat;
+    }
+    return YES;
+}
+
+// Keeps the dr_flac or dr_wav decode just opened when it reads the file as
+// the parser does; the caller closes one refused. A kept one reads the stream
+// through the descriptor itself, so ExtAudioFile is disposed without decoding
+// and the parser closed.
+- (BOOL)adoptStreamDecoderWithChannels:(UInt32)channels rate:(UInt32)rate length:(UInt64)length {
+    if (_streamReadFailed || length == 0 || channels != _processingFormat.channelCount || rate != _processingFormat.sampleRate) {
+        return NO;
+    }
+    ExtAudioFileDispose(_codec);
+    _codec = NULL;
+    [self closeParser];
+    _length = (SInt64)length;
+    return YES;
+}
+
+- (void)closeStreamDecoder {
+    drflac_close(_flac);
+    _flac = NULL;
+    free(_flacPCM);
+    _flacPCM = NULL;
+    if (_wav) {
+        drwav_uninit(_wav);
+        _wav = NULL;
+    }
+}
+
 - (instancetype)failWithError:(NSError **)error status:(OSStatus)status description:(NSString *)description {
     if (error) {
         *error = VibeHandleError(status, description);
@@ -408,6 +604,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     free(_mpeg);
     free(_mpegRead);
     free(_mpegPCM);
+    [self closeStreamDecoder];
     [self closeParser];
     if (_descriptor >= 0) {
         close(_descriptor);
@@ -420,6 +617,12 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 - (AVAudioFramePosition)framePosition {
     if (_mpeg) {
         return _mpegPosition;
+    }
+    if (_flac) {
+        return (AVAudioFramePosition)_flac->currentPCMFrame;
+    }
+    if (_wav) {
+        return (AVAudioFramePosition)_wav->readCursorInPCMFrames;
     }
     SInt64 position = 0;
     return ExtAudioFileTell(_codec, &position) == noErr ? position : 0;
@@ -434,9 +637,44 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         _mpegNextPacket = MAX(0, packet - kVibeMPEGSeekPrerollPackets);
         memset(_mpeg, 0, sizeof(*_mpeg));
         _mpegPCMFrames = _mpegPCMOffset = _mpegPacketBytes = _mpegReadCount = 0;
+        if (_mpegFramesPerPacket == 576) {
+            // MPEG-2 Layer III, a granule a packet: the target's output
+            // depends on the two packets before it, and the first of those on
+            // 255 bytes of payload before it, which at 8 kbps can be 255
+            // packets. A packet's header, a CRC and its side info are not
+            // payload.
+            SInt64 reach = 255, overhead = 4 + 2 + (_processingFormat.channelCount == 1 ? 9 : 17);
+            SInt64 start = MAX(0, MIN(packet, _mpegPacketCount) - 2);
+            while (reach > 0 && start > 0) {
+                UInt32 wanted = (UInt32)MIN(start, (SInt64)kVibeMPEGReadPackets), count = wanted, bytes = _mpegReadCapacity;
+                OSStatus status = AudioFileReadPacketData(_parser, false, &bytes, _mpegReadPackets, start - wanted, &count, _mpegRead);
+                if ((status != noErr && status != kAudioFileEndOfFileError) || count != wanted) {
+                    _mpegReadCount = 0; // the decode's own read reports it
+                    break;
+                }
+                // Kept as the decode's first read.
+                _mpegReadFirst = start - count;
+                _mpegReadCount = count;
+                for (; reach > 0 && start > _mpegReadFirst; start--) {
+                    const AudioStreamPacketDescription *before = &_mpegReadPackets[start - 1 - _mpegReadFirst];
+                    reach -= (SInt64)(_mpegBytesPerPacket ?: before->mDataByteSize) - overhead;
+                }
+            }
+            _mpegNextPacket = MIN(_mpegNextPacket, start);
+        }
         return YES;
     }
-    OSStatus status = !_codec || _writing ? kAudio_ParamError : ExtAudioFileSeek(_codec, MAX(0, frame));
+    OSStatus status;
+    if (_flac || _wav) {
+        // Both clamp the target to the length; past the frames a truncated
+        // file holds it lands at the end, where reads return nothing, as
+        // Apple's does.
+        BOOL landed = (_flac ? drflac_seek_to_pcm_frame(_flac, (drflac_uint64)MAX(0, frame))
+                             : drwav_seek_to_pcm_frame(_wav, (drwav_uint64)MAX(0, frame))) && !_streamReadFailed;
+        status = landed ? noErr : kAudioFilePositionError;
+    } else {
+        status = !_codec || _writing ? kAudio_ParamError : ExtAudioFileSeek(_codec, MAX(0, frame));
+    }
     if (status != noErr && error) {
         *error = VibeHandleError(status, [NSString stringWithFormat:@"Seeking %@ failed (%d)", _url.lastPathComponent, (int)status]);
     }
@@ -506,6 +744,9 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     if (_mpeg) {
         return [self readMPEGIntoBuffer:buffer frameCount:wanted error:error];
     }
+    if (_flac || _wav) {
+        return [self readStreamIntoBuffer:buffer frameCount:wanted error:error];
+    }
     // The list's data pointers span the whole allocation whatever frameLength
     // says; the copy below walks them by the frames already produced.
     const AudioBufferList *whole = buffer.audioBufferList;
@@ -557,13 +798,53 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         if (interleaved || channels == 1) {
             memcpy(planes[0] + (size_t)total * channels, from, (size_t)frames * channels * sizeof(float));
         } else {
-            // Stereo, the only other width the open accepts.
-            DSPSplitComplex planar = {planes[0] + total, planes[1] + total};
-            vDSP_ctoz((const DSPComplex *)from, 2, &planar, 1, frames);
+            VibeDeinterleave(from, channels, planes, total, frames);
         }
         _mpegPCMOffset += frames;
         _mpegPosition += frames;
         total += frames;
+    }
+    buffer.frameLength = total;
+    return YES;
+}
+
+// dr_flac's or dr_wav's decode, straight into the buffer: all that is asked
+// in one call, but for dr_flac's planar read, which goes through _flacPCM a
+// chunk at a time. Reads stop at the length, where dr_flac's would read on.
+- (BOOL)readStreamIntoBuffer:(AVAudioPCMBuffer *)buffer frameCount:(AVAudioFrameCount)wanted error:(NSError **)error {
+    UInt32 channels = _processingFormat.channelCount;
+    BOOL planar = !_processingFormat.isInterleaved && channels > 1;
+    float *const *planes = buffer.floatChannelData;
+    wanted = (AVAudioFrameCount)MIN((SInt64)wanted, MAX(0, _length - self.framePosition));
+    AVAudioFrameCount total = 0;
+    while (total < wanted) {
+        AVAudioFrameCount frames = _flacPCM ? MIN(wanted - total, (AVAudioFrameCount)kVibeFLACReadFrames) : wanted - total;
+        UInt32 got;
+        if (_wav && planar) {
+            float *at[channels];
+            for (UInt32 c = 0; c < channels; c++) {
+                at[c] = planes[c] + total;
+            }
+            got = (UInt32)drwav_read_pcm_frames_f32_planar(_wav, (drwav_uint64)frames, at);
+        } else {
+            float *into = _flacPCM ?: planes[0] + (size_t)total * channels;
+            got = (UInt32)(_flac ? drflac_read_pcm_frames_f32(_flac, (drflac_uint64)frames, into)
+                                 : drwav_read_pcm_frames_f32(_wav, (drwav_uint64)frames, into));
+        }
+        if (_streamReadFailed) {
+            buffer.frameLength = total;
+            if (error) {
+                *error = VibeHandleError(kAudioFilePositionError, [NSString stringWithFormat:@"Reading %@ failed", _url.lastPathComponent]);
+            }
+            return NO;
+        }
+        if (got == 0) {
+            break; // the end
+        }
+        if (_flacPCM) {
+            VibeDeinterleave(_flacPCM, channels, planes, total, got);
+        }
+        total += got;
     }
     buffer.frameLength = total;
     return YES;
@@ -612,13 +893,6 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         UInt32 bytes = _mpegBytesPerPacket ?: packet->mDataByteSize;
         _mpegPacket = _mpegRead + (_mpegBytesPerPacket ? (SInt64)index * _mpegBytesPerPacket : packet->mStartOffset);
         _mpegPacketBytes = bytes >= sizeof(_mpeg->header) ? bytes : 0;
-        // TRAP: a fresh decoder syncs only by finding the next frame's header
-        // after this one, which a single packet lacks, and then scans the
-        // payload for a false one. The parser has already framed the packet,
-        // so its header is handed over as the one to follow.
-        if (_mpeg->header[0] != 0xff && _mpegPacketBytes) {
-            memcpy(_mpeg->header, _mpegPacket, sizeof(_mpeg->header));
-        }
     }
     SInt64 first = _mpegNextPacket * _mpegFramesPerPacket - _mpegSkip;
     _mpegNextPacket++;
@@ -629,6 +903,9 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         // A frame whose reservoir bytes precede a seek's preroll, or a
         // damaged one: silence, keeping the timeline.
         memset(_mpegPCM, 0, (size_t)_mpegFramesPerPacket * channels * sizeof(float));
+    } else {
+        const float low = -kVibeMPEGSampleBound, high = kVibeMPEGSampleBound;
+        vDSP_vclip(_mpegPCM, 1, &low, &high, _mpegPCM, 1, (vDSP_Length)frames * channels);
     }
     _mpegPCMFrames = flush ? _mpegDelay : _mpegFramesPerPacket;
     _mpegPCMOffset = (UInt32)MIN(MAX(0, _mpegPosition - first), (SInt64)_mpegPCMFrames);

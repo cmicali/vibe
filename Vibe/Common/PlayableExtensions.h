@@ -10,9 +10,10 @@ NS_ASSUME_NONNULL_BEGIN
 // Every audio extension Vibe plays. Foundation-only so both readers can import
 // it: NSURLUtil imports PlaylistFile, so neither could own the set.
 //
-// Must cover every spelling CFBundleDocumentTypes admits
-// (com.microsoft.waveform-audio is wav, wave AND bwf), or Finder offers Vibe a
-// file the open filter silently discards.
+// Must cover every spelling CFBundleDocumentTypes admits, conformance
+// included (com.microsoft.waveform-audio is wav, wave AND bwf;
+// public.mpeg-4-audio takes in the m4r ringtone, public.aac-audio adts), or
+// Finder offers Vibe a file the open filter silently discards.
 @interface PlayableExtensions : NSObject
 
 // Lowercase, lossless before lossy: a playlist entry naming a missing file

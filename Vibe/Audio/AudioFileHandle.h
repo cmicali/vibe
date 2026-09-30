@@ -9,8 +9,9 @@
 //  cursor in file frames, reads from and writes of a PCM buffer — so the
 //  player, the bus, the waveform loader, the converter and the test fixtures
 //  share one class and one lifetime rule: the last reference disposes the
-//  codec, closes the parser and closes the descriptor, in that order. A FAILED
-//  open leaks nothing, which is why no preflight precedes it.
+//  codec (or closes dr_flac or dr_wav), closes the parser and closes the
+//  descriptor, in that order. A FAILED open leaks nothing, which is why no
+//  preflight precedes it.
 //
 //  Reading facts are immutable after init; writing advances length. Cursor,
 //  read, write and close operations belong to one consumer at a time (the
@@ -21,6 +22,18 @@
 //  output is 16-bit integers: clipped at full scale and rounded without
 //  dither. CoreAudio's parser still finds its packets, priming and length, so
 //  gapless trims and durations are the ones every other reader sees.
+//
+//  A FLAC file read as float32 is decoded by dr_flac, bit-identical to Apple's
+//  decode, which it replaces for its cost and its seeks: Apple's scans the
+//  stream from its start on the first seek into any part not yet read, and
+//  never uses the seek table (docs/audio-quality.md). CoreAudio's parser
+//  answers the file's format and layout and is then closed; dr_flac reads the
+//  stream through the descriptor itself and answers its length, found from
+//  the last frames when STREAMINFO leaves it unknown. The vendored copy
+//  carries fixes of its own (ThirdParty/AGENTS.md).
+//
+//  A WAV or AIFF file read as float32 is decoded by dr_wav the same way, when
+//  it holds a coding dr_wav decodes (ThirdParty/AGENTS.md lists them).
 //
 
 #import <AVFAudio/AVFAudio.h>
@@ -55,7 +68,7 @@ NS_ASSUME_NONNULL_BEGIN
 // docs/audio-quality.md) or Apple's (YES). The mac's Settings > Advanced
 // chooses; iOS keeps the default. A handle keeps the decoder it opened with.
 @property (class, atomic) BOOL appleMPEGDecoder;
-// "dr_mp3" or "apple", for the audio-path report.
+// "dr_mp3", "dr_flac", "dr_wav" or "apple", for the audio-path report.
 @property (nonatomic, readonly) NSString *decoderName;
 // YES for an MPEG file opened under the other appleMPEGDecoder choice than
 // the current one: a handle opened before a change and handed on after it.

@@ -15,13 +15,15 @@ all of it is covered here.
 | PINOperation | `Vibe/ThirdParty/PINOperation/` | Apache License 2.0 |
 | r8brain-free-src | `Vibe/ThirdParty/r8brain/` | MIT |
 | PFFFT (double) | `Vibe/ThirdParty/r8brain/fft/` | FFTPACK (BSD-style) |
-| dr_mp3 | `Vibe/ThirdParty/dr_mp3/` | MIT No Attribution (or public domain, at the recipient's choice) |
+| dr_mp3 | `Vibe/ThirdParty/dr_mp3/` | MIT No Attribution (or public domain, at the recipient's choice); modified |
+| dr_flac | `Vibe/ThirdParty/dr_flac/` | MIT No Attribution (or public domain, at the recipient's choice); modified |
+| dr_wav | `Vibe/ThirdParty/dr_wav/` | MIT No Attribution (or public domain, at the recipient's choice); modified |
 
 ## TagLib — and why the election matters
 
 TagLib is **dual-licensed**: each source file offers the GNU Lesser General
 Public License 2.1 *or* the Mozilla Public License 1.1, at the recipient's
-choice. 149 of the 153 vendored source files carry both notices; the remaining
+choice. 163 of the 167 vendored source files carry both notices; the remaining
 four are `taglib_config.h`, `id3v2.h` (trivial configuration and umbrella
 headers with no license block of their own) and the two UTF8-CPP headers,
 which are separately licensed and covered below.
@@ -100,3 +102,23 @@ MPEG audio decoder by David Reid, based on minimp3 by Lion (lieff). Copyright
 No Attribution license, at the recipient's choice; Vibe uses it under MIT
 No Attribution. Both texts are at the end of
 `Vibe/ThirdParty/dr_mp3/dr_mp3.h`. minimp3, the decoder it carries, is CC0.
+The vendored copy carries Vibe's own fixes (`Vibe/ThirdParty/AGENTS.md`),
+which that license permits without condition.
+
+## dr_flac
+
+FLAC audio decoder by David Reid. Copyright 2023 David Reid. Offered as
+public domain (the Unlicense) or under the MIT No Attribution license, at the
+recipient's choice; Vibe uses it under MIT No Attribution. Both texts are at
+the end of `Vibe/ThirdParty/dr_flac/dr_flac.h`. The vendored copy carries
+Vibe's own fixes (`Vibe/ThirdParty/AGENTS.md`), which that license permits
+without condition.
+
+## dr_wav
+
+WAV and AIFF audio decoder by David Reid. Copyright 2023 David Reid. Offered
+as public domain (the Unlicense) or under the MIT No Attribution license, at
+the recipient's choice; Vibe uses it under MIT No Attribution. Both texts are
+at the end of `Vibe/ThirdParty/dr_wav/dr_wav.h`. The vendored copy carries
+Vibe's own fixes and additions (`Vibe/ThirdParty/AGENTS.md`), which that
+license permits without condition.

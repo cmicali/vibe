@@ -45,6 +45,8 @@ settingGroups:
       - "$(SRCROOT)/Vibe/ThirdParty/taglib/riff/aiff"
       - "$(SRCROOT)/Vibe/ThirdParty/taglib/riff/wav"
       - "$(SRCROOT)/Vibe/ThirdParty/taglib/ogg"
+      - "$(SRCROOT)/Vibe/ThirdParty/taglib/ogg/vorbis"
+      - "$(SRCROOT)/Vibe/ThirdParty/taglib/ogg/opus"
       - "$(SRCROOT)/Vibe/ThirdParty"
       - "$(SRCROOT)/Vibe/ThirdParty/PINCache"
       - "$(SRCROOT)/Vibe/ThirdParty/PINOperation"
@@ -185,6 +187,8 @@ targets:
           - "**/r8bsrc.cpp"                   # same
           - "**/pffft_double.c"               # same
           - "**/dr_mp3.c"                     # same
+          - "**/dr_flac.c"                    # same
+          - "**/dr_wav.c"                     # same
         compilerFlags: &third-party-flags
           - "-Xclang"
           - "-analyzer-disable-all-checks"
@@ -212,15 +216,20 @@ targets:
           - "-analyzer-disable-all-checks"
       - path: Vibe/ThirdParty/r8brain/fft/pffft_double.c
         compilerFlags: *r8brain-flags
-      # dr_mp3's implementation unit, AudioFileHandle.m's default MPEG decoder:
-      # optimized in every configuration, as r8brain is, so a Debug build
-      # decodes as a shipped one does.
+      # dr_mp3's, dr_flac's and dr_wav's implementation units,
+      # AudioFileHandle.m's default MPEG decoder and its FLAC and WAV/AIFF
+      # decoders: optimized in every configuration, as r8brain is, so a Debug
+      # build decodes as a shipped one does.
       - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
-        compilerFlags: &dr-mp3-flags
+        compilerFlags: &dr-libs-flags
           - "-O3"
           - "-w"                              # vendored C, not ours to restyle
           - "-Xclang"
           - "-analyzer-disable-all-checks"
+      - path: Vibe/ThirdParty/dr_flac/dr_flac.c
+        compilerFlags: *dr-libs-flags
+      - path: Vibe/ThirdParty/dr_wav/dr_wav.c
+        compilerFlags: *dr-libs-flags
       - path: Vibe/Mac/App
         excludes:
           - "**/.DS_Store"
@@ -295,21 +304,25 @@ targets:
             LSItemContentTypes:
               - "public.folder"
           # com.apple.quicktime-audio is .qta, the QuickTime container Voice
-          # Memos exports. It conforms to public.audio only, so neither MPEG-4
-          # claim covers it.
+          # Memos exports, and com.apple.protected-mpeg-4-audio-b is .m4b, the
+          # audiobook. Neither conforms to either MPEG-4 claim.
           - CFBundleTypeName: "Audio Files"
             CFBundleTypeRole: "Viewer"
             LSHandlerRank: "Default"
-            LSItemContentTypes:
+            LSItemContentTypes: &audio-content-types
               - "public.mp2"
               - "public.mp3"
               - "public.aac-audio"
               - "public.aiff-audio"
               - "com.microsoft.waveform-audio"
+              - "com.sony.wave64"
               - "org.xiph.flac"
+              - "com.apple.coreaudio-format"
               - "com.apple.m4a-audio"
               - "public.mpeg-4-audio"
               - "com.apple.quicktime-audio"
+              - "com.apple.protected-mpeg-4-audio-b"
+              - "org.xiph.ogg-audio"
           - CFBundleTypeName: "CUE Sheet"
             CFBundleTypeRole: "Viewer"
             LSHandlerRank: "Alternate"
@@ -336,6 +349,21 @@ targets:
             UTTypeTagSpecification:
               public.filename-extension:
                 - "cue"
+
+        # Imported, so the system's own declaration wins where there is one;
+        # an older system has none, and .ogg would read as dyn.* there. No
+        # description, which would be a catalog key for every language.
+        UTImportedTypeDeclarations: &ogg-audio-import
+          - UTTypeIdentifier: "org.xiph.ogg-audio"
+            UTTypeConformsTo:
+              - "public.audio"
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - "ogg"
+                - "oga"
+                - "opus"
+              public.mime-type:
+                - "audio/ogg"
 
     settings:
       groups: [vibe-version, vibe-header-paths]
@@ -413,6 +441,8 @@ targets:
           - "**/r8bsrc.cpp"
           - "**/pffft_double.c"
           - "**/dr_mp3.c"
+          - "**/dr_flac.c"
+          - "**/dr_wav.c"
         # Same flags as the macOS target above; see the comment there.
         compilerFlags: *third-party-flags
       - path: Vibe/ThirdParty/PINCache/PINDiskCache.m
@@ -422,7 +452,11 @@ targets:
       - path: Vibe/ThirdParty/r8brain/fft/pffft_double.c
         compilerFlags: *r8brain-flags
       - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
-        compilerFlags: *dr-mp3-flags
+        compilerFlags: *dr-libs-flags
+      - path: Vibe/ThirdParty/dr_flac/dr_flac.c
+        compilerFlags: *dr-libs-flags
+      - path: Vibe/ThirdParty/dr_wav/dr_wav.c
+        compilerFlags: *dr-libs-flags
       - path: Resources/AppIcon.icon
       - path: Resources/Assets.xcassets       # record-bg, the no-art vinyl placeholder
       - path: Resources/PrivacyInfo.xcprivacy
@@ -483,16 +517,8 @@ targets:
           - CFBundleTypeName: "Audio Files"
             CFBundleTypeRole: "Viewer"
             LSHandlerRank: "Default"
-            LSItemContentTypes:
-              - "public.mp2"
-              - "public.mp3"
-              - "public.aac-audio"
-              - "public.aiff-audio"
-              - "com.microsoft.waveform-audio"
-              - "org.xiph.flac"
-              - "com.apple.m4a-audio"
-              - "public.mpeg-4-audio"
-              - "com.apple.quicktime-audio"
+            LSItemContentTypes: *audio-content-types
+        UTImportedTypeDeclarations: *ogg-audio-import
     settings:
       groups: [vibe-version, vibe-header-paths]
       base:
@@ -663,7 +689,11 @@ targets:
       - path: Vibe/Audio/Loading/AudioLoadingConfiguration.m
       - path: Vibe/Audio/AudioFileHandle.m
       - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
-        compilerFlags: *dr-mp3-flags
+        compilerFlags: *dr-libs-flags
+      - path: Vibe/ThirdParty/dr_flac/dr_flac.c
+        compilerFlags: *dr-libs-flags
+      - path: Vibe/ThirdParty/dr_wav/dr_wav.c
+        compilerFlags: *dr-libs-flags
       - path: Vibe/Audio/Loading/AudioFileMaterializationCoordinator.m
       - path: Vibe/Audio/Loading/AudioWorkScheduler.m
       - path: Vibe/Audio/Levels/AudioLevelAnalyzer.m
@@ -809,7 +839,11 @@ targets:
       - path: Vibe/Audio/Loading/AudioLoadingConfiguration.m
       - path: Vibe/Audio/AudioFileHandle.m
       - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
-        compilerFlags: *dr-mp3-flags
+        compilerFlags: *dr-libs-flags
+      - path: Vibe/ThirdParty/dr_flac/dr_flac.c
+        compilerFlags: *dr-libs-flags
+      - path: Vibe/ThirdParty/dr_wav/dr_wav.c
+        compilerFlags: *dr-libs-flags
       - path: Vibe/Audio/Loading/AudioFileMaterializationCoordinator.m
       - path: Vibe/Audio/Loading/AudioWorkScheduler.m
       - path: Vibe/Audio/Loading/CloudTransferRegistry.m

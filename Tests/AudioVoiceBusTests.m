@@ -1820,11 +1820,8 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 // AVAudioFile rather than the bus's AudioFileHandle, interleaved.
 - (NSData *)referenceConversionOfURL:(NSURL *)url toRate:(double)rate {
     NSError *error = nil;
-    AVAudioFile *file = [[AVAudioFile alloc] initForReading:url error:&error];
-    XCTAssertNotNil(file, @"%@", error);
-    AVAudioPCMBuffer *whole = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat
-                                                            frameCapacity:(AVAudioFrameCount)file.length];
-    XCTAssertTrue([file readIntoBuffer:whole error:&error], @"%@", error);
+    AVAudioPCMBuffer *whole = VibeReadWithAVAudioFile(url, &error);
+    XCTAssertNotNil(whole, @"%@", error);
     AVAudioPCMBuffer *converted = VibeReferenceResample(whole, rate);
     XCTAssertNotNil(converted, @"the reference could not convert to %g Hz", rate);
     NSMutableData *reference = [NSMutableData data];

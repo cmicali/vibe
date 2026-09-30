@@ -5,6 +5,7 @@
 
 #import "AudioPlayer+Diagnostics.h"
 #import "AudioPlayerInternal.h"
+#import "AudioFileFormat.h"
 #import "AudioTrack.h"
 #import "AudioFX.h"
 #include <mach/mach_time.h>
@@ -389,15 +390,14 @@ static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
 #pragma mark - The path
 
 static NSString *VibeCodecName(AudioFormatID format) {
+    VibeAudioFileFormat named = VibeAudioFileFormatForCodec(format);
+    if (named) {
+        return named;
+    }
     switch (format) {
         case kAudioFormatLinearPCM:     return @"PCM";
-        case kAudioFormatFLAC:          return @"FLAC";
-        case kAudioFormatAppleLossless: return @"ALAC";
-        case kAudioFormatMPEG4AAC:      return @"AAC";
         case kAudioFormatMPEG4AAC_HE:
         case kAudioFormatMPEG4AAC_HE_V2: return @"HE-AAC";
-        case kAudioFormatMPEGLayer3:    return @"MP3";
-        case kAudioFormatMPEGLayer2:    return @"MP2";
         case kAudioFormatMPEGLayer1:    return @"MP1";
         default: {
             char text[5] = { (char)(format >> 24), (char)(format >> 16), (char)(format >> 8), (char)format, 0 };

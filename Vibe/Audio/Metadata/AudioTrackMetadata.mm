@@ -5,14 +5,17 @@
 
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataInternal.h"
+#import "AudioFileHandle.h"
 #import "AudioTrack.h"
 #import "AudioTrackArtworkInternal.h"
 #import "PlatformImage.h"
 #import "NSString+CPPStrings.h"
 #import "MusicalKey.h"
 #import "Formatters.h"
+#import "NSURL+AudioOpen.h"
 #import "VibeStrings.h"
 
+#import <AudioToolbox/AudioToolbox.h>
 #import <ImageIO/ImageIO.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
@@ -30,6 +33,8 @@
 #include <attachedpictureframe.h>
 #include <aifffile.h>
 #include <wavfile.h>
+#include <vorbisfile.h>
+#include <opusfile.h>
 #include <tdebuglistener.h>
 
 NSNotificationName const AudioTrackMetadataThumbnailDidLoadNotification =
@@ -90,7 +95,8 @@ private:
     }
 
     // FileRef::detectByExtension's mapping plus wave, bwf and qta (a QuickTime
-    // container MP4::File parses).
+    // container MP4::File parses). .ogg and .oga hold Vorbis or Opus, told
+    // apart by a cheap sniff; FLAC in Ogg has no vendored parser.
     static std::unique_ptr<TagLib::File> openByExtension(const char *path, TagLib::IOStream *stream) {
         NSString *ext = [@(path) pathExtension].uppercaseString;
         if ([ext isEqualToString:@"MP3"] || [ext isEqualToString:@"MP2"] || [ext isEqualToString:@"AAC"])
@@ -101,6 +107,12 @@ private:
             return std::make_unique<TagLib::MP4::File>(stream);
         if ([ext isEqualToString:@"FLAC"])
             return std::make_unique<TagLib::FLAC::File>(stream);
+        if ([ext isEqualToString:@"OGG"] || [ext isEqualToString:@"OGA"])
+            return TagLib::Ogg::Opus::File::isSupported(stream)
+                    ? std::unique_ptr<TagLib::File>(std::make_unique<TagLib::Ogg::Opus::File>(stream))
+                    : std::make_unique<TagLib::Ogg::Vorbis::File>(stream);
+        if ([ext isEqualToString:@"OPUS"])
+            return std::make_unique<TagLib::Ogg::Opus::File>(stream);
         if ([ext isEqualToString:@"AIF"] || [ext isEqualToString:@"AIFF"] ||
             [ext isEqualToString:@"AFC"] || [ext isEqualToString:@"AIFC"])
             return std::make_unique<TagLib::RIFF::AIFF::File>(stream);
@@ -113,8 +125,12 @@ private:
     static std::unique_ptr<TagLib::File> openByContent(TagLib::IOStream *stream) {
         if (TagLib::MPEG::File::isSupported(stream))
             return std::make_unique<TagLib::MPEG::File>(stream);
+        if (TagLib::Ogg::Vorbis::File::isSupported(stream))
+            return std::make_unique<TagLib::Ogg::Vorbis::File>(stream);
         if (TagLib::FLAC::File::isSupported(stream))
             return std::make_unique<TagLib::FLAC::File>(stream);
+        if (TagLib::Ogg::Opus::File::isSupported(stream))
+            return std::make_unique<TagLib::Ogg::Opus::File>(stream);
         if (TagLib::MP4::File::isSupported(stream))
             return std::make_unique<TagLib::MP4::File>(stream);
         if (TagLib::RIFF::AIFF::File::isSupported(stream))
@@ -421,6 +437,7 @@ static NSData *VibeEncodedArtData(VibeImage *image) {
     try {
         TagLibAudioFile fileRef([url.path UTF8String]);
         if (fileRef.isNull()) {
+            [self loadCoreAudioFactsFromURL:url];
             return;
         }
 
@@ -439,6 +456,14 @@ static NSData *VibeEncodedArtData(VibeImage *image) {
             // 0 is unknown; the codec line drops nil, not zero.
             if (props->bitrate() > 0) self.bitrate = @(props->bitrate());
             if (props->sampleRate() > 0) self.sampleRate = @(props->sampleRate());
+        }
+        // TagLib takes a FLAC's length from STREAMINFO alone, which may leave it
+        // unknown (0); the handle's dr_flac finds it from the stream's last frames.
+        if (self.duration == 0 && dynamic_cast<TagLib::FLAC::File *>(file)) {
+            AudioFileHandle *handle = [[AudioFileHandle alloc] initForReading:url error:NULL];
+            if (handle.length > 0) {
+                self.duration = handle.length / handle.processingFormat.sampleRate;
+            }
         }
 
         // PropertyMap normalizes every format's tempo tag to "BPM".
@@ -474,6 +499,61 @@ static NSData *VibeEncodedArtData(VibeImage *image) {
     }
 }
 
+// A tag's text without surrounding whitespace, or nil when that leaves none.
+static NSString * _Nullable trimmedTagText(id _Nullable value) {
+    if (![value isKindOfClass:NSString.class]) return nil;
+    NSString *trimmed = [value stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    return trimmed.length > 0 ? trimmed : nil;
+}
+
+// CoreAudio's facts for a file TagLib cannot read (Audio/Metadata/AGENTS.md).
+- (void)loadCoreAudioFactsFromURL:(NSURL *)url {
+    // TRAP: AudioFileOpenURL leaks on an empty file or a directory
+    // (AudioFileHandle.m), and a failed parse is retried every sweep.
+    AudioFileID file = NULL;
+    if (url.isEmptyOrDirectory || AudioFileOpenURL((__bridge CFURLRef)url, kAudioFileReadPermission, 0, &file) != noErr) {
+        return;
+    }
+    AudioStreamBasicDescription format = {0};
+    UInt32 size = sizeof(format);
+    if (AudioFileGetProperty(file, kAudioFilePropertyDataFormat, &size, &format) != noErr || format.mSampleRate <= 0) {
+        AudioFileClose(file);
+        return;
+    }
+    AudioFileTypeID container = 0;
+    size = sizeof(container);
+    AudioFileGetProperty(file, kAudioFilePropertyFileFormat, &size, &container);
+    Float64 duration = 0;
+    size = sizeof(duration);
+    if (AudioFileGetProperty(file, kAudioFilePropertyEstimatedDuration, &size, &duration) == noErr
+            && isfinite(duration) && duration > 0) {
+        self.duration = duration;
+    }
+    UInt32 bitsPerSecond = 0;
+    size = sizeof(bitsPerSecond);
+    if (AudioFileGetProperty(file, kAudioFilePropertyBitRate, &size, &bitsPerSecond) == noErr && bitsPerSecond >= 1000) {
+        self.bitrate = @(bitsPerSecond / 1000); // TagLib's unit
+    }
+    self.sampleRate = @((int)format.mSampleRate);
+    CFDictionaryRef infoDictionary = NULL;
+    size = sizeof(infoDictionary);
+    if (AudioFileGetProperty(file, kAudioFilePropertyInfoDictionary, &size, &infoDictionary) == noErr && infoDictionary) {
+        NSDictionary *tags = CFBridgingRelease(infoDictionary);
+        NSString *artist = trimmedTagText(tags[@kAFInfoDictionary_Artist]);
+        NSString *title = trimmedTagText(tags[@kAFInfoDictionary_Title]);
+        if (artist) self.artist = artist;
+        if (title) self.title = title;
+    }
+    AudioFileClose(file);
+    // PCM is never WAV or AIFF, which would offer Convert to FLAC a container
+    // its tag copy cannot open.
+    if (format.mFormatID != kAudioFormatLinearPCM) self.fileType = VibeAudioFileFormatForCodec(format.mFormatID);
+    else if (container == kAudioFileWave64Type) self.fileType = VibeAudioFileFormatW64;
+    else if (container == kAudioFileCAFType) self.fileType = VibeAudioFileFormatCAF;
+    [self.artwork adoptParsedArtData:nil];
+    self.parsedOK = YES;
+}
+
 static VibeAudioFileFormat _Nullable fileTypeForTagLibFile(TagLib::File *file) {
     if (auto mpeg = dynamic_cast<TagLib::MPEG::File*>(file)) {
         // .mp2 and .aac open as MPEG::File too; the header tells them apart.
@@ -499,12 +579,18 @@ static VibeAudioFileFormat _Nullable fileTypeForTagLibFile(TagLib::File *file) {
     if (dynamic_cast<TagLib::RIFF::WAV::File*>(file)) {
         return VibeAudioFileFormatWAV;
     }
+    if (dynamic_cast<TagLib::Ogg::Vorbis::File*>(file)) {
+        return VibeAudioFileFormatVorbis;
+    }
+    if (dynamic_cast<TagLib::Ogg::Opus::File*>(file)) {
+        return VibeAudioFileFormatOpus;
+    }
     return nil;
 }
 
 // Free functions, so the extractor block captures no metadata instance.
 static NSData *getAlbumArtMP3(TagLib::MPEG::File *mp3File);
-static NSData *getAlbumArtFLAC(TagLib::FLAC::File *flacFile);
+static NSData *getAlbumArtPictures(const TagLib::List<TagLib::FLAC::Picture *> &pictures);
 static NSData *getAlbumArtMP4(TagLib::MP4::File *mp4File);
 static NSData *getAlbumArtAIFF(TagLib::RIFF::AIFF::File *aiffFile);
 static NSData *getAlbumArtWAV(TagLib::RIFF::WAV::File *wavFile);
@@ -514,7 +600,11 @@ static NSData *albumArtDataFromTagLibFile(TagLib::File *file) {
         return getAlbumArtMP3(mp3);
     }
     else if (auto flac = dynamic_cast<TagLib::FLAC::File*>(file)) {
-        return getAlbumArtFLAC(flac);
+        return getAlbumArtPictures(flac->pictureList());
+    }
+    // Vorbis and Opus, both tagged with a Xiph comment.
+    else if (auto xiph = dynamic_cast<TagLib::Ogg::XiphComment*>(file->tag())) {
+        return getAlbumArtPictures(xiph->pictureList());
     }
     else if (auto mp4 = dynamic_cast<TagLib::MP4::File*>(file)) {
         return getAlbumArtMP4(mp4);
@@ -566,6 +656,8 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void) {
     if ([VibeAudioFileFormatALAC isEqualToString:self.fileType]) return YES;
     if ([VibeAudioFileFormatAIFF isEqualToString:self.fileType]) return YES;
     if ([VibeAudioFileFormatWAV isEqualToString:self.fileType]) return YES;
+    if ([VibeAudioFileFormatW64 isEqualToString:self.fileType]) return YES;
+    if ([VibeAudioFileFormatCAF isEqualToString:self.fileType]) return YES;
     return NO;
 }
 
@@ -622,11 +714,11 @@ static NSData *getAlbumArtMP4(TagLib::MP4::File *mp4File) {
     return nil;
 }
 
-static NSData *getAlbumArtFLAC(TagLib::FLAC::File *flacFile) {
+// A FLAC file's picture blocks, or a Vorbis comment's METADATA_BLOCK_PICTURE.
+static NSData *getAlbumArtPictures(const TagLib::List<TagLib::FLAC::Picture *> &pictures) {
     // FrontCover wins, as in getAlbumArtID3v2.
-    const TagLib::List<TagLib::FLAC::Picture*>& picList = flacFile->pictureList();
     TagLib::FLAC::Picture *chosen = nullptr;
-    for (auto it = picList.begin(); it != picList.end(); ++it) {
+    for (auto it = pictures.begin(); it != pictures.end(); ++it) {
         TagLib::FLAC::Picture *pic = *it;
         if (!pic || pic->data().isEmpty()) continue;
         if (pic->type() == TagLib::FLAC::Picture::FrontCover) {

@@ -244,8 +244,8 @@ DRIVER_PY
 fi
 
 # Analytic fixtures for the render suite and the bit-perfect verifier. Only
-# the MP3/MP2/QTA fixtures need ffmpeg; without it XCTest skips them rather than
-# passing them.
+# the MP3/MP2/QTA/Ogg fixtures and the FLACs Apple cannot encode need
+# ffmpeg; without it XCTest skips them rather than passing them.
 if [ "${1:-}" = "--render-tests" ]; then
     render_dir="${2:?usage: --render-tests <output-directory>}"
     mkdir -p "$render_dir"
@@ -298,29 +298,210 @@ for kind in ['silence','impulse','sweep']:
 wav('integer32-low-bits.wav',48000,32,2,'integer32')
 wav('float64-low-bits.wav',48000,64,2,floating=True)
 wav('integer32.wav',48000,32,2)
+# The source of a FLAC at a rate past Apple's codec's limit.
+wav('noise-705600-24-2.wav',705600,24,2,seconds=0.5)
+# Mixed blocks at 8 kHz (MPEG 2.5), which no encoder writes, so the spectrum is
+# coded directly: big_values 0 and all 576 lines count1 values of -1, 0 or 1
+# (count1 table B: four inverted value bits, a sign bit per nonzero value), so
+# every decoder parses the same bits. Lines below 72, the block's long part,
+# stay zero, since decoders transform that part differently at this rate; the
+# scalefactors, subblock gains and a global gain that moves every granule
+# exercise the band layout.
+def mixed_8k(name, frames=40):
+    path = out / name
+    if path.exists(): return
+    state = 0x12345678
+    def rand(n):
+        nonlocal state
+        state = (1664525 * state + 1013904223) & 0xffffffff
+        return (state >> 8) % n
+    stream = bytearray()
+    for _ in range(frames):
+        bits = []
+        put = lambda v, n: bits.extend((v >> i) & 1 for i in range(n - 1, -1, -1))
+        main = []
+        mput = lambda v, n: main.extend((v >> i) & 1 for i in range(n - 1, -1, -1))
+        for _ in range(33): mput(rand(4), 2)  # scalefac_compress 202: 6 + 9 + 9 + 9 two-bit scalefactors
+        for q in range(144):
+            values = [0 if 4 * q + i < 72 or rand(5) < 3 else (1 if rand(2) else -1) for i in range(4)]
+            mput(15 - sum(8 >> i for i, v in enumerate(values) if v), 4)
+            for v in values:
+                if v: mput(v < 0, 1)
+        put(0x7ff, 11); put(0, 2); put(1, 2); put(1, 1)  # MPEG 2.5, Layer III, no CRC
+        put(14, 4); put(2, 2); put(0, 1); put(0, 1)      # 160 kbps, 8 kHz, no padding, private
+        put(3, 2); put(0, 2); put(0, 1); put(1, 1); put(0, 2)  # mono
+        put(0, 8); put(0, 1)                             # main_data_begin, private bits
+        put(len(main), 12); put(0, 9); put(166 + rand(25), 8); put(202, 9)
+        put(1, 1); put(2, 2); put(1, 1)                  # window switching, short blocks, mixed
+        put(0, 10)                                        # table_select, unused with big_values 0
+        for _ in range(3): put(rand(8), 3)                # subblock gains
+        put(rand(2), 1); put(1, 1)                        # scalefac_scale, count1 table B
+        bits += main
+        size = 72 * 160000 // 8000
+        bits += [0] * (size * 8 - len(bits))
+        stream += bytes(int(''.join(map(str, bits[i:i + 8])), 2) for i in range(0, len(bits), 8))
+    path.write_bytes(stream)
+mixed_8k('mixed-8k.mp3')
+# Legal FLACs no encoder here writes, coded directly (testDrFLACDecodesWhatTheFileHolds and
+# testDrFLACSeeksFurtherThanThirtyTwoBitsOfFrames): Rice partition orders past the streamable subset's
+# 8, which RFC 9639 section 9.2.7 allows up to 15, in a 24-bit stream and in a 32-bit one's 33-bit side
+# channel; and a stream longer than 2^32 frames, each FLAC frame a constant of its own.
+def crc_table(poly, width):
+    top, mask, table = 1 << (width - 1), (1 << width) - 1, []
+    for byte in range(256):
+        c = byte << (width - 8)
+        for _ in range(8): c = ((c << 1) ^ poly) & mask if c & top else (c << 1) & mask
+        table.append(c)
+    return table
+CRC8, CRC16 = crc_table(0x07, 8), crc_table(0x8005, 16)
+def crc8(data):
+    c = 0
+    for b in data: c = CRC8[c ^ b]
+    return c
+def crc16(data):
+    c = 0
+    for b in data: c = ((c << 8) & 0xffff) ^ CRC16[(c >> 8) ^ b]
+    return c
+class Bits:
+    def __init__(self): self.parts = []
+    def put(self, value, n):
+        if n: self.parts.append(format(value & ((1 << n) - 1), f'0{n}b'))
+    def bytes(self):
+        s = ''.join(self.parts); s += '0' * (-len(s) % 8)
+        return int(s, 2).to_bytes(len(s) // 8, 'big') if s else b''
+def utf8_number(n):
+    if n < 0x80: return bytes([n])
+    length = 2 if n < 0x800 else 3 if n < 0x10000 else 4
+    tail = [0x80 | (n >> (6 * i)) & 0x3f for i in range(length - 1)][::-1]
+    return bytes([(0xff00 >> length) & 0xff | n >> (6 * (length - 1))] + tail)
+# A FIXED subframe whose residual is RICE2-coded in 2^partition_order partitions, one of them escaped to raw.
+def fixed_subframe(bits, samples, width, order, partition_order, escaped):
+    bits.put((0b001000 | order) << 1, 8)
+    for s in samples[:order]: bits.put(s, width)
+    residuals = [samples[n] - samples[n - 1] if order else samples[n] for n in range(order, len(samples))]
+    bits.put(1, 2); bits.put(partition_order, 4)
+    start = 0
+    for p in range(1 << partition_order):
+        part = residuals[start:start + (len(samples) >> partition_order) - (order if p == 0 else 0)]
+        start += len(part)
+        if p == escaped:
+            raw = max([(r if r >= 0 else ~r).bit_length() + 1 for r in part], default=1)
+            bits.put(31, 5); bits.put(raw, 5)
+            for r in part: bits.put(r, raw)
+            continue
+        zigzag = [2 * r if r >= 0 else -2 * r - 1 for r in part]
+        k = min(30, max(0, (sum(zigzag) // max(len(zigzag), 1)).bit_length() - 1))
+        bits.put(k, 5)
+        for u in zigzag:
+            bits.parts.append('0' * (u >> k) + '1'); bits.put(u, k)
+def flac_frame(number, block, rate_code, channel_code, size_code, body):
+    head = bytes([0xff, 0xf8, 0x70 | rate_code, channel_code << 4 | size_code << 1]) + utf8_number(number) + (block - 1).to_bytes(2, 'big')
+    frame = head + bytes([crc8(head)]) + body.bytes()
+    return frame + crc16(frame).to_bytes(2, 'big')
+def write_flac(path, rate, bps, channels, block, total, frames):
+    info = Bits()
+    for value, n in [(block, 16), (block, 16), (0, 24), (0, 24), (rate, 20), (channels - 1, 3), (bps - 1, 5), (total, 36), (0, 128)]:
+        info.put(value, n)
+    path.write_bytes(b'fLaC' + bytes([0x80, 0, 0, 34]) + info.bytes() + b''.join(frames))
+def wav_channels(name):
+    data = (out / name).read_bytes()
+    channels, width = struct.unpack_from('<H', data, 22)[0], struct.unpack_from('<H', data, 34)[0] // 8
+    values = [int.from_bytes(data[i:i + width], 'little', signed=True) for i in range(44, len(data), width)]
+    return [values[c::channels] for c in range(channels)]
+def partition_orders(name, source, side):
+    path = out / name
+    if path.exists(): return
+    left, right = wav_channels(source)
+    channels = [left, [l - r for l, r in zip(left, right)]] if side else [left, right]
+    total, frames = len(left), []
+    for number, start in enumerate(range(0, total, 4096)):
+        n, body = min(4096, total - start), Bits()
+        order = min(9 if side else 9 + number % 4, (n & -n).bit_length() - 1)  # as far as the block divides
+        for c, samples in enumerate(channels):
+            width = 24 if not side else 32 + c
+            fixed_subframe(body, samples[start:start + n], width, 0 if side else 1, order, number % 3)
+        frames.append(flac_frame(number, n, 0b1010, 0b1000 if side else 0b0001, 0b111 if side else 0b110, body))
+    write_flac(path, 48000, 32 if side else 24, 2, 4096, total, frames)
+partition_orders('flac-partition-orders.flac', 'noise-48000-24-2.wav', side=False)
+partition_orders('flac-32-partition-order.flac', 'integer32-low-bits.wav', side=True)
+def long_constant(name, frames=65538, block=65535):
+    path = out / name
+    if path.exists(): return
+    stream = []
+    for number in range(frames):
+        body = Bits(); body.put(0, 8); body.put(((number * 7919) & 0xffff) - 32768, 16)  # CONSTANT subframe
+        stream.append(flac_frame(number, block, 0b0011, 0b0000, 0b100, body))
+    write_flac(path, 192000, 16, 1, block, frames * block, stream)
+long_constant('flac-long.flac')
 (out/'manifest.json').write_text(json.dumps({'seed':'0x12345678','rates':[44100,48000,88200,96000,176400,192000],'duration':2,'noisePeak':0.25},indent=2))
 AUDIO_PY
     render_source="$render_dir/noise-48000-24-2.wav"
     [ -s "$render_dir/lossless.flac" ] || afconvert -f flac -d flac "$render_source" "$render_dir/lossless.flac"
+    [ -s "$render_dir/lossless-8ch.flac" ] || afconvert -f flac -d flac "$render_dir/noise-48000-24-8.wav" "$render_dir/lossless-8ch.flac"
     [ -s "$render_dir/lossless.m4a" ] || afconvert -f m4af -d alac "$render_source" "$render_dir/lossless.m4a"
     [ -s "$render_dir/lossless.aiff" ] || afconvert -f AIFF -d BEI24 "$render_source" "$render_dir/lossless.aiff"
+    # Every coding afconvert writes into a WAV or an AIFF(-C), which dr_wav decodes as Apple does
+    # (testDrWAVDecodesAsAppleDoes): AIFF-C's twos, in24 and in32 are what Apple's tools write for 16, 24 and 32 bits.
+    for coding in UI8 ulaw alaw; do
+        [ -s "$render_dir/wav-$coding.wav" ] || afconvert -f WAVE -d "$coding" "$render_source" "$render_dir/wav-$coding.wav"
+    done
+    [ -s "$render_dir/aiff-BEI8.aif" ] || afconvert -f AIFF -d BEI8 "$render_source" "$render_dir/aiff-BEI8.aif"
+    for coding in BEI8 BEI16 BEI24 BEI32 BEF32 BEF64 UI8 ulaw alaw ima4; do
+        [ -s "$render_dir/aifc-$coding.aif" ] || afconvert -f AIFC -d "$coding" "$render_source" "$render_dir/aifc-$coding.aif"
+    done
+    [ -s "$render_dir/aifc-ima4-mono.aif" ] || afconvert -f AIFC -d ima4 -c 1 "$render_source" "$render_dir/aifc-ima4-mono.aif"
+    [ -s "$render_dir/wave64-LEI24.w64" ] || afconvert -f W64f -d LEI24 "$render_source" "$render_dir/wave64-LEI24.w64"
+    [ -s "$render_dir/rf64-LEI24.wav" ] || afconvert -f RF64 -d LEI24 "$render_source" "$render_dir/rf64-LEI24.wav"
     [ -s "$render_dir/lossy.m4a" ] || afconvert -f m4af -d aac -b 192000 "$render_source" "$render_dir/lossy.m4a"
+    [ -s "$render_dir/lossless.caf" ] || afconvert -f caff -d alac "$render_source" "$render_dir/lossless.caf"
     for ext in aif wave bwf; do
         if [ "$ext" = aif ]; then render_copy="$render_dir/lossless.aiff"; else render_copy="$render_source"; fi
         [ -s "$render_dir/alias.$ext" ] || cp "$render_copy" "$render_dir/alias.$ext"
     done
-    [ -s "$render_dir/alias.mp4" ] || cp "$render_dir/lossy.m4a" "$render_dir/alias.mp4"
+    for ext in mp4 m4b m4r; do
+        [ -s "$render_dir/alias.$ext" ] || cp "$render_dir/lossy.m4a" "$render_dir/alias.$ext"
+    done
     [ -s "$render_dir/lossy.aac" ] || afconvert -f adts -d aac -b 192000 "$render_source" "$render_dir/lossy.aac"
+    [ -s "$render_dir/alias.adts" ] || cp "$render_dir/lossy.aac" "$render_dir/alias.adts"
     if command -v ffmpeg >/dev/null; then
-        [ -s "$render_dir/cbr.mp3" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -c:a libmp3lame -b:a 192k "$render_dir/cbr.mp3"
-        [ -s "$render_dir/vbr.mp3" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -c:a libmp3lame -q:a 2 "$render_dir/vbr.mp3"
-        [ -s "$render_dir/lossy.mp2" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -c:a mp2 -b:a 192k "$render_dir/lossy.mp2"
+        # encode <name> <source> <ffmpeg output options...>: made once, into the render directory.
+        encode() { local name="$1" source="$2"; shift 2; [ -s "$render_dir/$name" ] || ffmpeg -nostdin -loglevel error -y -i "$source" "$@" "$render_dir/$name"; }
+        encode cbr.mp3 "$render_source" -c:a libmp3lame -b:a 192k
+        encode vbr.mp3 "$render_source" -c:a libmp3lame -q:a 2
+        encode lossy.mp2 "$render_source" -c:a mp2 -b:a 192k
         # MPEG in a WAV: fixed-size packets with no descriptions. CoreAudio opens one only when every frame is one size, which 48 kHz CBR is.
-        [ -s "$render_dir/mp3-in.wav" ] || ffmpeg -nostdin -loglevel error -y -i "$render_dir/cbr.mp3" -c:a copy -f wav "$render_dir/mp3-in.wav"
-        [ -s "$render_dir/mp2-in.wav" ] || ffmpeg -nostdin -loglevel error -y -i "$render_dir/lossy.mp2" -c:a copy -f wav "$render_dir/mp2-in.wav"
-        # A master limited to full scale, whose decode overshoots it: the overs a float decode keeps and Apple's 16-bit one clips.
-        [ -s "$render_dir/hot.mp3" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -af volume=12dB,alimiter=limit=1:level=false -c:a libmp3lame -b:a 320k "$render_dir/hot.mp3"
-        [ -s "$render_dir/lossy.qta" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -c:a aac -f mov "$render_dir/lossy.qta"
+        encode mp3-in.wav "$render_dir/cbr.mp3" -c:a copy -f wav
+        encode mp2-in.wav "$render_dir/lossy.mp2" -c:a copy -f wav
+        # A master limited to full scale, whose decode overshoots it: the overs a float decode keeps and Apple's clips.
+        encode hot.mp3 "$render_source" -af volume=12dB,alimiter=limit=1:level=false -c:a libmp3lame -b:a 320k
+        # Mono Layer III, whose private bits are five where stereo's are three.
+        encode mono.mp3 "$render_source" -ac 1 -c:a libmp3lame -b:a 128k
+        # MPEG-2 at 8 kbps: frames of a few bytes of payload, whose reservoir reaches back past MPEG-1's seek preroll.
+        encode lsf-8k.mp3 "$render_source" -ar 24000 -c:a libmp3lame -b:a 8k
+        # FFmpeg's float decode of the generated 8 kHz mixed-block stream: the reference testDrMP3DecodesMixedBlocksAt8kHzAsFFmpegDoes reads.
+        [ -s "$render_dir/mixed-8k.f32" ] || ffmpeg -nostdin -loglevel error -y -c:a mp3float -i "$render_dir/mixed-8k.mp3" -f f32le "$render_dir/mixed-8k.f32"
+        encode lossy.qta "$render_source" -c:a aac -f mov
+        # The WAV ADPCMs, which afconvert cannot write.
+        encode wav-ima-adpcm.wav "$render_source" -c:a adpcm_ima_wav
+        encode wav-ms-adpcm.wav "$render_source" -c:a adpcm_ms
+        # Ogg: CoreAudio reads it but its writer refuses every input. Vorbis is
+        # ffmpeg's own encoder, since Homebrew's build has no libvorbis; Opus
+        # is libopus, whose file declares the length it decodes to.
+        encode lossy.ogg "$render_source" -c:a vorbis -strict -2
+        [ -s "$render_dir/alias.oga" ] || { [ -s "$render_dir/lossy.ogg" ] && cp "$render_dir/lossy.ogg" "$render_dir/alias.oga"; }
+        encode lossy.opus "$render_source" -c:a libopus -b:a 128k
+        # FLAC in Ogg, which the handle refuses: CoreAudio decodes its first page only.
+        encode ogg-flac.oga "$render_source" -c:a flac
+        # Legal FLACs that Apple's codec refuses, or that dr_flac could not decode or seek before Vibe's fixes to it
+        # (testDrFLACDecodesWhatTheFileHolds): every frame's first residual partition empty, block sizes of 16 and
+        # 65535, 705.6 kHz, and 32-bit stereo in each side-channel mode.
+        encode flac-zero-residual.flac "$render_source" -c:a flac -frame_size 4096 -lpc_type levinson -min_partition_order 8 -max_partition_order 8 -min_prediction_order 16 -max_prediction_order 16
+        encode flac-block16.flac "$render_source" -c:a flac -frame_size 16
+        encode flac-block65535.flac "$render_source" -c:a flac -frame_size 65535
+        encode flac-705600.flac "$render_dir/noise-705600-24-2.wav" -c:a flac -frame_size 4096  # its default block size there is an illegal 65536
+        for mode in mid_side left_side right_side; do
+            encode "flac-32-$mode.flac" "$render_dir/integer32-low-bits.wav" -c:a flac -sample_fmt s32 -bits_per_raw_sample 32 -strict experimental -ch_mode "$mode"
+        done
     fi
     # The ISO/IEC 11172-4 Layer III compliance stream and its reference decode
     # (float32), from FFmpeg's FATE mirror. They are ISO's, so they are fetched

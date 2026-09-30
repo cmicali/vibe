@@ -1192,9 +1192,9 @@ static NSArray<NSString *> *CueRowSummaries(NSString *text) {
     }
 }
 
-// OGG is not playable, so the entry resolves to the primary it named.
-- (void)testAnOggBesideTheEntryIsNotAFallback {
-    NSURL *dir = [self makeTempDirWithFiles:@[@"track.ogg"]
+// APE is not playable, so the entry resolves to the primary it named.
+- (void)testAnApeBesideTheEntryIsNotAFallback {
+    NSURL *dir = [self makeTempDirWithFiles:@[@"track.ape"]
                                playlistName:@"mix.m3u"
                                        text:@"track.wav\n"];
     NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:

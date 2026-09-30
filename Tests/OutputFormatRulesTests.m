@@ -2,6 +2,7 @@
 #import <objc/runtime.h>
 
 #import "../Vibe/Audio/Mac/Devices/OutputFormatRules.h"
+#import "AudioFixtures.h"
 #import "../Vibe/Audio/AudioOutputUnitInternal.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
@@ -32,14 +33,6 @@ static AudioStreamBasicDescription Decode(double rate) {
     return PCM(rate, 32, YES);
 }
 
-static AudioStreamRangedDescription RangedFormat(double rate, UInt32 bits, BOOL isFloat) {
-    AudioStreamRangedDescription r;
-    r.mFormat = PCM(rate, bits, isFloat);
-    r.mSampleRateRange.mMinimum = rate;
-    r.mSampleRateRange.mMaximum = rate;
-    return r;
-}
-
 // Real devices' offered rates: every one float32 only.
 static const double kSpeakerRates[] = { 44100, 48000, 88200, 96000 };
 static const double kAirPodsRates[] = { 24000, 48000 };
@@ -47,7 +40,7 @@ static const double kAirPodsRates[] = { 24000, 48000 };
 static NSUInteger FloatListForRates(const double *rates, NSUInteger count,
                                     AudioStreamRangedDescription *out) {
     for (NSUInteger i = 0; i < count; i++) {
-        out[i] = RangedFormat(rates[i], 32, YES);
+        out[i] = VibeRangedPCMFormat(rates[i], 32, YES);
     }
     return count;
 }
@@ -59,7 +52,7 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     NSUInteger n = 0;
     for (NSUInteger r = 0; r < 4; r++) {
         for (NSUInteger d = 0; d < 3; d++) {
-            out[n++] = RangedFormat(rates[r], depths[d], NO);
+            out[n++] = VibeRangedPCMFormat(rates[r], depths[d], NO);
         }
     }
     return n;
@@ -205,8 +198,8 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
 }
 
 - (void)testEncodedOffersCannotHideAUsablePCMRate {
-    AudioStreamRangedDescription list[] = { RangedFormat(48000, 16, NO),
-        RangedFormat(96000, 24, NO) };
+    AudioStreamRangedDescription list[] = { VibeRangedPCMFormat(48000, 16, NO),
+        VibeRangedPCMFormat(96000, 24, NO) };
     list[0].mFormat.mFormatID = kAudioFormat60958AC3;
     double rate = VibeBitPerfectTargetRate(48000, 2, list, 2);
     XCTAssertEqual(rate, 96000);
@@ -217,8 +210,8 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
 }
 
 - (void)testNarrowChannelOffersCannotHideAUsablePCMRate {
-    AudioStreamRangedDescription formats[] = { RangedFormat(48000, 16, NO),
-        RangedFormat(96000, 24, NO) };
+    AudioStreamRangedDescription formats[] = { VibeRangedPCMFormat(48000, 16, NO),
+        VibeRangedPCMFormat(96000, 24, NO) };
     formats[0].mFormat.mChannelsPerFrame = 1;
     double rate = VibeBitPerfectTargetRate(48000, 2, formats, 2);
     XCTAssertEqual(rate, 96000);
@@ -238,8 +231,8 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
 }
 
 - (void)testIntegerMultiplesAreNotLimitedToPowersOfTwoOrSixteen {
-    AudioStreamRangedDescription list[] = { RangedFormat(384000, 32, YES),
-        RangedFormat(192000, 32, YES), RangedFormat(44100, 32, YES) };
+    AudioStreamRangedDescription list[] = { VibeRangedPCMFormat(384000, 32, YES),
+        VibeRangedPCMFormat(192000, 32, YES), VibeRangedPCMFormat(44100, 32, YES) };
     XCTAssertEqual(VibeBitPerfectTargetRate(32000, 2, list, 3), 192000); // 6x, despite larger rate first
     XCTAssertEqual(VibeBitPerfectTargetRate(4000, 2, list, 1), 384000); // 96x
     XCTAssertEqual(VibeBitPerfectTargetRate(NAN, 2, list, 3), 0);
@@ -257,7 +250,7 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
 }
 
 - (void)testARangedFormatOffersEveryRateInsideIt {
-    AudioStreamRangedDescription ranged = RangedFormat(0, 32, YES);
+    AudioStreamRangedDescription ranged = VibeRangedPCMFormat(0, 32, YES);
     ranged.mSampleRateRange.mMinimum = 8000;
     ranged.mSampleRateRange.mMaximum = 192000;
     XCTAssertEqual(VibeBitPerfectTargetRate(88200, 2, &ranged, 1), 88200);
@@ -310,8 +303,8 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
 // first, else the widest integer, never 16 bits for being lossy.
 - (void)testLossySourcesPreferFloatThenTheWidestInteger {
     AudioFormatID codecs[] = { kAudioFormatMPEGLayer2, kAudioFormatMPEGLayer3, kAudioFormatMPEG4AAC };
-    AudioStreamRangedDescription formats[] = { RangedFormat(44100, 16, NO),
-        RangedFormat(44100, 24, NO), RangedFormat(44100, 32, NO), RangedFormat(44100, 32, YES) };
+    AudioStreamRangedDescription formats[] = { VibeRangedPCMFormat(44100, 16, NO),
+        VibeRangedPCMFormat(44100, 24, NO), VibeRangedPCMFormat(44100, 32, NO), VibeRangedPCMFormat(44100, 32, YES) };
     for (NSUInteger i = 0; i < sizeof(codecs) / sizeof(codecs[0]); i++) {
         AudioStreamBasicDescription source = Compressed(codecs[i], 0, 44100), chosen = {0};
         XCTAssertTrue(VibeBitPerfectChooseFormat(source, 44100, formats, 4, &chosen));
@@ -338,8 +331,8 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     UInt32 n = 0;
     static const double rates[] = { 44100, 96000 };
     for (NSUInteger r = 0; r < 2; r++) {
-        dac[n++] = RangedFormat(rates[r], 16, NO);
-        dac[n++] = RangedFormat(rates[r], 24, NO);
+        dac[n++] = VibeRangedPCMFormat(rates[r], 16, NO);
+        dac[n++] = VibeRangedPCMFormat(rates[r], 24, NO);
     }
     AudioStreamBasicDescription chosen = {0};
     // Nothing >= 32 is offered: the rule refuses to go below the source, so the
@@ -356,7 +349,7 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     XCTAssertFalse(VibePhysicalFormatIsFloat(chosen));
     XCTAssertEqual(chosen.mBitsPerChannel, 32u);
     XCTAssertFalse(VibePhysicalFormatSatisfies(chosen, PCM(44100, 32, YES), Decode(44100)));
-    list[n++] = RangedFormat(44100, 32, YES);
+    list[n++] = VibeRangedPCMFormat(44100, 32, YES);
     XCTAssertTrue(VibeBitPerfectChooseFormat(PCM(44100, 32, YES), 44100, list, n, &chosen));
     XCTAssertTrue(VibePhysicalFormatIsFloat(chosen));
     XCTAssertTrue(VibePhysicalFormatSatisfies(chosen, PCM(44100, 32, YES), Decode(44100)));
@@ -380,8 +373,8 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
 
 - (void)testFormatChoiceMustCarryEverySourceChannel {
     AudioStreamBasicDescription source = PCM(48000, 16, NO), chosen = {0};
-    AudioStreamRangedDescription formats[] = { RangedFormat(48000, 16, NO),
-        RangedFormat(48000, 24, NO), RangedFormat(48000, 32, YES) };
+    AudioStreamRangedDescription formats[] = { VibeRangedPCMFormat(48000, 16, NO),
+        VibeRangedPCMFormat(48000, 24, NO), VibeRangedPCMFormat(48000, 32, YES) };
     formats[0].mFormat.mChannelsPerFrame = 1;
     XCTAssertTrue(VibeBitPerfectChooseFormat(source, 48000, formats, 3, &chosen));
     XCTAssertEqual(chosen.mChannelsPerFrame, 2u);
@@ -440,7 +433,7 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
 }
 
 - (void)testFloatOutputCanSpliceDifferentDepthsAndLossyFilesWithoutASwitch {
-    AudioStreamRangedDescription device = RangedFormat(44100, 32, YES);
+    AudioStreamRangedDescription device = VibeRangedPCMFormat(44100, 32, YES);
     AudioStreamBasicDescription sources[] = {
         PCM(44100, 16, NO), PCM(44100, 24, NO),
         Compressed(kAudioFormatMPEGLayer3, 0, 44100),
