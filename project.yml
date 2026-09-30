@@ -186,6 +186,7 @@ targets:
           - "**/pffft_double.c"               # same
           - "**/dr_mp3.c"                     # same
           - "**/dr_flac.c"                    # same
+          - "**/dr_wav.c"                     # same
         compilerFlags: &third-party-flags
           - "-Xclang"
           - "-analyzer-disable-all-checks"
@@ -213,10 +214,10 @@ targets:
           - "-analyzer-disable-all-checks"
       - path: Vibe/ThirdParty/r8brain/fft/pffft_double.c
         compilerFlags: *r8brain-flags
-      # dr_mp3's and dr_flac's implementation units, AudioFileHandle.m's
-      # default MPEG decoder and its FLAC decoder: optimized in every
-      # configuration, as r8brain is, so a Debug build decodes as a shipped
-      # one does.
+      # dr_mp3's, dr_flac's and dr_wav's implementation units,
+      # AudioFileHandle.m's default MPEG decoder and its FLAC and WAV/AIFF
+      # decoders: optimized in every configuration, as r8brain is, so a Debug
+      # build decodes as a shipped one does.
       - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
         compilerFlags: &dr-libs-flags
           - "-O3"
@@ -224,6 +225,8 @@ targets:
           - "-Xclang"
           - "-analyzer-disable-all-checks"
       - path: Vibe/ThirdParty/dr_flac/dr_flac.c
+        compilerFlags: *dr-libs-flags
+      - path: Vibe/ThirdParty/dr_wav/dr_wav.c
         compilerFlags: *dr-libs-flags
       - path: Vibe/Mac/App
         excludes:
@@ -418,6 +421,7 @@ targets:
           - "**/pffft_double.c"
           - "**/dr_mp3.c"
           - "**/dr_flac.c"
+          - "**/dr_wav.c"
         # Same flags as the macOS target above; see the comment there.
         compilerFlags: *third-party-flags
       - path: Vibe/ThirdParty/PINCache/PINDiskCache.m
@@ -429,6 +433,8 @@ targets:
       - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
         compilerFlags: *dr-libs-flags
       - path: Vibe/ThirdParty/dr_flac/dr_flac.c
+        compilerFlags: *dr-libs-flags
+      - path: Vibe/ThirdParty/dr_wav/dr_wav.c
         compilerFlags: *dr-libs-flags
       - path: Resources/AppIcon.icon
       - path: Resources/Assets.xcassets       # record-bg, the no-art vinyl placeholder
@@ -673,6 +679,8 @@ targets:
         compilerFlags: *dr-libs-flags
       - path: Vibe/ThirdParty/dr_flac/dr_flac.c
         compilerFlags: *dr-libs-flags
+      - path: Vibe/ThirdParty/dr_wav/dr_wav.c
+        compilerFlags: *dr-libs-flags
       - path: Vibe/Audio/Loading/AudioFileMaterializationCoordinator.m
       - path: Vibe/Audio/Loading/AudioWorkScheduler.m
       - path: Vibe/Audio/Levels/AudioLevelAnalyzer.m
@@ -820,6 +828,8 @@ targets:
       - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
         compilerFlags: *dr-libs-flags
       - path: Vibe/ThirdParty/dr_flac/dr_flac.c
+        compilerFlags: *dr-libs-flags
+      - path: Vibe/ThirdParty/dr_wav/dr_wav.c
         compilerFlags: *dr-libs-flags
       - path: Vibe/Audio/Loading/AudioFileMaterializationCoordinator.m
       - path: Vibe/Audio/Loading/AudioWorkScheduler.m

@@ -10,6 +10,7 @@ This page explains what Vibe does to your music between the file and your speake
 - **Vibe never cuts lossy files down to 16 bits.** An AAC file decodes to more detail than 16 bits can hold, and Vibe keeps it.
 - **MP3s use Vibe's own decoder, dr_mp3.** On Apple silicon, Apple's built-in MP3 decoder can only produce 16-bit sound. dr_mp3 keeps the full detail, is about 100 times more accurate on the official MP3 test, and uses less than half the CPU. On an Intel Mac, Apple's decoder keeps the full detail too, but it still chops off a loud master's peaks. See [The MP3 decoder](#the-mp3-decoder).
 - **FLAC files use dr_flac.** The sound is identical to Apple's decoder, bit for bit. But where Apple's decoder can pause for a second or two on the first seek into a long mix, dr_flac seeks in a few milliseconds. It also uses a quarter of the CPU or less, and plays some rare FLAC files Apple's can't. See [The FLAC decoder](#the-flac-decoder).
+- **WAV and AIFF files use dr_wav.** The sound is identical to Apple's decoder, bit for bit, and it decodes 1.4 to 3.2 times faster. It also seeks exactly in the one compressed AIFF format where Apple's decoder doesn't, and keeps playing past damage in the compressed WAV formats. See [The WAV and AIFF decoder](#the-wav-and-aiff-decoder).
 
 ## A few terms
 
@@ -275,6 +276,58 @@ What didn't help enough to keep: reading the file in 64 KB pieces instead of 4 K
 - **Same length, exact seeks, gapless.** A seek gives exactly the sound playing from the start does, and tracks still join seamlessly.
 - **Bit-perfect output is unchanged.** A 16 or 24-bit file reaches the device as the file's own samples, as before.
 
+## The WAV and AIFF decoder
+
+Vibe decodes WAV, BWF, RF64, Wave64 and AIFF files with **dr_wav**, not the decoder built into macOS and iOS, on the Mac and the iPhone alike. That covers every coding they commonly hold: 8 to 32-bit integer samples, 32 and 64-bit float, A-law and µ-law, and the three ADPCM kinds (IMA and Microsoft's in a WAV, Apple's IMA4 in an AIFF). On all 10,823 WAV and AIFF files of a real library of music projects and sample packs that both decoders open, dr_wav's output was identical to Apple's, bit for bit, and so was every seek. A file holding anything else, such as MP3 or FLAC inside a WAV, the compressed AIFF that Ableton Live writes, or a Microsoft ADPCM file with a coefficient table of its own, is still decoded by Apple's decoder, as before. There is no setting.
+
+### Why not Apple's decoder
+
+- **Less time decoding:** 1.4 to 3.2 times faster than Apple's decoder, on the fast cores and the efficiency cores. Playing costs almost nothing either way; it shows when a whole track is decoded at once for the waveform, beat, and key analysis.
+- **Exact seeks in IMA4.** In Apple's IMA4 (compressed AIFF), each part of the sound depends on everything before it. After a seek, Apple's decoder plays slightly different samples from the ones playing from the start gives: all 300 of 300 random seeks in a test file. dr_wav keeps notes on its way through the file and seeks to exactly the samples playing from the start gives.
+- **Damaged compressed WAVs keep playing.** At a damaged block in an IMA ADPCM file, Apple's decoder decodes the block anyway, and at one in a Microsoft ADPCM file it plays nothing of the file at all. dr_wav plays silence for the damaged block and every other block where it belongs.
+- **The end of a Microsoft ADPCM file.** Apple's decoder plays the padding that fills out the file's last block, 464 frames (about 10 ms) on a test file. dr_wav stops where the file says the sound ends.
+- **24 and 32-bit little-endian AIFF.** Apple's decoder reads every such file as 16-bit and plays it wrongly, one and a half or two times as long as the music. dr_wav plays it.
+
+A whole 10-minute stereo file decoded at once, best first, **lower is better**:
+
+| File | dr_wav, fast core | Apple, fast core | dr_wav, efficiency core | Apple, efficiency core |
+| --- | --- | --- | --- | --- |
+| 16-bit, 44.1 kHz WAV | 10 ms | 21 ms | 53 ms | 116 ms |
+| 24-bit, 96 kHz WAV | 33 ms | 68 ms | 154 ms | 371 ms |
+| 24-bit, 96 kHz AIFF | 32 ms | 101 ms | 166 ms | 506 ms |
+| 32-bit float, 96 kHz WAV | 39 ms | 54 ms | 172 ms | 282 ms |
+
+The ADPCM formats are the exception: they take about as long as Apple's decoder, and IMA4 about 60% longer, a few milliseconds for 20 seconds of sound.
+
+*How this was measured:* Vibe's own file reader with the app's Release build settings, as it is now and as it was before dr_wav, run by turns on a Mac with an M4 Max; each fast-core figure is the best of five runs, each efficiency-core figure the middle of three, since those runs vary more. The library comparison used a test program that opens files the way Vibe does, on 17,917 WAV and AIFF files from music projects, sample packs and the Ableton Live factory library. Every file both decoders open, 10,823 of them, was decoded in full by both and compared sample by sample, with 50 seeks each compared too. No iPhone was measured.
+
+### What we fixed in dr_wav
+
+dr_wav had problems of its own. Some turned up in real files from that library, some in test files made for the rarer cases, and the rest in a review with fuzzing and simulated damage. Vibe's copy fixes them, and the fixes are being offered back to its author:
+
+- **Seeks in tagged AIFF files landed late.** dr_wav counted 8 bytes of an AIFF's header as sound. In a file with anything after the sound, such as the tags Ableton Live writes, every seek landed a sample or two late (278 of the library's 749 AIFF files).
+- **Compressed AIFF-C in µ-law and A-law** played every sample wrong.
+- **8-bit files** had a slight offset under the whole track, about −48 dBFS.
+- **The length a file claims.** dr_wav trusted the length an AIFF or a compressed WAV states even when the file holds less, as a cut-off download does, and then seeked to the wrong place. It now plays what the file holds.
+- **Unfinished recordings.** A recording that was never finished leaves the length in the file at zero or at its maximum, and a WAV past 4 GB overflows it. dr_wav played nothing of those, or only part. It now plays them in full.
+- **Long seeks.** Seeks further than about an hour into a 24-bit, 96 kHz file left dr_wav's count of where it was one sample off.
+- **AIFF files dr_wav refused.** The AIFF-C types Apple's own tools write for 16, 24 and 32-bit sound, IMA4, and a few header layouts other programs write, were refused. All now play.
+- **Damaged compressed WAVs** lost the damaged block from the timeline, shifting everything after it earlier, or stopped the track.
+- **Files that made it hang or misbehave.** Fuzzing found sizes in a damaged file that made opening or seeking it take billions of steps, and arithmetic that C leaves undefined.
+
+### Tuning dr_wav
+
+- **Straight into the output.** dr_wav read a file through a 4 KB buffer, one read of the file for each, and converted each sample through double precision. It now reads the samples in one go into the memory they are converted in, and converts them with the vector instructions of Apple Silicon (and Intel's), giving exactly the same values.
+- **Reading ahead in ADPCM.** dr_wav read an ADPCM file a few bytes at a time: one read of the file for every sample of a Microsoft ADPCM file. It now reads ahead, which made those files 15 to 45 times faster to decode.
+- **Straight into each channel.** Vibe mixes a channel at a time, so decoded sound was split into channels after conversion, a second pass over every sample. dr_wav now converts stereo files straight into a buffer for each channel, which cut decoding 16 and 24-bit files by 20 to 30% on the fast cores. Reading a whole file for the waveform also asks for it in one piece instead of 4,096 frames at a time, which cut that by 15 to 20%.
+- **Seeking to the right block.** A seek backwards in an ADPCM file decoded everything from the start. It now goes straight to the block it needs.
+
+### How it fits in
+
+- **macOS still opens the file** and reads its format and channel layout, so Vibe knows every WAV and AIFF file exactly as before. dr_wav then decodes it.
+- **Same length, exact seeks, gapless**, but for the Microsoft ADPCM files above, which now end where they say.
+- **Bit-perfect output is unchanged.** A 16 or 24-bit file reaches the device as the file's own samples, as before.
+
 ## The resampler
 
 Changing the sample rate is the one job where Vibe has to change the samples, so we hold it to the strictest standard. Vibe used Apple's converter at its highest quality setting until r8brain-free-src replaced it. We measured both through Vibe's own playback engine, with the same test signals, at the eight rate changes a music library is likely to need:
@@ -400,6 +453,7 @@ These tests run automatically on every change, without any audio hardware:
 - **The resampler** must pass every measurement above at all eight rate changes. It must also continue seamlessly across gapless track changes, and match the same conversion done separately from the player, exactly.
 - **The MP3 decoder** must stay at least 50 times inside the ISO accuracy limit. It must match Apple's decoder in length and timing on every kind of MP3 and MP2, including MP3 inside WAV. It must keep a loud master's peaks, seek to the exact sample, including in 8 kbps files, decode frames with private bits set and 8 kHz mixed blocks as FFmpeg does, cap a damaged frame at +12 dB, and end cut-off files where Apple's does. And switching decoders must take effect on the very next track, even if that track was already being opened.
 - **The FLAC decoder** must decode every test file to exactly the samples it was made from, including the ones Apple's decoder refuses and 32-bit files in each stereo mode, and every seek must land on the exact sample. Files damaged the ways real files are must play as described above: a tag in front, a stale seek table, a seek table with a garbage entry, a damaged frame, a damaged frame header, a damaged first frame, bytes lost inside a frame, a damaged frame the seek table points at, a download cut short at points all across a frame, and a file that doesn't say how long it is, alone and with a megabyte of zeros after it, which must know its length, play in full, and seek. Files whose frames are split into more than 256 parts must decode exactly, and a file more than 2^32 samples long must seek forward and back across that distance.
+- **The WAV and AIFF decoder** must decode every coding a WAV or an AIFF holds exactly as Apple's decoder does, including the AIFF-C types Apple's tools write, IMA4 and both ADPCMs in a WAV, and every seek must land on the exact sample. Files damaged the ways real files are must play as described above: a chunk after the sound, a file cut short, a length larger than the file, sizes left unfinished, the format after the sound, a damaged ADPCM block, and a Microsoft ADPCM file cut off inside a block. A Microsoft ADPCM file with a coefficient table of its own must go to Apple's decoder.
 - **Lossy files** must match their own decoded audio exactly. AAC is allowed a difference of four tiny rounding steps (below −126 dBFS), because two runs of Apple's AAC decoder can differ that much. The test also checks which formats Apple's decoders can output, so we'll know if that ever changes.
 
 On macOS there is also an optional test that plays through a real output device and records it back, to prove the samples reach the hardware as rendered.

@@ -440,6 +440,18 @@ AUDIO_PY
     [ -s "$render_dir/lossless-8ch.flac" ] || afconvert -f flac -d flac "$render_dir/noise-48000-24-8.wav" "$render_dir/lossless-8ch.flac"
     [ -s "$render_dir/lossless.m4a" ] || afconvert -f m4af -d alac "$render_source" "$render_dir/lossless.m4a"
     [ -s "$render_dir/lossless.aiff" ] || afconvert -f AIFF -d BEI24 "$render_source" "$render_dir/lossless.aiff"
+    # Every coding afconvert writes into a WAV or an AIFF(-C), which dr_wav decodes as Apple does
+    # (testDrWAVDecodesAsAppleDoes): AIFF-C's twos, in24 and in32 are what Apple's tools write for 16, 24 and 32 bits.
+    for coding in UI8 ulaw alaw; do
+        [ -s "$render_dir/wav-$coding.wav" ] || afconvert -f WAVE -d "$coding" "$render_source" "$render_dir/wav-$coding.wav"
+    done
+    [ -s "$render_dir/aiff-BEI8.aif" ] || afconvert -f AIFF -d BEI8 "$render_source" "$render_dir/aiff-BEI8.aif"
+    for coding in BEI8 BEI16 BEI24 BEI32 BEF32 BEF64 UI8 ulaw alaw ima4; do
+        [ -s "$render_dir/aifc-$coding.aif" ] || afconvert -f AIFC -d "$coding" "$render_source" "$render_dir/aifc-$coding.aif"
+    done
+    [ -s "$render_dir/aifc-ima4-mono.aif" ] || afconvert -f AIFC -d ima4 -c 1 "$render_source" "$render_dir/aifc-ima4-mono.aif"
+    [ -s "$render_dir/wave64-LEI24.w64" ] || afconvert -f W64f -d LEI24 "$render_source" "$render_dir/wave64-LEI24.w64"
+    [ -s "$render_dir/rf64-LEI24.wav" ] || afconvert -f RF64 -d LEI24 "$render_source" "$render_dir/rf64-LEI24.wav"
     [ -s "$render_dir/lossy.m4a" ] || afconvert -f m4af -d aac -b 192000 "$render_source" "$render_dir/lossy.m4a"
     for ext in aif wave bwf; do
         if [ "$ext" = aif ]; then render_copy="$render_dir/lossless.aiff"; else render_copy="$render_source"; fi
@@ -465,6 +477,9 @@ AUDIO_PY
         # FFmpeg's float decode of the generated 8 kHz mixed-block stream: the reference testDrMP3DecodesMixedBlocksAt8kHzAsFFmpegDoes reads.
         [ -s "$render_dir/mixed-8k.f32" ] || ffmpeg -nostdin -loglevel error -y -c:a mp3float -i "$render_dir/mixed-8k.mp3" -f f32le "$render_dir/mixed-8k.f32"
         encode lossy.qta "$render_source" -c:a aac -f mov
+        # The WAV ADPCMs, which afconvert cannot write.
+        encode wav-ima-adpcm.wav "$render_source" -c:a adpcm_ima_wav
+        encode wav-ms-adpcm.wav "$render_source" -c:a adpcm_ms
         # Legal FLACs that Apple's codec refuses, or that dr_flac could not decode or seek before Vibe's fixes to it
         # (testDrFLACDecodesWhatTheFileHolds): every frame's first residual partition empty, block sizes of 16 and
         # 65535, 705.6 kHz, and 32-bit stereo in each side-channel mode.

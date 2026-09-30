@@ -6,13 +6,28 @@
 //  itself, so reading a fixture back through AudioFileHandle never makes the
 //  handle its own oracle; VibeWriteFixture uses the handle's writer for what a
 //  bare RIFF cannot carry — a channel layout, or a codec. VibeReferenceResample
-//  is the one reference conversion.
+//  is the one reference conversion. VibeRangedPCMFormat is a device's offered
+//  format, for the bit-perfect format rules.
 //
 
 #import <AVFoundation/AVFoundation.h>
 
 #import "AudioFileHandle.h"
 #import "AudioResampler.h"
+
+// A format a device offers at exactly `rate`: stereo PCM of `bits`, integer
+// or float.
+static inline AudioStreamRangedDescription VibeRangedPCMFormat(double rate, UInt32 bits, BOOL isFloat) {
+    AudioStreamRangedDescription r = {0};
+    r.mFormat.mSampleRate = rate;
+    r.mFormat.mFormatID = kAudioFormatLinearPCM;
+    r.mFormat.mFormatFlags = isFloat ? kAudioFormatFlagIsFloat : kAudioFormatFlagIsSignedInteger;
+    r.mFormat.mBitsPerChannel = bits;
+    r.mFormat.mChannelsPerFrame = 2;
+    r.mSampleRateRange.mMinimum = rate;
+    r.mSampleRateRange.mMaximum = rate;
+    return r;
+}
 
 // A canonical 44-byte-header WAV of `bits` per sample (16 or 24 integer, 32
 // float), interleaved `samples` as the file stores them, little-endian.
@@ -56,6 +71,15 @@ static inline NSURL *VibeWriteFixture(NSURL *url, AVAudioPCMBuffer *buffer, NSEr
         return nil;
     }
     return url;
+}
+
+// A whole file as AVAudioFile decodes it, float32 non-interleaved: Apple's own
+// decode, which shares nothing with AudioFileHandle. nil on failure.
+static inline AVAudioPCMBuffer *VibeReadWithAVAudioFile(NSURL *url, NSError **error) {
+    AVAudioFile *file = [[AVAudioFile alloc] initForReading:url error:error];
+    AVAudioPCMBuffer *whole = file ? [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat
+                                                                 frameCapacity:(AVAudioFrameCount)file.length] : nil;
+    return whole && [file readIntoBuffer:whole error:error] ? whole : nil;
 }
 
 // Appends whole interleaved frames; shares no production DSP, so a capture stays independent.
