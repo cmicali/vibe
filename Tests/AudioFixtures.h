@@ -55,6 +55,30 @@ static inline NSURL *VibeWriteWAV(NSURL *url, NSData *samples, uint32_t rate, ui
     return [wav writeToURL:url atomically:YES] ? url : nil;
 }
 
+// A little-endian (sowt) AIFF-C of integer `samples` as a WAV stores them,
+// `bits` per sample: the coding CoreAudio's parser describes as 16-bit
+// whatever COMM says.
+static inline NSURL *VibeWriteSowtAIFF(NSURL *url, NSData *samples, double rate, uint16_t channels, uint16_t bits) {
+    int exponent = ilogb(rate);
+    uint16_t rateExponent = CFSwapInt16HostToBig((uint16_t)(16383 + exponent));
+    uint64_t rateMantissa = CFSwapInt64HostToBig((uint64_t)ldexp(rate, 63 - exponent));
+    uint16_t channelsBE = CFSwapInt16HostToBig(channels), bitsBE = CFSwapInt16HostToBig(bits);
+    uint32_t frames = CFSwapInt32HostToBig((uint32_t)(samples.length / (bits / 8 * channels)));
+    NSMutableData *comm = [NSMutableData data];
+    [comm appendBytes:&channelsBE length:2]; [comm appendBytes:&frames length:4]; [comm appendBytes:&bitsBE length:2];
+    [comm appendBytes:&rateExponent length:2]; [comm appendBytes:&rateMantissa length:8];
+    [comm appendBytes:"sowt\0\0" length:6]; // the compression type and an empty name, padded
+    NSMutableData *aiff = [NSMutableData dataWithBytes:"FORM\0\0\0\0AIFCFVER\0\0\0\4\xA2\x80\x51\x40" length:24];
+    uint32_t size = CFSwapInt32HostToBig((uint32_t)comm.length);
+    [aiff appendBytes:"COMM" length:4]; [aiff appendBytes:&size length:4]; [aiff appendData:comm];
+    size = CFSwapInt32HostToBig((uint32_t)samples.length + 8);
+    [aiff appendBytes:"SSND" length:4]; [aiff appendBytes:&size length:4]; [aiff appendBytes:"\0\0\0\0\0\0\0\0" length:8];
+    [aiff appendData:samples];
+    size = CFSwapInt32HostToBig((uint32_t)aiff.length - 8);
+    [aiff replaceBytesInRange:NSMakeRange(4, 4) withBytes:&size];
+    return [aiff writeToURL:url atomically:YES] ? url : nil;
+}
+
 // Writes `buffer` as the container its name says — WAV, or AIFC for .aif —
 // in the buffer's own sample format, interleaved, with its channel layout.
 static inline NSURL *VibeWriteFixture(NSURL *url, AVAudioPCMBuffer *buffer, NSError **error) {
@@ -82,19 +106,21 @@ static inline AVAudioPCMBuffer *VibeReadWithAVAudioFile(NSURL *url, NSError **er
     return whole && [file readIntoBuffer:whole error:error] ? whole : nil;
 }
 
-// Appends whole interleaved frames; shares no production DSP, so a capture stays independent.
+// Appends whole interleaved frames in the buffer's own sample format; shares
+// no production DSP, so a capture stays independent.
 static inline void VibeAppendPCM(NSMutableData *capture, AVAudioPCMBuffer *buffer) {
-    NSUInteger channels = buffer.format.channelCount;
-    if (buffer.format.isInterleaved) {
-        [capture appendBytes:buffer.floatChannelData[0] length:buffer.frameLength * channels * sizeof(float)];
+    NSUInteger channels = buffer.format.channelCount, sample = buffer.format.streamDescription->mBitsPerChannel / 8;
+    const AudioBufferList *list = buffer.audioBufferList;
+    if (buffer.format.isInterleaved || channels == 1) {
+        [capture appendBytes:list->mBuffers[0].mData length:buffer.frameLength * channels * sample];
         return;
     }
     NSUInteger start = capture.length;
-    [capture increaseLengthBy:buffer.frameLength * channels * sizeof(float)];
-    float *out = (float *)((uint8_t *)capture.mutableBytes + start);
+    [capture increaseLengthBy:buffer.frameLength * channels * sample];
+    uint8_t *out = (uint8_t *)capture.mutableBytes + start;
     for (NSUInteger frame = 0; frame < buffer.frameLength; frame++)
         for (NSUInteger channel = 0; channel < channels; channel++)
-            out[frame * channels + channel] = buffer.floatChannelData[channel][frame];
+            memcpy(out + (frame * channels + channel) * sample, (const uint8_t *)list->mBuffers[channel].mData + frame * sample, sample);
 }
 
 typedef struct {
