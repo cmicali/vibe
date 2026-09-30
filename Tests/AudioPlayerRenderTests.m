@@ -1096,9 +1096,11 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     NSData *ima = [NSData dataWithContentsOfURL:imaURL];
     AudioFileHandle *imaClean = [self open:imaURL decoder:@"dr_wav"];
     NSData *imaReference = [self readToEnd:imaClean];
-    NSRange imaData = [self chunk:"data" of:ima bigEndian:NO], imaFmt = [self chunk:"fmt " of:ima bigEndian:NO];
-    uint16_t blockAlign = CFSwapInt16LittleToHost(*(const uint16_t *)((const uint8_t *)ima.bytes + imaFmt.location + 12));
-    NSUInteger channels = imaClean.processingFormat.channelCount, blockFrames = (blockAlign - 4 * channels) * 2 / channels + 1, damagedBlock = 3;
+    NSRange imaData = [self chunk:"data" of:ima bigEndian:NO];
+    // CoreAudio's parser serves an ADPCM block as a packet.
+    const AudioStreamBasicDescription *packet = imaClean.fileFormat.streamDescription;
+    NSUInteger blockAlign = packet->mBytesPerPacket, blockFrames = packet->mFramesPerPacket;
+    NSUInteger channels = imaClean.processingFormat.channelCount, damagedBlock = 3;
     NSMutableData *damaged = [ima mutableCopy];
     for (NSUInteger c = 0; c < channels; c++) {
         ((uint8_t *)damaged.mutableBytes)[imaData.location + damagedBlock * blockAlign + 4 * c + 2] = 0xFF; // a step index past 88
