@@ -550,7 +550,7 @@ static inline NSString *VibeAppName(void) {
 
 #define STR_ERROR_LOAD_TIMEOUT        NSLS(@"error.load_timeout",        @"Load timed out",           @"Inline playback error: opening the file took too long, e.g. an undownloaded cloud file.")
 #define STR_ERROR_OPEN_FAILED         NSLS(@"error.open_failed",         @"Could not open file",      @"Inline playback error: the audio file could not be opened.")
-#define STR_ERROR_PLAYLIST_FILES_UNAVAILABLE NSLS(@"error.playlist_files_unavailable", @"Could not open listed files", @"Inline playback error: an opened CUE sheet or M3U playlist names no audio file that can be opened (moved, renamed, deleted, or not permitted). Shown over the playlist's name. Keep it as short as 'Could not open file'.")
+#define STR_ERROR_PLAYLIST_FILES_UNAVAILABLE NSLS(@"error.playlist_files_unavailable", @"Could not open listed files", @"Status in the empty player header: an opened CUE sheet or M3U playlist names no audio file Vibe can play (moved, renamed, deleted, not permitted, or in a format Vibe does not play). Shown over the playlist's file name. Keep it as short as 'Could not open file'.")
 #define STR_ERROR_ENGINE_START_FAILED NSLS(@"error.engine_start_failed", @"Could not start playback", @"Inline playback error: the audio engine failed to start.")
 #define STR_ERROR_DEVICE_UNAVAILABLE  NSLS(@"error.device_unavailable",  @"Audio device unavailable", @"Inline playback error: no usable audio output device.")
 #define STR_ERROR_DEVICE_IN_USE       NSLS(@"error.device_in_use",       @"Audio device in use by another app", @"Inline playback error: another app has taken exclusive use of the audio output device, so playback paused.")

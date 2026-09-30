@@ -550,18 +550,13 @@ static const long long kVibeEmbeddedCueMinimumBytes = 100LL * 1024 * 1024;
     NSUInteger expandedCount = rows.count;
     NSSet<NSString*> *supported = [NSURLUtil supportedExtensions];
     // Nothing can play an empty file. Second, so only extension matches pay
-    // the stat, once per file however many rows it has. An opened playlist's
-    // own row passes: it only ever stands for one listing nothing readable
-    // (expandPlaylistFile:), and a playlist an entry names is still dropped.
-    NSSet<NSURL*> *opened = [NSSet setWithArray:list];
+    // the stat, once per file however many rows it has.
     NSMutableDictionary<NSURL*, NSNumber*> *playable = [NSMutableDictionary dictionary];
     rows = [rows filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(AudioTrack *row, NSDictionary* bindings) {
         NSNumber *verdict = playable[row.url];
         if (verdict == nil) {
-            NSString *extension = row.url.pathExtension.lowercaseString;
-            verdict = @([PlaylistFile isPlaylistExtension:extension]
-                        ? [opened containsObject:row.url]
-                        : [supported containsObject:extension] && !row.url.isEmptyOrDirectory);
+            verdict = @([supported containsObject:row.url.pathExtension.lowercaseString]
+                        && !row.url.isEmptyOrDirectory);
             playable[row.url] = verdict;
         }
         return verdict.boolValue;
@@ -697,10 +692,7 @@ static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
     }
     LogInfo(@"Playlist file %@ expanded to %lu of %lu entries", playlistURL.lastPathComponent,
             (unsigned long)readable.count, (unsigned long)resolved.count);
-    // Nothing readable: the playlist lands as its own row, which fails to open
-    // like any file that cannot be, so the user is told on the header
-    // (VibeStatusForPlayError) rather than the open vanishing.
-    return readable.count > 0 ? readable : @[[AudioTrack withURL:playlistURL]];
+    return readable;
 }
 
 @end

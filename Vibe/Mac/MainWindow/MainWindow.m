@@ -225,7 +225,7 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     // Synchronously: the session is gone by the time the expansion lands.
     BOOL append = [self.dropDelegate mainWindow:self dropAppendsAtLocation:sender.draggingLocation];
     // The whole open funnel, or a drop skips a tail step such as
-    // revealEmptyState.
+    // revealEmptyStateForUnplayablePlaylist:.
     [(AppDelegate *)NSApp.delegate openDroppedURLs:urls appending:append];
     return YES;
 }

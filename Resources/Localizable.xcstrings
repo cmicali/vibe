@@ -5024,7 +5024,7 @@
       "extractionState": "manual"
     },
     "error.playlist_files_unavailable": {
-      "comment": "Inline playback error: an opened CUE sheet or M3U playlist names no audio file that can be opened (moved, renamed, deleted, or not permitted). Shown over the playlist's name. Keep it as short as 'Could not open file'.",
+      "comment": "Status in the empty player header: an opened CUE sheet or M3U playlist names no audio file Vibe can play (moved, renamed, deleted, not permitted, or in a format Vibe does not play). Shown over the playlist's file name. Keep it as short as 'Could not open file'.",
       "localizations": {
         "bg": {
           "stringUnit": {

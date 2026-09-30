@@ -17,6 +17,7 @@
 #import "OpenBurstCoalescer.h"
 #import "OpenRequestCoordinator.h"
 #import "OpenRecentMenuController.h"
+#import "PlaylistFile.h"
 #import "NSBundle+BuildInfo.h"
 #import "AppStats.h"
 #import "VibeProductURLs.h"
@@ -130,7 +131,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
         [self->_openBurstCoalescer finishLaunchRestoring:^BOOL{
             return [self.mainPlayerController restoreLastPlaylist];
         } revealEmpty:^{
-            [self.mainPlayerController revealEmptyState];
+            [self.mainPlayerController revealEmptyStateForUnplayablePlaylist:nil];
         }];
     }];
 }
@@ -190,7 +191,8 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     OpenRequestToken *token = [OpenRequestCoordinator.sharedCoordinator
             beginRequestAppending:append
                          delivery:^(NSArray<AudioTrack *> *rows, NSUInteger folders, BOOL appending) {
-                             [weakSelf deliverExpandedRows:rows folderCount:folders appending:appending];
+                             [weakSelf deliverExpandedRows:rows folderCount:folders appending:appending
+                                                  fromURLs:urls];
                          }];
     [[FolderAccessManager sharedInstance] awaitRestoredAccessForURLs:urls completion:^{
         [weakSelf openURLsWithRestoredAccess:urls token:token];
@@ -215,12 +217,22 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 
 - (void)deliverExpandedRows:(NSArray<AudioTrack *> *)rows
                 folderCount:(NSUInteger)folderCount
-                  appending:(BOOL)append {
+                  appending:(BOOL)append
+                   fromURLs:(NSArray<NSURL *> *)urls {
     [[AppStats sharedInstance] recordOpenedFiles:rows.count folders:folderCount];
     // Nothing playable must not wipe the playlist.
     if (rows.count == 0) {
-        // Ends the launch grace, or the header would stay blank.
-        [self.mainPlayerController revealEmptyState];
+        // Nothing played, so a playlist among the opened listed nothing it
+        // could: the empty header names it. Ends the launch grace too, or the
+        // header would stay blank.
+        NSURL *playlist = nil;
+        for (NSURL *url in urls) {
+            if ([PlaylistFile isPlaylistExtension:url.pathExtension.lowercaseString]) {
+                playlist = url;
+                break;
+            }
+        }
+        [self.mainPlayerController revealEmptyStateForUnplayablePlaylist:playlist];
         return;
     }
     if (append) {
