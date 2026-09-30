@@ -61,6 +61,10 @@ static inline NSURL *VibeWriteFixture(NSURL *url, AVAudioPCMBuffer *buffer, NSEr
 // Appends whole interleaved frames; shares no production DSP, so a capture stays independent.
 static inline void VibeAppendPCM(NSMutableData *capture, AVAudioPCMBuffer *buffer) {
     NSUInteger channels = buffer.format.channelCount;
+    if (buffer.format.isInterleaved) {
+        [capture appendBytes:buffer.floatChannelData[0] length:buffer.frameLength * channels * sizeof(float)];
+        return;
+    }
     NSUInteger start = capture.length;
     [capture increaseLengthBy:buffer.frameLength * channels * sizeof(float)];
     float *out = (float *)((uint8_t *)capture.mutableBytes + start);

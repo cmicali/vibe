@@ -357,31 +357,32 @@ AUDIO_PY
     [ -s "$render_dir/alias.mp4" ] || cp "$render_dir/lossy.m4a" "$render_dir/alias.mp4"
     [ -s "$render_dir/lossy.aac" ] || afconvert -f adts -d aac -b 192000 "$render_source" "$render_dir/lossy.aac"
     if command -v ffmpeg >/dev/null; then
-        [ -s "$render_dir/cbr.mp3" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -c:a libmp3lame -b:a 192k "$render_dir/cbr.mp3"
-        [ -s "$render_dir/vbr.mp3" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -c:a libmp3lame -q:a 2 "$render_dir/vbr.mp3"
-        [ -s "$render_dir/lossy.mp2" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -c:a mp2 -b:a 192k "$render_dir/lossy.mp2"
+        # encode <name> <source> <ffmpeg output options...>: made once, into the render directory.
+        encode() { local name="$1" source="$2"; shift 2; [ -s "$render_dir/$name" ] || ffmpeg -nostdin -loglevel error -y -i "$source" "$@" "$render_dir/$name"; }
+        encode cbr.mp3 "$render_source" -c:a libmp3lame -b:a 192k
+        encode vbr.mp3 "$render_source" -c:a libmp3lame -q:a 2
+        encode lossy.mp2 "$render_source" -c:a mp2 -b:a 192k
         # MPEG in a WAV: fixed-size packets with no descriptions. CoreAudio opens one only when every frame is one size, which 48 kHz CBR is.
-        [ -s "$render_dir/mp3-in.wav" ] || ffmpeg -nostdin -loglevel error -y -i "$render_dir/cbr.mp3" -c:a copy -f wav "$render_dir/mp3-in.wav"
-        [ -s "$render_dir/mp2-in.wav" ] || ffmpeg -nostdin -loglevel error -y -i "$render_dir/lossy.mp2" -c:a copy -f wav "$render_dir/mp2-in.wav"
+        encode mp3-in.wav "$render_dir/cbr.mp3" -c:a copy -f wav
+        encode mp2-in.wav "$render_dir/lossy.mp2" -c:a copy -f wav
         # A master limited to full scale, whose decode overshoots it: the overs a float decode keeps and Apple's clips.
-        [ -s "$render_dir/hot.mp3" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -af volume=12dB,alimiter=limit=1:level=false -c:a libmp3lame -b:a 320k "$render_dir/hot.mp3"
+        encode hot.mp3 "$render_source" -af volume=12dB,alimiter=limit=1:level=false -c:a libmp3lame -b:a 320k
         # Mono Layer III, whose private bits are five where stereo's are three.
-        [ -s "$render_dir/mono.mp3" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -ac 1 -c:a libmp3lame -b:a 128k "$render_dir/mono.mp3"
+        encode mono.mp3 "$render_source" -ac 1 -c:a libmp3lame -b:a 128k
         # MPEG-2 at 8 kbps: frames of a few bytes of payload, whose reservoir reaches back past MPEG-1's seek preroll.
-        [ -s "$render_dir/lsf-8k.mp3" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -ar 24000 -c:a libmp3lame -b:a 8k "$render_dir/lsf-8k.mp3"
+        encode lsf-8k.mp3 "$render_source" -ar 24000 -c:a libmp3lame -b:a 8k
         # FFmpeg's float decode of the generated 8 kHz mixed-block stream: the reference testDrMP3DecodesMixedBlocksAt8kHzAsFFmpegDoes reads.
         [ -s "$render_dir/mixed-8k.f32" ] || ffmpeg -nostdin -loglevel error -y -c:a mp3float -i "$render_dir/mixed-8k.mp3" -f f32le "$render_dir/mixed-8k.f32"
-        [ -s "$render_dir/lossy.qta" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -c:a aac -f mov "$render_dir/lossy.qta"
+        encode lossy.qta "$render_source" -c:a aac -f mov
         # Legal FLACs that Apple's codec refuses, or that dr_flac could not decode or seek before Vibe's fixes to it
         # (testDrFLACDecodesWhatTheFileHolds): every frame's first residual partition empty, block sizes of 16 and
         # 65535, 705.6 kHz, and 32-bit stereo in each side-channel mode.
-        render_flac() { local name="$1" source="$2"; shift 2; [ -s "$render_dir/$name" ] || ffmpeg -nostdin -loglevel error -y -i "$source" -c:a flac "$@" "$render_dir/$name"; }
-        render_flac flac-zero-residual.flac "$render_source" -frame_size 4096 -lpc_type levinson -min_partition_order 8 -max_partition_order 8 -min_prediction_order 16 -max_prediction_order 16
-        render_flac flac-block16.flac "$render_source" -frame_size 16
-        render_flac flac-block65535.flac "$render_source" -frame_size 65535
-        render_flac flac-705600.flac "$render_dir/noise-705600-24-2.wav" -frame_size 4096  # its default block size there is an illegal 65536
+        encode flac-zero-residual.flac "$render_source" -c:a flac -frame_size 4096 -lpc_type levinson -min_partition_order 8 -max_partition_order 8 -min_prediction_order 16 -max_prediction_order 16
+        encode flac-block16.flac "$render_source" -c:a flac -frame_size 16
+        encode flac-block65535.flac "$render_source" -c:a flac -frame_size 65535
+        encode flac-705600.flac "$render_dir/noise-705600-24-2.wav" -c:a flac -frame_size 4096  # its default block size there is an illegal 65536
         for mode in mid_side left_side right_side; do
-            render_flac "flac-32-$mode.flac" "$render_dir/integer32-low-bits.wav" -sample_fmt s32 -bits_per_raw_sample 32 -strict experimental -ch_mode "$mode"
+            encode "flac-32-$mode.flac" "$render_dir/integer32-low-bits.wav" -c:a flac -sample_fmt s32 -bits_per_raw_sample 32 -strict experimental -ch_mode "$mode"
         done
     fi
     # The ISO/IEC 11172-4 Layer III compliance stream and its reference decode

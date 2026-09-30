@@ -267,7 +267,7 @@ What didn't help enough to keep: reading the file in 64 KB pieces instead of 4 K
 
 ### How it fits in
 
-- **macOS still opens the file** and reads its format, length, and channel layout, so Vibe knows every FLAC file exactly as before. dr_flac then decodes it.
+- **macOS still opens the file** and reads its format and channel layout, so Vibe knows every FLAC file exactly as before. dr_flac then decodes it.
 - **Same length, exact seeks, gapless.** A seek gives exactly the sound playing from the start does, and tracks still join seamlessly.
 - **Bit-perfect output is unchanged.** A 16 or 24-bit file reaches the device as the file's own samples, as before.
 
