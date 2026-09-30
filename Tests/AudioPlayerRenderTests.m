@@ -1041,7 +1041,9 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // A file cut short plays what it holds, and a COMM count past it or a data
 // size of 0xFFFFFFFF, as a recording never finalized leaves it, is capped at
 // it. A fmt chunk after the data is found. A damaged ADPCM block is silence in
-// its place, every other frame where it was.
+// its place, every other frame where it was. An MS ADPCM file cut inside a
+// block keeps what it holds of it, and one whose coefficient table is not the
+// standard seven, the only one dr_wav has, is Apple's.
 - (void)testDrWAVSurvivesWhatDamagesFiles {
     self.continueAfterFailure = YES;
     NSData *aiff = [NSData dataWithContentsOfURL:[self fixture:@"lossless.aiff"]];
@@ -1112,6 +1114,35 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     memset((uint8_t *)expected.mutableBytes + damagedBlock * blockFrames * channels * sizeof(float), 0, blockFrames * channels * sizeof(float));
     XCTAssertEqualObjects(decoded, expected, @"a damaged ADPCM block: silence in its place, every other frame where it was");
     [self assertSeeksOf:file match:decoded block:blockFrames name:@"a damaged ADPCM block"];
+
+    NSURL *msURL = [self optionalFixture:@"wav-ms-adpcm.wav"];
+    NSData *ms = [NSData dataWithContentsOfURL:msURL];
+    AudioFileHandle *msClean = [self open:msURL decoder:@"dr_wav"];
+    NSData *msReference = [self readToEnd:msClean];
+    NSRange msData = [self chunk:"data" of:ms bigEndian:NO], msFmt = [self chunk:"fmt " of:ms bigEndian:NO];
+    NSUInteger msChannels = msClean.processingFormat.channelCount, msFrameBytes = msChannels * sizeof(float), header = 7 * msChannels;
+    NSUInteger msBlockAlign = msClean.fileFormat.streamDescription->mBytesPerPacket, msBlockFrames = msClean.fileFormat.streamDescription->mFramesPerPacket;
+    // A block's header holds two frames once all of it is there, and each byte after it two samples.
+    for (NSNumber *into in @[@1, @(header), @(header + 6 * msChannels)]) {
+        NSUInteger bytes = into.unsignedIntegerValue, held = msBlockFrames + (bytes < header ? 0 : 2 + (bytes - header) * 2 / msChannels);
+        NSString *name = [NSString stringWithFormat:@"MS ADPCM cut %lu bytes into its second block", (unsigned long)bytes];
+        file = open([ms subdataWithRange:NSMakeRange(0, msData.location + msBlockAlign + bytes)], [NSString stringWithFormat:@"ms-cut-%lu.wav", (unsigned long)bytes]);
+        XCTAssertEqual(file.length, (AVAudioFramePosition)held, @"%@", name);
+        XCTAssertEqualObjects([self readToEnd:file], [msReference subdataWithRange:NSMakeRange(0, held * msFrameBytes)], @"%@", name);
+    }
+    // An eighth coefficient pair, which the first block's predictors name.
+    NSMutableData *eighth = [[ms subdataWithRange:NSMakeRange(0, msFmt.location + msFmt.length)] mutableCopy];
+    static const uint8_t pair[] = {0x00, 0x01, 0x00, 0x00};
+    [eighth appendBytes:pair length:sizeof(pair)];
+    [eighth appendData:[ms subdataWithRange:NSMakeRange(msFmt.location + msFmt.length, ms.length - msFmt.location - msFmt.length)]];
+    uint8_t *e = eighth.mutableBytes;
+    e[msFmt.location - 4] += sizeof(pair); // the chunk's size
+    e[msFmt.location + 16] += sizeof(pair); // cbSize
+    e[msFmt.location + 20] = 8; // wNumCoef
+    memset(e + msData.location + sizeof(pair), 7, msChannels);
+    [self setContainerSizeOf:eighth bigEndian:NO];
+    NSURL *eighthURL = [self writeBytes:eighth name:@"ms-eighth-coefficient.wav"];
+    XCTAssertEqualObjects([self readToEnd:[self open:eighthURL decoder:@"apple"]], [self appleDecodeOf:eighthURL], @"an eighth coefficient pair");
 }
 - (void)testQuickTimeAudio { [self checkLossy:@"lossy.qta" tolerance:kVibeAACDecodeTolerance]; }
 - (void)testFloatLimitsAndSilence {
