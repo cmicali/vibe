@@ -519,7 +519,22 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         [self closeStreamDecoder];
         return NO;
     }
-    return [self adoptStreamDecoderWithChannels:_wav->channels rate:_wav->sampleRate length:_wav->totalPCMFrameCount];
+    if (![self adoptStreamDecoderWithChannels:_wav->channels rate:_wav->sampleRate length:_wav->totalPCMFrameCount]) {
+        return NO;
+    }
+    // TRAP: CoreAudio's parser describes a sowt AIFF-C as 16-bit whatever its
+    // COMM says, so a 24 or 32-bit one would report 16 as its depth and have
+    // bit-perfect output choose 16 bits. The file's description takes the
+    // width dr_wav decodes wherever the two disagree on a sample's size.
+    const AudioStreamBasicDescription *parsed = _fileFormat.streamDescription;
+    if ((tag == DR_WAVE_FORMAT_PCM || tag == DR_WAVE_FORMAT_IEEE_FLOAT) && parsed->mFormatID == kAudioFormatLinearPCM
+            && parsed->mBytesPerFrame != _wav->bitsPerSample / 8 * _wav->channels) {
+        AudioStreamBasicDescription described = *parsed;
+        described.mBitsPerChannel = _wav->bitsPerSample;
+        described.mBytesPerFrame = described.mBytesPerPacket = _wav->bitsPerSample / 8 * _wav->channels;
+        _fileFormat = [[AVAudioFormat alloc] initWithStreamDescription:&described channelLayout:_fileFormat.channelLayout];
+    }
+    return YES;
 }
 
 // Keeps the dr_flac or dr_wav decode just opened when it reads the file as
