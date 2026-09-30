@@ -309,7 +309,7 @@ targets:
           - CFBundleTypeName: "Audio Files"
             CFBundleTypeRole: "Viewer"
             LSHandlerRank: "Default"
-            LSItemContentTypes:
+            LSItemContentTypes: &audio-content-types
               - "public.mp2"
               - "public.mp3"
               - "public.aac-audio"
@@ -517,20 +517,7 @@ targets:
           - CFBundleTypeName: "Audio Files"
             CFBundleTypeRole: "Viewer"
             LSHandlerRank: "Default"
-            LSItemContentTypes:
-              - "public.mp2"
-              - "public.mp3"
-              - "public.aac-audio"
-              - "public.aiff-audio"
-              - "com.microsoft.waveform-audio"
-              - "com.sony.wave64"
-              - "org.xiph.flac"
-              - "com.apple.coreaudio-format"
-              - "com.apple.m4a-audio"
-              - "public.mpeg-4-audio"
-              - "com.apple.quicktime-audio"
-              - "com.apple.protected-mpeg-4-audio-b"
-              - "org.xiph.ogg-audio"
+            LSItemContentTypes: *audio-content-types
         UTImportedTypeDeclarations: *ogg-audio-import
     settings:
       groups: [vibe-version, vibe-header-paths]

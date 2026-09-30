@@ -525,20 +525,21 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 }
 - (void)testAACContainer { [self checkLossy:@"lossy.m4a" tolerance:kVibeAACDecodeTolerance]; }
 - (void)testAACElementary { [self checkLossy:@"lossy.aac" tolerance:kVibeAACDecodeTolerance]; }
-- (void)testMP4 { [self checkLossy:@"alias.mp4" tolerance:kVibeAACDecodeTolerance]; }
-- (void)testAudiobook { [self checkLossy:@"alias.m4b" tolerance:kVibeAACDecodeTolerance]; }
-- (void)testRingtone { [self checkLossy:@"alias.m4r" tolerance:kVibeAACDecodeTolerance]; }
-- (void)testADTSSpelling { [self checkLossy:@"alias.adts" tolerance:kVibeAACDecodeTolerance]; }
-- (void)testOggVorbis { [self checkLossy:@"lossy.ogg" tolerance:0]; }
-- (void)testOggVorbisSpelledOga { [self checkLossy:@"alias.oga" tolerance:0]; }
+- (void)testAACExtensionAliases {
+    for (NSString *name in @[@"alias.mp4",@"alias.m4b",@"alias.m4r",@"alias.adts"]) {
+        [self checkLossy:name tolerance:kVibeAACDecodeTolerance];
+    }
+}
+- (void)testOggVorbis {
+    for (NSString *name in @[@"lossy.ogg",@"alias.oga"]) {
+        [self checkLossy:name tolerance:0];
+    }
+}
 - (void)testOpus { [self checkLossy:@"lossy.opus" tolerance:0]; }
-// CoreAudio opens FLAC in Ogg, reports no length and decodes only its first
-// page, so the handle refuses it rather than play a second and call it whole.
 // The second half is the canary: once CoreAudio reports the length, re-check
 // its decode and lift the refusal (AudioFileHandle.m).
 - (void)testFLACInOggIsRefused {
-    NSURL *url=[self fixture:@"ogg-flac.oga"];
-    XCTSkipUnless([NSFileManager.defaultManager fileExistsAtPath:url.path],@"Optional encoder fixture ogg-flac.oga unavailable; install ffmpeg and regenerate");
+    NSURL *url=[self optionalFixture:@"ogg-flac.oga"];
     NSError *error=nil;
     XCTAssertNil([[AudioFileHandle alloc] initForReading:url error:&error]);
     XCTAssertEqual(error.code,kAudioFileUnsupportedDataFormatError,@"%@",error);
@@ -3540,8 +3541,7 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 - (void)testAudioPathNamesTheOggCodecs {
     NSDictionary<NSString *, NSString *> *expected = @{@"lossy.ogg": @"Vorbis", @"lossy.opus": @"Opus"};
     for (NSString *name in expected) {
-        NSURL *url = [self fixture:name];
-        XCTSkipUnless([NSFileManager.defaultManager fileExistsAtPath:url.path], @"Optional encoder fixture %@ unavailable; install ffmpeg and regenerate", name);
+        NSURL *url = [self optionalFixture:name];
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
         [self play:url paused:NO position:0];
         [self render:4800];

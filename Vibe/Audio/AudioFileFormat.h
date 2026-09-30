@@ -6,6 +6,7 @@
 //
 
 #import <Foundation/Foundation.h>
+#import <CoreAudioTypes/CoreAudioTypes.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -23,5 +24,9 @@ FOUNDATION_EXPORT VibeAudioFileFormat const VibeAudioFileFormatW64;
 FOUNDATION_EXPORT VibeAudioFileFormat const VibeAudioFileFormatCAF;
 FOUNDATION_EXPORT VibeAudioFileFormat const VibeAudioFileFormatVorbis;
 FOUNDATION_EXPORT VibeAudioFileFormat const VibeAudioFileFormatOpus;
+
+// The codec's name, or nil for one without a constant here (PCM among them:
+// its name is its container's).
+FOUNDATION_EXPORT VibeAudioFileFormat _Nullable VibeAudioFileFormatForCodec(AudioFormatID codec);
 
 NS_ASSUME_NONNULL_END
