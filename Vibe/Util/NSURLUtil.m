@@ -496,7 +496,7 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
     NSMutableDictionary<NSURL*, NSNumber*> *playable = [NSMutableDictionary dictionary];
     rows = [rows filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(AudioTrack *row, NSDictionary* bindings) {
         NSNumber *verdict = playable[row.url];
-        if (!verdict) {
+        if (verdict == nil) {
             verdict = @([supported containsObject:[row.url.pathExtension lowercaseString]] && !row.url.isEmptyOrDirectory);
             playable[row.url] = verdict;
         }
@@ -609,7 +609,7 @@ static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
     BOOL anyDenied = NO;
     for (AudioTrack *row in resolved) {
         NSURL *url = row.url;
-        if (scannedAccessByPath[url.path]) {
+        if (scannedAccessByPath[url.path] != nil) {
             continue;
         }
         VibeReadAccess access = ReadAccessForURL(url);
