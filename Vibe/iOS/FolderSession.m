@@ -6,6 +6,7 @@
 #import "FolderSession.h"
 #import "AppSettings.h"
 #import "AppStats.h"
+#import "AudioTrack.h"
 #import "DocumentTypes.h"
 #import "FavoritesStore.h"
 #import "FileSearchRules.h"
@@ -153,7 +154,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         if (!url) {
             return;
         }
-        [self finishOpenIntent:[self beginOpenIntent] appending:NO tracks:@[url]
+        [self finishOpenIntent:[self beginOpenIntent] appending:NO tracks:@[[AudioTrack withURL:url]]
                      folderURL:nil addedFolders:@[] selectedURL:nil restored:NO
                    ownedScopes:@[] ownedGrants:@[] baseBookmark:nil additionBookmarks:@[]];
         return;
@@ -310,13 +311,13 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     return urls;
 }
 
-- (NSString *)persistedTrackPath {
+- (NSString *)persistedTrackKey {
     return [NSUserDefaults.standardUserDefaults stringForKey:kLastTrackPathKey];
 }
 
-- (void)setPersistedTrackPath:(NSString *)path {
-    if (path) {
-        [NSUserDefaults.standardUserDefaults setObject:path forKey:kLastTrackPathKey];
+- (void)setPersistedTrackKey:(NSString *)key {
+    if (key) {
+        [NSUserDefaults.standardUserDefaults setObject:key forKey:kLastTrackPathKey];
     }
     else {
         [NSUserDefaults.standardUserDefaults removeObjectForKey:kLastTrackPathKey];
@@ -498,16 +499,18 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     });
 }
 
-// Answers how many it took, so a caller can tell "contributed nothing".
-- (NSUInteger)appendFresh:(NSArray<NSURL *> *)urls
-                       to:(NSMutableArray<NSURL *> *)tracks
-                     seen:(NSMutableSet<NSString *> *)seenPaths {
+// Answers how many it took, so a caller can tell "contributed nothing". Keyed
+// by what sounds: rows of one file are distinct, a file twice is not.
+- (NSUInteger)appendFresh:(NSArray<AudioTrack *> *)rows
+                       to:(NSMutableArray<AudioTrack *> *)tracks
+                     seen:(NSMutableSet<NSString *> *)seenKeys {
     NSUInteger taken = 0;
-    for (NSURL *url in urls) {
-        NSString *path = url.URLByStandardizingPath.path;
-        if (path && ![seenPaths containsObject:path]) {
-            [seenPaths addObject:path];
-            [tracks addObject:url];
+    for (AudioTrack *row in rows) {
+        NSString *path = row.url.URLByStandardizingPath.path;
+        NSString *key = path ? [row keyByAppendingWindowTo:path] : nil;
+        if (key && ![seenKeys containsObject:key]) {
+            [seenKeys addObject:key];
+            [tracks addObject:row];
             taken++;
         }
     }
@@ -529,11 +532,11 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         }
         return;
     }
-    NSMutableArray<NSURL *> *tracks = [NSMutableArray array];
-    // One delivery names each file once. A restore's list can overlap and is
+    NSMutableArray<AudioTrack *> *tracks = [NSMutableArray array];
+    // One delivery names each row once. A restore's list can overlap and is
     // delivered as a REPLACE, which does not dedupe: without this, every
     // relaunch grows a copy of each re-added folder.
-    NSMutableSet<NSString *> *seenPaths = [NSMutableSet set];
+    NSMutableSet<NSString *> *seenKeys = [NSMutableSet set];
     NSMutableArray<NSURL *> *ownedScopes = [NSMutableArray array];
     NSMutableArray<NSURL *> *addedFolders = [NSMutableArray array];
     // The URLs that produced tracks, in pick order. Bookmarks are minted from
@@ -585,9 +588,9 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
                 }
             }
             if (listable) {
-                if ([self appendFresh:[NSURLUtil audioFilesInDirectory:parent sortedBy:sort]
+                if ([self appendFresh:[NSURLUtil rowsInDirectory:parent sortedBy:sort]
                                    to:tracks
-                                 seen:seenPaths] > 0) {
+                                 seen:seenKeys] > 0) {
                     if (started) {
                         [url stopAccessingSecurityScopedResource];   // the root covers it
                     }
@@ -607,9 +610,9 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 
         // A URL that added nothing is not persisted: that prunes a redundant
         // addition.
-        NSArray<NSURL *> *produced = isDir ? [NSURLUtil audioFilesInDirectory:url sortedBy:sort]
-                                           : @[url];
-        if ([self appendFresh:produced to:tracks seen:seenPaths] == 0) {
+        NSArray<AudioTrack *> *produced = isDir ? [NSURLUtil rowsInDirectory:url sortedBy:sort]
+                                                : @[[AudioTrack withURL:url]];
+        if ([self appendFresh:produced to:tracks seen:seenKeys] == 0) {
             if (started) {
                 [url stopAccessingSecurityScopedResource];
             }
@@ -715,7 +718,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 // ends here, an empty one included; a stale one only releases its scopes.
 - (void)finishOpenIntent:(uint64_t)openIntentGeneration
                appending:(BOOL)appending
-                  tracks:(NSArray<NSURL *> *)tracks
+                  tracks:(NSArray<AudioTrack *> *)tracks
                folderURL:(NSURL *)folderURL
             addedFolders:(NSArray<NSURL *> *)addedFolders
              selectedURL:(NSURL *)selectedURL

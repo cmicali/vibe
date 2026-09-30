@@ -92,9 +92,6 @@ NS_ASSUME_NONNULL_BEGIN
 // Appends without touching currentIndex; an empty tracks is a no-op.
 - (void)appendTracks:(NSArray<AudioTrack *> *)tracks;
 
-// The same, a plain row minted per URL.
-- (void)replaceAllWithURLs:(NSArray<NSURL *> *)urls;
-- (void)appendURLs:(NSArray<NSURL *> *)urls;
 
 - (void)clear;
 

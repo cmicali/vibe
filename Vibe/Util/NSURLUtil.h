@@ -56,9 +56,10 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 // Common/PlayableExtensions' set.
 + (NSSet<NSString *> *)supportedExtensions;
 
-// The folder's non-empty audio files, non-recursive, hidden entries skipped.
+// The folder's non-empty audio files as rows, non-recursive, hidden entries
+// skipped; a CUE sheet among them stands in for its files, as in a walk.
 // Synchronous. sort is a parameter because this layer may not read a setting.
-+ (NSArray<NSURL *> *)audioFilesInDirectory:(NSURL *)dir sortedBy:(VibeFolderOpenSort)sort;
++ (NSArray<AudioTrack *> *)rowsInDirectory:(NSURL *)dir sortedBy:(VibeFolderOpenSort)sort;
 @end
 
 NS_ASSUME_NONNULL_END

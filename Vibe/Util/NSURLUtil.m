@@ -424,7 +424,7 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
     return rows;
 }
 
-+ (NSArray<NSURL*>*) audioFilesInDirectory:(NSURL*)dir sortedBy:(VibeFolderOpenSort)sort {
++ (NSArray<AudioTrack*>*) rowsInDirectory:(NSURL*)dir sortedBy:(VibeFolderOpenSort)sort {
     // Skipping hidden files drops AppleDouble sidecars, as in expandDirectory.
     NSError *error = nil;
     NSArray<NSURL*> *contents = [[NSFileManager defaultManager]
@@ -440,7 +440,8 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
     NSSet<NSString*> *supported = [self supportedExtensions];
     NSMutableArray<NSURL*> *results = [[NSMutableArray alloc] init];
     for (NSURL *url in contents) {
-        if (![supported containsObject:[url.pathExtension lowercaseString]]) {
+        NSString *extension = url.pathExtension.lowercaseString;
+        if (![supported containsObject:extension] && ![extension isEqualToString:@"cue"]) {
             continue;
         }
         if (!url.isEmptyOrDirectory) {
@@ -448,7 +449,7 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
         }
     }
     VibeSortAudioURLs(results, sort, NO);
-    return results;
+    return [self rowsForWalk:results];
 }
 
 // Concurrent, so one dead mount cannot hold every later open; bounded, so a

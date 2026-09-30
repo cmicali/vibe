@@ -704,11 +704,11 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 #pragma mark - FolderSessionDelegate
 
 - (void)folderSession:(FolderSession *)session
-        didOpenTracks:(NSArray<NSURL *> *)urls
+        didOpenTracks:(NSArray<AudioTrack *> *)rows
             folderURL:(NSURL *)folderURL
           selectedURL:(NSURL *)selectedURL
              restored:(BOOL)restored {
-    [_playlist replaceAllWithURLs:urls];
+    [_playlist replaceAllWithTracks:rows];
     [_metadataCache cancelScan];
     [self scheduleDeferredMetadataLoad];
 
@@ -725,22 +725,24 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     }
 
     if (restored) {
-        NSString *remembered = session.persistedTrackPath;
+        NSString *remembered = session.persistedTrackKey;
         if (!selectedURL && remembered) {
             // TRAP: the path alone is not enough — a provider can hand the file
             // back under a different path, and the simulator's container UUID
             // rotates on reinstall — so the filename is the fallback tier. An
             // exact hit anywhere outranks it, since the playlist spans folders.
+            // A cue row's window rides on both, so the row comes back, not the
+            // file's first.
             NSString *rememberedName = remembered.lastPathComponent;
             NSArray<AudioTrack *> *tracks = _playlist.tracks;
             NSUInteger match = NSNotFound;
             for (NSUInteger i = 0; i < tracks.count; i++) {
-                NSString *path = tracks[i].url.URLByStandardizingPath.path;
-                if ([path isEqualToString:remembered]) {
+                NSString *key = [tracks[i] keyByAppendingWindowTo:tracks[i].url.URLByStandardizingPath.path ?: @""];
+                if ([key isEqualToString:remembered]) {
                     match = i;
                     break;
                 }
-                if (match == NSNotFound && [path.lastPathComponent isEqualToString:rememberedName]) {
+                if (match == NSNotFound && [key.lastPathComponent isEqualToString:rememberedName]) {
                     match = i;
                 }
             }
@@ -766,25 +768,26 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 }
 
 // iOS has no remove UI, so a double Add would be permanent. Deduped by
-// standardized path: a picker URL and a listing URL of one file need not be
-// isEqual:. The model allows duplicates for the mac.
-- (void)folderSession:(FolderSession *)session didAppendTracks:(NSArray<NSURL *> *)urls {
+// standardized path plus a cue row's window: a picker URL and a listing URL of
+// one file need not be isEqual:, and rows of one file are distinct. The model
+// allows duplicates for the mac.
+- (void)folderSession:(FolderSession *)session didAppendTracks:(NSArray<AudioTrack *> *)rows {
     NSMutableSet<NSString *> *present = [NSMutableSet set];
     for (AudioTrack *track in _playlist.tracks) {
-        [present addObject:track.url.URLByStandardizingPath.path];
+        [present addObject:[track keyByAppendingWindowTo:track.url.URLByStandardizingPath.path ?: @""]];
     }
-    NSMutableArray<NSURL *> *fresh = [NSMutableArray array];
-    for (NSURL *url in urls) {
-        NSString *path = url.URLByStandardizingPath.path;
-        if (![present containsObject:path]) {
-            [present addObject:path];
-            [fresh addObject:url];
+    NSMutableArray<AudioTrack *> *fresh = [NSMutableArray array];
+    for (AudioTrack *row in rows) {
+        NSString *key = [row keyByAppendingWindowTo:row.url.URLByStandardizingPath.path ?: @""];
+        if (![present containsObject:key]) {
+            [present addObject:key];
+            [fresh addObject:row];
         }
     }
     if (fresh.count == 0) {
         return;
     }
-    [_playlist appendURLs:fresh];
+    [_playlist appendTracks:fresh];
     // No cancelScan: that belongs to a replacement.
     [self scheduleDeferredMetadataLoad];
     [self updateMetadataNeighborhood];

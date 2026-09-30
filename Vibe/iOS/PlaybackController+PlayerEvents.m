@@ -104,7 +104,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // Retries a parse skipped while this open was materializing the file.
     [_metadataCache loadMetadataNow:track];
     [self startPendingMetadataLoad];
-    _folderSession.persistedTrackPath = track.url.URLByStandardizingPath.path;
+    _folderSession.persistedTrackKey = [track keyByAppendingWindowTo:track.url.URLByStandardizingPath.path ?: @""];
     // A parked landing releases the session as a pause does.
     BOOL playing = _player.isPlaying;
     _updateTimer.wanted = playing;

@@ -1,5 +1,6 @@
 #import <XCTest/XCTest.h>
 
+#import "AudioTrack.h"
 #import "NSURLUtil.h"
 
 @interface NSURLUtilListingTests : XCTestCase
@@ -52,8 +53,8 @@
 
 - (NSArray<NSString *> *)listedNamesSortedBy:(VibeFolderOpenSort)sort {
     NSMutableArray<NSString *> *names = [NSMutableArray array];
-    for (NSURL *url in [NSURLUtil audioFilesInDirectory:_dir sortedBy:sort]) {
-        [names addObject:url.lastPathComponent];
+    for (AudioTrack *row in [NSURLUtil rowsInDirectory:_dir sortedBy:sort]) {
+        [names addObject:[row keyByAppendingWindowTo:row.url.lastPathComponent]];
     }
     return names;
 }
@@ -144,8 +145,21 @@
 
 - (void)testMissingDirectoryReturnsEmpty {
     NSURL *gone = [_dir URLByAppendingPathComponent:@"missing" isDirectory:YES];
-    XCTAssertEqualObjects([NSURLUtil audioFilesInDirectory:gone sortedBy:VibeFolderOpenSortName],
+    XCTAssertEqualObjects([NSURLUtil rowsInDirectory:gone sortedBy:VibeFolderOpenSortName],
                           @[]);
+}
+
+// The iOS listing takes a sheet as the walk does: its rows in its place, its
+// file claimed.
+- (void)testASheetInTheListingStandsInForItsFile {
+    [self makeFile:@"a.mp3"];
+    [self makeFile:@"mix.flac"];
+    NSURL *sheet = [_dir URLByAppendingPathComponent:@"mix.cue"];
+    XCTAssertTrue([[@"FILE \"mix.flac\" WAVE\n  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n"
+                     "  TRACK 02 AUDIO\n    INDEX 01 01:00:00\n" dataUsingEncoding:NSUTF8StringEncoding]
+                    writeToURL:sheet atomically:YES]);
+    XCTAssertEqualObjects([self listedNamesSortedBy:VibeFolderOpenSortName],
+                          (@[@"a.mp3", @"mix.flac#0-4500", @"mix.flac#4500-0"]));
 }
 
 @end

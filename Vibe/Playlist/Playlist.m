@@ -107,22 +107,6 @@
     return _tracks.count;
 }
 
-- (void)replaceAllWithURLs:(NSArray<NSURL *> *)urls {
-    [self replaceAllWithTracks:[self tracksForURLs:urls]];
-}
-
-- (void)appendURLs:(NSArray<NSURL *> *)urls {
-    [self appendTracks:[self tracksForURLs:urls]];
-}
-
-- (NSArray<AudioTrack *> *)tracksForURLs:(NSArray<NSURL *> *)urls {
-    NSMutableArray<AudioTrack *> *tracks = [NSMutableArray arrayWithCapacity:urls.count];
-    for (NSURL *url in urls) {
-        [tracks addObject:[AudioTrack withURL:url]];
-    }
-    return tracks;
-}
-
 - (void)replaceAllWithTracks:(NSArray<AudioTrack *> *)tracks {
     [self resetStorage];
     [self addTracks:tracks];
