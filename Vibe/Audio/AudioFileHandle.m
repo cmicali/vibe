@@ -57,7 +57,7 @@ static const AudioFileTypeID kVibeOggFileType = 'Oggf';
     ExtAudioFileRef _codec; // NULL while dr_mp3, dr_flac or dr_wav decodes
     UInt32 _bytesPerFrame; // of the processing format, per buffer
     BOOL _writing;
-    BOOL _mpegChoiceApplies; // an MPEG file read as float32
+    BOOL _mpegChoiceApplies; // an MPEG file
     BOOL _openedUnderApple;  // the choice when it opened
     // dr_mp3's decode: the parser's packets on a timeline of packet ×
     // framesPerPacket, with _mpegSkip frames before logical frame 0.
@@ -267,11 +267,10 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 #endif
 
 - (instancetype)initForReading:(NSURL *)url error:(NSError **)error {
-    return [self initForReading:url commonFormat:AVAudioPCMFormatFloat32 interleaved:NO error:error];
+    return [self initForReading:url interleaved:NO error:error];
 }
 
-- (instancetype)initForReading:(NSURL *)url commonFormat:(AVAudioCommonFormat)format interleaved:(BOOL)interleaved
-                         error:(NSError **)error {
+- (instancetype)initForReading:(NSURL *)url interleaved:(BOOL)interleaved error:(NSError **)error {
     self = [super init];
     if (!self) {
         return nil;
@@ -367,16 +366,15 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     }
     _fileFormat = [[AVAudioFormat alloc] initWithStreamDescription:&fileDescription channelLayout:layout];
     _processingFormat = layout
-            ? [[AVAudioFormat alloc] initWithCommonFormat:format sampleRate:fileDescription.mSampleRate interleaved:interleaved channelLayout:layout]
-            : [[AVAudioFormat alloc] initWithCommonFormat:format sampleRate:fileDescription.mSampleRate
+            ? [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32 sampleRate:fileDescription.mSampleRate interleaved:interleaved channelLayout:layout]
+            : [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32 sampleRate:fileDescription.mSampleRate
                                                  channels:fileDescription.mChannelsPerFrame interleaved:interleaved];
     if (!_fileFormat || !_processingFormat) {
         return [self failWithError:error status:kAudioFileUnsupportedDataFormatError
                        description:[NSString stringWithFormat:@"%@ has a format this player cannot decode", name]];
     }
     UInt32 formatID = fileDescription.mFormatID;
-    _mpegChoiceApplies = format == AVAudioPCMFormatFloat32
-            && (formatID == kAudioFormatMPEGLayer1 || formatID == kAudioFormatMPEGLayer2 || formatID == kAudioFormatMPEGLayer3);
+    _mpegChoiceApplies = formatID == kAudioFormatMPEGLayer1 || formatID == kAudioFormatMPEGLayer2 || formatID == kAudioFormatMPEGLayer3;
     _openedUnderApple = atomic_load(&sAppleMPEGDecoder);
     if (_mpegChoiceApplies && !_openedUnderApple && [self openMPEGWithDescription:fileDescription]) {
         return self;
@@ -384,7 +382,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     // Before the client format below, which Apple's FLAC codec refuses for
     // some legal streams dr_flac plays: block sizes of 16 and 65535, rates
     // past 655 kHz, 32-bit samples.
-    if (format == AVAudioPCMFormatFloat32 && _descriptor >= 0 && ((formatID == kAudioFormatFLAC && [self openFLAC]) || [self openWAV])) {
+    if (_descriptor >= 0 && ((formatID == kAudioFormatFLAC && [self openFLAC]) || [self openWAV])) {
         return self;
     }
     const AudioStreamBasicDescription *client = _processingFormat.streamDescription;

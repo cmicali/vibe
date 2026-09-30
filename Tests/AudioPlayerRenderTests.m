@@ -891,7 +891,7 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     NSData *reference = [self readToEnd:clean];
     NSUInteger channels = clean.processingFormat.channelCount, frameBytes = channels * sizeof(float);
     XCTAssertEqual(reference.length, (NSUInteger)clean.length * frameBytes);
-    AudioFileHandle *interleaved = [[AudioFileHandle alloc] initForReading:url commonFormat:AVAudioPCMFormatFloat32 interleaved:YES error:NULL];
+    AudioFileHandle *interleaved = [[AudioFileHandle alloc] initForReading:url interleaved:YES error:NULL];
     XCTAssertEqualObjects([self readToEnd:interleaved], reference, @"interleaved, as the waveform reads");
 
     AudioFileHandle *(^open)(NSData *, NSString *) = ^AudioFileHandle *(NSData *stream, NSString *name) {
@@ -1049,7 +1049,7 @@ static const NSUInteger kLayer3DecoderDelay = 529;
         NSURL *url = [self writeBytes:wave name:[NSString stringWithFormat:@"pcm-%u.wav", bits]];
         XCTAssertEqualObjects([self readToEnd:[self open:url decoder:@"dr_wav"]], [self appleDecodeOf:url], @"%u bits in %u bytes", bits, width);
     }
-    AudioFileHandle *interleaved = [[AudioFileHandle alloc] initForReading:[self fixture:@"lossless.aiff"] commonFormat:AVAudioPCMFormatFloat32 interleaved:YES error:NULL];
+    AudioFileHandle *interleaved = [[AudioFileHandle alloc] initForReading:[self fixture:@"lossless.aiff"] interleaved:YES error:NULL];
     XCTAssertEqualObjects([self readToEnd:interleaved], [self appleDecodeOf:[self fixture:@"lossless.aiff"]], @"interleaved, as the waveform reads");
     NSURL *mpeg = [self optionalFixture:@"mp3-in.wav"];
     [self open:mpeg decoder:@"dr_mp3"];
@@ -1455,11 +1455,11 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     AudioFileHandle.appleMPEGDecoder = NO;
     dispatch_semaphore_t opened = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
     __block BOOL held = NO;
-    SEL selector = @selector(initForReading:commonFormat:interleaved:error:);
+    SEL selector = @selector(initForReading:interleaved:error:);
     Method initializer = class_getInstanceMethod(AudioFileHandle.class, selector);
     __block IMP original;
-    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *url, AVAudioCommonFormat format, BOOL interleaved, NSError **error) {
-        id handle = ((id (*)(id, SEL, NSURL *, AVAudioCommonFormat, BOOL, NSError **))original)(receiver, selector, url, format, interleaved, error);
+    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *url, BOOL interleaved, NSError **error) {
+        id handle = ((id (*)(id, SEL, NSURL *, BOOL, NSError **))original)(receiver, selector, url, interleaved, error);
         if ([url.path isEqualToString:second.path] && !held) {
             held = YES;
             dispatch_semaphore_signal(opened);
@@ -1512,11 +1512,11 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     NSArray<dispatch_semaphore_t> *opened = @[dispatch_semaphore_create(0), dispatch_semaphore_create(0)];
     NSArray<dispatch_semaphore_t> *release = @[dispatch_semaphore_create(0), dispatch_semaphore_create(0)];
     __block NSInteger opens = 0;
-    SEL selector = @selector(initForReading:commonFormat:interleaved:error:);
+    SEL selector = @selector(initForReading:interleaved:error:);
     Method initializer = class_getInstanceMethod(AudioFileHandle.class, selector);
     __block IMP original;
-    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *url, AVAudioCommonFormat format, BOOL interleaved, NSError **error) {
-        id handle = ((id (*)(id, SEL, NSURL *, AVAudioCommonFormat, BOOL, NSError **))original)(receiver, selector, url, format, interleaved, error);
+    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *url, BOOL interleaved, NSError **error) {
+        id handle = ((id (*)(id, SEL, NSURL *, BOOL, NSError **))original)(receiver, selector, url, interleaved, error);
         NSInteger index = -1;
         if ([url.path isEqualToString:second.path]) {
             @synchronized (self) { index = opens < 2 ? opens++ : -1; }

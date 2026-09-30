@@ -362,9 +362,9 @@ static int32_t VibeEncodeSample(uint32_t frame, uint32_t channel, int bits) {
 
 // The whole encoded file back through the handle, checking the declared
 // source depth and that the final partial packet is kept.
-- (AVAudioPCMBuffer *)decode:(NSURL *)url as:(AVAudioCommonFormat)common expecting:(AVAudioFramePosition)frames depth:(AudioFormatFlags)depth {
+- (AVAudioPCMBuffer *)decode:(NSURL *)url expecting:(AVAudioFramePosition)frames depth:(AudioFormatFlags)depth {
     NSError *error = nil;
-    AudioFileHandle *handle = [[AudioFileHandle alloc] initForReading:url commonFormat:common interleaved:NO error:&error];
+    AudioFileHandle *handle = [[AudioFileHandle alloc] initForReading:url error:&error];
     XCTAssertNotNil(handle, @"%@", error);
     XCTAssertEqual(handle.fileFormat.streamDescription->mFormatID, kAudioFormatFLAC);
     XCTAssertEqual(handle.fileFormat.streamDescription->mFormatFlags, depth);
@@ -412,10 +412,10 @@ static int32_t VibeEncodeSample(uint32_t frame, uint32_t channel, int bits) {
     NSURL *flac = [_converter encodeSource:source toURL:_outputURL progress:^(double fraction) { last = fraction; } error:&error];
     XCTAssertNotNil(flac, @"%@", error);
     XCTAssertEqual(last, 1.0);
-    AVAudioPCMBuffer *buffer = [self decode:flac as:AVAudioPCMFormatInt16 expecting:frames depth:kAppleLosslessFormatFlag_16BitSourceData];
+    AVAudioPCMBuffer *buffer = [self decode:flac expecting:frames depth:kAppleLosslessFormatFlag_16BitSourceData];
     for (uint32_t frame = 0; frame < frames; frame++) {
         for (uint32_t channel = 0; channel < 2; channel++) {
-            if (buffer.int16ChannelData[channel][frame] != (int16_t)VibeEncodeSample(frame, channel, 16)) {
+            if (buffer.floatChannelData[channel][frame] != VibeEncodeSample(frame, channel, 16) / 32768.0f) {
                 XCTFail(@"frame %u channel %u differs", frame, channel);
                 return;
             }
@@ -432,12 +432,12 @@ static int32_t VibeEncodeSample(uint32_t frame, uint32_t channel, int bits) {
         NSError *error = nil;
         NSURL *flac = [_converter encodeSource:source toURL:_outputURL progress:nil error:&error];
         XCTAssertNotNil(flac, @"%@: %@", name, error);
-        AVAudioPCMBuffer *buffer = [self decode:flac as:AVAudioPCMFormatInt32 expecting:frames depth:kAppleLosslessFormatFlag_24BitSourceData];
+        AVAudioPCMBuffer *buffer = [self decode:flac expecting:frames depth:kAppleLosslessFormatFlag_24BitSourceData];
         for (uint32_t sample = 0; sample < buffer.frameLength * 2; sample++) {
             uint32_t frame = sample / 2, channel = sample % 2;
-            int32_t expected = VibeEncodeSample(frame, channel, 24) << 8; // 24 bits left-justified in Int32
-            if (buffer.int32ChannelData[channel][frame] != expected) {
-                XCTFail(@"%@: frame %u channel %u: %d, expected %d", name, frame, channel, buffer.int32ChannelData[channel][frame], expected);
+            float expected = VibeEncodeSample(frame, channel, 24) / 8388608.0f; // exact: 24 bits fit float32
+            if (buffer.floatChannelData[channel][frame] != expected) {
+                XCTFail(@"%@: frame %u channel %u: %g, expected %g", name, frame, channel, buffer.floatChannelData[channel][frame], expected);
                 break;
             }
         }
@@ -455,7 +455,7 @@ static int32_t VibeEncodeSample(uint32_t frame, uint32_t channel, int bits) {
     NSError *error = nil;
     NSURL *flac = [_converter encodeSource:source toURL:_outputURL progress:nil error:&error];
     XCTAssertNotNil(flac, @"%@", error);
-    AVAudioPCMBuffer *buffer = [self decode:flac as:AVAudioPCMFormatFloat32 expecting:frames depth:kAppleLosslessFormatFlag_24BitSourceData];
+    AVAudioPCMBuffer *buffer = [self decode:flac expecting:frames depth:kAppleLosslessFormatFlag_24BitSourceData];
     for (uint32_t frame = 0; frame < frames; frame++) {
         for (uint32_t channel = 0; channel < 2; channel++) {
             float expected = frame == 1 ? 1.0f : VibeEncodeSample(frame, channel, 24) / 8388608.0f + 1e-9f;

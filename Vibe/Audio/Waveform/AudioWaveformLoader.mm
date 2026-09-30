@@ -145,7 +145,6 @@
     // Interleaved float32, because AudioWaveformMonoMix expects the sample
     // layout L0 R0 L1 R1 and so on.
     AudioFileHandle *file = [[AudioFileHandle alloc] initForReading:url
-                                                       commonFormat:AVAudioPCMFormatFloat32
                                                         interleaved:YES
                                                               error:&error];
     if (!file) {

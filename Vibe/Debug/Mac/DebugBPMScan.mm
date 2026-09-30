@@ -35,7 +35,6 @@ static NSString *VibeScanDecode(NSString *rawPath, double *outSampleRate,
     NSString *path = rawPath.stringByExpandingTildeInPath;
     NSError *error = nil;
     AudioFileHandle *file = [[AudioFileHandle alloc] initForReading:[NSURL fileURLWithPath:path]
-                                               commonFormat:AVAudioPCMFormatFloat32
                                                 interleaved:YES
                                                       error:&error];
     NSUInteger numChannels = file.processingFormat.channelCount;
