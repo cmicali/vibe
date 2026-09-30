@@ -244,8 +244,8 @@ DRIVER_PY
 fi
 
 # Analytic fixtures for the render suite and the bit-perfect verifier. Only
-# the MP3/MP2/QTA fixtures need ffmpeg; without it XCTest skips them rather than
-# passing them.
+# the MP3/MP2/QTA fixtures and the FLACs Apple cannot encode need ffmpeg;
+# without it XCTest skips them rather than passing them.
 if [ "${1:-}" = "--render-tests" ]; then
     render_dir="${2:?usage: --render-tests <output-directory>}"
     mkdir -p "$render_dir"
@@ -298,10 +298,13 @@ for kind in ['silence','impulse','sweep']:
 wav('integer32-low-bits.wav',48000,32,2,'integer32')
 wav('float64-low-bits.wav',48000,64,2,floating=True)
 wav('integer32.wav',48000,32,2)
+# The source of a FLAC at a rate past Apple's codec's limit.
+wav('noise-705600-24-2.wav',705600,24,2,seconds=0.5)
 (out/'manifest.json').write_text(json.dumps({'seed':'0x12345678','rates':[44100,48000,88200,96000,176400,192000],'duration':2,'noisePeak':0.25},indent=2))
 AUDIO_PY
     render_source="$render_dir/noise-48000-24-2.wav"
     [ -s "$render_dir/lossless.flac" ] || afconvert -f flac -d flac "$render_source" "$render_dir/lossless.flac"
+    [ -s "$render_dir/lossless-8ch.flac" ] || afconvert -f flac -d flac "$render_dir/noise-48000-24-8.wav" "$render_dir/lossless-8ch.flac"
     [ -s "$render_dir/lossless.m4a" ] || afconvert -f m4af -d alac "$render_source" "$render_dir/lossless.m4a"
     [ -s "$render_dir/lossless.aiff" ] || afconvert -f AIFF -d BEI24 "$render_source" "$render_dir/lossless.aiff"
     [ -s "$render_dir/lossy.m4a" ] || afconvert -f m4af -d aac -b 192000 "$render_source" "$render_dir/lossy.m4a"
@@ -321,6 +324,17 @@ AUDIO_PY
         # A master limited to full scale, whose decode overshoots it: the overs a float decode keeps and Apple's 16-bit one clips.
         [ -s "$render_dir/hot.mp3" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -af volume=12dB,alimiter=limit=1:level=false -c:a libmp3lame -b:a 320k "$render_dir/hot.mp3"
         [ -s "$render_dir/lossy.qta" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -c:a aac -f mov "$render_dir/lossy.qta"
+        # Legal FLACs that Apple's codec refuses, or that dr_flac could not decode or seek before Vibe's fixes to it
+        # (testDrFLACDecodesWhatTheFileHolds): every frame's first residual partition empty, block sizes of 16 and
+        # 65535, 705.6 kHz, and 32-bit stereo in each side-channel mode.
+        render_flac() { local name="$1" source="$2"; shift 2; [ -s "$render_dir/$name" ] || ffmpeg -nostdin -loglevel error -y -i "$source" -c:a flac "$@" "$render_dir/$name"; }
+        render_flac flac-zero-residual.flac "$render_source" -frame_size 4096 -lpc_type levinson -min_partition_order 8 -max_partition_order 8 -min_prediction_order 16 -max_prediction_order 16
+        render_flac flac-block16.flac "$render_source" -frame_size 16
+        render_flac flac-block65535.flac "$render_source" -frame_size 65535
+        render_flac flac-705600.flac "$render_dir/noise-705600-24-2.wav" -frame_size 4096  # its default block size there is an illegal 65536
+        for mode in mid_side left_side right_side; do
+            render_flac "flac-32-$mode.flac" "$render_dir/integer32-low-bits.wav" -sample_fmt s32 -bits_per_raw_sample 32 -strict experimental -ch_mode "$mode"
+        done
     fi
     # The ISO/IEC 11172-4 Layer III compliance stream and its reference decode
     # (float32), from FFmpeg's FATE mirror. They are ISO's, so they are fetched

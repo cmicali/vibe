@@ -2,7 +2,7 @@
 
 Guidance for any coding agent working in this repository.
 
-Vibe is a native music player for macOS (`Vibe` target) and iOS (`VibeiOS` target), written in Objective-C and Objective-C++. Playback is Apple frameworks — CoreAudio, AudioToolbox and AVFoundation — and two vendored libraries: r8brain-free-src, the resampler for every file whose rate is not the output's (`docs/audio-quality.md` has the measurements that chose it), and dr_mp3, the MP3 decoder by default, Apple's one choice away in the mac's Settings > Advanced (`docs/audio-quality.md` has its measurements too); no other third-party audio code. Formats: MP3, MP2, AAC, AIFF/AIF, WAV/WAVE/BWF, FLAC, M4A, MP4, QTA (`Common/PlayableExtensions`, the one home of the set). OGG is not supported.
+Vibe is a native music player for macOS (`Vibe` target) and iOS (`VibeiOS` target), written in Objective-C and Objective-C++. Playback is Apple frameworks — CoreAudio, AudioToolbox and AVFoundation — and three vendored libraries: r8brain-free-src, the resampler for every file whose rate is not the output's (`docs/audio-quality.md` has the measurements that chose it), dr_mp3, the MP3 decoder by default, Apple's one choice away in the mac's Settings > Advanced, and dr_flac, the FLAC decoder, carrying fixes of Vibe's own (`docs/audio-quality.md` has the measurements for both); no other third-party audio code. Formats: MP3, MP2, AAC, AIFF/AIF, WAV/WAVE/BWF, FLAC, M4A, MP4, QTA (`Common/PlayableExtensions`, the one home of the set). OGG is not supported.
 
 ## Building
 
@@ -21,7 +21,7 @@ Vibe is a native music player for macOS (`Vibe` target) and iOS (`VibeiOS` targe
 
 Releases go through the **`vibe-release` skill**: the Developer ID path (`make release`) and the App Store path (`make appstore-build`, `make appstore-upload-signed-build`) are not interchangeable — do not improvise from the scripts.
 
-There is no package manager. TagLib, PINCache/PINOperation, r8brain-free-src and dr_mp3 are vendored under `Vibe/ThirdParty/` and compile into both app targets.
+There is no package manager. TagLib, PINCache/PINOperation, r8brain-free-src, dr_mp3, and dr_flac are vendored under `Vibe/ThirdParty/` and compile into both app targets.
 
 ## Checks
 
@@ -84,7 +84,7 @@ Nested `AGENTS.md` files hold the detail. An agent loads one only once it works 
 - **`Vibe/Util/`** — featureless helpers, with `Mac/` and `iOS/` halves. **`Vibe/Debug/`** — the debug channel, with `Mac/` and `iOS/` command tables.
 - **`Vibe/Mac/`** — the macOS app shell, one directory per piece: `App/` (application object, open funnel, sandbox grants, stats, the debug info report), `MainWindow/` (`MainPlayerController`; layout and chrome are its `APPEARANCE.md`; `Transport/` and `Convert/` carry their own docs), `Menu/`, `Controls/`, `Settings/` (`Appearance/` is the theme list and editor), `About/`.
 - **`Vibe/iOS/`** — the iPhone/iPad app shell: `PlaybackController` (the model), the tab shell and mini player; `Player/` is the now-playing card, `Search/` Favorites and search, `Settings/` the settings screens, each with a doc. The iOS halves of shared subsystems live under those subsystems, not here.
-- **`Vibe/ThirdParty/`** — vendored TagLib subset, PINCache/PINOperation, r8brain-free-src and dr_mp3.
+- **`Vibe/ThirdParty/`** — vendored TagLib subset, PINCache/PINOperation, r8brain-free-src, dr_mp3, and dr_flac (modified; its `AGENTS.md` lists how).
 
 ## Cross-directory guarantees
 

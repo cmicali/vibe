@@ -72,11 +72,11 @@ targets="Vibe VibeiOS"
 # Every exclude a source entry may carry. Anything else — a feature-named
 # exclude — means the tree stopped being the membership rule.
 allowed_always='**/.DS_Store **/*.md Mac/** iOS/**'
-# The two PIN caches, r8brain's C entry points and FFT, and dr_mp3's
-# implementation unit are excluded only to be re-added with per-file
-# compilerFlags, not membership decisions; the .inc filter tables are
+# The two PIN caches, r8brain's C entry points and FFT, and dr_mp3's and
+# dr_flac's implementation units are excluded only to be re-added with
+# per-file compilerFlags, not membership decisions; the .inc filter tables are
 # #included by r8brain's headers, never bundled.
-allowed_thirdparty='**/*.xcprivacy **/*.txt **/LICENSE.MPL **/*.inc **/PINDiskCache.m **/PINMemoryCache.m **/r8bsrc.cpp **/pffft_double.c **/dr_mp3.c'
+allowed_thirdparty='**/*.xcprivacy **/*.txt **/LICENSE.MPL **/*.inc **/PINDiskCache.m **/PINMemoryCache.m **/r8bsrc.cpp **/pffft_double.c **/dr_mp3.c **/dr_flac.c'
 
 info_dir_for() {
     local t="$1" p

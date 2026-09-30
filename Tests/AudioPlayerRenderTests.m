@@ -614,6 +614,192 @@ static const NSUInteger kLayer3DecoderDelay = 529;
         XCTAssertLessThan(frames[0], decoded.frameLength);
     }
 }
+// Every frame the handle delivers, interleaved, to the end of the file, which
+// may come before its declared length.
+- (NSData *)readToEnd:(AudioFileHandle *)file {
+    NSMutableData *pcm = [NSMutableData data];
+    AVAudioPCMBuffer *chunk = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat frameCapacity:4096];
+    NSError *error = nil;
+    for (;;) {
+        XCTAssertTrue([file readIntoBuffer:chunk error:&error], @"%@", error);
+        if (chunk.frameLength == 0) break;
+        if (file.processingFormat.isInterleaved) [pcm appendBytes:chunk.floatChannelData[0] length:chunk.frameLength * file.processingFormat.channelCount * sizeof(float)];
+        else VibeAppendPCM(pcm, chunk);
+    }
+    return pcm;
+}
+// Each seek reads what the continuous decode holds at its target: the edges of
+// the first frames, the end, and targets across the file.
+- (void)assertSeeksOf:(AudioFileHandle *)file match:(NSData *)continuous block:(NSUInteger)block name:(NSString *)name {
+    NSUInteger channels = file.processingFormat.channelCount, frames = continuous.length / sizeof(float) / channels;
+    NSMutableArray<NSNumber *> *targets = [@[@0, @1, @(block - 1), @(block), @(block + 1), @(frames / 2), @(frames - 1), @(frames - 2048)] mutableCopy];
+    srand48(7);
+    for (NSUInteger i = 0; i < 40; i++) [targets addObject:@((NSUInteger)(drand48() * frames))];
+    AVAudioPCMBuffer *slice = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat frameCapacity:2048];
+    for (NSNumber *target in targets) {
+        NSUInteger at = target.unsignedIntegerValue;
+        XCTAssertTrue([file seekToFrame:(AVAudioFramePosition)at error:NULL], @"%@ seek to %lu", name, (unsigned long)at);
+        XCTAssertTrue([file readIntoBuffer:slice error:NULL]);
+        NSMutableData *read = [NSMutableData data];
+        VibeAppendPCM(read, slice);
+        NSUInteger expected = MIN(2048, frames - at);
+        XCTAssertEqual(slice.frameLength, expected, @"%@ seek to %lu", name, (unsigned long)at);
+        XCTAssertEqualObjects(read, [continuous subdataWithRange:NSMakeRange(at * channels * sizeof(float), expected * channels * sizeof(float))],
+                              @"%@ seek to %lu", name, (unsigned long)at);
+    }
+}
+// dr_flac plays legal FLACs Apple's codec refuses, and ones the upstream copy
+// could not seek (every frame's first residual partition empty), bit for bit:
+// each decodes to the PCM it was encoded from, a 32-bit one rounded once to
+// float32 in each side-channel mode, and every seek reads what the continuous
+// decode holds there. The empty-partition file is played again with no length
+// in STREAMINFO, as a streamed encode leaves it, which dr_flac can only seek
+// by walking frames, so the walk crosses every one of them.
+- (void)testDrFLACDecodesWhatTheFileHolds {
+    XCTSkipUnless([NSFileManager.defaultManager fileExistsAtPath:[self fixture:@"flac-32-mid_side.flac"].path],
+                  @"Optional encoder fixtures unavailable; install ffmpeg and regenerate");
+    NSDictionary<NSString *, NSString *> *sources = @{
+        @"flac-zero-residual.flac": @"noise-48000-24-2.wav", @"flac-block16.flac": @"noise-48000-24-2.wav",
+        @"flac-block65535.flac": @"noise-48000-24-2.wav", @"flac-705600.flac": @"noise-705600-24-2.wav",
+        @"flac-32-mid_side.flac": @"integer32-low-bits.wav", @"flac-32-left_side.flac": @"integer32-low-bits.wav",
+        @"flac-32-right_side.flac": @"integer32-low-bits.wav", @"lossless-8ch.flac": @"noise-48000-24-8.wav"};
+    for (NSString *name in [sources.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
+        NSError *error = nil;
+        AudioFileHandle *file = [[AudioFileHandle alloc] initForReading:[self fixture:name] error:&error];
+        XCTAssertNotNil(file, @"%@: %@", name, error);
+        XCTAssertEqualObjects(file.decoderName, @"dr_flac", @"%@", name);
+        NSData *decoded = [self readToEnd:file];
+        XCTAssertEqualObjects(decoded, Float32PCM([self wideSourcePCM:[self fixture:sources[name]]]), @"%@", name);
+        [self assertSeeksOf:file match:decoded block:4096 name:name];
+    }
+    // STREAMINFO's total samples are the low 36 bits of its bytes 13 to 17.
+    NSMutableData *unknown = [NSMutableData dataWithContentsOfURL:[self fixture:@"flac-zero-residual.flac"]];
+    uint8_t *streaminfo = (uint8_t *)unknown.mutableBytes + 8;
+    XCTAssertEqual(memcmp(unknown.bytes, "fLaC", 4), 0);
+    streaminfo[13] &= 0xF0;
+    memset(streaminfo + 14, 0, 4);
+    NSURL *unknownURL = [_temporary URLByAppendingPathComponent:@"unknown-length.flac"];
+    XCTAssertTrue([unknown writeToURL:unknownURL atomically:YES]);
+    AudioFileHandle *file = [[AudioFileHandle alloc] initForReading:unknownURL error:NULL];
+    XCTAssertEqualObjects(file.decoderName, @"dr_flac");
+    XCTAssertEqual(file.length, 0);
+    NSData *decoded = [self readToEnd:file];
+    XCTAssertEqualObjects(decoded, Float32PCM([self wideSourcePCM:[self fixture:@"noise-48000-24-2.wav"]]), @"no length");
+    [self assertSeeksOf:file match:decoded block:4096 name:@"no length"];
+}
+// What damages files in the wild, done to lossless.flac, Apple's encode: an
+// ID3v2 tag in front and a seek table two frames stale decode and seek as the
+// clean file does. A damaged frame, and one lost with its header, is silence
+// in its place with every other frame where it was, as libFLAC does. A file
+// cut short inside a frame ends at its last whole frame, and a seek past the
+// cut lands at the end, as Apple's decode does.
+- (void)testDrFLACSurvivesWhatDamagesFiles {
+    NSURL *url = [self fixture:@"lossless.flac"];
+    NSData *bytes = [NSData dataWithContentsOfURL:url];
+    const uint8_t *b = bytes.bytes;
+    // Each frame's offset, from CoreAudio's parser, which serves a FLAC frame as a packet.
+    AudioFileID parser = NULL;
+    XCTAssertEqual(AudioFileOpenURL((__bridge CFURLRef)url, kAudioFileReadPermission, 0, &parser), noErr);
+    SInt64 dataOffset = 0; UInt64 packets = 0; AudioStreamBasicDescription description = {0};
+    UInt32 size = sizeof(dataOffset);
+    AudioFileGetProperty(parser, kAudioFilePropertyDataOffset, &size, &dataOffset);
+    size = sizeof(packets);
+    AudioFileGetProperty(parser, kAudioFilePropertyAudioDataPacketCount, &size, &packets);
+    size = sizeof(description);
+    AudioFileGetProperty(parser, kAudioFilePropertyDataFormat, &size, &description);
+    NSMutableArray<NSNumber *> *offsets = [NSMutableArray array];
+    for (UInt64 p = 0; p < packets; p++) {
+        AudioBytePacketTranslation translation = {.mPacket = (SInt64)p};
+        size = sizeof(translation);
+        XCTAssertEqual(AudioFileGetProperty(parser, kAudioFilePropertyPacketToByte, &size, &translation), noErr);
+        [offsets addObject:@(dataOffset + translation.mByte)];
+    }
+    AudioFileClose(parser);
+    NSUInteger block = description.mFramesPerPacket, k = offsets.count / 2;
+    XCTAssertGreaterThan(offsets.count, 8u);
+    XCTAssertEqual(b[offsets[k].unsignedIntegerValue], 0xFF, @"frame %lu is not at a sync code", (unsigned long)k);
+    NSUInteger frameStart = offsets[k].unsignedIntegerValue, frameMiddle = (frameStart + offsets[k + 1].unsignedIntegerValue) / 2;
+
+    AudioFileHandle *clean = [[AudioFileHandle alloc] initForReading:url error:NULL];
+    XCTAssertEqualObjects(clean.decoderName, @"dr_flac");
+    NSData *reference = [self readToEnd:clean];
+    NSUInteger channels = clean.processingFormat.channelCount, frameBytes = channels * sizeof(float);
+    XCTAssertEqual(reference.length, (NSUInteger)clean.length * frameBytes);
+    AudioFileHandle *interleaved = [[AudioFileHandle alloc] initForReading:url commonFormat:AVAudioPCMFormatFloat32 interleaved:YES error:NULL];
+    XCTAssertEqualObjects([self readToEnd:interleaved], reference, @"interleaved, as the waveform reads");
+
+    NSURL *(^write)(NSData *, NSString *) = ^NSURL *(NSData *data, NSString *name) {
+        NSURL *copy = [self->_temporary URLByAppendingPathComponent:name];
+        XCTAssertTrue([data writeToURL:copy atomically:YES]);
+        return copy;
+    };
+    AudioFileHandle *(^open)(NSURL *) = ^AudioFileHandle *(NSURL *file) {
+        NSError *error = nil;
+        AudioFileHandle *handle = [[AudioFileHandle alloc] initForReading:file error:&error];
+        XCTAssertNotNil(handle, @"%@: %@", file.lastPathComponent, error);
+        XCTAssertEqualObjects(handle.decoderName, @"dr_flac");
+        return handle;
+    };
+
+    // An ID3v2 tag in front.
+    static const uint8_t tag[] = {'I','D','3',4,0,0, 0,0,0,16, 'T','I','T','2', 0,0,0,6, 0,0, 3,'t','i','t','l','e'};
+    NSMutableData *tagged = [NSMutableData dataWithBytes:tag length:sizeof(tag)];
+    [tagged appendData:bytes];
+    AudioFileHandle *file = open(write(tagged, @"id3.flac"));
+    XCTAssertEqualObjects([self readToEnd:file], reference, @"ID3v2 in front");
+    [self assertSeeksOf:file match:reference block:block name:@"ID3v2 in front"];
+
+    // A seek table after STREAMINFO whose points each claim the frame two after the one they point at.
+    XCTAssertEqual(memcmp(b, "fLaC", 4), 0);
+    XCTAssertEqual(b[4] & 0x7F, 0, @"STREAMINFO first");
+    NSMutableData *table = [NSMutableData data];
+    for (NSUInteger frame = 0; frame + 2 < offsets.count; frame += 3) {
+        uint64_t sample = CFSwapInt64HostToBig((uint64_t)(frame + 2) * block);
+        uint64_t offset = CFSwapInt64HostToBig(offsets[frame].unsignedLongLongValue - offsets[0].unsignedLongLongValue);
+        uint16_t count = CFSwapInt16HostToBig((uint16_t)block);
+        [table appendBytes:&sample length:8]; [table appendBytes:&offset length:8]; [table appendBytes:&count length:2];
+    }
+    NSMutableData *stale = [NSMutableData dataWithBytes:b length:42];
+    ((uint8_t *)stale.mutableBytes)[4] &= 0x7F;
+    uint8_t header[4] = {(uint8_t)(3 | (b[4] & 0x80)), (uint8_t)(table.length >> 16), (uint8_t)(table.length >> 8), (uint8_t)table.length};
+    [stale appendBytes:header length:4];
+    [stale appendData:table];
+    [stale appendData:[bytes subdataWithRange:NSMakeRange(42, bytes.length - 42)]];
+    file = open(write(stale, @"stale-seektable.flac"));
+    XCTAssertEqualObjects([self readToEnd:file], reference, @"stale seek table");
+    [self assertSeeksOf:file match:reference block:block name:@"stale seek table"];
+
+    // A damaged frame in the middle, then the same frame's header wiped.
+    NSUInteger damage[] = {frameMiddle, frameStart};
+    for (NSUInteger d = 0; d < 2; d++) {
+        NSUInteger at = damage[d];
+        NSMutableData *damaged = [bytes mutableCopy];
+        memset((uint8_t *)damaged.mutableBytes + at, at == frameStart ? 0x00 : 0x55, 16);
+        NSString *name = at == frameStart ? @"damaged header" : @"damaged frame";
+        file = open(write(damaged, [name stringByAppendingString:@".flac"]));
+        NSData *decoded = [self readToEnd:file];
+        XCTAssertEqual(decoded.length, reference.length, @"%@: the timeline keeps its length", name);
+        NSRange silent = NSMakeRange(k * block * frameBytes, block * frameBytes);
+        NSMutableData *expected = [reference mutableCopy];
+        memset((uint8_t *)expected.mutableBytes + silent.location, 0, silent.length);
+        XCTAssertEqualObjects(decoded, expected, @"%@: silence in its place, every other frame where it was", name);
+        [self assertSeeksOf:file match:decoded block:block name:name];
+    }
+
+    // A download cut short inside that frame.
+    file = open(write([bytes subdataWithRange:NSMakeRange(0, frameMiddle)], @"cut.flac"));
+    NSData *decoded = [self readToEnd:file];
+    XCTAssertEqualObjects(decoded, [reference subdataWithRange:NSMakeRange(0, k * block * frameBytes)], @"ends at the last whole frame");
+    AVAudioPCMBuffer *slice = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat frameCapacity:2048];
+    XCTAssertTrue([file seekToFrame:(AVAudioFramePosition)((k + 2) * block) error:NULL], @"a seek past the cut lands at the end");
+    XCTAssertTrue([file readIntoBuffer:slice error:NULL]);
+    XCTAssertEqual(slice.frameLength, 0u);
+    XCTAssertTrue([file seekToFrame:(AVAudioFramePosition)((k - 1) * block) error:NULL]);
+    XCTAssertTrue([file readIntoBuffer:slice error:NULL]);
+    NSMutableData *read = [NSMutableData data];
+    VibeAppendPCM(read, slice);
+    XCTAssertEqualObjects(read, [reference subdataWithRange:NSMakeRange((k - 1) * block * frameBytes, 2048 * frameBytes)]);
+}
 - (void)testQuickTimeAudio { [self checkLossy:@"lossy.qta" tolerance:kVibeAACDecodeTolerance]; }
 - (void)testFloatLimitsAndSilence {
     for (NSString *name in @[@"limits.wav",@"silence.wav"]) {
