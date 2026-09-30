@@ -108,7 +108,6 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 - (void)dropRecordsForExhaustedPathLocked:(NSString * _Nonnull)path
                              currentTrack:(AudioTrack * _Nonnull)track;
 - (AudioTrackMetadata *)parseAndCacheMetadataForTrack:(AudioTrack *)track;
-- (void)serveWaitersFromCache:(NSArray<AudioTrack *> *)waiters owner:(AudioTrack *)owner;
 - (NSArray<AudioTrack *> *)installCopiesOfMetadata:(AudioTrackMetadata *)metadata
                                            onTracks:(NSArray<AudioTrack *> *)tracks;
 - (void)publishTrack:(AudioTrack *)track
@@ -242,8 +241,11 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     NSOperation *setup = [NSBlockOperation blockOperationWithBlock:^{
         __typeof(self) setupSelf = weakSelf;
         if (!setupSelf) return;
-        NSMutableArray<MetadataScanEntry *> *worklist =
+        // One item per file, its rows in playlist order.
+        NSMutableArray<NSMutableArray<MetadataScanEntry *> *> *worklist =
                 [NSMutableArray arrayWithCapacity:tracks.count];
+        NSMutableDictionary<NSString *, NSMutableArray<MetadataScanEntry *> *> *rowsByPath =
+                [NSMutableDictionary dictionaryWithCapacity:tracks.count];
         for (NSUInteger index = 0; index < tracks.count; index++) {
             if (setupSelf.isCancelled) break;
             AudioTrack *track = tracks[index];
@@ -260,7 +262,14 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
             if (alreadyQueued) continue;
             MetadataScanEntry *entry = [[MetadataScanEntry alloc]
                     initWithTrack:track playlistIndex:index];
-            [worklist addObject:entry];
+            // Keyed like the parse claim, so two spellings share one read.
+            NSMutableArray<MetadataScanEntry *> *rows = rowsByPath[entry.standardizedPath];
+            if (!rows) {
+                rows = [NSMutableArray array];
+                rowsByPath[entry.standardizedPath] = rows;
+                [worklist addObject:rows];
+            }
+            [rows addObject:entry];
         }
         [setupSelf enqueueStageOneWorkersForWorklist:worklist];
         [setupSelf->_queue addBarrierBlock:^{
@@ -291,7 +300,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 // it, and high priority drains it before any parse gets a worker. A bounded
 // worker set walks the records in order, never one operation per row: a
 // playlist can hold over 100,000 rows.
-- (void)enqueueStageOneWorkersForWorklist:(NSArray<MetadataScanEntry *> *)worklist {
+- (void)enqueueStageOneWorkersForWorklist:(NSArray<NSArray<MetadataScanEntry *> *> *)worklist {
     if (worklist.count == 0) {
         return;
     }
@@ -305,14 +314,14 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
             for (;;) {
                 __typeof(self) strongSelf = weakSelf;
                 if (!strongSelf || strongSelf.isCancelled) return;
-                MetadataScanEntry *entry = nil;
+                NSArray<MetadataScanEntry *> *rows = nil;
                 os_unfair_lock_lock(&strongSelf->_materializationLock);
                 if (cursor < worklist.count) {
-                    entry = worklist[cursor++];
+                    rows = worklist[cursor++];
                 }
                 os_unfair_lock_unlock(&strongSelf->_materializationLock);
-                if (!entry) return;
-                [strongSelf cacheCheckEntry:entry];
+                if (!rows) return;
+                [strongSelf cacheCheckRows:rows];
             }
         }];
         op.queuePriority = NSOperationQueuePriorityHigh;
@@ -321,24 +330,27 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 }
 
 // Every miss takes the materialization path, even a local one, which settles
-// at once: one route to TagLib whatever the probe answered.
-- (void)cacheCheckEntry:(MetadataScanEntry *)entry {
-    AudioTrack *track = entry.track;
+// at once: one route to TagLib whatever the probe answered. The file's first
+// row reads for all of them, so on a hit a cue sheet's forty rows cost one stat
+// and one unarchive.
+- (void)cacheCheckRows:(NSArray<MetadataScanEntry *> *)rows {
+    AudioTrack *track = rows.firstObject.track;
     // An earlier loader may have resolved it since it was queued.
-    if (track.metadata.parsedOK) {
-        [self finishScanInFlightForTrack:track];
-        [self retirePriorityMarkSatisfiedByTrack:track];
-        return;
+    if (track.metadata.parsedOK || [self loadTrackFromDiskCache:track]) {
+        for (AudioTrack *adopted in [self installCopiesOfMetadata:track.metadata
+                                                         onTracks:[rows valueForKey:@"track"]]) {
+            [self publishTrack:adopted];
+        }
     }
-    if ([self loadTrackFromDiskCache:track]) {
-        [self finishScanInFlightForTrack:track];
-        [self retirePriorityMarkSatisfiedByTrack:track];
-        return;
+    for (MetadataScanEntry *row in rows) {
+        if (row.track.metadata.parsedOK) {
+            [self finishScanInFlightForTrack:row.track];
+            [self retirePriorityMarkSatisfiedByTrack:row.track];
+        }
+        else if (!self.isCancelled) {
+            [self enqueueScanMaterialization:row];
+        }
     }
-    if (self.isCancelled) {
-        return;
-    }
-    [self enqueueScanMaterialization:entry];
 }
 
 #pragma mark - The materialization lane
@@ -441,12 +453,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         if (!strongSelf || strongSelf.isCancelled) {
             return;
         }
-        if (track.metadata.parsedOK) {
-            [strongSelf finishScanInFlightForTrack:track];
-            [strongSelf retirePriorityMarkSatisfiedByTrack:track];
-            return;
-        }
-        if ([strongSelf loadTrackFromDiskCache:track]) {
+        if (track.metadata.parsedOK || [strongSelf loadTrackFromDiskCache:track]) {
             [strongSelf finishScanInFlightForTrack:track];
             [strongSelf retirePriorityMarkSatisfiedByTrack:track];
             return;
@@ -1242,15 +1249,10 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         return;
     }
     // Another lane or a prior holder may have resolved it before the claim.
-    if (track.metadata.parsedOK || [self loadTrackFromDiskCache:track]) {
-        [self serveWaitersFromCache:[_parseCoordinator completeClaim:claim] owner:track];
-        [self finishScanInFlightForTrack:track];
-        [self retirePriorityMarkSatisfiedByTrack:track];
-        return;
-    }
-
-    AudioTrackMetadata *result = [self parseAndCacheMetadataForTrack:track];
+    AudioTrackMetadata *result = (track.metadata.parsedOK || [self loadTrackFromDiskCache:track])
+            ? track.metadata : [self parseAndCacheMetadataForTrack:track];
     if (result.parsedOK) {
+        // NO for a resolved holder, already published.
         BOOL publishHolder = [track installMetadataIfUnresolved:result];
         NSMutableArray<AudioTrack *> *adopted = [NSMutableArray array];
         BOOL completed = NO;
@@ -1285,28 +1287,6 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     }
     [self finishScanInFlightForTrack:track];
     [self retirePriorityMarkSatisfiedByTrack:track];
-}
-
-- (void)serveWaitersFromCache:(NSArray<AudioTrack *> *)waiters owner:(AudioTrack *)owner {
-    NSMutableArray<AudioTrack *> *unserved = [NSMutableArray array];
-    for (AudioTrack *waiter in waiters) {
-        if (!waiter.metadata.parsedOK && ![self loadTrackFromDiskCache:waiter]) {
-            [unserved addObject:waiter];
-        }
-    }
-    if (unserved.count == 0) {
-        return;
-    }
-    // The entry can vanish between the owner's hit and a waiter's read (Clear
-    // Cache, eviction); copy the owner's result rather than strand the row.
-    AudioTrackMetadata *ownerMetadata = owner.metadata;
-    if (!ownerMetadata.parsedOK) {
-        return;
-    }
-    for (AudioTrack *waiter in [self installCopiesOfMetadata:ownerMetadata
-                                                    onTracks:unserved]) {
-        [self publishTrack:waiter];
-    }
 }
 
 - (NSArray<AudioTrack *> *)installCopiesOfMetadata:(AudioTrackMetadata *)metadata

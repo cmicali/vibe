@@ -1237,6 +1237,63 @@ materializationCoordinator:coordinator
     XCTAssertEqual(controller.startedURLs.count, 0u);
 }
 
+- (void)testRowsOfOneFileShareOneStageOneCacheRead {
+    NSURL *image = [self URLNamed:@"cue-image.flac"];
+    NSMutableArray<AudioTrack *> *rows = [NSMutableArray array];
+    for (NSUInteger row = 0; row < 40; row++) {
+        [rows addObject:[[AudioTrack alloc] initWithURL:image cueStart:row * 750
+                                                 cueEnd:(row + 1) * 750
+                                                  title:nil performer:nil sheet:nil
+                                            trackNumber:(NSInteger)row + 1]];
+    }
+    // The same file spelled another way, and one unrelated file between.
+    AudioTrack *respelled = [self trackNamed:@"./cue-image.flac"];
+    XCTAssertNotEqualObjects(respelled.url.path, image.path);
+    AudioTrack *neighbor = [self trackNamed:@"cue-neighbor.wav"];
+    [rows insertObject:neighbor atIndex:20];
+    [rows addObject:respelled];
+    NSMutableArray<AudioTrack *> *readTracks = [NSMutableArray array];
+    AudioTrackMetadata *cached = VibeLoaderTestMetadataResult(YES, @"cue-image");
+
+    VibeMetadataLoaderOperationController *controller =
+            [[VibeMetadataLoaderOperationController alloc] init];
+    VibeMetadataLoaderDelegate *delegate = [[VibeMetadataLoaderDelegate alloc] init];
+    delegate.deliveryExpectation =
+            [self expectationWithDescription:@"every row published once"];
+    delegate.deliveryExpectation.expectedFulfillmentCount = rows.count;
+    AudioTrackMetadataLoader *loader = [self loaderWithController:controller
+            configuration:[self testConfiguration]
+            delegate:delegate
+            cacheReader:^AudioTrackMetadata *(AudioTrack *track) {
+        @synchronized (readTracks) {
+            [readTracks addObject:track];
+        }
+        return track == neighbor ? VibeLoaderTestMetadataResult(YES, @"neighbor") : cached;
+    } fileParser:^AudioTrackMetadata *(NSURL *url) {
+        XCTFail(@"a stage-one cache hit must not parse the file");
+        return VibeLoaderTestMetadataResult(NO, @"unexpected");
+    }];
+
+    [loader load:rows];
+    [self waitForExpectations:@[delegate.deliveryExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
+
+    XCTAssertEqualObjects([NSSet setWithArray:readTracks],
+            [NSSet setWithArray:(@[rows.firstObject, neighbor])],
+            @"one read for every row of the image, one for the neighbor");
+    XCTAssertEqual(readTracks.count, 2u);
+    XCTAssertEqualObjects([NSSet setWithArray:delegate.deliveredTracks],
+            [NSSet setWithArray:rows]);
+    for (AudioTrack *row in rows) {
+        XCTAssertEqualObjects(((VibeLoaderTestMetadata *)row.metadata).marker,
+                row == neighbor ? @"neighbor" : @"cue-image");
+    }
+    // The fake compares by identity.
+    XCTAssertEqual([NSSet setWithArray:[rows valueForKey:@"metadata"]].count, rows.count,
+            @"each row needs its own copy for its own artwork state");
+    XCTAssertTrue(delegate.allDeliveriesOnMain);
+    XCTAssertEqual(controller.startedURLs.count, 0u);
+}
+
 - (void)testSuccessfulParseJoinsDuplicateRowsAndPublishesIndependentCopies {
     NSURL *url = [self URLNamed:@"duplicate-success.wav"];
     AudioTrack *first = [AudioTrack withURL:url];
@@ -1285,8 +1342,8 @@ materializationCoordinator:coordinator
         controller.allStartsExpectation, delegate.deliveryExpectation
     ] timeout:VIBE_TEST_HANG_TIMEOUT];
 
-    XCTAssertEqual(cacheReads, 3u,
-            @"two stage-1 reads plus the owner's post-claim read are required");
+    XCTAssertEqual(cacheReads, 2u,
+            @"one stage-1 read for the file plus the owner's post-claim read");
     XCTAssertEqual(fileParses, 1u);
     XCTAssertTrue(first.metadata.parsedOK);
     XCTAssertTrue(second.metadata.parsedOK);
@@ -1303,7 +1360,7 @@ materializationCoordinator:coordinator
             (@{@"holders": @0, @"waiters": @0}));
 }
 
-- (void)testPostClaimCacheHitServesAJoinedRowWhenItsCacheEntryDisappears {
+- (void)testPostClaimCacheHitCopiesIntoAJoinedRowWithoutReadingAgain {
     NSURL *url = [self URLNamed:@"duplicate-cache.wav"];
     AudioTrack *first = [AudioTrack withURL:url];
     AudioTrack *second = [AudioTrack withURL:url];
@@ -1331,7 +1388,7 @@ materializationCoordinator:coordinator
             cacheReads++;
             read = cacheReads;
         }
-        if (read == 3) {
+        if (read == 2) {
             [secondCacheEntered fulfill];
             dispatch_semaphore_wait(secondCacheGate, DISPATCH_TIME_FOREVER);
             return cached;
@@ -1350,8 +1407,8 @@ materializationCoordinator:coordinator
     dispatch_semaphore_signal(secondCacheGate);
     [self waitForExpectations:@[delegate.deliveryExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
 
-    XCTAssertEqual(cacheReads, 4u,
-            @"the waiter must retry cache before copying the owner's result");
+    XCTAssertEqual(cacheReads, 2u,
+            @"one stage-1 read for the file plus the owner's post-claim read");
     XCTAssertTrue(first.metadata.parsedOK);
     XCTAssertTrue(second.metadata.parsedOK);
     XCTAssertNotEqual(first.metadata, second.metadata);
