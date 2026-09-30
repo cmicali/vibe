@@ -139,18 +139,21 @@
 
 #pragma mark - The extension filter
 
-// com.microsoft.waveform-audio alone declares wav, wave AND bwf; a spelling
-// missing here lets Finder offer Vibe a file the filter silently discards.
+// com.microsoft.waveform-audio alone declares wav, wave AND bwf, and a claimed
+// type takes in every type conforming to it (public.mpeg-4-audio the m4r
+// ringtone, public.aac-audio adts); a spelling missing here lets Finder offer
+// Vibe a file the filter silently discards.
 - (void)testSupportedExtensionsCoverEveryClaimedSpelling {
     NSSet<NSString *> *supported = [NSURLUtil supportedExtensions];
 
-    XCTAssertEqualObjects(supported, ([NSSet setWithArray:@[@"mp2", @"mp3", @"aac", @"aif", @"aiff",
-                                                            @"wav", @"wave", @"bwf", @"flac",
-                                                            @"m4a", @"mp4", @"qta"]]));
+    XCTAssertEqualObjects(supported, ([NSSet setWithArray:@[@"mp2", @"mp3", @"aac", @"adts", @"aif", @"aiff",
+                                                            @"wav", @"wave", @"bwf", @"w64", @"flac", @"caf",
+                                                            @"m4a", @"mp4", @"qta", @"m4b", @"m4r",
+                                                            @"ogg", @"oga", @"opus"]]));
     NSArray<NSString *> *ordered = PlayableExtensions.ordered;
     XCTAssertEqualObjects([NSSet setWithArray:ordered], supported);
     XCTAssertEqual(ordered.count, supported.count);
-    for (NSString *rejected in @[@"ogg", @"m3u", @"m3u8", @"cue", @"aifc", @"txt", @""]) {
+    for (NSString *rejected in @[@"ape", @"wv", @"m3u", @"m3u8", @"cue", @"aifc", @"txt", @""]) {
         XCTAssertFalse([supported containsObject:rejected], @"%@", rejected);
     }
 }
@@ -160,7 +163,7 @@
     [self makeFile:@"folder/Quiet.FlAc"];
     [self makeFile:@"folder/notes.txt"];
     [self makeFile:@"folder/cover.jpg"];
-    [self makeFile:@"folder/stream.ogg"];
+    [self makeFile:@"folder/album.ape"];
 
     NSArray<NSString *> *files = [self relativePaths:
             [NSURLUtil expandDirectory:[self makeDirectory:@"folder"]

@@ -507,7 +507,8 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 }
 - (void)testLosslessContainersAndExtensionAliases {
     NSData *original=PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
-    for (NSString *name in @[@"lossless.flac",@"lossless.m4a",@"lossless.aiff",@"alias.aif",@"alias.wave",@"alias.bwf"]) {
+    for (NSString *name in @[@"lossless.flac",@"lossless.m4a",@"lossless.aiff",@"lossless.caf",@"lossless.w64",
+                             @"alias.aif",@"alias.wave",@"alias.bwf"]) {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
         NSURL *url=[self fixture:name]; NSData *decoded=PCM([self read:url]);
         XCTAssertEqualObjects(original,decoded,@"Lossless fixture %@",name);
@@ -525,6 +526,29 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 - (void)testAACContainer { [self checkLossy:@"lossy.m4a" tolerance:kVibeAACDecodeTolerance]; }
 - (void)testAACElementary { [self checkLossy:@"lossy.aac" tolerance:kVibeAACDecodeTolerance]; }
 - (void)testMP4 { [self checkLossy:@"alias.mp4" tolerance:kVibeAACDecodeTolerance]; }
+- (void)testAudiobook { [self checkLossy:@"alias.m4b" tolerance:kVibeAACDecodeTolerance]; }
+- (void)testRingtone { [self checkLossy:@"alias.m4r" tolerance:kVibeAACDecodeTolerance]; }
+- (void)testADTSSpelling { [self checkLossy:@"alias.adts" tolerance:kVibeAACDecodeTolerance]; }
+- (void)testOggVorbis { [self checkLossy:@"lossy.ogg" tolerance:0]; }
+- (void)testOggVorbisSpelledOga { [self checkLossy:@"alias.oga" tolerance:0]; }
+- (void)testOpus { [self checkLossy:@"lossy.opus" tolerance:0]; }
+// CoreAudio opens FLAC in Ogg, reports no length and decodes only its first
+// page, so the handle refuses it rather than play a second and call it whole.
+// The second half is the canary: once CoreAudio reports the length, re-check
+// its decode and lift the refusal (AudioFileHandle.m).
+- (void)testFLACInOggIsRefused {
+    NSURL *url=[self fixture:@"ogg-flac.oga"];
+    XCTSkipUnless([NSFileManager.defaultManager fileExistsAtPath:url.path],@"Optional encoder fixture ogg-flac.oga unavailable; install ffmpeg and regenerate");
+    NSError *error=nil;
+    XCTAssertNil([[AudioFileHandle alloc] initForReading:url error:&error]);
+    XCTAssertEqual(error.code,kAudioFileUnsupportedDataFormatError,@"%@",error);
+    ExtAudioFileRef reader=NULL;
+    XCTAssertEqual(ExtAudioFileOpenURL((__bridge CFURLRef)url,&reader),noErr);
+    SInt64 length=-1; UInt32 size=sizeof(length);
+    ExtAudioFileGetProperty(reader,kExtAudioFileProperty_FileLengthFrames,&size,&length);
+    ExtAudioFileDispose(reader);
+    XCTAssertEqual(length,0,@"CoreAudio now reports FLAC in Ogg's length: check whether it decodes in full");
+}
 - (void)testMP3CBR { [self checkLossy:@"cbr.mp3" tolerance:0]; }
 - (void)testMP3VBR { [self checkLossy:@"vbr.mp3" tolerance:0]; }
 - (void)testMP2 { [self checkLossy:@"lossy.mp2" tolerance:0]; }
@@ -3510,6 +3534,20 @@ static const NSUInteger kLayer3DecoderDelay = 529;
         XCTAssertEqual([source[@"bitsPerChannel"] intValue], [expected[name][1] intValue], @"%@", name);
         XCTAssertEqual([source[@"float"] boolValue], [expected[name][2] boolValue], @"%@: %@", name, source);
         XCTAssertTrue([source[@"lossless"] boolValue], @"%@", name);
+    }
+}
+
+- (void)testAudioPathNamesTheOggCodecs {
+    NSDictionary<NSString *, NSString *> *expected = @{@"lossy.ogg": @"Vorbis", @"lossy.opus": @"Opus"};
+    for (NSString *name in expected) {
+        NSURL *url = [self fixture:name];
+        XCTSkipUnless([NSFileManager.defaultManager fileExistsAtPath:url.path], @"Optional encoder fixture %@ unavailable; install ffmpeg and regenerate", name);
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+        [self play:url paused:NO position:0];
+        [self render:4800];
+        NSDictionary *source = _player.audioPathSnapshot[0];
+        XCTAssertEqualObjects(source[@"codec"], expected[name], @"%@", name);
+        XCTAssertFalse([source[@"lossless"] boolValue], @"%@", name);
     }
 }
 

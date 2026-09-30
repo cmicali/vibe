@@ -19,5 +19,9 @@ FOUNDATION_EXPORT VibeAudioFileFormat const VibeAudioFileFormatMP4;
 FOUNDATION_EXPORT VibeAudioFileFormat const VibeAudioFileFormatALAC;
 FOUNDATION_EXPORT VibeAudioFileFormat const VibeAudioFileFormatAIFF;
 FOUNDATION_EXPORT VibeAudioFileFormat const VibeAudioFileFormatWAV;
+FOUNDATION_EXPORT VibeAudioFileFormat const VibeAudioFileFormatW64;
+FOUNDATION_EXPORT VibeAudioFileFormat const VibeAudioFileFormatCAF;
+FOUNDATION_EXPORT VibeAudioFileFormat const VibeAudioFileFormatVorbis;
+FOUNDATION_EXPORT VibeAudioFileFormat const VibeAudioFileFormatOpus;
 
 NS_ASSUME_NONNULL_END

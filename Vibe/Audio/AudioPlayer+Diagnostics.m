@@ -399,6 +399,8 @@ static NSString *VibeCodecName(AudioFormatID format) {
         case kAudioFormatMPEGLayer3:    return @"MP3";
         case kAudioFormatMPEGLayer2:    return @"MP2";
         case kAudioFormatMPEGLayer1:    return @"MP1";
+        case kAudioFormatOpus:          return @"Opus";
+        case 'vorb':                    return @"Vorbis"; // the SDK names no constant
         default: {
             char text[5] = { (char)(format >> 24), (char)(format >> 16), (char)(format >> 8), (char)format, 0 };
             return [NSString stringWithFormat:@"%s", text];

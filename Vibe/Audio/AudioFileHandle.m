@@ -44,6 +44,9 @@ enum { kVibeMPEGReadPackets = 16 };
 // Frames dr_flac decodes at once into the scratch a planar read splits.
 enum { kVibeFLACReadFrames = 4096 };
 
+// CoreAudio's Ogg reader (.ogg, .oga, .opus). The SDK names no constant.
+static const AudioFileTypeID kVibeOggFileType = 'Oggf';
+
 @implementation AudioFileHandle {
     // What the parser's callbacks read, and dr_flac's and dr_wav's: valid from open until
     // dealloc has closed both. -1 once closed, or for a QuickTime container
@@ -342,6 +345,18 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     if (status != noErr || fileDescription.mChannelsPerFrame == 0 || fileDescription.mSampleRate <= 0) {
         return [self failWithError:error status:status ?: kAudioFileUnsupportedDataFormatError
                        description:[NSString stringWithFormat:@"%@ reports no audio format", name]];
+    }
+    // TRAP: CoreAudio's Ogg reader opens FLAC in Ogg but reports no length
+    // and decodes only its first page (macOS 27), so the file would play for
+    // a second and end as if whole. Refused, it fails as any undecodable file
+    // does. Vorbis and Opus in Ogg read in full.
+    AudioFileTypeID container = 0;
+    size = sizeof(container);
+    if (fileDescription.mFormatID == kAudioFormatFLAC
+            && AudioFileGetProperty(_parser, kAudioFilePropertyFileFormat, &size, &container) == noErr
+            && container == kVibeOggFileType) {
+        return [self failWithError:error status:kAudioFileUnsupportedDataFormatError
+                       description:[NSString stringWithFormat:@"%@ is FLAC in Ogg, which CoreAudio truncates", name]];
     }
     // The processing format carries the file's layout when it states one, and
     // a discrete layout for a wider file that does not: a converter between

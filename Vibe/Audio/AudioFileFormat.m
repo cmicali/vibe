@@ -13,3 +13,7 @@ VibeAudioFileFormat const VibeAudioFileFormatMP4 = @"MP4";
 VibeAudioFileFormat const VibeAudioFileFormatALAC = @"ALAC";
 VibeAudioFileFormat const VibeAudioFileFormatAIFF = @"AIFF";
 VibeAudioFileFormat const VibeAudioFileFormatWAV = @"WAV";
+VibeAudioFileFormat const VibeAudioFileFormatW64 = @"W64";
+VibeAudioFileFormat const VibeAudioFileFormatCAF = @"CAF";
+VibeAudioFileFormat const VibeAudioFileFormatVorbis = @"Vorbis";
+VibeAudioFileFormat const VibeAudioFileFormatOpus = @"Opus";
