@@ -626,21 +626,31 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 }
 // The byte offset of every packet CoreAudio's parser serves: for an MP3, each
 // audio frame, the LAME tag's frame not among them; for a FLAC, each frame.
+// Each is found by its bytes in the file, since macOS 26's MP3 parser answers
+// kAudioFilePropertyPacketToByte with kAudioFileInvalidPacketOffsetError.
 - (NSArray<NSNumber *> *)packetOffsetsOf:(NSURL *)url {
+    NSData *file = [NSData dataWithContentsOfURL:url];
     AudioFileID parser = NULL;
     XCTAssertEqual(AudioFileOpenURL((__bridge CFURLRef)url, kAudioFileReadPermission, 0, &parser), noErr);
-    SInt64 dataOffset = 0;
     UInt64 packets = 0;
-    UInt32 size = sizeof(dataOffset);
-    AudioFileGetProperty(parser, kAudioFilePropertyDataOffset, &size, &dataOffset);
-    size = sizeof(packets);
+    UInt32 bound = 0, size = sizeof(packets);
     AudioFileGetProperty(parser, kAudioFilePropertyAudioDataPacketCount, &size, &packets);
+    size = sizeof(bound);
+    AudioFileGetProperty(parser, kAudioFilePropertyPacketSizeUpperBound, &size, &bound);
+    NSMutableData *packet = [NSMutableData dataWithLength:MAX(bound, 4096u)];
     NSMutableArray<NSNumber *> *offsets = [NSMutableArray array];
+    NSUInteger from = 0;
     for (UInt64 p = 0; p < packets; p++) {
-        AudioBytePacketTranslation translation = {.mPacket = (SInt64)p};
-        size = sizeof(translation);
-        XCTAssertEqual(AudioFileGetProperty(parser, kAudioFilePropertyPacketToByte, &size, &translation), noErr);
-        [offsets addObject:@(dataOffset + translation.mByte)];
+        UInt32 bytes = (UInt32)packet.length, count = 1;
+        AudioStreamPacketDescription description = {0};
+        OSStatus status = AudioFileReadPacketData(parser, false, &bytes, &description, (SInt64)p, &count, packet.mutableBytes);
+        XCTAssertTrue(status == noErr || status == kAudioFileEndOfFileError, @"packet %llu: %d", p, (int)status);
+        if (count == 0) break;
+        NSRange found = [file rangeOfData:[packet subdataWithRange:NSMakeRange(0, bytes)] options:0 range:NSMakeRange(from, file.length - from)];
+        XCTAssertNotEqual(found.location, (NSUInteger)NSNotFound, @"packet %llu is not in the file", p);
+        if (found.location == NSNotFound) break;
+        [offsets addObject:@(found.location)];
+        from = NSMaxRange(found);
     }
     AudioFileClose(parser);
     return offsets;
