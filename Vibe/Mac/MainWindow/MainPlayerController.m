@@ -1049,7 +1049,7 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 - (NSDictionary *)debugLastPlaylistDictionary {
     return @{
         @"exists": @([NSFileManager.defaultManager fileExistsAtPath:VibeLastPlaylistURL().path]),
-        @"rows": @([PlaylistFile fileURLsInM3UData:[NSData dataWithContentsOfURL:VibeLastPlaylistURL()]].count),
+        @"rows": @([PlaylistFile rowsInM3UData:[NSData dataWithContentsOfURL:VibeLastPlaylistURL()]].count),
         @"currentIndex": @([NSUserDefaults.standardUserDefaults integerForKey:kVibeLastPlaylistCurrentIndexKey]),
     };
 }
