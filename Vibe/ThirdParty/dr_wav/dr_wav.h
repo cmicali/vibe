@@ -3558,8 +3558,8 @@ DRWAV_PRIVATE drwav_bool32 drwav_init__internal(drwav* pWav, drwav_chunk_proc on
                     } else if (fmt.formatTag == DR_WAVE_FORMAT_ADPCM) {
                         /*
                         MS ADPCM's extension is the frames a block, then the coefficient table its blocks' predictors index: a count and
-                        that many pairs. A table cut short, which CoreAudio refuses, or empty, which leaves no block decodable, is
-                        refused below. Pairs past the 256 a predictor can name are skipped.
+                        that many pairs. An extension too short for the count, a table cut short, which CoreAudio refuses, or an empty
+                        one, which leaves no block decodable, is refused below. Pairs past the 256 a predictor can name are skipped.
                         */
                         drwav_uint8 msadpcmext[4];
                         drwav_uint32 msadpcmextRead = 0;
@@ -6734,6 +6734,16 @@ DRWAV_PRIVATE size_t drwav__adpcm_read(drwav* pWav, void* pBufferOut, size_t byt
     return bytesRead;
 }
 
+/*
+A channel's prediction from its two previous samples and its block's coefficient pair, whose predictor the block's header has checked.
+Summed in 64 bits: a table's pairs can sum past an int32.
+*/
+static DRWAV_INLINE drwav_int32 drwav__msadpcm_predict(const drwav* pWav, drwav_uint32 iChannel)
+{
+    const drwav_int16* pCoefficients = pWav->pMSADPCMCoefficients + pWav->msadpcm.predictor[iChannel]*2;
+    return (drwav_int32)(((drwav_int64)pWav->msadpcm.prevFrames[iChannel][1] * pCoefficients[0] + (drwav_int64)pWav->msadpcm.prevFrames[iChannel][0] * pCoefficients[1]) >> 8);
+}
+
 DRWAV_PRIVATE drwav_uint64 drwav_read_pcm_frames_s16__msadpcm(drwav* pWav, drwav_uint64 framesToRead, drwav_int16* pBufferOut)
 {
     drwav_uint64 totalFramesRead = 0;
@@ -6857,12 +6867,7 @@ DRWAV_PRIVATE drwav_uint64 drwav_read_pcm_frames_s16__msadpcm(drwav* pWav, drwav
                     drwav_int32 newSample0;
                     drwav_int32 newSample1;
 
-                    /* The predictor is read from the file and then indexed into a table. Check that it's in bounds. */
-                    if (pWav->msadpcm.predictor[0] >= pWav->msadpcmCoefficientCount) {
-                        return totalFramesRead;
-                    }
-
-                    newSample0  = (drwav_int32)(((drwav_int64)pWav->msadpcm.prevFrames[0][1] * pWav->pMSADPCMCoefficients[pWav->msadpcm.predictor[0]*2 + 0] + (drwav_int64)pWav->msadpcm.prevFrames[0][0] * pWav->pMSADPCMCoefficients[pWav->msadpcm.predictor[0]*2 + 1]) >> 8);   /* 64-bit: a table's pairs can sum past an int32. */
+                    newSample0  = drwav__msadpcm_predict(pWav, 0);
                     newSample0  = (drwav_int32)drwav_clamp((drwav_int64)newSample0 + (drwav_int64)nibble0 * pWav->msadpcm.delta[0], -32768, 32767);   /* 64-bit: delta can grow past what an int32 product holds. */
 
                     pWav->msadpcm.delta[0] = (drwav_int32)drwav_clamp(((drwav_int64)adaptationTable[((nibbles & 0xF0) >> 4)] * pWav->msadpcm.delta[0]) >> 8, 16, 0x7FFFFFFF);
@@ -6871,7 +6876,7 @@ DRWAV_PRIVATE drwav_uint64 drwav_read_pcm_frames_s16__msadpcm(drwav* pWav, drwav
                     pWav->msadpcm.prevFrames[0][1] = newSample0;
 
 
-                    newSample1  = (drwav_int32)(((drwav_int64)pWav->msadpcm.prevFrames[0][1] * pWav->pMSADPCMCoefficients[pWav->msadpcm.predictor[0]*2 + 0] + (drwav_int64)pWav->msadpcm.prevFrames[0][0] * pWav->pMSADPCMCoefficients[pWav->msadpcm.predictor[0]*2 + 1]) >> 8);   /* 64-bit: a table's pairs can sum past an int32. */
+                    newSample1  = drwav__msadpcm_predict(pWav, 0);
                     newSample1  = (drwav_int32)drwav_clamp((drwav_int64)newSample1 + (drwav_int64)nibble1 * pWav->msadpcm.delta[0], -32768, 32767);   /* 64-bit: delta can grow past what an int32 product holds. */
 
                     pWav->msadpcm.delta[0] = (drwav_int32)drwav_clamp(((drwav_int64)adaptationTable[((nibbles & 0x0F) >> 0)] * pWav->msadpcm.delta[0]) >> 8, 16, 0x7FFFFFFF);
@@ -6888,11 +6893,7 @@ DRWAV_PRIVATE drwav_uint64 drwav_read_pcm_frames_s16__msadpcm(drwav* pWav, drwav
                     drwav_int32 newSample1;
 
                     /* Left. */
-                    if (pWav->msadpcm.predictor[0] >= pWav->msadpcmCoefficientCount) {
-                        return totalFramesRead; /* Out of bounds. Invalid file. */
-                    }
-
-                    newSample0  = (drwav_int32)(((drwav_int64)pWav->msadpcm.prevFrames[0][1] * pWav->pMSADPCMCoefficients[pWav->msadpcm.predictor[0]*2 + 0] + (drwav_int64)pWav->msadpcm.prevFrames[0][0] * pWav->pMSADPCMCoefficients[pWav->msadpcm.predictor[0]*2 + 1]) >> 8);   /* 64-bit: a table's pairs can sum past an int32. */
+                    newSample0  = drwav__msadpcm_predict(pWav, 0);
                     newSample0  = (drwav_int32)drwav_clamp((drwav_int64)newSample0 + (drwav_int64)nibble0 * pWav->msadpcm.delta[0], -32768, 32767);   /* 64-bit: delta can grow past what an int32 product holds. */
 
                     pWav->msadpcm.delta[0] = (drwav_int32)drwav_clamp(((drwav_int64)adaptationTable[((nibbles & 0xF0) >> 4)] * pWav->msadpcm.delta[0]) >> 8, 16, 0x7FFFFFFF);
@@ -6902,11 +6903,7 @@ DRWAV_PRIVATE drwav_uint64 drwav_read_pcm_frames_s16__msadpcm(drwav* pWav, drwav
 
 
                     /* Right. */
-                    if (pWav->msadpcm.predictor[1] >= pWav->msadpcmCoefficientCount) {
-                        return totalFramesRead; /* Out of bounds. Invalid file. */
-                    }
-
-                    newSample1  = (drwav_int32)(((drwav_int64)pWav->msadpcm.prevFrames[1][1] * pWav->pMSADPCMCoefficients[pWav->msadpcm.predictor[1]*2 + 0] + (drwav_int64)pWav->msadpcm.prevFrames[1][0] * pWav->pMSADPCMCoefficients[pWav->msadpcm.predictor[1]*2 + 1]) >> 8);   /* 64-bit: a table's pairs can sum past an int32. */
+                    newSample1  = drwav__msadpcm_predict(pWav, 1);
                     newSample1  = (drwav_int32)drwav_clamp((drwav_int64)newSample1 + (drwav_int64)nibble1 * pWav->msadpcm.delta[1], -32768, 32767);   /* 64-bit: delta can grow past what an int32 product holds. */
 
                     pWav->msadpcm.delta[1] = (drwav_int32)drwav_clamp(((drwav_int64)adaptationTable[((nibbles & 0x0F) >> 0)] * pWav->msadpcm.delta[1]) >> 8, 16, 0x7FFFFFFF);
