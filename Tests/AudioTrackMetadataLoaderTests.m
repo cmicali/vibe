@@ -63,6 +63,18 @@ static AudioTrackMetadata *VibeLoaderTestMetadataResult(BOOL parsedOK,
     return (AudioTrackMetadata *)metadata;
 }
 
+// A cue image's rows: consecutive ten-second windows of one file.
+static NSMutableArray<AudioTrack *> *VibeLoaderTestCueRows(NSURL *image, NSUInteger count) {
+    NSMutableArray<AudioTrack *> *rows = [NSMutableArray arrayWithCapacity:count];
+    for (NSUInteger row = 0; row < count; row++) {
+        [rows addObject:[[AudioTrack alloc] initWithURL:image cueStart:row * 750
+                                                 cueEnd:(row + 1) * 750
+                                                  title:nil performer:nil sheet:nil
+                                            trackNumber:(NSInteger)row + 1]];
+    }
+    return rows;
+}
+
 static BOOL VibeMetadataLoaderCoordinatorIsSettled(
         VibeAudioFileMaterializationCoordinatorSnapshot snapshot) {
     return snapshot.claimCount == 0
@@ -1048,6 +1060,9 @@ materializationCoordinator:coordinator
     NSObject *cacheLock = [[NSObject alloc] init];
     __block BOOL firstSecondRead = YES;
     __block NSUInteger parseCount = 0;
+    // Held until the new target has started: a parse settling first would
+    // serve its still-pending record and leave no second start to observe.
+    dispatch_semaphore_t firstParseGate = dispatch_semaphore_create(0);
 
     VibeMetadataLoaderOperationController *controller =
             [[VibeMetadataLoaderOperationController alloc] init];
@@ -1075,11 +1090,16 @@ materializationCoordinator:coordinator
         }
         return nil;
     } fileParser:^AudioTrackMetadata *(NSURL *parsedURL) {
+        NSUInteger parse;
         @synchronized (cacheLock) {
-            parseCount++;
+            parse = ++parseCount;
+        }
+        if (parse == 1) {
+            dispatch_semaphore_wait(firstParseGate,
+                    dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
         }
         return VibeLoaderTestMetadataResult(YES,
-                [NSString stringWithFormat:@"parse-%lu", (unsigned long)parseCount]);
+                [NSString stringWithFormat:@"parse-%lu", (unsigned long)parse]);
     }];
 
     [loader prioritizeTrack:first];
@@ -1098,9 +1118,10 @@ materializationCoordinator:coordinator
                 && [state[@"liveTokens"] unsignedIntegerValue] == 0;
     } description:@"older priority Ready completion did not settle"];
     dispatch_semaphore_signal(secondCacheGate);
-    [self waitForExpectations:@[
-        controller.allStartsExpectation, delegate.deliveryExpectation
-    ] timeout:VIBE_TEST_HANG_TIMEOUT];
+    [self waitForExpectations:@[controller.allStartsExpectation]
+                      timeout:VIBE_TEST_HANG_TIMEOUT];
+    dispatch_semaphore_signal(firstParseGate);
+    [self waitForExpectations:@[delegate.deliveryExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqualObjects(controller.startedURLs, (@[first.url, second.url]));
     XCTAssertEqualObjects(controller.startedRoles, (@[
@@ -1111,7 +1132,7 @@ materializationCoordinator:coordinator
             [NSSet setWithArray:(@[first, second])]);
 }
 
-- (void)testPriorityAddedDuringParseRetiresAtSettlementAndReopensDuplicate {
+- (void)testPriorityAddedDuringParseRetiresAtSettlementAndSettlesTheDuplicate {
     NSURL *url = [self URLNamed:@"parse-target-duplicate.wav"];
     AudioTrack *parseTarget = [AudioTrack withURL:url];
     AudioTrack *scanDuplicate = [AudioTrack withURL:url];
@@ -1119,8 +1140,9 @@ materializationCoordinator:coordinator
     dispatch_semaphore_t parserGate = dispatch_semaphore_create(0);
     XCTestExpectation *parserEntered =
             [self expectationWithDescription:@"target parser held"];
-    XCTestExpectation *allParsed = [self expectationWithDescription:@"all rows parsed"];
-    allParsed.expectedFulfillmentCount = 3;
+    XCTestExpectation *allParsed =
+            [self expectationWithDescription:@"target and blocker parsed"];
+    allParsed.expectedFulfillmentCount = 2;
     NSObject *stateLock = [[NSObject alloc] init];
     __block NSUInteger parseCount = 0;
     __block BOOL firstTargetParse = YES;
@@ -1188,18 +1210,17 @@ materializationCoordinator:coordinator
     } description:@"duplicate did not wait in the scan lane during target parse"];
     XCTAssertEqual(controller.startedURLs.count, 2u);
 
-    controller.allStartsExpectation =
-            [self expectationWithDescription:@"duplicate scan reopened after parse"];
     dispatch_semaphore_signal(parserGate);
-    [self waitForExpectations:@[
-        controller.allStartsExpectation, allParsed, delegate.deliveryExpectation
-    ] timeout:VIBE_TEST_HANG_TIMEOUT];
+    [self waitForExpectations:@[allParsed, delegate.deliveryExpectation]
+                      timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTAssertEqualObjects(controller.startedRoles, (@[
         @(VibeAudioFileMaterializationRoleMetadataScan),
         @(VibeAudioFileMaterializationRoleMetadataPriority),
-        @(VibeAudioFileMaterializationRoleMetadataScan),
-    ]));
+    ]), @"the target's parse settles the waiting duplicate");
+    XCTAssertEqualObjects(((VibeLoaderTestMetadata *)scanDuplicate.metadata).marker,
+            ((VibeLoaderTestMetadata *)parseTarget.metadata).marker);
+    XCTAssertNotEqual(scanDuplicate.metadata, parseTarget.metadata);
     [self waitForCondition:^BOOL{
         NSDictionary *priority = [loader debugPriorityLaneState];
         NSDictionary *scan = [loader debugScanLaneState];
@@ -1239,13 +1260,7 @@ materializationCoordinator:coordinator
 
 - (void)testRowsOfOneFileShareOneStageOneCacheRead {
     NSURL *image = [self URLNamed:@"cue-image.flac"];
-    NSMutableArray<AudioTrack *> *rows = [NSMutableArray array];
-    for (NSUInteger row = 0; row < 40; row++) {
-        [rows addObject:[[AudioTrack alloc] initWithURL:image cueStart:row * 750
-                                                 cueEnd:(row + 1) * 750
-                                                  title:nil performer:nil sheet:nil
-                                            trackNumber:(NSInteger)row + 1]];
-    }
+    NSMutableArray<AudioTrack *> *rows = VibeLoaderTestCueRows(image, 40);
     // The same file spelled another way, and one unrelated file between.
     AudioTrack *respelled = [self trackNamed:@"./cue-image.flac"];
     XCTAssertNotEqualObjects(respelled.url.path, image.path);
@@ -1292,6 +1307,67 @@ materializationCoordinator:coordinator
             @"each row needs its own copy for its own artwork state");
     XCTAssertTrue(delegate.allDeliveriesOnMain);
     XCTAssertEqual(controller.startedURLs.count, 0u);
+}
+
+- (void)testRowsOfOneUncachedFileCostOneMaterializationAndOneParse {
+    NSURL *image = [self URLNamed:@"uncached-cue-image.flac"];
+    NSMutableArray<AudioTrack *> *rows = VibeLoaderTestCueRows(image, 40);
+    NSObject *countLock = [[NSObject alloc] init];
+    __block NSUInteger cacheReads = 0;
+    __block NSUInteger fileParses = 0;
+    __block NSUInteger picks = 0;
+    dispatch_semaphore_t secondPickGate = dispatch_semaphore_create(0);
+
+    VibeMetadataLoaderOperationController *controller =
+            [[VibeMetadataLoaderOperationController alloc] init];
+    VibeMetadataLoaderDelegate *delegate = [[VibeMetadataLoaderDelegate alloc] init];
+    delegate.deliveryExpectation =
+            [self expectationWithDescription:@"every row published once"];
+    delegate.deliveryExpectation.expectedFulfillmentCount = rows.count;
+    AudioTrackMetadataLoader *loader = [self loaderWithController:controller
+            configuration:[self testConfiguration]
+            delegate:delegate
+            cacheReader:^AudioTrackMetadata *(AudioTrack *track) {
+        @synchronized (countLock) {
+            cacheReads++;
+        }
+        return nil;
+    } fileParser:^AudioTrackMetadata *(NSURL *url) {
+        @synchronized (countLock) {
+            fileParses++;
+        }
+        return VibeLoaderTestMetadataResult(YES, @"uncached-image");
+    }];
+    // The pick after the first row's Ready races its parse; held, the parse
+    // settles the file before a second row can be picked.
+    [loader debugSetBeforeScanPickValidation:^{
+        NSUInteger pick;
+        @synchronized (countLock) {
+            pick = ++picks;
+        }
+        if (pick == 2) {
+            dispatch_semaphore_wait(secondPickGate,
+                    dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
+        }
+    }];
+
+    [loader load:rows];
+    [self waitForExpectations:@[delegate.deliveryExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
+    [loader debugSetBeforeScanPickValidation:nil];
+    dispatch_semaphore_signal(secondPickGate);
+    [self waitForCondition:^BOOL{
+        return [loader debugPendingBackgroundMaterializationCount] == 0;
+    } description:@"settled rows left records pending, delayed or in flight"];
+
+    XCTAssertEqualObjects(controller.startedURLs, (@[image]));
+    XCTAssertEqual(fileParses, 1u);
+    XCTAssertEqual(cacheReads, 2u,
+            @"one stage-1 read for the file plus the owner's post-claim read");
+    for (AudioTrack *row in rows) {
+        XCTAssertEqualObjects(((VibeLoaderTestMetadata *)row.metadata).marker,
+                @"uncached-image");
+    }
+    XCTAssertEqual([NSSet setWithArray:[rows valueForKey:@"metadata"]].count, rows.count);
 }
 
 - (void)testSuccessfulParseJoinsDuplicateRowsAndPublishesIndependentCopies {
