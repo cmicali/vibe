@@ -58,6 +58,15 @@ static inline NSURL *VibeWriteFixture(NSURL *url, AVAudioPCMBuffer *buffer, NSEr
     return url;
 }
 
+// A whole file as AVAudioFile decodes it, float32 non-interleaved: Apple's own
+// decode, which shares nothing with AudioFileHandle. nil on failure.
+static inline AVAudioPCMBuffer *VibeReadWithAVAudioFile(NSURL *url, NSError **error) {
+    AVAudioFile *file = [[AVAudioFile alloc] initForReading:url error:error];
+    AVAudioPCMBuffer *whole = file ? [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat
+                                                                 frameCapacity:(AVAudioFrameCount)file.length] : nil;
+    return whole && [file readIntoBuffer:whole error:error] ? whole : nil;
+}
+
 // Appends whole interleaved frames; shares no production DSP, so a capture stays independent.
 static inline void VibeAppendPCM(NSMutableData *capture, AVAudioPCMBuffer *buffer) {
     NSUInteger channels = buffer.format.channelCount;

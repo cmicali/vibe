@@ -149,35 +149,31 @@ static size_t VibeStreamRead(void *user, void *buffer, size_t count) {
 // A position past the end is refused: nothing is there to read, and a damaged
 // seek table's offset or chunk size can be exabytes out. The origins are 0, 1
 // and 2 from the start, the cursor and the end, in both decoders' enums.
-static BOOL VibeStreamSeek(void *user, int offset, int origin) {
+static drflac_bool32 VibeStreamSeek(void *user, int offset, int origin) {
     AudioFileHandle *handle = (__bridge AudioFileHandle *)user;
     SInt64 base = origin == 0 ? 0 : origin == 1 ? handle->_streamCursor : handle->_size;
     SInt64 target;
     if (__builtin_add_overflow(base, (SInt64)offset, &target) || target < 0 || target > handle->_size) {
-        return NO;
+        return DRFLAC_FALSE;
     }
     handle->_streamCursor = target;
-    return YES;
+    return DRFLAC_TRUE;
 }
 
 static drflac_bool32 VibeFLACSeek(void *user, int offset, drflac_seek_origin origin) {
     _Static_assert(DRFLAC_SEEK_SET == 0 && DRFLAC_SEEK_CUR == 1 && DRFLAC_SEEK_END == 2, "VibeStreamSeek's origins");
-    return VibeStreamSeek(user, offset, (int)origin) ? DRFLAC_TRUE : DRFLAC_FALSE;
+    return VibeStreamSeek(user, offset, (int)origin);
 }
 
 static drwav_bool32 VibeWAVSeek(void *user, int offset, drwav_seek_origin origin) {
     _Static_assert(DRWAV_SEEK_SET == 0 && DRWAV_SEEK_CUR == 1 && DRWAV_SEEK_END == 2, "VibeStreamSeek's origins");
-    return VibeStreamSeek(user, offset, (int)origin) ? DRWAV_TRUE : DRWAV_FALSE;
+    return VibeStreamSeek(user, offset, (int)origin);
 }
 
-static drflac_bool32 VibeFLACTell(void *user, drflac_int64 *cursor) {
+// One tell for both: their tell procs are the same type.
+static drflac_bool32 VibeStreamTell(void *user, drflac_int64 *cursor) {
     *cursor = ((__bridge AudioFileHandle *)user)->_streamCursor;
     return DRFLAC_TRUE;
-}
-
-static drwav_bool32 VibeWAVTell(void *user, drwav_int64 *cursor) {
-    *cursor = ((__bridge AudioFileHandle *)user)->_streamCursor;
-    return DRWAV_TRUE;
 }
 
 // Interleaved frames into a planar buffer from frame `offset` on.
@@ -376,13 +372,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     if (format == AVAudioPCMFormatFloat32 && formatID == kAudioFormatFLAC && [self openFLAC]) {
         return self;
     }
-    AudioFileTypeID fileType = 0;
-    UInt32 fileTypeSize = sizeof(fileType);
-    if (format == AVAudioPCMFormatFloat32 && !_mpegChoiceApplies
-            && AudioFileGetProperty(_parser, kAudioFilePropertyFileFormat, &fileTypeSize, &fileType) == noErr
-            && (fileType == kAudioFileWAVEType || fileType == kAudioFileRF64Type || fileType == kAudioFileBW64Type
-                || fileType == kAudioFileWave64Type || fileType == kAudioFileAIFFType || fileType == kAudioFileAIFCType)
-            && [self openWAV]) {
+    if (format == AVAudioPCMFormatFloat32 && [self openWAV]) {
         return self;
     }
     const AudioStreamBasicDescription *client = _processingFormat.streamDescription;
@@ -507,7 +497,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     }
     _streamCursor = 0;
     _streamReadFailed = NO;
-    _flac = drflac_open(VibeStreamRead, VibeFLACSeek, VibeFLACTell, (__bridge void *)self, NULL);
+    _flac = drflac_open(VibeStreamRead, VibeFLACSeek, VibeStreamTell, (__bridge void *)self, NULL);
     if (!_flac || _streamReadFailed || _flac->totalPCMFrameCount == 0 || _flac->channels != _processingFormat.channelCount
             || _flac->sampleRate != _processingFormat.sampleRate) {
         drflac_close(_flac);
@@ -519,11 +509,10 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 }
 
 // Takes a WAV, W64, RF64 or AIFF(-C) file over for dr_wav, as openFLAC does
-// for dr_flac, for what it decodes: integer and float PCM, A-law, mu-law, and
-// IMA and MS ADPCM (ThirdParty/AGENTS.md). Anything else in those containers,
-// MPEG or FLAC among them, and a file dr_wav reads differently, is left to
-// ExtAudioFile. dr_wav answers the length: the frames the data holds, a COMM
-// or fact count only when it is no more.
+// for dr_flac, when it holds a coding dr_wav decodes; anything else, a file of
+// another container or one dr_wav reads differently is left to ExtAudioFile.
+// dr_wav answers the length: the frames the data holds, a COMM or fact count
+// only when it is no more.
 - (BOOL)openWAV {
     if (_descriptor < 0) {
         return NO;
@@ -531,16 +520,18 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     _streamCursor = 0;
     _streamReadFailed = NO;
     _wav = calloc(1, sizeof(*_wav));
-    BOOL opened = drwav_init(_wav, VibeStreamRead, VibeWAVSeek, VibeWAVTell, (__bridge void *)self, NULL);
+    if (!drwav_init(_wav, VibeStreamRead, VibeWAVSeek, VibeStreamTell, (__bridge void *)self, NULL)) {
+        free(_wav);
+        _wav = NULL;
+        return NO;
+    }
     drwav_uint16 tag = _wav->translatedFormatTag;
     BOOL decodable = tag == DR_WAVE_FORMAT_PCM || tag == DR_WAVE_FORMAT_ALAW || tag == DR_WAVE_FORMAT_MULAW
             || tag == DR_WAVE_FORMAT_ADPCM || tag == DR_WAVE_FORMAT_DVI_ADPCM
             || (tag == DR_WAVE_FORMAT_IEEE_FLOAT && (_wav->bitsPerSample == 32 || _wav->bitsPerSample == 64));
-    if (!opened || !decodable || _streamReadFailed || _wav->totalPCMFrameCount == 0
+    if (!decodable || _streamReadFailed || _wav->totalPCMFrameCount == 0
             || _wav->channels != _processingFormat.channelCount || _wav->sampleRate != _processingFormat.sampleRate) {
-        if (opened) {
-            drwav_uninit(_wav);
-        }
+        drwav_uninit(_wav);
         free(_wav);
         _wav = NULL;
         return NO;
@@ -603,8 +594,11 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     if (_mpeg) {
         return _mpegPosition;
     }
-    if (_flac || _wav) {
-        return (AVAudioFramePosition)(_flac ? _flac->currentPCMFrame : _wav->readCursorInPCMFrames);
+    if (_flac) {
+        return (AVAudioFramePosition)_flac->currentPCMFrame;
+    }
+    if (_wav) {
+        return (AVAudioFramePosition)_wav->readCursorInPCMFrames;
     }
     SInt64 position = 0;
     return ExtAudioFileTell(_codec, &position) == noErr ? position : 0;

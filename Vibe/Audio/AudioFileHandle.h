@@ -32,13 +32,8 @@
 //  the last frames when STREAMINFO leaves it unknown. The vendored copy
 //  carries fixes of its own (ThirdParty/AGENTS.md).
 //
-//  A WAV, W64, RF64 or AIFF(-C) file read as float32 is decoded by dr_wav when
-//  it holds what dr_wav decodes: integer and float PCM, A-law, mu-law, and IMA
-//  and MS ADPCM. Its decode is Apple's bit for bit at half the cost or less,
-//  and its IMA4 seeks land on the frames a read from the start gives, where
-//  Apple's do not (docs/audio-quality.md). As for FLAC, CoreAudio's parser
-//  answers the format and layout and is then closed, and the vendored copy
-//  carries fixes of its own.
+//  A WAV or AIFF file read as float32 is decoded by dr_wav the same way, when
+//  it holds a coding dr_wav decodes (ThirdParty/AGENTS.md lists them).
 //
 
 #import <AVFAudio/AVFAudio.h>
