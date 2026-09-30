@@ -5,6 +5,7 @@
 
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataInternal.h"
+#import "AudioFileHandle.h"
 #import "AudioTrack.h"
 #import "AudioTrackArtworkInternal.h"
 #import "PlatformImage.h"
@@ -439,6 +440,14 @@ static NSData *VibeEncodedArtData(VibeImage *image) {
             // 0 is unknown; the codec line drops nil, not zero.
             if (props->bitrate() > 0) self.bitrate = @(props->bitrate());
             if (props->sampleRate() > 0) self.sampleRate = @(props->sampleRate());
+        }
+        // TagLib takes a FLAC's length from STREAMINFO alone, which may leave it
+        // unknown (0); the handle's dr_flac finds it from the stream's last frames.
+        if (self.duration == 0 && dynamic_cast<TagLib::FLAC::File *>(file)) {
+            AudioFileHandle *handle = [[AudioFileHandle alloc] initForReading:url error:NULL];
+            if (handle.length > 0) {
+                self.duration = handle.length / handle.processingFormat.sampleRate;
+            }
         }
 
         // PropertyMap normalizes every format's tempo tag to "BPM".
