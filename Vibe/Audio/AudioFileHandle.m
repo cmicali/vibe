@@ -537,9 +537,10 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     }
     // TRAP: CoreAudio's parser describes a sowt AIFF-C as 16-bit whatever its
     // COMM says, so a 24 or 32-bit one would report 16 as its depth and have
-    // bit-perfect output choose 16 bits. The file's description takes the
-    // width dr_wav decodes wherever the two disagree on a sample's size in
-    // bytes; a 20-bit sample in 3 is both's.
+    // bit-perfect output choose 16 bits, and Apple's decoder reads it 1.5 or 2
+    // times as long, so only dr_wav reads one right. The file's description
+    // takes the width dr_wav decodes wherever the two disagree on a sample's
+    // size in bytes; a 20-bit sample in 3 is both's.
     const AudioStreamBasicDescription *parsed = _fileFormat.streamDescription;
     UInt32 bytesPerFrame = (_wav->bitsPerSample + 7) / 8 * _wav->channels;
     if (parsed->mFormatID == kAudioFormatLinearPCM && parsed->mBytesPerFrame != bytesPerFrame) {

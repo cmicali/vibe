@@ -43,8 +43,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface AudioFileHandle : NSObject
 
-// Opens for reading, decoding to float32 non-interleaved at the file's rate,
-// channels and layout — AVAudioFile's standard processing format.
+// Opens for reading non-interleaved: AVAudioFile's standard processing format.
 - (nullable instancetype)initForReading:(NSURL *)url error:(NSError * _Nullable __autoreleasing * _Nullable)error;
 
 // Opens for reading, decoding to float32 at the file's rate, channels and
