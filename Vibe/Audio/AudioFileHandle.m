@@ -41,9 +41,6 @@ static const float kVibeMPEGSampleBound = 4.0f;
 // per MP3 frame, which were a tenth of the whole decode's time.
 enum { kVibeMPEGReadPackets = 16 };
 
-// Frames dr_flac decodes at once into the scratch a planar read splits.
-enum { kVibeFLACReadFrames = 4096 };
-
 // CoreAudio's Ogg reader (.ogg, .oga, .opus). The SDK names no constant.
 static const AudioFileTypeID kVibeOggFileType = 'Oggf';
 
@@ -88,7 +85,6 @@ static const AudioFileTypeID kVibeOggFileType = 'Oggf';
     drwav _wavState;
     SInt64 _streamCursor;
     BOOL _streamReadFailed; // a pread failed, which neither decoder can tell from the end
-    float *_flacPCM;        // kVibeFLACReadFrames frames, interleaved, for a planar read; NULL otherwise
 }
 
 + (BOOL)appleMPEGDecoder {
@@ -505,12 +501,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     _streamCursor = 0;
     _streamReadFailed = NO;
     _flac = drflac_open(VibeStreamRead, VibeFLACSeek, VibeStreamTell, (__bridge void *)self, NULL);
-    // A planar read without its scratch would write every channel into the
-    // first plane, so one that cannot have it is ExtAudioFile's.
-    BOOL planar = !_processingFormat.isInterleaved && _processingFormat.channelCount > 1;
-    _flacPCM = _flac && planar ? malloc(sizeof(float) * kVibeFLACReadFrames * _processingFormat.channelCount) : NULL;
-    if (!_flac || (planar && !_flacPCM)
-            || ![self adoptStreamDecoderWithChannels:_flac->channels rate:_flac->sampleRate length:_flac->totalPCMFrameCount]) {
+    if (!_flac || ![self adoptStreamDecoderWithChannels:_flac->channels rate:_flac->sampleRate length:_flac->totalPCMFrameCount]) {
         [self closeStreamDecoder];
         return NO;
     }
@@ -571,8 +562,6 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 - (void)closeStreamDecoder {
     drflac_close(_flac);
     _flac = NULL;
-    free(_flacPCM);
-    _flacPCM = NULL;
     if (_wav) {
         drwav_uninit(_wav);
         _wav = NULL;
@@ -808,9 +797,9 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     return YES;
 }
 
-// dr_flac's or dr_wav's decode, straight into the buffer: all that is asked
-// in one call, but for dr_flac's planar read, which goes through _flacPCM a
-// chunk at a time. Reads stop at the length, where dr_flac's would read on.
+// dr_flac's or dr_wav's decode, straight into the buffer, all that is asked in
+// one call: interleaved, or a channel to each plane. Reads stop at the length,
+// where dr_flac's would read on.
 - (BOOL)readStreamIntoBuffer:(AVAudioPCMBuffer *)buffer frameCount:(AVAudioFrameCount)wanted error:(NSError **)error {
     UInt32 channels = _processingFormat.channelCount;
     BOOL planar = !_processingFormat.isInterleaved && channels > 1;
@@ -818,16 +807,17 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     wanted = (AVAudioFrameCount)MIN((SInt64)wanted, MAX(0, _length - self.framePosition));
     AVAudioFrameCount total = 0;
     while (total < wanted) {
-        AVAudioFrameCount frames = _flacPCM ? MIN(wanted - total, (AVAudioFrameCount)kVibeFLACReadFrames) : wanted - total;
+        AVAudioFrameCount frames = wanted - total;
         UInt32 got;
-        if (_wav && planar) {
+        if (planar) {
             float *at[channels];
             for (UInt32 c = 0; c < channels; c++) {
                 at[c] = planes[c] + total;
             }
-            got = (UInt32)drwav_read_pcm_frames_f32_planar(_wav, (drwav_uint64)frames, at);
+            got = (UInt32)(_flac ? drflac_read_pcm_frames_f32_planar(_flac, (drflac_uint64)frames, at)
+                                 : drwav_read_pcm_frames_f32_planar(_wav, (drwav_uint64)frames, at));
         } else {
-            float *into = _flacPCM ?: planes[0] + (size_t)total * channels;
+            float *into = planes[0] + (size_t)total * channels;
             got = (UInt32)(_flac ? drflac_read_pcm_frames_f32(_flac, (drflac_uint64)frames, into)
                                  : drwav_read_pcm_frames_f32(_wav, (drwav_uint64)frames, into));
         }
@@ -840,9 +830,6 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         }
         if (got == 0) {
             break; // the end
-        }
-        if (_flacPCM) {
-            VibeDeinterleave(_flacPCM, channels, planes, total, got);
         }
         total += got;
     }
