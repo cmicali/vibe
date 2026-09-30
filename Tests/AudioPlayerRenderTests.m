@@ -507,7 +507,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 }
 - (void)testLosslessContainersAndExtensionAliases {
     NSData *original=PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
-    for (NSString *name in @[@"lossless.flac",@"lossless.m4a",@"lossless.aiff",@"lossless.caf",@"lossless.w64",
+    for (NSString *name in @[@"lossless.flac",@"lossless.m4a",@"lossless.aiff",@"lossless.caf",@"wave64-LEI24.w64",
                              @"alias.aif",@"alias.wave",@"alias.bwf"]) {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
         NSURL *url=[self fixture:name]; NSData *decoded=PCM([self read:url]);
