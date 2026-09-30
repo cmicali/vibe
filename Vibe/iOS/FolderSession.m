@@ -149,14 +149,23 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     if (!openInPlace) {
         // An inbox copy, readable without a scope. It skips the worker:
         // Documents/Inbox sits under Documents, so with Documents as the base
-        // the coverage rule would expand the copy into the whole Inbox.
+        // the coverage rule would expand the copy into the whole Inbox. Its
+        // rows still come off main, since a large FLAC's are read from its
+        // header, and off the work queue, which a walk hung on a provider can
+        // hold; the generation drops a result a newer open superseded.
         NSURL *url = urls.firstObject;
         if (!url) {
             return;
         }
-        [self finishOpenIntent:[self beginOpenIntent] appending:NO tracks:[NSURLUtil rowsForFile:url]
-                     folderURL:nil addedFolders:@[] selectedURL:nil restored:NO
-                   ownedScopes:@[] ownedGrants:@[] baseBookmark:nil additionBookmarks:@[]];
+        uint64_t openIntentGeneration = [self beginOpenIntent];
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            NSArray<AudioTrack *> *rows = [NSURLUtil rowsForFile:url];
+            run_on_main_thread({
+                [self finishOpenIntent:openIntentGeneration appending:NO tracks:rows
+                             folderURL:nil addedFolders:@[] selectedURL:nil restored:NO
+                           ownedScopes:@[] ownedGrants:@[] baseBookmark:nil additionBookmarks:@[]];
+            });
+        });
         return;
     }
     [self beginOpenURLs:urls appending:NO fromSearchRoots:NO];
