@@ -6409,6 +6409,47 @@ static drflac_bool32 drflac__find_and_decode_next_valid_flac_frame(drflac* pFlac
 }
 
 /*
+Finds the length of a native stream whose STREAMINFO leaves it unknown (0), as an encoder that cannot seek back to write it does: the end of
+the last FLAC frame that checks out. It's looked for from a FLAC frame's worth of bytes before the end of the stream, and from twice as far
+back each time none is found there, so only the stream's tail is read. A stream that cannot seek to its end, or has no valid frame, keeps
+its unknown length. The decoder is left at the first frame.
+*/
+static void drflac__find_unknown_total_pcm_frame_count(drflac* pFlac)
+{
+    drflac_int64 streamEnd;
+    drflac_uint64 window;
+    drflac_uint64 totalPCMFrameCount = 0;
+
+    if (pFlac->bs.onTell == NULL || !pFlac->bs.onSeek(pFlac->bs.pUserData, 0, DRFLAC_SEEK_END)) {
+        return;
+    }
+
+    if (pFlac->bs.onTell(pFlac->bs.pUserData, &streamEnd) && streamEnd > 0 && (drflac_uint64)streamEnd > pFlac->firstFLACFramePosInBytes) {
+        for (window = drflac__get_max_bytes_of_pcm_frames(pFlac, 0); totalPCMFrameCount == 0; window *= 2) {
+            drflac_uint64 start = pFlac->firstFLACFramePosInBytes;
+            if ((drflac_uint64)streamEnd - start > window) {
+                start = (drflac_uint64)streamEnd - window;
+            }
+
+            if (drflac__seek_to_byte(&pFlac->bs, start)) {
+                while (drflac__find_and_decode_next_valid_flac_frame(pFlac, (drflac_uint64)streamEnd)) {
+                    drflac_uint64 lastPCMFrame;
+                    drflac__get_pcm_frame_range_of_current_flac_frame(pFlac, NULL, &lastPCMFrame);
+                    totalPCMFrameCount = lastPCMFrame + 1;
+                }
+            }
+
+            if (start == pFlac->firstFLACFramePosInBytes) {
+                break;
+            }
+        }
+    }
+
+    drflac__seek_to_first_frame(pFlac);
+    pFlac->totalPCMFrameCount = totalPCMFrameCount;
+}
+
+/*
 Decodes the first valid FLAC frame at or after the stream position pos, which is known to be at or just before a frame, and seeks forward
 from it to pcmFrameIndex. It fails if that frame starts past pcmFrameIndex, or isn't within a frame's worth of bytes, and then leaves the
 decoder at the first frame.
@@ -8678,6 +8719,11 @@ static drflac* drflac_open_with_metadata_private(drflac_read_proc onRead, drflac
                 }
             }
         }
+    }
+
+    /* A stream that doesn't say how long it is can't show its duration or be seeked by bisection until its length is found. */
+    if (init.hasStreamInfoBlock && init.container == drflac_container_native && pFlac->totalPCMFrameCount == 0) {
+        drflac__find_unknown_total_pcm_frame_count(pFlac);
     }
 
     return pFlac;

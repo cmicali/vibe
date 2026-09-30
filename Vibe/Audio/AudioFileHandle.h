@@ -28,8 +28,9 @@
 //  stream from its start on the first seek into any part not yet read, and
 //  never uses the seek table (docs/audio-quality.md). CoreAudio's parser
 //  answers the file's format and layout and is then closed; dr_flac reads the
-//  stream through the descriptor itself, its STREAMINFO the length. The
-//  vendored copy carries fixes of its own (ThirdParty/AGENTS.md).
+//  stream through the descriptor itself and answers its length, found from
+//  the last frames when STREAMINFO leaves it unknown. The vendored copy
+//  carries fixes of its own (ThirdParty/AGENTS.md).
 //
 
 #import <AVFAudio/AVFAudio.h>

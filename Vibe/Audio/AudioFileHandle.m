@@ -471,7 +471,9 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 // Takes the file over for dr_flac, or leaves it to ExtAudioFile when dr_flac
 // cannot open it or reads it differently. ExtAudioFile is disposed without
 // decoding and the parser closed: dr_flac reads the stream through the
-// descriptor itself, and its STREAMINFO answers the length, 0 when unknown.
+// descriptor itself and answers the length, STREAMINFO's or, for a stream
+// that leaves it unknown, the end of its last frame (ThirdParty/AGENTS.md).
+// 0 means the stream has no frame to play.
 - (BOOL)openFLAC {
     if (_descriptor < 0) {
         return NO;
@@ -576,9 +578,9 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     }
     OSStatus status;
     if (_flac) {
-        // dr_flac clamps the target to STREAMINFO's length; past the frames a
-        // truncated file holds, or past the end of one of unknown length, it
-        // lands at the end, where reads return nothing, as Apple's does.
+        // dr_flac clamps the target to the length; past the frames a
+        // truncated file holds it lands at the end, where reads return
+        // nothing, as Apple's does.
         BOOL landed = drflac_seek_to_pcm_frame(_flac, (drflac_uint64)MAX(0, frame)) && !_flacReadFailed;
         status = landed ? noErr : kAudioFilePositionError;
     } else {
@@ -717,18 +719,14 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     return YES;
 }
 
-// Reads stop at STREAMINFO's length, where dr_flac's would read on, or for a
-// file that declares none (0), where its frames run out.
+// Reads stop at the length, where dr_flac's would read on.
 - (BOOL)readFLACIntoBuffer:(AVAudioPCMBuffer *)buffer frameCount:(AVAudioFrameCount)wanted error:(NSError **)error {
     UInt32 channels = _processingFormat.channelCount;
     BOOL direct = _processingFormat.isInterleaved || channels == 1;
     float *const *planes = buffer.floatChannelData;
     AVAudioFrameCount total = 0;
     while (total < wanted) {
-        SInt64 frames = MIN(wanted - total, (AVAudioFrameCount)kVibeFLACReadFrames);
-        if (_length > 0) {
-            frames = MIN(frames, _length - (SInt64)_flac->currentPCMFrame);
-        }
+        SInt64 frames = MIN(MIN(wanted - total, (AVAudioFrameCount)kVibeFLACReadFrames), _length - (SInt64)_flac->currentPCMFrame);
         if (frames <= 0) {
             break;
         }

@@ -790,8 +790,9 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // each decodes to the PCM it was encoded from, a 32-bit one rounded once to
 // float32 in each side-channel mode, and every seek reads what the continuous
 // decode holds there. The empty-partition file is played again with no length
-// in STREAMINFO, as a streamed encode leaves it, which dr_flac can only seek
-// by walking frames, so the walk crosses every one of them.
+// in STREAMINFO, as a streamed encode leaves it, and again with a megabyte of
+// zeros after it, as a download that reserved its size leaves it: dr_flac
+// finds the length from its last frames, and the player plays all of it.
 - (void)testDrFLACDecodesWhatTheFileHolds {
     NSDictionary<NSString *, NSString *> *sources = @{
         @"flac-zero-residual.flac": @"noise-48000-24-2.wav", @"flac-block16.flac": @"noise-48000-24-2.wav",
@@ -806,12 +807,22 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     }
     NSMutableData *unknown = [NSMutableData dataWithContentsOfURL:[self fixture:@"flac-zero-residual.flac"]];
     [self clearLengthOfFLAC:unknown];
-    AudioFileHandle *file = [self open:[self writeBytes:unknown name:@"unknown-length.flac"] decoder:@"dr_flac"];
-    XCTAssertEqual(file.length, 0);
-    NSData *decoded = [self readToEnd:file];
-    XCTAssertEqualObjects(decoded, Float32PCM([self wideSourcePCM:[self fixture:@"noise-48000-24-2.wav"]]), @"no length");
-    [self assertSeeksOf:file match:decoded block:4096 name:@"no length"];
-    [self assertSeekOf:file to:decoded.length / sizeof(float) / file.processingFormat.channelCount + 5000 match:decoded name:@"no length, past the end"];
+    NSData *source = Float32PCM([self wideSourcePCM:[self fixture:@"noise-48000-24-2.wav"]]);
+    NSUInteger frames = source.length / sizeof(float) / 2;
+    NSURL *unknownURL = [self writeBytes:unknown name:@"unknown-length.flac"];
+    [unknown increaseLengthBy:1 << 20];
+    for (NSURL *url in @[unknownURL, [self writeBytes:unknown name:@"unknown-length-reserved.flac"]]) {
+        NSString *name = url.lastPathComponent;
+        AudioFileHandle *file = [self open:url decoder:@"dr_flac"];
+        XCTAssertEqual(file.length, (AVAudioFramePosition)frames, @"%@", name);
+        NSData *decoded = [self readToEnd:file];
+        XCTAssertEqualObjects(decoded, source, @"%@", name);
+        [self assertSeeksOf:file match:decoded block:4096 name:name];
+        [self assertSeekOf:file to:frames + 5000 match:decoded name:[name stringByAppendingString:@", past the end"]];
+    }
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+    [self play:unknownURL paused:NO position:0];
+    [self assertReference:source capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
 }
 // What damages files in the wild, done to lossless.flac, Apple's encode: an
 // ID3v2 tag in front, a seek table two frames stale and one with a garbage
@@ -922,14 +933,14 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     [self assertSeekOf:file to:(k + 2) * block match:whole name:@"cut, past the end"];
     [self assertSeekOf:file to:(k - 1) * block match:whole name:@"cut, after the end"];
 
-    // After reading to the end of a file of unknown length, as a streamed encode leaves it, with a stray 8-channel frame header past
-    // its last frame, a seek back reads the last frame. A known length ends the reads before dr_flac looks past the last frame.
+    // A file of unknown length, as a streamed encode leaves it, with a stray 8-channel frame header past its last frame: the length found
+    // ends at the last frame, and after reading to the end, a seek back reads the last frame.
     static const uint8_t stray[16] = {0xFF, 0xF8, 0xC9, 0x78, 0x05, 0x00};
     NSMutableData *trailing = [bytes mutableCopy];
     [self clearLengthOfFLAC:trailing];
     [trailing appendBytes:stray length:sizeof(stray)];
     file = open(trailing, @"trailing-header.flac");
-    XCTAssertEqual(file.length, 0);
+    XCTAssertEqual(file.length, clean.length);
     XCTAssertEqualObjects([self readToEnd:file], reference, @"stray header past the end");
     [self assertSeekOf:file to:reference.length / frameBytes - 100 match:reference name:@"stray header past the end, after the end"];
 }
