@@ -490,12 +490,14 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     _streamCursor = 0;
     _streamReadFailed = NO;
     _flac = drflac_open(VibeStreamRead, VibeFLACSeek, VibeStreamTell, (__bridge void *)self, NULL);
-    if (!_flac || ![self adoptStreamDecoderWithChannels:_flac->channels rate:_flac->sampleRate length:_flac->totalPCMFrameCount]) {
+    // A planar read without its scratch would write every channel into the
+    // first plane, so one that cannot have it is ExtAudioFile's.
+    BOOL planar = !_processingFormat.isInterleaved && _processingFormat.channelCount > 1;
+    _flacPCM = _flac && planar ? malloc(sizeof(float) * kVibeFLACReadFrames * _processingFormat.channelCount) : NULL;
+    if (!_flac || (planar && !_flacPCM)
+            || ![self adoptStreamDecoderWithChannels:_flac->channels rate:_flac->sampleRate length:_flac->totalPCMFrameCount]) {
         [self closeStreamDecoder];
         return NO;
-    }
-    if (!_processingFormat.isInterleaved && _flac->channels > 1) {
-        _flacPCM = malloc(sizeof(float) * kVibeFLACReadFrames * _flac->channels);
     }
     return YES;
 }
@@ -531,7 +533,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         AudioStreamBasicDescription described = *parsed;
         described.mBitsPerChannel = _wav->bitsPerSample;
         described.mBytesPerFrame = described.mBytesPerPacket = bytesPerFrame;
-        _fileFormat = [[AVAudioFormat alloc] initWithStreamDescription:&described channelLayout:_fileFormat.channelLayout];
+        _fileFormat = [[AVAudioFormat alloc] initWithStreamDescription:&described channelLayout:_fileFormat.channelLayout] ?: _fileFormat;
     }
     return YES;
 }
@@ -554,6 +556,8 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 - (void)closeStreamDecoder {
     drflac_close(_flac);
     _flac = NULL;
+    free(_flacPCM);
+    _flacPCM = NULL;
     if (_wav) {
         drwav_uninit(_wav);
         _wav = NULL;
@@ -586,7 +590,6 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     free(_mpegRead);
     free(_mpegPCM);
     [self closeStreamDecoder];
-    free(_flacPCM);
     [self closeParser];
     if (_descriptor >= 0) {
         close(_descriptor);

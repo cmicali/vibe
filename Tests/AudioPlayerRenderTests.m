@@ -989,7 +989,8 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     NSArray<NSString *> *names = @[@"noise-44100-16-1.wav", @"noise-96000-24-2.wav", @"noise-48000-32-2.wav", @"noise-48000-24-8.wav",
         @"integer32.wav", @"float64-low-bits.wav", @"alias.bwf", @"lossless.aiff", @"aiff-BEI8.aif",
         @"wav-UI8.wav", @"wav-ulaw.wav", @"wav-alaw.wav", @"aifc-BEI8.aif", @"aifc-BEI16.aif", @"aifc-BEI24.aif", @"aifc-BEI32.aif",
-        @"aifc-BEF32.aif", @"aifc-BEF64.aif", @"aifc-ulaw.aif", @"aifc-alaw.aif", @"aifc-ima4.aif", @"aifc-ima4-mono.aif",
+        @"aifc-BEF32.aif", @"aifc-BEF64.aif", @"aifc-ulaw.aif", @"aifc-alaw.aif", @"aifc-ima4.aif", @"aifc-ima4-mono.aif", @"aifc-UI8.aif",
+        @"wave64-LEI24.w64", @"rf64-LEI24.wav",
         @"wav-ima-adpcm.wav", @"wav-ms-adpcm.wav"];
     NSMutableArray<NSString *> *missing = [NSMutableArray array];
     for (NSString *name in names) {
@@ -1009,6 +1010,19 @@ static const NSUInteger kLayer3DecoderDelay = 529;
         }
         XCTAssertEqualObjects(decoded, apple, @"%@", name);
         [self assertSeeksOf:file match:decoded block:[name containsString:@"ima4"] ? 64 : 4096 name:name];
+    }
+    // Samples narrower than their bytes, 12 bits in 2 and 20 in 3, their pad
+    // bits zero as a writer leaves them.
+    for (NSArray *narrowed in @[@[@"noise-44100-16-1.wav", @12], @[@"noise-48000-24-2.wav", @20]]) {
+        NSMutableData *wave = [[NSData dataWithContentsOfURL:[self fixture:narrowed[0]]] mutableCopy];
+        NSRange fmt = [self chunk:"fmt " of:wave bigEndian:NO], data = [self chunk:"data" of:wave bigEndian:NO];
+        uint8_t *b = wave.mutableBytes, bits = [narrowed[1] unsignedCharValue], width = (bits + 7) / 8;
+        b[fmt.location + 14] = bits; // wBitsPerSample
+        for (NSUInteger at = data.location; at + width <= NSMaxRange(data); at += width) {
+            b[at] &= (uint8_t)(0xFF << (8 * width - bits)); // the low byte holds the pad
+        }
+        NSURL *url = [self writeBytes:wave name:[NSString stringWithFormat:@"pcm-%u.wav", bits]];
+        XCTAssertEqualObjects([self readToEnd:[self open:url decoder:@"dr_wav"]], [self appleDecodeOf:url], @"%u bits in %u bytes", bits, width);
     }
     AudioFileHandle *interleaved = [[AudioFileHandle alloc] initForReading:[self fixture:@"lossless.aiff"] commonFormat:AVAudioPCMFormatFloat32 interleaved:YES error:NULL];
     XCTAssertEqualObjects([self readToEnd:interleaved], [self appleDecodeOf:[self fixture:@"lossless.aiff"]], @"interleaved, as the waveform reads");
@@ -1174,14 +1188,7 @@ static const NSUInteger kLayer3DecoderDelay = 529;
         XCTAssertEqualObjects([self readToEnd:sowt], [self readToEnd:big], @"%@ as sowt", name);
         AudioStreamBasicDescription source = *sowt.fileFormat.streamDescription;
         XCTAssertEqual(VibeSourceBitDepth(source), bits, @"%@ as sowt: the depth reported", name);
-        AudioStreamRangedDescription offered[2] = {0};
-        for (int i = 0; i < 2; i++) {
-            offered[i].mFormat.mFormatID = kAudioFormatLinearPCM;
-            offered[i].mFormat.mFormatFlags = kAudioFormatFlagIsSignedInteger;
-            offered[i].mFormat.mBitsPerChannel = i ? bits : 16;
-            offered[i].mFormat.mChannelsPerFrame = source.mChannelsPerFrame;
-            offered[i].mFormat.mSampleRate = offered[i].mSampleRateRange.mMinimum = offered[i].mSampleRateRange.mMaximum = source.mSampleRate;
-        }
+        AudioStreamRangedDescription offered[2] = {VibeRangedPCMFormat(source.mSampleRate, 16, NO), VibeRangedPCMFormat(source.mSampleRate, bits, NO)};
         AudioStreamBasicDescription chosen = {0};
         XCTAssertTrue(VibeBitPerfectChooseFormat(source, source.mSampleRate, offered, 2, &chosen), @"%@ as sowt", name);
         XCTAssertEqual(chosen.mBitsPerChannel, bits, @"%@ as sowt: bit-perfect output's width", name);

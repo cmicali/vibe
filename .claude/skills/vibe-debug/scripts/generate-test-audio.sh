@@ -446,10 +446,12 @@ AUDIO_PY
         [ -s "$render_dir/wav-$coding.wav" ] || afconvert -f WAVE -d "$coding" "$render_source" "$render_dir/wav-$coding.wav"
     done
     [ -s "$render_dir/aiff-BEI8.aif" ] || afconvert -f AIFF -d BEI8 "$render_source" "$render_dir/aiff-BEI8.aif"
-    for coding in BEI8 BEI16 BEI24 BEI32 BEF32 BEF64 ulaw alaw ima4; do
+    for coding in BEI8 BEI16 BEI24 BEI32 BEF32 BEF64 UI8 ulaw alaw ima4; do
         [ -s "$render_dir/aifc-$coding.aif" ] || afconvert -f AIFC -d "$coding" "$render_source" "$render_dir/aifc-$coding.aif"
     done
     [ -s "$render_dir/aifc-ima4-mono.aif" ] || afconvert -f AIFC -d ima4 -c 1 "$render_source" "$render_dir/aifc-ima4-mono.aif"
+    [ -s "$render_dir/wave64-LEI24.w64" ] || afconvert -f W64f -d LEI24 "$render_source" "$render_dir/wave64-LEI24.w64"
+    [ -s "$render_dir/rf64-LEI24.wav" ] || afconvert -f RF64 -d LEI24 "$render_source" "$render_dir/rf64-LEI24.wav"
     [ -s "$render_dir/lossy.m4a" ] || afconvert -f m4af -d aac -b 192000 "$render_source" "$render_dir/lossy.m4a"
     for ext in aif wave bwf; do
         if [ "$ext" = aif ]; then render_copy="$render_dir/lossless.aiff"; else render_copy="$render_source"; fi
