@@ -8,7 +8,7 @@ This page explains what Vibe does to your music between the file and your speake
 - **The one thing Vibe must sometimes change is the sample rate.** If a file's sample rate is different from your output's (a 44.1 kHz file on a 48 kHz output, say), Vibe converts it. It uses r8brain-free-src, which measured better than Apple's own converter on every test and uses a fraction of the CPU.
 - **Bit-perfect output (macOS) avoids even that.** Vibe switches your device to the file's sample rate and to a format with enough bits, so the DAC receives the file's samples untouched.
 - **Vibe never cuts lossy files down to 16 bits.** An AAC file decodes to more detail than 16 bits can hold, and Vibe keeps it.
-- **MP3s use Vibe's own decoder, dr_mp3.** Apple's built-in MP3 decoder can only produce 16-bit sound. dr_mp3 keeps the full detail, is about 100 times more accurate on the official MP3 test, and uses less than half the CPU. See [The MP3 decoder](#the-mp3-decoder).
+- **MP3s use Vibe's own decoder, dr_mp3.** On Apple silicon, Apple's built-in MP3 decoder can only produce 16-bit sound. dr_mp3 keeps the full detail, is about 100 times more accurate on the official MP3 test, and uses less than half the CPU. On an Intel Mac, Apple's decoder keeps the full detail too, but it still chops off a loud master's peaks. See [The MP3 decoder](#the-mp3-decoder).
 
 ## A few terms
 
@@ -65,18 +65,20 @@ How much that matters depends on the decoder. Apple's built-in decoders behave v
 | Apple's decoder | What it can output | Samples that fit exactly in 16 bits | Peaks above the maximum (a loud master) | What sending it as 16-bit would do |
 | --- | --- | --- | --- | --- |
 | AAC | 32-bit float or 16-bit (Vibe asks for float) | 0.04% | kept: up to +0.79 dBFS | add a layer of noise (at −101 dBFS) and chop off every peak |
-| MP3 and MP2 | 16-bit only | 100% | chopped off by the decoder itself | nothing, played unchanged: the decoder already made it 16-bit |
+| MP3 and MP2, Apple silicon | 16-bit only | 100% | chopped off by the decoder itself | nothing, played unchanged: the decoder already made it 16-bit |
+| MP3 and MP2, Intel | 32-bit float or 16-bit (Vibe asks for float) | 0.03% | chopped off by the decoder itself, at exactly the maximum | add a layer of noise (at −101 dBFS) |
 
 **AAC** is the format of iTunes purchases, Apple Music downloads and most lossy files on Apple devices, and it is where this choice matters. A floating-point output keeps the decoded AAC exactly, peaks and all. A 24-bit output keeps everything within the maximum level, with any change far below hearing (at −149 dBFS), but like any integer format it still chops off the peaks above the maximum; only floating point keeps those. A 16-bit output would add noise that sits only 33 dB below a quiet fade-out, compared with 81 dB below at 24 bits.
 
-**MP3 and MP2** are different with Apple's decoder, which is why Vibe no longer uses it by default:
+**MP3 and MP2** are different with Apple's decoder on Apple silicon, which is why Vibe no longer uses it by default:
 
-- **Apple's MP3 decoder can only produce 16-bit samples.** It rounds the audio to 16 bits and chops off any peaks above the maximum before Vibe receives it. There is no setting to ask it for more; we checked what it offers, and a test now checks it on every build.
-- **Asking for floating-point output doesn't change that.** A common tip says you can get full-precision MP3s from Apple by requesting 32-bit float output (through `ExtAudioFile` or `AudioConverter`). We tried both. You do get floating-point numbers back, but every one of them is still a 16-bit value, and the loud peaks are still chopped off at the maximum. Core Audio converts the decoder's 16-bit output to float after the fact; it can't restore what was already rounded away. Vibe already requests float output for every file, which is what keeps AAC's full detail.
-- **So with Apple's decoder, the output format makes no difference for MP3 in bit-perfect mode.** When Vibe plays the decoded samples unchanged (at the file's own sample rate, full volume, no effects), 16-bit, 24-bit and floating-point outputs all carry exactly the same samples.
-- **The only way to get more out of MP3s is a different decoder, and Vibe uses one.** A full-precision decoder keeps the detail below 16 bits (only 0.03% of its samples fit exactly in 16 bits) and the peaks (up to +0.49 dBFS on the same file). With it, MP3s behave like AAC: a floating-point output keeps everything. See [The MP3 decoder](#the-mp3-decoder).
+- **On Apple silicon, Apple's MP3 decoder can only produce 16-bit samples.** It rounds the audio to 16 bits and chops off any peaks above the maximum before Vibe receives it. There is no setting to ask it for more; we checked what it offers, and a test now checks it on every build.
+- **Asking for floating-point output doesn't change that.** A common tip says you can get full-precision MP3s from Apple by requesting 32-bit float output (through `ExtAudioFile` or `AudioConverter`). It works on an Intel Mac (see below), but not on Apple silicon, where we tried both. You do get floating-point numbers back, but every one of them is still a 16-bit value, and the loud peaks are still chopped off at the maximum. Core Audio converts the decoder's 16-bit output to float after the fact; it can't restore what was already rounded away. Vibe already requests float output for every file, which is what keeps AAC's full detail.
+- **So on Apple silicon, with Apple's decoder, the output format makes no difference for MP3 in bit-perfect mode.** When Vibe plays the decoded samples unchanged (at the file's own sample rate, full volume, no effects), 16-bit, 24-bit and floating-point outputs all carry exactly the same samples.
+- **On Apple silicon, the only way to get more out of MP3s is a different decoder, and Vibe uses one.** A full-precision decoder keeps the detail below 16 bits (only 0.03% of its samples fit exactly in 16 bits) and the peaks (up to +0.49 dBFS on the same file). With it, MP3s behave like AAC: a floating-point output keeps everything. See [The MP3 decoder](#the-mp3-decoder).
+- **On an Intel Mac, Apple's decoder keeps the detail but not the peaks.** Its Intel version also offers 32-bit float output, which Vibe asks for, so the detail below 16 bits survives: 0.03% of its samples fit exactly in 16 bits, and it matches dr_mp3 to within 0.06 of a 16-bit step. But it still cuts every peak above the maximum down to exactly the maximum. dr_mp3 keeps those peaks, so it is the default on Intel Macs too.
 
-*How this was measured:* we made a test track that behaves like mastered music: tones and noise at CD quality (16-bit, dithered), loud for ten seconds with peaks just under the maximum, then fading out to −70 dB. A second, louder version was squashed right up to the maximum, like a modern loud master. We encoded them as MP3 (LAME at 320 kbps and V2) and AAC (Apple's encoder at 256 kbps), then decoded them the way Vibe does, and with ffmpeg for comparison.
+*How this was measured:* we made a test track that behaves like mastered music: tones and noise at CD quality (16-bit, dithered), loud for ten seconds with peaks just under the maximum, then fading out to −70 dB. A second, louder version was squashed right up to the maximum, like a modern loud master. We encoded them as MP3 (LAME at 320 kbps and V2) and AAC (Apple's encoder at 256 kbps), then decoded them the way Vibe does, and with ffmpeg for comparison. The Intel figures come from Vibe's own test files (MP3 at 192 kbps, V2 and a loud 320 kbps master, plus MP2), decoded under Rosetta 2, which runs the Intel version of Apple's decoder on an Apple silicon Mac. We haven't checked them on an Intel Mac itself.
 
 ## The MP3 decoder
 
@@ -84,23 +86,26 @@ Vibe decodes MP3 and MP2 files with its own decoder, **dr_mp3**, not the one bui
 
 ### Why not Apple's decoder
 
-Apple's MP3 decoder can only produce 16-bit samples, as the section above explains. That costs three things:
+On Apple silicon, Apple's MP3 decoder can only produce 16-bit samples, as the section above explains. That costs three things:
 
 - **Quiet passages lose detail.** Rounding to 16 bits adds a thin layer of noise. On loud music it is far below hearing. On a quiet passage, it sits much closer to the music: for a passage at −70 dB, Apple's error is only 31 dB below the music, while dr_mp3's is 127 dB below (BASS's too).
 - **Loud masters lose their peaks.** A modern, loud master decodes slightly above the digital maximum. Apple's decoder chops those peaks off: 36,188 samples on our 20-second test master. dr_mp3 keeps them (up to +0.93 dB), so Vibe's volume control, effects or resampler can bring them back down cleanly instead of distorting them.
 - **Some songs lose their last moment.** In an MP3 without gapless information, the last 529 samples (about 12 milliseconds) come from the decoder emptying itself. Apple's decoder fills them with silence; dr_mp3 plays them. If the music runs to the very end of the file, Apple's version ends with a small click.
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/mp3-quiet-dark.svg"><img alt="How far below the music the decoding error sits on a quiet passage, best first: BASS and dr_mp3 127 dB, Apple 31 dB" src="audio-quality/mp3-quiet-light.svg"></picture>
+On an Intel Mac, Apple's decoder keeps the quiet detail, but the other two costs remain.
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/mp3-quiet-dark.svg"><img alt="How far below the music the decoding error sits on a quiet passage, best first: BASS and dr_mp3 127 dB, Apple (Apple silicon) 31 dB" src="audio-quality/mp3-quiet-light.svg"></picture>
 
 ### Accuracy on the official test
 
-MP3 has an official accuracy test from the ISO, the standards body behind the format (ISO/IEC 11172-4). It comes with test recordings and the exact output a perfect decoder should give. A decoder passes at "full accuracy" if its average error stays under a set limit. That limit is exactly the size of 16-bit rounding, so a decoder with 16-bit output, like Apple's, lands right on it.
+MP3 has an official accuracy test from the ISO, the standards body behind the format (ISO/IEC 11172-4). It comes with test recordings and the exact output a perfect decoder should give. A decoder passes at "full accuracy" if its average error stays under a set limit. That limit is exactly the size of 16-bit rounding, so a decoder with 16-bit output, like Apple's on Apple silicon, lands right on it.
 
 We ran seven of the ISO test recordings through six decoders. The chart shows how many times inside the limit each decoder stays, on its worst recording, best first. **Higher is better.**
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/mp3-accuracy-dark.svg"><img alt="Accuracy on the ISO test, best first: FFmpeg 112 times inside the limit, libmad and mpg123 106 times, dr_mp3 105 times, BASS 100 times, Apple on the limit" src="audio-quality/mp3-accuracy-light.svg"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/mp3-accuracy-dark.svg"><img alt="Accuracy on the ISO test, best first: FFmpeg 112 times inside the limit, libmad and mpg123 106 times, dr_mp3 105 times, BASS 100 times, Apple (Apple silicon) on the limit" src="audio-quality/mp3-accuracy-light.svg"></picture>
 
-- **dr_mp3 is about 105 times inside the limit.** Apple's decoder is right on it: "full accuracy" on three recordings and only "limited accuracy" on the other four.
+- **dr_mp3 is about 105 times inside the limit.** Apple's decoder on Apple silicon is right on it: "full accuracy" on three recordings and only "limited accuracy" on the other four.
+- **Apple's decoder on an Intel Mac is as accurate as dr_mp3.** Under Rosetta 2 it is 150 times inside the limit on `compl`, the one recording Vibe's test downloads, where dr_mp3 is 138 times inside. We haven't run it on the other six.
 - **Every decoder with full-precision output is equally accurate.** The small differences between FFmpeg, libmad, mpg123, dr_mp3 and BASS are about as large as the rounding in the ISO's own reference files, so the test can't rank them any further.
 - **BASS is dr_mp3's close cousin.** BASS is a commercial audio library, and its notes say its MP3 decoding is based on minimp3, the same decoder dr_mp3 comes from. Its output matches dr_mp3's to within the last bit or two of a 32-bit float, about −134 dB. It keeps a loud master's peaks too.
 - **libmad has no edge any more.** It is famous for topping an older version of this comparison, from the early 2000s. Back then most decoders gave 16-bit output and libmad gave 24-bit. Against decoders with full-precision output, that advantage is gone.
@@ -115,7 +120,7 @@ The numbers behind the chart, best first. "Average error" is on each decoder's w
 | dr_mp3 0.7.4 | −141.5 dBFS | 7.1e-7 | 105× | full accuracy on all 7 |
 | BASS 2.4.18 | −141.1 dBFS | 6.9e-7 | 100× | full accuracy on all 7 |
 | libmad 0.15.1b, default build | −140.2 dBFS | 9.2e-7 | 90× | full accuracy on all 7 |
-| Apple built-in | −100.8 dBFS | 2.4e-5 | 1× | full on 3, limited on 4 |
+| Apple built-in, Apple silicon | −100.8 dBFS | 2.4e-5 | 1× | full on 3, limited on 4 |
 
 The limit for full accuracy is an average error below −101.1 dBFS and no single error above 6.1e-5. We read libmad at its full internal precision, finer than the 24-bit output it is known for. Apple and BASS both remove the decoder's 529-sample start-up delay, so their output was lined up 529 samples later. The recordings come from FFmpeg's test-file mirror; `compl`, a −20 dB sine sweep, is the one the well-known Underbit compliance table used.
 
@@ -156,17 +161,17 @@ The whole comparison for a 320 kbps MP3, best first:
 - **Where dr_mp3's memory goes:** 23 KB of decoder state, about 21 KB for 16 compressed frames read ahead, and 9 KB for one frame of sound. The rest is macOS's file reader.
 - **Why Apple's decoder reads so much:** it reads 64 KB at a time and rereads the same part of the file many times, 15 to 40 times the file's size over one playthrough. In our test the file was already in memory, so this cost time (about 10 ms per track, against 1–3 ms) and no disk reads. We didn't test a slow drive or a network share.
 
-*How this was measured:* Vibe's own file reader with the app's Release build settings, switching between the two decoders run by run, on a Mac with an M4 Max. BASS 2.4.18 decoded the same files with its own file reader, in the same session. The files were one real 6.5-minute track encoded nine ways, plus two real 320 kbps tracks. No iPhone was measured.
+*How this was measured:* Vibe's own file reader with the app's Release build settings, switching between the two decoders run by run, on a Mac with an M4 Max. BASS 2.4.18 decoded the same files with its own file reader, in the same session. The files were one real 6.5-minute track encoded nine ways, plus two real 320 kbps tracks. No iPhone or Intel Mac was measured.
 
 ### How it fits in
 
-- **macOS still reads the file.** It opens the file, reads its tags and gapless information, and finds each frame of audio. dr_mp3 only turns those frames into sound. So every track has the same length and plays gaplessly exactly as with Apple's decoder. On 16 test files the lengths matched exactly, and the sound differed only by Apple's 16-bit rounding (at most 4 steps of a 16-bit value).
+- **macOS still reads the file.** It opens the file, reads its tags and gapless information, and finds each frame of audio. dr_mp3 only turns those frames into sound. So every track has the same length and plays gaplessly exactly as with Apple's decoder. On 16 test files the lengths matched exactly, and on Apple silicon the sound differed only by Apple's 16-bit rounding (at most 4 steps of a 16-bit value). With the Intel version of Apple's decoder, Vibe's six MP3 and MP2 test files differ by at most 0.06 of a step, apart from the peaks Apple chops off.
 - **Same timing as Apple.** Every MP3 decoder outputs its sound 529 samples late (241 for MP1 and MP2). Apple's decoder removes this delay, so Vibe removes the same amount. At the end, Vibe feeds dr_mp3 one silent frame so it gives up its last samples instead of dropping them.
 - **Seeking lands on the exact sample.** An MP3 frame can borrow data from the frames before it, so dr_mp3 starts ten frames before the target and throws them away. A seek then gives exactly the same sound as playing from the start.
 - **Damaged and cut-off files end where Apple's do.**
 - **MP3 and MP2 inside WAV files work too.** macOS opens these only when every frame is the same size, which 48 kHz CBR is; it refuses 44.1 kHz and VBR ones with either decoder. Rare "free-format" MP3s are also refused by macOS before either decoder sees them.
 - **MP2 now plays on the iPhone.** iOS has no MP2 decoder of its own, so MP2 files could never play there before. dr_mp3 decodes them.
-- **One trade-off.** A badly damaged frame can make a loud click with either decoder. Apple's 16-bit output happens to cap that click at full scale; dr_mp3 doesn't (one damaged test file peaked at +15.5 dB). We don't clamp it, because a clamp would also have to let real peaks above full scale through, and damaged files are rare. At full volume they sound the same.
+- **One trade-off.** A badly damaged frame can make a loud click with either decoder. Apple's decoder happens to cap that click at full scale, as it caps every peak; dr_mp3 doesn't (one damaged test file peaked at +15.5 dB). We don't clamp it, because a clamp would also have to let real peaks above full scale through, and damaged files are rare. At full volume they sound the same.
 - **Not tested yet:** MP1 files (we have no MP1 encoder; dr_mp3 decodes them with MP2's timing, which MP1 shares), and CPU use on an iPhone.
 
 ### Tuning dr_mp3
