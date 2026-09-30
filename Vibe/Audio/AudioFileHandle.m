@@ -491,6 +491,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     _streamReadFailed = NO;
     _flac = drflac_open(VibeStreamRead, VibeFLACSeek, VibeStreamTell, (__bridge void *)self, NULL);
     if (!_flac || ![self adoptStreamDecoderWithChannels:_flac->channels rate:_flac->sampleRate length:_flac->totalPCMFrameCount]) {
+        [self closeStreamDecoder];
         return NO;
     }
     if (!_processingFormat.isInterleaved && _flac->channels > 1) {
@@ -515,35 +516,32 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     BOOL decodable = tag == DR_WAVE_FORMAT_PCM || tag == DR_WAVE_FORMAT_ALAW || tag == DR_WAVE_FORMAT_MULAW
             || tag == DR_WAVE_FORMAT_ADPCM || tag == DR_WAVE_FORMAT_DVI_ADPCM
             || (tag == DR_WAVE_FORMAT_IEEE_FLOAT && (_wav->bitsPerSample == 32 || _wav->bitsPerSample == 64));
-    if (!decodable) {
+    if (!decodable || ![self adoptStreamDecoderWithChannels:_wav->channels rate:_wav->sampleRate length:_wav->totalPCMFrameCount]) {
         [self closeStreamDecoder];
-        return NO;
-    }
-    if (![self adoptStreamDecoderWithChannels:_wav->channels rate:_wav->sampleRate length:_wav->totalPCMFrameCount]) {
         return NO;
     }
     // TRAP: CoreAudio's parser describes a sowt AIFF-C as 16-bit whatever its
     // COMM says, so a 24 or 32-bit one would report 16 as its depth and have
     // bit-perfect output choose 16 bits. The file's description takes the
-    // width dr_wav decodes wherever the two disagree on a sample's size.
+    // width dr_wav decodes wherever the two disagree on a sample's size in
+    // bytes; a 20-bit sample in 3 is both's.
     const AudioStreamBasicDescription *parsed = _fileFormat.streamDescription;
-    if ((tag == DR_WAVE_FORMAT_PCM || tag == DR_WAVE_FORMAT_IEEE_FLOAT) && parsed->mFormatID == kAudioFormatLinearPCM
-            && parsed->mBytesPerFrame != _wav->bitsPerSample / 8 * _wav->channels) {
+    UInt32 bytesPerFrame = (_wav->bitsPerSample + 7) / 8 * _wav->channels;
+    if (parsed->mFormatID == kAudioFormatLinearPCM && parsed->mBytesPerFrame != bytesPerFrame) {
         AudioStreamBasicDescription described = *parsed;
         described.mBitsPerChannel = _wav->bitsPerSample;
-        described.mBytesPerFrame = described.mBytesPerPacket = _wav->bitsPerSample / 8 * _wav->channels;
+        described.mBytesPerFrame = described.mBytesPerPacket = bytesPerFrame;
         _fileFormat = [[AVAudioFormat alloc] initWithStreamDescription:&described channelLayout:_fileFormat.channelLayout];
     }
     return YES;
 }
 
 // Keeps the dr_flac or dr_wav decode just opened when it reads the file as
-// the parser does, and closes it otherwise. A kept one reads the stream
+// the parser does; the caller closes one refused. A kept one reads the stream
 // through the descriptor itself, so ExtAudioFile is disposed without decoding
 // and the parser closed.
 - (BOOL)adoptStreamDecoderWithChannels:(UInt32)channels rate:(UInt32)rate length:(UInt64)length {
     if (_streamReadFailed || length == 0 || channels != _processingFormat.channelCount || rate != _processingFormat.sampleRate) {
-        [self closeStreamDecoder];
         return NO;
     }
     ExtAudioFileDispose(_codec);
@@ -799,13 +797,10 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     UInt32 channels = _processingFormat.channelCount;
     BOOL planar = !_processingFormat.isInterleaved && channels > 1;
     float *const *planes = buffer.floatChannelData;
-    SInt64 left = _length - self.framePosition;
+    wanted = (AVAudioFrameCount)MIN((SInt64)wanted, MAX(0, _length - self.framePosition));
     AVAudioFrameCount total = 0;
     while (total < wanted) {
-        SInt64 frames = MIN((SInt64)(_flacPCM ? MIN(wanted - total, (AVAudioFrameCount)kVibeFLACReadFrames) : wanted - total), left - total);
-        if (frames <= 0) {
-            break;
-        }
+        AVAudioFrameCount frames = _flacPCM ? MIN(wanted - total, (AVAudioFrameCount)kVibeFLACReadFrames) : wanted - total;
         UInt32 got;
         if (_wav && planar) {
             float *at[channels];

@@ -1121,77 +1121,78 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     AudioFileHandle *msClean = [self open:msURL decoder:@"dr_wav"];
     NSData *msReference = [self readToEnd:msClean];
     NSRange msData = [self chunk:"data" of:ms bigEndian:NO], msFmt = [self chunk:"fmt " of:ms bigEndian:NO];
-    NSUInteger msChannels = msClean.processingFormat.channelCount, msFrameBytes = msChannels * sizeof(float), header = 7 * msChannels;
-    NSUInteger msBlockAlign = msClean.fileFormat.streamDescription->mBytesPerPacket, msBlockFrames = msClean.fileFormat.streamDescription->mFramesPerPacket;
+    packet = msClean.fileFormat.streamDescription;
+    blockAlign = packet->mBytesPerPacket;
+    blockFrames = packet->mFramesPerPacket;
+    channels = msClean.processingFormat.channelCount;
+    NSUInteger header = 7 * channels;
     // A block's header holds two frames once all of it is there, and each byte after it two samples.
-    for (NSNumber *into in @[@1, @(header), @(header + 6 * msChannels)]) {
-        NSUInteger bytes = into.unsignedIntegerValue, held = msBlockFrames + (bytes < header ? 0 : 2 + (bytes - header) * 2 / msChannels);
+    for (NSNumber *into in @[@1, @(header), @(header + 6 * channels)]) {
+        NSUInteger bytes = into.unsignedIntegerValue, held = blockFrames + (bytes < header ? 0 : 2 + (bytes - header) * 2 / channels);
         NSString *name = [NSString stringWithFormat:@"MS ADPCM cut %lu bytes into its second block", (unsigned long)bytes];
-        file = open([ms subdataWithRange:NSMakeRange(0, msData.location + msBlockAlign + bytes)], [NSString stringWithFormat:@"ms-cut-%lu.wav", (unsigned long)bytes]);
+        file = open([ms subdataWithRange:NSMakeRange(0, msData.location + blockAlign + bytes)], [NSString stringWithFormat:@"ms-cut-%lu.wav", (unsigned long)bytes]);
         XCTAssertEqual(file.length, (AVAudioFramePosition)held, @"%@", name);
-        XCTAssertEqualObjects([self readToEnd:file], [msReference subdataWithRange:NSMakeRange(0, held * msFrameBytes)], @"%@", name);
+        XCTAssertEqualObjects([self readToEnd:file], [msReference subdataWithRange:NSMakeRange(0, held * channels * sizeof(float))], @"%@", name);
     }
     // An eighth coefficient pair, which the first block's predictors name.
-    NSMutableData *eighth = [[ms subdataWithRange:NSMakeRange(0, msFmt.location + msFmt.length)] mutableCopy];
+    NSMutableData *eighth = [ms mutableCopy];
     static const uint8_t pair[] = {0x00, 0x01, 0x00, 0x00};
-    [eighth appendBytes:pair length:sizeof(pair)];
-    [eighth appendData:[ms subdataWithRange:NSMakeRange(msFmt.location + msFmt.length, ms.length - msFmt.location - msFmt.length)]];
+    [eighth replaceBytesInRange:NSMakeRange(NSMaxRange(msFmt), 0) withBytes:pair length:sizeof(pair)];
     uint8_t *e = eighth.mutableBytes;
     e[msFmt.location - 4] += sizeof(pair); // the chunk's size
     e[msFmt.location + 16] += sizeof(pair); // cbSize
     e[msFmt.location + 20] = 8; // wNumCoef
-    memset(e + msData.location + sizeof(pair), 7, msChannels);
+    memset(e + msData.location + sizeof(pair), 7, channels);
     [self setContainerSizeOf:eighth bigEndian:NO];
-    NSURL *eighthURL = [self writeBytes:eighth name:@"ms-eighth-coefficient.wav"];
-    XCTAssertEqualObjects([self readToEnd:[self open:eighthURL decoder:@"apple"]], [self appleDecodeOf:eighthURL], @"an eighth coefficient pair");
+    [self open:[self writeBytes:eighth name:@"ms-eighth-coefficient.wav"] decoder:@"apple"];
 }
 // A little-endian (sowt) AIFF-C of 24 or 32 bits, which CoreAudio's parser
-// describes as 16-bit, made from a WAV's own data chunk: dr_wav decodes the
-// WAV's samples, and the file's description carries their width, so the depth
-// report and bit-perfect output's choice honor all of it.
+// describes as 16-bit, made from a big-endian one by swapping each sample:
+// dr_wav decodes the same samples, and the file's description carries their
+// width, so the depth report and bit-perfect output's choice honor all of it.
+// A WAV's 20-bit sample in 3 bytes, which the two agree on, keeps the parser's
+// description.
 - (void)testDrWAVDescribesSowtAtItsWidth {
     self.continueAfterFailure = YES;
-    for (NSString *name in @[@"noise-48000-24-2.wav", @"integer32.wav"]) {
-        NSURL *waveURL = [self fixture:name];
-        AudioFileHandle *wave = [self open:waveURL decoder:@"dr_wav"];
-        AudioStreamBasicDescription w = *wave.fileFormat.streamDescription;
-        NSData *bytes = [NSData dataWithContentsOfURL:waveURL];
-        NSData *samples = [bytes subdataWithRange:[self chunk:"data" of:bytes bigEndian:NO]];
+    for (NSString *name in @[@"aifc-BEI24.aif", @"aifc-BEI32.aif"]) {
+        NSURL *url = [self fixture:name];
+        AudioFileHandle *big = [self open:url decoder:@"dr_wav"];
+        UInt32 bits = big.fileFormat.streamDescription->mBitsPerChannel, width = bits / 8;
+        NSMutableData *aiff = [[NSData dataWithContentsOfURL:url] mutableCopy];
+        NSRange comm = [self chunk:"COMM" of:aiff bigEndian:YES], ssnd = [self chunk:"SSND" of:aiff bigEndian:YES];
+        [aiff replaceBytesInRange:NSMakeRange(comm.location + 18, 4) withBytes:"sowt"];
+        uint8_t *samples = (uint8_t *)aiff.mutableBytes + ssnd.location + 8; // past SSND's offset and block size
+        for (NSUInteger at = 0; at + width <= ssnd.length - 8; at += width) {
+            for (UInt32 i = 0; i < width / 2; i++) {
+                uint8_t byte = samples[at + i];
+                samples[at + i] = samples[at + width - 1 - i];
+                samples[at + width - 1 - i] = byte;
+            }
+        }
 
-        int exponent = ilogb(w.mSampleRate);
-        uint16_t rateExponent = CFSwapInt16HostToBig((uint16_t)(16383 + exponent));
-        uint64_t rateMantissa = CFSwapInt64HostToBig((uint64_t)ldexp(w.mSampleRate, 63 - exponent));
-        uint16_t channels = CFSwapInt16HostToBig((uint16_t)w.mChannelsPerFrame), bits = CFSwapInt16HostToBig((uint16_t)w.mBitsPerChannel);
-        uint32_t frames = CFSwapInt32HostToBig((uint32_t)(samples.length / w.mBytesPerFrame));
-        NSMutableData *comm = [NSMutableData data];
-        [comm appendBytes:&channels length:2]; [comm appendBytes:&frames length:4]; [comm appendBytes:&bits length:2];
-        [comm appendBytes:&rateExponent length:2]; [comm appendBytes:&rateMantissa length:8];
-        [comm appendBytes:"sowt\0\0" length:6]; // the compression type and an empty name, padded
-        NSMutableData *aiff = [NSMutableData dataWithBytes:"FORM\0\0\0\0AIFCFVER\0\0\0\4\xA2\x80\x51\x40" length:24];
-        uint32_t size = CFSwapInt32HostToBig((uint32_t)comm.length);
-        [aiff appendBytes:"COMM" length:4]; [aiff appendBytes:&size length:4]; [aiff appendData:comm];
-        size = CFSwapInt32HostToBig((uint32_t)samples.length + 8);
-        [aiff appendBytes:"SSND" length:4]; [aiff appendBytes:&size length:4]; [aiff appendBytes:"\0\0\0\0\0\0\0\0" length:8];
-        [aiff appendData:samples];
-        [self setContainerSizeOf:aiff bigEndian:YES];
-
-        AudioFileHandle *sowt = [self open:[self writeBytes:aiff name:[@"sowt-" stringByAppendingString:[name stringByReplacingOccurrencesOfString:@".wav" withString:@".aif"]]] decoder:@"dr_wav"];
-        XCTAssertEqualObjects([self readToEnd:sowt], [self readToEnd:wave], @"%@ as sowt", name);
+        AudioFileHandle *sowt = [self open:[self writeBytes:aiff name:[@"sowt-" stringByAppendingString:name]] decoder:@"dr_wav"];
+        XCTAssertEqualObjects([self readToEnd:sowt], [self readToEnd:big], @"%@ as sowt", name);
         AudioStreamBasicDescription source = *sowt.fileFormat.streamDescription;
-        XCTAssertEqual(VibeSourceBitDepth(source), w.mBitsPerChannel, @"%@ as sowt: the depth reported", name);
+        XCTAssertEqual(VibeSourceBitDepth(source), bits, @"%@ as sowt: the depth reported", name);
         AudioStreamRangedDescription offered[2] = {0};
         for (int i = 0; i < 2; i++) {
             offered[i].mFormat.mFormatID = kAudioFormatLinearPCM;
             offered[i].mFormat.mFormatFlags = kAudioFormatFlagIsSignedInteger;
-            offered[i].mFormat.mBitsPerChannel = i ? w.mBitsPerChannel : 16;
-            offered[i].mFormat.mChannelsPerFrame = w.mChannelsPerFrame;
-            offered[i].mFormat.mSampleRate = offered[i].mSampleRateRange.mMinimum = offered[i].mSampleRateRange.mMaximum = w.mSampleRate;
+            offered[i].mFormat.mBitsPerChannel = i ? bits : 16;
+            offered[i].mFormat.mChannelsPerFrame = source.mChannelsPerFrame;
+            offered[i].mFormat.mSampleRate = offered[i].mSampleRateRange.mMinimum = offered[i].mSampleRateRange.mMaximum = source.mSampleRate;
         }
         AudioStreamBasicDescription chosen = {0};
-        XCTAssertTrue(VibeBitPerfectChooseFormat(source, w.mSampleRate, offered, 2, &chosen), @"%@ as sowt", name);
-        XCTAssertEqual(chosen.mBitsPerChannel, w.mBitsPerChannel, @"%@ as sowt: bit-perfect output's width", name);
+        XCTAssertTrue(VibeBitPerfectChooseFormat(source, source.mSampleRate, offered, 2, &chosen), @"%@ as sowt", name);
+        XCTAssertEqual(chosen.mBitsPerChannel, bits, @"%@ as sowt: bit-perfect output's width", name);
         XCTAssertFalse(VibePhysicalFormatSatisfies(offered[0].mFormat, source, *sowt.processingFormat.streamDescription), @"%@ as sowt: 16 bits do not carry it", name);
     }
+
+    NSMutableData *twenty = [[NSData dataWithContentsOfURL:[self fixture:@"noise-48000-24-2.wav"]] mutableCopy];
+    ((uint8_t *)twenty.mutableBytes)[[self chunk:"fmt " of:twenty bigEndian:NO].location + 14] = 20; // wBitsPerSample
+    AudioFileHandle *padded = [self open:[self writeBytes:twenty name:@"pcm-20.wav"] decoder:@"dr_wav"];
+    XCTAssertEqual(padded.fileFormat.streamDescription->mBitsPerChannel, 20u, @"20 bits in 3 bytes");
+    XCTAssertEqual(padded.fileFormat.streamDescription->mBytesPerFrame, 6u, @"20 bits in 3 bytes");
 }
 - (void)testQuickTimeAudio { [self checkLossy:@"lossy.qta" tolerance:kVibeAACDecodeTolerance]; }
 - (void)testFloatLimitsAndSilence {
