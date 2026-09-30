@@ -274,10 +274,12 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
     // Skipping hidden files drops the AppleDouble "._Song.mp3" sidecars that
     // exFAT, SMB and USB volumes carry, which would pass the extension filter
     // as unplayable rows. Every key is one more attribute the provider must
-    // answer, so the date is prefetched only when the sort needs it.
+    // answer, so the date is prefetched only when the sort needs it; the size
+    // rides the same bulk read the stat keys already cost, and spares a stat
+    // per FLAC on a network volume (rowsForFile:).
     NSArray<NSURLResourceKey> *keys = sort == VibeFolderOpenSortNewestFirst
-            ? @[NSURLIsDirectoryKey, NSURLIsSymbolicLinkKey, NSURLContentModificationDateKey]
-            : @[NSURLIsDirectoryKey, NSURLIsSymbolicLinkKey];
+            ? @[NSURLIsDirectoryKey, NSURLIsSymbolicLinkKey, NSURLFileSizeKey, NSURLContentModificationDateKey]
+            : @[NSURLIsDirectoryKey, NSURLIsSymbolicLinkKey, NSURLFileSizeKey];
 
     while (pendingRoots.count > 0) {
         NSString *rootPath = pendingRoots.firstObject;
@@ -379,11 +381,12 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
     return [self rowsForWalk:results];
 }
 
-// Each audio file its own row, and each sheet its rows in its sorted place.
-// A sheet resolves against the walk's own listing first, so one whose files
-// were listed costs no probe, and claims its files, so none also appears
-// whole; a row whose file is neither listed nor readable is dropped, a sheet
-// naming a long-gone image being one.
+// Each audio file its rows (rowsForFile:), and each sheet its rows in its
+// sorted place. A sheet resolves against the walk's own listing first, so one
+// whose files were listed costs no probe, and claims its files, so none also
+// appears whole and none is opened for a sheet of its own; a row whose file is
+// neither listed nor readable is dropped, a sheet naming a long-gone image
+// being one.
 + (NSArray<AudioTrack *> *)rowsForWalk:(NSArray<NSURL *> *)urls {
     NSMutableArray<NSURL *> *sheets = [NSMutableArray array];
     for (NSURL *url in urls) {
@@ -418,10 +421,30 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
             [rows addObjectsFromArray:sheetRows];
         }
         else if (!listed || ![claimed containsObject:[PlaylistFile knownFileKeyForPath:url.path]]) {
-            [rows addObject:[AudioTrack withURL:url]];
+            [rows addObjectsFromArray:[self rowsForFile:url]];
         }
     }
     return rows;
+}
+
+// A whole album or mix in one FLAC may carry its own sheet, and only such a
+// file is opened to look: an ordinary track is under the size, and a cloud
+// placeholder is never read, since the read would download it. The gate keeps
+// a walk's only content reads to a few files even on a network volume.
+static const long long kVibeEmbeddedCueMinimumBytes = 100LL * 1024 * 1024;
+
++ (NSArray<AudioTrack *> *)rowsForFile:(NSURL *)url {
+    if ([url.pathExtension.lowercaseString isEqualToString:@"flac"]) {
+        NSNumber *size = nil;
+        [url getResourceValue:&size forKey:NSURLFileSizeKey error:NULL];
+        if (size.longLongValue >= kVibeEmbeddedCueMinimumBytes && ![self isDatalessFile:url]) {
+            NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsEmbeddedInFLACAtURL:url];
+            if (rows.count > 0) {
+                return rows;
+            }
+        }
+    }
+    return @[[AudioTrack withURL:url]];
 }
 
 + (NSArray<AudioTrack*>*) rowsInDirectory:(NSURL*)dir sortedBy:(VibeFolderOpenSort)sort {
@@ -430,7 +453,8 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
     NSArray<NSURL*> *contents = [[NSFileManager defaultManager]
             contentsOfDirectoryAtURL:dir
           includingPropertiesForKeys:(sort == VibeFolderOpenSortNewestFirst
-                                              ? @[NSURLContentModificationDateKey] : @[])
+                                              ? @[NSURLFileSizeKey, NSURLContentModificationDateKey]
+                                              : @[NSURLFileSizeKey])
                              options:NSDirectoryEnumerationSkipsHiddenFiles
                                error:&error];
     if (!contents) {
@@ -529,7 +553,7 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
         // which a URL from argv or some pasteboards lacks. The link flag rides
         // along, since a folder link must be resolved (VibeResolvedDirectoryPath).
         NSDictionary<NSURLResourceKey, id> *values =
-                [url resourceValuesForKeys:@[NSURLIsDirectoryKey, NSURLIsSymbolicLinkKey]
+                [url resourceValuesForKeys:@[NSURLIsDirectoryKey, NSURLIsSymbolicLinkKey, NSURLFileSizeKey]
                                      error:NULL];
         NSNumber *isDirectory = values[NSURLIsDirectoryKey];
         BOOL isDir = isDirectory != nil
@@ -552,7 +576,7 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
             }
         }
         else {
-            [results addObject:[AudioTrack withURL:url]];
+            [results addObjectsFromArray:[self rowsForFile:url]];
             [self noteLooseFileDirectoryOf:url into:looseFileDirectories];
         }
     }

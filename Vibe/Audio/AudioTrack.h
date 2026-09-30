@@ -98,7 +98,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSString *)singleLineTitle;
 
 // How every surface names a track: the title and artist when both exist — a
-// cue row's own before its file's tags — else the single line as the title
+// cue row's own before its file's tags, and an untitled windowed row as
+// "Track n" rather than its image's title — else the single line as the title
 // and a nil artist, which means no second line rather than an empty one.
 - (NSString *)displayTitle;
 - (nullable NSString *)displayArtist;

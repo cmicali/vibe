@@ -311,8 +311,22 @@ static AudioTrack *CueRow(NSUInteger start, NSUInteger end, NSString *title, NSS
     XCTAssertEqualObjects(row.displayArtist, @"The DJ");
 }
 
-- (void)testACueRowWithNoNamesIsNamedLikeItsFile {
+// Every row of an image would otherwise take the image's one title.
+- (void)testAnUntitledCueRowIsNamedByItsNumber {
     AudioTrack *row = CueRow(4500, 9000, nil, nil);
+    XCTAssertEqualObjects(row.displayTitle, @"Track 3");
+    XCTAssertNil(row.displayArtist);
+    FakeTrackMetadata *tags = [FakeTrackMetadata new];
+    tags.title = @"The Whole Mix";
+    tags.artist = @"The DJ";
+    Attach(row, tags);
+    XCTAssertEqualObjects(row.displayTitle, @"Track 3");
+    XCTAssertEqualObjects(row.displayArtist, @"The DJ");
+}
+
+// A single-track sheet's row is the whole file, so its tags name it.
+- (void)testAnUntitledWholeFileCueRowIsNamedLikeItsFile {
+    AudioTrack *row = CueRow(0, 0, nil, nil);
     XCTAssertEqualObjects(row.displayTitle, @"mix");
     XCTAssertNil(row.displayArtist);
 }

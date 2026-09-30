@@ -112,9 +112,20 @@
     return key;
 }
 
-- (NSString *)title {
+// A cue row's own name: its sheet's TITLE, else its number — never the file's
+// tag, which names the whole image and would title every row alike.
+- (NSString *)cueRowTitle {
     if (_cueTitle.length > 0) {
         return _cueTitle;
+    }
+    return self.isWindowed && _cueTrackNumber > 0
+            ? [NSString stringWithFormat:STR_LABEL_CUE_TRACK, (long)_cueTrackNumber] : nil;
+}
+
+- (NSString *)title {
+    NSString *cue = self.cueRowTitle;
+    if (cue) {
+        return cue;
     }
     if (self.metadata.title.length > 0) {
         return self.metadata.title;
@@ -200,7 +211,7 @@
 }
 
 - (BOOL)hasArtistAndTitle {
-    return self.artist.length > 0 && (_cueTitle.length > 0 || self.metadata.title.length > 0);
+    return self.artist.length > 0 && (self.cueRowTitle || self.metadata.title.length > 0);
 }
 
 - (NSString *)displayTitle {

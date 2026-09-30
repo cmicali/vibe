@@ -154,7 +154,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         if (!url) {
             return;
         }
-        [self finishOpenIntent:[self beginOpenIntent] appending:NO tracks:@[[AudioTrack withURL:url]]
+        [self finishOpenIntent:[self beginOpenIntent] appending:NO tracks:[NSURLUtil rowsForFile:url]
                      folderURL:nil addedFolders:@[] selectedURL:nil restored:NO
                    ownedScopes:@[] ownedGrants:@[] baseBookmark:nil additionBookmarks:@[]];
         return;
@@ -611,7 +611,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         // A URL that added nothing is not persisted: that prunes a redundant
         // addition.
         NSArray<AudioTrack *> *produced = isDir ? [NSURLUtil rowsInDirectory:url sortedBy:sort]
-                                                : @[[AudioTrack withURL:url]];
+                                                : [NSURLUtil rowsForFile:url];
         if ([self appendFresh:produced to:tracks seen:seenKeys] == 0) {
             if (started) {
                 [url stopAccessingSecurityScopedResource];

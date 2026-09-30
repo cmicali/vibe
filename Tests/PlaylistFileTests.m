@@ -8,6 +8,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackInternal.h"
 #import "AudioTrackMetadata.h"
+#import "AudioFixtures.h"
 
 // Named apart from AudioTrackTests' fake: two classes of one name collide at
 // link. installMetadataIfUnresolved: consults parsedOK.
@@ -1528,6 +1529,125 @@ static void AssertSameRow(AudioTrack *restored, AudioTrack *saved) {
     XCTAssertEqual(rows.firstObject.cueStart, 4500u);
     XCTAssertEqualObjects(rows.firstObject.cueTitle, @"Two");
     XCTAssertEqualObjects(rows.firstObject.cueSheetURL.path, @"/elsewhere/mix.cue");
+}
+
+#pragma mark - A FLAC's own sheet
+
+static NSString *const kEmbeddedSheet =
+        @"PERFORMER \"DJ\"\nFILE \"Album.wav\" WAVE\n"
+         "  TRACK 01 AUDIO\n    TITLE \"One\"\n    INDEX 01 00:00:00\n"
+         "  TRACK 02 AUDIO\n    TITLE \"Two\"\n    INDEX 01 00:30:00\n"
+         "  TRACK 03 AUDIO\n    TITLE \"Three\"\n    INDEX 01 01:00:00\n";
+
+- (NSURL *)embeddedFLACWithText:(NSString *)text block:(NSData *)block rate:(uint32_t)rate id3:(BOOL)id3 {
+    NSURL *dir = [[NSURL fileURLWithPath:NSTemporaryDirectory()]
+            URLByAppendingPathComponent:[@"EmbeddedCue-" stringByAppendingString:NSUUID.UUID.UUIDString]];
+    [NSFileManager.defaultManager createDirectoryAtURL:dir withIntermediateDirectories:YES attributes:nil error:nil];
+    [self addTeardownBlock:^{
+        [NSFileManager.defaultManager removeItemAtURL:dir error:nil];
+    }];
+    NSURL *url = VibeWriteFLACHeader([dir URLByAppendingPathComponent:@"Album.flac"], rate, text, block, id3, 0);
+    XCTAssertNotNil(url);
+    return url;
+}
+
+static NSArray<NSString *> *Windows(NSArray<AudioTrack *> *rows) {
+    NSMutableArray<NSString *> *windows = [NSMutableArray array];
+    for (AudioTrack *row in rows) {
+        [windows addObject:[NSString stringWithFormat:@"%lu-%lu", (unsigned long)row.cueStart, (unsigned long)row.cueEnd]];
+    }
+    return windows;
+}
+
+// The sheet's FILE names the rip's WAV; the audio is the FLAC itself.
+- (void)testAnEmbeddedTagSheetCutsTheFileIntoItsTracks {
+    NSURL *flac = [self embeddedFLACWithText:kEmbeddedSheet block:nil rate:44100 id3:NO];
+    NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsEmbeddedInFLACAtURL:flac];
+    XCTAssertEqualObjects(Windows(rows), (@[@"0-2250", @"2250-4500", @"4500-0"]));
+    XCTAssertEqualObjects([rows valueForKey:@"cueTitle"], (@[@"One", @"Two", @"Three"]));
+    for (AudioTrack *row in rows) {
+        XCTAssertEqualObjects(row.url, flac);
+        XCTAssertEqualObjects(row.cueSheetURL, flac);
+        XCTAssertEqualObjects(row.cuePerformer, @"DJ");
+    }
+}
+
+// A pregap is INDEX 00, so the row starts at INDEX 01, and the pregap plays at
+// the end of the row before, as with a sheet on disk.
+- (void)testABinaryBlockCutsTheFileAtItsIndexOnes {
+    NSData *block = VibeFLACCueSheetBlock(@[@[@1, @0, @0, @NO], @[@2, @(28 * 44100), @(2 * 44100), @NO],
+                                            @[@3, @(60 * 44100), @0, @NO]], 90 * 44100);
+    NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsEmbeddedInFLACAtURL:
+            [self embeddedFLACWithText:nil block:block rate:44100 id3:NO]];
+    XCTAssertEqualObjects(Windows(rows), (@[@"0-2250", @"2250-4500", @"4500-0"]));
+    XCTAssertEqualObjects([rows valueForKey:@"cueTrackNumber"], (@[@1, @2, @3]));
+    XCTAssertNil(rows.firstObject.cueTitle);
+}
+
+// Offsets off the CD's 588-sample grid round to the nearest CD frame.
+- (void)testABinaryBlockAtAnotherRateRoundsToCDFrames {
+    NSData *block = VibeFLACCueSheetBlock(@[@[@1, @0, @0, @NO], @[@2, @(30 * 48000 + 100), @0, @NO]], 60 * 48000);
+    NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsEmbeddedInFLACAtURL:
+            [self embeddedFLACWithText:nil block:block rate:48000 id3:NO]];
+    XCTAssertEqualObjects(Windows(rows), (@[@"0-2250", @"2250-0"]));
+}
+
+- (void)testTheTagSheetWinsOverTheBlockForItsTitles {
+    NSData *block = VibeFLACCueSheetBlock(@[@[@1, @0, @0, @NO], @[@2, @(10 * 44100), @0, @NO]], 90 * 44100);
+    NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsEmbeddedInFLACAtURL:
+            [self embeddedFLACWithText:kEmbeddedSheet block:block rate:44100 id3:NO]];
+    XCTAssertEqualObjects([rows valueForKey:@"cueTitle"], (@[@"One", @"Two", @"Three"]));
+}
+
+- (void)testALeadingID3TagAndAPictureAreSkippedToTheSheet {
+    NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsEmbeddedInFLACAtURL:
+            [self embeddedFLACWithText:kEmbeddedSheet block:nil rate:44100 id3:YES]];
+    XCTAssertEqual(rows.count, 3u);
+}
+
+- (void)testADataTrackIsNoRow {
+    NSData *block = VibeFLACCueSheetBlock(@[@[@1, @0, @0, @NO], @[@2, @(30 * 44100), @0, @YES],
+                                            @[@3, @(60 * 44100), @0, @NO]], 90 * 44100);
+    NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsEmbeddedInFLACAtURL:
+            [self embeddedFLACWithText:nil block:block rate:44100 id3:NO]];
+    XCTAssertEqualObjects(Windows(rows), (@[@"0-4500", @"4500-0"]));
+    XCTAssertEqualObjects([rows valueForKey:@"cueTrackNumber"], (@[@1, @3]));
+}
+
+// A second FILE would lay its windows over the same audio.
+- (void)testOnlyTheFirstFileOfAnEmbeddedSheetIsCut {
+    NSString *two = @"FILE \"a.wav\" WAVE\n  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n"
+                     "  TRACK 02 AUDIO\n    INDEX 01 00:30:00\n"
+                     "FILE \"b.wav\" WAVE\n  TRACK 03 AUDIO\n    INDEX 01 00:00:00\n";
+    NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsEmbeddedInFLACAtURL:
+            [self embeddedFLACWithText:two block:nil rate:44100 id3:NO]];
+    XCTAssertEqualObjects(Windows(rows), (@[@"0-2250", @"2250-0"]));
+}
+
+// A single track is the file itself: nothing to cut.
+- (void)testNoSheetASingleTrackOrNotAFLACGivesNoRows {
+    NSString *one = @"FILE \"a.wav\" WAVE\n  TRACK 01 AUDIO\n    TITLE \"Only\"\n    INDEX 01 00:00:00\n";
+    XCTAssertEqualObjects([PlaylistFile cueRowsEmbeddedInFLACAtURL:
+            [self embeddedFLACWithText:one block:nil rate:44100 id3:NO]], @[]);
+    XCTAssertEqualObjects([PlaylistFile cueRowsEmbeddedInFLACAtURL:
+            [self embeddedFLACWithText:nil block:nil rate:44100 id3:NO]], @[]);
+    NSURL *junk = [[self embeddedFLACWithText:nil block:nil rate:44100 id3:NO]
+            URLByDeletingLastPathComponent];
+    junk = [junk URLByAppendingPathComponent:@"junk.flac"];
+    XCTAssertTrue([[@"not a flac at all" dataUsingEncoding:NSUTF8StringEncoding] writeToURL:junk atomically:YES]);
+    XCTAssertEqualObjects([PlaylistFile cueRowsEmbeddedInFLACAtURL:junk], @[]);
+    XCTAssertEqualObjects([PlaylistFile cueRowsEmbeddedInFLACAtURL:[junk URLByAppendingPathExtension:@"gone"]], @[]);
+}
+
+// A block cut short still yields what it holds whole, and never reads past it.
+- (void)testATruncatedBlockReadsNoFurtherThanItHolds {
+    NSData *block = VibeFLACCueSheetBlock(@[@[@1, @0, @0, @NO], @[@2, @(30 * 44100), @0, @NO],
+                                            @[@3, @(60 * 44100), @0, @NO]], 90 * 44100);
+    for (NSUInteger cut = 0; cut < block.length; cut += 7) {
+        NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsEmbeddedInFLACAtURL:
+                [self embeddedFLACWithText:nil block:[block subdataWithRange:NSMakeRange(0, cut)] rate:44100 id3:NO]];
+        XCTAssertTrue(rows.count == 0 || rows.count >= 2, @"cut at %lu", (unsigned long)cut);
+    }
 }
 
 #pragma mark - commonDirectoryForTracks:

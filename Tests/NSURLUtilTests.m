@@ -13,7 +13,9 @@
 #import <sys/stat.h>
 #import <unistd.h>
 
+#import "AudioFixtures.h"
 #import "AudioTrack.h"
+#import "NSURLUtil+Debug.h"
 #import "NSURLUtilInternal.h"
 #import "PlayableExtensions.h"
 
@@ -368,6 +370,62 @@ static NSString *const kTwoTrackSheet =
 
     XCTAssertEqual(rows.count, 2u, @"%@", rows);
     XCTAssertTrue([rows.firstObject hasSuffix:@"#0-4500"], @"%@", rows);
+}
+
+// A walk opens a FLAC for its own sheet only past this size; the fixtures are
+// sparse, so the size costs no disk.
+static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
+
+- (NSURL *)makeFLAC:(NSString *)relative sheet:(NSString *)sheet size:(unsigned long long)size {
+    NSURL *url = [_root URLByAppendingPathComponent:relative isDirectory:NO];
+    [NSFileManager.defaultManager createDirectoryAtURL:url.URLByDeletingLastPathComponent
+                           withIntermediateDirectories:YES attributes:nil error:nil];
+    XCTAssertNotNil(VibeWriteFLACHeader(url, 44100, sheet, nil, NO, size), @"%@", relative);
+    return url;
+}
+
+- (void)testALargeFLACInAWalkIsCutByItsOwnSheet {
+    [self makeFile:@"folder/a.mp3"];
+    [self makeFLAC:@"folder/mix.flac" sheet:kTwoTrackSheet size:kLargeFLACBytes];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL],
+                          (@[@"folder/a.mp3", @"folder/mix.flac#0-4500", @"folder/mix.flac#4500-0"]));
+}
+
+- (void)testAnOpenedLargeFLACIsCutByItsOwnSheet {
+    NSURL *flac = [self makeFLAC:@"mix.flac" sheet:kTwoTrackSheet size:kLargeFLACBytes];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[flac] folderCount:NULL],
+                          (@[@"mix.flac#0-4500", @"mix.flac#4500-0"]));
+}
+
+// The sheet beside the file is the one its owner can edit.
+- (void)testASheetBesideTheFileOutranksItsOwn {
+    NSString *three = [kTwoTrackSheet stringByAppendingString:@"  TRACK 03 AUDIO\n    INDEX 01 02:00:00\n"];
+    [self makeFLAC:@"folder/mix.flac" sheet:three size:kLargeFLACBytes];
+    [self makeText:kTwoTrackSheet at:@"folder/mix.cue"];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL],
+                          (@[@"folder/mix.flac#0-4500", @"folder/mix.flac#4500-0"]));
+}
+
+- (void)testAnOrdinaryFLACIsNotOpenedForASheet {
+    [self makeFLAC:@"folder/mix.flac" sheet:kTwoTrackSheet size:0];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL],
+                          (@[@"folder/mix.flac"]));
+}
+
+// Reading a placeholder would download it.
+- (void)testACloudPlaceholderIsNotOpenedForASheet {
+    [self makeFLAC:@"folder/mix.flac" sheet:kTwoTrackSheet size:kLargeFLACBytes];
+    [NSURLUtil setDatalessProbe:^BOOL(NSURL *url) {
+        return YES;
+    }];
+    NSArray<NSString *> *rows = [self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL];
+    [NSURLUtil setDatalessProbe:nil];
+
+    XCTAssertEqualObjects(rows, (@[@"folder/mix.flac"]));
 }
 
 // A sheet whose image is gone adds nothing and claims nothing.

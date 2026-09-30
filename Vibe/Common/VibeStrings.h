@@ -188,6 +188,7 @@ static inline NSString *VibeAppName(void) {
 #pragma mark - Header and readout labels
 
 #define STR_LABEL_TRACK_ARTIST_TITLE NSLS(@"label.track.artist_title", @"%1$@ - %2$@",             @"Single-line track label when artist and title are both known. %1$@ is the artist, %2$@ the title — reorder them if that reads better.")
+#define STR_LABEL_CUE_TRACK          NSLS(@"label.cue_track",          @"Track %ld",               @"Title of a track cut from a single-file album or mix by its cue sheet when the sheet gives no title. %ld is the track number, e.g. 'Track 3'.")
 #define STR_LABEL_BITRATE            NSLS(@"label.bitrate",            @"%@ kbps",                 @"Codec label: bitrate in kilobits per second, e.g. '320 kbps'. %@ is the already-formatted number.")
 #define STR_LABEL_SAMPLE_RATE        NSLS(@"label.sample_rate",        @"%@ kHz",                  @"Codec label: sample rate in kilohertz, e.g. '44.1 kHz'. %@ is the already-formatted number.")
 #define STR_LABEL_BPM                NSLS(@"label.bpm",                @"%@ BPM",                  @"Tempo label: beats per minute, e.g. '128.0 BPM'. %@ is the already-formatted number.")

@@ -661,6 +661,163 @@ static NSURL *AudioFileNamedLikeSheet(NSURL *sheet, NSFileManager *fileManager) 
     return path.precomposedStringWithCanonicalMapping.lowercaseString;
 }
 
+#pragma mark - A FLAC's own sheet
+
+static uint32_t ReadLE32(const uint8_t *bytes) {
+    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 | (uint32_t)bytes[3] << 24;
+}
+
+static uint64_t ReadBE64(const uint8_t *bytes) {
+    uint64_t value = 0;
+    for (int i = 0; i < 8; i++) {
+        value = value << 8 | bytes[i];
+    }
+    return value;
+}
+
+// The CUESHEET Vorbis comment (foobar2000's embedding): a whole sheet as text.
+static NSString *CueSheetCommentInBlock(NSData *block) {
+    const uint8_t *bytes = block.bytes;
+    NSUInteger length = block.length;
+    if (length < 8) {
+        return nil;
+    }
+    uint64_t p = 4 + (uint64_t)ReadLE32(bytes);
+    if (p + 4 > length) {
+        return nil;
+    }
+    uint32_t count = ReadLE32(bytes + p);
+    p += 4;
+    for (uint32_t i = 0; i < count && p + 4 <= length; i++) {
+        uint64_t size = ReadLE32(bytes + p);
+        p += 4;
+        if (p + size > length) {
+            return nil;
+        }
+        if (size > 9 && strncasecmp((const char *)bytes + p, "CUESHEET=", 9) == 0) {
+            return [PlaylistFile textFromData:[block subdataWithRange:NSMakeRange((NSUInteger)p + 9, (NSUInteger)size - 9)]];
+        }
+        p += size;
+    }
+    return nil;
+}
+
+// The binary CUESHEET block (flac --cuesheet, EAC) as the sheet text it was
+// made from, so one parser decides every row. Offsets are samples, rounded to
+// CD frames: exact for a CD rip, whose offsets fall on 588-sample frames, and
+// within 1/150 s at any other rate. Non-audio tracks and the lead-out drop.
+static NSString *CueTextForBlock(NSData *block, uint32_t rate) {
+    const uint8_t *bytes = block.bytes;
+    NSUInteger length = block.length;
+    // Catalog number, lead-in, the CD flag and reserved bytes, then the count.
+    const NSUInteger tracksAt = 128 + 8 + 259;
+    if (rate == 0 || length <= tracksAt) {
+        return nil;
+    }
+    NSMutableString *text = [NSMutableString stringWithString:@"FILE \"\" WAVE\n"];
+    NSUInteger count = bytes[tracksAt];
+    NSUInteger p = tracksAt + 1;
+    for (NSUInteger t = 0; t < count && p + 36 <= length; t++) {
+        uint64_t offset = ReadBE64(bytes + p);
+        uint8_t number = bytes[p + 8];
+        BOOL audio = !(bytes[p + 21] & 0x80);
+        NSUInteger indexes = bytes[p + 35];
+        p += 36;
+        if (number == 170 || number == 255) {
+            break;
+        }
+        if (audio) {
+            [text appendFormat:@"TRACK %u AUDIO\n", (unsigned)number];
+        }
+        for (NSUInteger i = 0; i < indexes && p + 12 <= length; i++, p += 12) {
+            if (audio) {
+                long long frames = llround((double)(offset + ReadBE64(bytes + p)) * 75.0 / rate);
+                [text appendFormat:@"INDEX %02u %lld:%02lld:%02lld\n", (unsigned)bytes[p + 8],
+                        frames / 4500, frames / 75 % 60, frames % 75];
+            }
+        }
+    }
+    return text;
+}
+
+// The metadata blocks alone: a leading ID3v2 tag some writers add is skipped,
+// a picture is seeked over, and no audio frame is read.
+static void ReadFLACCueSources(FILE *file, uint32_t *rate, NSString **text, NSData **block) {
+    uint8_t head[10];
+    if (fread(head, 1, sizeof head, file) != sizeof head) {
+        return;
+    }
+    off_t start = 0;
+    if (memcmp(head, "ID3", 3) == 0) {
+        start = 10 + ((off_t)(head[6] & 0x7f) << 21 | (head[7] & 0x7f) << 14 | (head[8] & 0x7f) << 7 | (head[9] & 0x7f));
+        start += (head[5] & 0x10) ? 10 : 0;   // the footer
+    }
+    uint8_t magic[4];
+    if (fseeko(file, start, SEEK_SET) != 0 || fread(magic, 1, 4, file) != 4 || memcmp(magic, "fLaC", 4) != 0) {
+        return;
+    }
+    // Bounded, so a corrupt chain cannot spin.
+    for (int blocks = 0; blocks < 256; blocks++) {
+        uint8_t header[4];
+        if (fread(header, 1, 4, file) != 4) {
+            return;
+        }
+        uint8_t type = header[0] & 0x7f;
+        size_t length = (size_t)header[1] << 16 | (size_t)header[2] << 8 | header[3];
+        if (type == 0 || type == 4 || type == 5) {
+            NSMutableData *data = [NSMutableData dataWithLength:length];
+            if (fread(data.mutableBytes, 1, length, file) != length) {
+                return;
+            }
+            const uint8_t *bytes = data.bytes;
+            if (type == 0 && length >= 13) {
+                *rate = (uint32_t)bytes[10] << 12 | (uint32_t)bytes[11] << 4 | bytes[12] >> 4;
+            }
+            else if (type == 4) {
+                *text = CueSheetCommentInBlock(data);
+            }
+            else if (type == 5) {
+                *block = data;
+            }
+        }
+        else if (fseeko(file, (off_t)length, SEEK_CUR) != 0) {
+            return;
+        }
+        if (header[0] & 0x80) {
+            return;
+        }
+    }
+}
+
++ (NSArray<AudioTrack *> *)cueRowsEmbeddedInFLACAtURL:(NSURL *)url {
+    FILE *file = fopen(url.fileSystemRepresentation, "rb");
+    if (!file) {
+        return @[];
+    }
+    uint32_t rate = 0;
+    NSString *text = nil;
+    NSData *block = nil;
+    ReadFLACCueSources(file, &rate, &text, &block);
+    fclose(file);
+    // The text carries titles, the block only marks.
+    for (NSString *sheet in @[text ?: @"", CueTextForBlock(block, rate) ?: @""]) {
+        // The sheet's FILE names what was ripped; the audio is this file. The
+        // first FILE only, since a second would lay its windows over the same
+        // audio.
+        __block BOOL resolved = NO;
+        NSArray<AudioTrack *> *rows = [self cueRowsInText:sheet sheetURL:url
+                                            resolvingFile:^NSURL *(NSString *name, BOOL sole) {
+            BOOL first = !resolved;
+            resolved = YES;
+            return first ? url : nil;
+        }];
+        if (rows.count > 1) {
+            return rows;
+        }
+    }
+    return @[];
+}
+
 + (NSArray<AudioTrack *> *)rowsForPlaylistAtURL:(NSURL *)url {
     if ([url.pathExtension.lowercaseString isEqualToString:@"cue"]) {
         return [self cueRowsForSheetAtURL:url];

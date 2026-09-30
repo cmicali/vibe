@@ -57,6 +57,13 @@ extern NSString *const kVibeLastPlaylistCurrentIndexKey;
 // normalization — so a sheet's spelling finds the listed file it means.
 + (NSString *)knownFileKeyForPath:(NSString *)path;
 
+// The rows of a sheet embedded in the FLAC at url, each a window of the file
+// itself, by the rules of cueRowsInText:; empty when it carries none, or one
+// giving a single row. The CUESHEET tag's text (which has titles) wins over
+// the binary CUESHEET block (which has only marks). Reads the metadata blocks
+// and nothing else — the caller decides the file is worth opening at all.
++ (NSArray<AudioTrack *> *)cueRowsEmbeddedInFLACAtURL:(NSURL *)url;
+
 // The entries of an M3U playlist in list order: comment and directive lines
 // (#…) skipped, file:// URLs reduced to their paths, other URL schemes
 // (streams) dropped, backslash paths normalized to slashes. Duplicates are

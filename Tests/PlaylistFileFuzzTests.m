@@ -10,6 +10,8 @@
 
 #import <XCTest/XCTest.h>
 
+#import "AudioFixtures.h"
+#import "AudioTrack.h"
 #import "PlaylistFile.h"
 
 // Implemented in PlaylistFileTests.m.
@@ -480,6 +482,52 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
                 // directory it does not control.
                 XCTAssertTrue([url.path hasPrefix:@"/"], @"seed %llu: %@", seed, url.path);
             }
+        }
+    }
+}
+
+// A FLAC's own sheet from hostile bytes — a well-formed header with bytes
+// overwritten, lengths lied about and the file cut short. Whatever comes back
+// is that file cut into playable windows: none, or a chain from its first
+// frame to its end.
+- (void)testCorruptedFLACHeadersYieldOnlyAChainOfWindows {
+    NSString *sheet = @"FILE \"a.wav\" WAVE\n  TRACK 01 AUDIO\n    TITLE \"One\"\n    INDEX 01 00:00:00\n"
+                       "  TRACK 02 AUDIO\n    INDEX 00 00:28:00\n    INDEX 01 00:30:00\n"
+                       "  TRACK 03 AUDIO\n    INDEX 01 01:00:00\n";
+    NSData *block = VibeFLACCueSheetBlock(@[@[@1, @0, @0, @NO], @[@2, @(28 * 44100), @(2 * 44100), @NO],
+                                            @[@3, @(60 * 44100), @0, @NO]], 90 * 44100);
+    NSData *valid = [NSData dataWithContentsOfURL:VibeWriteFLACHeader(
+            [_root URLByAppendingPathComponent:@"valid.flac"], 44100, sheet, block, NO, 0)];
+    XCTAssertNotNil(valid);
+    NSURL *url = [_root URLByAppendingPathComponent:@"corrupt.flac"];
+
+    for (NSUInteger round = 0; round < 500; round++) {
+        @autoreleasepool {
+            uint64_t seed = _baseSeed + 500000 + round;
+            FuzzRandom random = {seed};
+            NSMutableData *data = [valid mutableCopy];
+            for (uint32_t edits = 1 + FuzzBelow(&random, 8); edits > 0; edits--) {
+                uint8_t *bytes = data.mutableBytes;
+                if (FuzzChance(&random, 6)) {
+                    data.length = FuzzBelow(&random, (uint32_t)data.length);
+                }
+                else if (data.length > 0) {
+                    bytes[FuzzBelow(&random, (uint32_t)data.length)] = (uint8_t)FuzzNext(&random);
+                }
+            }
+            XCTAssertTrue([data writeToURL:url atomically:YES], @"seed %llu", seed);
+
+            NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsEmbeddedInFLACAtURL:url];
+
+            XCTAssertNotEqual(rows.count, 1u, @"seed %llu", seed);
+            NSUInteger next = 0;
+            for (AudioTrack *row in rows) {
+                XCTAssertEqualObjects(row.url, url, @"seed %llu", seed);
+                XCTAssertEqual(row.cueStart, next, @"seed %llu", seed);
+                XCTAssertTrue(row.cueEnd == 0 || row.cueEnd > row.cueStart, @"seed %llu", seed);
+                next = row.cueEnd;
+            }
+            XCTAssertEqual(next, 0u, @"seed %llu: the last row runs to the end", seed);
         }
     }
 }
