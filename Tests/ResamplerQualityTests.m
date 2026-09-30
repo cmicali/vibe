@@ -347,7 +347,7 @@ typedef struct {
     XCTAssertNotNil(file, @"%@", error);
     AVAudioFramePosition sourceFrames = file.length;
     double sourceRate = file.processingFormat.sampleRate;
-    VibeVoiceID voice = [_bus startVoiceWithFile:file atFrame:0 gain:1
+    VibeVoiceID voice = [_bus startVoiceWithFile:file atFrame:0 endFrame:0 gain:1
                                             ramp:VibeVoiceRampMake(1, 0, VibeFadeCurveLinear, VibeVoiceActionNone) paused:NO];
     __block BOOL ended = NO;
     __block uint64_t endOfStream = 0;

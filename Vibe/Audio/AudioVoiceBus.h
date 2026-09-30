@@ -154,13 +154,15 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 
 // Starts rendering `file` from `frame` (file frames) at `gain`, with `ramp`
 // pending — or paused, which carries no ramp: the first ramp set later is the
-// resume. The file is read in its processing format. A decode failure ends
-// the voice through VibeVoiceEndFailed; read errorOfVoice:failedFile: inside
-// the ended handler. Allocation always returns an id: a full pool cuts its
-// oldest retiring voice, and a start that still finds no slot is pending
-// until the drain frees one. Returns the voice's id.
+// resume. The stream ends at `endFrame`, exclusive, as it would at the file's
+// own end; 0 is the file's own end. The file is read in its processing format.
+// A decode failure ends the voice through VibeVoiceEndFailed; read
+// errorOfVoice:failedFile: inside the ended handler. Allocation always returns
+// an id: a full pool cuts its oldest retiring voice, and a start that still
+// finds no slot is pending until the drain frees one. Returns the voice's id.
 - (VibeVoiceID)startVoiceWithFile:(AudioFileHandle *)file
                           atFrame:(AVAudioFramePosition)frame
+                         endFrame:(AVAudioFramePosition)endFrame
                              gain:(float)gain
                              ramp:(VibeVoiceRamp)ramp
                            paused:(BOOL)paused;
@@ -193,9 +195,11 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 - (void)withholdReadsOfFile:(AudioFileHandle *)file;
 - (void)allowReadsOfFile:(AudioFileHandle *)file;
 
-// Queues `file` to continue at the voice's end without a gap. A successor
-// read the same way as the file before it continues through the same
-// converter, so a resampler carries across the boundary; a converter stays
+// Queues `file` to continue at the voice's end without a gap, read from
+// `startFrame` to `endFrame` (0: its own end), so the next window of the file
+// the voice reads continues it sample for sample. A successor read the same
+// way as the file before it continues through the same converter, so a
+// resampler carries across the boundary; a converter stays
 // open past its file until the render nears the end, so a successor named
 // late still continues it. A voice whose stream's end was declared still
 // takes one while it is live: the decoder reopens the stream at the old end
@@ -206,7 +210,10 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // queue is still reading is accepted and waits: the drain hands it to the
 // decoder once that queue has left it, and a voice that ends first ends as an
 // ordinary track end.
-- (BOOL)queueSuccessor:(AudioFileHandle *)file forVoice:(VibeVoiceID)voice;
+- (BOOL)queueSuccessor:(AudioFileHandle *)file
+            startFrame:(AVAudioFramePosition)startFrame
+              endFrame:(AVAudioFramePosition)endFrame
+              forVoice:(VibeVoiceID)voice;
 
 // Drops the queued successor. NO means the decoder had already claimed it:
 // successor frames sit in the ring or are on their way, and the caller must

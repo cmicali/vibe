@@ -59,6 +59,11 @@ NS_ASSUME_NONNULL_BEGIN
 // YES when the row plays less than its whole file.
 - (BOOL)isWindowed;
 
+// YES when `track` is the next window of this row's file, beginning where this
+// one ends: one recording, which continues without a gap whatever the
+// crossfade.
+- (BOOL)isFollowedContiguouslyBy:(nullable AudioTrack *)track;
+
 // What sounds: the file's path, plus the window for a windowed row, so rows of
 // one file differ. An identity to compare, never a path to open.
 - (NSString *)sourceKey;

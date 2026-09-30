@@ -55,6 +55,10 @@
     return _cueStart > 0 || _cueEnd > 0;
 }
 
+- (BOOL)isFollowedContiguouslyBy:(AudioTrack *)track {
+    return track && _cueEnd > 0 && track.cueStart == _cueEnd && [track.url isEqual:self.url];
+}
+
 - (NSString *)sourceKey {
     NSString *path = self.url.path ?: @"";
     return self.isWindowed ? [NSString stringWithFormat:@"%@#%lu-%lu", path,

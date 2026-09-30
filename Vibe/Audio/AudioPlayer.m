@@ -313,7 +313,11 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 - (void)playOnQueue:(AudioTrack *)track intent:(VibePendingPlaybackIntent)intent declick:(BOOL)declick
 submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     if (_terminating) return;
+    // The path is the file's, what the open and the Loading rebind are about;
+    // the key is the window's, what the park is. Another row of a file being
+    // opened rebinds that open, and settlement reads the latest row's window.
     NSString *path = track.url.path;
+    NSString *key = track.sourceKey;
     // Before the rebind, which returns early but is still a newer submission.
     [self terminallyRetirePrefetchRequestOnQueue];
     // A parked play is a pause outcome: cut any older crossfade tail before
@@ -326,6 +330,8 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         return;
     }
     _activeSubmittedPlayIdentifier = 0;
+    // Before the retire clears the successor.
+    BOOL parkIsQueued = _successorFile && _successorFile == _prefetchedFile;
     // Before Loading is published: the crossfade decision asks whether an
     // audibly playing track is being replaced.
     [self retireCurrentVoiceOnQueueWithDeclick:declick];
@@ -335,13 +341,18 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                                  submittedPlayIdentifier:submittedPlayIdentifier];
     // Also mirrors the request and retires the pre-Loading handoff a seek
     // would otherwise still aim at.
-    [self publishState:VibePlayerStateLoading voice:0 file:nil startSeconds:0 baseFrames:0];
-    // An unrelated park must not compete with the foreground transfer; a
-    // same-path park stays.
+    [self publishState:VibePlayerStateLoading voice:0 file:nil window:NSMakeRange(0, 0) startSeconds:0 baseFrames:0];
+    // An unrelated park must not compete with the foreground transfer; this
+    // track's park stays.
     [self cancelPlayOpenOnQueue];
-    [self retirePrefetchOnQueueAtPoint:VibeAudioPrefetchAtPlaySubmission playPath:path];
-    // A parked handle for this path skips the open and its timers.
-    if (_prefetchedFile && [path isEqualToString:_prefetchedPath]) {
+    [self retirePrefetchOnQueueAtPoint:VibeAudioPrefetchAtPlaySubmission playKey:key];
+    // A parked handle for this track skips the open and its timers. TRAP: not
+    // one the voice retiring over a crossfade may still read: a contiguous cue
+    // row is queued whatever the crossfade, the retire keeps a crossfade's
+    // reads going, and two voices on one handle move each other's cursor. It
+    // opens its own, and the settlement drops the park.
+    if (_prefetchedFile && [key isEqualToString:_prefetchedKey]
+            && !(parkIsQueued && _incomingFadeMilliseconds > kFadeDurationMilliseconds)) {
         AudioFileHandle *prefetchedFile = _prefetchedFile;
         [self clearPrefetchOnQueue];
         [self finishPlayOnQueueWithFile:prefetchedFile error:nil openRequestId:openId];
@@ -436,13 +447,18 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // The prefetch can win this request while the play's claim is open; the
     // winner detaches it, and the identifier guard protects a newer play.
     [self cancelPlayOpenForRequest:openId];
-    // Retire a losing same-path prefetch before a late result can make the
-    // current track its own successor.
-    [self retirePrefetchOnQueueAtPoint:VibeAudioPrefetchAtPlaySettlement playPath:request.path];
+    // Retire a losing prefetch of this track before a late result can make
+    // the current track its own successor.
+    [self retirePrefetchOnQueueAtPoint:VibeAudioPrefetchAtPlaySettlement playKey:request.track.sourceKey];
     AudioTrack *track = request.track;
     VibePendingPlaybackIntent startIntent = request.intent;
     [self noteOpenSettledForPlay:request.submittedPlayIdentifier track:track file:file error:error];
-    if (!file || file.length <= 0) {
+    // From the request's track, which a Loading rebind may have moved to
+    // another row of the file. An empty window fails as an empty file does,
+    // so a broken sheet cannot auto-advance through every row.
+    double sampleRate = file.processingFormat.sampleRate;
+    NSRange window = file ? VibeCueWindow(track.cueStart, track.cueEnd, sampleRate, file.length) : NSMakeRange(0, 0);
+    if (!file || file.length <= 0 || window.length == 0) {
         [self resetToStoppedStateOnQueue];
         [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorFileOpenFailed,
                 [NSString stringWithFormat:@"Could not open %@", track.url.lastPathComponent], error, track.url)
@@ -465,15 +481,15 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                forSubmittedPlay:request.submittedPlayIdentifier];
         return;
     }
-    double sampleRate = file.processingFormat.sampleRate;
-    AVAudioFramePosition startFrame = VibeClampedStartFrame(startIntent.position, sampleRate, file.length);
-    VibeVoiceID voice = [self startVoiceOnQueueForFile:file atFrame:startFrame
+    AVAudioFramePosition startFrame = VibeClampedStartFrame(startIntent.position, sampleRate, window);
+    NSTimeInterval startSeconds = (NSTimeInterval)(startFrame - (AVAudioFramePosition)window.location) / sampleRate;
+    VibeVoiceID voice = [self startVoiceOnQueueForFile:file window:window atFrame:startFrame
                                       fadeMilliseconds:(_incomingFadeMilliseconds ?: kFadeDurationMilliseconds)
                                                 paused:startIntent.paused];
     if (startIntent.paused) {
         // Paused is idle: the output may still run from the replaced track.
-        [self publishState:VibePlayerStatePaused voice:voice file:file
-              startSeconds:(NSTimeInterval)startFrame / sampleRate baseFrames:0];
+        [self publishState:VibePlayerStatePaused voice:voice file:file window:window
+              startSeconds:startSeconds baseFrames:0];
         [self scheduleOutputIdleStopOnQueue];
     }
     else {
@@ -486,8 +502,8 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                    forSubmittedPlay:request.submittedPlayIdentifier];
             return;
         }
-        [self publishState:VibePlayerStatePlaying voice:voice file:file
-              startSeconds:(NSTimeInterval)startFrame / sampleRate baseFrames:0];
+        [self publishState:VibePlayerStatePlaying voice:voice file:file window:window
+              startSeconds:startSeconds baseFrames:0];
         [self armSignalProbeOnQueue:@"voice started"];
     }
     self.currentTrack = track;
@@ -631,7 +647,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     uint64_t milliseconds = [self renderingOnQueue] ? kFadeDurationMilliseconds : 0;
     [_voiceBus setRamp:[self rampOnQueueToGain:0 milliseconds:milliseconds action:VibeVoiceActionPause] forVoice:_voice];
     [self cutRetiringVoicesToDeclickOnQueue];
-    [self publishState:VibePlayerStatePaused voice:_voice file:_file startSeconds:_voiceStartSeconds baseFrames:_promotedBaseFrames];
+    [self publishState:VibePlayerStatePaused voice:_voice file:_file window:_window startSeconds:_voiceStartSeconds baseFrames:_promotedBaseFrames];
     // Or the output holds the device for as long as the user stays paused.
     [self scheduleOutputIdleStopOnQueue];
     AudioTrack *track = self.currentTrack;
@@ -664,7 +680,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     }
     [_voiceBus setRamp:[self rampOnQueueToGain:1 milliseconds:kFadeDurationMilliseconds action:VibeVoiceActionNone]
               forVoice:_voice];
-    [self publishState:VibePlayerStatePlaying voice:_voice file:_file startSeconds:_voiceStartSeconds baseFrames:_promotedBaseFrames];
+    [self publishState:VibePlayerStatePlaying voice:_voice file:_file window:_window startSeconds:_voiceStartSeconds baseFrames:_promotedBaseFrames];
     [self armSignalProbeOnQueue:@"resume"];
     AudioTrack *track = self.currentTrack;
     uint64_t deliveredAt = [self deliveryStamp];
@@ -793,11 +809,11 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     [_pendingRequest invalidate];
     _activeSubmittedPlayIdentifier = 0;
     [self cancelPlayOpenOnQueue];
-    [self retirePrefetchOnQueueAtPoint:VibeAudioPrefetchAtAbandonment playPath:nil];
+    [self retirePrefetchOnQueueAtPoint:VibeAudioPrefetchAtAbandonment playKey:nil];
     [self clearSuccessorOnQueue];
     // A crossfade whose incoming open failed must not ring on.
     [self cutRetiringVoicesToDeclickOnQueue];
-    [self publishState:VibePlayerStateStopped voice:0 file:nil startSeconds:0 baseFrames:0];
+    [self publishState:VibePlayerStateStopped voice:0 file:nil window:NSMakeRange(0, 0) startSeconds:0 baseFrames:0];
 #if TARGET_OS_OSX
     // A reset may be inside a device mutation whose rollback is still owed.
     // Do not retry a failed saved-device bind, even on a later queue turn.
@@ -916,10 +932,15 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     return VibeVoiceRampMake(gain, frames, VibeFadeCurveForMilliseconds(milliseconds), action);
 }
 
-- (VibeVoiceID)startVoiceOnQueueForFile:(AudioFileHandle *)file atFrame:(AVAudioFramePosition)frame
+- (VibeVoiceID)startVoiceOnQueueForFile:(AudioFileHandle *)file window:(NSRange)window
+                                atFrame:(AVAudioFramePosition)frame
                        fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused {
     VibeVoiceRamp ramp = [self rampOnQueueToGain:1 milliseconds:milliseconds action:VibeVoiceActionNone];
+    // A window running to the file's end asks the bus for none of its own, so
+    // a whole file ends exactly as it always has.
+    AVAudioFramePosition end = (AVAudioFramePosition)NSMaxRange(window);
     VibeVoiceID voice = [_voiceBus startVoiceWithFile:file atFrame:frame
+                                             endFrame:end < file.length ? end : 0
                                                  gain:ramp.frames ? 0 : 1
                                                  ramp:ramp
                                                paused:paused];
@@ -935,14 +956,16 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 // positions the cursor starts its next chunk 4096 frames late.
 - (void)revoiceOnQueueAtPosition:(NSTimeInterval)position {
     AudioFileHandle *file = _file;
+    NSRange window = _window;
     double sampleRate = file.processingFormat.sampleRate;
-    AVAudioFramePosition startFrame = VibeClampedStartFrame(position, sampleRate, file.length);
+    AVAudioFramePosition startFrame = VibeClampedStartFrame(position, sampleRate, window);
     VibeVoiceID oldVoice = [self unpublishVoiceOnQueue];
     [self retireVoiceOnQueue:oldVoice milliseconds:kFadeDurationMilliseconds];
-    VibeVoiceID voice = [self startVoiceOnQueueForFile:file atFrame:startFrame
+    VibeVoiceID voice = [self startVoiceOnQueueForFile:file window:window atFrame:startFrame
                                       fadeMilliseconds:kFadeDurationMilliseconds
                                                 paused:_state == VibePlayerStatePaused];
-    [self publishState:_state voice:voice file:file startSeconds:(NSTimeInterval)startFrame / sampleRate baseFrames:0];
+    [self publishState:_state voice:voice file:file window:window
+          startSeconds:(NSTimeInterval)(startFrame - (AVAudioFramePosition)window.location) / sampleRate baseFrames:0];
 }
 
 // A voice that cannot be heard (not live, paused, cut, or under a stopped
@@ -998,7 +1021,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     _crossfadeMilliseconds = milliseconds;
     os_unfair_lock_unlock(&_stateLock);
     dispatch_async(_queue, ^{
-        if (VibeGaplessArmAllowed(milliseconds)) {
+        if (VibeGaplessArmAllowed(milliseconds, [self.currentTrack isFollowedContiguouslyBy:self->_prefetchedTrack])) {
             [self maybeArmSuccessorOnQueue];
         }
         else if (self->_successorTrack) {
@@ -1168,16 +1191,15 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 
 // One acquisition, so a getter never sees a torn tuple.
 - (void)publishState:(VibePlayerState)state voice:(VibeVoiceID)voice file:(AudioFileHandle *)file
-        startSeconds:(NSTimeInterval)startSeconds baseFrames:(uint64_t)baseFrames {
+              window:(NSRange)window startSeconds:(NSTimeInterval)startSeconds baseFrames:(uint64_t)baseFrames {
     VibePlaybackRequest *request = state == VibePlayerStateLoading ? _pendingRequest.currentRequest : nil;
     double fileSampleRate = file.processingFormat.sampleRate;
-    AVAudioFramePosition fileLength = file.length;
     os_unfair_lock_lock(&_stateLock);
     _state = state;
     _voice = voice;
     _file = file;
     _fileSampleRate = fileSampleRate;
-    _fileLength = fileLength;
+    _window = window;
     _voiceStartSeconds = startSeconds;
     _promotedBaseFrames = baseFrames;
     [self mirrorLoadingRequestLocked:request];
