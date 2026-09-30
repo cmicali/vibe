@@ -156,8 +156,8 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // pending — or paused, which carries no ramp: the first ramp set later is the
 // resume. The stream ends at `endFrame`, exclusive, as it would at the file's
 // own end; 0, or a frame at or past the file's length, is the file's own end,
-// so a window running to it ends a whole file exactly as it always has. The file is read in its processing format.
-// A decode failure ends the voice through VibeVoiceEndFailed; read
+// read to where the stream really ends. The file is read in its processing
+// format. A decode failure ends the voice through VibeVoiceEndFailed; read
 // errorOfVoice:failedFile: inside the ended handler. Allocation always returns
 // an id: a full pool cuts its oldest retiring voice, and a start that still
 // finds no slot is pending until the drain frees one. Returns the voice's id.
@@ -197,12 +197,12 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 - (void)allowReadsOfFile:(AudioFileHandle *)file;
 
 // Queues `file` to continue at the voice's end without a gap, read from
-// `startFrame` to `endFrame` (as for startVoiceWithFile:), so the next window of the file
-// the voice reads continues it sample for sample. A successor read the same
-// way as the file before it continues through the same converter, so a
-// resampler carries across the boundary; a converter stays
-// open past its file until the render nears the end, so a successor named
-// late still continues it. A voice whose stream's end was declared still
+// `startFrame` to `endFrame` (as for startVoiceWithFile:), so the next window
+// of the file the voice reads continues it sample for sample. A successor read
+// the same way as the file before it continues through the same converter, so
+// a resampler carries across the boundary; a converter stays open past its
+// file until the render nears the end, so a successor named late still
+// continues it. A voice whose stream's end was declared still
 // takes one while it is live: the decoder reopens the stream at the old end
 // with a converter of its own, unless the audio thread reached the end
 // first, in which case the voice ends as it would have and the successor

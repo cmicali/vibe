@@ -458,7 +458,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // so a broken sheet cannot auto-advance through every row.
     double sampleRate = file.processingFormat.sampleRate;
     NSRange window = file ? [track frameWindowInFile:file] : NSMakeRange(0, 0);
-    if (!file || file.length <= 0 || window.length == 0) {
+    if (window.length == 0) {
         [self resetToStoppedStateOnQueue];
         [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorFileOpenFailed,
                 [NSString stringWithFormat:@"Could not open %@", track.url.lastPathComponent], error, track.url)

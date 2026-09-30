@@ -603,8 +603,8 @@ static NSURL *AudioFileNamedLikeSheet(NSURL *sheet, NSFileManager *fileManager,
         if (!url) {
             continue;
         }
-        // A FILE none of whose tracks survived plays whole, as every FILE did
-        // before sheets had rows: no audio the sheet names goes missing.
+        // A FILE none of whose tracks survived plays whole: no audio the sheet
+        // names goes missing.
         if (next == begin) {
             [rows addObject:[AudioTrack withURL:url]];
             continue;

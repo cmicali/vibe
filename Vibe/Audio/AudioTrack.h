@@ -24,10 +24,14 @@ NS_ASSUME_NONNULL_BEGIN
 // undetectable. Transient: the waveform cache re-delivers it on every load.
 @property(atomic, assign) float detectedBPM;
 
-// The tempo to act on: metadata.bpm when tagged, else detectedBPM, else 0 —
-// the single home of the tag-over-analysis precedence. A windowed row skips
-// the tag, which describes its whole file. Not pitch-adjusted: a caller
-// wanting the tempo as heard scales it by the varispeed rate.
+// The metadata whose tags describe this row: nil for a windowed row, whose
+// file's tags describe the whole image. One read, so a caller comparing tags
+// against bpm and key sees one snapshot.
+- (nullable AudioTrackMetadata *)rowTagMetadata;
+
+// The tempo to act on: rowTagMetadata.bpm when tagged, else detectedBPM, else
+// 0 — the single home of the tag-over-analysis precedence. Not pitch-adjusted:
+// a caller wanting the tempo as heard scales it by the varispeed rate.
 - (float)bpm;
 
 // The musical key from the waveform decode pass; VibeMusicalKeyNone means not
@@ -35,8 +39,8 @@ NS_ASSUME_NONNULL_BEGIN
 // must set it to VibeMusicalKeyNone: a zero-filled ivar reads as C major.
 @property(atomic, assign) VibeMusicalKey detectedKey;
 
-// The key to act on: metadata.key when tagged, else detectedKey, else
-// VibeMusicalKeyNone. Mirrors bpm, a windowed row included.
+// The key to act on: rowTagMetadata.key when tagged, else detectedKey, else
+// VibeMusicalKeyNone. Mirrors bpm.
 - (VibeMusicalKey)key;
 
 - (instancetype)initWithURL:(NSURL *)url NS_DESIGNATED_INITIALIZER;
@@ -76,8 +80,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable NSString *)standardizedSourceKey;
 
 // `key` with this row's window appended, so rows of one file key apart; `key`
-// itself for a whole file, so a plain file's keys are unchanged, and nil for
-// nil. What the source keys and the per-window waveform entries and claims
+// itself for a whole file, and nil for nil. What the source keys and the per-window waveform entries and claims
 // are spelled with.
 - (nullable NSString *)keyByAppendingWindowTo:(nullable NSString *)key;
 

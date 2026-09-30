@@ -9,7 +9,6 @@
 #import "PINCache+VibeAudioCache.h"
 #import "AudioTrack.h"
 #import "AudioWaveformLoader.h"
-#import "AudioFileOpenRules.h"
 #import "AudioWorkScheduler.h"
 
 #include <atomic>
@@ -30,10 +29,6 @@
 
 @implementation VibeWaveformLoadClaim
 @end
-
-static NSString *VibeWaveformClaimKey(AudioTrack *track) {
-    return [track keyByAppendingWindowTo:VibeStandardizedAudioOpenPath(track.url)];
-}
 
 @interface AudioWaveformCache () <AudioWaveformLoaderDelegate>
 - (void)finishFailedLoader:(AudioWaveformLoader *)loader
@@ -159,7 +154,7 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
 }
 
 - (void)loadWaveformForTrack:(AudioTrack *)track {
-    NSString *key = VibeWaveformClaimKey(track);
+    NSString *key = track.standardizedSourceKey;
     [self detachCurrentLoader];
     VibeWaveformLoadClaim *existing = _claimsByKey[key];
     if (existing) {
@@ -316,7 +311,7 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
         // Only while this parked request is still the one on screen. A track
         // change moved on and took the loading state with it.
         AudioTrack *current = strongSelf->_currentLoadTrack;
-        if (!current || ![VibeWaveformClaimKey(current) isEqualToString:claim.key]) {
+        if (!current || ![current.standardizedSourceKey isEqualToString:claim.key]) {
             return;
         }
         LogWarn(@"Waveform: gave up waiting %.0fs for the in-flight load of %@",
@@ -351,7 +346,7 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
         AudioTrack *retryTrack = claim.retryTrack;
         AudioTrack *current = self->_currentLoadTrack;
         BOOL retryIsCurrent = retryTrack && current
-                && [VibeWaveformClaimKey(current) isEqualToString:claim.key];
+                && [current.standardizedSourceKey isEqualToString:claim.key];
         if (retryIsCurrent) {
             [self loadWaveformForTrack:retryTrack];
         }

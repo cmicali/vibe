@@ -5,6 +5,7 @@
 
 #import "AudioTrackInternal.h"
 #import "AudioFileHandle.h"
+#import "AudioFileOpenRules.h"
 #import "AudioTrackMetadata.h"
 #import "Formatters.h"
 #import "NSURL+Hash.h"
@@ -91,7 +92,7 @@
 }
 
 - (NSString *)standardizedSourceKey {
-    return [self keyByAppendingWindowTo:self.url.URLByStandardizingPath.path];
+    return [self keyByAppendingWindowTo:VibeStandardizedAudioOpenPath(self.url)];
 }
 
 - (NSString *)keyByAppendingWindowTo:(NSString *)key {
@@ -178,14 +179,18 @@
     return self.metadata.cachedThumbnail;
 }
 
+- (AudioTrackMetadata *)rowTagMetadata {
+    return self.isWindowed ? nil : self.metadata;
+}
+
 - (float)bpm {
-    float tagged = self.isWindowed ? 0 : self.metadata.bpm;
+    float tagged = self.rowTagMetadata.bpm;
     return tagged > 0 ? tagged : self.detectedBPM;
 }
 
 - (VibeMusicalKey)key {
     // A message to nil metadata would answer 0, which is C major.
-    AudioTrackMetadata *metadata = self.isWindowed ? nil : self.metadata;
+    AudioTrackMetadata *metadata = self.rowTagMetadata;
     VibeMusicalKey tagged = metadata ? metadata.key : VibeMusicalKeyNone;
     return tagged >= 0 ? tagged : self.detectedKey;
 }
