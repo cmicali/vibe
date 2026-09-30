@@ -359,6 +359,39 @@ static NSString *const kTwoTrackSheet =
                           (@[@"folder/Mix.flac#0-4500", @"folder/Mix.flac#4500-0"]));
 }
 
+// Inject the listing so case-sensitive-volume coverage runs on any host.
+- (void)testAWalkedSheetClaimsOnlyItsExactFileWhenCaseVariantsExist {
+    NSURL *lower = [_root URLByAppendingPathComponent:@"mix.flac"];
+    NSURL *upper = [_root URLByAppendingPathComponent:@"Mix.flac"];
+    NSURL *sheet = [self makeText:kTwoTrackSheet at:@"album.cue"];
+
+    for (NSArray<NSURL *> *listing in @[@[sheet, lower, upper], @[sheet, upper, lower]]) {
+        XCTAssertEqualObjects([self relativePaths:[NSURLUtil rowsForWalk:listing]],
+                              (@[@"mix.flac#0-4500", @"mix.flac#4500-0", @"Mix.flac"]));
+    }
+}
+
+- (void)testAWalkedSheetDoesNotChooseAnAmbiguousCaseFallback {
+    NSURL *lower = [_root URLByAppendingPathComponent:@"mix.flac"];
+    NSURL *upper = [_root URLByAppendingPathComponent:@"Mix.flac"];
+    NSURL *sheet = [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac"
+                                                                         withString:@"MIX.FLAC"]
+                               at:@"album.cue"];
+
+    XCTAssertEqualObjects(([self relativePaths:[NSURLUtil rowsForWalk:@[sheet, lower, upper]]]),
+                          (@[@"mix.flac", @"Mix.flac"]));
+}
+
+- (void)testASheetBasenameRescueKeepsTheExactFileWhenCaseVariantsExist {
+    NSURL *lower = [_root URLByAppendingPathComponent:@"mix.flac"];
+    NSURL *upper = [_root URLByAppendingPathComponent:@"Mix.flac"];
+    NSURL *sheet = [self makeText:@"TRACK 01 AUDIO\n INDEX 01 00:00:00\n"
+                                  "TRACK 02 AUDIO\n INDEX 01 01:00:00\n" at:@"mix.cue"];
+
+    XCTAssertEqualObjects(([self relativePaths:[NSURLUtil rowsForWalk:@[sheet, lower, upper]]]),
+                          (@[@"mix.flac#0-4500", @"mix.flac#4500-0", @"Mix.flac"]));
+}
+
 // A sheet written elsewhere spells "é" precomposed; the file here holds it
 // decomposed, and APFS takes both.
 - (void)testAWalkedSheetSpellingItsFileInAnotherNormalizationStillClaimsIt {

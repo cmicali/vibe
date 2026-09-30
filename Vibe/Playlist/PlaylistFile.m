@@ -551,18 +551,31 @@ static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManag
     return primary;
 }
 
+static NSURL *KnownFileAtPath(NSString *path, NSDictionary<NSString *, NSArray<NSURL *> *> *knownFiles) {
+    if (!path) {
+        return nil;
+    }
+    NSArray<NSURL *> *matches = knownFiles[[PlaylistFile knownFileKeyForPath:path]];
+    for (NSURL *url in matches) {
+        if ([url.path isEqualToString:path]) {
+            return url;
+        }
+    }
+    return matches.count == 1 ? matches.firstObject : nil;
+}
+
 // The audio named like the sheet beside it — Mix.cue's Mix.flac — lossless
 // first; nil when none is readable. The last rung for a sheet whose one image
 // is named nowhere findable (a long-gone CDImage.wav) or not named at all. A
 // walk's listing, when given, answers for the sheet's own folder unprobed.
 static NSURL *AudioFileNamedLikeSheet(NSURL *sheet, NSFileManager *fileManager,
-                                      NSDictionary<NSString *, NSURL *> *knownFiles) {
+                                      NSDictionary<NSString *, NSArray<NSURL *> *> *knownFiles) {
     NSURL *base = sheet.URLByDeletingPathExtension;
     for (NSString *extension in PlayableExtensions.ordered) {
         NSURL *candidate = [base URLByAppendingPathExtension:extension];
         NSString *path = candidate.path;
         NSURL *found = !path ? nil
-                : knownFiles ? knownFiles[[PlaylistFile knownFileKeyForPath:path]]
+                : knownFiles ? KnownFileAtPath(path, knownFiles)
                 : ([fileManager isReadableFileAtPath:path] ? candidate : nil);
         if (found) {
             return found;
@@ -621,7 +634,7 @@ static NSURL *AudioFileNamedLikeSheet(NSURL *sheet, NSFileManager *fileManager,
 }
 
 + (NSArray<AudioTrack *> *)cueRowsForSheetAtURL:(NSURL *)url
-                                     knownFiles:(NSDictionary<NSString *, NSURL *> *)knownFiles {
+                                     knownFiles:(NSDictionary<NSString *, NSArray<NSURL *> *> *)knownFiles {
     NSString *text = TextOfFile(url);
     if (!text) {
         return @[];
@@ -636,7 +649,7 @@ static NSURL *AudioFileNamedLikeSheet(NSURL *sheet, NSFileManager *fileManager,
             // Lexically, as the listing is spelled: "./" and "../" folded, no
             // stat, no /private stripped.
             path = [NSURL fileURLWithPath:path isDirectory:NO].standardizedURL.path;
-            resolved = path ? knownFiles[[self knownFileKeyForPath:path]] : nil;
+            resolved = KnownFileAtPath(path, knownFiles);
         }
         if (!resolved) {
             resolved = name ? ResolveEntry(name, dir, fileManager, dirReachable) : nil;

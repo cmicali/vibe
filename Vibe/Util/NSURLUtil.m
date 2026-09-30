@@ -397,11 +397,9 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
 }
 
 // Each audio file its rows (rowsForFile:), and each sheet its rows in its
-// sorted place. A sheet resolves against the walk's own listing first, so one
-// whose files were listed costs no probe, and claims its files, so none also
-// appears whole and none is opened for a sheet of its own; a row whose file is
-// neither listed nor readable is dropped, a sheet naming a long-gone image
-// being one.
+// sorted place. A sheet resolves against the walk's own listing first and
+// claims its files, so none also appears whole or is opened for its own sheet.
+// Sheet rows must name supported, nonempty files, listed or readable.
 + (NSArray<AudioTrack *> *)rowsForWalk:(NSArray<NSURL *> *)urls {
     NSMutableArray<NSURL *> *sheets = [NSMutableArray array];
     for (NSURL *url in urls) {
@@ -416,40 +414,48 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
         }
         return rows;
     }
-    // Each file's key once, for the listing and the claims alike.
-    NSMutableArray<NSString *> *keys = [NSMutableArray arrayWithCapacity:urls.count];
-    NSMutableDictionary<NSString *, NSURL *> *listed = [NSMutableDictionary dictionaryWithCapacity:urls.count];
+    NSSet<NSURL *> *listed = [NSSet setWithArray:urls];
+    NSMutableDictionary<NSString *, NSMutableArray<NSURL *> *> *knownFiles =
+            [NSMutableDictionary dictionaryWithCapacity:urls.count];
     for (NSURL *url in urls) {
         NSString *key = [PlaylistFile knownFileKeyForPath:url.path];
-        [keys addObject:key];
-        listed[key] = url;
+        NSMutableArray<NSURL *> *matches = knownFiles[key];
+        if (!matches) {
+            knownFiles[key] = matches = [NSMutableArray array];
+        }
+        [matches addObject:url];
     }
     NSMutableDictionary<NSURL *, NSArray<AudioTrack *> *> *rowsBySheet = [NSMutableDictionary dictionary];
-    NSMutableSet<NSString *> *claimed = [NSMutableSet set];
+    NSMutableSet<NSURL *> *claimed = [NSMutableSet set];
     // Once per file, however many rows a sheet cuts it into.
-    NSMutableDictionary<NSString *, NSNumber *> *readable = [NSMutableDictionary dictionary];
+    NSMutableDictionary<NSURL *, NSNumber *> *playable = [NSMutableDictionary dictionary];
+    NSSet<NSString *> *supported = self.supportedExtensions;
     for (NSURL *sheet in sheets) {
         NSMutableArray<AudioTrack *> *rows = [NSMutableArray array];
-        for (AudioTrack *row in [PlaylistFile cueRowsForSheetAtURL:sheet knownFiles:listed]) {
-            NSString *key = [PlaylistFile knownFileKeyForPath:row.url.path];
-            if (!listed[key] && readable[key] == nil) {
-                readable[key] = @(ReadAccessForURL(row.url) == VibeReadAccessReadable);
+        for (AudioTrack *row in [PlaylistFile cueRowsForSheetAtURL:sheet knownFiles:knownFiles]) {
+            NSNumber *verdict = playable[row.url];
+            if (verdict == nil) {
+                verdict = @([supported containsObject:row.url.pathExtension.lowercaseString]
+                            && !row.url.isEmptyOrDirectory
+                            && ([listed containsObject:row.url]
+                                || ReadAccessForURL(row.url) == VibeReadAccessReadable));
+                playable[row.url] = verdict;
             }
-            if (listed[key] || readable[key].boolValue) {
+            if (verdict.boolValue) {
                 [rows addObject:row];
-                [claimed addObject:key];
+                [claimed addObject:row.url];
             }
         }
         rowsBySheet[sheet] = rows;
     }
     NSMutableArray<AudioTrack *> *rows = [NSMutableArray arrayWithCapacity:urls.count];
-    for (NSUInteger i = 0; i < urls.count; i++) {
-        NSArray<AudioTrack *> *sheetRows = rowsBySheet[urls[i]];
+    for (NSURL *url in urls) {
+        NSArray<AudioTrack *> *sheetRows = rowsBySheet[url];
         if (sheetRows) {
             [rows addObjectsFromArray:sheetRows];
         }
-        else if (![claimed containsObject:keys[i]]) {
-            [rows addObjectsFromArray:[self rowsForFile:urls[i]]];
+        else if (![claimed containsObject:url]) {
+            [rows addObjectsFromArray:[self rowsForFile:url]];
         }
     }
     return rows;

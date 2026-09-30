@@ -162,4 +162,19 @@
                           (@[@"a.mp3", @"mix.flac#0-4500", @"mix.flac#4500-0"]));
 }
 
+- (void)testASheetCannotAddUnsupportedEmptyOrDirectoryEntries {
+    [self makeFile:@"real.mp3"];
+    [self makeFile:@"data.bin"];
+    [self makeEmptyFile:@"empty.flac"];
+    XCTAssertTrue([NSFileManager.defaultManager createDirectoryAtURL:[_dir URLByAppendingPathComponent:@"folder.wav"]
+                                       withIntermediateDirectories:YES attributes:nil error:NULL]);
+    NSURL *sheet = [_dir URLByAppendingPathComponent:@"invalid.cue"];
+    XCTAssertTrue([[@"FILE \"data.bin\" BINARY\n TRACK 01 MODE1/2352\n INDEX 01 00:00:00\n"
+                     "FILE \"empty.flac\" WAVE\n TRACK 02 AUDIO\n INDEX 01 00:00:00\n"
+                     "FILE \"folder.wav\" WAVE\n TRACK 03 AUDIO\n INDEX 01 00:00:00\n"
+                     dataUsingEncoding:NSUTF8StringEncoding] writeToURL:sheet atomically:YES]);
+
+    XCTAssertEqualObjects([self listedNamesSortedBy:VibeFolderOpenSortName], @[@"real.mp3"]);
+}
+
 @end
