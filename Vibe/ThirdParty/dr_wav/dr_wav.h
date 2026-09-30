@@ -1196,6 +1196,15 @@ DRWAV_API drwav_uint64 drwav_read_pcm_frames_f32(drwav* pWav, drwav_uint64 frame
 DRWAV_API drwav_uint64 drwav_read_pcm_frames_f32le(drwav* pWav, drwav_uint64 framesToRead, float* pBufferOut);
 DRWAV_API drwav_uint64 drwav_read_pcm_frames_f32be(drwav* pWav, drwav_uint64 framesToRead, float* pBufferOut);
 
+/*
+Reads and converts to IEEE 32-bit floating point samples as drwav_read_pcm_frames_f32() does, but one buffer a channel: ppFramesOut holds a
+pointer for each channel, each to room for framesToRead samples. Stereo PCM of 16, 24 or 32 bits and 32-bit floats convert straight into
+the two buffers; every other format is converted interleaved and split.
+
+Returns the number of PCM frames actually read.
+*/
+DRWAV_API drwav_uint64 drwav_read_pcm_frames_f32_planar(drwav* pWav, drwav_uint64 framesToRead, float* const* ppFramesOut);
+
 /* Low-level function for converting unsigned 8-bit PCM samples to IEEE 32-bit floating point samples. */
 DRWAV_API void drwav_u8_to_f32(float* pOut, const drwav_uint8* pIn, size_t sampleCount);
 
@@ -7652,6 +7661,30 @@ DRWAV_PRIVATE void drwav__ieee_to_f32(float* pOut, const drwav_uint8* pIn, size_
 #define DRWAV_PCM_UNSIGNED  1   /* 8-bit only. */
 #define DRWAV_PCM_FLOAT     2   /* 32-bit only. */
 
+/* One sample of 1 to 4 bytes to f32, the scalar form of drwav__pcm_to_f32_ex(), whose every vector loop gives the same result. */
+static DRWAV_INLINE float drwav__pcm_sample_to_f32(const drwav_uint8* p, unsigned int bytesPerSample, drwav_bool32 isBigEndian, int kind)
+{
+    drwav_uint32 x;
+    float f;
+
+    switch (bytesPerSample) {
+        case 1:  return (float)((kind == DRWAV_PCM_UNSIGNED) ? ((int)p[0] - 128) : (int)(drwav_int8)p[0]) * 0.0078125f;
+        case 2:  x = isBigEndian ? (((drwav_uint32)p[0] << 24) | ((drwav_uint32)p[1] << 16)) : (((drwav_uint32)p[1] << 24) | ((drwav_uint32)p[0] << 16)); break;
+        case 3:  x = isBigEndian ? (((drwav_uint32)p[0] << 24) | ((drwav_uint32)p[1] << 16) | ((drwav_uint32)p[2] << 8))
+                                 : (((drwav_uint32)p[2] << 24) | ((drwav_uint32)p[1] << 16) | ((drwav_uint32)p[0] << 8)); break;
+        case 4:  x = isBigEndian ? (((drwav_uint32)p[0] << 24) | ((drwav_uint32)p[1] << 16) | ((drwav_uint32)p[2] << 8) | p[3])
+                                 : (((drwav_uint32)p[3] << 24) | ((drwav_uint32)p[2] << 16) | ((drwav_uint32)p[1] << 8) | p[0]); break;
+        default: return 0;
+    }
+
+    if (kind == DRWAV_PCM_FLOAT) {
+        DRWAV_COPY_MEMORY(&f, &x, 4);
+        return f;
+    }
+
+    return (float)(drwav_int32)x * (1.0f / 2147483648.0f);   /* Left-justified, so every width scales alike. */
+}
+
 /*
 Converts samples of 1 to 4 bytes, little- or big-endian, to f32: signed integers scaled by 1/2^(bits-1), unsigned 8-bit ones centred on 128
 first, and 32-bit floats copied. Every result is exact but for 32-bit integers, which are rounded to the nearest float.
@@ -7664,7 +7697,6 @@ DRWAV_PRIVATE void drwav__pcm_to_f32_ex(float* pOut, const drwav_uint8* pIn, siz
     size_t i = 0;
 
     if (bytesPerSample == 1) {
-        const int bias = (kind == DRWAV_PCM_UNSIGNED) ? 128 : 0;
     #if defined(DRWAV_SUPPORT_NEON)
         const uint8x16_t flip = vdupq_n_u8((kind == DRWAV_PCM_UNSIGNED) ? 0x80 : 0x00);
         for (; i + 16 <= sampleCount; i += 16) {
@@ -7691,8 +7723,7 @@ DRWAV_PRIVATE void drwav__pcm_to_f32_ex(float* pOut, const drwav_uint8* pIn, siz
         }
     #endif
         for (; i < sampleCount; i += 1) {
-            int x = (kind == DRWAV_PCM_UNSIGNED) ? (int)pIn[i] : (int)(drwav_int8)pIn[i];
-            pOut[i] = (float)(x - bias) * 0.0078125f;
+            pOut[i] = drwav__pcm_sample_to_f32(pIn + i, 1, isBigEndian, kind);
         }
         return;
     }
@@ -7718,9 +7749,7 @@ DRWAV_PRIVATE void drwav__pcm_to_f32_ex(float* pOut, const drwav_uint8* pIn, siz
         }
     #endif
         for (; i < sampleCount; i += 1) {
-            const drwav_uint8* p = pIn + i*2;
-            drwav_int16 x = (drwav_int16)(isBigEndian ? ((p[0] << 8) | p[1]) : ((p[1] << 8) | p[0]));
-            pOut[i] = x * 0.000030517578125f;
+            pOut[i] = drwav__pcm_sample_to_f32(pIn + i*2, 2, isBigEndian, kind);
         }
         return;
     }
@@ -7744,10 +7773,7 @@ DRWAV_PRIVATE void drwav__pcm_to_f32_ex(float* pOut, const drwav_uint8* pIn, siz
         }
     #endif
         for (; i < sampleCount; i += 1) {
-            const drwav_uint8* p = pIn + i*3;
-            drwav_uint32 x = isBigEndian ? (((drwav_uint32)p[0] << 24) | ((drwav_uint32)p[1] << 16) | ((drwav_uint32)p[2] << 8))
-                                         : (((drwav_uint32)p[2] << 24) | ((drwav_uint32)p[1] << 16) | ((drwav_uint32)p[0] << 8));
-            pOut[i] = (float)(drwav_int32)x * (1.0f / 2147483648.0f);
+            pOut[i] = drwav__pcm_sample_to_f32(pIn + i*3, 3, isBigEndian, kind);
         }
         return;
     }
@@ -7790,14 +7816,7 @@ DRWAV_PRIVATE void drwav__pcm_to_f32_ex(float* pOut, const drwav_uint8* pIn, siz
         }
     #endif
         for (; i < sampleCount; i += 1) {
-            const drwav_uint8* p = pIn + i*4;
-            drwav_uint32 x = isBigEndian ? (((drwav_uint32)p[0] << 24) | ((drwav_uint32)p[1] << 16) | ((drwav_uint32)p[2] << 8) | p[3])
-                                         : (((drwav_uint32)p[3] << 24) | ((drwav_uint32)p[2] << 16) | ((drwav_uint32)p[1] << 8) | p[0]);
-            if (kind == DRWAV_PCM_FLOAT) {
-                DRWAV_COPY_MEMORY(pOut + i, &x, 4);
-            } else {
-                pOut[i] = (float)(drwav_int32)x * (1.0f / 2147483648.0f);
-            }
+            pOut[i] = drwav__pcm_sample_to_f32(pIn + i*4, 4, isBigEndian, kind);
         }
         return;
     }
@@ -7806,12 +7825,40 @@ DRWAV_PRIVATE void drwav__pcm_to_f32_ex(float* pOut, const drwav_uint8* pIn, siz
 }
 
 /*
+How a stream's samples convert to f32 without its compressed-format decoders: PCM of 1 to 4 bytes a sample, 32-bit floats, A-law or
+mu-law. DRWAV_FALSE for any other format.
+*/
+DRWAV_PRIVATE drwav_bool32 drwav__plain_sample_format(drwav* pWav, drwav_uint32* pBytesPerSample, drwav_bool32* pIsBigEndian, int* pKind)
+{
+    drwav_uint32 bytesPerFrame = drwav_get_bytes_per_pcm_frame(pWav);
+    drwav_uint32 bytesPerSample;
+
+    if (bytesPerFrame == 0 || (bytesPerFrame % pWav->channels) != 0) {
+        return DRWAV_FALSE;
+    }
+
+    bytesPerSample = bytesPerFrame / pWav->channels;
+    if (pWav->translatedFormatTag == DR_WAVE_FORMAT_PCM && bytesPerSample >= 1 && bytesPerSample <= 4) {
+        *pKind = (bytesPerSample == 1 && !(pWav->container == drwav_container_aiff && pWav->aiff.isUnsigned == DRWAV_FALSE)) ? DRWAV_PCM_UNSIGNED : DRWAV_PCM_SIGNED;
+    } else if (pWav->translatedFormatTag == DR_WAVE_FORMAT_IEEE_FLOAT && bytesPerSample == 4) {
+        *pKind = DRWAV_PCM_FLOAT;
+    } else if ((pWav->translatedFormatTag == DR_WAVE_FORMAT_ALAW || pWav->translatedFormatTag == DR_WAVE_FORMAT_MULAW) && bytesPerSample == 1) {
+        *pKind = DRWAV_PCM_SIGNED;  /* Unused: the codes go through their tables. */
+    } else {
+        return DRWAV_FALSE;
+    }
+
+    *pBytesPerSample = bytesPerSample;
+    *pIsBigEndian = drwav_is_container_be(pWav->container) && !(pWav->container == drwav_container_aiff && pWav->aiff.isLE);
+    return DRWAV_TRUE;
+}
+
+/*
 Reads PCM of 1 to 4 bytes a sample, 32-bit floats, A-law or mu-law straight into the tail of the output buffer, and converts it there in
 place: one read of the stream a call, and no pass through an intermediary buffer. Returns ~0 for a format it doesn't take.
 */
 DRWAV_PRIVATE drwav_uint64 drwav_read_pcm_frames_f32__direct(drwav* pWav, drwav_uint64 framesToRead, float* pBufferOut)
 {
-    drwav_uint32 bytesPerFrame = drwav_get_bytes_per_pcm_frame(pWav);
     drwav_uint32 bytesPerSample;
     drwav_bool32 isBigEndian;
     drwav_uint64 framesRead;
@@ -7819,22 +7866,9 @@ DRWAV_PRIVATE drwav_uint64 drwav_read_pcm_frames_f32__direct(drwav* pWav, drwav_
     drwav_uint8* pIn;
     int kind;
 
-    if (bytesPerFrame == 0 || (bytesPerFrame % pWav->channels) != 0) {
+    if (!drwav__plain_sample_format(pWav, &bytesPerSample, &isBigEndian, &kind)) {
         return ~(drwav_uint64)0;
     }
-
-    bytesPerSample = bytesPerFrame / pWav->channels;
-    if (pWav->translatedFormatTag == DR_WAVE_FORMAT_PCM && bytesPerSample >= 1 && bytesPerSample <= 4) {
-        kind = (bytesPerSample == 1 && !(pWav->container == drwav_container_aiff && pWav->aiff.isUnsigned == DRWAV_FALSE)) ? DRWAV_PCM_UNSIGNED : DRWAV_PCM_SIGNED;
-    } else if (pWav->translatedFormatTag == DR_WAVE_FORMAT_IEEE_FLOAT && bytesPerSample == 4) {
-        kind = DRWAV_PCM_FLOAT;
-    } else if ((pWav->translatedFormatTag == DR_WAVE_FORMAT_ALAW || pWav->translatedFormatTag == DR_WAVE_FORMAT_MULAW) && bytesPerSample == 1) {
-        kind = DRWAV_PCM_SIGNED;    /* Unused: the codes go through their tables below. */
-    } else {
-        return ~(drwav_uint64)0;
-    }
-
-    isBigEndian = drwav_is_container_be(pWav->container) && !(pWav->container == drwav_container_aiff && pWav->aiff.isLE);
 
     sampleCount = (size_t)(framesToRead * pWav->channels);
     pIn = (drwav_uint8*)pBufferOut + sampleCount * (sizeof(float) - bytesPerSample);
@@ -8035,6 +8069,154 @@ DRWAV_API drwav_uint64 drwav_read_pcm_frames_f32be(drwav* pWav, drwav_uint64 fra
     }
 
     return framesRead;
+}
+
+#if defined(DRWAV_SUPPORT_NEON)
+/*
+Stereo samples of 2 to 4 bytes to f32, each channel into its own buffer in one pass: the channels are split in the vector registers, not by a
+second pass over interleaved floats. Every result equals drwav__pcm_sample_to_f32()'s.
+*/
+DRWAV_PRIVATE void drwav__pcm_stereo_to_f32_planar_neon(float* pLeft, float* pRight, const drwav_uint8* pIn, size_t frameCount, unsigned int bytesPerSample, drwav_bool32 isBigEndian, int kind)
+{
+    size_t i = 0;
+
+    if (bytesPerSample == 2) {
+        for (; i + 8 <= frameCount; i += 8) {
+            uint16x8x2_t s = vld2q_u16((const uint16_t*)(pIn + i*4));   /* Left samples in val[0], right in val[1]. */
+            int16x8_t    l = vreinterpretq_s16_u16(s.val[0]);
+            int16x8_t    r = vreinterpretq_s16_u16(s.val[1]);
+            if (isBigEndian) {
+                l = vreinterpretq_s16_u8(vrev16q_u8(vreinterpretq_u8_s16(l)));
+                r = vreinterpretq_s16_u8(vrev16q_u8(vreinterpretq_u8_s16(r)));
+            }
+            vst1q_f32(pLeft  + i + 0, vcvtq_n_f32_s32(vmovl_s16(vget_low_s16 (l)), 15));
+            vst1q_f32(pLeft  + i + 4, vcvtq_n_f32_s32(vmovl_s16(vget_high_s16(l)), 15));
+            vst1q_f32(pRight + i + 0, vcvtq_n_f32_s32(vmovl_s16(vget_low_s16 (r)), 15));
+            vst1q_f32(pRight + i + 4, vcvtq_n_f32_s32(vmovl_s16(vget_high_s16(r)), 15));
+        }
+    } else if (bytesPerSample == 3) {
+        const uint8x16_t zero = vdupq_n_u8(0);
+        for (; i + 8 <= frameCount; i += 8) {
+            /* 16 samples, left and right alternating, each placed in the top 24 bits of 32 as the interleaved conversion does... */
+            uint8x16x3_t b     = vld3q_u8(pIn + i*6);
+            uint8x16_t   low   = isBigEndian ? b.val[2] : b.val[0];
+            uint8x16_t   top   = isBigEndian ? b.val[0] : b.val[2];
+            uint8x16x2_t lower = vzipq_u8(zero, low);
+            uint8x16x2_t upper = vzipq_u8(b.val[1], top);
+            uint16x8x2_t a0    = vzipq_u16(vreinterpretq_u16_u8(lower.val[0]), vreinterpretq_u16_u8(upper.val[0]));
+            uint16x8x2_t a1    = vzipq_u16(vreinterpretq_u16_u8(lower.val[1]), vreinterpretq_u16_u8(upper.val[1]));
+            /* ...then split: even samples are the left channel's, odd the right's. */
+            uint32x4x2_t f0    = vuzpq_u32(vreinterpretq_u32_u16(a0.val[0]), vreinterpretq_u32_u16(a0.val[1]));
+            uint32x4x2_t f1    = vuzpq_u32(vreinterpretq_u32_u16(a1.val[0]), vreinterpretq_u32_u16(a1.val[1]));
+            vst1q_f32(pLeft  + i + 0, vcvtq_n_f32_s32(vreinterpretq_s32_u32(f0.val[0]), 31));
+            vst1q_f32(pRight + i + 0, vcvtq_n_f32_s32(vreinterpretq_s32_u32(f0.val[1]), 31));
+            vst1q_f32(pLeft  + i + 4, vcvtq_n_f32_s32(vreinterpretq_s32_u32(f1.val[0]), 31));
+            vst1q_f32(pRight + i + 4, vcvtq_n_f32_s32(vreinterpretq_s32_u32(f1.val[1]), 31));
+        }
+    } else if (bytesPerSample == 4 && kind == DRWAV_PCM_FLOAT && !isBigEndian) {
+        for (; i + 8 <= frameCount; i += 8) {
+            const float* p = (const float*)(pIn + i*8);
+            float32x4x2_t s0 = vuzpq_f32(vld1q_f32(p + 0), vld1q_f32(p +  4));
+            float32x4x2_t s1 = vuzpq_f32(vld1q_f32(p + 8), vld1q_f32(p + 12));
+            vst1q_f32(pLeft  + i + 0, s0.val[0]);
+            vst1q_f32(pRight + i + 0, s0.val[1]);
+            vst1q_f32(pLeft  + i + 4, s1.val[0]);
+            vst1q_f32(pRight + i + 4, s1.val[1]);
+        }
+    } else if (bytesPerSample == 4) {
+        for (; i + 4 <= frameCount; i += 4) {
+            uint32x4x2_t s = vld2q_u32((const uint32_t*)(pIn + i*8));
+            uint8x16_t   l = vreinterpretq_u8_u32(s.val[0]);
+            uint8x16_t   r = vreinterpretq_u8_u32(s.val[1]);
+            if (isBigEndian) {
+                l = vrev32q_u8(l);
+                r = vrev32q_u8(r);
+            }
+            if (kind == DRWAV_PCM_FLOAT) {
+                vst1q_f32(pLeft  + i, vreinterpretq_f32_u8(l));
+                vst1q_f32(pRight + i, vreinterpretq_f32_u8(r));
+            } else {
+                vst1q_f32(pLeft  + i, vcvtq_n_f32_s32(vreinterpretq_s32_u8(l), 31));
+                vst1q_f32(pRight + i, vcvtq_n_f32_s32(vreinterpretq_s32_u8(r), 31));
+            }
+        }
+    }
+
+    for (; i < frameCount; i += 1) {
+        pLeft [i] = drwav__pcm_sample_to_f32(pIn + (i*2 + 0)*bytesPerSample, bytesPerSample, isBigEndian, kind);
+        pRight[i] = drwav__pcm_sample_to_f32(pIn + (i*2 + 1)*bytesPerSample, bytesPerSample, isBigEndian, kind);
+    }
+}
+#endif
+
+DRWAV_API drwav_uint64 drwav_read_pcm_frames_f32_planar(drwav* pWav, drwav_uint64 framesToRead, float* const* ppFramesOut)
+{
+    drwav_uint32 buffer[8192];  /* 32 KB: a stereo block's raw bytes, or a block of interleaved floats. */
+    drwav_uint64 totalFramesRead = 0;
+    drwav_uint32 channels;
+    drwav_uint32 bytesPerSample;
+    drwav_bool32 isBigEndian;
+    int kind;
+
+    if (pWav == NULL || ppFramesOut == NULL || framesToRead == 0) {
+        return 0;
+    }
+
+    channels = pWav->channels;
+    if (channels == 1) {
+        return drwav_read_pcm_frames_f32(pWav, framesToRead, ppFramesOut[0]);
+    }
+
+#if defined(DRWAV_SUPPORT_NEON)
+    if (channels == 2 && drwav__plain_sample_format(pWav, &bytesPerSample, &isBigEndian, &kind) && bytesPerSample >= 2 &&
+        (pWav->translatedFormatTag == DR_WAVE_FORMAT_PCM || pWav->translatedFormatTag == DR_WAVE_FORMAT_IEEE_FLOAT)) {
+        drwav_uint64 framesPerBlock = sizeof(buffer) / (2 * bytesPerSample);
+        while (totalFramesRead < framesToRead) {
+            drwav_uint64 framesRead = drwav_read_pcm_frames_le(pWav, drwav_min(framesToRead - totalFramesRead, framesPerBlock), buffer);
+            if (framesRead == 0) {
+                break;
+            }
+
+            drwav__pcm_stereo_to_f32_planar_neon(ppFramesOut[0] + totalFramesRead, ppFramesOut[1] + totalFramesRead, (const drwav_uint8*)buffer, (size_t)framesRead, bytesPerSample, isBigEndian, kind);
+            totalFramesRead += framesRead;
+        }
+
+        return totalFramesRead;
+    }
+#else
+    (void)bytesPerSample;
+    (void)isBigEndian;
+    (void)kind;
+#endif
+
+    /* Anything else is converted interleaved, a block at a time, and split. */
+    {
+        float* pInterleaved = (float*)buffer;
+        drwav_uint64 framesPerBlock = (sizeof(buffer) / sizeof(float)) / channels;
+        if (framesPerBlock == 0) {
+            return 0;
+        }
+
+        while (totalFramesRead < framesToRead) {
+            drwav_uint64 iFrame;
+            drwav_uint32 iChannel;
+            drwav_uint64 framesRead = drwav_read_pcm_frames_f32(pWav, drwav_min(framesToRead - totalFramesRead, framesPerBlock), pInterleaved);
+            if (framesRead == 0) {
+                break;
+            }
+
+            for (iChannel = 0; iChannel < channels; iChannel += 1) {
+                float* pOut = ppFramesOut[iChannel] + totalFramesRead;
+                for (iFrame = 0; iFrame < framesRead; iFrame += 1) {
+                    pOut[iFrame] = pInterleaved[iFrame*channels + iChannel];
+                }
+            }
+
+            totalFramesRead += framesRead;
+        }
+    }
+
+    return totalFramesRead;
 }
 
 

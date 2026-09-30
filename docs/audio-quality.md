@@ -10,7 +10,7 @@ This page explains what Vibe does to your music between the file and your speake
 - **Vibe never cuts lossy files down to 16 bits.** An AAC file decodes to more detail than 16 bits can hold, and Vibe keeps it.
 - **MP3s use Vibe's own decoder, dr_mp3.** On Apple silicon, Apple's built-in MP3 decoder can only produce 16-bit sound. dr_mp3 keeps the full detail, is about 100 times more accurate on the official MP3 test, and uses less than half the CPU. On an Intel Mac, Apple's decoder keeps the full detail too, but it still chops off a loud master's peaks. See [The MP3 decoder](#the-mp3-decoder).
 - **FLAC files use dr_flac.** The sound is identical to Apple's decoder, bit for bit. But where Apple's decoder can pause for a second or two on the first seek into a long mix, dr_flac seeks in a few milliseconds. It also uses a quarter of the CPU or less, and plays some rare FLAC files Apple's can't. See [The FLAC decoder](#the-flac-decoder).
-- **WAV and AIFF files use dr_wav.** The sound is identical to Apple's decoder, bit for bit, and it decodes 1.3 to 2.6 times faster. It also seeks exactly in the one compressed AIFF format where Apple's decoder doesn't, and keeps playing past damage in the compressed WAV formats. See [The WAV and AIFF decoder](#the-wav-and-aiff-decoder).
+- **WAV and AIFF files use dr_wav.** The sound is identical to Apple's decoder, bit for bit, and it decodes 1.4 to 3.2 times faster. It also seeks exactly in the one compressed AIFF format where Apple's decoder doesn't, and keeps playing past damage in the compressed WAV formats. See [The WAV and AIFF decoder](#the-wav-and-aiff-decoder).
 
 ## A few terms
 
@@ -282,7 +282,7 @@ Vibe decodes WAV, BWF, RF64, Wave64 and AIFF files with **dr_wav**, not the deco
 
 ### Why not Apple's decoder
 
-- **Less time decoding:** 1.3 to 2.6 times faster than Apple's decoder, on the fast cores and the efficiency cores. Playing costs almost nothing either way; it shows when a whole track is decoded at once for the waveform, beat, and key analysis.
+- **Less time decoding:** 1.4 to 3.2 times faster than Apple's decoder, on the fast cores and the efficiency cores. Playing costs almost nothing either way; it shows when a whole track is decoded at once for the waveform, beat, and key analysis.
 - **Exact seeks in IMA4.** In Apple's IMA4 (compressed AIFF), each part of the sound depends on everything before it. After a seek, Apple's decoder plays slightly different samples from the ones playing from the start gives: all 300 of 300 random seeks in a test file. dr_wav keeps notes on its way through the file and seeks to exactly the samples playing from the start gives.
 - **Damaged compressed WAVs keep playing.** At a damaged block in an IMA ADPCM file, Apple's decoder decodes the block anyway, and at one in a Microsoft ADPCM file it plays nothing of the file at all. dr_wav plays silence for the damaged block and every other block where it belongs.
 - **The end of a Microsoft ADPCM file.** Apple's decoder plays the padding that fills out the file's last block, 464 frames (about 10 ms) on a test file. dr_wav stops where the file says the sound ends.
@@ -292,10 +292,10 @@ A whole 10-minute stereo file decoded at once, best first, **lower is better**:
 
 | File | dr_wav, fast core | Apple, fast core | dr_wav, efficiency core | Apple, efficiency core |
 | --- | --- | --- | --- | --- |
-| 16-bit, 44.1 kHz WAV | 14 ms | 21 ms | 70 ms | 104 ms |
-| 24-bit, 96 kHz WAV | 41 ms | 69 ms | 151 ms | 370 ms |
-| 24-bit, 96 kHz AIFF | 41 ms | 103 ms | 176 ms | 457 ms |
-| 32-bit float, 96 kHz WAV | 39 ms | 55 ms | 144 ms | 188 ms |
+| 16-bit, 44.1 kHz WAV | 10 ms | 21 ms | 53 ms | 116 ms |
+| 24-bit, 96 kHz WAV | 33 ms | 68 ms | 154 ms | 371 ms |
+| 24-bit, 96 kHz AIFF | 32 ms | 101 ms | 166 ms | 506 ms |
+| 32-bit float, 96 kHz WAV | 39 ms | 54 ms | 172 ms | 282 ms |
 
 The ADPCM formats are the exception: they take about as long as Apple's decoder, and IMA4 about 60% longer, a few milliseconds for 20 seconds of sound.
 
@@ -319,6 +319,7 @@ dr_wav had problems of its own. Some turned up in real files from that library, 
 
 - **Straight into the output.** dr_wav read a file through a 4 KB buffer, one read of the file for each, and converted each sample through double precision. It now reads the samples in one go into the memory they are converted in, and converts them with the vector instructions of Apple Silicon (and Intel's), giving exactly the same values.
 - **Reading ahead in ADPCM.** dr_wav read an ADPCM file a few bytes at a time: one read of the file for every sample of a Microsoft ADPCM file. It now reads ahead, which made those files 15 to 45 times faster to decode.
+- **Straight into each channel.** Vibe mixes a channel at a time, so decoded sound was split into channels after conversion, a second pass over every sample. dr_wav now converts stereo files straight into a buffer for each channel, which cut decoding 16 and 24-bit files by 20 to 30% on the fast cores. Reading a whole file for the waveform also asks for it in one piece instead of 4,096 frames at a time, which cut that by 15 to 20%.
 - **Seeking to the right block.** A seek backwards in an ADPCM file decoded everything from the start. It now goes straight to the block it needs.
 
 ### How it fits in
