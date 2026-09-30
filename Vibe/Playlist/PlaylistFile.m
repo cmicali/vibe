@@ -198,47 +198,175 @@ static BOOL IsCueFileTypeKeyword(NSString *token) {
     return [keywords containsObject:token.uppercaseString];
 }
 
-+ (NSArray<NSString *> *)cueFileEntriesInText:(NSString *)text {
-    NSMutableArray<NSString *> *entries = [NSMutableArray new];
+// The value of a command line: quoted → between the quotes, unterminated
+// quote → the rest of the line, unquoted → as written. Only FILE strips a
+// trailing type keyword, and only unquoted — a quoted name is exact.
+static NSString *CueValue(NSString *rest, BOOL stripFileTypeKeyword) {
+    if ([rest hasPrefix:@"\""]) {
+        NSRange close = [rest rangeOfString:@"\"" options:0 range:NSMakeRange(1, rest.length - 1)];
+        return close.location == NSNotFound
+                ? [rest substringFromIndex:1]
+                : [rest substringWithRange:NSMakeRange(1, close.location - 1)];
+    }
+    if (!stripFileTypeKeyword) {
+        return rest;
+    }
+    // Sloppy writers leave spaces in an unquoted name too, so take the whole
+    // remainder and strip a trailing type keyword if present.
     NSCharacterSet *whitespace = NSCharacterSet.whitespaceCharacterSet;
-    [text enumerateLinesUsingBlock:^(NSString *line, BOOL *stop) {
-        NSString *trimmed = [line stringByTrimmingCharactersInSet:whitespace];
-        // Any whitespace after the keyword: sloppy writers tab-delimit too,
-        // and a missed FILE line is the parser's worst case — an empty sheet.
-        if (trimmed.length < 5
-                || [trimmed compare:@"FILE" options:NSCaseInsensitiveSearch
-                              range:NSMakeRange(0, 4)] != NSOrderedSame
-                || ![whitespace characterIsMember:[trimmed characterAtIndex:4]]) {
-            return;
+    NSRange lastSpace = [rest rangeOfCharacterFromSet:whitespace options:NSBackwardsSearch];
+    if (lastSpace.location != NSNotFound
+            && IsCueFileTypeKeyword([rest substringFromIndex:NSMaxRange(lastSpace)])) {
+        return [[rest substringToIndex:lastSpace.location] stringByTrimmingCharactersInSet:whitespace];
+    }
+    return rest;
+}
+
+// The first whitespace-delimited token of s, which may be tab-delimited; rest
+// gets the trimmed remainder.
+static NSString *CueFirstToken(NSString *s, NSString *__strong *rest) {
+    NSCharacterSet *whitespace = NSCharacterSet.whitespaceCharacterSet;
+    NSRange space = [s rangeOfCharacterFromSet:whitespace];
+    if (space.location == NSNotFound) {
+        if (rest) {
+            *rest = @"";
         }
-        NSString *rest = [[trimmed substringFromIndex:5] stringByTrimmingCharactersInSet:whitespace];
-        NSString *name = nil;
-        if ([rest hasPrefix:@"\""]) {
-            NSRange close = [rest rangeOfString:@"\"" options:0 range:NSMakeRange(1, rest.length - 1)];
-            name = close.location == NSNotFound
-                    ? [rest substringFromIndex:1] // unterminated quote: take the rest
-                    : [rest substringWithRange:NSMakeRange(1, close.location - 1)];
+        return s;
+    }
+    if (rest) {
+        *rest = [[s substringFromIndex:NSMaxRange(space)] stringByTrimmingCharactersInSet:whitespace];
+    }
+    return [s substringToIndex:space.location];
+}
+
+// MM:SS:FF as CD frames, FF being 1/75 s. MM:SS is tolerated and MM may run
+// past 99. -1 for anything unparseable, so a junk INDEX is ignored rather than
+// read as a zero start; out-of-range SS and FF are taken as written.
+static NSInteger CueFramesFromString(NSString *text) {
+    NSArray<NSString *> *parts = [text componentsSeparatedByString:@":"];
+    if (parts.count < 2 || parts.count > 3) {
+        return -1;
+    }
+    NSInteger values[3] = {0, 0, 0};
+    for (NSUInteger i = 0; i < parts.count; i++) {
+        NSString *part = parts[i];
+        // integerValue saturates silently, so an absurd run of digits would
+        // otherwise read as a plausible start.
+        if (part.length == 0 || part.length > 6) {
+            return -1;
         }
-        else {
-            // Unquoted. Sloppy writers leave spaces in here too, so take the
-            // whole remainder and strip a trailing type keyword if present.
-            name = rest;
-            NSRange lastSpace = [name rangeOfCharacterFromSet:whitespace options:NSBackwardsSearch];
-            if (lastSpace.location != NSNotFound
-                    && IsCueFileTypeKeyword([name substringFromIndex:NSMaxRange(lastSpace)])) {
-                name = [[name substringToIndex:lastSpace.location] stringByTrimmingCharactersInSet:whitespace];
+        for (NSUInteger c = 0; c < part.length; c++) {
+            unichar digit = [part characterAtIndex:c];
+            if (digit < '0' || digit > '9') {
+                return -1;
             }
         }
-        name = StrippedOfUnpathableCharacters(NormalizePathSeparators(name));
-        if (name.length == 0) {
+        values[i] = part.integerValue;
+    }
+    return (values[0] * 60 + values[1]) * 75 + values[2];
+}
+
+// A sheet's AUDIO tracks, kept by the drop rules, each as {file, number,
+// title, performer, start}: file indexes files, -1 for a track before any FILE
+// line. A track belongs to the FILE its start INDEX sits in — EAC's
+// one-file-per-track layout puts a track's INDEX 00 at the end of the previous
+// file and its INDEX 01 at the start of its own.
+static NSArray<NSDictionary *> *CueTracksInText(NSString *text, NSMutableArray<NSString *> *files,
+                                                NSString *__strong *sheetPerformer) {
+    NSMutableArray<NSDictionary *> *tracks = [NSMutableArray new];
+    NSCharacterSet *whitespace = NSCharacterSet.whitespaceCharacterSet;
+    // nil inside a non-AUDIO TRACK, so its TITLE, PERFORMER and INDEX land
+    // nowhere rather than leaking onto the previous track or the sheet.
+    __block NSMutableDictionary *current = nil;
+    __block BOOL seenTrack = NO;
+    __block NSString *performer = nil;
+    __block NSInteger index00 = -1, index01 = -1, file00 = -1, file01 = -1;
+    // The drop rules below measure against the last kept start in the same
+    // file, so one broken track cannot take the rest with it.
+    NSMutableDictionary<NSNumber *, NSNumber *> *lastKeptStart = [NSMutableDictionary new];
+    void (^finish)(void) = ^{
+        if (!current) {
             return;
         }
-        if (entries.count > 0 && [entries.lastObject caseInsensitiveCompare:name] == NSOrderedSame) {
+        // INDEX 01 beats INDEX 00; neither drops the track, and so does a
+        // start below the file's last kept one: a marker list must be ordered.
+        NSInteger start = index01 >= 0 ? index01 : index00;
+        NSInteger file = index01 >= 0 ? file01 : file00;
+        if (start < 0 || start < [lastKeptStart[@(file)] integerValue]) {
             return;
         }
-        [entries addObject:name];
+        lastKeptStart[@(file)] = @(start);
+        current[@"start"] = @(start);
+        current[@"file"] = @(file);
+        [tracks addObject:current];
+    };
+    [text enumerateLinesUsingBlock:^(NSString *line, BOOL *stop) {
+        NSString *trimmed = [line stringByTrimmingCharactersInSet:whitespace];
+        if (trimmed.length == 0) {
+            return;
+        }
+        NSString *rest = nil;
+        NSString *keyword = CueFirstToken(trimmed, &rest).uppercaseString;
+        if ([keyword isEqualToString:@"FILE"]) {
+            NSString *name = StrippedOfUnpathableCharacters(NormalizePathSeparators(CueValue(rest, YES)));
+            // Some writers repeat the one image's FILE before every TRACK.
+            if (name.length > 0
+                    && (files.count == 0 || [files.lastObject caseInsensitiveCompare:name] != NSOrderedSame)) {
+                [files addObject:name];
+            }
+        }
+        else if ([keyword isEqualToString:@"TRACK"]) {
+            finish();
+            current = nil;
+            index00 = index01 = -1;
+            seenTrack = YES;
+            NSString *afterNumber = nil;
+            NSString *number = CueFirstToken(rest, &afterNumber);
+            if ([CueFirstToken(afterNumber, NULL) caseInsensitiveCompare:@"AUDIO"] != NSOrderedSame) {
+                return;
+            }
+            current = [NSMutableDictionary dictionaryWithObject:@(number.integerValue) forKey:@"number"];
+        }
+        else if ([keyword isEqualToString:@"TITLE"] || [keyword isEqualToString:@"PERFORMER"]) {
+            NSString *value = CueValue(rest, NO);
+            if (value.length == 0) {
+                return;
+            }
+            BOOL isTitle = [keyword isEqualToString:@"TITLE"];
+            if (!seenTrack) {
+                // The sheet's TITLE names the album, which Vibe shows for no file.
+                if (!isTitle) {
+                    performer = value;
+                }
+            }
+            else {
+                current[isTitle ? @"title" : @"performer"] = value;
+            }
+        }
+        else if ([keyword isEqualToString:@"INDEX"] && current) {
+            NSString *afterNumber = nil;
+            NSInteger number = CueFirstToken(rest, &afterNumber).integerValue;
+            NSInteger frames = CueFramesFromString(CueFirstToken(afterNumber, NULL));
+            if (frames < 0) {
+                return;
+            }
+            if (number == 1) {
+                index01 = frames;
+                file01 = (NSInteger)files.count - 1;
+            }
+            else if (number == 0) {
+                index00 = frames;
+                file00 = (NSInteger)files.count - 1;
+            }
+        }
+        // REM, FLAGS, ISRC, CATALOG, SONGWRITER, PREGAP, POSTGAP and junk are
+        // ignored. REM TITLE "…" falls out for free: REM is the keyword.
     }];
-    return entries;
+    finish();
+    if (sheetPerformer) {
+        *sheetPerformer = performer;
+    }
+    return tracks;
 }
 
 #pragma mark - M3U
@@ -341,15 +469,133 @@ static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManag
     return primary;
 }
 
-+ (NSArray<NSURL *> *)resolvedFileURLsForPlaylistAtURL:(NSURL *)url {
+// The audio named like the sheet beside it — Mix.cue's Mix.flac — lossless
+// first; nil when none is readable. The last rung for a sheet whose one image
+// is named nowhere findable (a long-gone CDImage.wav) or not named at all.
+static NSURL *AudioFileNamedLikeSheet(NSURL *sheet, NSFileManager *fileManager) {
+    NSURL *base = sheet.URLByDeletingPathExtension;
+    for (NSString *extension in PlayableExtensions.ordered) {
+        NSURL *candidate = [base URLByAppendingPathExtension:extension];
+        if (candidate.path && [fileManager isReadableFileAtPath:candidate.path]) {
+            return candidate;
+        }
+    }
+    return nil;
+}
+
++ (NSArray<AudioTrack *> *)cueRowsInText:(NSString *)text sheetURL:(NSURL *)sheetURL
+                           resolvingFile:(NSURL *(^)(NSString *name, BOOL sole))resolve {
+    NSMutableArray<NSString *> *files = [NSMutableArray new];
+    NSString *sheetPerformer = nil;
+    NSArray<NSDictionary *> *tracks = CueTracksInText(text, files, &sheetPerformer);
+    NSMutableArray<AudioTrack *> *rows = [NSMutableArray arrayWithCapacity:MAX(tracks.count, files.count)];
+    // Resolved once per FILE, whichever of its tracks asks first.
+    NSMutableDictionary<NSNumber *, id> *urls = [NSMutableDictionary new];
+    NSURL *(^urlForFile)(NSInteger) = ^NSURL *(NSInteger file) {
+        id url = urls[@(file)];
+        if (!url) {
+            url = resolve(file >= 0 ? files[(NSUInteger)file] : nil, files.count <= 1) ?: NSNull.null;
+            urls[@(file)] = url;
+        }
+        return url == NSNull.null ? nil : url;
+    };
+    // Sheet order: files only grow, and a track before any FILE line (-1)
+    // comes first.
+    NSMutableDictionary<NSNumber *, NSMutableArray<NSDictionary *> *> *tracksByFile = [NSMutableDictionary new];
+    for (NSDictionary *track in tracks) {
+        NSMutableArray<NSDictionary *> *own = tracksByFile[track[@"file"]];
+        if (!own) {
+            own = [NSMutableArray new];
+            tracksByFile[track[@"file"]] = own;
+        }
+        [own addObject:track];
+    }
+    NSMutableArray<NSNumber *> *order = [NSMutableArray arrayWithCapacity:files.count + 1];
+    if (tracksByFile[@(-1)]) {
+        [order addObject:@(-1)];
+    }
+    for (NSUInteger file = 0; file < files.count; file++) {
+        [order addObject:@(file)];
+    }
+    for (NSNumber *file in order) {
+        NSArray<NSDictionary *> *own = tracksByFile[file];
+        NSUInteger rowsBefore = rows.count;
+        for (NSUInteger i = 0; i < own.count; i++) {
+            // A file's audio before its first INDEX 01 — a pregap, or hidden
+            // audio before track 1 — belongs to its first row, so none is
+            // unreachable. A row runs to the next of its file, so a pregap plays
+            // at the end of the row before it, as on a CD; the last runs to the
+            // file's end.
+            NSUInteger start = i == 0 ? 0 : [own[i][@"start"] unsignedIntegerValue];
+            BOOL hasNext = i + 1 < own.count;
+            NSUInteger end = hasNext ? [own[i + 1][@"start"] unsignedIntegerValue] : 0;
+            // An end of 0 means the file's end, so an empty window — the next
+            // row starting where this one does, 0 included — is dropped here.
+            if (hasNext && end <= start) {
+                continue;
+            }
+            NSURL *url = urlForFile(file.integerValue);
+            if (!url) {
+                break;
+            }
+            [rows addObject:[[AudioTrack alloc] initWithURL:url cueStart:start cueEnd:end
+                                                      title:own[i][@"title"]
+                                                  performer:own[i][@"performer"] ?: sheetPerformer
+                                                      sheet:sheetURL
+                                                trackNumber:[own[i][@"number"] integerValue]]];
+        }
+        // A FILE none of whose tracks survived plays whole, as every FILE did
+        // before sheets had rows: no audio the sheet names goes missing.
+        if (rows.count == rowsBefore && file.integerValue >= 0) {
+            NSURL *url = urlForFile(file.integerValue);
+            if (url) {
+                [rows addObject:[AudioTrack withURL:url]];
+            }
+        }
+    }
+    return rows;
+}
+
+// resolvedFiles, when given, collects each FILE's URL as it resolves: one per
+// file that has rows, in sheet order.
++ (NSArray<AudioTrack *> *)cueRowsForSheetAtURL:(NSURL *)url
+                                  resolvedFiles:(NSMutableArray<NSURL *> *)resolvedFiles {
     NSData *data = [NSData dataWithContentsOfURL:url];
     NSString *text = data ? [self textFromData:data] : nil;
     if (!text) {
         return @[];
     }
-    NSArray<NSString *> *entries = [url.pathExtension.lowercaseString isEqualToString:@"cue"]
-            ? [self cueFileEntriesInText:text]
-            : [self m3uEntriesInText:text];
+    NSURL *dir = url.URLByDeletingLastPathComponent;
+    NSFileManager *fileManager = NSFileManager.defaultManager;
+    NSMutableDictionary<NSString *, NSNumber *> *dirReachable = [NSMutableDictionary new];
+    return [self cueRowsInText:text sheetURL:url resolvingFile:^NSURL *(NSString *name, BOOL sole) {
+        NSURL *resolved = name ? ResolveEntry(name, dir, fileManager, dirReachable) : nil;
+        if (sole && !(resolved && [fileManager isReadableFileAtPath:resolved.path])) {
+            resolved = AudioFileNamedLikeSheet(url, fileManager) ?: resolved;
+        }
+        if (resolved) {
+            [resolvedFiles addObject:resolved];
+        }
+        return resolved;
+    }];
+}
+
++ (NSArray<AudioTrack *> *)cueRowsForSheetAtURL:(NSURL *)url {
+    return [self cueRowsForSheetAtURL:url resolvedFiles:nil];
+}
+
++ (NSArray<NSURL *> *)resolvedFileURLsForPlaylistAtURL:(NSURL *)url {
+    if ([url.pathExtension.lowercaseString isEqualToString:@"cue"]) {
+        NSMutableArray<NSURL *> *urls = [NSMutableArray new];
+        [self cueRowsForSheetAtURL:url resolvedFiles:urls];
+        return urls;
+    }
+    NSData *data = [NSData dataWithContentsOfURL:url];
+    NSString *text = data ? [self textFromData:data] : nil;
+    if (!text) {
+        return @[];
+    }
+    NSArray<NSString *> *entries = [self m3uEntriesInText:text];
     NSURL *dir = url.URLByDeletingLastPathComponent;
     NSFileManager *fileManager = NSFileManager.defaultManager;
     NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:entries.count];

@@ -36,6 +36,32 @@
     return [[AudioTrack alloc] initWithURL:url];
 }
 
+- (instancetype)initWithURL:(NSURL *)url cueStart:(NSUInteger)start cueEnd:(NSUInteger)end
+                      title:(NSString *)title performer:(NSString *)performer
+                      sheet:(NSURL *)sheet trackNumber:(NSInteger)trackNumber {
+    self = [self initWithURL:url];
+    if (self) {
+        _cueStart = start;
+        _cueEnd = end;
+        _cueTitle = [title copy];
+        _cuePerformer = [performer copy];
+        _cueSheetURL = [sheet copy];
+        _cueTrackNumber = trackNumber;
+    }
+    return self;
+}
+
+- (BOOL)isWindowed {
+    return _cueStart > 0 || _cueEnd > 0;
+}
+
+- (NSString *)sourceKey {
+    NSString *path = self.url.path ?: @"";
+    return self.isWindowed ? [NSString stringWithFormat:@"%@#%lu-%lu", path,
+                                     (unsigned long)_cueStart, (unsigned long)_cueEnd]
+                           : path;
+}
+
 - (BOOL)installMetadataIfUnresolved:(AudioTrackMetadata *)metadata {
     @synchronized (self) {
         if (self.metadata.parsedOK) {
@@ -80,6 +106,9 @@
 }
 
 - (NSString *)title {
+    if (_cueTitle.length > 0) {
+        return _cueTitle;
+    }
     if (self.metadata.title.length > 0) {
         return self.metadata.title;
     }
@@ -92,6 +121,9 @@
 }
 
 - (NSString *)artist {
+    if (_cuePerformer.length > 0) {
+        return _cuePerformer;
+    }
     if (self.metadata.artist.length > 0) {
         return self.metadata.artist;
     }
@@ -109,18 +141,20 @@
 }
 
 - (float)bpm {
-    float tagged = self.metadata.bpm;
+    float tagged = self.isWindowed ? 0 : self.metadata.bpm;
     return tagged > 0 ? tagged : self.detectedBPM;
 }
 
 - (VibeMusicalKey)key {
     // A message to nil metadata would answer 0, which is C major.
-    AudioTrackMetadata *metadata = self.metadata;
+    AudioTrackMetadata *metadata = self.isWindowed ? nil : self.metadata;
     VibeMusicalKey tagged = metadata ? metadata.key : VibeMusicalKeyNone;
     return tagged >= 0 ? tagged : self.detectedKey;
 }
 
 // Written on the player queue (finishPlayOnQueueWithFile:), read on main.
+// Until then a windowed row answers its window, the last row the rest of its
+// file.
 - (NSTimeInterval)duration {
     NSTimeInterval duration;
     @synchronized (self) {
@@ -129,7 +163,11 @@
     if (duration >= 0) {
         return duration;
     }
-    return self.metadata.duration;
+    if (_cueEnd > _cueStart) {
+        return (NSTimeInterval)(_cueEnd - _cueStart) / 75.0;
+    }
+    NSTimeInterval file = self.metadata.duration;
+    return _cueStart > 0 && file > 0 ? MAX(0, file - (NSTimeInterval)_cueStart / 75.0) : file;
 }
 
 - (void)setDuration:(NSTimeInterval)len {
@@ -155,7 +193,7 @@
 }
 
 - (BOOL)hasArtistAndTitle {
-    return self.artist.length > 0 && self.metadata.title.length > 0;
+    return self.artist.length > 0 && (_cueTitle.length > 0 || self.metadata.title.length > 0);
 }
 
 - (NSString *)displayTitle {

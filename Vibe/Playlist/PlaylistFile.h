@@ -10,10 +10,9 @@ NS_ASSUME_NONNULL_BEGIN
 @class AudioTrack;
 extern NSString *const kVibeLastPlaylistCurrentIndexKey;
 
-// Readers for playlist-like files that expand into an ordered list of audio
-// files — CUE sheets and M3U playlists — and the M3U writer. Only the file
-// references are read: CUE TRACK/INDEX timing and M3U #EXTINF metadata are
-// ignored, and the referenced files are loaded whole.
+// Readers for playlist-like files — CUE sheets and M3U playlists — and the M3U
+// writer. A CUE sheet reads as rows, each a window of its FILE; an M3U reads
+// as file references, its #EXTINF metadata ignored.
 @interface PlaylistFile : NSObject
 
 // YES for a (lowercased) path extension this class expands: cue, m3u, m3u8.
@@ -24,11 +23,27 @@ extern NSString *const kVibeLastPlaylistCurrentIndexKey;
 // a non-empty file always decodes.
 + (nullable NSString *)textFromData:(NSData *)data;
 
-// The FILE entries of a CUE sheet in sheet order: quoted or unquoted names, a
-// trailing type keyword (WAVE, MP3, …) stripped from unquoted ones, backslash
-// paths normalized to slashes. Consecutive duplicates collapse to one, because
-// some writers repeat the single image FILE before every TRACK.
-+ (NSArray<NSString *> *)cueFileEntriesInText:(NSString *)text;
+// A CUE sheet as rows, one per AUDIO TRACK kept, each a window of the FILE its
+// start INDEX sits in (AudioTrack's cue initializer). A track starts at INDEX
+// 01, else INDEX 00; one with neither, or starting before the last kept start
+// in its file, is dropped. A row ends at the next row of its file — so a
+// pregap plays at the end of the row before it — and the last runs to the
+// file's end; a file's first row starts at its first frame, so audio before
+// track 1 is reachable. The performer falls back to the sheet's; only TITLE
+// and PERFORMER are read. A sheet with no usable TRACK gives one whole-file row
+// per FILE. FILE names are unquoted or quoted, a trailing type keyword
+// stripped from unquoted ones, backslashes normalized to slashes, consecutive
+// duplicates collapsed. resolve maps each FILE name to its URL once, nil for a
+// track before any FILE line; sole is YES when the sheet names at most one
+// file. A nil URL drops that file's rows.
++ (NSArray<AudioTrack *> *)cueRowsInText:(NSString *)text sheetURL:(nullable NSURL *)sheetURL
+                           resolvingFile:(NSURL *_Nullable (^)(NSString *_Nullable name, BOOL sole))resolve;
+
+// The sheet at url as rows, each FILE resolved through the entry rungs below.
+// A sheet naming one image — or none — that no rung finds takes the audio named
+// like the sheet beside it (Mix.cue's Mix.flac). An entry readable nowhere
+// still yields its primary candidate, as for M3U.
++ (NSArray<AudioTrack *> *)cueRowsForSheetAtURL:(NSURL *)url;
 
 // The entries of an M3U playlist in list order: comment and directive lines
 // (#…) skipped, file:// URLs reduced to their paths, other URL schemes
@@ -36,11 +51,12 @@ extern NSString *const kVibeLastPlaylistCurrentIndexKey;
 // kept — repeating a track is a playlist's prerogative.
 + (NSArray<NSString *> *)m3uEntriesInText:(NSString *)text;
 
-// The entries of the playlist file at url resolved to file URLs, in order.
-// Relative names resolve against the playlist's folder; an unreadable path
-// falls back to its basename beside the playlist, then both spellings under
-// each playable extension. An entry readable nowhere still yields its primary
-// candidate, so the caller can ask for sandbox access and call again.
+// The entries of the playlist file at url resolved to file URLs, in order; a
+// CUE sheet's are its rows' files. Relative names resolve against the
+// playlist's folder; an unreadable path falls back to its basename beside the
+// playlist, then both spellings under each playable extension. An entry
+// readable nowhere still yields its primary candidate, so the caller can ask
+// for sandbox access and call again.
 + (NSArray<NSURL *> *)resolvedFileURLsForPlaylistAtURL:(NSURL *)url;
 
 // The entries of M3U data this app wrote itself — m3uTextForTracks: with a

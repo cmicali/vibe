@@ -18,7 +18,9 @@ See `Mac/MainWindow/Convert/AGENTS.md` for why the swap mints a fresh `AudioTrac
 
 ## Playlist files (.cue, .m3u, .m3u8)
 
-`PlaylistFile` turns a sheet into an ordered list of file URLs. `NSURLUtil` expands one in place when it is opened at top level, and drops one found inside a folder walk, which would otherwise double every track. Only file references are read — CUE timing and `#EXTINF` metadata are ignored.
+`PlaylistFile` turns a sheet into an ordered list of file URLs. `NSURLUtil` expands one in place when it is opened at top level, and drops one found inside a folder walk, which would otherwise double every track. An M3U gives file references only — `#EXTINF` is ignored.
+
+**A CUE sheet reads as rows** (`cueRowsInText:sheetURL:resolvingFile:`, one parser, the resolution injected): one `AudioTrack` per AUDIO TRACK kept, each a window of the FILE its start INDEX sits in, in CD frames (integers, so sample-exact at every common rate), with the sheet's TITLE and PERFORMER. Every file keeps all its audio: its first row starts at frame 0 (hidden audio before track 1 is reachable), a row runs to the next row of its file (a pregap plays at the end of the row before it, as on a CD), the last runs to the file's end, and a FILE none of whose tracks survived plays whole. The drop rules — INDEX 01 beats INDEX 00, a track with neither or starting before its file's last kept start goes, an empty window goes — keep every window playable, which `testCueFuzzedMutationsKeepRowsPlayable` holds under 2000 mutations. Only TITLE and PERFORMER are read: Vibe shows no album, genre or date for any file.
 
 Each entry resolves through fallback rungs: the named path, its basename beside the playlist (which rescues a Windows-absolute-path entry), then both again under each alternate audio extension (which rescues a rip transcoded after the sheet was written). An entry readable nowhere still yields its primary candidate, so the caller can tell a sandbox denial from a missing file — that distinction is what raises the folder grant (`Mac/Settings/AGENTS.md`).
 

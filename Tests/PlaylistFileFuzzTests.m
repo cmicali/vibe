@@ -12,6 +12,11 @@
 
 #import "PlaylistFile.h"
 
+// Implemented in PlaylistFileTests.m.
+@interface PlaylistFile (CueFileNames)
++ (NSArray<NSString *> *)fileNamesInCueText:(NSString *)text;
+@end
+
 // xorshift64*, chosen for being four lines rather than for its statistics.
 typedef struct { uint64_t state; } FuzzRandom;
 
@@ -169,7 +174,7 @@ static NSString *NormalizedSeparators(NSString *name) {
             }
 
             NSArray<NSString *> *expected = CollapsingConsecutiveDuplicates(names);
-            NSArray<NSString *> *entries = [PlaylistFile cueFileEntriesInText:sheet];
+            NSArray<NSString *> *entries = [PlaylistFile fileNamesInCueText:sheet];
             XCTAssertEqualObjects(entries, expected, @"seed %llu", seed);
         }
     }
@@ -404,12 +409,12 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
             if (!text) {
                 continue;
             }
-            NSArray<NSString *> *cue = [PlaylistFile cueFileEntriesInText:text];
+            NSArray<NSString *> *cue = [PlaylistFile fileNamesInCueText:text];
             NSArray<NSString *> *m3u = [PlaylistFile m3uEntriesInText:text];
             [self assertEntriesAreWellFormed:cue kind:@"cue" seed:seed];
             [self assertEntriesAreWellFormed:m3u kind:@"m3u" seed:seed];
             // A reader with static state would show up here.
-            XCTAssertEqualObjects([PlaylistFile cueFileEntriesInText:text], cue, @"seed %llu", seed);
+            XCTAssertEqualObjects([PlaylistFile fileNamesInCueText:text], cue, @"seed %llu", seed);
             XCTAssertEqualObjects([PlaylistFile m3uEntriesInText:text], m3u, @"seed %llu", seed);
         }
     }
@@ -431,7 +436,7 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
             if (!text) {
                 continue;
             }
-            [self assertEntriesAreWellFormed:[PlaylistFile cueFileEntriesInText:text]
+            [self assertEntriesAreWellFormed:[PlaylistFile fileNamesInCueText:text]
                                         kind:@"cue" seed:length];
             [self assertEntriesAreWellFormed:[PlaylistFile m3uEntriesInText:text]
                                         kind:@"m3u" seed:length];
@@ -464,7 +469,7 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
             NSString *text = [PlaylistFile textFromData:data];
             NSArray<NSString *> *entries = text
                     ? ([extension isEqualToString:@"cue"]
-                            ? [PlaylistFile cueFileEntriesInText:text]
+                            ? [PlaylistFile fileNamesInCueText:text]
                             : [PlaylistFile m3uEntriesInText:text])
                     : @[];
             XCTAssertEqual(urls.count, entries.count, @"seed %llu", seed);
