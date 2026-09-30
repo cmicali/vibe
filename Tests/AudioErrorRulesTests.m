@@ -76,6 +76,21 @@ static NSError *VibeErr(NSString *domain, NSInteger code) {
 
 #pragma mark - Everything else is the generic line
 
+// An opened playlist listing nothing readable lands as its own row, so the
+// failure to open it is the listed files', said over the playlist's name.
+- (void)testAPlaylistFileThatFailsToOpenSaysItsListedFilesCouldNot {
+    for (NSString *name in @[@"Mix.cue", @"set.M3U", @"set.m3u8"]) {
+        NSError *error = [NSError errorWithDomain:kVibeAudioErrorDomain code:VibeAudioErrorFileOpenFailed
+                userInfo:@{kVibeAudioErrorTrackURLKey: [NSURL fileURLWithPath:[@"/Music" stringByAppendingPathComponent:name]]}];
+        XCTAssertEqualObjects(VibeStatusForPlayError(error), STR_ERROR_PLAYLIST_FILES_UNAVAILABLE, @"%@", name);
+    }
+    NSError *audio = [NSError errorWithDomain:kVibeAudioErrorDomain code:VibeAudioErrorFileOpenFailed
+            userInfo:@{kVibeAudioErrorTrackURLKey: [NSURL fileURLWithPath:@"/Music/Mix.flac"]}];
+    XCTAssertEqualObjects(VibeStatusForPlayError(audio), STR_ERROR_OPEN_FAILED);
+    XCTAssertEqualObjects(VibeStatusForPlayError(VibeErr(kVibeAudioErrorDomain, VibeAudioErrorFileOpenFailed)),
+                          STR_ERROR_OPEN_FAILED);
+}
+
 - (void)testNotPlayingFallsThroughToGeneric {
     // The shell drops it as benign before asking for a line.
     XCTAssertEqualObjects(VibeStatusForPlayError(VibeErr(kVibeAudioErrorDomain,

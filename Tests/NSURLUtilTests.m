@@ -438,6 +438,20 @@ static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
                           (@[@"folder/a.mp3"]));
 }
 
+// Opening a playlist that lists nothing readable is not a silent no-op: the
+// playlist lands as its own row, whose failed open says why on the header.
+- (void)testAnOpenedPlaylistListingNothingReadableLandsAsItsOwnRow {
+    NSURL *sheet = [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac" withString:@"gone.flac"]
+                               at:@"broken.cue"];
+    NSURL *list = [self makeText:@"gone.mp3\nalso-gone.mp3\n" at:@"broken.m3u"];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[sheet] folderCount:NULL], @[@"broken.cue"]);
+    XCTAssertEqualObjects([self expandAndFilter:@[list] folderCount:NULL], @[@"broken.m3u"]);
+}
+
+// Inside a folder the rest of the folder speaks for itself: a sheet naming
+// nothing readable adds no row (testAWalkedSheetNamingAMissingImageAddsNoRows).
+
 // A sheet with no INDEX lines has no windows: its files, whole.
 - (void)testACueSheetWithoutIndexesExpandsToItsFilesWhole {
     [self makeFile:@"side-a.wav"];
@@ -630,7 +644,8 @@ static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
         XCTestExpectation *expectation = [self expectationWithDescription:playlist.path];
         [expectations addObject:expectation];
         [NSURLUtil expandAndFilterList:@[playlist] sortedBy:VibeFolderOpenSortName completion:^(NSArray<AudioTrack *> *rows, NSUInteger folderCount) {
-            XCTAssertEqual(rows.count, 0u);
+            // Nothing readable: the playlist's own row, which fails to open.
+            XCTAssertEqualObjects([rows valueForKeyPath:@"url.lastPathComponent"], @[@"list.m3u"]);
             [expectation fulfill];
         }];
     }

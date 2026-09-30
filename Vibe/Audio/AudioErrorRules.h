@@ -8,6 +8,7 @@
 
 #import <Foundation/Foundation.h>
 #import "AudioError.h"
+#import "PlaylistFile.h"
 #import "VibeStrings.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -29,7 +30,8 @@ static inline BOOL VibePlayErrorMatchesCurrentURL(NSError *error, NSURL *_Nullab
 // VibeAudioErrorNotPlaying is filtered out before this as benign. No default,
 // so a new code is a compile warning, not the generic line. An underlying
 // error of ours is the more specific cause: a refused start arrives wrapped
-// in the caller's "could not resume".
+// in the caller's "could not resume". A playlist file that fails to open is
+// the row an opened playlist listing nothing readable lands as.
 static inline NSString *VibeStatusForPlayError(NSError *error) {
     NSError *underlying = error.userInfo[NSUnderlyingErrorKey];
     if ([underlying.domain isEqualToString:kVibeAudioErrorDomain]) {
@@ -38,7 +40,11 @@ static inline NSString *VibeStatusForPlayError(NSError *error) {
     if ([error.domain isEqualToString:kVibeAudioErrorDomain]) {
         switch ((VibeAudioErrorCode)error.code) {
             case VibeAudioErrorFileOpenTimedOut:   return STR_ERROR_LOAD_TIMEOUT;
-            case VibeAudioErrorFileOpenFailed:     return STR_ERROR_OPEN_FAILED;
+            case VibeAudioErrorFileOpenFailed: {
+                NSURL *url = error.userInfo[kVibeAudioErrorTrackURLKey];
+                return [PlaylistFile isPlaylistExtension:url.pathExtension.lowercaseString]
+                        ? STR_ERROR_PLAYLIST_FILES_UNAVAILABLE : STR_ERROR_OPEN_FAILED;
+            }
             case VibeAudioErrorEngineStartFailed:  return STR_ERROR_ENGINE_START_FAILED;
             case VibeAudioErrorDeviceUnavailable:  return STR_ERROR_DEVICE_UNAVAILABLE;
             case VibeAudioErrorDeviceInUse:        return STR_ERROR_DEVICE_IN_USE;
