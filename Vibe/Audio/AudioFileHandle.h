@@ -33,9 +33,9 @@
 //  carries fixes of its own (ThirdParty/AGENTS.md).
 //
 //  A WAV or AIFF file read as float32 is decoded by dr_wav the same way, when
-//  it holds a coding dr_wav decodes (ThirdParty/AGENTS.md lists them), and so
-//  is one read as Int16 or Int32, as Convert to FLAC reads, when it holds
-//  integers no wider than the read (openWAV says why).
+//  it holds a coding dr_wav decodes (ThirdParty/AGENTS.md lists them). Read as
+//  integers it is Apple's, which misreads a little-endian (sowt) AIFF-C wider
+//  than 16 bits; nothing in the app reads one so.
 //
 
 #import <AVFAudio/AVFAudio.h>

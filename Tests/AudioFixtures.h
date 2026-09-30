@@ -106,21 +106,19 @@ static inline AVAudioPCMBuffer *VibeReadWithAVAudioFile(NSURL *url, NSError **er
     return whole && [file readIntoBuffer:whole error:error] ? whole : nil;
 }
 
-// Appends whole interleaved frames in the buffer's own sample format; shares
-// no production DSP, so a capture stays independent.
+// Appends whole interleaved frames; shares no production DSP, so a capture stays independent.
 static inline void VibeAppendPCM(NSMutableData *capture, AVAudioPCMBuffer *buffer) {
-    NSUInteger channels = buffer.format.channelCount, sample = buffer.format.streamDescription->mBitsPerChannel / 8;
-    const AudioBufferList *list = buffer.audioBufferList;
-    if (buffer.format.isInterleaved || channels == 1) {
-        [capture appendBytes:list->mBuffers[0].mData length:buffer.frameLength * channels * sample];
+    NSUInteger channels = buffer.format.channelCount;
+    if (buffer.format.isInterleaved) {
+        [capture appendBytes:buffer.floatChannelData[0] length:buffer.frameLength * channels * sizeof(float)];
         return;
     }
     NSUInteger start = capture.length;
-    [capture increaseLengthBy:buffer.frameLength * channels * sample];
-    uint8_t *out = (uint8_t *)capture.mutableBytes + start;
+    [capture increaseLengthBy:buffer.frameLength * channels * sizeof(float)];
+    float *out = (float *)((uint8_t *)capture.mutableBytes + start);
     for (NSUInteger frame = 0; frame < buffer.frameLength; frame++)
         for (NSUInteger channel = 0; channel < channels; channel++)
-            memcpy(out + (frame * channels + channel) * sample, (const uint8_t *)list->mBuffers[channel].mData + frame * sample, sample);
+            out[frame * channels + channel] = buffer.floatChannelData[channel][frame];
 }
 
 typedef struct {

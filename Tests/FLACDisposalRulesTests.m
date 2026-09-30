@@ -337,14 +337,15 @@ static int32_t VibeEncodeSample(uint32_t frame, uint32_t channel, int bits) {
     return (int32_t)(state >> (32 - bits)) - (1 << (bits - 1));
 }
 
-// A WAV of `frames` frames: `bits` 16 or 24 integer, or 32 float; for a
-// name ending .aif, the integers as a little-endian (sowt) AIFF-C.
+// A WAV of `frames` frames: `bits` 16 or 24 integer, or 32 float, whose
+// first frames are -1.0 and +1.0; for a name ending .aif, the integers as a
+// little-endian (sowt) AIFF-C.
 - (NSURL *)writeSourceNamed:(NSString *)name frames:(uint32_t)frames channels:(uint16_t)channels bits:(uint16_t)bits {
     NSMutableData *samples = [NSMutableData data];
     for (uint32_t frame = 0; frame < frames; frame++) {
         for (uint16_t channel = 0; channel < channels; channel++) {
             if (bits == 32) {
-                float v = VibeEncodeSample(frame, channel, 24) / 8388608.0f + (frame > 1 ? 1e-9f : 0); // off the 24-bit grid
+                float v = frame == 1 ? 1.0f : VibeEncodeSample(frame, channel, 24) / 8388608.0f + (frame > 1 ? 1e-9f : 0); // off the 24-bit grid
                 [samples appendBytes:&v length:4];
             } else {
                 int32_t v = VibeEncodeSample(frame, channel, bits);
@@ -444,7 +445,8 @@ static int32_t VibeEncodeSample(uint32_t frame, uint32_t channel, int bits) {
 }
 
 // Float is the one lossy case: a 24-bit FLAC, every sample within one
-// 24-bit step of the source. (A FLAC shorter than one 4608-frame packet
+// 24-bit step of the source, +1.0 included, which an Int32 read wrapped to
+// -1.0 in the encoder. (A FLAC shorter than one 4608-frame packet
 // cannot be reopened by CoreAudio's reader, whichever writer made it, so
 // the fixture is longer than that.)
 - (void)testFloatSourceBecomesATwentyFourBitFLACWithinAQuantum {
@@ -454,9 +456,9 @@ static int32_t VibeEncodeSample(uint32_t frame, uint32_t channel, int bits) {
     NSURL *flac = [_converter encodeSource:source toURL:_outputURL progress:nil error:&error];
     XCTAssertNotNil(flac, @"%@", error);
     AVAudioPCMBuffer *buffer = [self decode:flac as:AVAudioPCMFormatFloat32 expecting:frames depth:kAppleLosslessFormatFlag_24BitSourceData];
-    for (uint32_t frame = 2; frame < frames; frame++) {
+    for (uint32_t frame = 0; frame < frames; frame++) {
         for (uint32_t channel = 0; channel < 2; channel++) {
-            float expected = VibeEncodeSample(frame, channel, 24) / 8388608.0f + 1e-9f;
+            float expected = frame == 1 ? 1.0f : VibeEncodeSample(frame, channel, 24) / 8388608.0f + 1e-9f;
             if (fabsf(buffer.floatChannelData[channel][frame] - expected) > 1.0f / 8388608.0f) {
                 XCTFail(@"frame %u channel %u: %g, expected %g", frame, channel, buffer.floatChannelData[channel][frame], expected);
                 return;
