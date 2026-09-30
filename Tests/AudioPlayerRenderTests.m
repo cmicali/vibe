@@ -1057,8 +1057,9 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // size of 0xFFFFFFFF, as a recording never finalized leaves it, is capped at
 // it. A fmt chunk after the data is found. A damaged ADPCM block is silence in
 // its place, every other frame where it was. An MS ADPCM file cut inside a
-// block keeps what it holds of it, and one whose coefficient table is not the
-// standard seven, the only one dr_wav has, is Apple's.
+// block keeps what it holds of it, one with a coefficient table of its own
+// decodes with it as Apple's decoder does, and one whose data holds less than
+// a block header is Apple's, whatever its fact count.
 - (void)testDrWAVSurvivesWhatDamagesFiles {
     self.continueAfterFailure = YES;
     NSData *aiff = [NSData dataWithContentsOfURL:[self fixture:@"lossless.aiff"]];
@@ -1148,17 +1149,51 @@ static const NSUInteger kLayer3DecoderDelay = 529;
         XCTAssertEqual(file.length, (AVAudioFramePosition)held, @"%@", name);
         XCTAssertEqualObjects([self readToEnd:file], [msReference subdataWithRange:NSMakeRange(0, held * channels * sizeof(float))], @"%@", name);
     }
-    // An eighth coefficient pair, which the first block's predictors name.
-    NSMutableData *eighth = [ms mutableCopy];
-    static const uint8_t pair[] = {0x00, 0x01, 0x00, 0x00};
-    [eighth replaceBytesInRange:NSMakeRange(NSMaxRange(msFmt), 0) withBytes:pair length:sizeof(pair)];
-    uint8_t *e = eighth.mutableBytes;
-    e[msFmt.location - 4] += sizeof(pair); // the chunk's size
-    e[msFmt.location + 16] += sizeof(pair); // cbSize
-    e[msFmt.location + 20] = 8; // wNumCoef
-    memset(e + msData.location + sizeof(pair), 7, channels);
-    [self setContainerSizeOf:eighth bigEndian:NO];
-    [self open:[self writeBytes:eighth name:@"ms-eighth-coefficient.wav"] decoder:@"apple"];
+    // A coefficient table of the file's own, which Apple's decoder decodes with too, each block's predictors naming pairs of it: an
+    // eighth pair, the first's values, which the first block names; and seven pairs of other values, which the blocks name in turn.
+    NSData *(^withTable)(NSArray<NSNumber *> *, uint8_t (^)(NSUInteger, NSUInteger)) = ^NSData *(NSArray<NSNumber *> *coefficients, uint8_t (^predictor)(NSUInteger block, NSUInteger channel)) {
+        NSMutableData *table = [NSMutableData data];
+        for (NSNumber *coefficient in coefficients) {
+            uint16_t value = CFSwapInt16HostToLittle((uint16_t)coefficient.shortValue);
+            [table appendBytes:&value length:2];
+        }
+        NSMutableData *stream = [ms mutableCopy];
+        NSUInteger tableAt = msFmt.location + 22, dataAt = msData.location + table.length - (NSMaxRange(msFmt) - tableAt);
+        [stream replaceBytesInRange:NSMakeRange(tableAt, NSMaxRange(msFmt) - tableAt) withBytes:table.bytes length:table.length];
+        uint32_t size = CFSwapInt32HostToLittle((uint32_t)(22 + table.length));
+        uint16_t cbSize = CFSwapInt16HostToLittle((uint16_t)(4 + table.length)), count = CFSwapInt16HostToLittle((uint16_t)(table.length / 4));
+        [stream replaceBytesInRange:NSMakeRange(msFmt.location - 4, 4) withBytes:&size];
+        [stream replaceBytesInRange:NSMakeRange(msFmt.location + 16, 2) withBytes:&cbSize];
+        [stream replaceBytesInRange:NSMakeRange(msFmt.location + 20, 2) withBytes:&count];
+        uint8_t *s = stream.mutableBytes;
+        for (NSUInteger block = 0; block * blockAlign + header <= msData.length; block++) {
+            for (NSUInteger c = 0; c < channels; c++) s[dataAt + block * blockAlign + c] = predictor(block, c);
+        }
+        [self setContainerSizeOf:stream bigEndian:NO];
+        return stream;
+    };
+    NSData *(^decodesAsApple)(NSData *, NSString *) = ^NSData *(NSData *stream, NSString *name) {
+        NSURL *url = [self writeBytes:stream name:name];
+        NSData *decoded = [self readToEnd:[self open:url decoder:@"dr_wav"]], *apple = [self appleDecodeOf:url];
+        XCTAssertEqual(decoded.length, msReference.length, @"%@", name);
+        XCTAssertEqualObjects(decoded, [apple subdataWithRange:NSMakeRange(0, MIN(decoded.length, apple.length))], @"%@", name);
+        return decoded;
+    };
+    NSArray<NSNumber *> *standard = @[@256, @0, @512, @-256, @0, @0, @192, @64, @240, @0, @460, @-208, @392, @-232];
+    decodesAsApple(withTable([standard arrayByAddingObjectsFromArray:@[@256, @0]], ^uint8_t(NSUInteger block, NSUInteger c) {
+        return block == 0 ? 7 : 0;
+    }), @"ms-eighth-coefficient.wav");
+    NSMutableArray<NSNumber *> *shifted = [NSMutableArray array];
+    for (NSUInteger i = 0; i < standard.count; i++) [shifted addObject:@(standard[i].shortValue + (i % 2 ? 8 : -16))];
+    NSData *others = withTable(shifted, ^uint8_t(NSUInteger block, NSUInteger c) { return (block * channels + c) % 7; });
+    XCTAssertNotEqualObjects(decodesAsApple(others, @"ms-other-coefficients.wav"), msReference, @"other coefficients decode with them");
+
+    // Data shorter than one block header, the fact count still the whole file's: dr_wav counts the frames the data holds, none.
+    NSMutableData *stub = [[ms subdataWithRange:NSMakeRange(0, msData.location + 4)] mutableCopy];
+    uint32_t stubSize = CFSwapInt32HostToLittle(4);
+    [stub replaceBytesInRange:NSMakeRange(msData.location - 4, 4) withBytes:&stubSize];
+    [self setContainerSizeOf:stub bigEndian:NO];
+    [self open:[self writeBytes:stub name:@"ms-stub.wav"] decoder:@"apple"];
 }
 // A little-endian (sowt) AIFF-C of 24 or 32 bits, which CoreAudio's parser
 // describes as 16-bit, made from a big-endian one by swapping each sample:
