@@ -1205,9 +1205,10 @@ materializationCoordinator:coordinator
     [controller completeFirstReady];
     [self waitForCondition:^BOOL{
         NSDictionary *state = [loader debugScanLaneState];
-        return [state[@"stageOneFinished"] boolValue]
-                && [state[@"pending"] containsObject:url.lastPathComponent];
-    } description:@"duplicate did not wait in the scan lane during target parse"];
+        return [state[@"stageOneFinished"] boolValue] && ![state[@"inFlight"] boolValue];
+    } description:@"blocker did not settle out of the scan lane"];
+    XCTAssertEqualObjects([loader debugScanLaneState][@"pending"], (@[]),
+            @"the duplicate rides the target's record");
     XCTAssertEqual(controller.startedURLs.count, 2u);
 
     dispatch_semaphore_signal(parserGate);
@@ -1354,7 +1355,7 @@ materializationCoordinator:coordinator
     XCTAssertEqual([NSSet setWithArray:[rows valueForKey:@"metadata"]].count, rows.count);
 }
 
-- (void)testAFailedParseReleasesTheRowsItHeldBack {
+- (void)testAFailedParseLeavesTheFilesOtherRowsTheirOwnTry {
     NSArray<AudioTrack *> *rows =
             VibeLoaderTestCueRows([self URLNamed:@"unreadable-cue-image.flac"], 3);
     NSObject *countLock = [[NSObject alloc] init];
@@ -1380,10 +1381,104 @@ materializationCoordinator:coordinator
     [self waitForExpectations:@[delegate.deliveryExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
     [self waitForCondition:^BOOL{
         return [loader debugPendingBackgroundMaterializationCount] == 0;
-    } description:@"held-back rows were never released"];
+    } description:@"the file's other rows were never requeued"];
 
     XCTAssertEqual(controller.startedURLs.count, rows.count);
-    XCTAssertEqual(fileParses, rows.count, @"each released row tries the file itself");
+    XCTAssertEqual(fileParses, rows.count, @"each row tries the file itself");
+}
+
+- (void)testPriorityTakesItsFilesRecordAndItsRowTakesAFailureFirst {
+    NSURL *image = [self URLNamed:@"priority-cue-image.flac"];
+    NSArray<AudioTrack *> *rows = VibeLoaderTestCueRows(image, 3);
+    AudioTrack *blocker = [self trackNamed:@"priority-cue-blocker.wav"];
+    // A lane beside the parked blocker, for the priority start.
+    VibeAudioLoadingConfigurationValues values =
+            VibeAudioLoadingProductionConfigurationValues();
+    values.maximumBackgroundMaterializations = 2;
+    NSError *configurationError = nil;
+    AudioLoadingConfiguration *configuration = [[AudioLoadingConfiguration alloc]
+            initWithValues:values error:&configurationError];
+    XCTAssertNotNil(configuration);
+    XCTAssertNil(configurationError);
+    VibeMetadataLoaderOperationController *controller =
+            [[VibeMetadataLoaderOperationController alloc] init];
+    controller.blocksUntilCancelled = YES;
+    controller.firstStartExpectation =
+            [self expectationWithDescription:@"blocker held the scan slot"];
+    VibeMetadataLoaderDelegate *delegate = [[VibeMetadataLoaderDelegate alloc] init];
+    delegate.deliveryExpectation =
+            [self expectationWithDescription:@"blocker and every row published"];
+    delegate.deliveryExpectation.expectedFulfillmentCount = 1 + rows.count;
+    AudioTrackMetadataLoader *loader = [self loaderWithController:controller
+            configuration:configuration
+            delegate:delegate
+            cacheReader:^AudioTrackMetadata *(AudioTrack *track) { return nil; }
+            fileParser:^AudioTrackMetadata *(NSURL *url) {
+        return VibeLoaderTestMetadataResult([url isEqual:blocker.url], url.lastPathComponent);
+    }];
+
+    [loader load:[@[blocker] arrayByAddingObjectsFromArray:rows]];
+    [self waitForExpectations:@[controller.firstStartExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
+    controller.allStartsExpectation =
+            [self expectationWithDescription:@"the file started beside the blocker"];
+    controller.blocksUntilCancelled = NO;
+    [loader prioritizeTrack:rows[2]];
+    [self waitForExpectations:@[controller.allStartsExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
+    controller.allStartsExpectation = nil;
+    [controller completeFirstReady];
+    [self waitForExpectations:@[delegate.deliveryExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
+
+    XCTAssertEqualObjects(controller.startedURLs[1], image);
+    XCTAssertEqualObjects(controller.startedRoles[1],
+            @(VibeAudioFileMaterializationRoleMetadataPriority),
+            @"the priority slot takes the file's record, not a record of the row");
+    NSUInteger marked = [delegate.deliveredTracks indexOfObjectIdenticalTo:rows[2]];
+    XCTAssertLessThan(marked, [delegate.deliveredTracks indexOfObjectIdenticalTo:rows[0]],
+            @"the marked row reads first, so it takes the failure first");
+    XCTAssertLessThan(marked, [delegate.deliveredTracks indexOfObjectIdenticalTo:rows[1]]);
+    XCTAssertEqual(controller.startedURLs.count, 1 + rows.count,
+            @"the file's other rows still try it for themselves");
+}
+
+- (void)testAbandoningARowLeavesTheRestOfItsFilesRecord {
+    NSURL *image = [self URLNamed:@"abandon-cue-image.flac"];
+    NSArray<AudioTrack *> *rows = VibeLoaderTestCueRows(image, 3);
+    AudioTrack *blocker = [self trackNamed:@"abandon-cue-blocker.wav"];
+    AudioTrack *departed = [self trackNamed:@"abandon-departed.wav"];
+    VibeMetadataLoaderOperationController *controller =
+            [[VibeMetadataLoaderOperationController alloc] init];
+    controller.blocksUntilCancelled = YES;
+    controller.firstStartExpectation =
+            [self expectationWithDescription:@"blocker held the scan slot"];
+    VibeMetadataLoaderDelegate *delegate = [[VibeMetadataLoaderDelegate alloc] init];
+    delegate.deliveryExpectation =
+            [self expectationWithDescription:@"blocker and the remaining rows published"];
+    delegate.deliveryExpectation.expectedFulfillmentCount = 3;
+    AudioTrackMetadataLoader *loader = [self loaderWithController:controller
+            configuration:[self testConfiguration]
+            delegate:delegate
+            cacheReader:^AudioTrackMetadata *(AudioTrack *track) { return nil; }
+            fileParser:^AudioTrackMetadata *(NSURL *url) {
+        return VibeLoaderTestMetadataResult(YES, url.lastPathComponent);
+    }];
+
+    [loader load:@[blocker, rows[0], rows[1], rows[2], departed]];
+    [self waitForExpectations:@[controller.firstStartExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
+    // The record's first row, and the only row of another.
+    [loader abandonQueuedTrack:rows[0]];
+    [loader abandonQueuedTrack:departed];
+    controller.blocksUntilCancelled = NO;
+    [controller completeFirstReady];
+    [self waitForExpectations:@[delegate.deliveryExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
+    [self waitForCondition:^BOOL{
+        return [loader debugPendingBackgroundMaterializationCount] == 0;
+    } description:@"the remaining rows' record did not settle"];
+
+    XCTAssertEqualObjects(controller.startedURLs, (@[blocker.url, image]));
+    XCTAssertNil(rows[0].metadata);
+    XCTAssertNil(departed.metadata);
+    XCTAssertTrue(rows[1].metadata.parsedOK);
+    XCTAssertTrue(rows[2].metadata.parsedOK);
 }
 
 - (void)testSuccessfulParseJoinsDuplicateRowsAndPublishesIndependentCopies {
@@ -1424,8 +1519,8 @@ materializationCoordinator:coordinator
         return VibeLoaderTestMetadataResult(YES, @"parsed-success");
     }];
 
-    // A second row loaded beside it would be held back and settled; a
-    // priority row never is, so it joins the parse.
+    // A second row loaded beside it would share its record; one the sweep
+    // never listed gets its own, which joins the parse.
     [loader load:@[first]];
     [self waitForExpectations:@[parserEntered] timeout:VIBE_TEST_HANG_TIMEOUT];
     [loader prioritizeTrack:second];
@@ -1718,7 +1813,9 @@ materializationCoordinator:coordinator
 
     AudioFileMaterializationCoordinator *coordinator = _coordinators.lastObject;
     @try {
-        [loader load:@[scan, priority]];
+        // A listed duplicate would share the scan's record; one the sweep
+        // never listed mints its own beside it.
+        [loader load:@[scan]];
         [self waitForExpectations:@[
             controller.firstStartExpectation, holdDecisionReached
         ] timeout:VIBE_TEST_HANG_TIMEOUT];

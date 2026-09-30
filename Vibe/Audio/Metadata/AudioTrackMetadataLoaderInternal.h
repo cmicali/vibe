@@ -46,15 +46,15 @@ NS_ASSUME_NONNULL_BEGIN
 + (instancetype)new NS_UNAVAILABLE;
 
 - (void)load:(NSArray<AudioTrack *> *)tracks;
-// Marks (or creates) the track's record as priority: its own slot, exempt from
-// the stage-1 barrier, submitted even under the foreground rule, parsed
-// user-initiated. A repeat edge reactivates one submission, so it can join a
+// Marks the record holding the track (or its file's pending record, or a new
+// one) as priority: its own slot, exempt from the stage-1 barrier, submitted
+// even under the foreground rule, parsed user-initiated. A repeat edge reactivates one submission, so it can join a
 // new same-path foreground claim without waiting for the gate clock. Main
 // thread.
 - (void)prioritizeTrack:(AudioTrack *)track;
 
-// Drops one departed row's not-yet-picked records and, when nothing is in
-// flight for it, its identity marks, so a later prioritizeTrack: rebuilds it.
+// Takes one departed row out of its not-yet-picked record, dropping the record
+// once empty, and forgets the row, so a later prioritizeTrack: rebuilds it.
 // Picked work settles normally. Main thread.
 - (void)abandonQueuedTrack:(AudioTrack *)track;
 
