@@ -105,15 +105,16 @@ We ran seven of the ISO test recordings through six decoders. The chart shows ho
 <picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/mp3-accuracy-dark.svg"><img alt="Accuracy on the ISO test, best first: FFmpeg 112 times inside the limit, libmad and mpg123 106 times, dr_mp3 105 times, BASS 100 times, Apple (Apple silicon) on the limit" src="audio-quality/mp3-accuracy-light.svg"></picture>
 
 - **dr_mp3 is about 105 times inside the limit.** Apple's decoder on Apple silicon is right on it: "full accuracy" on three recordings and only "limited accuracy" on the other four.
-- **Apple's decoder on an Intel Mac is as accurate as dr_mp3.** Under Rosetta 2 it is 150 times inside the limit on `compl`, the one recording Vibe's test downloads, where dr_mp3 is 138 times inside. We haven't run it on the other six.
+- **On an Intel Mac, Apple's decoder is a full-precision decoder too.** Under Rosetta 2, which runs its Intel version, it reaches full accuracy on all seven recordings and is 150 times inside the limit on its worst, `compl`. It is level with dr_mp3 on `si` and slightly ahead of it on the other six.
 - **Every decoder with full-precision output is equally accurate.** The small differences between FFmpeg, libmad, mpg123, dr_mp3 and BASS are about as large as the rounding in the ISO's own reference files, so the test can't rank them any further.
 - **BASS is dr_mp3's close cousin.** BASS is a commercial audio library, and its notes say its MP3 decoding is based on minimp3, the same decoder dr_mp3 comes from. Its output matches dr_mp3's to within the last bit or two of a 32-bit float, about −134 dB. It keeps a loud master's peaks too.
 - **libmad has no edge any more.** It is famous for topping an older version of this comparison, from the early 2000s. Back then most decoders gave 16-bit output and libmad gave 24-bit. Against decoders with full-precision output, that advantage is gone.
 
-The numbers behind the chart, best first. "Average error" is on each decoder's worst recording.
+The numbers behind the chart, plus Apple's decoder on an Intel Mac, best first. "Average error" is on each decoder's worst recording.
 
 | Decoder | Average error | Largest single error | Times inside the limit | Result |
 | --- | --- | --- | --- | --- |
+| Apple built-in, Intel (under Rosetta 2) | −144.6 dBFS | 6.9e-7 | 150× | full accuracy on all 7 |
 | FFmpeg (`mp3float`) | −142.1 dBFS | 7.2e-7 | 112× | full accuracy on all 7 |
 | libmad 0.15.1b, accuracy build | −141.6 dBFS | 7.3e-7 | 106× | full accuracy on all 7 |
 | mpg123 1.33.7 | −141.6 dBFS | 7.0e-7 | 106× | full accuracy on all 7 |
