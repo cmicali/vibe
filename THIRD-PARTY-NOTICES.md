@@ -17,6 +17,7 @@ all of it is covered here.
 | PFFFT (double) | `Vibe/ThirdParty/r8brain/fft/` | FFTPACK (BSD-style) |
 | dr_mp3 | `Vibe/ThirdParty/dr_mp3/` | MIT No Attribution (or public domain, at the recipient's choice); modified |
 | dr_flac | `Vibe/ThirdParty/dr_flac/` | MIT No Attribution (or public domain, at the recipient's choice); modified |
+| dr_wav | `Vibe/ThirdParty/dr_wav/` | MIT No Attribution (or public domain, at the recipient's choice); modified |
 
 ## TagLib — and why the election matters
 
@@ -112,3 +113,12 @@ recipient's choice; Vibe uses it under MIT No Attribution. Both texts are at
 the end of `Vibe/ThirdParty/dr_flac/dr_flac.h`. The vendored copy carries
 Vibe's own fixes (`Vibe/ThirdParty/AGENTS.md`), which that license permits
 without condition.
+
+## dr_wav
+
+WAV and AIFF audio decoder by David Reid. Copyright 2023 David Reid. Offered
+as public domain (the Unlicense) or under the MIT No Attribution license, at
+the recipient's choice; Vibe uses it under MIT No Attribution. Both texts are
+at the end of `Vibe/ThirdParty/dr_wav/dr_wav.h`. The vendored copy carries
+Vibe's own fixes and additions (`Vibe/ThirdParty/AGENTS.md`), which that
+license permits without condition.

@@ -970,6 +970,151 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     XCTAssertEqualObjects([self readToEnd:file], reference, @"stray header past the end");
     [self assertSeekOf:file to:reference.length / frameBytes - 100 match:reference name:@"stray header past the end, after the end"];
 }
+// Apple's decode of a file, through AVAudioFile rather than the handle, interleaved.
+- (NSData *)appleDecodeOf:(NSURL *)url {
+    NSError *error = nil;
+    AVAudioFile *file = [[AVAudioFile alloc] initForReading:url commonFormat:AVAudioPCMFormatFloat32 interleaved:NO error:&error];
+    XCTAssertNotNil(file, @"%@: %@", url.lastPathComponent, error);
+    AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat frameCapacity:(AVAudioFrameCount)file.length];
+    XCTAssertTrue([file readIntoBuffer:buffer error:&error], @"%@: %@", url.lastPathComponent, error);
+    return PCM(buffer);
+}
+// dr_wav decodes every coding a WAV or an AIFF(-C) holds as Apple's decoder
+// does, sample for sample, and every seek reads what the continuous decode holds
+// there: PCM of each width, float, 8 channels, the codings afconvert writes (its
+// AIFF-C twos, in24 and in32 among them, which dr_wav upstream refused, and
+// ima4, which it could not decode) and FFmpeg's ADPCM WAVs. An MS ADPCM stream
+// ends at its fact chunk's count, short of the last block's padding Apple plays.
+// An ima4 packet's decode depends on every packet before it, and its seeks still
+// land where a read from the start does, where Apple's do not. A WAV holding
+// MPEG is left to Apple's decoder when it is chosen.
+- (void)testDrWAVDecodesAsAppleDoes {
+    self.continueAfterFailure = YES;
+    NSArray<NSString *> *names = @[@"noise-44100-16-1.wav", @"noise-96000-24-2.wav", @"noise-48000-32-2.wav", @"noise-48000-24-8.wav",
+        @"integer32.wav", @"float64-low-bits.wav", @"alias.bwf", @"lossless.aiff", @"aiff-BEI8.aif",
+        @"wav-UI8.wav", @"wav-ulaw.wav", @"wav-alaw.wav", @"aifc-BEI8.aif", @"aifc-BEI16.aif", @"aifc-BEI24.aif", @"aifc-BEI32.aif",
+        @"aifc-BEF32.aif", @"aifc-BEF64.aif", @"aifc-ulaw.aif", @"aifc-alaw.aif", @"aifc-ima4.aif", @"aifc-ima4-mono.aif",
+        @"wav-ima-adpcm.wav", @"wav-ms-adpcm.wav"];
+    for (NSString *name in names) {
+        NSURL *url = [name containsString:@"adpcm"] ? [self optionalFixture:name] : [self fixture:name];
+        AudioFileHandle *file = [self open:url decoder:@"dr_wav"];
+        NSData *decoded = [self readToEnd:file], *apple = [self appleDecodeOf:url];
+        NSUInteger frameBytes = file.processingFormat.channelCount * sizeof(float);
+        XCTAssertEqual(decoded.length, (NSUInteger)file.length * frameBytes, @"%@", name);
+        if ([name isEqualToString:@"wav-ms-adpcm.wav"]) {
+            XCTAssertLessThan(decoded.length, apple.length, @"%@ ends at its fact count", name);
+            apple = [apple subdataWithRange:NSMakeRange(0, MIN(decoded.length, apple.length))];
+        }
+        XCTAssertEqualObjects(decoded, apple, @"%@", name);
+        [self assertSeeksOf:file match:decoded block:[name containsString:@"ima4"] ? 64 : 4096 name:name];
+    }
+    AudioFileHandle *interleaved = [[AudioFileHandle alloc] initForReading:[self fixture:@"lossless.aiff"] commonFormat:AVAudioPCMFormatFloat32 interleaved:YES error:NULL];
+    XCTAssertEqualObjects([self readToEnd:interleaved], [self appleDecodeOf:[self fixture:@"lossless.aiff"]], @"interleaved, as the waveform reads");
+    NSURL *mpeg = [self optionalFixture:@"mp3-in.wav"];
+    AudioFileHandle.appleMPEGDecoder = YES;
+    [self open:mpeg decoder:@"apple"];
+}
+// A RIFF or IFF file's chunks, each its ID and the range of its body.
+- (NSArray<NSArray *> *)chunksOf:(NSData *)file bigEndian:(BOOL)bigEndian {
+    NSMutableArray<NSArray *> *chunks = [NSMutableArray array];
+    const uint8_t *b = file.bytes;
+    for (NSUInteger at = 12; at + 8 <= file.length;) {
+        uint32_t size = *(const uint32_t *)(b + at + 4);
+        size = bigEndian ? CFSwapInt32BigToHost(size) : CFSwapInt32LittleToHost(size);
+        [chunks addObject:@[[[NSString alloc] initWithBytes:b + at length:4 encoding:NSASCIIStringEncoding], [NSValue valueWithRange:NSMakeRange(at + 8, size)]]];
+        at += 8 + size + (size & 1);
+    }
+    return chunks;
+}
+- (NSRange)chunk:(NSString *)name of:(NSData *)file bigEndian:(BOOL)bigEndian {
+    for (NSArray *chunk in [self chunksOf:file bigEndian:bigEndian]) {
+        if ([chunk[0] isEqualToString:name]) return [chunk[1] rangeValue];
+    }
+    XCTFail(@"no %@ chunk", name);
+    return NSMakeRange(0, 0);
+}
+// What damages WAVs and AIFFs in the wild, done to lossless.aiff and
+// noise-48000-24-2.wav. A chunk after the audio, as Ableton Live writes its
+// tags, leaves every seek where a read from the start is: dr_wav upstream took
+// SSND's offset and block size fields for audio, and landed forward seeks late.
+// A file cut short plays what it holds, and a COMM count past it or a data
+// size of 0xFFFFFFFF, as a recording never finalized leaves it, is capped at
+// it. A fmt chunk after the data is found. A damaged ADPCM block is silence in
+// its place, every other frame where it was.
+- (void)testDrWAVSurvivesWhatDamagesFiles {
+    self.continueAfterFailure = YES;
+    NSData *aiff = [NSData dataWithContentsOfURL:[self fixture:@"lossless.aiff"]];
+    AudioFileHandle *clean = [self open:[self fixture:@"lossless.aiff"] decoder:@"dr_wav"];
+    NSData *reference = [self readToEnd:clean];
+    NSUInteger frameBytes = clean.processingFormat.channelCount * sizeof(float), frames = reference.length / frameBytes;
+    AudioFileHandle *(^open)(NSData *, NSString *) = ^AudioFileHandle *(NSData *stream, NSString *name) {
+        return [self open:[self writeBytes:stream name:name] decoder:@"dr_wav"];
+    };
+    void (^setFormSize)(NSMutableData *) = ^(NSMutableData *form) {
+        uint32_t size = CFSwapInt32HostToBig((uint32_t)form.length - 8);
+        [form replaceBytesInRange:NSMakeRange(4, 4) withBytes:&size];
+    };
+
+    static const uint8_t id3[] = {'I','D','3',' ', 0,0,0,10, 'I','D','3',4,0,0, 0,0,0,0};
+    NSMutableData *tagged = [aiff mutableCopy];
+    [tagged appendBytes:id3 length:sizeof(id3)];
+    setFormSize(tagged);
+    AudioFileHandle *file = open(tagged, @"tagged.aif");
+    XCTAssertEqualObjects([self readToEnd:file], reference, @"a chunk after SSND");
+    [self assertSeeksOf:file match:reference block:4096 name:@"a chunk after SSND"];
+
+    NSRange ssnd = [self chunk:@"SSND" of:aiff bigEndian:YES];
+    NSUInteger audio = ssnd.location + 8, held = frames * 3 / 5, sampleBytes = 3 * clean.processingFormat.channelCount;
+    NSData *cut = [aiff subdataWithRange:NSMakeRange(0, audio + held * sampleBytes + 2)];
+    file = open(cut, @"cut.aif");
+    XCTAssertEqual(file.length, (AVAudioFramePosition)held, @"cut short: the frames it holds");
+    NSData *prefix = [reference subdataWithRange:NSMakeRange(0, held * frameBytes)];
+    XCTAssertEqualObjects([self readToEnd:file], prefix, @"cut short");
+    [self assertSeeksOf:file match:prefix block:4096 name:@"cut short"];
+    [self assertSeekOf:file to:frames - 10 match:prefix name:@"cut short, past the cut"];
+
+    NSMutableData *counted = [aiff mutableCopy];
+    NSRange comm = [self chunk:@"COMM" of:aiff bigEndian:YES];
+    uint32_t count = CFSwapInt32HostToBig((uint32_t)frames * 2);
+    [counted replaceBytesInRange:NSMakeRange(comm.location + 2, 4) withBytes:&count];
+    file = open(counted, @"counted.aif");
+    XCTAssertEqual(file.length, (AVAudioFramePosition)frames, @"a COMM count past the audio");
+    XCTAssertEqualObjects([self readToEnd:file], reference, @"a COMM count past the audio");
+
+    NSURL *waveURL = [self fixture:@"noise-48000-24-2.wav"];
+    NSData *wave = [NSData dataWithContentsOfURL:waveURL], *waveReference = [self readToEnd:[self open:waveURL decoder:@"dr_wav"]];
+    NSRange data = [self chunk:@"data" of:wave bigEndian:NO], fmt = [self chunk:@"fmt " of:wave bigEndian:NO];
+    NSMutableData *unfinalized = [wave mutableCopy];
+    uint32_t placeholder = 0xFFFFFFFF;
+    [unfinalized replaceBytesInRange:NSMakeRange(4, 4) withBytes:&placeholder];
+    [unfinalized replaceBytesInRange:NSMakeRange(data.location - 4, 4) withBytes:&placeholder];
+    XCTAssertEqualObjects([self readToEnd:open(unfinalized, @"unfinalized.wav")], waveReference, @"sizes of 0xFFFFFFFF");
+    NSMutableData *fmtLast = [[wave subdataWithRange:NSMakeRange(0, 12)] mutableCopy];
+    [fmtLast appendData:[wave subdataWithRange:NSMakeRange(data.location - 8, data.length + 8)]];
+    [fmtLast appendData:[wave subdataWithRange:NSMakeRange(fmt.location - 8, fmt.length + 8)]];
+    uint32_t riff = CFSwapInt32HostToLittle((uint32_t)fmtLast.length - 8);
+    [fmtLast replaceBytesInRange:NSMakeRange(4, 4) withBytes:&riff];
+    XCTAssertEqualObjects([self readToEnd:open(fmtLast, @"fmt-last.wav")], waveReference, @"fmt after the data");
+
+    NSURL *imaURL = [self optionalFixture:@"wav-ima-adpcm.wav"];
+    NSData *ima = [NSData dataWithContentsOfURL:imaURL];
+    AudioFileHandle *imaClean = [self open:imaURL decoder:@"dr_wav"];
+    NSData *imaReference = [self readToEnd:imaClean];
+    NSRange imaData = [self chunk:@"data" of:ima bigEndian:NO], imaFmt = [self chunk:@"fmt " of:ima bigEndian:NO];
+    uint16_t blockAlign = CFSwapInt16LittleToHost(*(const uint16_t *)((const uint8_t *)ima.bytes + imaFmt.location + 12));
+    NSUInteger channels = imaClean.processingFormat.channelCount, blockFrames = (blockAlign - 4 * channels) * 2 / channels + 1, damagedBlock = 3;
+    NSMutableData *damaged = [ima mutableCopy];
+    for (NSUInteger c = 0; c < channels; c++) {
+        ((uint8_t *)damaged.mutableBytes)[imaData.location + damagedBlock * blockAlign + 4 * c + 2] = 0xFF; // a step index past 88
+    }
+    file = open(damaged, @"damaged-block.wav");
+    NSData *decoded = [self readToEnd:file];
+    XCTAssertEqual(decoded.length, imaReference.length, @"a damaged ADPCM block: the timeline keeps its length");
+    NSMutableData *expected = [imaReference mutableCopy];
+    memset((uint8_t *)expected.mutableBytes + damagedBlock * blockFrames * channels * sizeof(float), 0, blockFrames * channels * sizeof(float));
+    XCTAssertEqualObjects(decoded, expected, @"a damaged ADPCM block: silence in its place, every other frame where it was");
+    [self assertSeeksOf:file match:decoded block:blockFrames name:@"a damaged ADPCM block"];
+}
 - (void)testQuickTimeAudio { [self checkLossy:@"lossy.qta" tolerance:kVibeAACDecodeTolerance]; }
 - (void)testFloatLimitsAndSilence {
     for (NSString *name in @[@"limits.wav",@"silence.wav"]) {
