@@ -20,7 +20,7 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
 
 @interface OpenRequestResult : NSObject
 @property (strong) OpenRequestToken *token;
-@property (copy) NSArray<NSURL *> *files;
+@property (copy) NSArray<AudioTrack *> *rows;
 @property NSUInteger folderCount;
 @end
 
@@ -86,7 +86,7 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
 }
 
 - (void)finishRequest:(OpenRequestToken *)token
-                files:(NSArray<NSURL *> *)files
+                 rows:(NSArray<AudioTrack *> *)rows
           folderCount:(NSUInteger)folderCount {
     NSAssert(NSThread.isMainThread, @"OpenRequestCoordinator is main-thread only");
     if (![self isRequestCurrent:token] || token.sequence < _nextDeliverySequence
@@ -95,7 +95,7 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
     }
     OpenRequestResult *result = [OpenRequestResult new];
     result.token = token;
-    result.files = files;
+    result.rows = rows;
     result.folderCount = folderCount;
     _completed[@(token.sequence)] = result;
 
@@ -131,7 +131,7 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
         }
         [_completed removeObjectForKey:key];
         _nextDeliverySequence++;
-        next.token.delivery(next.files, next.folderCount, next.token.append);
+        next.token.delivery(next.rows, next.folderCount, next.token.append);
     }
 }
 

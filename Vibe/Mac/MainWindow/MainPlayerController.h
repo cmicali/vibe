@@ -7,6 +7,7 @@
 
 @class AudioPlayer;
 @class PlaylistController;
+@class AudioTrack;
 @class AudioTrackMetadataCache;
 @class AudioWaveformCache;
 @class AudioFileConverter;
@@ -29,14 +30,14 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly, strong) AudioWaveformCache *waveformCache;
 @property (readonly, strong) AudioFileConverter *fileConverter;
 
-- (void)play:(NSArray<NSURL *> *)urls;
+- (void)play:(NSArray<AudioTrack *> *)tracks;
 
 // The varispeed rate, 1.0 + pitch/100. Time labels and Now Playing show file
 // time divided by it.
 - (double)playbackRate;
 
 // Appends without disturbing playback; plays when the playlist is empty.
-- (void)addURLs:(NSArray<NSURL *> *)urls;
+- (void)addTracks:(NSArray<AudioTrack *> *)tracks;
 
 // Ends the launch grace, which keeps the header blank rather than flashing the
 // empty state while a launch-time open resolves. play: ends it too. Idempotent.

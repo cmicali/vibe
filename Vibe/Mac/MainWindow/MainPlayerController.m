@@ -538,18 +538,18 @@
     }
 }
 
-- (void)play:(NSArray<NSURL *> *)urls {
-    [self loadURLs:urls selectingIndex:0 startPaused:NO];
+- (void)play:(NSArray<AudioTrack *> *)tracks {
+    [self loadTracks:tracks selectingIndex:0 startPaused:NO];
 }
 
 // An open and the launch restore differ only in row and whether it sounds.
-- (void)loadURLs:(NSArray<NSURL *> *)urls selectingIndex:(NSUInteger)index startPaused:(BOOL)startPaused {
+- (void)loadTracks:(NSArray<AudioTrack *> *)tracks selectingIndex:(NSUInteger)index startPaused:(BOOL)startPaused {
     _emptyStateSuppressed = NO; // a real track supersedes the launch grace
     // The old scan dies before the new first track is submitted: its cloud
     // transfer would compete with this open, and its queue would pin the
     // departed playlist. Replacement only — next and previous keep the sweep.
     [self.metadataCache cancelScan];
-    [self.playlistController loadURLs:urls selectingIndex:index];
+    [self.playlistController loadTracks:tracks selectingIndex:index];
     [self.playlistController playStartPaused:startPaused];
     // Deferred until playback starts: four parse workers can starve the
     // player's own open on a slow disk. The fallback timer covers a play that
@@ -557,12 +557,12 @@
     [self scheduleDeferredMetadataLoad];
 }
 
-- (void)addURLs:(NSArray<NSURL *> *)urls {
+- (void)addTracks:(NSArray<AudioTrack *> *)tracks {
     if (self.playlistController.count == 0) {
-        [self play:urls]; // nothing to append to — this IS the play
+        [self play:tracks]; // nothing to append to — this IS the play
         return;
     }
-    [self.playlistController append:urls];
+    [self.playlistController append:tracks];
     // The open's deferral: an append mid-open must not start stage-two work
     // while the picked track materializes. The generation coalesces appends.
     [self scheduleDeferredMetadataLoad];
@@ -699,7 +699,11 @@ static NSURL *VibeLastPlaylistURL(void) {
     return [PlaylistFile restoreSessionAtURL:VibeLastPlaylistURL()
             enabled:AppSettings.sharedInstance.reopenLastPlaylist defaults:NSUserDefaults.standardUserDefaults
             load:^(NSArray<NSURL *> *urls, NSUInteger index, BOOL paused) {
-        [self loadURLs:urls selectingIndex:index startPaused:paused];
+        NSMutableArray<AudioTrack *> *tracks = [NSMutableArray arrayWithCapacity:urls.count];
+        for (NSURL *url in urls) {
+            [tracks addObject:[AudioTrack withURL:url]];
+        }
+        [self loadTracks:tracks selectingIndex:index startPaused:paused];
     }];
 }
 
@@ -860,7 +864,7 @@ static NSURL *VibeLastPlaylistURL(void) {
 }
 
 // Only the Add well appends; an append to an empty playlist becomes a
-// replacing play in addURLs: anyway.
+// replacing play in addTracks: anyway.
 - (BOOL)mainWindow:(MainWindow *)mainWindow dropAppendsAtLocation:(NSPoint)location {
     return [self.playerContentView.playlistDropZoneView dropActionForWindowPoint:location]
             == PlaylistDropWellActionAdd;

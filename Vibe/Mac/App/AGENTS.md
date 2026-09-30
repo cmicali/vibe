@@ -43,7 +43,7 @@ Restoration has three utility workers plus one user-initiated lane reserved for 
 
 ## Stats
 
-`AppStats` lives in `Vibe/Common/` and counts for **both** platforms; this shell feeds it from `deliverExpandedURLs:` (the open funnel) and from the player's output-audio activity event, and `applicationWillTerminate:` folds the in-progress listening run. See `Common/AGENTS.md` for the store and for what the two platforms do differently about keeping a running clock honest.
+`AppStats` lives in `Vibe/Common/` and counts for **both** platforms; this shell feeds it from `deliverExpandedRows:` (the open funnel) and from the player's output-audio activity event, and `applicationWillTerminate:` folds the in-progress listening run. See `Common/AGENTS.md` for the store and for what the two platforms do differently about keeping a running clock honest.
 
 ## The last playlist
 

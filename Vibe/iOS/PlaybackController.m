@@ -478,8 +478,8 @@ static const NSUInteger kUIUpdateHz = 3;
     _player.fx.delayTapBPM = _playlist.currentTrack.bpm;
 }
 
-- (void)noteDetectedBPM:(float)bpm forURL:(NSURL *)url {
-    [_playlist stampTracksWithURL:url usingBlock:^(AudioTrack *track) {
+- (void)noteDetectedBPM:(float)bpm forTrack:(AudioTrack *)analyzed {
+    [_playlist stampTracksSounding:analyzed usingBlock:^(AudioTrack *track) {
         float shown = track.bpm;
         track.detectedBPM = bpm;
         // Only a tempo that changed what the row shows: the delivery repeats

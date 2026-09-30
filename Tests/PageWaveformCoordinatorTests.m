@@ -55,8 +55,8 @@
 }
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)coordinator
                    didDetectBPM:(float)bpm
-                         forURL:(NSURL *)url {
-    [_tempoURLs addObject:url];
+                       forTrack:(AudioTrack *)track {
+    [_tempoURLs addObject:track.url];
     [_tempos addObject:@(bpm)];
 }
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)coordinator
@@ -99,16 +99,16 @@
 
 // Any non-nil object will do: the coordinator only stores the waveform, in a
 // dictionary where nil means no entry, and hands it on.
-- (void)deliverForURL:(NSURL *)url percent:(float)percent {
+- (void)deliverForTrack:(AudioTrack *)track percent:(float)percent {
     CodableAudioWaveform *waveform = (CodableAudioWaveform *)[NSObject new];
     [(id<AudioWaveformCacheDelegate>)_coordinator audioWaveform:waveform
                                                     didLoadData:percent
-                                                         forURL:url];
+                                                       forTrack:track];
 }
 
-- (void)failForURL:(NSURL *)url {
+- (void)failForTrack:(AudioTrack *)track {
     [(id<AudioWaveformCacheDelegate>)_coordinator audioWaveformCache:(AudioWaveformCache *)_cache
-                                                didFailToLoadForURL:url];
+                                              didFailToLoadForTrack:track];
 }
 
 #pragma mark Targeting
@@ -134,6 +134,37 @@
     XCTAssertEqual(_cache.cancelCount, 1u);
 }
 
+static AudioTrack *CueRow(NSUInteger start, NSUInteger end) {
+    return [[AudioTrack alloc] initWithURL:[NSURL fileURLWithPath:@"/tmp/vibe-mix.flac"]
+                                  cueStart:start cueEnd:end title:nil performer:nil
+                                     sheet:nil trackNumber:0];
+}
+
+// Rows of one file each have a waveform, so the page's row, not its file, is
+// what a repeat request is matched on.
+- (void)testSameIndexWithAnotherRowOfTheSameFileReloads {
+    [_coordinator requestIndex:3 track:CueRow(0, 4500)];
+    [_coordinator requestIndex:3 track:CueRow(4500, 0)];
+    XCTAssertEqual(_cache.loadedURLs.count, 2u);
+    [_coordinator requestIndex:3 track:CueRow(4500, 0)];
+    XCTAssertEqual(_cache.loadedURLs.count, 2u);
+}
+
+// A late delivery for the departed row carries the page's file, so only the
+// window tells it apart.
+- (void)testDeliveryForAnotherRowOfTheSameFileIsDropped {
+    [_coordinator requestIndex:3 track:CueRow(0, 4500)];
+    [_coordinator requestIndex:4 track:CueRow(4500, 0)];
+    [self deliverForTrack:CueRow(0, 4500) percent:1.0f];
+    [self failForTrack:CueRow(0, 4500)];
+    XCTAssertEqual(_delegate.updatedIndexes.count, 0u);
+    XCTAssertEqual(_delegate.failedIndexes.count, 0u);
+    XCTAssertEqual(_coordinator.targetIndex, 4u);
+
+    [self deliverForTrack:CueRow(4500, 0) percent:1.0f];
+    XCTAssertEqualObjects(_delegate.updatedIndexes, @[@4]);
+}
+
 - (void)testSameIndexWithADifferentFileReloads {
     [_coordinator requestIndex:3 track:_tracks[3]];
     [_coordinator requestIndex:3 track:_tracks[5]];
@@ -152,7 +183,7 @@
 
 - (void)testDeliveryForTheTargetIsRecordedAndForwarded {
     [_coordinator requestIndex:3 track:_tracks[3]];
-    [self deliverForURL:_tracks[3].url percent:0.5f];
+    [self deliverForTrack:_tracks[3] percent:0.5f];
     XCTAssertEqualObjects(_delegate.updatedIndexes, @[@3]);
     XCTAssertFalse([_coordinator isCompleteAtIndex:3]);
 }
@@ -162,31 +193,31 @@
 - (void)testDeliveryForADepartedURLIsDropped {
     [_coordinator requestIndex:3 track:_tracks[3]];
     [_coordinator requestIndex:4 track:_tracks[4]];
-    [self deliverForURL:_tracks[3].url percent:1.0f];
+    [self deliverForTrack:_tracks[3] percent:1.0f];
     XCTAssertEqual(_delegate.updatedIndexes.count, 0u);
     XCTAssertFalse([_coordinator isCompleteAtIndex:4]);
 }
 
-// A tempo is forwarded as delivered — with its URL, untargeted and unheld —
-// because the model matches it by URL across every row, not by page.
-- (void)testTempoIsForwardedByURLWhateverThePageAndHold {
+// A tempo is forwarded as delivered — with its track, untargeted and unheld —
+// because the model matches it across every row, not by page.
+- (void)testTempoIsForwardedByTrackWhateverThePageAndHold {
     [_coordinator requestIndex:3 track:_tracks[3]];
     _coordinator.held = YES;
     [(id<AudioWaveformCacheDelegate>)_coordinator audioWaveformCache:(AudioWaveformCache *)_cache
-                                                        didDetectBPM:128 forURL:_tracks[5].url];
+                                                        didDetectBPM:128 forTrack:_tracks[5]];
     XCTAssertEqualObjects(_delegate.tempoURLs, @[_tracks[5].url]);
     XCTAssertEqualObjects(_delegate.tempos, @[@128]);
 }
 
 - (void)testFullDeliveryMarksThePageComplete {
     [_coordinator requestIndex:3 track:_tracks[3]];
-    [self deliverForURL:_tracks[3].url percent:1.0f];
+    [self deliverForTrack:_tracks[3] percent:1.0f];
     XCTAssertTrue([_coordinator isCompleteAtIndex:3]);
 }
 
 - (void)testFailureForTheTargetSettlesItAndAllowsRetry {
     [_coordinator requestIndex:3 track:_tracks[3]];
-    [self failForURL:_tracks[3].url];
+    [self failForTrack:_tracks[3]];
     XCTAssertEqual(_coordinator.targetIndex, NSNotFound);
     XCTAssertEqualObjects(_delegate.failedIndexes, @[@3]);
 
@@ -197,7 +228,7 @@
 - (void)testFailureForADepartedURLIsDropped {
     [_coordinator requestIndex:3 track:_tracks[3]];
     [_coordinator requestIndex:4 track:_tracks[4]];
-    [self failForURL:_tracks[3].url];
+    [self failForTrack:_tracks[3]];
     XCTAssertEqual(_coordinator.targetIndex, 4u);
     XCTAssertEqual(_delegate.failedIndexes.count, 0u);
 }
@@ -205,7 +236,7 @@
 - (void)testFailureDuringAHoldIsForwardedOnRelease {
     [_coordinator requestIndex:3 track:_tracks[3]];
     _coordinator.held = YES;
-    [self failForURL:_tracks[3].url];
+    [self failForTrack:_tracks[3]];
     XCTAssertEqual(_coordinator.targetIndex, NSNotFound);
     XCTAssertEqual(_delegate.failedIndexes.count, 0u);
 
@@ -227,7 +258,7 @@
 
 - (void)testCompletedPageIsNotReloaded {
     [_coordinator requestIndex:3 track:_tracks[3]];
-    [self deliverForURL:_tracks[3].url percent:1.0f];
+    [self deliverForTrack:_tracks[3] percent:1.0f];
     [_coordinator requestIndex:4 track:_tracks[4]];
     [_coordinator requestIndex:3 track:_tracks[3]];
     XCTAssertEqualObjects(_cache.loadedURLs, (@[_tracks[3].url, _tracks[4].url]));
@@ -238,7 +269,7 @@
 - (void)testPruneDropsDistantPagesAndKeepsTheTarget {
     for (NSUInteger i = 0; i < 8; i++) {
         [_coordinator requestIndex:i track:_tracks[i]];
-        [self deliverForURL:_tracks[i].url percent:1.0f];
+        [self deliverForTrack:_tracks[i] percent:1.0f];
     }
     [_coordinator pruneAroundIndex:7];
     XCTAssertTrue([_coordinator isCompleteAtIndex:7]);
@@ -251,7 +282,7 @@
     [_coordinator requestIndex:3 track:_tracks[3]];
     [_coordinator reset];
     XCTAssertEqual(_coordinator.targetIndex, NSNotFound);
-    [self deliverForURL:_tracks[3].url percent:1.0f];
+    [self deliverForTrack:_tracks[3] percent:1.0f];
     XCTAssertEqual(_delegate.updatedIndexes.count, 0u);
 }
 

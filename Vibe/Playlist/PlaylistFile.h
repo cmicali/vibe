@@ -45,6 +45,17 @@ extern NSString *const kVibeLastPlaylistCurrentIndexKey;
 // still yields its primary candidate, as for M3U.
 + (NSArray<AudioTrack *> *)cueRowsForSheetAtURL:(NSURL *)url;
 
+// The same, a FILE first looked up in knownFiles — the files a folder walk
+// just listed, keyed by knownFileKeyForPath: — so a sheet whose files were
+// listed costs no probe and its rows carry the listing's spelling; a miss
+// takes the rungs.
++ (NSArray<AudioTrack *> *)cueRowsForSheetAtURL:(NSURL *)url
+                                     knownFiles:(nullable NSDictionary<NSString *, NSURL *> *)knownFiles;
+
+// A path folded as the default volume compares names — case and Unicode
+// normalization — so a sheet's spelling finds the listed file it means.
++ (NSString *)knownFileKeyForPath:(NSString *)path;
+
 // The entries of an M3U playlist in list order: comment and directive lines
 // (#…) skipped, file:// URLs reduced to their paths, other URL schemes
 // (streams) dropped, backslash paths normalized to slashes. Duplicates are

@@ -7,6 +7,7 @@
 #if DEBUG
 #import "NSURLUtil+Debug.h"   // the dataless probe, declared out of the shipping header
 #endif
+#import "AudioTrack.h"
 #import "FolderArtRules.h"
 #import "NSURL+AudioOpen.h"
 #import "PlayableExtensions.h"
@@ -250,7 +251,7 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
 // The walk ranks cover candidates on the way past, so the walked-directories
 // handler gets each folder's answer for free. Only directories with playable
 // audio are reported.
-+ (NSArray<NSURL*>*) expandDirectory:(NSURL*)dir sortedBy:(VibeFolderOpenSort)sort {
++ (NSArray<AudioTrack*>*) expandDirectory:(NSURL*)dir sortedBy:(VibeFolderOpenSort)sort {
 
     NSMutableArray<NSURL*> *results = [[NSMutableArray alloc] init];
     NSFileManager *fileManager = [NSFileManager defaultManager];
@@ -344,8 +345,11 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
                     continue;
                 }
             }
-            BOOL isAudio = [supported containsObject:path.pathExtension.lowercaseString];
-            if (isAudio) {
+            NSString *extension = path.pathExtension.lowercaseString;
+            BOOL isAudio = [supported containsObject:extension];
+            // A sheet sorts among the audio and stands in for its files
+            // (rowsForWalk:); an M3U here would double what the walk found.
+            if (isAudio || [extension isEqualToString:@"cue"]) {
                 [results addObject:url];
             }
             if (!VibePathIsDirectlyInside(path, lastDirectory)) {
@@ -372,7 +376,52 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
 
     VibeSortAudioURLs(results, sort, YES);
 
-    return results;
+    return [self rowsForWalk:results];
+}
+
+// Each audio file its own row, and each sheet its rows in its sorted place.
+// A sheet resolves against the walk's own listing first, so one whose files
+// were listed costs no probe, and claims its files, so none also appears
+// whole; a row whose file is neither listed nor readable is dropped, a sheet
+// naming a long-gone image being one.
++ (NSArray<AudioTrack *> *)rowsForWalk:(NSArray<NSURL *> *)urls {
+    NSMutableArray<NSURL *> *sheets = [NSMutableArray array];
+    for (NSURL *url in urls) {
+        if ([url.pathExtension.lowercaseString isEqualToString:@"cue"]) {
+            [sheets addObject:url];
+        }
+    }
+    NSMutableDictionary<NSString *, NSURL *> *listed = nil;
+    if (sheets.count > 0) {
+        listed = [NSMutableDictionary dictionaryWithCapacity:urls.count];
+        for (NSURL *url in urls) {
+            listed[[PlaylistFile knownFileKeyForPath:url.path]] = url;
+        }
+    }
+    NSMutableDictionary<NSURL *, NSArray<AudioTrack *> *> *rowsBySheet = [NSMutableDictionary dictionary];
+    NSMutableSet<NSString *> *claimed = [NSMutableSet set];
+    for (NSURL *sheet in sheets) {
+        NSMutableArray<AudioTrack *> *rows = [NSMutableArray array];
+        for (AudioTrack *row in [PlaylistFile cueRowsForSheetAtURL:sheet knownFiles:listed]) {
+            NSString *key = [PlaylistFile knownFileKeyForPath:row.url.path];
+            if (listed[key] || access(row.url.fileSystemRepresentation, R_OK) == 0) {
+                [rows addObject:row];
+                [claimed addObject:key];
+            }
+        }
+        rowsBySheet[sheet] = rows;
+    }
+    NSMutableArray<AudioTrack *> *rows = [NSMutableArray arrayWithCapacity:urls.count];
+    for (NSURL *url in urls) {
+        NSArray<AudioTrack *> *sheetRows = rowsBySheet[url];
+        if (sheetRows) {
+            [rows addObjectsFromArray:sheetRows];
+        }
+        else if (!listed || ![claimed containsObject:[PlaylistFile knownFileKeyForPath:url.path]]) {
+            [rows addObject:[AudioTrack withURL:url]];
+        }
+    }
+    return rows;
 }
 
 + (NSArray<NSURL*>*) audioFilesInDirectory:(NSURL*)dir sortedBy:(VibeFolderOpenSort)sort {
@@ -419,36 +468,42 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
 
 + (void) expandAndFilterList:(NSArray<NSURL*>*)list
                     sortedBy:(VibeFolderOpenSort)sort
-                  completion:(void (^)(NSArray<NSURL*>*, NSUInteger))completion {
+                  completion:(void (^)(NSArray<AudioTrack*>*, NSUInteger))completion {
     [[self expansionQueue] addOperationWithBlock:^{
         NSUInteger folderCount = 0;
-        NSArray<NSURL*> *results = [self expandAndFilterList:list sortedBy:sort
-                                                 folderCount:&folderCount];
+        NSArray<AudioTrack*> *results = [self expandAndFilterList:list sortedBy:sort
+                                                      folderCount:&folderCount];
         run_on_main_thread({
             completion(results, folderCount);
         });
     }];
 }
 
-+ (NSArray<NSURL*>*) expandAndFilterList:(NSArray<NSURL*>*)list
-                                sortedBy:(VibeFolderOpenSort)sort
-                             folderCount:(NSUInteger *)folderCount {
++ (NSArray<AudioTrack*>*) expandAndFilterList:(NSArray<NSURL*>*)list
+                                     sortedBy:(VibeFolderOpenSort)sort
+                                  folderCount:(NSUInteger *)folderCount {
     NSUInteger inputCount = list.count;
     NSMutableSet<NSString*> *looseFileDirectories = [NSMutableSet set];
-    list = [NSURLUtil expandFileList:list
-                            sortedBy:sort
-                         folderCount:folderCount
-                looseFileDirectories:looseFileDirectories];
-    NSUInteger expandedCount = list.count;
+    NSArray<AudioTrack*> *rows = [NSURLUtil expandFileList:list
+                                                  sortedBy:sort
+                                               folderCount:folderCount
+                                      looseFileDirectories:looseFileDirectories];
+    NSUInteger expandedCount = rows.count;
     NSSet<NSString*> *supported = [NSURLUtil supportedExtensions];
     // Nothing can play an empty file. Second, so only extension matches pay
-    // the stat.
-    list = [list filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSURL *url, NSDictionary* bindings) {
-        return [supported containsObject:[url.pathExtension lowercaseString]] && !url.isEmptyOrDirectory;
+    // the stat, once per file however many rows it has.
+    NSMutableDictionary<NSURL*, NSNumber*> *playable = [NSMutableDictionary dictionary];
+    rows = [rows filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(AudioTrack *row, NSDictionary* bindings) {
+        NSNumber *verdict = playable[row.url];
+        if (!verdict) {
+            verdict = @([supported containsObject:[row.url.pathExtension lowercaseString]] && !row.url.isEmptyOrDirectory);
+            playable[row.url] = verdict;
+        }
+        return verdict.boolValue;
     }]];
     NSMutableSet<NSString *> *supportedLooseDirectories = [NSMutableSet set];
-    for (NSURL *url in list) {
-        [self noteLooseFileDirectoryOf:url into:supportedLooseDirectories];
+    for (AudioTrack *row in rows) {
+        [self noteLooseFileDirectoryOf:row.url into:supportedLooseDirectories];
     }
     [looseFileDirectories intersectSet:supportedLooseDirectories];
     // Anything but a single file is a bulk open, whose loose files' folders are
@@ -460,14 +515,14 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
     if (bulkOpen && bulk && looseFileDirectories.count > 0) {
         bulk(looseFileDirectories);
     }
-    return list;
+    return rows;
 }
 
-+ (NSArray<NSURL*>*) expandFileList:(NSArray<NSURL*>*)list
-                           sortedBy:(VibeFolderOpenSort)sort
-                        folderCount:(NSUInteger *)folderCount
-               looseFileDirectories:(NSMutableSet<NSString*> *)looseFileDirectories {
-    NSMutableArray<NSURL*> *results = [[NSMutableArray alloc] initWithCapacity:list.count];
++ (NSArray<AudioTrack*>*) expandFileList:(NSArray<NSURL*>*)list
+                                sortedBy:(VibeFolderOpenSort)sort
+                             folderCount:(NSUInteger *)folderCount
+                    looseFileDirectories:(NSMutableSet<NSString*> *)looseFileDirectories {
+    NSMutableArray<AudioTrack*> *results = [[NSMutableArray alloc] initWithCapacity:list.count];
     for (NSURL *url in list) {
         // Ask the file system: hasDirectoryPath reads only the trailing slash,
         // which a URL from argv or some pasteboards lacks. The link flag rides
@@ -489,14 +544,14 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
             [results addObjectsFromArray:[self expandDirectory:url sortedBy:sort]];
         }
         else if ([PlaylistFile isPlaylistExtension:[url.pathExtension lowercaseString]]) {
-            NSArray<NSURL*> *tracks = [self expandPlaylistFile:url];
-            [results addObjectsFromArray:tracks];
-            for (NSURL *track in tracks) {
-                [self noteLooseFileDirectoryOf:track into:looseFileDirectories];
+            NSArray<AudioTrack*> *rows = [self expandPlaylistFile:url];
+            [results addObjectsFromArray:rows];
+            for (AudioTrack *row in rows) {
+                [self noteLooseFileDirectoryOf:row.url into:looseFileDirectories];
             }
         }
         else {
-            [results addObject:url];
+            [results addObject:[AudioTrack withURL:url]];
             [self noteLooseFileDirectoryOf:url into:looseFileDirectories];
         }
     }
@@ -541,16 +596,34 @@ static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
 }
 #endif
 
-+ (NSArray<NSURL *> *)expandPlaylistFile:(NSURL *)playlistURL {
-    NSArray<NSURL *> *resolved = [PlaylistFile resolvedFileURLsForPlaylistAtURL:playlistURL];
-#if TARGET_OS_OSX
+// A sheet's rows, or a playlist's entries each as a row.
+static NSArray<AudioTrack *> *PlaylistRows(NSURL *playlistURL) {
+    if ([playlistURL.pathExtension.lowercaseString isEqualToString:@"cue"]) {
+        return [PlaylistFile cueRowsForSheetAtURL:playlistURL];
+    }
+    NSArray<NSURL *> *urls = [PlaylistFile resolvedFileURLsForPlaylistAtURL:playlistURL];
+    NSMutableArray<AudioTrack *> *rows = [NSMutableArray arrayWithCapacity:urls.count];
+    for (NSURL *url in urls) {
+        [rows addObject:[AudioTrack withURL:url]];
+    }
+    return rows;
+}
+
++ (NSArray<AudioTrack *> *)expandPlaylistFile:(NSURL *)playlistURL {
+    NSArray<AudioTrack *> *resolved = PlaylistRows(playlistURL);
     // A probe can hang on a dead mount, so verdicts are reused by the filter
-    // below, and dropped only when a grant changes readability.
+    // below, and dropped only when a grant changes readability. One per file,
+    // however many rows a sheet cuts it into.
     NSMutableDictionary<NSString *, NSNumber *> *scannedAccessByPath =
             [NSMutableDictionary dictionaryWithCapacity:resolved.count];
+#if TARGET_OS_OSX
     BOOL anyUnreadable = NO;
     BOOL anyDenied = NO;
-    for (NSURL *url in resolved) {
+    for (AudioTrack *row in resolved) {
+        NSURL *url = row.url;
+        if (scannedAccessByPath[url.path]) {
+            continue;
+        }
         VibeReadAccess access = ReadAccessForURL(url);
         scannedAccessByPath[url.path] = @(access);
         anyUnreadable |= (access != VibeReadAccessReadable);
@@ -566,24 +639,23 @@ static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
     VibePlaylistFolderGrantHandler grantHandler = PlaylistFolderGrantHandler();
     if (anyUnreadable && (anyDenied || folderDenied)
             && grantHandler && grantHandler(playlistURL)) {
-        resolved = [PlaylistFile resolvedFileURLsForPlaylistAtURL:playlistURL];
+        resolved = PlaylistRows(playlistURL);
         [scannedAccessByPath removeAllObjects];
     }
 #endif
-    NSMutableArray<NSURL *> *readable = [NSMutableArray arrayWithCapacity:resolved.count];
-    for (NSURL *url in resolved) {
-#if TARGET_OS_OSX
-        NSNumber *scanned = scannedAccessByPath[url.path];
-        VibeReadAccess access = scanned != nil
-                ? (VibeReadAccess)scanned.integerValue : ReadAccessForURL(url);
-#else
-        VibeReadAccess access = ReadAccessForURL(url);
-#endif
+    NSMutableArray<AudioTrack *> *readable = [NSMutableArray arrayWithCapacity:resolved.count];
+    NSMutableSet<NSString *> *skipped = [NSMutableSet set];
+    for (AudioTrack *row in resolved) {
+        NSString *path = row.url.path;
+        NSNumber *scanned = scannedAccessByPath[path];
+        VibeReadAccess access = scanned != nil ? (VibeReadAccess)scanned.integerValue : ReadAccessForURL(row.url);
+        scannedAccessByPath[path] = @(access);
         if (access == VibeReadAccessReadable) {
-            [readable addObject:url];
+            [readable addObject:row];
         }
-        else {
-            LogWarn(@"Skipping unreadable playlist entry: %@", url.path);
+        else if (![skipped containsObject:path]) {
+            [skipped addObject:path];
+            LogWarn(@"Skipping unreadable playlist entry: %@", path);
         }
     }
     LogInfo(@"Playlist file %@ expanded to %lu of %lu entries", playlistURL.lastPathComponent,

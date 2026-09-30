@@ -98,6 +98,12 @@ static NSIndexSet *RowSetOf(NSArray<NSNumber *> *rows) {
     return indexes;
 }
 
+static AudioTrack *CueRowOf(NSString *filename, NSUInteger start, NSUInteger end) {
+    return [[AudioTrack alloc] initWithURL:URLNamed(filename) cueStart:start cueEnd:end
+                                     title:@"Row" performer:nil sheet:URLNamed(@"album.cue")
+                               trackNumber:1];
+}
+
 static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     NSMutableArray<NSURL *> *urls = [NSMutableArray array];
     for (NSString *name in filenames) {
@@ -343,6 +349,27 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     XCTAssertEqual([playlist getIndexForTrack:nil], -1);
 }
 
+// A tempo belongs to what was analyzed: every row sounding the same window —
+// a duplicate included — and no other row of the file.
+- (void)testStampingReachesEveryRowSoundingTheWindowAndNoOtherRowOfTheFile {
+    Playlist *playlist = [Playlist new];
+    [playlist replaceAllWithTracks:@[CueRowOf(@"mix.flac", 0, 4500), CueRowOf(@"mix.flac", 4500, 0),
+                                     [AudioTrack withURL:URLNamed(@"mix.flac")], CueRowOf(@"mix.flac", 0, 4500)]];
+    NSMutableIndexSet *stamped = [NSMutableIndexSet indexSet];
+    BOOL current = [playlist stampTracksSounding:CueRowOf(@"mix.flac", 0, 4500) usingBlock:^(AudioTrack *track) {
+        [stamped addIndex:(NSUInteger)[playlist getIndexForTrack:track]];
+    }];
+    XCTAssertEqualObjects(RowsString(stamped), RowsString(RowSetOf(@[@0, @3])));
+    XCTAssertTrue(current);
+
+    [stamped removeAllIndexes];
+    current = [playlist stampTracksSounding:[AudioTrack withURL:URLNamed(@"mix.flac")] usingBlock:^(AudioTrack *track) {
+        [stamped addIndex:(NSUInteger)[playlist getIndexForTrack:track]];
+    }];
+    XCTAssertEqualObjects(RowsString(stamped), RowsString(RowSet(2)));
+    XCTAssertFalse(current);
+}
+
 - (void)testIsCurrentTrackComparesIdentity {
     Playlist *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3"]);
     XCTAssertTrue([playlist isCurrentTrack:[playlist trackAtIndex:0]]);
@@ -369,6 +396,20 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
 
     XCTAssertEqual([playlist getIndexForTrack:incoming], 0);
     XCTAssertEqual([playlist getIndexForTrack:outgoing], -1);
+}
+
+// Converting a sheet's image moves each row to the new file with its window
+// and names, so the rows still sound what they did.
+- (void)testReplaceCarriesACueRowsWindowAndNames {
+    Playlist *playlist = [Playlist new];
+    [playlist replaceAllWithTracks:@[CueRowOf(@"mix.wav", 4500, 9000)]];
+    AudioTrack *incoming = [playlist replaceTrackAtIndex:0 withURL:URLNamed(@"mix.flac")];
+    XCTAssertEqual(incoming.cueStart, 4500u);
+    XCTAssertEqual(incoming.cueEnd, 9000u);
+    XCTAssertEqualObjects(incoming.cueTitle, @"Row");
+    XCTAssertEqualObjects(incoming.cueSheetURL, URLNamed(@"album.cue"));
+    XCTAssertEqual(incoming.cueTrackNumber, 1);
+    XCTAssertEqualObjects(incoming.url, URLNamed(@"mix.flac"));
 }
 
 - (void)testReplaceRefusesOutOfRange {

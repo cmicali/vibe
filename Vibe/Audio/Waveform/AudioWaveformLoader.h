@@ -46,9 +46,16 @@ typedef VibeWaveformAnalysis (^VibeWaveformAnalysisProvider)(void);
 // cache persists the result for the next request. Set by detach, cleared by
 // reattach when the same file is requested again mid-decode.
 @property (atomic) BOOL isDetached;
-// The path this loader decodes, stamped by the cache when it starts the
-// load; the detached-loader pool is keyed on it for reattachment.
+// What this loader decodes, stamped by the cache when it starts the load: the
+// file's path, plus the window for a cue row, which the detached-loader pool
+// is keyed on for reattachment.
 @property (nullable, atomic, copy) NSString *trackPath;
+
+// The window decoded, in CD frames as AudioTrack carries it: the waveform and
+// the analyzers see only it, at full resolution. 0 and 0, the default, is
+// the whole file. Set before load:.
+@property (atomic) NSUInteger cueStart;
+@property (atomic) NSUInteger cueEnd;
 
 - (void)cancel;
 - (void)detach;

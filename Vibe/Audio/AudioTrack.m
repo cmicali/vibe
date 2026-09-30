@@ -60,10 +60,13 @@
 }
 
 - (NSString *)sourceKey {
-    NSString *path = self.url.path ?: @"";
-    return self.isWindowed ? [NSString stringWithFormat:@"%@#%lu-%lu", path,
+    return [self keyByAppendingWindowTo:self.url.path ?: @""];
+}
+
+- (NSString *)keyByAppendingWindowTo:(NSString *)key {
+    return self.isWindowed ? [NSString stringWithFormat:@"%@#%lu-%lu", key,
                                      (unsigned long)_cueStart, (unsigned long)_cueEnd]
-                           : path;
+                           : key;
 }
 
 - (BOOL)installMetadataIfUnresolved:(AudioTrackMetadata *)metadata {

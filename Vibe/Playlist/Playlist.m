@@ -108,25 +108,40 @@
 }
 
 - (void)replaceAllWithURLs:(NSArray<NSURL *> *)urls {
+    [self replaceAllWithTracks:[self tracksForURLs:urls]];
+}
+
+- (void)appendURLs:(NSArray<NSURL *> *)urls {
+    [self appendTracks:[self tracksForURLs:urls]];
+}
+
+- (NSArray<AudioTrack *> *)tracksForURLs:(NSArray<NSURL *> *)urls {
+    NSMutableArray<AudioTrack *> *tracks = [NSMutableArray arrayWithCapacity:urls.count];
+    for (NSURL *url in urls) {
+        [tracks addObject:[AudioTrack withURL:url]];
+    }
+    return tracks;
+}
+
+- (void)replaceAllWithTracks:(NSArray<AudioTrack *> *)tracks {
     [self resetStorage];
-    [self addTracksForURLs:urls];
+    [self addTracks:tracks];
     _currentIndex = 0;
     [self.observer playlistDidReplaceAllTracks:self];
 }
 
-- (void)appendURLs:(NSArray<NSURL *> *)urls {
-    if (!urls.count) {
+- (void)appendTracks:(NSArray<AudioTrack *> *)tracks {
+    if (!tracks.count) {
         return;
     }
     NSUInteger firstIndex = _tracks.count;
-    [self addTracksForURLs:urls];
-    NSIndexSet *indexes = [NSIndexSet indexSetWithIndexesInRange:NSMakeRange(firstIndex, urls.count)];
+    [self addTracks:tracks];
+    NSIndexSet *indexes = [NSIndexSet indexSetWithIndexesInRange:NSMakeRange(firstIndex, tracks.count)];
     [self.observer playlist:self didAppendTracksAtIndexes:indexes];
 }
 
-- (void)addTracksForURLs:(NSArray<NSURL *> *)urls {
-    for (NSURL *url in urls) {
-        AudioTrack *track = [AudioTrack withURL:url];
+- (void)addTracks:(NSArray<AudioTrack *> *)tracks {
+    for (AudioTrack *track in tracks) {
         [self indexTrack:track atIndex:_tracks.count];
         [_tracks addObject:track];
     }
@@ -220,12 +235,16 @@
     return [_indexesByURL[url] copy] ?: [NSIndexSet indexSet];
 }
 
-- (BOOL)stampTracksWithURL:(NSURL *)url usingBlock:(void (NS_NOESCAPE ^)(AudioTrack *track))stamp {
+- (BOOL)stampTracksSounding:(AudioTrack *)track usingBlock:(void (NS_NOESCAPE ^)(AudioTrack *track))stamp {
+    NSString *sourceKey = track.sourceKey;
     __block BOOL current = NO;
-    [[self indexesOfTracksWithURL:url] enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
-        AudioTrack *track = [self trackAtIndex:index];
-        stamp(track);
-        current |= [self isCurrentTrack:track];
+    [[self indexesOfTracksWithURL:track.url] enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
+        AudioTrack *row = [self trackAtIndex:index];
+        if (![row.sourceKey isEqualToString:sourceKey]) {
+            return;
+        }
+        stamp(row);
+        current |= [self isCurrentTrack:row];
     }];
     return current;
 }
@@ -257,7 +276,10 @@
         return nil;
     }
     AudioTrack *outgoing = _tracks[index];
-    AudioTrack *incoming = [AudioTrack withURL:url];
+    AudioTrack *incoming = [[AudioTrack alloc] initWithURL:url
+            cueStart:outgoing.cueStart cueEnd:outgoing.cueEnd
+               title:outgoing.cueTitle performer:outgoing.cuePerformer
+               sheet:outgoing.cueSheetURL trackNumber:outgoing.cueTrackNumber];
     incoming.duration = outgoing.duration;
     incoming.detectedBPM = outgoing.detectedBPM;
     incoming.detectedKey = outgoing.detectedKey;

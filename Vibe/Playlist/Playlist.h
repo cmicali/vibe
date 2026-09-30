@@ -85,10 +85,15 @@ NS_ASSUME_NONNULL_BEGIN
 // this to decide whether the ordered playing intent may continue.
 - (nullable AudioTrack *)forwardTrackAfterRemovingTracksAtIndexes:(NSIndexSet *)indexes;
 
-// Replaces the whole list and resets currentIndex to 0.
-- (void)replaceAllWithURLs:(NSArray<NSURL *> *)urls;
+// Replaces the whole list and resets currentIndex to 0. Each row must be a
+// fresh object, not one already in the list: a row's identity is the object.
+- (void)replaceAllWithTracks:(NSArray<AudioTrack *> *)tracks;
 
-// Appends without touching currentIndex; an empty urls is a no-op.
+// Appends without touching currentIndex; an empty tracks is a no-op.
+- (void)appendTracks:(NSArray<AudioTrack *> *)tracks;
+
+// The same, a plain row minted per URL.
+- (void)replaceAllWithURLs:(NSArray<NSURL *> *)urls;
 - (void)appendURLs:(NSArray<NSURL *> *)urls;
 
 - (void)clear;
@@ -117,17 +122,19 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable AudioTrack *)trackForURL:(nullable NSURL *)url;
 - (BOOL)isCurrentTrack:(AudioTrack *)track;
 
-// Runs `stamp` on every row holding url — an analyzed BPM or key delivery,
-// which is valid for each of them, so the first match alone would strand a
-// duplicate row that happens to be the one playing — and answers whether the
-// current track was among them, which is when a shell redraws or refeeds.
-- (BOOL)stampTracksWithURL:(nullable NSURL *)url usingBlock:(void (NS_NOESCAPE ^)(AudioTrack *track))stamp;
+// Runs `stamp` on every row sounding what `track` sounds — its sourceKey, the
+// file and the window — which is what an analyzed BPM or key delivery is valid
+// for: the first match alone would strand a duplicate row that happens to be
+// the one playing, and every row of the file would stamp one cue row's tempo
+// on the rest. Answers whether the current track was among them, which is
+// when a shell redraws or refeeds.
+- (BOOL)stampTracksSounding:(nullable AudioTrack *)track usingBlock:(void (NS_NOESCAPE ^)(AudioTrack *track))stamp;
 
 // Points a row at a different file, returning the fresh AudioTrack now in it,
 // or nil when index is out of range. Mints rather than reassigning url:
 // AudioTrack memoizes its cache key, so a reused track would file the new
-// file's waveform and metadata under the old entries. Duration, detected BPM
-// and detected key carry across — same audio.
+// file's waveform and metadata under the old entries. Duration, detected BPM,
+// detected key and a cue row's window and names carry across — same audio.
 - (nullable AudioTrack *)replaceTrackAtIndex:(NSUInteger)index withURL:(NSURL *)url;
 
 // Replaces every row still holding this file, even if the captured row left

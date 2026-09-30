@@ -189,8 +189,8 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     __weak AppDelegate *weakSelf = self;
     OpenRequestToken *token = [OpenRequestCoordinator.sharedCoordinator
             beginRequestAppending:append
-                         delivery:^(NSArray<NSURL *> *files, NSUInteger folders, BOOL appending) {
-                             [weakSelf deliverExpandedURLs:files folderCount:folders appending:appending];
+                         delivery:^(NSArray<AudioTrack *> *rows, NSUInteger folders, BOOL appending) {
+                             [weakSelf deliverExpandedRows:rows folderCount:folders appending:appending];
                          }];
     [[FolderAccessManager sharedInstance] awaitRestoredAccessForURLs:urls completion:^{
         [weakSelf openURLsWithRestoredAccess:urls token:token];
@@ -206,28 +206,28 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     // Read on main; the walk reads no setting itself.
     [NSURLUtil expandAndFilterList:urls
                           sortedBy:AppSettings.sharedInstance.folderOpenSort
-                        completion:^(NSArray<NSURL *> *expanded, NSUInteger folderCount) {
+                        completion:^(NSArray<AudioTrack *> *rows, NSUInteger folderCount) {
         [OpenRequestCoordinator.sharedCoordinator finishRequest:token
-                                                          files:expanded
+                                                           rows:rows
                                                     folderCount:folderCount];
     }];
 }
 
-- (void)deliverExpandedURLs:(NSArray<NSURL *> *)expanded
+- (void)deliverExpandedRows:(NSArray<AudioTrack *> *)rows
                 folderCount:(NSUInteger)folderCount
                   appending:(BOOL)append {
-    [[AppStats sharedInstance] recordOpenedFiles:expanded.count folders:folderCount];
+    [[AppStats sharedInstance] recordOpenedFiles:rows.count folders:folderCount];
     // Nothing playable must not wipe the playlist.
-    if (expanded.count == 0) {
+    if (rows.count == 0) {
         // Ends the launch grace, or the header would stay blank.
         [self.mainPlayerController revealEmptyState];
         return;
     }
     if (append) {
-        [self.mainPlayerController addURLs:expanded];
+        [self.mainPlayerController addTracks:rows];
     }
     else {
-        [self.mainPlayerController play:expanded];
+        [self.mainPlayerController play:rows];
     }
 }
 

@@ -559,6 +559,7 @@ static NSURL *AudioFileNamedLikeSheet(NSURL *sheet, NSFileManager *fileManager) 
 // resolvedFiles, when given, collects each FILE's URL as it resolves: one per
 // file that has rows, in sheet order.
 + (NSArray<AudioTrack *> *)cueRowsForSheetAtURL:(NSURL *)url
+                                     knownFiles:(NSDictionary<NSString *, NSURL *> *)knownFiles
                                   resolvedFiles:(NSMutableArray<NSURL *> *)resolvedFiles {
     NSData *data = [NSData dataWithContentsOfURL:url];
     NSString *text = data ? [self textFromData:data] : nil;
@@ -569,9 +570,19 @@ static NSURL *AudioFileNamedLikeSheet(NSURL *sheet, NSFileManager *fileManager) 
     NSFileManager *fileManager = NSFileManager.defaultManager;
     NSMutableDictionary<NSString *, NSNumber *> *dirReachable = [NSMutableDictionary new];
     return [self cueRowsInText:text sheetURL:url resolvingFile:^NSURL *(NSString *name, BOOL sole) {
-        NSURL *resolved = name ? ResolveEntry(name, dir, fileManager, dirReachable) : nil;
-        if (sole && !(resolved && [fileManager isReadableFileAtPath:resolved.path])) {
-            resolved = AudioFileNamedLikeSheet(url, fileManager) ?: resolved;
+        NSURL *resolved = nil;
+        if (name && knownFiles) {
+            NSString *path = [name hasPrefix:@"/"] ? name : [dir.path stringByAppendingPathComponent:name];
+            // Lexically, as the listing is spelled: "./" and "../" folded, no
+            // stat, no /private stripped.
+            path = [NSURL fileURLWithPath:path isDirectory:NO].standardizedURL.path;
+            resolved = path ? knownFiles[[self knownFileKeyForPath:path]] : nil;
+        }
+        if (!resolved) {
+            resolved = name ? ResolveEntry(name, dir, fileManager, dirReachable) : nil;
+            if (sole && !(resolved && [fileManager isReadableFileAtPath:resolved.path])) {
+                resolved = AudioFileNamedLikeSheet(url, fileManager) ?: resolved;
+            }
         }
         if (resolved) {
             [resolvedFiles addObject:resolved];
@@ -581,13 +592,22 @@ static NSURL *AudioFileNamedLikeSheet(NSURL *sheet, NSFileManager *fileManager) 
 }
 
 + (NSArray<AudioTrack *> *)cueRowsForSheetAtURL:(NSURL *)url {
-    return [self cueRowsForSheetAtURL:url resolvedFiles:nil];
+    return [self cueRowsForSheetAtURL:url knownFiles:nil resolvedFiles:nil];
+}
+
++ (NSString *)knownFileKeyForPath:(NSString *)path {
+    return path.precomposedStringWithCanonicalMapping.lowercaseString;
+}
+
++ (NSArray<AudioTrack *> *)cueRowsForSheetAtURL:(NSURL *)url
+                                     knownFiles:(NSDictionary<NSString *, NSURL *> *)knownFiles {
+    return [self cueRowsForSheetAtURL:url knownFiles:knownFiles resolvedFiles:nil];
 }
 
 + (NSArray<NSURL *> *)resolvedFileURLsForPlaylistAtURL:(NSURL *)url {
     if ([url.pathExtension.lowercaseString isEqualToString:@"cue"]) {
         NSMutableArray<NSURL *> *urls = [NSMutableArray new];
-        [self cueRowsForSheetAtURL:url resolvedFiles:urls];
+        [self cueRowsForSheetAtURL:url knownFiles:nil resolvedFiles:urls];
         return urls;
     }
     NSData *data = [NSData dataWithContentsOfURL:url];

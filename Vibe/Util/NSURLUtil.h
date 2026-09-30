@@ -9,6 +9,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class AudioTrack;
+
 // Asks the user to grant the folder a playlist file's entries live in, and
 // answers whether they did. Runs on an expansion worker and must block until
 // answered. Unset (as in tests), unreadable entries are skipped.
@@ -39,16 +41,17 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 // fails, since unknown is not dataless.
 + (BOOL)isDatalessFile:(NSURL *)url;
 
-// Expands folders and top-level playlist files and filters to playable
+// Expands folders and top-level playlist files to rows and filters to playable
 // extensions, on a four-wide queue; callers order overlapping results
-// (OpenRequestCoordinator). folderCount is how many top-level URLs were
-// directories. Completion runs on main.
+// (OpenRequestCoordinator). A file is one row; a CUE sheet — opened, or met in
+// a walked folder, where it claims its files — is a row per track. folderCount
+// is how many top-level URLs were directories. Completion runs on main.
 //
 // sort orders each expanded folder's audio only: top-level URLs and a playlist
 // file's entries keep the order the user gave.
 + (void)expandAndFilterList:(NSArray<NSURL *> *)list
                    sortedBy:(VibeFolderOpenSort)sort
-                 completion:(void (^)(NSArray<NSURL *> *files, NSUInteger folderCount))completion;
+                 completion:(void (^)(NSArray<AudioTrack *> *rows, NSUInteger folderCount))completion;
 
 // Common/PlayableExtensions' set.
 + (NSSet<NSString *> *)supportedExtensions;

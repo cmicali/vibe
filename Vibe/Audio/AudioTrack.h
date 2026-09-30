@@ -68,12 +68,18 @@ NS_ASSUME_NONNULL_BEGIN
 // one file differ. An identity to compare, never a path to open.
 - (NSString *)sourceKey;
 
+// `key` with this row's window appended, so rows of one file key apart; `key`
+// itself for a whole file, so a plain file's keys are unchanged. What the
+// source key and the per-window waveform entries and claims are spelled with.
+- (NSString *)keyByAppendingWindowTo:(NSString *)key;
+
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
 
-// The memoized NSURL+Hash key for the metadata and waveform caches. nil when
-// the file cannot be statted — not memoized, so a later call retries — and a
-// caller must then skip caching.
+// The memoized NSURL+Hash key for the metadata and waveform caches — the
+// file's, which a waveform entry extends with the window
+// (keyByAppendingWindowTo:). nil when the file cannot be statted — not
+// memoized, so a later call retries — and a caller must then skip caching.
 - (nullable NSString *)cacheKey;
 
 - (NSString *)title;
