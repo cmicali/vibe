@@ -1315,8 +1315,6 @@ materializationCoordinator:coordinator
     NSObject *countLock = [[NSObject alloc] init];
     __block NSUInteger cacheReads = 0;
     __block NSUInteger fileParses = 0;
-    __block NSUInteger picks = 0;
-    dispatch_semaphore_t secondPickGate = dispatch_semaphore_create(0);
 
     VibeMetadataLoaderOperationController *controller =
             [[VibeMetadataLoaderOperationController alloc] init];
@@ -1338,23 +1336,9 @@ materializationCoordinator:coordinator
         }
         return VibeLoaderTestMetadataResult(YES, @"uncached-image");
     }];
-    // The pick after the first row's Ready races its parse; held, the parse
-    // settles the file before a second row can be picked.
-    [loader debugSetBeforeScanPickValidation:^{
-        NSUInteger pick;
-        @synchronized (countLock) {
-            pick = ++picks;
-        }
-        if (pick == 2) {
-            dispatch_semaphore_wait(secondPickGate,
-                    dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
-        }
-    }];
 
     [loader load:rows];
     [self waitForExpectations:@[delegate.deliveryExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
-    [loader debugSetBeforeScanPickValidation:nil];
-    dispatch_semaphore_signal(secondPickGate);
     [self waitForCondition:^BOOL{
         return [loader debugPendingBackgroundMaterializationCount] == 0;
     } description:@"settled rows left records pending, delayed or in flight"];
@@ -1368,6 +1352,38 @@ materializationCoordinator:coordinator
                 @"uncached-image");
     }
     XCTAssertEqual([NSSet setWithArray:[rows valueForKey:@"metadata"]].count, rows.count);
+}
+
+- (void)testAFailedParseReleasesTheRowsItHeldBack {
+    NSArray<AudioTrack *> *rows =
+            VibeLoaderTestCueRows([self URLNamed:@"unreadable-cue-image.flac"], 3);
+    NSObject *countLock = [[NSObject alloc] init];
+    __block NSUInteger fileParses = 0;
+    VibeMetadataLoaderOperationController *controller =
+            [[VibeMetadataLoaderOperationController alloc] init];
+    VibeMetadataLoaderDelegate *delegate = [[VibeMetadataLoaderDelegate alloc] init];
+    delegate.deliveryExpectation =
+            [self expectationWithDescription:@"every row given its own fallback"];
+    delegate.deliveryExpectation.expectedFulfillmentCount = rows.count;
+    AudioTrackMetadataLoader *loader = [self loaderWithController:controller
+            configuration:[self testConfiguration]
+            delegate:delegate
+            cacheReader:^AudioTrackMetadata *(AudioTrack *track) { return nil; }
+            fileParser:^AudioTrackMetadata *(NSURL *url) {
+        @synchronized (countLock) {
+            fileParses++;
+        }
+        return VibeLoaderTestMetadataResult(NO, @"fallback");
+    }];
+
+    [loader load:rows];
+    [self waitForExpectations:@[delegate.deliveryExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
+    [self waitForCondition:^BOOL{
+        return [loader debugPendingBackgroundMaterializationCount] == 0;
+    } description:@"held-back rows were never released"];
+
+    XCTAssertEqual(controller.startedURLs.count, rows.count);
+    XCTAssertEqual(fileParses, rows.count, @"each released row tries the file itself");
 }
 
 - (void)testSuccessfulParseJoinsDuplicateRowsAndPublishesIndependentCopies {
@@ -1408,8 +1424,11 @@ materializationCoordinator:coordinator
         return VibeLoaderTestMetadataResult(YES, @"parsed-success");
     }];
 
-    [loader load:@[first, second]];
+    // A second row loaded beside it would be held back and settled; a
+    // priority row never is, so it joins the parse.
+    [loader load:@[first]];
     [self waitForExpectations:@[parserEntered] timeout:VIBE_TEST_HANG_TIMEOUT];
+    [loader prioritizeTrack:second];
     [self waitForCondition:^BOOL{
         return parseCoordinator.pendingCounts[@"waiters"].unsignedIntegerValue == 1;
     } description:@"duplicate row did not join the parse owner"];
@@ -1418,8 +1437,8 @@ materializationCoordinator:coordinator
         controller.allStartsExpectation, delegate.deliveryExpectation
     ] timeout:VIBE_TEST_HANG_TIMEOUT];
 
-    XCTAssertEqual(cacheReads, 2u,
-            @"one stage-1 read for the file plus the owner's post-claim read");
+    XCTAssertEqual(cacheReads, 3u,
+            @"the owner's stage-1 and post-claim reads, and the priority row's check");
     XCTAssertEqual(fileParses, 1u);
     XCTAssertTrue(first.metadata.parsedOK);
     XCTAssertTrue(second.metadata.parsedOK);
@@ -1475,16 +1494,17 @@ materializationCoordinator:coordinator
         return VibeLoaderTestMetadataResult(NO, @"unexpected");
     }];
 
-    [loader load:@[first, second]];
+    [loader load:@[first]];
     [self waitForExpectations:@[secondCacheEntered] timeout:VIBE_TEST_HANG_TIMEOUT];
+    [loader prioritizeTrack:second];
     [self waitForCondition:^BOOL{
         return parseCoordinator.pendingCounts[@"waiters"].unsignedIntegerValue == 1;
     } description:@"duplicate row did not join while the second cache read was held"];
     dispatch_semaphore_signal(secondCacheGate);
     [self waitForExpectations:@[delegate.deliveryExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
 
-    XCTAssertEqual(cacheReads, 2u,
-            @"one stage-1 read for the file plus the owner's post-claim read");
+    XCTAssertEqual(cacheReads, 3u,
+            @"the owner's stage-1 and post-claim reads, and the priority row's check");
     XCTAssertTrue(first.metadata.parsedOK);
     XCTAssertTrue(second.metadata.parsedOK);
     XCTAssertNotEqual(first.metadata, second.metadata);
@@ -1529,8 +1549,9 @@ materializationCoordinator:coordinator
         return VibeLoaderTestMetadataResult(NO, @"filename-fallback");
     }];
 
-    [loader load:@[first, second]];
+    [loader load:@[first]];
     [self waitForExpectations:@[parserEntered] timeout:VIBE_TEST_HANG_TIMEOUT];
+    [loader prioritizeTrack:second];
     [self waitForCondition:^BOOL{
         return parseCoordinator.pendingCounts[@"waiters"].unsignedIntegerValue == 1;
     } description:@"fallback waiter did not join the parse owner"];
