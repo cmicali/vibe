@@ -11,6 +11,7 @@
 #include "dr_flac/dr_flac.h"
 #include "dr_mp3/dr_mp3.h"
 
+#include <errno.h>
 #include <fcntl.h>
 #include <stdatomic.h>
 #include <sys/stat.h>
@@ -18,11 +19,22 @@
 
 static atomic_bool sAppleMPEGDecoder;
 
-// Packets decoded and dropped before a seek's own: enough to refill the bit
-// reservoir (511 bytes back at most, seven frames at MPEG-1's lowest bitrate)
-// and the filterbank's history, so a seek decodes exactly what reading from
-// the start would.
+// Packets decoded and dropped before a seek's own, so a seek decodes exactly
+// what reading from the start would: the packet before the target, whose
+// second granule the target's first overlaps and whose last 480 frames are
+// the filterbank's history, and the payload its main_data_begin reaches back
+// over, 511 bytes, which is nine packets at MPEG-1's smallest (32 kbps at
+// 48 kHz, stereo, with a CRC: 58 bytes each). MPEG-2's frames can be far
+// smaller, so seekToFrame: walks back further for those, never less far: on
+// a damaged stream it takes that long for the reservoir to fall into step.
 static const SInt64 kVibeMPEGSeekPrerollPackets = 10;
+
+// dr_mp3 never clamps, and one damaged frame can decode past +90 dBFS: the
+// FX's reverb and delay then ring at full scale for seconds, the equalizer's
+// reference stays up for half a minute, and the track's detected tempo moves.
+// The bound, +12 dBFS, sits well above any real master's overs
+// (docs/audio-quality.md).
+static const float kVibeMPEGSampleBound = 4.0f;
 
 // Packets asked of the parser at once, sparing it about four small reads
 // per MP3 frame, which were a tenth of the whole decode's time.
@@ -108,28 +120,41 @@ static SInt64 VibeHandleSize(void *clientData) {
     return ((__bridge AudioFileHandle *)clientData)->_size;
 }
 
-// dr_flac's reads, over the parser's descriptor at its own cursor. TRAP: a
-// failed read answers no bytes, which dr_flac takes for the end of the stream,
-// so it is remembered here and reported by the read or seek it happened in:
-// a read error must never become a clean end.
+// dr_flac's reads, over the parser's descriptor at its own cursor. dr_flac
+// takes a short read for the end of the stream, so a read is filled but at the
+// end. TRAP: a failed read ends it short too, so it is remembered here and
+// reported by the read or seek it happened in: a read error must never become
+// a clean end.
 static size_t VibeFLACRead(void *user, void *buffer, size_t count) {
     AudioFileHandle *handle = (__bridge AudioFileHandle *)user;
-    ssize_t got = pread(handle->_descriptor, buffer, count, handle->_flacCursor);
-    if (got < 0) {
-        handle->_flacReadFailed = YES;
-        return 0;
+    size_t filled = 0;
+    while (filled < count) {
+        ssize_t got = pread(handle->_descriptor, (uint8_t *)buffer + filled, count - filled, handle->_flacCursor);
+        if (got < 0 && errno == EINTR) {
+            continue;
+        }
+        if (got < 0) {
+            handle->_flacReadFailed = YES;
+        }
+        if (got <= 0) {
+            break;
+        }
+        filled += (size_t)got;
+        handle->_flacCursor += got;
     }
-    handle->_flacCursor += got;
-    return (size_t)got;
+    return filled;
 }
 
+// A position past the end is refused: nothing is there to read, and a damaged
+// seek table's offset can be exabytes out.
 static drflac_bool32 VibeFLACSeek(void *user, int offset, drflac_seek_origin origin) {
     AudioFileHandle *handle = (__bridge AudioFileHandle *)user;
     SInt64 base = origin == DRFLAC_SEEK_SET ? 0 : origin == DRFLAC_SEEK_CUR ? handle->_flacCursor : handle->_size;
-    if (base + offset < 0) {
+    SInt64 target;
+    if (__builtin_add_overflow(base, (SInt64)offset, &target) || target < 0 || target > handle->_size) {
         return DRFLAC_FALSE;
     }
-    handle->_flacCursor = base + offset;
+    handle->_flacCursor = target;
     return DRFLAC_TRUE;
 }
 
@@ -530,11 +555,37 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         _mpegNextPacket = MAX(0, packet - kVibeMPEGSeekPrerollPackets);
         memset(_mpeg, 0, sizeof(*_mpeg));
         _mpegPCMFrames = _mpegPCMOffset = _mpegPacketBytes = _mpegReadCount = 0;
+        if (_mpegFramesPerPacket == 576) {
+            // MPEG-2 Layer III, a granule a packet: the target's output
+            // depends on the two packets before it, and the first of those on
+            // 255 bytes of payload before it, which at 8 kbps can be 255
+            // packets. A packet's header, a CRC and its side info are not
+            // payload.
+            SInt64 reach = 255, overhead = 4 + 2 + (_processingFormat.channelCount == 1 ? 9 : 17);
+            SInt64 start = MAX(0, MIN(packet, _mpegPacketCount) - 2);
+            while (reach > 0 && start > 0) {
+                UInt32 wanted = (UInt32)MIN(start, (SInt64)kVibeMPEGReadPackets), count = wanted, bytes = _mpegReadCapacity;
+                OSStatus status = AudioFileReadPacketData(_parser, false, &bytes, _mpegReadPackets, start - wanted, &count, _mpegRead);
+                if ((status != noErr && status != kAudioFileEndOfFileError) || count != wanted) {
+                    _mpegReadCount = 0; // the decode's own read reports it
+                    break;
+                }
+                // Kept as the decode's first read.
+                _mpegReadFirst = start - count;
+                _mpegReadCount = count;
+                for (; reach > 0 && start > _mpegReadFirst; start--) {
+                    const AudioStreamPacketDescription *before = &_mpegReadPackets[start - 1 - _mpegReadFirst];
+                    reach -= (SInt64)(_mpegBytesPerPacket ?: before->mDataByteSize) - overhead;
+                }
+            }
+            _mpegNextPacket = MIN(_mpegNextPacket, start);
+        }
         return YES;
     }
     if (_flac) {
-        // A seek past the frames a truncated file holds lands at its end,
-        // where reads return nothing, as Apple's does.
+        // A seek past the frames a truncated file holds, or past the end of
+        // one of unknown length, lands at its end, where reads return nothing,
+        // as Apple's does.
         SInt64 target = _length > 0 ? MIN(MAX(0, frame), _length) : MAX(0, frame);
         BOOL landed = drflac_seek_to_pcm_frame(_flac, (drflac_uint64)target) && !_flacReadFailed;
         if (!landed) {
@@ -760,13 +811,6 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         UInt32 bytes = _mpegBytesPerPacket ?: packet->mDataByteSize;
         _mpegPacket = _mpegRead + (_mpegBytesPerPacket ? (SInt64)index * _mpegBytesPerPacket : packet->mStartOffset);
         _mpegPacketBytes = bytes >= sizeof(_mpeg->header) ? bytes : 0;
-        // TRAP: a fresh decoder syncs only by finding the next frame's header
-        // after this one, which a single packet lacks, and then scans the
-        // payload for a false one. The parser has already framed the packet,
-        // so its header is handed over as the one to follow.
-        if (_mpeg->header[0] != 0xff && _mpegPacketBytes) {
-            memcpy(_mpeg->header, _mpegPacket, sizeof(_mpeg->header));
-        }
     }
     SInt64 first = _mpegNextPacket * _mpegFramesPerPacket - _mpegSkip;
     _mpegNextPacket++;
@@ -777,6 +821,9 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         // A frame whose reservoir bytes precede a seek's preroll, or a
         // damaged one: silence, keeping the timeline.
         memset(_mpegPCM, 0, (size_t)_mpegFramesPerPacket * channels * sizeof(float));
+    } else {
+        const float low = -kVibeMPEGSampleBound, high = kVibeMPEGSampleBound;
+        vDSP_vclip(_mpegPCM, 1, &low, &high, _mpegPCM, 1, (vDSP_Length)frames * channels);
     }
     _mpegPCMFrames = flush ? _mpegDelay : _mpegFramesPerPacket;
     _mpegPCMOffset = (UInt32)MIN(MAX(0, _mpegPosition - first), (SInt64)_mpegPCMFrames);

@@ -9,7 +9,7 @@ This page explains what Vibe does to your music between the file and your speake
 - **Bit-perfect output (macOS) avoids even that.** Vibe switches your device to the file's sample rate and to a format with enough bits, so the DAC receives the file's samples untouched.
 - **Vibe never cuts lossy files down to 16 bits.** An AAC file decodes to more detail than 16 bits can hold, and Vibe keeps it.
 - **MP3s use Vibe's own decoder, dr_mp3.** Apple's built-in MP3 decoder can only produce 16-bit sound. dr_mp3 keeps the full detail, is about 100 times more accurate on the official MP3 test, and uses less than half the CPU. See [The MP3 decoder](#the-mp3-decoder).
-- **FLAC files use dr_flac.** The sound is identical to Apple's decoder, bit for bit. But where Apple's decoder can pause for a second or two on the first seek into a long mix, dr_flac seeks in a few milliseconds. It also uses less than half the CPU, and plays some rare FLAC files Apple's can't. See [The FLAC decoder](#the-flac-decoder).
+- **FLAC files use dr_flac.** The sound is identical to Apple's decoder, bit for bit. But where Apple's decoder can pause for a second or two on the first seek into a long mix, dr_flac seeks in a few milliseconds. It also uses a quarter of the CPU or less, and plays some rare FLAC files Apple's can't. See [The FLAC decoder](#the-flac-decoder).
 
 ## A few terms
 
@@ -163,16 +163,17 @@ The whole comparison for a 320 kbps MP3, best first:
 
 - **macOS still reads the file.** It opens the file, reads its tags and gapless information, and finds each frame of audio. dr_mp3 only turns those frames into sound. So every track has the same length and plays gaplessly exactly as with Apple's decoder. On 16 test files the lengths matched exactly, and the sound differed only by Apple's 16-bit rounding (at most 4 steps of a 16-bit value).
 - **Same timing as Apple.** Every MP3 decoder outputs its sound 529 samples late (241 for MP1 and MP2). Apple's decoder removes this delay, so Vibe removes the same amount. At the end, Vibe feeds dr_mp3 one silent frame so it gives up its last samples instead of dropping them.
-- **Seeking lands on the exact sample.** An MP3 frame can borrow data from the frames before it, so dr_mp3 starts ten frames before the target and throws them away. A seek then gives exactly the same sound as playing from the start.
+- **Seeking lands on the exact sample.** An MP3 frame can borrow data from the frames before it, so dr_mp3 starts at least ten frames before the target and throws them away. In the tiny frames of an 8 or 16 kbps MP3 the borrowing can reach much further back, as far as 80 frames in our 8 kbps tests, so there Vibe works out how far from the frames' sizes and starts that far back. A seek then gives exactly the same sound as playing from the start.
 - **Damaged and cut-off files end where Apple's do.**
 - **MP3 and MP2 inside WAV files work too.** macOS opens these only when every frame is the same size, which 48 kHz CBR is; it refuses 44.1 kHz and VBR ones with either decoder. Rare "free-format" MP3s are also refused by macOS before either decoder sees them.
 - **MP2 now plays on the iPhone.** iOS has no MP2 decoder of its own, so MP2 files could never play there before. dr_mp3 decodes them.
-- **One trade-off.** A badly damaged frame can make a loud click with either decoder. Apple's 16-bit output happens to cap that click at full scale; dr_mp3 doesn't (one damaged test file peaked at +15.5 dB). We don't clamp it, because a clamp would also have to let real peaks above full scale through, and damaged files are rare. At full volume they sound the same.
+- **A damaged frame is capped at +12 dB.** A badly damaged frame can make a loud click with either decoder. Apple's 16-bit output caps it at full scale; dr_mp3 on its own doesn't, and one flipped bit in a frame's volume made it 96 dB louder than full scale. Through the effects' reverb and echo that one frame rang on at full scale for 9 seconds, it held the equalizer bars down for 29 seconds, and it moved the track's detected tempo from 123.0 to 119.3 BPM. So Vibe caps dr_mp3's output at +12 dB, four times full scale, well above any real peak: the loudest in 1,060 real MP3s, damaged ones aside, was +8.6 dB, and the one file that reaches the cap is damaged. With the cap, the same frame rang on for a tenth of a second, the bars dipped for under 4 seconds, and the tempo read 122.9.
+- **Two fixes to dr_mp3 itself.** It misread frames with any of their "private bits" set, which encoders may use as they like, and 8 kHz files with a rare kind of frame, the mixed block, where it also wrote past the end of a buffer. Vibe's copy decodes both as FFmpeg and mpg123 do. Neither kind turned up in 1,065 real MP3s, and every one of them decodes exactly as before.
 - **Not tested yet:** MP1 files (we have no MP1 encoder; dr_mp3 decodes them with MP2's timing, which MP1 shares), and CPU use on an iPhone.
 
 ### Tuning dr_mp3
 
-dr_mp3 is used unmodified. Two changes to how Vibe feeds it were worth making, and together they cut the decode time by 13–18%:
+Two changes to how Vibe feeds dr_mp3 were worth making, and together they cut the decode time by 13–18%:
 
 - **Reading 16 frames at a time.** Asking macOS for one frame at a time made about four small file reads per frame, a tenth of the decode time. 16 at a time saved it; 4 saved half as much, and 64 no more than 16.
 - **One Accelerate call to split stereo.** dr_mp3 gives left and right samples mixed together, and playback wants them apart. A single `vDSP_ctoz` call does that, saving about 3%.
@@ -198,9 +199,9 @@ Vibe decodes FLAC files with **dr_flac**, not the decoder built into macOS and i
 ### Why not Apple's decoder
 
 - **Seeking.** Apple's decoder never uses a FLAC file's seek table. The first time you seek into a part of a track it hasn't read yet, it reads the whole file from the start up to that point, and the sound after the seek waits for it. Resuming a track where you left off is a seek too. dr_flac finds the spot in a few small reads, from the seek table or by bisecting the file.
-- **Less than half the CPU,** and less than a third on the efficiency cores. Playing costs little either way; it shows when a whole track is decoded at once for the waveform, beat, and key analysis: 4.5 times faster on an efficiency core for a 24-bit, 96 kHz track.
-- **It reads the file once.** Apple's decoder reads 2.3 to 5 times the file's size to play it.
-- **A fraction of the memory:** about 80 KB per open file, against 1.4 to 2.6 MB for Apple's decoder.
+- **A quarter of the CPU or less:** 4 to 7 times less than Apple's decoder, on the fast cores and the efficiency cores alike. Playing costs little either way; it shows when a whole track is decoded at once for the waveform, beat, and key analysis: 5.4 times faster on an efficiency core for a 24-bit, 96 kHz track.
+- **It reads the file once.** Apple's decoder reads 2.4 to 5 times the file's size to play it.
+- **A fraction of the memory:** about 100 KB per open file, against 1.3 to 2.8 MB for Apple's decoder.
 - **Files Apple's decoder refuses play.** These are legal FLAC files that some encoders write: block sizes of 16 or 65,535, sample rates above 655 kHz (such as 705.6 kHz), and 32-bit files.
 - **Damaged files keep playing.** At the first damaged frame, Apple's decoder ends the track, as though it were over, and Vibe moves on to the next one. dr_flac plays silence in place of the damaged frame, the length of that frame, and carries on with every other frame where it belongs. A file cut short, such as an unfinished download, ends at the same place with both.
 - **The last moment of a file with an ID3v1 tag.** Apple's decoder drops the file's last frame (about 30 ms) when an ID3v1 tag follows it. dr_flac plays it.
@@ -219,17 +220,17 @@ The whole comparison, best first, **lower is better**. The ranges run across thi
 
 | Measure | dr_flac | Apple |
 | --- | --- | --- |
-| CPU to play, fast core | 0.06–0.28% of one core | 0.12–0.80% |
-| CPU to play, efficiency core | 0.14–0.63% | 0.51–2.17% |
-| Decoding a whole 4-minute, 24-bit, 96 kHz track, efficiency core | 0.75 s | 3.36 s |
-| Decoding a whole 4-minute, 16-bit track, fast core | 150 ms | 320 ms |
-| Data read to play a file | its size, once | 2.3–5.1 times its size |
-| Memory per open file | 82 KB | 1.4–2.6 MB |
-| Opening a file | 0.4–0.6 ms | 0.7–0.9 ms |
-| Slowest 4,096-frame read, fast core | 0.13 ms | 0.31 ms |
-| Added to the app | 79 KB of code | nothing |
+| CPU to play, fast core | 0.022–0.10% of one core | 0.086–0.58% |
+| CPU to play, efficiency core | 0.057–0.41% | 0.26–1.9% |
+| Decoding a whole 3-minute, 24-bit, 96 kHz track, efficiency core | 0.30 s | 1.59 s |
+| Decoding a whole 4-minute, 16-bit track, fast core | 55 ms | 230 ms |
+| Data read to play a file | its size, once | 2.4–5.1 times its size |
+| Memory per open file | 54–98 KB | 1.3–2.8 MB |
+| Opening a file | 0.3–0.5 ms | 0.5–0.8 ms |
+| Slowest 4,096-frame read, fast core | 0.08 ms | 0.85 ms |
+| Added to the app | 118 KB of code | nothing |
 
-*How this was measured:* Vibe's own file reader with the app's Release build settings, the two decoders run by turns, on a Mac with an M4 Max. The library was 1,397 FLAC files from ordinary sources (CD rips, web stores, downloads, sample packs). Every one but three empty files was decoded in full by both decoders and compared sample by sample, with 25 seeks each compared too. "Read from the SSD" means a fresh copy of the file, none of it in memory. No iPhone was measured.
+*How this was measured:* Vibe's own file reader with the app's Release build settings, as it is now and as it was before dr_flac, run by turns, on a Mac with an M4 Max that other work was also using, so each figure is the best of five runs. The library was 1,397 FLAC files from ordinary sources (CD rips, web stores, downloads, sample packs). Every one but three empty files was decoded in full by both decoders and compared sample by sample, with 25 seeks each compared too. "Read from the SSD" means a fresh copy of the file, none of it in memory. No iPhone was measured.
 
 ### What we fixed in dr_flac
 
@@ -242,6 +243,22 @@ dr_flac had problems of its own. Most turned up in real files from that library,
 - **Damaged frames.** dr_flac skipped a damaged frame, so everything after it played early, or stopped the track. It now plays silence in its place.
 - **Seeking into a cut-off file.** A seek past the end of an unfinished download failed. It now lands at the end, and the next track plays.
 - **32-bit files,** which dr_flac could open but not play, and **files that don't say how long they are**, where every seek went back to the start.
+
+A review of dr_flac with those fixes in place, with fuzzing and simulated damage, found more, some in our own fixes:
+
+- **More kinds of damage.** A frame missing a few bytes also took the intact frame after it, and one time in 256 any damaged frame did. A damaged first frame made the whole track play a frame early. A rare corrupted header could add minutes of silence, and a file cut off inside a frame sometimes ended with a frame of silence. On 1,200 simulated damaged library files, every undamaged frame now plays in its place, except in one file whose damage erased its last frames. Before, 181 of them (15%) lost or moved an undamaged frame.
+- **Seeks near damage.** A seek to a damaged frame that the seek table points at landed 93 ms late, and the slower ways of seeking missed the frames lost to damage. Every way of seeking now lands where playing from the start would.
+- **Seek tables with garbage in them, and unfinished downloads.** One flipped bit in a seek table could stall a seek for five seconds. It now takes under a millisecond. Seeking into the empty end of a download that reserved its full size took 1 to 2.5 seconds, and now takes about 0.2.
+- **Crashes and undefined behavior**, all in rare or damaged files. A file that doesn't say how long it is could crash when read to its end and then seeked back into. Damaged 32-bit files, and invalid files made by fuzzing, ran into arithmetic that C leaves undefined.
+
+### Tuning dr_flac
+
+Two changes to dr_flac itself halved the work of decoding: across 17 library files, 16 and 24-bit, 44.1 to 192 kHz, it takes 51% fewer CPU cycles than before, and every file came out between 49% and 53% cheaper. The output is unchanged, bit for bit, on every file of the library. With these and the fixes above, dr_flac is 118 KB of code, where upstream's is 80 KB.
+
+- **The checksum, eight bytes at a time.** Every FLAC frame carries a checksum, which dr_flac worked out one byte at a time, each step waiting for the one before. The plain C spent a fifth of a 16-bit file's decoding time on it, and half of a 24-bit file's. Tables that let eight bytes be worked on at once cut it to 2%.
+- **Vibe's own NEON code.** dr_flac has hand-written code for the Mac's and iPhone's vector instructions (NEON), which on Apple Silicon was slower than its plain C: 60% slower on 16-bit files. Its way of predicting each sample kept the vector unit waiting on the sample before. Vibe's replacement keeps the few newest samples in ordinary registers and leaves the older ones to the vector unit. It is 23% faster than the plain C on 16-bit files, 20% on 24-bit, and twice as fast as what it replaced. It also covers the prediction orders above 12, which the old code left to the plain C.
+
+What didn't help enough to keep: reading the file in 64 KB pieces instead of 4 KB saved another 4%, but costs 60 KB more memory per open file and a setting that two separate parts of the app would have to keep in agreement. Giving up early on a long run of zeros inside a frame, which only a damaged file has, sped up those files but slowed every normal file by 2%.
 
 ### How it fits in
 
@@ -372,8 +389,8 @@ These tests run automatically on every change, without any audio hardware:
 - **Every sample is checked.** The real player plays into memory, and every sample of every channel is compared with the file. This covers 44.1 kHz to 192 kHz; 16-bit, 24-bit and float; mono and stereo; and every supported format. Bit-perfect and regular playback must match the file exactly. The only exception is the first 50 ms, while the declick fades in, and not even that when Declick is off. The check catches a single changed bit, a dropped or repeated sample, swapped channels, or flipped polarity.
 - **Unused features change nothing.** The file must play back exactly with the effects turned on but unused, with the equalizer bars running, with the pitch fader at 0%, and after every effect has been used and released: each effect key, the boost, the iOS effects pad, and an effect switched off partway through. "Exactly" means exactly, not "within a tolerance". A released low cut left in the path changes the audio by about 0.0000000000007, and only an exact comparison catches that.
 - **The resampler** must pass every measurement above at all eight rate changes. It must also continue seamlessly across gapless track changes, and match the same conversion done separately from the player, exactly.
-- **The MP3 decoder** must stay at least 50 times inside the ISO accuracy limit. It must match Apple's decoder in length and timing on every kind of MP3 and MP2, including MP3 inside WAV. It must keep a loud master's peaks, seek to the exact sample, and end cut-off files where Apple's does. And switching decoders must take effect on the very next track, even if that track was already being opened.
-- **The FLAC decoder** must decode every test file to exactly the samples it was made from, including the ones Apple's decoder refuses and 32-bit files in each stereo mode, and every seek must land on the exact sample. Files damaged the ways real files are must play as described above: a tag in front, a stale seek table, a damaged frame, a damaged frame header, a download cut short, and a file that doesn't say how long it is.
+- **The MP3 decoder** must stay at least 50 times inside the ISO accuracy limit. It must match Apple's decoder in length and timing on every kind of MP3 and MP2, including MP3 inside WAV. It must keep a loud master's peaks, seek to the exact sample, including in 8 kbps files, decode frames with private bits set and 8 kHz mixed blocks as FFmpeg does, cap a damaged frame at +12 dB, and end cut-off files where Apple's does. And switching decoders must take effect on the very next track, even if that track was already being opened.
+- **The FLAC decoder** must decode every test file to exactly the samples it was made from, including the ones Apple's decoder refuses and 32-bit files in each stereo mode, and every seek must land on the exact sample. Files damaged the ways real files are must play as described above: a tag in front, a stale seek table, a seek table with a garbage entry, a damaged frame, a damaged frame header, a damaged first frame, bytes lost inside a frame, a damaged frame the seek table points at, a download cut short at points all across a frame, and a file that doesn't say how long it is, read to its end and seeked back into.
 - **Lossy files** must match their own decoded audio exactly. AAC is allowed a difference of four tiny rounding steps (below −126 dBFS), because two runs of Apple's AAC decoder can differ that much. The test also checks which formats Apple's decoders can output, so we'll know if that ever changes.
 
 On macOS there is also an optional test that plays through a real output device and records it back, to prove the samples reach the hardware as rendered.

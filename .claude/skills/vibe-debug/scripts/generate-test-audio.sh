@@ -300,6 +300,48 @@ wav('float64-low-bits.wav',48000,64,2,floating=True)
 wav('integer32.wav',48000,32,2)
 # The source of a FLAC at a rate past Apple's codec's limit.
 wav('noise-705600-24-2.wav',705600,24,2,seconds=0.5)
+# Mixed blocks at 8 kHz (MPEG 2.5), which no encoder writes, so the spectrum is
+# coded directly: big_values 0 and all 576 lines count1 values of -1, 0 or 1
+# (count1 table B: four inverted value bits, a sign bit per nonzero value), so
+# every decoder parses the same bits. Lines below 72, the block's long part,
+# stay zero, since decoders transform that part differently at this rate; the
+# scalefactors, subblock gains and a global gain that moves every granule
+# exercise the band layout.
+def mixed_8k(name, frames=40):
+    path = out / name
+    if path.exists(): return
+    state = 0x12345678
+    def rand(n):
+        nonlocal state
+        state = (1664525 * state + 1013904223) & 0xffffffff
+        return (state >> 8) % n
+    stream = bytearray()
+    for _ in range(frames):
+        bits = []
+        put = lambda v, n: bits.extend((v >> i) & 1 for i in range(n - 1, -1, -1))
+        main = []
+        mput = lambda v, n: main.extend((v >> i) & 1 for i in range(n - 1, -1, -1))
+        for _ in range(33): mput(rand(4), 2)  # scalefac_compress 202: 6 + 9 + 9 + 9 two-bit scalefactors
+        for q in range(144):
+            values = [0 if 4 * q + i < 72 or rand(5) < 3 else (1 if rand(2) else -1) for i in range(4)]
+            mput(15 - sum(8 >> i for i, v in enumerate(values) if v), 4)
+            for v in values:
+                if v: mput(v < 0, 1)
+        put(0x7ff, 11); put(0, 2); put(1, 2); put(1, 1)  # MPEG 2.5, Layer III, no CRC
+        put(14, 4); put(2, 2); put(0, 1); put(0, 1)      # 160 kbps, 8 kHz, no padding, private
+        put(3, 2); put(0, 2); put(0, 1); put(1, 1); put(0, 2)  # mono
+        put(0, 8); put(0, 1)                             # main_data_begin, private bits
+        put(len(main), 12); put(0, 9); put(166 + rand(25), 8); put(202, 9)
+        put(1, 1); put(2, 2); put(1, 1)                  # window switching, short blocks, mixed
+        put(0, 10)                                        # table_select, unused with big_values 0
+        for _ in range(3): put(rand(8), 3)                # subblock gains
+        put(rand(2), 1); put(1, 1)                        # scalefac_scale, count1 table B
+        bits += main
+        size = 72 * 160000 // 8000
+        bits += [0] * (size * 8 - len(bits))
+        stream += bytes(int(''.join(map(str, bits[i:i + 8])), 2) for i in range(0, len(bits), 8))
+    path.write_bytes(stream)
+mixed_8k('mixed-8k.mp3')
 (out/'manifest.json').write_text(json.dumps({'seed':'0x12345678','rates':[44100,48000,88200,96000,176400,192000],'duration':2,'noisePeak':0.25},indent=2))
 AUDIO_PY
     render_source="$render_dir/noise-48000-24-2.wav"
@@ -323,6 +365,12 @@ AUDIO_PY
         [ -s "$render_dir/mp2-in.wav" ] || ffmpeg -nostdin -loglevel error -y -i "$render_dir/lossy.mp2" -c:a copy -f wav "$render_dir/mp2-in.wav"
         # A master limited to full scale, whose decode overshoots it: the overs a float decode keeps and Apple's 16-bit one clips.
         [ -s "$render_dir/hot.mp3" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -af volume=12dB,alimiter=limit=1:level=false -c:a libmp3lame -b:a 320k "$render_dir/hot.mp3"
+        # Mono Layer III, whose private bits are five where stereo's are three.
+        [ -s "$render_dir/mono.mp3" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -ac 1 -c:a libmp3lame -b:a 128k "$render_dir/mono.mp3"
+        # MPEG-2 at 8 kbps: frames of a few bytes of payload, whose reservoir reaches back past MPEG-1's seek preroll.
+        [ -s "$render_dir/lsf-8k.mp3" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -ar 24000 -c:a libmp3lame -b:a 8k "$render_dir/lsf-8k.mp3"
+        # FFmpeg's float decode of the generated 8 kHz mixed-block stream: the reference testDrMP3DecodesMixedBlocksAt8kHzAsFFmpegDoes reads.
+        [ -s "$render_dir/mixed-8k.f32" ] || ffmpeg -nostdin -loglevel error -y -c:a mp3float -i "$render_dir/mixed-8k.mp3" -f f32le "$render_dir/mixed-8k.f32"
         [ -s "$render_dir/lossy.qta" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -c:a aac -f mov "$render_dir/lossy.qta"
         # Legal FLACs that Apple's codec refuses, or that dr_flac could not decode or seek before Vibe's fixes to it
         # (testDrFLACDecodesWhatTheFileHolds): every frame's first residual partition empty, block sizes of 16 and
