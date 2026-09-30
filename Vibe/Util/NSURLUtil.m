@@ -596,21 +596,8 @@ static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
 }
 #endif
 
-// A sheet's rows, or a playlist's entries each as a row.
-static NSArray<AudioTrack *> *PlaylistRows(NSURL *playlistURL) {
-    if ([playlistURL.pathExtension.lowercaseString isEqualToString:@"cue"]) {
-        return [PlaylistFile cueRowsForSheetAtURL:playlistURL];
-    }
-    NSArray<NSURL *> *urls = [PlaylistFile resolvedFileURLsForPlaylistAtURL:playlistURL];
-    NSMutableArray<AudioTrack *> *rows = [NSMutableArray arrayWithCapacity:urls.count];
-    for (NSURL *url in urls) {
-        [rows addObject:[AudioTrack withURL:url]];
-    }
-    return rows;
-}
-
 + (NSArray<AudioTrack *> *)expandPlaylistFile:(NSURL *)playlistURL {
-    NSArray<AudioTrack *> *resolved = PlaylistRows(playlistURL);
+    NSArray<AudioTrack *> *resolved = [PlaylistFile rowsForPlaylistAtURL:playlistURL];
     // A probe can hang on a dead mount, so verdicts are reused by the filter
     // below, and dropped only when a grant changes readability. One per file,
     // however many rows a sheet cuts it into.
@@ -639,7 +626,7 @@ static NSArray<AudioTrack *> *PlaylistRows(NSURL *playlistURL) {
     VibePlaylistFolderGrantHandler grantHandler = PlaylistFolderGrantHandler();
     if (anyUnreadable && (anyDenied || folderDenied)
             && grantHandler && grantHandler(playlistURL)) {
-        resolved = PlaylistRows(playlistURL);
+        resolved = [PlaylistFile rowsForPlaylistAtURL:playlistURL];
         [scannedAccessByPath removeAllObjects];
     }
 #endif

@@ -12,7 +12,8 @@ extern NSString *const kVibeLastPlaylistCurrentIndexKey;
 
 // Readers for playlist-like files — CUE sheets and M3U playlists — and the M3U
 // writer. A CUE sheet reads as rows, each a window of its FILE; an M3U reads
-// as file references, its #EXTINF metadata ignored.
+// as file references, its #EXTINF metadata ignored, except that a cue row
+// Vibe wrote comes back as that row.
 @interface PlaylistFile : NSObject
 
 // YES for a (lowercased) path extension this class expands: cue, m3u, m3u8.
@@ -62,28 +63,33 @@ extern NSString *const kVibeLastPlaylistCurrentIndexKey;
 // kept — repeating a track is a playlist's prerogative.
 + (NSArray<NSString *> *)m3uEntriesInText:(NSString *)text;
 
-// The entries of the playlist file at url resolved to file URLs, in order; a
-// CUE sheet's are its rows' files. Relative names resolve against the
-// playlist's folder; an unreadable path falls back to its basename beside the
-// playlist, then both spellings under each playable extension. An entry
+// The playlist file at url as rows, in order: a CUE sheet's
+// (cueRowsForSheetAtURL:), or an M3U's entries, each resolved against the
+// playlist's folder — an unreadable path falls back to its basename beside the
+// playlist, then both spellings under each playable extension — and minted as
+// the cue row a #VIBE-CUE line before it describes, else a plain row. An entry
 // readable nowhere still yields its primary candidate, so the caller can ask
 // for sandbox access and call again.
-+ (NSArray<NSURL *> *)resolvedFileURLsForPlaylistAtURL:(NSURL *)url;
++ (NSArray<AudioTrack *> *)rowsForPlaylistAtURL:(NSURL *)url;
 
-// The entries of M3U data this app wrote itself — m3uTextForTracks: with a
-// nil directory, so every entry is absolute — as file URLs in order, with no
-// resolution rungs and no probes: nothing is stat'd, a relative entry is
-// skipped. The reader for the container mirror; a user's playlist file goes
-// through resolvedFileURLsForPlaylistAtURL:.
-+ (NSArray<NSURL *> *)fileURLsInM3UData:(nullable NSData *)data;
+// The rows of M3U data this app wrote itself — m3uTextForTracks: with a nil
+// directory, so every entry is absolute — in order, with no resolution rungs
+// and no reads: nothing is stat'd, not even a cue row's sheet, and a relative
+// entry is skipped. The reader for the container mirror, which runs on main
+// at launch; a user's playlist file goes through rowsForPlaylistAtURL:.
++ (NSArray<AudioTrack *> *)rowsInM3UData:(nullable NSData *)data;
 
 #pragma mark - Writing
 
 // The playlist as extended M3U text: "#EXTM3U", then per track an
-// "#EXTINF:<seconds>,<Artist - Title>" line and the path. A path is written
-// relative to directory when the track sits under it and absolute otherwise;
-// nil means absolute throughout. LF line endings, and the result reads back
-// through m3uEntriesInText: and resolvedFileURLsForPlaylistAtURL: unchanged.
+// "#EXTINF:<seconds>,<Artist - Title>" line and the path. A cue row adds, before
+// its path, VLC's "#EXTVLCOPT:start-time=" and "stop-time=" (in seconds, each
+// only when set) and "#VIBE-CUE:<track>,<start>,<end>,<title>,<performer>,<sheet
+// URL>" — the window in CD frames, the names percent-encoded — so it reads back
+// as the same row. A path is written relative to directory when the track sits
+// under it and absolute otherwise; nil means absolute throughout. LF line
+// endings, and the result reads back through m3uEntriesInText: and
+// rowsForPlaylistAtURL: unchanged.
 + (NSString *)m3uTextForTracks:(NSArray<AudioTrack *> *)tracks
            relativeToDirectory:(nullable NSURL *)directory;
 
@@ -107,7 +113,7 @@ extern NSString *const kVibeLastPlaylistCurrentIndexKey;
                    error:(NSError * _Nullable * _Nullable)error;
 + (void)removeSessionAtURL:(NSURL *)url defaults:(NSUserDefaults *)defaults;
 + (BOOL)restoreSessionAtURL:(NSURL *)url enabled:(BOOL)enabled defaults:(NSUserDefaults *)defaults
-                     load:(void (^)(NSArray<NSURL *> *urls, NSUInteger index, BOOL paused))load;
+                     load:(void (^)(NSArray<AudioTrack *> *rows, NSUInteger index, BOOL paused))load;
 
 @end
 

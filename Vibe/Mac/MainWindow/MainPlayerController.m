@@ -698,12 +698,8 @@ static NSURL *VibeLastPlaylistURL(void) {
 - (BOOL)restoreLastPlaylist {
     return [PlaylistFile restoreSessionAtURL:VibeLastPlaylistURL()
             enabled:AppSettings.sharedInstance.reopenLastPlaylist defaults:NSUserDefaults.standardUserDefaults
-            load:^(NSArray<NSURL *> *urls, NSUInteger index, BOOL paused) {
-        NSMutableArray<AudioTrack *> *tracks = [NSMutableArray arrayWithCapacity:urls.count];
-        for (NSURL *url in urls) {
-            [tracks addObject:[AudioTrack withURL:url]];
-        }
-        [self loadTracks:tracks selectingIndex:index startPaused:paused];
+            load:^(NSArray<AudioTrack *> *rows, NSUInteger index, BOOL paused) {
+        [self loadTracks:rows selectingIndex:index startPaused:paused];
     }];
 }
 

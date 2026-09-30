@@ -38,13 +38,13 @@ NSString *const kVibeLastPlaylistCurrentIndexKey = @"VibeLastPlaylistCurrentInde
 }
 
 + (BOOL)restoreSessionAtURL:(NSURL *)url enabled:(BOOL)enabled defaults:(NSUserDefaults *)defaults
-                     load:(void (^)(NSArray<NSURL *> *, NSUInteger, BOOL))load {
+                     load:(void (^)(NSArray<AudioTrack *> *, NSUInteger, BOOL))load {
     if (!enabled) return NO;
-    NSArray<NSURL *> *urls = [self fileURLsInM3UData:[NSData dataWithContentsOfURL:url]];
-    if (urls.count == 0) return NO;
+    NSArray<AudioTrack *> *rows = [self rowsInM3UData:[NSData dataWithContentsOfURL:url]];
+    if (rows.count == 0) return NO;
     NSInteger stored = [defaults integerForKey:kVibeLastPlaylistCurrentIndexKey];
-    NSUInteger index = stored < 0 ? 0 : MIN((NSUInteger)stored, urls.count - 1);
-    load(urls, index, YES);
+    NSUInteger index = stored < 0 ? 0 : MIN((NSUInteger)stored, rows.count - 1);
+    load(rows, index, YES);
     return YES;
 }
 
@@ -371,14 +371,27 @@ static NSArray<NSDictionary *> *CueTracksInText(NSString *text, NSMutableArray<N
 
 #pragma mark - M3U
 
-+ (NSArray<NSString *> *)m3uEntriesInText:(NSString *)text {
-    NSMutableArray<NSString *> *entries = [NSMutableArray new];
+static NSString *const kVibeCueDirective = @"#VIBE-CUE:";
+
+// Each entry, with the #VIBE-CUE payload written just before it, if any: a
+// directive belongs to the next entry line and to no other, a dropped one
+// included.
+static void EnumerateM3U(NSString *text, void (^block)(NSString *entry, NSString *_Nullable cue)) {
     NSCharacterSet *whitespace = NSCharacterSet.whitespaceCharacterSet;
+    __block NSString *cue = nil;
     [text enumerateLinesUsingBlock:^(NSString *line, BOOL *stop) {
         NSString *entry = [line stringByTrimmingCharactersInSet:whitespace];
-        if (entry.length == 0 || [entry hasPrefix:@"#"]) {
+        if (entry.length == 0) {
             return;
         }
+        if ([entry hasPrefix:@"#"]) {
+            if ([entry hasPrefix:kVibeCueDirective]) {
+                cue = [entry substringFromIndex:kVibeCueDirective.length];
+            }
+            return;
+        }
+        NSString *entryCue = cue;
+        cue = nil;
         if ([entry rangeOfString:@"://"].location != NSNotFound) {
             // A URL. file:// reduces to its path (M3U8 writers percent-encode);
             // any other scheme is a stream, which the player does not do.
@@ -406,10 +419,65 @@ static NSArray<NSDictionary *> *CueTracksInText(NSString *text, NSMutableArray<N
         }
         entry = StrippedOfUnpathableCharacters(NormalizePathSeparators(entry));
         if (entry.length > 0) {
-            [entries addObject:entry];
+            block(entry, entryCue);
         }
     }];
+}
+
++ (NSArray<NSString *> *)m3uEntriesInText:(NSString *)text {
+    NSMutableArray<NSString *> *entries = [NSMutableArray new];
+    EnumerateM3U(text, ^(NSString *entry, NSString *cue) {
+        [entries addObject:entry];
+    });
     return entries;
+}
+
+// Title and performer are percent-encoded so neither holds the separator or a
+// newline; spaces stay readable, and only a line's ends are trimmed.
+static NSCharacterSet *CueFieldAllowedCharacters(void) {
+    static NSCharacterSet *allowed;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSMutableCharacterSet *set = [NSCharacterSet.URLQueryAllowedCharacterSet mutableCopy];
+        [set removeCharactersInString:@","];
+        [set addCharactersInString:@" "];
+        allowed = [set copy];
+    });
+    return allowed;
+}
+
+// The #VIBE-CUE payload: "<track>,<start>,<end>,<title>,<performer>,<sheet
+// URL>", the window in CD frames. The URL is last, so its own commas need no
+// escape.
+static NSString *CuePayload(AudioTrack *track) {
+    NSString *title = [track.cueTitle ?: @"" stringByAddingPercentEncodingWithAllowedCharacters:CueFieldAllowedCharacters()];
+    NSString *performer = [track.cuePerformer ?: @"" stringByAddingPercentEncodingWithAllowedCharacters:CueFieldAllowedCharacters()];
+    return [NSString stringWithFormat:@"%ld,%lu,%lu,%@,%@,%@", (long)track.cueTrackNumber,
+            (unsigned long)track.cueStart, (unsigned long)track.cueEnd, title ?: @"", performer ?: @"",
+            track.cueSheetURL.absoluteString ?: @""];
+}
+
+// The entry's file as that row; a plain row without a payload, or with one
+// that does not parse into a playable window.
+static AudioTrack *RowForEntry(NSURL *url, NSString *_Nullable cue) {
+    NSArray<NSString *> *fields = [cue componentsSeparatedByString:@","];
+    if (fields.count < 6) {
+        return [AudioTrack withURL:url];
+    }
+    long long start = fields[1].longLongValue;
+    long long end = fields[2].longLongValue;
+    if (start < 0 || end < 0 || (end > 0 && end <= start)) {
+        return [AudioTrack withURL:url];
+    }
+    NSString *title = fields[3].stringByRemovingPercentEncoding;
+    NSString *performer = fields[4].stringByRemovingPercentEncoding;
+    NSString *sheet = [[fields subarrayWithRange:NSMakeRange(5, fields.count - 5)] componentsJoinedByString:@","];
+    NSURL *sheetURL = sheet.length ? [NSURL URLWithString:sheet] : nil;
+    return [[AudioTrack alloc] initWithURL:url cueStart:(NSUInteger)start cueEnd:(NSUInteger)end
+                                     title:title.length ? title : nil
+                                 performer:performer.length ? performer : nil
+                                     sheet:sheetURL.isFileURL ? sheetURL : nil
+                               trackNumber:fields[0].integerValue];
 }
 
 #pragma mark - Resolution
@@ -556,11 +624,8 @@ static NSURL *AudioFileNamedLikeSheet(NSURL *sheet, NSFileManager *fileManager) 
     return rows;
 }
 
-// resolvedFiles, when given, collects each FILE's URL as it resolves: one per
-// file that has rows, in sheet order.
 + (NSArray<AudioTrack *> *)cueRowsForSheetAtURL:(NSURL *)url
-                                     knownFiles:(NSDictionary<NSString *, NSURL *> *)knownFiles
-                                  resolvedFiles:(NSMutableArray<NSURL *> *)resolvedFiles {
+                                     knownFiles:(NSDictionary<NSString *, NSURL *> *)knownFiles {
     NSData *data = [NSData dataWithContentsOfURL:url];
     NSString *text = data ? [self textFromData:data] : nil;
     if (!text) {
@@ -584,63 +649,54 @@ static NSURL *AudioFileNamedLikeSheet(NSURL *sheet, NSFileManager *fileManager) 
                 resolved = AudioFileNamedLikeSheet(url, fileManager) ?: resolved;
             }
         }
-        if (resolved) {
-            [resolvedFiles addObject:resolved];
-        }
         return resolved;
     }];
 }
 
 + (NSArray<AudioTrack *> *)cueRowsForSheetAtURL:(NSURL *)url {
-    return [self cueRowsForSheetAtURL:url knownFiles:nil resolvedFiles:nil];
+    return [self cueRowsForSheetAtURL:url knownFiles:nil];
 }
 
 + (NSString *)knownFileKeyForPath:(NSString *)path {
     return path.precomposedStringWithCanonicalMapping.lowercaseString;
 }
 
-+ (NSArray<AudioTrack *> *)cueRowsForSheetAtURL:(NSURL *)url
-                                     knownFiles:(NSDictionary<NSString *, NSURL *> *)knownFiles {
-    return [self cueRowsForSheetAtURL:url knownFiles:knownFiles resolvedFiles:nil];
-}
-
-+ (NSArray<NSURL *> *)resolvedFileURLsForPlaylistAtURL:(NSURL *)url {
++ (NSArray<AudioTrack *> *)rowsForPlaylistAtURL:(NSURL *)url {
     if ([url.pathExtension.lowercaseString isEqualToString:@"cue"]) {
-        NSMutableArray<NSURL *> *urls = [NSMutableArray new];
-        [self cueRowsForSheetAtURL:url knownFiles:nil resolvedFiles:urls];
-        return urls;
+        return [self cueRowsForSheetAtURL:url];
     }
     NSData *data = [NSData dataWithContentsOfURL:url];
     NSString *text = data ? [self textFromData:data] : nil;
     if (!text) {
         return @[];
     }
-    NSArray<NSString *> *entries = [self m3uEntriesInText:text];
     NSURL *dir = url.URLByDeletingLastPathComponent;
     NSFileManager *fileManager = NSFileManager.defaultManager;
-    NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:entries.count];
+    NSMutableArray<AudioTrack *> *rows = [NSMutableArray array];
     NSMutableDictionary<NSString *, NSNumber *> *dirReachable = [NSMutableDictionary new];
-    for (NSString *entry in entries) {
+    EnumerateM3U(text, ^(NSString *entry, NSString *cue) {
         NSURL *resolved = ResolveEntry(entry, dir, fileManager, dirReachable);
         if (resolved) {
-            [urls addObject:resolved];
+            [rows addObject:RowForEntry(resolved, cue)];
         }
-    }
-    return urls;
+    });
+    return rows;
 }
 
-+ (NSArray<NSURL *> *)fileURLsInM3UData:(NSData *)data {
++ (NSArray<AudioTrack *> *)rowsInM3UData:(NSData *)data {
     NSString *text = [self textFromData:data];
-    NSArray<NSString *> *entries = text ? [self m3uEntriesInText:text] : @[];
-    NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:entries.count];
-    for (NSString *entry in entries) {
+    NSMutableArray<AudioTrack *> *rows = [NSMutableArray array];
+    if (!text) {
+        return rows;
+    }
+    EnumerateM3U(text, ^(NSString *entry, NSString *cue) {
         // isDirectory:NO, or fileURLWithPath: stats the path to decide.
         NSURL *url = [entry hasPrefix:@"/"] ? [NSURL fileURLWithPath:entry isDirectory:NO] : nil;
         if (url.path) {   // nil for a component no path can hold
-            [urls addObject:url];
+            [rows addObject:RowForEntry(url, cue)];
         }
-    }
-    return urls;
+    });
+    return rows;
 }
 
 #pragma mark - M3U writing
@@ -678,10 +734,19 @@ static NSString *M3UInfoName(AudioTrack *track) {
     NSMutableString *text = [NSMutableString stringWithString:@"#EXTM3U\n"];
     for (AudioTrack *track in tracks) {
         NSTimeInterval duration = track.duration;
-        [text appendFormat:@"#EXTINF:%lld,%@\n%@\n",
-                duration > 0 ? llround(duration) : -1LL,
-                M3UInfoName(track),
-                M3UPathLine(track.url.path.stringByStandardizingPath, prefix)];
+        [text appendFormat:@"#EXTINF:%lld,%@\n", duration > 0 ? llround(duration) : -1LL, M3UInfoName(track)];
+        // A cue row: VLC's window for players that honor it, then Vibe's own
+        // line, which restores the row exactly and reads nothing to do it.
+        if (track.isWindowed || track.cueSheetURL) {
+            if (track.cueStart > 0) {
+                [text appendFormat:@"#EXTVLCOPT:start-time=%.3f\n", track.cueStart / 75.0];
+            }
+            if (track.cueEnd > 0) {
+                [text appendFormat:@"#EXTVLCOPT:stop-time=%.3f\n", track.cueEnd / 75.0];
+            }
+            [text appendFormat:@"%@%@\n", kVibeCueDirective, CuePayload(track)];
+        }
+        [text appendFormat:@"%@\n", M3UPathLine(track.url.path.stringByStandardizingPath, prefix)];
     }
     return text;
 }
