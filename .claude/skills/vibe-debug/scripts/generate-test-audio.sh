@@ -244,8 +244,8 @@ DRIVER_PY
 fi
 
 # Analytic fixtures for the render suite and the bit-perfect verifier. Only
-# the MP3/MP2/QTA fixtures and the FLACs Apple cannot encode need ffmpeg;
-# without it XCTest skips them rather than passing them.
+# the MP3/MP2/QTA/Ogg fixtures and the FLACs Apple cannot encode need
+# ffmpeg; without it XCTest skips them rather than passing them.
 if [ "${1:-}" = "--render-tests" ]; then
     render_dir="${2:?usage: --render-tests <output-directory>}"
     mkdir -p "$render_dir"
@@ -453,12 +453,16 @@ AUDIO_PY
     [ -s "$render_dir/wave64-LEI24.w64" ] || afconvert -f W64f -d LEI24 "$render_source" "$render_dir/wave64-LEI24.w64"
     [ -s "$render_dir/rf64-LEI24.wav" ] || afconvert -f RF64 -d LEI24 "$render_source" "$render_dir/rf64-LEI24.wav"
     [ -s "$render_dir/lossy.m4a" ] || afconvert -f m4af -d aac -b 192000 "$render_source" "$render_dir/lossy.m4a"
+    [ -s "$render_dir/lossless.caf" ] || afconvert -f caff -d alac "$render_source" "$render_dir/lossless.caf"
     for ext in aif wave bwf; do
         if [ "$ext" = aif ]; then render_copy="$render_dir/lossless.aiff"; else render_copy="$render_source"; fi
         [ -s "$render_dir/alias.$ext" ] || cp "$render_copy" "$render_dir/alias.$ext"
     done
-    [ -s "$render_dir/alias.mp4" ] || cp "$render_dir/lossy.m4a" "$render_dir/alias.mp4"
+    for ext in mp4 m4b m4r; do
+        [ -s "$render_dir/alias.$ext" ] || cp "$render_dir/lossy.m4a" "$render_dir/alias.$ext"
+    done
     [ -s "$render_dir/lossy.aac" ] || afconvert -f adts -d aac -b 192000 "$render_source" "$render_dir/lossy.aac"
+    [ -s "$render_dir/alias.adts" ] || cp "$render_dir/lossy.aac" "$render_dir/alias.adts"
     if command -v ffmpeg >/dev/null; then
         # encode <name> <source> <ffmpeg output options...>: made once, into the render directory.
         encode() { local name="$1" source="$2"; shift 2; [ -s "$render_dir/$name" ] || ffmpeg -nostdin -loglevel error -y -i "$source" "$@" "$render_dir/$name"; }
@@ -480,6 +484,14 @@ AUDIO_PY
         # The WAV ADPCMs, which afconvert cannot write.
         encode wav-ima-adpcm.wav "$render_source" -c:a adpcm_ima_wav
         encode wav-ms-adpcm.wav "$render_source" -c:a adpcm_ms
+        # Ogg: CoreAudio reads it but its writer refuses every input. Vorbis is
+        # ffmpeg's own encoder, since Homebrew's build has no libvorbis; Opus
+        # is libopus, whose file declares the length it decodes to.
+        encode lossy.ogg "$render_source" -c:a vorbis -strict -2
+        [ -s "$render_dir/alias.oga" ] || { [ -s "$render_dir/lossy.ogg" ] && cp "$render_dir/lossy.ogg" "$render_dir/alias.oga"; }
+        encode lossy.opus "$render_source" -c:a libopus -b:a 128k
+        # FLAC in Ogg, which the handle refuses: CoreAudio decodes its first page only.
+        encode ogg-flac.oga "$render_source" -c:a flac
         # Legal FLACs that Apple's codec refuses, or that dr_flac could not decode or seek before Vibe's fixes to it
         # (testDrFLACDecodesWhatTheFileHolds): every frame's first residual partition empty, block sizes of 16 and
         # 65535, 705.6 kHz, and 32-bit stereo in each side-channel mode.

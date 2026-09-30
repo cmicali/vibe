@@ -45,6 +45,8 @@ settingGroups:
       - "$(SRCROOT)/Vibe/ThirdParty/taglib/riff/aiff"
       - "$(SRCROOT)/Vibe/ThirdParty/taglib/riff/wav"
       - "$(SRCROOT)/Vibe/ThirdParty/taglib/ogg"
+      - "$(SRCROOT)/Vibe/ThirdParty/taglib/ogg/vorbis"
+      - "$(SRCROOT)/Vibe/ThirdParty/taglib/ogg/opus"
       - "$(SRCROOT)/Vibe/ThirdParty"
       - "$(SRCROOT)/Vibe/ThirdParty/PINCache"
       - "$(SRCROOT)/Vibe/ThirdParty/PINOperation"
@@ -302,21 +304,25 @@ targets:
             LSItemContentTypes:
               - "public.folder"
           # com.apple.quicktime-audio is .qta, the QuickTime container Voice
-          # Memos exports. It conforms to public.audio only, so neither MPEG-4
-          # claim covers it.
+          # Memos exports, and com.apple.protected-mpeg-4-audio-b is .m4b, the
+          # audiobook. Neither conforms to either MPEG-4 claim.
           - CFBundleTypeName: "Audio Files"
             CFBundleTypeRole: "Viewer"
             LSHandlerRank: "Default"
-            LSItemContentTypes:
+            LSItemContentTypes: &audio-content-types
               - "public.mp2"
               - "public.mp3"
               - "public.aac-audio"
               - "public.aiff-audio"
               - "com.microsoft.waveform-audio"
+              - "com.sony.wave64"
               - "org.xiph.flac"
+              - "com.apple.coreaudio-format"
               - "com.apple.m4a-audio"
               - "public.mpeg-4-audio"
               - "com.apple.quicktime-audio"
+              - "com.apple.protected-mpeg-4-audio-b"
+              - "org.xiph.ogg-audio"
           - CFBundleTypeName: "CUE Sheet"
             CFBundleTypeRole: "Viewer"
             LSHandlerRank: "Alternate"
@@ -343,6 +349,21 @@ targets:
             UTTypeTagSpecification:
               public.filename-extension:
                 - "cue"
+
+        # Imported, so the system's own declaration wins where there is one;
+        # an older system has none, and .ogg would read as dyn.* there. No
+        # description, which would be a catalog key for every language.
+        UTImportedTypeDeclarations: &ogg-audio-import
+          - UTTypeIdentifier: "org.xiph.ogg-audio"
+            UTTypeConformsTo:
+              - "public.audio"
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - "ogg"
+                - "oga"
+                - "opus"
+              public.mime-type:
+                - "audio/ogg"
 
     settings:
       groups: [vibe-version, vibe-header-paths]
@@ -496,16 +517,8 @@ targets:
           - CFBundleTypeName: "Audio Files"
             CFBundleTypeRole: "Viewer"
             LSHandlerRank: "Default"
-            LSItemContentTypes:
-              - "public.mp2"
-              - "public.mp3"
-              - "public.aac-audio"
-              - "public.aiff-audio"
-              - "com.microsoft.waveform-audio"
-              - "org.xiph.flac"
-              - "com.apple.m4a-audio"
-              - "public.mpeg-4-audio"
-              - "com.apple.quicktime-audio"
+            LSItemContentTypes: *audio-content-types
+        UTImportedTypeDeclarations: *ogg-audio-import
     settings:
       groups: [vibe-version, vibe-header-paths]
       base:
