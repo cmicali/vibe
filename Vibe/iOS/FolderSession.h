@@ -100,7 +100,7 @@ NS_ASSUME_NONNULL_BEGIN
                completion:(void (^)(NSData *_Nullable bookmark))completion;
 
 // The track to park on next launch: its standardized PATH, plus a cue row's
-// window (AudioTrack.keyByAppendingWindowTo:); nil clears it. A path because
+// window (AudioTrack.standardizedSourceKey); nil clears it. A path because
 // the playlist spans folders; the restore still falls back to the filename
 // (PlaybackController), which also serves an older build's value.
 @property (nonatomic, copy, nullable) NSString *persistedTrackKey;

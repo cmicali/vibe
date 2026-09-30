@@ -19,6 +19,9 @@ extern NSString *const kVibeLastPlaylistCurrentIndexKey;
 // YES for a (lowercased) path extension this class expands: cue, m3u, m3u8.
 + (BOOL)isPlaylistExtension:(NSString *)extension;
 
+// YES for a (lowercased) CUE sheet's extension.
++ (BOOL)isCueExtension:(NSString *)extension;
+
 // Decodes playlist bytes to text: a UTF-16 BOM, then a BOM-less UTF-16
 // signature, then UTF-8, then Windows-1252 and Latin-1 for legacy writers, so
 // a non-empty file always decodes.
@@ -43,13 +46,10 @@ extern NSString *const kVibeLastPlaylistCurrentIndexKey;
 // The sheet at url as rows, each FILE resolved through the entry rungs below.
 // A sheet naming one image — or none — that no rung finds takes the audio named
 // like the sheet beside it (Mix.cue's Mix.flac). An entry readable nowhere
-// still yields its primary candidate, as for M3U.
-+ (NSArray<AudioTrack *> *)cueRowsForSheetAtURL:(NSURL *)url;
-
-// The same, a FILE first looked up in knownFiles — the files a folder walk
-// just listed, keyed by knownFileKeyForPath: — so a sheet whose files were
-// listed costs no probe and its rows carry the listing's spelling; a miss
-// takes the rungs.
+// still yields its primary candidate, as for M3U. knownFiles, from a folder
+// walk, is the files it just listed, keyed by knownFileKeyForPath:: a FILE is
+// looked up there first, so a sheet whose files were listed costs no probe and
+// its rows carry the listing's spelling; a miss takes the rungs.
 + (NSArray<AudioTrack *> *)cueRowsForSheetAtURL:(NSURL *)url
                                      knownFiles:(nullable NSDictionary<NSString *, NSURL *> *)knownFiles;
 
@@ -71,7 +71,7 @@ extern NSString *const kVibeLastPlaylistCurrentIndexKey;
 + (NSArray<NSString *> *)m3uEntriesInText:(NSString *)text;
 
 // The playlist file at url as rows, in order: a CUE sheet's
-// (cueRowsForSheetAtURL:), or an M3U's entries, each resolved against the
+// (cueRowsForSheetAtURL:knownFiles:), or an M3U's entries, each resolved against the
 // playlist's folder — an unreadable path falls back to its basename beside the
 // playlist, then both spellings under each playable extension — and minted as
 // the cue row a #VIBE-CUE line before it describes, else a plain row. An entry

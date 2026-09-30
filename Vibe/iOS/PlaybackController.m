@@ -737,7 +737,7 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
             NSArray<AudioTrack *> *tracks = _playlist.tracks;
             NSUInteger match = NSNotFound;
             for (NSUInteger i = 0; i < tracks.count; i++) {
-                NSString *key = [tracks[i] keyByAppendingWindowTo:tracks[i].url.URLByStandardizingPath.path ?: @""];
+                NSString *key = tracks[i].standardizedSourceKey;
                 if ([key isEqualToString:remembered]) {
                     match = i;
                     break;
@@ -774,12 +774,15 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 - (void)folderSession:(FolderSession *)session didAppendTracks:(NSArray<AudioTrack *> *)rows {
     NSMutableSet<NSString *> *present = [NSMutableSet set];
     for (AudioTrack *track in _playlist.tracks) {
-        [present addObject:[track keyByAppendingWindowTo:track.url.URLByStandardizingPath.path ?: @""]];
+        NSString *key = track.standardizedSourceKey;
+        if (key) {
+            [present addObject:key];
+        }
     }
     NSMutableArray<AudioTrack *> *fresh = [NSMutableArray array];
     for (AudioTrack *row in rows) {
-        NSString *key = [row keyByAppendingWindowTo:row.url.URLByStandardizingPath.path ?: @""];
-        if (![present containsObject:key]) {
+        NSString *key = row.standardizedSourceKey;
+        if (key && ![present containsObject:key]) {
             [present addObject:key];
             [fresh addObject:row];
         }

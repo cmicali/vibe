@@ -18,7 +18,7 @@
 
 @interface VibeWaveformLoadClaim : NSObject
 // The standardized path, plus the window for a cue row: one decode per window.
-@property (nonatomic, copy) NSString *path;
+@property (nonatomic, copy) NSString *key;
 @property (nonatomic, strong) AudioWaveformLoader *loader;
 @property (atomic, strong) AudioTrack *deliveryTrack;
 @property (nonatomic, strong, nullable) AudioTrack *retryTrack;
@@ -83,7 +83,7 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
     // Main-confined single-flight ownership. A loader evicted from the UI's
     // detached pool remains here while its uncancellable worker is executing;
     // same-path requests wait for that claim rather than enqueueing duplicates.
-    NSMutableDictionary<NSString *, VibeWaveformLoadClaim *> *_claimsByPath;
+    NSMutableDictionary<NSString *, VibeWaveformLoadClaim *> *_claimsByKey;
     // Bumped by invalidateWithCompletion:. A decode captures it when it
     // starts, skips its disk write if it has moved, and re-checks after the
     // write lands, removing the entry it just wrote if an invalidate raced it.
@@ -125,7 +125,7 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
         _cacheGeneration = 0;
         _currentLoader = nil;
         _detachedLoaders = [NSMutableArray array];
-        _claimsByPath = [NSMutableDictionary dictionary];
+        _claimsByKey = [NSMutableDictionary dictionary];
         // Created on the loader queue: on main, PINCache's init-time disk scan
         // would run at user-initiated QoS and priority-invert against the
         // utility-QoS cache calls. The ivar is read only on this serial queue,
@@ -159,9 +159,9 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
 }
 
 - (void)loadWaveformForTrack:(AudioTrack *)track {
-    NSString *path = VibeWaveformClaimKey(track);
+    NSString *key = VibeWaveformClaimKey(track);
     [self detachCurrentLoader];
-    VibeWaveformLoadClaim *existing = _claimsByPath[path];
+    VibeWaveformLoadClaim *existing = _claimsByKey[key];
     if (existing) {
         existing.deliveryTrack = track;
         _currentLoadTrack = track;
@@ -184,14 +184,14 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
     }
     AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] initWithDelegate:self];
     loader.analysisProvider = self.analysisProvider;
-    loader.trackPath = path;
+    loader.claimKey = key;
     loader.cueStart = track.cueStart;
     loader.cueEnd = track.cueEnd;
     VibeWaveformLoadClaim *claim = [[VibeWaveformLoadClaim alloc] init];
-    claim.path = path;
+    claim.key = key;
     claim.loader = loader;
     claim.deliveryTrack = track;
-    _claimsByPath[path] = claim;
+    _claimsByKey[key] = claim;
     _currentLoader = loader;
     // Captured now rather than read back at delivery. Every delivery carries
     // the track this waveform was loaded for, so one landing after a track
@@ -207,7 +207,7 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
     claim.workToken = [_lookupScheduler submitWork:^{
         // Per window: a cue row's waveform, tempo and key are its own.
         NSString *fileKey = track.cacheKey;
-        NSString *cacheKey = fileKey ? [track keyByAppendingWindowTo:fileKey] : nil;
+        NSString *cacheKey = [track keyByAppendingWindowTo:fileKey];
         if (!cacheKey) {
             // The file cannot be statted; see NSURL+Hash. Settle this attempt
             // so a same-file request cannot reattach a loader with no work.
@@ -275,11 +275,11 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
         AudioWaveformLoader *oldest = _detachedLoaders.firstObject;
         [oldest cancel];
         [_detachedLoaders removeObjectAtIndex:0];
-        // Its claim is the one filed under its own trackPath — the key both
+        // Its claim is the one filed under its own claimKey — the key both
         // were created from. Identity is still checked, because a later
         // request for that key may have settled this claim and filed a new
         // one under it.
-        VibeWaveformLoadClaim *claim = _claimsByPath[oldest.trackPath];
+        VibeWaveformLoadClaim *claim = _claimsByKey[oldest.claimKey];
         if (claim.loader != oldest) {
             claim = nil;
         }
@@ -309,18 +309,18 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
             (int64_t)(kWaveformClaimWaitSeconds * NSEC_PER_SEC)),
             dispatch_get_main_queue(), ^{
         AudioWaveformCache *strongSelf = weakSelf;
-        if (!strongSelf || strongSelf->_claimsByPath[claim.path] != claim
+        if (!strongSelf || strongSelf->_claimsByKey[claim.key] != claim
                 || claim.retryGeneration != generation || !claim.retryTrack) {
             return; // settled, restarted, or superseded by a newer request
         }
         // Only while this parked request is still the one on screen. A track
         // change moved on and took the loading state with it.
         AudioTrack *current = strongSelf->_currentLoadTrack;
-        if (!current || ![VibeWaveformClaimKey(current) isEqualToString:claim.path]) {
+        if (!current || ![VibeWaveformClaimKey(current) isEqualToString:claim.key]) {
             return;
         }
         LogWarn(@"Waveform: gave up waiting %.0fs for the in-flight load of %@",
-                kWaveformClaimWaitSeconds, claim.path.lastPathComponent);
+                kWaveformClaimWaitSeconds, claim.key.lastPathComponent);
         // Dropped rather than left parked: the claim outlives this wait, and a
         // retry it started later would deliver a waveform for a track the user
         // has been told has none.
@@ -341,17 +341,17 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
         return;
     }
     run_on_main_thread({
-        if (self->_claimsByPath[claim.path] != claim) {
+        if (self->_claimsByKey[claim.key] != claim) {
             return;
         }
-        [self->_claimsByPath removeObjectForKey:claim.path];
+        [self->_claimsByKey removeObjectForKey:claim.key];
         [self->_detachedLoaders removeObjectIdenticalTo:claim.loader];
         claim.workToken = nil;
 
         AudioTrack *retryTrack = claim.retryTrack;
         AudioTrack *current = self->_currentLoadTrack;
         BOOL retryIsCurrent = retryTrack && current
-                && [VibeWaveformClaimKey(current) isEqualToString:claim.path];
+                && [VibeWaveformClaimKey(current) isEqualToString:claim.key];
         if (retryIsCurrent) {
             [self loadWaveformForTrack:retryTrack];
         }

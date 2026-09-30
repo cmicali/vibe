@@ -7,7 +7,9 @@
 
 #import "AudioTrack.h"
 #import "PlayableExtensions.h"
+#import "PlaybackIntent.h"
 
+#include <libkern/OSByteOrder.h>
 #include <string.h>
 
 NSString *const kVibeLastPlaylistCurrentIndexKey = @"VibeLastPlaylistCurrentIndex";
@@ -48,10 +50,20 @@ NSString *const kVibeLastPlaylistCurrentIndexKey = @"VibeLastPlaylistCurrentInde
     return YES;
 }
 
++ (BOOL)isCueExtension:(NSString *)extension {
+    return [extension isEqualToString:@"cue"];
+}
+
 + (BOOL)isPlaylistExtension:(NSString *)extension {
-    return [extension isEqualToString:@"cue"]
+    return [self isCueExtension:extension]
             || [extension isEqualToString:@"m3u"]
             || [extension isEqualToString:@"m3u8"];
+}
+
+// The file decoded as playlist text; nil when unreadable.
+static NSString *TextOfFile(NSURL *url) {
+    NSData *data = [NSData dataWithContentsOfURL:url];
+    return data ? [PlaylistFile textFromData:data] : nil;
 }
 
 // NULs on the even and odd halves of the byte pairs, the only input to both
@@ -263,7 +275,7 @@ static NSInteger CueFramesFromString(NSString *text) {
         }
         values[i] = part.integerValue;
     }
-    return (values[0] * 60 + values[1]) * 75 + values[2];
+    return (values[0] * 60 + values[1]) * (NSInteger)kVibeCDFramesPerSecond + values[2];
 }
 
 // A sheet's AUDIO tracks, kept by the drop rules, each as {file, number,
@@ -282,8 +294,9 @@ static NSArray<NSDictionary *> *CueTracksInText(NSString *text, NSMutableArray<N
     __block NSString *performer = nil;
     __block NSInteger index00 = -1, index01 = -1, file00 = -1, file01 = -1;
     // The drop rules below measure against the last kept start in the same
-    // file, so one broken track cannot take the rest with it.
-    NSMutableDictionary<NSNumber *, NSNumber *> *lastKeptStart = [NSMutableDictionary new];
+    // file — tracks arrive in file order, since files only grow — so one
+    // broken track cannot take the rest with it.
+    __block NSInteger keptFile = NSIntegerMin, keptStart = -1;
     void (^finish)(void) = ^{
         if (!current) {
             return;
@@ -292,10 +305,11 @@ static NSArray<NSDictionary *> *CueTracksInText(NSString *text, NSMutableArray<N
         // start below the file's last kept one: a marker list must be ordered.
         NSInteger start = index01 >= 0 ? index01 : index00;
         NSInteger file = index01 >= 0 ? file01 : file00;
-        if (start < 0 || start < [lastKeptStart[@(file)] integerValue]) {
+        if (start < 0 || (file == keptFile && start < keptStart)) {
             return;
         }
-        lastKeptStart[@(file)] = @(start);
+        keptFile = file;
+        keptStart = start;
         current[@"start"] = @(start);
         current[@"file"] = @(file);
         [tracks addObject:current];
@@ -539,13 +553,19 @@ static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManag
 
 // The audio named like the sheet beside it — Mix.cue's Mix.flac — lossless
 // first; nil when none is readable. The last rung for a sheet whose one image
-// is named nowhere findable (a long-gone CDImage.wav) or not named at all.
-static NSURL *AudioFileNamedLikeSheet(NSURL *sheet, NSFileManager *fileManager) {
+// is named nowhere findable (a long-gone CDImage.wav) or not named at all. A
+// walk's listing, when given, answers for the sheet's own folder unprobed.
+static NSURL *AudioFileNamedLikeSheet(NSURL *sheet, NSFileManager *fileManager,
+                                      NSDictionary<NSString *, NSURL *> *knownFiles) {
     NSURL *base = sheet.URLByDeletingPathExtension;
     for (NSString *extension in PlayableExtensions.ordered) {
         NSURL *candidate = [base URLByAppendingPathExtension:extension];
-        if (candidate.path && [fileManager isReadableFileAtPath:candidate.path]) {
-            return candidate;
+        NSString *path = candidate.path;
+        NSURL *found = !path ? nil
+                : knownFiles ? knownFiles[[PlaylistFile knownFileKeyForPath:path]]
+                : ([fileManager isReadableFileAtPath:path] ? candidate : nil);
+        if (found) {
+            return found;
         }
     }
     return nil;
@@ -557,68 +577,44 @@ static NSURL *AudioFileNamedLikeSheet(NSURL *sheet, NSFileManager *fileManager) 
     NSString *sheetPerformer = nil;
     NSArray<NSDictionary *> *tracks = CueTracksInText(text, files, &sheetPerformer);
     NSMutableArray<AudioTrack *> *rows = [NSMutableArray arrayWithCapacity:MAX(tracks.count, files.count)];
-    // Resolved once per FILE, whichever of its tracks asks first.
-    NSMutableDictionary<NSNumber *, id> *urls = [NSMutableDictionary new];
-    NSURL *(^urlForFile)(NSInteger) = ^NSURL *(NSInteger file) {
-        id url = urls[@(file)];
+    // Tracks arrive in file order, so each FILE's are one run; a track before
+    // any FILE line (-1) comes first. Each file is resolved once, in order.
+    NSUInteger next = 0;
+    NSInteger first = tracks.count > 0 && [tracks[0][@"file"] integerValue] < 0 ? -1 : 0;
+    for (NSInteger file = first; file < (NSInteger)files.count; file++) {
+        NSUInteger begin = next;
+        while (next < tracks.count && [tracks[next][@"file"] integerValue] == file) {
+            next++;
+        }
+        NSURL *url = resolve(file >= 0 ? files[(NSUInteger)file] : nil, files.count <= 1);
         if (!url) {
-            url = resolve(file >= 0 ? files[(NSUInteger)file] : nil, files.count <= 1) ?: NSNull.null;
-            urls[@(file)] = url;
+            continue;
         }
-        return url == NSNull.null ? nil : url;
-    };
-    // Sheet order: files only grow, and a track before any FILE line (-1)
-    // comes first.
-    NSMutableDictionary<NSNumber *, NSMutableArray<NSDictionary *> *> *tracksByFile = [NSMutableDictionary new];
-    for (NSDictionary *track in tracks) {
-        NSMutableArray<NSDictionary *> *own = tracksByFile[track[@"file"]];
-        if (!own) {
-            own = [NSMutableArray new];
-            tracksByFile[track[@"file"]] = own;
+        // A FILE none of whose tracks survived plays whole, as every FILE did
+        // before sheets had rows: no audio the sheet names goes missing.
+        if (next == begin) {
+            [rows addObject:[AudioTrack withURL:url]];
+            continue;
         }
-        [own addObject:track];
-    }
-    NSMutableArray<NSNumber *> *order = [NSMutableArray arrayWithCapacity:files.count + 1];
-    if (tracksByFile[@(-1)]) {
-        [order addObject:@(-1)];
-    }
-    for (NSUInteger file = 0; file < files.count; file++) {
-        [order addObject:@(file)];
-    }
-    for (NSNumber *file in order) {
-        NSArray<NSDictionary *> *own = tracksByFile[file];
-        NSUInteger rowsBefore = rows.count;
-        for (NSUInteger i = 0; i < own.count; i++) {
+        for (NSUInteger i = begin; i < next; i++) {
             // A file's audio before its first INDEX 01 — a pregap, or hidden
             // audio before track 1 — belongs to its first row, so none is
             // unreachable. A row runs to the next of its file, so a pregap plays
             // at the end of the row before it, as on a CD; the last runs to the
             // file's end.
-            NSUInteger start = i == 0 ? 0 : [own[i][@"start"] unsignedIntegerValue];
-            BOOL hasNext = i + 1 < own.count;
-            NSUInteger end = hasNext ? [own[i + 1][@"start"] unsignedIntegerValue] : 0;
+            NSUInteger start = i == begin ? 0 : [tracks[i][@"start"] unsignedIntegerValue];
+            BOOL hasNext = i + 1 < next;
+            NSUInteger end = hasNext ? [tracks[i + 1][@"start"] unsignedIntegerValue] : 0;
             // An end of 0 means the file's end, so an empty window — the next
             // row starting where this one does, 0 included — is dropped here.
             if (hasNext && end <= start) {
                 continue;
             }
-            NSURL *url = urlForFile(file.integerValue);
-            if (!url) {
-                break;
-            }
             [rows addObject:[[AudioTrack alloc] initWithURL:url cueStart:start cueEnd:end
-                                                      title:own[i][@"title"]
-                                                  performer:own[i][@"performer"] ?: sheetPerformer
+                                                      title:tracks[i][@"title"]
+                                                  performer:tracks[i][@"performer"] ?: sheetPerformer
                                                       sheet:sheetURL
-                                                trackNumber:[own[i][@"number"] integerValue]]];
-        }
-        // A FILE none of whose tracks survived plays whole, as every FILE did
-        // before sheets had rows: no audio the sheet names goes missing.
-        if (rows.count == rowsBefore && file.integerValue >= 0) {
-            NSURL *url = urlForFile(file.integerValue);
-            if (url) {
-                [rows addObject:[AudioTrack withURL:url]];
-            }
+                                                trackNumber:[tracks[i][@"number"] integerValue]]];
         }
     }
     return rows;
@@ -626,8 +622,7 @@ static NSURL *AudioFileNamedLikeSheet(NSURL *sheet, NSFileManager *fileManager) 
 
 + (NSArray<AudioTrack *> *)cueRowsForSheetAtURL:(NSURL *)url
                                      knownFiles:(NSDictionary<NSString *, NSURL *> *)knownFiles {
-    NSData *data = [NSData dataWithContentsOfURL:url];
-    NSString *text = data ? [self textFromData:data] : nil;
+    NSString *text = TextOfFile(url);
     if (!text) {
         return @[];
     }
@@ -646,15 +641,11 @@ static NSURL *AudioFileNamedLikeSheet(NSURL *sheet, NSFileManager *fileManager) 
         if (!resolved) {
             resolved = name ? ResolveEntry(name, dir, fileManager, dirReachable) : nil;
             if (sole && !(resolved && [fileManager isReadableFileAtPath:resolved.path])) {
-                resolved = AudioFileNamedLikeSheet(url, fileManager) ?: resolved;
+                resolved = AudioFileNamedLikeSheet(url, fileManager, knownFiles) ?: resolved;
             }
         }
         return resolved;
     }];
-}
-
-+ (NSArray<AudioTrack *> *)cueRowsForSheetAtURL:(NSURL *)url {
-    return [self cueRowsForSheetAtURL:url knownFiles:nil];
 }
 
 + (NSString *)knownFileKeyForPath:(NSString *)path {
@@ -663,18 +654,6 @@ static NSURL *AudioFileNamedLikeSheet(NSURL *sheet, NSFileManager *fileManager) 
 
 #pragma mark - A FLAC's own sheet
 
-static uint32_t ReadLE32(const uint8_t *bytes) {
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 | (uint32_t)bytes[3] << 24;
-}
-
-static uint64_t ReadBE64(const uint8_t *bytes) {
-    uint64_t value = 0;
-    for (int i = 0; i < 8; i++) {
-        value = value << 8 | bytes[i];
-    }
-    return value;
-}
-
 // The CUESHEET Vorbis comment (foobar2000's embedding): a whole sheet as text.
 static NSString *CueSheetCommentInBlock(NSData *block) {
     const uint8_t *bytes = block.bytes;
@@ -682,14 +661,14 @@ static NSString *CueSheetCommentInBlock(NSData *block) {
     if (length < 8) {
         return nil;
     }
-    uint64_t p = 4 + (uint64_t)ReadLE32(bytes);
+    uint64_t p = 4 + (uint64_t)OSReadLittleInt32(bytes, 0);
     if (p + 4 > length) {
         return nil;
     }
-    uint32_t count = ReadLE32(bytes + p);
+    uint32_t count = OSReadLittleInt32(bytes, p);
     p += 4;
     for (uint32_t i = 0; i < count && p + 4 <= length; i++) {
-        uint64_t size = ReadLE32(bytes + p);
+        uint64_t size = OSReadLittleInt32(bytes, p);
         p += 4;
         if (p + size > length) {
             return nil;
@@ -718,7 +697,7 @@ static NSString *CueTextForBlock(NSData *block, uint32_t rate) {
     NSUInteger count = bytes[tracksAt];
     NSUInteger p = tracksAt + 1;
     for (NSUInteger t = 0; t < count && p + 36 <= length; t++) {
-        uint64_t offset = ReadBE64(bytes + p);
+        uint64_t offset = OSReadBigInt64(bytes, p);
         uint8_t number = bytes[p + 8];
         BOOL audio = !(bytes[p + 21] & 0x80);
         NSUInteger indexes = bytes[p + 35];
@@ -731,9 +710,10 @@ static NSString *CueTextForBlock(NSData *block, uint32_t rate) {
         }
         for (NSUInteger i = 0; i < indexes && p + 12 <= length; i++, p += 12) {
             if (audio) {
-                long long frames = llround((double)(offset + ReadBE64(bytes + p)) * 75.0 / rate);
+                long long perSecond = kVibeCDFramesPerSecond;
+                long long frames = llround((double)(offset + OSReadBigInt64(bytes, p)) * perSecond / rate);
                 [text appendFormat:@"INDEX %02u %lld:%02lld:%02lld\n", (unsigned)bytes[p + 8],
-                        frames / 4500, frames / 75 % 60, frames % 75];
+                        frames / (60 * perSecond), frames / perSecond % 60, frames % perSecond];
             }
         }
     }
@@ -819,11 +799,10 @@ static void ReadFLACCueSources(FILE *file, uint32_t *rate, NSString **text, NSDa
 }
 
 + (NSArray<AudioTrack *> *)rowsForPlaylistAtURL:(NSURL *)url {
-    if ([url.pathExtension.lowercaseString isEqualToString:@"cue"]) {
-        return [self cueRowsForSheetAtURL:url];
+    if ([self isCueExtension:url.pathExtension.lowercaseString]) {
+        return [self cueRowsForSheetAtURL:url knownFiles:nil];
     }
-    NSData *data = [NSData dataWithContentsOfURL:url];
-    NSString *text = data ? [self textFromData:data] : nil;
+    NSString *text = TextOfFile(url);
     if (!text) {
         return @[];
     }
@@ -896,10 +875,10 @@ static NSString *M3UInfoName(AudioTrack *track) {
         // line, which restores the row exactly and reads nothing to do it.
         if (track.isWindowed || track.cueSheetURL) {
             if (track.cueStart > 0) {
-                [text appendFormat:@"#EXTVLCOPT:start-time=%.3f\n", track.cueStart / 75.0];
+                [text appendFormat:@"#EXTVLCOPT:start-time=%.3f\n", (double)track.cueStart / kVibeCDFramesPerSecond];
             }
             if (track.cueEnd > 0) {
-                [text appendFormat:@"#EXTVLCOPT:stop-time=%.3f\n", track.cueEnd / 75.0];
+                [text appendFormat:@"#EXTVLCOPT:stop-time=%.3f\n", (double)track.cueEnd / kVibeCDFramesPerSecond];
             }
             [text appendFormat:@"%@%@\n", kVibeCueDirective, CuePayload(track)];
         }

@@ -936,7 +936,7 @@ static NSArray<NSString *> *CueRowSummaries(NSString *text) {
 #pragma mark - cueRowsForSheetAtURL:
 
 - (NSArray<NSString *> *)rowFilesForSheet:(NSString *)sheet inDir:(NSURL *)dir {
-    return [[PlaylistFile cueRowsForSheetAtURL:[dir URLByAppendingPathComponent:sheet]]
+    return [[PlaylistFile cueRowsForSheetAtURL:[dir URLByAppendingPathComponent:sheet] knownFiles:nil]
             valueForKeyPath:@"url.lastPathComponent"];
 }
 
@@ -944,7 +944,7 @@ static NSArray<NSString *> *CueRowSummaries(NSString *text) {
     NSURL *dir = [self makeTempDirWithFiles:@[@"Mix.flac"] playlistName:@"Mix.cue"
                                        text:@"FILE \"Mix.flac\" WAVE\n  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n"
                                              "  TRACK 02 AUDIO\n    INDEX 01 01:00:00\n"];
-    NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsForSheetAtURL:[dir URLByAppendingPathComponent:@"Mix.cue"]];
+    NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsForSheetAtURL:[dir URLByAppendingPathComponent:@"Mix.cue"] knownFiles:nil];
     XCTAssertEqual(rows.count, 2u);
     XCTAssertEqualObjects(rows[1].url.URLByDeletingLastPathComponent.path, dir.path);
     XCTAssertEqualObjects(rows[1].cueSheetURL.lastPathComponent, @"Mix.cue");
@@ -1005,7 +1005,7 @@ static NSArray<NSString *> *CueRowSummaries(NSString *text) {
     [data appendBytes:"  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n" length:38];
     NSURL *sheet = [dir URLByAppendingPathComponent:@"nul.cue"];
     [data writeToURL:sheet atomically:YES];
-    for (AudioTrack *row in [PlaylistFile cueRowsForSheetAtURL:sheet]) {
+    for (AudioTrack *row in [PlaylistFile cueRowsForSheetAtURL:sheet knownFiles:nil]) {
         XCTAssertNotNil(row.url);
     }
     for (NSURL *url in [[PlaylistFile rowsForPlaylistAtURL:sheet] valueForKey:@"url"]) {

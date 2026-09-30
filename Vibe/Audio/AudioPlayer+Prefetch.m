@@ -29,6 +29,12 @@
     [self setSuccessorArmedForUI:NO];
 }
 
+// Only a declick can splice two tracks, except the next window of the file,
+// which continues its recording whatever the crossfade.
+- (BOOL)gaplessArmAllowedOnQueue {
+    return VibeGaplessArmAllowed(self.crossfadeMilliseconds, [self.currentTrack isFollowedContiguouslyBy:_prefetchedTrack]);
+}
+
 // Every gate is checked here, at arming time; the bus refuses on its own if
 // the voice's stream has already ended.
 - (void)maybeArmSuccessorOnQueue {
@@ -38,7 +44,7 @@
     if (_state != VibePlayerStatePlaying && _state != VibePlayerStatePaused) {
         return;
     }
-    if (!VibeGaplessArmAllowed(self.crossfadeMilliseconds, [self.currentTrack isFollowedContiguouslyBy:_prefetchedTrack])) {
+    if (!self.gaplessArmAllowedOnQueue) {
         return;
     }
 #if TARGET_OS_OSX
@@ -51,12 +57,10 @@
         return;
     }
 #endif
-    NSRange window = VibeCueWindow(_prefetchedTrack.cueStart, _prefetchedTrack.cueEnd,
-                                   _prefetchedFile.processingFormat.sampleRate, _prefetchedFile.length);
-    AVAudioFramePosition end = (AVAudioFramePosition)NSMaxRange(window);
+    NSRange window = [_prefetchedTrack frameWindowInFile:_prefetchedFile];
     if (window.length == 0
             || ![_voiceBus queueSuccessor:_prefetchedFile startFrame:(AVAudioFramePosition)window.location
-                                 endFrame:end < _prefetchedFile.length ? end : 0 forVoice:_voice]) {
+                                 endFrame:(AVAudioFramePosition)NSMaxRange(window) forVoice:_voice]) {
         return;
     }
     _successorTrack = _prefetchedTrack;
@@ -92,8 +96,7 @@
         [self clearPrefetchOnQueue];
     }
     // At its window's start, where the bus began the successor.
-    NSRange window = VibeCueWindow(startedTrack.cueStart, startedTrack.cueEnd,
-                                   startedFile.processingFormat.sampleRate, startedFile.length);
+    NSRange window = [startedTrack frameWindowInFile:startedFile];
     [self publishState:_state voice:_voice file:startedFile window:window startSeconds:0 baseFrames:snapshot.boundary];
     self.currentTrack = startedTrack;
     startedTrack.duration = self.duration;

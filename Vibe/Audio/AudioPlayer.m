@@ -457,7 +457,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // another row of the file. An empty window fails as an empty file does,
     // so a broken sheet cannot auto-advance through every row.
     double sampleRate = file.processingFormat.sampleRate;
-    NSRange window = file ? VibeCueWindow(track.cueStart, track.cueEnd, sampleRate, file.length) : NSMakeRange(0, 0);
+    NSRange window = file ? [track frameWindowInFile:file] : NSMakeRange(0, 0);
     if (!file || file.length <= 0 || window.length == 0) {
         [self resetToStoppedStateOnQueue];
         [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorFileOpenFailed,
@@ -482,7 +482,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         return;
     }
     AVAudioFramePosition startFrame = VibeClampedStartFrame(startIntent.position, sampleRate, window);
-    NSTimeInterval startSeconds = (NSTimeInterval)(startFrame - (AVAudioFramePosition)window.location) / sampleRate;
+    NSTimeInterval startSeconds = VibeWindowSecondsAtFrame(startFrame, sampleRate, window);
     VibeVoiceID voice = [self startVoiceOnQueueForFile:file window:window atFrame:startFrame
                                       fadeMilliseconds:(_incomingFadeMilliseconds ?: kFadeDurationMilliseconds)
                                                 paused:startIntent.paused];
@@ -936,11 +936,8 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
                                 atFrame:(AVAudioFramePosition)frame
                        fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused {
     VibeVoiceRamp ramp = [self rampOnQueueToGain:1 milliseconds:milliseconds action:VibeVoiceActionNone];
-    // A window running to the file's end asks the bus for none of its own, so
-    // a whole file ends exactly as it always has.
-    AVAudioFramePosition end = (AVAudioFramePosition)NSMaxRange(window);
     VibeVoiceID voice = [_voiceBus startVoiceWithFile:file atFrame:frame
-                                             endFrame:end < file.length ? end : 0
+                                             endFrame:(AVAudioFramePosition)NSMaxRange(window)
                                                  gain:ramp.frames ? 0 : 1
                                                  ramp:ramp
                                                paused:paused];
@@ -965,7 +962,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
                                       fadeMilliseconds:kFadeDurationMilliseconds
                                                 paused:_state == VibePlayerStatePaused];
     [self publishState:_state voice:voice file:file window:window
-          startSeconds:(NSTimeInterval)(startFrame - (AVAudioFramePosition)window.location) / sampleRate baseFrames:0];
+          startSeconds:VibeWindowSecondsAtFrame(startFrame, sampleRate, window) baseFrames:0];
 }
 
 // A voice that cannot be heard (not live, paused, cut, or under a stopped
@@ -1021,7 +1018,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     _crossfadeMilliseconds = milliseconds;
     os_unfair_lock_unlock(&_stateLock);
     dispatch_async(_queue, ^{
-        if (VibeGaplessArmAllowed(milliseconds, [self.currentTrack isFollowedContiguouslyBy:self->_prefetchedTrack])) {
+        if (self.gaplessArmAllowedOnQueue) {
             [self maybeArmSuccessorOnQueue];
         }
         else if (self->_successorTrack) {

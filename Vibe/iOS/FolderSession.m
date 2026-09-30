@@ -506,8 +506,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
                      seen:(NSMutableSet<NSString *> *)seenKeys {
     NSUInteger taken = 0;
     for (AudioTrack *row in rows) {
-        NSString *path = row.url.URLByStandardizingPath.path;
-        NSString *key = path ? [row keyByAppendingWindowTo:path] : nil;
+        NSString *key = row.standardizedSourceKey;
         if (key && ![seenKeys containsObject:key]) {
             [seenKeys addObject:key];
             [tracks addObject:row];

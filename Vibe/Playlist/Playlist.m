@@ -260,13 +260,7 @@
         return nil;
     }
     AudioTrack *outgoing = _tracks[index];
-    AudioTrack *incoming = [[AudioTrack alloc] initWithURL:url
-            cueStart:outgoing.cueStart cueEnd:outgoing.cueEnd
-               title:outgoing.cueTitle performer:outgoing.cuePerformer
-               sheet:outgoing.cueSheetURL trackNumber:outgoing.cueTrackNumber];
-    incoming.duration = outgoing.duration;
-    incoming.detectedBPM = outgoing.detectedBPM;
-    incoming.detectedKey = outgoing.detectedKey;
+    AudioTrack *incoming = [outgoing replacementAtURL:url];
     // Unindex the outgoing track and URL, or a late delivery for the departed
     // track or file would stamp a row it no longer occupies.
     [_trackIndexes removeObjectForKey:outgoing];

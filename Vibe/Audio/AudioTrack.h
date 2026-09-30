@@ -9,6 +9,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class AudioFileHandle;
 @class AudioTrackMetadata;
 
 @interface AudioTrack : NSObject
@@ -65,13 +66,30 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)isFollowedContiguouslyBy:(nullable AudioTrack *)track;
 
 // What sounds: the file's path, plus the window for a windowed row, so rows of
-// one file differ. An identity to compare, never a path to open.
+// one file differ. An identity to compare, never a path to open. Fixed at
+// init, so a per-tick comparison allocates nothing.
 - (NSString *)sourceKey;
 
+// The same over the standardized path, for a key that must survive a
+// provider spelling the file's path another way — dedupe across opens, the
+// remembered track. Standardizing may stat: never on a per-frame path.
+- (nullable NSString *)standardizedSourceKey;
+
 // `key` with this row's window appended, so rows of one file key apart; `key`
-// itself for a whole file, so a plain file's keys are unchanged. What the
-// source key and the per-window waveform entries and claims are spelled with.
-- (NSString *)keyByAppendingWindowTo:(NSString *)key;
+// itself for a whole file, so a plain file's keys are unchanged, and nil for
+// nil. What the source keys and the per-window waveform entries and claims
+// are spelled with.
+- (nullable NSString *)keyByAppendingWindowTo:(nullable NSString *)key;
+
+// The row's window in `file`'s frames (VibeCueWindow): the whole file for a
+// plain row, empty for a window the file does not reach.
+- (NSRange)frameWindowInFile:(AudioFileHandle *)file;
+
+// A fresh row for this one's audio at another URL — Convert's swap: the
+// window, names, duration and analysis carry across. Minted rather than
+// re-pointed, since the memoized cache key would file the new file's
+// waveform and metadata under the old entries.
+- (AudioTrack *)replacementAtURL:(NSURL *)url;
 
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;

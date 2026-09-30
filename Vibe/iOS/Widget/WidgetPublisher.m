@@ -64,8 +64,7 @@ static const CGFloat kWidgetWaveformScale = 3;
 }
 
 + (NSString *)trackKeyForTrack:(AudioTrack *)track {
-    NSString *pathKey = track.url.pathKey;
-    return pathKey ? [track keyByAppendingWindowTo:pathKey] : nil;
+    return [track keyByAppendingWindowTo:track.url.pathKey];
 }
 
 - (instancetype)init {

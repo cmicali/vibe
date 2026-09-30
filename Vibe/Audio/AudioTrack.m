@@ -4,9 +4,11 @@
 //
 
 #import "AudioTrackInternal.h"
+#import "AudioFileHandle.h"
 #import "AudioTrackMetadata.h"
 #import "Formatters.h"
 #import "NSURL+Hash.h"
+#import "PlaybackIntent.h"
 #import "VibeStrings.h"
 
 @interface AudioTrack ()
@@ -20,6 +22,10 @@
     NSTimeInterval _duration;
     NSString *_durationString;
     NSTimeInterval _durationStringDuration;
+    // Both fixed with the window: a row is minted, never re-pointed.
+    NSString *_sourceKey;
+    // A cue row's own name — its TITLE, else "Track n" — or nil.
+    NSString *_cueRowTitle;
 }
 
 - (instancetype)initWithURL:(NSURL *)url {
@@ -28,6 +34,7 @@
         self.url = url;
         _duration = -1;
         _detectedKey = VibeMusicalKeyNone; // the zero-filled default is C major
+        _sourceKey = url.path ?: @"";
     }
     return self;
 }
@@ -47,8 +54,28 @@
         _cuePerformer = [performer copy];
         _cueSheetURL = [sheet copy];
         _cueTrackNumber = trackNumber;
+        _sourceKey = [self keyByAppendingWindowTo:url.path] ?: @"";
+        // Its number, never the file's tag, which names the whole image and
+        // would title every row alike.
+        _cueRowTitle = _cueTitle.length > 0 ? _cueTitle
+                : (self.isWindowed && trackNumber > 0
+                        ? [NSString stringWithFormat:STR_LABEL_CUE_TRACK, (long)trackNumber] : nil);
     }
     return self;
+}
+
+- (AudioTrack *)replacementAtURL:(NSURL *)url {
+    AudioTrack *track = [[AudioTrack alloc] initWithURL:url cueStart:_cueStart cueEnd:_cueEnd
+                                                  title:_cueTitle performer:_cuePerformer
+                                                  sheet:_cueSheetURL trackNumber:_cueTrackNumber];
+    track.duration = self.duration;
+    track.detectedBPM = self.detectedBPM;
+    track.detectedKey = self.detectedKey;
+    return track;
+}
+
+- (NSRange)frameWindowInFile:(AudioFileHandle *)file {
+    return VibeCueWindow(_cueStart, _cueEnd, file.processingFormat.sampleRate, file.length);
 }
 
 - (BOOL)isWindowed {
@@ -60,13 +87,17 @@
 }
 
 - (NSString *)sourceKey {
-    return [self keyByAppendingWindowTo:self.url.path ?: @""];
+    return _sourceKey;
+}
+
+- (NSString *)standardizedSourceKey {
+    return [self keyByAppendingWindowTo:self.url.URLByStandardizingPath.path];
 }
 
 - (NSString *)keyByAppendingWindowTo:(NSString *)key {
-    return self.isWindowed ? [NSString stringWithFormat:@"%@#%lu-%lu", key,
-                                     (unsigned long)_cueStart, (unsigned long)_cueEnd]
-                           : key;
+    return key && self.isWindowed ? [NSString stringWithFormat:@"%@#%lu-%lu", key,
+                                            (unsigned long)_cueStart, (unsigned long)_cueEnd]
+                                  : key;
 }
 
 - (BOOL)installMetadataIfUnresolved:(AudioTrackMetadata *)metadata {
@@ -112,20 +143,9 @@
     return key;
 }
 
-// A cue row's own name: its sheet's TITLE, else its number — never the file's
-// tag, which names the whole image and would title every row alike.
-- (NSString *)cueRowTitle {
-    if (_cueTitle.length > 0) {
-        return _cueTitle;
-    }
-    return self.isWindowed && _cueTrackNumber > 0
-            ? [NSString stringWithFormat:STR_LABEL_CUE_TRACK, (long)_cueTrackNumber] : nil;
-}
-
 - (NSString *)title {
-    NSString *cue = self.cueRowTitle;
-    if (cue) {
-        return cue;
+    if (_cueRowTitle) {
+        return _cueRowTitle;
     }
     if (self.metadata.title.length > 0) {
         return self.metadata.title;
@@ -182,10 +202,10 @@
         return duration;
     }
     if (_cueEnd > _cueStart) {
-        return (NSTimeInterval)(_cueEnd - _cueStart) / 75.0;
+        return (NSTimeInterval)(_cueEnd - _cueStart) / kVibeCDFramesPerSecond;
     }
     NSTimeInterval file = self.metadata.duration;
-    return _cueStart > 0 && file > 0 ? MAX(0, file - (NSTimeInterval)_cueStart / 75.0) : file;
+    return _cueStart > 0 && file > 0 ? MAX(0, file - (NSTimeInterval)_cueStart / kVibeCDFramesPerSecond) : file;
 }
 
 - (void)setDuration:(NSTimeInterval)len {
@@ -211,7 +231,7 @@
 }
 
 - (BOOL)hasArtistAndTitle {
-    return self.artist.length > 0 && (self.cueRowTitle || self.metadata.title.length > 0);
+    return self.artist.length > 0 && (_cueRowTitle || self.metadata.title.length > 0);
 }
 
 - (NSString *)displayTitle {

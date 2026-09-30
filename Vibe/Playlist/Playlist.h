@@ -127,11 +127,9 @@ NS_ASSUME_NONNULL_BEGIN
 // when a shell redraws or refeeds.
 - (BOOL)stampTracksSounding:(nullable AudioTrack *)track usingBlock:(void (NS_NOESCAPE ^)(AudioTrack *track))stamp;
 
-// Points a row at a different file, returning the fresh AudioTrack now in it,
-// or nil when index is out of range. Mints rather than reassigning url:
-// AudioTrack memoizes its cache key, so a reused track would file the new
-// file's waveform and metadata under the old entries. Duration, detected BPM,
-// detected key and a cue row's window and names carry across — same audio.
+// Points a row at a different file, returning the fresh AudioTrack now in it
+// (AudioTrack replacementAtURL:, which says what carries across), or nil when
+// index is out of range.
 - (nullable AudioTrack *)replaceTrackAtIndex:(NSUInteger)index withURL:(NSURL *)url;
 
 // Replaces every row still holding this file, even if the captured row left

@@ -42,6 +42,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Queues the park on the current voice when every gate holds; idempotent.
 - (void)maybeArmSuccessorOnQueue;
+- (BOOL)gaplessArmAllowedOnQueue;
 // Drops the queued successor: the voice ends at its own file, as unarmed.
 - (void)unqueueSuccessorOnQueue;
 // Forgets the successor's bookkeeping without touching the bus; for a voice

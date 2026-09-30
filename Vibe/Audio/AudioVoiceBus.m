@@ -916,6 +916,12 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     return nil;
 }
 
+// The record's end: 0 for the file's own, which a lossy file's length only
+// estimates, so reading to it is what ends a whole file where it really ends.
+static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, AudioFileHandle *file) {
+    return endFrame > 0 && endFrame < file.length ? endFrame : 0;
+}
+
 - (VibeVoiceID)startVoiceWithFile:(AudioFileHandle *)file atFrame:(AVAudioFramePosition)frame
                          endFrame:(AVAudioFramePosition)endFrame
                              gain:(float)gain
@@ -928,7 +934,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     record->identifier = identifier;
     record->file = file;
     record->startFrame = frame;
-    record->endFrame = endFrame;
+    record->endFrame = VibeOwnEndFrame(endFrame, file);
     record->gain = gain;
     record->ramp = ramp;
     record->paused = paused;
@@ -1145,7 +1151,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     if (pending) {
         pending->waitingSuccessor = file;
         pending->successorStartFrame = startFrame;
-        pending->successorEndFrame = endFrame;
+        pending->successorEndFrame = VibeOwnEndFrame(endFrame, file);
         return YES;
     }
     NSUInteger slot = [self ownedSlotForIdentifier:voice];
@@ -1159,7 +1165,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     os_unfair_lock_lock(&_tableLock);
     _records[slot]->waitingSuccessor = file;
     _records[slot]->successorStartFrame = startFrame;
-    _records[slot]->successorEndFrame = endFrame;
+    _records[slot]->successorEndFrame = VibeOwnEndFrame(endFrame, file);
     os_unfair_lock_unlock(&_tableLock);
     [self publishWaitingSuccessorForSlot:slot];
     return YES;
