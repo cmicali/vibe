@@ -363,7 +363,7 @@ AUDIO_PY
         # MPEG in a WAV: fixed-size packets with no descriptions. CoreAudio opens one only when every frame is one size, which 48 kHz CBR is.
         [ -s "$render_dir/mp3-in.wav" ] || ffmpeg -nostdin -loglevel error -y -i "$render_dir/cbr.mp3" -c:a copy -f wav "$render_dir/mp3-in.wav"
         [ -s "$render_dir/mp2-in.wav" ] || ffmpeg -nostdin -loglevel error -y -i "$render_dir/lossy.mp2" -c:a copy -f wav "$render_dir/mp2-in.wav"
-        # A master limited to full scale, whose decode overshoots it: the overs a float decode keeps and Apple's 16-bit one clips.
+        # A master limited to full scale, whose decode overshoots it: the overs a float decode keeps and Apple's clips.
         [ -s "$render_dir/hot.mp3" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -af volume=12dB,alimiter=limit=1:level=false -c:a libmp3lame -b:a 320k "$render_dir/hot.mp3"
         # Mono Layer III, whose private bits are five where stereo's are three.
         [ -s "$render_dir/mono.mp3" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -ac 1 -c:a libmp3lame -b:a 128k "$render_dir/mono.mp3"

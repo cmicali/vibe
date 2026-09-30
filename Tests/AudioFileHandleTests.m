@@ -406,13 +406,19 @@ static int VibeOpenDescriptorCount(void) {
     XCTAssertEqual(VibeOpenDescriptorCount(), baseline, @"the container's own reader returns its descriptor");
 }
 
-// Apple's MPEG decoders output Int16 only, so an MP3 or MP2 decode is already
-// on the 16-bit grid and any integer depth or float carries it exactly; its
-// AAC decoder outputs float32, which 16 bits would round. docs/audio-quality.md's
-// findings for Apple's MPEG decoder rest on this.
-- (void)testAppleMPEGDecodersOutputInt16OnlyAndAACOutputsFloat {
+// Apple's MPEG decoders output Int16 only on arm64, so an MP3 or MP2 decode is
+// already on the 16-bit grid and any integer depth or float carries it exactly;
+// their x86_64 build also outputs float32, as the AAC decoder does on both,
+// which 16 bits would round. docs/audio-quality.md's findings for Apple's MPEG
+// decoder rest on this.
+- (void)testAppleMPEGDecodersOutputInt16OnlyOnArm64AndAACOutputsFloat {
+#if defined(__arm64__)
+    NSNumber *mpegFloat = @NO;
+#else
+    NSNumber *mpegFloat = @YES;
+#endif
     NSDictionary<NSNumber *, NSNumber *> *floatOffered = @{
-        @(kAudioFormatMPEGLayer3): @NO, @(kAudioFormatMPEGLayer2): @NO, @(kAudioFormatMPEG4AAC): @YES,
+        @(kAudioFormatMPEGLayer3): mpegFloat, @(kAudioFormatMPEGLayer2): mpegFloat, @(kAudioFormatMPEG4AAC): @YES,
     };
     for (NSNumber *format in floatOffered) {
         AudioComponentDescription description = { kAudioDecoderComponentType, format.unsignedIntValue, kAudioUnitManufacturer_Apple, 0, 0 };
