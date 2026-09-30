@@ -342,6 +342,97 @@ def mixed_8k(name, frames=40):
         stream += bytes(int(''.join(map(str, bits[i:i + 8])), 2) for i in range(0, len(bits), 8))
     path.write_bytes(stream)
 mixed_8k('mixed-8k.mp3')
+# Legal FLACs no encoder here writes, coded directly (testDrFLACDecodesWhatTheFileHolds and
+# testDrFLACSeeksFurtherThanThirtyTwoBitsOfFrames): Rice partition orders past the streamable subset's
+# 8, which RFC 9639 section 9.2.7 allows up to 15, in a 24-bit stream and in a 32-bit one's 33-bit side
+# channel; and a stream longer than 2^32 frames, each FLAC frame a constant of its own.
+def crc_table(poly, width):
+    top, mask, table = 1 << (width - 1), (1 << width) - 1, []
+    for byte in range(256):
+        c = byte << (width - 8)
+        for _ in range(8): c = ((c << 1) ^ poly) & mask if c & top else (c << 1) & mask
+        table.append(c)
+    return table
+CRC8, CRC16 = crc_table(0x07, 8), crc_table(0x8005, 16)
+def crc8(data):
+    c = 0
+    for b in data: c = CRC8[c ^ b]
+    return c
+def crc16(data):
+    c = 0
+    for b in data: c = ((c << 8) & 0xffff) ^ CRC16[(c >> 8) ^ b]
+    return c
+class Bits:
+    def __init__(self): self.parts = []
+    def put(self, value, n):
+        if n: self.parts.append(format(value & ((1 << n) - 1), f'0{n}b'))
+    def bytes(self):
+        s = ''.join(self.parts); s += '0' * (-len(s) % 8)
+        return int(s, 2).to_bytes(len(s) // 8, 'big') if s else b''
+def utf8_number(n):
+    if n < 0x80: return bytes([n])
+    length = 2 if n < 0x800 else 3 if n < 0x10000 else 4
+    tail = [0x80 | (n >> (6 * i)) & 0x3f for i in range(length - 1)][::-1]
+    return bytes([(0xff00 >> length) & 0xff | n >> (6 * (length - 1))] + tail)
+# A FIXED subframe whose residual is RICE2-coded in 2^partition_order partitions, one of them escaped to raw.
+def fixed_subframe(bits, samples, width, order, partition_order, escaped):
+    bits.put((0b001000 | order) << 1, 8)
+    for s in samples[:order]: bits.put(s, width)
+    residuals = [samples[n] - samples[n - 1] if order else samples[n] for n in range(order, len(samples))]
+    bits.put(1, 2); bits.put(partition_order, 4)
+    start = 0
+    for p in range(1 << partition_order):
+        part = residuals[start:start + (len(samples) >> partition_order) - (order if p == 0 else 0)]
+        start += len(part)
+        if p == escaped:
+            raw = max([(r if r >= 0 else ~r).bit_length() + 1 for r in part], default=1)
+            bits.put(31, 5); bits.put(raw, 5)
+            for r in part: bits.put(r, raw)
+            continue
+        zigzag = [2 * r if r >= 0 else -2 * r - 1 for r in part]
+        k = min(30, max(0, (sum(zigzag) // max(len(zigzag), 1)).bit_length() - 1))
+        bits.put(k, 5)
+        for u in zigzag:
+            bits.parts.append('0' * (u >> k) + '1'); bits.put(u, k)
+def flac_frame(number, block, rate_code, channel_code, size_code, body):
+    head = bytes([0xff, 0xf8, 0x70 | rate_code, channel_code << 4 | size_code << 1]) + utf8_number(number) + (block - 1).to_bytes(2, 'big')
+    frame = head + bytes([crc8(head)]) + body.bytes()
+    return frame + crc16(frame).to_bytes(2, 'big')
+def write_flac(path, rate, bps, channels, block, total, frames):
+    info = Bits()
+    for value, n in [(block, 16), (block, 16), (0, 24), (0, 24), (rate, 20), (channels - 1, 3), (bps - 1, 5), (total, 36), (0, 128)]:
+        info.put(value, n)
+    path.write_bytes(b'fLaC' + bytes([0x80, 0, 0, 34]) + info.bytes() + b''.join(frames))
+def wav_channels(name):
+    data = (out / name).read_bytes()
+    channels, width = struct.unpack_from('<H', data, 22)[0], struct.unpack_from('<H', data, 34)[0] // 8
+    values = [int.from_bytes(data[i:i + width], 'little', signed=True) for i in range(44, len(data), width)]
+    return [values[c::channels] for c in range(channels)]
+def partition_orders(name, source, side):
+    path = out / name
+    if path.exists(): return
+    left, right = wav_channels(source)
+    channels = [left, [l - r for l, r in zip(left, right)]] if side else [left, right]
+    total, frames = len(left), []
+    for number, start in enumerate(range(0, total, 4096)):
+        n, body = min(4096, total - start), Bits()
+        order = min(9 if side else 9 + number % 4, (n & -n).bit_length() - 1)  # as far as the block divides
+        for c, samples in enumerate(channels):
+            width = 24 if not side else 32 + c
+            fixed_subframe(body, samples[start:start + n], width, 0 if side else 1, order, number % 3)
+        frames.append(flac_frame(number, n, 0b1010, 0b1000 if side else 0b0001, 0b111 if side else 0b110, body))
+    write_flac(path, 48000, 32 if side else 24, 2, 4096, total, frames)
+partition_orders('flac-partition-orders.flac', 'noise-48000-24-2.wav', side=False)
+partition_orders('flac-32-partition-order.flac', 'integer32-low-bits.wav', side=True)
+def long_constant(name, frames=65538, block=65535):
+    path = out / name
+    if path.exists(): return
+    stream = []
+    for number in range(frames):
+        body = Bits(); body.put(0, 8); body.put(((number * 7919) & 0xffff) - 32768, 16)  # CONSTANT subframe
+        stream.append(flac_frame(number, block, 0b0011, 0b0000, 0b100, body))
+    write_flac(path, 192000, 16, 1, block, frames * block, stream)
+long_constant('flac-long.flac')
 (out/'manifest.json').write_text(json.dumps({'seed':'0x12345678','rates':[44100,48000,88200,96000,176400,192000],'duration':2,'noisePeak':0.25},indent=2))
 AUDIO_PY
     render_source="$render_dir/noise-48000-24-2.wav"

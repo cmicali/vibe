@@ -786,10 +786,11 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     memset(streaminfo + 14, 0, 4);
 }
 // dr_flac plays legal FLACs Apple's codec refuses, and ones the upstream copy
-// could not seek (every frame's first residual partition empty), bit for bit:
-// each decodes to the PCM it was encoded from, a 32-bit one rounded once to
-// float32 in each side-channel mode, and every seek reads what the continuous
-// decode holds there. The empty-partition file is played again with no length
+// could not seek (every frame's first residual partition empty) or decode
+// (Rice partition orders past 8, in a 24-bit stream and in a 32-bit one's
+// 33-bit side channel), bit for bit: each decodes to the PCM it was encoded
+// from, a 32-bit one rounded once to float32 in each side-channel mode, and
+// every seek reads what the continuous decode holds there. The empty-partition file is played again with no length
 // in STREAMINFO, as a streamed encode leaves it, and again with a megabyte of
 // zeros after it, as a download that reserved its size leaves it: dr_flac
 // finds the length from its last frames, and the player plays all of it.
@@ -798,7 +799,8 @@ static const NSUInteger kLayer3DecoderDelay = 529;
         @"flac-zero-residual.flac": @"noise-48000-24-2.wav", @"flac-block16.flac": @"noise-48000-24-2.wav",
         @"flac-block65535.flac": @"noise-48000-24-2.wav", @"flac-705600.flac": @"noise-705600-24-2.wav",
         @"flac-32-mid_side.flac": @"integer32-low-bits.wav", @"flac-32-left_side.flac": @"integer32-low-bits.wav",
-        @"flac-32-right_side.flac": @"integer32-low-bits.wav", @"lossless-8ch.flac": @"noise-48000-24-8.wav"};
+        @"flac-32-right_side.flac": @"integer32-low-bits.wav", @"lossless-8ch.flac": @"noise-48000-24-8.wav",
+        @"flac-partition-orders.flac": @"noise-48000-24-2.wav", @"flac-32-partition-order.flac": @"integer32-low-bits.wav"};
     for (NSString *name in [sources.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
         AudioFileHandle *file = [self open:[self optionalFixture:name] decoder:@"dr_flac"];
         NSData *decoded = [self readToEnd:file];
@@ -823,6 +825,23 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
     [self play:unknownURL paused:NO position:0];
     [self assertReference:source capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
+}
+// A seek from inside a FLAC frame to 2^32 frames or more past it, forward and
+// back, lands at its target, where a 32-bit distance would wrap to a target
+// inside the frame. flac-long.flac is 65538 FLAC frames of 65535, each the
+// constant ((frame * 7919) & 0xFFFF) - 32768.
+- (void)testDrFLACSeeksFurtherThanThirtyTwoBitsOfFrames {
+    AudioFileHandle *file = [self open:[self fixture:@"flac-long.flac"] decoder:@"dr_flac"];
+    XCTAssertEqual(file.length, (AVAudioFramePosition)65538 * 65535);
+    AVAudioPCMBuffer *slice = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat frameCapacity:32];
+    XCTAssertTrue([file readIntoBuffer:slice error:NULL]);
+    for (NSNumber *target in @[@(((AVAudioFramePosition)1 << 32) + 64), @64]) {
+        XCTAssertTrue([file seekToFrame:target.longLongValue error:NULL]);
+        XCTAssertTrue([file readIntoBuffer:slice error:NULL]);
+        XCTAssertEqual(slice.frameLength, 32u);
+        int64_t frame = target.longLongValue / 65535;
+        XCTAssertEqual(slice.floatChannelData[0][0], (float)(((frame * 7919) & 0xFFFF) - 32768) / 32768, @"seek to %@", target);
+    }
 }
 // What damages files in the wild, done to lossless.flac, Apple's encode: an
 // ID3v2 tag in front, a seek table two frames stale and one with a garbage
@@ -932,6 +951,13 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     file = open([bytes subdataWithRange:NSMakeRange(0, frameMiddle)], @"cut.flac");
     [self assertSeekOf:file to:(k + 2) * block match:whole name:@"cut, past the end"];
     [self assertSeekOf:file to:(k - 1) * block match:whole name:@"cut, after the end"];
+
+    // A STREAMINFO allowing no block has no frame dr_flac could play, and is left to Apple's decoder at once, never searched for a length.
+    NSMutableData *noBlocks = [bytes mutableCopy];
+    [self clearLengthOfFLAC:noBlocks];
+    memset((uint8_t *)noBlocks.mutableBytes + 8 + 2, 0, 2);
+    AudioFileHandle *refused = [[AudioFileHandle alloc] initForReading:[self writeBytes:noBlocks name:@"no-blocks.flac"] error:NULL];
+    XCTAssertFalse([refused.decoderName isEqualToString:@"dr_flac"], @"no blocks");
 
     // A file of unknown length, as a streamed encode leaves it, with a stray 8-channel frame header past its last frame: the length found
     // ends at the last frame, and after reading to the end, a seek back reads the last frame.

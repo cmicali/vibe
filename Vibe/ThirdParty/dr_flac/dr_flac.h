@@ -5036,13 +5036,9 @@ static drflac_bool32 drflac__decode_samples_with_residual(drflac_bs* bs, drflac_
     }
 
     /*
-    From the FLAC spec:
-      The Rice partition order in a Rice-coded residual section must be less than or equal to 8.
+    The order's 4 bits allow up to 15. Only the streamable subset limits it to 8 (RFC 9639 sections 7 and 9.2.7), and the check below keeps
+    every partition inside the block.
     */
-    if (partitionOrder > 8) {
-        return DRFLAC_FALSE;
-    }
-
     /* Validation check. The partitions must divide the block evenly, or the samples past the last whole partition are never written. */
     if ((blockSize / (1 << partitionOrder)) < lpcOrder || (blockSize & ((1U << partitionOrder) - 1)) != 0) {
         return DRFLAC_FALSE;
@@ -5127,13 +5123,9 @@ static drflac_bool32 drflac__read_and_seek_residual(drflac_bs* bs, drflac_uint32
     }
 
     /*
-    From the FLAC spec:
-      The Rice partition order in a Rice-coded residual section must be less than or equal to 8.
+    The order's 4 bits allow up to 15. Only the streamable subset limits it to 8 (RFC 9639 sections 7 and 9.2.7), and the check below keeps
+    every partition inside the block.
     */
-    if (partitionOrder > 8) {
-        return DRFLAC_FALSE;
-    }
-
     /* Validation check. This must match drflac__decode_samples_with_residual(): the first partition can legally hold no residuals. */
     if ((blockSize / (1 << partitionOrder)) < order || (blockSize & ((1U << partitionOrder) - 1)) != 0) {
         return DRFLAC_FALSE;
@@ -5421,7 +5413,7 @@ static drflac_bool32 drflac__decode_subframe_s64(drflac_bs* bs, const drflac_sub
     if (!drflac__read_uint8(bs, 2, &residualMethod) || (residualMethod != DRFLAC_RESIDUAL_CODING_METHOD_PARTITIONED_RICE && residualMethod != DRFLAC_RESIDUAL_CODING_METHOD_PARTITIONED_RICE2)) {
         return DRFLAC_FALSE;
     }
-    if (!drflac__read_uint8(bs, 4, &partitionOrder) || partitionOrder > 8 || (blockSize >> partitionOrder) < order || (blockSize & ((1U << partitionOrder) - 1)) != 0) {
+    if (!drflac__read_uint8(bs, 4, &partitionOrder) || (blockSize >> partitionOrder) < order || (blockSize & ((1U << partitionOrder) - 1)) != 0) {
         return DRFLAC_FALSE;
     }
 
@@ -6412,7 +6404,8 @@ static drflac_bool32 drflac__find_and_decode_next_valid_flac_frame(drflac* pFlac
 Finds the length of a native stream whose STREAMINFO leaves it unknown (0), as an encoder that cannot seek back to write it does: the end of
 the last FLAC frame that checks out. It's looked for from a FLAC frame's worth of bytes before the end of the stream, and from twice as far
 back each time none is found there, so only the stream's tail is read. A stream that cannot seek to its end, or has no valid frame, keeps
-its unknown length. The decoder is left at the first frame.
+its unknown length. So does one whose STREAMINFO allows no block, which has no frame to find, and whose window would never widen. The
+decoder is left at the first frame.
 */
 static void drflac__find_unknown_total_pcm_frame_count(drflac* pFlac)
 {
@@ -6420,7 +6413,7 @@ static void drflac__find_unknown_total_pcm_frame_count(drflac* pFlac)
     drflac_uint64 window;
     drflac_uint64 totalPCMFrameCount = 0;
 
-    if (pFlac->bs.onTell == NULL || !pFlac->bs.onSeek(pFlac->bs.pUserData, 0, DRFLAC_SEEK_END)) {
+    if (pFlac->maxBlockSizeInPCMFrames == 0 || pFlac->bs.onTell == NULL || !pFlac->bs.onSeek(pFlac->bs.pUserData, 0, DRFLAC_SEEK_END)) {
         return;
     }
 
@@ -12267,20 +12260,20 @@ DRFLAC_API drflac_bool32 drflac_seek_to_pcm_frame(drflac* pFlac, drflac_uint64 p
         /* If the target sample and the current sample are in the same frame we just move the position forward. */
         if (drflac__is_current_flac_frame_valid(pFlac)) {
             if (pcmFrameIndex > pFlac->currentPCMFrame) {
-                /* Forward. */
-                drflac_uint32 offset = (drflac_uint32)(pcmFrameIndex - pFlac->currentPCMFrame);
+                /* Forward. The distance stays 64-bit until it's known to be inside the frame, or a jump of 2^32 PCM frames wraps into it. */
+                drflac_uint64 offset = pcmFrameIndex - pFlac->currentPCMFrame;
                 if (pFlac->currentFLACFrame.pcmFramesRemaining > offset) {
-                    pFlac->currentFLACFrame.pcmFramesRemaining -= offset;
+                    pFlac->currentFLACFrame.pcmFramesRemaining -= (drflac_uint32)offset;
                     pFlac->currentPCMFrame = pcmFrameIndex;
                     return DRFLAC_TRUE;
                 }
             } else {
                 /* Backward. */
-                drflac_uint32 offsetAbs = (drflac_uint32)(pFlac->currentPCMFrame - pcmFrameIndex);
+                drflac_uint64 offsetAbs = pFlac->currentPCMFrame - pcmFrameIndex;
                 drflac_uint32 currentFLACFramePCMFrameCount = pFlac->currentFLACFrame.header.blockSizeInPCMFrames;
                 drflac_uint32 currentFLACFramePCMFramesConsumed = currentFLACFramePCMFrameCount - pFlac->currentFLACFrame.pcmFramesRemaining;
                 if (currentFLACFramePCMFramesConsumed > offsetAbs) {
-                    pFlac->currentFLACFrame.pcmFramesRemaining += offsetAbs;
+                    pFlac->currentFLACFrame.pcmFramesRemaining += (drflac_uint32)offsetAbs;
                     pFlac->currentPCMFrame = pcmFrameIndex;
                     return DRFLAC_TRUE;
                 }

@@ -469,17 +469,17 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 }
 
 // Takes the file over for dr_flac, or leaves it to ExtAudioFile when dr_flac
-// cannot open it or reads it differently. ExtAudioFile is disposed without
-// decoding and the parser closed: dr_flac reads the stream through the
-// descriptor itself and answers the length, STREAMINFO's or, for a stream
-// that leaves it unknown, the end of its last frame (ThirdParty/AGENTS.md).
-// 0 means the stream has no frame to play.
+// cannot open it, finds no frame in it or reads it differently. ExtAudioFile
+// is disposed without decoding and the parser closed: dr_flac reads the
+// stream through the descriptor itself and answers the length, STREAMINFO's
+// or, for a stream that leaves it unknown, the end of its last frame
+// (ThirdParty/AGENTS.md).
 - (BOOL)openFLAC {
     if (_descriptor < 0) {
         return NO;
     }
     _flac = drflac_open(VibeFLACRead, VibeFLACSeek, VibeFLACTell, (__bridge void *)self, NULL);
-    if (!_flac || _flacReadFailed || _flac->channels != _processingFormat.channelCount
+    if (!_flac || _flacReadFailed || _flac->totalPCMFrameCount == 0 || _flac->channels != _processingFormat.channelCount
             || _flac->sampleRate != _processingFormat.sampleRate) {
         drflac_close(_flac);
         _flac = NULL;
