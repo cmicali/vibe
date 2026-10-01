@@ -1004,6 +1004,10 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 }
 
 - (void)endZoomGesture {
+    // Stop a coast the dying pan started, while the flag still routes its
+    // scroll to the park: let run, scrollViewDidScroll: would read a position
+    // out of it that no seek follows.
+    [_scroll setContentOffset:_scroll.contentOffset animated:NO];
     _isPinching = NO;
     if (_renderer) {
         // The live tree is at the gesture's starting geometry and the bitmap

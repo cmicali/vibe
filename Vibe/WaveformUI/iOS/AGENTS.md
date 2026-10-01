@@ -32,7 +32,7 @@ A finger already scrubbing must be able to start a zoom, and lifting back to one
 
 **So from the pinch's first frame, the pinch owns the gesture to its end.** `trackZoomGestureScrub:` moves the track from the pinch's own centroid, and only when exactly **one** touch remains — with two, that centroid is the zoom's anchor, so the position holds still while zooming. It re-anchors on any touch-count change, or the 2→1 jump in the centroid lands as one enormous scrub. Capping the pan at `maximumNumberOfTouches = 1` looks like the way to stop a second finger scrubbing and only makes it die sooner; the cap is deliberately absent.
 
-**TRAP: the dying pan must not be allowed to finish anything.** Its `endScrub` arrives mid-gesture, and left alone it commits a seek to wherever the finger was when the second one lifted and hands the pager back under a live drag. `endScrub` declines outright while `_isPinching`; the seek, the haptics and the pager hold are all settled by `endZoomGesture` when the hand actually leaves.
+**TRAP: the dying pan must not be allowed to finish anything.** Its `endScrub` arrives mid-gesture, and left alone it commits a seek to wherever the finger was when the second one lifted and hands the pager back under a live drag. `endScrub` declines outright while `_isPinching`; the seek, the haptics and the pager hold are all settled by `endZoomGesture` when the hand actually leaves. Nor may its coast outlive the pinch: `endZoomGesture` stops it before clearing `_isPinching`, or `scrollViewDidScroll:` reads a position out of the coast that no seek follows.
 
 `isScrubbing` therefore includes a pinch that is scrubbing — without it the 3 Hz tick and the display link write playback's position over the finger's once the pan is gone.
 

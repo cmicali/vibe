@@ -219,10 +219,15 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     // that set is.
     NSLayoutConstraint *_actionBarLeadingAfterPad;
     BOOL               _fxPadShown;
-    // What hiding the shuffle and repeat buttons zeroes.
+    // What hiding the shuffle and repeat buttons zeroes; the setting is one
+    // of the two things that hide them (applyShuffleRepeatShown).
     NSLayoutConstraint *_shuffleWidth;
     NSLayoutConstraint *_outerGapWanted;
     NSLayoutConstraint *_outerGapMin;
+    BOOL               _shuffleRepeatWanted;
+    // What the flanks last drew, so an unchanged configure rebuilds no glyph.
+    BOOL               _flankShuffleEnabled;
+    VibeRepeatMode     _flankRepeatMode;
 
     // Swapped on the cell's own aspect, so a rotation mid-reuse cannot
     // strand a cell.
@@ -353,7 +358,10 @@ static void VibeConfigureTimeLabel(UILabel *label) {
              pointSize:kCellSideGlyphPointSize];
         _repeatButton = [self makeTransportButton];
         _shuffleWidth = [_shuffleButton.widthAnchor constraintEqualToConstant:kTransportFlankButtonSide];
+        _shuffleRepeatWanted = YES;
         [self setGlyphPlaying:NO];
+        // Unequal to any mode, so the first set draws.
+        _flankRepeatMode = (VibeRepeatMode)-1;
         [self setShuffleEnabled:NO repeatMode:VibeRepeatModeOff];
 
         // Landscape: the artist (750) truncates before the codec line.
@@ -764,6 +772,31 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
 }
 
 - (void)setShuffleRepeatShown:(BOOL)shown {
+    if (_shuffleRepeatWanted == shown) {
+        return;
+    }
+    _shuffleRepeatWanted = shown;
+    [self setNeedsLayout];
+}
+
+// Shown when the setting asks AND the row fits: its required minimum with the
+// flanks against what the layout set in force leaves it, from the constants
+// that build both. Over it a required constraint breaks every pass — a 320pt
+// window (Slide Over) in portrait, landscape under about 510pt. It reads the
+// bounds and the safe area, never the row's own layout, so it cannot feed
+// back. Hidden, a button also leaves the accessibility tree.
+- (void)applyShuffleRepeatShown {
+    CGFloat row = 3 * kTransportButtonSide
+            + 2 * (kTransportFlankButtonSide + kTransportFlankMinGap + kTransportMinGap);
+    UIEdgeInsets safe = self.contentView.safeAreaInsets;
+    CGFloat width = self.bounds.size.width;
+    // Landscape: the column edges, then the pad and the route pill at its
+    // narrowest, the pad's circle, each a gap from the row.
+    CGFloat available = _landscapeActive
+            ? width - MAX(safe.left, kCellEdgeInsetLandscape) - MAX(safe.right, kCellEdgeInsetLandscape)
+                    - 2 * (kCellActionBarHeight + kCellActionBarGap)
+            : width - 2 * (MAX(safe.left, safe.right) + kTransportEdgeInset);
+    BOOL shown = _shuffleRepeatWanted && available >= row;
     if (_shuffleButton.hidden == !shown) {
         return;
     }
@@ -772,7 +805,6 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
     _shuffleWidth.constant = shown ? kTransportFlankButtonSide : 0;
     _outerGapWanted.constant = shown ? kTransportButtonGap : 0;
     _outerGapMin.constant = shown ? kTransportFlankMinGap : 0;
-    [self setNeedsLayout];
 }
 
 - (void)setFXPadShown:(BOOL)shown {
@@ -816,6 +848,7 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
 - (void)layoutSubviews {
     VibeSignpostBegin(cell_layout);
     [self applyLayoutForBounds:self.bounds];
+    [self applyShuffleRepeatShown];
     [self updateHeaderMetrics];
     [super layoutSubviews];
     // The default 1 draws the cached glyphs soft.
@@ -824,6 +857,13 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
         button.layer.rasterizationScale = scale;
     }
     VibeSignpostEnd(cell_layout);
+}
+
+// A recycled page can get its safe area after its own layout pass (the FX
+// pad's trap), and applyShuffleRepeatShown reads it.
+- (void)safeAreaInsetsDidChange {
+    [super safeAreaInsetsDidChange];
+    [self setNeedsLayout];
 }
 
 - (UILabel *)makeTimeLabel {
@@ -862,7 +902,14 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
             : (UIAccessibilityTraitButton | UIAccessibilityTraitNotEnabled);
 }
 
+// Every configure and every play-order change lands here; each glyph is two
+// image builds and a re-raster of the shadowed layer.
 - (void)setShuffleEnabled:(BOOL)shuffleEnabled repeatMode:(VibeRepeatMode)repeatMode {
+    if (shuffleEnabled == _flankShuffleEnabled && repeatMode == _flankRepeatMode) {
+        return;
+    }
+    _flankShuffleEnabled = shuffleEnabled;
+    _flankRepeatMode = repeatMode;
     [self setFlankGlyph:@"shuffle" active:shuffleEnabled onButton:_shuffleButton];
     [self setFlankGlyph:VibeRepeatModeSymbolName(repeatMode) active:repeatMode != VibeRepeatModeOff
                onButton:_repeatButton];
