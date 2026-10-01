@@ -22,10 +22,11 @@
 // reserves it at twice frameSize so the splice never reallocates.
 //
 // TRAP: 0 < hopSize <= frameSize is a precondition of the arithmetic. `base`
-// below is bounded by hopSize and the final assign needs it bounded by
+// below is bounded by hopSize and the final tail copy needs it bounded by
 // frameCount; only hopSize <= frameSize makes the second follow. A larger hop
-// gives a short buffer a reversed iterator range — an overread, not an empty
-// one — and a zero hop never advances. The guard returns nothing instead.
+// wraps a short buffer's frameCount - base — a huge resize and an overread,
+// not an empty one — and a zero hop never advances. The guard returns
+// nothing instead.
 template <typename ProcessFrame>
 static inline void VibeAnalysisFrameStream(std::vector<float> &pending,
                                            const float *samples, size_t frameCount,

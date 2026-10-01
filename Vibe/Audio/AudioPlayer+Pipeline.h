@@ -72,7 +72,7 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 - (void)afterRenderLeavesOnQueue:(dispatch_block_t)work;
 #if !TARGET_OS_OSX
 // Forgets every reference bound to the dead media server without messaging
-// it (the unit's own dealloc still stops and disposes it) — the
+// it (the unit's own dealloc, finding it dead, only disposes it) — the
 // media-services-reset rebuild's first half.
 - (void)dropOutputBoundStateOnQueue;
 #endif
