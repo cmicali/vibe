@@ -13,7 +13,7 @@
 # the HOME the runner hands it; and its own bundle ID, since an unsandboxed
 # app's preferences are cfprefsd's, in the real home, whatever that HOME says,
 # and the runner resets that domain before every scenario; and its own process
-# name, VibeBench, since other sessions' tooling (vibe-debug's launch.sh) does
+# name, VibeBenchApp, since other sessions' tooling (vibe-debug's launch.sh) does
 # `pkill -x Vibe` and would kill a measurement mid-run.
 #
 # The source is a detached worktree under build/bench/src/<label>, patched
@@ -58,7 +58,7 @@ xcodebuild \
     VIBE_VERBOSE_LOGGING=0 \
     ENABLE_APP_SANDBOX=NO \
     PRODUCT_BUNDLE_IDENTIFIER=com.commonwealthrecordings.Vibe.bench \
-    EXECUTABLE_NAME=VibeBench \
+    EXECUTABLE_NAME=VibeBenchApp \
     GCC_TREAT_WARNINGS_AS_ERRORS=NO \
     DEBUG_INFORMATION_FORMAT=dwarf \
     CODE_SIGN_IDENTITY=- \

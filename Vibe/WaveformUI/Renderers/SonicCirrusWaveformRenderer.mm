@@ -21,6 +21,9 @@ static const CGFloat kBottomBarSpacing = 2;         // gap between the top basel
 
 @implementation SonicCirrusWaveformRenderer {
     NSMutableArray<CALayer*>* _layers;
+    // Each layer's last-set frame: the frame getter is computed, and a morph
+    // frame compares all 2,048.
+    std::vector<CGRect> _layerFrames;
     NSInteger _lastProgressBoundary; // -1 forces a full repaint after a color change
 
     VibeColor* _playedColorTop;
@@ -155,6 +158,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
         [_layers addObject:layer];
         [self.parentLayer addSublayer:layer];
     }
+    _layerFrames.resize(count * 2, CGRectZero);
     // The hover index is against the old count; updateWaveform: re-snaps it
     // from the kept x right after this.
     _hoverBarIndex = -1;
@@ -171,6 +175,13 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     CALayer *layer = _layers[index];
     if (!CGColorEqualToColor(layer.backgroundColor, c)) {
         layer.backgroundColor = c;
+    }
+}
+
+- (void)setFrame:(CGRect)frame atIndex:(NSUInteger)index {
+    if (!CGRectEqualToRect(_layerFrames[index], frame)) {
+        _layers[index].frame = frame;
+        _layerFrames[index] = frame;
     }
 }
 
@@ -270,13 +281,10 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
         CGFloat topBarHeight = round(height * kTopLineRatio / pixel) * pixel;
         topBarHeight = MAX(topBarHeight, minHeight);
         CGRect topFrame = CGRectMake(x, topLineY, blockWidth, topBarHeight);
-        CALayer *top = _layers[i * 2];
-        if (!CGRectEqualToRect(top.frame, topFrame)) top.frame = topFrame;
+        [self setFrame:topFrame atIndex:i * 2];
 
         CGFloat bottomBarHeight = round(topBarHeight * (1 - kTopLineRatio) / pixel) * pixel;
-        CGRect bottomFrame = CGRectMake(x, bottomLineY - bottomBarHeight, blockWidth, bottomBarHeight);
-        CALayer *bottom = _layers[i * 2 + 1];
-        if (!CGRectEqualToRect(bottom.frame, bottomFrame)) bottom.frame = bottomFrame;
+        [self setFrame:CGRectMake(x, bottomLineY - bottomBarHeight, blockWidth, bottomBarHeight) atIndex:i * 2 + 1];
     }
     [CATransaction commit];
     VibeSignpostEnd(waveform_bars);

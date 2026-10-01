@@ -8,8 +8,8 @@
 @implementation Playlist {
     NSMutableArray<AudioTrack *> *_tracks;
     // Keeps getIndexForTrack: O(1): the metadata sweep resolves a row per
-    // track, and a scan would make the sweep O(n²). Mutators that move rows
-    // rebuild both indexes; the rest patch them.
+    // track, and a scan would make the sweep O(n²). Every mutator patches
+    // both indexes; those that move rows renumber from the first one moved.
     NSMapTable<AudioTrack *, NSNumber *> *_trackIndexes;
     // The same, keyed by URL, for the BPM and key deliveries on every track
     // start. A file can occupy several rows, so the value is a row set.
@@ -30,10 +30,6 @@
 - (void)resetStorage {
     _structureGeneration++;
     _tracks = [NSMutableArray new];
-    [self resetIndexes];
-}
-
-- (void)resetIndexes {
     _trackIndexes = [NSMapTable strongToStrongObjectsMapTable];
     _indexesByURL = [NSMutableDictionary dictionary];
 }
@@ -150,14 +146,22 @@
     [rows addIndex:index];
 }
 
-// For remove, insert and move, which shift rows past what incremental
-// bookkeeping can repair. O(n), as NSMutableArray's own edit already is.
-- (void)rebuildIndexes {
-    [self resetIndexes];
-    NSUInteger index = 0;
-    for (AudioTrack *track in _tracks) {
-        [self indexTrack:track atIndex:index];
-        index++;
+// Remove, insert and move bracket their edit with these two: the edit moves
+// every row from first on, so those rows are renumbered in place and the rows
+// above it keep their entries. O(n - first), within NSMutableArray's own
+// edit's cost.
+- (void)unindexRowsFrom:(NSUInteger)first {
+    for (NSUInteger row = first; row < _tracks.count; row++) {
+        NSURL *url = _tracks[row].url;
+        if (url) {
+            [_indexesByURL[url] removeIndex:row];
+        }
+    }
+}
+
+- (void)indexRowsFrom:(NSUInteger)first {
+    for (NSUInteger row = first; row < _tracks.count; row++) {
+        [self indexTrack:_tracks[row] atIndex:row];
     }
 }
 
@@ -276,8 +280,19 @@
         return nil;
     }
     NSArray<AudioTrack *> *removed = [_tracks objectsAtIndexes:indexes];
+    [self unindexRowsFrom:indexes.firstIndex];
     [_tracks removeObjectsAtIndexes:indexes];
-    [self rebuildIndexes];
+    for (AudioTrack *track in removed) {
+        [_trackIndexes removeObjectForKey:track];
+    }
+    [self indexRowsFrom:indexes.firstIndex];
+    // Dropped as unindexURL:atIndex: drops them.
+    for (AudioTrack *track in removed) {
+        NSURL *url = track.url;
+        if (url && _indexesByURL[url].count == 0) {
+            [_indexesByURL removeObjectForKey:url];
+        }
+    }
     // Dropping by the removed rows above keeps the cursor on its object, or,
     // for a removed current row, on the survivor that slid in. Written to the
     // ivar: the setter would send a second event for one edit.
@@ -299,10 +314,11 @@
     // Past-the-end indexes clamp rather than refuse: a removal's undo can land
     // after later edits shortened the list. Only the clamped case pays the
     // ascending per-row loop, and the event carries the landed set.
-    NSIndexSet *landed;
+    NSUInteger first = MIN(indexes.firstIndex, _tracks.count);
+    NSIndexSet *landed = indexes;
+    [self unindexRowsFrom:first];
     if (indexes.lastIndex < _tracks.count + tracks.count) {
         [_tracks insertObjects:tracks atIndexes:indexes];
-        landed = indexes;
     } else {
         NSMutableIndexSet *clamped = [NSMutableIndexSet indexSet];
         __block NSUInteger trackPosition = 0;
@@ -314,7 +330,7 @@
         }];
         landed = clamped;
     }
-    [self rebuildIndexes];
+    [self indexRowsFrom:first];
     // The cursor follows its object; into an empty list it stays 0. Ivar, not
     // setter: one edit, one event.
     NSInteger resolvedCurrent = [self getIndexForTrack:current];
@@ -337,9 +353,11 @@
     }
     AudioTrack *current = self.currentTrack;
     NSArray<AudioTrack *> *moved = [_tracks objectsAtIndexes:sourceIndexes];
+    NSUInteger first = MIN(sourceIndexes.firstIndex, destinationIndexes.firstIndex);
+    [self unindexRowsFrom:first];
     [_tracks removeObjectsAtIndexes:sourceIndexes];
     [_tracks insertObjects:moved atIndexes:destinationIndexes];
-    [self rebuildIndexes];
+    [self indexRowsFrom:first];
     // The cursor follows its object. Ivar, not setter: one edit, one event.
     NSInteger resolvedCurrent = [self getIndexForTrack:current];
     if (resolvedCurrent >= 0) {

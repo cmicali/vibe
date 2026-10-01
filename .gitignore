@@ -28,6 +28,8 @@ DerivedData/
 
 # XcodeGen — the Xcode project is generated from project.yml; do not track it.
 /Vibe.xcodeproj/
+# perf.py derives the component benchmarks' project from the Vibe target.
+/VibeBenchComponents.xcodeproj/
 Vibe/Mac/App/Info.plist
 Vibe/iOS/Info.plist
 VibeWidget/Info.plist

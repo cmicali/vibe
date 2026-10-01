@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" width="720" height="300" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" role="img" aria-label="Reading a file&#x27;s tags and cover art">
+<style>.bg{fill:#fcfcfb}.t{fill:#0b0b0b}.m{fill:#52514e}.g{stroke:#e4e3df}.a{stroke:#b9b8b2}.s0{stroke:#2a78d6;fill:#2a78d6}.s1{stroke:#eb6834;fill:#eb6834}.s2{stroke:#1baf7a;fill:#1baf7a}.s3{stroke:#eda100;fill:#eda100}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}.t{fill:#ffffff}.m{fill:#c3c2b7}.g{stroke:#2f2f2d}.a{stroke:#555550}.s0{stroke:#3987e5;fill:#3987e5}.s1{stroke:#d95926;fill:#d95926}.s2{stroke:#199e70;fill:#199e70}.s3{stroke:#c98500;fill:#c98500}}.l{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}</style>
+<rect class="bg" width="720" height="300" rx="8"/>
+<text class="t" x="56" y="24" font-size="15" font-weight="600">Reading a file&#x27;s tags and cover art</text>
+<text class="m" x="56" y="38" font-size="11">ms per file</text>
+<line class="a" x1="56" x2="570" y1="264.0" y2="264.0"/>
+<text class="m" x="48" y="268.0" font-size="11" text-anchor="end">0</text>
+<line class="g" x1="56" x2="570" y1="209.0" y2="209.0"/>
+<text class="m" x="48" y="213.0" font-size="11" text-anchor="end">2</text>
+<line class="g" x1="56" x2="570" y1="154.0" y2="154.0"/>
+<text class="m" x="48" y="158.0" font-size="11" text-anchor="end">4</text>
+<line class="g" x1="56" x2="570" y1="99.0" y2="99.0"/>
+<text class="m" x="48" y="103.0" font-size="11" text-anchor="end">6</text>
+<line class="g" x1="56" x2="570" y1="44.0" y2="44.0"/>
+<text class="m" x="48" y="48.0" font-size="11" text-anchor="end">8</text>
+<text class="m" x="88.1" y="280" font-size="11" text-anchor="middle">1.8</text>
+<text class="m" x="152.4" y="280" font-size="11" text-anchor="middle">1.9</text>
+<text class="m" x="216.6" y="280" font-size="11" text-anchor="middle">1.10</text>
+<text class="m" x="280.9" y="280" font-size="11" text-anchor="middle">1.11</text>
+<text class="m" x="345.1" y="280" font-size="11" text-anchor="middle">1.12</text>
+<text class="m" x="409.4" y="280" font-size="11" text-anchor="middle">1.13</text>
+<text class="m" x="473.6" y="280" font-size="11" text-anchor="middle">1.14</text>
+<text class="m" x="537.9" y="280" font-size="11" text-anchor="middle">1.15</text>
+<text class="m" x="537.9" y="293" font-size="10" text-anchor="middle">pre-release</text>
+<path class="l s0" d="M88.1,262.3 L152.4,262.2 L216.6,71.7 L280.9,74.3 L345.1,77.6 L409.4,78.2 L473.6,78.4 L537.9,165.8"/>
+<circle class="s0" cx="88.1" cy="262.3" r="4" stroke="none"><title>MP3, 1000 px cover: 0.06 ms per file</title></circle>
+<circle class="s0" cx="152.4" cy="262.2" r="4" stroke="none"><title>MP3, 1000 px cover: 0.06 ms per file</title></circle>
+<circle class="s0" cx="216.6" cy="71.7" r="4" stroke="none"><title>MP3, 1000 px cover: 6.99 ms per file</title></circle>
+<circle class="s0" cx="280.9" cy="74.3" r="4" stroke="none"><title>MP3, 1000 px cover: 6.90 ms per file</title></circle>
+<circle class="s0" cx="345.1" cy="77.6" r="4" stroke="none"><title>MP3, 1000 px cover: 6.78 ms per file</title></circle>
+<circle class="s0" cx="409.4" cy="78.2" r="4" stroke="none"><title>MP3, 1000 px cover: 6.75 ms per file</title></circle>
+<circle class="s0" cx="473.6" cy="78.4" r="4" stroke="none"><title>MP3, 1000 px cover: 6.75 ms per file</title></circle>
+<circle class="s0" cx="537.9" cy="165.8" r="4" stroke="none"><title>MP3, 1000 px cover: 3.57 ms per file</title></circle>
+<path class="l s1" d="M88.1,262.4 L152.4,262.4 L216.6,71.0 L280.9,76.9 L345.1,79.7 L409.4,80.3 L473.6,79.1 L537.9,168.5"/>
+<circle class="s1" cx="88.1" cy="262.4" r="4" stroke="none"><title>FLAC, 1000 px cover: 0.06 ms per file</title></circle>
+<circle class="s1" cx="152.4" cy="262.4" r="4" stroke="none"><title>FLAC, 1000 px cover: 0.06 ms per file</title></circle>
+<circle class="s1" cx="216.6" cy="71.0" r="4" stroke="none"><title>FLAC, 1000 px cover: 7.02 ms per file</title></circle>
+<circle class="s1" cx="280.9" cy="76.9" r="4" stroke="none"><title>FLAC, 1000 px cover: 6.80 ms per file</title></circle>
+<circle class="s1" cx="345.1" cy="79.7" r="4" stroke="none"><title>FLAC, 1000 px cover: 6.70 ms per file</title></circle>
+<circle class="s1" cx="409.4" cy="80.3" r="4" stroke="none"><title>FLAC, 1000 px cover: 6.68 ms per file</title></circle>
+<circle class="s1" cx="473.6" cy="79.1" r="4" stroke="none"><title>FLAC, 1000 px cover: 6.72 ms per file</title></circle>
+<circle class="s1" cx="537.9" cy="168.5" r="4" stroke="none"><title>FLAC, 1000 px cover: 3.47 ms per file</title></circle>
+<path class="l s2" d="M88.1,260.9 L152.4,260.9 L216.6,70.9 L280.9,77.7 L345.1,77.4 L409.4,73.6 L473.6,74.7 L537.9,168.2"/>
+<circle class="s2" cx="88.1" cy="260.9" r="4" stroke="none"><title>AAC, 1000 px cover: 0.11 ms per file</title></circle>
+<circle class="s2" cx="152.4" cy="260.9" r="4" stroke="none"><title>AAC, 1000 px cover: 0.11 ms per file</title></circle>
+<circle class="s2" cx="216.6" cy="70.9" r="4" stroke="none"><title>AAC, 1000 px cover: 7.02 ms per file</title></circle>
+<circle class="s2" cx="280.9" cy="77.7" r="4" stroke="none"><title>AAC, 1000 px cover: 6.78 ms per file</title></circle>
+<circle class="s2" cx="345.1" cy="77.4" r="4" stroke="none"><title>AAC, 1000 px cover: 6.79 ms per file</title></circle>
+<circle class="s2" cx="409.4" cy="73.6" r="4" stroke="none"><title>AAC, 1000 px cover: 6.92 ms per file</title></circle>
+<circle class="s2" cx="473.6" cy="74.7" r="4" stroke="none"><title>AAC, 1000 px cover: 6.88 ms per file</title></circle>
+<circle class="s2" cx="537.9" cy="168.2" r="4" stroke="none"><title>AAC, 1000 px cover: 3.48 ms per file</title></circle>
+<path class="l s3" d="M88.1,262.5 L152.4,262.4 L216.6,246.5 L280.9,247.2 L345.1,247.2 L409.4,246.8 L473.6,246.6 L537.9,251.9"/>
+<circle class="s3" cx="88.1" cy="262.5" r="4" stroke="none"><title>Library MP3, 600 px: 0.06 ms per file</title></circle>
+<circle class="s3" cx="152.4" cy="262.4" r="4" stroke="none"><title>Library MP3, 600 px: 0.06 ms per file</title></circle>
+<circle class="s3" cx="216.6" cy="246.5" r="4" stroke="none"><title>Library MP3, 600 px: 0.64 ms per file</title></circle>
+<circle class="s3" cx="280.9" cy="247.2" r="4" stroke="none"><title>Library MP3, 600 px: 0.61 ms per file</title></circle>
+<circle class="s3" cx="345.1" cy="247.2" r="4" stroke="none"><title>Library MP3, 600 px: 0.61 ms per file</title></circle>
+<circle class="s3" cx="409.4" cy="246.8" r="4" stroke="none"><title>Library MP3, 600 px: 0.63 ms per file</title></circle>
+<circle class="s3" cx="473.6" cy="246.6" r="4" stroke="none"><title>Library MP3, 600 px: 0.63 ms per file</title></circle>
+<circle class="s3" cx="537.9" cy="251.9" r="4" stroke="none"><title>Library MP3, 600 px: 0.44 ms per file</title></circle>
+<rect class="s0" x="582" y="156.8" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="161.8" font-size="11">MP3, 1000 px cover</text>
+<text class="m" x="598" y="174.8" font-size="11">3.57</text>
+<rect class="s2" x="582" y="184.8" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="189.8" font-size="11">AAC, 1000 px cover</text>
+<text class="m" x="598" y="202.8" font-size="11">3.48</text>
+<rect class="s1" x="582" y="212.8" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="217.8" font-size="11">FLAC, 1000 px cover</text>
+<text class="m" x="598" y="230.8" font-size="11">3.47</text>
+<rect class="s3" x="582" y="242.9" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="247.9" font-size="11">Library MP3, 600 px</text>
+<text class="m" x="598" y="260.9" font-size="11">0.44</text>
+</svg>

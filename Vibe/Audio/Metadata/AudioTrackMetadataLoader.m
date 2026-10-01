@@ -49,6 +49,11 @@
 // A priority submission yielded under the hold; the record waits for a
 // gated tick to re-judge it (MetadataRetryRules.h).
 @property (nonatomic) BOOL yieldedUnderHold;
+// The rank under the neighborhood neighborhoodRankGeneration names, kept
+// across picks: the neighborhood moves per track, the sweep picks per file,
+// and ranking compares URLs. Under _materializationLock.
+@property (nonatomic) NSUInteger neighborhoodRank;
+@property (nonatomic) NSUInteger neighborhoodRankGeneration;
 // The prioritizeTrack: edge this record carried when its slot was claimed. An
 // off-lock probe's result acts only while this still matches the row's mark.
 @property (nonatomic) NSUInteger priorityMarkGeneration;
@@ -164,13 +169,16 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     NSString *_priorityMaterializationPath;
     BOOL _scanDispatchKickPending;
     // Bumped by every pending-list or neighborhood mutation; the picker
-    // chooses off the lock and verifies it before taking its choice.
+    // releases the lock between choosing and taking, and takes only a choice
+    // this still vouches for.
     NSUInteger _scanOrderGeneration;
     // Set by the barrier once every cache check settled, so no parse steals a
     // stage-1 worker. Priority picks are exempt: a pre-sweep loader never
     // runs load:.
     BOOL _stageOneFinished;
     NSArray<NSURL *>* _neighborhood;   // rank order; empty until a screen names one
+    // From 1, so a fresh record's 0 is stale.
+    NSUInteger _neighborhoodGeneration;
     // One coalesced 1s re-pick while the rule gates work; the coordinator has
     // no release edge to deliver. Guarded by _materializationLock.
     BOOL _gatedRepickPending;
@@ -241,6 +249,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         _pendingMaterializations = [NSMutableArray array];
         _delayedScanRetryEntries = [NSMutableSet set];
         _neighborhood = @[];
+        _neighborhoodGeneration = 1;
         dispatch_queue_attr_t attributes = dispatch_queue_attr_make_with_qos_class(
                 DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
         _materializationCallbackQueue = dispatch_queue_create(
@@ -554,56 +563,50 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         [self submitMaterializationForEntry:priorityPick priority:YES];
     }
 
-    NSArray<MetadataScanEntry *> *pending = nil;
-    NSArray<NSURL *> *neighborhood = nil;
-    NSSet<NSURL *> *priorityURLs = nil;
-    NSString *priorityMaterializationPath = nil;
+    // One pass in place under the lock, no copy: a real playlist holds over
+    // 100,000 misses, and the sweep picks once per file.
+    MetadataScanEntry *chosen = nil;
+    NSUInteger chosenIndex = NSNotFound;
     NSUInteger orderGeneration = 0;
     os_unfair_lock_lock(&_materializationLock);
     if (!_scanMaterializationInFlight && !self.isCancelled
             && _stageOneFinished && _pendingMaterializations.count > 0) {
-        pending = [_pendingMaterializations copy];
-        neighborhood = _neighborhood;
-        priorityURLs = [NSSet setWithArray:_priorityMarks.allKeys];
-        priorityMaterializationPath = [_priorityMaterializationPath copy];
+        NSDictionary<NSURL *, MetadataPriorityMark *> *marks =
+                _priorityMarks.count > 0 ? _priorityMarks : nil;
+        NSString *priorityMaterializationPath = _priorityMaterializationPath;
+        NSArray<NSURL *> *neighborhood = _neighborhood;
+        NSUInteger neighborhoodGeneration = _neighborhoodGeneration;
+        chosenIndex = VibeBestMetadataScanCandidateIndex(
+                (NSArray<id<MetadataScanOrderCandidate>> *)_pendingMaterializations,
+                ^NSUInteger(id<MetadataScanOrderCandidate> candidate) {
+            MetadataScanEntry *entry = (MetadataScanEntry *)candidate;
+            if (entry.neighborhoodRankGeneration != neighborhoodGeneration) {
+                entry.neighborhoodRank = VibeMetadataScanNeighborhoodRank(entry.url, neighborhood);
+                entry.neighborhoodRankGeneration = neighborhoodGeneration;
+            }
+            return entry.neighborhoodRank;
+        }, ^BOOL(id<MetadataScanOrderCandidate> candidate) {
+            MetadataScanEntry *entry = (MetadataScanEntry *)candidate;
+            // Priority records belong to the priority slot alone, and a marked
+            // URL holds its other records back until the mark settles. Local
+            // entries start no transfer, so they keep parsing; no dataless
+            // record is submitted while suspended, even one C3 would join (J4).
+            return (marks && marks[entry.url] != nil)
+                    || (priorityMaterializationPath
+                            && [entry.standardizedPath isEqualToString:priorityMaterializationPath])
+                    || (suspended && !entry.local);
+        });
+        if (chosenIndex != NSNotFound) {
+            chosen = _pendingMaterializations[chosenIndex];
+        }
         orderGeneration = _scanOrderGeneration;
     }
     os_unfair_lock_unlock(&_materializationLock);
-    if (priorityURLs.count) {
-        // Priority records belong to the priority slot alone, and a marked
-        // URL holds its other records back until the mark settles.
-        pending = [pending filteredArrayUsingPredicate:
-                [NSPredicate predicateWithBlock:^BOOL(MetadataScanEntry *entry,
-                                                      NSDictionary *bindings) {
-            return ![priorityURLs containsObject:entry.url];
-        }]];
-    }
-    if (priorityMaterializationPath) {
-        pending = [pending filteredArrayUsingPredicate:
-                [NSPredicate predicateWithBlock:^BOOL(MetadataScanEntry *entry,
-                                                      NSDictionary *bindings) {
-            return ![entry.standardizedPath
-                    isEqualToString:priorityMaterializationPath];
-        }]];
-    }
-    if (suspended) {
-        // Local entries start no transfer, so they keep parsing. No dataless
-        // record is submitted while suspended, even one C3 would join (J4).
-        pending = [pending filteredArrayUsingPredicate:
-                [NSPredicate predicateWithBlock:^BOOL(MetadataScanEntry *entry,
-                                                      NSDictionary *bindings) {
-            return entry.local;
-        }]];
-    }
-    if (!pending.count) {
+    if (!chosen) {
         [self scheduleGatedRepickIfNeededWhileSuspended:suspended];
         return;
     }
 
-    MetadataScanEntry *chosen =
-            (MetadataScanEntry *)VibeBestMetadataScanCandidate(
-            (NSArray<id<MetadataScanOrderCandidate>> *)pending,
-            neighborhood);
 #if DEBUG
     dispatch_block_t beforeValidation = nil;
     os_unfair_lock_lock(&_materializationLock);
@@ -619,24 +622,17 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
             || (suspended && !chosen.local)) {
         chosen = nil;
     }
-    else if (orderGeneration != _scanOrderGeneration
-            || (chosen && _priorityMarks[chosen.url] != nil)
-            || (chosen && [chosen.standardizedPath
-                    isEqualToString:_priorityMaterializationPath])) {
+    // Every pending-list, priority-mark and priority-path change moves the
+    // generation, so an unchanged one still has the pick, at its index.
+    else if (orderGeneration != _scanOrderGeneration) {
         chosen = nil;
         retryPick = YES;
     }
-    else if (chosen) {
-        if ([_pendingMaterializations containsObject:chosen]) {
-            [_pendingMaterializations removeObjectIdenticalTo:chosen];
-            _scanOrderGeneration++;
-            _scanMaterializationInFlight = YES;
-            _scanMaterializationPath = chosen.standardizedPath;
-        }
-        else {
-            chosen = nil;
-            retryPick = YES;
-        }
+    else {
+        [_pendingMaterializations removeObjectAtIndex:chosenIndex];
+        _scanOrderGeneration++;
+        _scanMaterializationInFlight = YES;
+        _scanMaterializationPath = chosen.standardizedPath;
     }
     os_unfair_lock_unlock(&_materializationLock);
     if (retryPick) {
@@ -700,10 +696,13 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     NSMutableArray<MetadataScanEntry *> *waiting = [NSMutableArray array];
     NSMutableArray<NSNumber *> *markGenerations = [NSMutableArray array];
     os_unfair_lock_lock(&_materializationLock);
-    for (MetadataScanEntry *entry in _pendingMaterializations) {
-        if (entry.yieldedUnderHold && [self priorityMarkForEntryLocked:entry]) {
-            [waiting addObject:entry];
-            [markGenerations addObject:@(entry.priorityMarkGeneration)];
+    // A waiting record is a marked one: with no mark, no pass over the misses.
+    if (_priorityMarks.count > 0) {
+        for (MetadataScanEntry *entry in _pendingMaterializations) {
+            if (entry.yieldedUnderHold && [self priorityMarkForEntryLocked:entry]) {
+                [waiting addObject:entry];
+                [markGenerations addObject:@(entry.priorityMarkGeneration)];
+            }
         }
     }
     os_unfair_lock_unlock(&_materializationLock);
@@ -1057,6 +1056,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 - (void)setNeighborhoodURLs:(NSArray<NSURL *> *)urls {
     os_unfair_lock_lock(&_materializationLock);
     _neighborhood = [urls copy] ?: @[];
+    _neighborhoodGeneration++;
     _scanOrderGeneration++;
     os_unfair_lock_unlock(&_materializationLock);
     [self dispatchNextScanMaterialization];
@@ -1202,8 +1202,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 // _materializationLock held. A record is priority while one of its rows is a
 // mark's exact target. The marks are few, the rows can be many.
 - (MetadataPriorityMark *)priorityMarkForEntryLocked:(MetadataScanEntry *)entry {
-    for (NSURL *url in _priorityMarks) {
-        MetadataPriorityMark *mark = _priorityMarks[url];
+    for (MetadataPriorityMark *mark in _priorityMarks.objectEnumerator) {
         if ([entry holdsTrack:mark.track]) {
             return mark;
         }

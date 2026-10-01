@@ -244,6 +244,9 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 
 // Slots that are not free, pending voices included. The drain-timer gate.
 - (NSUInteger)occupiedSlotCount;
+// Whether the last drain left an event or a recycle due, or a start or kill
+// since made one. The drain timer's prompt cadence. Player queue.
+@property (nonatomic, readonly) BOOL promptDrainDue;
 - (NSUInteger)liveVoiceCount;
 // Decoder turns run so far, a diagnostic: a voice that can write nothing
 // asks for none, which the tests read.

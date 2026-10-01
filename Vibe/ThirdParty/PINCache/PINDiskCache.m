@@ -54,6 +54,23 @@ const char * PINDiskCacheFileSystemRepresentation(NSURL *url)
     return url.fileSystemRepresentation;
 }
 
+// Vibe: a hit re-dates its file, one utimes per read, only once the recorded
+// date is a day old: least-recently-used eviction needs no finer clock. The
+// recorded date is left alone too, so it stays the file's and a relaunch ranks
+// the entries as this run did.
+static BOOL PINDiskCacheShouldTouch(NSDate *lastModifiedDate, NSDate *now)
+{
+    return !lastModifiedDate || [now timeIntervalSinceDate:lastModifiedDate] >= 24 * 60 * 60;
+}
+
+// Vibe: an automatic trim cuts to 90% of the limit, not to just under it, so
+// a full cache sorts every entry once per tenth of its size written rather
+// than on every write.
+static NSUInteger PINDiskCacheTrimTarget(NSUInteger byteLimit)
+{
+    return byteLimit - byteLimit / 10;
+}
+
 @interface PINDiskCacheMetadata : NSObject
 // When the object was added to the disk cache
 @property (nonatomic, strong) NSDate *createdDate;
@@ -584,6 +601,12 @@ static NSURL *_sharedTrashURL;
         }
     }
     
+    // Vibe: the count orders only least-frequently-used eviction, so no other
+    // strategy pays a getxattr per file at launch.
+    if (_evictionStrategy != PINCacheEvictionStrategyLeastFrequentlyUsed) {
+        return [fileSize unsignedIntegerValue];
+    }
+
     NSInteger accessCount = 0;
     ssize_t accessCountResult = getxattr(PINDiskCacheFileSystemRepresentation(fileURL), PINDiskCacheAccessCountAttributeName, &accessCount, sizeof(NSInteger), 0, 0);
     if(accessCountResult > 0) {
@@ -630,7 +653,7 @@ static NSURL *_sharedTrashURL;
             _byteCount = byteCount;
     
         if (self->_byteLimit > 0 && self->_byteCount > self->_byteLimit)
-            [self trimToSizeByEvictionStrategyAsync:self->_byteLimit completion:nil];
+            [self trimToSizeByEvictionStrategyAsync:PINDiskCacheTrimTarget(self->_byteLimit) completion:nil];
 
         if (self->_ttlCache)
             [self removeExpiredObjectsAsync:nil];
@@ -1196,11 +1219,15 @@ static NSURL *_sharedTrashURL;
         if (!self->_ttlCache || ageLimit <= 0 || fabs([_metadata[key].createdDate timeIntervalSinceDate:now]) < ageLimit) {
             // If the cache should behave like a TTL cache, then only fetch the object if there's a valid ageLimit and  the object is still alive
             
+            // Vibe: the read is outside the lock as well as the deserializing,
+            // so concurrent hits (the sweep's cache checks) do not queue behind
+            // each other's file read. A write replaces the file atomically and a
+            // removal renames it away, so a read sees a whole file or none, and
+            // a key removed meanwhile is not re-dated below.
+            [self unlock];
             NSData *objectData = [[NSData alloc] initWithContentsOfFile:[fileURL path]];
           
             if (objectData) {
-              //Be careful with locking below. We unlock here so that we're not locked while deserializing, we re-lock after.
-              [self unlock];
               @try {
                   object = _deserializer(objectData, key);
               }
@@ -1212,11 +1239,13 @@ static NSURL *_sharedTrashURL;
                   PINDiskCacheError(error)
                   PINDiskCacheException(exception);
               }
-              [self lock];
             }
+            [self lock];
             if (object) {
-                _metadata[key].lastModifiedDate = now;
-                [self asynchronouslySetFileModificationDate:now forURL:fileURL];
+                if (_metadata[key] && PINDiskCacheShouldTouch(_metadata[key].lastModifiedDate, now)) {
+                    _metadata[key].lastModifiedDate = now;
+                    [self asynchronouslySetFileModificationDate:now forURL:fileURL];
+                }
                 NSInteger accessCount = _metadata[key].accessCount;
                 if (accessCount < NSIntegerMax) {
                     accessCount += 1;
@@ -1253,9 +1282,11 @@ static NSURL *_sharedTrashURL;
     [self lockForWriting];
         if (fileURL.path && [[NSFileManager defaultManager] fileExistsAtPath:fileURL.path]) {
             if (updateFileModificationDate) {
-                _metadata[key].lastModifiedDate = now;
-                [self asynchronouslySetFileModificationDate:now forURL:fileURL];
-                
+                if (PINDiskCacheShouldTouch(_metadata[key].lastModifiedDate, now)) {
+                    _metadata[key].lastModifiedDate = now;
+                    [self asynchronouslySetFileModificationDate:now forURL:fileURL];
+                }
+
                 NSInteger accessCount = _metadata[key].accessCount;
                 if (accessCount < NSIntegerMax) {
                     accessCount += 1;
@@ -1368,7 +1399,12 @@ static NSURL *_sharedTrashURL;
             if (lastModifiedDate) {
                 self->_metadata[key].lastModifiedDate = lastModifiedDate;
             }
-            [self asynchronouslySetAgeLimit:ageLimit forURL:fileURL];
+            // Vibe: outside a TTL cache an object-level limit is always 0 and
+            // its xattr never written, so removing it is a removexattr per
+            // write for nothing.
+            if (ageLimit > 0.0 || self->_ttlCache) {
+                [self asynchronouslySetAgeLimit:ageLimit forURL:fileURL];
+            }
             NSInteger accessCount = self->_metadata[key].accessCount;
             if (accessCount < NSIntegerMax) {
                 accessCount += 1;
@@ -1377,7 +1413,7 @@ static NSURL *_sharedTrashURL;
             }
             
             if (self->_byteLimit > 0 && self->_byteCount > self->_byteLimit)
-                [self trimToSizeByEvictionStrategyAsync:self->_byteLimit completion:nil];
+                [self trimToSizeByEvictionStrategyAsync:PINDiskCacheTrimTarget(self->_byteLimit) completion:nil];
         } else {
             fileURL = nil;
         }

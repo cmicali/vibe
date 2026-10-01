@@ -516,6 +516,13 @@ didEndDisplayingCell:(UITableViewCell *)cell
     UILabel     *_durationLabel;
     UIStackView *_textStack;
     BOOL         _playing;
+    // What renderTrack: last drew from, held strongly so an identity cannot
+    // be reused by another object.
+    AudioTrack         *_renderedTrack;
+    AudioTrackMetadata *_renderedMetadata;
+    UIImage            *_renderedThumbnail;
+    NSString           *_renderedDuration;
+    NSUInteger          _renderedNumber;
 }
 
 - (instancetype)initWithStyle:(UITableViewCellStyle)style
@@ -690,11 +697,27 @@ didEndDisplayingCell:(UITableViewCell *)cell
 - (BOOL)renderTrack:(AudioTrack *)track
              number:(NSUInteger)number
             playing:(BOOL)playing {
+    // Every appearance renders twice, since willDisplayCell: re-renders a
+    // prepared cell, and the second usually finds nothing changed. These are
+    // all the row draws from.
+    AudioTrackMetadata *metadata = track.metadata;
+    UIImage *thumbnail = track.cachedThumbnail;
+    NSString *duration = track.durationString;
+    if (track == _renderedTrack && metadata == _renderedMetadata && thumbnail == _renderedThumbnail
+            && [duration isEqualToString:_renderedDuration] && number == _renderedNumber
+            && playing == _playing) {
+        return NO;
+    }
+    _renderedTrack = track;
+    _renderedMetadata = metadata;
+    _renderedThumbnail = thumbnail;
+    _renderedDuration = duration;
+    _renderedNumber = number;
     _numberLabel.text = [NSString stringWithFormat:@"%lu", (unsigned long)number];
     _playing = playing;
     [self resolveGutter];
-    _artView.image = track.cachedThumbnail ?: [UIImage imageNamed:@"record-bg"];
-    _durationLabel.text = track.durationString;
+    _artView.image = thumbnail ?: [UIImage imageNamed:@"record-bg"];
+    _durationLabel.text = duration;
     _titleLabel.text = track.displayTitle ?: @"";
     // Hidden rather than blank, so the title centres on its own.
     NSString *artist = track.displayArtist;

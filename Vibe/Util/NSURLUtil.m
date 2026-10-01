@@ -204,48 +204,57 @@ static BOOL VibePathIsDirectlyInside(NSString *path, NSString *directory) {
 //
 // TRAP: decorate the dates and names once, never read them in the comparator,
 // which runs O(n log n) times: NSURL.path mints a string per read, and a date
-// the enumeration did not prefetch is a file-provider round trip.
+// the enumeration did not prefetch is a file-provider round trip. They are
+// read by position, as hashing an NSURL in the comparator costs a pass over
+// its string; the positions sort as the URLs did, by the same comparisons.
 static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort sort,
                               BOOL byFullPath) {
     if (sort == VibeFolderOpenSortAsReceived) {
         return;
     }
-    NSMutableDictionary<NSURL*, NSString*> *nameByURL =
-            [NSMutableDictionary dictionaryWithCapacity:urls.count];
+    NSUInteger count = urls.count;
+    NSMutableArray<NSString*> *names = [NSMutableArray arrayWithCapacity:count];
+    NSMutableArray<NSNumber*> *order = [NSMutableArray arrayWithCapacity:count];
     for (NSURL *url in urls) {
-        nameByURL[url] = (byFullPath ? url.path : url.lastPathComponent) ?: @"";
+        [order addObject:@(names.count)];
+        [names addObject:(byFullPath ? url.path : url.lastPathComponent) ?: @""];
     }
-    NSComparisonResult (^byName)(NSURL *, NSURL *) = ^(NSURL *a, NSURL *b) {
-        return [nameByURL[a] localizedStandardCompare:nameByURL[b]];
+    NSComparisonResult (^byName)(NSUInteger, NSUInteger) = ^(NSUInteger a, NSUInteger b) {
+        return [names[a] localizedStandardCompare:names[b]];
     };
     if (sort != VibeFolderOpenSortNewestFirst) {
-        [urls sortUsingComparator:^NSComparisonResult(NSURL *a, NSURL *b) {
-            return byName(a, b);
+        [order sortUsingComparator:^NSComparisonResult(NSNumber *a, NSNumber *b) {
+            return byName(a.unsignedIntegerValue, b.unsignedIntegerValue);
         }];
-        return;
     }
-    NSMutableDictionary<NSURL*, NSDate*> *dateByURL =
-            [NSMutableDictionary dictionaryWithCapacity:urls.count];
-    for (NSURL *url in urls) {
-        NSDate *modified = nil;
-        if ([url getResourceValue:&modified forKey:NSURLContentModificationDateKey error:NULL]
-                && modified) {
-            dateByURL[url] = modified;
+    else {
+        // NSNull for undated.
+        NSMutableArray *dates = [NSMutableArray arrayWithCapacity:count];
+        for (NSURL *url in urls) {
+            NSDate *modified = nil;
+            [url getResourceValue:&modified forKey:NSURLContentModificationDateKey error:NULL];
+            [dates addObject:modified ?: NSNull.null];
         }
-    }
-    // Undated files sort last, by name, keeping the order total.
-    [urls sortUsingComparator:^NSComparisonResult(NSURL *a, NSURL *b) {
-        NSDate *dateA = dateByURL[a];
-        NSDate *dateB = dateByURL[b];
-        if (!dateA || !dateB) {
-            if (dateA != dateB) {
-                return dateA ? NSOrderedAscending : NSOrderedDescending;
+        // Undated files sort last, by name, keeping the order total.
+        [order sortUsingComparator:^NSComparisonResult(NSNumber *a, NSNumber *b) {
+            NSUInteger indexA = a.unsignedIntegerValue;
+            NSUInteger indexB = b.unsignedIntegerValue;
+            id dateA = dates[indexA];
+            id dateB = dates[indexB];
+            if (dateA == NSNull.null || dateB == NSNull.null) {
+                if (dateA != dateB) {
+                    return dateA != NSNull.null ? NSOrderedAscending : NSOrderedDescending;
+                }
+                return byName(indexA, indexB);
             }
-            return byName(a, b);
-        }
-        NSComparisonResult newestFirst = [dateB compare:dateA];
-        return newestFirst != NSOrderedSame ? newestFirst : byName(a, b);
-    }];
+            NSComparisonResult newestFirst = [(NSDate *)dateB compare:dateA];
+            return newestFirst != NSOrderedSame ? newestFirst : byName(indexA, indexB);
+        }];
+    }
+    NSArray<NSURL*> *unsorted = [urls copy];
+    for (NSUInteger position = 0; position < count; position++) {
+        urls[position] = unsorted[order[position].unsignedIntegerValue];
+    }
 }
 
 // The walk ranks cover candidates on the way past, so the walked-directories
@@ -330,6 +339,11 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
                 }
                 continue;
             }
+            // The emptiness filter's verdict is given here, so a walked file
+            // costs it no stat: a link's from its target's stat, any other
+            // file's from the size the enumeration prefetched, which is the
+            // logical size the test requires, never the allocated one.
+            BOOL empty = NO;
             NSNumber *isLink = nil;
             if ([url getResourceValue:&isLink forKey:NSURLIsSymbolicLinkKey error:NULL] &&
                 isLink.boolValue) {
@@ -343,15 +357,24 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
                 // sandbox denial, and would keep it as an unplayable row. The
                 // link was just enumerated, so ENOENT means its target.
                 struct stat targetInfo;
-                if (stat(path.fileSystemRepresentation, &targetInfo) != 0 && errno == ENOENT) {
+                if (stat(path.fileSystemRepresentation, &targetInfo) == 0) {
+                    empty = VibeStatIsEmptyOrDirectory(&targetInfo);
+                }
+                else if (errno == ENOENT) {
                     continue;
                 }
             }
             NSString *extension = path.pathExtension.lowercaseString;
             BOOL isAudio = [supported containsObject:extension];
+            if (isAudio && !isLink.boolValue) {
+                NSNumber *size = nil;
+                empty = [url getResourceValue:&size forKey:NSURLFileSizeKey error:NULL] && size != nil
+                        ? size.longLongValue == 0
+                        : url.isEmptyOrDirectory;
+            }
             // A sheet sorts among the audio and stands in for its files
             // (rowsForWalk:); an M3U here would double what the walk found.
-            if (isAudio || [PlaylistFile isCueExtension:extension]) {
+            if ((isAudio && !empty) || [PlaylistFile isCueExtension:extension]) {
                 [results addObject:url];
             }
             if (!VibePathIsDirectlyInside(path, lastDirectory)) {
@@ -543,24 +566,12 @@ static const long long kVibeEmbeddedCueMinimumBytes = 100LL * 1024 * 1024;
                                   folderCount:(NSUInteger *)folderCount {
     NSUInteger inputCount = list.count;
     NSMutableSet<NSString*> *looseFileDirectories = [NSMutableSet set];
+    NSUInteger expandedCount = 0;
     NSArray<AudioTrack*> *rows = [NSURLUtil expandFileList:list
                                                   sortedBy:sort
                                                folderCount:folderCount
-                                      looseFileDirectories:looseFileDirectories];
-    NSUInteger expandedCount = rows.count;
-    NSSet<NSString*> *supported = [NSURLUtil supportedExtensions];
-    // Nothing can play an empty file. Second, so only extension matches pay
-    // the stat, once per file however many rows it has.
-    NSMutableDictionary<NSURL*, NSNumber*> *playable = [NSMutableDictionary dictionary];
-    rows = [rows filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(AudioTrack *row, NSDictionary* bindings) {
-        NSNumber *verdict = playable[row.url];
-        if (verdict == nil) {
-            verdict = @([supported containsObject:row.url.pathExtension.lowercaseString]
-                        && !row.url.isEmptyOrDirectory);
-            playable[row.url] = verdict;
-        }
-        return verdict.boolValue;
-    }]];
+                                      looseFileDirectories:looseFileDirectories
+                                             expandedCount:&expandedCount];
     NSMutableSet<NSString *> *supportedLooseDirectories = [NSMutableSet set];
     for (AudioTrack *row in rows) {
         [self noteLooseFileDirectoryOf:row.url into:supportedLooseDirectories];
@@ -581,8 +592,28 @@ static const long long kVibeEmbeddedCueMinimumBytes = 100LL * 1024 * 1024;
 + (NSArray<AudioTrack*>*) expandFileList:(NSArray<NSURL*>*)list
                                 sortedBy:(VibeFolderOpenSort)sort
                              folderCount:(NSUInteger *)folderCount
-                    looseFileDirectories:(NSMutableSet<NSString*> *)looseFileDirectories {
+                    looseFileDirectories:(NSMutableSet<NSString*> *)looseFileDirectories
+                           expandedCount:(NSUInteger *)expandedCount {
     NSMutableArray<AudioTrack*> *results = [[NSMutableArray alloc] initWithCapacity:list.count];
+    NSSet<NSString*> *supported = [NSURLUtil supportedExtensions];
+    // Nothing can play an empty file. Second, so only extension matches pay
+    // the stat, once per file however many rows it has. A walk's rows skip
+    // it: the walk drops what it would, unplayable names and empty files.
+    NSMutableDictionary<NSURL*, NSNumber*> *playable = [NSMutableDictionary dictionary];
+    void (^addPlayable)(NSArray<AudioTrack*> *) = ^(NSArray<AudioTrack*> *rows) {
+        for (AudioTrack *row in rows) {
+            NSNumber *verdict = playable[row.url];
+            if (verdict == nil) {
+                verdict = @([supported containsObject:row.url.pathExtension.lowercaseString]
+                            && !row.url.isEmptyOrDirectory);
+                playable[row.url] = verdict;
+            }
+            if (verdict.boolValue) {
+                [results addObject:row];
+            }
+        }
+    };
+    NSUInteger expanded = 0;
     for (NSURL *url in list) {
         // Ask the file system: hasDirectoryPath reads only the trailing slash,
         // which a URL from argv or some pasteboards lacks. The link flag rides
@@ -601,19 +632,27 @@ static const long long kVibeEmbeddedCueMinimumBytes = 100LL * 1024 * 1024;
             if (folderCount) {
                 (*folderCount)++;
             }
-            [results addObjectsFromArray:[self expandDirectory:url sortedBy:sort]];
+            NSArray<AudioTrack*> *rows = [self expandDirectory:url sortedBy:sort];
+            expanded += rows.count;
+            [results addObjectsFromArray:rows];
         }
         else if ([PlaylistFile isPlaylistExtension:[url.pathExtension lowercaseString]]) {
             NSArray<AudioTrack*> *rows = [self expandPlaylistFile:url];
-            [results addObjectsFromArray:rows];
+            expanded += rows.count;
+            addPlayable(rows);
             for (AudioTrack *row in rows) {
                 [self noteLooseFileDirectoryOf:row.url into:looseFileDirectories];
             }
         }
         else {
-            [results addObjectsFromArray:[self rowsForFile:url]];
+            NSArray<AudioTrack*> *rows = [self rowsForFile:url];
+            expanded += rows.count;
+            addPlayable(rows);
             [self noteLooseFileDirectoryOf:url into:looseFileDirectories];
         }
+    }
+    if (expandedCount) {
+        *expandedCount = expanded;
     }
     return results;
 }

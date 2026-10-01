@@ -18,6 +18,7 @@
                          elapsedDisplayTime:(NSTimeInterval)elapsed remaining:(BOOL)remaining;
 
 // Fixed-fraction decimal in the user's locale: "44.1" in en, "44,1" in de.
+// Digits are clamped to 0–3.
 - (NSString *)decimalString:(double)value fractionDigits:(NSInteger)digits;
 
 // "44.1 kHz", per locale.

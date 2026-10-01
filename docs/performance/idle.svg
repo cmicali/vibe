@@ -17,13 +17,13 @@
 <text class="m" x="48" y="84.7" font-size="11" text-anchor="end">2.5</text>
 <line class="g" x1="56" x2="570" y1="44.0" y2="44.0"/>
 <text class="m" x="48" y="48.0" font-size="11" text-anchor="end">3.0</text>
-<text class="m" x="92.7" y="282" font-size="11" text-anchor="middle">1.8</text>
-<text class="m" x="166.1" y="282" font-size="11" text-anchor="middle">1.9</text>
-<text class="m" x="239.6" y="282" font-size="11" text-anchor="middle">1.10</text>
-<text class="m" x="313.0" y="282" font-size="11" text-anchor="middle">1.11</text>
-<text class="m" x="386.4" y="282" font-size="11" text-anchor="middle">1.12</text>
-<text class="m" x="459.9" y="282" font-size="11" text-anchor="middle">1.13</text>
-<text class="m" x="533.3" y="282" font-size="11" text-anchor="middle">1.14</text>
+<text class="m" x="92.7" y="280" font-size="11" text-anchor="middle">1.8</text>
+<text class="m" x="166.1" y="280" font-size="11" text-anchor="middle">1.9</text>
+<text class="m" x="239.6" y="280" font-size="11" text-anchor="middle">1.10</text>
+<text class="m" x="313.0" y="280" font-size="11" text-anchor="middle">1.11</text>
+<text class="m" x="386.4" y="280" font-size="11" text-anchor="middle">1.12</text>
+<text class="m" x="459.9" y="280" font-size="11" text-anchor="middle">1.13</text>
+<text class="m" x="533.3" y="280" font-size="11" text-anchor="middle">1.14</text>
 <path class="l s0" d="M92.7,261.9 L166.1,261.8 L239.6,261.7 L313.0,261.5 L386.4,261.7 L459.9,261.7 L533.3,260.7"/>
 <circle class="s0" cx="92.7" cy="261.9" r="4" stroke="none"><title>Idle, empty: 0.03 % of one core</title></circle>
 <circle class="s0" cx="166.1" cy="261.8" r="4" stroke="none"><title>Idle, empty: 0.03 % of one core</title></circle>

@@ -4,6 +4,7 @@
 //
 
 #import "PlatformImage.h"
+#import <Accelerate/Accelerate.h>
 #import <ImageIO/ImageIO.h>
 
 #if TARGET_OS_OSX
@@ -35,6 +36,76 @@ CGSize VibeEncodedImagePixelSize(NSData *data) {
                       [properties[(id)kCGImagePropertyPixelHeight] doubleValue]);
 }
 
+static void VibeFreeScaledBitmap(void *userData, void *bitmap) {
+    free(bitmap);
+}
+
+// A downscale decoded once — at the JPEG's own 1/2, 1/4 or 1/8 where that
+// still covers the target — and scaled with vImage. ImageIO's thumbnail path
+// draws its full decode through CoreGraphics instead, converting and
+// resampling a row at a time, at three times the instructions on a 1000px
+// cover (the component benchmarks' metadata.*). NULL leaves the image to that
+// path: one that needs no downscale, carries an EXIF orientation, or vImage
+// refuses.
+static CGImageRef _Nullable VibeCreateDownscaledImage(CGImageSourceRef source, CGFloat maxPixelSize) CF_RETURNS_RETAINED {
+    NSDictionary *properties = CFBridgingRelease(CGImageSourceCopyPropertiesAtIndex(source, 0, NULL));
+    NSNumber *orientation = properties[(id)kCGImagePropertyOrientation];
+    double longest = MAX([properties[(id)kCGImagePropertyPixelWidth] doubleValue],
+                         [properties[(id)kCGImagePropertyPixelHeight] doubleValue]);
+    if (longest <= maxPixelSize || (orientation && orientation.intValue != 1)) {
+        return NULL;
+    }
+    int factor = 1;
+    while (factor < 8 && longest / (factor * 2) >= maxPixelSize) {
+        factor *= 2;
+    }
+    NSDictionary *options = @{
+            (id)kCGImageSourceShouldCacheImmediately: @YES,
+            (id)kCGImageSourceSubsampleFactor: @(factor),
+    };
+    CGImageRef decoded = CGImageSourceCreateImageAtIndex(source, 0, (__bridge CFDictionaryRef)options);
+    if (!decoded) {
+        return NULL;
+    }
+    CGColorSpaceRef space = CGImageGetColorSpace(decoded);
+    CGColorSpaceRef sRGB = NULL;
+    if (!space || CGColorSpaceGetModel(space) != kCGColorSpaceModelRGB) {
+        space = sRGB = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    }
+    // Premultiplied, which is what a scale's filter must average.
+    BOOL alpha = [properties[(id)kCGImagePropertyHasAlpha] boolValue];
+    vImage_CGImageFormat format = {
+            .bitsPerComponent = 8,
+            .bitsPerPixel = 32,
+            .colorSpace = space,
+            .bitmapInfo = (CGBitmapInfo)(alpha ? kCGImageAlphaPremultipliedFirst : kCGImageAlphaNoneSkipFirst)
+                    | kCGBitmapByteOrder32Big,
+    };
+    CGImageRef scaled = NULL;
+    vImage_Buffer input = {0};
+    if (space && vImageBuffer_InitWithCGImage(&input, &format, NULL, decoded, kvImageNoFlags) == kvImageNoError) {
+        double scale = maxPixelSize / MAX(input.width, input.height);
+        vImage_Buffer output = {0};
+        if (vImageBuffer_Init(&output, MAX(1, (vImagePixelCount)llround(input.height * scale)),
+                              MAX(1, (vImagePixelCount)llround(input.width * scale)), 32, kvImageNoFlags) == kvImageNoError) {
+            // The image takes the scaled bitmap rather than a copy of it.
+            if (vImageScale_ARGB8888(&input, &output, NULL, kvImageHighQualityResampling) == kvImageNoError) {
+                scaled = vImageCreateCGImageFromBuffer(&output, &format, VibeFreeScaledBitmap, NULL,
+                                                       kvImageNoAllocate, NULL);
+            }
+            if (!scaled) {
+                free(output.data);
+            }
+        }
+        free(input.data);
+    }
+    CGImageRelease(decoded);
+    if (sRGB) {
+        CGColorSpaceRelease(sRGB);
+    }
+    return scaled;
+}
+
 VibeImage *VibeDecodedImageWithData(NSData *data, CGFloat maxPixelSize) {
     if (!data) {
         return nil;
@@ -43,13 +114,16 @@ VibeImage *VibeDecodedImageWithData(NSData *data, CGFloat maxPixelSize) {
     if (!source) {
         return nil;
     }
-    NSDictionary *options = @{
-            (id)kCGImageSourceCreateThumbnailFromImageAlways: @YES,
-            (id)kCGImageSourceCreateThumbnailWithTransform: @YES,
-            (id)kCGImageSourceShouldCacheImmediately: @YES,
-            (id)kCGImageSourceThumbnailMaxPixelSize: @(maxPixelSize),
-    };
-    CGImageRef cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, (__bridge CFDictionaryRef)options);
+    CGImageRef cgImage = VibeCreateDownscaledImage(source, maxPixelSize);
+    if (!cgImage) {
+        NSDictionary *options = @{
+                (id)kCGImageSourceCreateThumbnailFromImageAlways: @YES,
+                (id)kCGImageSourceCreateThumbnailWithTransform: @YES,
+                (id)kCGImageSourceShouldCacheImmediately: @YES,
+                (id)kCGImageSourceThumbnailMaxPixelSize: @(maxPixelSize),
+        };
+        cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, (__bridge CFDictionaryRef)options);
+    }
     CFRelease(source);
     if (!cgImage) {
         return nil;

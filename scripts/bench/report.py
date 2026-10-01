@@ -7,9 +7,12 @@ dependency to install.
 import html
 import math
 import re
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / '.claude/skills/vibe-perf/scripts'))
+import perf  # noqa: E402  the vibe-perf skill's: which in-process charts the page draws
 PERF = ROOT / 'docs/performance'
 PAGE = ROOT / 'docs/performance.md'
 BEGIN, END = '<!-- performance:begin -->', '<!-- performance:end -->'
@@ -58,7 +61,8 @@ CHARTS = [
     ('library', '600-file library: open and metadata scan', 's', [
         ('library_list_ms', 'Rows listed'),
         ('library_scan_cold_ms', 'Scan, cold cache'),
-        ('library_scan_warm_ms', 'Scan, warm cache')], 2),
+        ('library_scan_warm_ms', 'Scan, warm cache'),
+        ('library_scan_cpu_s', 'Scan CPU time')], 2),
     ('memory', 'Memory footprint', 'MB', [
         ('idle_footprint_mb', 'Idle'),
         ('playback_footprint_mb', 'After playback'),
@@ -67,7 +71,27 @@ CHARTS = [
     ('idle', 'Background cost', '% of one core', [
         ('idle_cpu_pct', 'Idle, empty'),
         ('paused_cpu_pct', 'Paused')], 2),
+    ('playback-energy', 'Playback energy', 'mW', [
+        ('play_power_mw.mp3-320', 'MP3 320k'),
+        ('play_power_mw.flac-16-44', 'FLAC 16/44.1'),
+        ('play_power_mw.flac-24-192', 'FLAC 24/192'),
+        ('play_power_mw.fx', '24/192 + all FX')], 1),
+    ('playback-work', 'Playback work, instructions retired', 'millions a second', [
+        ('play_minstr_per_s.mp3-320', 'MP3 320k'),
+        ('play_minstr_per_s.flac-16-44', 'FLAC 16/44.1'),
+        ('play_minstr_per_s.flac-24-192', 'FLAC 24/192')], 0),
+    ('wakeups', 'Wakeups', 'a second', [
+        ('play_wakeups_per_s.mp3-320', 'Playing MP3'),
+        ('play_wakeups_per_s.flac-24-192', 'Playing FLAC 24/192'),
+        ('paused_wakeups_per_s', 'Paused'),
+        ('idle_wakeups_per_s', 'Idle, empty')], 0),
 ]
+
+def components_entry(entry):
+    """A components entry in the shape chart_svg reads: one metric per series key."""
+    metrics = {f'{name}|{measure}': perf.page_value(entry['benches'].get(name), measure)
+               for _, _, _, series, _ in perf.PAGE_CHARTS for name, measure, _ in series}
+    return {'metrics': {k: v for k, v in metrics.items() if v is not None}}
 SECONDS = {'library_list_ms', 'library_scan_cold_ms', 'library_scan_warm_ms',
            'waveform_ms.mp3-320-60min', 'waveform_ms.flac-24-352'}
 
@@ -149,8 +173,12 @@ def chart_svg(title, unit, series, labels, entries, decimals):
         out.append(f'<text class="m" x="{PAD_L - 8}" y="{yy + 4:.1f}" font-size="11" text-anchor="end">'
                    f'{fmt(v, tick_decimals(step))}</text>')
     for i, label in enumerate(labels):
-        out.append(f'<text class="m" x="{x(i):.1f}" y="{H - PAD_B + 18}" font-size="11" text-anchor="middle">'
-                   f'{html.escape(label)}</text>')
+        version, _, note = label.partition(' ')
+        out.append(f'<text class="m" x="{x(i):.1f}" y="{H - PAD_B + 16}" font-size="11" text-anchor="middle">'
+                   f'{html.escape(version)}</text>')
+        if note:
+            out.append(f'<text class="m" x="{x(i):.1f}" y="{H - PAD_B + 29}" font-size="10" text-anchor="middle">'
+                       f'{html.escape(note)}</text>')
     ends = []
     for s, row in enumerate(data):
         points = [(x(i), y(v), v) for i, v in enumerate(row) if v is not None]
@@ -181,16 +209,22 @@ def chart_svg(title, unit, series, labels, entries, decimals):
     return '\n'.join(out) + '\n'
 
 
-def comparable(results):
+def same_setup(entries, reference=None):
+    """The entries measured on reference's machine and corpus, the newest
+    entry's by default: the only ones a chart can compare."""
+    reference = reference or max(entries.values(), key=lambda e: e['measured'])
+    return {k: e for k, e in entries.items()
+            if e['machine'] == reference['machine'] and e['corpus'] == reference['corpus']}
+
+
+def comparable(results, section='app'):
     """The versions measured on the newest entry's machine and corpus."""
-    versions = results['versions']
+    versions = results.get(section, {})
     if not versions:
         return {}
-    newest = max(versions.values(), key=lambda e: e['measured'])
-    same = {k: e for k, e in versions.items()
-            if e['machine'] == newest['machine'] and e['corpus'] == newest['corpus']}
+    same = same_setup(versions)
     for label in versions.keys() - same.keys():
-        print(f'report: leaving out {label}, measured on another machine or corpus; bench.py rerun')
+        print(f'report: leaving out {label} ({section}), measured on another machine or corpus; run it again here')
     return same
 
 
@@ -227,10 +261,38 @@ def table(entries, labels):
     return '\n'.join(lines)
 
 
+def display_labels(versions):
+    """A version measured before its tag existed is said to be one."""
+    return [f'{label} pre-release' if entry.get('prerelease') else label for label, entry in versions.items()]
+
+
+def components_section(results):
+    """The component charts, under their own machine line: VibeBenchComponents's numbers
+    are comparable only with each other, whatever machine the app ran on."""
+    versions = comparable(results, 'components')
+    if not versions:
+        return []
+    labels = display_labels(versions)
+    entries = [components_entry(e) for e in versions.values()]
+    lines = []
+    for name, title, unit, series, decimals in perf.PAGE_CHARTS:
+        keyed = [(f'{bench}|{measure}', label) for bench, measure, label in series]
+        if not any(value(e, key) is not None for e in entries for key, _ in keyed):
+            continue
+        (PERF / f'{name}.svg').write_text(chart_svg(title, unit, keyed, labels, entries, decimals))
+        lines.append(f'![{title}](performance/{name}.svg)')
+    m = list(versions.values())[-1]['machine']
+    return ['', '### Components', '',
+            f'The component benchmarks, VibeBenchComponents, built against each version\'s own code and run on one machine '
+            f'({m["chip"]}, {m["memory_gb"]} GB, macOS {m["macos"]}): the code under each feature, without the app '
+            'around it. A line that starts late is a benchmark of code that version does not have; '
+            'a version marked pre-release was measured before its release was tagged.', ''] + lines
+
+
 def write(results):
     versions = comparable(results)
-    labels = list(versions)
-    entries = [versions[k] for k in labels]
+    labels = display_labels(versions)
+    entries = list(versions.values())
     if not entries:
         return
     PERF.mkdir(parents=True, exist_ok=True)
@@ -241,13 +303,15 @@ def write(results):
         svg = chart_svg(title, unit if series[0][0] not in SECONDS else 's', series, labels, entries, decimals)
         (PERF / f'{name}.svg').write_text(svg)
     m = entries[-1]['machine']
-    section = [BEGIN, '',
-               f'The same benchmark suite, run against every release on one machine ({m["chip"]}, '
-               f'{m["memory_gb"]} GB, macOS {m["macos"]}); lower is better everywhere. '
+    section = [BEGIN, '', '### The app', '',
+               f'The app benchmarks: each release\'s own app, launched and driven the same way, on one machine '
+               f'({m["chip"]}, {m["memory_gb"]} GB, macOS {m["macos"]}); lower is better everywhere. '
+               'A version marked pre-release was measured before its release was tagged. '
                'What each number measures and how to run it is below the charts.', '',
                table(entries, labels), '']
     for name, title, *_ in charts:
         section.append(f'![{title}](performance/{name}.svg)')
+    section += components_section(results)
     section += ['', END]
     text = PAGE.read_text()
     block = '\n'.join(section)

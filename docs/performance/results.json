@@ -1,9 +1,10 @@
 {
   "suite": 1,
-  "versions": {
+  "app": {
     "1.8": {
       "ref": "v1.8",
       "commit": "a59f7eea0d573253ea3df2e55b790e5f1148f449",
+      "prerelease": false,
       "measured": "2026-09-28",
       "reps": 5,
       "corpus": "911f823547f3298e",
@@ -821,6 +822,7 @@
     "1.9": {
       "ref": "v1.9",
       "commit": "143b0b2325ce428d5eb47b8ef8f2097f93fd859d",
+      "prerelease": false,
       "measured": "2026-09-28",
       "reps": 5,
       "corpus": "911f823547f3298e",
@@ -1638,6 +1640,7 @@
     "1.10": {
       "ref": "v1.10",
       "commit": "162cf0c7f86badc05d56e73f9e3a082ce9271b36",
+      "prerelease": false,
       "measured": "2026-09-28",
       "reps": 5,
       "corpus": "911f823547f3298e",
@@ -2455,6 +2458,7 @@
     "1.11": {
       "ref": "v1.11",
       "commit": "75d0dadf3f78fda5a62942155eafa48906680327",
+      "prerelease": false,
       "measured": "2026-09-28",
       "reps": 5,
       "corpus": "911f823547f3298e",
@@ -3272,6 +3276,7 @@
     "1.12": {
       "ref": "v1.12",
       "commit": "b569cdb91775d4424126fcb595225fe929679177",
+      "prerelease": false,
       "measured": "2026-09-28",
       "reps": 5,
       "corpus": "911f823547f3298e",
@@ -4089,6 +4094,7 @@
     "1.13": {
       "ref": "6992feca",
       "commit": "6992feca246cfc00bfc2970ea8c425005d6aed1a",
+      "prerelease": false,
       "measured": "2026-09-28",
       "reps": 5,
       "corpus": "911f823547f3298e",
@@ -4906,6 +4912,7 @@
     "1.14": {
       "ref": "8ae57716",
       "commit": "8ae57716b2eea835223560b812b7f256d74c151f",
+      "prerelease": false,
       "measured": "2026-09-28",
       "reps": 5,
       "corpus": "911f823547f3298e",
@@ -5718,6 +5725,3589 @@
           94.567,
           105.105
         ]
+      }
+    }
+  },
+  "components": {
+    "1.8": {
+      "ref": "v1.8",
+      "commit": "a59f7eea0d573253ea3df2e55b790e5f1148f449",
+      "prerelease": false,
+      "measured": "2026-10-01",
+      "reps": 5,
+      "corpus": "a0b3d0387cb40276",
+      "machine": {
+        "chip": "Apple M4 Max",
+        "cores": 16,
+        "memory_gb": 64,
+        "macos": "27.0",
+        "xcode": "Xcode 27.0"
+      },
+      "harness": "3fb5c32601",
+      "benches": {
+        "bpm.flac-16-44": {
+          "cpu_ms": 27.0147,
+          "wall_ms": 27.0665,
+          "minstr": 260.323,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "bpm.flac-24-96": {
+          "cpu_ms": 59.9808,
+          "wall_ms": 60.1389,
+          "minstr": 574.927,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.aac-256": {
+          "cpu_ms": 76.6823,
+          "wall_ms": 76.7605,
+          "minstr": 821.18,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "decode.aiff-16-44": {
+          "cpu_ms": 10.4972,
+          "wall_ms": 10.4948,
+          "minstr": 193.282,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.alac-16-44": {
+          "cpu_ms": 188.4243,
+          "wall_ms": 188.6274,
+          "minstr": 2819.561,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-16-22-mono": {
+          "cpu_ms": 49.8077,
+          "wall_ms": 49.8792,
+          "minstr": 893.064,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-16-44": {
+          "cpu_ms": 198.3064,
+          "wall_ms": 198.6523,
+          "minstr": 3708.571,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-24-96": {
+          "cpu_ms": 648.1443,
+          "wall_ms": 652.2302,
+          "minstr": 11161.86,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-24-192": {
+          "cpu_ms": 1302.6334,
+          "wall_ms": 1304.3126,
+          "minstr": 22323.97,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.mp3-320": {
+          "cpu_ms": 187.7333,
+          "wall_ms": 188.0381,
+          "minstr": 2874.791,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.mp3-v0": {
+          "cpu_ms": 180.7636,
+          "wall_ms": 180.9171,
+          "minstr": 2848.313,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.opus": {
+          "cpu_ms": 384.538,
+          "wall_ms": 385.0851,
+          "minstr": 6213.516,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.vorbis": {
+          "cpu_ms": 382.5669,
+          "wall_ms": 382.9607,
+          "minstr": 7379.014,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "decode.wav-16-44": {
+          "cpu_ms": 7.7322,
+          "wall_ms": 7.7166,
+          "minstr": 97.836,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.wav-24-96": {
+          "cpu_ms": 24.9276,
+          "wall_ms": 24.956,
+          "minstr": 350.524,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "key.flac-16-44": {
+          "cpu_ms": 12.5771,
+          "wall_ms": 12.6043,
+          "minstr": 85.008,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "key.flac-24-96": {
+          "cpu_ms": 28.7454,
+          "wall_ms": 28.8203,
+          "minstr": 221.08,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "metadata.aac-256": {
+          "cpu_ms": 1.126,
+          "wall_ms": 1.1252,
+          "minstr": 17.755,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.flac-16-44": {
+          "cpu_ms": 0.5646,
+          "wall_ms": 0.5639,
+          "minstr": 8.996,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.library-mp3": {
+          "cpu_ms": 11.033,
+          "wall_ms": 11.0836,
+          "minstr": 179.108,
+          "units": 200,
+          "unit": "parse"
+        },
+        "metadata.mp3-320": {
+          "cpu_ms": 0.6354,
+          "wall_ms": 0.6347,
+          "minstr": 10.489,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.wav-24-96": {
+          "cpu_ms": 0.3235,
+          "wall_ms": 0.3228,
+          "minstr": 5.163,
+          "units": 10,
+          "unit": "parse"
+        },
+        "open.aac-256": {
+          "cpu_ms": 12.7809,
+          "wall_ms": 12.7975,
+          "minstr": 310.652,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.aiff-16-44": {
+          "cpu_ms": 0.9495,
+          "wall_ms": 0.9489,
+          "minstr": 9.491,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.alac-16-44": {
+          "cpu_ms": 4.7252,
+          "wall_ms": 4.7417,
+          "minstr": 94.728,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-16-22-mono": {
+          "cpu_ms": 1.5221,
+          "wall_ms": 1.5215,
+          "minstr": 18.404,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-16-44": {
+          "cpu_ms": 1.4884,
+          "wall_ms": 1.4876,
+          "minstr": 17.993,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-24-96": {
+          "cpu_ms": 1.6723,
+          "wall_ms": 1.624,
+          "minstr": 20.286,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-24-192": {
+          "cpu_ms": 1.6802,
+          "wall_ms": 1.6794,
+          "minstr": 20.908,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.mp3-320": {
+          "cpu_ms": 1.1474,
+          "wall_ms": 1.1512,
+          "minstr": 11.976,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.mp3-v0": {
+          "cpu_ms": 1.093,
+          "wall_ms": 1.0903,
+          "minstr": 11.481,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.opus": {
+          "cpu_ms": 1.3572,
+          "wall_ms": 1.3565,
+          "minstr": 15.765,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.vorbis": {
+          "cpu_ms": 6.1553,
+          "wall_ms": 6.1541,
+          "minstr": 121.945,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.wav-16-44": {
+          "cpu_ms": 0.9658,
+          "wall_ms": 0.9649,
+          "minstr": 10.366,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.wav-24-96": {
+          "cpu_ms": 1.0526,
+          "wall_ms": 0.9909,
+          "minstr": 10.766,
+          "units": 20,
+          "unit": "open"
+        },
+        "pincache.hit-300": {
+          "cpu_ms": 33.437,
+          "wall_ms": 25.7987,
+          "minstr": 307.259,
+          "units": 300,
+          "unit": "hit"
+        },
+        "pincache.hit-300x4-parallel": {
+          "cpu_ms": 131.8432,
+          "wall_ms": 96.889,
+          "minstr": 1224.134,
+          "units": 1200,
+          "unit": "hit"
+        },
+        "pincache.open-2000": {
+          "cpu_ms": 31.8362,
+          "wall_ms": 31.552,
+          "minstr": 502.436,
+          "units": 2000,
+          "unit": "entry"
+        },
+        "pincache.write-300": {
+          "cpu_ms": 66.5364,
+          "wall_ms": 62.2209,
+          "minstr": 927.644,
+          "units": 300,
+          "unit": "write"
+        },
+        "pincache.write-300-at-limit": {
+          "cpu_ms": 353.3899,
+          "wall_ms": 241.8559,
+          "minstr": 4204.386,
+          "units": 300,
+          "unit": "write"
+        },
+        "seek.aac-256": {
+          "cpu_ms": 4.9993,
+          "wall_ms": 4.9819,
+          "minstr": 60.817,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.aiff-16-44": {
+          "cpu_ms": 0.3497,
+          "wall_ms": 0.3363,
+          "minstr": 5.893,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.alac-16-44": {
+          "cpu_ms": 10.3971,
+          "wall_ms": 10.3738,
+          "minstr": 151.86,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-16-22-mono": {
+          "cpu_ms": 15.1213,
+          "wall_ms": 15.1,
+          "minstr": 255.46,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-16-44": {
+          "cpu_ms": 55.075,
+          "wall_ms": 55.1224,
+          "minstr": 933.869,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-24-96": {
+          "cpu_ms": 192.0585,
+          "wall_ms": 192.2136,
+          "minstr": 3218.149,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-24-192": {
+          "cpu_ms": 374.1448,
+          "wall_ms": 374.711,
+          "minstr": 6353.352,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.mp3-320": {
+          "cpu_ms": 10.206,
+          "wall_ms": 10.1908,
+          "minstr": 151.903,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.mp3-v0": {
+          "cpu_ms": 13.482,
+          "wall_ms": 13.488,
+          "minstr": 209.961,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.opus": {
+          "cpu_ms": 12.6013,
+          "wall_ms": 12.6298,
+          "minstr": 197.811,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.vorbis": {
+          "cpu_ms": 16.5364,
+          "wall_ms": 16.5323,
+          "minstr": 308.177,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.wav-16-44": {
+          "cpu_ms": 0.2917,
+          "wall_ms": 0.2767,
+          "minstr": 3.471,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.wav-24-96": {
+          "cpu_ms": 0.3519,
+          "wall_ms": 0.3401,
+          "minstr": 5.043,
+          "units": 50,
+          "unit": "seek"
+        },
+        "waveform+bpm+key.aac-256": {
+          "cpu_ms": 128.2278,
+          "wall_ms": 85.957,
+          "minstr": 1261.794,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.flac-16-44": {
+          "cpu_ms": 244.4948,
+          "wall_ms": 202.4431,
+          "minstr": 4072.449,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.flac-24-192": {
+          "cpu_ms": 1527.0565,
+          "wall_ms": 1328.6055,
+          "minstr": 24193.771,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.mp3-320": {
+          "cpu_ms": 229.6019,
+          "wall_ms": 187.316,
+          "minstr": 3213.997,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.wav-24-96": {
+          "cpu_ms": 114.6375,
+          "wall_ms": 98.0175,
+          "minstr": 1204.971,
+          "units": 180,
+          "unit": "audio s"
+        }
+      }
+    },
+    "1.9": {
+      "ref": "v1.9",
+      "commit": "143b0b2325ce428d5eb47b8ef8f2097f93fd859d",
+      "prerelease": false,
+      "measured": "2026-10-01",
+      "reps": 5,
+      "corpus": "a0b3d0387cb40276",
+      "machine": {
+        "chip": "Apple M4 Max",
+        "cores": 16,
+        "memory_gb": 64,
+        "macos": "27.0",
+        "xcode": "Xcode 27.0"
+      },
+      "harness": "3fb5c32601",
+      "benches": {
+        "bpm.flac-16-44": {
+          "cpu_ms": 26.7153,
+          "wall_ms": 26.7482,
+          "minstr": 260.126,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "bpm.flac-24-96": {
+          "cpu_ms": 59.9656,
+          "wall_ms": 60.0402,
+          "minstr": 575.019,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.aac-256": {
+          "cpu_ms": 76.0924,
+          "wall_ms": 76.2077,
+          "minstr": 821.108,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "decode.aiff-16-44": {
+          "cpu_ms": 10.6143,
+          "wall_ms": 10.6535,
+          "minstr": 193.497,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.alac-16-44": {
+          "cpu_ms": 189.9608,
+          "wall_ms": 190.3645,
+          "minstr": 2820.113,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-16-22-mono": {
+          "cpu_ms": 50.0528,
+          "wall_ms": 50.1075,
+          "minstr": 893.03,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-16-44": {
+          "cpu_ms": 197.7238,
+          "wall_ms": 198.457,
+          "minstr": 3708.75,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-24-96": {
+          "cpu_ms": 651.4776,
+          "wall_ms": 652.4835,
+          "minstr": 11164.414,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-24-192": {
+          "cpu_ms": 1300.5374,
+          "wall_ms": 1303.583,
+          "minstr": 22328.147,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.mp3-320": {
+          "cpu_ms": 185.926,
+          "wall_ms": 186.1845,
+          "minstr": 2874.594,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.mp3-v0": {
+          "cpu_ms": 176.4644,
+          "wall_ms": 176.7117,
+          "minstr": 2847.969,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.opus": {
+          "cpu_ms": 387.5069,
+          "wall_ms": 388.1202,
+          "minstr": 6216.418,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.vorbis": {
+          "cpu_ms": 383.1,
+          "wall_ms": 383.7708,
+          "minstr": 7378.973,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "decode.wav-16-44": {
+          "cpu_ms": 7.8683,
+          "wall_ms": 7.8772,
+          "minstr": 97.857,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.wav-24-96": {
+          "cpu_ms": 25.398,
+          "wall_ms": 25.4897,
+          "minstr": 350.582,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "key.flac-16-44": {
+          "cpu_ms": 12.4812,
+          "wall_ms": 12.4868,
+          "minstr": 84.885,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "key.flac-24-96": {
+          "cpu_ms": 28.5311,
+          "wall_ms": 28.5622,
+          "minstr": 220.867,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "metadata.aac-256": {
+          "cpu_ms": 1.129,
+          "wall_ms": 1.1282,
+          "minstr": 17.761,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.flac-16-44": {
+          "cpu_ms": 0.583,
+          "wall_ms": 0.5823,
+          "minstr": 9.018,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.library-mp3": {
+          "cpu_ms": 11.3965,
+          "wall_ms": 11.4002,
+          "minstr": 179.32,
+          "units": 200,
+          "unit": "parse"
+        },
+        "metadata.mp3-320": {
+          "cpu_ms": 0.6402,
+          "wall_ms": 0.6396,
+          "minstr": 10.498,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.wav-24-96": {
+          "cpu_ms": 0.3317,
+          "wall_ms": 0.3311,
+          "minstr": 5.168,
+          "units": 10,
+          "unit": "parse"
+        },
+        "open.aac-256": {
+          "cpu_ms": 12.9143,
+          "wall_ms": 12.9249,
+          "minstr": 310.887,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.aiff-16-44": {
+          "cpu_ms": 0.9519,
+          "wall_ms": 0.9513,
+          "minstr": 9.493,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.alac-16-44": {
+          "cpu_ms": 4.606,
+          "wall_ms": 4.6604,
+          "minstr": 94.736,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-16-22-mono": {
+          "cpu_ms": 1.5585,
+          "wall_ms": 1.5578,
+          "minstr": 18.446,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-16-44": {
+          "cpu_ms": 1.5412,
+          "wall_ms": 1.5404,
+          "minstr": 18.072,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-24-96": {
+          "cpu_ms": 1.6919,
+          "wall_ms": 1.6913,
+          "minstr": 19.963,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-24-192": {
+          "cpu_ms": 1.6713,
+          "wall_ms": 1.6706,
+          "minstr": 21.025,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.mp3-320": {
+          "cpu_ms": 1.1474,
+          "wall_ms": 1.0766,
+          "minstr": 11.951,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.mp3-v0": {
+          "cpu_ms": 1.1044,
+          "wall_ms": 1.1035,
+          "minstr": 11.481,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.opus": {
+          "cpu_ms": 1.3735,
+          "wall_ms": 1.3728,
+          "minstr": 15.785,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.vorbis": {
+          "cpu_ms": 6.2686,
+          "wall_ms": 6.2882,
+          "minstr": 121.962,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.wav-16-44": {
+          "cpu_ms": 1.0019,
+          "wall_ms": 1.0013,
+          "minstr": 10.351,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.wav-24-96": {
+          "cpu_ms": 1.0512,
+          "wall_ms": 1.0043,
+          "minstr": 10.82,
+          "units": 20,
+          "unit": "open"
+        },
+        "pincache.hit-300": {
+          "cpu_ms": 33.3868,
+          "wall_ms": 25.8013,
+          "minstr": 306.762,
+          "units": 300,
+          "unit": "hit"
+        },
+        "pincache.hit-300x4-parallel": {
+          "cpu_ms": 133.508,
+          "wall_ms": 99.2333,
+          "minstr": 1231.095,
+          "units": 1200,
+          "unit": "hit"
+        },
+        "pincache.open-2000": {
+          "cpu_ms": 31.5495,
+          "wall_ms": 31.23,
+          "minstr": 502.877,
+          "units": 2000,
+          "unit": "entry"
+        },
+        "pincache.write-300": {
+          "cpu_ms": 66.1156,
+          "wall_ms": 60.7582,
+          "minstr": 925.05,
+          "units": 300,
+          "unit": "write"
+        },
+        "pincache.write-300-at-limit": {
+          "cpu_ms": 359.5388,
+          "wall_ms": 242.4502,
+          "minstr": 4171.596,
+          "units": 300,
+          "unit": "write"
+        },
+        "seek.aac-256": {
+          "cpu_ms": 4.879,
+          "wall_ms": 4.8593,
+          "minstr": 60.876,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.aiff-16-44": {
+          "cpu_ms": 0.3523,
+          "wall_ms": 0.3392,
+          "minstr": 5.907,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.alac-16-44": {
+          "cpu_ms": 10.5587,
+          "wall_ms": 10.5467,
+          "minstr": 151.924,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-16-22-mono": {
+          "cpu_ms": 15.3507,
+          "wall_ms": 15.3404,
+          "minstr": 255.54,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-16-44": {
+          "cpu_ms": 55.6567,
+          "wall_ms": 55.7363,
+          "minstr": 934.042,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-24-96": {
+          "cpu_ms": 192.1847,
+          "wall_ms": 192.5936,
+          "minstr": 3219.008,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-24-192": {
+          "cpu_ms": 376.3512,
+          "wall_ms": 377.2408,
+          "minstr": 6353.918,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.mp3-320": {
+          "cpu_ms": 10.1707,
+          "wall_ms": 10.1687,
+          "minstr": 152.36,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.mp3-v0": {
+          "cpu_ms": 13.247,
+          "wall_ms": 13.2559,
+          "minstr": 210.424,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.opus": {
+          "cpu_ms": 12.9882,
+          "wall_ms": 12.9912,
+          "minstr": 198.006,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.vorbis": {
+          "cpu_ms": 16.552,
+          "wall_ms": 16.5432,
+          "minstr": 308.245,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.wav-16-44": {
+          "cpu_ms": 0.2876,
+          "wall_ms": 0.274,
+          "minstr": 3.481,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.wav-24-96": {
+          "cpu_ms": 0.3572,
+          "wall_ms": 0.3406,
+          "minstr": 5.059,
+          "units": 50,
+          "unit": "seek"
+        },
+        "waveform+bpm+key.aac-256": {
+          "cpu_ms": 125.4414,
+          "wall_ms": 83.8637,
+          "minstr": 1261.136,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.flac-16-44": {
+          "cpu_ms": 243.0084,
+          "wall_ms": 200.7108,
+          "minstr": 4071.658,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.flac-24-192": {
+          "cpu_ms": 1514.5323,
+          "wall_ms": 1319.1352,
+          "minstr": 24186.446,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.mp3-320": {
+          "cpu_ms": 227.8175,
+          "wall_ms": 185.676,
+          "minstr": 3214.603,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.wav-24-96": {
+          "cpu_ms": 113.8277,
+          "wall_ms": 97.5346,
+          "minstr": 1204.512,
+          "units": 180,
+          "unit": "audio s"
+        }
+      }
+    },
+    "1.10": {
+      "ref": "v1.10",
+      "commit": "162cf0c7f86badc05d56e73f9e3a082ce9271b36",
+      "prerelease": false,
+      "measured": "2026-10-01",
+      "reps": 5,
+      "corpus": "a0b3d0387cb40276",
+      "machine": {
+        "chip": "Apple M4 Max",
+        "cores": 16,
+        "memory_gb": 64,
+        "macos": "27.0",
+        "xcode": "Xcode 27.0"
+      },
+      "harness": "3fb5c32601",
+      "benches": {
+        "bpm.flac-16-44": {
+          "cpu_ms": 27.2265,
+          "wall_ms": 27.2969,
+          "minstr": 260.221,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "bpm.flac-24-96": {
+          "cpu_ms": 60.2226,
+          "wall_ms": 60.259,
+          "minstr": 574.924,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.aac-256": {
+          "cpu_ms": 76.5188,
+          "wall_ms": 76.5785,
+          "minstr": 821.115,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "decode.aiff-16-44": {
+          "cpu_ms": 10.5812,
+          "wall_ms": 10.5776,
+          "minstr": 193.33,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.alac-16-44": {
+          "cpu_ms": 190.3959,
+          "wall_ms": 190.6282,
+          "minstr": 2820.249,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-16-22-mono": {
+          "cpu_ms": 49.6369,
+          "wall_ms": 49.657,
+          "minstr": 893.201,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-16-44": {
+          "cpu_ms": 197.7253,
+          "wall_ms": 197.9446,
+          "minstr": 3708.403,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-24-96": {
+          "cpu_ms": 651.3397,
+          "wall_ms": 652.1759,
+          "minstr": 11162.877,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-24-192": {
+          "cpu_ms": 1301.2176,
+          "wall_ms": 1302.9898,
+          "minstr": 22326.719,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.mp3-320": {
+          "cpu_ms": 185.6346,
+          "wall_ms": 185.8961,
+          "minstr": 2873.308,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.mp3-v0": {
+          "cpu_ms": 179.0885,
+          "wall_ms": 179.2674,
+          "minstr": 2848.601,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.opus": {
+          "cpu_ms": 388.3212,
+          "wall_ms": 388.8553,
+          "minstr": 6216.604,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.vorbis": {
+          "cpu_ms": 384.9182,
+          "wall_ms": 385.2901,
+          "minstr": 7380.703,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "decode.wav-16-44": {
+          "cpu_ms": 7.9307,
+          "wall_ms": 7.9385,
+          "minstr": 97.891,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.wav-24-96": {
+          "cpu_ms": 25.325,
+          "wall_ms": 25.3358,
+          "minstr": 350.532,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "key.flac-16-44": {
+          "cpu_ms": 12.7886,
+          "wall_ms": 12.8253,
+          "minstr": 84.933,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "key.flac-24-96": {
+          "cpu_ms": 28.5112,
+          "wall_ms": 28.5221,
+          "minstr": 220.938,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "levels.render": {
+          "cpu_ms": 23.7725,
+          "wall_ms": 23.799,
+          "minstr": 535.738,
+          "units": 360,
+          "unit": "audio s"
+        },
+        "metadata.aac-256": {
+          "cpu_ms": 100.6556,
+          "wall_ms": 70.2139,
+          "minstr": 1320.341,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.flac-16-44": {
+          "cpu_ms": 103.538,
+          "wall_ms": 70.1888,
+          "minstr": 1311.401,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.library-mp3": {
+          "cpu_ms": 196.2791,
+          "wall_ms": 127.238,
+          "minstr": 1902.377,
+          "units": 200,
+          "unit": "parse"
+        },
+        "metadata.mp3-320": {
+          "cpu_ms": 103.2818,
+          "wall_ms": 69.9184,
+          "minstr": 1313.305,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.wav-24-96": {
+          "cpu_ms": 0.3374,
+          "wall_ms": 0.3367,
+          "minstr": 5.227,
+          "units": 10,
+          "unit": "parse"
+        },
+        "open.aac-256": {
+          "cpu_ms": 13.2358,
+          "wall_ms": 13.2645,
+          "minstr": 310.769,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.aiff-16-44": {
+          "cpu_ms": 0.9576,
+          "wall_ms": 0.957,
+          "minstr": 9.486,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.alac-16-44": {
+          "cpu_ms": 4.5344,
+          "wall_ms": 4.5338,
+          "minstr": 94.718,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-16-22-mono": {
+          "cpu_ms": 1.5441,
+          "wall_ms": 1.5433,
+          "minstr": 18.453,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-16-44": {
+          "cpu_ms": 1.4983,
+          "wall_ms": 1.4976,
+          "minstr": 17.892,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-24-96": {
+          "cpu_ms": 1.5918,
+          "wall_ms": 1.5873,
+          "minstr": 19.889,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-24-192": {
+          "cpu_ms": 1.7325,
+          "wall_ms": 1.7318,
+          "minstr": 20.915,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.mp3-320": {
+          "cpu_ms": 1.2187,
+          "wall_ms": 1.137,
+          "minstr": 11.89,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.mp3-v0": {
+          "cpu_ms": 1.1026,
+          "wall_ms": 1.1018,
+          "minstr": 11.486,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.opus": {
+          "cpu_ms": 1.389,
+          "wall_ms": 1.3751,
+          "minstr": 15.778,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.vorbis": {
+          "cpu_ms": 6.3075,
+          "wall_ms": 6.3291,
+          "minstr": 121.984,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.wav-16-44": {
+          "cpu_ms": 0.9911,
+          "wall_ms": 0.9905,
+          "minstr": 10.366,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.wav-24-96": {
+          "cpu_ms": 1.0249,
+          "wall_ms": 1.0072,
+          "minstr": 10.841,
+          "units": 20,
+          "unit": "open"
+        },
+        "pincache.hit-300": {
+          "cpu_ms": 33.348,
+          "wall_ms": 25.6163,
+          "minstr": 306.227,
+          "units": 300,
+          "unit": "hit"
+        },
+        "pincache.hit-300x4-parallel": {
+          "cpu_ms": 133.3298,
+          "wall_ms": 98.5814,
+          "minstr": 1226.749,
+          "units": 1200,
+          "unit": "hit"
+        },
+        "pincache.open-2000": {
+          "cpu_ms": 32.6255,
+          "wall_ms": 32.284,
+          "minstr": 498.125,
+          "units": 2000,
+          "unit": "entry"
+        },
+        "pincache.write-300": {
+          "cpu_ms": 66.5623,
+          "wall_ms": 61.4303,
+          "minstr": 925.779,
+          "units": 300,
+          "unit": "write"
+        },
+        "pincache.write-300-at-limit": {
+          "cpu_ms": 360.3347,
+          "wall_ms": 243.4513,
+          "minstr": 4166.862,
+          "units": 300,
+          "unit": "write"
+        },
+        "seek.aac-256": {
+          "cpu_ms": 5.0345,
+          "wall_ms": 5.0184,
+          "minstr": 60.814,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.aiff-16-44": {
+          "cpu_ms": 0.3603,
+          "wall_ms": 0.3474,
+          "minstr": 5.893,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.alac-16-44": {
+          "cpu_ms": 10.539,
+          "wall_ms": 10.524,
+          "minstr": 151.899,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-16-22-mono": {
+          "cpu_ms": 15.2725,
+          "wall_ms": 15.2835,
+          "minstr": 255.567,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-16-44": {
+          "cpu_ms": 55.5772,
+          "wall_ms": 55.6231,
+          "minstr": 934.114,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-24-96": {
+          "cpu_ms": 191.3785,
+          "wall_ms": 191.6107,
+          "minstr": 3218.262,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-24-192": {
+          "cpu_ms": 378.048,
+          "wall_ms": 378.5858,
+          "minstr": 6355.181,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.mp3-320": {
+          "cpu_ms": 10.4435,
+          "wall_ms": 10.4324,
+          "minstr": 152.002,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.mp3-v0": {
+          "cpu_ms": 13.5282,
+          "wall_ms": 13.5173,
+          "minstr": 210.059,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.opus": {
+          "cpu_ms": 12.8987,
+          "wall_ms": 12.8992,
+          "minstr": 197.83,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.vorbis": {
+          "cpu_ms": 16.6463,
+          "wall_ms": 16.6157,
+          "minstr": 308.227,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.wav-16-44": {
+          "cpu_ms": 0.2951,
+          "wall_ms": 0.2824,
+          "minstr": 3.468,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.wav-24-96": {
+          "cpu_ms": 0.3968,
+          "wall_ms": 0.3994,
+          "minstr": 5.058,
+          "units": 50,
+          "unit": "seek"
+        },
+        "waveform+bpm+key.aac-256": {
+          "cpu_ms": 129.12,
+          "wall_ms": 86.8493,
+          "minstr": 1277.735,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.flac-16-44": {
+          "cpu_ms": 244.4001,
+          "wall_ms": 202.2477,
+          "minstr": 4073.505,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.flac-24-192": {
+          "cpu_ms": 1533.5311,
+          "wall_ms": 1335.1844,
+          "minstr": 24193.959,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.mp3-320": {
+          "cpu_ms": 230.2457,
+          "wall_ms": 187.8473,
+          "minstr": 3215.261,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.wav-24-96": {
+          "cpu_ms": 114.6274,
+          "wall_ms": 98.1067,
+          "minstr": 1205.449,
+          "units": 180,
+          "unit": "audio s"
+        }
+      }
+    },
+    "1.11": {
+      "ref": "v1.11",
+      "commit": "75d0dadf3f78fda5a62942155eafa48906680327",
+      "prerelease": false,
+      "measured": "2026-10-01",
+      "reps": 5,
+      "corpus": "a0b3d0387cb40276",
+      "machine": {
+        "chip": "Apple M4 Max",
+        "cores": 16,
+        "memory_gb": 64,
+        "macos": "27.0",
+        "xcode": "Xcode 27.0"
+      },
+      "harness": "3fb5c32601",
+      "benches": {
+        "bpm.flac-16-44": {
+          "cpu_ms": 26.9334,
+          "wall_ms": 26.9484,
+          "minstr": 260.21,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "bpm.flac-24-96": {
+          "cpu_ms": 59.7295,
+          "wall_ms": 59.751,
+          "minstr": 574.73,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.aac-256": {
+          "cpu_ms": 75.2228,
+          "wall_ms": 75.2568,
+          "minstr": 820.828,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "decode.aiff-16-44": {
+          "cpu_ms": 10.0841,
+          "wall_ms": 10.0723,
+          "minstr": 193.215,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.alac-16-44": {
+          "cpu_ms": 187.3268,
+          "wall_ms": 187.4175,
+          "minstr": 2818.879,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-16-22-mono": {
+          "cpu_ms": 48.9295,
+          "wall_ms": 48.9345,
+          "minstr": 892.875,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-16-44": {
+          "cpu_ms": 194.7157,
+          "wall_ms": 194.8168,
+          "minstr": 3707.689,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-24-96": {
+          "cpu_ms": 640.1548,
+          "wall_ms": 640.7302,
+          "minstr": 11158.985,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-24-192": {
+          "cpu_ms": 1279.6225,
+          "wall_ms": 1280.681,
+          "minstr": 22319.127,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.mp3-320": {
+          "cpu_ms": 182.8386,
+          "wall_ms": 182.922,
+          "minstr": 2873.468,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.mp3-v0": {
+          "cpu_ms": 176.0677,
+          "wall_ms": 176.3483,
+          "minstr": 2847.983,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.opus": {
+          "cpu_ms": 380.123,
+          "wall_ms": 380.4091,
+          "minstr": 6213.429,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.vorbis": {
+          "cpu_ms": 379.0202,
+          "wall_ms": 379.2165,
+          "minstr": 7378.161,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "decode.wav-16-44": {
+          "cpu_ms": 7.6469,
+          "wall_ms": 7.6356,
+          "minstr": 97.83,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.wav-24-96": {
+          "cpu_ms": 25.1766,
+          "wall_ms": 25.1712,
+          "minstr": 350.485,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "key.flac-16-44": {
+          "cpu_ms": 12.5304,
+          "wall_ms": 12.5298,
+          "minstr": 84.854,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "key.flac-24-96": {
+          "cpu_ms": 28.9948,
+          "wall_ms": 29.0298,
+          "minstr": 220.867,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "levels.render": {
+          "cpu_ms": 23.8819,
+          "wall_ms": 23.9021,
+          "minstr": 535.881,
+          "units": 360,
+          "unit": "audio s"
+        },
+        "metadata.aac-256": {
+          "cpu_ms": 97.7106,
+          "wall_ms": 67.7633,
+          "minstr": 1319.519,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.flac-16-44": {
+          "cpu_ms": 99.2193,
+          "wall_ms": 68.0489,
+          "minstr": 1311.279,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.library-mp3": {
+          "cpu_ms": 184.6502,
+          "wall_ms": 122.0362,
+          "minstr": 1898.658,
+          "units": 200,
+          "unit": "parse"
+        },
+        "metadata.mp3-320": {
+          "cpu_ms": 100.0697,
+          "wall_ms": 68.9665,
+          "minstr": 1312.51,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.wav-24-96": {
+          "cpu_ms": 0.3488,
+          "wall_ms": 0.3481,
+          "minstr": 5.228,
+          "units": 10,
+          "unit": "parse"
+        },
+        "open.aac-256": {
+          "cpu_ms": 12.8758,
+          "wall_ms": 12.875,
+          "minstr": 310.783,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.aiff-16-44": {
+          "cpu_ms": 0.9762,
+          "wall_ms": 0.9752,
+          "minstr": 9.502,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.alac-16-44": {
+          "cpu_ms": 4.5651,
+          "wall_ms": 4.5644,
+          "minstr": 94.68,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-16-22-mono": {
+          "cpu_ms": 1.5255,
+          "wall_ms": 1.5248,
+          "minstr": 18.444,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-16-44": {
+          "cpu_ms": 1.5038,
+          "wall_ms": 1.503,
+          "minstr": 18.006,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-24-96": {
+          "cpu_ms": 1.6763,
+          "wall_ms": 1.6757,
+          "minstr": 20.043,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-24-192": {
+          "cpu_ms": 1.9017,
+          "wall_ms": 1.9115,
+          "minstr": 20.95,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.mp3-320": {
+          "cpu_ms": 1.0322,
+          "wall_ms": 1.0316,
+          "minstr": 11.524,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.mp3-v0": {
+          "cpu_ms": 1.1612,
+          "wall_ms": 1.131,
+          "minstr": 11.506,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.opus": {
+          "cpu_ms": 1.3367,
+          "wall_ms": 1.3359,
+          "minstr": 15.772,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.vorbis": {
+          "cpu_ms": 6.022,
+          "wall_ms": 6.0211,
+          "minstr": 121.928,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.wav-16-44": {
+          "cpu_ms": 1.0229,
+          "wall_ms": 1.0223,
+          "minstr": 10.364,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.wav-24-96": {
+          "cpu_ms": 1.0014,
+          "wall_ms": 0.9581,
+          "minstr": 10.828,
+          "units": 20,
+          "unit": "open"
+        },
+        "pincache.hit-300": {
+          "cpu_ms": 33.6042,
+          "wall_ms": 26.1754,
+          "minstr": 306.676,
+          "units": 300,
+          "unit": "hit"
+        },
+        "pincache.hit-300x4-parallel": {
+          "cpu_ms": 132.7996,
+          "wall_ms": 98.8071,
+          "minstr": 1220.739,
+          "units": 1200,
+          "unit": "hit"
+        },
+        "pincache.open-2000": {
+          "cpu_ms": 31.3822,
+          "wall_ms": 31.1112,
+          "minstr": 508.342,
+          "units": 2000,
+          "unit": "entry"
+        },
+        "pincache.write-300": {
+          "cpu_ms": 65.5933,
+          "wall_ms": 60.7896,
+          "minstr": 925.099,
+          "units": 300,
+          "unit": "write"
+        },
+        "pincache.write-300-at-limit": {
+          "cpu_ms": 350.0635,
+          "wall_ms": 234.5303,
+          "minstr": 4232.599,
+          "units": 300,
+          "unit": "write"
+        },
+        "seek.aac-256": {
+          "cpu_ms": 4.8415,
+          "wall_ms": 4.823,
+          "minstr": 60.85,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.aiff-16-44": {
+          "cpu_ms": 0.341,
+          "wall_ms": 0.3268,
+          "minstr": 5.915,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.alac-16-44": {
+          "cpu_ms": 10.1961,
+          "wall_ms": 10.1738,
+          "minstr": 151.863,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-16-22-mono": {
+          "cpu_ms": 14.7367,
+          "wall_ms": 14.7473,
+          "minstr": 255.478,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-16-44": {
+          "cpu_ms": 54.1941,
+          "wall_ms": 54.2004,
+          "minstr": 933.549,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-24-96": {
+          "cpu_ms": 188.7064,
+          "wall_ms": 188.8344,
+          "minstr": 3216.995,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-24-192": {
+          "cpu_ms": 371.1853,
+          "wall_ms": 371.3704,
+          "minstr": 6352.582,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.mp3-320": {
+          "cpu_ms": 10.1487,
+          "wall_ms": 10.1297,
+          "minstr": 152.322,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.mp3-v0": {
+          "cpu_ms": 13.1481,
+          "wall_ms": 13.1337,
+          "minstr": 210.405,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.opus": {
+          "cpu_ms": 12.2572,
+          "wall_ms": 12.2413,
+          "minstr": 197.709,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.vorbis": {
+          "cpu_ms": 16.1794,
+          "wall_ms": 16.1647,
+          "minstr": 308.196,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.wav-16-44": {
+          "cpu_ms": 0.2969,
+          "wall_ms": 0.2834,
+          "minstr": 3.477,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.wav-24-96": {
+          "cpu_ms": 0.3476,
+          "wall_ms": 0.3354,
+          "minstr": 5.047,
+          "units": 50,
+          "unit": "seek"
+        },
+        "waveform+bpm+key.aac-256": {
+          "cpu_ms": 127.2293,
+          "wall_ms": 85.3358,
+          "minstr": 1281.683,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.flac-16-44": {
+          "cpu_ms": 245.0825,
+          "wall_ms": 202.6366,
+          "minstr": 4078.47,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.flac-24-192": {
+          "cpu_ms": 1511.7405,
+          "wall_ms": 1315.6275,
+          "minstr": 24204.08,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.mp3-320": {
+          "cpu_ms": 229.2209,
+          "wall_ms": 186.3484,
+          "minstr": 3219.771,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.wav-24-96": {
+          "cpu_ms": 114.4145,
+          "wall_ms": 97.7793,
+          "minstr": 1215.401,
+          "units": 180,
+          "unit": "audio s"
+        }
+      }
+    },
+    "1.12": {
+      "ref": "v1.12",
+      "commit": "b569cdb91775d4424126fcb595225fe929679177",
+      "prerelease": false,
+      "measured": "2026-10-01",
+      "reps": 5,
+      "corpus": "a0b3d0387cb40276",
+      "machine": {
+        "chip": "Apple M4 Max",
+        "cores": 16,
+        "memory_gb": 64,
+        "macos": "27.0",
+        "xcode": "Xcode 27.0"
+      },
+      "harness": "3fb5c32601",
+      "benches": {
+        "bpm.flac-16-44": {
+          "cpu_ms": 26.7054,
+          "wall_ms": 26.7724,
+          "minstr": 260.139,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "bpm.flac-24-96": {
+          "cpu_ms": 59.4603,
+          "wall_ms": 59.4956,
+          "minstr": 574.892,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.aac-256": {
+          "cpu_ms": 75.1435,
+          "wall_ms": 75.1413,
+          "minstr": 820.689,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "decode.aiff-16-44": {
+          "cpu_ms": 10.1004,
+          "wall_ms": 10.0849,
+          "minstr": 193.223,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.alac-16-44": {
+          "cpu_ms": 187.3555,
+          "wall_ms": 187.408,
+          "minstr": 2818.763,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-16-22-mono": {
+          "cpu_ms": 49.1216,
+          "wall_ms": 49.1265,
+          "minstr": 892.961,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-16-44": {
+          "cpu_ms": 194.913,
+          "wall_ms": 194.9777,
+          "minstr": 3707.665,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-24-96": {
+          "cpu_ms": 639.9583,
+          "wall_ms": 640.376,
+          "minstr": 11158.987,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-24-192": {
+          "cpu_ms": 1279.8923,
+          "wall_ms": 1280.7587,
+          "minstr": 22319.773,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.mp3-320": {
+          "cpu_ms": 185.0374,
+          "wall_ms": 185.1534,
+          "minstr": 2874.143,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.mp3-v0": {
+          "cpu_ms": 177.3819,
+          "wall_ms": 177.416,
+          "minstr": 2847.49,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.opus": {
+          "cpu_ms": 382.2407,
+          "wall_ms": 382.4679,
+          "minstr": 6213.492,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.vorbis": {
+          "cpu_ms": 376.2429,
+          "wall_ms": 376.4155,
+          "minstr": 7377.943,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "decode.wav-16-44": {
+          "cpu_ms": 7.4468,
+          "wall_ms": 7.4313,
+          "minstr": 97.785,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.wav-24-96": {
+          "cpu_ms": 24.9049,
+          "wall_ms": 24.8841,
+          "minstr": 350.343,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "key.flac-16-44": {
+          "cpu_ms": 12.4411,
+          "wall_ms": 12.4439,
+          "minstr": 84.864,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "key.flac-24-96": {
+          "cpu_ms": 28.5145,
+          "wall_ms": 28.5201,
+          "minstr": 220.809,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "levels.render": {
+          "cpu_ms": 23.7351,
+          "wall_ms": 23.7869,
+          "minstr": 535.781,
+          "units": 360,
+          "unit": "audio s"
+        },
+        "metadata.aac-256": {
+          "cpu_ms": 97.7016,
+          "wall_ms": 67.8537,
+          "minstr": 1319.683,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.flac-16-44": {
+          "cpu_ms": 99.1128,
+          "wall_ms": 67.0269,
+          "minstr": 1311.514,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.library-mp3": {
+          "cpu_ms": 182.4679,
+          "wall_ms": 121.9349,
+          "minstr": 1897.779,
+          "units": 200,
+          "unit": "parse"
+        },
+        "metadata.mp3-320": {
+          "cpu_ms": 98.7565,
+          "wall_ms": 67.7903,
+          "minstr": 1317.1,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.wav-24-96": {
+          "cpu_ms": 0.3375,
+          "wall_ms": 0.3368,
+          "minstr": 5.279,
+          "units": 10,
+          "unit": "parse"
+        },
+        "open.aac-256": {
+          "cpu_ms": 12.9461,
+          "wall_ms": 12.9634,
+          "minstr": 310.97,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.aiff-16-44": {
+          "cpu_ms": 0.9493,
+          "wall_ms": 0.9486,
+          "minstr": 9.592,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.alac-16-44": {
+          "cpu_ms": 4.5276,
+          "wall_ms": 4.527,
+          "minstr": 94.738,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-16-22-mono": {
+          "cpu_ms": 1.4541,
+          "wall_ms": 1.4535,
+          "minstr": 18.497,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-16-44": {
+          "cpu_ms": 1.4476,
+          "wall_ms": 1.447,
+          "minstr": 18.126,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-24-96": {
+          "cpu_ms": 1.602,
+          "wall_ms": 1.6012,
+          "minstr": 19.878,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-24-192": {
+          "cpu_ms": 1.627,
+          "wall_ms": 1.609,
+          "minstr": 20.985,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.mp3-320": {
+          "cpu_ms": 1.225,
+          "wall_ms": 1.1097,
+          "minstr": 12.059,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.mp3-v0": {
+          "cpu_ms": 1.0697,
+          "wall_ms": 1.069,
+          "minstr": 11.585,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.opus": {
+          "cpu_ms": 1.3259,
+          "wall_ms": 1.3252,
+          "minstr": 15.833,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.vorbis": {
+          "cpu_ms": 6.1429,
+          "wall_ms": 6.1421,
+          "minstr": 121.995,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.wav-16-44": {
+          "cpu_ms": 0.988,
+          "wall_ms": 0.9874,
+          "minstr": 10.455,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.wav-24-96": {
+          "cpu_ms": 0.9929,
+          "wall_ms": 0.9725,
+          "minstr": 10.93,
+          "units": 20,
+          "unit": "open"
+        },
+        "pincache.hit-300": {
+          "cpu_ms": 23.4933,
+          "wall_ms": 18.3227,
+          "minstr": 205.901,
+          "units": 300,
+          "unit": "hit"
+        },
+        "pincache.hit-300x4-parallel": {
+          "cpu_ms": 98.6989,
+          "wall_ms": 70.5692,
+          "minstr": 837.753,
+          "units": 1200,
+          "unit": "hit"
+        },
+        "pincache.open-2000": {
+          "cpu_ms": 30.2387,
+          "wall_ms": 29.8891,
+          "minstr": 482.808,
+          "units": 2000,
+          "unit": "entry"
+        },
+        "pincache.write-300": {
+          "cpu_ms": 55.3458,
+          "wall_ms": 53.5847,
+          "minstr": 827.94,
+          "units": 300,
+          "unit": "write"
+        },
+        "pincache.write-300-at-limit": {
+          "cpu_ms": 334.2692,
+          "wall_ms": 218.7324,
+          "minstr": 4048.946,
+          "units": 300,
+          "unit": "write"
+        },
+        "seek.aac-256": {
+          "cpu_ms": 4.7009,
+          "wall_ms": 4.6935,
+          "minstr": 60.859,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.aiff-16-44": {
+          "cpu_ms": 0.3587,
+          "wall_ms": 0.3434,
+          "minstr": 5.908,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.alac-16-44": {
+          "cpu_ms": 10.234,
+          "wall_ms": 10.2077,
+          "minstr": 151.927,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-16-22-mono": {
+          "cpu_ms": 14.7264,
+          "wall_ms": 14.6994,
+          "minstr": 255.557,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-16-44": {
+          "cpu_ms": 53.9794,
+          "wall_ms": 54.0037,
+          "minstr": 933.571,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-24-96": {
+          "cpu_ms": 188.6965,
+          "wall_ms": 188.7604,
+          "minstr": 3216.717,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-24-192": {
+          "cpu_ms": 371.2045,
+          "wall_ms": 371.4545,
+          "minstr": 6352.932,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.mp3-320": {
+          "cpu_ms": 9.9086,
+          "wall_ms": 9.9164,
+          "minstr": 152.389,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.mp3-v0": {
+          "cpu_ms": 13.05,
+          "wall_ms": 13.0329,
+          "minstr": 210.459,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.opus": {
+          "cpu_ms": 12.3743,
+          "wall_ms": 12.3428,
+          "minstr": 197.86,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.vorbis": {
+          "cpu_ms": 16.3401,
+          "wall_ms": 16.3081,
+          "minstr": 308.233,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.wav-16-44": {
+          "cpu_ms": 0.2765,
+          "wall_ms": 0.2627,
+          "minstr": 3.484,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.wav-24-96": {
+          "cpu_ms": 0.3649,
+          "wall_ms": 0.3446,
+          "minstr": 5.053,
+          "units": 50,
+          "unit": "seek"
+        },
+        "waveform+bpm+key.aac-256": {
+          "cpu_ms": 126.9972,
+          "wall_ms": 85.2248,
+          "minstr": 1281.836,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.flac-16-44": {
+          "cpu_ms": 242.5999,
+          "wall_ms": 200.2713,
+          "minstr": 4077.036,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.flac-24-192": {
+          "cpu_ms": 1507.2357,
+          "wall_ms": 1313.743,
+          "minstr": 24205.652,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.mp3-320": {
+          "cpu_ms": 226.5803,
+          "wall_ms": 184.6803,
+          "minstr": 3219.458,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.wav-24-96": {
+          "cpu_ms": 114.4055,
+          "wall_ms": 97.8319,
+          "minstr": 1215.513,
+          "units": 180,
+          "unit": "audio s"
+        }
+      }
+    },
+    "1.13": {
+      "ref": "6992feca",
+      "commit": "6992feca246cfc00bfc2970ea8c425005d6aed1a",
+      "prerelease": false,
+      "measured": "2026-10-01",
+      "reps": 5,
+      "corpus": "a0b3d0387cb40276",
+      "machine": {
+        "chip": "Apple M4 Max",
+        "cores": 16,
+        "memory_gb": 64,
+        "macos": "27.0",
+        "xcode": "Xcode 27.0"
+      },
+      "harness": "3fb5c32601",
+      "benches": {
+        "bpm.flac-16-44": {
+          "cpu_ms": 27.02,
+          "wall_ms": 27.0271,
+          "minstr": 260.121,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "bpm.flac-24-96": {
+          "cpu_ms": 59.5508,
+          "wall_ms": 59.6013,
+          "minstr": 574.96,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.aac-256": {
+          "cpu_ms": 75.2462,
+          "wall_ms": 75.2917,
+          "minstr": 820.913,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "decode.aiff-16-44": {
+          "cpu_ms": 10.4249,
+          "wall_ms": 10.4121,
+          "minstr": 193.23,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.alac-16-44": {
+          "cpu_ms": 187.9106,
+          "wall_ms": 188.4332,
+          "minstr": 2819.007,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-16-22-mono": {
+          "cpu_ms": 48.9964,
+          "wall_ms": 49.0346,
+          "minstr": 892.958,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-16-44": {
+          "cpu_ms": 194.3606,
+          "wall_ms": 194.4387,
+          "minstr": 3706.957,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-24-96": {
+          "cpu_ms": 640.4692,
+          "wall_ms": 640.782,
+          "minstr": 11158.844,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-24-192": {
+          "cpu_ms": 1281.306,
+          "wall_ms": 1282.1491,
+          "minstr": 22322.242,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.mp3-320": {
+          "cpu_ms": 183.2232,
+          "wall_ms": 183.4711,
+          "minstr": 2873.814,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.mp3-v0": {
+          "cpu_ms": 175.4512,
+          "wall_ms": 175.5754,
+          "minstr": 2848.004,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.opus": {
+          "cpu_ms": 381.3243,
+          "wall_ms": 381.7189,
+          "minstr": 6213.407,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.vorbis": {
+          "cpu_ms": 377.2507,
+          "wall_ms": 377.4728,
+          "minstr": 7377.711,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "decode.wav-16-44": {
+          "cpu_ms": 7.9414,
+          "wall_ms": 7.9319,
+          "minstr": 97.968,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.wav-24-96": {
+          "cpu_ms": 25.2628,
+          "wall_ms": 25.2713,
+          "minstr": 350.322,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "key.flac-16-44": {
+          "cpu_ms": 12.8066,
+          "wall_ms": 12.8128,
+          "minstr": 84.882,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "key.flac-24-96": {
+          "cpu_ms": 28.5509,
+          "wall_ms": 28.5678,
+          "minstr": 220.982,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "levels.render": {
+          "cpu_ms": 23.4693,
+          "wall_ms": 23.4686,
+          "minstr": 535.701,
+          "units": 360,
+          "unit": "audio s"
+        },
+        "metadata.aac-256": {
+          "cpu_ms": 100.6257,
+          "wall_ms": 69.2442,
+          "minstr": 1320.01,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.flac-16-44": {
+          "cpu_ms": 97.1447,
+          "wall_ms": 66.7951,
+          "minstr": 1311.225,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.library-mp3": {
+          "cpu_ms": 187.2859,
+          "wall_ms": 125.0159,
+          "minstr": 1900.837,
+          "units": 200,
+          "unit": "parse"
+        },
+        "metadata.mp3-320": {
+          "cpu_ms": 98.562,
+          "wall_ms": 67.5455,
+          "minstr": 1311.97,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.wav-24-96": {
+          "cpu_ms": 0.3331,
+          "wall_ms": 0.3324,
+          "minstr": 5.279,
+          "units": 10,
+          "unit": "parse"
+        },
+        "open.aac-256": {
+          "cpu_ms": 12.8949,
+          "wall_ms": 12.8942,
+          "minstr": 310.827,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.aiff-16-44": {
+          "cpu_ms": 1.065,
+          "wall_ms": 1.0961,
+          "minstr": 9.374,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.alac-16-44": {
+          "cpu_ms": 4.5792,
+          "wall_ms": 4.5856,
+          "minstr": 93.702,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-16-22-mono": {
+          "cpu_ms": 1.4359,
+          "wall_ms": 1.4354,
+          "minstr": 17.856,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-16-44": {
+          "cpu_ms": 1.4821,
+          "wall_ms": 1.4814,
+          "minstr": 17.881,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-24-96": {
+          "cpu_ms": 1.5265,
+          "wall_ms": 1.526,
+          "minstr": 19.391,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-24-192": {
+          "cpu_ms": 1.5375,
+          "wall_ms": 1.5276,
+          "minstr": 19.466,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.mp3-320": {
+          "cpu_ms": 1.2011,
+          "wall_ms": 1.1134,
+          "minstr": 12.059,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.mp3-v0": {
+          "cpu_ms": 1.1078,
+          "wall_ms": 1.1023,
+          "minstr": 11.57,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.opus": {
+          "cpu_ms": 1.3365,
+          "wall_ms": 1.349,
+          "minstr": 15.335,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.vorbis": {
+          "cpu_ms": 6.1037,
+          "wall_ms": 6.103,
+          "minstr": 121.268,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.wav-16-44": {
+          "cpu_ms": 0.9787,
+          "wall_ms": 0.9777,
+          "minstr": 10.223,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.wav-24-96": {
+          "cpu_ms": 1.0445,
+          "wall_ms": 1.0023,
+          "minstr": 10.341,
+          "units": 20,
+          "unit": "open"
+        },
+        "pincache.hit-300": {
+          "cpu_ms": 23.969,
+          "wall_ms": 18.3238,
+          "minstr": 207.702,
+          "units": 300,
+          "unit": "hit"
+        },
+        "pincache.hit-300x4-parallel": {
+          "cpu_ms": 98.1237,
+          "wall_ms": 70.7125,
+          "minstr": 838.83,
+          "units": 1200,
+          "unit": "hit"
+        },
+        "pincache.open-2000": {
+          "cpu_ms": 30.2815,
+          "wall_ms": 29.786,
+          "minstr": 490.656,
+          "units": 2000,
+          "unit": "entry"
+        },
+        "pincache.write-300": {
+          "cpu_ms": 55.0351,
+          "wall_ms": 53.2851,
+          "minstr": 827.463,
+          "units": 300,
+          "unit": "write"
+        },
+        "pincache.write-300-at-limit": {
+          "cpu_ms": 348.1886,
+          "wall_ms": 232.5494,
+          "minstr": 4123.927,
+          "units": 300,
+          "unit": "write"
+        },
+        "seek.aac-256": {
+          "cpu_ms": 4.8217,
+          "wall_ms": 4.7992,
+          "minstr": 60.862,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.aiff-16-44": {
+          "cpu_ms": 0.3577,
+          "wall_ms": 0.3397,
+          "minstr": 5.892,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.alac-16-44": {
+          "cpu_ms": 10.2337,
+          "wall_ms": 10.2285,
+          "minstr": 151.772,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-16-22-mono": {
+          "cpu_ms": 14.8369,
+          "wall_ms": 14.813,
+          "minstr": 255.463,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-16-44": {
+          "cpu_ms": 54.5565,
+          "wall_ms": 54.5843,
+          "minstr": 933.646,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-24-96": {
+          "cpu_ms": 188.3933,
+          "wall_ms": 188.5393,
+          "minstr": 3217.06,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-24-192": {
+          "cpu_ms": 371.6906,
+          "wall_ms": 372.4689,
+          "minstr": 6352.269,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.mp3-320": {
+          "cpu_ms": 9.8062,
+          "wall_ms": 9.7868,
+          "minstr": 152.379,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.mp3-v0": {
+          "cpu_ms": 13.0265,
+          "wall_ms": 13.0147,
+          "minstr": 210.419,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.opus": {
+          "cpu_ms": 12.3859,
+          "wall_ms": 12.3712,
+          "minstr": 197.721,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.vorbis": {
+          "cpu_ms": 16.2399,
+          "wall_ms": 16.2163,
+          "minstr": 308.187,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.wav-16-44": {
+          "cpu_ms": 0.3214,
+          "wall_ms": 0.3017,
+          "minstr": 3.457,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.wav-24-96": {
+          "cpu_ms": 0.3406,
+          "wall_ms": 0.3242,
+          "minstr": 5.026,
+          "units": 50,
+          "unit": "seek"
+        },
+        "waveform+bpm+key.aac-256": {
+          "cpu_ms": 126.9309,
+          "wall_ms": 85.3127,
+          "minstr": 1281.894,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.flac-16-44": {
+          "cpu_ms": 240.3326,
+          "wall_ms": 198.5201,
+          "minstr": 4076.338,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.flac-24-192": {
+          "cpu_ms": 1504.9267,
+          "wall_ms": 1312.4182,
+          "minstr": 24204.921,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.mp3-320": {
+          "cpu_ms": 226.3691,
+          "wall_ms": 184.6053,
+          "minstr": 3219.786,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.wav-24-96": {
+          "cpu_ms": 115.5433,
+          "wall_ms": 99.3608,
+          "minstr": 1215.782,
+          "units": 180,
+          "unit": "audio s"
+        }
+      }
+    },
+    "1.14": {
+      "ref": "8ae57716",
+      "commit": "8ae57716b2eea835223560b812b7f256d74c151f",
+      "prerelease": false,
+      "measured": "2026-10-01",
+      "reps": 5,
+      "corpus": "a0b3d0387cb40276",
+      "machine": {
+        "chip": "Apple M4 Max",
+        "cores": 16,
+        "memory_gb": 64,
+        "macos": "27.0",
+        "xcode": "Xcode 27.0"
+      },
+      "harness": "3fb5c32601",
+      "benches": {
+        "bpm.flac-16-44": {
+          "cpu_ms": 26.7508,
+          "wall_ms": 26.7586,
+          "minstr": 260.431,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "bpm.flac-24-96": {
+          "cpu_ms": 59.4698,
+          "wall_ms": 59.5585,
+          "minstr": 575.304,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.aac-256": {
+          "cpu_ms": 94.3816,
+          "wall_ms": 94.4822,
+          "minstr": 728.883,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "decode.aiff-16-44": {
+          "cpu_ms": 9.8877,
+          "wall_ms": 9.8726,
+          "minstr": 193.192,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.alac-16-44": {
+          "cpu_ms": 187.2697,
+          "wall_ms": 187.337,
+          "minstr": 2819.113,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-16-22-mono": {
+          "cpu_ms": 53.4571,
+          "wall_ms": 53.4195,
+          "minstr": 952.222,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-16-44": {
+          "cpu_ms": 204.8922,
+          "wall_ms": 205.1372,
+          "minstr": 3820.151,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-24-96": {
+          "cpu_ms": 665.3555,
+          "wall_ms": 666.4552,
+          "minstr": 11395.469,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-24-192": {
+          "cpu_ms": 1326.9545,
+          "wall_ms": 1327.9924,
+          "minstr": 22791.13,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.mp3-320": {
+          "cpu_ms": 78.1709,
+          "wall_ms": 78.2288,
+          "minstr": 1050.405,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.mp3-v0": {
+          "cpu_ms": 70.5066,
+          "wall_ms": 70.5443,
+          "minstr": 993.93,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.opus": {
+          "cpu_ms": 386.9492,
+          "wall_ms": 387.1789,
+          "minstr": 6296.378,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.vorbis": {
+          "cpu_ms": 377.8124,
+          "wall_ms": 378.0049,
+          "minstr": 7420.045,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "decode.wav-16-44": {
+          "cpu_ms": 7.1094,
+          "wall_ms": 7.1242,
+          "minstr": 97.718,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.wav-24-96": {
+          "cpu_ms": 22.5032,
+          "wall_ms": 22.5132,
+          "minstr": 337.104,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "key.flac-16-44": {
+          "cpu_ms": 12.5015,
+          "wall_ms": 12.5149,
+          "minstr": 84.891,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "key.flac-24-96": {
+          "cpu_ms": 28.7011,
+          "wall_ms": 28.7528,
+          "minstr": 221.028,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "levels.render": {
+          "cpu_ms": 20.2978,
+          "wall_ms": 20.2969,
+          "minstr": 536.164,
+          "units": 360,
+          "unit": "audio s"
+        },
+        "metadata.aac-256": {
+          "cpu_ms": 100.1957,
+          "wall_ms": 68.8407,
+          "minstr": 1319.473,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.flac-16-44": {
+          "cpu_ms": 98.6672,
+          "wall_ms": 67.2387,
+          "minstr": 1310.859,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.library-mp3": {
+          "cpu_ms": 190.6356,
+          "wall_ms": 126.665,
+          "minstr": 1902.044,
+          "units": 200,
+          "unit": "parse"
+        },
+        "metadata.mp3-320": {
+          "cpu_ms": 99.0257,
+          "wall_ms": 67.4993,
+          "minstr": 1312.018,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.wav-24-96": {
+          "cpu_ms": 0.3009,
+          "wall_ms": 0.3002,
+          "minstr": 5.303,
+          "units": 10,
+          "unit": "parse"
+        },
+        "open.aac-256": {
+          "cpu_ms": 20.0868,
+          "wall_ms": 19.3614,
+          "minstr": 427.356,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.aiff-16-44": {
+          "cpu_ms": 1.7646,
+          "wall_ms": 1.5519,
+          "minstr": 18.56,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.alac-16-44": {
+          "cpu_ms": 10.7942,
+          "wall_ms": 10.0565,
+          "minstr": 191.045,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-16-22-mono": {
+          "cpu_ms": 8.3535,
+          "wall_ms": 7.5583,
+          "minstr": 117.997,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-16-44": {
+          "cpu_ms": 8.1237,
+          "wall_ms": 7.4416,
+          "minstr": 111.952,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-24-96": {
+          "cpu_ms": 7.9715,
+          "wall_ms": 7.2568,
+          "minstr": 114.579,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-24-192": {
+          "cpu_ms": 7.8938,
+          "wall_ms": 7.1184,
+          "minstr": 114.914,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.mp3-320": {
+          "cpu_ms": 1.301,
+          "wall_ms": 1.2015,
+          "minstr": 13.925,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.mp3-v0": {
+          "cpu_ms": 1.1509,
+          "wall_ms": 1.1502,
+          "minstr": 13.519,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.opus": {
+          "cpu_ms": 63.8913,
+          "wall_ms": 63.1466,
+          "minstr": 1025.865,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.vorbis": {
+          "cpu_ms": 70.7226,
+          "wall_ms": 69.9258,
+          "minstr": 1210.384,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.wav-16-44": {
+          "cpu_ms": 1.8608,
+          "wall_ms": 1.6213,
+          "minstr": 18.49,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.wav-24-96": {
+          "cpu_ms": 2.6752,
+          "wall_ms": 2.1268,
+          "minstr": 27.832,
+          "units": 20,
+          "unit": "open"
+        },
+        "pincache.hit-300": {
+          "cpu_ms": 23.867,
+          "wall_ms": 18.3897,
+          "minstr": 206.499,
+          "units": 300,
+          "unit": "hit"
+        },
+        "pincache.hit-300x4-parallel": {
+          "cpu_ms": 97.5708,
+          "wall_ms": 70.2962,
+          "minstr": 838.386,
+          "units": 1200,
+          "unit": "hit"
+        },
+        "pincache.open-2000": {
+          "cpu_ms": 29.8826,
+          "wall_ms": 29.5984,
+          "minstr": 481.485,
+          "units": 2000,
+          "unit": "entry"
+        },
+        "pincache.write-300": {
+          "cpu_ms": 57.035,
+          "wall_ms": 54.7983,
+          "minstr": 827.261,
+          "units": 300,
+          "unit": "write"
+        },
+        "pincache.write-300-at-limit": {
+          "cpu_ms": 331.662,
+          "wall_ms": 219.1305,
+          "minstr": 4050.003,
+          "units": 300,
+          "unit": "write"
+        },
+        "resample.44100": {
+          "cpu_ms": 27.8298,
+          "wall_ms": 27.8311,
+          "minstr": 444.699,
+          "units": 30,
+          "unit": "audio s"
+        },
+        "resample.88200": {
+          "cpu_ms": 58.5701,
+          "wall_ms": 58.5985,
+          "minstr": 790.207,
+          "units": 30,
+          "unit": "audio s"
+        },
+        "resample.96000": {
+          "cpu_ms": 20.0195,
+          "wall_ms": 20.0216,
+          "minstr": 341.322,
+          "units": 30,
+          "unit": "audio s"
+        },
+        "resample.176400": {
+          "cpu_ms": 71.2702,
+          "wall_ms": 71.3296,
+          "minstr": 927.612,
+          "units": 30,
+          "unit": "audio s"
+        },
+        "resample.192000": {
+          "cpu_ms": 33.7307,
+          "wall_ms": 33.7582,
+          "minstr": 589.02,
+          "units": 30,
+          "unit": "audio s"
+        },
+        "scan.picks-100k": {
+          "cpu_ms": 5648.7223,
+          "wall_ms": 5298.5374,
+          "minstr": 123365.345,
+          "units": 200,
+          "unit": "pick"
+        },
+        "scan.sweep-5k": {
+          "cpu_ms": 3468.9608,
+          "wall_ms": 3152.6305,
+          "minstr": 72280.261,
+          "units": 5000,
+          "unit": "row"
+        },
+        "seek.aac-256": {
+          "cpu_ms": 5.0177,
+          "wall_ms": 4.9658,
+          "minstr": 64.101,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.aiff-16-44": {
+          "cpu_ms": 0.294,
+          "wall_ms": 0.2802,
+          "minstr": 5.84,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.alac-16-44": {
+          "cpu_ms": 10.3379,
+          "wall_ms": 10.34,
+          "minstr": 154.223,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-16-22-mono": {
+          "cpu_ms": 18.9517,
+          "wall_ms": 19.053,
+          "minstr": 320.722,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-16-44": {
+          "cpu_ms": 62.6395,
+          "wall_ms": 62.6701,
+          "minstr": 1062.234,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-24-96": {
+          "cpu_ms": 206.7226,
+          "wall_ms": 206.9251,
+          "minstr": 3494.207,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-24-192": {
+          "cpu_ms": 409.1477,
+          "wall_ms": 409.3516,
+          "minstr": 6909.482,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.mp3-320": {
+          "cpu_ms": 12.2215,
+          "wall_ms": 12.2253,
+          "minstr": 170.468,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.mp3-v0": {
+          "cpu_ms": 11.2202,
+          "wall_ms": 11.2195,
+          "minstr": 165.278,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.opus": {
+          "cpu_ms": 15.1925,
+          "wall_ms": 15.1419,
+          "minstr": 241.986,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.vorbis": {
+          "cpu_ms": 18.9228,
+          "wall_ms": 18.8888,
+          "minstr": 349.968,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.wav-16-44": {
+          "cpu_ms": 0.2491,
+          "wall_ms": 0.2354,
+          "minstr": 3.378,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.wav-24-96": {
+          "cpu_ms": 0.3226,
+          "wall_ms": 0.3018,
+          "minstr": 5.247,
+          "units": 50,
+          "unit": "seek"
+        },
+        "waveform+bpm+key.aac-256": {
+          "cpu_ms": 126.8341,
+          "wall_ms": 84.9502,
+          "minstr": 1269.169,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.flac-16-44": {
+          "cpu_ms": 252.0275,
+          "wall_ms": 210.2455,
+          "minstr": 4204.328,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.flac-24-192": {
+          "cpu_ms": 1549.6982,
+          "wall_ms": 1355.3263,
+          "minstr": 24725.06,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.mp3-320": {
+          "cpu_ms": 130.8486,
+          "wall_ms": 88.8795,
+          "minstr": 1486.293,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.wav-24-96": {
+          "cpu_ms": 114.0602,
+          "wall_ms": 97.6743,
+          "minstr": 1215.684,
+          "units": 180,
+          "unit": "audio s"
+        }
+      }
+    },
+    "1.15": {
+      "ref": "1057c2ae0e6833988f168435a07ee3ce9ecb6872",
+      "commit": "1057c2ae0e6833988f168435a07ee3ce9ecb6872",
+      "prerelease": true,
+      "measured": "2026-10-01",
+      "reps": 5,
+      "corpus": "a0b3d0387cb40276",
+      "machine": {
+        "chip": "Apple M4 Max",
+        "cores": 16,
+        "memory_gb": 64,
+        "macos": "27.0",
+        "xcode": "Xcode 27.0"
+      },
+      "harness": "3fb5c32601",
+      "benches": {
+        "bpm.flac-16-44": {
+          "cpu_ms": 26.6509,
+          "wall_ms": 26.6609,
+          "minstr": 256.869,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "bpm.flac-24-96": {
+          "cpu_ms": 39.6785,
+          "wall_ms": 39.7095,
+          "minstr": 511.375,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.aac-256": {
+          "cpu_ms": 93.5254,
+          "wall_ms": 93.5497,
+          "minstr": 722.637,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "decode.aiff-16-44": {
+          "cpu_ms": 3.1631,
+          "wall_ms": 3.1626,
+          "minstr": 40.628,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.alac-16-44": {
+          "cpu_ms": 188.4367,
+          "wall_ms": 188.5677,
+          "minstr": 2820.774,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-16-22-mono": {
+          "cpu_ms": 10.0495,
+          "wall_ms": 10.0532,
+          "minstr": 204.408,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-16-44": {
+          "cpu_ms": 39.3016,
+          "wall_ms": 39.325,
+          "minstr": 798.578,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-24-96": {
+          "cpu_ms": 93.5169,
+          "wall_ms": 93.5759,
+          "minstr": 2006.314,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.flac-24-192": {
+          "cpu_ms": 186.6983,
+          "wall_ms": 186.8185,
+          "minstr": 4012.18,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.mp3-320": {
+          "cpu_ms": 78.4655,
+          "wall_ms": 78.6128,
+          "minstr": 1061.566,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.mp3-v0": {
+          "cpu_ms": 70.5948,
+          "wall_ms": 70.7428,
+          "minstr": 1009.987,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.opus": {
+          "cpu_ms": 378.671,
+          "wall_ms": 378.9334,
+          "minstr": 6218.933,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.vorbis": {
+          "cpu_ms": 377.2774,
+          "wall_ms": 377.581,
+          "minstr": 7387.154,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "decode.wav-16-44": {
+          "cpu_ms": 3.1405,
+          "wall_ms": 3.1439,
+          "minstr": 38.649,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "decode.wav-24-96": {
+          "cpu_ms": 12.4281,
+          "wall_ms": 12.4274,
+          "minstr": 119.754,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "key.flac-16-44": {
+          "cpu_ms": 11.6594,
+          "wall_ms": 11.6646,
+          "minstr": 69.033,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "key.flac-24-96": {
+          "cpu_ms": 24.4279,
+          "wall_ms": 24.4273,
+          "minstr": 151.877,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "levels.render": {
+          "cpu_ms": 20.4569,
+          "wall_ms": 20.4561,
+          "minstr": 536.396,
+          "units": 360,
+          "unit": "audio s"
+        },
+        "m3u.resolve-10k": {
+          "cpu_ms": 298.0732,
+          "wall_ms": 298.417,
+          "minstr": 5114.723,
+          "units": 10000,
+          "unit": "entry"
+        },
+        "metadata.aac-256": {
+          "cpu_ms": 52.391,
+          "wall_ms": 34.8404,
+          "minstr": 517.748,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.flac-16-44": {
+          "cpu_ms": 50.5175,
+          "wall_ms": 34.7355,
+          "minstr": 508.944,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.library-mp3": {
+          "cpu_ms": 95.2208,
+          "wall_ms": 87.7858,
+          "minstr": 1403.366,
+          "units": 200,
+          "unit": "parse"
+        },
+        "metadata.mp3-320": {
+          "cpu_ms": 50.0258,
+          "wall_ms": 35.699,
+          "minstr": 509.223,
+          "units": 10,
+          "unit": "parse"
+        },
+        "metadata.wav-24-96": {
+          "cpu_ms": 0.3202,
+          "wall_ms": 0.3196,
+          "minstr": 4.939,
+          "units": 10,
+          "unit": "parse"
+        },
+        "open.aac-256": {
+          "cpu_ms": 19.7441,
+          "wall_ms": 18.9541,
+          "minstr": 419.07,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.aiff-16-44": {
+          "cpu_ms": 1.0475,
+          "wall_ms": 1.0467,
+          "minstr": 11.643,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.alac-16-44": {
+          "cpu_ms": 10.1325,
+          "wall_ms": 9.4106,
+          "minstr": 179.989,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-16-22-mono": {
+          "cpu_ms": 1.8008,
+          "wall_ms": 1.7768,
+          "minstr": 22.119,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-16-44": {
+          "cpu_ms": 1.5956,
+          "wall_ms": 1.595,
+          "minstr": 19.733,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-24-96": {
+          "cpu_ms": 1.8308,
+          "wall_ms": 1.8331,
+          "minstr": 21.263,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.flac-24-192": {
+          "cpu_ms": 1.7198,
+          "wall_ms": 1.7192,
+          "minstr": 21.3,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.mp3-320": {
+          "cpu_ms": 1.3967,
+          "wall_ms": 1.3433,
+          "minstr": 14.176,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.mp3-v0": {
+          "cpu_ms": 1.2965,
+          "wall_ms": 1.2957,
+          "minstr": 14.043,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.opus": {
+          "cpu_ms": 14.8446,
+          "wall_ms": 14.1136,
+          "minstr": 244.579,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.vorbis": {
+          "cpu_ms": 30.5237,
+          "wall_ms": 29.7225,
+          "minstr": 554.02,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.wav-16-44": {
+          "cpu_ms": 1.0766,
+          "wall_ms": 1.076,
+          "minstr": 11.793,
+          "units": 20,
+          "unit": "open"
+        },
+        "open.wav-24-96": {
+          "cpu_ms": 1.0837,
+          "wall_ms": 1.0718,
+          "minstr": 11.877,
+          "units": 20,
+          "unit": "open"
+        },
+        "pincache.hit-300": {
+          "cpu_ms": 6.3015,
+          "wall_ms": 6.2955,
+          "minstr": 96.692,
+          "units": 300,
+          "unit": "hit"
+        },
+        "pincache.hit-300x4-parallel": {
+          "cpu_ms": 34.0712,
+          "wall_ms": 8.711,
+          "minstr": 391.52,
+          "units": 1200,
+          "unit": "hit"
+        },
+        "pincache.open-2000": {
+          "cpu_ms": 7.6418,
+          "wall_ms": 7.5264,
+          "minstr": 164.018,
+          "units": 2000,
+          "unit": "entry"
+        },
+        "pincache.write-300": {
+          "cpu_ms": 47.5677,
+          "wall_ms": 52.7213,
+          "minstr": 743.298,
+          "units": 300,
+          "unit": "write"
+        },
+        "pincache.write-300-at-limit": {
+          "cpu_ms": 167.5329,
+          "wall_ms": 104.7845,
+          "minstr": 1615.436,
+          "units": 300,
+          "unit": "write"
+        },
+        "playlist-edit.100k-head": {
+          "cpu_ms": 608.2758,
+          "wall_ms": 608.7669,
+          "minstr": 11174.905,
+          "units": 20,
+          "unit": "edit"
+        },
+        "playlist-edit.100k-middle": {
+          "cpu_ms": 310.2006,
+          "wall_ms": 310.4443,
+          "minstr": 5772.6,
+          "units": 20,
+          "unit": "edit"
+        },
+        "playlist-edit.100k-tail": {
+          "cpu_ms": 6.1374,
+          "wall_ms": 6.1368,
+          "minstr": 129.094,
+          "units": 20,
+          "unit": "edit"
+        },
+        "resample.44100": {
+          "cpu_ms": 28.2053,
+          "wall_ms": 28.2749,
+          "minstr": 444.669,
+          "units": 30,
+          "unit": "audio s"
+        },
+        "resample.88200": {
+          "cpu_ms": 58.7019,
+          "wall_ms": 58.7258,
+          "minstr": 790.301,
+          "units": 30,
+          "unit": "audio s"
+        },
+        "resample.96000": {
+          "cpu_ms": 19.9652,
+          "wall_ms": 19.9698,
+          "minstr": 341.323,
+          "units": 30,
+          "unit": "audio s"
+        },
+        "resample.176400": {
+          "cpu_ms": 70.8141,
+          "wall_ms": 70.8522,
+          "minstr": 927.29,
+          "units": 30,
+          "unit": "audio s"
+        },
+        "resample.192000": {
+          "cpu_ms": 33.1766,
+          "wall_ms": 33.1887,
+          "minstr": 588.723,
+          "units": 30,
+          "unit": "audio s"
+        },
+        "scan.picks-100k": {
+          "cpu_ms": 1876.1119,
+          "wall_ms": 1567.838,
+          "minstr": 34556.732,
+          "units": 200,
+          "unit": "pick"
+        },
+        "scan.sweep-5k": {
+          "cpu_ms": 978.204,
+          "wall_ms": 649.8114,
+          "minstr": 12466.013,
+          "units": 5000,
+          "unit": "row"
+        },
+        "seek.aac-256": {
+          "cpu_ms": 5.0274,
+          "wall_ms": 4.9855,
+          "minstr": 64.042,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.aiff-16-44": {
+          "cpu_ms": 0.1327,
+          "wall_ms": 0.1321,
+          "minstr": 1.692,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.alac-16-44": {
+          "cpu_ms": 10.383,
+          "wall_ms": 10.3772,
+          "minstr": 153.969,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-16-22-mono": {
+          "cpu_ms": 1.5445,
+          "wall_ms": 1.544,
+          "minstr": 29.062,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-16-44": {
+          "cpu_ms": 2.9137,
+          "wall_ms": 2.9132,
+          "minstr": 53.614,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-24-96": {
+          "cpu_ms": 3.1011,
+          "wall_ms": 3.1006,
+          "minstr": 61.246,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.flac-24-192": {
+          "cpu_ms": 3.0811,
+          "wall_ms": 3.085,
+          "minstr": 62.085,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.mp3-320": {
+          "cpu_ms": 8.6045,
+          "wall_ms": 8.604,
+          "minstr": 117.592,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.mp3-v0": {
+          "cpu_ms": 7.7161,
+          "wall_ms": 7.7156,
+          "minstr": 112.126,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.opus": {
+          "cpu_ms": 12.674,
+          "wall_ms": 12.6354,
+          "minstr": 202.526,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.vorbis": {
+          "cpu_ms": 16.6778,
+          "wall_ms": 16.6371,
+          "minstr": 317.725,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.wav-16-44": {
+          "cpu_ms": 0.1265,
+          "wall_ms": 0.126,
+          "minstr": 1.646,
+          "units": 50,
+          "unit": "seek"
+        },
+        "seek.wav-24-96": {
+          "cpu_ms": 0.1685,
+          "wall_ms": 0.168,
+          "minstr": 2.079,
+          "units": 50,
+          "unit": "seek"
+        },
+        "walk.10k-name": {
+          "cpu_ms": 133.9422,
+          "wall_ms": 134.0493,
+          "minstr": 3184.044,
+          "units": 10000,
+          "unit": "file"
+        },
+        "walk.10k-newest": {
+          "cpu_ms": 84.9252,
+          "wall_ms": 84.9966,
+          "minstr": 1657.344,
+          "units": 10000,
+          "unit": "file"
+        },
+        "walk.library": {
+          "cpu_ms": 7.0052,
+          "wall_ms": 7.004,
+          "minstr": 158.723,
+          "units": 600,
+          "unit": "file"
+        },
+        "waveform+bpm+key.aac-256": {
+          "cpu_ms": 124.9592,
+          "wall_ms": 84.5954,
+          "minstr": 1234.144,
+          "units": 180.00108843537416,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.flac-16-44": {
+          "cpu_ms": 89.9068,
+          "wall_ms": 49.642,
+          "minstr": 1203.592,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.flac-24-192": {
+          "cpu_ms": 315.2706,
+          "wall_ms": 202.1528,
+          "minstr": 5353.84,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.mp3-320": {
+          "cpu_ms": 128.8082,
+          "wall_ms": 88.6252,
+          "minstr": 1461.523,
+          "units": 180,
+          "unit": "audio s"
+        },
+        "waveform+bpm+key.wav-24-96": {
+          "cpu_ms": 80.0063,
+          "wall_ms": 70.7606,
+          "minstr": 905.37,
+          "units": 180,
+          "unit": "audio s"
+        }
       }
     }
   }

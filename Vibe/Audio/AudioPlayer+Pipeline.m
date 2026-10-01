@@ -13,6 +13,7 @@
 #endif
 #if DEBUG
 #import "VibeManualRenderPump.h"
+#import "AudioPlayer+Debug.h"
 #endif
 #import <Accelerate/Accelerate.h>
 #include <mach/mach_time.h>
@@ -29,8 +30,12 @@ static const NSTimeInterval kOutputIdleStopTailIntervalSeconds = 1.0;
 // A system stop's verdict (an interruption's pause, a route's recovery) lands
 // within milliseconds of it; past this, none is coming.
 static const NSTimeInterval kSystemStopVerdictSeconds = 1.0;
-// The hardware drain: the bus reports its events within this of their render.
+// The hardware drain: the bus reports its events within the prompt interval
+// of their render while anything is due (updateDrainTimerOnQueue); otherwise
+// it only tops up rings at least half a second deep, and a tenth of the
+// wakeups do.
 static const uint64_t kDrainIntervalNanos = 10 * NSEC_PER_MSEC;
+static const uint64_t kDrainSteadyIntervalNanos = 100 * NSEC_PER_MSEC;
 // An output start holding the player queue longer than this is worth a line
 // even in stable builds.
 static const NSTimeInterval kSlowOutputStartLogThresholdSeconds = 0.25;
@@ -645,6 +650,10 @@ VIBE_REALTIME_END
     };
     pump.afterRender = ^{ [weakSelf drainVoiceBusOnQueue]; };
     [pump attachRender:render running:running queue:_queue];
+}
+
+- (void)debugHoldDecoder:(BOOL)hold {
+    [self runSyncOnQueue:^{ [self->_voiceBus debugHoldDecoder:hold]; }];
 }
 
 - (void)debugHoldRenderInside:(BOOL)hold {
@@ -1312,20 +1321,26 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     }
 #endif
     BOOL wanted = [self renderingOnQueue] && _voiceBus.occupiedSlotCount > 0;
-    if (wanted == (_drainTimer != nil)) {
-        return;
-    }
     if (!wanted) {
-        dispatch_source_cancel(_drainTimer);
-        _drainTimer = nil;
+        if (_drainTimer) {
+            dispatch_source_cancel(_drainTimer);
+            _drainTimer = nil;
+        }
         return;
     }
-    _drainTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, _queue);
-    dispatch_source_set_timer(_drainTimer, dispatch_time(DISPATCH_TIME_NOW, kDrainIntervalNanos),
-                              kDrainIntervalNanos, kDrainIntervalNanos / 4);
-    __weak AudioPlayer *weakSelf = self;
-    dispatch_source_set_event_handler(_drainTimer, ^{ [weakSelf drainVoiceBusOnQueue]; });
-    dispatch_resume(_drainTimer);
+    uint64_t interval = _retiringVoices.count || _renderLeaveWork.count || _voiceBus.promptDrainDue
+            ? kDrainIntervalNanos : kDrainSteadyIntervalNanos;
+    if (_drainTimer && interval == _drainTimerInterval) {
+        return;
+    }
+    if (!_drainTimer) {
+        _drainTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, _queue);
+        __weak AudioPlayer *weakSelf = self;
+        dispatch_source_set_event_handler(_drainTimer, ^{ [weakSelf drainVoiceBusOnQueue]; });
+        dispatch_resume(_drainTimer);
+    }
+    _drainTimerInterval = interval;
+    dispatch_source_set_timer(_drainTimer, dispatch_time(DISPATCH_TIME_NOW, (int64_t)interval), interval, interval / 4);
 }
 
 @end

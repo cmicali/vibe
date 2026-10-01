@@ -116,7 +116,8 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
     AudioVoiceBus           *_voiceBus;         // the source segment; nil until the first settlement
     BOOL                    _fxEnabled;         // the saved preference; bit-perfect outranks it
     uint64_t                _outputIdleStopGeneration;
-    dispatch_source_t       _drainTimer;        // hardware only: 10 ms while the output runs voices
+    dispatch_source_t       _drainTimer;        // hardware only, while the output runs voices
+    uint64_t                _drainTimerInterval; // its period: prompt, or steady while nothing is due
     id                      _manualPump;        // VibeManualRenderPump, debug builds only
 #if VIBE_VERBOSE_LOGGING
     // Ticks only while the player has work that can stall

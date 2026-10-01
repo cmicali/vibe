@@ -436,6 +436,55 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
 
 #pragma mark - Remove
 
+// Seeded edits over rows that share files: after each, both indexes answer
+// what a scan of the rows does.
+- (void)testIndexesStayExactThroughRandomRemovesInsertsAndMoves {
+    NSMutableArray<NSURL *> *urls = [NSMutableArray array];
+    for (NSUInteger i = 0; i < 40; i++) {
+        [urls addObject:URLNamed([NSString stringWithFormat:@"%lu.mp3", (unsigned long)(i % 13)])];
+    }
+    Playlist *playlist = [[Playlist alloc] init];
+    [playlist replaceAllWithTracks:Rows(urls)];
+    NSMutableArray<AudioTrack *> *departed = [NSMutableArray array];
+    __block uint32_t state = 7;
+    uint32_t (^next)(uint32_t) = ^uint32_t(uint32_t bound) {
+        state = state * 1664525u + 1013904223u;
+        return bound ? (state >> 8) % bound : 0;
+    };
+    for (int step = 0; step < 400; step++) {
+        NSUInteger count = playlist.count;
+        uint32_t kind = next(3);
+        if (kind == 0 && count > 1) {
+            NSUInteger at = next((uint32_t)count);
+            NSIndexSet *rows = RowRange(at, MIN(1 + next(3), count - at));
+            [departed addObjectsFromArray:[playlist removeTracksAtIndexes:rows]];
+        } else if (kind == 1 && departed.count > 0) {
+            AudioTrack *back = departed.lastObject;
+            [departed removeLastObject];
+            [playlist insertTracks:@[back] atIndexes:RowSet(next((uint32_t)count + 3))];
+        } else if (count > 1) {
+            NSUInteger from = next((uint32_t)count);
+            NSUInteger to = next((uint32_t)count);
+            [playlist moveTracksAtIndexes:RowSet(from) toIndexes:RowSet(to)];
+        }
+        NSMutableDictionary<NSURL *, NSMutableIndexSet *> *expected = [NSMutableDictionary dictionary];
+        for (NSUInteger row = 0; row < playlist.count; row++) {
+            AudioTrack *track = [playlist trackAtIndex:row];
+            XCTAssertEqual([playlist getIndexForTrack:track], (NSInteger)row, @"step %d", step);
+            NSMutableIndexSet *rows = expected[track.url] ?: [NSMutableIndexSet indexSet];
+            [rows addIndex:row];
+            expected[track.url] = rows;
+        }
+        for (NSURL *url in [NSSet setWithArray:urls]) {
+            XCTAssertEqualObjects([playlist indexesOfTracksWithURL:url],
+                                  expected[url] ?: [NSIndexSet indexSet], @"step %d", step);
+        }
+        for (AudioTrack *gone in departed) {
+            XCTAssertEqual([playlist getIndexForTrack:gone], -1, @"step %d", step);
+        }
+    }
+}
+
 - (void)testRemoveRefusesOutOfRangeAndAnEmptyPlaylist {
     Playlist *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3"]);
     RecordingObserver *observer = [RecordingObserver new];

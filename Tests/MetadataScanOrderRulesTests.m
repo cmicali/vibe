@@ -20,6 +20,12 @@
 @interface MetadataScanOrderRulesTests : XCTestCase
 @end
 
+static NSUInteger (^RankIn(NSArray<NSURL *> *neighborhood))(id<MetadataScanOrderCandidate>) {
+    return ^NSUInteger(id<MetadataScanOrderCandidate> candidate) {
+        return VibeMetadataScanNeighborhoodRank(candidate.url, neighborhood);
+    };
+}
+
 @implementation MetadataScanOrderRulesTests
 
 - (MetadataScanCandidateFake *)candidateAtIndex:(NSUInteger)index
@@ -105,10 +111,9 @@
     MetadataScanCandidateFake *earlyTail = [self candidateAtIndex:20 url:tail deferred:NO];
     MetadataScanCandidateFake *lateNext = [self candidateAtIndex:1 url:next deferred:NO];
 
-    id<MetadataScanOrderCandidate> best = VibeBestMetadataScanCandidate(
-            @[earlyTail, lateNext], @[next]);
+    NSUInteger best = VibeBestMetadataScanCandidateIndex(@[earlyTail, lateNext], RankIn(@[next]), nil);
 
-    XCTAssertEqual(best, lateNext);
+    XCTAssertEqual(best, 1u);
 }
 
 - (void)testExactPickerPrefersALocalTailOverTheNeighborhoodsDownload {
@@ -118,10 +123,9 @@
     localTail.local = YES;
     MetadataScanCandidateFake *datalessNext = [self candidateAtIndex:1 url:next deferred:NO];
 
-    id<MetadataScanOrderCandidate> best = VibeBestMetadataScanCandidate(
-            @[datalessNext, localTail], @[next]);
+    NSUInteger best = VibeBestMetadataScanCandidateIndex(@[datalessNext, localTail], RankIn(@[next]), nil);
 
-    XCTAssertEqual(best, localTail);
+    XCTAssertEqual(best, 1u);
 }
 
 - (void)testDuplicateNeighborhoodURLKeepsItsFirstAndBestRank {
@@ -134,11 +138,28 @@
                                                                   url:other
                                                              deferred:NO];
 
-    id<MetadataScanOrderCandidate> best = VibeBestMetadataScanCandidate(
+    NSUInteger best = VibeBestMetadataScanCandidateIndex(
             @[otherCandidate, duplicateCandidate],
-            @[duplicate, other, duplicate]);
+            RankIn(@[duplicate, other, duplicate]), nil);
 
-    XCTAssertEqual(best, duplicateCandidate);
+    XCTAssertEqual(best, 1u);
+}
+
+- (void)testSkippedCandidatesAreLeftOut {
+    NSURL *next = [NSURL fileURLWithPath:@"/next.flac"];
+    NSURL *tail = [NSURL fileURLWithPath:@"/tail.flac"];
+    MetadataScanCandidateFake *tailCandidate = [self candidateAtIndex:20 url:tail deferred:NO];
+    MetadataScanCandidateFake *nextCandidate = [self candidateAtIndex:1 url:next deferred:NO];
+    NSArray *candidates = @[tailCandidate, nextCandidate];
+
+    XCTAssertEqual(VibeBestMetadataScanCandidateIndex(candidates, RankIn(@[next]),
+            ^BOOL(id<MetadataScanOrderCandidate> candidate) {
+        return candidate == nextCandidate;
+    }), 0u);
+    XCTAssertEqual(VibeBestMetadataScanCandidateIndex(candidates, RankIn(@[next]),
+            ^BOOL(id<MetadataScanOrderCandidate> candidate) {
+        return YES;
+    }), (NSUInteger)NSNotFound);
 }
 
 #pragma mark - The priority slot's own pick

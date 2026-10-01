@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
-# Remove build/ and the generated Vibe.xcodeproj. A path git tracks is skipped,
-# so this cannot clobber a checked-in project.
+# Remove build/ and the generated projects, Vibe.xcodeproj and
+# VibeBenchComponents.xcodeproj. A path git tracks is skipped, so this cannot
+# clobber a checked-in project.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -19,5 +20,6 @@ clean_path() {
 
 clean_path build
 clean_path Vibe.xcodeproj
+clean_path VibeBenchComponents.xcodeproj
 
 echo "🔊 cleaned"

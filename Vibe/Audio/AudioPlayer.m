@@ -986,11 +986,13 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     BOOL audible = snapshot.state == VibeVoiceStateLive && !snapshot.paused && [self renderingOnQueue] && ramp.frames > 0;
     if (!audible) {
         [_voiceBus killVoice:voice];
-        return;
     }
-    [_voiceBus setRamp:ramp forVoice:voice];
-    [_retiringVoices addObject:@(voice)];
-    [self refreshOutputAudioActiveOnQueue];
+    else {
+        [_voiceBus setRamp:ramp forVoice:voice];
+        [_retiringVoices addObject:@(voice)];
+        [self refreshOutputAudioActiveOnQueue];
+    }
+    [self updateDrainTimerOnQueue]; // its death is due within the fade
 }
 
 // For stop, pause, a parked play and the failure reset; skips never call it,

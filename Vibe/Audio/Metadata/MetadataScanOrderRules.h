@@ -58,31 +58,53 @@ static inline id<MetadataScanOrderCandidate> _Nullable VibeBestPriorityScanCandi
     return best;
 }
 
-// One pass; nothing is sorted.
-static inline id<MetadataScanOrderCandidate> _Nullable VibeBestMetadataScanCandidate(
-        NSArray<id<MetadataScanOrderCandidate>> *candidates,
-        NSArray<NSURL *> *neighborhood) {
-    NSMutableDictionary<NSURL *, NSNumber *> *rankByURL =
-            [NSMutableDictionary dictionaryWithCapacity:neighborhood.count];
-    [neighborhood enumerateObjectsUsingBlock:^(NSURL *url, NSUInteger rank, BOOL *stop) {
-        if (rankByURL[url] == nil) {
-            rankByURL[url] = @(rank);
+// The URL's first place in the neighborhood, NSNotFound when absent.
+// Compared directly: the neighborhood holds three URLs.
+static inline NSUInteger VibeMetadataScanNeighborhoodRank(NSURL *url, NSArray<NSURL *> *neighborhood) {
+    NSUInteger rank = 0;
+    for (NSURL *neighbor in neighborhood) {
+        if (neighbor == url || [neighbor isEqual:url]) {
+            return rank;
         }
-    }];
+        rank++;
+    }
+    return NSNotFound;
+}
 
-    id<MetadataScanOrderCandidate> best = nil;
+// One pass, nothing sorted or copied: the index of the best candidate skip
+// leaves in, or NSNotFound. rankOf answers a candidate's neighborhood rank
+// (VibeMetadataScanNeighborhoodRank), so a caller picking again and again
+// under one neighborhood can remember it rather than compare URLs per pick.
+static inline NSUInteger VibeBestMetadataScanCandidateIndex(
+        NSArray<id<MetadataScanOrderCandidate>> *candidates,
+        NSUInteger (NS_NOESCAPE ^rankOf)(id<MetadataScanOrderCandidate> candidate),
+        BOOL (NS_NOESCAPE ^ _Nullable skip)(id<MetadataScanOrderCandidate> candidate)) {
+    NSUInteger bestIndex = NSNotFound;
+    BOOL bestLocal = NO;
+    BOOL bestDeferred = NO;
     NSUInteger bestRank = NSNotFound;
-    for (id<MetadataScanOrderCandidate> candidate in candidates) {
-        NSNumber *found = rankByURL[candidate.url];
-        NSUInteger rank = found != nil ? found.unsignedIntegerValue : NSNotFound;
-        if (!best || VibeMetadataScanOrderedBefore(
-                candidate.local, candidate.deferred, rank, candidate.playlistIndex,
-                best.local, best.deferred, bestRank, best.playlistIndex)) {
-            best = candidate;
+    NSUInteger bestPlaylistIndex = NSNotFound;
+    NSUInteger count = candidates.count;
+    for (NSUInteger index = 0; index < count; index++) {
+        id<MetadataScanOrderCandidate> candidate = candidates[index];
+        BOOL local = candidate.local;
+        BOOL deferred = candidate.deferred;
+        NSUInteger rank = rankOf(candidate);
+        NSUInteger playlistIndex = candidate.playlistIndex;
+        // Skip asked only of a candidate that would win: the best is always
+        // one it passed, so the answer is the same at a lookup per improvement.
+        if ((bestIndex == NSNotFound || VibeMetadataScanOrderedBefore(
+                local, deferred, rank, playlistIndex,
+                bestLocal, bestDeferred, bestRank, bestPlaylistIndex))
+                && !(skip && skip(candidate))) {
+            bestIndex = index;
+            bestLocal = local;
+            bestDeferred = deferred;
             bestRank = rank;
+            bestPlaylistIndex = playlistIndex;
         }
     }
-    return best;
+    return bestIndex;
 }
 
 NS_ASSUME_NONNULL_END

@@ -282,6 +282,25 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 });
                 return VibeJSONString(@{@"ok": @YES, @"heldSeconds": @(seconds)});
             }),
+            // Every decode turn waits for the hold, as one stuck in a stalled read
+            // would: the rings drain, and a hold past what they buffered
+            // underruns (the voice's underrunFrames). Bounded like block_main.
+            VibeDebugCmd(@"block_decoder <seconds>", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                double seconds = 0;
+                if (tokens.count != 2 || !VibeParseDouble(tokens[1], &seconds)
+                        || seconds <= 0 || seconds > kMaxBlockMainSeconds) {
+                    return VibeErrorJSON(@"usage: block_decoder <seconds 0-%g>", kMaxBlockMainSeconds);
+                }
+                AudioPlayer *player = surface.debugPlayer;
+                [player debugHoldDecoder:YES];
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC)),
+                               dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+                    [player debugHoldDecoder:NO];
+                });
+                return VibeJSONString(@{@"ok": @YES, @"heldSeconds": @(seconds)});
+            }),
             // Holds main, then runs a shared verb WITHOUT yielding it: one turn,
             // not two. It stages a worker's main-queue callback that was raised
             // before a user action but runs after it, which two channel commands

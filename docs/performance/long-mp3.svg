@@ -13,13 +13,13 @@
 <text class="m" x="48" y="103.0" font-size="11" text-anchor="end">60</text>
 <line class="g" x1="56" x2="570" y1="44.0" y2="44.0"/>
 <text class="m" x="48" y="48.0" font-size="11" text-anchor="end">80</text>
-<text class="m" x="92.7" y="282" font-size="11" text-anchor="middle">1.8</text>
-<text class="m" x="166.1" y="282" font-size="11" text-anchor="middle">1.9</text>
-<text class="m" x="239.6" y="282" font-size="11" text-anchor="middle">1.10</text>
-<text class="m" x="313.0" y="282" font-size="11" text-anchor="middle">1.11</text>
-<text class="m" x="386.4" y="282" font-size="11" text-anchor="middle">1.12</text>
-<text class="m" x="459.9" y="282" font-size="11" text-anchor="middle">1.13</text>
-<text class="m" x="533.3" y="282" font-size="11" text-anchor="middle">1.14</text>
+<text class="m" x="92.7" y="280" font-size="11" text-anchor="middle">1.8</text>
+<text class="m" x="166.1" y="280" font-size="11" text-anchor="middle">1.9</text>
+<text class="m" x="239.6" y="280" font-size="11" text-anchor="middle">1.10</text>
+<text class="m" x="313.0" y="280" font-size="11" text-anchor="middle">1.11</text>
+<text class="m" x="386.4" y="280" font-size="11" text-anchor="middle">1.12</text>
+<text class="m" x="459.9" y="280" font-size="11" text-anchor="middle">1.13</text>
+<text class="m" x="533.3" y="280" font-size="11" text-anchor="middle">1.14</text>
 <path class="l s0" d="M92.7,173.8 L166.1,172.3 L239.6,179.6 L313.0,168.3 L386.4,180.8 L459.9,165.3 L533.3,255.0"/>
 <circle class="s0" cx="92.7" cy="173.8" r="4" stroke="none"><title>Open, 60 min VBR: 33 ms</title></circle>
 <circle class="s0" cx="166.1" cy="172.3" r="4" stroke="none"><title>Open, 60 min VBR: 33 ms</title></circle>

@@ -58,18 +58,20 @@ public:
 #endif
 
 // Replaces TagLib::FileRef, whose detection links every parser in the
-// library. Same order: extension, isValid(), then magic bytes.
+// library. Same order: extension, isValid(), then magic bytes. Without
+// readProperties no audio properties are parsed, which the art read never
+// uses; no format's validity depends on them.
 class TagLibAudioFile {
 public:
-    explicit TagLibAudioFile(const char *path)
+    explicit TagLibAudioFile(const char *path, bool readProperties = true)
         : _stream(std::make_unique<TagLib::FileStream>(path, true)) {
         warmUpSharedFactories();
         if (!_stream->isOpen()) {
             return;
         }
-        _file = openByExtension(path, _stream.get());
+        _file = openByExtension(path, _stream.get(), readProperties);
         if (!_file || !_file->isValid()) {
-            _file = openByContent(_stream.get());
+            _file = openByContent(_stream.get(), readProperties);
         }
         if (_file && !_file->isValid()) {
             _file = nullptr;
@@ -96,46 +98,47 @@ private:
     // FileRef::detectByExtension's mapping plus wave, bwf and qta (a QuickTime
     // container MP4::File parses). .ogg and .oga hold Vorbis or Opus, told
     // apart by a cheap sniff; FLAC in Ogg has no vendored parser.
-    static std::unique_ptr<TagLib::File> openByExtension(const char *path, TagLib::IOStream *stream) {
+    static std::unique_ptr<TagLib::File> openByExtension(const char *path, TagLib::IOStream *stream,
+                                                         bool readProperties) {
         NSString *ext = [@(path) pathExtension].uppercaseString;
         if ([ext isEqualToString:@"MP3"] || [ext isEqualToString:@"MP2"] || [ext isEqualToString:@"AAC"])
-            return std::make_unique<TagLib::MPEG::File>(stream);
+            return std::make_unique<TagLib::MPEG::File>(stream, readProperties);
         if ([ext isEqualToString:@"M4A"] || [ext isEqualToString:@"M4R"] || [ext isEqualToString:@"M4B"] ||
             [ext isEqualToString:@"M4P"] || [ext isEqualToString:@"MP4"] || [ext isEqualToString:@"M4V"] ||
             [ext isEqualToString:@"QTA"])
-            return std::make_unique<TagLib::MP4::File>(stream);
+            return std::make_unique<TagLib::MP4::File>(stream, readProperties);
         if ([ext isEqualToString:@"FLAC"])
-            return std::make_unique<TagLib::FLAC::File>(stream);
+            return std::make_unique<TagLib::FLAC::File>(stream, readProperties);
         if ([ext isEqualToString:@"OGG"] || [ext isEqualToString:@"OGA"])
             return TagLib::Ogg::Opus::File::isSupported(stream)
-                    ? std::unique_ptr<TagLib::File>(std::make_unique<TagLib::Ogg::Opus::File>(stream))
-                    : std::make_unique<TagLib::Ogg::Vorbis::File>(stream);
+                    ? std::unique_ptr<TagLib::File>(std::make_unique<TagLib::Ogg::Opus::File>(stream, readProperties))
+                    : std::make_unique<TagLib::Ogg::Vorbis::File>(stream, readProperties);
         if ([ext isEqualToString:@"OPUS"])
-            return std::make_unique<TagLib::Ogg::Opus::File>(stream);
+            return std::make_unique<TagLib::Ogg::Opus::File>(stream, readProperties);
         if ([ext isEqualToString:@"AIF"] || [ext isEqualToString:@"AIFF"] ||
             [ext isEqualToString:@"AFC"] || [ext isEqualToString:@"AIFC"])
-            return std::make_unique<TagLib::RIFF::AIFF::File>(stream);
+            return std::make_unique<TagLib::RIFF::AIFF::File>(stream, readProperties);
         if ([ext isEqualToString:@"WAV"] || [ext isEqualToString:@"WAVE"] || [ext isEqualToString:@"BWF"])
-            return std::make_unique<TagLib::RIFF::WAV::File>(stream);
+            return std::make_unique<TagLib::RIFF::WAV::File>(stream, readProperties);
         return nullptr;
     }
 
     // FileRef::detectByContent's order.
-    static std::unique_ptr<TagLib::File> openByContent(TagLib::IOStream *stream) {
+    static std::unique_ptr<TagLib::File> openByContent(TagLib::IOStream *stream, bool readProperties) {
         if (TagLib::MPEG::File::isSupported(stream))
-            return std::make_unique<TagLib::MPEG::File>(stream);
+            return std::make_unique<TagLib::MPEG::File>(stream, readProperties);
         if (TagLib::Ogg::Vorbis::File::isSupported(stream))
-            return std::make_unique<TagLib::Ogg::Vorbis::File>(stream);
+            return std::make_unique<TagLib::Ogg::Vorbis::File>(stream, readProperties);
         if (TagLib::FLAC::File::isSupported(stream))
-            return std::make_unique<TagLib::FLAC::File>(stream);
+            return std::make_unique<TagLib::FLAC::File>(stream, readProperties);
         if (TagLib::Ogg::Opus::File::isSupported(stream))
-            return std::make_unique<TagLib::Ogg::Opus::File>(stream);
+            return std::make_unique<TagLib::Ogg::Opus::File>(stream, readProperties);
         if (TagLib::MP4::File::isSupported(stream))
-            return std::make_unique<TagLib::MP4::File>(stream);
+            return std::make_unique<TagLib::MP4::File>(stream, readProperties);
         if (TagLib::RIFF::AIFF::File::isSupported(stream))
-            return std::make_unique<TagLib::RIFF::AIFF::File>(stream);
+            return std::make_unique<TagLib::RIFF::AIFF::File>(stream, readProperties);
         if (TagLib::RIFF::WAV::File::isSupported(stream))
-            return std::make_unique<TagLib::RIFF::WAV::File>(stream);
+            return std::make_unique<TagLib::RIFF::WAV::File>(stream, readProperties);
         return nullptr;
     }
 
@@ -465,8 +468,11 @@ static NSData *VibeEncodedArtData(VibeImage *image) {
             }
         }
 
-        // PropertyMap normalizes every format's tempo tag to "BPM".
-        TagLib::StringList bpmValues = file->properties()["BPM"];
+        // Built once: properties() converts every frame of every tag. It
+        // normalizes each format's tempo tag to "BPM", and its keys are
+        // case-insensitive.
+        const TagLib::PropertyMap properties = file->properties();
+        TagLib::StringList bpmValues = properties.value("BPM");
         if (!bpmValues.isEmpty()) {
             float tagBPM = [NSString stringWithStdString:bpmValues.front().to8Bit(true)].floatValue;
             if (isfinite(tagBPM) && tagBPM > 0 && tagBPM < 1000) {
@@ -475,12 +481,10 @@ static NSData *VibeEncodedArtData(VibeImage *image) {
         }
 
         // ID3 TKEY and Vorbis/FLAC INITIALKEY arrive as "INITIALKEY"; MP4 has
-        // no mapping, so its iTunes freeform atom arrives as "initialkey". An
-        // unparseable value stays None, so analysis fills in.
-        TagLib::StringList keyValues = file->properties()["INITIALKEY"];
-        if (keyValues.isEmpty()) {
-            keyValues = file->properties()["initialkey"];
-        }
+        // no mapping, so its iTunes freeform atom arrives as "initialkey",
+        // which the same lookup finds. An unparseable value stays None, so
+        // analysis fills in.
+        TagLib::StringList keyValues = properties.value("INITIALKEY");
         if (!keyValues.isEmpty()) {
             self.key = VibeMusicalKeyFromString(
                     [NSString stringWithStdString:keyValues.front().to8Bit(true)]);
@@ -624,7 +628,7 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void) {
         }
         // loadFromURL:'s barrier; a throw is a failed read, not "no art".
         try {
-            TagLibAudioFile fileRef([path UTF8String]);
+            TagLibAudioFile fileRef([path UTF8String], false);
             if (fileRef.isNull()) {
                 return VibeEmbeddedArtExtractionReadFailed;
             }

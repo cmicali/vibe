@@ -484,8 +484,11 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     NSTimeInterval position = _playback.position;
     NSTimeInterval duration = _playback.duration;
     if (duration > 0) {
-        Formatters *formatters = [Formatters sharedInstance];
-        _elapsedLabel.text = [formatters durationStringFromTimeInterval:position];
+        // Both change once a second; the control skips an unchanged text itself.
+        NSString *elapsed = [[Formatters sharedInstance] durationStringFromTimeInterval:position];
+        if (![_elapsedLabel.text isEqualToString:elapsed]) {
+            _elapsedLabel.text = elapsed;
+        }
         _remainingTimeControl.text = VibeRightTimeText(position, duration);
         // The only waveform write while paused.
         if (!_waveformView.isScrubbing && !_playback.seekInFlight) {

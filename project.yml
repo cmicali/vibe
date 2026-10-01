@@ -664,6 +664,7 @@ targets:
           - "**/.DS_Store"
           - "**/*.md"
           - "iOSDriver/**"                    # VibeiOSDriver's XCUI sources: iOS-only API
+          - "BenchComponents/**"              # the component benchmarks, perf.py's tool
           - "AudioPlayerRenderTests.m"         # VibeAudioTests' suite
       - path: Vibe/Audio/Analysis/AudioBPMAnalyzer.mm
       - path: Vibe/Audio/Analysis/AudioKeyAnalyzer.mm

@@ -18,6 +18,15 @@ static const int kLog2FrameSize = 10;
 static const NSUInteger kFrameSize = 1 << kLog2FrameSize;
 static const NSUInteger kHopSize = 256;
 
+// The frame and hop are in samples and the method was tuned at 44.1 kHz, so a
+// file at twice the 44.1/48 kHz family or more is decimated by a power of two
+// first: an onset envelope at 192 kHz costs four times the FFTs and finds the
+// same tempo (the accuracy measurement is Analysis/AGENTS.md's). The
+// anti-alias filter is a Blackman-windowed sinc cut at 90% of the decimated
+// Nyquist, kDecimationTapsPerFactor taps per unit of the factor, plus one.
+static const double kDecimatedMinRate = 44100.0;
+static const NSUInteger kDecimationTapsPerFactor = 16;
+
 static const float kMinBPM = 60.0f;
 static const float kMaxBPM = 200.0f;
 // Comb harmonics reach 3x the base lag, so autocorrelation is computed out to
@@ -138,8 +147,16 @@ struct VibeBPMComb {
 @end
 
 @implementation AudioBPMAnalyzer {
-    double _sampleRate;
+    double _sampleRate;  // the analyzed rate, after any decimation
     FFTSetup _fftSetup;
+
+    // Decimation, when the file's rate is twice the family's or more: the
+    // factor, the filter, and the input it has not yet consumed, which keeps
+    // the filter's history across appends.
+    NSUInteger _decimation;
+    std::vector<float> _decimationFilter;
+    std::vector<float> _decimationInput;
+    std::vector<float> _decimated;
 
     // The tail of earlier buffers, from the next frame's first sample on. Only
     // the frames straddling a buffer boundary are read out of it, so it holds
@@ -162,7 +179,30 @@ struct VibeBPMComb {
 - (instancetype)initWithSampleRate:(double)sampleRate {
     self = [super init];
     if (self) {
-        _sampleRate = sampleRate;
+        _decimation = 1;
+        while (sampleRate / (double)(_decimation * 2) >= kDecimatedMinRate) {
+            _decimation *= 2;
+        }
+        _sampleRate = sampleRate / (double)_decimation;
+        if (_decimation > 1) {
+            NSUInteger taps = kDecimationTapsPerFactor * _decimation + 1;
+            _decimationFilter.resize(taps);
+            const double cutoff = 0.9 * 0.5 / (double)_decimation; // cycles per input sample
+            const double center = (double)(taps - 1) / 2.0;
+            double sum = 0;
+            for (NSUInteger i = 0; i < taps; i++) {
+                double x = (double)i - center;
+                double sinc = x == 0 ? 2.0 * cutoff : std::sin(2.0 * M_PI * cutoff * x) / (M_PI * x);
+                double w = 0.42 - 0.5 * std::cos(2.0 * M_PI * (double)i / (double)(taps - 1))
+                        + 0.08 * std::cos(4.0 * M_PI * (double)i / (double)(taps - 1));
+                _decimationFilter[i] = (float)(sinc * w);
+                sum += sinc * w;
+            }
+            for (float &tap : _decimationFilter) {
+                tap = (float)(tap / sum);
+            }
+            _decimationInput.reserve(taps + 65536);
+        }
         _fftSetup = vDSP_create_fftsetup(kLog2FrameSize, kFFTRadix2);
         _pending.reserve(kFrameSize * 2);
         _window.resize(kFrameSize);
@@ -189,6 +229,25 @@ struct VibeBPMComb {
     }
     // Already mono: the loader downmixes each decode buffer once, through
     // AudioWaveformMonoMix, and shares it with the waveform chunker.
+    if (_decimation > 1) {
+        const size_t taps = _decimationFilter.size();
+        const size_t held = _decimationInput.size();
+        _decimationInput.resize(held + frameCount);
+        memcpy(_decimationInput.data() + held, samples, frameCount * sizeof(float));
+        const size_t available = _decimationInput.size();
+        if (available < taps) {
+            return;
+        }
+        const size_t outputs = (available - taps) / _decimation + 1;
+        _decimated.resize(outputs);
+        vDSP_desamp(_decimationInput.data(), (vDSP_Stride)_decimation, _decimationFilter.data(),
+                    _decimated.data(), outputs, taps);
+        const size_t consumed = outputs * _decimation;
+        memmove(_decimationInput.data(), _decimationInput.data() + consumed, (available - consumed) * sizeof(float));
+        _decimationInput.resize(available - consumed);
+        samples = _decimated.data();
+        frameCount = outputs;
+    }
     VibeAnalysisFrameStream(_pending, samples, frameCount, kFrameSize, kHopSize,
                             [self](const float *frame) { [self processFrame:frame]; });
 }
@@ -320,6 +379,11 @@ struct VibeBPMComb {
     }
     std::vector<float> ac(maxCombLag + 1, 0.0f);
     for (int lag = minLag; lag <= maxCombLag; lag++) {
+        // The comb reads lag, 2*lag and 3*lag for lag in [minLag, maxLag]:
+        // past maxLag only the multiples of 2 or 3 are read.
+        if (lag > maxLag && lag % 2 != 0 && lag % 3 != 0) {
+            continue;
+        }
         float sum = 0;
         vDSP_dotpr(detrended.data(), 1, detrended.data() + lag, 1, &sum, n - (size_t)lag);
         ac[lag] = sum / (float)(n - (size_t)lag);

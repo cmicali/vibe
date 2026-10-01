@@ -16,20 +16,22 @@ static const double kTestSampleRate = 44100.0;
 
 // A click track: one short decaying burst per beat over a quiet tone, which is
 // enough onset structure for the envelope and the phase comb.
-static std::vector<float> VibeTestClickTrack(double bpm, double seconds) {
-    const size_t total = (size_t)(kTestSampleRate * seconds);
-    const double period = 60.0 / bpm * kTestSampleRate;
+static std::vector<float> VibeTestClickTrack(double bpm, double seconds, double rate = kTestSampleRate) {
+    const size_t total = (size_t)(rate * seconds);
+    const double period = 60.0 / bpm * rate;
+    const double scale = kTestSampleRate / rate; // the same sound at any rate
     std::vector<float> out(total);
     for (size_t i = 0; i < total; i++) {
         double sinceBeat = std::fmod((double)i, period);
-        double click = std::exp(-sinceBeat / 200.0) * std::sin((double)i * 0.7);
-        out[i] = (float)(0.9 * click + 0.05 * std::sin((double)i * 0.03));
+        double click = std::exp(-sinceBeat * scale / 200.0) * std::sin((double)i * scale * 0.7);
+        out[i] = (float)(0.9 * click + 0.05 * std::sin((double)i * scale * 0.03));
     }
     return out;
 }
 
-static float VibeTestAnalyze(const std::vector<float> &audio, const std::vector<size_t> &chunks) {
-    AudioBPMAnalyzer *analyzer = [[AudioBPMAnalyzer alloc] initWithSampleRate:kTestSampleRate];
+static float VibeTestAnalyze(const std::vector<float> &audio, const std::vector<size_t> &chunks,
+                             double rate = kTestSampleRate) {
+    AudioBPMAnalyzer *analyzer = [[AudioBPMAnalyzer alloc] initWithSampleRate:rate];
     size_t offset = 0, index = 0;
     while (offset < audio.size()) {
         size_t take = std::min(chunks[index++ % chunks.size()], audio.size() - offset);
@@ -64,6 +66,20 @@ static float VibeTestAnalyze(const std::vector<float> &audio, const std::vector<
         float bpm = VibeTestAnalyze(audio, chunks);
         XCTAssertEqualWithAccuracy(bpm, reference, 0.001f,
                                    @"first chunk size %zu", chunks.front());
+    }
+}
+
+// A file at twice the 44.1/48 kHz family or more is decimated first; the
+// filter's history crosses appends, so the split still never reaches the result.
+- (void)testHighRatesFindTheTempoWhateverTheBufferSizes {
+    for (double rate : {96000.0, 192000.0}) {
+        std::vector<float> audio = VibeTestClickTrack(128.0, 30.0, rate);
+        float reference = VibeTestAnalyze(audio, {audio.size()}, rate);
+        XCTAssertEqualWithAccuracy(reference, 128.0f, 1.0f, @"at %.0f Hz", rate);
+        for (const std::vector<size_t> &chunks : std::vector<std::vector<size_t>>{{1}, {3, 1025, 64}, {65536}}) {
+            XCTAssertEqual(VibeTestAnalyze(audio, chunks, rate), reference, @"at %.0f Hz, first chunk %zu",
+                           rate, chunks.front());
+        }
     }
 }
 
