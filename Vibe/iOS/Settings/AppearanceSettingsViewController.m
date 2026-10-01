@@ -152,11 +152,12 @@ static NSString *const kValueCellIdentifier  = @"value";
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    BOOL nowPlaying = indexPath.section == VibeAppearanceSectionNowPlaying;
+    if (nowPlaying && indexPath.row != VibeNowPlayingRowTimeDisplay) {
+        return;     // the switch rows
+    }
     UIViewController *next = nil;
-    if (indexPath.section == VibeAppearanceSectionNowPlaying) {
-        if (indexPath.row != VibeNowPlayingRowTimeDisplay) {
-            return;     // the switch rows
-        }
+    if (nowPlaying) {
         next = [self timeDisplayPicker];
     }
     else {

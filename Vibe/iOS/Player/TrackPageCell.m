@@ -220,9 +220,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     NSLayoutConstraint *_actionBarLeadingAfterPad;
     BOOL               _fxPadShown;
     // What hiding the shuffle and repeat buttons zeroes.
-    BOOL                _shuffleRepeatShown;
     NSLayoutConstraint *_shuffleWidth;
-    NSLayoutConstraint *_repeatWidth;
     NSLayoutConstraint *_outerGapWanted;
     NSLayoutConstraint *_outerGapMin;
 
@@ -355,7 +353,6 @@ static void VibeConfigureTimeLabel(UILabel *label) {
              pointSize:kCellSideGlyphPointSize];
         _repeatButton = [self makeTransportButton];
         _shuffleWidth = [_shuffleButton.widthAnchor constraintEqualToConstant:kTransportFlankButtonSide];
-        _repeatWidth = [_repeatButton.widthAnchor constraintEqualToConstant:kTransportFlankButtonSide];
         [self setGlyphPlaying:NO];
         [self setShuffleEnabled:NO repeatMode:VibeRepeatModeOff];
 
@@ -391,7 +388,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
             [_shuffleButton.leadingAnchor constraintEqualToAnchor:_transportView.leadingAnchor],
             [_repeatButton.trailingAnchor constraintEqualToAnchor:_transportView.trailingAnchor],
             _shuffleWidth,
-            _repeatWidth,
+            [_repeatButton.widthAnchor constraintEqualToAnchor:_shuffleButton.widthAnchor],
             [_previousButton.widthAnchor constraintEqualToConstant:kTransportButtonSide],
             [_playPauseButton.widthAnchor constraintEqualToConstant:kTransportButtonSide],
             [_nextButton.widthAnchor constraintEqualToConstant:kTransportButtonSide],
@@ -401,7 +398,6 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         _portraitConstraints = [self buildPortraitConstraints];
         _landscapeConstraints = [self buildLandscapeConstraints];
         _fxPadShown = YES;
-        _shuffleRepeatShown = YES;
     }
     return self;
 }
@@ -614,9 +610,8 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
     // back to the edge inset.
     UILayoutGuide *column = [[UILayoutGuide alloc] init];
     [content addLayoutGuide:column];
-    // The row centers between the pad and the route pill, not on the screen:
-    // the pill grows with a device name, so the screen's center sits off the
-    // middle of the space the row has.
+    // The pill grows with a device name, so center between the pills, not on
+    // the screen.
     UILayoutGuide *betweenPills = [[UILayoutGuide alloc] init];
     [content addLayoutGuide:betweenPills];
     NSLayoutConstraint *columnLeading = [column.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor];
@@ -680,8 +675,6 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
         [_routeView.widthAnchor constraintLessThanOrEqualToConstant:kCellRouteMaxWidthLandscape],
 
         [_transportView.centerYAnchor constraintEqualToAnchor:_actionBar.centerYAnchor],
-        [_transportView.leadingAnchor constraintGreaterThanOrEqualToAnchor:_fxPadView.trailingAnchor
-                                                                  constant:kCellActionBarGap],
         [betweenPills.leadingAnchor constraintEqualToAnchor:_fxPadView.trailingAnchor],
         [betweenPills.trailingAnchor constraintEqualToAnchor:_actionBar.leadingAnchor],
         [_transportView.centerXAnchor constraintEqualToAnchor:betweenPills.centerXAnchor],
@@ -771,14 +764,12 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
 }
 
 - (void)setShuffleRepeatShown:(BOOL)shown {
-    if (_shuffleRepeatShown == shown) {
+    if (_shuffleButton.hidden == !shown) {
         return;
     }
-    _shuffleRepeatShown = shown;
     _shuffleButton.hidden = !shown;
     _repeatButton.hidden = !shown;
     _shuffleWidth.constant = shown ? kTransportFlankButtonSide : 0;
-    _repeatWidth.constant = shown ? kTransportFlankButtonSide : 0;
     _outerGapWanted.constant = shown ? kTransportButtonGap : 0;
     _outerGapMin.constant = shown ? kTransportFlankMinGap : 0;
     [self setNeedsLayout];
@@ -829,9 +820,9 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
     [super layoutSubviews];
     // The default 1 draws the cached glyphs soft.
     CGFloat scale = self.traitCollection.displayScale;
-    _previousButton.layer.rasterizationScale = scale;
-    _playPauseButton.layer.rasterizationScale = scale;
-    _nextButton.layer.rasterizationScale = scale;
+    for (UIView *button in _transportView.subviews) {
+        button.layer.rasterizationScale = scale;
+    }
     VibeSignpostEnd(cell_layout);
 }
 

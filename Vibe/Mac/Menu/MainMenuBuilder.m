@@ -17,6 +17,7 @@
 #import "MenuValidationRules.h"
 #import "OpenRecentMenuController.h"
 #import "OutputDevicesMenuController.h"
+#import "SettingsRules.h"
 #import "ShortcutRules.h"
 #import "VibeStrings.h"
 
@@ -262,7 +263,7 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
 
     AddSymbolItem(playbackMenu, STR_TRANSPORT_SHUFFLE, @"shuffle", @selector(toggleShuffle:), player, @"", 0, kVibeMenuShuffle);
     // Validation retitles it per mode.
-    AddSymbolItem(playbackMenu, STR_TRANSPORT_REPEAT_OFF, @"repeat", @selector(cycleRepeatMode:), player, @"", 0, kVibeMenuRepeat);
+    AddSymbolItem(playbackMenu, STR_TRANSPORT_REPEAT_OFF, VibeRepeatModeSymbolName(VibeRepeatModeOff), @selector(cycleRepeatMode:), player, @"", 0, kVibeMenuRepeat);
     AddSeparator(playbackMenu);
 
     AddSymbolItem(playbackMenu, STR_MENU_SKIP_FORWARD, @"forward", @selector(skipForward:), player, @"", 0, kVibeMenuSkipForward);

@@ -342,8 +342,16 @@ unplayablePlaylistName:(NSString *)unplayablePlaylistName {
 
 #pragma mark - Codec line (FX symbols + file metadata)
 
+// Field by field, not memcmp: the struct has padding a compound literal
+// leaves unspecified, which would read as a change on every call.
+static BOOL VibeFXDisplayStatesEqual(VibeFXDisplayState a, VibeFXDisplayState b) {
+    return a.lowKill == b.lowKill && a.lowKillBoost == b.lowKillBoost && a.reverb == b.reverb
+            && a.delay == b.delay && a.shortDelay == b.shortDelay && a.bitPerfect == b.bitPerfect
+            && a.shuffle == b.shuffle && a.repeatMode == b.repeatMode;
+}
+
 - (void)renderFXState:(VibeFXDisplayState)state {
-    if (memcmp(&state, &_fxState, sizeof(VibeFXDisplayState)) == 0) {
+    if (VibeFXDisplayStatesEqual(state, _fxState)) {
         return;
     }
     _fxState = state;

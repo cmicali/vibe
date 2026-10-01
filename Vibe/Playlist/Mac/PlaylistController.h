@@ -167,7 +167,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)reloadVisibleTracks;
 
 // A no-op while the row is visible; under shuffle it centers the row, clamped
-// at the list's ends.
+// at the list's ends, once per track.
 - (void)scrollCurrentTrackToVisible;
 
 @end

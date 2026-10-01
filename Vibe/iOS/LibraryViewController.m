@@ -465,8 +465,8 @@ didEndDisplayingCell:(UITableViewCell *)cell
         didChangeCurrentIndexFromIndex:(NSUInteger)previousIndex {
     [self refreshVisibleRowAtIndex:previousIndex];
     [self refreshVisibleRowAtIndex:playback.currentIndex];
-    // Under shuffle the list holds still: following a play order that jumps
-    // across it would yank the user's place on every track.
+    // Under shuffle the list holds still, rather than chase a play order that
+    // jumps across it.
     if (_playlist.shuffleEnabled) {
         _pendingScrollIndex = NSNotFound;
         return;

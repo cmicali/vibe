@@ -70,8 +70,9 @@ unplayablePlaylistName:(nullable NSString *)unplayablePlaylistName;
 // whose Camelot color the key draws in, bold, or -1 for none.
 - (void)renderBPM:(float)displayBPM keyText:(NSString *)keyText colorKey:(NSInteger)colorKey;
 
-// Symbols for the active effects, inline at the head of the codec line. FX
-// outlive tracks, so the line composes from the last text and the last state.
+// Symbols for the active effects, the lock and the play order, inline at the
+// head of the codec line. They outlive tracks, so the line composes from the
+// last text and the last state.
 - (void)renderFXState:(VibeFXDisplayState)state;
 
 // A no-op unless the title label's width changed.

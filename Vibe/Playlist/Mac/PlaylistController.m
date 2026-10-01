@@ -31,6 +31,9 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     Playlist *_model;
     __weak PlaylistTableView *_tableView;
     __weak NSClipView *_observedClipView;
+    // The track the list last centered under shuffle, so a seek's refresh,
+    // which scrolls again, cannot snap a user who scrolled away back to it.
+    __weak AudioTrack *_centeredTrack;
     // Remove's targets, captured at menu open as exact objects so a
     // replacement while the menu is up cannot remove strangers. Weak, and
     // deliberately not cleared on close: the action can run after
@@ -685,9 +688,8 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 }
 
 // scrollRowToVisible: no-ops for an on-screen row, so a user who scrolled away
-// keeps their position until the next track change. Under shuffle the row
-// centers instead, as far as the list's ends allow: the next row is usually
-// far off, and an edge-hugging minimal scroll hides where the play order went.
+// keeps their position until the next track change. Under shuffle the next
+// row is usually far off, so it centers, once per track.
 - (void)scrollCurrentTrackToVisible {
     if (self.currentIndex >= _model.count) {
         return;
@@ -697,11 +699,17 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
         [self.tableView scrollRowToVisible:row];
         return;
     }
-    NSClipView *clip = self.tableView.enclosingScrollView.contentView;
+    AudioTrack *current = _model.currentTrack;
+    if (current == _centeredTrack) {
+        return;
+    }
+    _centeredTrack = current;
+    NSScrollView *scrollView = self.tableView.enclosingScrollView;
+    NSClipView *clip = scrollView.contentView;
     NSRect bounds = clip.bounds;
     bounds.origin.y = NSMidY([self.tableView rectOfRow:row]) - NSHeight(bounds) / 2;
     [clip scrollToPoint:[clip constrainBoundsRect:bounds].origin];
-    [self.tableView.enclosingScrollView reflectScrolledClipView:clip];
+    [scrollView reflectScrolledClipView:clip];
 }
 
 - (void)doubleClick:(id)sender {
