@@ -14,8 +14,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface NSURLUtil (Internal)
 
-// The audio anywhere under dir as rows; Name sorts by full path, grouping
-// subfolders.
+// The nonempty audio anywhere under dir as rows; Name sorts by full path,
+// grouping subfolders.
 + (NSArray<AudioTrack *> *)expandDirectory:(NSURL *)dir sortedBy:(VibeFolderOpenSort)sort;
 
 // The already-sorted listing, with sheets standing in for their audio files.
@@ -23,11 +23,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Folders and top-level playlist files expanded in place; other URLs pass
 // through unfiltered. looseFileDirectories collects the folders of files not
-// found by walking a folder.
+// found by walking a folder; playable, the walked rows' files, already judged.
 + (NSArray<AudioTrack *> *)expandFileList:(NSArray<NSURL *> *)list
                                  sortedBy:(VibeFolderOpenSort)sort
                               folderCount:(nullable NSUInteger *)folderCount
-                     looseFileDirectories:(nullable NSMutableSet<NSString *> *)looseFileDirectories;
+                     looseFileDirectories:(nullable NSMutableSet<NSString *> *)looseFileDirectories
+                                 playable:(nullable NSMutableDictionary<NSURL *, NSNumber *> *)playable;
 
 + (NSArray<AudioTrack *> *)expandAndFilterList:(NSArray<NSURL *> *)list
                                       sortedBy:(VibeFolderOpenSort)sort
