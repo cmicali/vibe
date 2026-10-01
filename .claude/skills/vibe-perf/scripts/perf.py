@@ -8,7 +8,8 @@ run it over a fixed corpus, and compare two refs.
     perf.py compare BASE [HEAD] [--filter RE] [--reps N] [--rounds R] [--md OUT]
     perf.py list                           the benchmark names
 
-REF is any git ref; HEAD defaults to the working tree, uncommitted edits
+REF is any git ref, or bin:<path> for a VibePerf built some other way (a
+build-setting experiment); HEAD defaults to the working tree, uncommitted edits
 included. A ref older than the harness gets the working tree's Tests/Perf and
 VibePerf target grafted on, so every ref runs the same suite.
 
@@ -94,7 +95,10 @@ def graft(src):
 
 def build(ref=None):
     """The binary for a ref, building it once per commit; None is the working
-    tree, rebuilt every time (Xcode's own incremental build)."""
+    tree, rebuilt every time (Xcode's own incremental build); bin:<path> is a
+    VibePerf built some other way, such as with other build settings."""
+    if ref and ref.startswith('bin:'):
+        return Path(ref[4:])
     sha = resolve(ref)
     if sha:
         out = PERF / 'bin' / sha / 'VibePerf'
