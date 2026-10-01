@@ -41,6 +41,11 @@ static const float kVibeMPEGSampleBound = 4.0f;
 // per MP3 frame, which were a tenth of the whole decode's time.
 enum { kVibeMPEGReadPackets = 16 };
 
+// The parser's reads go through a block of this size: Apple's Ogg reader asks
+// for a page's worth or less at a time, about 200 bytes on Opus, 18,000 reads
+// for three minutes. A request this big or bigger is read straight through.
+enum { kVibeParserReadBlock = 64 * 1024 };
+
 // CoreAudio's Ogg reader (.ogg, .oga, .opus). The SDK names no constant.
 static const AudioFileTypeID kVibeOggFileType = 'Oggf';
 
@@ -51,6 +56,11 @@ static const AudioFileTypeID kVibeOggFileType = 'Oggf';
     int _descriptor;
     SInt64 _size;
     AudioFileID _parser;
+    // The last block the parser's reads filled: its bytes from _readBlockStart,
+    // _readBlockLength of them. Allocated at the first small read.
+    uint8_t *_readBlock;
+    SInt64 _readBlockStart;
+    UInt32 _readBlockLength;
     ExtAudioFileRef _codec; // NULL while dr_mp3, dr_flac or dr_wav decodes
     UInt32 _bytesPerFrame; // of the processing format, per buffer
     BOOL _writing;
@@ -107,11 +117,43 @@ static const AudioFileTypeID kVibeOggFileType = 'Oggf';
     return _mpegChoiceApplies && _openedUnderApple != atomic_load(&sAppleMPEGDecoder);
 }
 
+// A read inside the block, filling it from `position` first when the read is
+// not all in it already. NO when the block cannot be allocated, which leaves
+// the read to go straight through.
+static BOOL VibeHandleReadBlock(AudioFileHandle *handle, SInt64 position, UInt32 requestCount, void *buffer,
+                                UInt32 *actualCount, OSStatus *status) {
+    if (position < handle->_readBlockStart
+            || position + requestCount > handle->_readBlockStart + handle->_readBlockLength) {
+        if (!handle->_readBlock && !(handle->_readBlock = malloc(kVibeParserReadBlock))) {
+            return NO;
+        }
+        ssize_t filled = pread(handle->_descriptor, handle->_readBlock, kVibeParserReadBlock, position);
+        if (filled < 0) {
+            handle->_readBlockLength = 0;
+            *actualCount = 0;
+            *status = kAudioFilePositionError;
+            return YES;
+        }
+        handle->_readBlockStart = position;
+        handle->_readBlockLength = (UInt32)filled;
+    }
+    UInt32 got = (UInt32)MIN((SInt64)requestCount, handle->_readBlockStart + handle->_readBlockLength - position);
+    memcpy(buffer, handle->_readBlock + (position - handle->_readBlockStart), got);
+    *actualCount = got;
+    *status = (got == 0 && requestCount > 0) ? kAudioFileEndOfFileError : noErr;
+    return YES;
+}
+
 // Short reads answered as such, and a read at or past EOF as the end-of-file
 // status: the shape CoreAudio's own file reader gives its parsers, which keeps
 // the verdicts AudioFileOpenURL would give.
 static OSStatus VibeHandleRead(void *clientData, SInt64 position, UInt32 requestCount, void *buffer, UInt32 *actualCount) {
     AudioFileHandle *handle = (__bridge AudioFileHandle *)clientData;
+    OSStatus status;
+    if (requestCount < kVibeParserReadBlock && position >= 0
+            && VibeHandleReadBlock(handle, position, requestCount, buffer, actualCount, &status)) {
+        return status;
+    }
     ssize_t got = pread(handle->_descriptor, buffer, requestCount, position);
     if (got < 0) {
         *actualCount = 0;
@@ -602,6 +644,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         ExtAudioFileDispose(_codec);
         _codec = NULL;
     }
+    free(_readBlock);
     free(_mpeg);
     free(_mpegRead);
     free(_mpegPCM);
