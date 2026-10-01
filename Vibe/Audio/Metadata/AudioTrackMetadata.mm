@@ -12,7 +12,6 @@
 #import "NSString+CPPStrings.h"
 #import "MusicalKey.h"
 #import "Formatters.h"
-#import "NSURL+AudioOpen.h"
 #import "VibeStrings.h"
 
 #import <AudioToolbox/AudioToolbox.h>
@@ -508,16 +507,14 @@ static NSString * _Nullable trimmedTagText(id _Nullable value) {
 
 // CoreAudio's facts for a file TagLib cannot read (Audio/Metadata/AGENTS.md).
 - (void)loadCoreAudioFactsFromURL:(NSURL *)url {
-    // TRAP: AudioFileOpenURL leaks on an empty file or a directory
-    // (AudioFileHandle.m), and a failed parse is retried every sweep.
-    AudioFileID file = NULL;
-    if (url.isEmptyOrDirectory || AudioFileOpenURL((__bridge CFURLRef)url, kAudioFileReadPermission, 0, &file) != noErr) {
-        return;
-    }
+    // Playback's open, so both reach one verdict on the file. TRAP: the
+    // handle closes the parser when released, which ARC may do right after
+    // its last message unless its lifetime is pinned to the scope.
+    NS_VALID_UNTIL_END_OF_SCOPE AudioFileHandle *handle = [[AudioFileHandle alloc] initParserForReading:url error:NULL];
+    AudioFileID file = handle.parser;
     AudioStreamBasicDescription format = {0};
     UInt32 size = sizeof(format);
-    if (AudioFileGetProperty(file, kAudioFilePropertyDataFormat, &size, &format) != noErr || format.mSampleRate <= 0) {
-        AudioFileClose(file);
+    if (!file || AudioFileGetProperty(file, kAudioFilePropertyDataFormat, &size, &format) != noErr || format.mSampleRate <= 0) {
         return;
     }
     AudioFileTypeID container = 0;
@@ -544,7 +541,6 @@ static NSString * _Nullable trimmedTagText(id _Nullable value) {
         if (artist) self.artist = artist;
         if (title) self.title = title;
     }
-    AudioFileClose(file);
     // PCM is never WAV or AIFF, which would offer Convert to FLAC a container
     // its tag copy cannot open.
     if (format.mFormatID != kAudioFormatLinearPCM) self.fileType = VibeAudioFileFormatForCodec(format.mFormatID);

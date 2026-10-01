@@ -188,6 +188,7 @@ static inline NSString *VibeAppName(void) {
 #pragma mark - Header and readout labels
 
 #define STR_LABEL_TRACK_ARTIST_TITLE NSLS(@"label.track.artist_title", @"%1$@ - %2$@",             @"Single-line track label when artist and title are both known. %1$@ is the artist, %2$@ the title — reorder them if that reads better.")
+#define STR_LABEL_CUE_TRACK          NSLS(@"label.cue_track",          @"Track %ld",               @"Title of a track cut from a single-file album or mix by its cue sheet when the sheet gives no title. %ld is the track number, e.g. 'Track 3'.")
 #define STR_LABEL_BITRATE            NSLS(@"label.bitrate",            @"%@ kbps",                 @"Codec label: bitrate in kilobits per second, e.g. '320 kbps'. %@ is the already-formatted number.")
 #define STR_LABEL_SAMPLE_RATE        NSLS(@"label.sample_rate",        @"%@ kHz",                  @"Codec label: sample rate in kilohertz, e.g. '44.1 kHz'. %@ is the already-formatted number.")
 #define STR_LABEL_BPM                NSLS(@"label.bpm",                @"%@ BPM",                  @"Tempo label: beats per minute, e.g. '128.0 BPM'. %@ is the already-formatted number.")
@@ -549,6 +550,7 @@ static inline NSString *VibeAppName(void) {
 
 #define STR_ERROR_LOAD_TIMEOUT        NSLS(@"error.load_timeout",        @"Load timed out",           @"Inline playback error: opening the file took too long, e.g. an undownloaded cloud file.")
 #define STR_ERROR_OPEN_FAILED         NSLS(@"error.open_failed",         @"Could not open file",      @"Inline playback error: the audio file could not be opened.")
+#define STR_ERROR_PLAYLIST_FILES_UNAVAILABLE NSLS(@"error.playlist_files_unavailable", @"Could not open listed files", @"Status in the empty player header: an opened CUE sheet or M3U playlist names no audio file Vibe can play (moved, renamed, deleted, not permitted, or in a format Vibe does not play). Shown over the playlist's file name. Keep it as short as 'Could not open file'.")
 #define STR_ERROR_ENGINE_START_FAILED NSLS(@"error.engine_start_failed", @"Could not start playback", @"Inline playback error: the audio engine failed to start.")
 #define STR_ERROR_DEVICE_UNAVAILABLE  NSLS(@"error.device_unavailable",  @"Audio device unavailable", @"Inline playback error: no usable audio output device.")
 #define STR_ERROR_DEVICE_IN_USE       NSLS(@"error.device_in_use",       @"Audio device in use by another app", @"Inline playback error: another app has taken exclusive use of the audio output device, so playback paused.")

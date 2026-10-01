@@ -15,8 +15,9 @@
     __weak id<PageWaveformCoordinatorDelegate> _delegate;
     NSMutableDictionary<NSNumber *, CodableAudioWaveform *> *_snapshots;
     NSMutableIndexSet *_completePages;
-    // Deliveries are matched on this, not on the cancel being observed.
-    NSURL *_targetURL;
+    // Deliveries are matched on this, not on the cancel being observed: the
+    // target's sourceKey, since cue rows of one file each have a waveform.
+    NSString *_targetKey;
     // Owed a forward after the hold; only the latest snapshot per page counts.
     NSMutableIndexSet *_heldUpdates;
     // Owed after the hold; the target clears at once so the settle can retry.
@@ -67,12 +68,12 @@
     if (_held) {
         return;
     }
-    // The URL too: the same page can come to hold a DIFFERENT file.
-    if (!track || (_targetIndex == index && [_targetURL isEqual:track.url])) {
+    // The source too: the same page can come to hold a DIFFERENT track.
+    if (!track || (_targetIndex == index && [_targetKey isEqualToString:track.sourceKey])) {
         return;
     }
     _targetIndex = index;
-    _targetURL = track.url;
+    _targetKey = track.sourceKey;
     [_cache cancelLoad];
     if ([_completePages containsIndex:index] && _snapshots[@(index)]) {
         return;
@@ -95,7 +96,7 @@
 
 - (void)reset {
     _targetIndex = NSNotFound;
-    _targetURL = nil;
+    _targetKey = nil;
     [_snapshots removeAllObjects];
     [_completePages removeAllIndexes];
     [_heldUpdates removeAllIndexes];
@@ -114,8 +115,8 @@
 
 - (void)audioWaveform:(CodableAudioWaveform *)waveform
           didLoadData:(float)percentLoaded
-               forURL:(NSURL *)url {
-    if (_targetIndex == NSNotFound || ![url isEqual:_targetURL]) {
+             forTrack:(AudioTrack *)track {
+    if (_targetIndex == NSNotFound || ![track.sourceKey isEqualToString:_targetKey]) {
         return;
     }
     _snapshots[@(_targetIndex)] = waveform;
@@ -129,13 +130,13 @@
     [_delegate pageWaveformCoordinator:self didUpdateWaveform:waveform forIndex:_targetIndex];
 }
 
-- (void)audioWaveformCache:(AudioWaveformCache *)cache didFailToLoadForURL:(NSURL *)url {
-    if (_targetIndex == NSNotFound || ![url isEqual:_targetURL]) {
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didFailToLoadForTrack:(AudioTrack *)track {
+    if (_targetIndex == NSNotFound || ![track.sourceKey isEqualToString:_targetKey]) {
         return;
     }
     NSUInteger failedIndex = _targetIndex;
     _targetIndex = NSNotFound;
-    _targetURL = nil;
+    _targetKey = nil;
     [_completePages removeIndex:failedIndex];
     if (_held) {
         [_heldFailures addIndex:failedIndex];
@@ -144,10 +145,10 @@
     [_delegate pageWaveformCoordinator:self didFailWaveformForIndex:failedIndex];
 }
 
-// Straight through: the URL is the match, and the hold does not apply. No
+// Straight through: the track is the match, and the hold does not apply. No
 // key twin: key detection is macOS-only.
-- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forURL:(NSURL *)url {
-    [_delegate pageWaveformCoordinator:self didDetectBPM:bpm forURL:url];
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forTrack:(AudioTrack *)track {
+    [_delegate pageWaveformCoordinator:self didDetectBPM:bpm forTrack:track];
 }
 
 @end

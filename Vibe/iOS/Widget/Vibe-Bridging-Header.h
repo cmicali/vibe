@@ -11,3 +11,4 @@
 #import "NSURL+Hash.h"
 #import "PlaybackController.h"
 #import "VibeiOSSceneDelegate.h"
+#import "WidgetPublisher.h"

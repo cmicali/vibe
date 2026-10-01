@@ -63,6 +63,10 @@ static const CGFloat kWidgetWaveformScale = 3;
     dispatch_queue_t      _queue;
 }
 
++ (NSString *)trackKeyForTrack:(AudioTrack *)track {
+    return [track keyByAppendingWindowTo:track.url.pathKey];
+}
+
 - (instancetype)init {
     self = [super init];
     if (self) {
@@ -150,7 +154,7 @@ static const CGFloat kWidgetWaveformScale = 3;
     next.hasTrack     = (track != nil);
     next.title        = track.displayTitle;
     next.artist       = track.displayArtist;
-    next.trackKey     = trackChanged ? track.url.pathKey : _published.trackKey;
+    next.trackKey     = trackChanged ? [WidgetPublisher trackKeyForTrack:track] : _published.trackKey;
     next.playing      = playing;
     next.duration     = duration;
     next.position     = position;

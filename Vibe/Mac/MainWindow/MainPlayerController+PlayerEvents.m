@@ -111,7 +111,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [self clearErrorMask];
     [self teardownDownloadMonitor];
     [self.trackDisplay hideWaveformLoadingIndicator];
-    [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:track.url];
+    // A cue row reopens as its sheet, which names it.
+    [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:track.cueSheetURL ?: track.url];
     // The playing track jumps the scan queue. Again after didBeginLoading:'s
     // request, which skipped the parse while the file was dataless.
     [self.metadataCache loadMetadataNow:track];

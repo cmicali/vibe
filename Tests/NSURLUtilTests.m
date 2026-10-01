@@ -13,6 +13,9 @@
 #import <sys/stat.h>
 #import <unistd.h>
 
+#import "AudioFixtures.h"
+#import "AudioTrack.h"
+#import "NSURLUtil+Debug.h"
 #import "NSURLUtilInternal.h"
 #import "PlayableExtensions.h"
 
@@ -114,13 +117,14 @@
 }
 
 // Strips both spellings of the root: the walk answers in resolved paths, and
-// playlist resolution standardizes, which drops the /private prefix again.
-- (NSArray<NSString *> *)relativePaths:(NSArray<NSURL *> *)urls {
+// playlist resolution standardizes, which drops the /private prefix again. A
+// windowed row reads as its file plus its window (sourceKey).
+- (NSArray<NSString *> *)relativePaths:(NSArray<AudioTrack *> *)rows {
     NSArray<NSString *> *prefixes = @[[_root.path stringByAppendingString:@"/"],
                                       [_root.path.stringByStandardizingPath stringByAppendingString:@"/"]];
-    NSMutableArray<NSString *> *names = [NSMutableArray arrayWithCapacity:urls.count];
-    for (NSURL *url in urls) {
-        NSString *name = url.path;
+    NSMutableArray<NSString *> *names = [NSMutableArray arrayWithCapacity:rows.count];
+    for (AudioTrack *row in rows) {
+        NSString *name = row.sourceKey;
         for (NSString *prefix in prefixes) {
             if ([name hasPrefix:prefix]) {
                 name = [name substringFromIndex:prefix.length];
@@ -315,7 +319,182 @@
                           (@[@"b.mp3", @"a.mp3", @"c.mp3"]));
 }
 
-- (void)testACueSheetExpandsLikeAnM3U {
+static NSString *const kTwoTrackSheet =
+        @"PERFORMER \"DJ\"\nFILE \"mix.flac\" WAVE\n"
+         "  TRACK 01 AUDIO\n    TITLE \"One\"\n    INDEX 01 00:00:00\n"
+         "  TRACK 02 AUDIO\n    TITLE \"Two\"\n    INDEX 01 01:00:00\n";
+
+// 01:00:00 is 4500 CD frames; the last row runs to the file's end.
+- (void)testAnOpenedCueSheetExpandsToARowPerTrack {
+    [self makeFile:@"mix.flac"];
+    NSURL *sheet = [self makeText:kTwoTrackSheet at:@"mix.cue"];
+
+    NSArray<AudioTrack *> *rows = [NSURLUtil expandAndFilterList:@[sheet] sortedBy:VibeFolderOpenSortName
+                                                     folderCount:NULL];
+
+    XCTAssertEqualObjects([self relativePaths:rows], (@[@"mix.flac#0-4500", @"mix.flac#4500-0"]));
+    XCTAssertEqualObjects(rows[1].cueTitle, @"Two");
+    XCTAssertEqualObjects(rows[1].cuePerformer, @"DJ");
+    XCTAssertEqualObjects(rows[1].cueSheetURL.path.stringByStandardizingPath, sheet.path.stringByStandardizingPath);
+}
+
+// The sheet sorts among the audio and stands in for its image, which
+// appears once, as its rows.
+- (void)testASheetInAWalkedFolderClaimsItsFile {
+    [self makeFile:@"folder/a.mp3"];
+    [self makeFile:@"folder/mix.flac"];
+    [self makeFile:@"folder/z.mp3"];
+    [self makeText:kTwoTrackSheet at:@"folder/mix.cue"];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL],
+                          (@[@"folder/a.mp3", @"folder/mix.flac#0-4500", @"folder/mix.flac#4500-0",
+                             @"folder/z.mp3"]));
+}
+
+// Resolved against the walk's listing, so the row carries the file's own
+// spelling and claims it.
+- (void)testAWalkedSheetSpellingItsFileInAnotherCaseStillClaimsIt {
+    [self makeFile:@"folder/Mix.flac"];
+    [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac" withString:@"MIX.FLAC"]
+                at:@"folder/mix.cue"];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL],
+                          (@[@"folder/Mix.flac#0-4500", @"folder/Mix.flac#4500-0"]));
+}
+
+// Inject the listing so case-sensitive-volume coverage runs on any host.
+- (void)testAWalkedSheetClaimsOnlyItsExactFileWhenCaseVariantsExist {
+    NSURL *lower = [_root URLByAppendingPathComponent:@"mix.flac"];
+    NSURL *upper = [_root URLByAppendingPathComponent:@"Mix.flac"];
+    NSURL *sheet = [self makeText:kTwoTrackSheet at:@"album.cue"];
+
+    for (NSArray<NSURL *> *listing in @[@[sheet, lower, upper], @[sheet, upper, lower]]) {
+        XCTAssertEqualObjects([self relativePaths:[NSURLUtil rowsForWalk:listing]],
+                              (@[@"mix.flac#0-4500", @"mix.flac#4500-0", @"Mix.flac"]));
+    }
+}
+
+- (void)testAWalkedSheetDoesNotChooseAnAmbiguousCaseFallback {
+    NSURL *lower = [_root URLByAppendingPathComponent:@"mix.flac"];
+    NSURL *upper = [_root URLByAppendingPathComponent:@"Mix.flac"];
+    NSURL *sheet = [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac"
+                                                                         withString:@"MIX.FLAC"]
+                               at:@"album.cue"];
+
+    XCTAssertEqualObjects(([self relativePaths:[NSURLUtil rowsForWalk:@[sheet, lower, upper]]]),
+                          (@[@"mix.flac", @"Mix.flac"]));
+}
+
+- (void)testASheetBasenameRescueKeepsTheExactFileWhenCaseVariantsExist {
+    NSURL *lower = [_root URLByAppendingPathComponent:@"mix.flac"];
+    NSURL *upper = [_root URLByAppendingPathComponent:@"Mix.flac"];
+    NSURL *sheet = [self makeText:@"TRACK 01 AUDIO\n INDEX 01 00:00:00\n"
+                                  "TRACK 02 AUDIO\n INDEX 01 01:00:00\n" at:@"mix.cue"];
+
+    XCTAssertEqualObjects(([self relativePaths:[NSURLUtil rowsForWalk:@[sheet, lower, upper]]]),
+                          (@[@"mix.flac#0-4500", @"mix.flac#4500-0", @"Mix.flac"]));
+}
+
+// A sheet written elsewhere spells "é" precomposed; the file here holds it
+// decomposed, and APFS takes both.
+- (void)testAWalkedSheetSpellingItsFileInAnotherNormalizationStillClaimsIt {
+    [self makeFile:@"folder/Café.flac"];
+    [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac" withString:@"Café.flac"]
+                at:@"folder/mix.cue"];
+
+    NSArray<NSString *> *rows = [self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL];
+
+    XCTAssertEqual(rows.count, 2u, @"%@", rows);
+    XCTAssertTrue([rows.firstObject hasSuffix:@"#0-4500"], @"%@", rows);
+}
+
+// A walk opens a FLAC for its own sheet only past this size; the fixtures are
+// sparse, so the size costs no disk.
+static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
+
+- (NSURL *)makeFLAC:(NSString *)relative sheet:(NSString *)sheet size:(unsigned long long)size {
+    NSURL *url = [_root URLByAppendingPathComponent:relative isDirectory:NO];
+    [NSFileManager.defaultManager createDirectoryAtURL:url.URLByDeletingLastPathComponent
+                           withIntermediateDirectories:YES attributes:nil error:nil];
+    XCTAssertNotNil(VibeWriteFLACHeader(url, 44100, sheet, nil, NO, size), @"%@", relative);
+    return url;
+}
+
+- (void)testALargeFLACInAWalkIsCutByItsOwnSheet {
+    [self makeFile:@"folder/a.mp3"];
+    [self makeFLAC:@"folder/mix.flac" sheet:kTwoTrackSheet size:kLargeFLACBytes];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL],
+                          (@[@"folder/a.mp3", @"folder/mix.flac#0-4500", @"folder/mix.flac#4500-0"]));
+}
+
+- (void)testAnOpenedLargeFLACIsCutByItsOwnSheet {
+    NSURL *flac = [self makeFLAC:@"mix.flac" sheet:kTwoTrackSheet size:kLargeFLACBytes];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[flac] folderCount:NULL],
+                          (@[@"mix.flac#0-4500", @"mix.flac#4500-0"]));
+}
+
+// The sheet beside the file is the one its owner can edit.
+- (void)testASheetBesideTheFileOutranksItsOwn {
+    NSString *three = [kTwoTrackSheet stringByAppendingString:@"  TRACK 03 AUDIO\n    INDEX 01 02:00:00\n"];
+    [self makeFLAC:@"folder/mix.flac" sheet:three size:kLargeFLACBytes];
+    [self makeText:kTwoTrackSheet at:@"folder/mix.cue"];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL],
+                          (@[@"folder/mix.flac#0-4500", @"folder/mix.flac#4500-0"]));
+}
+
+- (void)testAnOrdinaryFLACIsNotOpenedForASheet {
+    [self makeFLAC:@"folder/mix.flac" sheet:kTwoTrackSheet size:0];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL],
+                          (@[@"folder/mix.flac"]));
+}
+
+// Reading a placeholder would download it.
+- (void)testACloudPlaceholderIsNotOpenedForASheet {
+    [self makeFLAC:@"folder/mix.flac" sheet:kTwoTrackSheet size:kLargeFLACBytes];
+    [NSURLUtil setDatalessProbe:^BOOL(NSURL *url) {
+        return YES;
+    }];
+    NSArray<NSString *> *rows = [self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL];
+    [NSURLUtil setDatalessProbe:nil];
+
+    XCTAssertEqualObjects(rows, (@[@"folder/mix.flac"]));
+}
+
+// A sheet whose image is gone adds nothing and claims nothing.
+- (void)testAWalkedSheetNamingAMissingImageAddsNoRows {
+    [self makeFile:@"folder/a.mp3"];
+    [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac" withString:@"gone.flac"]
+                at:@"folder/mix.cue"];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL],
+                          (@[@"folder/a.mp3"]));
+}
+
+// An opened playlist listing nothing playable adds no rows, never the
+// playlist itself, so the shell keeps the playlist in place and says why.
+// A readable image in a format Vibe does not play lists nothing too.
+- (void)testAnOpenedPlaylistListingNothingPlayableAddsNoRows {
+    NSURL *sheet = [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac" withString:@"gone.flac"]
+                               at:@"broken.cue"];
+    NSURL *list = [self makeText:@"gone.mp3\nalso-gone.mp3\n" at:@"broken.m3u"];
+    [self makeFile:@"image.ape"];
+    NSURL *ape = [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac" withString:@"image.ape"]
+                             at:@"ape.cue"];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[sheet] folderCount:NULL], @[]);
+    XCTAssertEqualObjects([self expandAndFilter:@[list] folderCount:NULL], @[]);
+    XCTAssertEqualObjects([self expandAndFilter:@[ape] folderCount:NULL], @[]);
+}
+
+// Inside a folder the rest of the folder speaks for itself: a sheet naming
+// nothing readable adds no row (testAWalkedSheetNamingAMissingImageAddsNoRows).
+
+// A sheet with no INDEX lines has no windows: its files, whole.
+- (void)testACueSheetWithoutIndexesExpandsToItsFilesWhole {
     [self makeFile:@"side-a.wav"];
     [self makeFile:@"side-b.wav"];
     NSURL *sheet = [self makeText:@"FILE \"side-a.wav\" WAVE\n  TRACK 01 AUDIO\n"
@@ -464,12 +643,12 @@
         NSURL *folder = folders[i];
         XCTestExpectation *expectation = [self expectationWithDescription:folder.lastPathComponent];
         [expectations addObject:expectation];
-        [NSURLUtil expandAndFilterList:@[folder] sortedBy:VibeFolderOpenSortName completion:^(NSArray<NSURL *> *files, NSUInteger folderCount) {
+        [NSURLUtil expandAndFilterList:@[folder] sortedBy:VibeFolderOpenSortName completion:^(NSArray<AudioTrack *> *rows, NSUInteger folderCount) {
             XCTAssertTrue(NSThread.isMainThread);
             XCTAssertEqual(folderCount, 1u);
-            XCTAssertEqual(files.count, 5u);
-            for (NSURL *file in files) {
-                XCTAssertEqualObjects(file.URLByDeletingLastPathComponent.path, folder.path);
+            XCTAssertEqual(rows.count, 5u);
+            for (AudioTrack *row in rows) {
+                XCTAssertEqualObjects(row.url.URLByDeletingLastPathComponent.path, folder.path);
             }
             [expectation fulfill];
         }];
@@ -505,8 +684,8 @@
     for (NSURL *playlist in playlists) {
         XCTestExpectation *expectation = [self expectationWithDescription:playlist.path];
         [expectations addObject:expectation];
-        [NSURLUtil expandAndFilterList:@[playlist] sortedBy:VibeFolderOpenSortName completion:^(NSArray<NSURL *> *files, NSUInteger folderCount) {
-            XCTAssertEqual(files.count, 0u);
+        [NSURLUtil expandAndFilterList:@[playlist] sortedBy:VibeFolderOpenSortName completion:^(NSArray<AudioTrack *> *rows, NSUInteger folderCount) {
+            XCTAssertEqual(rows.count, 0u);
             [expectation fulfill];
         }];
     }
@@ -622,8 +801,8 @@
         reported = directories;
     }];
 
-    NSArray<NSURL *> *files = [NSURLUtil expandDirectory:[self makeDirectory:@"library"]
-                                                sortedBy:VibeFolderOpenSortName];
+    NSArray<AudioTrack *> *files = [NSURLUtil expandDirectory:[self makeDirectory:@"library"]
+                                                     sortedBy:VibeFolderOpenSortName];
     [NSURLUtil setWalkedDirectoriesHandler:nil];
 
     XCTAssertEqualObjects([self relativePaths:files], (@[@"elsewhere/Song.mp3"]));

@@ -159,10 +159,10 @@ NS_ASSUME_NONNULL_BEGIN
 // the onset, the 1/8-note delay's.
 - (void)setFXPadPosition:(CGPoint)position engaged:(BOOL)engaged;
 
-// The decode pass detected a tempo for `url`: stamped on every row holding
-// it (Playlist.stampTracksWithURL:usingBlock:), each redrawn, the delay taps
-// refed. The URL match closes the race with a track change.
-- (void)noteDetectedBPM:(float)bpm forURL:(NSURL *)url;
+// The decode pass detected a tempo for `track`: stamped on every row sounding
+// it (Playlist.stampTracksSounding:usingBlock:), each redrawn, the delay taps
+// refed. The match closes the race with a track change.
+- (void)noteDetectedBPM:(float)bpm forTrack:(AudioTrack *)track;
 
 // The priority metadata lane, for one track's tags ahead of the sweep. A
 // no-op once the track is parsed.

@@ -11,22 +11,23 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class AudioTrack;
 @class FolderSession;
 
 @protocol FolderSessionDelegate <NSObject>
 
-// urls is never empty. folderURL is nil for a single-file base. selectedURL
+// rows is never empty. folderURL is nil for a single-file base. selectedURL
 // is the picked file when a file pick expanded to its directory. restored: a
 // relaunch restore, to park rather than play.
 - (void)folderSession:(FolderSession *)session
-        didOpenTracks:(NSArray<NSURL *> *)urls
+        didOpenTracks:(NSArray<AudioTrack *> *)rows
             folderURL:(nullable NSURL *)folderURL
           selectedURL:(nullable NSURL *)selectedURL
              restored:(BOOL)restored;
 
-// An Add landed: append urls (never empty, in order); the base is unchanged.
-// May carry URLs the playlist already holds.
-- (void)folderSession:(FolderSession *)session didAppendTracks:(NSArray<NSURL *> *)urls;
+// An Add landed: append rows (never empty, in order); the base is unchanged.
+// May carry rows the playlist already holds.
+- (void)folderSession:(FolderSession *)session didAppendTracks:(NSArray<AudioTrack *> *)rows;
 
 // The picked location held no audio files.
 - (void)folderSessionDidOpenEmptyFolder:(FolderSession *)session;
@@ -98,10 +99,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)bookmarkFolderURL:(NSURL *)folderURL
                completion:(void (^)(NSData *_Nullable bookmark))completion;
 
-// The standardized PATH of the track to park on next launch; nil clears it.
-// A path because the playlist spans folders; the restore still falls back to
-// the filename (PlaybackController), which also serves an older build's value.
-@property (nonatomic, copy, nullable) NSString *persistedTrackPath;
+// The track to park on next launch: its standardized PATH, plus a cue row's
+// window (AudioTrack.standardizedSourceKey); nil clears it. A path because
+// the playlist spans folders; the restore still falls back to the filename
+// (PlaybackController), which also serves an older build's value.
+@property (nonatomic, copy, nullable) NSString *persistedTrackKey;
 
 @end
 

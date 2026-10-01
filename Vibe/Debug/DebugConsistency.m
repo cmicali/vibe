@@ -200,7 +200,7 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
     if (current) {
         // One snapshot: AudioTrack's accessors re-read the atomic metadata, and
         // a delivery between two reads would disagree without a real fault.
-        AudioTrackMetadata *metadata = current.metadata;
+        AudioTrackMetadata *metadata = current.rowTagMetadata;
 
         checked++;
         float taggedBPM = metadata.bpm;

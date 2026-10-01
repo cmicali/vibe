@@ -287,7 +287,7 @@ Vibe decodes WAV, BWF, RF64, Wave64 and AIFF files with **dr_wav**, not the deco
 - **Exact seeks in IMA4.** In Apple's IMA4 (compressed AIFF), each part of the sound depends on everything before it. After a seek, Apple's decoder plays slightly different samples from the ones playing from the start gives: all 300 of 300 random seeks in a test file. dr_wav keeps notes on its way through the file and seeks to exactly the samples playing from the start gives.
 - **Damaged compressed WAVs keep playing.** At a damaged block in an IMA ADPCM file, Apple's decoder decodes the block anyway, and at one in a Microsoft ADPCM file it plays nothing of the file at all. dr_wav plays silence for the damaged block and every other block where it belongs.
 - **The end of a Microsoft ADPCM file.** Apple's decoder plays the padding that fills out the file's last block, 464 frames (about 10 ms) on a test file. dr_wav stops where the file says the sound ends.
-- **24 and 32-bit little-endian AIFF.** Apple's decoder reads every such file as 16-bit and plays it wrongly, one and a half or two times as long as the music. dr_wav plays it.
+- **24 and 32-bit little-endian AIFF.** Apple's decoder reads every such file as 16-bit and plays it wrongly, one and a half or two times as long as the music. dr_wav plays it, and Convert to FLAC reads it through dr_wav too, so the FLAC holds the right sound at the right length.
 
 A whole 10-minute stereo file decoded at once, best first, **lower is better**:
 

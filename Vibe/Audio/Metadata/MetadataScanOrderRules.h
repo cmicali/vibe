@@ -37,21 +37,14 @@ static inline BOOL VibeMetadataScanOrderedBefore(
     return aIndex < bIndex;
 }
 
-// The priority slot's pick: untried before deferred, then lowest playlist
-// row. Under the rule a record it already yielded is skipped. Rank plays no
-// part: the slot is their whole precedence.
+// The priority slot's pick among the priority records: untried before
+// deferred, then lowest playlist row. Under the rule a record it already
+// yielded is skipped. Rank plays no part: the slot is their whole precedence.
 static inline id<MetadataScanOrderCandidate> _Nullable VibeBestPriorityScanCandidate(
         NSArray<id<MetadataScanOrderCandidate>> *candidates,
-        NSSet<NSURL *> *priorityURLs,
         BOOL foregroundActive) {
-    if (priorityURLs.count == 0) {
-        return nil;
-    }
     id<MetadataScanOrderCandidate> best = nil;
     for (id<MetadataScanOrderCandidate> candidate in candidates) {
-        if (![priorityURLs containsObject:candidate.url]) {
-            continue;
-        }
         if (foregroundActive && candidate.yieldedUnderHold) {
             continue;
         }

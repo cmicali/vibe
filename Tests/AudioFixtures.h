@@ -55,6 +55,136 @@ static inline NSURL *VibeWriteWAV(NSURL *url, NSData *samples, uint32_t rate, ui
     return [wav writeToURL:url atomically:YES] ? url : nil;
 }
 
+static inline void VibeAppendBE64(NSMutableData *data, uint64_t value) {
+    for (int shift = 56; shift >= 0; shift -= 8) {
+        uint8_t byte = (uint8_t)(value >> shift);
+        [data appendBytes:&byte length:1];
+    }
+}
+
+// A binary CUESHEET block, CD-flagged. Each track is @[number, offset in
+// samples, pregap, data]: a pregap > 0 writes INDEX 00 at the offset and
+// INDEX 01 that many samples later, else INDEX 01 alone; data nonzero marks a
+// non-audio track. The lead-out (170) follows at leadOut.
+static inline NSData *VibeFLACCueSheetBlock(NSArray<NSArray<NSNumber *> *> *tracks, uint64_t leadOut) {
+    NSMutableData *block = [NSMutableData dataWithLength:128];
+    VibeAppendBE64(block, 88200);
+    uint8_t flag = 0x80, count = (uint8_t)(tracks.count + 1), zero = 0;
+    [block appendBytes:&flag length:1];
+    [block increaseLengthBy:258];
+    [block appendBytes:&count length:1];
+    void (^track)(uint8_t, uint64_t, uint64_t, BOOL) = ^(uint8_t number, uint64_t offset, uint64_t pregap, BOOL data) {
+        VibeAppendBE64(block, offset);
+        [block appendBytes:&number length:1];
+        [block increaseLengthBy:12];
+        uint8_t type = data ? 0x80 : 0;
+        [block appendBytes:&type length:1];
+        [block increaseLengthBy:13];
+        uint8_t indexes = number == 170 ? 0 : (pregap > 0 ? 2 : 1);
+        [block appendBytes:&indexes length:1];
+        for (uint8_t i = pregap > 0 ? 0 : 1; indexes > 0 && i <= 1; i++) {
+            VibeAppendBE64(block, i == 0 ? 0 : pregap);
+            [block appendBytes:&i length:1];
+            [block appendBytes:&zero length:1];
+            [block appendBytes:&zero length:1];
+            [block appendBytes:&zero length:1];
+        }
+    };
+    for (NSArray<NSNumber *> *t in tracks) {
+        track(t[0].unsignedCharValue, t[1].unsignedLongLongValue, t[2].unsignedLongLongValue, t[3].boolValue);
+    }
+    track(170, leadOut, 0, NO);
+    return block;
+}
+
+// A FLAC's metadata blocks and no playable audio: what the embedded-sheet
+// reader reads. A picture comes first, so the reader must seek over it; the
+// sheet rides as a CUESHEET Vorbis comment (cueText) and/or a binary block;
+// id3 prefixes an ID3v2 tag; size > 0 extends the file sparse to that size.
+static inline NSURL *VibeWriteFLACHeader(NSURL *url, uint32_t rate, NSString *cueText, NSData *cueBlock,
+                                         BOOL id3, unsigned long long size) {
+    NSMutableData *file = [NSMutableData data];
+    if (id3) {
+        const uint8_t tag[10] = {'I', 'D', '3', 4, 0, 0, 0, 0, 0, 20};
+        [file appendBytes:tag length:sizeof tag];
+        [file increaseLengthBy:20];
+    }
+    [file appendBytes:"fLaC" length:4];
+    NSMutableArray<NSData *> *blocks = [NSMutableArray array];
+    NSMutableArray<NSNumber *> *types = [NSMutableArray array];
+    NSMutableData *info = [NSMutableData dataWithLength:34];
+    uint8_t *bytes = (uint8_t *)info.mutableBytes;
+    bytes[10] = (uint8_t)(rate >> 12);
+    bytes[11] = (uint8_t)(rate >> 4);
+    bytes[12] = (uint8_t)((rate & 0xf) << 4 | 0x02);
+    [blocks addObject:info];
+    [types addObject:@0];
+    [blocks addObject:[NSMutableData dataWithLength:1000]];
+    [types addObject:@6];
+    if (cueText) {
+        NSMutableData *comment = [NSMutableData data];
+        NSArray<NSString *> *fields = @[@"TITLE=The Whole Album", [@"CUESHEET=" stringByAppendingString:cueText]];
+        uint32_t vendor = 4, n = (uint32_t)fields.count;
+        [comment appendBytes:&vendor length:4];
+        [comment appendBytes:"vibe" length:4];
+        [comment appendBytes:&n length:4];
+        for (NSString *field in fields) {
+            NSData *utf8 = [field dataUsingEncoding:NSUTF8StringEncoding];
+            uint32_t length = (uint32_t)utf8.length;
+            [comment appendBytes:&length length:4];
+            [comment appendData:utf8];
+        }
+        [blocks addObject:comment];
+        [types addObject:@4];
+    }
+    if (cueBlock) {
+        [blocks addObject:cueBlock];
+        [types addObject:@5];
+    }
+    for (NSUInteger i = 0; i < blocks.count; i++) {
+        NSUInteger length = blocks[i].length;
+        uint8_t header[4] = {(uint8_t)(types[i].unsignedCharValue | (i + 1 == blocks.count ? 0x80 : 0)),
+                             (uint8_t)(length >> 16), (uint8_t)(length >> 8), (uint8_t)length};
+        [file appendBytes:header length:4];
+        [file appendData:blocks[i]];
+    }
+    const uint8_t frame[4] = {0xff, 0xf8, 0xc9, 0x18};
+    [file appendBytes:frame length:sizeof frame];
+    if (![file writeToURL:url atomically:YES]) {
+        return nil;
+    }
+    if (size > file.length) {
+        NSFileHandle *handle = [NSFileHandle fileHandleForWritingToURL:url error:NULL];
+        [handle truncateAtOffset:size error:NULL];
+        [handle closeAndReturnError:NULL];
+    }
+    return url;
+}
+
+// A little-endian (sowt) AIFF-C of integer `samples` as a WAV stores them,
+// `bits` per sample: the coding CoreAudio's parser describes as 16-bit
+// whatever COMM says.
+static inline NSURL *VibeWriteSowtAIFF(NSURL *url, NSData *samples, double rate, uint16_t channels, uint16_t bits) {
+    int exponent = ilogb(rate);
+    uint16_t rateExponent = CFSwapInt16HostToBig((uint16_t)(16383 + exponent));
+    uint64_t rateMantissa = CFSwapInt64HostToBig((uint64_t)ldexp(rate, 63 - exponent));
+    uint16_t channelsBE = CFSwapInt16HostToBig(channels), bitsBE = CFSwapInt16HostToBig(bits);
+    uint32_t frames = CFSwapInt32HostToBig((uint32_t)(samples.length / (bits / 8 * channels)));
+    NSMutableData *comm = [NSMutableData data];
+    [comm appendBytes:&channelsBE length:2]; [comm appendBytes:&frames length:4]; [comm appendBytes:&bitsBE length:2];
+    [comm appendBytes:&rateExponent length:2]; [comm appendBytes:&rateMantissa length:8];
+    [comm appendBytes:"sowt\0\0" length:6]; // the compression type and an empty name, padded
+    NSMutableData *aiff = [NSMutableData dataWithBytes:"FORM\0\0\0\0AIFCFVER\0\0\0\4\xA2\x80\x51\x40" length:24];
+    uint32_t size = CFSwapInt32HostToBig((uint32_t)comm.length);
+    [aiff appendBytes:"COMM" length:4]; [aiff appendBytes:&size length:4]; [aiff appendData:comm];
+    size = CFSwapInt32HostToBig((uint32_t)samples.length + 8);
+    [aiff appendBytes:"SSND" length:4]; [aiff appendBytes:&size length:4]; [aiff appendBytes:"\0\0\0\0\0\0\0\0" length:8];
+    [aiff appendData:samples];
+    size = CFSwapInt32HostToBig((uint32_t)aiff.length - 8);
+    [aiff replaceBytesInRange:NSMakeRange(4, 4) withBytes:&size];
+    return [aiff writeToURL:url atomically:YES] ? url : nil;
+}
+
 // Writes `buffer` as the container its name says — WAV, or AIFC for .aif —
 // in the buffer's own sample format, interleaved, with its channel layout.
 static inline NSURL *VibeWriteFixture(NSURL *url, AVAudioPCMBuffer *buffer, NSError **error) {
@@ -82,19 +212,21 @@ static inline AVAudioPCMBuffer *VibeReadWithAVAudioFile(NSURL *url, NSError **er
     return whole && [file readIntoBuffer:whole error:error] ? whole : nil;
 }
 
-// Appends whole interleaved frames; shares no production DSP, so a capture stays independent.
+// Appends whole interleaved frames in the buffer's own sample format; shares
+// no production DSP, so a capture stays independent.
 static inline void VibeAppendPCM(NSMutableData *capture, AVAudioPCMBuffer *buffer) {
-    NSUInteger channels = buffer.format.channelCount;
-    if (buffer.format.isInterleaved) {
-        [capture appendBytes:buffer.floatChannelData[0] length:buffer.frameLength * channels * sizeof(float)];
+    NSUInteger channels = buffer.format.channelCount, sample = buffer.format.streamDescription->mBitsPerChannel / 8;
+    const AudioBufferList *list = buffer.audioBufferList;
+    if (buffer.format.isInterleaved || channels == 1) {
+        [capture appendBytes:list->mBuffers[0].mData length:buffer.frameLength * channels * sample];
         return;
     }
     NSUInteger start = capture.length;
-    [capture increaseLengthBy:buffer.frameLength * channels * sizeof(float)];
-    float *out = (float *)((uint8_t *)capture.mutableBytes + start);
+    [capture increaseLengthBy:buffer.frameLength * channels * sample];
+    uint8_t *out = (uint8_t *)capture.mutableBytes + start;
     for (NSUInteger frame = 0; frame < buffer.frameLength; frame++)
         for (NSUInteger channel = 0; channel < channels; channel++)
-            out[frame * channels + channel] = buffer.floatChannelData[channel][frame];
+            memcpy(out + (frame * channels + channel) * sample, (const uint8_t *)list->mBuffers[channel].mData + frame * sample, sample);
 }
 
 typedef struct {

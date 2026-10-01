@@ -190,7 +190,8 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
               track:(AudioTrack *)track
            duration:(NSTimeInterval)duration
                rate:(double)rate
-        errorStatus:(NSString *)errorStatus {
+        errorStatus:(NSString *)errorStatus
+unplayablePlaylistName:(NSString *)unplayablePlaylistName {
     BOOL showTime = AppSettings.sharedInstance.currentTheme.showTimeLabels;
     self.currentTimeTextField.hidden = !showTime;
     self.totalTimeTextField.hidden = !showTime;
@@ -237,11 +238,13 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
 
     case TrackDisplayStateEmpty:
     case TrackDisplayStateError: {
-        // The error goes on the artist line, over the failed track's title.
+        // The error goes on the artist line, over the failed track's title, or
+        // over the playlist's name for an open that found nothing in it.
         BOOL playError = (state == TrackDisplayStateError);
         setStringValueIfChanged(self.artistTextField,
-                playError ? (errorStatus ?: STR_ERROR_PLAYBACK_GENERIC) : @"");
-        [self setTitleLabelText:playError ? track.singleLineTitle : @""];
+                playError ? (errorStatus ?: STR_ERROR_PLAYBACK_GENERIC)
+                          : (unplayablePlaylistName ? STR_ERROR_PLAYLIST_FILES_UNAVAILABLE : @""));
+        [self setTitleLabelText:playError ? track.singleLineTitle : (unplayablePlaylistName ?: @"")];
         // Half strength; the title matches the waveform placeholder, half the
         // shimmer's 0.55 peak.
         self.artistTextField.alphaValue = 0.5;
