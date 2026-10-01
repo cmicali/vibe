@@ -1219,11 +1219,15 @@ static NSURL *_sharedTrashURL;
         if (!self->_ttlCache || ageLimit <= 0 || fabs([_metadata[key].createdDate timeIntervalSinceDate:now]) < ageLimit) {
             // If the cache should behave like a TTL cache, then only fetch the object if there's a valid ageLimit and  the object is still alive
             
+            // Vibe: the read is outside the lock as well as the deserializing,
+            // so concurrent hits (the sweep's cache checks) do not queue behind
+            // each other's file read. A write replaces the file atomically and a
+            // removal renames it away, so a read sees a whole file or none, and
+            // a key removed meanwhile is not re-dated below.
+            [self unlock];
             NSData *objectData = [[NSData alloc] initWithContentsOfFile:[fileURL path]];
           
             if (objectData) {
-              //Be careful with locking below. We unlock here so that we're not locked while deserializing, we re-lock after.
-              [self unlock];
               @try {
                   object = _deserializer(objectData, key);
               }
@@ -1235,10 +1239,10 @@ static NSURL *_sharedTrashURL;
                   PINDiskCacheError(error)
                   PINDiskCacheException(exception);
               }
-              [self lock];
             }
+            [self lock];
             if (object) {
-                if (PINDiskCacheShouldTouch(_metadata[key].lastModifiedDate, now)) {
+                if (_metadata[key] && PINDiskCacheShouldTouch(_metadata[key].lastModifiedDate, now)) {
                     _metadata[key].lastModifiedDate = now;
                     [self asynchronouslySetFileModificationDate:now forURL:fileURL];
                 }
