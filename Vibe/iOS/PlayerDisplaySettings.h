@@ -31,7 +31,8 @@ BOOL VibeShowsFileInfo(void);
 void VibeSetShowsFileInfo(BOOL show);
 
 // The shuffle and repeat buttons flanking the card's transport row; on by
-// default. Hidden, the modes keep working from Now Playing and stay as set.
+// default. Hidden, the modes keep working from Now Playing and stay as set,
+// and the card shows the buttons anyway while a mode is on.
 BOOL VibeShowsShuffleRepeat(void);
 void VibeSetShowsShuffleRepeat(BOOL show);
 

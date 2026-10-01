@@ -341,6 +341,8 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     _presented = presented;
     [self updateScrollLinkState];
     if (presented) {
+        _shuffleRepeatRevealed = [self transportModesActive];
+        [self applyPlayOrderToVisiblePages];
         // Minimized, the card took no ticks.
         [self updateOutputRoute];
         [self updatePlaybackUI];
@@ -586,18 +588,20 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
             [(FXPadView *)view cancelInteraction];
         }
     }
-    // Only the current page reads Next from the play order.
-    [self applyPlayOrderToPageAtIndex:previousIndex];
-    [self applyPlayOrderToPageAtIndex:playback.currentIndex];
+    // Only the current page reads Next from the play order, so the outgoing
+    // page changes too.
+    _shuffleRepeatRevealed = [self transportModesActive];
+    [self applyPlayOrderToVisiblePages];
 }
 
+// CarPlay, Siri and the lock screen land here as well as the card's buttons.
 - (void)playbackDidChangePlayOrder:(PlaybackController *)playback {
-    for (TrackPageCell *cell in _pagesView.visibleCells) {
-        NSIndexPath *path = [_pagesView indexPathForCell:cell];
-        if (path) {
-            [self applyPlayOrderToCell:cell atIndex:(NSUInteger)path.item];
-        }
-    }
+    _shuffleRepeatRevealed = _shuffleRepeatRevealed || [self transportModesActive];
+    [self applyPlayOrderToVisiblePages];
+}
+
+- (BOOL)transportModesActive {
+    return _playlist.shuffleEnabled || _playlist.repeatMode != VibeRepeatModeOff;
 }
 
 - (void)playbackDidChangePlayState:(PlaybackController *)playback {
