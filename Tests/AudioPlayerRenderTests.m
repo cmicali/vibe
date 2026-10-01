@@ -536,13 +536,19 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     }
 }
 - (void)testOpus { [self checkLossy:@"lossy.opus" tolerance:0]; }
-// The second half is the canary: once CoreAudio reports the length, re-check
-// its decode and lift the refusal (AudioFileHandle.m).
+// The parser open is the metadata fallback's, so a row never reads as a file
+// playback refuses. The second half is the canary: once CoreAudio reports the
+// length, re-check its decode and lift the refusal (AudioFileHandle.m).
 - (void)testFLACInOggIsRefused {
     NSURL *url=[self optionalFixture:@"ogg-flac.oga"];
     NSError *error=nil;
     XCTAssertNil([[AudioFileHandle alloc] initForReading:url error:&error]);
     XCTAssertEqual(error.code,kAudioFileUnsupportedDataFormatError,@"%@",error);
+    error=nil;
+    XCTAssertNil([[AudioFileHandle alloc] initParserForReading:url error:&error]);
+    XCTAssertEqual(error.code,kAudioFileUnsupportedDataFormatError,@"%@",error);
+    NSURL *misnamed=[self writeBytes:[NSData dataWithContentsOfURL:url] name:@"ogg-flac.flac"];
+    XCTAssertNil([[AudioFileHandle alloc] initParserForReading:misnamed error:NULL],@"refused by content, whatever its name");
     ExtAudioFileRef reader=NULL;
     XCTAssertEqual(ExtAudioFileOpenURL((__bridge CFURLRef)url,&reader),noErr);
     SInt64 length=-1; UInt32 size=sizeof(length);

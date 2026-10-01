@@ -32,8 +32,9 @@
 //  STREAMINFO leaves it unknown. The vendored copy carries fixes of its own
 //  (ThirdParty/AGENTS.md).
 //
-//  A WAV or AIFF file is decoded by dr_wav the same way, when it holds a
-//  coding dr_wav decodes (ThirdParty/AGENTS.md lists them).
+//  A WAV, W64, RF64 or AIFF file is decoded by dr_wav the same way, when it
+//  holds a coding dr_wav decodes (ThirdParty/AGENTS.md lists them); no file
+//  of another container is offered it (drWAVReadsContainer:).
 //
 
 #import <AVFAudio/AVFAudio.h>
@@ -44,8 +45,8 @@ NS_ASSUME_NONNULL_BEGIN
 @interface AudioFileHandle : NSObject
 
 // Opens CoreAudio's parser alone, with no decoder: the one open every reader
-// of CoreAudio's verdict on a file shares, the reading inits included. Only
-// `url` and `parser` answer.
+// of CoreAudio's verdict on a file shares, the reading inits included, so it
+// refuses what playback refuses (FLAC in Ogg). Only `url` and `parser` answer.
 - (nullable instancetype)initParserForReading:(NSURL *)url
                                         error:(NSError * _Nullable __autoreleasing * _Nullable)error NS_DESIGNATED_INITIALIZER;
 
@@ -73,6 +74,10 @@ NS_ASSUME_NONNULL_BEGIN
 // docs/audio-quality.md) or Apple's (YES). The mac's Settings > Advanced
 // chooses; iOS keeps the default. A handle keeps the decoder it opened with.
 @property (class, atomic) BOOL appleMPEGDecoder;
+// Whether dr_wav is tried on a file whose parser names `container`
+// (kAudioFilePropertyFileFormat): WAVE, BWF among them, W64, RF64, AIFF and
+// AIFF-C. Within those it keeps only the codings it decodes.
++ (BOOL)drWAVReadsContainer:(AudioFileTypeID)container;
 // "dr_mp3", "dr_flac", "dr_wav" or "apple", for the audio-path report.
 @property (nonatomic, readonly) NSString *decoderName;
 // YES for an MPEG file opened under the other appleMPEGDecoder choice than

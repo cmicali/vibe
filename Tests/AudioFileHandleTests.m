@@ -341,6 +341,49 @@ static int VibeOpenDescriptorCount(void) {
     XCTAssertEqual(buffer.frameLength, 256u);
 }
 
+// dr_wav is offered only the containers it reads, so no other open pays its
+// read and failed parse; within them it keeps the codings it decodes.
+- (void)testDrWAVIsTriedOnlyOnItsOwnContainers {
+    for (NSNumber *type in @[@(kAudioFileWAVEType), @(kAudioFileWave64Type), @(kAudioFileRF64Type),
+                             @(kAudioFileAIFFType), @(kAudioFileAIFCType)]) {
+        XCTAssertTrue([AudioFileHandle drWAVReadsContainer:type.unsignedIntValue], @"%@", type);
+    }
+    for (NSNumber *type in @[@(kAudioFileCAFType), @(kAudioFileM4AType), @(kAudioFileMPEG4Type), @(kAudioFileMP3Type),
+                             @(kAudioFileMP2Type), @(kAudioFileAAC_ADTSType), @(kAudioFileFLACType), @(kAudioFileBW64Type),
+                             @((AudioFileTypeID)'Oggf'), @0]) {
+        XCTAssertFalse([AudioFileHandle drWAVReadsContainer:type.unsignedIntValue], @"%@", type);
+    }
+    AVAudioFormat *processing = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:44100 channels:2];
+    AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:processing frameCapacity:4096];
+    buffer.frameLength = 4096;
+    for (AVAudioFrameCount f = 0; f < buffer.frameLength; f++) {
+        buffer.floatChannelData[0][f] = VibeFixtureSample(f, 0) / 32768.0f;
+        buffer.floatChannelData[1][f] = VibeFixtureSample(f, 1) / 32768.0f;
+    }
+    NSDictionary<NSString *, NSArray *> *files = @{
+        @"pcm.wav": @[@(kAudioFileWAVEType), @"dr_wav"], @"pcm.w64": @[@(kAudioFileWave64Type), @"dr_wav"],
+        @"pcm.aif": @[@(kAudioFileAIFCType), @"dr_wav"], @"pcm.caf": @[@(kAudioFileCAFType), @"apple"]};
+    for (NSString *name in files) {
+        AudioFileTypeID type = [files[name][0] unsignedIntValue];
+        AudioStreamBasicDescription description = {
+            .mSampleRate = 44100, .mFormatID = kAudioFormatLinearPCM,
+            .mFormatFlags = kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked
+                    | (type == kAudioFileAIFCType ? kAudioFormatFlagIsBigEndian : 0),
+            .mBytesPerPacket = 4, .mFramesPerPacket = 1, .mBytesPerFrame = 4, .mChannelsPerFrame = 2, .mBitsPerChannel = 16};
+        NSURL *url = [self.fixtureDirectory URLByAppendingPathComponent:name];
+        NSError *error = nil;
+        AudioFileHandle *writer = [[AudioFileHandle alloc] initForWriting:url fileType:type
+                fileFormat:[[AVAudioFormat alloc] initWithStreamDescription:&description] processingFormat:processing error:&error];
+        XCTAssertTrue([writer writeFromBuffer:buffer error:&error] && [writer closeWithError:&error], @"%@: %@", name, error);
+        AudioFileHandle *reader = [self open:url];
+        XCTAssertEqualObjects(reader.decoderName, files[name][1], @"%@", name);
+        XCTAssertEqual(reader.length, 4096, @"%@", name);
+    }
+    NSMutableData *samples = [NSMutableData dataWithLength:4096 * 2 * 3];
+    NSURL *sowt = VibeWriteSowtAIFF([self.fixtureDirectory URLByAppendingPathComponent:@"sowt.aif"], samples, 44100, 2, 24);
+    XCTAssertEqualObjects([self open:sowt].decoderName, @"dr_wav", @"a sowt AIFF-C, which only dr_wav reads right");
+}
+
 // A QuickTime container (.qta, what Voice Memos exports) has no callback open
 // in CoreAudio, so the handle opens it by URL. AVAudioFile cannot write one,
 // hence the asset writer.
