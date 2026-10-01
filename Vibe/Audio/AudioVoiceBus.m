@@ -1311,6 +1311,30 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
     return kVoiceSlots - [self freeSlotCount] + _pending.count;
 }
 
+- (BOOL)wantsPromptDrain {
+    if (_pending.count || _endedPending.count) {
+        return YES;
+    }
+    for (NSUInteger slot = 0; slot < kVoiceSlots; slot++) {
+        VibeVoiceSlot *s = &_mix->slots[slot];
+        int32_t state = atomic_load_explicit(&s->state, memory_order_acquire);
+        if (state == VibeVoiceStateNone) {
+            continue;
+        }
+        AudioVoiceRecord *record = _records[slot];
+        if (state != VibeVoiceStateLive || !record->liveReported || record->waitingSuccessor) {
+            return YES;
+        }
+        uint64_t boundary = atomic_load_explicit(&s->boundary, memory_order_acquire);
+        if ((boundary != kUnset && boundary != record->reportedBoundary)
+                || atomic_load_explicit(&s->endOfStream, memory_order_acquire) != kUnset
+                || atomic_load_explicit(&record->heldOpenAt, memory_order_acquire) != kUnset) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
 - (NSUInteger)liveVoiceCount {
     return [self slotCountInState:VibeVoiceStateLive];
 }

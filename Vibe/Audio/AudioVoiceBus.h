@@ -244,6 +244,12 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 
 // Slots that are not free, pending voices included. The drain-timer gate.
 - (NSUInteger)occupiedSlotCount;
+// Whether an event or a recycle is due soon: a voice not yet reported live, a
+// death not yet reported or recycled, a pending start or successor, a boundary
+// crossed but not reported, or a stream whose end the decoder has reached.
+// The drain timer runs at its prompt cadence while this holds. Each becomes
+// true at least half a ring before the render reaches what it waits on.
+- (BOOL)wantsPromptDrain;
 - (NSUInteger)liveVoiceCount;
 // Decoder turns run so far, a diagnostic: a voice that can write nothing
 // asks for none, which the tests read.
