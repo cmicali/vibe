@@ -110,8 +110,8 @@ static NSColor *camelotColor(NSInteger key) {
     return palette[number];
 }
 
-// Menu order: Q, W, E, R, T, then the lock, then shuffle and repeat, which
-// always take the right end. The boost modifies the low-kill filter, and runs
+// Menu order: Q, W, E, R, T, then shuffle and repeat, then the lock, last,
+// against the codec text it qualifies. The boost modifies the low-kill filter, and runs
 // it even with lowKill off, so it shows as the filled dial, never a symbol of
 // its own. The delays draw as echoes, not loops: the loop is repeat's.
 static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
@@ -128,17 +128,17 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     if (state.shortDelay) {
         [names addObject:@"wave.3.right.circle"];
     }
-    if (state.bitPerfect == 2) {
-        [names addObject:@"lock.fill"];
-    }
-    else if (state.bitPerfect == 1) {
-        [names addObject:@"lock.open"];
-    }
     if (state.shuffle) {
         [names addObject:@"shuffle"];
     }
     if (state.repeatMode != VibeRepeatModeOff) {
         [names addObject:VibeRepeatModeSymbolName(state.repeatMode)];
+    }
+    if (state.bitPerfect == 2) {
+        [names addObject:@"lock.fill"];
+    }
+    else if (state.bitPerfect == 1) {
+        [names addObject:@"lock.open"];
     }
     return names;
 }
