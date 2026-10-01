@@ -465,8 +465,11 @@ static NSData *VibeEncodedArtData(VibeImage *image) {
             }
         }
 
-        // PropertyMap normalizes every format's tempo tag to "BPM".
-        TagLib::StringList bpmValues = file->properties()["BPM"];
+        // Built once: properties() converts every frame of every tag. It
+        // normalizes each format's tempo tag to "BPM", and its keys are
+        // case-insensitive.
+        const TagLib::PropertyMap properties = file->properties();
+        TagLib::StringList bpmValues = properties.value("BPM");
         if (!bpmValues.isEmpty()) {
             float tagBPM = [NSString stringWithStdString:bpmValues.front().to8Bit(true)].floatValue;
             if (isfinite(tagBPM) && tagBPM > 0 && tagBPM < 1000) {
@@ -475,12 +478,10 @@ static NSData *VibeEncodedArtData(VibeImage *image) {
         }
 
         // ID3 TKEY and Vorbis/FLAC INITIALKEY arrive as "INITIALKEY"; MP4 has
-        // no mapping, so its iTunes freeform atom arrives as "initialkey". An
-        // unparseable value stays None, so analysis fills in.
-        TagLib::StringList keyValues = file->properties()["INITIALKEY"];
-        if (keyValues.isEmpty()) {
-            keyValues = file->properties()["initialkey"];
-        }
+        // no mapping, so its iTunes freeform atom arrives as "initialkey",
+        // which the same lookup finds. An unparseable value stays None, so
+        // analysis fills in.
+        TagLib::StringList keyValues = properties.value("INITIALKEY");
         if (!keyValues.isEmpty()) {
             self.key = VibeMusicalKeyFromString(
                     [NSString stringWithStdString:keyValues.front().to8Bit(true)]);
