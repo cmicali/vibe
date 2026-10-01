@@ -30,10 +30,10 @@ static const NSTimeInterval kOutputIdleStopTailIntervalSeconds = 1.0;
 // A system stop's verdict (an interruption's pause, a route's recovery) lands
 // within milliseconds of it; past this, none is coming.
 static const NSTimeInterval kSystemStopVerdictSeconds = 1.0;
-// The hardware drain: the bus reports its events within this of their render.
-// Prompt while a fade, render-leave work or what the bus's last drain found
-// (`promptDrainDue`) is due; otherwise the drain only tops up rings at least
-// half a second deep, and a tenth of the wakeups do.
+// The hardware drain: the bus reports its events within the prompt interval
+// of their render while anything is due (updateDrainTimerOnQueue); otherwise
+// it only tops up rings at least half a second deep, and a tenth of the
+// wakeups do.
 static const uint64_t kDrainIntervalNanos = 10 * NSEC_PER_MSEC;
 static const uint64_t kDrainSteadyIntervalNanos = 100 * NSEC_PER_MSEC;
 // An output start holding the player queue longer than this is worth a line

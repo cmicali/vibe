@@ -784,10 +784,6 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     XCTAssertEqual([_bus occupiedSlotCount], 0u);
 }
 
-// The drain timer's prompt cadence is what the drain's own pass found: due
-// from a start until the voice is live, quiet through steady playback, due
-// again once the decoder has reached the file's end, well before the render
-// does, and quiet once the slot is recycled. A kill is due at once.
 - (void)testPromptDrainDueIsWhatTheDrainFound {
     NSUInteger frames = (NSUInteger)kRate * 4;
     NSURL *url = [self writePCM:[self noiseFrames:frames channels:2 seed:12] rate:kRate channels:2 name:@"due.wav"];
@@ -805,6 +801,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     [self renderUntilEnded:voice blockSize:512 limit:frames * 2 * 2];
     [self drain];
     XCTAssertFalse(_bus.promptDrainDue);
+    // Quiet once live, so only the kill can make it due.
     voice = [self startFile:[self open:url] gain:1 ramp:[self unity] paused:YES];
     [self render:512 into:nil];
     XCTAssertFalse(_bus.promptDrainDue);

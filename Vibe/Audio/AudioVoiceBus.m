@@ -1176,7 +1176,6 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
     _records[slot]->successorEndFrame = VibeOwnEndFrame(endFrame, file);
     os_unfair_lock_unlock(&_tableLock);
     [self publishWaitingSuccessorForSlot:slot];
-    _promptDrainDue |= _records[slot]->waitingSuccessor != nil;
     return YES;
 }
 
@@ -1342,9 +1341,8 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
 - (void)drainWithOutputRunning:(BOOL)outputRunning handler:(void (^)(VibeVoiceID, VibeVoiceEvent))handler {
     uint64_t renderSequence = atomic_load_explicit(&_mix->renderSequence, memory_order_acquire);
     BOOL noRenderPossible = !outputRunning && atomic_load_explicit(&_mix->inRender, memory_order_acquire) == 0;
-    // Found by this pass, slot by slot after each slot's own work, and only
-    // ever raised after this: the handler can start or kill a voice in a
-    // slot the loop has passed.
+    // Only raised after this: the handler can start or kill a voice in a slot
+    // the loop has passed.
     _promptDrainDue = NO;
     for (NSUInteger slot = 0; slot < kVoiceSlots; slot++) {
         VibeVoiceSlot *s = &_mix->slots[slot];
@@ -1352,10 +1350,10 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
         if (state == VibeVoiceStateNone) {
             continue;
         }
+        _promptDrainDue |= state != VibeVoiceStateLive; // armed, or dead until its recycle
         AudioVoiceRecord *record = _records[slot];
         VibeVoiceID identifier = record->identifier;
         if (!identifier) {
-            _promptDrainDue = YES;
             continue; // dead, its recycle already queued behind decode work
         }
         [self publishWaitingSuccessorForSlot:slot];
@@ -1363,7 +1361,6 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
             if (VibeSlotCanWrite(s)) {
                 [self scheduleFillForSlot:slot]; // withheld or stopped reads are re-asked for by whoever allows them
             }
-            _promptDrainDue = YES;
             continue;
         }
         if (!record->liveReported) {
@@ -1374,11 +1371,13 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
         // boundary per successor, and the transport queues the next only after
         // the previous one was reported, so none is ever overwritten unseen.
         uint64_t boundary = atomic_load_explicit(&s->boundary, memory_order_acquire);
-        if (boundary != kUnset && boundary != record->reportedBoundary
+        BOOL boundaryUnreported = boundary != kUnset && boundary != record->reportedBoundary;
+        if (boundaryUnreported
                 && atomic_load_explicit(&s->consumed, memory_order_acquire) >= boundary
                 && (atomic_load_explicit(&s->endedReason, memory_order_acquire) != VibeVoiceEndFailed
                     || atomic_load_explicit(&s->written, memory_order_acquire) > boundary)) {
             record->reportedBoundary = boundary;
+            boundaryUnreported = NO;
             handler(identifier, VibeVoiceEventBoundary);
         }
         if (state == VibeVoiceStateLive) {
@@ -1398,12 +1397,10 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
             // An end or a boundary on its way. The decoder reaches each at
             // least half a ring ahead of the render, so the steady drain
             // that first sees one is still in time.
-            _promptDrainDue |= record->waitingSuccessor || heldOpenAt != kUnset
-                    || (boundary != kUnset && boundary != record->reportedBoundary)
-                    || atomic_load_explicit(&s->endOfStream, memory_order_acquire) != kUnset;
+            _promptDrainDue |= record->waitingSuccessor || heldOpenAt != kUnset || boundaryUnreported
+                    || atomic_load_explicit(&s->endOfStream, memory_order_relaxed) != kUnset;
             continue;
         }
-        _promptDrainDue = YES; // dead until its recycle
         if (!record->endedReported) {
             record->endedReported = YES;
             handler(identifier, VibeVoiceEventEnded);
