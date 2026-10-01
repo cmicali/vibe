@@ -94,7 +94,7 @@ struct VibeSeekIntent: AudioPlaybackIntent {
         #if VIBE_APP
         try await VibeWidgetTransport.perform(self) { playback in
             // A stale render's tap is dropped.
-            guard (playback.displayedTrack?.url as NSURL?)?.pathKey() == trackKey else { return }
+            guard WidgetPublisher.trackKey(for: playback.displayedTrack) == trackKey else { return }
             // The zone's CENTRE, or every tap is biased half a zone early.
             let progress = (Double(zone) + 0.5) / Double(kVibeSeekZoneCount)
             playback.seek(toProgress: Float(progress))

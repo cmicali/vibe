@@ -62,35 +62,37 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol AudioWaveformCacheDelegate <NSObject>
 
 // Passes the ARC-managed wrapper so that receivers can retain it. The wrapper
-// owns the raw AudioWaveform*, which dies with it. url is the file it was
-// loaded for: a load is cancelled when the *next* one starts, so a track
+// owns the raw AudioWaveform*, which dies with it. track is the one it was
+// loaded for — the latest request's, when a same-window request reattached
+// the decode: a load is cancelled when the *next* one starts, so a track
 // change that pauses on a slow open leaves the outgoing decode streaming
 // snapshots meanwhile, and the receiver matches rather than assumes, like
-// every other delivery here.
+// every other delivery here. Match by sourceKey: a cue row's data is its
+// window's, never its file's.
 - (void)audioWaveform:(CodableAudioWaveform *)waveform
           didLoadData:(float)percentLoaded
-               forURL:(NSURL *)url;
+             forTrack:(AudioTrack *)track;
 
 @optional
 
 // A load that cannot produce a complete waveform has ended. It fires on the
-// main thread only while that load is still current; url lets a receiver drop
-// a failure that raced a track change just like a data delivery. A later
-// loadWaveformForTrack: starts a fresh attempt for the same file.
-- (void)audioWaveformCache:(AudioWaveformCache *)cache didFailToLoadForURL:(NSURL *)url;
+// main thread only while that load is still current; track lets a receiver
+// drop a failure that raced a track change just like a data delivery. A later
+// loadWaveformForTrack: starts a fresh attempt for the same window.
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didFailToLoadForTrack:(AudioTrack *)track;
 
 // Fires once per completed waveform load, whether a fresh analysis or a cache
 // hit, when the decode pass detected a tempo. It never fires with 0. It
-// follows the final didLoadData: delivery, on the main thread. url is the file
-// the waveform was loaded for: a final delivery can race a track change,
+// follows the final didLoadData: delivery, on the main thread. track is the
+// one the waveform was loaded for: a final delivery can race a track change,
 // landing after next: but before the cancel is observed, so receivers must
 // match it against their current track rather than assume it.
-- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forURL:(NSURL *)url;
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forTrack:(AudioTrack *)track;
 
 // The key detection twin of didDetectBPM:, with the same timing, threading
-// and URL-matching contract. key is a valid VibeMusicalKey — it never fires
-// with VibeMusicalKeyNone.
-- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectKey:(NSInteger)key forURL:(NSURL *)url;
+// and matching contract. key is a valid VibeMusicalKey — it never fires with
+// VibeMusicalKeyNone.
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectKey:(NSInteger)key forTrack:(AudioTrack *)track;
 
 @end
 

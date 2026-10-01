@@ -32,7 +32,7 @@ make stress CORPUS=~/Music/big ARGS="--profile loading --duration 3600 --iterati
 .claude/skills/vibe-stress/scripts/stress.py --corpus ~/Music/big --seed 48213    # regenerate: same ops while live state agrees
 ```
 
-Profiles (`--profile`): `base`, `loading`, `hammer`, `ui`, `cloud`, `theme`, `playlist`, `artwork` — what each weights and why is `references/profiles.md`. `cloud` and `artwork` need purpose-built corpora (`make-cloud-corpus.py`, `make-hostile-corpus.py`; same file).
+Profiles (`--profile`): `base`, `loading`, `hammer`, `ui`, `cloud`, `theme`, `playlist`, `artwork` — what each weights and why is `references/profiles.md`. `cloud` and `artwork` need purpose-built corpora (`make-cloud-corpus.py`, `make-hostile-corpus.py`; same file), and cue sheets have their own (`make-cue-corpus.py`), which every profile and torture run over.
 
 By default, validated batches travel through one `script -` invocation. `--no-batch` uses one client per operation when individual timing matters. Raw script commands from journals are refused; only the runner constructs the batch after validating every command and checking that arguments can be represented without changing token boundaries.
 

@@ -133,10 +133,17 @@
 
 // The declick minimum is what the UI presents as crossfade off.
 - (void)testGaplessArmsOnlyAtTheDeclickMinimum {
-    XCTAssertTrue(VibeGaplessArmAllowed(10));
-    XCTAssertTrue(VibeGaplessArmAllowed(0));
-    XCTAssertFalse(VibeGaplessArmAllowed(500));
-    XCTAssertFalse(VibeGaplessArmAllowed(2000));
+    XCTAssertTrue(VibeGaplessArmAllowed(10, NO));
+    XCTAssertTrue(VibeGaplessArmAllowed(0, NO));
+    XCTAssertFalse(VibeGaplessArmAllowed(500, NO));
+    XCTAssertFalse(VibeGaplessArmAllowed(2000, NO));
+}
+
+// The next window of the same file is one recording: a crossfade would
+// overlap it with itself.
+- (void)testGaplessArmsIntoTheNextWindowOfTheFileWhateverTheCrossfade {
+    XCTAssertTrue(VibeGaplessArmAllowed(2000, YES));
+    XCTAssertTrue(VibeGaplessArmAllowed(10, YES));
 }
 
 @end

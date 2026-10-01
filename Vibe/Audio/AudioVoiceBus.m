@@ -442,10 +442,19 @@ VIBE_REALTIME_END
     uint64_t fedFrames;
     uint64_t convertedBase;
     AVAudioFramePosition startFrame;
+    AVAudioFramePosition endFrame;   // exclusive; 0 = the file's own end
+    // The next frame a read delivers, counted from the seek rather than asked
+    // of the file: framePosition answers 0 when ExtAudioFileTell fails, and an
+    // end clamped against that reads into the next window.
+    AVAudioFramePosition cursor;
     BOOL positioned;
     VibeStreamState stream;
     AudioFileHandle *successorFile;
     AudioFileHandle *waitingSuccessor; // accepted, not yet the decoder's: the start is pending, or another queue reads it
+    // The window the successor — waiting or queued — is read over, carried
+    // with it through every hand-off.
+    AVAudioFramePosition successorStartFrame;
+    AVAudioFramePosition successorEndFrame;
     uint64_t retireOrder;            // when a retire ramp was submitted; 0 = not retiring
     _Atomic int32_t fillScheduled;
     // The decoder's: `written` when it last held a drained stream open for a
@@ -907,7 +916,14 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     return nil;
 }
 
+// The record's end: 0 for the file's own, which a lossy file's length only
+// estimates, so reading to it is what ends a whole file where it really ends.
+static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, AudioFileHandle *file) {
+    return endFrame > 0 && endFrame < file.length ? endFrame : 0;
+}
+
 - (VibeVoiceID)startVoiceWithFile:(AudioFileHandle *)file atFrame:(AVAudioFramePosition)frame
+                         endFrame:(AVAudioFramePosition)endFrame
                              gain:(float)gain
                              ramp:(VibeVoiceRamp)ramp paused:(BOOL)paused {
     VibeVoiceID identifier = _nextIdentifier++;
@@ -918,6 +934,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     record->identifier = identifier;
     record->file = file;
     record->startFrame = frame;
+    record->endFrame = VibeOwnEndFrame(endFrame, file);
     record->gain = gain;
     record->ramp = ramp;
     record->paused = paused;
@@ -953,8 +970,11 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     AudioVoiceRecord *bound = _records[slot];
     bound->decodeQueue = decoder;
     bound->startFrame = record->startFrame;
+    bound->endFrame = record->endFrame;
     bound->positioned = NO;
     bound->waitingSuccessor = record->waitingSuccessor;
+    bound->successorStartFrame = record->successorStartFrame;
+    bound->successorEndFrame = record->successorEndFrame;
     bound->retireOrder = record->ramp.action == VibeVoiceActionRetire ? _nextRetireOrder++ : 0;
     atomic_store_explicit(&bound->fillScheduled, 0, memory_order_relaxed);
     atomic_store_explicit(&bound->heldOpenAt, kUnset, memory_order_relaxed);
@@ -1122,21 +1142,30 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 }
 #endif
 
-- (BOOL)queueSuccessor:(AudioFileHandle *)file forVoice:(VibeVoiceID)voice {
+- (BOOL)queueSuccessor:(AudioFileHandle *)file startFrame:(AVAudioFramePosition)startFrame
+              endFrame:(AVAudioFramePosition)endFrame forVoice:(VibeVoiceID)voice {
     if ([_withheldFiles containsObject:file]) {
         return NO; // a retired decoder may be inside it; the transport asks again once it has left
     }
     AudioVoiceRecord *pending = [self pendingRecordForIdentifier:voice];
     if (pending) {
         pending->waitingSuccessor = file;
+        pending->successorStartFrame = startFrame;
+        pending->successorEndFrame = VibeOwnEndFrame(endFrame, file);
         return YES;
     }
     NSUInteger slot = [self ownedSlotForIdentifier:voice];
     if (slot == NSNotFound || !VibeSlotTakesSuccessor(&_mix->slots[slot])) {
         return NO;
     }
+    // Written with the file, and read by the decoder only after its claim of
+    // it, which the successorState CAS orders; VibeSlotTakesSuccessor refuses
+    // until an earlier successor's claim has ended, so none is overwritten
+    // mid-switch.
     os_unfair_lock_lock(&_tableLock);
     _records[slot]->waitingSuccessor = file;
+    _records[slot]->successorStartFrame = startFrame;
+    _records[slot]->successorEndFrame = VibeOwnEndFrame(endFrame, file);
     os_unfair_lock_unlock(&_tableLock);
     [self publishWaitingSuccessorForSlot:slot];
     return YES;
@@ -1508,13 +1537,14 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     record->file = successor;
     record->successorFile = nil;
     os_unfair_lock_unlock(&_tableLock);
-    record->startFrame = 0;
+    record->startFrame = record->successorStartFrame;
+    record->endFrame = record->successorEndFrame;
     record->positioned = NO;
     return YES;
 }
 
 // Takes the claimed successor out of the record, with a converter of its
-// own, to be read from its start; NO with none there.
+// own, to be read over its window; NO with none there.
 - (BOOL)prepareSuccessorForRecord:(AudioVoiceRecord *)record {
     AudioFileHandle *successor = record->successorFile;
     if (!successor) {
@@ -1522,7 +1552,8 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     }
     // The successor stays in the pair until prepareRecord: makes it the file,
     // so a retirement snapshot meanwhile still lists it.
-    record->startFrame = 0;
+    record->startFrame = record->successorStartFrame;
+    record->endFrame = record->successorEndFrame;
     record->positioned = NO;
     BOOL prepared = [self prepareRecord:record file:successor];
     os_unfair_lock_lock(&_tableLock);
@@ -1540,6 +1571,15 @@ typedef struct {
     uint64_t readNanos;       // thread CPU inside the file's reads, which the resampler's cost excludes
 } VibeConverterFeed;
 
+// Of `wanted` frames, those the voice may read before its end frame.
+static AVAudioFrameCount VibeFramesBeforeEnd(AudioVoiceRecord *record, AVAudioFrameCount wanted) {
+    if (record->endFrame <= 0) {
+        return wanted;
+    }
+    AVAudioFramePosition left = record->endFrame - record->cursor;
+    return left <= 0 ? 0 : (AVAudioFrameCount)MIN((AVAudioFramePosition)wanted, left);
+}
+
 // Supplies the converter one read of the file, mixed to the bus's width
 // first when the widths differ, or silence while flushing. The converter
 // calls this as often as one chunk needs.
@@ -1551,15 +1591,19 @@ static uint32_t VibeConverterSupplyInput(void *userData, uint32_t maxFrames, con
     NSError *readError = nil;
     AVAudioFrameCount wanted = MIN(maxFrames, kDecodeChunkFrames);
     if (!input->flushing && !record->failure) {
+        // Only the read stops at the end frame: the flush below must push its
+        // silence whatever the window.
+        AVAudioFrameCount readable = VibeFramesBeforeEnd(record, wanted);
 #if DEBUG
         uint64_t started = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID);
 #endif
-        if (![record->file readIntoBuffer:readBuffer frameCount:wanted error:&readError]) {
+        if (readable > 0 && ![record->file readIntoBuffer:readBuffer frameCount:readable error:&readError]) {
             [input->bus recordFailure:readError forSlot:input->slot];
         }
 #if DEBUG
         input->readNanos += clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) - started;
 #endif
+        record->cursor += readBuffer.frameLength;
     }
     AVAudioPCMBuffer *fed;
     if (input->flushing) {
@@ -1594,10 +1638,11 @@ static uint32_t VibeConverterSupplyInput(void *userData, uint32_t maxFrames, con
 
 // Reads one chunk of the voice's file into the stage buffer, in the bus
 // format. The file's end is a read that comes up short or empty — never
-// framePosition == length, which a truncated file never reaches — and drains
-// the stream: a converter is told nothing of it until the stream is flushing,
-// when silence pushes its tail out up to the frames fed, at the bus rate
-// (streamEndForRecord:written:). *final says the end is out.
+// framePosition == length alone, which a truncated file never reaches — or
+// the voice's end frame, and drains the stream: a converter is told nothing of
+// it until the stream is flushing, when silence pushes its tail out up to the
+// frames fed, at the bus rate (streamEndForRecord:written:). *final says the
+// end is out.
 - (uint32_t)produceChunkForSlot:(NSUInteger)slot final:(BOOL *)final {
     AudioVoiceRecord *record = _records[slot];
     BOOL flushing = record->stream == VibeStreamFlushing;
@@ -1610,7 +1655,8 @@ static uint32_t VibeConverterSupplyInput(void *userData, uint32_t maxFrames, con
         }
         AVAudioPCMBuffer *into = record->mixMap ? record->readBuffer : record->stageBuffer;
         into.frameLength = 0;
-        BOOL read = [record->file readIntoBuffer:into frameCount:kDecodeChunkFrames error:&error];
+        AVAudioFrameCount asked = VibeFramesBeforeEnd(record, kDecodeChunkFrames);
+        BOOL read = asked == 0 || [record->file readIntoBuffer:into frameCount:asked error:&error];
         if (!read) {
             [self recordFailure:error forSlot:slot];
             *final = YES;
@@ -1618,10 +1664,12 @@ static uint32_t VibeConverterSupplyInput(void *userData, uint32_t maxFrames, con
         // A failed multi-read can still return a valid prefix. Publish it once,
         // followed by the failure; no later read or successor may hide the error.
         uint32_t frames = into.frameLength;
+        record->cursor += frames;
         if (record->mixMap) {
             VibeApplyMixMap(record->mixMap.bytes, record->readBuffer, record->stageBuffer, frames);
         }
-        if (!read || frames < kDecodeChunkFrames || record->file.framePosition >= record->file.length) {
+        if (!read || frames < asked || (record->endFrame > 0 && record->cursor >= record->endFrame)
+                || record->file.framePosition >= record->file.length) {
             record->stream = VibeStreamDrained;
         }
         return frames;
@@ -1679,6 +1727,7 @@ static uint32_t VibeConverterSupplyInput(void *userData, uint32_t maxFrames, con
         }
         else {
             record->positioned = YES;
+            record->cursor = record->startFrame;
         }
     }
     if (record->stream == VibeStreamDrained) {

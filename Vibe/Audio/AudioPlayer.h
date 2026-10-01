@@ -116,12 +116,13 @@ NS_ASSUME_NONNULL_BEGIN
 // poll it.
 - (BOOL)getPlaybackIntent:(VibePendingPlaybackIntent *)intent forTrack:(nullable AudioTrack *)track;
 
-// Starts a track at position (file seconds, clamped), optionally parked. For
+// Starts a track at position (track seconds — into its window, which is its
+// whole file but for a cue row — clamped), optionally parked. For
 // Convert to FLAC's same-audio swap and a replacement that must land parked;
 // always declicks, never crossfades. Otherwise an ordinary play:.
 - (void)play:(AudioTrack *)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused;
 
-// File seconds, clamped, playing or paused. didFinishSeeking: settles every
+// Track seconds, clamped, playing or paused. didFinishSeeking: settles every
 // seek, one dropped because the track changed or nothing was loaded included.
 - (void)seekToPosition:(NSTimeInterval)position;
 
@@ -158,8 +159,8 @@ NS_ASSUME_NONNULL_BEGIN
 // under the state lock, which can briefly wait.
 @interface AudioPlayer (State)
 
-// File seconds the current voice has rendered, so it holds across an output
-// stop. 0 while Stopped or Loading.
+// Track seconds the current voice has rendered, so it holds across an output
+// stop. 0 while Stopped or Loading. duration is the track's window.
 @property (readonly) NSTimeInterval position;
 
 // Whether a gapless successor is queued on the current voice.
