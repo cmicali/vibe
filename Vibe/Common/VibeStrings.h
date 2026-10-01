@@ -596,6 +596,8 @@ static inline NSString *VibeAppName(void) {
 #define STR_ERROR_FOLDER_EMPTY  NSLS(@"error.folder_empty",  @"No audio files in this folder",  @"iOS: shown after picking a folder that contains no playable audio files.")
 
 #define STR_SETTINGS_TITLE            NSLS(@"settings.title",            @"Settings",       @"iOS: title of the settings screen, and the label of the gear button on the playlist screen that opens it. Use the name Apple gives the Settings app in this language.")
+#define STR_SETTINGS_NOW_PLAYING_SECTION NSLS(@"settings.appearance.now_playing_section", @"Now Playing", @"iOS settings screen, Appearance: heading above the settings for the now-playing screen (time display, file info, shuffle and repeat buttons).")
+#define STR_SETTINGS_WAVEFORM_SECTION    NSLS(@"settings.appearance.waveform_section",    @"Waveform",    @"iOS settings screen, Appearance: heading above the waveform settings (drawing style, the widget's style, color theme).")
 #define STR_SETTINGS_SECTION_WAVEFORM NSLS(@"settings.section.waveform", @"Waveform style", @"iOS settings screen: heading above the list of waveform drawing styles.")
 #define STR_SETTINGS_SECTION_WAVEFORM_THEME NSLS(@"settings.section.waveform_theme", @"Waveform theme", @"iOS settings screen: heading above the list of waveform color themes.")
 #define STR_SETTINGS_SECTION_WIDGET_WAVEFORM NSLS(@"settings.section.widget_waveform", @"Widget waveform", @"iOS settings screen: row title for the drawing style the home-screen widget uses for its waveform, which can differ from the one the app itself draws. 'Widget' is the iOS home-screen widget.")

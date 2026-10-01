@@ -12,14 +12,24 @@
 #import "WaveformRendererRegistry.h"
 #import "WaveformThemeSettingsViewController.h"
 
-typedef NS_ENUM(NSInteger, VibeAppearanceRow) {
-    VibeAppearanceRowWaveformStyle = 0,
-    VibeAppearanceRowWidgetWaveformStyle,
-    VibeAppearanceRowWaveformTheme,
-    VibeAppearanceRowTimeDisplay,
-    VibeAppearanceRowFileInfo,
-    VibeAppearanceRowShuffleRepeat,
-    VibeAppearanceRowCount,
+typedef NS_ENUM(NSInteger, VibeAppearanceSection) {
+    VibeAppearanceSectionNowPlaying = 0,
+    VibeAppearanceSectionWaveform,
+    VibeAppearanceSectionCount,
+};
+
+typedef NS_ENUM(NSInteger, VibeNowPlayingRow) {
+    VibeNowPlayingRowTimeDisplay = 0,
+    VibeNowPlayingRowFileInfo,
+    VibeNowPlayingRowShuffleRepeat,
+    VibeNowPlayingRowCount,
+};
+
+typedef NS_ENUM(NSInteger, VibeWaveformRow) {
+    VibeWaveformRowStyle = 0,
+    VibeWaveformRowWidgetStyle,
+    VibeWaveformRowTheme,
+    VibeWaveformRowCount,
 };
 
 // Not a cast of the BOOL: a row index is a screen position.
@@ -79,18 +89,29 @@ static NSString *const kValueCellIdentifier  = @"value";
 
 #pragma mark - Table
 
+- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
+    return VibeAppearanceSectionCount;
+}
+
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return VibeAppearanceRowCount;
+    return section == VibeAppearanceSectionNowPlaying ? (NSInteger)VibeNowPlayingRowCount
+                                                       : (NSInteger)VibeWaveformRowCount;
+}
+
+- (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
+    return section == VibeAppearanceSectionNowPlaying ? STR_SETTINGS_NOW_PLAYING_SECTION
+                                                       : STR_SETTINGS_WAVEFORM_SECTION;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView
          cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    if ((VibeAppearanceRow)indexPath.row == VibeAppearanceRowFileInfo) {
+    BOOL nowPlaying = indexPath.section == VibeAppearanceSectionNowPlaying;
+    if (nowPlaying && indexPath.row == VibeNowPlayingRowFileInfo) {
         return [SettingsChoiceViewController switchCellInTableView:tableView title:STR_SETTINGS_FILE_INFO
                                                                 on:VibeShowsFileInfo()
                                                             target:self action:@selector(fileInfoToggled:)];
     }
-    if ((VibeAppearanceRow)indexPath.row == VibeAppearanceRowShuffleRepeat) {
+    if (nowPlaying && indexPath.row == VibeNowPlayingRowShuffleRepeat) {
         return [SettingsChoiceViewController switchCellInTableView:tableView title:STR_SETTINGS_SHUFFLE_REPEAT
                                                                 on:VibeShowsShuffleRepeat()
                                                             target:self action:@selector(shuffleRepeatToggled:)];
@@ -103,23 +124,25 @@ static NSString *const kValueCellIdentifier  = @"value";
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
     }
     UIListContentConfiguration *content = [UIListContentConfiguration valueCellConfiguration];
-    switch ((VibeAppearanceRow)indexPath.row) {
-        case VibeAppearanceRowWaveformStyle:
-            content.text = STR_SETTINGS_SECTION_WAVEFORM;
-            content.secondaryText = [self waveformStyleValueText];
-            break;
-        case VibeAppearanceRowWidgetWaveformStyle:
-            content.text = STR_SETTINGS_SECTION_WIDGET_WAVEFORM;
-            content.secondaryText = [self widgetWaveformStyleValueText];
-            break;
-        case VibeAppearanceRowWaveformTheme:
-            content.text = STR_SETTINGS_SECTION_WAVEFORM_THEME;
-            content.secondaryText = [WaveformThemeSettingsViewController currentThemeDisplayName];
-            break;
-        default:
-            content.text = STR_SETTINGS_SECTION_TIME;
-            content.secondaryText = [self timeDisplayValueText];
-            break;
+    if (nowPlaying) {
+        content.text = STR_SETTINGS_SECTION_TIME;
+        content.secondaryText = [self timeDisplayValueText];
+    }
+    else {
+        switch ((VibeWaveformRow)indexPath.row) {
+            case VibeWaveformRowStyle:
+                content.text = STR_SETTINGS_SECTION_WAVEFORM;
+                content.secondaryText = [self waveformStyleValueText];
+                break;
+            case VibeWaveformRowWidgetStyle:
+                content.text = STR_SETTINGS_SECTION_WIDGET_WAVEFORM;
+                content.secondaryText = [self widgetWaveformStyleValueText];
+                break;
+            default:
+                content.text = STR_SETTINGS_SECTION_WAVEFORM_THEME;
+                content.secondaryText = [WaveformThemeSettingsViewController currentThemeDisplayName];
+                break;
+        }
     }
     cell.contentConfiguration = content;
     return cell;
@@ -130,21 +153,24 @@ static NSString *const kValueCellIdentifier  = @"value";
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     UIViewController *next = nil;
-    switch ((VibeAppearanceRow)indexPath.row) {
-        case VibeAppearanceRowWaveformStyle:
-            next = [self waveformStylePicker];
-            break;
-        case VibeAppearanceRowWidgetWaveformStyle:
-            next = [self widgetWaveformStylePicker];
-            break;
-        case VibeAppearanceRowWaveformTheme:
-            next = [[WaveformThemeSettingsViewController alloc] init];
-            break;
-        case VibeAppearanceRowTimeDisplay:
-            next = [self timeDisplayPicker];
-            break;
-        default:
+    if (indexPath.section == VibeAppearanceSectionNowPlaying) {
+        if (indexPath.row != VibeNowPlayingRowTimeDisplay) {
             return;     // the switch rows
+        }
+        next = [self timeDisplayPicker];
+    }
+    else {
+        switch ((VibeWaveformRow)indexPath.row) {
+            case VibeWaveformRowStyle:
+                next = [self waveformStylePicker];
+                break;
+            case VibeWaveformRowWidgetStyle:
+                next = [self widgetWaveformStylePicker];
+                break;
+            default:
+                next = [[WaveformThemeSettingsViewController alloc] init];
+                break;
+        }
     }
     [self.navigationController pushViewController:next animated:YES];
 }
