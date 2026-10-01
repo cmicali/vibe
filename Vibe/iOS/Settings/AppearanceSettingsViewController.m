@@ -6,6 +6,7 @@
 #import "AppearanceSettingsViewController.h"
 
 #import "AppSettings.h"
+#import "PlaybackController.h"
 #import "PlayerDisplaySettings.h"
 #import "SettingsChoiceViewController.h"
 #import "VibeStrings.h"
@@ -39,13 +40,18 @@ static const NSInteger kTimeRowRemaining = 1;
 static NSString *const kValueCellIdentifier  = @"value";
 
 @implementation AppearanceSettingsViewController {
+    PlaybackController *_playback;
     // IDENTIFIERS, sorted by localized display name; a display name is never
     // a key.
     NSArray<NSString *> *_waveformStyles;
 }
 
-- (instancetype)init {
-    return [super initWithStyle:UITableViewStyleInsetGrouped];
+- (instancetype)initWithPlayback:(PlaybackController *)playback {
+    self = [super initWithStyle:UITableViewStyleInsetGrouped];
+    if (self) {
+        _playback = playback;
+    }
+    return self;
 }
 
 - (void)viewDidLoad {
@@ -240,6 +246,12 @@ static NSString *const kValueCellIdentifier  = @"value";
 
 - (void)shuffleRepeatToggled:(UISwitch *)toggle {
     VibeSetShowsShuffleRepeat(toggle.isOn);
+    if (!toggle.isOn) {
+        AppSettings *settings = AppSettings.sharedInstance;
+        settings.shuffleEnabled = NO;
+        settings.repeatMode = VibeRepeatModeOff;
+        [_playback applyTrackTransitionSettings];
+    }
     VibeNotifyDisplaySettingsChanged();
 }
 

@@ -106,7 +106,7 @@ static NSString *const kGroupCellIdentifier = @"group";
         next = [[FilesSettingsViewController alloc] init];
     }
     else {
-        next = [[AppearanceSettingsViewController alloc] init];
+        next = [[AppearanceSettingsViewController alloc] initWithPlayback:_playback];
     }
     [self.navigationController pushViewController:next animated:YES];
 }
