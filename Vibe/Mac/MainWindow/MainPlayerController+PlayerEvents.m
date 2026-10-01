@@ -196,8 +196,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     if (finishedTrack != [self.playlistController currentTrack]) {
         return;
     }
-    // If the playlist's next row is no longer the spliced track, correctness
-    // beats gaplessness: an ordinary track end replaces the spliced audio.
+    // If the spliced track is no longer the playlist's trackEndSuccessor,
+    // correctness beats gaplessness: an ordinary track end replaces its audio.
     if (![self.playlistController advanceFromTrack:finishedTrack toTrack:startedTrack]) {
         BOOL advanced = [self advanceOrParkAtTrackEnd];
         // With no advance, reload the finished row parked so the sounding
