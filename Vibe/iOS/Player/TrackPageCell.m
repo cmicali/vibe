@@ -79,6 +79,23 @@ static const CGFloat kCellRouteMaxWidthLandscape = 160;
 static const CGFloat kCellRouteContentInsetLandscape = 6;
 static const CGFloat kCellTimeGap = 12;
 
+// The compact layouts (Player/AGENTS.md). A design threshold, not a fit: under
+// it an iPad window's art and transport row crowd the waveform. A phone's
+// fixed landscape keeps the full layout.
+static const CGFloat kCellCompactMaximumHeight = 600;
+// The portrait chain was built for the old 480pt window floor.
+static const CGFloat kCellPortraitMinimumHeight = 480;
+static const CGFloat kCellStripAspect = 2;
+// The mac's art: carries the 138pt row, so the strip's floor.
+static const CGFloat kCellArtSideCompact = 150;
+static const CGFloat kCellArtWidthFractionCompact = 0.5;
+// The mac's: 62% of its 150pt art.
+static const CGFloat kCellArtGradientHeight = 93;
+static const CGFloat kTransportButtonSideCompact = 46;
+static const CGFloat kCellGlyphScaleCompact = 31.0 / kCellGlyphPointSize;
+static const CGFloat kCellTransportInsetCompact = 3;
+static const CGFloat kCellStripWaveformGap = 4;
+
 static void VibeConfigureTimeLabel(UILabel *label) {
     label.font = [[UIFontMetrics metricsForTextStyle:UIFontTextStyleSubheadline]
             scaledFontForFont:[UIFont monospacedDigitSystemFontOfSize:16
@@ -189,6 +206,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     UIImageView        *_backdropView;
     UIView             *_artCard;         // the shadow; the image view clips
     UIImageView        *_artCardView;
+    UIImageView        *_artGradientView;  // compact only
     UILabel            *_artistLabel;
     UILabel            *_titleLabel;
     UILabel            *_fileInfoLabel;
@@ -223,17 +241,25 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     NSLayoutConstraint *_shuffleWidth;
     NSLayoutConstraint *_outerGapWanted;
     NSLayoutConstraint *_outerGapMin;
+    // The compact layouts' smaller row: one side for the three, no gaps.
+    NSLayoutConstraint *_transportSide;
+    NSLayoutConstraint *_innerGapWanted;
+    NSLayoutConstraint *_innerGapMin;
+    BOOL               _glyphPlaying;
     BOOL               _shuffleRepeatWanted;
     // What the flanks last drew, so an unchanged configure rebuilds no glyph.
     BOOL               _flankShuffleEnabled;
     VibeRepeatMode     _flankRepeatMode;
 
-    // Swapped on the cell's own aspect, so a rotation mid-reuse cannot
-    // strand a cell.
-    NSArray<NSLayoutConstraint *> *_portraitConstraints;
-    NSArray<NSLayoutConstraint *> *_landscapeConstraints;
-    BOOL               _landscapeActive;
-    BOOL               _layoutApplied;
+    // Swapped on the cell's own bounds, so a rotation mid-reuse cannot
+    // strand a cell. The three wide layouts share one header.
+    NSArray<NSLayoutConstraint *> *_portraitLayout;
+    NSArray<NSLayoutConstraint *> *_landscapeLayout;
+    NSArray<NSLayoutConstraint *> *_compactLayout;
+    NSArray<NSLayoutConstraint *> *_stripLayout;
+    NSArray<NSLayoutConstraint *> *_activeLayout;
+    BOOL               _landscapeActive;   // any wide layout
+    BOOL               _compactActive;     // the strip too
 }
 
 + (NSString *)reuseIdentifier {
@@ -276,6 +302,11 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         _artCardView.layer.cornerCurve = kCACornerCurveContinuous;
         _artCardView.translatesAutoresizingMaskIntoConstraints = NO;
         [_artCard addSubview:_artCardView];
+
+        _artGradientView = [[UIImageView alloc] initWithImage:TransportGradientImage()];
+        _artGradientView.hidden = YES;
+        _artGradientView.translatesAutoresizingMaskIntoConstraints = NO;
+        [_artCardView addSubview:_artGradientView];
 
         // Dynamic Type squeezes the art, never the text. All three shrink to
         // fit rather than truncate: the band's height is fixed.
@@ -348,17 +379,14 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         _shuffleButton.accessibilityLabel = STR_TRANSPORT_SHUFFLE;
         _previousButton = [self makeTransportButton];
         _previousButton.accessibilityLabel = STR_TRANSPORT_PREVIOUS;
-        [self setGlyph:@"backward.end.fill" onButton:_previousButton
-             pointSize:kCellSideGlyphPointSize];
         _playPauseButton = [self makeTransportButton];
         _nextButton = [self makeTransportButton];
         _nextButton.accessibilityLabel = STR_TRANSPORT_NEXT;
-        [self setGlyph:@"forward.end.fill" onButton:_nextButton
-             pointSize:kCellSideGlyphPointSize];
         _repeatButton = [self makeTransportButton];
         _shuffleWidth = [_shuffleButton.widthAnchor constraintEqualToConstant:kTransportFlankButtonSide];
+        _transportSide = [_transportView.heightAnchor constraintEqualToConstant:kTransportButtonSide];
         _shuffleRepeatWanted = YES;
-        [self setGlyphPlaying:NO];
+        [self applyTransportGlyphs];
         // Unequal to any mode, so the first set draws.
         _flankRepeatMode = (VibeRepeatMode)-1;
         [self setShuffleEnabled:NO repeatMode:VibeRepeatModeOff];
@@ -367,6 +395,10 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         [_fileInfoLabel setContentCompressionResistancePriority:760
                 forAxis:UILayoutConstraintAxisHorizontal];
 
+        // The strip's leading edge beside the art outranks it.
+        NSLayoutConstraint *waveformFullWidth = [_waveformView.leadingAnchor
+                constraintEqualToAnchor:content.leadingAnchor];
+        waveformFullWidth.priority = UILayoutPriorityRequired - 1;
         [NSLayoutConstraint activateConstraints:@[
             [_backdropView.topAnchor constraintEqualToAnchor:content.topAnchor],
             [_backdropView.bottomAnchor constraintEqualToAnchor:content.bottomAnchor],
@@ -378,14 +410,18 @@ static void VibeConfigureTimeLabel(UILabel *label) {
             [_artCardView.leadingAnchor constraintEqualToAnchor:_artCard.leadingAnchor],
             [_artCardView.trailingAnchor constraintEqualToAnchor:_artCard.trailingAnchor],
             [_artCard.widthAnchor constraintEqualToAnchor:_artCard.heightAnchor],
+            [_artGradientView.heightAnchor constraintEqualToConstant:kCellArtGradientHeight],
+            [_artGradientView.bottomAnchor constraintEqualToAnchor:_artCardView.bottomAnchor],
+            [_artGradientView.leadingAnchor constraintEqualToAnchor:_artCardView.leadingAnchor],
+            [_artGradientView.trailingAnchor constraintEqualToAnchor:_artCardView.trailingAnchor],
 
-            [_transportView.heightAnchor constraintEqualToConstant:kTransportButtonSide],
+            _transportSide,
             [_routeView.heightAnchor constraintEqualToConstant:44],
             [_routeView.centerYAnchor constraintEqualToAnchor:_actionBar.centerYAnchor],
             [_actionBar.heightAnchor constraintEqualToConstant:kCellActionBarHeight],
             [_fxPadView.widthAnchor constraintEqualToConstant:kCellActionBarHeight],
             [_fxPadView.heightAnchor constraintEqualToConstant:kCellActionBarHeight],
-            [_waveformView.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
+            waveformFullWidth,
             [_waveformView.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
             [_remainingTimeControl.bottomAnchor constraintEqualToAnchor:_elapsedLabel.bottomAnchor],
             [_elapsedLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_remainingTimeControl.leadingAnchor
@@ -396,14 +432,14 @@ static void VibeConfigureTimeLabel(UILabel *label) {
             [_repeatButton.trailingAnchor constraintEqualToAnchor:_transportView.trailingAnchor],
             _shuffleWidth,
             [_repeatButton.widthAnchor constraintEqualToAnchor:_shuffleButton.widthAnchor],
-            [_previousButton.widthAnchor constraintEqualToConstant:kTransportButtonSide],
-            [_playPauseButton.widthAnchor constraintEqualToConstant:kTransportButtonSide],
-            [_nextButton.widthAnchor constraintEqualToConstant:kTransportButtonSide],
+            [_previousButton.widthAnchor constraintEqualToAnchor:_transportView.heightAnchor],
+            [_playPauseButton.widthAnchor constraintEqualToAnchor:_transportView.heightAnchor],
+            [_nextButton.widthAnchor constraintEqualToAnchor:_transportView.heightAnchor],
         ]];
         [NSLayoutConstraint activateConstraints:[self transportGapConstraints]];
 
-        _portraitConstraints = [self buildPortraitConstraints];
-        _landscapeConstraints = [self buildLandscapeConstraints];
+        _portraitLayout = [self buildPortraitLayout];
+        [self buildWideLayouts];
         _fxPadShown = YES;
     }
     return self;
@@ -435,15 +471,16 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     _outerGapWanted = [outer.widthAnchor constraintEqualToConstant:kTransportButtonGap];
     _outerGapWanted.priority = UILayoutPriorityDefaultHigh - 20;
     _outerGapMin = [outer.widthAnchor constraintGreaterThanOrEqualToConstant:kTransportFlankMinGap];
-    NSLayoutConstraint *innerWanted = [inner.widthAnchor constraintEqualToConstant:kTransportButtonGap];
-    innerWanted.priority = UILayoutPriorityDefaultHigh - 10;
+    _innerGapWanted = [inner.widthAnchor constraintEqualToConstant:kTransportButtonGap];
+    _innerGapWanted.priority = UILayoutPriorityDefaultHigh - 10;
+    _innerGapMin = [inner.widthAnchor constraintGreaterThanOrEqualToConstant:kTransportMinGap];
     [constraints addObjectsFromArray:@[
         [gaps[3].widthAnchor constraintEqualToAnchor:outer.widthAnchor],
         [gaps[2].widthAnchor constraintEqualToAnchor:inner.widthAnchor],
         _outerGapWanted,
-        innerWanted,
+        _innerGapWanted,
         _outerGapMin,
-        [inner.widthAnchor constraintGreaterThanOrEqualToConstant:kTransportMinGap],
+        _innerGapMin,
     ]];
     return constraints;
 }
@@ -481,13 +518,38 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
             imageWithRenderingMode:UIImageRenderingModeAlwaysOriginal];
 }
 
+// The mac's buttonGradient, up from the art's bottom edge. Always on: iOS has
+// no hover to fade it with, so the buttons always sit on dark, as the mac's do
+// whenever its gradient shows.
+static UIImage *TransportGradientImage(void) {
+    static UIImage *image;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        UIGraphicsImageRendererFormat *format = [UIGraphicsImageRendererFormat preferredFormat];
+        format.scale = 1;
+        CGSize size = CGSizeMake(1, 128);
+        image = [[[UIGraphicsImageRenderer alloc] initWithSize:size format:format]
+                imageWithActions:^(UIGraphicsImageRendererContext *context) {
+            const CGFloat components[] = {0, 0, 0, 0.55, 0, 0.96};
+            const CGFloat locations[] = {0, 0.435, 1};
+            CGColorSpaceRef gray = CGColorSpaceCreateDeviceGray();
+            CGGradientRef gradient = CGGradientCreateWithColorComponents(gray, components, locations, 3);
+            CGContextDrawLinearGradient(context.CGContext, gradient, CGPointZero,
+                                        CGPointMake(0, size.height), 0);
+            CGGradientRelease(gradient);
+            CGColorSpaceRelease(gray);
+        }];
+    });
+    return image;
+}
+
 - (void)setGlyph:(NSString *)symbol onButton:(UIButton *)button pointSize:(CGFloat)pointSize {
     UIImage *glyph = TransportGlyph(symbol, pointSize);
     [button setImage:glyph forState:UIControlStateNormal];
     [button setImage:DimmedGlyph(glyph) forState:UIControlStateDisabled];
 }
 
-- (NSArray<NSLayoutConstraint *> *)buildPortraitConstraints {
+- (NSArray<NSLayoutConstraint *> *)buildPortraitLayout {
     UIView *content = self.contentView;
     UILayoutGuide *safe = content.safeAreaLayoutGuide;
 
@@ -595,10 +657,10 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
     ];
 }
 
-// The mac main window, transplanted: the header in the top-leading corner,
-// the transport along the bottom between the two pills, and the waveform with
-// its time row centered in what is left between them.
-- (NSArray<NSLayoutConstraint *> *)buildLandscapeConstraints {
+// The mac main window, transplanted: every wide layout shares the header (the
+// art in the top-leading corner, the names beside it, the info label
+// top-trailing) and adds a body that places the rest.
+- (void)buildWideLayouts {
     UIView *content = self.contentView;
     UILayoutGuide *safe = content.safeAreaLayoutGuide;
 
@@ -635,7 +697,7 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
 
     _fileInfoCapTopLandscape = [_fileInfoLabel.topAnchor constraintEqualToAnchor:_artistLabel.topAnchor];
 
-    return @[
+    NSArray<NSLayoutConstraint *> *header = @[
         columnLeading,
         columnTrailing,
         [column.leadingAnchor constraintGreaterThanOrEqualToAnchor:content.leadingAnchor
@@ -645,13 +707,10 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
         [_artCard.leadingAnchor constraintEqualToAnchor:column.leadingAnchor],
         [_artCard.topAnchor constraintEqualToAnchor:safe.topAnchor
                                            constant:kCellTopInsetLandscape],
-        [_artCard.heightAnchor constraintEqualToAnchor:content.heightAnchor
-                                             multiplier:kCellArtHeightFractionLandscape],
 
-        // The names center on the art; the info label hangs off the artist.
+        // The info label hangs off the artist.
         [names.topAnchor constraintEqualToAnchor:_artistLabel.topAnchor],
         [names.bottomAnchor constraintEqualToAnchor:_titleLabel.bottomAnchor],
-        [names.centerYAnchor constraintEqualToAnchor:_artCard.centerYAnchor],
         [_artistLabel.leadingAnchor constraintEqualToAnchor:_artCard.trailingAnchor
                                                    constant:kCellHeaderGapLandscape],
         [_artistLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_fileInfoLabel.leadingAnchor
@@ -664,23 +723,34 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
         _fileInfoCapTopLandscape,
         [_fileInfoLabel.trailingAnchor constraintEqualToAnchor:column.trailingAnchor],
 
+        // The pills stay placed while the compact layouts hide them.
         [_fxPadView.leadingAnchor constraintEqualToAnchor:column.leadingAnchor],
         [_fxPadView.bottomAnchor constraintEqualToAnchor:content.bottomAnchor
                                                 constant:-kCellBottomInsetLandscape],
-
         // The pill hugs the route view, which stays the whole tap surface: a
         // lone glyph at its 44pt minimum makes the pill the pad's circle.
         [_actionBar.trailingAnchor constraintEqualToAnchor:column.trailingAnchor],
         [_actionBar.bottomAnchor constraintEqualToAnchor:content.bottomAnchor
                                                 constant:-kCellBottomInsetLandscape],
-        [_actionBar.leadingAnchor constraintGreaterThanOrEqualToAnchor:_transportView.trailingAnchor
-                                                              constant:kCellActionBarGap],
         [_routeView.leadingAnchor constraintEqualToAnchor:_actionBar.leadingAnchor
                                                  constant:kCellRouteContentInsetLandscape],
         [_routeView.trailingAnchor constraintEqualToAnchor:_actionBar.trailingAnchor
                                                   constant:-kCellRouteContentInsetLandscape],
         [_routeView.widthAnchor constraintLessThanOrEqualToConstant:kCellRouteMaxWidthLandscape],
+    ];
 
+    NSLayoutConstraint *namesOnArt = [names.centerYAnchor constraintEqualToAnchor:_artCard.centerYAnchor];
+    NSLayoutConstraint *waveformRowHeight = [_waveformView.heightAnchor
+            constraintEqualToConstant:kCellWaveformHeightLandscape];
+
+    // The transport along the bottom between the two pills, and the waveform
+    // with its time row centered in what is left between them and the art.
+    _landscapeLayout = [header arrayByAddingObjectsFromArray:@[
+        [_artCard.heightAnchor constraintEqualToAnchor:content.heightAnchor
+                                             multiplier:kCellArtHeightFractionLandscape],
+        namesOnArt,
+        [_actionBar.leadingAnchor constraintGreaterThanOrEqualToAnchor:_transportView.trailingAnchor
+                                                              constant:kCellActionBarGap],
         [_transportView.centerYAnchor constraintEqualToAnchor:_actionBar.centerYAnchor],
         [betweenPills.leadingAnchor constraintEqualToAnchor:_fxPadView.trailingAnchor],
         [betweenPills.trailingAnchor constraintEqualToAnchor:_actionBar.leadingAnchor],
@@ -693,28 +763,92 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
         [timeBand.bottomAnchor constraintEqualToAnchor:_actionBar.topAnchor],
         [_waveformView.centerYAnchor constraintEqualToAnchor:middle.centerYAnchor
                                                     constant:-kCellTimeRowShiftLandscape],
-        [_waveformView.heightAnchor constraintEqualToConstant:kCellWaveformHeightLandscape],
+        waveformRowHeight,
         [_elapsedLabel.centerYAnchor constraintEqualToAnchor:timeBand.centerYAnchor],
         [_elapsedLabel.centerXAnchor constraintEqualToAnchor:_fxPadView.centerXAnchor],
-    ];
+    ]];
+
+    // Both compact layouts: the three on the art's lower edge, the times in
+    // the header's bottom corners as the mac's readouts are.
+    NSArray<NSLayoutConstraint *> *artTransport = [header arrayByAddingObjectsFromArray:@[
+        [_transportView.centerXAnchor constraintEqualToAnchor:_artCard.centerXAnchor],
+        [_transportView.bottomAnchor constraintEqualToAnchor:_artCard.bottomAnchor
+                                                    constant:-kCellTransportInsetCompact],
+        [_elapsedLabel.leadingAnchor constraintEqualToAnchor:_artCard.trailingAnchor
+                                                    constant:kCellHeaderGapLandscape],
+        [_remainingTimeControl.trailingAnchor constraintEqualToAnchor:column.trailingAnchor],
+        [_elapsedLabel.bottomAnchor constraintEqualToAnchor:_artCard.bottomAnchor],
+    ]];
+
+    // The art takes what the waveform's row leaves, up to a share of the
+    // width that keeps the names room.
+    NSLayoutConstraint *artFill = [_artCard.bottomAnchor constraintEqualToAnchor:_waveformView.topAnchor];
+    artFill.priority = UILayoutPriorityDefaultHigh;
+    _compactLayout = [artTransport arrayByAddingObjectsFromArray:@[
+        artFill,
+        [_artCard.bottomAnchor constraintLessThanOrEqualToAnchor:_waveformView.topAnchor],
+        [_artCard.widthAnchor constraintLessThanOrEqualToAnchor:content.widthAnchor
+                                                     multiplier:kCellArtWidthFractionCompact],
+        namesOnArt,
+        waveformRowHeight,
+        [_waveformView.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor],
+    ]];
+
+    // The mac's header band: the art fills it, the names on top beside it,
+    // the waveform under them taking the height, the times off the bottom.
+    NSLayoutConstraint *waveformUnderNames = [_waveformView.topAnchor
+            constraintEqualToAnchor:_titleLabel.bottomAnchor constant:kCellStripWaveformGap];
+    waveformUnderNames.priority = UILayoutPriorityDefaultLow;
+    _stripLayout = [artTransport arrayByAddingObjectsFromArray:@[
+        [_artCard.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor
+                                              constant:-kCellTopInsetLandscape],
+        [names.topAnchor constraintEqualToAnchor:_artCard.topAnchor],
+        [_waveformView.leadingAnchor constraintEqualToAnchor:_artCard.trailingAnchor
+                                                    constant:kCellHeaderGapLandscape],
+        waveformUnderNames,
+        [_waveformView.topAnchor constraintGreaterThanOrEqualToAnchor:_fileInfoLabel.bottomAnchor
+                                                             constant:kCellStripWaveformGap],
+        [_waveformView.bottomAnchor constraintEqualToAnchor:_elapsedLabel.topAnchor
+                                                   constant:kCellTimeWaveformOverlap],
+    ]];
 }
 
+// Aspect picks portrait or landscape; a short iPad window goes compact, and a
+// mac-shaped one, or one too short for the waveform's row, the strip. Only the
+// iPad: its windows resize, and a phone's landscape fits the full layout. Read
+// from the bounds, the safe area and the constants the sets are built from,
+// never from a layout, so applying the answer cannot feed back.
 - (void)applyLayoutForBounds:(CGRect)bounds {
-    BOOL landscape = bounds.size.width > bounds.size.height;
-    if (_layoutApplied && landscape == _landscapeActive) {
+    UIEdgeInsets safe = self.contentView.safeAreaInsets;
+    CGFloat width = bounds.size.width;
+    CGFloat height = bounds.size.height;
+    BOOL wide = width > height;
+    CGFloat compactFloor = safe.top + kCellTopInsetLandscape + kCellArtSideCompact
+            + kCellWaveformHeightLandscape + safe.bottom;
+    BOOL compact = self.traitCollection.userInterfaceIdiom == UIUserInterfaceIdiomPad
+            && height < (wide ? kCellCompactMaximumHeight : kCellPortraitMinimumHeight);
+    BOOL strip = compact && (width >= kCellStripAspect * height || height < compactFloor);
+    NSArray<NSLayoutConstraint *> *layout = strip ? _stripLayout
+            : compact ? _compactLayout
+            : wide ? _landscapeLayout : _portraitLayout;
+    if (layout == _activeLayout) {
         return;
     }
     // Signposts the swap, not the test that usually declines it.
     VibeSignpostBegin(cell_constraints);
-    _layoutApplied = YES;
+    // Off before on: the outgoing body over-constrains the incoming one.
+    [NSLayoutConstraint deactivateConstraints:_activeLayout ?: @[]];
+    [NSLayoutConstraint activateConstraints:layout];
+    _activeLayout = layout;
+    BOOL landscape = layout != _portraitLayout;
     _landscapeActive = landscape;
-    if (landscape) {
-        [NSLayoutConstraint deactivateConstraints:_portraitConstraints];
-        [NSLayoutConstraint activateConstraints:_landscapeConstraints];
-    }
-    else {
-        [NSLayoutConstraint deactivateConstraints:_landscapeConstraints];
-        [NSLayoutConstraint activateConstraints:_portraitConstraints];
+    if (compact != _compactActive) {
+        _compactActive = compact;
+        _artGradientView.hidden = !compact;
+        _transportSide.constant = compact ? kTransportButtonSideCompact : kTransportButtonSide;
+        _innerGapWanted.constant = compact ? 0 : kTransportButtonGap;
+        _innerGapMin.constant = compact ? 0 : kTransportMinGap;
+        [self applyTransportGlyphs];
     }
     [self applyActionBarSplit];
     [self applyRouteTimeAlignment];
@@ -734,14 +868,16 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
     VibeSignpostEnd(cell_constraints);
 }
 
-// The split is portrait's: landscape's pills sit apart. A pad hidden mid-hold
-// releases.
+// The split is portrait's: landscape's pills sit apart, and the compact
+// layouts hide the bar outright. A pad hidden mid-hold releases.
 - (void)applyActionBarSplit {
-    if (!_layoutApplied) {
-        return; // the first applyLayoutForBounds: activates a set, then this
+    if (!_activeLayout) {
+        return; // the first applyLayoutForBounds: activates a layout, then this
     }
     _actionBarLeadingAfterPad.active = _fxPadShown && !_landscapeActive;
-    BOOL padHidden = !_fxPadShown;
+    _actionBar.hidden = _compactActive;
+    _routeView.hidden = _compactActive;
+    BOOL padHidden = !_fxPadShown || _compactActive;
     if (padHidden != _fxPadView.hidden) {
         if (padHidden) {
             [_fxPadView cancelInteraction];
@@ -751,8 +887,9 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
 }
 
 - (void)applyRouteTimeAlignment {
-    BOOL centered = _landscapeActive && !_routeView.showsDeviceName;
-    BOOL trailing = _landscapeActive && _routeView.showsDeviceName;
+    BOOL overPill = _landscapeActive && !_compactActive;
+    BOOL centered = overPill && !_routeView.showsDeviceName;
+    BOOL trailing = overPill && _routeView.showsDeviceName;
     if (_remainingCenteredOnRoute.active == centered && _remainingTrailingOnRoute.active == trailing) {
         return;
     }
@@ -783,7 +920,7 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
 // that build both. Over it a required constraint breaks every pass — a 320pt
 // window (Slide Over) in portrait, landscape under about 510pt. It reads the
 // bounds and the safe area, never the row's own layout, so it cannot feed
-// back.
+// back. The compact layouts' row on the art never fits them.
 - (void)applyShuffleRepeatShown {
     CGFloat row = 3 * kTransportButtonSide
             + 2 * (kTransportFlankButtonSide + kTransportFlankMinGap + kTransportMinGap);
@@ -795,7 +932,7 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
             ? width - MAX(safe.left, kCellEdgeInsetLandscape) - MAX(safe.right, kCellEdgeInsetLandscape)
                     - 2 * (kCellActionBarHeight + kCellActionBarGap)
             : width - 2 * (MAX(safe.left, safe.right) + kTransportEdgeInset);
-    BOOL shown = _shuffleRepeatWanted && available >= row;
+    BOOL shown = _shuffleRepeatWanted && !_compactActive && available >= row;
     if (_shuffleButton.hidden == !shown) {
         return;
     }
@@ -885,10 +1022,19 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
 }
 
 - (void)setGlyphPlaying:(BOOL)playing {
+    _glyphPlaying = playing;
     [self setGlyph:(playing ? @"pause.fill" : @"play.fill")
           onButton:_playPauseButton
-         pointSize:kCellGlyphPointSize];
+         pointSize:kCellGlyphPointSize * (_compactActive ? kCellGlyphScaleCompact : 1)];
     _playPauseButton.accessibilityLabel = playing ? STR_TRANSPORT_PAUSE : STR_TRANSPORT_PLAY;
+}
+
+// The three at the layout's size; the compact row is the mac's 31pt play.
+- (void)applyTransportGlyphs {
+    CGFloat side = kCellSideGlyphPointSize * (_compactActive ? kCellGlyphScaleCompact : 1);
+    [self setGlyph:@"backward.end.fill" onButton:_previousButton pointSize:side];
+    [self setGlyph:@"forward.end.fill" onButton:_nextButton pointSize:side];
+    [self setGlyphPlaying:_glyphPlaying];
 }
 
 // TRAP: a system button dims its own template image when disabled, so an alpha

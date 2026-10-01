@@ -21,8 +21,10 @@
         return;
     }
     UIWindowScene *windowScene = (UIWindowScene *)scene;
-    // The portrait layout's floor; nil (a no-op) on iPhone.
-    windowScene.sizeRestrictions.minimumSize = CGSizeMake(320, 480);
+    // The card's strip layout's floor: a 150pt art, its insets and the window
+    // controls' inset. iPadOS 26 holds a window taller than this anyway (about
+    // 486pt). nil (a no-op) on iPhone.
+    windowScene.sizeRestrictions.minimumSize = CGSizeMake(320, 200);
     _playback = [[PlaybackController alloc] init];
     RootViewController *root = [[RootViewController alloc] initWithPlayback:_playback];
     _root = root;

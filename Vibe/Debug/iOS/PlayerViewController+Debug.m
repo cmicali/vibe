@@ -25,7 +25,7 @@
         @"elapsed": _elapsedLabel.text ?: @"",
         @"remaining": _remainingTimeControl.text ?: @"",
         @"transportShown": @(_transportView.alpha > 0),
-        @"routeShown": @(_routeView.alpha > 0),
+        @"routeShown": @(_routeView.alpha > 0 && !_routeView.hidden),
         @"routeSymbol": _routeView.symbolName ?: @"",
         @"routeNameShown": @(_routeView.showsDeviceName),
         // Freezes the playhead while set; beside waveformBaked it says why a
