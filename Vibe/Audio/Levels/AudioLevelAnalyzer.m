@@ -186,9 +186,8 @@ static void VibeAudioLevelAnalyzerMeasureFrame(
         for (NSUInteger band = 0; band < kLevelBandCount; band++) {
             NSUInteger low = analyzer->bandLow[band];
             NSUInteger high = analyzer->bandHigh[band];
-            float spectralEnergy = 0;
             if (measuresSpectrum) {
-                spectralEnergy = VibeAudioLevelAnalyzerSum(analyzer->magnitudes + low, high - low);
+                float spectralEnergy = VibeAudioLevelAnalyzerSum(analyzer->magnitudes + low, high - low);
                 channelSpectrumEnergy[band][channel] = VibeLevelScaleFFTEnergy(
                         spectralEnergy, analyzer->fftSize);
                 if (balancedSpectrum) {
@@ -198,9 +197,8 @@ static void VibeAudioLevelAnalyzerMeasureFrame(
                 }
             }
             else {
-                spectralEnergy = VibeAudioLevelAnalyzerMean(analyzer->magnitudes + low, high - low);
                 channelActivityEnergy[band][channel] = VibeLevelScaleFFTEnergy(
-                        spectralEnergy, analyzer->fftSize);
+                        VibeAudioLevelAnalyzerMean(analyzer->magnitudes + low, high - low), analyzer->fftSize);
             }
         }
     }

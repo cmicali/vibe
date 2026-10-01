@@ -238,12 +238,10 @@ static inline void VibeVoiceLinearRamp(float first, float step, float *out, uint
     vDSP_vramp(&first, &step, out, 1, count);
 }
 
-static inline void VibeVoiceFloorAtZero(float *samples, uint32_t count) CA_REALTIME_API {
+// The equal-power root, floored at zero so a rounding below it is not a NaN.
+static inline void VibeVoiceSquareRoot(float *samples, uint32_t count) CA_REALTIME_API {
     float zero = 0;
     vDSP_vthr(samples, 1, &zero, samples, 1, count);
-}
-
-static inline void VibeVoiceSquareRoot(float *samples, uint32_t count) CA_REALTIME_API {
     int n = (int)count;
     vvsqrtf(samples, samples, &n);
 }
@@ -256,6 +254,7 @@ VIBE_REALTIME_END
 // Everything the audio thread does; the checked region makes a blocking call a
 // build error.
 VIBE_REALTIME_CHECKED_BEGIN
+
 // VibeFadeGainAtFrame for `count` consecutive frames from `firstFrame`, in
 // ramp form: one vDSP ramp over the linear term (the gain, or the power under
 // an equal-power root), the root through vForce, and `to` for every frame at
@@ -273,7 +272,6 @@ static inline void VibeVoiceGainRamp(VibeFadeCurve curve, float from, float to, 
         float step = ((equalPower ? to * to : to) - start) / (float)frames;
         VibeVoiceLinearRamp(start + step * (float)firstFrame, step, gains, ramped);
         if (equalPower) {
-            VibeVoiceFloorAtZero(gains, ramped);
             VibeVoiceSquareRoot(gains, ramped);
         }
     }
