@@ -140,6 +140,37 @@ BOOL VibeAudioLevelAnalyzerSetSampleRate(VibeAudioLevelAnalyzer *analyzer,
 
 // vDSP: realtime-safe, but carrying no attribute the checker can read.
 VIBE_REALTIME_UNCHECKED_BEGIN
+// The channel's windowed power spectrum into `magnitudes`, DC dropped.
+static inline void VibeAudioLevelAnalyzerSpectrum(VibeAudioLevelAnalyzer *analyzer,
+                                                  NSUInteger channel) CA_REALTIME_API {
+    vDSP_vmul(analyzer->accum[channel], 1, analyzer->window, 1,
+              analyzer->windowed, 1, analyzer->fftSize);
+    DSPSplitComplex split = {analyzer->splitReal, analyzer->splitImag};
+    vDSP_ctoz((const DSPComplex *)analyzer->windowed, 2, &split, 1,
+              analyzer->fftSize / 2);
+    vDSP_fft_zrip(analyzer->fftSetup, &split, 1, analyzer->log2FFTSize,
+                  kFFTDirection_Forward);
+    split.realp[0] = 0;
+    split.imagp[0] = 0;
+    vDSP_zvmags(&split, 1, analyzer->magnitudes, 1,
+                analyzer->fftSize / 2);
+}
+
+static inline float VibeAudioLevelAnalyzerSum(const float *values, NSUInteger count) CA_REALTIME_API {
+    float sum = 0;
+    vDSP_sve(values, 1, &sum, count);
+    return sum;
+}
+
+static inline float VibeAudioLevelAnalyzerMean(const float *values, NSUInteger count) CA_REALTIME_API {
+    float mean = 0;
+    vDSP_meanv(values, 1, &mean, count);
+    return mean;
+}
+VIBE_REALTIME_END
+
+// What the render does with the analyzer: plain memory and math, checked.
+VIBE_REALTIME_CHECKED_BEGIN
 static void VibeAudioLevelAnalyzerMeasureFrame(
         VibeAudioLevelAnalyzer *analyzer,
         float spectrumEnergy[kLevelBandCount],
@@ -150,24 +181,14 @@ static void VibeAudioLevelAnalyzerMeasureFrame(
     float channelSpectrumEnergy[kLevelBandCount][kMaximumAnalyzedChannels] = {{0}};
     float channelActivityEnergy[kLevelBandCount][kMaximumAnalyzedChannels] = {{0}};
     for (NSUInteger channel = 0; channel < analyzer->channelCount; channel++) {
-        vDSP_vmul(analyzer->accum[channel], 1, analyzer->window, 1,
-                  analyzer->windowed, 1, analyzer->fftSize);
-        DSPSplitComplex split = {analyzer->splitReal, analyzer->splitImag};
-        vDSP_ctoz((const DSPComplex *)analyzer->windowed, 2, &split, 1,
-                  analyzer->fftSize / 2);
-        vDSP_fft_zrip(analyzer->fftSetup, &split, 1, analyzer->log2FFTSize,
-                      kFFTDirection_Forward);
-        split.realp[0] = 0;
-        split.imagp[0] = 0;
-        vDSP_zvmags(&split, 1, analyzer->magnitudes, 1,
-                    analyzer->fftSize / 2);
+        VibeAudioLevelAnalyzerSpectrum(analyzer, channel);
 
         for (NSUInteger band = 0; band < kLevelBandCount; band++) {
             NSUInteger low = analyzer->bandLow[band];
             NSUInteger high = analyzer->bandHigh[band];
             float spectralEnergy = 0;
             if (measuresSpectrum) {
-                vDSP_sve(analyzer->magnitudes + low, 1, &spectralEnergy, high - low);
+                spectralEnergy = VibeAudioLevelAnalyzerSum(analyzer->magnitudes + low, high - low);
                 channelSpectrumEnergy[band][channel] = VibeLevelScaleFFTEnergy(
                         spectralEnergy, analyzer->fftSize);
                 if (balancedSpectrum) {
@@ -177,8 +198,7 @@ static void VibeAudioLevelAnalyzerMeasureFrame(
                 }
             }
             else {
-                vDSP_meanv(analyzer->magnitudes + low, 1, &spectralEnergy,
-                           high - low);
+                spectralEnergy = VibeAudioLevelAnalyzerMean(analyzer->magnitudes + low, high - low);
                 channelActivityEnergy[band][channel] = VibeLevelScaleFFTEnergy(
                         spectralEnergy, analyzer->fftSize);
             }
@@ -198,10 +218,7 @@ static void VibeAudioLevelAnalyzerMeasureFrame(
         }
     }
 }
-VIBE_REALTIME_END
 
-// What the render does with the analyzer: plain memory and math, checked.
-VIBE_REALTIME_CHECKED_BEGIN
 void VibeAudioLevelAnalyzerReset(VibeAudioLevelAnalyzer *analyzer) CA_REALTIME_API {
     if (!analyzer) {
         return;

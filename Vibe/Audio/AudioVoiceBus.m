@@ -214,8 +214,8 @@ static void VibeVoiceDie(VibeVoiceSlot *slot, int32_t reason, uint64_t renderSeq
                                             memory_order_release, memory_order_relaxed);
 }
 
-// The calls the compiler cannot check: vDSP, which neither allocates nor
-// blocks but carries no attribute, and the debug sleep of a held render.
+// The calls the compiler cannot check: vDSP and vForce, which neither allocate
+// nor block but carry no attribute, and the debug sleep of a held render.
 VIBE_REALTIME_UNCHECKED_BEGIN
 #if DEBUG
 static inline void VibeVoiceBusHoldWait(void) CA_REALTIME_API {
@@ -234,6 +234,28 @@ static inline void VibeVoiceMixAtGains(const float *ring, const float *gains, fl
     vDSP_vma(ring, 1, gains, 1, out, 1, out, 1, frames);
 }
 
+static inline void VibeVoiceLinearRamp(float first, float step, float *out, uint32_t count) CA_REALTIME_API {
+    vDSP_vramp(&first, &step, out, 1, count);
+}
+
+static inline void VibeVoiceFloorAtZero(float *samples, uint32_t count) CA_REALTIME_API {
+    float zero = 0;
+    vDSP_vthr(samples, 1, &zero, samples, 1, count);
+}
+
+static inline void VibeVoiceSquareRoot(float *samples, uint32_t count) CA_REALTIME_API {
+    int n = (int)count;
+    vvsqrtf(samples, samples, &n);
+}
+
+static inline void VibeVoiceFill(float value, float *out, uint32_t count) CA_REALTIME_API {
+    vDSP_vfill(&value, out, 1, count);
+}
+VIBE_REALTIME_END
+
+// Everything the audio thread does; the checked region makes a blocking call a
+// build error.
+VIBE_REALTIME_CHECKED_BEGIN
 // VibeFadeGainAtFrame for `count` consecutive frames from `firstFrame`, in
 // ramp form: one vDSP ramp over the linear term (the gain, or the power under
 // an equal-power root), the root through vForce, and `to` for every frame at
@@ -249,24 +271,17 @@ static inline void VibeVoiceGainRamp(VibeFadeCurve curve, float from, float to, 
         BOOL equalPower = curve == VibeFadeCurveEqualPower;
         float start = equalPower ? from * from : from;
         float step = ((equalPower ? to * to : to) - start) / (float)frames;
-        float first = start + step * (float)firstFrame;
-        vDSP_vramp(&first, &step, gains, 1, ramped);
+        VibeVoiceLinearRamp(start + step * (float)firstFrame, step, gains, ramped);
         if (equalPower) {
-            float zero = 0;
-            vDSP_vthr(gains, 1, &zero, gains, 1, ramped);
-            int n = (int)ramped;
-            vvsqrtf(gains, gains, &n);
+            VibeVoiceFloorAtZero(gains, ramped);
+            VibeVoiceSquareRoot(gains, ramped);
         }
     }
     if (count > ramped) {
-        vDSP_vfill(&to, gains + ramped, 1, count - ramped);
+        VibeVoiceFill(to, gains + ramped, count - ramped);
     }
 }
-VIBE_REALTIME_END
 
-// Everything the audio thread does; the checked region makes a blocking call a
-// build error.
-VIBE_REALTIME_CHECKED_BEGIN
 OSStatus VibeVoiceBusRender(VibeVoiceMix *mix, BOOL *isSilence, const AudioTimeStamp *timestamp,
                             AVAudioFrameCount frameCount, AudioBufferList *output) CA_REALTIME_API {
     atomic_store_explicit(&mix->inRender, 1, memory_order_seq_cst);
