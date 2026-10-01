@@ -29,11 +29,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, weak) id<FXPadViewDelegate> delegate;
 
-// The room the pad may grow into from the circle's bottom-left corner: to
-// the right and upward, in points. The cell restates it from its safe area on
-// every layout; the pad's side is the smaller of the two and its own cap.
-@property (nonatomic) CGSize padExtent;
-
 // The touch that owns the pad, for the pager to yield to the way it yields to
 // the scrubber's pan: the pager's pan requires it to fail.
 @property (nonatomic, readonly) UIGestureRecognizer *pressRecognizer;

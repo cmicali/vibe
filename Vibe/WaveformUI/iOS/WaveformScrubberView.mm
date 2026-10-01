@@ -32,6 +32,9 @@ static const CGFloat kScrubTickIntensity = 0.55;
 // seconds past the gesture. This ceiling keeps a fast scrub a ratchet.
 static const CFTimeInterval kScrubTickMinInterval = 1.0 / 28.0;
 
+// How far a pinch's fingers may wander before the gesture counts as a scrub.
+static const CGFloat kZoomScrubSlop = 12.0;
+
 // Past the morph's ~0.2s ease, so the swap to the bitmap lands on identical
 // pixels.
 static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
@@ -66,6 +69,8 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     CFTimeInterval          _lastTickTime;
     // So the seek commits once per gesture, not per delegate call.
     BOOL                    _seekPending;
+    // Where the pending scrub began, so a pinch can tell a scrub from drift.
+    CGFloat                 _scrubStartProgress;
     // The settled fast path: unplayed full width, played on top cropped by
     // contentsRect. Non-nil _bakedHost means _rendererHost is hidden.
     CALayer                 *_bakedHost;
@@ -145,9 +150,13 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
 }
 
 - (BOOL)isScrubbing {
-    // Finger, coast and bounce, and a live pinch, which drives the position
-    // itself once the pan dies: the span the progress writers keep off.
-    return _isPinching || _scroll.isDragging || _scroll.isDecelerating || _scroll.isTracking;
+    // TRAP: a pinch scrubs only once it has a seek to commit; a pure zoom
+    // follows playback. The pinch's fingers keep the pan tracking.
+    if (_isPinching) {
+        return _seekPending;
+    }
+    // Finger, coast and bounce: the span the progress writers keep off.
+    return _scroll.isDragging || _scroll.isDecelerating || _scroll.isTracking;
 }
 
 - (NSArray<NSNumber *> *)scrollGeometry {
@@ -810,13 +819,29 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 }
 
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView {
+    if (_isPinching) {
+        // The pinch's own fingers can start the pan late; the pinch owns the
+        // gesture, and decides for itself whether it scrubs.
+        return;
+    }
     [self.delegate waveformScrubberView:self didChangeScrubbing:YES];
+    // A drag that catches a coast continues that scrub.
+    if (!_seekPending) {
+        _scrubStartProgress = _progress;
+    }
     _seekPending = YES;
-    _scrubHaptics = [[UIImpactFeedbackGenerator alloc]
-            initWithStyle:UIImpactFeedbackStyleRigid];
+    [self beginScrubFeedback];
+    _lastTickTime = 0;
+}
+
+// Shared with the pinch's scrub, which starts past its slop.
+- (void)beginScrubFeedback {
+    if (!_scrubHaptics) {
+        _scrubHaptics = [[UIImpactFeedbackGenerator alloc]
+                initWithStyle:UIImpactFeedbackStyleRigid];
+    }
     [_scrubHaptics prepare];
     _lastTickBucket = [self tickBucket];
-    _lastTickTime = 0;
 }
 
 - (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate {
@@ -932,12 +957,22 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     CGFloat virtualWidth = [self virtualWidth];
     // Re-anchor on a touch-count change, or the 2->1 centroid jump scrubs.
     if (touches == 1 && touches == _zoomScrubTouches && virtualWidth > 0) {
+        // TRAP: the finger left behind as a pinch lifts always wobbles, and
+        // any movement here seeks. Until the slop, the last x stays the
+        // anchor; past it the scrub starts where the finger is.
+        if (!_seekPending) {
+            if (fabs(x - _zoomScrubLastX) < kZoomScrubSlop) {
+                return;
+            }
+            _seekPending = YES;
+            _zoomScrubLastX = x;
+            [self beginScrubFeedback];
+        }
         CGFloat delta = (x - _zoomScrubLastX) / virtualWidth;
         CGFloat next = MAX(0.0, MIN(1.0, _progress - delta));
         if (next != _progress) {
             _progress = next;
             _progressTracker = [self progressBucket];
-            _seekPending = YES;
             [self.delegate waveformScrubberView:self didScrubToProgress:_progress];
             [self emitScrubTickIfNeeded];
         }
@@ -951,14 +986,14 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     _pinchStartFraction = _visibleFraction;
     _zoomScrubLastX = [_pinch locationInView:self].x;
     _zoomScrubTouches = _pinch.numberOfTouches;
-    // Stop a coast. A pending seek is kept: it commits on lift where the
-    // picture froze.
+    // Stop a coast. A real scrub's pending seek commits on lift; the drift of
+    // two fingers landing is no scrub and hands the position back to playback.
     [_scroll setContentOffset:_scroll.contentOffset animated:NO];
-    if (!_scrubHaptics) {
-        _scrubHaptics = [[UIImpactFeedbackGenerator alloc]
-                initWithStyle:UIImpactFeedbackStyleRigid];
-        [_scrubHaptics prepare];
-        _lastTickBucket = [self tickBucket];
+    if (_seekPending
+            && fabs(_progress - _scrubStartProgress) * [self virtualWidth] < kZoomScrubSlop) {
+        _seekPending = NO;
+        _progress = _scrubStartProgress;
+        _progressTracker = [self progressBucket];
     }
     [self.delegate waveformScrubberView:self didChangeScrubbing:YES];
     // Without a bake a pinch frame is a full-width mask rebuild; bake now.
@@ -1023,6 +1058,9 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     }
     [CATransaction commit];
     [self applyScrollAndProgress];
+    // The bucket is per pixel of the virtual width, which just moved; without
+    // this every playback write during a pinch passes setProgress:'s gate.
+    _progressTracker = [self progressBucket];
     // A stretched bake hides the live tree, which endZoomGesture resyncs.
     if (sizeChanged && _renderer && !stretchBake) {
         // Even with no waveform, so a mid-collapse morph rebuilds at the new

@@ -1,7 +1,10 @@
 import ast
+import contextlib
 import importlib.util
+import io
 import json
 import random
+import re
 import shutil
 import subprocess
 import sys
@@ -701,6 +704,142 @@ class ScriptLineTests(unittest.TestCase):
     def test_inexpressible_arguments_are_refused(self):
         for bad in ("", "it's", 'say "hi"', "a\tb", "two\nlines"):
             self.assertIsNone(stress.script_line(["open", bad]), repr(bad))
+
+
+class SettingsTeardownTests(unittest.TestCase):
+    """The store a run moves is the user's real one: the sandbox container is
+    shared with the installed app."""
+
+    START = {"activeTheme": "vibe", "windowAppearance": "system", "pauseAtTrackEnd": False,
+             "folderArt": False, "analyzeBPM": True, "analyzeKey": False, "pitchRange": 8,
+             "playlistShown": True, "pitchPanelShown": False, "themeCount": 13,
+             "crossfadeMilliseconds": 10, "windowFrame": "{{0, 336}, {1541, 400}}"}
+
+    def fake_app(self, settings):
+        """A channel over `settings` that applies each restoring verb the way
+        the app does, toggles included."""
+        sent = []
+
+        def run(argv, timeout=30):
+            sent.append(argv)
+            verb, args = argv[0], argv[1:]
+            if verb == "dump_state":
+                reported = {k: v for k, v in settings.items() if k != "windowFrame"}
+                return 0, {"settings": reported, "window": {"frame": settings["windowFrame"]}}, 1
+            if verb == "remove_theme":
+                settings["themeCount"] -= 1
+                if settings["activeTheme"] == args[0]:
+                    settings["activeTheme"] = "vibe"
+            elif verb == "set_theme":
+                settings["activeTheme"] = args[0]
+            elif verb == "set_appearance":
+                settings["windowAppearance"] = args[0]
+            elif verb == "set_pause_at_track_end":
+                settings["pauseAtTrackEnd"] = args[0] == "on"
+            elif verb == "set_folder_art":
+                settings["folderArt"] = args[0] == "on"
+            elif verb == "set_analysis":
+                settings["analyzeBPM" if args[0] == "bpm" else "analyzeKey"] = args[1] == "on"
+            elif argv == ["click_menu", "menu_show_playlist"]:
+                settings["playlistShown"] = not settings["playlistShown"]
+            elif verb == "click_menu" and args[0].startswith("pitch_range_"):
+                settings["pitchRange"] = int(args[0].rsplit("_", 1)[1])
+            elif verb == "toggle_pitch_panel":
+                settings["pitchPanelShown"] = not settings["pitchPanelShown"]
+            elif verb == "set_window_width":
+                width = float(args[0]) + (stress.PITCH_PANEL_WIDTH if settings["pitchPanelShown"] else 0)
+                settings["windowFrame"] = f"{{{{0, 336}}, {{{width:g}, {args[1]}}}}}"
+            return 0, {"ok": True}, 1
+
+        return mock.Mock(run=run), sent
+
+    def preserved(self, channel, body, pid=4242):
+        """Run body inside user_settings_preserved; returns what it printed."""
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.object(stress, "app_pid", return_value=pid), \
+                mock.patch.object(stress, "launch") as launch, \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            try:
+                with stress.user_settings_preserved(channel, Path("corpus"), Path("app")) as imported:
+                    body(imported)
+            except (KeyboardInterrupt, stress.Failure, ValueError):
+                pass
+        return out.getvalue() + err.getvalue(), launch
+
+    def move_everything(self, settings):
+        def body(imported):
+            settings.update(activeTheme="tangerine", windowAppearance="light", pauseAtTrackEnd=True,
+                            folderArt=True, analyzeBPM=False, analyzeKey=True, pitchRange=16,
+                            playlistShown=False, pitchPanelShown=True,
+                            windowFrame="{{0, 586}, {3259, 150}}")
+            settings["themeCount"] += 3
+            imported.extend(["fuzz-0", "fuzz-1", "custom"])
+        return body
+
+    def test_every_exit_restores_the_store_and_removes_the_imports(self):
+        exits = {"pass": None, "interrupt": KeyboardInterrupt(),
+                 "failure": stress.Failure("crash", "gone"), "harness error": ValueError("bad argv")}
+        for name, raised in exits.items():
+            settings = dict(self.START)
+            channel, sent = self.fake_app(settings)
+            move = self.move_everything(settings)
+
+            def body(imported):
+                move(imported)
+                if raised:
+                    raise raised
+
+            with self.subTest(exit=name):
+                printed, _ = self.preserved(channel, body)
+                self.assertEqual(settings, self.START)
+                self.assertIn("removed 3/3 imported themes", printed)
+                self.assertIn("the store matches the start", printed)
+                # The imports go before the theme they may have been active as.
+                verbs = [argv[0] for argv in sent]
+                self.assertLess(verbs.index("remove_theme"), verbs.index("set_theme"))
+                self.assertLess(verbs.index("set_theme"), verbs.index("set_appearance"))
+                self.assertLess(verbs.index("toggle_pitch_panel"), verbs.index("set_window_width"))
+
+    def test_an_unmoved_store_gets_no_writes(self):
+        # Re-applying the active theme would clear the user's divergence over it.
+        settings = dict(self.START)
+        channel, sent = self.fake_app(settings)
+        printed, launch = self.preserved(channel, lambda imported: None)
+        self.assertEqual({argv[0] for argv in sent}, {"dump_state", "reorder_cancel"})
+        self.assertIn("restored nothing (none moved)", printed)
+        launch.assert_not_called()
+
+    def test_a_dead_app_is_relaunched_to_restore(self):
+        settings = dict(self.START)
+        channel, _ = self.fake_app(settings)
+        pids = iter([4242, None])   # alive for the snapshot, gone at teardown
+        with mock.patch.object(stress, "app_pid", side_effect=lambda: next(pids, 4242)):
+            printed, launch = self.preserved(channel, self.move_everything(settings), pid=None)
+        launch.assert_called_once()
+        self.assertEqual(settings, self.START)
+        self.assertIn("relaunched to restore", printed)
+
+    def test_a_key_with_no_restorer_is_reported(self):
+        settings = dict(self.START)
+        channel, _ = self.fake_app(settings)
+        printed, _ = self.preserved(channel, lambda imported: settings.update(crossfadeMilliseconds=0))
+        self.assertIn("STILL CHANGED: crossfadeMilliseconds 10 -> 0", printed)
+
+
+class PlayableSuffixTests(unittest.TestCase):
+    def test_audio_suffixes_are_playable_extensions_in_order(self):
+        source = (Path(__file__).resolve().parents[4] / "Vibe/Common/PlayableExtensions.m").read_text()
+        literal = re.search(r"ordered = @\[(.*?)\];", source, re.S).group(1)
+        self.assertEqual(stress.AUDIO_SUFFIXES,
+                         tuple("." + e for e in re.findall(r'@"([^"]+)"', literal)))
+
+    def test_corpus_builders_share_the_runner_set(self):
+        for name in ("make-hostile-corpus.py", "make-cue-corpus.py"):
+            path = SCRIPT.parent / name
+            spec = importlib.util.spec_from_file_location(name.replace("-", "_")[:-3], path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            self.assertIs(module.AUDIO_SUFFIXES, stress.AUDIO_SUFFIXES, name)
 
 
 if __name__ == "__main__":

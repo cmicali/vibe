@@ -34,7 +34,9 @@ A finger already scrubbing must be able to start a zoom, and lifting back to one
 
 **TRAP: the dying pan must not be allowed to finish anything.** Its `endScrub` arrives mid-gesture, and left alone it commits a seek to wherever the finger was when the second one lifted and hands the pager back under a live drag. `endScrub` declines outright while `_isPinching`; the seek, the haptics and the pager hold are all settled by `endZoomGesture` when the hand actually leaves.
 
-`isScrubbing` therefore includes a live pinch — without it the 3 Hz tick and the display link write playback's position over the finger's once the pan is gone.
+`isScrubbing` therefore includes a pinch that is scrubbing — without it the 3 Hz tick and the display link write playback's position over the finger's once the pan is gone.
+
+**TRAP: a pure zoom is not a scrub, and must neither freeze the position nor seek.** Two fingers landing start the scroll's pan too, so `_seekPending` is set by nearly every pinch; counting the whole pinch as a scrub froze the picture while the audio played on, and the lift then seeked back to the frozen spot — an audible skip by the length of the pinch. So a pinch scrubs only once it has a seek to commit: `beginZoomGesture` drops a pan scrub that moved less than `kZoomScrubSlop` from where it began (`_scrubStartProgress`), `scrollViewWillBeginDragging:` ignores a pan starting under a live pinch, and the one-finger phase needs the same slop before it scrubs, because the finger left behind as a pinch lifts always wobbles. Until then `isScrubbing` is NO and playback keeps writing the position under the zoom.
 
 **Everything that scrolls is a sublayer of the scroll's layer, and everything that does not is a sublayer of the view's** — the loading indicator must not move with the content.
 
@@ -67,7 +69,7 @@ A reset, an eased delivery, or a geometry/trait change tears the fast path down 
 
 ## Scrubbing
 
-A drag moves the content 1:1 under the fixed center (no hover highlight); a tap nudges to the tapped point within the visible window, which also preserves tap-to-start on a parked track. `isScrubbing` is the scroll's own `isDragging || isDecelerating || isTracking` plus a live pinch, so it spans the whole content motion — coast and bounce included — and keeps the progress writers from fighting it. A tap mid-coast stops the scroll first and explicitly sends the matching scrub-end callback: cancelling deceleration does not guarantee `scrollViewDidEndDecelerating:`, and without that callback the pager stays disabled after the tap.
+A drag moves the content 1:1 under the fixed center (no hover highlight); a tap nudges to the tapped point within the visible window, which also preserves tap-to-start on a parked track. `isScrubbing` is the scroll's own `isDragging || isDecelerating || isTracking`, or under a pinch whether it has a seek to commit, so it spans the whole content motion — coast and bounce included — and keeps the progress writers from fighting it. A tap mid-coast stops the scroll first and explicitly sends the matching scrub-end callback: cancelling deceleration does not guarantee `scrollViewDidEndDecelerating:`, and without that callback the pager stays disabled after the tap.
 
 **The time labels show where the scrub will land, not what is playing.** The playhead is pinned at center and never moves, so the labels are the only reading of a scrub's target; `didScrubToProgress:` delivers it per frame of scroll and the shell renders it (`Vibe/iOS/Player/AGENTS.md`). For its duration the scrub owns the whole readout — `updatePlaybackUI` bails on `isScrubbing`, the same as `scrollTick:` one tier down.
 
