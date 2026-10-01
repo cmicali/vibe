@@ -13,7 +13,7 @@ Two benchmark suites, two questions, one set of names:
 | What runs | VibeBenchComponents (`Tests/BenchComponents/`): the production code in-process, one benchmark at a time; no app, audio device or window | Each version's own app (`scripts/bench/`), launched and driven over and over |
 | Measures | Decode, open, seek, resample, waveform, tempo and key, the meter, metadata, the disk cache, large libraries, UI cells; instructions retired, CPU and wall time | Startup, time to play, seek latency, playback CPU, energy and wakeups, memory, library scan |
 | Cost | Seconds to minutes; stable on a busy Mac | About half an hour a version; the Mac must be left alone |
-| Compare two refs | `make bench-components [BASE=main]` | — |
+| Compare two refs | `make bench-components [BASE=main]` | `make bench-app-compare BASE=main` (about an hour a ref at 3 reps; the page untouched) |
 | Every release, on `docs/performance.md` | `make bench-components-releases` | `make bench-app` |
 
 `make bench-releases` runs both at every release, and `make bench-report` redraws the page from what is stored. Use the component benchmarks to find and fix; use the app benchmarks to report what a user would feel.
@@ -61,6 +61,8 @@ python3 .claude/skills/vibe-perf/scripts/perf.py list                           
 **Any ref back to 1.8 runs today's harness.** `perf.py` grafts the working tree's `Tests/BenchComponents/` onto the ref's checkout and writes `VibeBenchComponentsFeatures.h` from that checkout's sources (`VibeBenchComponents.h` lists the questions: the player's reader, `AVAudioFile` before 1.14; the waveform loader's class; the analysis provider, settings before 1.10; the metadata parse's shape; the meter's). The tool's target is never written down: `tool_spec` derives it, for the working tree as for any ref, from that checkout's own app target (`xcodegen dump`, so 1.8's flat layout builds as it was, and today's cannot drift from the app), into `VibeBenchComponents.xcodeproj` beside the sources (gitignored; the app's `Vibe.xcodeproj` is left alone). An older ref builds without warnings as errors. **A benchmark file the ref cannot compile is left out of that build** and named in the output; the core (`VibeBenchComponents.mm`, `VibeBenchComponents.h`) never is. That is why benchmarks live one subsystem to a file: a version missing one loses only that file. Binaries are cached per commit and harness digest under `build/bench-components/bin/`.
 
 The corpus is the app benchmarks' (`build/bench/corpus`: the play files, a 600-file tagged library) plus a few formats it lacks (`extra/`: 16-bit WAV and AIFF, ALAC, Opus, Vorbis), generated once with ffmpeg by `perf.py corpus`, which every command runs first. A benchmark whose file is missing is skipped, not failed.
+
+**Underruns on real hardware: `make bench-underrun [REF=HEAD]`** (`scripts/bench/underrun.py`). It plays every bench file steadily, then the heaviest under full CPU load, reading the current voice's underrun frames and the output's dropped cycles, then holds the decoder (`block_decoder`) for 0.25–2 s at random moments to find how long a stalled read the buffers ride through. The table it prints is issue #120's; re-run it after any change to how far ahead the decoder runs.
 
 ## Charting every release on the performance page
 
