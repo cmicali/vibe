@@ -6,6 +6,8 @@
 #import "Formatters.h"
 #import "VibeStrings.h"
 
+enum { kDecimalMaxFractionDigits = 3 };
+
 
 @implementation Formatters {
     NSTimeInterval _lastDurationSeconds;
@@ -15,7 +17,9 @@
     NSDateComponentsFormatter *_hourTimeFormatter;
     NSCache<NSNumber *, NSString *> *_timeStrings;
     NSDateComponentsFormatter *_spelledDurationFormatter;
-    NSNumberFormatter         *_decimalFormatter;
+    // One per digit count: setting the digits rebuilds the formatter, and the
+    // codec line alternates 0 and 1.
+    NSNumberFormatter         *_decimalFormatters[kDecimalMaxFractionDigits + 1];
     NSNumberFormatter         *_signedPercentFormatter;
     NSNumberFormatter         *_signedDecimalFormatter;
     NSNumberFormatter         *_percentFormatter;
@@ -57,10 +61,15 @@
     [NSNotificationCenter.defaultCenter addObserverForName:NSCurrentLocaleDidChangeNotification object:nil queue:nil
                                                 usingBlock:^(NSNotification *note) { [timeStrings removeAllObjects]; }];
 
-    // Fraction digits are set per call. No grouping: small readouts (kHz, BPM).
-    _decimalFormatter = [[NSNumberFormatter alloc] init];
-    _decimalFormatter.numberStyle = NSNumberFormatterDecimalStyle;
-    _decimalFormatter.usesGroupingSeparator = NO;
+    // No grouping: small readouts (kHz, BPM).
+    for (NSInteger digits = 0; digits <= kDecimalMaxFractionDigits; digits++) {
+        NSNumberFormatter *formatter = [[NSNumberFormatter alloc] init];
+        formatter.numberStyle = NSNumberFormatterDecimalStyle;
+        formatter.usesGroupingSeparator = NO;
+        formatter.minimumFractionDigits = (NSUInteger)digits;
+        formatter.maximumFractionDigits = (NSUInteger)digits;
+        _decimalFormatters[digits] = formatter;
+    }
 
     // Multiplier 1: the value is already a percentage. U+2212 matches the
     // fader's printed scale.
@@ -153,9 +162,8 @@
     if (isnan(value)) {
         value = 0;
     }
-    _decimalFormatter.minimumFractionDigits = digits;
-    _decimalFormatter.maximumFractionDigits = digits;
-    return [_decimalFormatter stringFromNumber:@(value)] ?: @"";
+    NSNumberFormatter *formatter = _decimalFormatters[clampRange(digits, 0, kDecimalMaxFractionDigits)];
+    return [formatter stringFromNumber:@(value)] ?: @"";
 }
 
 - (NSString *)signedPercentString:(double)percent {
