@@ -17,44 +17,49 @@
 <text class="m" x="48" y="84.7" font-size="11" text-anchor="end">10</text>
 <line class="g" x1="56" x2="570" y1="44.0" y2="44.0"/>
 <text class="m" x="48" y="48.0" font-size="11" text-anchor="end">12</text>
-<text class="m" x="92.7" y="280" font-size="11" text-anchor="middle">1.8</text>
-<text class="m" x="166.1" y="280" font-size="11" text-anchor="middle">1.9</text>
-<text class="m" x="239.6" y="280" font-size="11" text-anchor="middle">1.10</text>
-<text class="m" x="313.0" y="280" font-size="11" text-anchor="middle">1.11</text>
-<text class="m" x="386.4" y="280" font-size="11" text-anchor="middle">1.12</text>
-<text class="m" x="459.9" y="280" font-size="11" text-anchor="middle">1.13</text>
-<text class="m" x="533.3" y="280" font-size="11" text-anchor="middle">1.14</text>
-<path class="l s0" d="M92.7,81.0 L166.1,65.6 L239.6,65.5 L313.0,64.8 L386.4,73.4 L459.9,72.9 L533.3,141.5"/>
-<circle class="s0" cx="92.7" cy="81.0" r="4" stroke="none"><title>FLAC 24/192, +8%: 10.0 % of one core</title></circle>
-<circle class="s0" cx="166.1" cy="65.6" r="4" stroke="none"><title>FLAC 24/192, +8%: 10.8 % of one core</title></circle>
-<circle class="s0" cx="239.6" cy="65.5" r="4" stroke="none"><title>FLAC 24/192, +8%: 10.8 % of one core</title></circle>
-<circle class="s0" cx="313.0" cy="64.8" r="4" stroke="none"><title>FLAC 24/192, +8%: 10.9 % of one core</title></circle>
-<circle class="s0" cx="386.4" cy="73.4" r="4" stroke="none"><title>FLAC 24/192, +8%: 10.4 % of one core</title></circle>
-<circle class="s0" cx="459.9" cy="72.9" r="4" stroke="none"><title>FLAC 24/192, +8%: 10.4 % of one core</title></circle>
-<circle class="s0" cx="533.3" cy="141.5" r="4" stroke="none"><title>FLAC 24/192, +8%: 6.7 % of one core</title></circle>
-<path class="l s1" d="M92.7,178.1 L166.1,180.6 L239.6,180.7 L313.0,181.4 L386.4,185.4 L459.9,182.9 L533.3,223.9"/>
-<circle class="s1" cx="92.7" cy="178.1" r="4" stroke="none"><title>MP3 320k, -8%: 4.7 % of one core</title></circle>
-<circle class="s1" cx="166.1" cy="180.6" r="4" stroke="none"><title>MP3 320k, -8%: 4.5 % of one core</title></circle>
-<circle class="s1" cx="239.6" cy="180.7" r="4" stroke="none"><title>MP3 320k, -8%: 4.5 % of one core</title></circle>
-<circle class="s1" cx="313.0" cy="181.4" r="4" stroke="none"><title>MP3 320k, -8%: 4.5 % of one core</title></circle>
-<circle class="s1" cx="386.4" cy="185.4" r="4" stroke="none"><title>MP3 320k, -8%: 4.3 % of one core</title></circle>
-<circle class="s1" cx="459.9" cy="182.9" r="4" stroke="none"><title>MP3 320k, -8%: 4.4 % of one core</title></circle>
-<circle class="s1" cx="533.3" cy="223.9" r="4" stroke="none"><title>MP3 320k, -8%: 2.2 % of one core</title></circle>
-<path class="l s2" d="M92.7,176.4 L166.1,178.6 L239.6,178.0 L313.0,178.8 L386.4,193.3 L459.9,193.5 L533.3,240.5"/>
-<circle class="s2" cx="92.7" cy="176.4" r="4" stroke="none"><title>MP3 48 kHz, no pitch: 4.8 % of one core</title></circle>
-<circle class="s2" cx="166.1" cy="178.6" r="4" stroke="none"><title>MP3 48 kHz, no pitch: 4.7 % of one core</title></circle>
-<circle class="s2" cx="239.6" cy="178.0" r="4" stroke="none"><title>MP3 48 kHz, no pitch: 4.7 % of one core</title></circle>
-<circle class="s2" cx="313.0" cy="178.8" r="4" stroke="none"><title>MP3 48 kHz, no pitch: 4.6 % of one core</title></circle>
-<circle class="s2" cx="386.4" cy="193.3" r="4" stroke="none"><title>MP3 48 kHz, no pitch: 3.9 % of one core</title></circle>
-<circle class="s2" cx="459.9" cy="193.5" r="4" stroke="none"><title>MP3 48 kHz, no pitch: 3.8 % of one core</title></circle>
-<circle class="s2" cx="533.3" cy="240.5" r="4" stroke="none"><title>MP3 48 kHz, no pitch: 1.3 % of one core</title></circle>
-<rect class="s0" x="582" y="132.5" width="10" height="3" rx="1.5" stroke="none"/>
-<text class="t" x="598" y="137.5" font-size="11">FLAC 24/192, +8%</text>
-<text class="m" x="598" y="150.5" font-size="11">6.7</text>
-<rect class="s1" x="582" y="214.9" width="10" height="3" rx="1.5" stroke="none"/>
-<text class="t" x="598" y="219.9" font-size="11">MP3 320k, -8%</text>
-<text class="m" x="598" y="232.9" font-size="11">2.2</text>
-<rect class="s2" x="582" y="242.9" width="10" height="3" rx="1.5" stroke="none"/>
-<text class="t" x="598" y="247.9" font-size="11">MP3 48 kHz, no pitch</text>
-<text class="m" x="598" y="260.9" font-size="11">1.3</text>
+<text class="m" x="88.1" y="280" font-size="11" text-anchor="middle">1.8</text>
+<text class="m" x="152.4" y="280" font-size="11" text-anchor="middle">1.9</text>
+<text class="m" x="216.6" y="280" font-size="11" text-anchor="middle">1.10</text>
+<text class="m" x="280.9" y="280" font-size="11" text-anchor="middle">1.11</text>
+<text class="m" x="345.1" y="280" font-size="11" text-anchor="middle">1.12</text>
+<text class="m" x="409.4" y="280" font-size="11" text-anchor="middle">1.13</text>
+<text class="m" x="473.6" y="280" font-size="11" text-anchor="middle">1.14</text>
+<text class="m" x="537.9" y="280" font-size="11" text-anchor="middle">1.15</text>
+<text class="m" x="537.9" y="293" font-size="10" text-anchor="middle">pre-release</text>
+<path class="l s0" d="M88.1,72.6 L152.4,65.6 L216.6,95.3 L280.9,79.1 L345.1,92.0 L409.4,74.8 L473.6,113.4 L537.9,160.8"/>
+<circle class="s0" cx="88.1" cy="72.6" r="4" stroke="none"><title>FLAC 24/192, +8%: 10.4 % of one core</title></circle>
+<circle class="s0" cx="152.4" cy="65.6" r="4" stroke="none"><title>FLAC 24/192, +8%: 10.8 % of one core</title></circle>
+<circle class="s0" cx="216.6" cy="95.3" r="4" stroke="none"><title>FLAC 24/192, +8%: 9.2 % of one core</title></circle>
+<circle class="s0" cx="280.9" cy="79.1" r="4" stroke="none"><title>FLAC 24/192, +8%: 10.1 % of one core</title></circle>
+<circle class="s0" cx="345.1" cy="92.0" r="4" stroke="none"><title>FLAC 24/192, +8%: 9.4 % of one core</title></circle>
+<circle class="s0" cx="409.4" cy="74.8" r="4" stroke="none"><title>FLAC 24/192, +8%: 10.3 % of one core</title></circle>
+<circle class="s0" cx="473.6" cy="113.4" r="4" stroke="none"><title>FLAC 24/192, +8%: 8.2 % of one core</title></circle>
+<circle class="s0" cx="537.9" cy="160.8" r="4" stroke="none"><title>FLAC 24/192, +8%: 5.6 % of one core</title></circle>
+<path class="l s1" d="M88.1,182.7 L152.4,178.7 L216.6,184.7 L280.9,193.5 L345.1,195.1 L409.4,184.1 L473.6,222.3 L537.9,232.0"/>
+<circle class="s1" cx="88.1" cy="182.7" r="4" stroke="none"><title>MP3 320k, -8%: 4.4 % of one core</title></circle>
+<circle class="s1" cx="152.4" cy="178.7" r="4" stroke="none"><title>MP3 320k, -8%: 4.7 % of one core</title></circle>
+<circle class="s1" cx="216.6" cy="184.7" r="4" stroke="none"><title>MP3 320k, -8%: 4.3 % of one core</title></circle>
+<circle class="s1" cx="280.9" cy="193.5" r="4" stroke="none"><title>MP3 320k, -8%: 3.8 % of one core</title></circle>
+<circle class="s1" cx="345.1" cy="195.1" r="4" stroke="none"><title>MP3 320k, -8%: 3.8 % of one core</title></circle>
+<circle class="s1" cx="409.4" cy="184.1" r="4" stroke="none"><title>MP3 320k, -8%: 4.4 % of one core</title></circle>
+<circle class="s1" cx="473.6" cy="222.3" r="4" stroke="none"><title>MP3 320k, -8%: 2.3 % of one core</title></circle>
+<circle class="s1" cx="537.9" cy="232.0" r="4" stroke="none"><title>MP3 320k, -8%: 1.7 % of one core</title></circle>
+<path class="l s2" d="M88.1,180.2 L152.4,177.2 L216.6,178.3 L280.9,190.0 L345.1,204.9 L409.4,201.9 L473.6,244.9 L537.9,250.5"/>
+<circle class="s2" cx="88.1" cy="180.2" r="4" stroke="none"><title>MP3 48 kHz, no pitch: 4.6 % of one core</title></circle>
+<circle class="s2" cx="152.4" cy="177.2" r="4" stroke="none"><title>MP3 48 kHz, no pitch: 4.7 % of one core</title></circle>
+<circle class="s2" cx="216.6" cy="178.3" r="4" stroke="none"><title>MP3 48 kHz, no pitch: 4.7 % of one core</title></circle>
+<circle class="s2" cx="280.9" cy="190.0" r="4" stroke="none"><title>MP3 48 kHz, no pitch: 4.0 % of one core</title></circle>
+<circle class="s2" cx="345.1" cy="204.9" r="4" stroke="none"><title>MP3 48 kHz, no pitch: 3.2 % of one core</title></circle>
+<circle class="s2" cx="409.4" cy="201.9" r="4" stroke="none"><title>MP3 48 kHz, no pitch: 3.4 % of one core</title></circle>
+<circle class="s2" cx="473.6" cy="244.9" r="4" stroke="none"><title>MP3 48 kHz, no pitch: 1.0 % of one core</title></circle>
+<circle class="s2" cx="537.9" cy="250.5" r="4" stroke="none"><title>MP3 48 kHz, no pitch: 0.7 % of one core</title></circle>
+<rect class="s0" x="582" y="151.8" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="156.8" font-size="11">FLAC 24/192, +8%</text>
+<text class="m" x="598" y="169.8" font-size="11">5.6</text>
+<rect class="s1" x="582" y="223.0" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="228.0" font-size="11">MP3 320k, -8%</text>
+<text class="m" x="598" y="241.0" font-size="11">1.7</text>
+<rect class="s2" x="582" y="251.0" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="256.0" font-size="11">MP3 48 kHz, no pitch</text>
+<text class="m" x="598" y="269.0" font-size="11">0.7</text>
 </svg>

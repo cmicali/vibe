@@ -17,33 +17,37 @@
 <text class="m" x="48" y="84.7" font-size="11" text-anchor="end">5</text>
 <line class="g" x1="56" x2="570" y1="44.0" y2="44.0"/>
 <text class="m" x="48" y="48.0" font-size="11" text-anchor="end">6</text>
-<text class="m" x="92.7" y="280" font-size="11" text-anchor="middle">1.8</text>
-<text class="m" x="166.1" y="280" font-size="11" text-anchor="middle">1.9</text>
-<text class="m" x="239.6" y="280" font-size="11" text-anchor="middle">1.10</text>
-<text class="m" x="313.0" y="280" font-size="11" text-anchor="middle">1.11</text>
-<text class="m" x="386.4" y="280" font-size="11" text-anchor="middle">1.12</text>
-<text class="m" x="459.9" y="280" font-size="11" text-anchor="middle">1.13</text>
-<text class="m" x="533.3" y="280" font-size="11" text-anchor="middle">1.14</text>
-<path class="l s0" d="M92.7,86.8 L166.1,88.1 L239.6,88.0 L313.0,88.2 L386.4,88.0 L459.9,87.9 L533.3,183.6"/>
-<circle class="s0" cx="92.7" cy="86.8" r="4" stroke="none"><title>MP3 320k, 60 min: 4.8 s</title></circle>
-<circle class="s0" cx="166.1" cy="88.1" r="4" stroke="none"><title>MP3 320k, 60 min: 4.8 s</title></circle>
-<circle class="s0" cx="239.6" cy="88.0" r="4" stroke="none"><title>MP3 320k, 60 min: 4.8 s</title></circle>
-<circle class="s0" cx="313.0" cy="88.2" r="4" stroke="none"><title>MP3 320k, 60 min: 4.8 s</title></circle>
-<circle class="s0" cx="386.4" cy="88.0" r="4" stroke="none"><title>MP3 320k, 60 min: 4.8 s</title></circle>
-<circle class="s0" cx="459.9" cy="87.9" r="4" stroke="none"><title>MP3 320k, 60 min: 4.8 s</title></circle>
-<circle class="s0" cx="533.3" cy="183.6" r="4" stroke="none"><title>MP3 320k, 60 min: 2.2 s</title></circle>
-<path class="l s1" d="M92.7,235.2 L166.1,235.6 L239.6,235.5 L313.0,235.6 L386.4,235.6 L459.9,235.5 L533.3,234.3"/>
-<circle class="s1" cx="92.7" cy="235.2" r="4" stroke="none"><title>FLAC 24/352.8, 1 min: 0.8 s</title></circle>
-<circle class="s1" cx="166.1" cy="235.6" r="4" stroke="none"><title>FLAC 24/352.8, 1 min: 0.8 s</title></circle>
-<circle class="s1" cx="239.6" cy="235.5" r="4" stroke="none"><title>FLAC 24/352.8, 1 min: 0.8 s</title></circle>
-<circle class="s1" cx="313.0" cy="235.6" r="4" stroke="none"><title>FLAC 24/352.8, 1 min: 0.8 s</title></circle>
-<circle class="s1" cx="386.4" cy="235.6" r="4" stroke="none"><title>FLAC 24/352.8, 1 min: 0.8 s</title></circle>
-<circle class="s1" cx="459.9" cy="235.5" r="4" stroke="none"><title>FLAC 24/352.8, 1 min: 0.8 s</title></circle>
-<circle class="s1" cx="533.3" cy="234.3" r="4" stroke="none"><title>FLAC 24/352.8, 1 min: 0.8 s</title></circle>
-<rect class="s0" x="582" y="174.6" width="10" height="3" rx="1.5" stroke="none"/>
-<text class="t" x="598" y="179.6" font-size="11">MP3 320k, 60 min</text>
-<text class="m" x="598" y="192.6" font-size="11">2.2</text>
-<rect class="s1" x="582" y="225.3" width="10" height="3" rx="1.5" stroke="none"/>
-<text class="t" x="598" y="230.3" font-size="11">FLAC 24/352.8, 1 min</text>
-<text class="m" x="598" y="243.3" font-size="11">0.8</text>
+<text class="m" x="88.1" y="280" font-size="11" text-anchor="middle">1.8</text>
+<text class="m" x="152.4" y="280" font-size="11" text-anchor="middle">1.9</text>
+<text class="m" x="216.6" y="280" font-size="11" text-anchor="middle">1.10</text>
+<text class="m" x="280.9" y="280" font-size="11" text-anchor="middle">1.11</text>
+<text class="m" x="345.1" y="280" font-size="11" text-anchor="middle">1.12</text>
+<text class="m" x="409.4" y="280" font-size="11" text-anchor="middle">1.13</text>
+<text class="m" x="473.6" y="280" font-size="11" text-anchor="middle">1.14</text>
+<text class="m" x="537.9" y="280" font-size="11" text-anchor="middle">1.15</text>
+<text class="m" x="537.9" y="293" font-size="10" text-anchor="middle">pre-release</text>
+<path class="l s0" d="M88.1,87.2 L152.4,87.2 L216.6,88.5 L280.9,88.7 L345.1,87.6 L409.4,87.4 L473.6,185.1 L537.9,184.0"/>
+<circle class="s0" cx="88.1" cy="87.2" r="4" stroke="none"><title>MP3 320k, 60 min: 4.8 s</title></circle>
+<circle class="s0" cx="152.4" cy="87.2" r="4" stroke="none"><title>MP3 320k, 60 min: 4.8 s</title></circle>
+<circle class="s0" cx="216.6" cy="88.5" r="4" stroke="none"><title>MP3 320k, 60 min: 4.8 s</title></circle>
+<circle class="s0" cx="280.9" cy="88.7" r="4" stroke="none"><title>MP3 320k, 60 min: 4.8 s</title></circle>
+<circle class="s0" cx="345.1" cy="87.6" r="4" stroke="none"><title>MP3 320k, 60 min: 4.8 s</title></circle>
+<circle class="s0" cx="409.4" cy="87.4" r="4" stroke="none"><title>MP3 320k, 60 min: 4.8 s</title></circle>
+<circle class="s0" cx="473.6" cy="185.1" r="4" stroke="none"><title>MP3 320k, 60 min: 2.2 s</title></circle>
+<circle class="s0" cx="537.9" cy="184.0" r="4" stroke="none"><title>MP3 320k, 60 min: 2.2 s</title></circle>
+<path class="l s1" d="M88.1,221.8 L152.4,221.8 L216.6,222.2 L280.9,222.1 L345.1,221.7 L409.4,221.9 L473.6,221.3 L537.9,258.2"/>
+<circle class="s1" cx="88.1" cy="221.8" r="4" stroke="none"><title>FLAC 24/352.8, 1 min: 1.2 s</title></circle>
+<circle class="s1" cx="152.4" cy="221.8" r="4" stroke="none"><title>FLAC 24/352.8, 1 min: 1.2 s</title></circle>
+<circle class="s1" cx="216.6" cy="222.2" r="4" stroke="none"><title>FLAC 24/352.8, 1 min: 1.1 s</title></circle>
+<circle class="s1" cx="280.9" cy="222.1" r="4" stroke="none"><title>FLAC 24/352.8, 1 min: 1.1 s</title></circle>
+<circle class="s1" cx="345.1" cy="221.7" r="4" stroke="none"><title>FLAC 24/352.8, 1 min: 1.2 s</title></circle>
+<circle class="s1" cx="409.4" cy="221.9" r="4" stroke="none"><title>FLAC 24/352.8, 1 min: 1.1 s</title></circle>
+<circle class="s1" cx="473.6" cy="221.3" r="4" stroke="none"><title>FLAC 24/352.8, 1 min: 1.2 s</title></circle>
+<circle class="s1" cx="537.9" cy="258.2" r="4" stroke="none"><title>FLAC 24/352.8, 1 min: 0.2 s</title></circle>
+<rect class="s0" x="582" y="175.0" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="180.0" font-size="11">MP3 320k, 60 min</text>
+<text class="m" x="598" y="193.0" font-size="11">2.2</text>
+<rect class="s1" x="582" y="249.2" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="254.2" font-size="11">FLAC 24/352.8, 1 min</text>
+<text class="m" x="598" y="267.2" font-size="11">0.2</text>
 </svg>
