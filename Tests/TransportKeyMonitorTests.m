@@ -11,9 +11,10 @@
 #import "ShortcutRules.h"
 
 // HIToolbox key codes, as the monitor matches them.
-static const unsigned short kKeyA = 0, kKeyQ = 12, kKeyW = 13, kKeyE = 14, kKeyR = 15, kKeyT = 17;
-static const unsigned short kKeyK = 40, kKeyN = 45, kKeyM = 46, kKeySpace = 49, kKeyReturn = 36;
+static const unsigned short kKeyA = 0, kKeyS = 1, kKeyQ = 12, kKeyW = 13, kKeyE = 14, kKeyR = 15, kKeyT = 17;
+static const unsigned short kKeyO = 31, kKeyK = 40, kKeyN = 45, kKeyM = 46, kKeySpace = 49, kKeyReturn = 36;
 static const unsigned short kKeyDelete = 51, kKeyForwardDelete = 117, kKeyDown = 125;
+static const NSEventModifierFlags kCmd = NSEventModifierFlagCommand;
 
 @interface TransportKeyMonitorTests : XCTestCase
 // Duck collaborators for the real key monitor: no NSWindow or audio engine.
@@ -24,14 +25,16 @@ static const unsigned short kKeyDelete = 51, kKeyForwardDelete = 117, kKeyDown =
 @property (nonatomic) BOOL reverbSendActive;
 @property (nonatomic) BOOL delaySendActive;
 @property (nonatomic) BOOL shortDelaySendActive;
-@property (nonatomic) NSUInteger markerReads;
 @property (nonatomic) NSMutableArray<NSString *> *commands;
+// Commands whose menu item is hidden, so performing them answers NO.
+@property (nonatomic) NSSet<NSString *> *hiddenCommands;
 @end
 
 @implementation TransportKeyMonitorTests
 
 - (void)setUp {
     self.commands = [NSMutableArray array];
+    self.hiddenCommands = [NSSet set];
     AppSettings.sharedInstance.shortcutOverrides = @{};
 }
 
@@ -43,23 +46,36 @@ static const unsigned short kKeyDelete = 51, kKeyForwardDelete = 117, kKeyDown =
 - (NSResponder *)firstResponder { return nil; }
 - (id)audioPlayer { return self; }
 - (id)fx { return self.hasFXGraph ? self : nil; }
-- (id)currentTrack { return nil; }
-- (double)position { return 0; }
-- (BOOL)isPlaying { return NO; }
-- (BOOL)isLoading { return NO; }
-- (NSDictionary *)bitPerfectReportDictionary { self.markerReads++; return @{}; }
 - (BOOL)performMenuCommandWithIdentifier:(NSString *)identifier {
+    if ([self.hiddenCommands containsObject:identifier]) {
+        return NO;
+    }
     [self.commands addObject:identifier];
     return YES;
 }
 
-// characters is what the layout typed, which the monitor ignores for every
-// binding: only the key code matches.
+// typed is what the layout types under the modifiers, unmodified what it
+// types without them. A key-code binding matches by key code alone; only a
+// character default reads either.
+- (NSEvent *)key:(unsigned short)keyCode typed:(NSString *)typed unmodified:(NSString *)unmodified
+            type:(NSEventType)type time:(NSTimeInterval)time repeat:(BOOL)repeat
+       modifiers:(NSEventModifierFlags)modifiers {
+    return [NSEvent keyEventWithType:type location:NSZeroPoint modifierFlags:modifiers
+                          timestamp:time windowNumber:0 context:nil characters:typed
+        charactersIgnoringModifiers:unmodified isARepeat:repeat keyCode:keyCode];
+}
+
 - (NSEvent *)key:(unsigned short)keyCode characters:(NSString *)characters type:(NSEventType)type
             time:(NSTimeInterval)time repeat:(BOOL)repeat modifiers:(NSEventModifierFlags)modifiers {
-    return [NSEvent keyEventWithType:type location:NSZeroPoint modifierFlags:modifiers
-                          timestamp:time windowNumber:0 context:nil characters:characters
-        charactersIgnoringModifiers:characters isARepeat:repeat keyCode:keyCode];
+    return [self key:keyCode typed:characters unmodified:characters type:type time:time repeat:repeat
+           modifiers:modifiers];
+}
+
+// A Command press, down.
+- (NSEvent *)command:(unsigned short)keyCode typed:(NSString *)typed unmodified:(NSString *)unmodified
+           modifiers:(NSEventModifierFlags)modifiers repeat:(BOOL)repeat {
+    return [self key:keyCode typed:typed unmodified:unmodified type:NSEventTypeKeyDown time:10 repeat:repeat
+           modifiers:modifiers];
 }
 
 - (NSEvent *)down:(unsigned short)keyCode {
@@ -259,21 +275,75 @@ static const unsigned short kKeyDelete = 51, kKeyForwardDelete = 117, kKeyDown =
     XCTAssertEqualObjects(self.commands, @[kVibeMenuShowFileInfo]);
 }
 
-- (void)testBetaMarkerWorksWithGreekKeyboardAndIgnoresRepeatAndModifiers {
+// Holding ⌘R must not cycle Off → All → One: a character default goes
+// through the monitor and its repeat rule, whatever the layout types.
+- (void)testCharacterDefaultsArePerformedOnceWhenHeld {
     TransportKeyMonitor *monitor = [[TransportKeyMonitor alloc] initWithController:(id)self];
-    for (NSUInteger attempt = 0; attempt < 3; attempt++) {
-        NSEvent *event = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint
-                modifierFlags:attempt == 2 ? NSEventModifierFlagCommand : 0
-                timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:0 context:nil
-                characters:@"μ" charactersIgnoringModifiers:@"μ" isARepeat:attempt == 1 keyCode:kKeyM];
-        NSEvent *result = [monitor handleKeyEvent:event inWindow:self.window];
-#if VIBE_VERBOSE_LOGGING
-        XCTAssertEqual(result, attempt == 2 ? event : nil);
-        XCTAssertEqual(self.markerReads, 1u);
-#else
-        XCTAssertEqual(result, event);
-        XCTAssertEqual(self.markerReads, 0u);
-#endif
+    XCTAssertNil([monitor handleKeyEvent:[self command:kKeyR typed:@"r" unmodified:@"r" modifiers:kCmd repeat:NO]
+                                inWindow:self.window]);
+    XCTAssertNil([monitor handleKeyEvent:[self command:kKeyR typed:@"r" unmodified:@"r" modifiers:kCmd repeat:YES]
+                                inWindow:self.window]);
+    // Greek types ρ unmodified and r under its ⌘ layer.
+    XCTAssertNil([monitor handleKeyEvent:[self command:kKeyR typed:@"r" unmodified:@"ρ" modifiers:kCmd repeat:NO]
+                                inWindow:self.window]);
+    // Option bends the typed letter; the unmodified one still matches.
+    XCTAssertNil([monitor handleKeyEvent:[self command:kKeyS typed:@"ß" unmodified:@"s"
+            modifiers:kCmd | NSEventModifierFlagOption repeat:NO] inWindow:self.window]);
+    // Dvorak – QWERTY ⌘: the key that types r types o under Command, and is Open.
+    XCTAssertNil([monitor handleKeyEvent:[self command:kKeyO typed:@"o" unmodified:@"r" modifiers:kCmd repeat:NO]
+                                inWindow:self.window]);
+    NSEvent *shifted = [self command:kKeyR typed:@"r" unmodified:@"R" modifiers:kCmd | NSEventModifierFlagShift repeat:NO];
+    XCTAssertEqual([monitor handleKeyEvent:shifted inWindow:self.window], shifted, @"⇧⌘R is unbound");
+    XCTAssertEqualObjects(self.commands, (@[kVibeMenuRepeat, kVibeMenuRepeat, kVibeMenuShuffle, kVibeMenuOpen]));
+
+    // Re-recorded as a key code, Repeat holds the same way.
+    [self.commands removeAllObjects];
+    AppSettings.sharedInstance.shortcutOverrides = @{kVibeMenuRepeat: @(VibeShortcutMake(kKeyK, kCmd))};
+    for (NSNumber *repeat in @[@NO, @YES]) {
+        XCTAssertNil([monitor handleKeyEvent:[self command:kKeyK typed:@"k" unmodified:@"k" modifiers:kCmd
+                repeat:repeat.boolValue] inWindow:self.window]);
     }
+    XCTAssertEqualObjects(self.commands, @[kVibeMenuRepeat]);
 }
+
+// Outside the player window the menu bar performs a binding; the monitor only
+// holds back a Command binding's repeat, never a bare key's, which may be
+// typing.
+- (void)testElsewhereOnlyACommandBindingsRepeatIsHeldBack {
+    TransportKeyMonitor *monitor = [[TransportKeyMonitor alloc] initWithController:(id)self];
+    NSEvent *first = [self command:kKeyR typed:@"r" unmodified:@"r" modifiers:kCmd repeat:NO];
+    XCTAssertEqual([monitor handleKeyEvent:first inWindow:nil], first);
+    XCTAssertNil([monitor handleKeyEvent:[self command:kKeyR typed:@"r" unmodified:@"r" modifiers:kCmd repeat:YES]
+                                inWindow:nil]);
+    NSEvent *typing = [self key:kKeyN characters:@"n" type:NSEventTypeKeyDown time:10 repeat:YES modifiers:0];
+    XCTAssertEqual([monitor handleKeyEvent:typing inWindow:nil], typing);
+    AppSettings.sharedInstance.shortcutOverrides = @{kVibeMenuNextTrack: @(VibeShortcutMake(kKeyN, kCmd))};
+    NSEvent *next = [self command:kKeyN typed:@"n" unmodified:@"n" modifiers:kCmd repeat:YES];
+    XCTAssertEqual([monitor handleKeyEvent:next inWindow:nil], next, @"Next repeats");
+    XCTAssertEqualObjects(self.commands, @[], @"the menu bar performs");
+}
+
+// Convert to FLAC bound to K with Convert switched off: its item is hidden,
+// so K acts as unbound rather than being eaten.
+- (void)testAHiddenCommandPassesItsKeyOn {
+    TransportKeyMonitor *monitor = [[TransportKeyMonitor alloc] initWithController:(id)self];
+    AppSettings.sharedInstance.shortcutOverrides = @{kVibeMenuConvertToFLAC: @(VibeShortcutMake(kKeyK, 0))};
+    self.hiddenCommands = [NSSet setWithObject:kVibeMenuConvertToFLAC];
+    NSEvent *k = [self down:kKeyK];
+    XCTAssertEqual([monitor handleKeyEvent:k inWindow:self.window], k);
+    self.hiddenCommands = [NSSet set];
+    XCTAssertNil([monitor handleKeyEvent:k inWindow:self.window]);
+    XCTAssertEqualObjects(self.commands, @[kVibeMenuConvertToFLAC]);
+}
+
+// M has no meaning of its own in any build: unbound it passes, bound it acts.
+- (void)testMIsAnOrdinaryKey {
+    TransportKeyMonitor *monitor = [[TransportKeyMonitor alloc] initWithController:(id)self];
+    NSEvent *m = [self down:kKeyM];
+    XCTAssertEqual([monitor handleKeyEvent:m inWindow:self.window], m);
+    AppSettings.sharedInstance.shortcutOverrides = @{kVibeMenuShowFileInfo: @(VibeShortcutMake(kKeyM, 0))};
+    XCTAssertNil([monitor handleKeyEvent:m inWindow:self.window]);
+    XCTAssertEqualObjects(self.commands, @[kVibeMenuShowFileInfo]);
+}
+
 @end

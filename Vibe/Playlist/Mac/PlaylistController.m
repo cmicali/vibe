@@ -640,21 +640,23 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 }
 
 - (BOOL)next {
-    if ([_model next]) {
-        [self scrollCurrentTrackToVisible];
-        [self play];
-        return YES;
-    }
-    return NO;
+    return [self playIfMoved:[_model next]];
 }
 
 - (BOOL)previous {
-    if ([_model previous]) {
+    return [self playIfMoved:[_model previous]];
+}
+
+- (BOOL)advanceAtTrackEnd {
+    return [self playIfMoved:[_model advanceAtTrackEnd]];
+}
+
+- (BOOL)playIfMoved:(BOOL)moved {
+    if (moved) {
         [self scrollCurrentTrackToVisible];
         [self play];
-        return YES;
     }
-    return NO;
+    return moved;
 }
 
 - (void)setRepeatMode:(VibeRepeatMode)repeatMode shuffleEnabled:(BOOL)shuffleEnabled {
@@ -668,15 +670,6 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 
 - (NSArray<AudioTrack *> *)neighborhoodTracks {
     return _model.neighborhoodTracks;
-}
-
-- (BOOL)advanceAtTrackEnd {
-    if ([_model advanceAtTrackEnd]) {
-        [self scrollCurrentTrackToVisible];
-        [self play];
-        return YES;
-    }
-    return NO;
 }
 
 - (BOOL)advanceFromTrack:(AudioTrack *)finishedTrack toTrack:(AudioTrack *)startedTrack {

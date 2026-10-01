@@ -59,8 +59,9 @@ static const AudioFileTypeID kVibeOggFileType = 'Oggf';
     int _descriptor;
     SInt64 _size;
     AudioFileID _parser;
+    AudioFileTypeID _container; // the parser's kAudioFilePropertyFileFormat
     // The last block a small read filled: its bytes from _readBlockStart,
-    // _readBlockLength of them.
+    // _readBlockLength of them. Allocated by the first.
     uint8_t *_readBlock;
     SInt64 _readBlockStart;
     UInt32 _readBlockLength;
@@ -124,6 +125,10 @@ static const AudioFileTypeID kVibeOggFileType = 'Oggf';
 // not all in it already.
 static OSStatus VibeHandleReadBlock(AudioFileHandle *handle, SInt64 position, UInt32 requestCount, UInt32 fill,
                                     void *buffer, UInt32 *actualCount) {
+    if (!handle->_readBlock && !(handle->_readBlock = malloc(kVibeReadBlock))) {
+        *actualCount = 0;
+        return kAudioFilePositionError;
+    }
     if (position < handle->_readBlockStart
             || position + requestCount > handle->_readBlockStart + handle->_readBlockLength) {
         ssize_t filled;
@@ -349,7 +354,6 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
                        description:[NSString stringWithFormat:@"%@ holds no audio data", name]];
     }
     _size = info.st_size;
-    _readBlock = malloc(kVibeReadBlock);
     // TRAP: parse as the extension's type first, as AudioFileOpenURL does:
     // sniffing alone refuses an MP3 with stray bytes between its ID3 tag and
     // first frame, which the hinted parse plays. A refusal falls back to
@@ -383,6 +387,21 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         return [self failWithError:error status:status
                        description:[NSString stringWithFormat:@"CoreAudio refused %@ (%d)", name, (int)status]];
     }
+    // TRAP: CoreAudio's Ogg reader opens FLAC in Ogg but reports no length
+    // and decodes only its first page (macOS 27), so the file would play for
+    // a second and end as if whole. Refused here, where playback and the
+    // metadata fallback both open, it fails as any undecodable file does.
+    // Vorbis and Opus in Ogg read in full.
+    UInt32 size = sizeof(_container);
+    AudioFileGetProperty(_parser, kAudioFilePropertyFileFormat, &size, &_container);
+    AudioStreamBasicDescription format = {0};
+    size = sizeof(format);
+    if (_container == kVibeOggFileType
+            && AudioFileGetProperty(_parser, kAudioFilePropertyDataFormat, &size, &format) == noErr
+            && format.mFormatID == kAudioFormatFLAC) {
+        return [self failWithError:error status:kAudioFileUnsupportedDataFormatError
+                       description:[NSString stringWithFormat:@"%@ is FLAC in Ogg, which CoreAudio truncates", name]];
+    }
     return self;
 }
 
@@ -403,18 +422,6 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     if (status != noErr || fileDescription.mChannelsPerFrame == 0 || fileDescription.mSampleRate <= 0) {
         return [self failWithError:error status:status ?: kAudioFileUnsupportedDataFormatError
                        description:[NSString stringWithFormat:@"%@ reports no audio format", name]];
-    }
-    // TRAP: CoreAudio's Ogg reader opens FLAC in Ogg but reports no length
-    // and decodes only its first page (macOS 27), so the file would play for
-    // a second and end as if whole. Refused, it fails as any undecodable file
-    // does. Vorbis and Opus in Ogg read in full.
-    AudioFileTypeID container = 0;
-    size = sizeof(container);
-    if (fileDescription.mFormatID == kAudioFormatFLAC
-            && AudioFileGetProperty(_parser, kAudioFilePropertyFileFormat, &size, &container) == noErr
-            && container == kVibeOggFileType) {
-        return [self failWithError:error status:kAudioFileUnsupportedDataFormatError
-                       description:[NSString stringWithFormat:@"%@ is FLAC in Ogg, which CoreAudio truncates", name]];
     }
     // The processing format carries the file's layout when it states one, and
     // a discrete layout for a wider file that does not: a converter between
@@ -441,7 +448,8 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     // Before the client format below, which Apple's FLAC codec refuses for
     // some legal streams dr_flac plays: block sizes of 16 and 65535, rates
     // past 655 kHz, 32-bit samples.
-    if (_descriptor >= 0 && ((formatID == kAudioFormatFLAC && [self openFLAC]) || [self openWAV])) {
+    if (_descriptor >= 0 && ((formatID == kAudioFormatFLAC && [self openFLAC])
+                             || [self openWAV])) {
         return self;
     }
     const AudioStreamBasicDescription *client = _processingFormat.streamDescription;
@@ -569,23 +577,39 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     return YES;
 }
 
-// Takes a WAV, W64, RF64 or AIFF(-C) file over for dr_wav, as openFLAC does
-// for dr_flac, when it holds a coding dr_wav decodes; anything else, a file of
-// another container or one dr_wav reads differently is left to ExtAudioFile.
-// dr_wav answers the length: the frames the data holds, a COMM or fact count
-// only when it is no more.
+// What dr_wav decodes, in two halves. Its containers, as CoreAudio's parser
+// names them, decide whether it is tried at all, so no other file pays its
+// read and failed parse; BW64 is not one. Its codings, which only its own
+// parse can tell (a WAVE_FORMAT_EXTENSIBLE's subformat, an AIFF-C's
+// compression type), decide whether it keeps the file.
+static BOOL VibeDrWAVReadsContainer(AudioFileTypeID container) {
+    return container == kAudioFileWAVEType || container == kAudioFileWave64Type || container == kAudioFileRF64Type
+            || container == kAudioFileAIFFType || container == kAudioFileAIFCType;
+}
+
+static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
+    drwav_uint16 tag = wav->translatedFormatTag;
+    return tag == DR_WAVE_FORMAT_PCM || tag == DR_WAVE_FORMAT_ALAW || tag == DR_WAVE_FORMAT_MULAW
+            || tag == DR_WAVE_FORMAT_ADPCM || tag == DR_WAVE_FORMAT_DVI_ADPCM
+            || (tag == DR_WAVE_FORMAT_IEEE_FLOAT && (wav->bitsPerSample == 32 || wav->bitsPerSample == 64));
+}
+
+// Takes a file of a container dr_wav reads over for it, as openFLAC does for
+// dr_flac, when it holds a coding dr_wav decodes; one it does not, or reads
+// differently, is left to ExtAudioFile. dr_wav answers the length: the frames
+// the data holds, a COMM or fact count only when it is no more.
 - (BOOL)openWAV {
+    if (!VibeDrWAVReadsContainer(_container)) {
+        return NO;
+    }
     _streamCursor = 0;
     _streamReadFailed = NO;
     if (!drwav_init(&_wavState, VibeStreamRead, VibeWAVSeek, VibeStreamTell, (__bridge void *)self, NULL)) {
         return NO;
     }
     _wav = &_wavState;
-    drwav_uint16 tag = _wav->translatedFormatTag;
-    BOOL decodable = tag == DR_WAVE_FORMAT_PCM || tag == DR_WAVE_FORMAT_ALAW || tag == DR_WAVE_FORMAT_MULAW
-            || tag == DR_WAVE_FORMAT_ADPCM || tag == DR_WAVE_FORMAT_DVI_ADPCM
-            || (tag == DR_WAVE_FORMAT_IEEE_FLOAT && (_wav->bitsPerSample == 32 || _wav->bitsPerSample == 64));
-    if (!decodable || ![self adoptStreamDecoderWithChannels:_wav->channels rate:_wav->sampleRate length:_wav->totalPCMFrameCount]) {
+    if (!VibeDrWAVDecodesCoding(_wav)
+            || ![self adoptStreamDecoderWithChannels:_wav->channels rate:_wav->sampleRate length:_wav->totalPCMFrameCount]) {
         [self closeStreamDecoder];
         return NO;
     }

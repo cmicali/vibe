@@ -1430,6 +1430,73 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     XCTAssertEqualWithAccuracy((double)[self endedSnapshot:voice].endOfStream, 24000, 2);
 }
 
+// Each file is named only once the one before has run out: a resampled
+// stream is then held open, a direct one ended, and either is prompt until
+// the successor's boundary is reported, steady again while the successor
+// plays, and prompt from the last file's hold until its end is reported.
+- (void)assertLateSuccessorsKeepTheDrainSteady:(NSArray<NSURL *> *)urls {
+    [self makeBusAtRate:48000 channels:2];
+    VibeVoiceID voice = [self startFile:[self open:urls[0]] gain:1 ramp:[self unity] paused:NO];
+    [self render:512 into:nil];
+    for (NSUInteger i = 0; i < urls.count; i++) {
+        NSUInteger rendered = 0;
+        while (!_bus.promptDrainDue && rendered < 48000 * 3) {
+            [self render:512 into:nil];
+            rendered += 512;
+        }
+        VibeVoiceSnapshot due = [_bus snapshotOfVoice:voice];
+        XCTAssertTrue(_bus.promptDrainDue, @"file %lu never made the drain prompt", (unsigned long)i);
+        XCTAssertGreaterThanOrEqual(due.written - due.consumed, 2 * 4096u, @"file %lu was prompt late", (unsigned long)i);
+        BOOL resampled = [_bus conversionOfVoice:voice] != nil;
+        XCTAssertEqual(due.endOfStream == UINT64_MAX, resampled, @"a resampled stream is held open, a direct one ended");
+        if (i + 1 == urls.count) {
+            while (![self hasEnded:voice] && rendered < 48000 * 6) {
+                XCTAssertTrue(_bus.promptDrainDue, @"steady with the end on its way");
+                [self render:512 into:nil];
+                rendered += 512;
+            }
+            XCTAssertTrue([self hasEnded:voice]);
+            [self drain];
+            XCTAssertFalse(_bus.promptDrainDue);
+            break;
+        }
+        XCTAssertTrue([_bus queueSuccessor:[self open:urls[i + 1]] startFrame:0 endFrame:0 forVoice:voice]);
+        NSUInteger boundaries = 0;
+        while (boundaries <= i && ![self hasEnded:voice]) {
+            [self render:512 into:nil];
+            boundaries = 0;
+            for (NSNumber *event in [self eventsForVoice:voice]) {
+                boundaries += event.integerValue == VibeVoiceEventBoundary;
+            }
+        }
+        XCTAssertEqual(boundaries, i + 1);
+        for (int block = 0; block < 40; block++) {
+            [self render:512 into:nil];
+            XCTAssertFalse(_bus.promptDrainDue, @"prompt %d blocks past boundary %lu", block, (unsigned long)i);
+        }
+    }
+}
+
+- (void)testAResampledStreamHeldOpenReturnsToSteadyOnceItsSuccessorContinues {
+    NSURL *first = [self writePCM:[self noiseFrames:88200 channels:2 seed:941] rate:44100 channels:2 name:@"steady-a.wav"];
+    NSURL *second = [self writePCM:[self noiseFrames:88200 channels:2 seed:942] rate:44100 channels:2 name:@"steady-b.wav"];
+    NSURL *third = [self writePCM:[self noiseFrames:88200 channels:2 seed:943] rate:44100 channels:2 name:@"steady-c.wav"];
+    [self assertLateSuccessorsKeepTheDrainSteady:@[first, second]];
+    [self assertLateSuccessorsKeepTheDrainSteady:@[first, second, third]];
+}
+
+// Repeat One: a second handle on the playing file, spliced into its own start.
+- (void)testAResampledSelfSpliceReturnsToSteady {
+    NSURL *url = [self writePCM:[self noiseFrames:88200 channels:2 seed:944] rate:44100 channels:2 name:@"steady-self.wav"];
+    [self assertLateSuccessorsKeepTheDrainSteady:@[url, url, url]];
+}
+
+- (void)testADirectStreamEndedReturnsToSteadyOnceItsSuccessorContinues {
+    NSURL *first = [self writePCM:[self noiseFrames:96000 channels:2 seed:945] rate:48000 channels:2 name:@"steady-d1.wav"];
+    NSURL *second = [self writePCM:[self noiseFrames:96000 channels:2 seed:946] rate:48000 channels:2 name:@"steady-d2.wav"];
+    [self assertLateSuccessorsKeepTheDrainSteady:@[first, second, first]];
+}
+
 // A successor in another format takes a converter of its own after the first
 // one's tail, and the boundary is exact either way round: a resampled file
 // into one read direct, and a direct one into a resampled one.

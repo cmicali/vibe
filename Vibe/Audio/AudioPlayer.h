@@ -136,11 +136,13 @@ NS_ASSUME_NONNULL_BEGIN
 // unless a track is playing or paused.
 - (void)finishCurrentTrack;
 
-// Pre-opens the playlist's next track so a later play: of its path skips the
-// open (and starts a cloud download early); nil drops the park. Single-use.
-// It is also the gapless point: when gapless is allowed the parked file is
-// queued on the current voice. The promote delivers this very object, so it
-// must be the playlist's own next track.
+// Pre-opens the track that follows the current one at its end so a later
+// play: of the same source (AudioTrack.sourceKey: another cue row of the file
+// opens its own) skips the open and starts a cloud download early; nil drops
+// the park. Single-use. It is also the gapless point: when gapless is allowed
+// the parked file is queued on the current voice. The promote delivers this
+// very object, so it must be the playlist's trackEndSuccessor — under Repeat
+// One the playing track itself.
 - (void)prefetchTrack:(nullable AudioTrack *)track;
 
 // The pending open's transfer moved: extends its abandon deadline, matched by

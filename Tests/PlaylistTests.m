@@ -1438,6 +1438,49 @@ static void AssertPermutation(Playlist *playlist, NSArray<AudioTrack *> *walk) {
     XCTAssertTrue([rest containsObject:incoming]);
 }
 
+// At a cycle's last entry under Repeat All the gapless splice is armed on the
+// next cycle's first; a convert swap anywhere must not reshuffle that cycle out
+// from under it, and swapping the armed row itself hands its slot on.
+- (void)testTheConvertSwapKeepsTheNextCycleTheSpliceArmedOn {
+    for (uint64_t seed = 1; seed <= 20; seed++) {
+        Playlist *playlist = ShuffledPlaylist(6, seed);
+        playlist.repeatMode = VibeRepeatModeAll;
+        WalkNext(playlist, 6);
+        AudioTrack *armed = playlist.trackEndSuccessor;
+        NSUInteger other = 0;
+        while ([playlist trackAtIndex:other] == armed || other == playlist.currentIndex) {
+            other++;
+        }
+        AudioTrack *converted = [playlist replaceTrackAtIndex:other withURL:URLNamed(@"other.flac")];
+        XCTAssertEqual(playlist.trackEndSuccessor, armed, @"seed %llu", seed);
+
+        AudioTrack *incoming = [playlist replaceTrackAtIndex:(NSUInteger)[playlist getIndexForTrack:armed]
+                                                     withURL:URLNamed(@"armed.flac")];
+        XCTAssertEqual(playlist.trackEndSuccessor, incoming, @"seed %llu", seed);
+        XCTAssertTrue([playlist advanceFromTrack:playlist.currentTrack toTrack:incoming], @"seed %llu", seed);
+        NSArray<AudioTrack *> *cycle = WalkNext(playlist, 6);
+        AssertPermutation(playlist, cycle);
+        XCTAssertTrue([cycle containsObject:converted], @"seed %llu", seed);
+    }
+}
+
+// Shuffle off holds no order, so nothing keeps a row of a past one alive.
+- (void)testShuffleOffKeepsNoRowOfThePastOrders {
+    Playlist *playlist = nil;
+    __weak AudioTrack *departed = nil;
+    @autoreleasepool {
+        playlist = ShuffledPlaylist(4, 3);
+        playlist.repeatMode = VibeRepeatModeAll;
+        WalkNext(playlist, 4);
+        departed = playlist.nextTrack;
+        XCTAssertNotNil(departed);
+        playlist.shuffleEnabled = NO;
+        [playlist replaceAllWithTracks:Rows(@[URLNamed(@"new.mp3")]) startingAtIndex:0];
+    }
+    XCTAssertNil(departed);
+    XCTAssertEqual(playlist.count, 1u);
+}
+
 - (void)testShuffleOffResumesTheRowOrderFromTheCurrentRow {
     Playlist *playlist = ShuffledPlaylist(8, 2);
     WalkNext(playlist, 3);

@@ -7,6 +7,7 @@
 
 #import <XCTest/XCTest.h>
 
+#import <fcntl.h>
 #import <limits.h>
 #import <stdatomic.h>
 #import <stdlib.h>
@@ -406,6 +407,116 @@ static NSString *const kTwoTrackSheet =
 
     XCTAssertEqual(rows.count, 2u, @"%@", rows);
     XCTAssertTrue([rows.firstObject hasSuffix:@"#0-4500"], @"%@", rows);
+}
+
+// One byte under exactly this spelling: open(2) on the UTF-8, since
+// Foundation's file-system representation would decompose it.
+- (void)makeFileSpelledExactly:(NSString *)path {
+    int fd = open(path.UTF8String, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+    XCTAssertGreaterThanOrEqual(fd, 0, @"%@", path);
+    XCTAssertEqual(write(fd, "\0", 1), 1);
+    close(fd);
+}
+
+// The claim is by exact URL, while the volume folds case and Unicode
+// normalization, so a rung answering in the sheet's spelling finds the file
+// and still leaves the listed one to play whole beside its rows. Every rung,
+// under every spelling the volume folds, through both listings that cut
+// sheets: the rows must name the listing's URL and nothing else may.
+- (void)testEveryResolutionRungClaimsTheListedFileUnderEverySpelling {
+    NSString *nfc = @"01 - Caf\u00e9";
+    NSString *nfd = @"01 - Cafe\u0301";
+    // Name, the stem the sheet writes, the stem on disk.
+    NSArray<NSArray<NSString *> *> *spellings = @[
+        @[@"precomposed on disk", nfc, nfc],
+        @[@"case", @"01 - caf\u00e9", nfc],
+        @[@"decomposed on disk", nfc, nfd],
+        @[@"decomposed in the sheet", nfd, nfc],
+        @[@"case and normalization", @"01 - CAFE\u0301", nfc],
+    ];
+    // Name, the FILE entry for the sheet's stem, the sheet's own name.
+    NSArray<NSArray<NSString *> *> *rungs = @[
+        @[@"named path", @"%@.flac", @"album.cue"],
+        @[@"beside, from a Windows path", @"C:\\Rips\\Album\\%@.flac", @"album.cue"],
+        @[@"alternate extension", @"%@.wav", @"album.cue"],
+        @[@"alternate extension beside", @"C:\\Rips\\Album\\%@.wav", @"album.cue"],
+        @[@"named like the sheet", @"CDImage.wav", @"%@.cue"],
+    ];
+    NSUInteger folderNumber = 0;
+    for (NSArray<NSString *> *rung in rungs) {
+        for (NSArray<NSString *> *spelling in spellings) {
+            NSString *folderName = [NSString stringWithFormat:@"rung%lu", (unsigned long)folderNumber++];
+            NSURL *folder = [self makeDirectory:folderName];
+            [self makeFileSpelledExactly:[folder.path stringByAppendingFormat:@"/%@.flac", spelling[2]]];
+            NSString *entry = [NSString stringWithFormat:rung[1], spelling[1]];
+            [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac" withString:entry]
+                        at:[folderName stringByAppendingPathComponent:[NSString stringWithFormat:rung[2], spelling[1]]]];
+            NSString *listed = nil;
+            for (NSURL *url in [NSFileManager.defaultManager contentsOfDirectoryAtURL:folder
+                                                           includingPropertiesForKeys:nil
+                                                                              options:0
+                                                                                error:nil]) {
+                if ([url.pathExtension isEqualToString:@"flac"]) {
+                    listed = url.path;
+                }
+            }
+            NSDictionary<NSString *, NSArray<AudioTrack *> *> *walks = @{
+                @"walk": [NSURLUtil expandAndFilterList:@[folder] sortedBy:VibeFolderOpenSortName
+                                            folderCount:NULL],
+                @"listing": [NSURLUtil rowsInDirectory:folder sortedBy:VibeFolderOpenSortName],
+            };
+            for (NSString *walk in walks) {
+                NSArray<AudioTrack *> *rows = walks[walk];
+                NSString *context = [NSString stringWithFormat:@"%@, %@, %@: %@", rung[0], spelling[0],
+                                                               walk, [self relativePaths:rows]];
+                XCTAssertEqual(rows.count, 2u, @"%@", context);
+                for (AudioTrack *row in rows) {
+                    XCTAssertEqualObjects(row.url.path, listed, @"%@", context);
+                    XCTAssertTrue(row.isWindowed, @"%@", context);
+                }
+            }
+        }
+    }
+}
+
+// Album.cue beside Album (UTF-8).cue, or CDImage.cue beside Album.cue: the
+// first sheet in the walk's order cuts the image, and a later one naming it
+// adds nothing.
+- (void)testTwoSheetsNamingOneImageListItsTracksOnce {
+    NSURL *image = [self makeFile:@"folder/mix.flac"];
+    NSURL *album = [self makeText:kTwoTrackSheet at:@"folder/Album.cue"];
+    NSURL *cdImage = [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"\"One\""
+                                                                              withString:@"\"Uno\""]
+                                 at:@"folder/CDImage.cue"];
+
+    NSArray<AudioTrack *> *rows = [NSURLUtil expandAndFilterList:@[[self makeDirectory:@"folder"]]
+                                                        sortedBy:VibeFolderOpenSortName folderCount:NULL];
+    XCTAssertEqualObjects([self relativePaths:rows], (@[@"folder/mix.flac#0-4500", @"folder/mix.flac#4500-0"]));
+    XCTAssertEqualObjects(rows.firstObject.cueTitle, @"One");
+
+    rows = [NSURLUtil rowsForWalk:@[cdImage, album, image]];
+    XCTAssertEqualObjects([self relativePaths:rows], (@[@"folder/mix.flac#0-4500", @"folder/mix.flac#4500-0"]));
+    XCTAssertEqualObjects(rows.firstObject.cueTitle, @"Uno");
+}
+
+// A later sheet still cuts every file no earlier sheet did.
+- (void)testSheetsNamingDifferentFilesAreEachKept {
+    [self makeFile:@"folder/a.flac"];
+    [self makeFile:@"folder/b.flac"];
+    [self makeFile:@"folder/c.flac"];
+    [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac" withString:@"a.flac"]
+                at:@"folder/a.cue"];
+    [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac" withString:@"b.flac"]
+                at:@"folder/b.cue"];
+    [self makeText:[[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac" withString:@"a.flac"]
+                           stringByAppendingString:@"FILE \"c.flac\" WAVE\n  TRACK 03 AUDIO\n    INDEX 01 00:00:00\n"
+                                                    "  TRACK 04 AUDIO\n    INDEX 01 01:00:00\n"]
+                at:@"folder/c.cue"];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL],
+                          (@[@"folder/a.flac#0-4500", @"folder/a.flac#4500-0",
+                             @"folder/b.flac#0-4500", @"folder/b.flac#4500-0",
+                             @"folder/c.flac#0-4500", @"folder/c.flac#4500-0"]));
 }
 
 // A walk opens a FLAC for its own sheet only past this size; the fixtures are

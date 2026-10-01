@@ -70,14 +70,15 @@ NS_ASSUME_NONNULL_BEGIN
 // label aligns to what the pill drew.
 - (void)setOutputRouteKind:(VibeOutputRouteKind)kind deviceName:(nullable NSString *)name;
 
-// Per PAGE, not per playing track, so the last page arrives dimmed.
+// The controller's answer for this page: from its index, so the last page
+// arrives dimmed, except the current page, which asks the playlist.
 - (void)setNextEnabled:(BOOL)enabled;
 
 // Off draws dimmed, on at full strength; Repeat One shows its own glyph.
 - (void)setShuffleEnabled:(BOOL)shuffleEnabled repeatMode:(VibeRepeatMode)repeatMode;
 
-// The appearance setting: hidden, the two flanks and their gaps collapse to
-// nothing, so the three keep their full spacing. Set on every configure.
+// The appearance setting, set on every configure: hidden, the two flanks and
+// their gaps collapse to nothing, so the three keep their full spacing.
 - (void)setShuffleRepeatShown:(BOOL)shown;
 
 - (void)configureWithTitle:(NSString *)title

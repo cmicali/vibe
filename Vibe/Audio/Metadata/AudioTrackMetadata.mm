@@ -35,6 +35,7 @@
 #include <vorbisfile.h>
 #include <opusfile.h>
 #include <tdebuglistener.h>
+#include <tagutils.h>
 
 NSNotificationName const AudioTrackMetadataThumbnailDidLoadNotification =
         @"AudioTrackMetadataThumbnailDidLoadNotification";
@@ -95,6 +96,14 @@ private:
         });
     }
 
+    // TRAP: FLAC::File takes a stream with "fLaC" anywhere near its start,
+    // which FLAC in Ogg carries in its first page. Playback refuses that
+    // file at the parser open (AudioFileHandle.m), so it must never parse as
+    // FLAC here: it is a failed parse, as its play is.
+    static bool isOgg(TagLib::IOStream *stream) {
+        return TagLib::Utils::readHeader(stream, 4, false).startsWith("OggS");
+    }
+
     // FileRef::detectByExtension's mapping plus wave, bwf and qta (a QuickTime
     // container MP4::File parses). .ogg and .oga hold Vorbis or Opus, told
     // apart by a cheap sniff; FLAC in Ogg has no vendored parser.
@@ -108,7 +117,7 @@ private:
             [ext isEqualToString:@"QTA"])
             return std::make_unique<TagLib::MP4::File>(stream, readProperties);
         if ([ext isEqualToString:@"FLAC"])
-            return std::make_unique<TagLib::FLAC::File>(stream, readProperties);
+            return isOgg(stream) ? nullptr : std::make_unique<TagLib::FLAC::File>(stream, readProperties);
         if ([ext isEqualToString:@"OGG"] || [ext isEqualToString:@"OGA"])
             return TagLib::Ogg::Opus::File::isSupported(stream)
                     ? std::unique_ptr<TagLib::File>(std::make_unique<TagLib::Ogg::Opus::File>(stream, readProperties))
@@ -129,7 +138,7 @@ private:
             return std::make_unique<TagLib::MPEG::File>(stream, readProperties);
         if (TagLib::Ogg::Vorbis::File::isSupported(stream))
             return std::make_unique<TagLib::Ogg::Vorbis::File>(stream, readProperties);
-        if (TagLib::FLAC::File::isSupported(stream))
+        if (!isOgg(stream) && TagLib::FLAC::File::isSupported(stream))
             return std::make_unique<TagLib::FLAC::File>(stream, readProperties);
         if (TagLib::Ogg::Opus::File::isSupported(stream))
             return std::make_unique<TagLib::Ogg::Opus::File>(stream, readProperties);

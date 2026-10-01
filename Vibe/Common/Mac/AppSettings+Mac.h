@@ -233,15 +233,15 @@ static const double kVibeWaveformGainMaxDB = 12;
 - (BOOL)appleMPEGDecoder;
 - (void)setAppleMPEGDecoder:(BOOL)apple;
 
-// While on: no FX, no varispeed, the crossfade at the declick minimum, and
-// each track sets the device to the file's rate and word length.
-//
-// This and exclusiveOutput are remembered per device UID, surviving unplug.
 // The Keyboard Shortcuts pane's remaps, sparse over the defaults: absent
 // means every default. Read per keypress by the key monitor. Writers request
 // VibeSettingsLiveEffectShortcuts.
 @property (nonatomic, copy) NSDictionary<NSString *, NSNumber *> *shortcutOverrides;
 
+// While on: no FX, no varispeed, the crossfade at the declick minimum, and
+// each track sets the device to the file's rate and word length.
+//
+// This and exclusiveOutput are remembered per device UID, surviving unplug.
 // The plain accessors read the saved device's; System Output has no UID and
 // is always off, so the device-vanished fallback needs no write. Off is
 // stored as absence.

@@ -129,7 +129,7 @@ static const CGFloat kShortcutColumnWidth = 120;
                                               [parent itemAtIndex:index].title, item.title];
         }
     }
-    return item.title ?: identifier;
+    return item.title;
 }
 
 - (nullable NSString *)identifierForRow:(NSInteger)row {

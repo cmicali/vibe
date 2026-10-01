@@ -1495,7 +1495,13 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         [_queuedTracks removeObject:track];
         [_tracksWithScanInFlight removeObject:track];
     }
+    // A mark left on a removed row would hold its file's other records out of
+    // the scan for good, since no record holds the row for the priority slot.
+    BOOL retired = [self retirePriorityMarksTargetingTracksLocked:@[track]];
     os_unfair_lock_unlock(&_materializationLock);
+    if (retired) {
+        [self dispatchNextScanMaterialization];
+    }
 }
 
 - (void)cancel {

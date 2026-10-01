@@ -22,6 +22,22 @@
 #import "AudioFileConverter.h"
 #import "VibeStrings.h"
 
+// Validation runs on every menu open and every bound keypress, a held skip
+// key's at key-repeat rate, so each symbol is built once. Its description is
+// the title it first draws beside, which the symbol alone decides.
+static NSImage *MenuSymbolImage(NSString *symbol, NSString *description) {
+    static NSMutableDictionary<NSString *, NSImage *> *images;
+    if (!images) {
+        images = [NSMutableDictionary dictionary];
+    }
+    NSImage *image = images[symbol];
+    if (!image) {
+        image = [NSImage imageWithSystemSymbolName:symbol accessibilityDescription:description];
+        images[symbol] = image;
+    }
+    return image;
+}
+
 @implementation MainPlayerController (Menus)
 
 - (BOOL)performMenuItem:(NSMenuItem *)item {
@@ -32,13 +48,17 @@
         return NO;
     }
     [item.menu update]; // the validation pass opening the menu would run
-    return item.isEnabled && item.action
+    return item.isEnabled && !item.isHiddenOrHasHiddenAncestor && item.action
             && [NSApp sendAction:item.action to:item.target from:item];
 }
 
 - (BOOL)performMenuCommandWithIdentifier:(NSString *)identifier {
     NSMenuItem *item = [MainMenuBuilder mainMenuItemWithIdentifier:identifier];
-    return item && [self performMenuItem:item];
+    if (!item) {
+        return NO;
+    }
+    [self performMenuItem:item];
+    return !item.isHiddenOrHasHiddenAncestor; // after validation, which hides Convert's
 }
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
@@ -150,8 +170,7 @@
     VibeRepeatMode mode = settings.repeatMode;
     menuItem.title = VibeRepeatModeTitle(mode);
     menuItem.state = StateForBOOL(mode != VibeRepeatModeOff);
-    menuItem.image = [NSImage imageWithSystemSymbolName:VibeRepeatModeSymbolName(mode)
-                               accessibilityDescription:menuItem.title];
+    menuItem.image = MenuSymbolImage(VibeRepeatModeSymbolName(mode), menuItem.title);
 }
 
 #pragma mark - Conditional domains
@@ -177,8 +196,7 @@
             self.audioPlayer.isPlaying);
     if (title) menuItem.title = title;
     if ([menuItem.identifier isEqualToString:kVibeMenuPlay]) {
-        menuItem.image = [NSImage imageWithSystemSymbolName:(self.audioPlayer.isPlaying ? @"pause.fill" : @"play.fill")
-                                   accessibilityDescription:menuItem.title];
+        menuItem.image = MenuSymbolImage(self.audioPlayer.isPlaying ? @"pause.fill" : @"play.fill", menuItem.title);
     }
     return VibeFileMenuEnabled(menuItem.identifier, self.playlistController.count,
             self.window.isKeyWindow, self.playlistController.currentTrack.url != nil);

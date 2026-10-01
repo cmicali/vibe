@@ -91,6 +91,11 @@ NS_ASSUME_NONNULL_BEGIN
 // decides what.
 - (void)prefetchSuccessor;
 
+// Parks on track and opens it paused at position: parked, the player holds no
+// file, and the screens rest on the track until didStartPlaying: lands. The
+// caller notifies.
+- (void)openParkedTrack:(AudioTrack *)track atPosition:(NSTimeInterval)position;
+
 // The one teardown for the monitor, its open identifier and the registry's
 // declaration, so none outlives the others.
 - (void)teardownDownloadMonitor;

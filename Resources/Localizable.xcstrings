@@ -64358,7 +64358,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_section": {
-      "comment": "Appearance pane: disclosure row revealing waveform normalization and display gain, which apply to all themes.\niOS settings screen, Appearance: heading above the waveform settings (drawing style, the widget's style, color theme).",
+      "comment": "Settings, Appearance: the waveform group's title. macOS: the disclosure row revealing waveform normalization and display gain, which apply to all themes, and that disclosure's accessibility label. iOS: the heading above the waveform settings (drawing style, the widget's style, color theme).",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -87055,181 +87055,367 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Комбинациите следват позицията на всеки клавиш, така че остават същите, когато смените подредбата на клавиатурата. Щракнете два пъти върху команда, за да запишете нова."
+            "value": "Комбинациите следват позицията на всеки клавиш, така че остават същите, когато смените подредбата на клавиатурата. Стандартните комбинации с Command следват буквата си. Щракнете два пъти върху команда, за да запишете нова."
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zkratky se řídí polohou kláves na klávesnici, takže se při přepnutí rozložení nemění. Dvojitým kliknutím na příkaz nahrajete novou."
+            "value": "Zkratky se řídí polohou kláves na klávesnici, takže se při přepnutí rozložení nemění. Výchozí zkratky s klávesou Command se místo toho řídí písmenem. Dvojitým kliknutím na příkaz nahrajete novou."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Genveje følger hver tasts placering på tastaturet, så de bliver på plads, når du skifter layout. Dobbeltklik på en kommando for at optage en ny."
+            "value": "Genveje følger hver tasts placering på tastaturet, så de bliver på plads, når du skifter layout. Standardgenvejene med Kommando følger i stedet deres bogstav. Dobbeltklik på en kommando for at optage en ny."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kurzbefehle folgen der Position jeder Taste auf der Tastatur und bleiben daher gleich, wenn du das Layout wechselst. Doppelklicke auf einen Befehl, um einen neuen aufzunehmen."
+            "value": "Kurzbefehle folgen der Position jeder Taste auf der Tastatur und bleiben daher gleich, wenn du das Layout wechselst. Die Standard-Kurzbefehle mit der Befehlstaste folgen stattdessen ihrem Buchstaben. Doppelklicke auf einen Befehl, um einen neuen aufzunehmen."
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Οι συντομεύσεις ακολουθούν τη θέση κάθε πλήκτρου στο πληκτρολόγιο, οπότε δεν αλλάζουν όταν αλλάζετε διάταξη. Κάντε διπλό κλικ σε μια εντολή για να καταγράψετε νέα."
+            "value": "Οι συντομεύσεις ακολουθούν τη θέση κάθε πλήκτρου στο πληκτρολόγιο, οπότε δεν αλλάζουν όταν αλλάζετε διάταξη. Οι προεπιλεγμένες συντομεύσεις με Command ακολουθούν αντίθετα το γράμμα τους. Κάντε διπλό κλικ σε μια εντολή για να καταγράψετε νέα."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Shortcuts follow each key's position on the keyboard, so they stay put when you switch layouts. Double-click a command to record a new one."
+            "value": "Shortcuts follow each key's position on the keyboard, so they stay put when you switch layouts. The default Command shortcuts follow their letter instead. Double-click a command to record a new one."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Las funciones rápidas siguen la posición de cada tecla en el teclado, así que no cambian al cambiar de distribución. Haz doble clic en un comando para grabar una nueva."
+            "value": "Las funciones rápidas siguen la posición de cada tecla en el teclado, así que no cambian al cambiar de distribución. Las funciones rápidas predeterminadas con Comando siguen su letra. Haz doble clic en un comando para grabar una nueva."
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Oikotiet seuraavat kunkin näppäimen paikkaa näppäimistöllä, joten ne pysyvät ennallaan, kun vaihdat asettelua. Tallenna uusi kaksoisosoittamalla komentoa."
+            "value": "Oikotiet seuraavat kunkin näppäimen paikkaa näppäimistöllä, joten ne pysyvät ennallaan, kun vaihdat asettelua. Oletusarvoiset Komento-oikotiet seuraavat sen sijaan kirjaintaan. Tallenna uusi kaksoisosoittamalla komentoa."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Les raccourcis suivent la position de chaque touche sur le clavier : ils ne changent pas quand vous changez de disposition. Double-cliquez sur une commande pour en enregistrer un nouveau."
+            "value": "Les raccourcis suivent la position de chaque touche sur le clavier : ils ne changent pas quand vous changez de disposition. Les raccourcis Commande par défaut suivent plutôt leur lettre. Double-cliquez sur une commande pour en enregistrer un nouveau."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Prečaci prate položaj svake tipke na tipkovnici, pa ostaju isti kad promijenite raspored. Dvaput kliknite naredbu da biste snimili novi."
+            "value": "Prečaci prate položaj svake tipke na tipkovnici, pa ostaju isti kad promijenite raspored. Zadani prečaci s tipkom Command umjesto toga prate svoje slovo. Dvaput kliknite naredbu da biste snimili novi."
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "A billentyűparancsok a billentyűk helyét követik a billentyűzeten, így kiosztásváltáskor sem változnak. Új rögzítéséhez kattints duplán egy parancsra."
+            "value": "A billentyűparancsok a billentyűk helyét követik a billentyűzeten, így kiosztásváltáskor sem változnak. Az alapértelmezett Command-billentyűparancsok viszont a betűjüket követik. Új rögzítéséhez kattints duplán egy parancsra."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pintasan mengikuti posisi setiap tombol di papan ketik, jadi tidak berubah saat Anda berganti tata letak. Klik dua kali perintah untuk merekam pintasan baru."
+            "value": "Pintasan mengikuti posisi setiap tombol di papan ketik, jadi tidak berubah saat Anda berganti tata letak. Pintasan Command default justru mengikuti hurufnya. Klik dua kali perintah untuk merekam pintasan baru."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le abbreviazioni seguono la posizione di ogni tasto sulla tastiera, quindi restano uguali quando cambi layout. Fai doppio clic su un comando per registrarne una nuova."
+            "value": "Le abbreviazioni seguono la posizione di ogni tasto sulla tastiera, quindi restano uguali quando cambi layout. Le abbreviazioni predefinite con Comando seguono invece la loro lettera. Fai doppio clic su un comando per registrarne una nuova."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ショートカットはキーボード上のキーの位置に従うため、入力ソースを切り替えても変わりません。コマンドをダブルクリックすると新しいショートカットを記録できます。"
+            "value": "ショートカットはキーボード上のキーの位置に従うため、入力ソースを切り替えても変わりません。ただし、Commandキーを使うデフォルトのショートカットは文字に従います。コマンドをダブルクリックすると新しいショートカットを記録できます。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "단축키는 키보드에서 각 키의 위치를 따르므로 입력 소스를 바꿔도 그대로 유지됩니다. 명령을 이중 클릭하여 새 단축키를 기록하십시오."
+            "value": "단축키는 키보드에서 각 키의 위치를 따르므로 입력 소스를 바꿔도 그대로 유지됩니다. 단, 기본 Command 단축키는 해당 문자를 따릅니다. 명령을 이중 클릭하여 새 단축키를 기록하십시오."
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Snarveiene følger plasseringen til hver tast på tastaturet, så de blir værende når du bytter oppsett. Dobbeltklikk på en kommando for å ta opp en ny."
+            "value": "Snarveiene følger plasseringen til hver tast på tastaturet, så de blir værende når du bytter oppsett. Standardsnarveiene med Kommando følger i stedet bokstaven sin. Dobbeltklikk på en kommando for å ta opp en ny."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Toetscombinaties volgen de positie van elke toets op het toetsenbord, zodat ze blijven staan als je van indeling wisselt. Dubbelklik op een opdracht om een nieuwe op te nemen."
+            "value": "Toetscombinaties volgen de positie van elke toets op het toetsenbord, zodat ze blijven staan als je van indeling wisselt. De standaardtoetscombinaties met Command volgen in plaats daarvan hun letter. Dubbelklik op een opdracht om een nieuwe op te nemen."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skróty odpowiadają położeniu klawiszy na klawiaturze, więc nie zmieniają się po zmianie układu. Kliknij dwukrotnie polecenie, aby nagrać nowy."
+            "value": "Skróty odpowiadają położeniu klawiszy na klawiaturze, więc nie zmieniają się po zmianie układu. Domyślne skróty z klawiszem Command odpowiadają natomiast literom. Kliknij dwukrotnie polecenie, aby nagrać nowy."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Os atalhos seguem a posição de cada tecla no teclado, então não mudam quando você troca de layout. Clique duas vezes em um comando para gravar um novo."
+            "value": "Os atalhos seguem a posição de cada tecla no teclado, então não mudam quando você troca de layout. Os atalhos padrão com Command seguem a letra. Clique duas vezes em um comando para gravar um novo."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Os atalhos seguem a posição de cada tecla no teclado, por isso não mudam quando muda de disposição. Faça duplo clique num comando para gravar um novo."
+            "value": "Os atalhos seguem a posição de cada tecla no teclado, por isso não mudam quando muda de disposição. Os atalhos predefinidos com Comando seguem antes a respetiva letra. Faça duplo clique num comando para gravar um novo."
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Scurtăturile urmează poziția fiecărei taste pe tastatură, așa că rămân la fel când schimbați aranjamentul. Faceți dublu clic pe o comandă pentru a înregistra una nouă."
+            "value": "Scurtăturile urmează poziția fiecărei taste pe tastatură, așa că rămân la fel când schimbați aranjamentul. Scurtăturile implicite cu Comandă urmează în schimb litera lor. Faceți dublu clic pe o comandă pentru a înregistra una nouă."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Сочетания привязаны к положению клавиш на клавиатуре, поэтому не меняются при смене раскладки. Дважды нажмите команду, чтобы записать новое."
+            "value": "Сочетания привязаны к положению клавиш на клавиатуре, поэтому не меняются при смене раскладки. Стандартные сочетания с Command, напротив, привязаны к букве. Дважды нажмите команду, чтобы записать новое."
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skratky sa riadia polohou klávesov na klávesnici, takže sa pri prepnutí rozloženia nemenia. Dvojitým kliknutím na príkaz nahráte novú."
+            "value": "Skratky sa riadia polohou klávesov na klávesnici, takže sa pri prepnutí rozloženia nemenia. Predvolené skratky s klávesom Command sa namiesto toho riadia písmenom. Dvojitým kliknutím na príkaz nahráte novú."
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kortkommandon följer varje tangents placering på tangentbordet, så de står kvar när du byter layout. Dubbelklicka på ett kommando för att spela in ett nytt."
+            "value": "Kortkommandon följer varje tangents placering på tangentbordet, så de står kvar när du byter layout. Standardkortkommandona med Kommando följer i stället sin bokstav. Dubbelklicka på ett kommando för att spela in ett nytt."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "คีย์ลัดจะยึดตามตำแหน่งของแต่ละปุ่มบนแป้นพิมพ์ จึงไม่เปลี่ยนเมื่อคุณสลับรูปแบบแป้นพิมพ์ คลิกสองครั้งที่คำสั่งเพื่อบันทึกคีย์ลัดใหม่"
+            "value": "คีย์ลัดจะยึดตามตำแหน่งของแต่ละปุ่มบนแป้นพิมพ์ จึงไม่เปลี่ยนเมื่อคุณสลับรูปแบบแป้นพิมพ์ ส่วนคีย์ลัดเริ่มต้นที่ใช้ Command จะยึดตามตัวอักษร คลิกสองครั้งที่คำสั่งเพื่อบันทึกคีย์ลัดใหม่"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kestirmeler her tuşun klavyedeki konumunu izler, bu yüzden klavye düzenini değiştirdiğinizde yerinde kalır. Yeni bir kestirme kaydetmek için bir komutu çift tıklayın."
+            "value": "Kestirmeler her tuşun klavyedeki konumunu izler, bu yüzden klavye düzenini değiştirdiğinizde yerinde kalır. Varsayılan Komut kestirmeleri ise harflerini izler. Yeni bir kestirme kaydetmek için bir komutu çift tıklayın."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Скорочення прив’язані до розташування клавіш на клавіатурі, тож не змінюються, коли ви перемикаєте розкладку. Двічі клацніть команду, щоб записати нове."
+            "value": "Скорочення прив’язані до розташування клавіш на клавіатурі, тож не змінюються, коли ви перемикаєте розкладку. Стандартні скорочення з Command натомість прив’язані до літери. Двічі клацніть команду, щоб записати нове."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Phím tắt đi theo vị trí của từng phím trên bàn phím, nên không đổi khi bạn chuyển bố cục. Bấm hai lần vào một lệnh để ghi phím tắt mới."
+            "value": "Phím tắt đi theo vị trí của từng phím trên bàn phím, nên không đổi khi bạn chuyển bố cục. Còn các phím tắt Command mặc định thì đi theo chữ cái. Bấm hai lần vào một lệnh để ghi phím tắt mới."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "快捷键跟随按键在键盘上的位置，因此切换键盘布局时不会改变。连按两次命令即可录制新的快捷键。"
+            "value": "快捷键跟随按键在键盘上的位置，因此切换键盘布局时不会改变。默认的 Command 快捷键则跟随其字母。连按两次命令即可录制新的快捷键。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "快速鍵會跟隨按鍵在鍵盤上的位置，因此切換鍵盤配置時不會改變。按兩下指令即可錄製新的快速鍵。"
+            "value": "快速鍵會跟隨按鍵在鍵盤上的位置，因此切換鍵盤配置時不會改變。預設的 Command 快速鍵則會跟隨其字母。按兩下指令即可錄製新的快速鍵。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.shortcuts.key.keypad": {
+      "comment": "A key on the numeric keypad, as part of a shortcut after any modifier glyphs, such as 'Keypad 1' or '⌥Keypad *'. %@ is the character the key types. Shown when the key is refused as reserved.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Цифров блок %@"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numerická klávesnice %@"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numerisk tastatur %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ziffernblock %@"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αριθμητικό πληκτρολόγιο %@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keypad %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teclado numérico %@"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numeronäppäimistö %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pavé numérique %@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numerička tipkovnica %@"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Számbillentyűzet %@"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keypad %@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tastierino numerico %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "テンキー %@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "키패드 %@"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Talltastatur %@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numeriek toetsenblok %@"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klawiatura numeryczna %@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teclado numérico %@"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teclado numérico %@"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tastatură numerică %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Цифровая клавиатура %@"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numerická klávesnica %@"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numeriskt tangentbord %@"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "แป้นตัวเลข %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sayısal tuş takımı %@"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Цифрова клавіатура %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bàn phím số %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数字小键盘 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "數字鍵盤 %@"
           }
         }
       },

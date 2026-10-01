@@ -260,6 +260,39 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
 // The walk ranks cover candidates on the way past, so the walked-directories
 // handler gets each folder's answer for free. Only directories with playable
 // audio are reported.
+// What both listings prefetch. Every key is one more attribute the provider
+// must answer, so the date is asked for only when the sort needs it; the size
+// rides the same bulk read the stat keys already cost, and spares a stat per
+// file (rowsForFile: reads it again for a FLAC).
+static NSArray<NSURLResourceKey> *VibeListingKeys(VibeFolderOpenSort sort) {
+    return sort == VibeFolderOpenSortNewestFirst
+            ? @[NSURLIsDirectoryKey, NSURLIsSymbolicLinkKey, NSURLFileSizeKey, NSURLContentModificationDateKey]
+            : @[NSURLIsDirectoryKey, NSURLIsSymbolicLinkKey, NSURLFileSizeKey];
+}
+
+// A listed file's emptiness, so a listed file costs the filter no stat: a
+// link's from its target's stat, with *dangling set when the target is gone;
+// any other file's from the size its listing prefetched, which is the logical
+// size the test requires, never the allocated one. Anything it cannot stat
+// passes, so the real open can report a sandbox denial.
+static BOOL VibeListedFileIsEmpty(NSURL *url, BOOL isLink, BOOL *dangling) {
+    *dangling = NO;
+    if (isLink) {
+        struct stat targetInfo;
+        if (stat(url.fileSystemRepresentation, &targetInfo) == 0) {
+            return VibeStatIsEmptyOrDirectory(&targetInfo);
+        }
+        // The link was just listed, so ENOENT means its target.
+        *dangling = errno == ENOENT;
+        return NO;
+    }
+    NSNumber *size = nil;
+    if ([url getResourceValue:&size forKey:NSURLFileSizeKey error:NULL] && size != nil) {
+        return size.longLongValue == 0;
+    }
+    return url.isEmptyOrDirectory;
+}
+
 + (NSArray<AudioTrack*>*) expandDirectory:(NSURL*)dir sortedBy:(VibeFolderOpenSort)sort {
 
     NSMutableArray<NSURL*> *results = [[NSMutableArray alloc] init];
@@ -282,13 +315,8 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
 
     // Skipping hidden files drops the AppleDouble "._Song.mp3" sidecars that
     // exFAT, SMB and USB volumes carry, which would pass the extension filter
-    // as unplayable rows. Every key is one more attribute the provider must
-    // answer, so the date is prefetched only when the sort needs it; the size
-    // rides the same bulk read the stat keys already cost, and spares a stat
-    // per FLAC on a network volume (rowsForFile:).
-    NSArray<NSURLResourceKey> *keys = sort == VibeFolderOpenSortNewestFirst
-            ? @[NSURLIsDirectoryKey, NSURLIsSymbolicLinkKey, NSURLFileSizeKey, NSURLContentModificationDateKey]
-            : @[NSURLIsDirectoryKey, NSURLIsSymbolicLinkKey, NSURLFileSizeKey];
+    // as unplayable rows.
+    NSArray<NSURLResourceKey> *keys = VibeListingKeys(sort);
 
     while (pendingRoots.count > 0) {
         NSString *rootPath = pendingRoots.firstObject;
@@ -339,38 +367,25 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
                 }
                 continue;
             }
-            // The emptiness filter's verdict is given here, so a walked file
-            // costs it no stat: a link's from its target's stat, any other
-            // file's from the size the enumeration prefetched, which is the
-            // logical size the test requires, never the allocated one.
-            BOOL empty = NO;
             NSNumber *isLink = nil;
-            if ([url getResourceValue:&isLink forKey:NSURLIsSymbolicLinkKey error:NULL] &&
-                isLink.boolValue) {
+            [url getResourceValue:&isLink forKey:NSURLIsSymbolicLinkKey error:NULL];
+            if (isLink.boolValue) {
                 NSString *linked = VibeResolvedDirectoryPath(path);
                 if (linked) {
                     [linkedRoots addObject:linked];
                     continue;
                 }
-                // A dangling link is dropped here: the emptiness filter passes
-                // anything it cannot stat, so the real open can report a
-                // sandbox denial, and would keep it as an unplayable row. The
-                // link was just enumerated, so ENOENT means its target.
-                struct stat targetInfo;
-                if (stat(path.fileSystemRepresentation, &targetInfo) == 0) {
-                    empty = VibeStatIsEmptyOrDirectory(&targetInfo);
-                }
-                else if (errno == ENOENT) {
-                    continue;
-                }
             }
             NSString *extension = path.pathExtension.lowercaseString;
             BOOL isAudio = [supported containsObject:extension];
-            if (isAudio && !isLink.boolValue) {
-                NSNumber *size = nil;
-                empty = [url getResourceValue:&size forKey:NSURLFileSizeKey error:NULL] && size != nil
-                        ? size.longLongValue == 0
-                        : url.isEmptyOrDirectory;
+            BOOL empty = NO;
+            if (isAudio || isLink.boolValue) {
+                // A dangling link is dropped, or it would stay an unplayable row.
+                BOOL dangling;
+                empty = VibeListedFileIsEmpty(url, isLink.boolValue, &dangling);
+                if (dangling) {
+                    continue;
+                }
             }
             // A sheet sorts among the audio and stands in for its files
             // (rowsForWalk:); an M3U here would double what the walk found.
@@ -421,8 +436,10 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
 
 // Each audio file its rows (rowsForFile:), and each sheet its rows in its
 // sorted place. A sheet resolves against the walk's own listing first and
-// claims its files, so none also appears whole or is opened for its own sheet.
-// Sheet rows must name supported, nonempty files, listed or readable.
+// claims its files, so none also appears whole or is opened for its own sheet,
+// and none is cut again by a later sheet: Album.cue beside Album (UTF-8).cue
+// would list every track twice. Sheet rows must name supported, nonempty
+// files, listed or readable.
 + (NSArray<AudioTrack *> *)rowsForWalk:(NSArray<NSURL *> *)urls {
     NSMutableArray<NSURL *> *sheets = [NSMutableArray array];
     for (NSURL *url in urls) {
@@ -449,13 +466,18 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
         [matches addObject:url];
     }
     NSMutableDictionary<NSURL *, NSArray<AudioTrack *> *> *rowsBySheet = [NSMutableDictionary dictionary];
-    NSMutableSet<NSURL *> *claimed = [NSMutableSet set];
+    // Each claimed file to the sheet that cut it.
+    NSMutableDictionary<NSURL *, NSURL *> *claimed = [NSMutableDictionary dictionary];
     // Once per file, however many rows a sheet cuts it into.
     NSMutableDictionary<NSURL *, NSNumber *> *playable = [NSMutableDictionary dictionary];
     NSSet<NSString *> *supported = self.supportedExtensions;
     for (NSURL *sheet in sheets) {
         NSMutableArray<AudioTrack *> *rows = [NSMutableArray array];
         for (AudioTrack *row in [PlaylistFile cueRowsForSheetAtURL:sheet knownFiles:knownFiles]) {
+            NSURL *cutBy = claimed[row.url];
+            if (cutBy && cutBy != sheet) {
+                continue;
+            }
             NSNumber *verdict = playable[row.url];
             if (verdict == nil) {
                 verdict = @([supported containsObject:row.url.pathExtension.lowercaseString]
@@ -466,7 +488,7 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
             }
             if (verdict.boolValue) {
                 [rows addObject:row];
-                [claimed addObject:row.url];
+                claimed[row.url] = sheet;
             }
         }
         rowsBySheet[sheet] = rows;
@@ -477,7 +499,7 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
         if (sheetRows) {
             [rows addObjectsFromArray:sheetRows];
         }
-        else if (![claimed containsObject:url]) {
+        else if (!claimed[url]) {
             [rows addObjectsFromArray:[self rowsForFile:url]];
         }
     }
@@ -505,13 +527,11 @@ static const long long kVibeEmbeddedCueMinimumBytes = 100LL * 1024 * 1024;
 }
 
 + (NSArray<AudioTrack*>*) rowsInDirectory:(NSURL*)dir sortedBy:(VibeFolderOpenSort)sort {
-    // Skipping hidden files drops AppleDouble sidecars, as in expandDirectory.
+    // Skipping hidden files drops AppleDouble sidecars.
     NSError *error = nil;
     NSArray<NSURL*> *contents = [[NSFileManager defaultManager]
             contentsOfDirectoryAtURL:dir
-          includingPropertiesForKeys:(sort == VibeFolderOpenSortNewestFirst
-                                              ? @[NSURLFileSizeKey, NSURLContentModificationDateKey]
-                                              : @[NSURLFileSizeKey])
+          includingPropertiesForKeys:VibeListingKeys(sort)
                              options:NSDirectoryEnumerationSkipsHiddenFiles
                                error:&error];
     if (!contents) {
@@ -525,7 +545,12 @@ static const long long kVibeEmbeddedCueMinimumBytes = 100LL * 1024 * 1024;
         if (![supported containsObject:extension] && ![PlaylistFile isCueExtension:extension]) {
             continue;
         }
-        if (!url.isEmptyOrDirectory) {
+        NSNumber *isDirectory = nil;
+        NSNumber *isLink = nil;
+        [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
+        [url getResourceValue:&isLink forKey:NSURLIsSymbolicLinkKey error:NULL];
+        BOOL dangling = NO;
+        if (!isDirectory.boolValue && !VibeListedFileIsEmpty(url, isLink.boolValue, &dangling) && !dangling) {
             [results addObject:url];
         }
     }

@@ -156,6 +156,13 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
     __weak NowPlayingController *weakSelf = self;
     _commandsRegistered = YES;
 
+    // TRAP: the command center is process-global — lock screen, Control
+    // Center, CarPlay, AirPods and the mac's media keys share it — and the
+    // system picks which enabled commands fill the compact transport. These
+    // two leave next/previous there (the lock screen and either platform's
+    // Control Center show no shuffle or repeat at all); the skip-interval
+    // pair takes their place.
+    // Check any further command on a device first.
     // State follows updateShuffleEnabled:repeatMode:; a request only asks.
     center.changeShuffleModeCommand.enabled = YES;
     [center.changeShuffleModeCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {

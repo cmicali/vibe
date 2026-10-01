@@ -23,7 +23,9 @@
     NSMutableArray<AudioTrack *> *_playOrder;
     NSUInteger _playOrderCursor;
     // Repeat All's next cycle, made on the first ask at the order's end and
-    // kept so that nextTrack is where next lands. Any edit to the order drops it.
+    // kept so that nextTrack is where next lands. Any edit to the order drops
+    // it, but the convert swap swaps its entry as in _playOrder. nil whenever
+    // _playOrder is.
     NSMutableArray<AudioTrack *> *_nextPlayOrder;
 }
 
@@ -77,6 +79,7 @@
     }
     else {
         _playOrder = nil;
+        _nextPlayOrder = nil;
     }
 }
 
@@ -489,14 +492,22 @@
     [self unindexURL:outgoing.url atIndex:index];
     [self indexTrack:incoming atIndex:index];
     _tracks[index] = incoming;
-    // The row keeps its place in the play order: no row moves.
-    NSUInteger position = [_playOrder indexOfObjectIdenticalTo:outgoing];
-    if (position != NSNotFound) {
-        _playOrder[position] = incoming;
-        _nextPlayOrder = nil;
-    }
+    // No row moves, so the row keeps its place in both orders, and the next
+    // cycle a gapless splice may be armed on survives.
+    [self replaceOrderEntry:outgoing with:incoming in:_playOrder];
+    [self replaceOrderEntry:outgoing with:incoming in:_nextPlayOrder];
     [self.observer playlist:self didReplaceTrackAtIndex:index];
     return incoming;
+}
+
+// The nil check is load-bearing: a message to a nil order answers 0, not
+// NSNotFound.
+- (void)replaceOrderEntry:(AudioTrack *)outgoing with:(AudioTrack *)incoming
+                       in:(NSMutableArray<AudioTrack *> *)order {
+    NSUInteger position = order ? [order indexOfObjectIdenticalTo:outgoing] : NSNotFound;
+    if (position != NSNotFound) {
+        order[position] = incoming;
+    }
 }
 
 - (NSArray<AudioTrack *> *)removeTracksAtIndexes:(NSIndexSet *)indexes {

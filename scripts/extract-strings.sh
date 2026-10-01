@@ -70,6 +70,18 @@ if ! ls "$WORK"/*.stringsdata >/dev/null 2>&1; then
     exit 1
 fi
 
+# One key with two defaults is fatal, where sync only warns: it keeps one value,
+# so every caller of the other renders that text in every language.
+CONFLICTS=$(jq -r -s '[.[].tables.Localizable // [] | .[]] | group_by(.key)
+    | map(select((map(.value) | unique | length) > 1))
+    | .[] | "  \(.[0].key): " + (map(.value) | unique | map("\"\(.)\"") | join(", "))' \
+    "$WORK"/*.stringsdata)
+if [ -n "$CONFLICTS" ]; then
+    echo "error: a key is used with more than one default value — give each its own key, or unify the macros:" >&2
+    echo "$CONFLICTS" >&2
+    exit 1
+fi
+
 # TRAP: an Xcode build emits no .stringsdata for ObjC, so Xcode's catalog pass
 # sees every key as unreferenced and WRITES stale marks into the checked-in
 # catalog. extractionState "manual" makes Xcode leave a key alone, but sync

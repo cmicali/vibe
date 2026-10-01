@@ -7,8 +7,6 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
-#import "AudioPlayer+Devices.h"
-#import "AudioTrack.h"
 #import "MainPlayerController.h"
 #import "MainPlayerController+Menus.h"
 #import "MainPlayerController+Transport.h"
@@ -31,14 +29,13 @@ typedef NS_ENUM(NSInteger, VibeEffectKey) {
 static const NSTimeInterval kEffectTapMaxDuration = 0.35;
 
 static NSInteger VibeEffectKeyForCommand(NSString *identifier) {
-    static NSArray<NSString *> *commands;   // indexed by VibeEffectKey
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        commands = @[kVibeMenuFXLowKill, kVibeMenuFXLowKillBoost, kVibeMenuFXReverb,
-                     kVibeMenuFXDelay, kVibeMenuFXShortDelay];
-    });
-    NSUInteger index = [commands indexOfObject:identifier];
+    NSUInteger index = [VibeFXMenuIdentifiers() indexOfObject:identifier];
     return index == NSNotFound ? -1 : (NSInteger)index;
+}
+
+static unichar VibeLowercaseCharacter(NSString *_Nullable characters) {
+    NSString *lowercase = characters.lowercaseString;
+    return lowercase.length == 1 ? [lowercase characterAtIndex:0] : 0;
 }
 
 // The playlist's physical keys, unmodified: Return, Delete (each folding its
@@ -166,12 +163,18 @@ static BOOL VibeIsPlaylistKey(unsigned short keyCode, NSEventModifierFlags modif
 
 #pragma mark - Event handling
 
-// Returns nil to swallow a handled key, or the event to pass it on. Matched
-// by physical key and the exact modifier set against ShortcutRules.h, so a
-// layout's letters never move a binding.
+// Returns nil to swallow a handled key, or the event to pass it on. A
+// key-code binding matches by physical key, so a layout's letters never move
+// it; a character default by the character typed. Both need the exact
+// modifier set (ShortcutRules.h).
 - (NSEvent *)handleKeyEvent:(NSEvent *)event inWindow:(NSWindow *)window {
     MainPlayerController *controller = _controller;
-    if (!controller || window != controller.window) {
+    NSEventModifierFlags mods = event.modifierFlags & kVibeShortcutModifierMask;
+    // Elsewhere the menu bar performs a binding, and AppKit repeats every key
+    // equivalent: only a Command binding's repeat is held back there, since
+    // anything else may be typing.
+    BOOL playerWindow = controller && window == controller.window;
+    if (!controller || (!playerWindow && !(event.isARepeat && (mods & NSEventModifierFlagCommand)))) {
         return event;
     }
     unsigned short keyCode = VibeShortcutCanonicalKeyCode(event.keyCode);
@@ -187,42 +190,26 @@ static BOOL VibeIsPlaylistKey(unsigned short keyCode, NSEventModifierFlags modif
         }
         return event;
     }
-    if ([controller.window.firstResponder isKindOfClass:[NSTextView class]]) {
+    if (playerWindow && [controller.window.firstResponder isKindOfClass:[NSTextView class]]) {
         return event;
     }
-    NSEventModifierFlags mods = event.modifierFlags & kVibeShortcutModifierMask;
-#if VIBE_VERBOSE_LOGGING
-    // Beta instrumentation: M marks the moment a tester hears a problem.
-    // keyCode 46 is the physical M under any layout.
-    if (keyCode == kVibeKeyCodeM && mods == 0) {
-        if (event.isARepeat) return nil;
-        static NSUInteger marks;
-        AudioPlayer *player = controller.audioPlayer;
-        LogWarn(@"USER MARK %lu: %@ at %.3fs, playing %d, loading %d, input delay %.0f ms, output %@",
-                (unsigned long)++marks, player.currentTrack.url.lastPathComponent, player.position,
-                player.isPlaying, player.isLoading,
-                MAX(0, NSProcessInfo.processInfo.systemUptime - event.timestamp) * 1000,
-                player.bitPerfectReportDictionary);
-        return nil;
-    }
-#endif
-    BOOL playlistShown = ((MainWindow *)controller.window).isPlaylistShown;
     // Dead while collapsed and swallowed whatever is bound: the table keeps
     // focus off screen, and an unhandled key reaching it wedges its input
     // context.
-    if (!playlistShown && VibeIsPlaylistKey(keyCode, mods)) {
+    if (playerWindow && !((MainWindow *)controller.window).isPlaylistShown && VibeIsPlaylistKey(keyCode, mods)) {
         return nil;
     }
-    // A key-code binding can land on a fixed system shortcut after a layout
-    // switch; the system shortcut wins.
-    NSString *chars = event.charactersIgnoringModifiers.lowercaseString;
-    unichar character = chars.length == 1 ? [chars characterAtIndex:0] : 0;
-    if (VibeShortcutIsReserved(keyCode, character, mods)) {
-        return event;   // the arrows are the table's own moveUp:/moveDown:
-    }
-    NSString *command = VibeShortcutCommandForKey(keyCode, mods, AppSettings.sharedInstance.shortcutOverrides);
+    // A reserved press passes on too: the arrows are the table's own
+    // moveUp:/moveDown:.
+    unichar typed = (mods & NSEventModifierFlagCommand) ? VibeLowercaseCharacter(event.characters) : 0;
+    NSString *command = VibeShortcutCommandForPress(keyCode, mods, typed,
+            VibeLowercaseCharacter(event.charactersIgnoringModifiers), AppSettings.sharedInstance.shortcutOverrides);
     if (!command) {
         return event;
+    }
+    BOOL heldRepeat = event.isARepeat && !VibeShortcutCommandRepeats(command);
+    if (!playerWindow) {
+        return heldRepeat ? nil : event;
     }
     // Flipped at keyDown for an instant response; repeats are swallowed. With
     // no controls or FX disallowed, the key passes through. The keyUp side
@@ -242,14 +229,15 @@ static BOOL VibeIsPlaylistKey(unsigned short keyCode, NSEventModifierFlags modif
         }
         return nil;
     }
-    // Validation gates the rest: Play Selected and Remove need the playlist
-    // showing with a row selected, so a press over a collapsed playlist is
-    // swallowed and does nothing. Remove never repeats, so a held delete
-    // takes one gesture's rows.
-    if (!event.isARepeat || VibeShortcutCommandRepeats(command)) {
-        [controller performMenuCommandWithIdentifier:command];
+    // Remove never repeats, so a held delete takes one gesture's rows.
+    if (heldRepeat) {
+        return nil;
     }
-    return nil;
+    // Validation gates the rest. A disabled command swallows its key: Play
+    // Selected and Remove need the playlist showing with a row selected, so a
+    // press over a collapsed playlist does nothing. A hidden one (Convert
+    // switched off) passes it on, as if unbound.
+    return [controller performMenuCommandWithIdentifier:command] ? nil : event;
 }
 
 @end

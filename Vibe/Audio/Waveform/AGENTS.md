@@ -12,7 +12,7 @@ Same shape as `FolderArtResolver`'s enabled provider, for the same reason: a dec
 
 ## The decode pass
 
-The pass is decode-bound — CoreAudio's MP3 and FLAC codecs cost several times everything downstream combined, and the read block size does not move that floor — so the loader **pipelines the decode against the processing**: block N+1 decodes while block N runs through the mono mix, the analyzers and the chunker on a serial queue one block behind, ping-ponging two buffers whose reuse per-slot semaphores gate. Wall time comes down to roughly the decode alone, and the output is exact, because the serial queue preserves the stream order the analyzers' framing depends on.
+The pass is decode-bound — the file's decoder (`Audio/AGENTS.md`: dr_mp3, dr_flac and dr_wav by default, CoreAudio's codecs otherwise) is the floor of its cost, and the read block size does not move that floor — so the loader **pipelines the decode against the processing**: block N+1 decodes while block N runs through the mono mix, the analyzers and the chunker on a serial queue one block behind, ping-ponging two buffers whose reuse per-slot semaphores gate. Wall time comes down to roughly the decode alone, and the output is exact, because the serial queue preserves the stream order the analyzers' framing depends on.
 
 All processing-side state — the progress throttle and its snapshots included — lives on that queue and is read only after the final drain.
 
@@ -42,7 +42,7 @@ Progress is different: detached and cancelled loaders do not construct or enqueu
 
 ## Every delivery carries the track it was loaded for
 
-`audioWaveform:didLoadData:forTrack:`, the terminal-failure callback, and the BPM and key twins — because a delivery can land after the track has changed. Receivers match its `sourceKey` against their current track's, not its URL, since rows of one file share the URL and each has its own waveform and tempo: `MainPlayerController+Delivery` and the iOS `PageWaveformCoordinator` each do, and a tempo or key is stamped on every row sounding that window (`Playlist.stampTracksSounding:usingBlock:`). Failure is delivered only while that loader is still current; it makes the attempt terminal before delivery so a same-window request starts fresh. The BPM and key twins are optional; iOS implements the BPM one (the coordinator forwards it to `PlaybackController.noteDetectedBPM:forTrack:`) and not the key, since key analysis is macOS-only.
+`audioWaveform:didLoadData:forTrack:`, the terminal-failure callback, and the BPM and key twins — because a delivery can land after the track has changed. Receivers match its `sourceKey` against their current track's, not its URL, since rows of one file share the URL and each has its own waveform and tempo: `MainPlayerController+Delivery` and the iOS `PageWaveformCoordinator` each do, and a tempo or key is stamped on every row sounding that window (`Playlist.stampTracksSounding:usingBlock:`). Failure is delivered only while that loader is still current; it makes the attempt terminal before delivery so a same-window request starts fresh. The BPM and key twins are optional; iOS implements the BPM one (the coordinator forwards it through `PlayerViewController` to `PlaybackController.noteDetectedBPM:forTrack:`) and not the key, since key analysis is macOS-only.
 
 The cache captures that track when the load starts (`_currentLoadTrack`) rather than reading it back at delivery time, and **the reattach path must set it too**, or a resumed decode would deliver under the track it was detached from.
 

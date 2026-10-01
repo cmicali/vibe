@@ -47,12 +47,14 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (nullable NSMenuItem *)mainMenuItemWithIdentifier:(NSString *)identifier;
 
-// The key's lowercase character under the current layout, 0 when it has none;
-// what the rules compare against the fixed and character shortcuts.
-+ (unichar)characterForKeyCode:(unsigned short)keyCode;
+// The key's lowercase character under the current layout, in Command's layer
+// when modifiers hold ⌘, 0 when it has none; what the rules compare against
+// the fixed and character shortcuts.
++ (unichar)characterForKeyCode:(unsigned short)keyCode modifiers:(NSEventModifierFlags)modifiers;
 
-// The key's name as the menu draws it, nil for a key no layout names.
-+ (nullable NSString *)labelForKeyCode:(unsigned short)keyCode;
+// The key's name as the menu draws it, in the same layer, nil for a key no
+// layout names.
++ (nullable NSString *)labelForKeyCode:(unsigned short)keyCode modifiers:(NSEventModifierFlags)modifiers;
 
 // ⌃⌥⇧⌘ then the key, as the menu draws it; the unassigned label for None.
 + (NSString *)displayStringForShortcut:(VibeShortcut)shortcut;

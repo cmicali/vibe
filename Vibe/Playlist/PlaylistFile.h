@@ -47,9 +47,10 @@ extern NSString *const kVibeLastPlaylistCurrentIndexKey;
 // A sheet naming one image — or none — that no rung finds takes the audio named
 // like the sheet beside it (Mix.cue's Mix.flac). An entry readable nowhere
 // still yields its primary candidate, as for M3U. knownFiles, from a folder
-// walk, groups the files it just listed by knownFileKeyForPath:. An exact path
-// wins, else a sole match supplies the listing's spelling without a probe;
-// ambiguous or missing matches take the rungs.
+// walk, groups the files it just listed by knownFileKeyForPath:, and every
+// rung's candidate is looked up there before the disk: an exact path wins,
+// else a sole match supplies the listing's spelling, which is what the walk
+// claims, without a probe.
 + (NSArray<AudioTrack *> *)cueRowsForSheetAtURL:(NSURL *)url
                                      knownFiles:(nullable NSDictionary<NSString *, NSArray<NSURL *> *> *)knownFiles;
 

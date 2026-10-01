@@ -32,8 +32,10 @@
 //  STREAMINFO leaves it unknown. The vendored copy carries fixes of its own
 //  (ThirdParty/AGENTS.md).
 //
-//  A WAV or AIFF file is decoded by dr_wav the same way, when it holds a
-//  coding dr_wav decodes (ThirdParty/AGENTS.md lists them).
+//  A WAV, W64, RF64 or AIFF file is decoded by dr_wav the same way, when it
+//  holds a coding dr_wav decodes (ThirdParty/AGENTS.md lists them); no file
+//  of another container is offered it: WAVE (BWF among them), W64, RF64,
+//  AIFF and AIFF-C, as the parser names them.
 //
 
 #import <AVFAudio/AVFAudio.h>
@@ -44,8 +46,8 @@ NS_ASSUME_NONNULL_BEGIN
 @interface AudioFileHandle : NSObject
 
 // Opens CoreAudio's parser alone, with no decoder: the one open every reader
-// of CoreAudio's verdict on a file shares, the reading inits included. Only
-// `url` and `parser` answer.
+// of CoreAudio's verdict on a file shares, the reading inits included, so it
+// refuses what playback refuses (FLAC in Ogg). Only `url` and `parser` answer.
 - (nullable instancetype)initParserForReading:(NSURL *)url
                                         error:(NSError * _Nullable __autoreleasing * _Nullable)error NS_DESIGNATED_INITIALIZER;
 
