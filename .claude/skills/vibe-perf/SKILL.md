@@ -24,7 +24,9 @@ python3 .claude/skills/vibe-perf/scripts/perf.py list                           
 
 `compare BASE [HEAD]` builds VibePerf for each side (a ref once per commit under `build/perf/bin/`, the working tree incrementally in `build/PerfDerivedData`), runs them alternately `--rounds` times (default 3) × `--reps` (default 3), and prints a table of medians — instructions, CPU, wall — and their change. `--md OUT` also writes it as markdown; `build/perf/last-compare.json` keeps every sample. A side can be `bin:<path>`, a VibePerf built some other way (a build-setting experiment: `xcodebuild ... -scheme VibePerf GCC_OPTIMIZATION_LEVEL=3 -derivedDataPath build/perf/dd-O3`).
 
-**A ref older than the harness still runs the same suite**: `perf.py` grafts the working tree's `Tests/Perf/` and the `VibePerf` target onto its checkout. That holds only while the benchmarks call API the older ref has; when an API changes, the base must be a commit that has it.
+**Any ref back to 1.8 runs today's harness.** `perf.py` grafts the working tree's `Tests/Perf/` onto the ref's checkout and writes `VibePerfFeatures.h` from that checkout's sources (`VibePerf.h` lists the questions: the player's reader, `AVAudioFile` before 1.14; the waveform loader's class; the analysis provider, settings before 1.10; the metadata parse's shape; the meter's). When the ref's spec has no `VibePerf` target, it derives one from the ref's own app target (`xcodegen dump`, so 1.8's flat layout builds as it was), and builds without warnings as errors. **A benchmark file the ref cannot compile is left out of that build** and named in the output; the core (`VibePerf.mm`, `VibePerf.h`) never is. That is why benchmarks live one subsystem to a file: a version missing one loses only that file. Binaries are cached per commit and harness digest under `build/perf/bin/`.
+
+**The performance page charts it.** `make bench` and `make bench-rerun` run the suite against each version after the app suite, and `make bench-perf` runs it alone (no app launches, so the Mac can be in use), into `results.json`'s `perf` section; `scripts/bench/report.py`'s `PERF_CHARTS` draws the "Inside the app" charts on `docs/performance.md` from it. `bench.py`'s `PERF_FILTER` is the set it runs; a new benchmark joins the page only by being in both.
 
 The corpus is `make bench`'s (`build/bench/corpus`: the play files, a 600-file tagged library) plus a few formats it lacks (`extra/`: 16-bit WAV and AIFF, ALAC, Opus, Vorbis), generated once with ffmpeg by `perf.py corpus`, which every command runs first. A benchmark whose file is missing is skipped, not failed.
 
@@ -40,7 +42,7 @@ The `per unit` column is realtime factor (audio seconds per CPU second) for audi
 
 ## Adding a benchmark
 
-One file per area in `Tests/Perf/`, registered from a static constructor, so adding one touches nothing else:
+One file per subsystem in `Tests/Perf/`, registered from a static constructor, so adding one touches nothing else, and an older version that lacks the subsystem drops only that file. Code that reads a file goes through `VibePerfReader` and loads a waveform through `VibePerfWaveformLoader`, so it measures each version's own reader and loader; a shape that changed between versions gets a flag in `VibePerf.h`'s list and its detection in `perf.py`'s `features()`.
 
 ```objc
 #import "VibePerf.h"

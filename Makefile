@@ -6,7 +6,7 @@ CONFIG ?= Release
 # it from. Under build/, so `make clean` takes it.
 RESULT_BUNDLE ?= build/TestResults.xcresult
 
-.PHONY: bench bench-rerun bench-report build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress torture release github-release deploy-web web-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
+.PHONY: bench bench-rerun bench-report bench-perf build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress torture release github-release deploy-web web-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
 
 # Install the dev-tool dependencies (xcodegen, jq, gh) from the Brewfile.
 setup:
@@ -163,6 +163,12 @@ bench-rerun:
 
 bench-report:
 	python3 scripts/bench/bench.py report
+
+# The in-process suite alone (VibePerf, the vibe-perf skill), against every
+# version in results.json or VERSIONS="1.15=<ref>"; no app launches, so the
+# Mac can be in use.
+bench-perf:
+	python3 scripts/bench/bench.py perf $(VERSIONS) $(ARGS)
 
 # The rm matters: BSD cp -R copies INTO an existing destination directory, so
 # without it a second install produces /Applications/Vibe.app/Vibe.app.

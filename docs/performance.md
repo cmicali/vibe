@@ -35,6 +35,22 @@ The same benchmark suite, run against every release on one machine (Apple M2 Pro
 ![600-file library: open and metadata scan](performance/library.svg)
 ![Memory footprint](performance/memory.svg)
 ![Background cost](performance/idle.svg)
+![Playback energy](performance/playback-energy.svg)
+![Playback work, instructions retired](performance/playback-work.svg)
+![Wakeups](performance/wakeups.svg)
+
+### Inside the app
+
+The in-process suite, VibePerf, built against each version's own code and run on one machine (Apple M4 Max, 64 GB, macOS 27.0): the code under each feature, without the app around it. A line that starts late is a benchmark of code that version does not have.
+
+![Decoding, CPU per minute of audio](performance/perf-decode.svg)
+![Opening a file](performance/perf-open.svg)
+![Seeking, and the first read after it](performance/perf-seek.svg)
+![Waveform, tempo and key for a new track, 3 min file](performance/perf-waveform.svg)
+![Tempo and key analysis, CPU per minute of audio](performance/perf-analysis.svg)
+![Reading a file's tags and cover art](performance/perf-metadata.svg)
+![The metadata and waveform disk cache](performance/perf-disk-cache.svg)
+![Large libraries](performance/perf-library.svg)
 
 <!-- performance:end -->
 
@@ -47,6 +63,7 @@ make bench VERSIONS="1.15"          # a new release: builds tag v1.15, measures 
 make bench VERSIONS="1.15=<ref>"    # measured at any other ref
 make bench-rerun                    # every version in results.json again, e.g. on a new machine
 make bench-report                   # this page's charts and table from results.json alone
+make bench-perf                     # the in-process suite alone, every version in results.json
 ```
 
 A version takes about half an hour on an M4 Max, longer on a slower Mac (five repetitions of every scenario; `ARGS="--reps 1"` for a quick look). The suite launches the app fifteen times per repetition and each launch takes focus, so leave the Mac alone while it runs, and put Bluetooth headphones away: the app is held to the built-in speakers, but a headset that is the system default can still be pulled in by the OS. It needs `ffmpeg` (`brew install ffmpeg`) for the corpus, generated once into `build/bench/corpus`.
@@ -85,9 +102,17 @@ CPU, memory, wakeups and energy are read from outside with `proc_pid_rusage`, th
 | **App startup** | Process spawn to the first on-screen window (`scripts/bench/probe.swift`, from the window server, no permission needed), and to the first channel reply. *Warm* is the median of ten relaunches over the same home; *first launch* the median of three, each into an empty home with reset preferences. |
 | **Idle cost** | CPU %, wakeups/s and footprint over 5 s, 4 s after a first launch with nothing loaded. *Paused* is the same after the playback scenario pauses a loaded track. |
 | **Time to play** | `open` of a file never opened before (cold metadata, art and waveform) to the first rendered audio. The first, MP3 320k CBR, is the first play after launch, so it includes starting the output; the other six are track switches from a playing file: MP3 V0 VBR, AAC 256k, FLAC 16/44.1, FLAC 24/96, FLAC 24/192, WAV 24/96. A version that keeps its output running across a switch (1.14 on) plays the next file in a few milliseconds. The long and resampler-stress files below are opened the same way, and their times are recorded too. |
-| **Playback CPU** | 8 s of steady playback of every one of the fifteen files, measured once the open's background analysis has gone quiet, so it is the render path plus the UI. The FX worst case is FLAC 24/192 with reverb, delay, short delay and low kill all on; the pitch-fader cases hold the varispeed at full throw, +8% on FLAC 24/192 and −8% on MP3 320k, a non-integer ratio on top of the rate conversion. |
+| **Playback CPU** | 8 s of steady playback of every one of the fifteen files, measured once the open's background analysis has gone quiet, so it is the render path plus the UI. The same window gives *playback energy* (the process's energy over it, as `proc_pid_rusage` reports it), *playback work* (instructions retired a second, steadier than CPU time) and *wakeups* while playing (recorded from 1.15's suite on, so earlier runs have none until a rerun). The FX worst case is FLAC 24/192 with reverb, delay, short delay and low kill all on; the pitch-fader cases hold the varispeed at full throw, +8% on FLAC 24/192 and −8% on MP3 320k, a non-integer ratio on top of the rate conversion. |
 | **Seek latency** | 40 seeded seeks per file, each from the app taking the command to audio rendering past the target, the mean per repetition: MP3 V0, AAC and FLAC 24/192 at 3 minutes, and the hour-long MP3s and the MP3 without a Xing header, where a seek deep into the file is the worst case. |
 | **Waveform analysis** | `file_cache` on a cleared entry: the full decode, waveform and tempo analysis, until the entry is on disk. MP3 320k, FLAC 16/44.1 and FLAC 24/192 at 3 minutes; an hour of MP3; a minute of DXD. |
 | **Library** | `open` of the 600-file folder into an empty cache: until every row is listed, and until every row's metadata has been read (`dump_metadata_progress`). *Warm* repeats the scan in a relaunch over the filled cache. The CPU seconds it cost and the footprint afterwards and at peak are recorded too. |
 
-`results.json` keeps every repetition's raw value under `samples` beside the median, plus instructions retired and energy per format, which are steadier than CPU time and not charted.
+`results.json` keeps every repetition's raw value under `samples` beside the median.
+
+### Inside the app
+
+The second set of charts is the code under each feature, without the app around it: `Tests/Perf/`'s VibePerf (the `vibe-perf` skill) drives the production code in-process — the player's file reader opening, decoding and seeking, the waveform pass with tempo and key, the analyzers alone, the metadata parse with its cover art, the disk cache, and the large-library operations — and `make bench`, `make bench-rerun` and `make bench-perf` run it against every version into `results.json`'s `perf` section.
+
+One harness, today's, is built against every version's own code. `perf.py` checks the version out, writes `VibePerfFeatures.h` from what its sources have (the reader was `AVAudioFile` until 1.14 and `AudioFileHandle` from it; the waveform loader was `AVFAudioWaveformLoader`; the analyzers were switched by two settings before 1.10 had a provider; the meter summarized apart from consuming from 1.14), derives a `VibePerf` tool target from that version's own app target (`xcodegen dump`), so 1.8's flat source layout builds as it was, and leaves out any benchmark file that version cannot compile. So a line that starts late is code the version does not have: the level meter from 1.10, the metadata sweep from 1.14, the playlist-file, folder-walk and playlist-edit benchmarks from 1.15.
+
+Each number is the median of five runs of one process per version, after a warm-up. Decoding and analysis are CPU time per minute of the file's audio, opening and seeking CPU time per operation, the waveform pass wall time (it pipelines across two threads), the metadata parse, the disk cache and the libraries wall time per file, entry or job. The machine is recorded separately from the app suite's, and these charts compare only versions measured on one machine. CPU time stays within a few percent under load, unlike wall time; instructions retired, which hardly move at all, are kept beside it in `results.json` for a check.

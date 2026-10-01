@@ -17,8 +17,14 @@
 
 #import <AVFAudio/AVFAudio.h>
 
+#import "AppSettings.h"
+#import "AudioWaveformLoader.h"
+#if VIBE_PERF_FILE_HANDLE
 #import "AudioFileHandle.h"
-#import "AudioWaveform.h"
+#endif
+#if VIBE_PERF_AVF_WAVEFORM_LOADER
+#import "AVFAudioWaveformLoader.h"
+#endif
 
 #include <libproc.h>
 #include <mach/mach.h>
@@ -140,9 +146,103 @@ NSString *VibePerfFile(NSString *name) {
     return nil;
 }
 
+@implementation VibePerfReader {
+#if VIBE_PERF_FILE_HANDLE
+    AudioFileHandle *_handle;
+#endif
+    AVAudioFile *_file;
+}
+
+- (instancetype)initWithPath:(NSString *)path interleaved:(BOOL)interleaved {
+    self = [super init];
+    NSURL *url = path ? [NSURL fileURLWithPath:path] : nil;
+    if (!self || !url) {
+        return nil;
+    }
+#if VIBE_PERF_FILE_HANDLE
+#if VIBE_PERF_FILE_HANDLE_COMMON_FORMAT
+    _handle = interleaved ? [[AudioFileHandle alloc] initForReading:url commonFormat:AVAudioPCMFormatFloat32
+                                                         interleaved:YES error:nil]
+                          : [[AudioFileHandle alloc] initForReading:url error:nil];
+#else
+    _handle = interleaved ? [[AudioFileHandle alloc] initForReading:url interleaved:YES error:nil]
+                          : [[AudioFileHandle alloc] initForReading:url error:nil];
+#endif
+    return _handle ? self : nil;
+#else
+    _file = [[AVAudioFile alloc] initForReading:url commonFormat:AVAudioPCMFormatFloat32 interleaved:interleaved error:nil];
+    return _file ? self : nil;
+#endif
+}
+
+- (AVAudioFormat *)processingFormat {
+#if VIBE_PERF_FILE_HANDLE
+    return _handle.processingFormat;
+#else
+    return _file.processingFormat;
+#endif
+}
+
+- (long long)length {
+#if VIBE_PERF_FILE_HANDLE
+    return _handle.length;
+#else
+    return _file.length;
+#endif
+}
+
+- (BOOL)read:(AVAudioPCMBuffer *)buffer {
+#if VIBE_PERF_FILE_HANDLE
+    return [_handle readIntoBuffer:buffer error:nil] && buffer.frameLength > 0;
+#else
+    return [_file readIntoBuffer:buffer error:nil] && buffer.frameLength > 0;
+#endif
+}
+
+- (void)seekTo:(long long)frame {
+#if VIBE_PERF_FILE_HANDLE
+    [_handle seekToFrame:frame error:nil];
+#else
+    _file.framePosition = frame;
+#endif
+}
+
+@end
+
 double VibePerfAudioSeconds(NSString *path) {
-    AudioFileHandle *file = path ? [[AudioFileHandle alloc] initForReading:[NSURL fileURLWithPath:path] error:nil] : nil;
-    return file ? (double)file.length / file.processingFormat.sampleRate : -1;
+    VibePerfReader *reader = [[VibePerfReader alloc] initWithPath:path interleaved:NO];
+    return reader ? (double)reader.length / reader.processingFormat.sampleRate : -1;
+}
+
+id VibePerfWaveformLoader(BOOL analyzers) {
+#if VIBE_PERF_AVF_WAVEFORM_LOADER
+    AudioWaveformLoader *loader = [[AVFAudioWaveformLoader alloc] init];
+#else
+    AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] init];
+#endif
+#if VIBE_PERF_ANALYSIS_PROVIDER
+    if (analyzers) {
+        loader.analysisProvider = ^VibeWaveformAnalysis {
+            return (VibeWaveformAnalysis){YES, YES};
+        };
+    }
+#else
+    // Before the provider the loader read the two settings itself; a version
+    // that lacks one throws, and that analyzer simply does not run.
+    for (NSString *key in @[@"analyzeBPM", @"analyzeKey"]) {
+        @try {
+            [AppSettings.sharedInstance setValue:@(analyzers) forKey:key];
+        } @catch (NSException *exception) {
+        }
+    }
+#endif
+    return loader;
+}
+
+static VibePerfAnalyzeTreeFunction sAnalyzeTree;
+
+void VibePerfSetAnalyzeTree(VibePerfAnalyzeTreeFunction function) {
+    sAnalyzeTree = function;
 }
 
 // MARK: - Shared fixtures
@@ -156,10 +256,7 @@ VibePerfPCM *VibePerfDecoded(NSString *name) {
     if (hit) {
         return (VibePerfPCM *)hit.pointerValue;
     }
-    NSString *path = VibePerfFile(name);
-    AudioFileHandle *file = path ? [[AudioFileHandle alloc] initForReading:[NSURL fileURLWithPath:path]
-                                                               interleaved:YES
-                                                                     error:nil] : nil;
+    VibePerfReader *file = [[VibePerfReader alloc] initWithPath:VibePerfFile(name) interleaved:YES];
     if (!file) {
         return nullptr;
     }
@@ -167,15 +264,20 @@ VibePerfPCM *VibePerfDecoded(NSString *name) {
     pcm->rate = file.processingFormat.sampleRate;
     pcm->channels = file.processingFormat.channelCount;
     AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat frameCapacity:65536];
-    while ([file readIntoBuffer:buffer error:nil] && buffer.frameLength > 0) {
+    while ([file read:buffer]) {
         const float *data = buffer.floatChannelData[0];
         pcm->interleaved.insert(pcm->interleaved.end(), data, data + (size_t)buffer.frameLength * pcm->channels);
     }
     pcm->frames = pcm->interleaved.size() / pcm->channels;
+    // A fixture, so a plain average: the loader's own downmix is what the
+    // chunker benchmark measures.
     pcm->mono.resize(pcm->frames);
-    const float *mono = AudioWaveformMonoMix(pcm->interleaved.data(), pcm->mono.data(), pcm->frames, pcm->channels);
-    if (mono != pcm->mono.data()) {
-        memcpy(pcm->mono.data(), mono, pcm->frames * sizeof(float));
+    for (NSUInteger f = 0; f < pcm->frames; f++) {
+        float sum = 0;
+        for (NSUInteger c = 0; c < pcm->channels; c++) {
+            sum += pcm->interleaved[f * pcm->channels + c];
+        }
+        pcm->mono[f] = sum / (float)pcm->channels;
     }
     pcm->left.resize(pcm->frames);
     pcm->right.resize(pcm->frames);
@@ -192,6 +294,62 @@ std::function<double(void)> VibePerfPCMPrepare(NSString *name, double outputRate
         VibePerfPCM *pcm = VibePerfDecoded(name);
         return pcm ? (double)pcm->frames / (outputRate > 0 ? outputRate : pcm->rate) : -1;
     };
+}
+
+// MARK: - Temporary files
+
+static NSMutableArray<NSString *> *VibePerfTemporaryRoots(void) {
+    static NSMutableArray<NSString *> *roots;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        roots = [NSMutableArray array];
+        atexit_b(^{
+            for (NSString *root in roots) {
+                [NSFileManager.defaultManager removeItemAtPath:root error:nil];
+            }
+        });
+    });
+    return roots;
+}
+
+// A fresh directory, removed when the process exits.
+NSString *VibePerfTemporaryDirectory(NSString *label) {
+    NSString *root = [NSTemporaryDirectory() stringByAppendingPathComponent:
+            [NSString stringWithFormat:@"vibe-perf-%@-%@", label, NSUUID.UUID.UUIDString]];
+    [NSFileManager.defaultManager createDirectoryAtPath:root withIntermediateDirectories:YES attributes:nil error:nil];
+    [VibePerfTemporaryRoots() addObject:root];
+    return root;
+}
+
+// Runs the main queue, where metadata deliveries land, until done or a
+// generous bound.
+void VibePerfSpinMainUntil(BOOL (^done)(void)) {
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:600];
+    while (!done() && deadline.timeIntervalSinceNow > 0) {
+        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.002, true);
+    }
+    if (!done()) {
+        printf("warning: wait timed out\n");
+    }
+}
+
+// `count` one-byte files in folders of 100, the relative paths returned.
+NSArray<NSString *> *VibePerfMakeFiles(NSString *root, NSUInteger count, NSString *extension) {
+    NSMutableArray<NSString *> *relative = [NSMutableArray arrayWithCapacity:count];
+    NSData *byte = [NSData dataWithBytes:"\1" length:1];
+    for (NSUInteger i = 0; i < count; i++) {
+        NSString *folder = [NSString stringWithFormat:@"Artist %03lu/Album %03lu", (unsigned long)(i / 1000),
+                                                      (unsigned long)(i / 100)];
+        if (i % 100 == 0) {
+            [NSFileManager.defaultManager createDirectoryAtPath:[root stringByAppendingPathComponent:folder]
+                                    withIntermediateDirectories:YES attributes:nil error:nil];
+        }
+        NSString *path = [folder stringByAppendingPathComponent:
+                [NSString stringWithFormat:@"%02lu Track %lu.%@", (unsigned long)(i % 100 + 1), (unsigned long)i, extension]];
+        [byte writeToFile:[root stringByAppendingPathComponent:path] atomically:NO];
+        [relative addObject:path];
+    }
+    return relative;
 }
 
 // MARK: - Driver
@@ -211,6 +369,9 @@ int main(int argc, const char *argv[]) {
     setvbuf(stdout, NULL, _IOLBF, 0);
     @autoreleasepool {
         sCorpus = @"build/bench/corpus";
+        for (VibePerfRegistrar registrar : VibePerfRegistrars()) {
+            registrar();
+        }
         int reps = 5;
         std::string filter = ".*";
         NSString *jsonPath = nil;
@@ -231,17 +392,17 @@ int main(int argc, const char *argv[]) {
             } else if (arg == "--loop" && hasValue) {
                 loopSeconds = atof(argv[++i]);
             } else if (arg == "--analyze" && hasValue) {
-                return VibePerfAnalyzeTree(@(argv[++i]));
+                if (!sAnalyzeTree) {
+                    fprintf(stderr, "this version's build has no analysis benchmarks\n");
+                    return 69;
+                }
+                return sAnalyzeTree(@(argv[++i]));
             } else if (arg == "--list") {
                 list = YES;
             } else {
                 VibePerfUsageText();
                 return arg == "--help" || arg == "-h" ? 0 : 64;
             }
-        }
-
-        for (VibePerfRegistrar registrar : VibePerfRegistrars()) {
-            registrar();
         }
 
         std::regex selector(filter);

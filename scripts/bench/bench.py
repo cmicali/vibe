@@ -4,6 +4,8 @@
     bench.py build <label>=<ref> ...   build versions (scripts/bench/build-version.sh)
     bench.py run <label>[=<ref>] ...   build if needed, measure, store in results.json
     bench.py rerun                     every version already in results.json, again
+    bench.py perf [<label>[=<ref>] ...]  the in-process suite (VibePerf) only, for
+                                       those versions or every one in results.json
     bench.py report                    the charts and table atop docs/performance.md
 
     --reps N    repetitions per scenario, median taken (default 5)
@@ -11,7 +13,9 @@
 
 The suite drives each version's own macOS app through the debug command channel
 and reads the process from outside (proc_pid_rusage, the window server), so
-the same numbers mean the same thing in every version. What each metric is,
+the same numbers mean the same thing in every version. `run` and `perf` also
+run the vibe-perf skill's in-process suite, VibePerf, grafted onto each
+version's own code, into results.json's `perf` section. What each metric is,
 and how it is taken, is docs/performance.md; the traps are here.
 
 TRAP: numbers are only comparable from one machine and one corpus. results.json
@@ -546,6 +550,7 @@ def scenario_playback(label, home, rep):
             out[f'play_cpu_pct.{name}'] = use['cpu_pct']
             out[f'play_minstr_per_s.{name}'] = use['minstr_per_s']
             out[f'play_power_mw.{name}'] = use['power_mw']
+            out[f'play_wakeups_per_s.{name}'] = use['wakeups_per_s']
             if name in SEEK_FILES:
                 duration = app.state()['player']['duration']
                 latencies = seek_latencies(app, duration, SEEKS_PER_FILE, rng)
@@ -665,6 +670,8 @@ def load_results():
 def save_results(results):
     PERF.mkdir(parents=True, exist_ok=True)
     results['versions'] = dict(sorted(results['versions'].items(), key=lambda kv: version_key(kv[0])))
+    if 'perf' in results:
+        results['perf'] = dict(sorted(results['perf'].items(), key=lambda kv: version_key(kv[0])))
     RESULTS.write_text(json.dumps(results, indent=2) + '\n')
 
 
@@ -713,6 +720,34 @@ def run_version(label, ref, reps, corpus, idle):
             'samples': {k: [None if v is None else round(v, 3) for v in vs] for k, vs in samples.items()}}
 
 
+# The in-process benchmarks the page charts; the rest of VibePerf's are for
+# comparing two refs (perf.py compare), not every release.
+PERF_FILTER = (r'^(decode|open|seek|waveform\+bpm\+key|bpm|key|metadata|pincache|levels|resample|m3u|walk'
+               r'|playlist-edit|scan)\.')
+
+
+def run_perf(label, ref, reps, corpus):
+    """VibePerf at a version: the working tree's harness grafted onto that
+    version's code (the vibe-perf skill's perf.py), one run, medians. A
+    benchmark the version cannot build is absent, not zero."""
+    sys.path.insert(0, str(ROOT / '.claude/skills/vibe-perf/scripts'))
+    import perf
+    perf.corpus()  # make bench's corpus plus the formats only VibePerf reads
+    binary = perf.build(ref)
+    out = BENCH / f'perf-{label}.json'
+    perf.run_binary(binary, PERF_FILTER, reps, out, quiet=True)
+    benches = json.loads(out.read_text())['benches']
+    medians = {name: {'cpu_ms': round(statistics.median(b['cpu_ms']), 4),
+                      'wall_ms': round(statistics.median(b['wall_ms']), 4),
+                      'minstr': round(statistics.median(b['instructions']) / 1e6, 3),
+                      'units': b['units'], 'unit': b['unit']} for name, b in benches.items()}
+    commit = subprocess.run(['git', '-C', str(ROOT), 'rev-parse', ref + '^{commit}'],
+                            capture_output=True, text=True, check=True).stdout.strip()
+    print(f'{label}: VibePerf, {len(medians)} benchmarks', flush=True)
+    return {'ref': ref, 'commit': commit, 'measured': time.strftime('%Y-%m-%d'), 'reps': reps,
+            'corpus': corpus, 'machine': machine(), 'harness': perf.harness_digest(), 'benches': medians}
+
+
 def parse_targets(args, results):
     targets = []
     for arg in args:
@@ -723,7 +758,7 @@ def parse_targets(args, results):
 
 
 def main(argv):
-    if not argv or argv[0] not in ('build', 'run', 'rerun', 'report', 'corpus'):
+    if not argv or argv[0] not in ('build', 'run', 'rerun', 'perf', 'report', 'corpus'):
         print(__doc__)
         return 64
     command, args = argv[0], argv[1:]
@@ -747,12 +782,26 @@ def main(argv):
     if command == 'corpus':
         print(corpus)
         return 0
+    if command == 'perf':
+        targets = parse_targets(args, results) if args else \
+            [(label, entry['ref']) for label, entry in results['versions'].items()]
+        for label, ref in targets:
+            results.setdefault('perf', {})[label] = run_perf(label, ref, reps, corpus)
+            save_results(results)
+        import report
+        report.write(results)
+        return 0
     ensure_probe()
     targets = parse_targets(args, results) if command == 'run' else \
         [(label, entry['ref']) for label, entry in results['versions'].items()]
     for label, ref in targets:
         results['versions'][label] = run_version(label, ref, reps, corpus, idle)
         save_results(results)
+        try:
+            results.setdefault('perf', {})[label] = run_perf(label, ref, reps, corpus)
+            save_results(results)
+        except (SystemExit, subprocess.CalledProcessError) as error:
+            print(f'  warning: {label}: VibePerf failed: {error}', flush=True)
     import report
     report.write(results)
     return 0

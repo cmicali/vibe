@@ -58,7 +58,8 @@ CHARTS = [
     ('library', '600-file library: open and metadata scan', 's', [
         ('library_list_ms', 'Rows listed'),
         ('library_scan_cold_ms', 'Scan, cold cache'),
-        ('library_scan_warm_ms', 'Scan, warm cache')], 2),
+        ('library_scan_warm_ms', 'Scan, warm cache'),
+        ('library_scan_cpu_s', 'Scan CPU time')], 2),
     ('memory', 'Memory footprint', 'MB', [
         ('idle_footprint_mb', 'Idle'),
         ('playback_footprint_mb', 'After playback'),
@@ -67,7 +68,91 @@ CHARTS = [
     ('idle', 'Background cost', '% of one core', [
         ('idle_cpu_pct', 'Idle, empty'),
         ('paused_cpu_pct', 'Paused')], 2),
+    ('playback-energy', 'Playback energy', 'mW', [
+        ('play_power_mw.mp3-320', 'MP3 320k'),
+        ('play_power_mw.flac-16-44', 'FLAC 16/44.1'),
+        ('play_power_mw.flac-24-192', 'FLAC 24/192'),
+        ('play_power_mw.fx', '24/192 + all FX')], 1),
+    ('playback-work', 'Playback work, instructions retired', 'millions a second', [
+        ('play_minstr_per_s.mp3-320', 'MP3 320k'),
+        ('play_minstr_per_s.flac-16-44', 'FLAC 16/44.1'),
+        ('play_minstr_per_s.flac-24-192', 'FLAC 24/192')], 0),
+    ('wakeups', 'Wakeups', 'a second', [
+        ('play_wakeups_per_s.mp3-320', 'Playing MP3'),
+        ('play_wakeups_per_s.flac-24-192', 'Playing FLAC 24/192'),
+        ('paused_wakeups_per_s', 'Paused'),
+        ('idle_wakeups_per_s', 'Idle, empty')], 0),
 ]
+
+# The in-process charts, from results.json's `perf` section (VibePerf, the
+# vibe-perf skill's suite, grafted onto each version's own code). A series is
+# (benchmark, measure, label); the measures are below. A benchmark a version
+# cannot build is absent there.
+PERF_CHARTS = [
+    ('perf-decode', 'Decoding, CPU per minute of audio', 'ms', [
+        ('decode.mp3-320', 'cpu_per_minute', 'MP3 320k'),
+        ('decode.aac-256', 'cpu_per_minute', 'AAC 256k'),
+        ('decode.flac-16-44', 'cpu_per_minute', 'FLAC 16/44.1'),
+        ('decode.flac-24-192', 'cpu_per_minute', 'FLAC 24/192')], 1),
+    ('perf-open', 'Opening a file', 'ms', [
+        ('open.mp3-320', 'cpu_per_unit', 'MP3 320k'),
+        ('open.aac-256', 'cpu_per_unit', 'AAC 256k'),
+        ('open.flac-16-44', 'cpu_per_unit', 'FLAC 16/44.1'),
+        ('open.wav-24-96', 'cpu_per_unit', 'WAV 24/96')], 2),
+    ('perf-seek', 'Seeking, and the first read after it', 'ms', [
+        ('seek.mp3-320', 'cpu_per_unit', 'MP3 320k'),
+        ('seek.aac-256', 'cpu_per_unit', 'AAC 256k'),
+        ('seek.flac-16-44', 'cpu_per_unit', 'FLAC 16/44.1'),
+        ('seek.flac-24-192', 'cpu_per_unit', 'FLAC 24/192')], 2),
+    ('perf-waveform', 'Waveform, tempo and key for a new track, 3 min file', 'ms', [
+        ('waveform+bpm+key.mp3-320', 'wall', 'MP3 320k'),
+        ('waveform+bpm+key.aac-256', 'wall', 'AAC 256k'),
+        ('waveform+bpm+key.flac-16-44', 'wall', 'FLAC 16/44.1'),
+        ('waveform+bpm+key.flac-24-192', 'wall', 'FLAC 24/192')], 0),
+    ('perf-analysis', 'Tempo and key analysis, CPU per minute of audio', 'ms', [
+        ('bpm.flac-16-44', 'cpu_per_minute', 'Tempo, 44.1 kHz'),
+        ('key.flac-16-44', 'cpu_per_minute', 'Key, 44.1 kHz'),
+        ('bpm.flac-24-96', 'cpu_per_minute', 'Tempo, 96 kHz'),
+        ('key.flac-24-96', 'cpu_per_minute', 'Key, 96 kHz')], 1),
+    ('perf-metadata', 'Reading a file\'s tags and cover art', 'ms per file', [
+        ('metadata.mp3-320', 'wall_per_unit', 'MP3, 1000 px cover'),
+        ('metadata.flac-16-44', 'wall_per_unit', 'FLAC, 1000 px cover'),
+        ('metadata.aac-256', 'wall_per_unit', 'AAC, 1000 px cover'),
+        ('metadata.library-mp3', 'wall_per_unit', 'Library MP3, 600 px')], 2),
+    ('perf-disk-cache', 'The metadata and waveform disk cache', 'µs per entry', [
+        ('pincache.hit-300', 'us_per_unit', 'Hit'),
+        ('pincache.write-300', 'us_per_unit', 'Write'),
+        ('pincache.write-300-at-limit', 'us_per_unit', 'Write, cache full'),
+        ('pincache.open-2000', 'us_per_unit', 'Launch')], 0),
+    ('perf-library', 'Large libraries', 's', [
+        ('scan.sweep-5k', 'wall_s', 'Metadata sweep, 5,000 files'),
+        ('m3u.resolve-10k', 'wall_s', 'M3U, 10,000 entries'),
+        ('walk.10k-name', 'wall_s', 'Folder, 10,000 files'),
+        ('playlist-edit.100k-head', 'wall_s', '20 edits, 100,000 rows')], 2),
+]
+
+
+def perf_value(bench, measure):
+    if not bench or not bench.get('units'):
+        return None
+    if measure == 'cpu_per_minute':  # units are the file's audio seconds
+        return bench['cpu_ms'] / bench['units'] * 60
+    if measure == 'cpu_per_unit':
+        return bench['cpu_ms'] / bench['units']
+    if measure == 'wall_per_unit':
+        return bench['wall_ms'] / bench['units']
+    if measure == 'us_per_unit':
+        return bench['wall_ms'] / bench['units'] * 1000
+    if measure == 'wall':
+        return bench['wall_ms']
+    return bench['wall_ms'] / 1000  # wall_s
+
+
+def perf_entry(entry):
+    """A perf entry in the shape chart_svg reads: one metric per series key."""
+    metrics = {f'{name}|{measure}': perf_value(entry['benches'].get(name), measure)
+               for _, _, _, series, _ in PERF_CHARTS for name, measure, _ in series}
+    return {'metrics': {k: v for k, v in metrics.items() if v is not None}}
 SECONDS = {'library_list_ms', 'library_scan_cold_ms', 'library_scan_warm_ms',
            'waveform_ms.mp3-320-60min', 'waveform_ms.flac-24-352'}
 
@@ -181,16 +266,16 @@ def chart_svg(title, unit, series, labels, entries, decimals):
     return '\n'.join(out) + '\n'
 
 
-def comparable(results):
+def comparable(results, section='versions'):
     """The versions measured on the newest entry's machine and corpus."""
-    versions = results['versions']
+    versions = results.get(section, {})
     if not versions:
         return {}
     newest = max(versions.values(), key=lambda e: e['measured'])
     same = {k: e for k, e in versions.items()
             if e['machine'] == newest['machine'] and e['corpus'] == newest['corpus']}
     for label in versions.keys() - same.keys():
-        print(f'report: leaving out {label}, measured on another machine or corpus; bench.py rerun')
+        print(f'report: leaving out {label} ({section}), measured on another machine or corpus; bench.py rerun')
     return same
 
 
@@ -227,6 +312,28 @@ def table(entries, labels):
     return '\n'.join(lines)
 
 
+def perf_section(results):
+    """The in-process charts, under their own machine line: VibePerf's numbers
+    are comparable only with each other, whatever machine the app ran on."""
+    versions = comparable(results, 'perf')
+    if not versions:
+        return []
+    labels = list(versions)
+    entries = [perf_entry(versions[k]) for k in labels]
+    lines = []
+    for name, title, unit, series, decimals in PERF_CHARTS:
+        keyed = [(f'{bench}|{measure}', label) for bench, measure, label in series]
+        if not any(value(e, key) is not None for e in entries for key, _ in keyed):
+            continue
+        (PERF / f'{name}.svg').write_text(chart_svg(title, unit, keyed, labels, entries, decimals))
+        lines.append(f'![{title}](performance/{name}.svg)')
+    m = versions[labels[-1]]['machine']
+    return ['', '### Inside the app', '',
+            f'The in-process suite, VibePerf, built against each version\'s own code and run on one machine '
+            f'({m["chip"]}, {m["memory_gb"]} GB, macOS {m["macos"]}): the code under each feature, without the app '
+            'around it. A line that starts late is a benchmark of code that version does not have.', ''] + lines
+
+
 def write(results):
     versions = comparable(results)
     labels = list(versions)
@@ -248,6 +355,7 @@ def write(results):
                table(entries, labels), '']
     for name, title, *_ in charts:
         section.append(f'![{title}](performance/{name}.svg)')
+    section += perf_section(results)
     section += ['', END]
     text = PAGE.read_text()
     block = '\n'.join(section)
