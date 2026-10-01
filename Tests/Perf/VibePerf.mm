@@ -21,6 +21,7 @@
 #import "AudioWaveform.h"
 
 #include <libproc.h>
+#include <mach/mach.h>
 #include <mach/mach_time.h>
 #include <regex>
 #include <algorithm>
@@ -32,6 +33,7 @@ struct VibePerfSample {
     double cpuMs;
     double instructions;
     double cycles;
+    double syscalls;  // Unix system calls, every thread: reads, opens, stats
 };
 
 static uint64_t VibePerfNow(void) {
@@ -52,7 +54,15 @@ static double VibePerfMachToMs(uint64_t mach) {
     return (double)mach * base.numer / base.denom / 1e6;
 }
 
+static double VibePerfSyscalls(void) {
+    task_events_info_data_t events = {};
+    mach_msg_type_number_t count = TASK_EVENTS_INFO_COUNT;
+    task_info(mach_task_self(), TASK_EVENTS_INFO, (task_info_t)&events, &count);
+    return (double)events.syscalls_unix;
+}
+
 static VibePerfSample VibePerfMeasure(const std::function<void(void)> &body) {
+    double syscallsBefore = VibePerfSyscalls();
     struct rusage_info_v4 before = VibePerfUsage();
     uint64_t start = VibePerfNow();
     @autoreleasepool {
@@ -65,6 +75,7 @@ static VibePerfSample VibePerfMeasure(const std::function<void(void)> &body) {
     sample.cpuMs = VibePerfMachToMs((after.ri_user_time + after.ri_system_time) - (before.ri_user_time + before.ri_system_time));
     sample.instructions = (double)(after.ri_instructions - before.ri_instructions);
     sample.cycles = (double)(after.ri_cycles - before.ri_cycles);
+    sample.syscalls = VibePerfSyscalls() - syscallsBefore;
     return sample;
 }
 
@@ -236,7 +247,7 @@ int main(int argc, const char *argv[]) {
         std::regex selector(filter);
         NSMutableDictionary *results = [NSMutableDictionary dictionary];
         if (!list) {
-            printf("%-34s %10s %10s %12s %10s %12s\n", "benchmark", "wall ms", "cpu ms", "Minstr", "Mcycles", "per unit");
+            printf("%-34s %10s %10s %12s %10s %9s %12s\n", "benchmark", "wall ms", "cpu ms", "Minstr", "Mcycles", "syscalls", "per unit");
         }
         for (auto &bench : VibePerfRegistry()) {
             if (!std::regex_search(bench.name, selector)) {
@@ -264,13 +275,14 @@ int main(int argc, const char *argv[]) {
                 continue;
             }
             VibePerfMeasure(bench.body);
-            std::vector<double> wall, cpu, instructions, cycles;
+            std::vector<double> wall, cpu, instructions, cycles, syscalls;
             for (int r = 0; r < reps; r++) {
                 VibePerfSample sample = VibePerfMeasure(bench.body);
                 wall.push_back(sample.wallMs);
                 cpu.push_back(sample.cpuMs);
                 instructions.push_back(sample.instructions);
                 cycles.push_back(sample.cycles);
+                syscalls.push_back(sample.syscalls);
             }
             double medianInstructions = VibePerfMedian(instructions);
             std::string perUnit = "";
@@ -283,8 +295,8 @@ int main(int argc, const char *argv[]) {
                 }
                 perUnit = text;
             }
-            printf("%-34s %10.2f %10.2f %12.2f %10.2f %12s\n", bench.name.c_str(), VibePerfMedian(wall), VibePerfMedian(cpu),
-                   medianInstructions / 1e6, VibePerfMedian(cycles) / 1e6, perUnit.c_str());
+            printf("%-34s %10.2f %10.2f %12.2f %10.2f %9.0f %12s\n", bench.name.c_str(), VibePerfMedian(wall), VibePerfMedian(cpu),
+                   medianInstructions / 1e6, VibePerfMedian(cycles) / 1e6, VibePerfMedian(syscalls), perUnit.c_str());
             fflush(stdout);
             NSMutableArray *(^array)(const std::vector<double> &) = ^(const std::vector<double> &values) {
                 NSMutableArray *out = [NSMutableArray array];
@@ -301,6 +313,7 @@ int main(int argc, const char *argv[]) {
                 @"cpu_ms": array(cpu),
                 @"instructions": array(instructions),
                 @"cycles": array(cycles),
+                @"syscalls": array(syscalls),
             };
         }
         if (jsonPath && results.count) {
