@@ -47,7 +47,7 @@ The key representation, Camelot/musical-name formatting and tag parsing live in 
 
 Both analyzers together run at roughly 6,000x realtime in Release, about a fifth of the decode they ride along with — and since the loader pipelines that decode against them, they add nothing to the load's wall time, only CPU. `scan_bpm`/`scan_key` report the `streamSeconds`/`finishSeconds` split, though in Debug, where `-O0` inflates whatever is not a vDSP call.
 
-What is left in each is almost entirely its FFT — 172 1024-point ones a second for the tempo, 2.7 32768-point ones for the key — so making them cheaper means fewer or smaller frames, not tighter code around them.
+What is left in each is almost entirely its FFT — 172 1024-point ones a second for the tempo, 2.7 32768-point ones for the key — so making them cheaper means fewer or smaller frames, not tighter code around them. **The tempo analyzer decimates a file at twice the 44.1/48 kHz family or more by a power of two first** (a windowed-sinc FIR through `vDSP_desamp`, its history carried across appends), since its frame and hop are in samples: at 96 kHz that halves its cost and leaves Accuracy1 where it was (82.3% on 150 GiantSteps tracks resampled to 96 kHz, either way). 44.1 and 48 kHz files take no filter and no copy.
 
 Four rules hold the current floor, each measured:
 
@@ -56,7 +56,7 @@ Four rules hold the current floor, each measured:
 - **A scatter becomes a run.** Within the band each semitone's voting bins are contiguous, so the chroma fold is one reduction per semitone instead of a scatter-add per bin. The same reshaping settles the phase comb, swept **a beat at a time rather than a phase at a time**: a grid's phase offset is an integer, so every phase reads the same beat offsets and one vDSP add per beat scores all of them at once.
 - **`vDSP_DFT` is not a drop-in win over `vDSP_fft_zrip`.** It takes a third off the key analyzer's 32768-point frames and *loses* on the tempo analyzer's 1024-point ones, which is why the two differ. Microbenchmarks mislead here — measure a real decode.
 
-**Decimating for the key analyzer is not a way to make it cheaper**, tempting as its 3520 Hz ceiling makes it look: even a short decimating FIR runs on every sample and would cost more than the whole analyzer, which pays for its big FFT only 2.7 times a second.
+**Decimating for the key analyzer is not a way to make it cheaper** (unlike the tempo analyzer's, which pays for 172 FFTs a second at the file's rate), tempting as its 3520 Hz ceiling makes it look: even a short decimating FIR runs on every sample and would cost more than the whole analyzer, which pays for its big FFT only 2.7 times a second.
 
 ## Measuring
 
