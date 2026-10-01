@@ -17,6 +17,7 @@
 #import "OpenBurstCoalescer.h"
 #import "OpenRequestCoordinator.h"
 #import "OpenRecentMenuController.h"
+#import "PlaylistFile.h"
 #import "NSBundle+BuildInfo.h"
 #import "AppStats.h"
 #import "VibeProductURLs.h"
@@ -130,7 +131,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
         [self->_openBurstCoalescer finishLaunchRestoring:^BOOL{
             return [self.mainPlayerController restoreLastPlaylist];
         } revealEmpty:^{
-            [self.mainPlayerController revealEmptyState];
+            [self.mainPlayerController revealEmptyStateNamingPlaylist:nil];
         }];
     }];
 }
@@ -189,8 +190,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     __weak AppDelegate *weakSelf = self;
     OpenRequestToken *token = [OpenRequestCoordinator.sharedCoordinator
             beginRequestAppending:append
-                         delivery:^(NSArray<NSURL *> *files, NSUInteger folders, BOOL appending) {
-                             [weakSelf deliverExpandedURLs:files folderCount:folders appending:appending];
+                         delivery:^(NSArray<AudioTrack *> *rows, NSUInteger folders, BOOL appending) {
+                             [weakSelf deliverExpandedRows:rows folderCount:folders appending:appending
+                                                  fromURLs:urls];
                          }];
     [[FolderAccessManager sharedInstance] awaitRestoredAccessForURLs:urls completion:^{
         [weakSelf openURLsWithRestoredAccess:urls token:token];
@@ -206,28 +208,37 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     // Read on main; the walk reads no setting itself.
     [NSURLUtil expandAndFilterList:urls
                           sortedBy:AppSettings.sharedInstance.folderOpenSort
-                        completion:^(NSArray<NSURL *> *expanded, NSUInteger folderCount) {
+                        completion:^(NSArray<AudioTrack *> *rows, NSUInteger folderCount) {
         [OpenRequestCoordinator.sharedCoordinator finishRequest:token
-                                                          files:expanded
+                                                           rows:rows
                                                     folderCount:folderCount];
     }];
 }
 
-- (void)deliverExpandedURLs:(NSArray<NSURL *> *)expanded
+- (void)deliverExpandedRows:(NSArray<AudioTrack *> *)rows
                 folderCount:(NSUInteger)folderCount
-                  appending:(BOOL)append {
-    [[AppStats sharedInstance] recordOpenedFiles:expanded.count folders:folderCount];
-    // Nothing playable must not wipe the playlist.
-    if (expanded.count == 0) {
-        // Ends the launch grace, or the header would stay blank.
-        [self.mainPlayerController revealEmptyState];
+                  appending:(BOOL)append
+                   fromURLs:(NSArray<NSURL *> *)urls {
+    [[AppStats sharedInstance] recordOpenedFiles:rows.count folders:folderCount];
+    // Nothing playable must not wipe the playlist. The empty header names an
+    // opened playlist, extension kept so it reads as the sheet rather than its
+    // album, and the launch grace ends, or the header would stay blank.
+    if (rows.count == 0) {
+        NSString *playlist = nil;
+        for (NSURL *url in urls) {
+            if ([PlaylistFile isPlaylistExtension:url.pathExtension.lowercaseString]) {
+                playlist = url.lastPathComponent;
+                break;
+            }
+        }
+        [self.mainPlayerController revealEmptyStateNamingPlaylist:playlist];
         return;
     }
     if (append) {
-        [self.mainPlayerController addURLs:expanded];
+        [self.mainPlayerController addTracks:rows];
     }
     else {
-        [self.mainPlayerController play:expanded];
+        [self.mainPlayerController play:rows];
     }
 }
 

@@ -9,7 +9,6 @@
 #import "PINCache+VibeAudioCache.h"
 #import "AudioTrack.h"
 #import "AudioWaveformLoader.h"
-#import "AudioFileOpenRules.h"
 #import "AudioWorkScheduler.h"
 
 #include <atomic>
@@ -17,9 +16,10 @@
 #pragma mark - Waveform Cache
 
 @interface VibeWaveformLoadClaim : NSObject
-@property (nonatomic, copy) NSString *path;
+// The standardized path, plus the window for a cue row: one decode per window.
+@property (nonatomic, copy) NSString *key;
 @property (nonatomic, strong) AudioWaveformLoader *loader;
-@property (atomic, strong) NSURL *deliveryURL;
+@property (atomic, strong) AudioTrack *deliveryTrack;
 @property (nonatomic, strong, nullable) AudioTrack *retryTrack;
 // Bumped every time a request parks on this claim, so the wait timeout armed
 // for one parked request cannot fire against the next. Main-confined.
@@ -69,16 +69,16 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
     AudioWorkScheduler              *_decodeScheduler;   // AudioFileHandle open + decode
     PINCache*                       _waveformCache;
     __weak AudioWaveformLoader*     _currentLoader;
-    // The file _currentLoader is decoding, so the progressive deliveries can
-    // carry it. Main-thread confined, like _currentLoader itself.
-    NSURL*                          _currentLoadURL;
+    // The track _currentLoader is decoding for, so the progressive deliveries
+    // can carry it. Main-thread confined, like _currentLoader itself.
+    AudioTrack*                     _currentLoadTrack;
     // Superseded loaders still decoding, oldest first. Main-confined, like
     // _currentLoader: the public load/cancel API runs on the main thread.
     NSMutableArray<AudioWaveformLoader *> *_detachedLoaders;
     // Main-confined single-flight ownership. A loader evicted from the UI's
     // detached pool remains here while its uncancellable worker is executing;
     // same-path requests wait for that claim rather than enqueueing duplicates.
-    NSMutableDictionary<NSString *, VibeWaveformLoadClaim *> *_claimsByPath;
+    NSMutableDictionary<NSString *, VibeWaveformLoadClaim *> *_claimsByKey;
     // Bumped by invalidateWithCompletion:. A decode captures it when it
     // starts, skips its disk write if it has moved, and re-checks after the
     // write lands, removing the entry it just wrote if an invalidate raced it.
@@ -120,7 +120,7 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
         _cacheGeneration = 0;
         _currentLoader = nil;
         _detachedLoaders = [NSMutableArray array];
-        _claimsByPath = [NSMutableDictionary dictionary];
+        _claimsByKey = [NSMutableDictionary dictionary];
         // Created on the loader queue: on main, PINCache's init-time disk scan
         // would run at user-initiated QoS and priority-invert against the
         // utility-QoS cache calls. The ivar is read only on this serial queue,
@@ -154,12 +154,12 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
 }
 
 - (void)loadWaveformForTrack:(AudioTrack *)track {
-    NSString *path = VibeStandardizedAudioOpenPath(track.url);
+    NSString *key = track.standardizedSourceKey;
     [self detachCurrentLoader];
-    VibeWaveformLoadClaim *existing = _claimsByPath[path];
+    VibeWaveformLoadClaim *existing = _claimsByKey[key];
     if (existing) {
-        existing.deliveryURL = track.url;
-        _currentLoadURL = track.url;
+        existing.deliveryTrack = track;
+        _currentLoadTrack = track;
         if (!existing.loader.isCancelled && !existing.loader.isComplete) {
             // A detached decode of this same file resumes delivering instead
             // of racing a second decode: progress picks up at its live point.
@@ -179,18 +179,20 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
     }
     AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] initWithDelegate:self];
     loader.analysisProvider = self.analysisProvider;
-    loader.trackPath = path;
+    loader.claimKey = key;
+    loader.cueStart = track.cueStart;
+    loader.cueEnd = track.cueEnd;
     VibeWaveformLoadClaim *claim = [[VibeWaveformLoadClaim alloc] init];
-    claim.path = path;
+    claim.key = key;
     claim.loader = loader;
-    claim.deliveryURL = track.url;
-    _claimsByPath[path] = claim;
+    claim.deliveryTrack = track;
+    _claimsByKey[key] = claim;
     _currentLoader = loader;
     // Captured now rather than read back at delivery. Every delivery carries
-    // the URL this waveform was loaded for, so one landing after a track
+    // the track this waveform was loaded for, so one landing after a track
     // change cannot be stamped on whatever track is current by then.
     NSURL *url = track.url;
-    _currentLoadURL = url;
+    _currentLoadTrack = track;
     // The cache key is a file stat, computed off the serial loader queue. A
     // hung network mount could block for minutes and wedge every later track's
     // waveform behind it, which is the same reasoning as the off-queue
@@ -198,7 +200,9 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
     // standardized path keeps its claim until the worker settles, while the
     // loader's detached/current state fences UI delivery.
     claim.workToken = [_lookupScheduler submitWork:^{
-        NSString *cacheKey = track.cacheKey;
+        // Per window: a cue row's waveform, tempo and key are its own.
+        NSString *fileKey = track.cacheKey;
+        NSString *cacheKey = [track keyByAppendingWindowTo:fileKey];
         if (!cacheKey) {
             // The file cannot be statted; see NSURL+Hash. Settle this attempt
             // so a same-file request cannot reattach a loader with no work.
@@ -249,7 +253,7 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
 - (void)detachCurrentLoader {
     AudioWaveformLoader *loader = _currentLoader;
     _currentLoader = nil;
-    _currentLoadURL = nil;
+    _currentLoadTrack = nil;
     if (!loader || loader.isCancelled) {
         return;
     }
@@ -266,11 +270,11 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
         AudioWaveformLoader *oldest = _detachedLoaders.firstObject;
         [oldest cancel];
         [_detachedLoaders removeObjectAtIndex:0];
-        // Its claim is the one filed under its own trackPath — the standardized
-        // path both were created from. Identity is still checked, because a
-        // later request for that path may have settled this claim and filed a
-        // new one under the same key.
-        VibeWaveformLoadClaim *claim = _claimsByPath[oldest.trackPath];
+        // Its claim is the one filed under its own claimKey — the key both
+        // were created from. Identity is still checked, because a later
+        // request for that key may have settled this claim and filed a new
+        // one under it.
+        VibeWaveformLoadClaim *claim = _claimsByKey[oldest.claimKey];
         if (claim.loader != oldest) {
             claim = nil;
         }
@@ -294,32 +298,32 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
 // firing against the request that replaced it.
 - (void)armWaitTimeoutForClaim:(VibeWaveformLoadClaim *)claim {
     NSUInteger generation = ++claim.retryGeneration;
-    NSURL *waitingURL = claim.deliveryURL;
+    AudioTrack *waitingTrack = claim.deliveryTrack;
     __weak AudioWaveformCache *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
             (int64_t)(kWaveformClaimWaitSeconds * NSEC_PER_SEC)),
             dispatch_get_main_queue(), ^{
         AudioWaveformCache *strongSelf = weakSelf;
-        if (!strongSelf || strongSelf->_claimsByPath[claim.path] != claim
+        if (!strongSelf || strongSelf->_claimsByKey[claim.key] != claim
                 || claim.retryGeneration != generation || !claim.retryTrack) {
             return; // settled, restarted, or superseded by a newer request
         }
         // Only while this parked request is still the one on screen. A track
         // change moved on and took the loading state with it.
-        if (![VibeStandardizedAudioOpenPath(strongSelf->_currentLoadURL)
-                isEqualToString:claim.path]) {
+        AudioTrack *current = strongSelf->_currentLoadTrack;
+        if (!current || ![current.standardizedSourceKey isEqualToString:claim.key]) {
             return;
         }
         LogWarn(@"Waveform: gave up waiting %.0fs for the in-flight load of %@",
-                kWaveformClaimWaitSeconds, claim.path.lastPathComponent);
+                kWaveformClaimWaitSeconds, claim.key.lastPathComponent);
         // Dropped rather than left parked: the claim outlives this wait, and a
         // retry it started later would deliver a waveform for a track the user
         // has been told has none.
         claim.retryTrack = nil;
-        strongSelf->_currentLoadURL = nil;
+        strongSelf->_currentLoadTrack = nil;
         if ([strongSelf.delegate respondsToSelector:
-                @selector(audioWaveformCache:didFailToLoadForURL:)]) {
-            [strongSelf.delegate audioWaveformCache:strongSelf didFailToLoadForURL:waitingURL];
+                @selector(audioWaveformCache:didFailToLoadForTrack:)]) {
+            [strongSelf.delegate audioWaveformCache:strongSelf didFailToLoadForTrack:waitingTrack];
         }
     });
 }
@@ -332,16 +336,17 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
         return;
     }
     run_on_main_thread({
-        if (self->_claimsByPath[claim.path] != claim) {
+        if (self->_claimsByKey[claim.key] != claim) {
             return;
         }
-        [self->_claimsByPath removeObjectForKey:claim.path];
+        [self->_claimsByKey removeObjectForKey:claim.key];
         [self->_detachedLoaders removeObjectIdenticalTo:claim.loader];
         claim.workToken = nil;
 
         AudioTrack *retryTrack = claim.retryTrack;
-        BOOL retryIsCurrent = retryTrack
-                && [VibeStandardizedAudioOpenPath(self->_currentLoadURL) isEqualToString:claim.path];
+        AudioTrack *current = self->_currentLoadTrack;
+        BOOL retryIsCurrent = retryTrack && current
+                && [current.standardizedSourceKey isEqualToString:claim.key];
         if (retryIsCurrent) {
             [self loadWaveformForTrack:retryTrack];
         }
@@ -361,10 +366,10 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
             return;
         }
         self->_currentLoader = nil;
-        self->_currentLoadURL = nil;
+        self->_currentLoadTrack = nil;
         if ([self.delegate respondsToSelector:
-                @selector(audioWaveformCache:didFailToLoadForURL:)]) {
-            [self.delegate audioWaveformCache:self didFailToLoadForURL:claim.deliveryURL];
+                @selector(audioWaveformCache:didFailToLoadForTrack:)]) {
+            [self.delegate audioWaveformCache:self didFailToLoadForTrack:claim.deliveryTrack];
         }
     });
 }
@@ -489,38 +494,38 @@ awaitPersist:(BOOL)awaitPersist
                          loader:(AudioWaveformLoader *)loader
                           claim:(VibeWaveformLoadClaim *)claim {
     run_on_main_thread({
-        NSURL *url = claim.deliveryURL;
+        AudioTrack *track = claim.deliveryTrack;
         // Detached is checked here, on delivery, not at enqueue: a reattach
         // that lands first correctly turns this back into a live delivery.
         if (!loader.isCancelled && !loader.isDetached) {
-            [self.delegate audioWaveform:waveform didLoadData:1 forURL:url];
+            [self.delegate audioWaveform:waveform didLoadData:1 forTrack:track];
         }
         // The BPM and key are computed at the end of the decode pass, or
         // carried by a cache hit, so they only ever exist on this final
         // delivery. They are delivered even when the load was cancelled: a
         // cancelled but complete decode still persisted values valid for its
-        // file, and the delegate matches the URL against its playlist rather
-        // than the current track. Dropping them here would leave the analyzed
-        // track without them until its next play, purely because the cancel
-        // won a race.
+        // window, and the delegate matches the track against its playlist
+        // rather than the current track. Dropping them here would leave the
+        // analyzed track without them until its next play, purely because the
+        // cancel won a race.
         if (waveform.bpm > 0 &&
-            [self.delegate respondsToSelector:@selector(audioWaveformCache:didDetectBPM:forURL:)]) {
-            [self.delegate audioWaveformCache:self didDetectBPM:waveform.bpm forURL:url];
+            [self.delegate respondsToSelector:@selector(audioWaveformCache:didDetectBPM:forTrack:)]) {
+            [self.delegate audioWaveformCache:self didDetectBPM:waveform.bpm forTrack:track];
         }
         if (waveform.key >= 0 &&
-            [self.delegate respondsToSelector:@selector(audioWaveformCache:didDetectKey:forURL:)]) {
-            [self.delegate audioWaveformCache:self didDetectKey:waveform.key forURL:url];
+            [self.delegate respondsToSelector:@selector(audioWaveformCache:didDetectKey:forTrack:)]) {
+            [self.delegate audioWaveformCache:self didDetectKey:waveform.key forTrack:track];
         }
     });
 }
 
 // On the main thread, from the loader's throttled progress callback. A new
-// load detaches the old loader before taking _currentLoadURL (cancel is cap
-// eviction's, not the track change's), so the URL here always belongs to the
-// loader that is still delivering.
+// load detaches the old loader before taking _currentLoadTrack (cancel is cap
+// eviction's, not the track change's), so the track here always belongs to
+// the loader that is still delivering.
 - (void)audioWaveformLoader:(AudioWaveformLoader*)loader waveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded {
-    if (!loader.isCancelled && !loader.isDetached && _currentLoadURL) {
-        [self.delegate audioWaveform:waveform didLoadData:percentLoaded forURL:_currentLoadURL];
+    if (!loader.isCancelled && !loader.isDetached && _currentLoadTrack) {
+        [self.delegate audioWaveform:waveform didLoadData:percentLoaded forTrack:_currentLoadTrack];
     }
 }
 

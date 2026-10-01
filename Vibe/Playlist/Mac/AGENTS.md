@@ -45,7 +45,7 @@ The `NSTableView` half of `Vibe/Playlist/`: `PlaylistController` (data source an
 
 ## Replacement, append and play
 
-**`loadURLs:selectingIndex:` replaces the list and lands the cursor, opening nothing**; the shell follows with `play` or `playStartPaused:`, so an open and the launch restore share one path. `append:` inserts rows without animation and touches neither playback nor `currentIndex`. A replacement `deselectAll`s before `reloadData`, which would otherwise keep a stale selection by row index. `scrollCurrentTrackToVisible` runs on every track change and replacement and is the only scroller besides an insert's or move's landing (below).
+**`loadTracks:selectingIndex:` replaces the list and lands the cursor, opening nothing**; the shell follows with `play` or `playStartPaused:`, so an open and the launch restore share one path. `append:` inserts rows without animation and touches neither playback nor `currentIndex`. A replacement `deselectAll`s before `reloadData`, which would otherwise keep a stale selection by row index. `scrollCurrentTrackToVisible` runs on every track change and replacement and is the only scroller besides an insert's or move's landing (below).
 
 **`playStartPaused:` is `play`'s parked twin and every start goes through it**, so `playWillStartHandler` fires after submission for a parked start exactly as for an ordinary one — the header is repainted at submission, which is all a slow open would otherwise show. No caller reaches `AudioPlayer` directly.
 

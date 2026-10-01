@@ -50,8 +50,8 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
 // as the metadata event. No key: key detection is macOS-only.
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
               didDetectBPM:(float)bpm
-                    forURL:(NSURL *)url {
-    [_playback noteDetectedBPM:bpm forURL:url];
+                  forTrack:(AudioTrack *)track {
+    [_playback noteDetectedBPM:bpm forTrack:track];
 }
 
 #pragma mark - WaveformScrubberViewDelegate

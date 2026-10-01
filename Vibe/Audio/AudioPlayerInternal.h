@@ -65,13 +65,6 @@ typedef NS_ENUM(NSInteger, VibePlayerState) {
 NSError *VibeAudioError(VibeAudioErrorCode code, NSString *description, NSError * _Nullable underlying);
 NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, NSError * _Nullable underlying, NSURL * _Nullable trackURL);
 
-// Seconds → start frame, clamped to [0, fileLength - 1]: a past-the-end start
-// lands on the last frame rather than on nothing.
-static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds, double sampleRate, AVAudioFramePosition fileLength) {
-    AVAudioFramePosition frame = (AVAudioFramePosition)(seconds * sampleRate);
-    return MAX(0, MIN(frame, fileLength - 1));
-}
-
 @interface AudioPlayer () {
     dispatch_queue_t        _queue;
     os_unfair_lock          _stateLock;
@@ -82,9 +75,9 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     VibeVoiceID             _voice;             // the current voice, 0 while none
     AudioFileHandle             *_file;             // its file; after a promote, the successor
     double                  _fileSampleRate;    // scalars, so a getter never messages an object
-    AVAudioFramePosition    _fileLength;
+    NSRange                 _window;            // the track's frames of the file, all of it but for a cue row
     double                  _busSampleRate;
-    NSTimeInterval          _voiceStartSeconds; // where in the file the voice began
+    NSTimeInterval          _voiceStartSeconds; // where in the window the voice began
     uint64_t                _promotedBaseFrames; // bus frames the voice consumed before its current file began
     BOOL                    _gaplessArmedForUI;
     BOOL                    _outputAudioActive;
@@ -104,13 +97,14 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // bus; the current bus withholds reads of them until the count is zero.
     NSCountedSet<AudioFileHandle *> *_retiredDecoderFiles;
 
-    // ---- The park and the successor (AudioPlayer+Prefetch.m).
-    NSString                *_prefetchedPath;
+    // ---- The park and the successor (AudioPlayer+Prefetch.m). Keyed by the
+    // track's sourceKey, so another window of the same file is another park.
+    NSString                *_prefetchedKey;
     AudioFileHandle             *_prefetchedFile;
     AudioTrack              *_prefetchedTrack;
     uint64_t                _prefetchGeneration;
     AudioTrack              *_requestedPrefetchTrack;
-    NSString                *_requestedPrefetchPath;
+    NSString                *_requestedPrefetchKey;
     VibeAudioPrefetchRequestState _prefetchRequestState;
     AudioFileOpenToken      *_prefetchOpenToken;
     AudioTrack              *_successorTrack;   // the row queued on the current voice, else nil
@@ -276,7 +270,9 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // the declick; a retire at the declick length stops the voice's reads, so
 // its file may be handed on. Retired voices are tracked until they end.
 - (VibeVoiceRamp)rampOnQueueToGain:(float)gain milliseconds:(uint64_t)milliseconds action:(VibeVoiceAction)action;
-- (VibeVoiceID)startVoiceOnQueueForFile:(AudioFileHandle *)file atFrame:(AVAudioFramePosition)frame
+// `frame` is a file frame inside `window`, where the voice's stream ends.
+- (VibeVoiceID)startVoiceOnQueueForFile:(AudioFileHandle *)file window:(NSRange)window
+                                atFrame:(AVAudioFramePosition)frame
                        fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused;
 - (void)retireVoiceOnQueue:(VibeVoiceID)voice milliseconds:(uint64_t)milliseconds;
 - (void)cutRetiringVoicesToDeclickOnQueue;
@@ -285,10 +281,13 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 - (void)revoiceOnQueueAtPosition:(NSTimeInterval)position;
 
 // The full-tuple publisher; the two unpublish variants are the only partial
-// writers. Anything that moves the position comes through here.
+// writers. Anything that moves the position comes through here. `window` is
+// the track's frames of `file` — its duration — and `startSeconds` is where in
+// it the voice began.
 - (void)publishState:(VibePlayerState)state
                voice:(VibeVoiceID)voice
                 file:(nullable AudioFileHandle *)file
+              window:(NSRange)window
         startSeconds:(NSTimeInterval)startSeconds
           baseFrames:(uint64_t)baseFrames;
 - (VibeVoiceID)unpublishVoiceOnQueue;

@@ -16,6 +16,10 @@ The pass is decode-bound — CoreAudio's MP3 and FLAC codecs cost several times 
 
 All processing-side state — the progress throttle and its snapshots included — lives on that queue and is read only after the final drain.
 
+## A cue row's waveform is its window
+
+The loader decodes only the row's window (`cueStart`/`cueEnd`, stamped by the cache from the track, through `VibeCueWindow` on its own handle: seek to the start, length the window), at the full chunk resolution, and the analyzers ride the same window — so a DJ mix gets a waveform, a tempo and a key per track. Everything keyed per file is keyed per window here: the claim (`AudioTrack.standardizedSourceKey`), the detached-loader pool and the disk entry all append the window to the file's key through `AudioTrack.keyByAppendingWindowTo:`, which is the key itself for a whole file. Metadata stays the file's, shared by every row. Slicing one whole-file waveform was rejected: at 8192 chunks per file, a four-minute row of a 74-minute image would get about 440.
+
 Cache-key stats, serial cache lookups, opens and decodes pass through **fixed-slot utility `AudioWorkScheduler`s**. `stat` and the handle open have no cancellation point and can block for minutes on a cloud placeholder, so fixed admission slots are the resource bound. A stat keeps its slot while it synchronously visits the serial cache queue, so a wedged cache lookup cannot grow a tail there either. Playback opens do not pass through these schedulers at all: they run on the coordinator's own user-initiated queue under the handle ceiling, so background analysis cannot starve the open the user is waiting on.
 
 **Two lanes here, not one, because the stages block on different things.** The lookup lane (cache-key stat plus the serial cache lookup) runs two; the decode lane (open plus decode) runs `kMaxDetachedWaveformLoads + 1` = three. They must be independent because a decode is submitted from *inside* a lookup that still holds its slot: sharing one scheduler would let a burst of lookups fill the pending list and then reject or expire the very decode they had asked for — delivered to the delegate as that file failing to load, when nothing about the file had failed.
@@ -36,11 +40,11 @@ The flag is checked **on delivery, not at enqueue**, so a reattach landing first
 
 Progress is different: detached and cancelled loaders do not construct or enqueue progressive snapshots. A reattached loader resumes them from its live decode position. The final waveform still persists while detached.
 
-## Every delivery carries the URL it was loaded for
+## Every delivery carries the track it was loaded for
 
-`audioWaveform:didLoadData:forURL:`, the terminal-failure callback, and the BPM and key twins — because a delivery can land after the track has changed. Receivers must match it against their current track rather than assume it: `MainPlayerController+Delivery` and the iOS `PageWaveformCoordinator` each do. Failure is delivered only while that loader is still current; it makes the attempt terminal before delivery so a same-file request starts fresh. The BPM and key twins are optional; iOS implements the BPM one (the coordinator forwards it to `PlaybackController.noteDetectedBPM:forURL:`) and not the key, since key analysis is macOS-only.
+`audioWaveform:didLoadData:forTrack:`, the terminal-failure callback, and the BPM and key twins — because a delivery can land after the track has changed. Receivers match its `sourceKey` against their current track's, not its URL, since rows of one file share the URL and each has its own waveform and tempo: `MainPlayerController+Delivery` and the iOS `PageWaveformCoordinator` each do, and a tempo or key is stamped on every row sounding that window (`Playlist.stampTracksSounding:usingBlock:`). Failure is delivered only while that loader is still current; it makes the attempt terminal before delivery so a same-window request starts fresh. The BPM and key twins are optional; iOS implements the BPM one (the coordinator forwards it to `PlaybackController.noteDetectedBPM:forTrack:`) and not the key, since key analysis is macOS-only.
 
-The cache captures that URL when the load starts (`_currentLoadURL`) rather than reading it back at delivery time, and **the reattach path must set it too**, or a resumed decode would deliver under the URL it was detached from.
+The cache captures that track when the load starts (`_currentLoadTrack`) rather than reading it back at delivery time, and **the reattach path must set it too**, or a resumed decode would deliver under the track it was detached from.
 
 ## Language
 
