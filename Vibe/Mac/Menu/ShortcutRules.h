@@ -142,7 +142,7 @@ static inline VibeShortcut VibeShortcutDefault(NSString *identifier) {
         defaults = all;
     });
     NSNumber *shortcut = defaults[identifier];
-    return shortcut ? shortcut.unsignedIntegerValue : kVibeShortcutNone;
+    return shortcut != nil ? shortcut.unsignedIntegerValue : kVibeShortcutNone;
 }
 
 // A stored value is a number naming a key code and modifiers, or None. A
