@@ -14,6 +14,7 @@
 #import "Formatters.h"
 #import "Fonts.h"
 #import "MusicalKey.h"
+#import "SettingsRules.h"
 #import "VibeStrings.h"
 #import "NSView+DarkMode.h"
 
@@ -109,9 +110,10 @@ static NSColor *camelotColor(NSInteger key) {
     return palette[number];
 }
 
-// Menu order: Q, W, E, R, T. The boost modifies the low-kill filter, and runs
+// Menu order: Q, W, E, R, T, then the lock, then shuffle and repeat, which
+// always take the right end. The boost modifies the low-kill filter, and runs
 // it even with lowKill off, so it shows as the filled dial, never a symbol of
-// its own.
+// its own. The delays draw as echoes, not loops: the loop is repeat's.
 static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     NSMutableArray<NSString *> *names = [NSMutableArray new];
     if (state.lowKill || state.lowKillBoost) {
@@ -121,17 +123,22 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         [names addObject:@"water.waves"];
     }
     if (state.delay) {
-        [names addObject:@"repeat"];
+        [names addObject:@"wave.3.right"];
     }
     if (state.shortDelay) {
-        [names addObject:@"repeat.circle"];
+        [names addObject:@"wave.3.right.circle"];
     }
-    // Last, against the codec text it qualifies.
     if (state.bitPerfect == 2) {
         [names addObject:@"lock.fill"];
     }
     else if (state.bitPerfect == 1) {
         [names addObject:@"lock.open"];
+    }
+    if (state.shuffle) {
+        [names addObject:@"shuffle"];
+    }
+    if (state.repeatMode != VibeRepeatModeOff) {
+        [names addObject:VibeRepeatModeSymbolName(state.repeatMode)];
     }
     return names;
 }
@@ -395,10 +402,11 @@ unplayablePlaylistName:(NSString *)unplayablePlaylistName {
     [_contentView layoutArtistLineClearOfCodecLine];
 }
 
-// Optical, not metric: the dial glyphs spend their box on tick marks and read
-// small beside solid symbols at the same height.
+// Optical, not metric: the dial glyphs spend their box on tick marks, and the
+// bare echo on its narrow arcs, so both read small beside solid symbols at the
+// same height.
 static CGFloat fxSymbolSizeMultiplier(NSString *symbolName) {
-    return [symbolName hasPrefix:@"dial."] ? 1.3 : 1.0;
+    return ([symbolName hasPrefix:@"dial."] || [symbolName isEqualToString:@"wave.3.right"]) ? 1.3 : 1.0;
 }
 
 static NSAttributedString *symbolRun(NSString *symbolName, NSFont *font) {

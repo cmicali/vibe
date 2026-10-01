@@ -168,6 +168,8 @@ static double SkipBaseBars(void) {
         .delay        = fx.delaySendEnabled,
         .shortDelay   = fx.shortDelaySendEnabled,
         .bitPerfect   = bitPerfect,
+        .shuffle      = AppSettings.sharedInstance.shuffleEnabled,
+        .repeatMode   = AppSettings.sharedInstance.repeatMode,
     }];
     [self.trackDisplay renderBitPerfectToolTip:(bitPerfect == 1 ? [self bitPerfectStatusText] : nil)];
 }

@@ -987,8 +987,10 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
     // advance anyway; a new successor replaces one armed before a repeat or
     // shuffle change.
     [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
-    // Next's availability follows the modes, on screen and in Now Playing.
+    // Next's availability and the codec line's glyphs follow the modes, on
+    // screen and in Now Playing.
     self.nextButton.enabled = self.playlistController.hasNextTrack;
+    [self updateFXIndicators];
     [self updateNowPlaying];
 }
 

@@ -300,8 +300,8 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     AddFXItem(fxMenu, STR_MENU_FX_LOW_KILL_BOOST, @"dial.max.fill", @selector(toggleLowKillBoost:), player, @"w", kVibeMenuFXLowKillBoost);
     AddSeparator(fxMenu);
     AddFXItem(fxMenu, STR_MENU_FX_REVERB, @"water.waves", @selector(toggleReverbSend:), player, @"e", kVibeMenuFXReverb);
-    AddFXItem(fxMenu, STR_MENU_FX_DELAY_8, @"repeat", @selector(toggleDelaySend:), player, @"r", kVibeMenuFXDelay);
-    AddFXItem(fxMenu, STR_MENU_FX_DELAY_16, @"repeat.circle", @selector(toggleShortDelaySend:), player, @"t", kVibeMenuFXShortDelay);
+    AddFXItem(fxMenu, STR_MENU_FX_DELAY_8, @"wave.3.right", @selector(toggleDelaySend:), player, @"r", kVibeMenuFXDelay);
+    AddFXItem(fxMenu, STR_MENU_FX_DELAY_16, @"wave.3.right.circle", @selector(toggleShortDelaySend:), player, @"t", kVibeMenuFXShortDelay);
     [self applyFXMenuVisibility:fxItem];
 }
 

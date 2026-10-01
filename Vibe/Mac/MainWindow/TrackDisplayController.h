@@ -8,6 +8,7 @@
 //
 
 #import <Cocoa/Cocoa.h>
+#import "RepeatMode.h"
 #import "TrackDisplayRules.h"
 
 @class AudioTrack;
@@ -16,8 +17,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The deck state on the codec line, mirroring the AudioFX flags and the
-// player's bit-perfect report.
+// The status glyphs on the codec line: the AudioFX flags, the player's
+// bit-perfect report and the play order.
 typedef struct {
     BOOL lowKill;       // Q — low-kill high-pass
     BOOL lowKillBoost;  // W — doubles Q's cutoff (renders as the filled dial)
@@ -28,6 +29,8 @@ typedef struct {
     // reason is the tooltip, renderBitPerfectToolTip:), 2 = delivering
     // (closed lock).
     NSInteger bitPerfect;
+    BOOL shuffle;
+    VibeRepeatMode repeatMode;
 } VibeFXDisplayState;
 
 // Main thread only.

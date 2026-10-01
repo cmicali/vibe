@@ -44,7 +44,7 @@ Tint changes fade over `kVibeArtCrossfadeDuration`, shared with `CrossfadingImag
 
 ## The codec line and FX indicators
 
-The codec line doubles as the FX indicator: the SF Symbols of latched effects draw inline at the head of the same right-aligned run, glued to the codec text. Low kill shows the filled dial while its boost is on (the boost modifies that filter rather than being an effect of its own); reverb one symbol; each active delay one, matching the FX menu's.
+The codec line doubles as the status indicator: SF Symbols draw inline at the head of the same right-aligned run, glued to the codec text — the latched effects, the bit-perfect lock, then shuffle and repeat, which always take the right end. Low kill shows the filled dial while its boost is on (the boost modifies that filter rather than being an effect of its own); reverb one symbol; each active delay an echo (`wave.3.right`, its `.circle` for the 1/16), matching the FX menu's — never a loop, which is repeat's; shuffle its own symbol and repeat `repeat` or `repeat.1`, shown only while on.
 
 `currentTheme.showFileInfo` off empties the codec text and the BPM/key line at render time (`TrackDisplayController` reads it in `renderState:` and `renderBPM:`), but **the FX symbols are deck state, not file info, and keep composing** while `showStatusIcons` is on. That separate switch hides both the FX symbols and bit-perfect lock, including its tooltip, without changing their audio state. The codec run recomposes through the existing TrackDisplay effect, reclaiming the artist line's width.
 
