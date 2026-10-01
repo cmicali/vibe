@@ -15,7 +15,8 @@
 
 - (void)testTrackEndSettingAndPlaylistBoundaryChooseAdvanceOrPark {
     Playlist *playlist = [Playlist new];
-    [playlist replaceAllWithURLs:@[[NSURL fileURLWithPath:@"/a.wav"], [NSURL fileURLWithPath:@"/b.wav"]]];
+    [playlist replaceAllWithTracks:@[[AudioTrack withURL:[NSURL fileURLWithPath:@"/a.wav"]],
+                                     [AudioTrack withURL:[NSURL fileURLWithPath:@"/b.wav"]]]];
     AppSettings *settings = AppSettings.sharedInstance;
     [settings resetToDefaults];
     @try {

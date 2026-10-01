@@ -319,6 +319,8 @@ static int VibeOpenDescriptorCount(void) {
         @autoreleasepool {
             (void)[[AudioFileHandle alloc] initForReading:invalid error:NULL];
             (void)[[AudioFileHandle alloc] initForReading:empty error:NULL];
+            (void)[[AudioFileHandle alloc] initParserForReading:invalid error:NULL];
+            XCTAssertTrue([[AudioFileHandle alloc] initParserForReading:valid error:NULL].parser != NULL);
             AudioFileHandle *handle = [[AudioFileHandle alloc] initForReading:valid error:NULL];
             AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:handle.processingFormat frameCapacity:2048];
             (void)[handle readIntoBuffer:buffer error:NULL];

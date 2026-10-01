@@ -61,9 +61,12 @@ static inline uint64_t VibeIncomingFadeMilliseconds(NSInteger crossfadeMilliseco
 }
 
 // Gapless arms only at the declick minimum, which the UI presents as
-// crossfade off; a longer setting crossfades auto-advance instead.
-static inline BOOL VibeGaplessArmAllowed(NSInteger crossfadeMilliseconds) {
-    return crossfadeMilliseconds <= (NSInteger)kFadeDurationMilliseconds;
+// crossfade off; a longer setting crossfades auto-advance instead — except
+// into the next window of the same file (AudioTrack
+// isFollowedContiguouslyBy:), one recording a crossfade would overlap with
+// itself.
+static inline BOOL VibeGaplessArmAllowed(NSInteger crossfadeMilliseconds, BOOL continuesTheRecording) {
+    return continuesTheRecording || crossfadeMilliseconds <= (NSInteger)kFadeDurationMilliseconds;
 }
 
 #pragma mark - Stepped fades (AudioFX's send gates)

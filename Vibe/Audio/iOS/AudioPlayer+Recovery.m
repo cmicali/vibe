@@ -130,7 +130,7 @@
         [self dropOutputBoundStateOnQueue];
         self->_activeSubmittedPlayIdentifier = 0;
         self.currentTrack = nil;
-        [self publishState:VibePlayerStateStopped voice:0 file:nil startSeconds:0 baseFrames:0];
+        [self publishState:VibePlayerStateStopped voice:0 file:nil window:NSMakeRange(0, 0) startSeconds:0 baseFrames:0];
         [self createOutputOnQueue];
         if (!completion) {
             return;

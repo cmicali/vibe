@@ -14,6 +14,7 @@
 #import "AudioBPMAnalyzer.h"
 #import "AudioKeyAnalyzer.h"
 #import "AudioLoadTiming.h"
+#import "PlaybackIntent.h"
 #import <AVFAudio/AVFAudio.h>
 
 #include <vector>
@@ -157,11 +158,16 @@
         return nil;
     }
 
-    pass->totalFrames = file.length;
+    NSRange window = VibeCueWindow(self.cueStart, self.cueEnd, file.processingFormat.sampleRate, file.length);
+    pass->totalFrames = (AVAudioFramePosition)window.length;
     pass->numChannels = file.processingFormat.channelCount;
     if (pass->totalFrames <= 0 || pass->numChannels == 0) {
         LogError(@"No audio in %@ (frames=%lld channels=%lu)",
                  filename, pass->totalFrames, (unsigned long)pass->numChannels);
+        return nil;
+    }
+    if (window.location > 0 && ![file seekToFrame:(AVAudioFramePosition)window.location error:&error]) {
+        LogError(@"Seek to the window of %@ failed: %@", filename, error);
         return nil;
     }
     return file;

@@ -23,6 +23,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface WidgetPublisher : NSObject
 
+// VibeWidgetState.trackKey for a track: its NSURL.pathKey, plus a cue row's
+// window, so rows of one file render and seek apart. nil with no path.
++ (nullable NSString *)trackKeyForTrack:(nullable AudioTrack *)track;
+
 // Turned off only by WidgetKit's answer (refreshPlaced); turned on by that or
 // by the extension's read signal (kVibeWidgetReadNotification).
 @property (nonatomic, readonly) BOOL widgetPlaced;

@@ -61,7 +61,11 @@
     // mark. Only setErrorMaskForTrack:status: and clearErrorMask write it.
     __weak AudioTrack*          _erroredTrack;
     NSString*                   _errorStatus;
-    // The launch grace (revealEmptyState). Once cleared, never set again.
+    // The playlist the empty header names (revealEmptyStateNamingPlaylist:);
+    // cleared by every load and by Close.
+    NSString*                   _unplayablePlaylistName;
+    // The launch grace (revealEmptyStateNamingPlaylist:). Once cleared, never
+    // set again.
     BOOL                        _emptyStateSuppressed;
     // The generation pairs each deferred-load fallback timer with its own
     // playlist, so a timer armed for playlist A cannot start B's load while
@@ -433,7 +437,8 @@
                              track:(state == TrackDisplayStateError ? track : displayTrack)
                           duration:self.audioPlayer.duration
                               rate:self.playbackRate
-                       errorStatus:(track && track == _erroredTrack ? _errorStatus : nil)];
+                       errorStatus:(track && track == _erroredTrack ? _errorStatus : nil)
+            unplayablePlaylistName:_unplayablePlaylistName];
     [self effectiveTempoDidChange];
     [self updateFXIndicators];
     [_artworkController updateForTrack:displayTrack];
@@ -531,25 +536,25 @@
     }
 }
 
-- (void)revealEmptyState {
-    if (_emptyStateSuppressed) {
-        _emptyStateSuppressed = NO;
-        [self updateUI];
-    }
+- (void)revealEmptyStateNamingPlaylist:(NSString *)name {
+    _emptyStateSuppressed = NO;
+    _unplayablePlaylistName = [name copy];
+    [self updateUI];
 }
 
-- (void)play:(NSArray<NSURL *> *)urls {
-    [self loadURLs:urls selectingIndex:0 startPaused:NO];
+- (void)play:(NSArray<AudioTrack *> *)tracks {
+    [self loadTracks:tracks selectingIndex:0 startPaused:NO];
 }
 
 // An open and the launch restore differ only in row and whether it sounds.
-- (void)loadURLs:(NSArray<NSURL *> *)urls selectingIndex:(NSUInteger)index startPaused:(BOOL)startPaused {
+- (void)loadTracks:(NSArray<AudioTrack *> *)tracks selectingIndex:(NSUInteger)index startPaused:(BOOL)startPaused {
     _emptyStateSuppressed = NO; // a real track supersedes the launch grace
+    _unplayablePlaylistName = nil;
     // The old scan dies before the new first track is submitted: its cloud
     // transfer would compete with this open, and its queue would pin the
     // departed playlist. Replacement only — next and previous keep the sweep.
     [self.metadataCache cancelScan];
-    [self.playlistController loadURLs:urls selectingIndex:index];
+    [self.playlistController loadTracks:tracks selectingIndex:index];
     [self.playlistController playStartPaused:startPaused];
     // Deferred until playback starts: four parse workers can starve the
     // player's own open on a slow disk. The fallback timer covers a play that
@@ -557,12 +562,12 @@
     [self scheduleDeferredMetadataLoad];
 }
 
-- (void)addURLs:(NSArray<NSURL *> *)urls {
+- (void)addTracks:(NSArray<AudioTrack *> *)tracks {
     if (self.playlistController.count == 0) {
-        [self play:urls]; // nothing to append to — this IS the play
+        [self play:tracks]; // nothing to append to — this IS the play
         return;
     }
-    [self.playlistController append:urls];
+    [self.playlistController append:tracks];
     // The open's deferral: an append mid-open must not start stage-two work
     // while the picked track materializes. The generation coalesces appends.
     [self scheduleDeferredMetadataLoad];
@@ -632,6 +637,7 @@
     [self cancelDeferredMetadataLoad];
     [self.metadataCache cancelScan];
     [self clearErrorMask];
+    _unplayablePlaylistName = nil;
     _emptyStateSuppressed = NO; // Close explicitly asks for the empty state
     _currentTrackDuration = 0;
     [self pauseUIUpdateTimer];
@@ -698,8 +704,8 @@ static NSURL *VibeLastPlaylistURL(void) {
 - (BOOL)restoreLastPlaylist {
     return [PlaylistFile restoreSessionAtURL:VibeLastPlaylistURL()
             enabled:AppSettings.sharedInstance.reopenLastPlaylist defaults:NSUserDefaults.standardUserDefaults
-            load:^(NSArray<NSURL *> *urls, NSUInteger index, BOOL paused) {
-        [self loadURLs:urls selectingIndex:index startPaused:paused];
+            load:^(NSArray<AudioTrack *> *rows, NSUInteger index, BOOL paused) {
+        [self loadTracks:rows selectingIndex:index startPaused:paused];
     }];
 }
 
@@ -860,7 +866,7 @@ static NSURL *VibeLastPlaylistURL(void) {
 }
 
 // Only the Add well appends; an append to an empty playlist becomes a
-// replacing play in addURLs: anyway.
+// replacing play in addTracks: anyway.
 - (BOOL)mainWindow:(MainWindow *)mainWindow dropAppendsAtLocation:(NSPoint)location {
     return [self.playerContentView.playlistDropZoneView dropActionForWindowPoint:location]
             == PlaylistDropWellActionAdd;
@@ -1049,7 +1055,7 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 - (NSDictionary *)debugLastPlaylistDictionary {
     return @{
         @"exists": @([NSFileManager.defaultManager fileExistsAtPath:VibeLastPlaylistURL().path]),
-        @"rows": @([PlaylistFile fileURLsInM3UData:[NSData dataWithContentsOfURL:VibeLastPlaylistURL()]].count),
+        @"rows": @([PlaylistFile rowsInM3UData:[NSData dataWithContentsOfURL:VibeLastPlaylistURL()]].count),
         @"currentIndex": @([NSUserDefaults.standardUserDefaults integerForKey:kVibeLastPlaylistCurrentIndexKey]),
     };
 }

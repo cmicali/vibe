@@ -29,6 +29,12 @@
     [self setSuccessorArmedForUI:NO];
 }
 
+// Only a declick can splice two tracks, except the next window of the file,
+// which continues its recording whatever the crossfade.
+- (BOOL)gaplessArmAllowedOnQueue {
+    return VibeGaplessArmAllowed(self.crossfadeMilliseconds, [self.currentTrack isFollowedContiguouslyBy:_prefetchedTrack]);
+}
+
 // Every gate is checked here, at arming time; the bus refuses on its own if
 // the voice's stream has already ended.
 - (void)maybeArmSuccessorOnQueue {
@@ -38,7 +44,7 @@
     if (_state != VibePlayerStatePlaying && _state != VibePlayerStatePaused) {
         return;
     }
-    if (!VibeGaplessArmAllowed(self.crossfadeMilliseconds)) {
+    if (!self.gaplessArmAllowedOnQueue) {
         return;
     }
 #if TARGET_OS_OSX
@@ -51,7 +57,10 @@
         return;
     }
 #endif
-    if (![_voiceBus queueSuccessor:_prefetchedFile forVoice:_voice]) {
+    NSRange window = [_prefetchedTrack frameWindowInFile:_prefetchedFile];
+    if (window.length == 0
+            || ![_voiceBus queueSuccessor:_prefetchedFile startFrame:(AVAudioFramePosition)window.location
+                                 endFrame:(AVAudioFramePosition)NSMaxRange(window) forVoice:_voice]) {
         return;
     }
     _successorTrack = _prefetchedTrack;
@@ -86,7 +95,9 @@
     if ([_prefetchedFile isEqual:startedFile]) {
         [self clearPrefetchOnQueue];
     }
-    [self publishState:_state voice:_voice file:startedFile startSeconds:0 baseFrames:snapshot.boundary];
+    // At its window's start, where the bus began the successor.
+    NSRange window = [startedTrack frameWindowInFile:startedFile];
+    [self publishState:_state voice:_voice file:startedFile window:window startSeconds:0 baseFrames:snapshot.boundary];
     self.currentTrack = startedTrack;
     startedTrack.duration = self.duration;
     [self armSignalProbeOnQueue:@"gapless boundary"];
@@ -105,19 +116,19 @@
 #pragma mark - The park
 
 // Supersedes delivery and releases every field which could make a later
-// same-path prefetch look parked or still in flight.
+// prefetch of the same track look parked or still in flight.
 - (void)clearPrefetchOnQueue {
     _prefetchGeneration++;
     [_prefetchOpenToken cancel];
     _prefetchOpenToken = nil;
-    _prefetchedPath = nil;
+    _prefetchedKey = nil;
     _prefetchedFile = nil;
     _prefetchedTrack = nil;
 }
 
 - (void)retirePrefetchOnQueueAtPoint:(VibeAudioPrefetchRetirementPoint)point
-                            playPath:(NSString *)playPath {
-    if (VibeAudioPrefetchShouldRetire(point, _prefetchedPath, playPath)) {
+                             playKey:(NSString *)playKey {
+    if (VibeAudioPrefetchShouldRetire(point, _prefetchedKey, playKey)) {
         [self clearPrefetchOnQueue];
     }
     if (point == VibeAudioPrefetchAtAbandonment) {
@@ -129,14 +140,14 @@
     _prefetchRequestState = transition.state;
     if (!_prefetchRequestState.requestActive) {
         _requestedPrefetchTrack = nil;
-        _requestedPrefetchPath = nil;
+        _requestedPrefetchKey = nil;
     }
 }
 
 - (void)beginPrefetchRequestOnQueueForTrack:(AudioTrack *)track {
     _prefetchRequestState = VibeAudioPrefetchRequestBegin(_prefetchRequestState).state;
     _requestedPrefetchTrack = track;
-    _requestedPrefetchPath = track.url.path;
+    _requestedPrefetchKey = track.sourceKey;
 }
 
 - (void)settlePrefetchRequestOnQueueForIdentifier:(uint64_t)requestIdentifier {
@@ -172,10 +183,12 @@
         return;
     }
     AudioTrack *track = _requestedPrefetchTrack;
-    NSString *path = _requestedPrefetchPath;
+    NSString *key = _requestedPrefetchKey;
     VibePlaybackRequest *pending = self.pendingRequest.currentRequest;
+    // By the pending play's track, not its path: another window of the file
+    // being opened is a prefetch of its own, parked behind that open.
     VibeAudioPrefetchDisposition disposition = VibeAudioPrefetchDispositionForState(
-            path, _prefetchedPath, _prefetchedFile != nil, _prefetchOpenToken != nil, pending.path);
+            key, _prefetchedKey, _prefetchedFile != nil, _prefetchOpenToken != nil, pending.track.sourceKey);
     if (disposition == VibeAudioPrefetchDispositionSuppressBehindPlayback) {
         // The one path that keeps the request ACTIVE: the retained target is
         // what playbackDidSucceedForPrefetchOnQueue resumes.
@@ -185,13 +198,13 @@
     }
     // The successor must track the prefetch target, or the voice continues
     // into the wrong file at the boundary.
-    if (_successorTrack && (!path || ![path isEqualToString:_successorTrack.url.path])) {
+    if (_successorTrack && (!key || ![key isEqualToString:_successorTrack.sourceKey])) {
         [self unqueueSuccessorOnQueue];
     }
     if (disposition == VibeAudioPrefetchDispositionReuseParked
             || disposition == VibeAudioPrefetchDispositionJoinPrefetchClaim) {
-        // A same-path re-prefetch can carry a fresh AudioTrack object, which
-        // the promote must deliver, and a gate may have opened since.
+        // A re-prefetch of the same track can carry a fresh AudioTrack object,
+        // which the promote must deliver, and a gate may have opened since.
         _prefetchedTrack = track;
         if (_successorTrack) {
             _successorTrack = track;
@@ -207,12 +220,12 @@
         return; // being opened for playback right now
     }
     [self clearPrefetchOnQueue];
-    // Claimed at request time, so repeated prefetches of a path do not stack
+    // Claimed at request time, so repeated prefetches of a track do not stack
     // opens.
-    _prefetchedPath = path;
+    _prefetchedKey = key;
     _prefetchedTrack = track;
     _prefetchedFile = nil;
-    if (!path) {
+    if (!key) {
         [self settlePrefetchRequestOnQueueForIdentifier:requestIdentifier];
         return; // nil track means end of playlist: just drop the parked handle
     }
@@ -231,8 +244,8 @@
             strongSelf->_prefetchOpenToken = nil;
         }
         VibePlaybackRequest *request = strongSelf.pendingRequest.currentRequest;
-        if (request && [path isEqualToString:request.path]) {
-            // A play of this path is waiting on its own claim. Deliver on
+        if (request && [key isEqualToString:request.track.sourceKey]) {
+            // A play of this track is waiting on its own claim. Deliver on
             // success only, and never under a decoder choice since changed,
             // which the play's own open reflects; whichever result consumes
             // the request first detaches the other.
@@ -249,7 +262,7 @@
         }
         if (file.decoderChoiceIsStale) {
             // The decoder changed while this open ran, and a re-prefetch of
-            // its path joined the run instead of restarting it. It has
+            // its track joined the run instead of restarting it. It has
             // settled now, so this opens under the current choice.
             [strongSelf clearPrefetchOnQueue];
             [strongSelf prefetchOnQueue:track];

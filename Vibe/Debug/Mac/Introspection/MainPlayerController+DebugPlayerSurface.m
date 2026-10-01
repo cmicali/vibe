@@ -53,7 +53,7 @@
     // the funnel.
     [NSURLUtil expandAndFilterList:@[[NSURL fileURLWithPath:path]]
                           sortedBy:AppSettings.sharedInstance.folderOpenSort
-                        completion:^(NSArray<NSURL *> *expanded, NSUInteger folderCount) {
+                        completion:^(NSArray<AudioTrack *> *expanded, NSUInteger folderCount) {
         if (expanded.count > 0) {
             [self play:expanded];
         }

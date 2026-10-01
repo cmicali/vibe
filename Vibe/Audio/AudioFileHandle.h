@@ -43,14 +43,21 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface AudioFileHandle : NSObject
 
-// Opens for reading non-interleaved: AVAudioFile's standard processing format.
+// Opens CoreAudio's parser alone, with no decoder: the one open every reader
+// of CoreAudio's verdict on a file shares, the reading inits included. Only
+// `url` and `parser` answer.
+- (nullable instancetype)initParserForReading:(NSURL *)url
+                                        error:(NSError * _Nullable __autoreleasing * _Nullable)error NS_DESIGNATED_INITIALIZER;
+
+// Opens for reading, decoding to float32 non-interleaved at the file's rate,
+// channels and layout — AVAudioFile's standard processing format.
 - (nullable instancetype)initForReading:(NSURL *)url error:(NSError * _Nullable __autoreleasing * _Nullable)error;
 
 // Opens for reading, decoding to float32 at the file's rate, channels and
 // layout, interleaved or not.
 - (nullable instancetype)initForReading:(NSURL *)url
                             interleaved:(BOOL)interleaved
-                                  error:(NSError * _Nullable __autoreleasing * _Nullable)error NS_DESIGNATED_INITIALIZER;
+                                  error:(NSError * _Nullable __autoreleasing * _Nullable)error;
 // Creates `url` (replacing any file there) as a `fileType` container holding
 // `fileFormat` — PCM, or a codec with its rate, channels and, for FLAC, the
 // source depth in its flags — encoded from buffers in `processingFormat`. The
@@ -73,6 +80,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) BOOL decoderChoiceIsStale;
 
 @property (nonatomic, readonly) NSURL *url;
+// For property reads while the handle lives. NULL once dr_flac or dr_wav has
+// taken the file over, and for a writing handle.
+@property (nonatomic, readonly, nullable) AudioFileID parser;
 // The file's own format: codec, native rate, channels, and for PCM the depth.
 @property (nonatomic, readonly) AVAudioFormat *fileFormat;
 // What reads deliver.
