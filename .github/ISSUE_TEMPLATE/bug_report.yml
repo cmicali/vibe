@@ -33,9 +33,7 @@ body:
     attributes:
       label: Vibe version
       description: Vibe → About Vibe. If you built it yourself, the commit SHA.
-      placeholder: "1.9"
-    validations:
-      required: true
+      placeholder: "1.14"
 
   - type: dropdown
     id: macos-version
@@ -47,8 +45,6 @@ body:
         - "15 (Sequoia)"
         - "14 (Sonoma)"
         - Older than 14 (unsupported)
-    validations:
-      required: true
 
   - type: dropdown
     id: install-source
@@ -58,8 +54,6 @@ body:
         - Mac App Store
         - Direct download (GitHub release)
         - Built from source
-    validations:
-      required: true
 
   - type: markdown
     attributes:

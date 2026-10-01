@@ -8,24 +8,9 @@ body:
         Vibe is deliberately small and fast — a player for local files, with no library, no accounts, and no streaming services. Please keep this in mind when making a request.
 
   - type: textarea
-    id: problem
+    id: report
     attributes:
-      label: What are you trying to do?
-      description: The problem or the workflow, not the solution. What do you do today instead?
+      label: What do you want Vibe to do?
+      description: Please provide any detail, spec, or screenshots you can provide.
     validations:
       required: true
-
-  - type: textarea
-    id: proposal
-    attributes:
-      label: What should Vibe do?
-      description: If it involves the UI, describe where it would live or sketch it.
-    validations:
-      required: true
-
-  - type: textarea
-    id: alternatives
-    attributes:
-      label: Alternatives you considered
-      description: Including doing nothing, or an existing keyboard command or setting that almost works.
-
