@@ -13,6 +13,7 @@
 #endif
 #if DEBUG
 #import "VibeManualRenderPump.h"
+#import "AudioPlayer+Debug.h"
 #endif
 #import <Accelerate/Accelerate.h>
 #include <mach/mach_time.h>
@@ -649,6 +650,10 @@ VIBE_REALTIME_END
     };
     pump.afterRender = ^{ [weakSelf drainVoiceBusOnQueue]; };
     [pump attachRender:render running:running queue:_queue];
+}
+
+- (void)debugHoldDecoder:(BOOL)hold {
+    [self runSyncOnQueue:^{ [self->_voiceBus debugHoldDecoder:hold]; }];
 }
 
 - (void)debugHoldRenderInside:(BOOL)hold {

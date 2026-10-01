@@ -81,6 +81,10 @@ NS_ASSUME_NONNULL_BEGIN
 // debugRendersHeld counts the renders blocked inside. Any thread.
 - (void)debugHoldRenderInside:(BOOL)hold;
 - (void)debugRenderOnCallerThread:(NSUInteger)frames;
+// While set, the current bus's decode turns wait at their start, as a read
+// stalled on a slow volume would, so the rings drain and the render underruns
+// once they are empty. The bus a later rebuild makes is not held.
+- (void)debugHoldDecoder:(BOOL)hold;
 - (NSUInteger)debugRendersHeld;
 
 // Not persisted. A change synchronously replaces an active meter, so the next
@@ -100,6 +104,7 @@ NS_ASSUME_NONNULL_BEGIN
 // the renders blocked there. Any thread.
 - (void)debugHoldRender:(BOOL)hold;
 - (NSUInteger)debugRendersHeld;
+- (void)debugHoldDecoder:(BOOL)hold;
 // Decode-thread CPU spent resampling, the file reads inside the fill excluded,
 // against the bus audio it produced, and that as a percent of one core. Since
 // the bus was made, or the last reset.

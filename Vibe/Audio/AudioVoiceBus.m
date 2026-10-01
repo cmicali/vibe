@@ -509,6 +509,9 @@ static void VibeDisposeConverter(AudioVoiceRecord *record) {
     // inside it), and the bus frames it produced.
     _Atomic uint64_t _debugResampleNanos;
     _Atomic uint64_t _debugResampledFrames;
+    // While set, every decode turn waits at its start, as one stuck in a
+    // stalled read would.
+    _Atomic int32_t _debugHoldDecoder;
 #endif
 }
 
@@ -1119,6 +1122,10 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
 }
 
 #if DEBUG
+- (void)debugHoldDecoder:(BOOL)hold {
+    atomic_store_explicit(&_debugHoldDecoder, hold ? 1 : 0, memory_order_relaxed);
+}
+
 - (void)debugHoldRender:(BOOL)hold {
     atomic_store_explicit(&_mix->holdRender, hold ? 1 : 0, memory_order_seq_cst);
 }
@@ -1501,6 +1508,11 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
 // A turn of a voice since recycled touches nothing: the slot, its record
 // and its fill flag belong to whoever holds the slot now.
 - (void)decodeTurnForSlot:(NSUInteger)slot identifier:(VibeVoiceID)identifier {
+#if DEBUG
+    while (atomic_load_explicit(&_debugHoldDecoder, memory_order_relaxed)) {
+        usleep(1000);
+    }
+#endif
     atomic_fetch_add_explicit(&_decodeTurns, 1, memory_order_relaxed);
     AudioVoiceRecord *record = _records[slot];
     VibeVoiceSlot *s = &_mix->slots[slot];
