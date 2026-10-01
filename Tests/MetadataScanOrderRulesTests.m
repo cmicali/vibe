@@ -154,14 +154,6 @@
     return candidate;
 }
 
-- (void)testPriorityPickIgnoresEveryUnprioritizedRecord {
-    NSURL *ordinary = [NSURL fileURLWithPath:@"/a.flac"];
-    NSArray *candidates = @[[self candidateAtIndex:0 url:ordinary deferred:NO]];
-    XCTAssertNil(VibeBestPriorityScanCandidate(candidates,
-            [NSSet setWithObject:[NSURL fileURLWithPath:@"/b.flac"]], NO));
-    XCTAssertNil(VibeBestPriorityScanCandidate(candidates, [NSSet set], NO));
-}
-
 - (void)testPriorityPickPrefersAnUntriedRecordOverADeferredRetry {
     NSURL *tried = [NSURL fileURLWithPath:@"/tried.flac"];
     NSURL *fresh = [NSURL fileURLWithPath:@"/fresh.flac"];
@@ -169,9 +161,8 @@
         [self candidateAtIndex:0 url:tried deferred:YES],
         [self candidateAtIndex:5 url:fresh deferred:NO],
     ];
-    NSSet *priority = [NSSet setWithArray:@[tried, fresh]];
     id<MetadataScanOrderCandidate> best =
-            VibeBestPriorityScanCandidate(candidates, priority, NO);
+            VibeBestPriorityScanCandidate(candidates, NO);
     XCTAssertEqualObjects(best.url, fresh);
 }
 
@@ -186,9 +177,8 @@
         // playlist never listed) carries NSNotFound and must sort last.
         [self candidateAtIndex:NSNotFound url:outside deferred:NO],
     ];
-    NSSet *priority = [NSSet setWithArray:@[later, earlier, outside]];
     id<MetadataScanOrderCandidate> best =
-            VibeBestPriorityScanCandidate(candidates, priority, NO);
+            VibeBestPriorityScanCandidate(candidates, NO);
     XCTAssertEqualObjects(best.url, earlier);
 }
 
@@ -197,12 +187,11 @@
     NSArray *candidates = @[[self priorityCandidateAtIndex:0 url:yielded
                                                   deferred:NO
                                           yieldedUnderHold:YES]];
-    NSSet *priority = [NSSet setWithObject:yielded];
     // Re-picking under an active foreground would repeat the bounded probe and
     // yield when its answer lands; the first idle pick takes it.
-    XCTAssertNil(VibeBestPriorityScanCandidate(candidates, priority, YES));
+    XCTAssertNil(VibeBestPriorityScanCandidate(candidates, YES));
     XCTAssertEqualObjects(
-            VibeBestPriorityScanCandidate(candidates, priority, NO).url, yielded);
+            VibeBestPriorityScanCandidate(candidates, NO).url, yielded);
 }
 
 - (void)testAYieldedRecordDoesNotBlockAFreshPriorityPick {
@@ -214,9 +203,8 @@
         [self priorityCandidateAtIndex:1 url:fresh deferred:NO
                       yieldedUnderHold:NO],
     ];
-    NSSet *priority = [NSSet setWithArray:@[yielded, fresh]];
     id<MetadataScanOrderCandidate> best =
-            VibeBestPriorityScanCandidate(candidates, priority, YES);
+            VibeBestPriorityScanCandidate(candidates, YES);
     XCTAssertEqualObjects(best.url, fresh);
 }
 

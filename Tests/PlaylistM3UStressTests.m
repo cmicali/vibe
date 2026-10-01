@@ -265,7 +265,7 @@
 
 #pragma mark - Resolution
 
-// resolvedFileURLsForPlaylistAtURL: must drop an entry that is not a usable
+// rowsForPlaylistAtURL: must drop an entry that is not a usable
 // path component rather than let NSURL answer nil for it.
 - (NSURL *)writePlaylist:(NSData *)data named:(NSString *)name {
     NSURL *dir = [[NSURL fileURLWithPath:NSTemporaryDirectory()]
@@ -284,8 +284,8 @@
     [data appendBytes:"good.mp3\n" length:9];
     [data appendBytes:"a\0b.mp3\n" length:8];   // NUL inside a path component
     [data appendBytes:"\0\0\0\n" length:4];     // nothing but NULs
-    NSArray<NSURL *> *urls = [PlaylistFile resolvedFileURLsForPlaylistAtURL:
-            [self writePlaylist:data named:@"nuls.m3u"]];
+    NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:
+            [self writePlaylist:data named:@"nuls.m3u"]] valueForKey:@"url"];
     XCTAssertNotNil(urls);
     for (NSURL *url in urls) {
         XCTAssertNotNil(url, @"a nil URL would crash the array it goes into");
@@ -301,8 +301,8 @@
             seed = seed * 1664525u + 1013904223u;
             bytes[i] = (uint8_t)(seed >> 24);
         }
-        NSArray<NSURL *> *urls = [PlaylistFile resolvedFileURLsForPlaylistAtURL:
-                [self writePlaylist:data named:@"junk.m3u"]];
+        NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:
+                [self writePlaylist:data named:@"junk.m3u"]] valueForKey:@"url"];
         for (NSURL *url in urls) {
             XCTAssertNotNil(url, @"round %lu produced a nil URL", (unsigned long)round);
         }

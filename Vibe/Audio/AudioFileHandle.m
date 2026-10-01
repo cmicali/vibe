@@ -103,6 +103,10 @@ static const AudioFileTypeID kVibeOggFileType = 'Oggf';
     return _mpeg ? @"dr_mp3" : _flac ? @"dr_flac" : _wav ? @"dr_wav" : @"apple";
 }
 
+- (AudioFileID)parser {
+    return _parser;
+}
+
 - (BOOL)decoderChoiceIsStale {
     return _mpegChoiceApplies && _openedUnderApple != atomic_load(&sAppleMPEGDecoder);
 }
@@ -278,8 +282,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     return [self initForReading:url commonFormat:AVAudioPCMFormatFloat32 interleaved:NO error:error];
 }
 
-- (instancetype)initForReading:(NSURL *)url commonFormat:(AVAudioCommonFormat)format interleaved:(BOOL)interleaved
-                         error:(NSError **)error {
+- (instancetype)initParserForReading:(NSURL *)url error:(NSError **)error {
     self = [super init];
     if (!self) {
         return nil;
@@ -342,7 +345,17 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         return [self failWithError:error status:status
                        description:[NSString stringWithFormat:@"CoreAudio refused %@ (%d)", name, (int)status]];
     }
-    status = ExtAudioFileWrapAudioFileID(_parser, false, &_codec);
+    return self;
+}
+
+- (instancetype)initForReading:(NSURL *)url commonFormat:(AVAudioCommonFormat)format interleaved:(BOOL)interleaved
+                         error:(NSError **)error {
+    self = [self initParserForReading:url error:error];
+    if (!self) {
+        return nil;
+    }
+    NSString *name = url.lastPathComponent;
+    OSStatus status = ExtAudioFileWrapAudioFileID(_parser, false, &_codec);
     if (status != noErr) {
         return [self failWithError:error status:status
                        description:[NSString stringWithFormat:@"No decoder for %@ (%d)", name, (int)status]];

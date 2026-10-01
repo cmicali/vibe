@@ -8,15 +8,16 @@
 
 @implementation TrackCommands
 
+// One per file, in row order: a sheet's rows share theirs.
 + (NSArray<NSURL *> *)urlsOfTracks:(NSArray<AudioTrack *> *)tracks {
-    NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:tracks.count];
+    NSMutableOrderedSet<NSURL *> *urls = [NSMutableOrderedSet orderedSetWithCapacity:tracks.count];
     for (AudioTrack *track in tracks) {
         NSURL *url = track.url;
         if (url) {
             [urls addObject:url];
         }
     }
-    return urls;
+    return urls.array;
 }
 
 + (void)revealInFinder:(NSArray<AudioTrack *> *)tracks {

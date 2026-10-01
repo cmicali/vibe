@@ -40,12 +40,14 @@ typedef struct {
 // Error, nil otherwise. duration is file time; the labels divide it by rate.
 // errorStatus is the track's play error: in Error the artist line, where nil
 // reads as the generic playback error; in Track, a parked track's, it stands
-// in for the file info line.
+// in for the file info line. unplayablePlaylistName is an opened playlist
+// that listed nothing playable, which Empty says so over.
 - (void)renderState:(TrackDisplayState)state
               track:(nullable AudioTrack *)track
            duration:(NSTimeInterval)duration
                rate:(double)rate
-        errorStatus:(nullable NSString *)errorStatus;
+        errorStatus:(nullable NSString *)errorStatus
+unplayablePlaylistName:(nullable NSString *)unplayablePlaylistName;
 
 // The position tick. duration is the caller's cache: the live one reads 0
 // while Loading.

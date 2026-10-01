@@ -13,10 +13,11 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class AudioTrack;
 @class OpenRequestToken;
 
 // Runs on main when this request's turn comes up.
-typedef void (^OpenRequestDelivery)(NSArray<NSURL *> *files, NSUInteger folderCount, BOOL append);
+typedef void (^OpenRequestDelivery)(NSArray<AudioTrack *> *rows, NSUInteger folderCount, BOOL append);
 
 @interface OpenRequestCoordinator : NSObject
 
@@ -36,7 +37,7 @@ typedef void (^OpenRequestDelivery)(NSArray<NSURL *> *files, NSUInteger folderCo
 // May arrive out of order. Results buffer until every earlier one in their
 // generation has arrived, or the straggler deadline gives up on it.
 - (void)finishRequest:(OpenRequestToken *)token
-                files:(NSArray<NSURL *> *)files
+                 rows:(NSArray<AudioTrack *> *)rows
           folderCount:(NSUInteger)folderCount;
 
 // Gives up on the one request the buffered results wait behind (a walk on a

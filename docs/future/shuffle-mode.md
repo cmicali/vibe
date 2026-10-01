@@ -41,8 +41,8 @@ State: `@property BOOL shuffleEnabled;` and an injectable `uint32_t (^randomBelo
 - **`next`/`previous`** under shuffle move the cursor, then set `currentIndex` through an internal write that skips the manual-pick splice below but still fires `currentIndexDidChangeFromIndex:`; observers must not care which mode moved it.
 - **`nextTrackPeek`** — new public accessor: the track `next` would land on, shuffled or linear, or nil at the boundary. Every leak above asks it.
 - **Manual pick** (`setCurrentIndex:` from outside `next`/`previous`) — swap the picked row's entry with the one at `cursor + 1` and advance to it. A played row is replayed and retires the slot it left, so nothing else repeats. Picking the current row changes nothing.
-- **`replaceAllWithURLs:` / `clear`** — regenerate or drop the order; `replaceAll` still starts on row 0, which the new permutation puts first.
-- **`appendURLs:`** — each new row lands at a `randomBelow`-chosen position in `(cursor, end]`.
+- **`replaceAllWithTracks:` / `clear`** — regenerate or drop the order; `replaceAll` still starts on row 0, which the new permutation puts first.
+- **`appendTracks:`** — each new row lands at a `randomBelow`-chosen position in `(cursor, end]`.
 - **`removeTracksAtIndexes:`, `insertTracks:atIndexes:`, `moveTracksAtIndexes:toIndexes:`** — `_playOrder` stores row indexes, so each remaps it: a removal drops its entries and shifts later indexes, an insert shifts them (inserted rows join the unplayed span at random positions), a move permutes them. The played/current/unplayed guarantee holds across each.
 - **`replaceTrackAtIndex:withURL:`** (the convert swap) — no change: the swap moves no rows. Say so in the comment on `_playOrder`.
 

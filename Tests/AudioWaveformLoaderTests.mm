@@ -233,6 +233,12 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
 #pragma mark - openFileAtPath: and the whole pass, over a written file
 
 - (NSString *)writeWAVNamed:(NSString *)name seconds:(double)seconds {
+    return [self writeWAVNamed:name seconds:seconds quietFrom:seconds];
+}
+
+// From quietFrom seconds on, the samples are ±0.25: a window's chunks can be
+// told from the rest of the file's by their energy alone.
+- (NSString *)writeWAVNamed:(NSString *)name seconds:(double)seconds quietFrom:(double)quietFrom {
     NSURL *url = [_tempDirectory URLByAppendingPathComponent:name];
     AVAudioFormat *format = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32
                                                              sampleRate:44100
@@ -246,8 +252,10 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
     // Alternating sign every sample, so that *every* chunk — each covering
     // about ten frames — carries both a negative min and a positive max
     // whatever the chunk boundaries land on.
+    const AVAudioFrameCount quiet = (AVAudioFrameCount)(44100.0 * quietFrom);
     for (AVAudioFrameCount i = 0; i < total; i++) {
-        float v = (i % 2 == 0) ? -0.5f : 0.5f;
+        float level = i < quiet ? 0.5f : 0.25f;
+        float v = (i % 2 == 0) ? -level : level;
         buffer.floatChannelData[0][i] = v;
         buffer.floatChannelData[1][i] = v;
     }
@@ -263,6 +271,25 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
     XCTAssertNotNil(file);
     XCTAssertEqual(pass.totalFrames, (AVAudioFramePosition)44100);
     XCTAssertEqual(pass.numChannels, (NSUInteger)2);
+}
+
+// 44.1 kHz is 588 frames per CD frame, so [37, 112) is [21756, 65856).
+- (void)testOpenOfAWindowReportsTheWindowLength {
+    NSString *path = [self writeWAVNamed:@"window.wav" seconds:2.0];
+    _loader.cueStart = 37;
+    _loader.cueEnd = 112;
+    struct VibeWaveformDecodePass pass = {};
+    AudioFileHandle *file = [_loader openFileAtPath:path pass:&pass];
+    XCTAssertNotNil(file);
+    XCTAssertEqual(pass.totalFrames, (AVAudioFramePosition)44100);
+    XCTAssertEqual(file.framePosition, (AVAudioFramePosition)21756);
+}
+
+- (void)testOpenOfAWindowPastTheFileAnswersNil {
+    NSString *path = [self writeWAVNamed:@"short.wav" seconds:1.0];
+    _loader.cueStart = 150;
+    struct VibeWaveformDecodePass pass = {};
+    XCTAssertNil([_loader openFileAtPath:path pass:&pass]);
 }
 
 - (void)testOpenOfAMissingFileAnswersNil {
@@ -324,6 +351,27 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
     }
     XCTAssertEqual(silent, (NSUInteger)0, @"every chunk of a full-scale signal must have content");
     XCTAssertEqual(wrongEnergy, (NSUInteger)0, @"every chunk of a constant ±0.5 signal carries meanSquare 0.25");
+}
+
+// A cue row's waveform is its window at the full resolution: every chunk is
+// the quiet second, none the loud one before it or the silence after.
+- (void)testFullLoadOfAWindowCoversOnlyTheWindow {
+    NSString *path = [self writeWAVNamed:@"rows.wav" seconds:3.0 quietFrom:1.0];
+    _loader.cueStart = 75;
+    _loader.cueEnd = 150;
+    CodableAudioWaveform *result = [_loader load:path];
+    XCTAssertNotNil(result);
+    XCTAssertTrue(_loader.isComplete);
+
+    AudioWaveform *waveform = result.waveform;
+    NSUInteger numChunks = waveform->getNumChunks();
+    NSUInteger wrongEnergy = 0;
+    for (NSUInteger i = 0; i < numChunks; i++) {
+        if (fabsf(waveform->getChunkAtIndex(i, numChunks).getMeanSquare() - 0.0625f) > 1e-4f) {
+            wrongEnergy++;
+        }
+    }
+    XCTAssertEqual(wrongEnergy, (NSUInteger)0, @"every chunk of the window is the ±0.25 second");
 }
 
 - (void)testFullLoadOfAVeryShortFileSpansTheStrip {

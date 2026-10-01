@@ -28,7 +28,7 @@ extern const char *const kVibeWidgetReadNotification;
 @property (nonatomic) BOOL playing;
 @property (nonatomic) NSTimeInterval duration;
 
-// NSURL.pathKey, nil with no track. It names the image files, so a publish
+// WidgetPublisher.trackKeyForTrack:, nil with no track. It names the image files, so a publish
 // landing between the extension's plist and image reads cannot pair one
 // track's title with another's cover; and it rides in every seek button, so a
 // tap on a stale render cannot seek what is playing now.

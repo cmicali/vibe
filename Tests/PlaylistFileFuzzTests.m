@@ -10,7 +10,14 @@
 
 #import <XCTest/XCTest.h>
 
+#import "AudioFixtures.h"
+#import "AudioTrack.h"
 #import "PlaylistFile.h"
+
+// Implemented in PlaylistFileTests.m.
+@interface PlaylistFile (CueFileNames)
++ (NSArray<NSString *> *)fileNamesInCueText:(NSString *)text;
+@end
 
 // xorshift64*, chosen for being four lines rather than for its statistics.
 typedef struct { uint64_t state; } FuzzRandom;
@@ -169,7 +176,7 @@ static NSString *NormalizedSeparators(NSString *name) {
             }
 
             NSArray<NSString *> *expected = CollapsingConsecutiveDuplicates(names);
-            NSArray<NSString *> *entries = [PlaylistFile cueFileEntriesInText:sheet];
+            NSArray<NSString *> *entries = [PlaylistFile fileNamesInCueText:sheet];
             XCTAssertEqualObjects(entries, expected, @"seed %llu", seed);
         }
     }
@@ -404,12 +411,12 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
             if (!text) {
                 continue;
             }
-            NSArray<NSString *> *cue = [PlaylistFile cueFileEntriesInText:text];
+            NSArray<NSString *> *cue = [PlaylistFile fileNamesInCueText:text];
             NSArray<NSString *> *m3u = [PlaylistFile m3uEntriesInText:text];
             [self assertEntriesAreWellFormed:cue kind:@"cue" seed:seed];
             [self assertEntriesAreWellFormed:m3u kind:@"m3u" seed:seed];
             // A reader with static state would show up here.
-            XCTAssertEqualObjects([PlaylistFile cueFileEntriesInText:text], cue, @"seed %llu", seed);
+            XCTAssertEqualObjects([PlaylistFile fileNamesInCueText:text], cue, @"seed %llu", seed);
             XCTAssertEqualObjects([PlaylistFile m3uEntriesInText:text], m3u, @"seed %llu", seed);
         }
     }
@@ -431,7 +438,7 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
             if (!text) {
                 continue;
             }
-            [self assertEntriesAreWellFormed:[PlaylistFile cueFileEntriesInText:text]
+            [self assertEntriesAreWellFormed:[PlaylistFile fileNamesInCueText:text]
                                         kind:@"cue" seed:length];
             [self assertEntriesAreWellFormed:[PlaylistFile m3uEntriesInText:text]
                                         kind:@"m3u" seed:length];
@@ -457,14 +464,14 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
                     [NSString stringWithFormat:@"corrupt.%@", extension]];
             XCTAssertTrue([data writeToURL:playlist atomically:YES], @"seed %llu", seed);
 
-            NSArray<NSURL *> *urls = [PlaylistFile resolvedFileURLsForPlaylistAtURL:playlist];
+            NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:playlist] valueForKey:@"url"];
 
             // One URL per entry, in order, whatever the entries turned out to
             // be: the caller pairs them with the playlist's rows.
             NSString *text = [PlaylistFile textFromData:data];
             NSArray<NSString *> *entries = text
                     ? ([extension isEqualToString:@"cue"]
-                            ? [PlaylistFile cueFileEntriesInText:text]
+                            ? [PlaylistFile fileNamesInCueText:text]
                             : [PlaylistFile m3uEntriesInText:text])
                     : @[];
             XCTAssertEqual(urls.count, entries.count, @"seed %llu", seed);
@@ -475,6 +482,52 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
                 // directory it does not control.
                 XCTAssertTrue([url.path hasPrefix:@"/"], @"seed %llu: %@", seed, url.path);
             }
+        }
+    }
+}
+
+// A FLAC's own sheet from hostile bytes — a well-formed header with bytes
+// overwritten, lengths lied about and the file cut short. Whatever comes back
+// is that file cut into playable windows: none, or a chain from its first
+// frame to its end.
+- (void)testCorruptedFLACHeadersYieldOnlyAChainOfWindows {
+    NSString *sheet = @"FILE \"a.wav\" WAVE\n  TRACK 01 AUDIO\n    TITLE \"One\"\n    INDEX 01 00:00:00\n"
+                       "  TRACK 02 AUDIO\n    INDEX 00 00:28:00\n    INDEX 01 00:30:00\n"
+                       "  TRACK 03 AUDIO\n    INDEX 01 01:00:00\n";
+    NSData *block = VibeFLACCueSheetBlock(@[@[@1, @0, @0, @NO], @[@2, @(28 * 44100), @(2 * 44100), @NO],
+                                            @[@3, @(60 * 44100), @0, @NO]], 90 * 44100);
+    NSData *valid = [NSData dataWithContentsOfURL:VibeWriteFLACHeader(
+            [_root URLByAppendingPathComponent:@"valid.flac"], 44100, sheet, block, NO, 0)];
+    XCTAssertNotNil(valid);
+    NSURL *url = [_root URLByAppendingPathComponent:@"corrupt.flac"];
+
+    for (NSUInteger round = 0; round < 500; round++) {
+        @autoreleasepool {
+            uint64_t seed = _baseSeed + 500000 + round;
+            FuzzRandom random = {seed};
+            NSMutableData *data = [valid mutableCopy];
+            for (uint32_t edits = 1 + FuzzBelow(&random, 8); edits > 0; edits--) {
+                uint8_t *bytes = data.mutableBytes;
+                if (FuzzChance(&random, 6)) {
+                    data.length = FuzzBelow(&random, (uint32_t)data.length);
+                }
+                else if (data.length > 0) {
+                    bytes[FuzzBelow(&random, (uint32_t)data.length)] = (uint8_t)FuzzNext(&random);
+                }
+            }
+            XCTAssertTrue([data writeToURL:url atomically:YES], @"seed %llu", seed);
+
+            NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsEmbeddedInFLACAtURL:url];
+
+            XCTAssertNotEqual(rows.count, 1u, @"seed %llu", seed);
+            NSUInteger next = 0;
+            for (AudioTrack *row in rows) {
+                XCTAssertEqualObjects(row.url, url, @"seed %llu", seed);
+                XCTAssertEqual(row.cueStart, next, @"seed %llu", seed);
+                XCTAssertTrue(row.cueEnd == 0 || row.cueEnd > row.cueStart, @"seed %llu", seed);
+                next = row.cueEnd;
+            }
+            XCTAssertEqual(next, 0u, @"seed %llu: the last row runs to the end", seed);
         }
     }
 }
@@ -510,7 +563,7 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
             NSURL *playlist = [dir URLByAppendingPathComponent:@"mix.m3u"];
             [[list dataUsingEncoding:NSUTF8StringEncoding] writeToURL:playlist atomically:YES];
 
-            NSArray<NSURL *> *urls = [PlaylistFile resolvedFileURLsForPlaylistAtURL:playlist];
+            NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:playlist] valueForKey:@"url"];
             XCTAssertEqual(urls.count, written.count, @"seed %llu", seed);
             for (NSUInteger i = 0; i < urls.count && i < written.count; i++) {
                 // Compared precomposed: the volume stores names decomposed. The

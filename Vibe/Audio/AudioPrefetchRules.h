@@ -21,8 +21,10 @@ typedef NS_ENUM(NSInteger, VibeAudioPrefetchDisposition) {
 };
 
 // The prefetch request's lifecycle: a late callback for a superseded request
-// changes nothing, and a different-path prefetch requested while playback is
-// still opening is retained but suppressed until the play's success resumes it.
+// changes nothing, and a prefetch of another track requested while playback
+// is still opening is retained but suppressed until the play's success
+// resumes it. Tracks are compared by sourceKey, so another window of the file
+// being opened is another track.
 typedef NS_OPTIONS(NSUInteger, VibeAudioPrefetchRequestAction) {
     VibeAudioPrefetchRequestActionNone = 0,
     VibeAudioPrefetchRequestActionResume = 1 << 0,
@@ -114,15 +116,15 @@ static inline BOOL VibeAudioPrefetchDepthAllowsSuccessor(NSUInteger prefetchDept
 }
 
 static inline VibeAudioPrefetchDisposition VibeAudioPrefetchDispositionForState(
-        NSString *requestedPath,
-        NSString *prefetchedPath,
+        NSString *requestedKey,
+        NSString *prefetchedKey,
         BOOL prefetchedFileReady,
         BOOL prefetchClaimPresent,
-        NSString *pendingPlaybackPath) {
-    if (!requestedPath) {
+        NSString *pendingPlaybackKey) {
+    if (!requestedKey) {
         return VibeAudioPrefetchDispositionClear;
     }
-    if ([requestedPath isEqualToString:prefetchedPath]) {
+    if ([requestedKey isEqualToString:prefetchedKey]) {
         if (prefetchedFileReady) {
             return VibeAudioPrefetchDispositionReuseParked;
         }
@@ -130,10 +132,10 @@ static inline VibeAudioPrefetchDisposition VibeAudioPrefetchDispositionForState(
             return VibeAudioPrefetchDispositionJoinPrefetchClaim;
         }
     }
-    if ([requestedPath isEqualToString:pendingPlaybackPath]) {
+    if ([requestedKey isEqualToString:pendingPlaybackKey]) {
         return VibeAudioPrefetchDispositionJoinPlaybackClaim;
     }
-    if (pendingPlaybackPath) {
+    if (pendingPlaybackKey) {
         return VibeAudioPrefetchDispositionSuppressBehindPlayback;
     }
     return VibeAudioPrefetchDispositionStartClaim;
@@ -141,13 +143,13 @@ static inline VibeAudioPrefetchDisposition VibeAudioPrefetchDispositionForState(
 
 static inline BOOL VibeAudioPrefetchShouldRetire(
         VibeAudioPrefetchRetirementPoint point,
-        NSString *prefetchedPath,
-        NSString *playPath) {
+        NSString *prefetchedKey,
+        NSString *playKey) {
     switch (point) {
         case VibeAudioPrefetchAtPlaySubmission:
-            return prefetchedPath && ![prefetchedPath isEqualToString:playPath];
+            return prefetchedKey && ![prefetchedKey isEqualToString:playKey];
         case VibeAudioPrefetchAtPlaySettlement:
-            return [prefetchedPath isEqualToString:playPath];
+            return [prefetchedKey isEqualToString:playKey];
         case VibeAudioPrefetchAtAbandonment:
             return YES;
     }

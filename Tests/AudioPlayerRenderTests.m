@@ -1662,6 +1662,294 @@ static const NSUInteger kLayer3DecoderDelay = 529;
         XCTAssertEqualWithAccuracy(_player.duration,(96000-72007)/48000.0,0);
     }
 }
+#pragma mark - Cue rows
+
+static AudioTrack *CueRow(NSURL *url, NSUInteger start, NSUInteger end) {
+    return [[AudioTrack alloc] initWithURL:url cueStart:start cueEnd:end title:nil performer:nil sheet:nil trackNumber:0];
+}
+
+// Stereo noise no excerpt of which repeats, so an alignment cannot slip.
+static NSData *UniqueNoise(NSUInteger frames, uint32_t seed) {
+    NSMutableData *data = [NSMutableData dataWithLength:frames * 2 * sizeof(float)];
+    float *p = data.mutableBytes;
+    for (NSUInteger i = 0; i < frames * 2; i++) {
+        seed = seed * 1664525u + 1013904223u;
+        p[i] = ((float)(seed >> 8) / 8388608.0f - 1.0f) * 0.25f;
+    }
+    return data;
+}
+
+// 640 file frames per CD frame at 48 kHz: CD frames 30-105 are file frames
+// 19200-67200, one second of the two-second fixture.
+- (void)testACueRowPlaysItsWindowAsTheWholeTrack {
+    NSURL *url = [self fixture:@"noise-48000-24-2.wav"];
+    NSData *reference = PCM([self read:url]);
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+    AudioTrack *row = CueRow(url, 30, 105);
+    [_player play:row atPosition:0 startPaused:NO];
+    [self settleUntil:^BOOL { return [self count:@"start"] == 1; }];
+    XCTAssertEqualWithAccuracy(_player.duration, 1.0, 0);
+    XCTAssertEqualWithAccuracy(row.duration, 1.0, 0);
+    NSData *window = [reference subdataWithRange:NSMakeRange(19200 * 8, 48000 * 8)];
+    [self assertReference:window capture:[self renderSeconds:1.2] skip:[self startupSkip] tolerance:0];
+    [self settleUntil:^BOOL { return [self count:@"finish"] == 1; }];
+}
+
+- (void)testTheLastCueRowRunsToItsFilesEnd {
+    NSURL *url = [self fixture:@"noise-48000-24-2.wav"];
+    NSData *reference = PCM([self read:url]);
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+    [_player play:CueRow(url, 75, 0) atPosition:0 startPaused:NO];
+    [self settleUntil:^BOOL { return [self count:@"start"] == 1; }];
+    XCTAssertEqualWithAccuracy(_player.duration, 1.0, 0);
+    [self assertReference:[reference subdataWithRange:NSMakeRange(48000 * 8, 48000 * 8)]
+                  capture:[self renderSeconds:1.2] skip:[self startupSkip] tolerance:0];
+    [self settleUntil:^BOOL { return [self count:@"finish"] == 1; }];
+}
+
+// Rows of one file tile it, and play through as the file did.
+- (void)testContiguousCueRowsPlayAsOneRecording {
+    NSURL *url = [self fixture:@"noise-48000-24-2.wav"];
+    NSData *reference = PCM([self read:url]);
+    for (NSNumber *block in @[@63, @1024, @4096]) for (NSNumber *mode in @[@NO, @YES]) {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:mode.boolValue automatic:NO];
+        _blockSize = block.unsignedIntegerValue;
+        NSArray<AudioTrack *> *rows = @[CueRow(url, 0, 30), CueRow(url, 30, 75), CueRow(url, 75, 0)];
+        _chain = rows; _nextPrefetch = 1;
+        [_player play:rows[0]];
+        [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+        [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
+        XCTAssertEqual([self count:@"advance"], 2u, @"block %@ bit-perfect %@", block, mode);
+        XCTAssertEqual([self count:@"finish"], 1u);
+        XCTAssertEqualObjects(_player.currentTrack, rows.lastObject);
+        XCTAssertEqualWithAccuracy(_player.duration, 1.0, 0);
+    }
+}
+
+// Through the resampler, contiguous rows meet the resampled whole file within
+// the gapless contract.
+- (void)testContiguousCueRowsContinueTheResampler {
+    NSURL *url = [self fixture:@"noise-44100-24-2.wav"];
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    [self play:url paused:NO position:0];
+    NSData *reference = [self renderSeconds:2.1];
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    NSArray<AudioTrack *> *rows = @[CueRow(url, 0, 37), CueRow(url, 37, 0)];
+    _chain = rows; _nextPrefetch = 1;
+    [_player play:rows[0]];
+    [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+    [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0.0001f];
+    XCTAssertEqual([self count:@"advance"], 1u);
+}
+
+// One recording is never crossfaded with itself: the next row of the file
+// arms whatever the crossfade, and any other row does not.
+- (void)testAContiguousCueRowArmsUnderALongCrossfade {
+    NSURL *url = [self fixture:@"noise-48000-24-2.wav"];
+    NSData *reference = PCM([self read:url]);
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    _player.crossfadeMilliseconds = 2000;
+    NSArray<AudioTrack *> *rows = @[CueRow(url, 0, 75), CueRow(url, 75, 0)];
+    _chain = rows; _nextPrefetch = 1;
+    [_player play:rows[0]];
+    [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+    [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
+    XCTAssertEqual([self count:@"advance"], 1u);
+
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    _player.crossfadeMilliseconds = 2000;
+    [_player play:CueRow(url, 0, 30) atPosition:0 startPaused:NO];
+    [self settleUntil:^BOOL { return [self count:@"start"] == 1; }];
+    [_player prefetchTrack:CueRow(url, 75, 0)];
+    (void)_player.audioPathSnapshot; // a player-queue round trip: the prefetch was handled
+    [self render:4800];
+    XCTAssertFalse(_player.gaplessArmed, @"a row that skips part of the file crossfades like any track");
+}
+
+// With the next row queued under a long crossfade, an explicit play of it
+// retires a voice that may already be reading that row's handle through its
+// fade: the new voice must open its own, or the two move one cursor.
+- (void)testAnExplicitPlayOfAQueuedContiguousRowOpensItsOwnHandle {
+    NSData *noise = UniqueNoise(6 * 48000, 0xCAFE);
+    NSURL *url = [self write:noise rate:48000 channels:2 name:@"image.wav"];
+    NSData *reference = PCM([self read:url]);
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    _player.crossfadeMilliseconds = 2000;
+    AudioTrack *first = CueRow(url, 0, 150), *second = CueRow(url, 150, 0);
+    [_player play:first];
+    [self settleUntil:^BOOL { return [self count:@"start"] == 1; }];
+    [_player prefetchTrack:second];
+    [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+    [self render:48000]; // the decoder, a ring ahead, has switched into the second row
+    [_player play:second];
+    [self settleUntil:^BOOL { return [self count:@"start"] == 2; }];
+    [self render:2 * 48000 + 4800]; // past the crossfade
+    [_capture setLength:0];
+    NSUInteger at = (NSUInteger)llround(_player.position * 48000);
+    [self render:48000];
+    NSData *expected = [reference subdataWithRange:NSMakeRange((96000 + at) * 8, 48000 * 8)];
+    [self assertReference:expected capture:[_capture copy] skip:0 tolerance:0];
+}
+
+- (void)testASeekInsideACueRowLandsInItsWindow {
+    NSURL *url = [self fixture:@"noise-48000-24-2.wav"];
+    NSData *reference = PCM([self read:url]);
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+    [_player play:CueRow(url, 30, 105) atPosition:0.5 startPaused:YES];
+    [self settleUntil:^BOOL { return [self count:@"start"] == 1; }];
+    XCTAssertEqualWithAccuracy(_player.position, 0.5, 1 / _rate);
+    [_player seekToPosition:5];
+    [self render:480];
+    [self settleUntil:^BOOL { return [self count:@"seek"] == 1; }];
+    XCTAssertEqualWithAccuracy(_player.position, 1.0 - 1 / _rate, 1 / _rate, @"past the window: its last frame");
+    [_player seekToPosition:0.25];
+    [self render:480];
+    [self settleUntil:^BOOL { return [self count:@"seek"] == 2; }];
+    XCTAssertEqualWithAccuracy(_player.position, 0.25, 1 / _rate);
+    [_player resume];
+    NSData *tail = [reference subdataWithRange:NSMakeRange((19200 + 12000) * 8, 36000 * 8)];
+    [self assertReference:tail capture:[self renderSeconds:0.8] skip:2400 tolerance:0];
+    [self settleUntil:^BOOL { return [self count:@"finish"] == 1; }];
+}
+
+// What pause-at-track-end leaves the player: no successor, so the row ends
+// at its window's end and nothing of the next row sounds.
+- (void)testACueRowEndsAtItsWindowWithNoSuccessor {
+    NSURL *url = [self fixture:@"noise-48000-24-2.wav"];
+    for (NSNumber *resampled in @[@NO, @YES]) {
+        [self startPlayerAt:resampled.boolValue ? 44100 : 48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+        [_player play:CueRow(url, 0, 75) atPosition:0 startPaused:NO];
+        [self settleUntil:^BOOL { return [self count:@"start"] == 1; }];
+        NSData *capture = [self renderSeconds:1.5];
+        [self settleUntil:^BOOL { return [self count:@"finish"] == 1; }];
+        NSUInteger end = (NSUInteger)llround(_rate * 1.01);
+        XCTAssertEqual(RMS(capture, 2, 0, NSMakeRange(end, capture.length / 8 - end)), 0,
+                       @"the next row sounded, resampled %@", resampled);
+        XCTAssertEqual([self count:@"advance"], 0u);
+    }
+}
+
+// A rate change re-voices a cue row inside its window.
+- (void)testAnOutputRateChangeKeepsACueRowInsideItsWindow {
+    [self startPlayerAt:44100 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    NSURL *url = [self fixture:@"1000.wav"];
+    AudioTrack *row = CueRow(url, 75, 225);
+    [_player play:row atPosition:0 startPaused:NO];
+    [self settleUntil:^BOOL { return [self count:@"start"] == 1; }];
+    [self render:22050];
+    double before = _player.position;
+    XCTAssertTrue([_player debugSetOutputRate:96000]);
+    _rate = 96000;
+    XCTAssertEqual(_player.currentTrack, row);
+    XCTAssertEqualWithAccuracy(_player.position, before, 0.01);
+    XCTAssertEqualWithAccuracy(_player.duration, 2.0, 0.0001);
+    [self renderSeconds:1.7];
+    [self settleUntil:^BOOL { return [self count:@"finish"] == 1; }];
+    XCTAssertLessThanOrEqual(_player.position, 2.0);
+}
+
+// Another row of the file an open is waiting on rebinds that open, and plays
+// its own window when it lands: one open, the latest row.
+- (void)testAPickOfAnotherRowOfTheFileBeingOpenedRebindsTheOpen {
+    NSURL *url = [self fixture:@"noise-48000-24-2.wav"];
+    NSData *reference = PCM([self read:url]);
+    dispatch_semaphore_t opened = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
+    __block BOOL held = NO;
+    SEL selector = @selector(initForReading:commonFormat:interleaved:error:);
+    Method initializer = class_getInstanceMethod(AudioFileHandle.class, selector);
+    __block IMP original;
+    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *opening, AVAudioCommonFormat format, BOOL interleaved, NSError **error) {
+        id handle = ((id (*)(id, SEL, NSURL *, AVAudioCommonFormat, BOOL, NSError **))original)(receiver, selector, opening, format, interleaved, error);
+        if ([opening.path isEqualToString:url.path] && !held) {
+            held = YES;
+            dispatch_semaphore_signal(opened);
+            dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
+        }
+        return handle;
+    });
+    original = method_setImplementation(initializer, holding);
+    @try {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+        AudioFileMaterializationCoordinator *coordinator = AudioFileMaterializationCoordinator.sharedCoordinator;
+        uint64_t started = coordinator.stateSnapshotForTesting.handleOpensStarted;
+        [_player play:CueRow(url, 0, 30) atPosition:0 startPaused:NO];
+        XCTAssertEqual(dispatch_semaphore_wait(opened, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
+        AudioTrack *picked = CueRow(url, 75, 0);
+        [_player play:picked atPosition:0 startPaused:NO];
+        (void)_player.audioPathSnapshot; // a player-queue round trip: the pick was handled
+        dispatch_semaphore_signal(release);
+        [self settleUntil:^BOOL { return [self count:@"start"] >= 1; }];
+        XCTAssertEqual(coordinator.stateSnapshotForTesting.handleOpensStarted, started + 1, @"one open for both picks");
+        XCTAssertEqual(_player.currentTrack, picked);
+        [self assertReference:[reference subdataWithRange:NSMakeRange(48000 * 8, 48000 * 8)]
+                      capture:[self renderSeconds:1.2] skip:[self startupSkip] tolerance:0];
+    } @finally {
+        dispatch_semaphore_signal(release);
+        method_setImplementation(initializer, original);
+        imp_removeBlock(holding);
+    }
+}
+
+// The next row's prefetch, asked while its file's open is in flight, waits
+// behind that open rather than joining it — joining would leave it never
+// parked — and arms once the play lands.
+- (void)testTheNextRowsPrefetchDuringItsFilesOpenParksAndArms {
+    NSURL *url = [self fixture:@"noise-48000-24-2.wav"];
+    NSData *reference = PCM([self read:url]);
+    dispatch_semaphore_t opened = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
+    __block BOOL held = NO;
+    SEL selector = @selector(initForReading:commonFormat:interleaved:error:);
+    Method initializer = class_getInstanceMethod(AudioFileHandle.class, selector);
+    __block IMP original;
+    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *opening, AVAudioCommonFormat format, BOOL interleaved, NSError **error) {
+        id handle = ((id (*)(id, SEL, NSURL *, AVAudioCommonFormat, BOOL, NSError **))original)(receiver, selector, opening, format, interleaved, error);
+        if ([opening.path isEqualToString:url.path] && !held) {
+            held = YES;
+            dispatch_semaphore_signal(opened);
+            dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
+        }
+        return handle;
+    });
+    original = method_setImplementation(initializer, holding);
+    @try {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+        [_player play:CueRow(url, 0, 75) atPosition:0 startPaused:NO];
+        XCTAssertEqual(dispatch_semaphore_wait(opened, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
+        [_player prefetchTrack:CueRow(url, 75, 0)];
+        (void)_player.audioPathSnapshot; // a player-queue round trip: the prefetch was handled
+        dispatch_semaphore_signal(release);
+        [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+        [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
+        XCTAssertEqual([self count:@"advance"], 1u);
+    } @finally {
+        dispatch_semaphore_signal(release);
+        method_setImplementation(initializer, original);
+        imp_removeBlock(holding);
+    }
+}
+
+// Rows cut mid-packet (1152 frames each) continue exactly through dr_mp3's
+// seek; FLAC's are the original PCM; AAC's the decode within its tolerance.
+- (void)testContiguousCueRowsOfCompressedFiles {
+    NSDictionary<NSString *, NSNumber *> *files = @{@"cbr.mp3": @0, @"lossless.flac": @0,
+                                                    @"lossy.m4a": @(kVibeAACDecodeTolerance)};
+    for (NSString *name in files) {
+        NSURL *url = [self fixture:name];
+        if (![NSFileManager.defaultManager fileExistsAtPath:url.path]) {
+            continue; // the optional encoder's fixture
+        }
+        NSData *decoded = PCM([self read:url]);
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+        NSArray<AudioTrack *> *rows = @[CueRow(url, 0, 3), CueRow(url, 3, 50), CueRow(url, 50, 0)];
+        _chain = rows; _nextPrefetch = 1;
+        [_player play:rows[0]];
+        [self settleUntil:^BOOL { return self->_player.gaplessArmed || [self count:@"advance"] > 0; }];
+        [self assertReference:decoded capture:[self renderSeconds:decoded.length / 8 / _rate + 0.1]
+                         skip:[self startupSkip] tolerance:files[name].floatValue];
+        XCTAssertEqual([self count:@"advance"], 2u, @"%@", name);
+    }
+}
+
 - (void)testGaplessShortSuccessorAndFormatMismatch {
     NSData *reference=PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
     for (NSNumber *length in @[@1,@63,@255,@257]) {

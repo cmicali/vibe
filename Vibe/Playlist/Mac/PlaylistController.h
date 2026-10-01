@@ -69,14 +69,14 @@ NS_ASSUME_NONNULL_BEGIN
 // Replaces the list and lands the cursor on index (out of range: row 0), then
 // scrolls it into view. Opens nothing: the shell follows with play or
 // playStartPaused:.
-- (void)loadURLs:(NSArray<NSURL *> *)urls selectingIndex:(NSUInteger)index;
+- (void)loadTracks:(NSArray<AudioTrack *> *)tracks selectingIndex:(NSUInteger)index;
 
 // The parked twin of play: nothing renders until playPause. The one start
 // funnel; no caller reaches the player directly.
 - (void)playStartPaused:(BOOL)startPaused;
 
 // Adds tracks to the end without touching playback or currentIndex.
-- (void)append:(NSArray<NSURL *> *)urls;
+- (void)append:(NSArray<AudioTrack *> *)tracks;
 
 // Does not touch the player: the caller stops playback.
 - (void)clear;
@@ -137,8 +137,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (AudioTrack * _Nullable)trackForURL:(NSURL *)url;
 
 - (NSIndexSet *)indexesOfTracksWithURL:(NSURL *)url;
-// Playlist's: stamps every row holding url, YES when one of them is current.
-- (BOOL)stampTracksWithURL:(NSURL *)url usingBlock:(void (NS_NOESCAPE ^)(AudioTrack *track))stamp;
+// Playlist's: stamps every row sounding what track sounds, YES when one of
+// them is current.
+- (BOOL)stampTracksSounding:(AudioTrack *)track usingBlock:(void (NS_NOESCAPE ^)(AudioTrack *track))stamp;
 
 - (void)reloadCurrentTrack;
 - (void)reloadTrackAtIndex:(NSUInteger)index;

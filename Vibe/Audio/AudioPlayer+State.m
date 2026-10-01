@@ -57,7 +57,7 @@
 - (NSTimeInterval)duration {
     os_unfair_lock_lock(&_stateLock);
     double sampleRate = _fileSampleRate;
-    AVAudioFramePosition length = _fileLength;
+    NSUInteger length = _window.length;
     BOOL loaded = _file != nil;
     os_unfair_lock_unlock(&_stateLock);
     if (!loaded || sampleRate <= 0) {
@@ -76,16 +76,17 @@
 }
 #endif
 
-// Where the voice began plus what it has rendered since, less the frames of a
-// file it was promoted out of. Bus and file frames agree in seconds at any bus
-// rate, and under the pitch fader this advances with the audio.
+// Where in the window the voice began plus what it has rendered since, less
+// the frames of a file it was promoted out of. Bus and file frames agree in
+// seconds at any bus rate, and under the pitch fader this advances with the
+// audio.
 - (NSTimeInterval)position {
     os_unfair_lock_lock(&_stateLock);
     VibePlayerState state = _state;
     VibeVoiceID voice = _voice;
     BOOL loaded = _file != nil;
     double fileSampleRate = _fileSampleRate;
-    AVAudioFramePosition fileLength = _fileLength;
+    NSUInteger windowLength = _window.length;
     double busSampleRate = _busSampleRate;
     NSTimeInterval startSeconds = _voiceStartSeconds;
     uint64_t baseFrames = _promotedBaseFrames;
@@ -98,7 +99,7 @@
     VibeVoiceSnapshot snapshot = [bus snapshotOfVoice:voice];
     uint64_t consumed = snapshot.state == VibeVoiceStateNone ? 0 : snapshot.consumed;
     NSTimeInterval rendered = consumed > baseFrames ? (NSTimeInterval)(consumed - baseFrames) / busSampleRate : 0;
-    NSTimeInterval duration = (NSTimeInterval)fileLength / fileSampleRate;
+    NSTimeInterval duration = (NSTimeInterval)windowLength / fileSampleRate;
     return clampRange(startSeconds + rendered, 0, duration);
 }
 

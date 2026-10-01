@@ -41,6 +41,7 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     // to THIS session. Cleared at session end.
     NSArray<AudioTrack *> *_dragSessionTracks;
     NSString *_dragSessionToken;
+    NSMutableSet<NSURL *> *_dragSessionFileURLs;
     // Only the URLs whose scope start answered YES; see willBeginAtPoint:.
     NSArray<NSURL *> *_dragSessionScopedURLs;
 }
@@ -183,8 +184,9 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 #pragma mark - Row dragging (reorder inside, files outside)
 
 // The token qualifies a reorder drop; the file URL is what a drop outside the
-// app copies. AppKit asks once per dragged row before the session begins, so
-// the first ask mints the token and the rest of the selection shares it.
+// app copies, once per file however many of its cue rows are dragged. AppKit
+// asks once per dragged row before the session begins, so the first ask mints
+// the token and the rest of the selection shares it.
 - (id<NSPasteboardWriting>)tableView:(NSTableView *)tableView
               pasteboardWriterForRow:(NSInteger)row {
     if (row < 0 || row >= (NSInteger)_model.count) {
@@ -192,11 +194,13 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     }
     if (!_dragSessionToken) {
         _dragSessionToken = NSUUID.UUID.UUIDString;
+        _dragSessionFileURLs = [NSMutableSet set];
     }
     NSPasteboardItem *item = [NSPasteboardItem new];
     [item setString:_dragSessionToken forType:kPlaylistReorderPasteboardType];
     NSURL *url = [_model trackAtIndex:(NSUInteger)row].url;
-    if (url.isFileURL) {
+    if (url.isFileURL && ![_dragSessionFileURLs containsObject:url]) {
+        [_dragSessionFileURLs addObject:url];
         [item setString:url.absoluteString forType:NSPasteboardTypeFileURL];
     }
     return item;
@@ -281,6 +285,7 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     _dragSessionScopedURLs = nil;
     _dragSessionTracks = nil;
     _dragSessionToken = nil;
+    _dragSessionFileURLs = nil;
 }
 
 #pragma mark - Playlist observer
@@ -562,8 +567,8 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     return [_model currentTrack];
 }
 
-- (void)loadURLs:(NSArray<NSURL *> *)urls selectingIndex:(NSUInteger)index {
-    [_model replaceAllWithURLs:urls];
+- (void)loadTracks:(NSArray<AudioTrack *> *)tracks selectingIndex:(NSUInteger)index {
+    [_model replaceAllWithTracks:tracks];
     // 0 is already announced; the setter would announce it again.
     if (index > 0 && index < _model.count) {
         self.currentIndex = index;
@@ -573,8 +578,8 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     [self scrollCurrentTrackToVisible];
 }
 
-- (void)append:(NSArray<NSURL *> *)urls {
-    [_model appendURLs:urls];
+- (void)append:(NSArray<AudioTrack *> *)tracks {
+    [_model appendTracks:tracks];
 }
 
 - (void)play {
@@ -795,8 +800,8 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     return [_model indexesOfTracksWithURL:url];
 }
 
-- (BOOL)stampTracksWithURL:(NSURL *)url usingBlock:(void (NS_NOESCAPE ^)(AudioTrack *track))stamp {
-    return [_model stampTracksWithURL:url usingBlock:stamp];
+- (BOOL)stampTracksSounding:(AudioTrack *)track usingBlock:(void (NS_NOESCAPE ^)(AudioTrack *track))stamp {
+    return [_model stampTracksSounding:track usingBlock:stamp];
 }
 
 - (NSIndexSet *)replaceTracksMatchingTrack:(AudioTrack *)track withURL:(NSURL *)url {

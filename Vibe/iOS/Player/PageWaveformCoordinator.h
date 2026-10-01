@@ -29,13 +29,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
       didFailWaveformForIndex:(NSUInteger)index;
 
-// A tempo for `url`, forwarded as delivered: matched by URL, not page, since
-// a file can occupy several rows, and never held — the model stamps it and
-// the delay taps follow at once; a page repaints only when the tempo it shows
-// changed, through the metadata event. No key: key detection is macOS-only.
+// A tempo for `track`, forwarded as delivered: matched by what it sounds, not
+// page, since a track can occupy several rows, and never held — the model
+// stamps it and the delay taps follow at once; a page repaints only when the
+// tempo it shows changed, through the metadata event. No key: key detection
+// is macOS-only.
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
               didDetectBPM:(float)bpm
-                    forURL:(NSURL *)url;
+                  forTrack:(AudioTrack *)track;
 
 @end
 

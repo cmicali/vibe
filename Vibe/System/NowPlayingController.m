@@ -48,8 +48,9 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
     void (^_publish)(NSDictionary *, NowPlayingPlaybackState);
     void (^_commandAvailability)(BOOL, BOOL);
 
-    // The dirty check's snapshot; nil _publishedURL is cleared or never published.
-    NSString *_publishedURL;
+    // The dirty check's snapshot: the track's sourceKey, so a cue row of the
+    // same file is a change. nil is cleared or never published.
+    NSString *_publishedSource;
     NSString *_publishedTitle;
     NSString *_publishedArtist;
     NowPlayingPlaybackState _publishedState;
@@ -265,11 +266,11 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
     }
 
     if (!track) {
-        if (_publishedURL == nil) {
+        if (_publishedSource == nil) {
             return;
         }
         _publish(nil, NowPlayingPlaybackStateStopped);
-        _publishedURL = nil;
+        _publishedSource = nil;
         _publishedArtworkImage = nil;
         _publishedArtworkWrapper = nil;
         return;
@@ -284,8 +285,8 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
     // system's.
     VibeImage *artwork = track.cachedArt ?: track.cachedThumbnail ?: placeholderArt;
 
-    if (_publishedURL != nil) {
-        BOOL unchanged = [_publishedURL isEqualToString:track.url.absoluteString]
+    if (_publishedSource != nil) {
+        BOOL unchanged = [_publishedSource isEqualToString:track.sourceKey]
                 && [title isEqualToString:_publishedTitle]
                 && VibeNowPlayingStringsEqual(artist, _publishedArtist)
                 && state == _publishedState
@@ -343,7 +344,7 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
 
     _publish(info, state);
     _hasPublished = YES;
-    _publishedURL = track.url.absoluteString ?: @"";
+    _publishedSource = track.sourceKey;
     _publishedTitle = title;
     _publishedArtist = artist;
     _publishedState = state;
