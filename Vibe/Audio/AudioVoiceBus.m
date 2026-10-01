@@ -471,8 +471,10 @@ VIBE_REALTIME_END
     uint64_t retireOrder;            // when a retire ramp was submitted; 0 = not retiring
     _Atomic int32_t fillScheduled;
     // The decoder's: `written` when it last held a drained stream open for a
-    // late successor, kUnset otherwise. The drain asks for no turn while it
-    // still matches, since the turn would find the same.
+    // late successor, kUnset from the bind. Only a match with `written` is a
+    // current hold: a successor that continued the stream has written past
+    // it, and a stale hold read as current keeps the drain prompt for the
+    // rest of the voice.
     _Atomic uint64_t heldOpenAt;
     BOOL liveReported;
     uint64_t reportedBoundary;      // the last boundary the drain reported; kUnset = none
@@ -1394,23 +1396,28 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
             handler(identifier, VibeVoiceEventBoundary);
         }
         if (state == VibeVoiceStateLive) {
+            // Acquired first, so `written` is at least what it was held at.
             uint64_t heldOpenAt = atomic_load_explicit(&record->heldOpenAt, memory_order_acquire);
+            uint64_t written = atomic_load_explicit(&s->written, memory_order_relaxed);
+            BOOL heldOpen = heldOpenAt == written;
             if (!_inlineDecoding) {
-                uint64_t written = atomic_load_explicit(&s->written, memory_order_relaxed);
                 uint64_t buffered = written - atomic_load_explicit(&s->consumed, memory_order_relaxed);
                 // A stream held open past its file asks for no turn: it would
                 // find the same. A successor queued since asks for its own.
-                BOOL heldOpen = heldOpenAt == written
+                BOOL idle = heldOpen
                         && atomic_load_explicit(&s->successorState, memory_order_relaxed) == VibeSuccessorNone
                         && buffered >= kOpenStreamReserveFrames;
-                if (VibeSlotCanWrite(s) && buffered < _mix->capacity / kLowWaterDivisor && !heldOpen) {
+                if (VibeSlotCanWrite(s) && buffered < _mix->capacity / kLowWaterDivisor && !idle) {
                     [self scheduleFillForSlot:slot];
                 }
             }
-            // An end or a boundary on its way. The decoder reaches each at
-            // least half a ring ahead of the render, so the steady drain
-            // that first sees one is still in time.
-            _promptDrainDue |= record->waitingSuccessor || heldOpenAt != kUnset || boundaryUnreported
+            // An end or a boundary on its way. The decoder reaches its file's
+            // end at least half a ring ahead of the render, so a steady drain
+            // still sees a boundary or an end published there in time; but a
+            // held stream's end is declared only within
+            // kOpenStreamReserveFrames of the render — under the steady
+            // interval at 96 kHz — so the hold itself is prompt.
+            _promptDrainDue |= record->waitingSuccessor || heldOpen || boundaryUnreported
                     || atomic_load_explicit(&s->endOfStream, memory_order_relaxed) != kUnset;
             continue;
         }
