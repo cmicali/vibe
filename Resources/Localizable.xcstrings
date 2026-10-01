@@ -64358,7 +64358,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_section": {
-      "comment": "Appearance pane: disclosure row revealing waveform normalization and display gain, which apply to all themes.\niOS settings screen, Appearance: heading above the waveform settings (drawing style, the widget's style, color theme).",
+      "comment": "Settings, Appearance: the waveform group's title. macOS: the disclosure row revealing waveform normalization and display gain, which apply to all themes, and that disclosure's accessibility label. iOS: the heading above the waveform settings (drawing style, the widget's style, color theme).",
       "localizations": {
         "bg": {
           "stringUnit": {

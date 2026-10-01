@@ -64,6 +64,18 @@ xcrun xcstringstool extract "${SOURCES[@]}" \
     --legacy-localizable-strings \
     --output-directory "$WORK"
 
+# One key with two defaults is fatal, where sync only warns: it keeps one value,
+# so every caller of the other renders that text in every language.
+CONFLICTS=$(jq -r -s '[.[].tables.Localizable // [] | .[]] | group_by(.key)
+    | map(select((map(.value) | unique | length) > 1))
+    | .[] | "  \(.[0].key): " + (map(.value) | unique | map("\"\(.)\"") | join(", "))' \
+    "$WORK"/*.stringsdata)
+if [ -n "$CONFLICTS" ]; then
+    echo "error: a key is used with more than one default value — give each its own key, or unify the macros:" >&2
+    echo "$CONFLICTS" >&2
+    exit 1
+fi
+
 # One .stringsdata per table; globbed so a new table cannot drop keys.
 if ! ls "$WORK"/*.stringsdata >/dev/null 2>&1; then
     echo "error: no .stringsdata produced — extraction found nothing" >&2

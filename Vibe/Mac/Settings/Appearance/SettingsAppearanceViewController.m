@@ -129,7 +129,7 @@ static const double kWaveformGainDetentDB = 0.75;
             target:self action:@selector(toggleWaveformLevels:)];
     _waveformLevelsDisclosure.bezelStyle = NSBezelStyleDisclosure;
     [_waveformLevelsDisclosure setButtonType:NSButtonTypePushOnPushOff];
-    _waveformLevelsDisclosure.accessibilityLabel = STR_SETTINGS_WAVEFORM_LEVELS;
+    _waveformLevelsDisclosure.accessibilityLabel = STR_SETTINGS_WAVEFORM_SECTION;
     _revertThemeButton = [NSButton buttonWithTitle:STR_SETTINGS_THEME_REVERT
             target:self action:@selector(revertTheme:)];
     NSStackView *themeActions = [NSStackView stackViewWithViews:@[_revertThemeButton, _editThemeButton]];
@@ -150,7 +150,7 @@ static const double kWaveformGainDetentDB = 0.75;
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_DISPLAY_PREFERENCES rows:@[
             _appearanceRow,
             [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_TRAFFIC_LIGHTS control:_trafficLightsSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_LEVELS
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_SECTION
                     caption:STR_SETTINGS_WAVEFORM_LEVELS_CAPTION control:_waveformLevelsDisclosure],
             _waveformLevelRows[0], _waveformLevelRows[1],
         ]],
