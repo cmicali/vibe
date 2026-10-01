@@ -9,6 +9,7 @@
 #import "AudioTrackInternal.h"
 #import "AudioTrackMetadata.h"
 #import "AudioFixtures.h"
+#import "TestFilesystemGuard.h"
 
 // Named apart from AudioTrackTests' fake: two classes of one name collide at
 // link. installMetadataIfUnresolved: consults parsedOK.
@@ -1683,10 +1684,8 @@ static NSArray<NSString *> *Windows(NSArray<AudioTrack *> *rows) {
     // never a cfprefsd suite: a named suite's plist lands in
     // ~/Library/Preferences after the process has gone, and even an
     // absolute-path one froze keys at their first value on CI.
-    NSUserDefaults *store = [[NSClassFromString(@"VibeTestUserDefaults") alloc]
-                             initWithSuiteName:[root.path stringByAppendingPathComponent:@"defaults"]];
-    XCTAssertNotNil(store);
-    *defaults = store;
+    *defaults = [[VibeTestUserDefaults alloc]
+                 initWithSuiteName:[root.path stringByAppendingPathComponent:@"defaults"]];
     [self addTeardownBlock:^{
         [NSFileManager.defaultManager removeItemAtURL:root error:nil];
     }];

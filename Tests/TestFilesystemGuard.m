@@ -22,7 +22,7 @@
 // and removes read back the old dictionary while other keys wrote normally
 // (OutputFormatRulesTests' carry, then SettingsRulesTests, in one process).
 
-#import <Foundation/Foundation.h>
+#import "TestFilesystemGuard.h"
 #import <objc/runtime.h>
 #include <errno.h>
 #include <signal.h>
@@ -34,9 +34,6 @@ static NSString *gSuite;
 // NSUserDefaults' typed accessors funnel through these three primitives.
 // AppSettings reads its whole store by the main bundle's identifier, which
 // here names the shared tool domain; answer this store instead.
-@interface VibeTestUserDefaults : NSUserDefaults
-@end
-
 @implementation VibeTestUserDefaults {
     NSMutableDictionary<NSString *, id> *_stored;
     NSMutableDictionary<NSString *, id> *_registered;
@@ -108,7 +105,9 @@ static void VibeRestoreTestFilesystem(void) {
 
 // TRAP: atexit never runs in a process that crashes or is killed (a hang, a
 // runner's teardown), so its root outlives it. Each process removes the roots
-// of pids that are gone; a live pid's root, another run's, is left alone.
+// of pids that are gone; a live pid's root, another run's, is left alone. Its
+// own pid is live too, so +load clears that root separately: a dead process
+// whose pid this one reused left it stale.
 static void VibeRemoveOrphanedTestRoots(NSString *temporary) {
     NSFileManager *files = NSFileManager.defaultManager;
     for (NSString *name in [files contentsOfDirectoryAtPath:temporary error:NULL]) {
@@ -125,6 +124,7 @@ static void VibeRemoveOrphanedTestRoots(NSString *temporary) {
     VibeRemoveOrphanedTestRoots(NSTemporaryDirectory());
     gRoot = [NSTemporaryDirectory() stringByAppendingPathComponent:
             [NSString stringWithFormat:@"VibeTests-%d", getpid()]];
+    [NSFileManager.defaultManager removeItemAtPath:gRoot error:NULL];
     [NSFileManager.defaultManager createDirectoryAtPath:gRoot
                             withIntermediateDirectories:YES attributes:nil error:NULL];
     setenv("VIBE_THEME_ART_DIR",
