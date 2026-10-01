@@ -11,6 +11,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstring>
 #include <vector>
 
 // Frames a mono sample stream into fixed-size windows at a fixed hop, calling
@@ -36,8 +37,9 @@ static inline void VibeAnalysisFrameStream(std::vector<float> &pending,
     const size_t carried = pending.size();
     size_t offset = 0;
     if (carried > 0) {
-        pending.insert(pending.end(), samples,
-                       samples + std::min(frameCount, frameSize));
+        const size_t take = std::min(frameCount, frameSize);
+        pending.resize(carried + take);
+        memcpy(pending.data() + carried, samples, take * sizeof(float));
         while (offset < carried && offset + frameSize <= pending.size()) {
             process(pending.data() + offset);
             offset += hopSize;
@@ -52,5 +54,6 @@ static inline void VibeAnalysisFrameStream(std::vector<float> &pending,
         process(samples + base);
         base += hopSize;
     }
-    pending.assign(samples + base, samples + frameCount);
+    pending.resize(frameCount - base);
+    memcpy(pending.data(), samples + base, (frameCount - base) * sizeof(float));
 }

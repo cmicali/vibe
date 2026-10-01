@@ -320,6 +320,11 @@ struct VibeBPMComb {
     }
     std::vector<float> ac(maxCombLag + 1, 0.0f);
     for (int lag = minLag; lag <= maxCombLag; lag++) {
+        // The comb reads lag, 2*lag and 3*lag for lag in [minLag, maxLag]:
+        // past maxLag only the multiples of 2 or 3 are read.
+        if (lag > maxLag && lag % 2 != 0 && lag % 3 != 0) {
+            continue;
+        }
         float sum = 0;
         vDSP_dotpr(detrended.data(), 1, detrended.data() + lag, 1, &sum, n - (size_t)lag);
         ac[lag] = sum / (float)(n - (size_t)lag);

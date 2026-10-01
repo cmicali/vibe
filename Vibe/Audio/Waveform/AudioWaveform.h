@@ -16,12 +16,18 @@ static inline const float* AudioWaveformMonoMix(const float* buffer, float* scra
     if (channels <= 1) {
         return buffer;
     }
+    // The last add and the scale in one pass: vDSP_vasm rounds the sum, then
+    // the product, as the add and vsmul it replaces did.
+    float scale = 1.0f / (float)channels;
+    if (channels == 2) {
+        vDSP_vasm(buffer, 2, buffer + 1, 2, &scale, scratch, 1, numFrames);
+        return scratch;
+    }
     vDSP_vadd(buffer, (vDSP_Stride)channels, buffer + 1, (vDSP_Stride)channels, scratch, 1, numFrames);
-    for (NSUInteger ch = 2; ch < channels; ch++) {
+    for (NSUInteger ch = 2; ch + 1 < channels; ch++) {
         vDSP_vadd(scratch, 1, buffer + ch, (vDSP_Stride)channels, scratch, 1, numFrames);
     }
-    float scale = 1.0f / (float)channels;
-    vDSP_vsmul(scratch, 1, &scale, scratch, 1, numFrames);
+    vDSP_vasm(scratch, 1, buffer + channels - 1, (vDSP_Stride)channels, &scale, scratch, 1, numFrames);
     return scratch;
 }
 
