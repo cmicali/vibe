@@ -33,7 +33,9 @@
 //  carries fixes of its own (ThirdParty/AGENTS.md).
 //
 //  A WAV or AIFF file read as float32 is decoded by dr_wav the same way, when
-//  it holds a coding dr_wav decodes (ThirdParty/AGENTS.md lists them).
+//  it holds a coding dr_wav decodes (ThirdParty/AGENTS.md lists them), and so
+//  is one read as Int16 or Int32, as Convert to FLAC reads, when it holds
+//  integers no wider than the read (openWAV says why).
 //
 
 #import <AVFAudio/AVFAudio.h>
