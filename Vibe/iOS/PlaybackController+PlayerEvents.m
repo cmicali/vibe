@@ -201,6 +201,15 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // follows, so treat it as a plain track end and play the real successor.
     if (![_playlist advanceFromTrack:finishedTrack toTrack:startedTrack]) {
         [self audioPlayer:audioPlayer didFinishPlaying:finishedTrack];
+        // Parked, the player still sounds the refused successor: reload the
+        // finished track paused over it, as the mac does, resting until
+        // didStartPlaying: lands.
+        if (_parked) {
+            _trackStartPending = YES;
+            [_player play:finishedTrack atPosition:0 startPaused:YES];
+            [self notifyDidChangePlayState];
+            [self notifyDidTick];
+        }
         return;
     }
     [self notifyDidMoveToCurrentTrackAnimated:YES];
