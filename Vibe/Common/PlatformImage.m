@@ -45,8 +45,8 @@ static void VibeFreeScaledBitmap(void *userData, void *bitmap) {
 // draws its full decode through CoreGraphics instead, converting and
 // resampling a row at a time, at three times the instructions on a 1000px
 // cover (the component benchmarks' metadata.*). NULL leaves the image to that
-// path: one that needs no downscale, carries an EXIF orientation, or vImage
-// refuses.
+// path: one that needs no downscale, carries an EXIF orientation, cannot be
+// subsampled, or vImage refuses.
 static CGImageRef _Nullable VibeCreateDownscaledImage(CGImageSourceRef source, CGFloat maxPixelSize) CF_RETURNS_RETAINED {
     NSDictionary *properties = CFBridgingRelease(CGImageSourceCopyPropertiesAtIndex(source, 0, NULL));
     NSNumber *orientation = properties[(id)kCGImagePropertyOrientation];
@@ -59,12 +59,17 @@ static CGImageRef _Nullable VibeCreateDownscaledImage(CGImageSourceRef source, C
     while (factor < 8 && longest / (factor * 2) >= maxPixelSize) {
         factor *= 2;
     }
-    NSDictionary *options = @{
-            (id)kCGImageSourceShouldCacheImmediately: @YES,
-            (id)kCGImageSourceSubsampleFactor: @(factor),
-    };
+    // Lazy, so the size check below costs no decode.
+    NSDictionary *options = @{(id)kCGImageSourceSubsampleFactor: @(factor)};
     CGImageRef decoded = CGImageSourceCreateImageAtIndex(source, 0, (__bridge CFDictionaryRef)options);
     if (!decoded) {
+        return NULL;
+    }
+    // A format ImageIO cannot subsample (GIF, BMP, WebP) ignores the factor,
+    // and its full-size decode plus vImage's copy would be two full-size
+    // bitmaps.
+    if (factor > 1 && MAX(CGImageGetWidth(decoded), CGImageGetHeight(decoded)) >= longest) {
+        CGImageRelease(decoded);
         return NULL;
     }
     CGColorSpaceRef space = CGImageGetColorSpace(decoded);
