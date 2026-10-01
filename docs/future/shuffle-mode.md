@@ -74,11 +74,11 @@ Tests (deterministic via `randomBelow`): every row visited exactly once walking 
 
 **Live effect.** None of its own: `VibeSettingsLiveEffectEndOfTrack`'s apply already pushes the transport modes into the model and re-parks the successor (`repeat-mode.md` Phase 2); it gains `shuffleEnabled`. **TRAP: without the re-park, a track end splices into the successor armed before the toggle.**
 
-**Menu.** A checkmarked Playback-menu item after Next, beside the Repeat submenu, symbol `shuffle`, identifier `menu_shuffle`, no key equivalent (the bare transport keys belong to `TransportKeyMonitor`). Its action writes the setting and requests the effect; `validateMenuItem:` keeps it enabled with the setting as its state. String `menu.playback.shuffle`, "Shuffle", then `make strings` and translations. No Settings-pane row: shuffle is transport state, not configuration.
+**Menu.** A checkmarked Playback-menu item after Next, with the Repeat item after it, symbol `shuffle`, identifier `menu_shuffle`, **⌥⌘S** (⌘S is Save Playlist). Its action writes the setting and requests the effect; `validateMenuItem:` keeps it enabled with the setting as its state. String `menu.playback.shuffle`, "Shuffle", then `make strings` and translations. No Settings-pane row: shuffle is transport state, not configuration. The menu and the shortcut are the mac's whole surface (decided on #45).
 
 **Debug.** `set_shuffle <on|off>` beside `set_repeat`, and `shuffleEnabled` plus the play order in both `dump_state`s, so a scripted walk can be checked against it.
 
-**Acceptance**: `make test`, `make check-strings`, `make check-translations`; then through `vibe-debug`: toggle via `click_menu` and see it in `dump_state`; script a Next walk to the end and collect the sequence (a permutation, then park); repeat it under All and see a second permutation follow without a back-to-back repeat; toggle mid-track and confirm the next track end lands on a shuffled successor (the re-park); Previous retraces; a double-clicked row continues with no repeat; removing the playing row lands on the next unplayed track; opening a folder with shuffle on starts on a random row.
+**Acceptance**: `make test`, `make check-strings`, `make check-translations`; then through `vibe-debug`: toggle via `click_menu` and ⌥⌘S and see it in `dump_state`; script a Next walk to the end and collect the sequence (a permutation, then park); repeat it under All and see a second permutation follow without a back-to-back repeat; toggle mid-track and confirm the next track end lands on a shuffled successor (the re-park); Previous retraces; a double-clicked row continues with no repeat; removing the playing row lands on the next unplayed track; opening a folder with shuffle on starts on a random row.
 
 ## Phase 3 — iOS
 
@@ -88,9 +88,9 @@ Tests (deterministic via `randomBelow`): every row visited exactly once walking 
 
 **Acceptance**: `make build-ios`; on the simulator (`launch-ios.sh`, `drive-ios.sh`): toggle, advance through the folder, and confirm the no-repeat walk, the park at the end under Off, the jump to a distant page without a long scroll, and a swipe continuing with no repeat.
 
-## Phase 4 (optional, separate decision) — Now Playing shuffle command
+## Phase 4 — Now Playing shuffle command
 
-Enabling `changeShuffleModeCommand` puts a shuffle toggle in Control Center and CarPlay and routes it to the setting and its apply; take it together with repeat's command. **TRAP: `MPRemoteCommandCenter` is process-global, and the system may re-lay out the compact transport when a command appears** (the CarPlay doc's skip-command note). Verify on a device that it costs the lock screen nothing before shipping. The feature is complete without it.
+In scope (decided on #45), the same shape as repeat's (`repeat-mode.md` Phase 4), and built with it when both modes exist: take `changeShuffleModeCommand` out of `NowPlayingController`'s disabled set, route `MPChangeShuffleModeCommandEvent` through a `nowPlayingController:setShuffleEnabled:` delegate method to the setting and its apply, and set `currentShuffleType` wherever the mode is applied. `MPShuffleTypeItems` and `MPShuffleTypeCollections` both mean on: Vibe has no album-level shuffle, and reporting back `Items` tells the system which it got. The device checks are repeat's: what each surface draws, and the lock screen keeping Next and Previous.
 
 ## Final verification
 

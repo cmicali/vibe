@@ -63,13 +63,13 @@ Shared, Foundation only, tested in `Tests/PlaylistTests.m`.
 
 **Live effect.** No new bit. `VibeSettingsLiveEffectEndOfTrack`'s `applyEndOfTrackAction` first pushes `repeatMode` (and, once it exists, `shuffleEnabled`) into the model through `PlaylistController`, then re-parks with `successorPrefetchTrack` as it does now. Launch applies it after the playlist restores. **TRAP: without the re-park, a mid-track switch from Off to One lets the armed splice advance anyway.**
 
-**Menu.** A Repeat submenu in the Playback menu after Next, with three radio-checked items, Off, All, and One, as Music.app has it; `menu.playback.repeat`, `menu.playback.repeat.off`, `.all`, `.one`; symbols `repeat` and `repeat.1`. No key equivalent: the bare transport keys belong to `TransportKeyMonitor`. Each item writes the setting and requests the effect; `validateMenuItem:` checks the active one. `VibeTransportMenuEnabled` already gates Next on `hasNextTrack`, so Next lights at the last row under All with no change. `make strings`, then translations.
+**Menu.** One Playback-menu item after Shuffle, its title naming the mode — "Repeat: Off", "Repeat: All", "Repeat: One" — checked unless Off, symbol `repeat` (`repeat.1` under One), identifier `menu_repeat`, **⌘R**. Choosing it cycles Off → All → One → Off, the order iOS's button uses, writes the setting, and requests the effect; `validateMenuItem:` sets the title and state. Three whole strings, `menu.playback.repeat.off`, `.all`, and `.one`, never a "Repeat: %@" built from a mode name, since word order differs by language. ⌘R reaches the menu untouched: `TransportKeyMonitor` passes on every modified key, and its key-up path claims R only after it saw the bare R go down, so the delay's R is unaffected. `VibeTransportMenuEnabled` already gates Next on `hasNextTrack`, so Next lights at the last row under All with no change. `make strings`, then translations.
 
-**No header indicator.** The header's FX symbols already draw `repeat` and `repeat.circle` for the delays (`TrackDisplayController`'s `fxSymbolNames`); a repeat glyph there would read as an FX. The menu is the mac's whole surface, as for shuffle.
+**No header indicator.** The header's FX symbols already draw `repeat` and `repeat.circle` for the delays (`TrackDisplayController`'s `fxSymbolNames`); a repeat glyph there would read as an FX. The menu and ⌘R are the mac's whole surface, as for shuffle (decided on #45).
 
 **Debug.** `set_repeat <off|all|one>` beside `set_pause_at_track_end`, applied through the same `debugApplyEndOfTrackSetting`, and `repeatMode` in both `dump_state`s.
 
-**Acceptance**: `make test`, `make check-strings`, `make check-translations`, `make analyze CONFIG=Release`; then through `vibe-debug` on a short folder: under All, play the last track to its end and see row 0 start, gaplessly when gapless is allowed; under One, let a track end twice and see it replay each time with the playhead at 0; flip Off to One mid-track and see the end replay (the re-park); Next under One walks forward; Pause set alongside One parks.
+**Acceptance**: `make test`, `make check-strings`, `make check-translations`, `make analyze CONFIG=Release`; then through `vibe-debug` on a short folder: under All, play the last track to its end and see row 0 start, gaplessly when gapless is allowed; under One, let a track end twice and see it replay each time with the playhead at 0; ⌘R cycles the mode and the menu title follows; flip Off to One mid-track and see the end replay (the re-park); Next under One walks forward; Pause set alongside One parks.
 
 ## Phase 3 — iOS
 
@@ -79,9 +79,18 @@ Shared, Foundation only, tested in `Tests/PlaylistTests.m`.
 
 **Acceptance**: `make build-ios`; on the simulator (`launch-ios.sh`, `drive-ios.sh`): cycle the button and see the glyph; seek near the end of the last track under All and see the first page commit; seek near the end under One and see the same page replay; Next on the last page lights under All.
 
-## Phase 4 (optional, with shuffle's) — Now Playing
+## Phase 4 — Now Playing
 
-`changeRepeatModeCommand` sits beside `changeShuffleModeCommand` in `NowPlayingController`'s disabled set. Enabling it routes the system's repeat control to the setting and sets the command's `currentRepeatType` on every apply. Take it together with shuffle's Phase 4, under its trap: the command center is process-global, and a new command can re-lay out the compact transport on the lock screen and in CarPlay.
+In scope (decided on #45). There is no shuffle or repeat field in the Now Playing info: each mode is a remote command with a handler and a state property, both in the shared `NowPlayingController`, so both platforms get it at once.
+
+- **The handler.** Take `changeRepeatModeCommand` out of the disabled set and register it like the transport commands, through `deliverRemoteCommand:to:`. A new `NowPlayingControllerDelegate` method, `nowPlayingController:setRepeatMode:`, maps `MPChangeRepeatModeCommandEvent.repeatType` straight across (`MPRepeatType` has the same three cases); each shell writes the setting and applies exactly as its menu or button does.
+- **The state.** `changeRepeatModeCommand.currentRepeatType` is set wherever the mode is applied — the mac's `EndOfTrack` apply, iOS's `applyTrackTransitionSettings` — so a change from the menu, ⌘R, the iOS button, or the system itself always reaches it.
+- **Where it shows is the system's choice.** Expect Siri ("repeat this song"), the Watch's Now Playing, and accessories; the lock screen and Control Center are not known to draw repeat for third-party apps; CarPlay's Now Playing needs its repeat button added explicitly once `carplay.md` is built. Record what each surface does on a device.
+- **Verify the lock screen keeps Next and Previous** after enabling the command, on a device. The known trade (`carplay.md`) is the skip-interval commands competing for those slots; repeat is not expected to, but `MPRemoteCommandCenter` is process-global and the check is cheap.
+
+Shuffle's command follows the same shape (`shuffle-mode.md` Phase 4); build them together if both modes exist by then.
+
+**Acceptance**: on a device, Siri sets each mode and the menu or card follows; changing the mode in the app updates `currentRepeatType`; the lock screen's compact transport is unchanged.
 
 ## Docs to update when this lands
 
