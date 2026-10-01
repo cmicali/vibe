@@ -1477,6 +1477,56 @@ materializationCoordinator:coordinator
     XCTAssertTrue(rows[2].metadata.parsedOK);
 }
 
+// The current row of a cue image removed while the priority slot is busy: its
+// mark must go with it, or the image's other rows are never scanned.
+- (void)testAbandoningAMarkedRowReleasesItsFilesOtherRowsToTheScan {
+    NSURL *image = [self URLNamed:@"abandon-marked-cue-image.flac"];
+    NSArray<AudioTrack *> *rows = VibeLoaderTestCueRows(image, 3);
+    AudioTrack *blocker = [self trackNamed:@"abandon-marked-blocker.wav"];
+    AudioTrack *busy = [self trackNamed:@"abandon-marked-busy-priority.wav"];
+    // A lane beside the parked blocker, for the priority slot's parked start.
+    VibeAudioLoadingConfigurationValues values =
+            VibeAudioLoadingProductionConfigurationValues();
+    values.maximumBackgroundMaterializations = 2;
+    VibeMetadataLoaderOperationController *controller =
+            [[VibeMetadataLoaderOperationController alloc] init];
+    controller.blocksUntilCancelled = YES;
+    controller.firstStartExpectation =
+            [self expectationWithDescription:@"blocker held the scan slot"];
+    VibeMetadataLoaderDelegate *delegate = [[VibeMetadataLoaderDelegate alloc] init];
+    delegate.deliveryExpectation =
+            [self expectationWithDescription:@"blocker and the remaining rows published"];
+    delegate.deliveryExpectation.expectedFulfillmentCount = 3;
+    AudioTrackMetadataLoader *loader = [self loaderWithController:controller
+            configuration:[self testConfigurationWithValues:values]
+            delegate:delegate
+            cacheReader:^AudioTrackMetadata *(AudioTrack *track) { return nil; }
+            fileParser:^AudioTrackMetadata *(NSURL *url) {
+        return VibeLoaderTestMetadataResult(YES, url.lastPathComponent);
+    }];
+
+    [loader load:[@[blocker] arrayByAddingObjectsFromArray:rows]];
+    [self waitForExpectations:@[controller.firstStartExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
+    controller.allStartsExpectation =
+            [self expectationWithDescription:@"the priority slot parked on another file"];
+    [loader prioritizeTrack:busy];
+    [self waitForExpectations:@[controller.allStartsExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
+    controller.allStartsExpectation = nil;
+    controller.blocksUntilCancelled = NO;
+    // The slot is busy, so the image's record stays pending under the mark.
+    [loader prioritizeTrack:rows[1]];
+    [loader abandonQueuedTrack:rows[1]];
+    [controller completeFirstReady];
+    [self waitForExpectations:@[delegate.deliveryExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
+
+    XCTAssertEqualObjects(controller.startedURLs, (@[blocker.url, busy.url, image]));
+    XCTAssertEqualObjects(controller.startedRoles.lastObject,
+            @(VibeAudioFileMaterializationRoleMetadataScan));
+    XCTAssertNil(rows[1].metadata);
+    XCTAssertTrue(rows[0].metadata.parsedOK);
+    XCTAssertTrue(rows[2].metadata.parsedOK);
+}
+
 - (void)testSuccessfulParseJoinsDuplicateRowsAndPublishesIndependentCopies {
     NSURL *url = [self URLNamed:@"duplicate-success.wav"];
     AudioTrack *first = [AudioTrack withURL:url];
