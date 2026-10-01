@@ -14,7 +14,20 @@
     // The same, keyed by URL, for the BPM and key deliveries on every track
     // start. A file can occupy several rows, so the value is a row set.
     NSMutableDictionary<NSURL *, NSMutableIndexSet *> *_indexesByURL;
+    // Under shuffle, every row object exactly once, in play order: entries
+    // before the cursor are played, the cursor entry is the current row, and
+    // entries after it are unplayed. nil while shuffle is off. Objects rather
+    // than row numbers, so a move needs nothing and a remove or insert only
+    // drops or adds its own entries; the convert swap, which mints a fresh
+    // object in place, swaps the entry with it.
+    NSMutableArray<AudioTrack *> *_playOrder;
+    NSUInteger _playOrderCursor;
+    // Repeat All's next cycle, made on the first ask at the order's end and
+    // kept so that nextTrack is where next lands. Any edit to the order drops it.
+    NSArray<AudioTrack *> *_nextPlayOrder;
 }
+
+@synthesize randomBelow = _randomBelow;
 
 - (instancetype)init {
     self = [super init];
@@ -35,9 +48,104 @@
 }
 
 - (void)setCurrentIndex:(NSUInteger)currentIndex {
+    if (_playOrder && currentIndex < _tracks.count) {
+        [self splicePickIntoPlayOrder:_tracks[currentIndex]];
+    }
+    [self moveCurrentIndexTo:currentIndex];
+}
+
+// The cursor write next, previous and the track end share: no splice, the
+// same event a pick sends, so observers cannot tell which moved it.
+- (void)moveCurrentIndexTo:(NSUInteger)currentIndex {
     NSUInteger previousIndex = _currentIndex;
     _currentIndex = currentIndex;
     [self.observer playlist:self currentIndexDidChangeFromIndex:previousIndex];
+}
+
+#pragma mark - Transport modes
+
+- (void)setShuffleEnabled:(BOOL)shuffleEnabled {
+    if (shuffleEnabled == _shuffleEnabled) {
+        return;
+    }
+    _shuffleEnabled = shuffleEnabled;
+    if (shuffleEnabled) {
+        [self resetPlayOrderStartingWith:self.currentTrack];
+    }
+    else {
+        _playOrder = nil;
+        _nextPlayOrder = nil;
+        _playOrderCursor = 0;
+    }
+}
+
+- (uint32_t (^)(uint32_t))randomBelow {
+    return _randomBelow ?: ^uint32_t(uint32_t upperBound) {
+        return arc4random_uniform(upperBound);
+    };
+}
+
+// Fisher-Yates: every order equally likely.
+- (NSMutableArray<AudioTrack *> *)shuffledTracks:(NSArray<AudioTrack *> *)tracks {
+    NSMutableArray<AudioTrack *> *order = [tracks mutableCopy];
+    uint32_t (^randomBelow)(uint32_t) = self.randomBelow;
+    for (NSUInteger i = order.count; i > 1; i--) {
+        [order exchangeObjectAtIndex:i - 1 withObjectAtIndex:randomBelow((uint32_t)i)];
+    }
+    return order;
+}
+
+// A fresh order over every row with first, when it is a row, at the cursor.
+- (void)resetPlayOrderStartingWith:(nullable AudioTrack *)first {
+    _playOrder = [self shuffledTracks:_tracks];
+    _nextPlayOrder = nil;
+    _playOrderCursor = 0;
+    NSUInteger position = first ? [_playOrder indexOfObjectIdenticalTo:first] : NSNotFound;
+    if (position != NSNotFound) {
+        [_playOrder exchangeObjectAtIndex:position withObjectAtIndex:0];
+    }
+}
+
+// An unplayed pick swaps into the next slot; a played one leaves its slot in
+// the history and is replayed there. Either way every other unplayed entry
+// stays unplayed, so nothing else repeats.
+- (void)splicePickIntoPlayOrder:(AudioTrack *)picked {
+    NSUInteger position = [_playOrder indexOfObjectIdenticalTo:picked];
+    if (position == NSNotFound || position == _playOrderCursor) {
+        return;
+    }
+    _nextPlayOrder = nil;
+    if (position > _playOrderCursor) {
+        [_playOrder exchangeObjectAtIndex:position withObjectAtIndex:_playOrderCursor + 1];
+        _playOrderCursor += 1;
+        return;
+    }
+    [_playOrder removeObjectAtIndex:position];
+    [_playOrder insertObject:picked atIndex:_playOrderCursor];
+}
+
+// Each track at a random place in the unplayed part: (cursor, end].
+- (void)addUnplayedTracksToPlayOrder:(NSArray<AudioTrack *> *)tracks {
+    _nextPlayOrder = nil;
+    uint32_t (^randomBelow)(uint32_t) = self.randomBelow;
+    for (AudioTrack *track in tracks) {
+        NSUInteger span = _playOrder.count - _playOrderCursor;
+        [_playOrder insertObject:track atIndex:_playOrderCursor + 1 + randomBelow((uint32_t)span)];
+    }
+}
+
+// The seam guard: a fresh cycle never opens with the track that just ended,
+// which an independent shuffle would do one time in n.
+- (NSArray<AudioTrack *> *)nextPlayOrder {
+    if (!_nextPlayOrder) {
+        NSMutableArray<AudioTrack *> *order = [self shuffledTracks:_tracks];
+        if (order.count > 1 && order.firstObject == _playOrder.lastObject) {
+            NSUInteger swap = 1 + self.randomBelow((uint32_t)order.count - 1);
+            [order exchangeObjectAtIndex:0 withObjectAtIndex:swap];
+        }
+        _nextPlayOrder = [order copy];
+    }
+    return _nextPlayOrder;
 }
 
 - (NSArray<AudioTrack *> *)tracks {
@@ -77,6 +185,15 @@
             || ![indexes containsIndex:_currentIndex]) {
         return nil;
     }
+    if (_playOrder) {
+        for (NSUInteger position = _playOrderCursor + 1; position < _playOrder.count; position++) {
+            AudioTrack *track = _playOrder[position];
+            if (![indexes containsIndex:(NSUInteger)[self getIndexForTrack:track]]) {
+                return track;
+            }
+        }
+        return nil;
+    }
     NSUInteger successor = _currentIndex + 1;
     while ([indexes containsIndex:successor]) {
         successor++;
@@ -85,11 +202,11 @@
 }
 
 - (BOOL)advanceFromTrack:(AudioTrack *)finishedTrack toTrack:(AudioTrack *)startedTrack {
-    if (finishedTrack != self.currentTrack || !self.hasNextTrack
-            || startedTrack != [self trackAtIndex:_currentIndex + 1]) {
+    if (finishedTrack != self.currentTrack || !startedTrack
+            || startedTrack != self.trackEndSuccessor) {
         return NO;
     }
-    return [self next];
+    return [self advanceAtTrackEnd];
 }
 
 - (AudioTrack *)currentTrack {
@@ -103,10 +220,15 @@
     return _tracks.count;
 }
 
-- (void)replaceAllWithTracks:(NSArray<AudioTrack *> *)tracks {
+- (void)replaceAllWithTracks:(NSArray<AudioTrack *> *)tracks startingAtIndex:(NSUInteger)index {
     [self resetStorage];
     [self addTracks:tracks];
-    _currentIndex = 0;
+    AudioTrack *start = [self trackAtIndex:index];
+    if (_playOrder) {
+        [self resetPlayOrderStartingWith:start];
+        start = _playOrder.firstObject;
+    }
+    _currentIndex = start ? (NSUInteger)[self getIndexForTrack:start] : 0;
     [self.observer playlistDidReplaceAllTracks:self];
 }
 
@@ -116,6 +238,7 @@
     }
     NSUInteger firstIndex = _tracks.count;
     [self addTracks:tracks];
+    [self playOrderDidGainTracks:tracks];
     NSIndexSet *indexes = [NSIndexSet indexSetWithIndexesInRange:NSMakeRange(firstIndex, tracks.count)];
     [self.observer playlist:self didAppendTracksAtIndexes:indexes];
 }
@@ -181,31 +304,94 @@
 - (void)clear {
     [self resetStorage];
     _currentIndex = 0;
+    if (_playOrder) {
+        [self resetPlayOrderStartingWith:nil];
+    }
     [self.observer playlistDidReplaceAllTracks:self];
 }
 
+// Rows that just joined the list. Into an empty order the current row, the
+// first new one, goes first, so the order still names it at the cursor.
+- (void)playOrderDidGainTracks:(NSArray<AudioTrack *> *)tracks {
+    if (!_playOrder) {
+        return;
+    }
+    if (_playOrder.count == 0) {
+        [self resetPlayOrderStartingWith:self.currentTrack];
+        return;
+    }
+    [self addUnplayedTracksToPlayOrder:tracks];
+}
+
+- (AudioTrack *)nextTrack {
+    if (_tracks.count == 0) {
+        return nil;
+    }
+    if (_playOrder) {
+        if (_playOrderCursor + 1 < _playOrder.count) {
+            return _playOrder[_playOrderCursor + 1];
+        }
+        return _repeatMode == VibeRepeatModeAll ? self.nextPlayOrder.firstObject : nil;
+    }
+    if (_currentIndex + 1 < _tracks.count) {
+        return _tracks[_currentIndex + 1];
+    }
+    return _repeatMode == VibeRepeatModeAll ? _tracks.firstObject : nil;
+}
+
+- (AudioTrack *)trackEndSuccessor {
+    return _repeatMode == VibeRepeatModeOne ? self.currentTrack : self.nextTrack;
+}
+
 - (BOOL)hasNextTrack {
-    return _currentIndex + 1 < _tracks.count;
+    return self.nextTrack != nil;
 }
 
 - (BOOL)hasPreviousTrack {
-    return _tracks.count > 0 && _currentIndex > 0;
+    return _tracks.count > 0 && (_playOrder ? _playOrderCursor > 0 : _currentIndex > 0);
 }
 
 - (BOOL)next {
-    if (self.hasNextTrack) {
-        self.currentIndex = _currentIndex + 1;
-        return YES;
+    AudioTrack *next = self.nextTrack;
+    if (!next) {
+        return NO;
     }
-    return NO;
+    if (_playOrder) {
+        if (_playOrderCursor + 1 < _playOrder.count) {
+            _playOrderCursor += 1;
+        }
+        else {
+            _playOrder = [_nextPlayOrder mutableCopy];
+            _nextPlayOrder = nil;
+            _playOrderCursor = 0;
+        }
+    }
+    [self moveCurrentIndexTo:(NSUInteger)[self getIndexForTrack:next]];
+    return YES;
 }
 
 - (BOOL)previous {
-    if (self.hasPreviousTrack) {
-        self.currentIndex = _currentIndex - 1;
+    if (!self.hasPreviousTrack) {
+        return NO;
+    }
+    if (_playOrder) {
+        _playOrderCursor -= 1;
+        [self moveCurrentIndexTo:(NSUInteger)[self getIndexForTrack:_playOrder[_playOrderCursor]]];
         return YES;
     }
-    return NO;
+    [self moveCurrentIndexTo:_currentIndex - 1];
+    return YES;
+}
+
+- (BOOL)advanceAtTrackEnd {
+    if (_repeatMode != VibeRepeatModeOne) {
+        return [self next];
+    }
+    if (_tracks.count == 0) {
+        return NO;
+    }
+    [self moveCurrentIndexTo:_currentIndex];
+    return YES;
 }
 
 - (NSInteger)getIndexForTrack:(AudioTrack *)track {
@@ -271,6 +457,12 @@
     [self unindexURL:outgoing.url atIndex:index];
     [self indexTrack:incoming atIndex:index];
     _tracks[index] = incoming;
+    // The row keeps its place in the play order: no row moves.
+    NSUInteger position = [_playOrder indexOfObjectIdenticalTo:outgoing];
+    if (position != NSNotFound) {
+        _playOrder[position] = incoming;
+        _nextPlayOrder = nil;
+    }
     [self.observer playlist:self didReplaceTrackAtIndex:index];
     return incoming;
 }
@@ -292,6 +484,11 @@
         if (url && _indexesByURL[url].count == 0) {
             [_indexesByURL removeObjectForKey:url];
         }
+    }
+    if (_playOrder) {
+        [self removeFromPlayOrder:removed];
+        [self.observer playlist:self didRemoveTracksAtIndexes:indexes];
+        return removed;
     }
     // Dropping by the removed rows above keeps the cursor on its object, or,
     // for a removed current row, on the survivor that slid in. Written to the
@@ -331,6 +528,7 @@
         landed = clamped;
     }
     [self indexRowsFrom:first];
+    [self playOrderDidGainTracks:tracks];
     // The cursor follows its object; into an empty list it stays 0. Ivar, not
     // setter: one edit, one event.
     NSInteger resolvedCurrent = [self getIndexForTrack:current];
@@ -338,6 +536,26 @@
         _currentIndex = (NSUInteger)resolvedCurrent;
     }
     [self.observer playlist:self didInsertTracksAtIndexes:landed];
+}
+
+// The cursor keeps its object; a removed current entry hands the cursor to
+// the next unplayed survivor — forwardTrackAfterRemovingTracksAtIndexes:'s
+// answer — else to the last one played. Ivar, not setter: one edit, one event.
+- (void)removeFromPlayOrder:(NSArray<AudioTrack *> *)removed {
+    NSSet<AudioTrack *> *gone = [NSSet setWithArray:removed];
+    NSIndexSet *departed = [_playOrder indexesOfObjectsPassingTest:^BOOL(AudioTrack *track, NSUInteger position, BOOL *stop) {
+        return [gone containsObject:track];
+    }];
+    _playOrderCursor -= [departed countOfIndexesInRange:NSMakeRange(0, _playOrderCursor)];
+    [_playOrder removeObjectsAtIndexes:departed];
+    _nextPlayOrder = nil;
+    if (_playOrder.count == 0) {
+        _playOrderCursor = 0;
+        _currentIndex = 0;
+        return;
+    }
+    _playOrderCursor = MIN(_playOrderCursor, _playOrder.count - 1);
+    _currentIndex = (NSUInteger)[self getIndexForTrack:_playOrder[_playOrderCursor]];
 }
 
 - (BOOL)moveTracksAtIndexes:(NSIndexSet *)sourceIndexes

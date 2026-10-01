@@ -92,6 +92,10 @@ static inline NSString *VibeAppName(void) {
 #define STR_TRANSPORT_PAUSE    NSLS(@"transport.pause",    @"Pause",          @"Pauses playback. Menu item and transport button; toggles with 'Play'.")
 #define STR_TRANSPORT_NEXT     NSLS(@"transport.next",     @"Next Track",     @"Jumps to the next track. Menu item and transport button.")
 #define STR_TRANSPORT_PREVIOUS NSLS(@"transport.previous", @"Previous Track", @"Jumps to the previous track.")
+#define STR_TRANSPORT_SHUFFLE    NSLS(@"transport.shuffle",    @"Shuffle",     @"Plays every track of the playlist once, in a random order, without reordering the list. Checkmarked menu item and an on/off transport button.")
+#define STR_TRANSPORT_REPEAT_OFF NSLS(@"transport.repeat.off", @"Repeat: Off", @"Repeat mode, off: playback stops at the end of the playlist. Menu item and transport button whose title names the current mode; choosing it moves to the next mode.")
+#define STR_TRANSPORT_REPEAT_ALL NSLS(@"transport.repeat.all", @"Repeat: All", @"Repeat mode, all: after the last track the playlist plays again from the start. Menu item and transport button whose title names the current mode; choosing it moves to the next mode.")
+#define STR_TRANSPORT_REPEAT_ONE NSLS(@"transport.repeat.one", @"Repeat: One", @"Repeat mode, one: the current track replays when it ends. Menu item and transport button whose title names the current mode; choosing it moves to the next mode.")
 
 #pragma mark - Playback menu
 

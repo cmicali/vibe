@@ -166,15 +166,13 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 // own didFinishPlaying:'s staleness guard.
 - (BOOL)advanceOrParkAtTrackEnd {
     [self pauseUIUpdateTimer];
-    // Read from the playlist before next:, whose play is async: the player
-    // still reads Stopped after an ordinary advance. Under Pause nothing has
+    // Read from the playlist before advanceAtTrackEnd, whose play is async:
+    // the player still reads Stopped after an ordinary advance. Under Pause nothing has
     // spliced, since successorPrefetchTrack parked nothing; this second read
     // of the setting is load-bearing because it decides from the playlist.
     BOOL advances = VibePlaybackShouldAdvanceAtTrackEnd(
-            self.playlistController.hasNextTrack, AppSettings.sharedInstance.pauseAtTrackEnd);
-    if (advances) {
-        [self next:self];
-    }
+            self.playlistController.trackEndSuccessor != nil, AppSettings.sharedInstance.pauseAtTrackEnd)
+            && [self.playlistController advanceAtTrackEnd];
     // Advancing, the cached duration must survive the Loading gap.
     if (!advances) {
         _currentTrackDuration = 0;

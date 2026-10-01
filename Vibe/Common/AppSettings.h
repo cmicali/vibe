@@ -12,6 +12,7 @@
 
 #import <Foundation/Foundation.h>
 #import "FolderOpenSort.h"
+#import "RepeatMode.h"
 #import "PlatformTypes.h"
 
 // Nonnull by default: every string getter has a registered default or
@@ -78,6 +79,17 @@ FOUNDATION_EXPORT const size_t kVibeCrossfadePresetCount;
 // armed gapless splice that advances anyway.
 - (BOOL)pauseAtTrackEnd;
 - (void)setPauseAtTrackEnd:(BOOL)pause;
+
+// Transport state, both platforms, toggled while listening rather than set in
+// Settings: Playback-menu items on the mac, the card's buttons on iOS. Each
+// shell pushes them into its Playlist and re-parks the successor through the
+// same apply as pauseAtTrackEnd, which outranks both: Pause parks whatever
+// repeat says. A writer that skips the apply leaves an armed gapless splice
+// into the old successor.
+- (VibeRepeatMode)repeatMode;
+- (void)setRepeatMode:(VibeRepeatMode)mode;
+- (BOOL)shuffleEnabled;
+- (void)setShuffleEnabled:(BOOL)enabled;
 
 // Settings > Playback > Enable audio effects, both platforms, default YES:
 // whether the DJ FX segment is in the render. The store never applies it:

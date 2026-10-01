@@ -25,6 +25,7 @@
 #import "AudioWaveformCache.h"
 #import "AudioWaveformCache+Debug.h"
 #import "AppSettings.h"
+#import "SettingsRules.h"
 #import "AppStats.h"
 #import "AudioLoadTiming.h"
 #import "MusicalKey.h"
@@ -576,6 +577,35 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 return VibeJSONString(@{
                     @"ok": @YES,
                     @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
+                });
+            }),
+            VibeDebugCmd(@"set_repeat <off|all|one>", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
+                VibeRepeatMode mode = VibeNormalizedRepeatMode(arg);
+                if (![VibeRepeatModeIdentifier(mode) isEqualToString:arg]) {
+                    return VibeErrorJSON(@"usage: set_repeat <off|all|one>");
+                }
+                AppSettings.sharedInstance.repeatMode = mode;
+                [surface debugApplyEndOfTrackSetting];
+                return VibeJSONString(@{
+                    @"ok": @YES,
+                    @"repeatMode": VibeRepeatModeIdentifier(AppSettings.sharedInstance.repeatMode),
+                });
+            }),
+            VibeDebugCmd(@"set_shuffle <on|off>", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
+                if (![arg isEqualToString:@"on"] && ![arg isEqualToString:@"off"]) {
+                    return VibeErrorJSON(@"usage: set_shuffle <on|off>");
+                }
+                AppSettings.sharedInstance.shuffleEnabled = [arg isEqualToString:@"on"];
+                [surface debugApplyEndOfTrackSetting];
+                return VibeJSONString(@{
+                    @"ok": @YES,
+                    @"shuffleEnabled": @(AppSettings.sharedInstance.shuffleEnabled),
                 });
             }),
             VibeDebugCmd(@"play_index <n>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,

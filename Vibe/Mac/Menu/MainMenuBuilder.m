@@ -267,6 +267,14 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
                   [NSString stringWithFormat:@"%c", NSCarriageReturnCharacter], 0, kVibeMenuPlaySelected);
     AddSeparator(playbackMenu);
 
+    // ⌘-modified, so TransportKeyMonitor passes them on: bare S is a skip.
+    AddSymbolItem(playbackMenu, STR_TRANSPORT_SHUFFLE, @"shuffle", @selector(toggleShuffle:), player,
+                  @"s", NSEventModifierFlagCommand | NSEventModifierFlagOption, kVibeMenuShuffle);
+    // Validation retitles it per mode.
+    AddSymbolItem(playbackMenu, STR_TRANSPORT_REPEAT_OFF, @"repeat", @selector(cycleRepeatMode:), player,
+                  @"r", NSEventModifierFlagCommand, kVibeMenuRepeat);
+    AddSeparator(playbackMenu);
+
     AddSymbolItem(playbackMenu, STR_MENU_SKIP_FORWARD, @"forward", @selector(skipForward:), player, @"a", 0, kVibeMenuSkipForward);
     AddItem(playbackMenu, STR_MENU_SKIP_FORWARD_MORE, @selector(skipForwardMore:), player, @"s", 0, kVibeMenuSkipForwardMore);
     AddItem(playbackMenu, STR_MENU_SKIP_FORWARD_MOST, @selector(skipForwardMost:), player, @"d", 0, kVibeMenuSkipForwardMost);

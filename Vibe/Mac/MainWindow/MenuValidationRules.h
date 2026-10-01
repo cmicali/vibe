@@ -30,6 +30,8 @@ typedef NS_ENUM(NSInteger, VibeMenuValidationDomain) {
     // AppSettings.audioFXAllowed is off.
     VibeMenuValidationDomainFX,
     VibeMenuValidationDomainPitchRange,
+    // Shuffle's checkmark and Repeat's mode-naming title; never disabled.
+    VibeMenuValidationDomainPlayOrder,
     VibeMenuValidationDomainFile,
     VibeMenuValidationDomainEdit,
     // AudioFileConverter owns the idle item's enablement and title.
@@ -54,6 +56,8 @@ static NSString *const kVibeMenuSkipForwardMost = @"menu_skip_forward_most";
 static NSString *const kVibeMenuSkipBack = @"menu_skip_back";
 static NSString *const kVibeMenuSkipBackMore = @"menu_skip_back_more";
 static NSString *const kVibeMenuSkipBackMost = @"menu_skip_back_most";
+static NSString *const kVibeMenuShuffle = @"menu_shuffle";
+static NSString *const kVibeMenuRepeat = @"menu_repeat";
 
 static NSString *const kVibeMenuFXLowKill = @"menu_fx_low_kill";
 static NSString *const kVibeMenuFXLowKillBoost = @"menu_fx_low_kill_boost";
@@ -157,6 +161,10 @@ static inline VibeMenuValidationDomain VibeMenuValidationDomainForIdentifier(NSS
     if ([identifier isEqualToString:kVibeMenuPitchRange8]
             || [identifier isEqualToString:kVibeMenuPitchRange16]) {
         return VibeMenuValidationDomainPitchRange;
+    }
+    if ([identifier isEqualToString:kVibeMenuShuffle]
+            || [identifier isEqualToString:kVibeMenuRepeat]) {
+        return VibeMenuValidationDomainPlayOrder;
     }
     if ([identifier isEqualToString:kVibeMenuPlay]
             || [identifier isEqualToString:kVibeMenuSavePlaylist]

@@ -120,6 +120,8 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
 - (void)playPauseTapped;
 - (void)previousTapped;
 - (void)nextTapped;
+- (void)shuffleTapped;
+- (void)repeatTapped;
 
 // One setting for every page, so every visible page repaints.
 - (void)remainingTimeTapped;

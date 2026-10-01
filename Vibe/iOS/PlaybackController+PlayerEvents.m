@@ -176,9 +176,9 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [[AppStats sharedInstance] playbackStopped];
     // The second of On track end's two reads (root AGENTS.md): this one
     // decides from the playlist alone.
-    if (VibePlaybackShouldAdvanceAtTrackEnd(_playlist.hasNextTrack,
+    if (VibePlaybackShouldAdvanceAtTrackEnd(_playlist.trackEndSuccessor != nil,
                                             AppSettings.sharedInstance.pauseAtTrackEnd)
-            && [_playlist next]) {
+            && [_playlist advanceAtTrackEnd]) {
         [self playCurrentTrack];
         return;
     }
@@ -197,13 +197,12 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     if (![_playlist isCurrentTrack:finishedTrack]) {
         return;
     }
-    // A replace raced the boundary: the playlist owns "next", so treat it as
-    // a plain track end and play the real successor.
-    if (startedTrack != [_playlist trackAtIndex:_playlist.currentIndex + 1]) {
+    // A replace or a mode change raced the boundary: the playlist owns what
+    // follows, so treat it as a plain track end and play the real successor.
+    if (![_playlist advanceFromTrack:finishedTrack toTrack:startedTrack]) {
         [self audioPlayer:audioPlayer didFinishPlaying:finishedTrack];
         return;
     }
-    [_playlist next];
     [self notifyDidMoveToCurrentTrackAnimated:YES];
     // The rest of the refresh is didStartPlaying:'s, whose guard now passes.
     [self audioPlayer:audioPlayer didStartPlaying:startedTrack];

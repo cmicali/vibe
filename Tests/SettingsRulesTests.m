@@ -96,6 +96,8 @@
     settings.waveformNormalize = NO;
     settings.waveformGainDB = 3.3;
     settings.folderOpenSort = VibeFolderOpenSortNewestFirst;
+    settings.repeatMode = VibeRepeatModeOne;
+    settings.shuffleEnabled = YES;
     NSString *theme = [settings addUserThemeWithRecord:@{@"waveformTheme": @"orange"} name:@"Levels"];
     [settings applyThemeWithIdentifier:theme];
     [settings applyThemeWithIdentifier:@"vibe"];
@@ -105,6 +107,8 @@
     XCTAssertFalse(reloaded.waveformNormalize);
     XCTAssertEqual(reloaded.waveformGainDB, 3.5);
     XCTAssertEqual(reloaded.folderOpenSort, VibeFolderOpenSortNewestFirst);
+    XCTAssertEqual(reloaded.repeatMode, VibeRepeatModeOne);
+    XCTAssertTrue(reloaded.shuffleEnabled);
 }
 
 - (void)testExternalSettingsNormalizeOnRead {
@@ -259,6 +263,19 @@
     XCTAssertEqual(VibeNormalizedWaveformGainDB(40), kVibeWaveformGainMaxDB);
     XCTAssertEqual(VibeNormalizedWaveformGainDB(-40), -kVibeWaveformGainMaxDB);
     XCTAssertEqual(VibeNormalizedWaveformGainDB(NAN), 0);
+}
+
+- (void)testRepeatModeRoundTripsAndCyclesOffAllOne {
+    for (NSNumber *mode in @[@(VibeRepeatModeOff), @(VibeRepeatModeAll), @(VibeRepeatModeOne)]) {
+        XCTAssertEqual(VibeNormalizedRepeatMode(VibeRepeatModeIdentifier(mode.integerValue)), mode.integerValue);
+    }
+    XCTAssertEqual(VibeNormalizedRepeatMode(nil), VibeRepeatModeOff);
+    XCTAssertEqual(VibeNormalizedRepeatMode(@"All"), VibeRepeatModeOff);
+    XCTAssertEqual(VibeRepeatModeAfter(VibeRepeatModeOff), VibeRepeatModeAll);
+    XCTAssertEqual(VibeRepeatModeAfter(VibeRepeatModeAll), VibeRepeatModeOne);
+    XCTAssertEqual(VibeRepeatModeAfter(VibeRepeatModeOne), VibeRepeatModeOff);
+    XCTAssertEqualObjects(VibeRepeatModeSymbolName(VibeRepeatModeOne), @"repeat.1");
+    XCTAssertEqualObjects(VibeRepeatModeSymbolName(VibeRepeatModeAll), @"repeat");
 }
 
 - (void)testFolderOpenSortNormalizesUnknownsToName {

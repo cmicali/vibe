@@ -33,6 +33,10 @@ NS_ASSUME_NONNULL_BEGIN
 // Live cells only; willDisplayCell: covers the rest.
 - (void)refreshPageAtIndex:(NSUInteger)index;
 
+// Next's enablement and the shuffle and repeat buttons, for a live page; the
+// part of configurePage:atIndex: a track change or a mode change moves.
+- (void)applyPlayOrderToPageAtIndex:(NSUInteger)index;
+
 // Decodes full-size art around the current page and releases past the budget.
 // Call it when the page moves and when a page's metadata lands: before that
 // the dispatch is a message to nil.
@@ -40,6 +44,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (NSRange)artWindow;
 
+// Animated only to a neighbor: under shuffle the next track is usually pages
+// away, and scrolling through every page between would read as a swipe.
 - (void)scrollToCurrentPageAnimated:(BOOL)animated;
 
 @end

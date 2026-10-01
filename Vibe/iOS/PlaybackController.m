@@ -24,6 +24,7 @@
 #import "DownloadProgressMonitor.h"
 #import "FavoritesStore.h"
 #import "PlaybackDeliveryRules.h"
+#import "SettingsRules.h"
 #import "SearchFolderStore.h"
 #import "UIUpdateTimer.h"
 
@@ -44,11 +45,17 @@ static const NSUInteger kUIUpdateHz = 3;
 
         _playlist = [[Playlist alloc] init];
         _playlist.observer = self;
+        // Before any restore, so a shuffled restore starts its order on the
+        // remembered row.
+        _playlist.repeatMode = AppSettings.sharedInstance.repeatMode;
+        _playlist.shuffleEnabled = AppSettings.sharedInstance.shuffleEnabled;
         _metadataCache = [[AudioTrackMetadataCache alloc] init];
         _metadataCache.delegate = self;
         _folderSession = [[FolderSession alloc] init];
         _folderSession.delegate = self;
         _nowPlaying = [[NowPlayingController alloc] initWithDelegate:self];
+        [_nowPlaying updateShuffleEnabled:AppSettings.sharedInstance.shuffleEnabled
+                               repeatMode:AppSettings.sharedInstance.repeatMode];
         _widgetPublisher = [[WidgetPublisher alloc] init];
         _launchOpenWaiters = [NSMutableArray array];
         // The setting as is: no bit-perfect mode here to outrank it.
@@ -439,18 +446,41 @@ static const NSUInteger kUIUpdateHz = 3;
 #pragma mark - Settings
 
 - (AudioTrack *)successorPrefetchTrack {
-    if (!VibePlaybackShouldAdvanceAtTrackEnd(_playlist.hasNextTrack,
+    AudioTrack *successor = _playlist.trackEndSuccessor;
+    if (!VibePlaybackShouldAdvanceAtTrackEnd(successor != nil,
                                             AppSettings.sharedInstance.pauseAtTrackEnd)) {
         return nil;
     }
-    return [_playlist trackAtIndex:_playlist.currentIndex + 1];
+    return successor;
 }
 
 - (void)applyTrackTransitionSettings {
-    _player.crossfadeMilliseconds = AppSettings.sharedInstance.crossfadeMilliseconds;
+    AppSettings *settings = AppSettings.sharedInstance;
+    _player.crossfadeMilliseconds = settings.crossfadeMilliseconds;
+    _playlist.repeatMode = settings.repeatMode;
+    _playlist.shuffleEnabled = settings.shuffleEnabled;
+    [_nowPlaying updateShuffleEnabled:settings.shuffleEnabled repeatMode:settings.repeatMode];
     // prefetchTrack:nil unschedules an armed splice, so a mid-track switch to
-    // Pause does not advance anyway.
+    // Pause does not advance anyway; a new successor replaces one armed
+    // before a repeat or shuffle change.
     [_player prefetchTrack:self.successorPrefetchTrack];
+    for (id<PlaybackObserver> observer in [self observerSnapshot]) {
+        if ([observer respondsToSelector:@selector(playbackDidChangePlayOrder:)]) {
+            [observer playbackDidChangePlayOrder:self];
+        }
+    }
+    // Now Playing's next-track availability follows the modes.
+    [self notifyDidTick];
+}
+
+- (void)toggleShuffle {
+    AppSettings.sharedInstance.shuffleEnabled = !AppSettings.sharedInstance.shuffleEnabled;
+    [self applyTrackTransitionSettings];
+}
+
+- (void)cycleRepeatMode {
+    AppSettings.sharedInstance.repeatMode = VibeRepeatModeAfter(AppSettings.sharedInstance.repeatMode);
+    [self applyTrackTransitionSettings];
 }
 
 - (void)applyFXSetting {
@@ -708,48 +738,44 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
             folderURL:(NSURL *)folderURL
           selectedURL:(NSURL *)selectedURL
              restored:(BOOL)restored {
-    [_playlist replaceAllWithTracks:rows];
-    [_metadataCache cancelScan];
-    [self scheduleDeferredMetadataLoad];
-
+    // The start row is resolved from the rows and handed to the replace: set
+    // after it, under shuffle it would be a pick (replaceAllWithTracks:'s trap).
+    NSUInteger start = NSNotFound;
     if (selectedURL) {
         // A file pick that expanded to its directory plays the picked file.
         NSString *selectedPath = selectedURL.URLByStandardizingPath.path;
-        NSArray<AudioTrack *> *tracks = _playlist.tracks;
-        for (NSUInteger i = 0; i < tracks.count; i++) {
-            if ([tracks[i].url.URLByStandardizingPath.path isEqualToString:selectedPath]) {
-                _playlist.currentIndex = i;
+        for (NSUInteger i = 0; i < rows.count; i++) {
+            if ([rows[i].url.URLByStandardizingPath.path isEqualToString:selectedPath]) {
+                start = i;
                 break;
             }
         }
     }
-
-    if (restored) {
-        NSString *remembered = session.persistedTrackKey;
-        if (!selectedURL && remembered) {
-            // TRAP: the path alone is not enough — a provider can hand the file
-            // back under a different path, and the simulator's container UUID
-            // rotates on reinstall — so the filename is the fallback tier. An
-            // exact hit anywhere outranks it, since the playlist spans folders.
-            // A cue row's window rides on both, so the row comes back, not the
-            // file's first.
-            NSString *rememberedName = remembered.lastPathComponent;
-            NSArray<AudioTrack *> *tracks = _playlist.tracks;
-            NSUInteger match = NSNotFound;
-            for (NSUInteger i = 0; i < tracks.count; i++) {
-                NSString *key = tracks[i].standardizedSourceKey;
-                if ([key isEqualToString:remembered]) {
-                    match = i;
-                    break;
-                }
-                if (match == NSNotFound && [key.lastPathComponent isEqualToString:rememberedName]) {
-                    match = i;
-                }
+    NSString *remembered = session.persistedTrackKey;
+    if (restored && !selectedURL && remembered) {
+        // TRAP: the path alone is not enough — a provider can hand the file
+        // back under a different path, and the simulator's container UUID
+        // rotates on reinstall — so the filename is the fallback tier. An
+        // exact hit anywhere outranks it, since the playlist spans folders.
+        // A cue row's window rides on both, so the row comes back, not the
+        // file's first.
+        NSString *rememberedName = remembered.lastPathComponent;
+        for (NSUInteger i = 0; i < rows.count; i++) {
+            NSString *key = rows[i].standardizedSourceKey;
+            if ([key isEqualToString:remembered]) {
+                start = i;
+                break;
             }
-            if (match != NSNotFound) {
-                _playlist.currentIndex = match;
+            if (start == NSNotFound && [key.lastPathComponent isEqualToString:rememberedName]) {
+                start = i;
             }
         }
+    }
+    [_playlist replaceAllWithTracks:rows startingAtIndex:start];
+    [_metadataCache cancelScan];
+    [self scheduleDeferredMetadataLoad];
+
+    if (restored) {
         [self parkCurrentTrack];
         // A park opens nothing to starve and no didStartPlaying: will start
         // the sweep; left to the fallback, rows fill in two seconds late.

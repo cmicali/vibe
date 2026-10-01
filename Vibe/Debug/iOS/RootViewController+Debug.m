@@ -61,6 +61,8 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
         @"waveformTheme": AppSettings.sharedInstance.waveformTheme,
         @"folderOpenSort": VibeFolderOpenSortIdentifier(AppSettings.sharedInstance.folderOpenSort),
         @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
+        @"repeatMode": VibeRepeatModeIdentifier(AppSettings.sharedInstance.repeatMode),
+        @"shuffleEnabled": @(AppSettings.sharedInstance.shuffleEnabled),
         @"crossfadeMilliseconds": @(AppSettings.sharedInstance.crossfadeMilliseconds),
         @"audioFXEnabled": @(AppSettings.sharedInstance.audioFXEnabled),
         @"analyzeBPM": @(AppSettings.sharedInstance.analyzeBPM),

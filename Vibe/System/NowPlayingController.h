@@ -14,6 +14,7 @@
 
 #import <Foundation/Foundation.h>
 #import "PlatformTypes.h"
+#import "RepeatMode.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -36,6 +37,10 @@ typedef NS_ENUM(NSInteger, NowPlayingPlaybackState) {
 - (void)nowPlayingControllerPreviousTrack:(NowPlayingController *)controller;
 // Seconds from the track start.
 - (void)nowPlayingController:(NowPlayingController *)controller seekToPosition:(NSTimeInterval)position;
+// The system's shuffle and repeat controls (Siri, the Watch, accessories):
+// write the setting and apply it as the app's own control does.
+- (void)nowPlayingController:(NowPlayingController *)controller setShuffleEnabled:(BOOL)enabled;
+- (void)nowPlayingController:(NowPlayingController *)controller setRepeatMode:(VibeRepeatMode)mode;
 @end
 
 @interface NowPlayingController : NSObject
@@ -63,6 +68,11 @@ typedef NS_ENUM(NSInteger, NowPlayingPlaybackState) {
                    rate:(double)rate
                 hasNext:(BOOL)hasNext
             hasPrevious:(BOOL)hasPrevious;
+
+// The modes the system's controls show. There is no Now Playing info key for
+// either: the state lives on the commands, so it is written wherever a mode is
+// applied, whoever changed it. Written only on a change. Main thread.
+- (void)updateShuffleEnabled:(BOOL)shuffleEnabled repeatMode:(VibeRepeatMode)repeatMode;
 
 @end
 

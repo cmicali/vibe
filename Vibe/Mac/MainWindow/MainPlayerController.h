@@ -76,6 +76,9 @@ NS_ASSUME_NONNULL_BEGIN
 // headers.
 
 - (IBAction)setPitchRange:(id)sender;
+- (IBAction)toggleShuffle:(nullable id)sender;
+// Off, All, One, Off.
+- (IBAction)cycleRepeatMode:(nullable id)sender;
 
 - (IBAction)toggleFileInfo:(nullable id)sender;
 

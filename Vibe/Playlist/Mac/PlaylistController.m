@@ -568,11 +568,7 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 }
 
 - (void)loadTracks:(NSArray<AudioTrack *> *)tracks selectingIndex:(NSUInteger)index {
-    [_model replaceAllWithTracks:tracks];
-    // 0 is already announced; the setter would announce it again.
-    if (index > 0 && index < _model.count) {
-        self.currentIndex = index;
-    }
+    [_model replaceAllWithTracks:tracks startingAtIndex:index];
     // The observer's reloadData keeps the scroll offset, but a new playlist
     // starts at its cursor.
     [self scrollCurrentTrackToVisible];
@@ -651,6 +647,35 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 
 - (BOOL)previous {
     if ([_model previous]) {
+        [self scrollCurrentTrackToVisible];
+        [self play];
+        return YES;
+    }
+    return NO;
+}
+
+- (VibeRepeatMode)repeatMode {
+    return _model.repeatMode;
+}
+
+- (void)setRepeatMode:(VibeRepeatMode)repeatMode {
+    _model.repeatMode = repeatMode;
+}
+
+- (BOOL)shuffleEnabled {
+    return _model.shuffleEnabled;
+}
+
+- (void)setShuffleEnabled:(BOOL)shuffleEnabled {
+    _model.shuffleEnabled = shuffleEnabled;
+}
+
+- (AudioTrack *)trackEndSuccessor {
+    return _model.trackEndSuccessor;
+}
+
+- (BOOL)advanceAtTrackEnd {
+    if ([_model advanceAtTrackEnd]) {
         [self scrollCurrentTrackToVisible];
         [self play];
         return YES;

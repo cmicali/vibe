@@ -12,6 +12,7 @@
 #import <UIKit/UIKit.h>
 
 #import "OutputRouteRules.h"
+#import "RepeatMode.h"
 
 @class FXPadView;
 @class OutputRouteView;
@@ -58,6 +59,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) UIButton *previousButton;
 @property (nonatomic, readonly) UIButton *playPauseButton;
 @property (nonatomic, readonly) UIButton *nextButton;
+// The row's ends: shuffle leading, repeat trailing. The three between keep
+// their spacing; the gaps out to these give first on a narrow screen.
+@property (nonatomic, readonly) UIButton *shuffleButton;
+@property (nonatomic, readonly) UIButton *repeatButton;
 
 - (void)setGlyphPlaying:(BOOL)playing;
 
@@ -67,6 +72,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Per PAGE, not per playing track, so the last page arrives dimmed.
 - (void)setNextEnabled:(BOOL)enabled;
+
+// Off draws dimmed, on at full strength; Repeat One shows its own glyph.
+- (void)setShuffleEnabled:(BOOL)shuffleEnabled repeatMode:(VibeRepeatMode)repeatMode;
 
 - (void)configureWithTitle:(NSString *)title
                 titleColor:(UIColor *)titleColor

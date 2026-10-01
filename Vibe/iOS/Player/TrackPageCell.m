@@ -7,6 +7,7 @@
 #import "FXPadView.h"
 #import "Formatters.h"
 #import "OutputRouteView.h"
+#import "SettingsRules.h"
 #import "UIImage+Blur.h"
 #import "UIImage+DominantColor.h"
 #import "VibeStrings.h"
@@ -51,6 +52,13 @@ static const CGFloat kCellGlyphPointSize = 34;
 static const CGFloat kCellSideGlyphPointSize = 23;
 static const CGFloat kTransportButtonSide = 66;
 static const CGFloat kTransportButtonGap = 41;
+// Shuffle and repeat: smaller glyphs in narrower targets. Their gaps give way
+// before the three's, and the three's before the edges or the route name.
+static const CGFloat kCellFlankGlyphPointSize = 19;
+static const CGFloat kTransportFlankButtonSide = 44;
+static const CGFloat kTransportFlankMinGap = 8;
+static const CGFloat kTransportMinGap = 16;
+static const CGFloat kTransportEdgeInset = 16;
 static const CGFloat kTransportDisabledAlpha = 0.5;
 
 static const CGFloat kCellTitlePointSize = 22;
@@ -201,6 +209,11 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     NSLayoutConstraint *_remainingCenteredOnRoute;
     NSLayoutConstraint *_remainingTrailingOnRoute;
 
+    // What the flanking buttons show, so a reconfigure that changes nothing
+    // reinstalls no images. -1 until the first set.
+    NSInteger           _shownShuffle;
+    NSInteger           _shownRepeatMode;
+
     // Joined on one line in portrait, stacked in landscape as on the mac.
     NSString           *_fileInfo;
     NSString           *_tempoInfo;
@@ -328,16 +341,21 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         _fxPadView.translatesAutoresizingMaskIntoConstraints = NO;
         [content addSubview:_fxPadView];
 
-        _previousButton = [self makeTransportButton];
+        _shuffleButton = [self makeTransportButtonWithSide:kTransportFlankButtonSide];
+        _previousButton = [self makeTransportButtonWithSide:kTransportButtonSide];
         _previousButton.accessibilityLabel = STR_TRANSPORT_PREVIOUS;
         [self setGlyph:@"backward.end.fill" onButton:_previousButton
              pointSize:kCellSideGlyphPointSize];
-        _playPauseButton = [self makeTransportButton];
-        _nextButton = [self makeTransportButton];
+        _playPauseButton = [self makeTransportButtonWithSide:kTransportButtonSide];
+        _nextButton = [self makeTransportButtonWithSide:kTransportButtonSide];
         _nextButton.accessibilityLabel = STR_TRANSPORT_NEXT;
         [self setGlyph:@"forward.end.fill" onButton:_nextButton
              pointSize:kCellSideGlyphPointSize];
+        _repeatButton = [self makeTransportButtonWithSide:kTransportFlankButtonSide];
         [self setGlyphPlaying:NO];
+        _shownShuffle = -1;
+        _shownRepeatMode = -1;
+        [self setShuffleEnabled:NO repeatMode:VibeRepeatModeOff];
 
         // Landscape: the artist (750) truncates before the codec line.
         [_fileInfoLabel setContentCompressionResistancePriority:760
@@ -369,13 +387,10 @@ static void VibeConfigureTimeLabel(UILabel *label) {
                                                                    constant:-kCellTimeGap],
             [_remainingTimeControl.widthAnchor constraintGreaterThanOrEqualToConstant:44],
             [_remainingTimeControl.heightAnchor constraintGreaterThanOrEqualToConstant:44],
-            [_previousButton.leadingAnchor constraintEqualToAnchor:_transportView.leadingAnchor],
-            [_playPauseButton.leadingAnchor constraintEqualToAnchor:_previousButton.trailingAnchor
-                                                           constant:kTransportButtonGap],
-            [_nextButton.leadingAnchor constraintEqualToAnchor:_playPauseButton.trailingAnchor
-                                                      constant:kTransportButtonGap],
-            [_nextButton.trailingAnchor constraintEqualToAnchor:_transportView.trailingAnchor],
+            [_shuffleButton.leadingAnchor constraintEqualToAnchor:_transportView.leadingAnchor],
+            [_repeatButton.trailingAnchor constraintEqualToAnchor:_transportView.trailingAnchor],
         ]];
+        [NSLayoutConstraint activateConstraints:[self transportGapConstraints]];
 
         _portraitConstraints = [self buildPortraitConstraints];
         _landscapeConstraints = [self buildLandscapeConstraints];
@@ -384,9 +399,47 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     return self;
 }
 
+// Four gaps as layout guides, so each pair can be held equal: the three stay
+// centered and the row symmetric while the gaps give. Below the route view's
+// compression resistance, so in landscape the row closes up before the
+// device name truncates.
+- (NSArray<NSLayoutConstraint *> *)transportGapConstraints {
+    NSArray<UIView *> *row = @[_shuffleButton, _previousButton, _playPauseButton,
+                               _nextButton, _repeatButton];
+    NSMutableArray<UILayoutGuide *> *gaps = [NSMutableArray array];
+    NSMutableArray<NSLayoutConstraint *> *constraints = [NSMutableArray array];
+    for (NSUInteger i = 0; i + 1 < row.count; i++) {
+        UILayoutGuide *gap = [[UILayoutGuide alloc] init];
+        [_transportView addLayoutGuide:gap];
+        [gaps addObject:gap];
+        [constraints addObjectsFromArray:@[
+            [gap.leadingAnchor constraintEqualToAnchor:row[i].trailingAnchor],
+            [gap.trailingAnchor constraintEqualToAnchor:row[i + 1].leadingAnchor],
+            [gap.heightAnchor constraintEqualToConstant:0],
+            [gap.topAnchor constraintEqualToAnchor:_transportView.topAnchor],
+        ]];
+    }
+    // Outer pair: the flanks' gaps; inner pair: the three's.
+    UILayoutGuide *outer = gaps[0];
+    UILayoutGuide *inner = gaps[1];
+    NSLayoutConstraint *outerWanted = [outer.widthAnchor constraintEqualToConstant:kTransportButtonGap];
+    outerWanted.priority = UILayoutPriorityDefaultHigh - 20;
+    NSLayoutConstraint *innerWanted = [inner.widthAnchor constraintEqualToConstant:kTransportButtonGap];
+    innerWanted.priority = UILayoutPriorityDefaultHigh - 10;
+    [constraints addObjectsFromArray:@[
+        [gaps[3].widthAnchor constraintEqualToAnchor:outer.widthAnchor],
+        [gaps[2].widthAnchor constraintEqualToAnchor:inner.widthAnchor],
+        outerWanted,
+        innerWanted,
+        [outer.widthAnchor constraintGreaterThanOrEqualToConstant:kTransportFlankMinGap],
+        [inner.widthAnchor constraintGreaterThanOrEqualToConstant:kTransportMinGap],
+    ]];
+    return constraints;
+}
+
 // The shadow follows the glyph's alpha, so it can have no shadowPath; without
 // one it renders offscreen every frame, so it is rasterized instead.
-- (UIButton *)makeTransportButton {
+- (UIButton *)makeTransportButtonWithSide:(CGFloat)side {
     UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
     button.tintColor = [UIColor labelColor];
     button.layer.shadowColor = UIColor.blackColor.CGColor;
@@ -399,7 +452,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     [NSLayoutConstraint activateConstraints:@[
         [button.topAnchor constraintEqualToAnchor:_transportView.topAnchor],
         [button.bottomAnchor constraintEqualToAnchor:_transportView.bottomAnchor],
-        [button.widthAnchor constraintEqualToConstant:kTransportButtonSide],
+        [button.widthAnchor constraintEqualToConstant:side],
     ]];
     return button;
 }
@@ -514,6 +567,8 @@ static void VibeConfigureTimeLabel(UILabel *label) {
 
         [_transportView.bottomAnchor constraintEqualToAnchor:_actionBar.topAnchor
                                                     constant:-kCellActionBarTransportGap],
+        [_transportView.leadingAnchor constraintGreaterThanOrEqualToAnchor:safe.leadingAnchor
+                                                                  constant:kTransportEdgeInset],
         [_waveformView.bottomAnchor constraintEqualToAnchor:_transportView.topAnchor
                                                    constant:-kCellWaveformTransportGap],
         [_elapsedLabel.topAnchor constraintEqualToAnchor:_waveformView.bottomAnchor
@@ -606,6 +661,8 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         [_routeView.widthAnchor constraintLessThanOrEqualToConstant:kCellRouteMaxWidthLandscape],
 
         [_transportView.centerYAnchor constraintEqualToAnchor:_actionBar.centerYAnchor],
+        [_transportView.leadingAnchor constraintGreaterThanOrEqualToAnchor:_fxPadView.trailingAnchor
+                                                                  constant:kCellActionBarGap],
 
         [middle.topAnchor constraintEqualToAnchor:_artCard.bottomAnchor],
         [middle.bottomAnchor constraintEqualToAnchor:_transportView.topAnchor],
@@ -776,6 +833,41 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     _nextButton.accessibilityTraits = enabled
             ? UIAccessibilityTraitButton
             : (UIAccessibilityTraitButton | UIAccessibilityTraitNotEnabled);
+}
+
+- (void)setShuffleEnabled:(BOOL)shuffleEnabled repeatMode:(VibeRepeatMode)repeatMode {
+    if (_shownShuffle != shuffleEnabled) {
+        _shownShuffle = shuffleEnabled;
+        [self setFlankGlyph:@"shuffle" active:shuffleEnabled onButton:_shuffleButton];
+        _shuffleButton.accessibilityLabel = STR_TRANSPORT_SHUFFLE;
+        _shuffleButton.accessibilityTraits = shuffleEnabled
+                ? (UIAccessibilityTraitButton | UIAccessibilityTraitSelected)
+                : UIAccessibilityTraitButton;
+    }
+    if (_shownRepeatMode != repeatMode) {
+        _shownRepeatMode = repeatMode;
+        BOOL active = repeatMode != VibeRepeatModeOff;
+        [self setFlankGlyph:VibeRepeatModeSymbolName(repeatMode) active:active onButton:_repeatButton];
+        _repeatButton.accessibilityLabel = VibeRepeatModeTitle(repeatMode);
+        _repeatButton.accessibilityTraits = active
+                ? (UIAccessibilityTraitButton | UIAccessibilityTraitSelected)
+                : UIAccessibilityTraitButton;
+    }
+}
+
+// Off is drawn dimmed, as the disabled look is, and for the same TRAP: an
+// alpha over a system button's own dimming compounds.
+- (void)setFlankGlyph:(NSString *)symbol active:(BOOL)active onButton:(UIButton *)button {
+    UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration
+            configurationWithPointSize:kCellFlankGlyphPointSize
+                                weight:UIImageSymbolWeightMedium];
+    UIImage *glyph = [UIImage systemImageNamed:symbol withConfiguration:config];
+    if (!active) {
+        glyph = [[glyph imageWithTintColor:[UIColor.labelColor colorWithAlphaComponent:kTransportDisabledAlpha]
+                             renderingMode:UIImageRenderingModeAlwaysOriginal]
+                imageWithRenderingMode:UIImageRenderingModeAlwaysOriginal];
+    }
+    [button setImage:glyph forState:UIControlStateNormal];
 }
 
 // The codec line and the tempo line: the mac's two lines in landscape, one

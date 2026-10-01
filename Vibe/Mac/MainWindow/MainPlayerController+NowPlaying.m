@@ -5,6 +5,7 @@
 
 #import "MainPlayerController+NowPlaying.h"
 #import "MainPlayerControllerInternal.h"
+#import "MainPlayerController+Settings.h"
 #import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
 #import "AudioTrack.h"
@@ -90,6 +91,16 @@
 - (void)nowPlayingController:(NowPlayingController *)controller seekToPosition:(NSTimeInterval)position {
     // Wall-clock back to file time.
     [self.audioPlayer seekToPosition:position * self.playbackRate];
+}
+
+- (void)nowPlayingController:(NowPlayingController *)controller setShuffleEnabled:(BOOL)enabled {
+    AppSettings.sharedInstance.shuffleEnabled = enabled;
+    [self applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
+}
+
+- (void)nowPlayingController:(NowPlayingController *)controller setRepeatMode:(VibeRepeatMode)mode {
+    AppSettings.sharedInstance.repeatMode = mode;
+    [self applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
 }
 
 @end

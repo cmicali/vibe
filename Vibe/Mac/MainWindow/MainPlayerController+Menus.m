@@ -10,6 +10,7 @@
 #import "MainPlayerController+Settings.h"
 #import "MainPlayerController+Window.h" // contentWidthForSizeIdentifier:, for the Size checkmarks
 #import "MenuValidationRules.h"
+#import "SettingsRules.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AudioFX.h"
@@ -40,6 +41,9 @@
             return self.audioPlayer.fx != nil && AppSettings.sharedInstance.audioFXAllowed;
         case VibeMenuValidationDomainPitchRange:
             [self applyPitchRangeStateToMenuItem:menuItem];
+            return YES;
+        case VibeMenuValidationDomainPlayOrder:
+            [self applyPlayOrderStateToMenuItem:menuItem];
             return YES;
         case VibeMenuValidationDomainTransport:
             return [self validateTransportMenuItem:menuItem];
@@ -117,6 +121,19 @@
     else if ([menuItem.identifier isEqualToString:kVibeMenuPitchRange16]) {
         menuItem.state = StateForBOOL(range == 16);
     }
+}
+
+- (void)applyPlayOrderStateToMenuItem:(NSMenuItem *)menuItem {
+    AppSettings *settings = AppSettings.sharedInstance;
+    if ([menuItem.identifier isEqualToString:kVibeMenuShuffle]) {
+        menuItem.state = StateForBOOL(settings.shuffleEnabled);
+        return;
+    }
+    VibeRepeatMode mode = settings.repeatMode;
+    menuItem.title = VibeRepeatModeTitle(mode);
+    menuItem.state = StateForBOOL(mode != VibeRepeatModeOff);
+    menuItem.image = [NSImage imageWithSystemSymbolName:VibeRepeatModeSymbolName(mode)
+                               accessibilityDescription:menuItem.title];
 }
 
 #pragma mark - Conditional domains

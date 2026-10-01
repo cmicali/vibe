@@ -515,6 +515,14 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     [_playback next];
 }
 
+- (void)shuffleTapped {
+    [_playback toggleShuffle];
+}
+
+- (void)repeatTapped {
+    [_playback cycleRepeatMode];
+}
+
 - (void)remainingTimeTapped {
     VibeSetShowsRemainingTime(!VibeShowsRemainingTime());
     [self repaintTimesOnVisiblePages];
@@ -576,6 +584,18 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     for (UIView *view in _pagerHoldViews.allObjects) {
         if ([view isKindOfClass:[FXPadView class]]) {
             [(FXPadView *)view cancelInteraction];
+        }
+    }
+    // Only the current page reads Next from the play order.
+    [self applyPlayOrderToPageAtIndex:previousIndex];
+    [self applyPlayOrderToPageAtIndex:playback.currentIndex];
+}
+
+- (void)playbackDidChangePlayOrder:(PlaybackController *)playback {
+    for (TrackPageCell *cell in _pagesView.visibleCells) {
+        NSIndexPath *path = [_pagesView indexPathForCell:cell];
+        if (path) {
+            [self applyPlayOrderToPageAtIndex:(NSUInteger)path.item];
         }
     }
 }

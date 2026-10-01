@@ -28,7 +28,7 @@ static void VibeBenchComponentsRegisterPlaylist(void) {
                 [tracks addObject:[AudioTrack withURL:[NSURL fileURLWithPath:path isDirectory:NO]]];
             }
             *playlist = [[Playlist alloc] init];
-            [*playlist replaceAllWithTracks:tracks];
+            [*playlist replaceAllWithTracks:tracks startingAtIndex:NSNotFound];
         }
         return 20;
     };

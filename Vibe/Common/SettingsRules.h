@@ -5,6 +5,7 @@
 
 #import <Foundation/Foundation.h>
 #import "AppSettings.h"
+#import "VibeStrings.h"
 #if TARGET_OS_OSX
 #import "AppSettings+Mac.h"
 #endif
@@ -57,6 +58,50 @@ static inline NSString *VibeFolderOpenSortIdentifier(VibeFolderOpenSort sort) {
         case VibeFolderOpenSortName:        break;
     }
     return SETTINGS_VALUE_FOLDER_OPEN_SORT_NAME;
+}
+
+static inline VibeRepeatMode VibeNormalizedRepeatMode(NSString *_Nullable identifier) {
+    if ([identifier isEqualToString:SETTINGS_VALUE_REPEAT_MODE_ALL]) {
+        return VibeRepeatModeAll;
+    }
+    if ([identifier isEqualToString:SETTINGS_VALUE_REPEAT_MODE_ONE]) {
+        return VibeRepeatModeOne;
+    }
+    return VibeRepeatModeOff;
+}
+
+static inline NSString *VibeRepeatModeIdentifier(VibeRepeatMode mode) {
+    switch (mode) {
+        case VibeRepeatModeAll: return SETTINGS_VALUE_REPEAT_MODE_ALL;
+        case VibeRepeatModeOne: return SETTINGS_VALUE_REPEAT_MODE_ONE;
+        case VibeRepeatModeOff: break;
+    }
+    return SETTINGS_VALUE_REPEAT_MODE_OFF;
+}
+
+// The repeat control names the mode it is in — the mac's menu title, the iOS
+// button's accessibility label — and choosing it moves to the next.
+static inline NSString *VibeRepeatModeTitle(VibeRepeatMode mode) {
+    switch (mode) {
+        case VibeRepeatModeAll: return STR_TRANSPORT_REPEAT_ALL;
+        case VibeRepeatModeOne: return STR_TRANSPORT_REPEAT_ONE;
+        case VibeRepeatModeOff: break;
+    }
+    return STR_TRANSPORT_REPEAT_OFF;
+}
+
+static inline NSString *VibeRepeatModeSymbolName(VibeRepeatMode mode) {
+    return mode == VibeRepeatModeOne ? @"repeat.1" : @"repeat";
+}
+
+// What a tap on iOS's button or the mac's ⌘R moves to: Off, All, One, Off.
+static inline VibeRepeatMode VibeRepeatModeAfter(VibeRepeatMode mode) {
+    switch (mode) {
+        case VibeRepeatModeOff: return VibeRepeatModeAll;
+        case VibeRepeatModeAll: return VibeRepeatModeOne;
+        case VibeRepeatModeOne: break;
+    }
+    return VibeRepeatModeOff;
 }
 
 #if TARGET_OS_OSX
