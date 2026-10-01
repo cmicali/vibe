@@ -74,7 +74,7 @@ Tests (deterministic via `randomBelow`): every row visited exactly once walking 
 
 **Live effect.** None of its own: `VibeSettingsLiveEffectEndOfTrack`'s apply already pushes the transport modes into the model and re-parks the successor (`repeat-mode.md` Phase 2); it gains `shuffleEnabled`. **TRAP: without the re-park, a track end splices into the successor armed before the toggle.**
 
-**Menu.** A checkmarked Playback-menu item after Next, with the Repeat item after it, symbol `shuffle`, identifier `menu_shuffle`, **⌥⌘S** (⌘S is Save Playlist). Its action writes the setting and requests the effect; `validateMenuItem:` keeps it enabled with the setting as its state. String `menu.playback.shuffle`, "Shuffle", then `make strings` and translations. No Settings-pane row: shuffle is transport state, not configuration. The menu and the shortcut are the mac's whole surface (decided on #45).
+**Menu.** A checkmarked Playback-menu item after Next, with the Repeat item after it, symbol `shuffle`, identifier `menu_shuffle`, **⌥⌘S** (⌘S is Save Playlist), a character default row in `Mac/Menu/ShortcutRules.h`'s table so it is remappable in Settings > Keyboard Shortcuts. Its action writes the setting and requests the effect; `validateMenuItem:` keeps it enabled with the setting as its state. String `menu.playback.shuffle`, "Shuffle", then `make strings` and translations. No Settings-pane row: shuffle is transport state, not configuration. The menu and the shortcut are the mac's whole surface (decided on #45).
 
 **Debug.** `set_shuffle <on|off>` beside `set_repeat`, and `shuffleEnabled` plus the play order in both `dump_state`s, so a scripted walk can be checked against it.
 
