@@ -209,14 +209,20 @@ def chart_svg(title, unit, series, labels, entries, decimals):
     return '\n'.join(out) + '\n'
 
 
+def same_setup(entries, reference=None):
+    """The entries measured on reference's machine and corpus, the newest
+    entry's by default: the only ones a chart can compare."""
+    reference = reference or max(entries.values(), key=lambda e: e['measured'])
+    return {k: e for k, e in entries.items()
+            if e['machine'] == reference['machine'] and e['corpus'] == reference['corpus']}
+
+
 def comparable(results, section='app'):
     """The versions measured on the newest entry's machine and corpus."""
     versions = results.get(section, {})
     if not versions:
         return {}
-    newest = max(versions.values(), key=lambda e: e['measured'])
-    same = {k: e for k, e in versions.items()
-            if e['machine'] == newest['machine'] and e['corpus'] == newest['corpus']}
+    same = same_setup(versions)
     for label in versions.keys() - same.keys():
         print(f'report: leaving out {label} ({section}), measured on another machine or corpus; run it again here')
     return same

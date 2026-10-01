@@ -402,102 +402,6 @@ targets:
       - sdk: QuartzCore.framework
       - sdk: UniformTypeIdentifiers.framework  # file-type filtering
 
-  # The micro-benchmark suite (the vibe-perf skill): every source the macOS app
-  # compiles but main.m, driven in-process by Tests/BenchComponents, Release as it ships.
-  # No sandbox, so it reads the corpus by path; no Info.plist, so its defaults
-  # domain is its own and never the app's.
-  VibeBenchComponents:
-    type: tool
-    platform: macOS
-    sources:
-      - path: Tests/BenchComponents
-        excludes: ["**/.DS_Store", "**/*.md", "**/*.py"]
-      - path: Vibe/Audio
-        excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
-      - path: Vibe/Common
-        excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
-      - path: Vibe/System
-        excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
-      - path: Vibe/Util
-        excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
-      - path: Vibe/WaveformUI
-        excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
-      - path: Vibe/Controls
-        excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
-      - path: Vibe/Playlist
-        excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
-      - path: Vibe/Debug
-        excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
-      - path: Vibe/ThirdParty
-        excludes:
-          - "**/.DS_Store"
-          - "**/*.md"
-          - "**/*.xcprivacy"
-          - "**/*.txt"
-          - "**/LICENSE.MPL"
-          - "**/*.inc"
-          - "**/PINDiskCache.m"
-          - "**/r8bsrc.cpp"
-          - "**/pffft_double.c"
-          - "**/dr_mp3.c"
-          - "**/dr_flac.c"
-          - "**/dr_wav.c"
-        compilerFlags: *third-party-flags
-      - path: Vibe/ThirdParty/PINCache/PINDiskCache.m
-        compilerFlags: *pin-disk-cache-flags
-      - path: Vibe/ThirdParty/r8brain/DLL/r8bsrc.cpp
-        compilerFlags: *r8brain-flags
-      - path: Vibe/ThirdParty/r8brain/fft/pffft_double.c
-        compilerFlags: *r8brain-flags
-      - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
-        compilerFlags: *dr-libs-flags
-      - path: Vibe/ThirdParty/dr_flac/dr_flac.c
-        compilerFlags: *dr-libs-flags
-      - path: Vibe/ThirdParty/dr_wav/dr_wav.c
-        compilerFlags: *dr-libs-flags
-      - path: Vibe/Mac/App
-        excludes: ["**/.DS_Store", "**/*.md", "**/Info.plist"]
-      - path: Vibe/Mac/MainWindow
-        excludes: ["**/.DS_Store", "**/*.md"]
-      - path: Vibe/Mac/Controls
-        excludes: ["**/.DS_Store", "**/*.md"]
-      - path: Vibe/Mac/Menu
-        excludes: ["**/.DS_Store", "**/*.md"]
-      - path: Vibe/Mac/About
-        excludes: ["**/.DS_Store", "**/*.md"]
-      - path: Vibe/Mac/Settings
-        excludes: ["**/.DS_Store", "**/*.md"]
-    preBuildScripts:
-      - script: '"$SRCROOT/scripts/generate-git-info.sh"'
-        name: Generate Git Info
-        basedOnDependencyAnalysis: false
-        outputFiles:
-          - "$(SRCROOT)/build/generated/VibeGitInfo.h"
-    settings:
-      groups: [vibe-version, vibe-header-paths]
-      base:
-        PRODUCT_NAME: "$(TARGET_NAME)"
-        PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.VibeBenchComponents
-        ARCHS: arm64                        # measured where it ships most; Intel is low priority
-        ONLY_ACTIVE_ARCH: YES
-        CODE_SIGN_IDENTITY: "-"
-        CODE_SIGN_STYLE: Automatic
-        ENABLE_USER_SCRIPT_SANDBOXING: NO
-        MACOSX_DEPLOYMENT_TARGET: "13.0"
-        PROVISIONING_PROFILE_SPECIFIER: ""
-    dependencies:
-      - sdk: AVFAudio.framework
-      - sdk: Accelerate.framework
-      - sdk: ApplicationServices.framework
-      - sdk: AudioToolbox.framework
-      - sdk: CoreAudio.framework
-      - sdk: ImageIO.framework
-      - sdk: MediaPlayer.framework
-      - sdk: Metal.framework
-      - sdk: MetalKit.framework
-      - sdk: QuartzCore.framework
-      - sdk: UniformTypeIdentifiers.framework
-
   # Every shared subsystem minus its Mac/ half, plus Vibe/iOS. Same bundle ID as
   # the mac app: the prerequisite for App Store universal purchase.
   VibeiOS:
@@ -760,7 +664,7 @@ targets:
           - "**/.DS_Store"
           - "**/*.md"
           - "iOSDriver/**"                    # VibeiOSDriver's XCUI sources: iOS-only API
-          - "BenchComponents/**"                         # VibeBenchComponents's harness, a tool of its own
+          - "BenchComponents/**"              # the component benchmarks, perf.py's tool
           - "AudioPlayerRenderTests.m"         # VibeAudioTests' suite
       - path: Vibe/Audio/Analysis/AudioBPMAnalyzer.mm
       - path: Vibe/Audio/Analysis/AudioKeyAnalyzer.mm
@@ -977,13 +881,6 @@ targets:
       - sdk: Accelerate.framework
 
 schemes:
-  VibeBenchComponents:
-    build:
-      parallelizeBuild: true
-      targets:
-        VibeBenchComponents: [run, profile]
-    run:      { config: Release }
-    profile:  { config: Release }
   VibeAudioTests:
     build:
       targets:

@@ -622,13 +622,9 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
             || (suspended && !chosen.local)) {
         chosen = nil;
     }
-    // Every pending-list mutation moves the generation, so an unchanged one
-    // still has the pick at its index.
-    else if (orderGeneration != _scanOrderGeneration
-            || _priorityMarks[chosen.url] != nil
-            || [chosen.standardizedPath isEqualToString:_priorityMaterializationPath]
-            || chosenIndex >= _pendingMaterializations.count
-            || _pendingMaterializations[chosenIndex] != chosen) {
+    // Every pending-list, priority-mark and priority-path change moves the
+    // generation, so an unchanged one still has the pick, at its index.
+    else if (orderGeneration != _scanOrderGeneration) {
         chosen = nil;
         retryPick = YES;
     }

@@ -36,12 +36,17 @@ CGSize VibeEncodedImagePixelSize(NSData *data) {
                       [properties[(id)kCGImagePropertyPixelHeight] doubleValue]);
 }
 
+static void VibeFreeScaledBitmap(void *userData, void *bitmap) {
+    free(bitmap);
+}
+
 // A downscale decoded once — at the JPEG's own 1/2, 1/4 or 1/8 where that
 // still covers the target — and scaled with vImage. ImageIO's thumbnail path
 // draws its full decode through CoreGraphics instead, converting and
 // resampling a row at a time, at three times the instructions on a 1000px
-// cover (the component benchmarks' metadata.*). NULL leaves the image to that path: one that
-// needs no downscale, carries an EXIF orientation, or vImage refuses.
+// cover (the component benchmarks' metadata.*). NULL leaves the image to that
+// path: one that needs no downscale, carries an EXIF orientation, or vImage
+// refuses.
 static CGImageRef _Nullable VibeCreateDownscaledImage(CGImageSourceRef source, CGFloat maxPixelSize) CF_RETURNS_RETAINED {
     NSDictionary *properties = CFBridgingRelease(CGImageSourceCopyPropertiesAtIndex(source, 0, NULL));
     NSNumber *orientation = properties[(id)kCGImagePropertyOrientation];
@@ -83,10 +88,14 @@ static CGImageRef _Nullable VibeCreateDownscaledImage(CGImageSourceRef source, C
         vImage_Buffer output = {0};
         if (vImageBuffer_Init(&output, MAX(1, (vImagePixelCount)llround(input.height * scale)),
                               MAX(1, (vImagePixelCount)llround(input.width * scale)), 32, kvImageNoFlags) == kvImageNoError) {
+            // The image takes the scaled bitmap rather than a copy of it.
             if (vImageScale_ARGB8888(&input, &output, NULL, kvImageHighQualityResampling) == kvImageNoError) {
-                scaled = vImageCreateCGImageFromBuffer(&output, &format, NULL, NULL, kvImageNoFlags, NULL);
+                scaled = vImageCreateCGImageFromBuffer(&output, &format, VibeFreeScaledBitmap, NULL,
+                                                       kvImageNoAllocate, NULL);
             }
-            free(output.data);
+            if (!scaled) {
+                free(output.data);
+            }
         }
         free(input.data);
     }

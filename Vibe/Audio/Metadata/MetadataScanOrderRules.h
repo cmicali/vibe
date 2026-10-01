@@ -87,16 +87,16 @@ static inline NSUInteger VibeBestMetadataScanCandidateIndex(
     NSUInteger count = candidates.count;
     for (NSUInteger index = 0; index < count; index++) {
         id<MetadataScanOrderCandidate> candidate = candidates[index];
-        if (skip && skip(candidate)) {
-            continue;
-        }
         BOOL local = candidate.local;
         BOOL deferred = candidate.deferred;
         NSUInteger rank = rankOf(candidate);
         NSUInteger playlistIndex = candidate.playlistIndex;
-        if (bestIndex == NSNotFound || VibeMetadataScanOrderedBefore(
+        // Skip asked only of a candidate that would win: the best is always
+        // one it passed, so the answer is the same at a lookup per improvement.
+        if ((bestIndex == NSNotFound || VibeMetadataScanOrderedBefore(
                 local, deferred, rank, playlistIndex,
-                bestLocal, bestDeferred, bestRank, bestPlaylistIndex)) {
+                bestLocal, bestDeferred, bestRank, bestPlaylistIndex))
+                && !(skip && skip(candidate))) {
             bestIndex = index;
             bestLocal = local;
             bestDeferred = deferred;

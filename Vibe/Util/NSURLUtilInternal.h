@@ -21,14 +21,14 @@ NS_ASSUME_NONNULL_BEGIN
 // The already-sorted listing, with sheets standing in for their audio files.
 + (NSArray<AudioTrack *> *)rowsForWalk:(NSArray<NSURL *> *)urls;
 
-// Folders and top-level playlist files expanded in place; other URLs pass
-// through unfiltered. looseFileDirectories collects the folders of files not
-// found by walking a folder; playable, the walked rows' files, already judged.
+// Folders and top-level playlist files expanded in place, every row playable.
+// looseFileDirectories collects the folders of files not found by walking a
+// folder; expandedCount, the rows before unplayable ones were dropped.
 + (NSArray<AudioTrack *> *)expandFileList:(NSArray<NSURL *> *)list
                                  sortedBy:(VibeFolderOpenSort)sort
                               folderCount:(nullable NSUInteger *)folderCount
                      looseFileDirectories:(nullable NSMutableSet<NSString *> *)looseFileDirectories
-                                 playable:(nullable NSMutableDictionary<NSURL *, NSNumber *> *)playable;
+                            expandedCount:(nullable NSUInteger *)expandedCount;
 
 + (NSArray<AudioTrack *> *)expandAndFilterList:(NSArray<NSURL *> *)list
                                       sortedBy:(VibeFolderOpenSort)sort

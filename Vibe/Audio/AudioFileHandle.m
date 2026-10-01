@@ -60,7 +60,7 @@ static const AudioFileTypeID kVibeOggFileType = 'Oggf';
     SInt64 _size;
     AudioFileID _parser;
     // The last block a small read filled: its bytes from _readBlockStart,
-    // _readBlockLength of them. Allocated at the first small read.
+    // _readBlockLength of them.
     uint8_t *_readBlock;
     SInt64 _readBlockStart;
     UInt32 _readBlockLength;
@@ -121,15 +121,11 @@ static const AudioFileTypeID kVibeOggFileType = 'Oggf';
 }
 
 // A read inside the block, filling it from `position` first when the read is
-// not all in it already. NO when the block cannot be allocated, which leaves
-// the read to go straight through.
-static BOOL VibeHandleReadBlock(AudioFileHandle *handle, SInt64 position, UInt32 requestCount, UInt32 fill,
-                                void *buffer, UInt32 *actualCount, OSStatus *status) {
+// not all in it already.
+static OSStatus VibeHandleReadBlock(AudioFileHandle *handle, SInt64 position, UInt32 requestCount, UInt32 fill,
+                                    void *buffer, UInt32 *actualCount) {
     if (position < handle->_readBlockStart
             || position + requestCount > handle->_readBlockStart + handle->_readBlockLength) {
-        if (!handle->_readBlock && !(handle->_readBlock = malloc(kVibeReadBlock))) {
-            return NO;
-        }
         ssize_t filled;
         do {
             filled = pread(handle->_descriptor, handle->_readBlock, fill, position);
@@ -137,8 +133,7 @@ static BOOL VibeHandleReadBlock(AudioFileHandle *handle, SInt64 position, UInt32
         if (filled < 0) {
             handle->_readBlockLength = 0;
             *actualCount = 0;
-            *status = kAudioFilePositionError;
-            return YES;
+            return kAudioFilePositionError;
         }
         handle->_readBlockStart = position;
         handle->_readBlockLength = (UInt32)filled;
@@ -146,8 +141,7 @@ static BOOL VibeHandleReadBlock(AudioFileHandle *handle, SInt64 position, UInt32
     UInt32 got = (UInt32)MIN((SInt64)requestCount, handle->_readBlockStart + handle->_readBlockLength - position);
     memcpy(buffer, handle->_readBlock + (position - handle->_readBlockStart), got);
     *actualCount = got;
-    *status = (got == 0 && requestCount > 0) ? kAudioFileEndOfFileError : noErr;
-    return YES;
+    return (got == 0 && requestCount > 0) ? kAudioFileEndOfFileError : noErr;
 }
 
 // Short reads answered as such, and a read at or past EOF as the end-of-file
@@ -155,10 +149,8 @@ static BOOL VibeHandleReadBlock(AudioFileHandle *handle, SInt64 position, UInt32
 // the verdicts AudioFileOpenURL would give.
 static OSStatus VibeHandleRead(void *clientData, SInt64 position, UInt32 requestCount, void *buffer, UInt32 *actualCount) {
     AudioFileHandle *handle = (__bridge AudioFileHandle *)clientData;
-    OSStatus status;
-    if (requestCount < kVibeReadBlock && position >= 0
-            && VibeHandleReadBlock(handle, position, requestCount, kVibeReadBlock, buffer, actualCount, &status)) {
-        return status;
+    if (requestCount < kVibeReadBlock && position >= 0) {
+        return VibeHandleReadBlock(handle, position, requestCount, kVibeReadBlock, buffer, actualCount);
     }
     ssize_t got = pread(handle->_descriptor, buffer, requestCount, position);
     if (got < 0) {
@@ -180,11 +172,10 @@ static SInt64 VibeHandleSize(void *clientData) {
 // become a clean end.
 static size_t VibeStreamRead(void *user, void *buffer, size_t count) {
     AudioFileHandle *handle = (__bridge AudioFileHandle *)user;
-    UInt32 got;
-    OSStatus status;
-    if (count <= kVibeStreamReadSmall
-            && VibeHandleReadBlock(handle, handle->_streamCursor, (UInt32)count, kVibeStreamReadFill, buffer, &got, &status)) {
-        if (status == kAudioFilePositionError) {
+    if (count <= kVibeStreamReadSmall) {
+        UInt32 got;
+        if (VibeHandleReadBlock(handle, handle->_streamCursor, (UInt32)count, kVibeStreamReadFill, buffer, &got)
+                == kAudioFilePositionError) {
             handle->_streamReadFailed = YES;
         }
         handle->_streamCursor += got;
@@ -358,6 +349,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
                        description:[NSString stringWithFormat:@"%@ holds no audio data", name]];
     }
     _size = info.st_size;
+    _readBlock = malloc(kVibeReadBlock);
     // TRAP: parse as the extension's type first, as AudioFileOpenURL does:
     // sniffing alone refuses an MP3 with stray bytes between its ID3 tag and
     // first frame, which the hinted parse plays. A refusal falls back to

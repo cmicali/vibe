@@ -36,6 +36,10 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
+sys.path.insert(0, str(ROOT / 'scripts/bench'))
+import bench  # noqa: E402  the app benchmarks' corpus, results.json and shared helpers
+from bench import option, resolve  # noqa: E402
+
 PERF = ROOT / 'build/bench-components'
 CORPUS = ROOT / 'build/bench/corpus'
 EXTRA = CORPUS / 'extra'
@@ -43,10 +47,6 @@ EXTRA = CORPUS / 'extra'
 
 def sh(*args, **kw):
     return subprocess.run(args, check=True, **kw)
-
-
-def ffmpeg(*args):
-    sh('ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', *args)
 
 
 # Formats the app suite's corpus leaves out, from its flac-16-44 so the content
@@ -62,7 +62,7 @@ EXTRAS = {
 
 def corpus():
     """The app suite's corpus plus EXTRAS; answers the corpus's hash."""
-    bench_module().make_corpus()
+    bench.make_corpus()
     EXTRA.mkdir(parents=True, exist_ok=True)
     source = CORPUS / 'play/flac-16-44.flac'
     for name, codec in EXTRAS.items():
@@ -70,16 +70,10 @@ def corpus():
         if not out.exists():
             print(f'corpus: {name}', flush=True)
             tmp = out.with_name('tmp.' + name)
-            ffmpeg('-i', str(source), '-map', '0:a', *codec, str(tmp))
+            bench.ffmpeg('-i', str(source), '-map', '0:a', *codec, str(tmp))
             tmp.rename(out)
-    return bench_module().corpus_hash(extra=True)
+    return bench.corpus_hash(extra=True)
 
-
-def resolve(ref):
-    if ref is None:
-        return None
-    return subprocess.run(['git', '-C', str(ROOT), 'rev-parse', '--verify', ref + '^{commit}'],
-                          check=True, capture_output=True, text=True).stdout.strip()
 
 
 def features(src):
@@ -110,12 +104,15 @@ TOOL_DROPS = ('ASSETCATALOG_COMPILER_APPICON_NAME', 'ASSETCATALOG_COMPILER_INCLU
               'LD_RUNPATH_SEARCH_PATHS', 'PROVISIONING_PROFILE_SPECIFIER')
 
 
-def tool_spec(src):
-    """The checkout's own spec with one target, VibeBenchComponents: its app target's
-    sources and settings as that version had them, but main.m and the
-    resources, built as a tool. Derived rather than copied from today's spec,
-    so the source layout of any version (1.8's was flat) carries over."""
-    dumped = src / 'project.perf.json'
+def tool_spec(src, dumped):
+    """The checkout's own spec, written to `dumped`, with one target,
+    VibeBenchComponents: its app target's sources and settings as that version
+    had them, but main.m and the resources, built as a tool. Derived, never
+    kept beside the app's, so it cannot drift from it and the source layout of
+    any version (1.8's was flat) carries over. Its project is
+    VibeBenchComponents.xcodeproj beside the sources, so $(SRCROOT) holds and
+    the app's own project is left alone."""
+    dumped.parent.mkdir(parents=True, exist_ok=True)
     sh('xcodegen', 'dump', '--type', 'json', '--spec', str(src / 'project.yml'), '--project-root', str(src),
        '--file', str(dumped), '--quiet')
     spec = json.loads(dumped.read_text())
@@ -137,6 +134,7 @@ def tool_spec(src):
             'dependencies': [d for d in app.get('dependencies', []) if 'sdk' in d]}
     if app.get('preBuildScripts'):
         tool['preBuildScripts'] = app['preBuildScripts']
+    spec['name'] = 'VibeBenchComponents'
     spec['targets'] = {'VibeBenchComponents': tool}
     spec.pop('aggregateTargets', None)
     spec['schemes'] = {'VibeBenchComponents': {'build': {'targets': {'VibeBenchComponents': ['run']}},
@@ -146,15 +144,10 @@ def tool_spec(src):
 
 
 def graft(src):
-    """Gives a checkout the working tree's harness, its feature answers, and,
-    when its spec has no VibeBenchComponents target, a spec with one."""
+    """Gives a checkout the working tree's harness and its feature answers."""
     shutil.rmtree(src / 'Tests/BenchComponents', ignore_errors=True)
     shutil.copytree(ROOT / 'Tests/BenchComponents', src / 'Tests/BenchComponents', ignore=shutil.ignore_patterns('*.md', '*.py'))
     features(src)
-    project = src / 'project.yml'
-    if '\n  VibeBenchComponents:\n' in project.read_text():
-        return project
-    return tool_spec(src)
 
 
 def harness_digest():
@@ -177,7 +170,7 @@ def build(ref=None):
     VibeBenchComponents built some other way, such as with other build settings."""
     if ref and ref.startswith('bin:'):
         return Path(ref[4:])
-    sha = resolve(ref)
+    sha = resolve(ref) if ref else None
     if sha:
         out = PERF / 'bin' / f'{sha}-{harness_digest()}' / 'VibeBenchComponents'
         if out.exists():
@@ -186,21 +179,23 @@ def build(ref=None):
         if not src.exists():
             sh('git', '-C', str(ROOT), 'worktree', 'prune')
             sh('git', '-C', str(ROOT), 'worktree', 'add', '--detach', str(src), sha, stdout=subprocess.DEVNULL)
-        spec = graft(src)
+        graft(src)
         derived = PERF / 'dd' / sha
     else:
-        src, spec, derived = ROOT, ROOT / 'project.yml', ROOT / 'build/BenchComponentsDerivedData'
+        src, derived = ROOT, ROOT / 'build/BenchComponentsDerivedData'
     print(f'build: VibeBenchComponents at {ref or "working tree"}', flush=True)
-    lock = [str(ROOT / 'scripts/build-lock.sh')] if src == ROOT else []
+    spec = tool_spec(src, derived.with_suffix('.json'))
     log = derived.with_suffix('.log')
-    log.parent.mkdir(parents=True, exist_ok=True)
     dropped = []
     while True:
-        sh(*lock, 'xcodegen', 'generate', '--spec', str(spec), '--project', str(src), stdout=subprocess.DEVNULL)
+        sh('xcodegen', 'generate', '--spec', str(spec), '--project', str(src), '--project-root', str(src),
+           stdout=subprocess.DEVNULL)
         with open(log, 'w') as handle:
-            result = subprocess.run([*lock, 'xcodebuild', '-project', str(src / 'Vibe.xcodeproj'), '-scheme', 'VibeBenchComponents',
-                                     '-configuration', 'Release', '-derivedDataPath', str(derived),
-                                     *(['GCC_TREAT_WARNINGS_AS_ERRORS=NO'] if sha else []), 'build'],
+            # An older version's warnings are not this harness's to fix.
+            result = subprocess.run(['xcodebuild', '-project', str(src / 'VibeBenchComponents.xcodeproj'),
+                                     '-scheme', 'VibeBenchComponents', '-configuration', 'Release',
+                                     '-derivedDataPath', str(derived),
+                                     f'GCC_TREAT_WARNINGS_AS_ERRORS={"NO" if sha else "YES"}', 'build'],
                                     stdout=handle, stderr=subprocess.STDOUT)
         if not result.returncode:
             break
@@ -229,13 +224,11 @@ def run_binary(binary, filter_re, reps, json_out, quiet=False):
     return json.loads(Path(json_out).read_text())['benches']
 
 
-def option(args, flag, default, kind=str):
-    if flag in args:
-        i = args.index(flag)
-        value = kind(args[i + 1])
-        del args[i:i + 2]
-        return value
-    return default
+
+def medians(samples):
+    """One benchmark's samples as medians: CPU and wall ms, millions of instructions."""
+    return {'cpu_ms': statistics.median(samples['cpu_ms']), 'wall_ms': statistics.median(samples['wall_ms']),
+            'minstr': statistics.median(samples['instructions']) / 1e6}
 
 
 def pct(base, head):
@@ -266,10 +259,8 @@ def compare(args):
              '| benchmark | Minstr base | Minstr head | Δ instr | CPU ms base | CPU ms head | Δ CPU | wall ms base | wall ms head | Δ wall |',
              '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |']
     for name in sorted(set(samples['base']) & set(samples['head'])):
-        b, h = samples['base'][name], samples['head'][name]
-        bi, hi = statistics.median(b['instructions']) / 1e6, statistics.median(h['instructions']) / 1e6
-        bc, hc = statistics.median(b['cpu_ms']), statistics.median(h['cpu_ms'])
-        bw, hw = statistics.median(b['wall_ms']), statistics.median(h['wall_ms'])
+        b, h = medians(samples['base'][name]), medians(samples['head'][name])
+        bi, hi, bc, hc, bw, hw = b['minstr'], h['minstr'], b['cpu_ms'], h['cpu_ms'], b['wall_ms'], h['wall_ms']
         lines.append(f'| {name} | {bi:.1f} | {hi:.1f} | {pct(bi, hi):+.1f}% | {bc:.1f} | {hc:.1f} | {pct(bc, hc):+.1f}% '
                      f'| {bw:.1f} | {hw:.1f} | {pct(bw, hw):+.1f}% |')
     text = '\n'.join(lines) + '\n'
@@ -349,13 +340,7 @@ def page_value(bench, measure):
 
 def page_filter():
     names = sorted({name for *_, series, _ in PAGE_CHARTS for name, _, _ in series})
-    return '^(' + '|'.join(re.sub(r'([.+])', r'\\\1', name) for name in names) + ')$'  # VibeBenchComponents's regex is ECMAScript
-
-
-def bench_module():
-    sys.path.insert(0, str(ROOT / 'scripts/bench'))
-    import bench
-    return bench
+    return '^(' + '|'.join(re.sub(r'([.+])', r'\\\1', name) for name in names) + ')$'  # VibeBenchComponents' --filter is ECMAScript
 
 
 def measure_release(label, ref, reps):
@@ -363,29 +348,27 @@ def measure_release(label, ref, reps):
     on, the page's benchmarks only, REPS repetitions, medians: the entry for
     results.json's `components` section. A benchmark the version cannot build is
     absent from it, not zero."""
-    bench = bench_module()
     corpus_hash = corpus()
     binary = build(ref)
     out = PERF / f'release-{label}.json'
     PERF.mkdir(parents=True, exist_ok=True)
     benches = run_binary(binary, page_filter(), reps, out, quiet=True)
-    medians = {name: {'cpu_ms': round(statistics.median(b['cpu_ms']), 4),
-                      'wall_ms': round(statistics.median(b['wall_ms']), 4),
-                      'minstr': round(statistics.median(b['instructions']) / 1e6, 3),
-                      'units': b['units'], 'unit': b['unit']} for name, b in benches.items()}
-    print(f'{label}: VibeBenchComponents, {len(medians)} benchmarks', flush=True)
+    entries = {}
+    for name, samples in benches.items():
+        m = medians(samples)
+        entries[name] = {'cpu_ms': round(m['cpu_ms'], 4), 'wall_ms': round(m['wall_ms'], 4),
+                         'minstr': round(m['minstr'], 3), 'units': samples['units'], 'unit': samples['unit']}
+    print(f'{label}: VibeBenchComponents, {len(entries)} benchmarks', flush=True)
     return {'ref': ref, 'commit': resolve(ref), 'prerelease': bench.prerelease(label),
             'measured': time.strftime('%Y-%m-%d'), 'reps': reps,
-            'corpus': corpus_hash, 'machine': bench.machine(), 'harness': harness_digest(), 'benches': medians}
+            'corpus': corpus_hash, 'machine': bench.machine(), 'harness': harness_digest(), 'benches': entries}
 
 
 def releases(args):
     """The page's component charts: measure each version, store it in
     results.json, redraw docs/performance.md."""
     reps = option(args, '--reps', 5, int)
-    new_machine = '--new-machine' in args
-    args = [a for a in args if a != '--new-machine']
-    bench = bench_module()
+    new_machine = bench.switch(args, '--new-machine')
     results = bench.load_results()
     targets = bench.parse_targets(args, results)
     bench.check_history(results, 'components', targets, corpus(), new_machine)
@@ -394,6 +377,7 @@ def releases(args):
         bench.save_results(results)
     import report
     report.write(results)
+
 
 def main(argv):
     if not argv or argv[0] not in ('corpus', 'build', 'run', 'compare', 'list', 'releases'):

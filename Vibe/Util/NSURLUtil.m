@@ -357,13 +357,11 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
                 // sandbox denial, and would keep it as an unplayable row. The
                 // link was just enumerated, so ENOENT means its target.
                 struct stat targetInfo;
-                if (stat(path.fileSystemRepresentation, &targetInfo) != 0) {
-                    if (errno == ENOENT) {
-                        continue;
-                    }
+                if (stat(path.fileSystemRepresentation, &targetInfo) == 0) {
+                    empty = VibeStatIsEmptyOrDirectory(&targetInfo);
                 }
-                else {
-                    empty = S_ISDIR(targetInfo.st_mode) || targetInfo.st_size == 0;
+                else if (errno == ENOENT) {
+                    continue;
                 }
             }
             NSString *extension = path.pathExtension.lowercaseString;
@@ -568,26 +566,12 @@ static const long long kVibeEmbeddedCueMinimumBytes = 100LL * 1024 * 1024;
                                   folderCount:(NSUInteger *)folderCount {
     NSUInteger inputCount = list.count;
     NSMutableSet<NSString*> *looseFileDirectories = [NSMutableSet set];
-    // Nothing can play an empty file. Second, so only extension matches pay
-    // the stat, once per file however many rows it has; a walk's rows arrive
-    // judged.
-    NSMutableDictionary<NSURL*, NSNumber*> *playable = [NSMutableDictionary dictionary];
+    NSUInteger expandedCount = 0;
     NSArray<AudioTrack*> *rows = [NSURLUtil expandFileList:list
                                                   sortedBy:sort
                                                folderCount:folderCount
                                       looseFileDirectories:looseFileDirectories
-                                                  playable:playable];
-    NSUInteger expandedCount = rows.count;
-    NSSet<NSString*> *supported = [NSURLUtil supportedExtensions];
-    rows = [rows filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(AudioTrack *row, NSDictionary* bindings) {
-        NSNumber *verdict = playable[row.url];
-        if (verdict == nil) {
-            verdict = @([supported containsObject:row.url.pathExtension.lowercaseString]
-                        && !row.url.isEmptyOrDirectory);
-            playable[row.url] = verdict;
-        }
-        return verdict.boolValue;
-    }]];
+                                             expandedCount:&expandedCount];
     NSMutableSet<NSString *> *supportedLooseDirectories = [NSMutableSet set];
     for (AudioTrack *row in rows) {
         [self noteLooseFileDirectoryOf:row.url into:supportedLooseDirectories];
@@ -609,8 +593,27 @@ static const long long kVibeEmbeddedCueMinimumBytes = 100LL * 1024 * 1024;
                                 sortedBy:(VibeFolderOpenSort)sort
                              folderCount:(NSUInteger *)folderCount
                     looseFileDirectories:(NSMutableSet<NSString*> *)looseFileDirectories
-                                playable:(NSMutableDictionary<NSURL*, NSNumber*> *)playable {
+                           expandedCount:(NSUInteger *)expandedCount {
     NSMutableArray<AudioTrack*> *results = [[NSMutableArray alloc] initWithCapacity:list.count];
+    NSSet<NSString*> *supported = [NSURLUtil supportedExtensions];
+    // Nothing can play an empty file. Second, so only extension matches pay
+    // the stat, once per file however many rows it has. A walk's rows skip
+    // it: the walk drops what it would, unplayable names and empty files.
+    NSMutableDictionary<NSURL*, NSNumber*> *playable = [NSMutableDictionary dictionary];
+    void (^addPlayable)(NSArray<AudioTrack*> *) = ^(NSArray<AudioTrack*> *rows) {
+        for (AudioTrack *row in rows) {
+            NSNumber *verdict = playable[row.url];
+            if (verdict == nil) {
+                verdict = @([supported containsObject:row.url.pathExtension.lowercaseString]
+                            && !row.url.isEmptyOrDirectory);
+                playable[row.url] = verdict;
+            }
+            if (verdict.boolValue) {
+                [results addObject:row];
+            }
+        }
+    };
+    NSUInteger expanded = 0;
     for (NSURL *url in list) {
         // Ask the file system: hasDirectoryPath reads only the trailing slash,
         // which a URL from argv or some pasteboards lacks. The link flag rides
@@ -630,23 +633,26 @@ static const long long kVibeEmbeddedCueMinimumBytes = 100LL * 1024 * 1024;
                 (*folderCount)++;
             }
             NSArray<AudioTrack*> *rows = [self expandDirectory:url sortedBy:sort];
-            // The walk drops what the filter would: unplayable names, empty files.
-            for (AudioTrack *row in rows) {
-                playable[row.url] = @YES;
-            }
+            expanded += rows.count;
             [results addObjectsFromArray:rows];
         }
         else if ([PlaylistFile isPlaylistExtension:[url.pathExtension lowercaseString]]) {
             NSArray<AudioTrack*> *rows = [self expandPlaylistFile:url];
-            [results addObjectsFromArray:rows];
+            expanded += rows.count;
+            addPlayable(rows);
             for (AudioTrack *row in rows) {
                 [self noteLooseFileDirectoryOf:row.url into:looseFileDirectories];
             }
         }
         else {
-            [results addObjectsFromArray:[self rowsForFile:url]];
+            NSArray<AudioTrack*> *rows = [self rowsForFile:url];
+            expanded += rows.count;
+            addPlayable(rows);
             [self noteLooseFileDirectoryOf:url into:looseFileDirectories];
         }
+    }
+    if (expandedCount) {
+        *expandedCount = expanded;
     }
     return results;
 }

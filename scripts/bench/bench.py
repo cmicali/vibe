@@ -101,6 +101,30 @@ def ffmpeg(*args):
     subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', *args], check=True)
 
 
+def resolve(ref):
+    """The commit a ref names."""
+    return subprocess.run(['git', '-C', str(ROOT), 'rev-parse', '--verify', ref + '^{commit}'],
+                          capture_output=True, text=True, check=True).stdout.strip()
+
+
+def option(args, flag, default=None, kind=str):
+    """Takes `flag value` out of args: the value, or default when it is absent."""
+    if flag in args:
+        i = args.index(flag)
+        value = kind(args[i + 1])
+        del args[i:i + 2]
+        return value
+    return default
+
+
+def switch(args, flag):
+    """Takes a bare flag out of args: whether it was there."""
+    if flag in args:
+        args.remove(flag)
+        return True
+    return False
+
+
 def play_source(rate, seconds, channels):
     """Broadband worst case: decorrelated pink noise under a 120 BPM kick, so
     lossless files barely compress and the BPM analyzer has a beat to find."""
@@ -750,23 +774,24 @@ def app_version(ref):
 
 def check_history(results, section, targets, corpus, new_machine):
     """Refuses a run that would silently take versions off the page. The page
-    charts only versions measured on the newest entry's machine and corpus, so
-    a run on another Mac, or the same Mac after a macOS or Xcode update, drops
-    every version it does not rerun. Rerunning all of them, or --new-machine,
-    is the way through."""
+    charts only versions measured on the newest entry's setup (report.py's
+    same_setup), so a run on another Mac, or the same Mac after a macOS or
+    Xcode update, drops every version it does not rerun. Rerunning all of
+    them, or --new-machine, is the way through."""
+    import report
     entries = results.get(section, {})
-    if not entries:
+    if not entries or new_machine:
         return
-    here = machine()
+    here = {'machine': machine(), 'corpus': corpus}
+    remeasured = {label for label, _ in targets}
+    after = {label: here if label in remeasured else entry for label, entry in entries.items()}
+    dropped = sorted(entries.keys() - report.same_setup(after, here).keys(), key=version_key)
+    if not dropped:
+        return
     newest = max(entries.values(), key=lambda e: e['measured'])
-    if newest['machine'] == here and newest['corpus'] == corpus:
-        return
-    dropped = sorted(set(entries) - {label for label, _ in targets}, key=version_key)
-    if not dropped or new_machine:
-        return
     there = newest['machine']
-    diffs = [f'  {key}: {there.get(key)} in the history, {here.get(key)} here'
-             for key in sorted(set(there) | set(here)) if there.get(key) != here.get(key)]
+    diffs = [f'  {key}: {there.get(key)} in the history, {here["machine"].get(key)} here'
+             for key in sorted(set(there) | set(here['machine'])) if there.get(key) != here['machine'].get(key)]
     if newest['corpus'] != corpus:
         diffs.append(f'  corpus: {newest["corpus"]} in the history, {corpus} here (ffmpeg makes it per machine)')
     raise SystemExit(
@@ -794,9 +819,7 @@ def parse_targets(args, results, sections=('app', 'components')):
     for arg in args:
         label, _, ref = arg.partition('=')
         if not ref and not re.fullmatch(r'\d+(\.\d+)+', label):
-            label, ref = app_version(label), subprocess.run(
-                ['git', '-C', str(ROOT), 'rev-parse', '--verify', label + '^{commit}'],
-                capture_output=True, text=True, check=True).stdout.strip()
+            label, ref = app_version(label), resolve(label)
         targets.append((label, ref or release_ref(label)))
     return targets
 
@@ -806,15 +829,8 @@ def main(argv):
         print(__doc__)
         return 64
     command, args = argv[0], argv[1:]
-    new_machine = '--new-machine' in args
-    args = [a for a in args if a != '--new-machine']
-    options = {'--reps': 5, '--idle': 80.0}
-    for flag in options:
-        if flag in args:
-            i = args.index(flag)
-            options[flag] = type(options[flag])(args[i + 1])
-            del args[i:i + 2]
-    reps, idle = options['--reps'], options['--idle']
+    new_machine = switch(args, '--new-machine')
+    reps, idle = option(args, '--reps', 5, int), option(args, '--idle', 80.0, float)
     results = load_results()
     if command == 'report':
         import report

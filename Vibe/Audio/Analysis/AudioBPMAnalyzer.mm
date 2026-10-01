@@ -21,11 +21,9 @@ static const NSUInteger kHopSize = 256;
 // The frame and hop are in samples and the method was tuned at 44.1 kHz, so a
 // file at twice the 44.1/48 kHz family or more is decimated by a power of two
 // first: an onset envelope at 192 kHz costs four times the FFTs and finds the
-// same tempo. Measured on 150 GiantSteps tracks resampled to 96 kHz, Accuracy1
-// is 82.3% either way, and the decimated tempos agree with the 44.1 kHz
-// originals' more often (131 against 118 within 0.05 BPM). The anti-alias
-// filter is a Blackman-windowed sinc cut at 90% of the decimated Nyquist,
-// kDecimationTapsPerFactor taps per unit of the factor, plus one.
+// same tempo (the accuracy measurement is Analysis/AGENTS.md's). The
+// anti-alias filter is a Blackman-windowed sinc cut at 90% of the decimated
+// Nyquist, kDecimationTapsPerFactor taps per unit of the factor, plus one.
 static const double kDecimatedMinRate = 44100.0;
 static const NSUInteger kDecimationTapsPerFactor = 16;
 
