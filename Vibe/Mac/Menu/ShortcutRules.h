@@ -224,7 +224,7 @@ static inline NSString *_Nullable VibeShortcutOwner(VibeShortcut shortcut, unich
     unsigned short keyCode = VibeShortcutCanonicalKeyCode(VibeShortcutKey(shortcut));
     NSEventModifierFlags modifiers = VibeShortcutModifiers(shortcut);
     for (NSString *identifier in VibeShortcutIdentifiers()) {
-        if ([identifier isEqualToString:excluding]) {
+        if (excluding && [identifier isEqualToString:excluding]) {
             continue;
         }
         VibeShortcut owned = VibeShortcutEffective(identifier, overrides);
@@ -239,6 +239,23 @@ static inline NSString *_Nullable VibeShortcutOwner(VibeShortcut shortcut, unich
         }
     }
     return nil;
+}
+
+// The command a press performs, nil to pass it on. Under Command a layout's
+// ⌘ layer (Dvorak – QWERTY ⌘, Greek) types the Latin letter the menu bar
+// matches while Option bends it (⌥⌘S types ß), so the press is tried as what
+// it typed, 0 without ⌘, and as what it types unmodified. A key-code binding
+// can land on a reserved shortcut after a layout switch; the system's wins.
+static inline NSString *_Nullable VibeShortcutCommandForPress(unsigned short keyCode,
+        NSEventModifierFlags modifiers, unichar typed, unichar unmodified, NSDictionary *_Nullable overrides) {
+    keyCode = VibeShortcutCanonicalKeyCode(keyCode);
+    modifiers &= kVibeShortcutModifierMask;
+    if (VibeShortcutIsReserved(keyCode, typed, modifiers) || VibeShortcutIsReserved(keyCode, unmodified, modifiers)) {
+        return nil;
+    }
+    VibeShortcut pressed = VibeShortcutMake(keyCode, modifiers);
+    NSString *owner = typed != 0 && typed != unmodified ? VibeShortcutOwner(pressed, typed, overrides, nil) : nil;
+    return owner ?: VibeShortcutOwner(pressed, unmodified, overrides, nil);
 }
 
 // What the overrides hold for identifier: nil at its default, so the store

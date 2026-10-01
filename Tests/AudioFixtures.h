@@ -185,17 +185,23 @@ static inline NSURL *VibeWriteSowtAIFF(NSURL *url, NSData *samples, double rate,
     return [aiff writeToURL:url atomically:YES] ? url : nil;
 }
 
-// Writes `buffer` as the container its name says — WAV, or AIFC for .aif —
-// in the buffer's own sample format, interleaved, with its channel layout.
+// Writes `buffer` as the container its name says — WAV, AIFC for .aif, W64
+// for .w64, CAF for .caf — in the buffer's own sample format, interleaved,
+// with its channel layout.
 static inline NSURL *VibeWriteFixture(NSURL *url, AVAudioPCMBuffer *buffer, NSError **error) {
     AVAudioFormat *format = buffer.format;
-    BOOL aiff = [url.pathExtension.lowercaseString hasPrefix:@"aif"];
+    NSString *extension = url.pathExtension.lowercaseString;
+    BOOL aiff = [extension hasPrefix:@"aif"];
+    AudioFileTypeID type = aiff ? kAudioFileAIFCType
+            : [extension isEqualToString:@"w64"] ? kAudioFileWave64Type
+            : [extension isEqualToString:@"caf"] ? kAudioFileCAFType
+            : kAudioFileWAVEType;
     AudioStreamBasicDescription file = *format.streamDescription;
     file.mFormatFlags = (file.mFormatFlags & ~(UInt32)kAudioFormatFlagIsNonInterleaved) | (aiff ? kAudioFormatFlagIsBigEndian : 0);
     file.mBytesPerFrame = file.mBitsPerChannel / 8 * file.mChannelsPerFrame;
     file.mBytesPerPacket = file.mBytesPerFrame;
     AVAudioFormat *fileFormat = [[AVAudioFormat alloc] initWithStreamDescription:&file channelLayout:format.channelLayout];
-    AudioFileHandle *handle = [[AudioFileHandle alloc] initForWriting:url fileType:aiff ? kAudioFileAIFCType : kAudioFileWAVEType
+    AudioFileHandle *handle = [[AudioFileHandle alloc] initForWriting:url fileType:type
                                                            fileFormat:fileFormat processingFormat:format error:error];
     if (![handle writeFromBuffer:buffer error:error] || ![handle closeWithError:error]) {
         return nil;

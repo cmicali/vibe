@@ -54,22 +54,28 @@ static const NSEventModifierFlags kCmd = NSEventModifierFlagCommand;
     return YES;
 }
 
-// characters is what the layout typed, which the monitor ignores for every
-// binding: only the key code matches.
-- (NSEvent *)key:(unsigned short)keyCode characters:(NSString *)characters type:(NSEventType)type
-            time:(NSTimeInterval)time repeat:(BOOL)repeat modifiers:(NSEventModifierFlags)modifiers {
+// typed is what the layout types under the modifiers, unmodified what it
+// types without them. A key-code binding matches by key code alone; only a
+// character default reads either.
+- (NSEvent *)key:(unsigned short)keyCode typed:(NSString *)typed unmodified:(NSString *)unmodified
+            type:(NSEventType)type time:(NSTimeInterval)time repeat:(BOOL)repeat
+       modifiers:(NSEventModifierFlags)modifiers {
     return [NSEvent keyEventWithType:type location:NSZeroPoint modifierFlags:modifiers
-                          timestamp:time windowNumber:0 context:nil characters:characters
-        charactersIgnoringModifiers:characters isARepeat:repeat keyCode:keyCode];
+                          timestamp:time windowNumber:0 context:nil characters:typed
+        charactersIgnoringModifiers:unmodified isARepeat:repeat keyCode:keyCode];
 }
 
-// A Command press: typed is what the layout's ⌘ layer types, unmodified what
-// it types without the modifiers.
+- (NSEvent *)key:(unsigned short)keyCode characters:(NSString *)characters type:(NSEventType)type
+            time:(NSTimeInterval)time repeat:(BOOL)repeat modifiers:(NSEventModifierFlags)modifiers {
+    return [self key:keyCode typed:characters unmodified:characters type:type time:time repeat:repeat
+           modifiers:modifiers];
+}
+
+// A Command press, down.
 - (NSEvent *)command:(unsigned short)keyCode typed:(NSString *)typed unmodified:(NSString *)unmodified
            modifiers:(NSEventModifierFlags)modifiers repeat:(BOOL)repeat {
-    return [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint modifierFlags:modifiers
-                          timestamp:10 windowNumber:0 context:nil characters:typed
-        charactersIgnoringModifiers:unmodified isARepeat:repeat keyCode:keyCode];
+    return [self key:keyCode typed:typed unmodified:unmodified type:NSEventTypeKeyDown time:10 repeat:repeat
+           modifiers:modifiers];
 }
 
 - (NSEvent *)down:(unsigned short)keyCode {

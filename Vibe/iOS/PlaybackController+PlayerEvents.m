@@ -202,11 +202,9 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     if (![_playlist advanceFromTrack:finishedTrack toTrack:startedTrack]) {
         [self audioPlayer:audioPlayer didFinishPlaying:finishedTrack];
         // Parked, the player still sounds the refused successor: reload the
-        // finished track paused over it, as the mac does, resting until
-        // didStartPlaying: lands.
+        // finished track paused over it, as the mac does.
         if (_parked) {
-            _trackStartPending = YES;
-            [_player play:finishedTrack atPosition:0 startPaused:YES];
+            [self openParkedTrack:finishedTrack atPosition:0];
             [self notifyDidChangePlayState];
             [self notifyDidTick];
         }

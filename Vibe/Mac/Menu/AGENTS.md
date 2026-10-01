@@ -14,7 +14,7 @@ There is no main nib. `MainMenuBuilder` is a stateless one-shot class method, ca
 
 **TRAP: bare key equivalents must set `keyEquivalentModifierMask = 0` explicitly**, since `NSMenuItem` defaults to Command; every helper takes the mask as a parameter.
 
-In the player window every remappable item's equivalent is **display and fallback only**: `TransportKeyMonitor` (`Mac/MainWindow/Transport/`) handles the presses, the bare keys because only it can tell a tap from a hold, and all of them so one path applies the repeat rule — AppKit repeats every key equivalent, so a held ⌘R would cycle the repeat mode. Anything but an effect it performs through `MainPlayerController.performMenuItem:`, which validates that item alone (a whole-menu `update` at key-repeat rate rebuilt every symbol image in the menu), so the item's validation applies. Elsewhere the menu bar performs them and the monitor only drops the repeats of a Command binding whose command does not repeat.
+In the player window every remappable item's equivalent is **display and fallback only**: `TransportKeyMonitor` (`Mac/MainWindow/Transport/`) handles the presses, the bare keys because only it can tell a tap from a hold, and all of them so one path applies the repeat rule — AppKit repeats every key equivalent, so a held ⌘R would cycle the repeat mode. Anything but an effect it performs through `MainPlayerController.performMenuItem:`, which runs the menu's validation pass first, so the item's validation applies; validation builds each symbol image once (`MenuSymbolImage`), since a held skip key runs it at key-repeat rate. Elsewhere the menu bar performs them and the monitor only drops the repeats of a Command binding whose command does not repeat.
 
 ## Edit
 

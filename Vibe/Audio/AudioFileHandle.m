@@ -449,7 +449,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     // some legal streams dr_flac plays: block sizes of 16 and 65535, rates
     // past 655 kHz, 32-bit samples.
     if (_descriptor >= 0 && ((formatID == kAudioFormatFLAC && [self openFLAC])
-                             || ([AudioFileHandle drWAVReadsContainer:_container] && [self openWAV]))) {
+                             || [self openWAV])) {
         return self;
     }
     const AudioStreamBasicDescription *client = _processingFormat.streamDescription;
@@ -582,7 +582,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 // read and failed parse; BW64 is not one. Its codings, which only its own
 // parse can tell (a WAVE_FORMAT_EXTENSIBLE's subformat, an AIFF-C's
 // compression type), decide whether it keeps the file.
-+ (BOOL)drWAVReadsContainer:(AudioFileTypeID)container {
+static BOOL VibeDrWAVReadsContainer(AudioFileTypeID container) {
     return container == kAudioFileWAVEType || container == kAudioFileWave64Type || container == kAudioFileRF64Type
             || container == kAudioFileAIFFType || container == kAudioFileAIFCType;
 }
@@ -599,6 +599,9 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
 // differently, is left to ExtAudioFile. dr_wav answers the length: the frames
 // the data holds, a COMM or fact count only when it is no more.
 - (BOOL)openWAV {
+    if (!VibeDrWAVReadsContainer(_container)) {
+        return NO;
+    }
     _streamCursor = 0;
     _streamReadFailed = NO;
     if (!drwav_init(&_wavState, VibeStreamRead, VibeWAVSeek, VibeStreamTell, (__bridge void *)self, NULL)) {

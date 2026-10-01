@@ -474,10 +474,13 @@ static void ApplyShortcut(NSMenuItem *item, VibeShortcut shortcut) {
     // its capital, another key its Shift layer's character; the special keys
     // keep the flag.
     if (modifiers & NSEventModifierFlagShift) {
-        NSString *shifted = ![equivalent.uppercaseString isEqualToString:equivalent.lowercaseString]
-                ? equivalent.uppercaseString
-                : VibeShortcutIsCharacter(shortcut) || SpecialKey(key) ? nil
-                : LayoutCharacters(shiftKey >> 8)[@(key)];
+        NSString *shifted = nil;
+        if (![equivalent.uppercaseString isEqualToString:equivalent.lowercaseString]) {
+            shifted = equivalent.uppercaseString;
+        }
+        else if (!VibeShortcutIsCharacter(shortcut) && !SpecialKey(key)) {
+            shifted = LayoutCharacters(shiftKey >> 8)[@(key)];
+        }
         if (shifted && ![shifted isEqualToString:equivalent]) {
             equivalent = shifted;
             modifiers &= ~NSEventModifierFlagShift;

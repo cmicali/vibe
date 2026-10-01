@@ -219,8 +219,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     // that set is.
     NSLayoutConstraint *_actionBarLeadingAfterPad;
     BOOL               _fxPadShown;
-    // What hiding the shuffle and repeat buttons zeroes; the setting is one
-    // of the two things that hide them (applyShuffleRepeatShown).
+    // What hiding the shuffle and repeat buttons zeroes (applyShuffleRepeatShown).
     NSLayoutConstraint *_shuffleWidth;
     NSLayoutConstraint *_outerGapWanted;
     NSLayoutConstraint *_outerGapMin;
@@ -784,7 +783,7 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
 // that build both. Over it a required constraint breaks every pass — a 320pt
 // window (Slide Over) in portrait, landscape under about 510pt. It reads the
 // bounds and the safe area, never the row's own layout, so it cannot feed
-// back. Hidden, a button also leaves the accessibility tree.
+// back.
 - (void)applyShuffleRepeatShown {
     CGFloat row = 3 * kTransportButtonSide
             + 2 * (kTransportFlankButtonSide + kTransportFlankMinGap + kTransportMinGap);

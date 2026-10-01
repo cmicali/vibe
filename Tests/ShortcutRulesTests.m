@@ -74,6 +74,19 @@ static NSString *CommandForKey(unsigned short keyCode, NSEventModifierFlags modi
     }
 }
 
+- (void)testAPressIsTriedAsTypedThenUnmodifiedAndAReservedOnePassesOn {
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(15, kCmd, 'r', 0x03C1, nil), kVibeMenuRepeat,
+                          @"Greek types ρ, and r under ⌘");
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(1, kCmd | kOption, 0x00DF, 's', nil), kVibeMenuShuffle,
+                          @"⌥⌘S types ß");
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(31, kCmd, 'o', 'r', nil), kVibeMenuOpen,
+                          @"Dvorak – QWERTY ⌘'s R key types o under ⌘");
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(0, 0, 0, 'a', nil), kVibeMenuSkipForward);
+    XCTAssertNil(VibeShortcutCommandForPress(12, kCmd, 'q', 'q', nil), @"⌘Q is the system's");
+    XCTAssertNil(VibeShortcutCommandForPress(12, kCmd, 'q', 0x03C2, nil), @"reserved under either form");
+    XCTAssertNil(VibeShortcutCommandForPress(126, 0, 0, 0, nil), @"an arrow is the table's");
+}
+
 - (void)testKeypadEnterAndForwardDeleteFoldIntoTheirTwins {
     XCTAssertEqualObjects(CommandForKey(76, 0, nil), kVibeMenuPlaySelected);
     XCTAssertEqualObjects(CommandForKey(117, 0, nil), kVibeMenuEditRemoveFromPlaylist);

@@ -34,7 +34,8 @@
 //
 //  A WAV, W64, RF64 or AIFF file is decoded by dr_wav the same way, when it
 //  holds a coding dr_wav decodes (ThirdParty/AGENTS.md lists them); no file
-//  of another container is offered it (drWAVReadsContainer:).
+//  of another container is offered it: WAVE (BWF among them), W64, RF64,
+//  AIFF and AIFF-C, as the parser names them.
 //
 
 #import <AVFAudio/AVFAudio.h>
@@ -74,10 +75,6 @@ NS_ASSUME_NONNULL_BEGIN
 // docs/audio-quality.md) or Apple's (YES). The mac's Settings > Advanced
 // chooses; iOS keeps the default. A handle keeps the decoder it opened with.
 @property (class, atomic) BOOL appleMPEGDecoder;
-// Whether dr_wav is tried on a file whose parser names `container`
-// (kAudioFilePropertyFileFormat): WAVE, BWF among them, W64, RF64, AIFF and
-// AIFF-C. Within those it keeps only the codings it decodes.
-+ (BOOL)drWAVReadsContainer:(AudioFileTypeID)container;
 // "dr_mp3", "dr_flac", "dr_wav" or "apple", for the audio-path report.
 @property (nonatomic, readonly) NSString *decoderName;
 // YES for an MPEG file opened under the other appleMPEGDecoder choice than

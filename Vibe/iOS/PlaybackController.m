@@ -562,9 +562,8 @@ static const NSUInteger kUIUpdateHz = 3;
     if (_parked) {
         // Holds the waveform on the target through the open. A second seek
         // rebinds the same-file request rather than opening again.
-        _trackStartPending = YES;
+        [self openParkedTrack:track atPosition:track.duration * progress];
         [self notifyDidChangePlayState];
-        [_player play:track atPosition:track.duration * progress startPaused:YES];
         return;
     }
     [_player seekToPosition:track.duration * progress];
@@ -611,6 +610,12 @@ static const NSUInteger kUIUpdateHz = 3;
     }
     // Never around successorPrefetchTrack: it holds On track end = Pause.
     [_player prefetchTrack:self.successorPrefetchTrack];
+}
+
+- (void)openParkedTrack:(AudioTrack *)track atPosition:(NSTimeInterval)position {
+    _parked = YES;
+    _trackStartPending = YES;
+    [_player play:track atPosition:position startPaused:YES];
 }
 
 - (void)teardownDownloadMonitor {
@@ -974,11 +979,7 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
         // A restore may have replaced the row without a play; it owns its
         // parked state, and this older reset must not open its file.
         if (resetTrack && track == resetTrack) {
-            strongSelf->_parked = YES;
-            strongSelf->_trackStartPending = YES;
-            [strongSelf->_player play:resetTrack
-                           atPosition:position
-                          startPaused:YES];
+            [strongSelf openParkedTrack:resetTrack atPosition:position];
         }
         else if (!track) {
             strongSelf->_parked = NO;

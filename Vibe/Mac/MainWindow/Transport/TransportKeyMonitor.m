@@ -199,20 +199,11 @@ static BOOL VibeIsPlaylistKey(unsigned short keyCode, NSEventModifierFlags modif
     if (playerWindow && !((MainWindow *)controller.window).isPlaylistShown && VibeIsPlaylistKey(keyCode, mods)) {
         return nil;
     }
-    // Under Command a layout's ⌘ layer (Dvorak – QWERTY ⌘, Greek) types the
-    // Latin letter the menu bar matches, while Option bends it (⌥⌘S types ß),
-    // so a character is tried in both forms.
+    // A reserved press passes on too: the arrows are the table's own
+    // moveUp:/moveDown:.
     unichar typed = (mods & NSEventModifierFlagCommand) ? VibeLowercaseCharacter(event.characters) : 0;
-    unichar unmodified = VibeLowercaseCharacter(event.charactersIgnoringModifiers);
-    // A key-code binding can land on a fixed system shortcut after a layout
-    // switch; the system shortcut wins.
-    if (VibeShortcutIsReserved(keyCode, typed, mods) || VibeShortcutIsReserved(keyCode, unmodified, mods)) {
-        return event;   // the arrows are the table's own moveUp:/moveDown:
-    }
-    NSDictionary *overrides = AppSettings.sharedInstance.shortcutOverrides;
-    VibeShortcut pressed = VibeShortcutMake(keyCode, mods);
-    NSString *command = VibeShortcutOwner(pressed, typed, overrides, nil)
-            ?: VibeShortcutOwner(pressed, unmodified, overrides, nil);
+    NSString *command = VibeShortcutCommandForPress(keyCode, mods, typed,
+            VibeLowercaseCharacter(event.charactersIgnoringModifiers), AppSettings.sharedInstance.shortcutOverrides);
     if (!command) {
         return event;
     }

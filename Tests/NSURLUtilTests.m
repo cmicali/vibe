@@ -445,14 +445,12 @@ static NSString *const kTwoTrackSheet =
     NSUInteger folderNumber = 0;
     for (NSArray<NSString *> *rung in rungs) {
         for (NSArray<NSString *> *spelling in spellings) {
-            NSURL *folder = [self makeDirectory:[NSString stringWithFormat:@"rung%lu",
-                                                 (unsigned long)folderNumber++]];
+            NSString *folderName = [NSString stringWithFormat:@"rung%lu", (unsigned long)folderNumber++];
+            NSURL *folder = [self makeDirectory:folderName];
             [self makeFileSpelledExactly:[folder.path stringByAppendingFormat:@"/%@.flac", spelling[2]]];
             NSString *entry = [NSString stringWithFormat:rung[1], spelling[1]];
-            [[[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac" withString:entry]
-                    dataUsingEncoding:NSUTF8StringEncoding]
-                    writeToURL:[folder URLByAppendingPathComponent:[NSString stringWithFormat:rung[2], spelling[1]]]
-                    atomically:YES];
+            [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac" withString:entry]
+                        at:[folderName stringByAppendingPathComponent:[NSString stringWithFormat:rung[2], spelling[1]]]];
             NSString *listed = nil;
             for (NSURL *url in [NSFileManager.defaultManager contentsOfDirectoryAtURL:folder
                                                            includingPropertiesForKeys:nil
