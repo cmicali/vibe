@@ -375,7 +375,6 @@ static void VibeConfigureTimeLabel(UILabel *label) {
             [_artCardView.trailingAnchor constraintEqualToAnchor:_artCard.trailingAnchor],
             [_artCard.widthAnchor constraintEqualToAnchor:_artCard.heightAnchor],
 
-            [_transportView.centerXAnchor constraintEqualToAnchor:content.centerXAnchor],
             [_transportView.heightAnchor constraintEqualToConstant:kTransportButtonSide],
             [_routeView.heightAnchor constraintEqualToConstant:44],
             [_routeView.centerYAnchor constraintEqualToAnchor:_actionBar.centerYAnchor],
@@ -581,6 +580,7 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
 
         [_transportView.bottomAnchor constraintEqualToAnchor:_actionBar.topAnchor
                                                     constant:-kCellActionBarTransportGap],
+        [_transportView.centerXAnchor constraintEqualToAnchor:content.centerXAnchor],
         [_transportView.leadingAnchor constraintGreaterThanOrEqualToAnchor:safe.leadingAnchor
                                                                   constant:kTransportEdgeInset],
         [_waveformView.bottomAnchor constraintEqualToAnchor:_transportView.topAnchor
@@ -614,6 +614,11 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
     // back to the edge inset.
     UILayoutGuide *column = [[UILayoutGuide alloc] init];
     [content addLayoutGuide:column];
+    // The row centers between the pad and the route pill, not on the screen:
+    // the pill grows with a device name, so the screen's center sits off the
+    // middle of the space the row has.
+    UILayoutGuide *betweenPills = [[UILayoutGuide alloc] init];
+    [content addLayoutGuide:betweenPills];
     NSLayoutConstraint *columnLeading = [column.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor];
     columnLeading.priority = UILayoutPriorityDefaultHigh;
     NSLayoutConstraint *columnTrailing = [column.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor];
@@ -677,6 +682,9 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
         [_transportView.centerYAnchor constraintEqualToAnchor:_actionBar.centerYAnchor],
         [_transportView.leadingAnchor constraintGreaterThanOrEqualToAnchor:_fxPadView.trailingAnchor
                                                                   constant:kCellActionBarGap],
+        [betweenPills.leadingAnchor constraintEqualToAnchor:_fxPadView.trailingAnchor],
+        [betweenPills.trailingAnchor constraintEqualToAnchor:_actionBar.leadingAnchor],
+        [_transportView.centerXAnchor constraintEqualToAnchor:betweenPills.centerXAnchor],
 
         [middle.topAnchor constraintEqualToAnchor:_artCard.bottomAnchor],
         [middle.bottomAnchor constraintEqualToAnchor:_transportView.topAnchor],
