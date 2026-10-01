@@ -61,6 +61,7 @@
     for (NSUInteger index = 0; index < _playlist.count; index++) {
         AudioTrack *track = [_playlist trackAtIndex:index];
         AudioTrackMetadata *metadata = track.metadata;
+        TrackPageCell *cell = [self cellAtIndex:index];
         [pages addObject:@{
             @"index": @(index),
             @"title": track.displayTitle ?: @"",
@@ -69,7 +70,9 @@
             @"needsLoad": @(metadata.artNeedsLoad),
             @"loading": @(metadata.artLoadPending),
             @"inWindow": @(NSLocationInRange(index, window)),
-            @"cellUp": @([self cellAtIndex:index] != nil),
+            @"cellUp": @(cell != nil),
+            // A page not current must rest at 0 (Player/AGENTS.md).
+            @"waveformProgress": cell ? @(cell.waveformView.progress) : [NSNull null],
         }];
     }
     NSMutableArray<NSNumber *> *held = [NSMutableArray array];

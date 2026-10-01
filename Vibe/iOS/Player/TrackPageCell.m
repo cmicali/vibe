@@ -38,8 +38,6 @@ static const CGFloat kCellActionBarGap = 12;
 // a long device name truncates.
 static const CGFloat kCellActionBarContentInset = 16;
 static const CGFloat kCellActionBarTransportGap = 16;
-// The pad grows toward the safe edges and stops this short of them.
-static const CGFloat kCellFXPadMargin = 16;
 // A tint, not a live-blurring effect view: the backdrop never changes.
 static const CGFloat kCellActionBarFillAlpha = 0.12;
 
@@ -731,13 +729,6 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     [self applyLayoutForBounds:self.bounds];
     [self updateHeaderMetrics];
     [super layoutSubviews];
-    // The room the pad may grow into from its circle's corner: to the safe
-    // trailing edge and up to the safe top, a margin short.
-    UIView *content = self.contentView;
-    CGRect safe = UIEdgeInsetsInsetRect(content.bounds, content.safeAreaInsets);
-    CGRect pad = _fxPadView.frame;
-    _fxPadView.padExtent = CGSizeMake(CGRectGetMaxX(safe) - kCellFXPadMargin - CGRectGetMinX(pad),
-                                      CGRectGetMaxY(pad) - CGRectGetMinY(safe) - kCellFXPadMargin);
     // The default 1 draws the cached glyphs soft.
     CGFloat scale = self.traitCollection.displayScale;
     _previousButton.layer.rasterizationScale = scale;

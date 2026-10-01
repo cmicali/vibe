@@ -8,8 +8,10 @@
 #import "AudioFXMath.h"
 #import "VibeStrings.h"
 
-// The pad's side at most; the cell's extent caps it on a small window.
+// The pad's side at most; the extent caps it on a small window.
 static const CGFloat kFXPadSide = 260;
+// How far short of the superview's safe edges the pad stops growing.
+static const CGFloat kFXPadMargin = 16;
 static const CGFloat kFXPadCornerRadius = 20;
 // The pill's and the captions' weight at rest, the route control's own.
 static const CGFloat kFXPadRestingAlpha = 0.6;
@@ -145,10 +147,25 @@ static const NSTimeInterval kFXPadCollapseDuration = 0.18;
 
 #pragma mark - The pad's geometry
 
+// The room to grow into from the circle's bottom-left corner: to the safe
+// trailing edge and up to the safe top. TRAP: measured when asked, never
+// stored — see Player/AGENTS.md. In the superview's space.
+- (CGSize)padExtent {
+    UIView *host = self.superview;
+    if (!host) {
+        return CGSizeZero;
+    }
+    CGRect safe = host.safeAreaLayoutGuide.layoutFrame;
+    CGRect circle = self.frame;
+    return CGSizeMake(CGRectGetMaxX(safe) - kFXPadMargin - CGRectGetMinX(circle),
+                      CGRectGetMaxY(circle) - CGRectGetMinY(safe) - kFXPadMargin);
+}
+
 // The square, from the circle's bottom-left corner up and to the right,
-// capped by the cell's extent. In this view's coordinates, y down.
+// capped by the extent. In this view's coordinates, y down.
 - (CGRect)padFrameForBounds:(CGRect)bounds {
-    CGFloat side = MIN(kFXPadSide, MIN(_padExtent.width, _padExtent.height));
+    CGSize extent = [self padExtent];
+    CGFloat side = MIN(kFXPadSide, MIN(extent.width, extent.height));
     side = MAX(side, bounds.size.height);
     return CGRectMake(CGRectGetMinX(bounds), CGRectGetMaxY(bounds) - side, side, side);
 }

@@ -145,6 +145,9 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
         [self bindChromeToCell:page];
     }
     else {
+        // Rest at the start, as the labels do: committing a page plays from
+        // the top (Player/AGENTS.md).
+        page.waveformView.progress = 0;
         [PlayerViewController renderRestingTimesForTrack:[_playlist trackAtIndex:index]
                                                  elapsed:page.elapsedLabel
                                                remaining:page.remainingTimeControl];
