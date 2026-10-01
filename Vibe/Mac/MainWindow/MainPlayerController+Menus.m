@@ -31,14 +31,28 @@
     if (item.hasSubmenu) {
         return NO;
     }
-    [item.menu update]; // the validation pass opening the menu would run
-    return item.isEnabled && item.action
+    // The validation opening the menu would run, for this item alone: a
+    // held skip key asks at key-repeat rate, and a whole-menu update rebuilds
+    // every other item's symbol image each time.
+    if (item.menu.autoenablesItems) {
+        id target = [NSApp targetForAction:item.action to:item.target from:item];
+        item.enabled = [target respondsToSelector:@selector(validateMenuItem:)]
+                ? [target validateMenuItem:item]
+                : [target respondsToSelector:@selector(validateUserInterfaceItem:)]
+                ? [target validateUserInterfaceItem:item]
+                : target != nil;
+    }
+    return item.isEnabled && !item.isHiddenOrHasHiddenAncestor && item.action
             && [NSApp sendAction:item.action to:item.target from:item];
 }
 
 - (BOOL)performMenuCommandWithIdentifier:(NSString *)identifier {
     NSMenuItem *item = [MainMenuBuilder mainMenuItemWithIdentifier:identifier];
-    return item && [self performMenuItem:item];
+    if (!item) {
+        return NO;
+    }
+    [self performMenuItem:item];
+    return !item.isHiddenOrHasHiddenAncestor; // after validation, which hides Convert's
 }
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {

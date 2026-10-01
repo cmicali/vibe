@@ -14,6 +14,12 @@
 
 static const NSEventModifierFlags kCmd = NSEventModifierFlagCommand;
 static const NSEventModifierFlags kShift = NSEventModifierFlagShift;
+static const NSEventModifierFlags kOption = NSEventModifierFlagOption;
+
+// The command a key-code press performs, typing no character.
+static NSString *CommandForKey(unsigned short keyCode, NSEventModifierFlags modifiers, NSDictionary *overrides) {
+    return VibeShortcutOwner(VibeShortcutMake(keyCode, modifiers), 0, overrides, nil);
+}
 
 - (void)testDefaultsAreDistinctAndMatchTheBareKeysByPhysicalKey {
     NSMutableSet<NSNumber *> *seen = [NSMutableSet set];
@@ -32,28 +38,51 @@ static const NSEventModifierFlags kShift = NSEventModifierFlagShift;
                                                   VibeShortcutModifiers(shortcut)), @"%@", identifier);
         }
     }
-    XCTAssertEqualObjects(VibeShortcutCommandForKey(0, 0, nil), kVibeMenuSkipForward);
-    XCTAssertEqualObjects(VibeShortcutCommandForKey(12, 0, nil), kVibeMenuFXLowKill);
-    XCTAssertEqualObjects(VibeShortcutCommandForKey(49, 0, nil), kVibeMenuPlay);
+    XCTAssertEqualObjects(CommandForKey(0, 0, nil), kVibeMenuSkipForward);
+    XCTAssertEqualObjects(CommandForKey(12, 0, nil), kVibeMenuFXLowKill);
+    XCTAssertEqualObjects(CommandForKey(49, 0, nil), kVibeMenuPlay);
     // Shift, or any modifier, is a different shortcut.
-    XCTAssertNil(VibeShortcutCommandForKey(0, kShift, nil));
+    XCTAssertNil(CommandForKey(0, kShift, nil));
     // Caps Lock and the function flag are not part of a shortcut.
-    XCTAssertEqualObjects(VibeShortcutCommandForKey(0, NSEventModifierFlagCapsLock | NSEventModifierFlagFunction, nil),
+    XCTAssertEqualObjects(CommandForKey(0, NSEventModifierFlagCapsLock | NSEventModifierFlagFunction, nil),
                           kVibeMenuSkipForward);
-    // Character defaults belong to the menu bar alone.
-    XCTAssertNil(VibeShortcutCommandForKey(31, kCmd, nil));
+    // Character defaults match by character, never by key code.
+    XCTAssertNil(CommandForKey(31, kCmd, nil));
     XCTAssertTrue(VibeShortcutIsCharacter(VibeShortcutDefault(kVibeMenuOpen)));
 }
 
-- (void)testKeypadEnterAndForwardDeleteFoldIntoTheirTwins {
-    XCTAssertEqualObjects(VibeShortcutCommandForKey(76, 0, nil), kVibeMenuPlaySelected);
-    XCTAssertEqualObjects(VibeShortcutCommandForKey(117, 0, nil), kVibeMenuEditRemoveFromPlaylist);
-    NSDictionary *overrides = VibeShortcutOverridesByAssigning(nil, kVibeMenuPlay, VibeShortcutMake(76, kCmd), 0, NULL);
-    XCTAssertEqualObjects(overrides[kVibeMenuPlay], @(VibeShortcutMake(36, kCmd)));
-    XCTAssertEqualObjects(VibeShortcutCommandForKey(36, kCmd, overrides), kVibeMenuPlay);
+// What a held ⌘R would cycle through: the character defaults match the
+// letter on any key and only with their own modifiers, and none repeats.
+- (void)testCharacterDefaultsMatchTheirLetterWithTheirExactModifiers {
+    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutMake(15, kCmd), 'r', nil, nil), kVibeMenuRepeat);
+    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutMake(35, kCmd), 'r', nil, nil), kVibeMenuRepeat,
+                          @"Dvorak's R is QWERTY's P");
+    XCTAssertNil(VibeShortcutOwner(VibeShortcutMake(15, kCmd), 'p', nil, nil));
+    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutMake(1, kCmd | kOption), 's', nil, nil), kVibeMenuShuffle);
+    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutMake(1, kCmd), 's', nil, nil), kVibeMenuSavePlaylist);
+    // Shift is part of the set, against every character default.
+    XCTAssertNil(VibeShortcutOwner(VibeShortcutMake(1, kCmd | kShift), 's', nil, nil));
+    XCTAssertNil(VibeShortcutOwner(VibeShortcutMake(1, kCmd | kOption | kShift), 's', nil, nil));
+    XCTAssertNil(VibeShortcutOwner(VibeShortcutMake(15, kCmd | kShift), 'r', nil, nil));
+    XCTAssertNil(VibeShortcutOwner(VibeShortcutMake(31, kCmd | kShift), 'o', nil, nil));
+    XCTAssertNil(VibeShortcutOwner(VibeShortcutMake(8, kShift), 'c', nil, nil));
+    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutMake(15, 0), 'r', nil, nil), kVibeMenuFXDelay,
+                          @"bare R is the delay's key code, not Repeat");
+    for (NSString *identifier in @[kVibeMenuRepeat, kVibeMenuShuffle, kVibeMenuOpen, kVibeMenuSavePlaylist,
+                                   kVibeMenuEditCopyName]) {
+        XCTAssertFalse(VibeShortcutCommandRepeats(identifier), @"%@", identifier);
+    }
 }
 
-- (void)testReservedShortcutsAreTheSystemOnesTheArrowsAndEscape {
+- (void)testKeypadEnterAndForwardDeleteFoldIntoTheirTwins {
+    XCTAssertEqualObjects(CommandForKey(76, 0, nil), kVibeMenuPlaySelected);
+    XCTAssertEqualObjects(CommandForKey(117, 0, nil), kVibeMenuEditRemoveFromPlaylist);
+    NSDictionary *overrides = VibeShortcutOverridesByAssigning(nil, kVibeMenuPlay, VibeShortcutMake(76, kCmd), 0, NULL);
+    XCTAssertEqualObjects(overrides[kVibeMenuPlay], @(VibeShortcutMake(36, kCmd)));
+    XCTAssertEqualObjects(CommandForKey(36, kCmd, overrides), kVibeMenuPlay);
+}
+
+- (void)testReservedShortcutsAreTheSystemOnesTheArrowsEscapeAndTheKeypad {
     for (NSString *key in @[@",", @"h", @"q", @"w", @"z", @"c", @"a"]) {
         XCTAssertTrue(VibeShortcutIsReserved(0, [key characterAtIndex:0], kCmd), @"⌘%@", key);
     }
@@ -61,17 +90,19 @@ static const NSEventModifierFlags kShift = NSEventModifierFlagShift;
     XCTAssertTrue(VibeShortcutIsReserved(6, 'z', kCmd | kShift));
     XCTAssertTrue(VibeShortcutIsReserved(125, 0, kShift));
     XCTAssertTrue(VibeShortcutIsReserved(53, 0, 0));
+    XCTAssertTrue(VibeShortcutIsReserved(123, 0, kCmd));
     XCTAssertTrue(VibeShortcutIsReserved(83, '1', 0), @"keypad digits");
+    XCTAssertTrue(VibeShortcutIsReserved(67, '*', kOption), @"keypad operators");
+    XCTAssertTrue(VibeShortcutIsReserved(65, '.', 0), @"keypad decimal");
+    XCTAssertTrue(VibeShortcutIsReserved(71, 0, 0), @"keypad Clear");
+    XCTAssertFalse(VibeShortcutIsReserved(18, '1', 0), @"the top row's 1");
     XCTAssertFalse(VibeShortcutIsReserved(76, 0, 0), @"keypad Enter is Return");
+    XCTAssertFalse(VibeShortcutIsKeypadKey(76));
     // Only the exact combination is reserved, matched by character.
     XCTAssertFalse(VibeShortcutIsReserved(12, 'q', 0));
     XCTAssertFalse(VibeShortcutIsReserved(12, 'q', kCmd | kShift));
     XCTAssertFalse(VibeShortcutIsReserved(0, 0x0444, kCmd), @"a Cyrillic ⌘ф is free");
-#if VIBE_VERBOSE_LOGGING
-    XCTAssertTrue(VibeShortcutIsReserved(46, 0, 0), @"the beta marker's physical M");
-#else
-    XCTAssertFalse(VibeShortcutIsReserved(46, 0, 0));
-#endif
+    XCTAssertFalse(VibeShortcutIsReserved(46, 'm', 0), @"M is an ordinary key");
 }
 
 - (void)testAssigningTakesTheShortcutFromItsOwnerAndStaysSparse {
@@ -81,13 +112,13 @@ static const NSEventModifierFlags kShift = NSEventModifierFlagShift;
             VibeShortcutMake(40, 0), 'k', &loser);
     XCTAssertNil(loser);
     XCTAssertEqualObjects(overrides, @{kVibeMenuSkipForward: @(VibeShortcutMake(40, 0))});
-    XCTAssertNil(VibeShortcutCommandForKey(0, 0, overrides), @"A is now free");
+    XCTAssertNil(CommandForKey(0, 0, overrides), @"A is now free");
 
     // Taking N from Next leaves Next unassigned, stored as None over its default.
     overrides = VibeShortcutOverridesByAssigning(overrides, kVibeMenuPlay, VibeShortcutMake(45, 0), 'n', &loser);
     XCTAssertEqualObjects(loser, kVibeMenuNextTrack);
     XCTAssertEqual(VibeShortcutEffective(kVibeMenuNextTrack, overrides), kVibeShortcutNone);
-    XCTAssertEqualObjects(VibeShortcutCommandForKey(45, 0, overrides), kVibeMenuPlay);
+    XCTAssertEqualObjects(CommandForKey(45, 0, overrides), kVibeMenuPlay);
 
     // Skip Forward loses K in turn, and stays unassigned rather than reverting to A.
     overrides = VibeShortcutOverridesByAssigning(overrides, kVibeMenuNextTrack, VibeShortcutMake(40, 0), 'k', &loser);
@@ -121,6 +152,33 @@ static const NSEventModifierFlags kShift = NSEventModifierFlagShift;
     XCTAssertNil(VibeShortcutOwner(VibeShortcutMake(31, kCmd), 0, nil, nil));
 }
 
+- (void)testOnlyAKeyCodeWithModifiersOrNoneIsStorable {
+    XCTAssertTrue(VibeShortcutIsStorable(@(kVibeShortcutNone)));
+    XCTAssertTrue(VibeShortcutIsStorable(@(VibeShortcutMake(40, kCmd | kShift | kOption | NSEventModifierFlagControl))));
+    XCTAssertTrue(VibeShortcutIsStorable(@(VibeShortcutMake(0, 0))));
+    XCTAssertFalse(VibeShortcutIsStorable(@(kVibeShortcutNone | kCmd)), @"None takes no modifiers");
+    XCTAssertFalse(VibeShortcutIsStorable(@(VibeShortcutMakeCharacter('o', kCmd))));
+    XCTAssertFalse(VibeShortcutIsStorable(@(VibeShortcutMake(40, 0) | NSEventModifierFlagCapsLock)));
+    XCTAssertFalse(VibeShortcutIsStorable(@(-1)));
+    XCTAssertFalse(VibeShortcutIsStorable(@(-40)));
+    XCTAssertFalse(VibeShortcutIsStorable(nil));
+    XCTAssertFalse(VibeShortcutIsStorable(@"40"));
+    XCTAssertFalse(VibeShortcutIsStorable(@[@40]));
+    XCTAssertFalse(VibeShortcutIsStorable(NSNull.null));
+}
+
+// Not a remappable command: nothing is stored, and no command loses its key.
+- (void)testAssigningAnIdentifierOutsideTheTableChangesNothing {
+    NSDictionary *stored = @{kVibeMenuSkipForward: @(VibeShortcutMake(40, 0))};
+    NSString *loser = @"stale";
+    NSDictionary *overrides = VibeShortcutOverridesByAssigning(stored, @"menu_gone", VibeShortcutMake(40, 0), 'k', &loser);
+    XCTAssertNil(loser);
+    XCTAssertEqualObjects(overrides, stored);
+    overrides = VibeShortcutOverridesByAssigning(nil, @"menu_gone", VibeShortcutMake(31, kCmd), 'o', &loser);
+    XCTAssertNil(loser);
+    XCTAssertEqualObjects(overrides, @{}, @"Open keeps ⌘O");
+}
+
 - (void)testMalformedOrForeignStoredValuesReadAsDefaultsAndAreDropped {
     NSDictionary *stored = @{
         kVibeMenuPlay: @"space",
@@ -137,7 +195,7 @@ static const NSEventModifierFlags kShift = NSEventModifierFlagShift;
 
 - (void)testADuplicateResolvesToTheFirstCommandInTableOrder {
     NSDictionary *stored = @{kVibeMenuShowPitch: @(VibeShortcutMake(49, 0))}; // Space, as Play's default
-    XCTAssertEqualObjects(VibeShortcutCommandForKey(49, 0, stored), kVibeMenuPlay);
+    XCTAssertEqualObjects(CommandForKey(49, 0, stored), kVibeMenuPlay);
 }
 
 - (void)testOnlyTheSkipsAndTrackStepsRepeat {

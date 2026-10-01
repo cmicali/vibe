@@ -36,11 +36,12 @@
     unichar character = 0;
     if (shortcut != kVibeShortcutNone) {
         unsigned short keyCode = VibeShortcutCanonicalKeyCode(VibeShortcutKey(shortcut));
-        character = [MainMenuBuilder characterForKeyCode:keyCode];
-        if (VibeShortcutIsReserved(keyCode, character, VibeShortcutModifiers(shortcut))) {
+        NSEventModifierFlags modifiers = VibeShortcutModifiers(shortcut);
+        character = [MainMenuBuilder characterForKeyCode:keyCode modifiers:modifiers];
+        if (VibeShortcutIsReserved(keyCode, character, modifiers)) {
             return VibeShortcutAssignmentReserved;
         }
-        if (![MainMenuBuilder labelForKeyCode:keyCode]) {
+        if (![MainMenuBuilder labelForKeyCode:keyCode modifiers:modifiers]) {
             return VibeShortcutAssignmentUnusable;
         }
     }

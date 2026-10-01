@@ -302,6 +302,9 @@ NSString *VibeClickMenuItem(MainPlayerController *controller, NSString *name) {
         if (item.hasSubmenu) {
             return VibeErrorJSON(@"menu item '%@' opens a submenu; click one of its items", item.title);
         }
+        if (item.isHiddenOrHasHiddenAncestor) {
+            return VibeErrorJSON(@"menu item '%@' is hidden", item.title);
+        }
         return item.isEnabled
                 ? VibeErrorJSON(@"no responder handled %@", NSStringFromSelector(item.action))
                 : VibeErrorJSON(@"menu item '%@' is disabled", item.title);

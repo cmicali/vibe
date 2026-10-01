@@ -65,6 +65,18 @@ static NSString *const kVibeMenuFXReverb = @"menu_fx_reverb";
 static NSString *const kVibeMenuFXDelay = @"menu_fx_delay";
 static NSString *const kVibeMenuFXShortDelay = @"menu_fx_short_delay";
 
+// The five effects in the FX menu's order, which the key monitor indexes its
+// per-effect state by.
+static inline NSArray<NSString *> *VibeFXMenuIdentifiers(void) {
+    static NSArray<NSString *> *identifiers;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        identifiers = @[kVibeMenuFXLowKill, kVibeMenuFXLowKillBoost, kVibeMenuFXReverb,
+                        kVibeMenuFXDelay, kVibeMenuFXShortDelay];
+    });
+    return identifiers;
+}
+
 static NSString *const kVibeMenuPitchRange8 = @"pitch_range_8";
 static NSString *const kVibeMenuPitchRange16 = @"pitch_range_16";
 
@@ -153,11 +165,7 @@ static inline VibeMenuValidationDomain VibeMenuValidationDomainForIdentifier(NSS
             || [identifier isEqualToString:kVibeMenuSkipBackMost]) {
         return VibeMenuValidationDomainTransport;
     }
-    if ([identifier isEqualToString:kVibeMenuFXLowKill]
-            || [identifier isEqualToString:kVibeMenuFXLowKillBoost]
-            || [identifier isEqualToString:kVibeMenuFXReverb]
-            || [identifier isEqualToString:kVibeMenuFXDelay]
-            || [identifier isEqualToString:kVibeMenuFXShortDelay]) {
+    if ([VibeFXMenuIdentifiers() containsObject:identifier]) {
         return VibeMenuValidationDomainFX;
     }
     if ([identifier isEqualToString:kVibeMenuPitchRange8]
