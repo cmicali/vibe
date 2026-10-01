@@ -6,6 +6,7 @@
 #import "PlaybackController+NowPlaying.h"
 #import "PlaybackControllerInternal.h"
 
+#import "AppSettings.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+Recovery.h"
 #import "AudioTrack.h"
@@ -92,6 +93,16 @@ static UIImage *VibeNowPlayingPlaceholderArt(void) {
 
 - (void)nowPlayingController:(NowPlayingController *)controller seekToPosition:(NSTimeInterval)position {
     [self seekToPosition:position];
+}
+
+- (void)nowPlayingController:(NowPlayingController *)controller setShuffleEnabled:(BOOL)enabled {
+    AppSettings.sharedInstance.shuffleEnabled = enabled;
+    [self applyTrackTransitionSettings];
+}
+
+- (void)nowPlayingController:(NowPlayingController *)controller setRepeatMode:(VibeRepeatMode)mode {
+    AppSettings.sharedInstance.repeatMode = mode;
+    [self applyTrackTransitionSettings];
 }
 
 @end

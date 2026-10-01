@@ -19,7 +19,7 @@ Tags, their disk cache, the playlist scan and embedded artwork. `FolderArt/` —
 
 A loader snapshots `AudioLoadingConfiguration`; a settings change reaches only later loaders.
 
-**Pending misses are app-owned records picked one at a time, never sorted** (`MetadataScanOrderRules.h`, tested): already-local first, then untried before deferred, then neighborhood rank, then playlist index. A real playlist holds more than 100,000 misses, so a track change replaces only the small locked neighborhood snapshot and enqueues a coalesced kick. Each shell sends that snapshot from its one current-index funnel through `setNeighborhoodAroundIndex:inTracks:`, which reads three rows and takes the playlist as `id<AudioTrackIndexedSource>` — not an array, because the mac getter's defensive copy cost one retain per track on every play.
+**Pending misses are app-owned records picked one at a time, never sorted** (`MetadataScanOrderRules.h`, tested): already-local first, then untried before deferred, then neighborhood rank, then playlist index. A real playlist holds more than 100,000 misses, so a track change replaces only the small locked neighborhood snapshot and enqueues a coalesced kick. Each shell sends that snapshot from its one current-index funnel through `setNeighborhoodTracks:`, handing over the playlist's `neighborhoodTracks` — the next, the one after and the previous in play order, so under shuffle the scan ranks what will actually play — never the whole list, whose mac getter's defensive copy costs one retain per track.
 
 ## Duplicate rows and delivery
 

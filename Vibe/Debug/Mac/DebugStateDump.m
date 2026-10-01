@@ -129,6 +129,8 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"exclusiveOutput": @(AppSettings.sharedInstance.exclusiveOutput),
             @"declick": @(AppSettings.sharedInstance.declick),
             @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
+            @"repeatMode": VibeRepeatModeIdentifier(AppSettings.sharedInstance.repeatMode),
+            @"shuffleEnabled": @(AppSettings.sharedInstance.shuffleEnabled),
             // The stored choice; player.crossfadeMilliseconds is the effective one.
             @"crossfadeMilliseconds": @(AppSettings.sharedInstance.crossfadeMilliseconds),
             @"reopenLastPlaylist": @(AppSettings.sharedInstance.reopenLastPlaylist),

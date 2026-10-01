@@ -7,6 +7,10 @@
 #import "AudioTrack.h"
 #import "NowPlayingRules.h"
 #import <MediaPlayer/MediaPlayer.h>
+
+_Static_assert(VibeRepeatModeOff == (NSInteger)MPRepeatTypeOff, "VibeRepeatMode casts to MPRepeatType");
+_Static_assert(VibeRepeatModeOne == (NSInteger)MPRepeatTypeOne, "VibeRepeatMode casts to MPRepeatType");
+_Static_assert(VibeRepeatModeAll == (NSInteger)MPRepeatTypeAll, "VibeRepeatMode casts to MPRepeatType");
 #if TARGET_OS_OSX
 #import "NSImage+Util.h"
 #endif
@@ -62,6 +66,9 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
     // Written to MPRemoteCommand only on a change.
     BOOL _publishedHasNext;
     BOOL _publishedHasPrevious;
+    // The command center's shuffle and repeat state is written only once the
+    // commands are registered, which the tests' initializer never does.
+    BOOL _commandsRegistered;
 
     // Reused while the caller hands back the same image.
     VibeImage *_publishedArtworkImage;
@@ -147,6 +154,34 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
 - (void)registerCommands {
     MPRemoteCommandCenter *center = [MPRemoteCommandCenter sharedCommandCenter];
     __weak NowPlayingController *weakSelf = self;
+    _commandsRegistered = YES;
+
+    // State follows updateShuffleEnabled:repeatMode:; a request only asks.
+    center.changeShuffleModeCommand.enabled = YES;
+    [center.changeShuffleModeCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
+        NowPlayingController *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return MPRemoteCommandHandlerStatusCommandFailed;
+        }
+        // Items and Collections are both on: there is no album-level shuffle,
+        // and the state written back says which the system got.
+        BOOL enabled = ((MPChangeShuffleModeCommandEvent *)event).shuffleType != MPShuffleTypeOff;
+        return [strongSelf deliverRemoteCommand:@"change shuffle mode" to:^(id<NowPlayingControllerDelegate> delegate) {
+            [delegate nowPlayingController:strongSelf setShuffleEnabled:enabled];
+        }];
+    }];
+
+    center.changeRepeatModeCommand.enabled = YES;
+    [center.changeRepeatModeCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
+        NowPlayingController *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return MPRemoteCommandHandlerStatusCommandFailed;
+        }
+        VibeRepeatMode mode = (VibeRepeatMode)((MPChangeRepeatModeCommandEvent *)event).repeatType;
+        return [strongSelf deliverRemoteCommand:@"change repeat mode" to:^(id<NowPlayingControllerDelegate> delegate) {
+            [delegate nowPlayingController:strongSelf setRepeatMode:mode];
+        }];
+    }];
 
     center.playCommand.enabled = YES;
     [center.playCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
@@ -226,8 +261,6 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
         center.seekBackwardCommand,
         center.skipForwardCommand,
         center.skipBackwardCommand,
-        center.changeRepeatModeCommand,
-        center.changeShuffleModeCommand,
         center.changePlaybackRateCommand,
         center.ratingCommand,
         center.likeCommand,
@@ -237,6 +270,15 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
     for (MPRemoteCommand *command in unsupported) {
         command.enabled = NO;
     }
+}
+
+- (void)updateShuffleEnabled:(BOOL)shuffleEnabled repeatMode:(VibeRepeatMode)repeatMode {
+    if (!_commandsRegistered) {
+        return;
+    }
+    MPRemoteCommandCenter *center = MPRemoteCommandCenter.sharedCommandCenter;
+    center.changeShuffleModeCommand.currentShuffleType = shuffleEnabled ? MPShuffleTypeItems : MPShuffleTypeOff;
+    center.changeRepeatModeCommand.currentRepeatType = (MPRepeatType)repeatMode;
 }
 
 #pragma mark - Now Playing info

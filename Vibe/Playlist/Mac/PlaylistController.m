@@ -31,6 +31,9 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     Playlist *_model;
     __weak PlaylistTableView *_tableView;
     __weak NSClipView *_observedClipView;
+    // The track the list last centered under shuffle, so a seek's refresh,
+    // which scrolls again, cannot snap a user who scrolled away back to it.
+    __weak AudioTrack *_centeredTrack;
     // Remove's targets, captured at menu open as exact objects so a
     // replacement while the menu is up cannot remove strangers. Weak, and
     // deliberately not cleared on close: the action can run after
@@ -568,11 +571,7 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 }
 
 - (void)loadTracks:(NSArray<AudioTrack *> *)tracks selectingIndex:(NSUInteger)index {
-    [_model replaceAllWithTracks:tracks];
-    // 0 is already announced; the setter would announce it again.
-    if (index > 0 && index < _model.count) {
-        self.currentIndex = index;
-    }
+    [_model replaceAllWithTracks:tracks startingAtIndex:index];
     // The observer's reloadData keeps the scroll offset, but a new playlist
     // starts at its cursor.
     [self scrollCurrentTrackToVisible];
@@ -658,6 +657,28 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     return NO;
 }
 
+- (void)setRepeatMode:(VibeRepeatMode)repeatMode shuffleEnabled:(BOOL)shuffleEnabled {
+    _model.repeatMode = repeatMode;
+    _model.shuffleEnabled = shuffleEnabled;
+}
+
+- (AudioTrack *)trackEndSuccessor {
+    return _model.trackEndSuccessor;
+}
+
+- (NSArray<AudioTrack *> *)neighborhoodTracks {
+    return _model.neighborhoodTracks;
+}
+
+- (BOOL)advanceAtTrackEnd {
+    if ([_model advanceAtTrackEnd]) {
+        [self scrollCurrentTrackToVisible];
+        [self play];
+        return YES;
+    }
+    return NO;
+}
+
 - (BOOL)advanceFromTrack:(AudioTrack *)finishedTrack toTrack:(AudioTrack *)startedTrack {
     if ([_model advanceFromTrack:finishedTrack toTrack:startedTrack]) {
         [self scrollCurrentTrackToVisible];
@@ -667,12 +688,28 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 }
 
 // scrollRowToVisible: no-ops for an on-screen row, so a user who scrolled away
-// keeps their position until the next track change.
+// keeps their position until the next track change. Under shuffle the next
+// row is usually far off, so it centers, once per track.
 - (void)scrollCurrentTrackToVisible {
     if (self.currentIndex >= _model.count) {
         return;
     }
-    [self.tableView scrollRowToVisible:(NSInteger)self.currentIndex];
+    NSInteger row = (NSInteger)self.currentIndex;
+    if (!_model.shuffleEnabled) {
+        [self.tableView scrollRowToVisible:row];
+        return;
+    }
+    AudioTrack *current = _model.currentTrack;
+    if (current == _centeredTrack) {
+        return;
+    }
+    _centeredTrack = current;
+    NSScrollView *scrollView = self.tableView.enclosingScrollView;
+    NSClipView *clip = scrollView.contentView;
+    NSRect bounds = clip.bounds;
+    bounds.origin.y = NSMidY([self.tableView rectOfRow:row]) - NSHeight(bounds) / 2;
+    [clip scrollToPoint:[clip constrainBoundsRect:bounds].origin];
+    [scrollView reflectScrolledClipView:clip];
 }
 
 - (void)doubleClick:(id)sender {

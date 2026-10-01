@@ -8,6 +8,8 @@ Three residents, and the bar is the test all of them pass: **it talks to the sys
 
 The `MPRemoteCommandCenter` / `MPNowPlayingInfoCenter` bridge: publishing what is playing, and receiving hardware transport commands back. It owns no playback state — its driver hands it track and timing updates and takes the commands back through the delegate, routing them to the same transport entry points the on-screen buttons use. `MainPlayerController+NowPlaying` is that driver on macOS, `PlaybackController+NowPlaying` on iOS.
 
+**Shuffle and repeat are commands, not Now Playing info.** `changeShuffleModeCommand` and `changeRepeatModeCommand` take the system's controls (Siri, the Watch, accessories) to the delegate's `setShuffleEnabled:` and `setRepeatMode:`, which write the setting and apply it exactly as the app's own control does; the state the system shows is `currentShuffleType` and `currentRepeatType` on the commands, written by `updateShuffleEnabled:repeatMode:` wherever a shell applies the modes, so a change from anywhere reaches it. A shuffle request of Items or Collections is on: there is no album-level shuffle.
+
 `MPNowPlayingInfoCenter.playbackState` is the one macOS-only write (the property does not exist on iOS, which derives state from the audio session and the published rate) and it is guarded.
 
 `initWithClock:publish:commandAvailability:` runs the same publication path without registering remote commands. Host-less tests inject the clock and OS writes to cover first-play gating, clearing, dirty detection, command changes and artwork promotion; actual system registration remains a live-app check.

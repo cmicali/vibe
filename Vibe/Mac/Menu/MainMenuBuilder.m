@@ -17,6 +17,7 @@
 #import "MenuValidationRules.h"
 #import "OpenRecentMenuController.h"
 #import "OutputDevicesMenuController.h"
+#import "SettingsRules.h"
 #import "ShortcutRules.h"
 #import "VibeStrings.h"
 
@@ -260,6 +261,11 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     AddSymbolItem(playbackMenu, STR_MENU_PLAY_SELECTED, @"play.circle", @selector(playSelectedTrack:), player, @"", 0, kVibeMenuPlaySelected);
     AddSeparator(playbackMenu);
 
+    AddSymbolItem(playbackMenu, STR_TRANSPORT_SHUFFLE, @"shuffle", @selector(toggleShuffle:), player, @"", 0, kVibeMenuShuffle);
+    // Validation retitles it per mode.
+    AddSymbolItem(playbackMenu, STR_TRANSPORT_REPEAT_OFF, VibeRepeatModeSymbolName(VibeRepeatModeOff), @selector(cycleRepeatMode:), player, @"", 0, kVibeMenuRepeat);
+    AddSeparator(playbackMenu);
+
     AddSymbolItem(playbackMenu, STR_MENU_SKIP_FORWARD, @"forward", @selector(skipForward:), player, @"", 0, kVibeMenuSkipForward);
     AddItem(playbackMenu, STR_MENU_SKIP_FORWARD_MORE, @selector(skipForwardMore:), player, @"", 0, kVibeMenuSkipForwardMore);
     AddItem(playbackMenu, STR_MENU_SKIP_FORWARD_MOST, @selector(skipForwardMost:), player, @"", 0, kVibeMenuSkipForwardMost);
@@ -285,8 +291,8 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     AddSymbolItem(fxMenu, STR_MENU_FX_LOW_KILL_BOOST, @"dial.max.fill", @selector(toggleLowKillBoost:), player, @"", 0, kVibeMenuFXLowKillBoost);
     AddSeparator(fxMenu);
     AddSymbolItem(fxMenu, STR_MENU_FX_REVERB, @"water.waves", @selector(toggleReverbSend:), player, @"", 0, kVibeMenuFXReverb);
-    AddSymbolItem(fxMenu, STR_MENU_FX_DELAY_8, @"repeat", @selector(toggleDelaySend:), player, @"", 0, kVibeMenuFXDelay);
-    AddSymbolItem(fxMenu, STR_MENU_FX_DELAY_16, @"repeat.circle", @selector(toggleShortDelaySend:), player, @"", 0, kVibeMenuFXShortDelay);
+    AddSymbolItem(fxMenu, STR_MENU_FX_DELAY_8, @"wave.3.right", @selector(toggleDelaySend:), player, @"", 0, kVibeMenuFXDelay);
+    AddSymbolItem(fxMenu, STR_MENU_FX_DELAY_16, @"wave.3.right.circle", @selector(toggleShortDelaySend:), player, @"", 0, kVibeMenuFXShortDelay);
     fxItem.hidden = !AppSettings.sharedInstance.audioFXAllowed;
 }
 

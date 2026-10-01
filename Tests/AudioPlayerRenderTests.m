@@ -1622,6 +1622,23 @@ static const NSUInteger kLayer3DecoderDelay = 529;
         XCTAssertEqualWithAccuracy(_player.duration,(96000-72007)/48000.0,0);
     }
 }
+// Repeat One parks the playing track's own object as its successor: a second
+// handle on the same file, spliced into its start with no gap.
+- (void)testATrackSplicesIntoItselfGaplessly {
+    NSData *reference=PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
+    for (NSNumber *mode in @[@NO,@YES]) {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:mode.boolValue automatic:NO]; _blockSize=1024;
+        AudioTrack *track=[AudioTrack withURL:[self fixture:@"noise-48000-24-2.wav"]];
+        _chain=@[track,track]; _nextPrefetch=1;
+        [_player play:track];
+        [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+        NSMutableData *twice=[reference mutableCopy]; [twice appendData:reference];
+        [self assertReference:twice capture:[self renderSeconds:4.1] skip:[self startupSkip] tolerance:0];
+        XCTAssertEqual([self count:@"advance"],1u,@"bit-perfect %@",mode); XCTAssertEqual([self count:@"finish"],1u);
+        XCTAssertEqual(_player.currentTrack,track);
+    }
+}
+
 #pragma mark - Cue rows
 
 static AudioTrack *CueRow(NSURL *url, NSUInteger start, NSUInteger end) {
@@ -1684,6 +1701,25 @@ static NSData *UniqueNoise(NSUInteger frames, uint32_t seed) {
         XCTAssertEqualObjects(_player.currentTrack, rows.lastObject);
         XCTAssertEqualWithAccuracy(_player.duration, 1.0, 0);
     }
+}
+
+// Repeat One on a cue row replays its window, not its file.
+- (void)testACueRowSplicesIntoItsOwnWindow {
+    NSURL *url = [self fixture:@"noise-48000-24-2.wav"];
+    NSData *reference = PCM([self read:url]);
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+    _blockSize = 1024;
+    AudioTrack *row = CueRow(url, 30, 105);
+    _chain = @[row, row, row]; _nextPrefetch = 1;
+    [_player play:row];
+    [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+    NSData *window = [reference subdataWithRange:NSMakeRange(19200 * 8, 48000 * 8)];
+    NSMutableData *thrice = [window mutableCopy];
+    [thrice appendData:window];
+    [thrice appendData:window];
+    [self assertReference:thrice capture:[self renderSeconds:3.1] skip:[self startupSkip] tolerance:0];
+    XCTAssertEqual([self count:@"advance"], 2u);
+    XCTAssertEqual([self count:@"finish"], 1u);
 }
 
 // Through the resampler, contiguous rows meet the resampled whole file within

@@ -29,7 +29,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark Playlist structure
 
-// The whole row set changed and the cursor is back at 0.
+// The whole row set changed and the cursor is final.
 - (void)playbackDidReplacePlaylist:(PlaybackController *)playback;
 - (void)playback:(PlaybackController *)playback didAppendTracksAtIndexes:(NSIndexSet *)indexes;
 - (void)playback:(PlaybackController *)playback didReplaceTrackAtIndex:(NSUInteger)index;
@@ -46,6 +46,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)playbackDidRenderCurrentTrack:(PlaybackController *)playback;
 
 - (void)playbackDidChangePlayState:(PlaybackController *)playback;
+
+// Shuffle or the repeat mode changed, and with them where next goes.
+- (void)playbackDidChangePlayOrder:(PlaybackController *)playback;
 
 // 3 Hz while playing, and once for every event that moves the playhead.
 - (void)playbackDidTick:(PlaybackController *)playback;
@@ -140,9 +143,15 @@ NS_ASSUME_NONNULL_BEGIN
 #pragma mark - Settings
 
 // A Track transitions writer calls this (the store applies no effects): it
-// pushes the crossfade and re-parks or drops the successor, so a mid-track
-// switch to Pause does not advance through an armed splice.
+// pushes the crossfade, shuffle and the repeat mode, and re-parks or drops the
+// successor, so a mid-track switch to Pause, or to another order, does not
+// advance through an armed splice.
 - (void)applyTrackTransitionSettings;
+
+// The card's buttons and the system's remote commands: each writes its
+// setting and applies.
+- (void)toggleShuffle;
+- (void)cycleRepeatMode;
 
 // Settings > Playback > Enable audio effects was written: the player connects
 // or disconnects the FX segment with the output stopped and puts a playing

@@ -10,6 +10,7 @@
 
 #import <Foundation/Foundation.h>
 #import "AudioTrack.h"
+#import "RepeatMode.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -19,7 +20,8 @@ NS_ASSUME_NONNULL_BEGIN
 // carrying the affected rows so a table owner can reload precisely.
 @protocol PlaylistObserver <NSObject>
 
-// A replacement or a clear: the whole row set changed and currentIndex is 0.
+// A replacement or a clear: the whole row set changed and currentIndex is
+// final — 0 for a clear, the replacement's start row otherwise.
 - (void)playlistDidReplaceAllTracks:(Playlist *)playlist;
 
 // Rows were appended at indexes; existing rows and currentIndex are untouched.
@@ -50,13 +52,28 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
-@interface Playlist : NSObject <AudioTrackIndexedSource>
+@interface Playlist : NSObject
 
 @property (nonatomic, weak, nullable) id<PlaylistObserver> observer;
 
 // Setting it fires currentIndexDidChangeFromIndex: even when the index is
 // unchanged, so a double-click on the already-playing row still re-renders it.
+// Under shuffle it is a manual pick: the row is spliced in as the next entry
+// of the play order, so nothing else repeats.
 @property (nonatomic) NSUInteger currentIndex;
+
+// The transport modes. Each shell pushes its setting in; the model reads no
+// setting. Neither sends an event: they change what next and the track end
+// mean, never the rows or the current one.
+@property (nonatomic) VibeRepeatMode repeatMode;
+
+// On: next walks a shuffled play order of every row, the current one first,
+// and previous walks back through what it played; the rows never reorder.
+// Setting the value it already has keeps the order.
+@property (nonatomic) BOOL shuffleEnabled;
+
+// arc4random_uniform unless a test injects its own. Answers [0, upperBound).
+@property (nonatomic, copy, null_resettable) uint32_t (^randomBelow)(uint32_t upperBound);
 
 // Bumped by a replacement or clear, which retires undo registrations for the
 // old rows; in-place edits leave it so their undo can restore coordinates.
@@ -80,30 +97,59 @@ NS_ASSUME_NONNULL_BEGIN
 // departed object is ignored even if a new row now has its URL or old index.
 - (NSIndexSet *)indexesOfTracks:(NSArray<AudioTrack *> *)tracks;
 
-// The first forward survivor of a current-row removal. nil for a noncurrent
-// edit, an invalid set, or when the landing is backward/empty. The shell uses
-// this to decide whether the ordered playing intent may continue.
+// The first forward survivor of a current-row removal — the next row, or
+// under shuffle the next unplayed entry — which is where the removal lands.
+// nil for a noncurrent edit, an invalid set, or when the landing is
+// backward/empty; it never wraps. The shell uses this to decide whether the
+// ordered playing intent may continue.
 - (nullable AudioTrack *)forwardTrackAfterRemovingTracksAtIndexes:(NSIndexSet *)indexes;
 
-// Replaces the whole list and resets currentIndex to 0. Each row must be a
-// fresh object, not one already in the list: a row's identity is the object.
-- (void)replaceAllWithTracks:(NSArray<AudioTrack *> *)tracks;
+// Replaces the whole list, landing on index: NSNotFound is the model's
+// choice, row 0 or under shuffle the new order's random first. Each row must
+// be a fresh object, not one already in the list: a row's identity is the
+// object. TRAP: pass the row here rather than setting currentIndex after the
+// replace — under shuffle that set is a manual pick, which marks the order's
+// first entry played without it ever sounding.
+- (void)replaceAllWithTracks:(NSArray<AudioTrack *> *)tracks startingAtIndex:(NSUInteger)index;
 
-// Appends without touching currentIndex; an empty tracks is a no-op.
+// Appends without touching currentIndex; an empty tracks is a no-op. Under
+// shuffle each row joins the unplayed part of the order at random.
 - (void)appendTracks:(NSArray<AudioTrack *> *)tracks;
 
 
 - (void)clear;
 
-// Advance or retreat currentIndex, returning NO at the playlist boundary.
+// Advance or retreat currentIndex, returning NO at the boundary. Next lands
+// on nextTrack; previous never wraps, and under shuffle retraces the order.
 - (BOOL)next;
 - (BOOL)previous;
 
-// Adopt a gapless boundary only while BOTH exact rows still describe it.
+// Where next lands, or nil at the boundary: the next row, or the next entry of
+// the play order, wrapping to a fresh start under Repeat All. A shuffled wrap
+// makes the next order on first ask and keeps it, so the track a gapless
+// splice armed is the one next lands on.
+- (nullable AudioTrack *)nextTrack;
+
+// The next track, the one after it and the previous one, in the order a
+// listener reaches them: what the metadata scan ranks first.
+- (NSArray<AudioTrack *> *)neighborhoodTracks;
+
+// What follows a track that plays out, or nil to park: the current track
+// itself under Repeat One, otherwise nextTrack. Every successor prefetch and
+// both track-end reads ask this, never a row neighbor.
+- (nullable AudioTrack *)trackEndSuccessor;
+
+// Moves to trackEndSuccessor, returning NO when it is nil. Under Repeat One
+// it re-sets the same index, which still notifies.
+- (BOOL)advanceAtTrackEnd;
+
+// Adopt a gapless boundary only while BOTH exact objects still describe it:
+// the finished track is current and the started one is trackEndSuccessor.
 // Refusal changes nothing; success performs the ordinary cursor notification.
 - (BOOL)advanceFromTrack:(AudioTrack *)finishedTrack toTrack:(AudioTrack *)startedTrack;
 
-// The single source of truth for the playlist boundary.
+// The single source of truth for the boundary: nextTrack exists, and previous
+// has somewhere to go.
 - (BOOL)hasNextTrack;
 - (BOOL)hasPreviousTrack;
 
@@ -141,8 +187,8 @@ NS_ASSUME_NONNULL_BEGIN
 // indexes is empty or any member is out of range.
 //
 // The cursor stays on the current track; a removed current row leaves it on
-// the survivor that slid into its row, else the new last row; emptying the
-// list resets it to 0.
+// forwardTrackAfterRemovingTracksAtIndexes:'s answer, else the new last row
+// (under shuffle, the last entry played); emptying the list resets it to 0.
 //
 // The CALLING SHELL owns the audio transition: this stops, starts and parks
 // nothing, so removing the current row through it alone leaves the player

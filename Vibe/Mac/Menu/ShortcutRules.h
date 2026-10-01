@@ -17,7 +17,7 @@ NS_ASSUME_NONNULL_BEGIN
 // character flag above it, and the four modifier flags at AppKit's own bits.
 // A key-code shortcut names the physical key, so a default bare key stays put
 // under AZERTY or Greek. A character shortcut is only ever a default — the
-// three Command shortcuts, which follow the letter as every Mac app's do — and
+// Command shortcuts, which follow the letter as every Mac app's do — and
 // the menu bar alone matches it; the monitor matches key codes.
 typedef NSUInteger VibeShortcut;
 
@@ -85,6 +85,8 @@ static inline NSArray<NSArray *> *VibeShortcutTable(void) {
             @[kVibeMenuPreviousTrack,     @(VibeShortcutMake(11, 0))],   // B
             @[kVibeMenuNextTrack,         @(VibeShortcutMake(45, 0))],   // N
             @[kVibeMenuPlaySelected,      @(VibeShortcutMake(36, 0))],   // Return
+            @[kVibeMenuShuffle,           @(VibeShortcutMakeCharacter('s', cmd | NSEventModifierFlagOption))],
+            @[kVibeMenuRepeat,            @(VibeShortcutMakeCharacter('r', cmd))],
             @[kVibeMenuSkipForward,       @(VibeShortcutMake(0, 0))],    // A
             @[kVibeMenuSkipForwardMore,   @(VibeShortcutMake(1, 0))],    // S
             @[kVibeMenuSkipForwardMost,   @(VibeShortcutMake(2, 0))],    // D

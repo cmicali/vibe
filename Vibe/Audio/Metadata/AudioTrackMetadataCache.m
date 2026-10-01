@@ -136,21 +136,11 @@
     [_currentLoader setNeighborhoodURLs:_neighborhood];
 }
 
-// In the order a listener reaches them.
-static const NSInteger kNeighborhoodOffsets[] = {1, 2, -1};
-
-- (void)setNeighborhoodAroundIndex:(NSUInteger)index inTracks:(id<AudioTrackIndexedSource>)tracks {
-    NSInteger current = (NSInteger)index;
-    NSUInteger count = tracks.count;
+- (void)setNeighborhoodTracks:(NSArray<AudioTrack *> *)tracks {
     NSMutableArray<NSURL *> *urls = [NSMutableArray array];
-    for (NSUInteger i = 0; i < sizeof(kNeighborhoodOffsets) / sizeof(*kNeighborhoodOffsets); i++) {
-        NSInteger neighbor = current + kNeighborhoodOffsets[i];
-        if (neighbor < 0 || (NSUInteger)neighbor >= count) {
-            continue;
-        }
-        NSURL *url = [tracks trackAtIndex:(NSUInteger)neighbor].url;
-        if (url) {
-            [urls addObject:url];
+    for (AudioTrack *track in tracks) {
+        if (track.url) {
+            [urls addObject:track.url];
         }
     }
     [self setNeighborhoodURLs:urls];

@@ -109,10 +109,13 @@ static const CGFloat kShortcutColumnWidth = 120;
     }
 }
 
-// Validation retitles two items, so those take their stable names.
+// Validation retitles three items, so those take their stable names.
 - (NSString *)labelForCommand:(NSString *)identifier {
     if ([identifier isEqualToString:kVibeMenuPlay]) {
         return STR_SETTINGS_SHORTCUTS_PLAY_PAUSE;
+    }
+    if ([identifier isEqualToString:kVibeMenuRepeat]) {
+        return STR_SETTINGS_SHORTCUTS_REPEAT;
     }
     if ([identifier isEqualToString:kVibeMenuConvertToFLAC]) {
         return VibeConvertMenuTitle(NO);

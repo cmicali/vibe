@@ -41,7 +41,8 @@ NS_ASSUME_NONNULL_BEGIN
 // folder session. Asynchronous, so the verb only acks; poll dump_state.
 - (void)debugOpenPath:(NSString *)path;
 
-// After set_pause_at_track_end writes the setting behind the pane's back,
+// After set_pause_at_track_end, set_repeat or set_shuffle writes the setting
+// behind its control's back,
 // applies what the pane's writer would (the mac's EndOfTrack live effect, the
 // iOS model's applyTrackTransitionSettings), so the parked successor is
 // re-parked or dropped at once.

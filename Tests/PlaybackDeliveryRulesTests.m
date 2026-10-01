@@ -16,21 +16,30 @@
 - (void)testTrackEndSettingAndPlaylistBoundaryChooseAdvanceOrPark {
     Playlist *playlist = [Playlist new];
     [playlist replaceAllWithTracks:@[[AudioTrack withURL:[NSURL fileURLWithPath:@"/a.wav"]],
-                                     [AudioTrack withURL:[NSURL fileURLWithPath:@"/b.wav"]]]];
+                                     [AudioTrack withURL:[NSURL fileURLWithPath:@"/b.wav"]]]
+                   startingAtIndex:NSNotFound];
     AppSettings *settings = AppSettings.sharedInstance;
     [settings resetToDefaults];
     @try {
-        XCTAssertTrue(VibePlaybackShouldAdvanceAtTrackEnd(playlist.hasNextTrack, settings.pauseAtTrackEnd));
+        XCTAssertTrue(VibePlaybackShouldAdvanceAtTrackEnd(playlist.trackEndSuccessor != nil, settings.pauseAtTrackEnd));
         settings.pauseAtTrackEnd = YES;
-        XCTAssertFalse(VibePlaybackShouldAdvanceAtTrackEnd(playlist.hasNextTrack, settings.pauseAtTrackEnd));
+        XCTAssertFalse(VibePlaybackShouldAdvanceAtTrackEnd(playlist.trackEndSuccessor != nil, settings.pauseAtTrackEnd));
         [playlist next];
         for (NSNumber *pause in @[@NO, @YES]) {
             settings.pauseAtTrackEnd = pause.boolValue;
-            XCTAssertFalse(VibePlaybackShouldAdvanceAtTrackEnd(playlist.hasNextTrack, settings.pauseAtTrackEnd));
+            XCTAssertFalse(VibePlaybackShouldAdvanceAtTrackEnd(playlist.trackEndSuccessor != nil, settings.pauseAtTrackEnd));
+        }
+        // Repeat gives the last row a successor; Pause still outranks it.
+        for (NSNumber *mode in @[@(VibeRepeatModeAll), @(VibeRepeatModeOne)]) {
+            playlist.repeatMode = mode.integerValue;
+            settings.pauseAtTrackEnd = NO;
+            XCTAssertTrue(VibePlaybackShouldAdvanceAtTrackEnd(playlist.trackEndSuccessor != nil, settings.pauseAtTrackEnd));
+            settings.pauseAtTrackEnd = YES;
+            XCTAssertFalse(VibePlaybackShouldAdvanceAtTrackEnd(playlist.trackEndSuccessor != nil, settings.pauseAtTrackEnd));
         }
         [playlist clear];
         settings.pauseAtTrackEnd = NO;
-        XCTAssertFalse(VibePlaybackShouldAdvanceAtTrackEnd(playlist.hasNextTrack, settings.pauseAtTrackEnd));
+        XCTAssertFalse(VibePlaybackShouldAdvanceAtTrackEnd(playlist.trackEndSuccessor != nil, settings.pauseAtTrackEnd));
     } @finally {
         [settings resetToDefaults];
     }

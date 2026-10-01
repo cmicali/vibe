@@ -50,6 +50,12 @@ NSString *VibeDebugUnknownCommandReply(NSString *verb,
                          verb, [usages componentsJoinedByString:@", "]);
 }
 
+BOOL VibeParseOnOff(NSArray<NSString *> *tokens, BOOL *on) {
+    NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
+    *on = [arg isEqualToString:@"on"];
+    return *on || [arg isEqualToString:@"off"];
+}
+
 NSString *VibeRestArgument(NSArray<NSString *> *tokens) {
     // An empty array would make the length below (NSUInteger)-1.
     if (tokens.count < 2) {

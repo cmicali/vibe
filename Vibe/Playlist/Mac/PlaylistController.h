@@ -7,6 +7,7 @@
 #import <AppKit/AppKit.h>
 
 #import "AudioTrack.h"
+#import "RepeatMode.h"
 #import "AudioPlayer.h"
 #import "EqualizerLevelSource.h"
 
@@ -14,8 +15,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface PlaylistController : NSObject <NSTableViewDataSource, NSTableViewDelegate,
-                                          AudioTrackIndexedSource>
+@interface PlaylistController : NSObject <NSTableViewDataSource, NSTableViewDelegate>
 
 @property NSUInteger currentIndex;
 
@@ -66,9 +66,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)play;
 
-// Replaces the list and lands the cursor on index (out of range: row 0), then
-// scrolls it into view. Opens nothing: the shell follows with play or
-// playStartPaused:.
+// Replaces the list and lands the cursor on index (NSNotFound or out of
+// range: the model's choice, row 0 or shuffle's random first), then scrolls it
+// into view. Opens nothing: the shell follows with play or playStartPaused:.
 - (void)loadTracks:(NSArray<AudioTrack *> *)tracks selectingIndex:(NSUInteger)index;
 
 // The parked twin of play: nothing renders until playPause. The one start
@@ -85,6 +85,19 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (BOOL)previous;
 
+// Playlist's transport modes, pushed in by the shell's end-of-track apply.
+- (void)setRepeatMode:(VibeRepeatMode)repeatMode shuffleEnabled:(BOOL)shuffleEnabled;
+
+// Playlist's: what follows a track that plays out, or nil to park.
+- (nullable AudioTrack *)trackEndSuccessor;
+
+// Playlist's: the next, the one after and the previous, in play order.
+- (NSArray<AudioTrack *> *)neighborhoodTracks;
+
+// The track end's advance: moves to trackEndSuccessor and plays it, as next
+// does. NO, changing nothing, when there is none.
+- (BOOL)advanceAtTrackEnd;
+
 // The gapless advance's bookkeeping: the player has already spliced into the
 // next track. Success scrolls without starting a play; a stale boundary
 // changes nothing.
@@ -99,7 +112,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (AudioTrack * _Nullable)currentTrack;
 - (NSUInteger)count;
 
-- (NSInteger)getIndexForTrack:(AudioTrack *)track;
+- (NSInteger)getIndexForTrack:(nullable AudioTrack *)track;
 
 // The convert swap: every row still holding this file gets a fresh
 // AudioTrack. Playback is untouched; the shell restarts a replaced playing row.
@@ -153,7 +166,8 @@ NS_ASSUME_NONNULL_BEGIN
 // otherwise pay a full reloadData per cover that lands.
 - (void)reloadVisibleTracks;
 
-// A no-op while the row is visible.
+// A no-op while the row is visible; under shuffle it centers the row, clamped
+// at the list's ends, once per track.
 - (void)scrollCurrentTrackToVisible;
 
 @end

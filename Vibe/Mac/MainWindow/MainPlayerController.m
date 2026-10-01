@@ -9,6 +9,7 @@
 #import "MainPlayerController+Settings.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
+#import "SettingsRules.h"
 #import "ArtworkDisplayController.h"
 #import "TrackDisplayController.h"
 #import "OutputDevicesMenuController.h"
@@ -155,6 +156,9 @@
     _keyMonitor = [[TransportKeyMonitor alloc] initWithController:self];
 
     self.nowPlayingController = [[NowPlayingController alloc] initWithDelegate:self];
+    // Before the launch restore, so a shuffled restore starts its order on the
+    // saved row.
+    [self pushTransportModesToPlaylist];
 
     __weak MainPlayerController *weakSelf = self;
     _uiTimer = [[UIUpdateTimer alloc] initWithHz:kVibeUIUpdateHzMin handler:^{
@@ -543,7 +547,7 @@
 }
 
 - (void)play:(NSArray<AudioTrack *> *)tracks {
-    [self loadTracks:tracks selectingIndex:0 startPaused:NO];
+    [self loadTracks:tracks selectingIndex:NSNotFound startPaused:NO];
 }
 
 // An open and the launch restore differ only in row and whether it sounds.
@@ -734,8 +738,7 @@ static NSURL *VibeLastPlaylistURL(void) {
 // Called from the index funnel and from structural edits, which that funnel
 // does not fire for.
 - (void)updateMetadataNeighborhood {
-    [self.metadataCache setNeighborhoodAroundIndex:self.playlistController.currentIndex
-                                          inTracks:self.playlistController];
+    [self.metadataCache setNeighborhoodTracks:self.playlistController.neighborhoodTracks];
 }
 
 - (IBAction)removeSelectedPlaylistTracks:(nullable id)sender {
@@ -949,18 +952,46 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
     }
 }
 
+- (IBAction)toggleShuffle:(nullable id)sender {
+    AppSettings *settings = AppSettings.sharedInstance;
+    settings.shuffleEnabled = !settings.shuffleEnabled;
+    [self applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
+}
+
+- (IBAction)cycleRepeatMode:(nullable id)sender {
+    AppSettings *settings = AppSettings.sharedInstance;
+    settings.repeatMode = VibeRepeatModeAfter(settings.repeatMode);
+    [self applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
+}
+
 - (AudioTrack *)successorPrefetchTrack {
-    if (!VibePlaybackShouldAdvanceAtTrackEnd(self.playlistController.hasNextTrack,
+    AudioTrack *successor = self.playlistController.trackEndSuccessor;
+    if (!VibePlaybackShouldAdvanceAtTrackEnd(successor != nil,
                                             AppSettings.sharedInstance.pauseAtTrackEnd)) {
         return nil;
     }
-    return [self.playlistController trackAtIndex:self.playlistController.currentIndex + 1];
+    return successor;
+}
+
+// The model and the system's controls, which show the same modes.
+- (void)pushTransportModesToPlaylist {
+    AppSettings *settings = AppSettings.sharedInstance;
+    [self.playlistController setRepeatMode:settings.repeatMode shuffleEnabled:settings.shuffleEnabled];
+    [self.nowPlayingController updateShuffleEnabled:settings.shuffleEnabled
+                                         repeatMode:settings.repeatMode];
 }
 
 - (void)applyEndOfTrackAction {
+    [self pushTransportModesToPlaylist];
     // nil unschedules an armed splice, so a mid-track switch to Pause does not
-    // advance anyway.
+    // advance anyway; a new successor replaces one armed before a repeat or
+    // shuffle change.
     [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
+    // Next's availability and the codec line's glyphs follow the modes, on
+    // screen and in Now Playing.
+    self.nextButton.enabled = self.playlistController.hasNextTrack;
+    [self updateFXIndicators];
+    [self updateNowPlaying];
 }
 
 - (void)applyPitchRange {

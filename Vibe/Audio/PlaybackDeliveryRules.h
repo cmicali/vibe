@@ -11,9 +11,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Both ways a track end advances use this, on either shell: parking a
 // successor in the engine, and handling the end callback on main. A setting
-// change must reach both even when no prefetched handle ever arrived.
-static inline BOOL VibePlaybackShouldAdvanceAtTrackEnd(BOOL hasNextTrack, BOOL pauseAtTrackEnd) {
-    return hasNextTrack && !pauseAtTrackEnd;
+// change must reach both even when no prefetched handle ever arrived. The
+// successor is Playlist.trackEndSuccessor, which the repeat mode and shuffle
+// decide; Pause outranks both.
+static inline BOOL VibePlaybackShouldAdvanceAtTrackEnd(BOOL hasTrackEndSuccessor, BOOL pauseAtTrackEnd) {
+    return hasTrackEndSuccessor && !pauseAtTrackEnd;
 }
 
 // An empty seek's settlement is meaningful only while still stopped. A real

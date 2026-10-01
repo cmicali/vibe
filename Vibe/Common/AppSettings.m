@@ -44,6 +44,8 @@ const size_t kVibeCrossfadePresetCount =
             SETTING_FOLDER_OPEN_SORT: SETTINGS_VALUE_FOLDER_OPEN_SORT_NAME,
             SETTING_CROSSFADE_MILLISECONDS: @(10),
             SETTING_PAUSE_AT_TRACK_END: @(NO),
+            SETTING_REPEAT_MODE: SETTINGS_VALUE_REPEAT_MODE_OFF,
+            SETTING_SHUFFLE_ENABLED: @(NO),
             SETTING_AUDIO_FX_ENABLED: @(YES),
             SETTING_ANALYZE_BPM: @(YES),
     } mutableCopy];
@@ -140,6 +142,22 @@ const size_t kVibeCrossfadePresetCount =
 
 - (void)setPauseAtTrackEnd:(BOOL)pause {
     [[NSUserDefaults standardUserDefaults] setBool:pause forKey:SETTING_PAUSE_AT_TRACK_END];
+}
+
+- (VibeRepeatMode)repeatMode {
+    return VibeNormalizedRepeatMode([[NSUserDefaults standardUserDefaults] stringForKey:SETTING_REPEAT_MODE]);
+}
+
+- (void)setRepeatMode:(VibeRepeatMode)mode {
+    [[NSUserDefaults standardUserDefaults] setObject:VibeRepeatModeIdentifier(mode) forKey:SETTING_REPEAT_MODE];
+}
+
+- (BOOL)shuffleEnabled {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_SHUFFLE_ENABLED];
+}
+
+- (void)setShuffleEnabled:(BOOL)enabled {
+    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:SETTING_SHUFFLE_ENABLED];
 }
 
 - (BOOL)audioFXEnabled {

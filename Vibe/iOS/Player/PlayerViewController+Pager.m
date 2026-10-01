@@ -119,6 +119,10 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
                        forControlEvents:UIControlEventTouchUpInside];
         [page.nextButton addTarget:self action:@selector(nextTapped)
                   forControlEvents:UIControlEventTouchUpInside];
+        [page.shuffleButton addTarget:self action:@selector(shuffleTapped)
+                     forControlEvents:UIControlEventTouchUpInside];
+        [page.repeatButton addTarget:self action:@selector(repeatTapped)
+                    forControlEvents:UIControlEventTouchUpInside];
         [page.remainingTimeControl addTarget:self action:@selector(remainingTimeTapped)
                            forControlEvents:UIControlEventTouchUpInside];
         page.routeView.delegate = self;
@@ -168,13 +172,13 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
                     fileInfo:(showsInfo ? track.metadata.fileInfoLine : nil)
                    tempoInfo:(showsInfo ? [self tempoInfoLineForTrack:track] : nil)
                          art:(track.cachedArt ?: [UIImage imageNamed:@"record-bg"])];
-    // The page's own index, so the last page arrives dimmed.
-    [cell setNextEnabled:index + 1 < _playlist.count];
+    [self applyPlayOrderToCell:cell atIndex:index];
     [cell setOutputRouteKind:_playback.outputRouteKind
                   deviceName:_playback.outputRouteName];
     // The pad follows the setting, which the Playback screen's write carries
     // here through the display notification.
     [cell setFXPadShown:AppSettings.sharedInstance.audioFXEnabled];
+    [cell setShuffleRepeatShown:VibeShowsShuffleRepeat()];
 }
 
 // The mac's second info line: the tempo — the tag, or the analysis the
@@ -260,7 +264,8 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
         return;
     }
     CGPoint target = CGPointMake(width * (CGFloat)_playlist.currentIndex, 0);
-    BOOL animateOnScreen = animated && self.isPresented
+    BOOL neighbor = fabs(_pagesView.contentOffset.x - target.x) <= width * 1.5;
+    BOOL animateOnScreen = animated && neighbor && self.isPresented
             && !UIAccessibilityIsReduceMotionEnabled();
     if (!CGPointEqualToPoint(_pagesView.contentOffset, target)) {
         [self holdForProgrammaticPagerScrolling:animateOnScreen];
@@ -268,6 +273,22 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     }
     else {
         [self holdForProgrammaticPagerScrolling:NO];
+    }
+}
+
+// The page's own index, so the last page arrives dimmed; under Repeat All
+// nothing is last, and under shuffle only the current page knows its next.
+- (void)applyPlayOrderToCell:(TrackPageCell *)cell atIndex:(NSUInteger)index {
+    BOOL nextEnabled = index == _playlist.currentIndex ? _playlist.hasNextTrack
+            : (index + 1 < _playlist.count || _playlist.repeatMode == VibeRepeatModeAll);
+    [cell setNextEnabled:nextEnabled];
+    [cell setShuffleEnabled:_playlist.shuffleEnabled repeatMode:_playlist.repeatMode];
+}
+
+- (void)applyPlayOrderToPageAtIndex:(NSUInteger)index {
+    TrackPageCell *cell = index < _playlist.count ? [self cellAtIndex:index] : nil;
+    if (cell) {
+        [self applyPlayOrderToCell:cell atIndex:index];
     }
 }
 

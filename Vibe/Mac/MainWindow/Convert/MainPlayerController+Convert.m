@@ -127,7 +127,9 @@
     BOOL wasLoaded = wasCurrent && [self.audioPlayer getPlaybackIntent:&intent
                                                forTrack:self.playlistController.currentTrack];
 
-    NSUInteger nextRow = currentRow + 1;
+    // The row parked as the successor, which under shuffle or repeat is not
+    // the next row.
+    NSInteger successorRow = [self.playlistController getIndexForTrack:self.playlistController.trackEndSuccessor];
     __block AudioTrack *converted = nil;
     rows = [self.playlistController replaceTracksMatchingTrack:track withURL:outputURL];
     [rows enumerateIndexesUsingBlock:^(NSUInteger row, BOOL *stop) {
@@ -140,7 +142,7 @@
         if (row == currentRow) {
             converted = replacement;
         }
-        if (row == nextRow) {
+        if ((NSInteger)row == successorRow) {
             // The parked handle is path-keyed and still holds the source.
             [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
         }

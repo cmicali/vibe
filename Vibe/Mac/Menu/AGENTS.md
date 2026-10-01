@@ -8,7 +8,7 @@ There is no main nib. `MainMenuBuilder` is a stateless one-shot class method, ca
 
 **Every remappable item's key equivalent is set in one place, `applyShortcuts`**, from the effective shortcut (`ShortcutRules.h`: the defaults table, overridden sparsely by `AppSettings.shortcutOverrides`). The builder passes `@"", 0` for those items and installs, then requests the `Shortcuts` effect, which also runs on an input source change. The fixed system shortcuts (⌘, ⌘H ⌥⌘H ⌘Q ⌘W ⌘Z ⇧⌘Z ⌘C ⌘A) keep their literals here and are reserved, never remappable.
 
-**A key-code shortcut is shown in the current ASCII-capable layout's character** (TIS and `UCKeyTranslate`, the one Carbon use, rebuilt after `kTISNotifySelectedKeyboardInputSourceChanged`), with `allowsAutomaticKeyEquivalentLocalization` off so AppKit does not localize it again. The three character defaults (⌘O, ⌘S, ⇧⌘C) follow the letter, as every Mac app's Command shortcuts do. A key no layout names gets no equivalent; the monitor still matches it.
+**A key-code shortcut is shown in the current ASCII-capable layout's character** (TIS and `UCKeyTranslate`, the one Carbon use, rebuilt after `kTISNotifySelectedKeyboardInputSourceChanged`), with `allowsAutomaticKeyEquivalentLocalization` off so AppKit does not localize it again. The character defaults (⌘O, ⌘S, ⇧⌘C, and Shuffle's ⌥⌘S and Repeat's ⌘R) follow the letter, as every Mac app's Command shortcuts do. A key no layout names gets no equivalent; the monitor still matches it.
 
 **TRAP: a shifted letter rides in the capital letter** (`"C"` with Command is ⇧⌘C) per the `NSMenuItem` contract — a lowercase key with Shift in the mask draws right but never matches a real press. `ApplyShortcut` does the conversion, so no caller spells it.
 
