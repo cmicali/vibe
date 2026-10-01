@@ -41,10 +41,13 @@ static const float kVibeMPEGSampleBound = 4.0f;
 // per MP3 frame, which were a tenth of the whole decode's time.
 enum { kVibeMPEGReadPackets = 16 };
 
-// The parser's reads go through a block of this size: Apple's Ogg reader asks
-// for a page's worth or less at a time, about 200 bytes on Opus, 18,000 reads
-// for three minutes. A request this big or bigger is read straight through.
-enum { kVibeParserReadBlock = 64 * 1024 };
+// Small reads go through one block: the parser's under kVibeReadBlock, filling
+// all of it — Apple's Ogg reader asks for about 200 bytes at a time on Opus,
+// 18,000 reads for three minutes — and dr_flac's 4 KB ones, filling a quarter:
+// a seek's bisection probes a few KB at each position it tries, and dr_wav's
+// larger reads gain nothing from a copy. Anything bigger is read straight
+// through.
+enum { kVibeReadBlock = 64 * 1024, kVibeStreamReadSmall = 4096, kVibeStreamReadFill = 16 * 1024 };
 
 // CoreAudio's Ogg reader (.ogg, .oga, .opus). The SDK names no constant.
 static const AudioFileTypeID kVibeOggFileType = 'Oggf';
@@ -56,7 +59,7 @@ static const AudioFileTypeID kVibeOggFileType = 'Oggf';
     int _descriptor;
     SInt64 _size;
     AudioFileID _parser;
-    // The last block the parser's reads filled: its bytes from _readBlockStart,
+    // The last block a small read filled: its bytes from _readBlockStart,
     // _readBlockLength of them. Allocated at the first small read.
     uint8_t *_readBlock;
     SInt64 _readBlockStart;
@@ -120,14 +123,17 @@ static const AudioFileTypeID kVibeOggFileType = 'Oggf';
 // A read inside the block, filling it from `position` first when the read is
 // not all in it already. NO when the block cannot be allocated, which leaves
 // the read to go straight through.
-static BOOL VibeHandleReadBlock(AudioFileHandle *handle, SInt64 position, UInt32 requestCount, void *buffer,
-                                UInt32 *actualCount, OSStatus *status) {
+static BOOL VibeHandleReadBlock(AudioFileHandle *handle, SInt64 position, UInt32 requestCount, UInt32 fill,
+                                void *buffer, UInt32 *actualCount, OSStatus *status) {
     if (position < handle->_readBlockStart
             || position + requestCount > handle->_readBlockStart + handle->_readBlockLength) {
-        if (!handle->_readBlock && !(handle->_readBlock = malloc(kVibeParserReadBlock))) {
+        if (!handle->_readBlock && !(handle->_readBlock = malloc(kVibeReadBlock))) {
             return NO;
         }
-        ssize_t filled = pread(handle->_descriptor, handle->_readBlock, kVibeParserReadBlock, position);
+        ssize_t filled;
+        do {
+            filled = pread(handle->_descriptor, handle->_readBlock, fill, position);
+        } while (filled < 0 && errno == EINTR);
         if (filled < 0) {
             handle->_readBlockLength = 0;
             *actualCount = 0;
@@ -150,8 +156,8 @@ static BOOL VibeHandleReadBlock(AudioFileHandle *handle, SInt64 position, UInt32
 static OSStatus VibeHandleRead(void *clientData, SInt64 position, UInt32 requestCount, void *buffer, UInt32 *actualCount) {
     AudioFileHandle *handle = (__bridge AudioFileHandle *)clientData;
     OSStatus status;
-    if (requestCount < kVibeParserReadBlock && position >= 0
-            && VibeHandleReadBlock(handle, position, requestCount, buffer, actualCount, &status)) {
+    if (requestCount < kVibeReadBlock && position >= 0
+            && VibeHandleReadBlock(handle, position, requestCount, kVibeReadBlock, buffer, actualCount, &status)) {
         return status;
     }
     ssize_t got = pread(handle->_descriptor, buffer, requestCount, position);
@@ -174,6 +180,16 @@ static SInt64 VibeHandleSize(void *clientData) {
 // become a clean end.
 static size_t VibeStreamRead(void *user, void *buffer, size_t count) {
     AudioFileHandle *handle = (__bridge AudioFileHandle *)user;
+    UInt32 got;
+    OSStatus status;
+    if (count <= kVibeStreamReadSmall
+            && VibeHandleReadBlock(handle, handle->_streamCursor, (UInt32)count, kVibeStreamReadFill, buffer, &got, &status)) {
+        if (status == kAudioFilePositionError) {
+            handle->_streamReadFailed = YES;
+        }
+        handle->_streamCursor += got;
+        return got;
+    }
     size_t filled = 0;
     while (filled < count) {
         ssize_t got = pread(handle->_descriptor, (uint8_t *)buffer + filled, count - filled, handle->_streamCursor);
