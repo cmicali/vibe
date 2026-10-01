@@ -12,6 +12,17 @@
 #import "NowPlayingRules.h"
 #import "WidgetPublisher.h"
 
+// Held once: the publisher's dirty check compares artwork by identity, and
+// imageNamed: is an asset-catalog lookup on every tick otherwise.
+static UIImage *VibeNowPlayingPlaceholderArt(void) {
+    static UIImage *placeholder;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        placeholder = [UIImage imageNamed:@"record-bg"];
+    });
+    return placeholder;
+}
+
 @implementation PlaybackController (NowPlaying)
 
 - (void)offerWaveformToWidget:(CodableAudioWaveform *)waveform forTrack:(AudioTrack *)track {
@@ -30,7 +41,7 @@
     NSTimeInterval playerDuration = _player.duration;
     NSTimeInterval duration = playerDuration > 0 ? playerDuration : track.duration;
     [_nowPlaying updateWithTrack:track
-                  placeholderArt:[UIImage imageNamed:@"record-bg"]
+                  placeholderArt:VibeNowPlayingPlaceholderArt()
                         position:position
                         duration:duration
                            state:state
