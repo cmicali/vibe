@@ -172,9 +172,14 @@ def make_corpus():
     return corpus_hash()
 
 
-def corpus_hash():
+def corpus_hash(extra=False):
+    """The app benchmarks' corpus; with `extra`, the component benchmarks' too
+    (perf.py adds extra/). Each suite hashes only its own files, so a run that
+    creates extra/ midway cannot change the app benchmarks' hash under them."""
     digest = hashlib.sha256()
     for path in sorted(CORPUS.rglob('*')):
+        if not extra and path.relative_to(CORPUS).parts[0] == 'extra':
+            continue
         if path.is_file() and not path.name.startswith('.'):
             digest.update(f'{path.relative_to(CORPUS)}:{path.stat().st_size}\n'.encode())
     return digest.hexdigest()[:16]
@@ -743,6 +748,34 @@ def app_version(ref):
     return re.search(r'MARKETING_VERSION:\s*"?([\d.]+)', spec).group(1)
 
 
+def check_history(results, section, targets, corpus, new_machine):
+    """Refuses a run that would silently take versions off the page. The page
+    charts only versions measured on the newest entry's machine and corpus, so
+    a run on another Mac, or the same Mac after a macOS or Xcode update, drops
+    every version it does not rerun. Rerunning all of them, or --new-machine,
+    is the way through."""
+    entries = results.get(section, {})
+    if not entries:
+        return
+    here = machine()
+    newest = max(entries.values(), key=lambda e: e['measured'])
+    if newest['machine'] == here and newest['corpus'] == corpus:
+        return
+    dropped = sorted(set(entries) - {label for label, _ in targets}, key=version_key)
+    if not dropped or new_machine:
+        return
+    there = newest['machine']
+    diffs = [f'  {key}: {there.get(key)} in the history, {here.get(key)} here'
+             for key in sorted(set(there) | set(here)) if there.get(key) != here.get(key)]
+    if newest['corpus'] != corpus:
+        diffs.append(f'  corpus: {newest["corpus"]} in the history, {corpus} here (ffmpeg makes it per machine)')
+    raise SystemExit(
+        f'refusing: the {section} history was measured elsewhere, and this run would take '
+        f'{", ".join(dropped)} off the page.\n' + '\n'.join(diffs) + '\n'
+        f'Run it on the Mac that matches, or rerun every version here (no VERSIONS), '
+        f'or pass ARGS="--new-machine" to start the {section} history on this Mac.')
+
+
 def parse_targets(args, results, sections=('app', 'components')):
     """(label, ref) for each argument, or for every version already in those
     sections when there are none. `1.15` is that release: tag v1.15 once it
@@ -773,6 +806,8 @@ def main(argv):
         print(__doc__)
         return 64
     command, args = argv[0], argv[1:]
+    new_machine = '--new-machine' in args
+    args = [a for a in args if a != '--new-machine']
     options = {'--reps': 5, '--idle': 80.0}
     for flag in options:
         if flag in args:
@@ -793,10 +828,14 @@ def main(argv):
     if command == 'corpus':
         print(corpus)
         return 0
-    ensure_probe()
     sys.path.insert(0, str(ROOT / '.claude/skills/vibe-perf/scripts'))
     import perf
-    for label, ref in parse_targets(args, results, ('app',) if command == 'app' else ('app', 'components')):
+    targets = parse_targets(args, results, ('app',) if command == 'app' else ('app', 'components'))
+    check_history(results, 'app', targets, corpus, new_machine)
+    if command == 'all':
+        check_history(results, 'components', targets, perf.corpus(), new_machine)
+    ensure_probe()
+    for label, ref in targets:
         results.setdefault('app', {})[label] = run_version(label, ref, reps, corpus, idle)
         save_results(results)
         if command == 'app':

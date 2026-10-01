@@ -7,7 +7,7 @@ run it over a fixed corpus, and compare two refs.
     perf.py run [REF] [--filter RE] [--reps N] [--json OUT]
     perf.py compare BASE [HEAD] [--filter RE] [--reps N] [--rounds R] [--md OUT]
     perf.py list                           the benchmark names
-    perf.py releases [LABEL[=REF] ...] [--reps N]
+    perf.py releases [LABEL[=REF] ...] [--reps N] [--new-machine]
                                            the performance page's component charts:
                                            each release (default: every one in
                                            docs/performance/results.json), redrawn;
@@ -62,7 +62,7 @@ EXTRAS = {
 
 def corpus():
     """The app suite's corpus plus EXTRAS; answers the corpus's hash."""
-    corpus_hash = bench_module().make_corpus()
+    bench_module().make_corpus()
     EXTRA.mkdir(parents=True, exist_ok=True)
     source = CORPUS / 'play/flac-16-44.flac'
     for name, codec in EXTRAS.items():
@@ -72,7 +72,7 @@ def corpus():
             tmp = out.with_name('tmp.' + name)
             ffmpeg('-i', str(source), '-map', '0:a', *codec, str(tmp))
             tmp.rename(out)
-    return corpus_hash
+    return bench_module().corpus_hash(extra=True)
 
 
 def resolve(ref):
@@ -383,9 +383,13 @@ def releases(args):
     """The page's component charts: measure each version, store it in
     results.json, redraw docs/performance.md."""
     reps = option(args, '--reps', 5, int)
+    new_machine = '--new-machine' in args
+    args = [a for a in args if a != '--new-machine']
     bench = bench_module()
     results = bench.load_results()
-    for label, ref in bench.parse_targets(args, results):
+    targets = bench.parse_targets(args, results)
+    bench.check_history(results, 'components', targets, corpus(), new_machine)
+    for label, ref in targets:
         results.setdefault('components', {})[label] = measure_release(label, ref, reps)
         bench.save_results(results)
     import report

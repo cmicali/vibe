@@ -1,6 +1,6 @@
 ---
 name: vibe-perf
-description: Measure Vibe's performance in-process and compare two versions of the code — VibeBenchComponents, a micro-benchmark tool that drives the production decode, open, seek, resample, waveform, tempo/key, equalizer-meter, metadata-parse and cache-key code (and any area a benchmark file adds) with no app running, counting retired instructions as well as wall and CPU time; perf.py, which builds it at any git ref and runs two refs interleaved; profile.sh, which samples one benchmark to find its hotspots; and --analyze, which prints every file's tempo and key so an analyzer change can be proven exact. Use before and after any change that could move cost, to find where time goes, to decide between two implementations, or to back a performance claim with numbers. Also runs these component benchmarks at every release back to 1.8 for the performance page's Components charts, pre-releases included (make bench-components-releases, perf.py releases), and documents the whole performance page: the app benchmarks (startup, time to play, playback CPU and energy, library scan; make bench-app) and both together (make bench-releases).
+description: Measure Vibe's performance in-process and compare two versions of the code — VibeBenchComponents, a micro-benchmark tool that drives the production decode, open, seek, resample, waveform, tempo/key, equalizer-meter, metadata-parse and cache-key code (and any area a benchmark file adds) with no app running, counting retired instructions as well as wall and CPU time; perf.py, which builds it at any git ref and runs two refs interleaved; profile.sh, which samples one benchmark to find its hotspots; and --analyze, which prints every file's tempo and key so an analyzer change can be proven exact. Use when asked to update, rerun or regenerate the performance page (docs/performance.md) for a release, a pre-release or a new machine, and before and after any change that could move cost, to find where time goes, to decide between two implementations, or to back a performance claim with numbers. Also runs these component benchmarks at every release back to 1.8 for the performance page's Components charts, pre-releases included (make bench-components-releases, perf.py releases), and documents the whole performance page: the app benchmarks (startup, time to play, playback CPU and energy, library scan; make bench-app) and both together (make bench-releases).
 ---
 
 # Measuring performance
@@ -17,6 +17,33 @@ Two benchmark suites, two questions, one set of names:
 | Every release, on `docs/performance.md` | `make bench-components-releases` | `make bench-app` |
 
 `make bench-releases` runs both at every release, and `make bench-report` redraws the page from what is stored. Use the component benchmarks to find and fix; use the app benchmarks to report what a user would feel.
+
+## Common requests
+
+Plain requests map to one command each. Run the matching one with the procedure below; don't improvise a sequence.
+
+| Request | Command |
+| --- | --- |
+| "Add release 1.16 to the performance page" | `make bench-releases VERSIONS="1.16"`, or each half on its own Mac (below) |
+| "Chart this branch as a pre-release" / "add the latest 1.16" | `VERSIONS="HEAD"`, charted as `1.16 pre-release` |
+| "Rerun 1.13, 1.14 and the latest 1.15" | `VERSIONS="1.13 1.14 HEAD"` |
+| "Replace the pre-release now that 1.16 is tagged" | `VERSIONS="1.16"` (the tag outranks the stored commit) |
+| "This is a new Mac: regenerate the whole page" | `make bench-releases`, no `VERSIONS` |
+| "Just redraw the page" | `make bench-report` |
+| "Is my change faster than main?" | `make bench-components` (compares refs; the page is untouched) |
+
+**The page's two halves can live on different Macs.** Each half of `docs/performance.md` names the machine it was measured on, in its intro line and in `results.json`. Use `make bench-releases` (both halves) only on a Mac that matches both; otherwise run `make bench-app` on the Mac that holds **The app** and `make bench-components-releases` on the one that holds **Components**. The component benchmarks don't launch the app, so they can run on a Mac that's in use.
+
+**The guard.** Before measuring, every release target compares this Mac (chip, cores, memory, macOS, Xcode) and its corpus against the history it is adding to. If they differ and the run would leave versions behind, it refuses and prints what differs: the page charts only versions measured on the newest entry's setup, so a run on the wrong Mac, or after a macOS or Xcode update, would silently take every version it didn't rerun off the page. When it refuses, report the differences and stop. Rerunning every version (no `VERSIONS`) always passes; pass `ARGS="--new-machine"` only when the user says to start that half's history on this Mac.
+
+### Procedure
+
+1. **Get the commands and the tags:** `git fetch origin --tags`, and work on the branch the user names (default `main`; the commands are in this skill's tree). Check that each `v<version>` you will measure exists, unless it is a pre-release.
+2. **Prerequisites:** Xcode, `make setup` (xcodegen and the rest) and `brew install ffmpeg`. The corpus is generated on first use.
+3. **For the app benchmarks only:** the Mac on power, output on the built-in speakers (put Bluetooth headphones away; the AirPods are often the default), Vibe quit, and nothing else using the Mac: every launch takes focus, and the runner waits for the machine to be 80% idle before each scenario.
+4. **Run it in the background under `caffeinate -dimsu`**, with a Monitor on its output, and relay each version's lines (`1.14 rep 2/5 playback: 244s`, `1.14: VibeBenchComponents, 32 benchmarks`) as they land. The app benchmarks take about half an hour a version, longer on slower Macs; the component benchmarks a few minutes. Each version is saved as it finishes, so an interrupted run loses only the version in progress.
+5. **Verify:** the run ends with `report: N versions, M charts` and no `leaving out` line; each measured entry in `results.json` has the expected `ref`, `commit` and `prerelease`. Show the user the changed columns of the page's table.
+6. **Commit** `docs/performance.md` and `docs/performance/` with a message naming the versions and the machine, and push. No attribution lines.
 
 ## Comparing two refs
 
@@ -59,7 +86,7 @@ Before running:
 
 1. **The version must resolve to a git commit**, a tag or the ref given.
 2. **`ffmpeg` must be installed** (`brew install ffmpeg`): the corpus is generated from it once, into `build/bench/corpus`.
-3. **Use one Mac for the whole history.** Each entry records the machine, and the page charts only versions measured on the same machine as the newest. After moving to another Mac, rerun every version (no `VERSIONS`).
+3. **Use one Mac for each half's history.** Each entry records the machine, and the page charts only versions measured on the same setup as the newest; the guard (Common requests, above) refuses a run that would break that. After moving to another Mac, rerun every version (no `VERSIONS`).
 
 Then commit `docs/performance/results.json`, the redrawn `docs/performance/*.svg` and `docs/performance.md`.
 
@@ -81,6 +108,7 @@ For each version, `measure_release` in `perf.py`:
 
 - **A version fails to build at all** (not just a benchmark file): the log is `build/bench-components/dd/<commit>.log`. Usually that version's code has a shape the harness assumes; add a flag to `VibeBenchComponents.h`'s list and its detection to `features()`.
 - **A chart is missing a version**: that version was measured on another machine or corpus; rerun it here.
+- **The guard refuses**: this Mac or its corpus doesn't match the history (it prints what differs). Run on the matching Mac, rerun every version, or, if the user says so, `ARGS="--new-machine"`.
 - **A version's numbers jump with no code change**: the harness changed under it (the digest is in its entry). Rerun every version so they share one harness.
 
 ## Reading the numbers
