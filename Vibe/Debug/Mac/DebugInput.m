@@ -8,6 +8,9 @@
 #import "DebugInternal.h"
 #import "PlaylistTableView.h"
 #import "PitchFaderView.h"
+#import "AppSettings+Mac.h"
+#import "MainMenuBuilder.h"
+#import "MainPlayerController+Settings.h"
 
 #if DEBUG
 
@@ -190,6 +193,59 @@ NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *t
         post(NSEventTypeKeyUp);
     }
     return VibeJSONString(@{@"ok": @YES, @"posted": verb, @"key": name, @"repeat": @(isRepeat)});
+}
+
+// The pane's write path without its recorder: the same rules, store and
+// effect, keyed by the key names `key` takes.
+NSString *VibeSetShortcut(MainPlayerController *controller, NSArray<NSString *> *tokens) {
+    if (tokens.count < 3) {
+        return VibeErrorJSON(@"usage: set_shortcut <identifier> <key|none> [shift|cmd|opt|ctrl ...]");
+    }
+    NSString *identifier = tokens[1];
+    if (![VibeShortcutIdentifiers() containsObject:identifier]) {
+        return VibeErrorJSON(@"'%@' has no remappable shortcut (%@)", identifier,
+                             [VibeShortcutIdentifiers() componentsJoinedByString:@", "]);
+    }
+    NSString *name = tokens[2].lowercaseString;
+    VibeShortcut shortcut = kVibeShortcutNone;
+    unichar character = 0;
+    if (![name isEqualToString:@"none"]) {
+        NSNumber *code = VibeKeyCodeMap()[name];
+        if (code == nil) {
+            return VibeErrorJSON(@"unknown key '%@'", tokens[2]);
+        }
+        NSEventModifierFlags flags = 0;
+        BOOL repeat = NO;
+        NSString *errorJSON = nil;
+        if (!VibeParseModifiers(tokens, 3, &flags, &repeat, &errorJSON)) {
+            return errorJSON;
+        }
+        character = [MainMenuBuilder characterForKeyCode:code.unsignedShortValue];
+        if (VibeShortcutIsReserved(code.unsignedShortValue, character, flags)) {
+            return VibeErrorJSON(@"%@ is reserved", [MainMenuBuilder displayStringForShortcut:
+                    VibeShortcutMake(code.unsignedShortValue, flags)]);
+        }
+        shortcut = VibeShortcutMake(code.unsignedShortValue, flags);
+    }
+    NSString *loser = nil;
+    AppSettings *settings = AppSettings.sharedInstance;
+    settings.shortcutOverrides = VibeShortcutOverridesByAssigning(settings.shortcutOverrides, identifier,
+                                                                  shortcut, character, &loser);
+    [controller applySettingsLiveEffects:VibeSettingsLiveEffectShortcuts];
+    VibeDebugSettingsRefreshSelectedPane();
+    return VibeJSONString(@{
+        @"ok": @YES,
+        @"command": identifier,
+        @"shortcut": [MainMenuBuilder displayStringForShortcut:VibeShortcutEffective(identifier, settings.shortcutOverrides)],
+        @"lost_by": loser ?: [NSNull null],
+    });
+}
+
+NSString *VibeResetShortcuts(MainPlayerController *controller) {
+    AppSettings.sharedInstance.shortcutOverrides = @{};
+    [controller applySettingsLiveEffects:VibeSettingsLiveEffectShortcuts];
+    VibeDebugSettingsRefreshSelectedPane();
+    return VibeJSONString(@{@"ok": @YES});
 }
 
 static NSPoint VibeWindowPointForContentPoint(NSWindow *window, double x, double y) {

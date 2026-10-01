@@ -59,6 +59,9 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     VibeSettingsLiveEffectVolume           = 1UL << 26,
     // Pushes the MP3 decoder choice to AudioFileHandle and reopens the park.
     VibeSettingsLiveEffectMP3Decoder       = 1UL << 27,
+    // The menu's key equivalents and the empty-state hints' Open shortcut,
+    // under the current layout; also requested on an input source change.
+    VibeSettingsLiveEffectShortcuts        = 1UL << 28,
     // WindowAppearance is included because a single-mode theme pins the
     // window dark (AppTheme.requiredWindowAppearance).
     VibeSettingsLiveEffectThemeApply       = VibeSettingsLiveEffectWindowAppearance

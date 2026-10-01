@@ -9,7 +9,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The main window's bare keys, through a local monitor on keyDown and keyUp.
+// The main window's shortcuts (ShortcutRules.h), through a local monitor on
+// keyDown and keyUp.
 // Menu key equivalents fire only after the focused view's input context
 // declines the event, and an unhandled key can wedge the playlist table's
 // input context so every later key beeps; the monitor sees the event first.

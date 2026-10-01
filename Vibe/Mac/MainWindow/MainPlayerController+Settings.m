@@ -148,6 +148,12 @@
     if (effects & VibeSettingsLiveEffectFolderArt) {
         [self refreshFolderArt];
     }
+    if (effects & VibeSettingsLiveEffectShortcuts) {
+        [MainMenuBuilder applyShortcuts];
+        VibeShortcut open = VibeShortcutEffective(kVibeMenuOpen, settings.shortcutOverrides);
+        [self.playerContentView setOpenShortcut:open == kVibeShortcutNone
+                ? nil : [MainMenuBuilder displayStringForShortcut:open]];
+    }
     if (effects & VibeSettingsLiveEffectConvertMenu) {
         [MainMenuBuilder applyConvertMenuVisibility];
     }

@@ -65,6 +65,8 @@ static NSString *const kVibeMenuPitchRange8 = @"pitch_range_8";
 static NSString *const kVibeMenuPitchRange16 = @"pitch_range_16";
 
 static NSString *const kVibeMenuPlay = @"menu_play";
+// Absent from the domains below: File > Open targets the app delegate.
+static NSString *const kVibeMenuOpen = @"menu_open";
 static NSString *const kVibeMenuSavePlaylist = @"menu_save_playlist";
 static NSString *const kVibeMenuClose = @"menu_close";
 static NSString *const kVibeMenuShowInFinder = @"show_in_finder";

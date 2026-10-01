@@ -4,6 +4,7 @@
 //
 
 #import <Cocoa/Cocoa.h>
+#import "ShortcutRules.h"
 
 @class AppDelegate;
 @class MainPlayerController;
@@ -37,8 +38,24 @@ NS_ASSUME_NONNULL_BEGIN
 // The ConvertMenu settings effect's hook; the menu is always built.
 + (void)applyConvertMenuVisibility;
 
-// Also withdraws or restores the bare shortcuts; the menu is always built.
+// Also withdraws or restores the FX shortcuts; the menu is always built.
 + (void)applyFXMenuVisibility;
+
+// The Shortcuts settings effect's hook: the one place a remappable item's key
+// equivalent is set, from the effective shortcuts under the current layout.
++ (void)applyShortcuts;
+
++ (nullable NSMenuItem *)mainMenuItemWithIdentifier:(NSString *)identifier;
+
+// The key's lowercase character under the current layout, 0 when it has none;
+// what the rules compare against the fixed and character shortcuts.
++ (unichar)characterForKeyCode:(unsigned short)keyCode;
+
+// The key's name as the menu draws it, nil for a key no layout names.
++ (nullable NSString *)labelForKeyCode:(unsigned short)keyCode;
+
+// ⌃⌥⇧⌘ then the key, as the menu draws it; the unassigned label for None.
++ (NSString *)displayStringForShortcut:(VibeShortcut)shortcut;
 
 @end
 

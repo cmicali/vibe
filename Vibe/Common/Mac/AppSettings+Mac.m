@@ -35,6 +35,9 @@
 #define SETTING_OUTPUT_MODES_BY_DEVICE_UID          @"AudioPlayer.outputModesByDeviceUID"
 #define OUTPUT_MODE_BIT_PERFECT                     @"bitPerfect"
 #define OUTPUT_MODE_EXCLUSIVE                       @"exclusive"
+// { menu identifier: VibeShortcut }, only where a shortcut differs from its
+// default (ShortcutRules.h).
+#define SETTING_SHORTCUT_OVERRIDES                  @"Shortcuts.overrides"
 #define SETTING_DECLICK                             @"AudioPlayer.declick"
 #define SETTING_VOLUME_CONTROL                      @"AudioPlayer.volumeControl"
 #define SETTING_VOLUME                              @"AudioPlayer.volume"
@@ -101,7 +104,7 @@ const size_t kVibeUIUpdateHzCapPresetCount =
 
 // Keys with no registered default, where absent IS the default.
 - (NSArray<NSString *> *)nullableSettingKeys {
-    return @[SETTING_CURRENT_THEME, SETTING_OUTPUT_MODES_BY_DEVICE_UID];
+    return @[SETTING_CURRENT_THEME, SETTING_OUTPUT_MODES_BY_DEVICE_UID, SETTING_SHORTCUT_OVERRIDES];
 }
 
 // The persistent domain, not dictionaryRepresentation, which folds the
@@ -814,6 +817,21 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
 
 - (void)setAppleMPEGDecoder:(BOOL)apple {
     [NSUserDefaults.standardUserDefaults setBool:apple forKey:SETTING_APPLE_MPEG_DECODER];
+}
+
+// Shape-checked only; which entries mean anything is ShortcutRules.h's.
+- (NSDictionary<NSString *, NSNumber *> *)shortcutOverrides {
+    NSDictionary *stored = [NSUserDefaults.standardUserDefaults dictionaryForKey:SETTING_SHORTCUT_OVERRIDES];
+    return [stored isKindOfClass:NSDictionary.class] ? stored : @{};
+}
+
+- (void)setShortcutOverrides:(NSDictionary<NSString *, NSNumber *> *)overrides {
+    if (overrides.count) {
+        [NSUserDefaults.standardUserDefaults setObject:overrides forKey:SETTING_SHORTCUT_OVERRIDES];
+    }
+    else {
+        [NSUserDefaults.standardUserDefaults removeObjectForKey:SETTING_SHORTCUT_OVERRIDES];
+    }
 }
 
 // Off is absence, so the store names only devices with a mode on. An entry

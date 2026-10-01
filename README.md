@@ -35,6 +35,8 @@ Drag the artwork out to copy the playing file somewhere else.
 
 ### Key commands
 
+These are the defaults; every one can be changed in Settings > Keyboard Shortcuts. The single-letter keys follow their position on the keyboard, so they stay put under AZERTY, Dvorak or a non-Latin layout.
+
 | Key | Action |
 | --- | --- |
 | `Space` | Play / pause |
