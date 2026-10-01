@@ -1677,13 +1677,18 @@ static NSArray<NSString *> *Windows(NSArray<AudioTrack *> *rows) {
 #pragma mark - Private session mirror
 
 - (NSURL *)sessionURLWithDefaults:(NSUserDefaults **)defaults {
-    NSString *suite = [@"vibe-session-tests-" stringByAppendingString:NSUUID.UUID.UUIDString];
-    NSURL *root = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:suite] isDirectory:YES];
-    NSUserDefaults *store = [[NSUserDefaults alloc] initWithSuiteName:suite];
+    NSURL *root = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:
+                   [@"vibe-session-tests-" stringByAppendingString:NSUUID.UUID.UUIDString]] isDirectory:YES];
+    // TRAP: TestFilesystemGuard.m's in-memory store, a fresh one per test,
+    // never a cfprefsd suite: a named suite's plist lands in
+    // ~/Library/Preferences after the process has gone, and even an
+    // absolute-path one froze keys at their first value on CI.
+    NSUserDefaults *store = [[NSClassFromString(@"VibeTestUserDefaults") alloc]
+                             initWithSuiteName:[root.path stringByAppendingPathComponent:@"defaults"]];
+    XCTAssertNotNil(store);
     *defaults = store;
     [self addTeardownBlock:^{
         [NSFileManager.defaultManager removeItemAtURL:root error:nil];
-        [store removePersistentDomainForName:suite];
     }];
     return [root URLByAppendingPathComponent:@"nested/session.m3u"];
 }
