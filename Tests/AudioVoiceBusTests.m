@@ -784,6 +784,34 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     XCTAssertEqual([_bus occupiedSlotCount], 0u);
 }
 
+// The drain timer's prompt cadence is what the drain's own pass found: due
+// from a start until the voice is live, quiet through steady playback, due
+// again once the decoder has reached the file's end, well before the render
+// does, and quiet once the slot is recycled. A kill is due at once.
+- (void)testPromptDrainDueIsWhatTheDrainFound {
+    NSUInteger frames = (NSUInteger)kRate * 4;
+    NSURL *url = [self writePCM:[self noiseFrames:frames channels:2 seed:12] rate:kRate channels:2 name:@"due.wav"];
+    [self makeBusAtRate:kRate channels:2];
+    VibeVoiceID voice = [self startFile:[self open:url] gain:1 ramp:[self unity] paused:NO];
+    XCTAssertTrue(_bus.promptDrainDue);
+    [self render:512 into:nil];
+    XCTAssertEqualObjects([self eventsForVoice:voice], @[@(VibeVoiceEventLive)]);
+    XCTAssertFalse(_bus.promptDrainDue);
+    while (!_bus.promptDrainDue && ![self hasEnded:voice]) {
+        [self render:512 into:nil];
+    }
+    XCTAssertFalse([self hasEnded:voice]);
+    XCTAssertGreaterThanOrEqual(frames - [_bus snapshotOfVoice:voice].consumed, (uint64_t)kRate / 2);
+    [self renderUntilEnded:voice blockSize:512 limit:frames * 2 * 2];
+    [self drain];
+    XCTAssertFalse(_bus.promptDrainDue);
+    voice = [self startFile:[self open:url] gain:1 ramp:[self unity] paused:YES];
+    [self render:512 into:nil];
+    XCTAssertFalse(_bus.promptDrainDue);
+    [_bus killVoice:voice];
+    XCTAssertTrue(_bus.promptDrainDue);
+}
+
 // The pool keeps two slots in reserve by cutting the oldest retiring voice,
 // and a start that still finds no slot waits, invisibly, for the first one.
 - (void)testAFullPoolCutsTheOldestRetiringVoiceAndBindsAPendingStart {

@@ -31,9 +31,9 @@ static const NSTimeInterval kOutputIdleStopTailIntervalSeconds = 1.0;
 // within milliseconds of it; past this, none is coming.
 static const NSTimeInterval kSystemStopVerdictSeconds = 1.0;
 // The hardware drain: the bus reports its events within this of their render.
-// Prompt while an event, a fade or a recycle is due (`wantsPromptDrain`);
-// otherwise the drain only tops up rings at least half a second deep, and a
-// tenth of the wakeups do.
+// Prompt while a fade, render-leave work or what the bus's last drain found
+// (`promptDrainDue`) is due; otherwise the drain only tops up rings at least
+// half a second deep, and a tenth of the wakeups do.
 static const uint64_t kDrainIntervalNanos = 10 * NSEC_PER_MSEC;
 static const uint64_t kDrainSteadyIntervalNanos = 100 * NSEC_PER_MSEC;
 // An output start holding the player queue longer than this is worth a line
@@ -1328,7 +1328,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
         }
         return;
     }
-    uint64_t interval = _retiringVoices.count || _renderLeaveWork.count || _voiceBus.wantsPromptDrain
+    uint64_t interval = _retiringVoices.count || _renderLeaveWork.count || _voiceBus.promptDrainDue
             ? kDrainIntervalNanos : kDrainSteadyIntervalNanos;
     if (_drainTimer && interval == _drainTimerInterval) {
         return;

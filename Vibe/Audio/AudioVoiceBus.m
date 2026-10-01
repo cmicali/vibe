@@ -945,6 +945,7 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
     if (slot == NSNotFound || ![self bindRecord:record toSlot:slot]) {
         [self addPendingRecord:record];
     }
+    _promptDrainDue = YES;
     return identifier;
 }
 
@@ -1175,6 +1176,7 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
     _records[slot]->successorEndFrame = VibeOwnEndFrame(endFrame, file);
     os_unfair_lock_unlock(&_tableLock);
     [self publishWaitingSuccessorForSlot:slot];
+    _promptDrainDue |= _records[slot]->waitingSuccessor != nil;
     return YES;
 }
 
@@ -1236,6 +1238,7 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
 }
 
 - (void)killVoice:(VibeVoiceID)voice {
+    _promptDrainDue = YES;
     AudioVoiceRecord *pending = [self pendingRecordForIdentifier:voice];
     if (pending) {
         [self removePendingRecord:pending];
@@ -1318,30 +1321,6 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
     return kVoiceSlots - [self freeSlotCount] + _pending.count;
 }
 
-- (BOOL)wantsPromptDrain {
-    if (_pending.count || _endedPending.count) {
-        return YES;
-    }
-    for (NSUInteger slot = 0; slot < kVoiceSlots; slot++) {
-        VibeVoiceSlot *s = &_mix->slots[slot];
-        int32_t state = atomic_load_explicit(&s->state, memory_order_acquire);
-        if (state == VibeVoiceStateNone) {
-            continue;
-        }
-        AudioVoiceRecord *record = _records[slot];
-        if (state != VibeVoiceStateLive || !record->liveReported || record->waitingSuccessor) {
-            return YES;
-        }
-        uint64_t boundary = atomic_load_explicit(&s->boundary, memory_order_acquire);
-        if ((boundary != kUnset && boundary != record->reportedBoundary)
-                || atomic_load_explicit(&s->endOfStream, memory_order_acquire) != kUnset
-                || atomic_load_explicit(&record->heldOpenAt, memory_order_acquire) != kUnset) {
-            return YES;
-        }
-    }
-    return NO;
-}
-
 - (NSUInteger)liveVoiceCount {
     return [self slotCountInState:VibeVoiceStateLive];
 }
@@ -1363,6 +1342,10 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
 - (void)drainWithOutputRunning:(BOOL)outputRunning handler:(void (^)(VibeVoiceID, VibeVoiceEvent))handler {
     uint64_t renderSequence = atomic_load_explicit(&_mix->renderSequence, memory_order_acquire);
     BOOL noRenderPossible = !outputRunning && atomic_load_explicit(&_mix->inRender, memory_order_acquire) == 0;
+    // Found by this pass, slot by slot after each slot's own work, and only
+    // ever raised after this: the handler can start or kill a voice in a
+    // slot the loop has passed.
+    _promptDrainDue = NO;
     for (NSUInteger slot = 0; slot < kVoiceSlots; slot++) {
         VibeVoiceSlot *s = &_mix->slots[slot];
         int32_t state = atomic_load_explicit(&s->state, memory_order_acquire);
@@ -1372,6 +1355,7 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
         AudioVoiceRecord *record = _records[slot];
         VibeVoiceID identifier = record->identifier;
         if (!identifier) {
+            _promptDrainDue = YES;
             continue; // dead, its recycle already queued behind decode work
         }
         [self publishWaitingSuccessorForSlot:slot];
@@ -1379,6 +1363,7 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
             if (VibeSlotCanWrite(s)) {
                 [self scheduleFillForSlot:slot]; // withheld or stopped reads are re-asked for by whoever allows them
             }
+            _promptDrainDue = YES;
             continue;
         }
         if (!record->liveReported) {
@@ -1397,20 +1382,28 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
             handler(identifier, VibeVoiceEventBoundary);
         }
         if (state == VibeVoiceStateLive) {
+            uint64_t heldOpenAt = atomic_load_explicit(&record->heldOpenAt, memory_order_acquire);
             if (!_inlineDecoding) {
                 uint64_t written = atomic_load_explicit(&s->written, memory_order_relaxed);
                 uint64_t buffered = written - atomic_load_explicit(&s->consumed, memory_order_relaxed);
                 // A stream held open past its file asks for no turn: it would
                 // find the same. A successor queued since asks for its own.
-                BOOL heldOpen = atomic_load_explicit(&record->heldOpenAt, memory_order_acquire) == written
+                BOOL heldOpen = heldOpenAt == written
                         && atomic_load_explicit(&s->successorState, memory_order_relaxed) == VibeSuccessorNone
                         && buffered >= kOpenStreamReserveFrames;
                 if (VibeSlotCanWrite(s) && buffered < _mix->capacity / kLowWaterDivisor && !heldOpen) {
                     [self scheduleFillForSlot:slot];
                 }
             }
+            // An end or a boundary on its way. The decoder reaches each at
+            // least half a ring ahead of the render, so the steady drain
+            // that first sees one is still in time.
+            _promptDrainDue |= record->waitingSuccessor || heldOpenAt != kUnset
+                    || (boundary != kUnset && boundary != record->reportedBoundary)
+                    || atomic_load_explicit(&s->endOfStream, memory_order_acquire) != kUnset;
             continue;
         }
+        _promptDrainDue = YES; // dead until its recycle
         if (!record->endedReported) {
             record->endedReported = YES;
             handler(identifier, VibeVoiceEventEnded);
@@ -1428,6 +1421,7 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
         }
     }
     // After the recycles, so a slot this drain freed takes a pending start now.
+    _promptDrainDue |= _pending.count > 0;
     [self bindPendingVoices];
     if (_endedPending.count) {
         NSArray<NSNumber *> *ended = [_endedPending copy];
