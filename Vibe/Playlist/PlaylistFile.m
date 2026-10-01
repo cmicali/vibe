@@ -498,9 +498,10 @@ static AudioTrack *RowForEntry(NSURL *url, NSString *_Nullable cue) {
 
 // Rungs in order: the named path, its basename beside the playlist (a
 // Windows-absolute entry), then both under each playable extension (a rip
-// transcoded after the sheet was written). First readable wins; readable
-// nowhere returns the primary so the caller can tell sandbox denial from a
-// missing file.
+// transcoded after the sheet was written). First readable wins, and each rung
+// is built only once the ones before it failed, since the first usually holds;
+// readable nowhere returns the primary so the caller can tell sandbox denial
+// from a missing file.
 static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManager,
                            NSMutableDictionary<NSString *, NSNumber *> *dirReachable) {
     NSURL *primary = [entry hasPrefix:@"/"]
@@ -510,19 +511,25 @@ static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManag
     if (!primary.path) {
         return nil;
     }
-    NSURL *beside = [dir URLByAppendingPathComponent:entry.lastPathComponent];
-    NSMutableArray<NSURL *> *candidates = [NSMutableArray arrayWithObject:primary];
+    if ([fileManager isReadableFileAtPath:primary.path]) {
+        return primary;
+    }
     NSMutableSet<NSString *> *seen = [NSMutableSet setWithObject:primary.path];
-    void (^addCandidate)(NSURL *) = ^(NSURL *url) {
+    NSURL *(^readable)(NSURL *) = ^NSURL *(NSURL *url) {
         // Keyed by path, which is nil for an unpathable component; a nil
         // would raise inside the set.
         NSString *path = url.path;
-        if (path && ![seen containsObject:path]) {
-            [seen addObject:path];
-            [candidates addObject:url];
+        if (!path || [seen containsObject:path]) {
+            return nil;
         }
+        [seen addObject:path];
+        return [fileManager isReadableFileAtPath:path] ? url : nil;
     };
-    addCandidate(beside);
+    NSURL *beside = [dir URLByAppendingPathComponent:entry.lastPathComponent];
+    NSURL *found = readable(beside);
+    if (found) {
+        return found;
+    }
     // One probe of the primary's folder, memoized per pass, gates its
     // alternate extensions: on a dead mount each probe blocks for an
     // automounter timeout, which a sheet into one folder must pay once. The
@@ -539,13 +546,11 @@ static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManag
     }
     for (NSString *extension in PlayableExtensions.ordered) {
         if (primaryDirReachable) {
-            addCandidate([primary.URLByDeletingPathExtension URLByAppendingPathExtension:extension]);
+            found = readable([primary.URLByDeletingPathExtension URLByAppendingPathExtension:extension]);
         }
-        addCandidate([beside.URLByDeletingPathExtension URLByAppendingPathExtension:extension]);
-    }
-    for (NSURL *candidate in candidates) {
-        if ([fileManager isReadableFileAtPath:candidate.path]) {
-            return candidate;
+        found = found ?: readable([beside.URLByDeletingPathExtension URLByAppendingPathExtension:extension]);
+        if (found) {
+            return found;
         }
     }
     return primary;
