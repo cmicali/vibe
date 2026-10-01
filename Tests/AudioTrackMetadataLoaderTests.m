@@ -472,16 +472,20 @@ static BOOL VibeMetadataLoaderCoordinatorIsSettled(
     return [AudioTrack withURL:[self URLNamed:name]];
 }
 
-- (AudioLoadingConfiguration *)testConfigurationWithRetryCount:(NSUInteger)retryCount {
-    VibeAudioLoadingConfigurationValues values =
-            VibeAudioLoadingProductionConfigurationValues();
-    values.metadataRetryCount = retryCount;
+- (AudioLoadingConfiguration *)testConfigurationWithValues:(VibeAudioLoadingConfigurationValues)values {
     NSError *error = nil;
     AudioLoadingConfiguration *configuration = [[AudioLoadingConfiguration alloc]
             initWithValues:values error:&error];
     XCTAssertNotNil(configuration);
     XCTAssertNil(error);
     return configuration;
+}
+
+- (AudioLoadingConfiguration *)testConfigurationWithRetryCount:(NSUInteger)retryCount {
+    VibeAudioLoadingConfigurationValues values =
+            VibeAudioLoadingProductionConfigurationValues();
+    values.metadataRetryCount = retryCount;
+    return [self testConfigurationWithValues:values];
 }
 
 - (AudioLoadingConfiguration *)testConfiguration {
@@ -1150,11 +1154,7 @@ materializationCoordinator:coordinator
     VibeAudioLoadingConfigurationValues values =
             VibeAudioLoadingProductionConfigurationValues();
     values.maximumBackgroundMaterializations = 2;
-    NSError *configurationError = nil;
-    AudioLoadingConfiguration *configuration = [[AudioLoadingConfiguration alloc]
-            initWithValues:values error:&configurationError];
-    XCTAssertNotNil(configuration);
-    XCTAssertNil(configurationError);
+    AudioLoadingConfiguration *configuration = [self testConfigurationWithValues:values];
 
     VibeMetadataLoaderOperationController *controller =
             [[VibeMetadataLoaderOperationController alloc] init];
@@ -1395,11 +1395,7 @@ materializationCoordinator:coordinator
     VibeAudioLoadingConfigurationValues values =
             VibeAudioLoadingProductionConfigurationValues();
     values.maximumBackgroundMaterializations = 2;
-    NSError *configurationError = nil;
-    AudioLoadingConfiguration *configuration = [[AudioLoadingConfiguration alloc]
-            initWithValues:values error:&configurationError];
-    XCTAssertNotNil(configuration);
-    XCTAssertNil(configurationError);
+    AudioLoadingConfiguration *configuration = [self testConfigurationWithValues:values];
     VibeMetadataLoaderOperationController *controller =
             [[VibeMetadataLoaderOperationController alloc] init];
     controller.blocksUntilCancelled = YES;
