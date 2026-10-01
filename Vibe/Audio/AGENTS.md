@@ -23,7 +23,7 @@ The reading path is `AudioPlayer.h` → `AudioPlayer.m` → `AudioVoiceBus.h` �
 | `AudioPlayer+Pipeline` | the render pipeline and its lifetime: the master bus and `VibeMasterBusRender`, shared output-unit orchestration and the unit's platform-blind half (the attach, the counters, its failures and system stops), the lazily built source segment and its varispeed, the FX reconcile, the meter install, the output start, the deferred idle stop, the drain and its timer, the debug pump hooks |
 | `AudioPlayer+Prefetch` | the park (the pre-opened next file) and the successor (that file queued on the current voice), and the promote |
 | `AudioPlayer+State.m` | published-state and voice-snapshot getters, without player-queue waits |
-| `AudioFileHandle` | the shared parser/codec/descriptor lifetime, immutable source facts, checked seeks, reads and writes |
+| `AudioFileHandle` | the shared parser/codec/descriptor lifetime, immutable source facts, checked seeks, reads and writes; the one guarded, extension-hinted CoreAudio open (`initParserForReading:`), which playback and the metadata fallback share |
 | `AudioPlayer+Diagnostics` | source/decode/path report assembly in every build; beta hooks, stall watchers and the signal probe |
 | `AudioOutputUnit` | the hosted output unit both platforms pull the render with: its callback, gate, counters and its own HAL queue; HALOutput on macOS, RemoteIO on iOS (`Mac/Devices/AGENTS.md` for the device half) |
 | `Mac/Devices/AudioPlayer+Devices` | the unit's device binding, rates and device observations; bit-perfect and exclusive output (`Mac/Devices/AGENTS.md`) |
