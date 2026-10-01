@@ -421,8 +421,10 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
 
 // Each audio file its rows (rowsForFile:), and each sheet its rows in its
 // sorted place. A sheet resolves against the walk's own listing first and
-// claims its files, so none also appears whole or is opened for its own sheet.
-// Sheet rows must name supported, nonempty files, listed or readable.
+// claims its files, so none also appears whole or is opened for its own sheet,
+// and none is cut again by a later sheet: Album.cue beside Album (UTF-8).cue
+// would list every track twice. Sheet rows must name supported, nonempty
+// files, listed or readable.
 + (NSArray<AudioTrack *> *)rowsForWalk:(NSArray<NSURL *> *)urls {
     NSMutableArray<NSURL *> *sheets = [NSMutableArray array];
     for (NSURL *url in urls) {
@@ -449,13 +451,18 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
         [matches addObject:url];
     }
     NSMutableDictionary<NSURL *, NSArray<AudioTrack *> *> *rowsBySheet = [NSMutableDictionary dictionary];
-    NSMutableSet<NSURL *> *claimed = [NSMutableSet set];
+    // Each claimed file to the sheet that cut it.
+    NSMutableDictionary<NSURL *, NSURL *> *claimed = [NSMutableDictionary dictionary];
     // Once per file, however many rows a sheet cuts it into.
     NSMutableDictionary<NSURL *, NSNumber *> *playable = [NSMutableDictionary dictionary];
     NSSet<NSString *> *supported = self.supportedExtensions;
     for (NSURL *sheet in sheets) {
         NSMutableArray<AudioTrack *> *rows = [NSMutableArray array];
         for (AudioTrack *row in [PlaylistFile cueRowsForSheetAtURL:sheet knownFiles:knownFiles]) {
+            NSURL *cutBy = claimed[row.url];
+            if (cutBy && cutBy != sheet) {
+                continue;
+            }
             NSNumber *verdict = playable[row.url];
             if (verdict == nil) {
                 verdict = @([supported containsObject:row.url.pathExtension.lowercaseString]
@@ -466,7 +473,7 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
             }
             if (verdict.boolValue) {
                 [rows addObject:row];
-                [claimed addObject:row.url];
+                claimed[row.url] = sheet;
             }
         }
         rowsBySheet[sheet] = rows;
@@ -477,7 +484,7 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
         if (sheetRows) {
             [rows addObjectsFromArray:sheetRows];
         }
-        else if (![claimed containsObject:url]) {
+        else if (!claimed[url]) {
             [rows addObjectsFromArray:[self rowsForFile:url]];
         }
     }
@@ -505,13 +512,15 @@ static const long long kVibeEmbeddedCueMinimumBytes = 100LL * 1024 * 1024;
 }
 
 + (NSArray<AudioTrack*>*) rowsInDirectory:(NSURL*)dir sortedBy:(VibeFolderOpenSort)sort {
-    // Skipping hidden files drops AppleDouble sidecars, as in expandDirectory.
+    // Skipping hidden files drops AppleDouble sidecars, and the prefetched
+    // keys spare a stat per file, as in expandDirectory.
+    NSArray<NSURLResourceKey> *keys = @[NSURLIsDirectoryKey, NSURLIsSymbolicLinkKey, NSURLFileSizeKey];
     NSError *error = nil;
     NSArray<NSURL*> *contents = [[NSFileManager defaultManager]
             contentsOfDirectoryAtURL:dir
           includingPropertiesForKeys:(sort == VibeFolderOpenSortNewestFirst
-                                              ? @[NSURLFileSizeKey, NSURLContentModificationDateKey]
-                                              : @[NSURLFileSizeKey])
+                                              ? [keys arrayByAddingObject:NSURLContentModificationDateKey]
+                                              : keys)
                              options:NSDirectoryEnumerationSkipsHiddenFiles
                                error:&error];
     if (!contents) {
@@ -525,7 +534,14 @@ static const long long kVibeEmbeddedCueMinimumBytes = 100LL * 1024 * 1024;
         if (![supported containsObject:extension] && ![PlaylistFile isCueExtension:extension]) {
             continue;
         }
-        if (!url.isEmptyOrDirectory) {
+        // The values are lstat-shaped, so a link is judged by its target's
+        // stat, and so is anything the listing did not answer for.
+        NSDictionary<NSURLResourceKey, id> *values = [url resourceValuesForKeys:keys error:NULL];
+        NSNumber *size = values[NSURLFileSizeKey];
+        BOOL empty = [values[NSURLIsDirectoryKey] boolValue]
+                || ([values[NSURLIsSymbolicLinkKey] boolValue] || size == nil ? url.isEmptyOrDirectory
+                                                                              : size.longLongValue == 0);
+        if (!empty) {
             [results addObject:url];
         }
     }

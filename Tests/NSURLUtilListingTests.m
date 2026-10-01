@@ -143,6 +143,26 @@
     XCTAssertEqualObjects([self listedNamesSortedBy:VibeFolderOpenSortName], @[@"real.mp3"]);
 }
 
+// The listing's sizes are a link's own, so a link is judged by its target.
+- (void)testALinkIsListedByItsTarget {
+    NSURL *real = [self makeFile:@"real.mp3"];
+    NSURL *empty = [self makeEmptyFile:@"empty.mp3"];
+    NSURL *folder = [_dir URLByAppendingPathComponent:@"folder" isDirectory:YES];
+    XCTAssertTrue([[NSFileManager defaultManager] createDirectoryAtURL:folder
+                                           withIntermediateDirectories:YES
+                                                            attributes:nil
+                                                                 error:NULL]);
+    NSDictionary<NSString *, NSURL *> *links = @{@"link.mp3": real, @"empty-link.mp3": empty,
+                                                 @"folder-link.mp3": folder};
+    for (NSString *name in links) {
+        XCTAssertTrue([[NSFileManager defaultManager] createSymbolicLinkAtURL:[_dir URLByAppendingPathComponent:name]
+                                                           withDestinationURL:links[name]
+                                                                        error:NULL], @"%@", name);
+    }
+    XCTAssertEqualObjects([self listedNamesSortedBy:VibeFolderOpenSortName],
+                          (@[@"link.mp3", @"real.mp3"]));
+}
+
 - (void)testMissingDirectoryReturnsEmpty {
     NSURL *gone = [_dir URLByAppendingPathComponent:@"missing" isDirectory:YES];
     XCTAssertEqualObjects([NSURLUtil rowsInDirectory:gone sortedBy:VibeFolderOpenSortName],

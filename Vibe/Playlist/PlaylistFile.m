@@ -496,26 +496,53 @@ static AudioTrack *RowForEntry(NSURL *url, NSString *_Nullable cue) {
 
 #pragma mark - Resolution
 
+static NSURL *KnownFileAtPath(NSString *path, NSDictionary<NSString *, NSArray<NSURL *> *> *knownFiles) {
+    if (!path) {
+        return nil;
+    }
+    NSArray<NSURL *> *matches = knownFiles[[PlaylistFile knownFileKeyForPath:path]];
+    for (NSURL *url in matches) {
+        if ([url.path isEqualToString:path]) {
+            return url;
+        }
+    }
+    return matches.count == 1 ? matches.firstObject : nil;
+}
+
 // Rungs in order: the named path, its basename beside the playlist (a
 // Windows-absolute entry), then both under each playable extension (a rip
-// transcoded after the sheet was written). First readable wins, and each rung
-// is built only once the ones before it failed, since the first usually holds;
-// readable nowhere returns the primary so the caller can tell sandbox denial
-// from a missing file.
+// transcoded after the sheet was written). First found wins, and each rung is
+// built only once the ones before it failed, since the first usually holds.
+// nil when found nowhere; *primary is then the candidate that lets the caller
+// tell sandbox denial from a missing file.
+//
+// TRAP: against a walk's listing (knownFiles) every rung answers in the
+// listing's spelling, never its own. The walk claims a sheet's files by exact
+// URL while the volume folds case and Unicode normalization, and NSURL
+// decomposes what it is handed: a probe that finds the listed "01 - Title.flac"
+// under the sheet's "01 - title.flac" would leave it to play whole as well.
 static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManager,
-                           NSMutableDictionary<NSString *, NSNumber *> *dirReachable) {
-    NSURL *primary = [entry hasPrefix:@"/"]
-            ? [NSURL fileURLWithPath:entry]
-            : [dir URLByAppendingPathComponent:entry].URLByStandardizingPath;
+                           NSMutableDictionary<NSString *, NSNumber *> *dirReachable,
+                           NSDictionary<NSString *, NSArray<NSURL *> *> *knownFiles,
+                           NSURL **primaryOut) {
+    BOOL absolute = [entry hasPrefix:@"/"];
+    NSURL *primary = absolute ? [NSURL fileURLWithPath:entry isDirectory:NO]
+                              : [dir URLByAppendingPathComponent:entry isDirectory:NO];
+    if (knownFiles) {
+        // As the listing is spelled: "./" and "../" folded lexically, no
+        // stat, no /private stripped.
+        primary = primary.standardizedURL;
+    }
+    else if (!absolute) {
+        primary = primary.URLByStandardizingPath;
+    }
     // Backstop for a component the parsers' strip missed: no primary, no URL.
     if (!primary.path) {
         return nil;
     }
-    if ([fileManager isReadableFileAtPath:primary.path]) {
-        return primary;
-    }
-    NSMutableSet<NSString *> *seen = [NSMutableSet setWithObject:primary.path];
-    NSURL *(^readable)(NSURL *) = ^NSURL *(NSURL *url) {
+    *primaryOut = primary;
+    NSMutableSet<NSString *> *seen = [NSMutableSet set];
+    NSURL *(^find)(NSURL *) = ^NSURL *(NSURL *url) {
         // Keyed by path, which is nil for an unpathable component; a nil
         // would raise inside the set.
         NSString *path = url.path;
@@ -523,10 +550,15 @@ static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManag
             return nil;
         }
         [seen addObject:path];
-        return [fileManager isReadableFileAtPath:path] ? url : nil;
+        return KnownFileAtPath(path, knownFiles)
+               ?: ([fileManager isReadableFileAtPath:path] ? url : nil);
     };
-    NSURL *beside = [dir URLByAppendingPathComponent:entry.lastPathComponent];
-    NSURL *found = readable(beside);
+    NSURL *found = find(primary);
+    if (found) {
+        return found;
+    }
+    NSURL *beside = [dir URLByAppendingPathComponent:entry.lastPathComponent isDirectory:NO];
+    found = find(beside);
     if (found) {
         return found;
     }
@@ -546,27 +578,14 @@ static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManag
     }
     for (NSString *extension in PlayableExtensions.ordered) {
         if (primaryDirReachable) {
-            found = readable([primary.URLByDeletingPathExtension URLByAppendingPathExtension:extension]);
+            found = find([primary.URLByDeletingPathExtension URLByAppendingPathExtension:extension]);
         }
-        found = found ?: readable([beside.URLByDeletingPathExtension URLByAppendingPathExtension:extension]);
+        found = found ?: find([beside.URLByDeletingPathExtension URLByAppendingPathExtension:extension]);
         if (found) {
             return found;
         }
     }
-    return primary;
-}
-
-static NSURL *KnownFileAtPath(NSString *path, NSDictionary<NSString *, NSArray<NSURL *> *> *knownFiles) {
-    if (!path) {
-        return nil;
-    }
-    NSArray<NSURL *> *matches = knownFiles[[PlaylistFile knownFileKeyForPath:path]];
-    for (NSURL *url in matches) {
-        if ([url.path isEqualToString:path]) {
-            return url;
-        }
-    }
-    return matches.count == 1 ? matches.firstObject : nil;
+    return nil;
 }
 
 // The audio named like the sheet beside it — Mix.cue's Mix.flac — lossless
@@ -648,21 +667,12 @@ static NSURL *AudioFileNamedLikeSheet(NSURL *sheet, NSFileManager *fileManager,
     NSFileManager *fileManager = NSFileManager.defaultManager;
     NSMutableDictionary<NSString *, NSNumber *> *dirReachable = [NSMutableDictionary new];
     return [self cueRowsInText:text sheetURL:url resolvingFile:^NSURL *(NSString *name, BOOL sole) {
-        NSURL *resolved = nil;
-        if (name && knownFiles) {
-            NSString *path = [name hasPrefix:@"/"] ? name : [dir.path stringByAppendingPathComponent:name];
-            // Lexically, as the listing is spelled: "./" and "../" folded, no
-            // stat, no /private stripped.
-            path = [NSURL fileURLWithPath:path isDirectory:NO].standardizedURL.path;
-            resolved = KnownFileAtPath(path, knownFiles);
+        NSURL *primary = nil;
+        NSURL *found = name ? ResolveEntry(name, dir, fileManager, dirReachable, knownFiles, &primary) : nil;
+        if (!found && sole) {
+            found = AudioFileNamedLikeSheet(url, fileManager, knownFiles);
         }
-        if (!resolved) {
-            resolved = name ? ResolveEntry(name, dir, fileManager, dirReachable) : nil;
-            if (sole && !(resolved && [fileManager isReadableFileAtPath:resolved.path])) {
-                resolved = AudioFileNamedLikeSheet(url, fileManager, knownFiles) ?: resolved;
-            }
-        }
-        return resolved;
+        return found ?: primary;
     }];
 }
 
@@ -829,7 +839,8 @@ static void ReadFLACCueSources(FILE *file, uint32_t *rate, NSString **text, NSDa
     NSMutableArray<AudioTrack *> *rows = [NSMutableArray array];
     NSMutableDictionary<NSString *, NSNumber *> *dirReachable = [NSMutableDictionary new];
     EnumerateM3U(text, ^(NSString *entry, NSString *cue) {
-        NSURL *resolved = ResolveEntry(entry, dir, fileManager, dirReachable);
+        NSURL *primary = nil;
+        NSURL *resolved = ResolveEntry(entry, dir, fileManager, dirReachable, nil, &primary) ?: primary;
         if (resolved) {
             [rows addObject:RowForEntry(resolved, cue)];
         }
