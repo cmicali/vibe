@@ -18,6 +18,7 @@ typedef NS_ENUM(NSInteger, VibeAppearanceRow) {
     VibeAppearanceRowWaveformTheme,
     VibeAppearanceRowTimeDisplay,
     VibeAppearanceRowFileInfo,
+    VibeAppearanceRowShuffleRepeat,
     VibeAppearanceRowCount,
 };
 
@@ -89,6 +90,11 @@ static NSString *const kValueCellIdentifier  = @"value";
                                                                 on:VibeShowsFileInfo()
                                                             target:self action:@selector(fileInfoToggled:)];
     }
+    if ((VibeAppearanceRow)indexPath.row == VibeAppearanceRowShuffleRepeat) {
+        return [SettingsChoiceViewController switchCellInTableView:tableView title:STR_SETTINGS_SHUFFLE_REPEAT
+                                                                on:VibeShowsShuffleRepeat()
+                                                            target:self action:@selector(shuffleRepeatToggled:)];
+    }
 
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kValueCellIdentifier];
     if (!cell) {
@@ -138,7 +144,7 @@ static NSString *const kValueCellIdentifier  = @"value";
             next = [self timeDisplayPicker];
             break;
         default:
-            return;     // the switch row
+            return;     // the switch rows
     }
     [self.navigationController pushViewController:next animated:YES];
 }
@@ -202,6 +208,11 @@ static NSString *const kValueCellIdentifier  = @"value";
 
 - (void)fileInfoToggled:(UISwitch *)toggle {
     VibeSetShowsFileInfo(toggle.isOn);
+    VibeNotifyDisplaySettingsChanged();
+}
+
+- (void)shuffleRepeatToggled:(UISwitch *)toggle {
+    VibeSetShowsShuffleRepeat(toggle.isOn);
     VibeNotifyDisplaySettingsChanged();
 }
 

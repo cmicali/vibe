@@ -465,6 +465,12 @@ didEndDisplayingCell:(UITableViewCell *)cell
         didChangeCurrentIndexFromIndex:(NSUInteger)previousIndex {
     [self refreshVisibleRowAtIndex:previousIndex];
     [self refreshVisibleRowAtIndex:playback.currentIndex];
+    // Under shuffle the list holds still: following a play order that jumps
+    // across it would yank the user's place on every track.
+    if (_playlist.shuffleEnabled) {
+        _pendingScrollIndex = NSNotFound;
+        return;
+    }
     // Hidden, keep only the newest destination: unseen animated table work
     // competes with the surface in front.
     if (playback.currentIndex < _playlist.count) {

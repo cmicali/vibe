@@ -76,6 +76,10 @@ NS_ASSUME_NONNULL_BEGIN
 // Off draws dimmed, on at full strength; Repeat One shows its own glyph.
 - (void)setShuffleEnabled:(BOOL)shuffleEnabled repeatMode:(VibeRepeatMode)repeatMode;
 
+// The appearance setting: hidden, the two flanks and their gaps collapse to
+// nothing, so the three keep their full spacing. Set on every configure.
+- (void)setShuffleRepeatShown:(BOOL)shown;
+
 - (void)configureWithTitle:(NSString *)title
                 titleColor:(UIColor *)titleColor
                     artist:(NSString *)artist

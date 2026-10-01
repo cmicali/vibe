@@ -30,4 +30,9 @@ void VibeSetShowsRemainingTime(BOOL remaining);
 BOOL VibeShowsFileInfo(void);
 void VibeSetShowsFileInfo(BOOL show);
 
+// The shuffle and repeat buttons flanking the card's transport row; on by
+// default. Hidden, the modes keep working from Now Playing and stay as set.
+BOOL VibeShowsShuffleRepeat(void);
+void VibeSetShowsShuffleRepeat(BOOL show);
+
 NS_ASSUME_NONNULL_END

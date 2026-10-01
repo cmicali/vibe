@@ -219,6 +219,12 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     // that set is.
     NSLayoutConstraint *_actionBarLeadingAfterPad;
     BOOL               _fxPadShown;
+    // What hiding the shuffle and repeat buttons zeroes.
+    BOOL                _shuffleRepeatShown;
+    NSLayoutConstraint *_shuffleWidth;
+    NSLayoutConstraint *_repeatWidth;
+    NSLayoutConstraint *_outerGapWanted;
+    NSLayoutConstraint *_outerGapMin;
 
     // Swapped on the cell's own aspect, so a rotation mid-reuse cannot
     // strand a cell.
@@ -336,18 +342,20 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         _fxPadView.translatesAutoresizingMaskIntoConstraints = NO;
         [content addSubview:_fxPadView];
 
-        _shuffleButton = [self makeTransportButtonWithSide:kTransportFlankButtonSide];
+        _shuffleButton = [self makeTransportButton];
         _shuffleButton.accessibilityLabel = STR_TRANSPORT_SHUFFLE;
-        _previousButton = [self makeTransportButtonWithSide:kTransportButtonSide];
+        _previousButton = [self makeTransportButton];
         _previousButton.accessibilityLabel = STR_TRANSPORT_PREVIOUS;
         [self setGlyph:@"backward.end.fill" onButton:_previousButton
              pointSize:kCellSideGlyphPointSize];
-        _playPauseButton = [self makeTransportButtonWithSide:kTransportButtonSide];
-        _nextButton = [self makeTransportButtonWithSide:kTransportButtonSide];
+        _playPauseButton = [self makeTransportButton];
+        _nextButton = [self makeTransportButton];
         _nextButton.accessibilityLabel = STR_TRANSPORT_NEXT;
         [self setGlyph:@"forward.end.fill" onButton:_nextButton
              pointSize:kCellSideGlyphPointSize];
-        _repeatButton = [self makeTransportButtonWithSide:kTransportFlankButtonSide];
+        _repeatButton = [self makeTransportButton];
+        _shuffleWidth = [_shuffleButton.widthAnchor constraintEqualToConstant:kTransportFlankButtonSide];
+        _repeatWidth = [_repeatButton.widthAnchor constraintEqualToConstant:kTransportFlankButtonSide];
         [self setGlyphPlaying:NO];
         [self setShuffleEnabled:NO repeatMode:VibeRepeatModeOff];
 
@@ -383,12 +391,18 @@ static void VibeConfigureTimeLabel(UILabel *label) {
             [_remainingTimeControl.heightAnchor constraintGreaterThanOrEqualToConstant:44],
             [_shuffleButton.leadingAnchor constraintEqualToAnchor:_transportView.leadingAnchor],
             [_repeatButton.trailingAnchor constraintEqualToAnchor:_transportView.trailingAnchor],
+            _shuffleWidth,
+            _repeatWidth,
+            [_previousButton.widthAnchor constraintEqualToConstant:kTransportButtonSide],
+            [_playPauseButton.widthAnchor constraintEqualToConstant:kTransportButtonSide],
+            [_nextButton.widthAnchor constraintEqualToConstant:kTransportButtonSide],
         ]];
         [NSLayoutConstraint activateConstraints:[self transportGapConstraints]];
 
         _portraitConstraints = [self buildPortraitConstraints];
         _landscapeConstraints = [self buildLandscapeConstraints];
         _fxPadShown = YES;
+        _shuffleRepeatShown = YES;
     }
     return self;
 }
@@ -416,16 +430,17 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     // Outer pair: the flanks' gaps; inner pair: the three's.
     UILayoutGuide *outer = gaps[0];
     UILayoutGuide *inner = gaps[1];
-    NSLayoutConstraint *outerWanted = [outer.widthAnchor constraintEqualToConstant:kTransportButtonGap];
-    outerWanted.priority = UILayoutPriorityDefaultHigh - 20;
+    _outerGapWanted = [outer.widthAnchor constraintEqualToConstant:kTransportButtonGap];
+    _outerGapWanted.priority = UILayoutPriorityDefaultHigh - 20;
+    _outerGapMin = [outer.widthAnchor constraintGreaterThanOrEqualToConstant:kTransportFlankMinGap];
     NSLayoutConstraint *innerWanted = [inner.widthAnchor constraintEqualToConstant:kTransportButtonGap];
     innerWanted.priority = UILayoutPriorityDefaultHigh - 10;
     [constraints addObjectsFromArray:@[
         [gaps[3].widthAnchor constraintEqualToAnchor:outer.widthAnchor],
         [gaps[2].widthAnchor constraintEqualToAnchor:inner.widthAnchor],
-        outerWanted,
+        _outerGapWanted,
         innerWanted,
-        [outer.widthAnchor constraintGreaterThanOrEqualToConstant:kTransportFlankMinGap],
+        _outerGapMin,
         [inner.widthAnchor constraintGreaterThanOrEqualToConstant:kTransportMinGap],
     ]];
     return constraints;
@@ -433,7 +448,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
 
 // The shadow follows the glyph's alpha, so it can have no shadowPath; without
 // one it renders offscreen every frame, so it is rasterized instead.
-- (UIButton *)makeTransportButtonWithSide:(CGFloat)side {
+- (UIButton *)makeTransportButton {
     UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
     button.tintColor = [UIColor labelColor];
     button.layer.shadowColor = UIColor.blackColor.CGColor;
@@ -446,7 +461,6 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     [NSLayoutConstraint activateConstraints:@[
         [button.topAnchor constraintEqualToAnchor:_transportView.topAnchor],
         [button.bottomAnchor constraintEqualToAnchor:_transportView.bottomAnchor],
-        [button.widthAnchor constraintEqualToConstant:side],
     ]];
     return button;
 }
@@ -746,6 +760,20 @@ static UIImage *DimmedGlyph(UIImage *glyph) {
 - (void)setOutputRouteKind:(VibeOutputRouteKind)kind deviceName:(NSString *)name {
     [_routeView setRouteKind:kind deviceName:name];
     [self applyRouteTimeAlignment];
+}
+
+- (void)setShuffleRepeatShown:(BOOL)shown {
+    if (_shuffleRepeatShown == shown) {
+        return;
+    }
+    _shuffleRepeatShown = shown;
+    _shuffleButton.hidden = !shown;
+    _repeatButton.hidden = !shown;
+    _shuffleWidth.constant = shown ? kTransportFlankButtonSide : 0;
+    _repeatWidth.constant = shown ? kTransportFlankButtonSide : 0;
+    _outerGapWanted.constant = shown ? kTransportButtonGap : 0;
+    _outerGapMin.constant = shown ? kTransportFlankMinGap : 0;
+    [self setNeedsLayout];
 }
 
 - (void)setFXPadShown:(BOOL)shown {

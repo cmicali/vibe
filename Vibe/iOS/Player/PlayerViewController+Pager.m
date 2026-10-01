@@ -178,6 +178,7 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     // The pad follows the setting, which the Playback screen's write carries
     // here through the display notification.
     [cell setFXPadShown:AppSettings.sharedInstance.audioFXEnabled];
+    [cell setShuffleRepeatShown:VibeShowsShuffleRepeat()];
 }
 
 // The mac's second info line: the tempo — the tag, or the analysis the

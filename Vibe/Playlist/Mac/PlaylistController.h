@@ -166,7 +166,8 @@ NS_ASSUME_NONNULL_BEGIN
 // otherwise pay a full reloadData per cover that lands.
 - (void)reloadVisibleTracks;
 
-// A no-op while the row is visible.
+// A no-op while the row is visible; under shuffle it centers the row, clamped
+// at the list's ends.
 - (void)scrollCurrentTrackToVisible;
 
 @end

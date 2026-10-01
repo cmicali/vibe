@@ -685,12 +685,23 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 }
 
 // scrollRowToVisible: no-ops for an on-screen row, so a user who scrolled away
-// keeps their position until the next track change.
+// keeps their position until the next track change. Under shuffle the row
+// centers instead, as far as the list's ends allow: the next row is usually
+// far off, and an edge-hugging minimal scroll hides where the play order went.
 - (void)scrollCurrentTrackToVisible {
     if (self.currentIndex >= _model.count) {
         return;
     }
-    [self.tableView scrollRowToVisible:(NSInteger)self.currentIndex];
+    NSInteger row = (NSInteger)self.currentIndex;
+    if (!_model.shuffleEnabled) {
+        [self.tableView scrollRowToVisible:row];
+        return;
+    }
+    NSClipView *clip = self.tableView.enclosingScrollView.contentView;
+    NSRect bounds = clip.bounds;
+    bounds.origin.y = NSMidY([self.tableView rectOfRow:row]) - NSHeight(bounds) / 2;
+    [clip scrollToPoint:[clip constrainBoundsRect:bounds].origin];
+    [self.tableView.enclosingScrollView reflectScrolledClipView:clip];
 }
 
 - (void)doubleClick:(id)sender {
