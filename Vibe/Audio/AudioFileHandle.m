@@ -41,7 +41,7 @@ static const float kVibeMPEGSampleBound = 4.0f;
 // per MP3 frame, which were a tenth of the whole decode's time.
 enum { kVibeMPEGReadPackets = 16 };
 
-// Frames dr_flac or dr_wav decodes at once into the scratch a planar read splits.
+// Frames dr_wav decodes at once into the scratch a planar integer read splits.
 enum { kVibeStreamReadFrames = 4096 };
 
 // CoreAudio's Ogg reader (.ogg, .oga, .opus). The SDK names no constant.
@@ -88,7 +88,7 @@ static const AudioFileTypeID kVibeOggFileType = 'Oggf';
     drwav _wavState;
     SInt64 _streamCursor;
     BOOL _streamReadFailed; // a pread failed, which neither decoder can tell from the end
-    void *_streamPCM;       // kVibeStreamReadFrames frames, interleaved, for a planar read; NULL otherwise
+    void *_streamPCM;       // kVibeStreamReadFrames frames, interleaved, for a planar integer read; NULL otherwise
 }
 
 + (BOOL)appleMPEGDecoder {
@@ -590,10 +590,10 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     if (_streamReadFailed || length == 0 || channels != _processingFormat.channelCount || rate != _processingFormat.sampleRate) {
         return NO;
     }
-    // A planar read neither makes itself, all dr_flac's and dr_wav's of
-    // integers, goes through the scratch; without it every channel would land
-    // in the first plane, so one that cannot have it is ExtAudioFile's.
-    if (!_processingFormat.isInterleaved && channels > 1 && (_flac || _processingFormat.commonFormat != AVAudioPCMFormatFloat32)) {
+    // A planar read neither makes itself, dr_wav's of integers, goes through
+    // the scratch; without it every channel would land in the first plane, so
+    // one that cannot have it is ExtAudioFile's.
+    if (!_processingFormat.isInterleaved && channels > 1 && _processingFormat.commonFormat != AVAudioPCMFormatFloat32) {
         _streamPCM = malloc((size_t)kVibeStreamReadFrames * channels * _bytesPerFrame);
         if (!_streamPCM) {
             return NO;
@@ -846,9 +846,10 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     return YES;
 }
 
-// dr_flac's or dr_wav's decode, straight into the buffer: all that is asked
-// in one call, but for a planar read through _streamPCM, a chunk at a time.
-// Reads stop at the length, where dr_flac's would read on.
+// dr_flac's or dr_wav's decode, straight into the buffer in one call: a channel
+// to each plane, or interleaved. Each reads all that is asked but at the end of
+// the stream; a planar integer read, dr_wav's alone, goes through _streamPCM a
+// chunk at a time. Reads stop at the length, where dr_flac's would read on.
 - (BOOL)readStreamIntoBuffer:(AVAudioPCMBuffer *)buffer frameCount:(AVAudioFrameCount)wanted error:(NSError **)error {
     UInt32 channels = _processingFormat.channelCount;
     AVAudioCommonFormat format = _processingFormat.commonFormat;
@@ -857,19 +858,22 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     AVAudioFrameCount total = 0;
     while (total < wanted) {
         AVAudioFrameCount frames = _streamPCM ? MIN(wanted - total, (AVAudioFrameCount)kVibeStreamReadFrames) : wanted - total;
+        void *into = _streamPCM ?: (uint8_t *)list->mBuffers[0].mData + (size_t)total * _bytesPerFrame;
         UInt32 got;
-        if (_wav && !_streamPCM && list->mNumberBuffers > 1) {
+        if (format == AVAudioPCMFormatInt16) {
+            got = (UInt32)drwav_read_pcm_frames_s16(_wav, (drwav_uint64)frames, into);
+        } else if (format == AVAudioPCMFormatInt32) {
+            got = (UInt32)drwav_read_pcm_frames_s32(_wav, (drwav_uint64)frames, into);
+        } else if (!_processingFormat.isInterleaved) {
             float *at[channels];
             for (UInt32 c = 0; c < channels; c++) {
                 at[c] = (float *)list->mBuffers[c].mData + total;
             }
-            got = (UInt32)drwav_read_pcm_frames_f32_planar(_wav, (drwav_uint64)frames, at);
+            got = (UInt32)(_flac ? drflac_read_pcm_frames_f32_planar(_flac, (drflac_uint64)frames, at)
+                                 : drwav_read_pcm_frames_f32_planar(_wav, (drwav_uint64)frames, at));
         } else {
-            void *into = _streamPCM ?: (uint8_t *)list->mBuffers[0].mData + (size_t)total * _bytesPerFrame;
             got = (UInt32)(_flac ? drflac_read_pcm_frames_f32(_flac, (drflac_uint64)frames, into)
-                           : format == AVAudioPCMFormatInt16 ? drwav_read_pcm_frames_s16(_wav, (drwav_uint64)frames, into)
-                           : format == AVAudioPCMFormatInt32 ? drwav_read_pcm_frames_s32(_wav, (drwav_uint64)frames, into)
-                           : drwav_read_pcm_frames_f32(_wav, (drwav_uint64)frames, into));
+                                 : drwav_read_pcm_frames_f32(_wav, (drwav_uint64)frames, into));
         }
         if (_streamReadFailed) {
             buffer.frameLength = total;
