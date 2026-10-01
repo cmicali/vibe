@@ -6,7 +6,7 @@ This directory is the shell only. The iOS halves of shared subsystems are docume
 
 A new file in a shared directory joins this target automatically and must be AppKit-free or `TARGET_OS_OSX`-guarded (root `AGENTS.md`); CI's iOS builds catch a leak.
 
-**Layout keys off view aspect, not device orientation.** iPad is a resizable window, all orientations, minimum 320×480 via `sizeRestrictions` in `VibeiOSSceneDelegate`.
+**Layout keys off view aspect, not device orientation** — and on iPad off height too: a short window takes the card's compact layouts (`Player/AGENTS.md`). iPad is a resizable window, all orientations, minimum 320×200 via `sizeRestrictions` in `VibeiOSSceneDelegate` (the card's strip layout's floor); iPadOS 26 itself keeps a window at least about 486pt tall, so the system floor is the one that binds.
 
 **Multi-scene is off.** One `AudioPlayer` per `PlaybackController`, one `PlaybackController` per scene; a second scene would be a second engine. A size transition sets `_windowResizeInFlight`, which holds `commitVisiblePage`: a mid-resize offset rounds to a neighbor page and would switch tracks.
 

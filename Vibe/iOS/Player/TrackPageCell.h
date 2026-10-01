@@ -6,7 +6,8 @@
 //  pulled into view shows its own track's. Portrait ends in the FX pad's
 //  circle and the route capsule (the route capsule alone with effects off).
 //  Landscape rearranges into the mac main window, with the two in its bottom
-//  corners.
+//  corners. A short iPad window goes compact: no pad, pill or flanks, and the
+//  three on the art.
 //
 
 #import <UIKit/UIKit.h>
@@ -49,7 +50,7 @@ NS_ASSUME_NONNULL_BEGIN
 // landscape's bottom-leading corner. It rides the page like the route control;
 // the controller wires its delegate and, because it owns the touch for the
 // length of a hold, holds the pager still for it. Hidden with the setting
-// (setFXPadShown:).
+// (setFXPadShown:) and in the compact layouts.
 @property (nonatomic, readonly) FXPadView *fxPadView;
 // Settings > Playback > Enable audio effects: shown, portrait's bar is the
 // pad's circle and the route capsule over the rest; hidden, the route capsule
@@ -78,7 +79,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setShuffleEnabled:(BOOL)shuffleEnabled repeatMode:(VibeRepeatMode)repeatMode;
 
 // The appearance setting, set on every configure: hidden, the two flanks and
-// their gaps collapse to nothing, so the three keep their full spacing.
+// their gaps collapse to nothing, so the three keep their full spacing. The
+// compact layouts hide them too.
 - (void)setShuffleRepeatShown:(BOOL)shown;
 
 - (void)configureWithTitle:(NSString *)title
