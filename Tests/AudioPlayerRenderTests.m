@@ -784,8 +784,7 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // A seek reads what the continuous decode holds at its target, up to 2048
 // frames of it, and nothing past its end.
 - (void)assertSeekOf:(AudioFileHandle *)file to:(NSUInteger)at match:(NSData *)continuous name:(NSString *)name {
-    NSUInteger frameBytes = file.processingFormat.streamDescription->mBitsPerChannel / 8 * file.processingFormat.channelCount;
-    NSUInteger frames = continuous.length / frameBytes;
+    NSUInteger channels = file.processingFormat.channelCount, frames = continuous.length / sizeof(float) / channels;
     AVAudioPCMBuffer *slice = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat frameCapacity:2048];
     XCTAssertTrue([file seekToFrame:(AVAudioFramePosition)at error:NULL], @"%@ seek to %lu", name, (unsigned long)at);
     XCTAssertTrue([file readIntoBuffer:slice error:NULL]);
@@ -793,12 +792,12 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     VibeAppendPCM(read, slice);
     NSUInteger from = MIN(at, frames), expected = MIN(2048, frames - from);
     XCTAssertEqual(slice.frameLength, expected, @"%@ seek to %lu", name, (unsigned long)at);
-    XCTAssertEqualObjects(read, [continuous subdataWithRange:NSMakeRange(from * frameBytes, expected * frameBytes)],
+    XCTAssertEqualObjects(read, [continuous subdataWithRange:NSMakeRange(from * channels * sizeof(float), expected * channels * sizeof(float))],
                           @"%@ seek to %lu", name, (unsigned long)at);
 }
 // Seeks to the edges of the first frames, the end, and targets across the file.
 - (void)assertSeeksOf:(AudioFileHandle *)file match:(NSData *)continuous block:(NSUInteger)block name:(NSString *)name {
-    NSUInteger frames = continuous.length / (file.processingFormat.streamDescription->mBitsPerChannel / 8 * file.processingFormat.channelCount);
+    NSUInteger frames = continuous.length / sizeof(float) / file.processingFormat.channelCount;
     NSMutableArray<NSNumber *> *targets = [@[@0, @1, @(block - 1), @(block), @(block + 1), @(frames / 2), @(frames - 1), @(frames - 2048)] mutableCopy];
     srand48(7);
     for (NSUInteger i = 0; i < 40; i++) [targets addObject:@((NSUInteger)(drand48() * frames))];
@@ -892,7 +891,7 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     NSData *reference = [self readToEnd:clean];
     NSUInteger channels = clean.processingFormat.channelCount, frameBytes = channels * sizeof(float);
     XCTAssertEqual(reference.length, (NSUInteger)clean.length * frameBytes);
-    AudioFileHandle *interleaved = [[AudioFileHandle alloc] initForReading:url commonFormat:AVAudioPCMFormatFloat32 interleaved:YES error:NULL];
+    AudioFileHandle *interleaved = [[AudioFileHandle alloc] initForReading:url interleaved:YES error:NULL];
     XCTAssertEqualObjects([self readToEnd:interleaved], reference, @"interleaved, as the waveform reads");
 
     AudioFileHandle *(^open)(NSData *, NSString *) = ^AudioFileHandle *(NSData *stream, NSString *name) {
@@ -997,21 +996,12 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     XCTAssertEqualObjects([self readToEnd:file], reference, @"stray header past the end");
     [self assertSeekOf:file to:reference.length / frameBytes - 100 match:reference name:@"stray header past the end, after the end"];
 }
-// Apple's decode of a file to `format`, through AVAudioFile rather than the
-// handle, interleaved. A chunk at a time, since one read can come back short
-// of the end: an Int16 read of a 16-bit WAV does.
-- (NSData *)appleDecodeOf:(NSURL *)url as:(AVAudioCommonFormat)format {
+// Apple's decode of a file, through AVAudioFile rather than the handle, interleaved.
+- (NSData *)appleDecodeOf:(NSURL *)url {
     NSError *error = nil;
-    AVAudioFile *file = [[AVAudioFile alloc] initForReading:url commonFormat:format interleaved:NO error:&error];
-    XCTAssertNotNil(file, @"%@: %@", url.lastPathComponent, error);
-    AVAudioPCMBuffer *chunk = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat frameCapacity:4096];
-    NSMutableData *pcm = [NSMutableData data];
-    while (file.framePosition < file.length) {
-        XCTAssertTrue([file readIntoBuffer:chunk error:&error], @"%@: %@", url.lastPathComponent, error);
-        if (chunk.frameLength == 0) break;
-        VibeAppendPCM(pcm, chunk);
-    }
-    return pcm;
+    AVAudioPCMBuffer *whole = VibeReadWithAVAudioFile(url, &error);
+    XCTAssertNotNil(whole, @"%@: %@", url.lastPathComponent, error);
+    return PCM(whole);
 }
 // dr_wav decodes every coding a WAV or an AIFF(-C) holds as Apple's decoder
 // does, and every seek reads what the continuous decode holds there. An MS
@@ -1019,8 +1009,6 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // Apple plays. An ima4 packet's decode depends on every packet before it, and
 // its seeks still land where a read from the start does, where Apple's do not.
 // A WAV holding MPEG goes to dr_mp3, or to Apple's decoder when it is chosen.
-// An Int16 or Int32 read, as Convert to FLAC reads, is dr_wav's for integers
-// no wider than it and Apple's otherwise, and reads as Apple's does either way.
 - (void)testDrWAVDecodesAsAppleDoes {
     self.continueAfterFailure = YES;
     NSArray<NSString *> *names = @[@"noise-44100-16-1.wav", @"noise-96000-24-2.wav", @"noise-48000-32-2.wav", @"noise-48000-24-8.wav",
@@ -1029,16 +1017,6 @@ static const NSUInteger kLayer3DecoderDelay = 529;
         @"aifc-BEF32.aif", @"aifc-BEF64.aif", @"aifc-ulaw.aif", @"aifc-alaw.aif", @"aifc-ima4.aif", @"aifc-ima4-mono.aif", @"aifc-UI8.aif",
         @"wave64-LEI24.w64", @"rf64-LEI24.wav",
         @"wav-ima-adpcm.wav", @"wav-ms-adpcm.wav"];
-    NSArray<NSNumber *> *formats = @[@(AVAudioPCMFormatFloat32), @(AVAudioPCMFormatInt16), @(AVAudioPCMFormatInt32)];
-    NSDictionary<NSNumber *, NSString *> *labels = @{formats[0]: @"float32", formats[1]: @"Int16", formats[2]: @"Int32"};
-    // Opens `url` as `format` and checks it went to the decoder the rule names.
-    AudioFileHandle *(^open)(NSURL *, NSNumber *, BOOL, NSString *) = ^AudioFileHandle *(NSURL *url, NSNumber *format, BOOL interleaved, NSString *label) {
-        AudioFileHandle *file = [[AudioFileHandle alloc] initForReading:url commonFormat:format.unsignedIntegerValue interleaved:interleaved error:NULL];
-        const AudioStreamBasicDescription *coding = file.fileFormat.streamDescription, *read = file.processingFormat.streamDescription;
-        BOOL exact = !(coding->mFormatFlags & kAudioFormatFlagIsFloat) && coding->mBitsPerChannel <= read->mBitsPerChannel;
-        XCTAssertEqualObjects(file.decoderName, format.unsignedIntegerValue == AVAudioPCMFormatFloat32 || exact ? @"dr_wav" : @"apple", @"%@", label);
-        return file;
-    };
     NSMutableArray<NSString *> *missing = [NSMutableArray array];
     for (NSString *name in names) {
         NSURL *url = [self fixture:name];
@@ -1047,19 +1025,16 @@ static const NSUInteger kLayer3DecoderDelay = 529;
             [missing addObject:name];
             continue;
         }
-        for (NSNumber *common in formats) {
-            NSString *label = [NSString stringWithFormat:@"%@ as %@", name, labels[common]];
-            AudioFileHandle *file = open(url, common, NO, label);
-            NSData *decoded = [self readToEnd:file], *apple = [self appleDecodeOf:url as:common.unsignedIntegerValue];
-            NSUInteger frameBytes = file.processingFormat.channelCount * file.processingFormat.streamDescription->mBitsPerChannel / 8;
-            XCTAssertEqual(decoded.length, (NSUInteger)file.length * frameBytes, @"%@", label);
-            if ([name isEqualToString:@"wav-ms-adpcm.wav"]) {
-                XCTAssertLessThan(decoded.length, apple.length, @"%@ ends at its fact count", label);
-                apple = [apple subdataWithRange:NSMakeRange(0, decoded.length)];
-            }
-            XCTAssertEqualObjects(decoded, apple, @"%@", label);
-            [self assertSeeksOf:file match:decoded block:[name containsString:@"ima4"] ? 64 : 4096 name:label];
+        AudioFileHandle *file = [self open:url decoder:@"dr_wav"];
+        NSData *decoded = [self readToEnd:file], *apple = [self appleDecodeOf:url];
+        NSUInteger frameBytes = file.processingFormat.channelCount * sizeof(float);
+        XCTAssertEqual(decoded.length, (NSUInteger)file.length * frameBytes, @"%@", name);
+        if ([name isEqualToString:@"wav-ms-adpcm.wav"]) {
+            XCTAssertLessThan(decoded.length, apple.length, @"%@ ends at its fact count", name);
+            apple = [apple subdataWithRange:NSMakeRange(0, decoded.length)];
         }
+        XCTAssertEqualObjects(decoded, apple, @"%@", name);
+        [self assertSeeksOf:file match:decoded block:[name containsString:@"ima4"] ? 64 : 4096 name:name];
     }
     // Samples narrower than their bytes, 12 bits in 2 and 20 in 3, their pad
     // bits zero as a writer leaves them.
@@ -1072,16 +1047,10 @@ static const NSUInteger kLayer3DecoderDelay = 529;
             b[at] &= (uint8_t)(0xFF << (8 * width - bits)); // the low byte holds the pad
         }
         NSURL *url = [self writeBytes:wave name:[NSString stringWithFormat:@"pcm-%u.wav", bits]];
-        for (NSNumber *common in formats) {
-            NSString *label = [NSString stringWithFormat:@"%u bits in %u bytes as %@", bits, width, labels[common]];
-            XCTAssertEqualObjects([self readToEnd:open(url, common, NO, label)], [self appleDecodeOf:url as:common.unsignedIntegerValue], @"%@", label);
-        }
+        XCTAssertEqualObjects([self readToEnd:[self open:url decoder:@"dr_wav"]], [self appleDecodeOf:url], @"%u bits in %u bytes", bits, width);
     }
-    NSURL *lossless = [self fixture:@"lossless.aiff"];
-    for (NSNumber *common in formats) {
-        NSString *label = [NSString stringWithFormat:@"interleaved, as %@", labels[common]];
-        XCTAssertEqualObjects([self readToEnd:open(lossless, common, YES, label)], [self appleDecodeOf:lossless as:common.unsignedIntegerValue], @"%@", label);
-    }
+    AudioFileHandle *interleaved = [[AudioFileHandle alloc] initForReading:[self fixture:@"lossless.aiff"] interleaved:YES error:NULL];
+    XCTAssertEqualObjects([self readToEnd:interleaved], [self appleDecodeOf:[self fixture:@"lossless.aiff"]], @"interleaved, as the waveform reads");
     NSURL *mpeg = [self optionalFixture:@"mp3-in.wav"];
     [self open:mpeg decoder:@"dr_mp3"];
     AudioFileHandle.appleMPEGDecoder = YES;
@@ -1218,10 +1187,8 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 }
 // A little-endian (sowt) AIFF-C of 24 or 32 bits, which CoreAudio's parser
 // describes as 16-bit, made from a big-endian one by swapping each sample:
-// dr_wav decodes the same samples, as float32 and as Int32 in either layout,
-// which is how Convert to FLAC reads them, and the file's description carries
-// their width, so the depth report and bit-perfect output's choice honor all
-// of it.
+// dr_wav decodes the same samples, and the file's description carries their
+// width, so the depth report and bit-perfect output's choice honor all of it.
 // A WAV's 20-bit sample in 3 bytes, which the two agree on, keeps the parser's
 // description.
 - (void)testDrWAVDescribesSowtAtItsWidth {
@@ -1242,15 +1209,8 @@ static const NSUInteger kLayer3DecoderDelay = 529;
             }
         }
 
-        NSURL *sowtURL = [self writeBytes:aiff name:[@"sowt-" stringByAppendingString:name]];
-        AudioFileHandle *sowt = [self open:sowtURL decoder:@"dr_wav"];
+        AudioFileHandle *sowt = [self open:[self writeBytes:aiff name:[@"sowt-" stringByAppendingString:name]] decoder:@"dr_wav"];
         XCTAssertEqualObjects([self readToEnd:sowt], [self readToEnd:big], @"%@ as sowt", name);
-        NSData *apple = [self appleDecodeOf:url as:AVAudioPCMFormatInt32];
-        for (NSNumber *interleaved in @[@NO, @YES]) {
-            AudioFileHandle *integers = [[AudioFileHandle alloc] initForReading:sowtURL commonFormat:AVAudioPCMFormatInt32 interleaved:interleaved.boolValue error:NULL];
-            XCTAssertEqual(integers.length, big.length, @"%@ as sowt, Int32", name);
-            XCTAssertEqualObjects([self readToEnd:integers], apple, @"%@ as sowt, Int32, interleaved %@", name, interleaved);
-        }
         AudioStreamBasicDescription source = *sowt.fileFormat.streamDescription;
         XCTAssertEqual(VibeSourceBitDepth(source), bits, @"%@ as sowt: the depth reported", name);
         AudioStreamRangedDescription offered[2] = {VibeRangedPCMFormat(source.mSampleRate, 16, NO), VibeRangedPCMFormat(source.mSampleRate, bits, NO)};
@@ -1495,11 +1455,11 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     AudioFileHandle.appleMPEGDecoder = NO;
     dispatch_semaphore_t opened = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
     __block BOOL held = NO;
-    SEL selector = @selector(initForReading:commonFormat:interleaved:error:);
+    SEL selector = @selector(initForReading:interleaved:error:);
     Method initializer = class_getInstanceMethod(AudioFileHandle.class, selector);
     __block IMP original;
-    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *url, AVAudioCommonFormat format, BOOL interleaved, NSError **error) {
-        id handle = ((id (*)(id, SEL, NSURL *, AVAudioCommonFormat, BOOL, NSError **))original)(receiver, selector, url, format, interleaved, error);
+    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *url, BOOL interleaved, NSError **error) {
+        id handle = ((id (*)(id, SEL, NSURL *, BOOL, NSError **))original)(receiver, selector, url, interleaved, error);
         if ([url.path isEqualToString:second.path] && !held) {
             held = YES;
             dispatch_semaphore_signal(opened);
@@ -1552,11 +1512,11 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     NSArray<dispatch_semaphore_t> *opened = @[dispatch_semaphore_create(0), dispatch_semaphore_create(0)];
     NSArray<dispatch_semaphore_t> *release = @[dispatch_semaphore_create(0), dispatch_semaphore_create(0)];
     __block NSInteger opens = 0;
-    SEL selector = @selector(initForReading:commonFormat:interleaved:error:);
+    SEL selector = @selector(initForReading:interleaved:error:);
     Method initializer = class_getInstanceMethod(AudioFileHandle.class, selector);
     __block IMP original;
-    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *url, AVAudioCommonFormat format, BOOL interleaved, NSError **error) {
-        id handle = ((id (*)(id, SEL, NSURL *, AVAudioCommonFormat, BOOL, NSError **))original)(receiver, selector, url, format, interleaved, error);
+    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *url, BOOL interleaved, NSError **error) {
+        id handle = ((id (*)(id, SEL, NSURL *, BOOL, NSError **))original)(receiver, selector, url, interleaved, error);
         NSInteger index = -1;
         if ([url.path isEqualToString:second.path]) {
             @synchronized (self) { index = opens < 2 ? opens++ : -1; }
@@ -1855,11 +1815,11 @@ static NSData *UniqueNoise(NSUInteger frames, uint32_t seed) {
     NSData *reference = PCM([self read:url]);
     dispatch_semaphore_t opened = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
     __block BOOL held = NO;
-    SEL selector = @selector(initForReading:commonFormat:interleaved:error:);
+    SEL selector = @selector(initForReading:interleaved:error:);
     Method initializer = class_getInstanceMethod(AudioFileHandle.class, selector);
     __block IMP original;
-    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *opening, AVAudioCommonFormat format, BOOL interleaved, NSError **error) {
-        id handle = ((id (*)(id, SEL, NSURL *, AVAudioCommonFormat, BOOL, NSError **))original)(receiver, selector, opening, format, interleaved, error);
+    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *opening, BOOL interleaved, NSError **error) {
+        id handle = ((id (*)(id, SEL, NSURL *, BOOL, NSError **))original)(receiver, selector, opening, interleaved, error);
         if ([opening.path isEqualToString:url.path] && !held) {
             held = YES;
             dispatch_semaphore_signal(opened);
@@ -1898,11 +1858,11 @@ static NSData *UniqueNoise(NSUInteger frames, uint32_t seed) {
     NSData *reference = PCM([self read:url]);
     dispatch_semaphore_t opened = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
     __block BOOL held = NO;
-    SEL selector = @selector(initForReading:commonFormat:interleaved:error:);
+    SEL selector = @selector(initForReading:interleaved:error:);
     Method initializer = class_getInstanceMethod(AudioFileHandle.class, selector);
     __block IMP original;
-    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *opening, AVAudioCommonFormat format, BOOL interleaved, NSError **error) {
-        id handle = ((id (*)(id, SEL, NSURL *, AVAudioCommonFormat, BOOL, NSError **))original)(receiver, selector, opening, format, interleaved, error);
+    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *opening, BOOL interleaved, NSError **error) {
+        id handle = ((id (*)(id, SEL, NSURL *, BOOL, NSError **))original)(receiver, selector, opening, interleaved, error);
         if ([opening.path isEqualToString:url.path] && !held) {
             held = YES;
             dispatch_semaphore_signal(opened);

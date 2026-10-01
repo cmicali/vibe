@@ -41,9 +41,6 @@ static const float kVibeMPEGSampleBound = 4.0f;
 // per MP3 frame, which were a tenth of the whole decode's time.
 enum { kVibeMPEGReadPackets = 16 };
 
-// Frames dr_wav decodes at once into the scratch a planar integer read splits.
-enum { kVibeStreamReadFrames = 4096 };
-
 // CoreAudio's Ogg reader (.ogg, .oga, .opus). The SDK names no constant.
 static const AudioFileTypeID kVibeOggFileType = 'Oggf';
 
@@ -57,7 +54,7 @@ static const AudioFileTypeID kVibeOggFileType = 'Oggf';
     ExtAudioFileRef _codec; // NULL while dr_mp3, dr_flac or dr_wav decodes
     UInt32 _bytesPerFrame; // of the processing format, per buffer
     BOOL _writing;
-    BOOL _mpegChoiceApplies; // an MPEG file read as float32
+    BOOL _mpegChoiceApplies; // an MPEG file
     BOOL _openedUnderApple;  // the choice when it opened
     // dr_mp3's decode: the parser's packets on a timeline of packet ×
     // framesPerPacket, with _mpegSkip frames before logical frame 0.
@@ -88,7 +85,6 @@ static const AudioFileTypeID kVibeOggFileType = 'Oggf';
     drwav _wavState;
     SInt64 _streamCursor;
     BOOL _streamReadFailed; // a pread failed, which neither decoder can tell from the end
-    void *_streamPCM;       // kVibeStreamReadFrames frames, interleaved, for a planar integer read; NULL otherwise
 }
 
 + (BOOL)appleMPEGDecoder {
@@ -183,24 +179,16 @@ static drflac_bool32 VibeStreamTell(void *user, drflac_int64 *cursor) {
     return DRFLAC_TRUE;
 }
 
-// Interleaved frames of 2 or 4-byte samples into a planar buffer from frame
-// `offset` on. Both copies move bits and do no arithmetic, so the 4-byte ones
-// serve Int32 as well as float.
-static void VibeDeinterleave(const void *from, UInt32 bytes, UInt32 channels, const AudioBufferList *planes,
-                             AVAudioFrameCount offset, UInt32 frames) {
-    if (bytes == 4 && channels == 2) {
-        DSPSplitComplex planar = {(float *)planes->mBuffers[0].mData + offset, (float *)planes->mBuffers[1].mData + offset};
+// Interleaved frames into a planar buffer from frame `offset` on.
+static void VibeDeinterleave(const float *from, UInt32 channels, float *const *planes, AVAudioFrameCount offset, UInt32 frames) {
+    if (channels == 2) {
+        DSPSplitComplex planar = {planes[0] + offset, planes[1] + offset};
         vDSP_ctoz((const DSPComplex *)from, 2, &planar, 1, frames);
         return;
     }
     for (UInt32 c = 0; c < channels; c++) {
         for (UInt32 f = 0; f < frames; f++) {
-            size_t at = (size_t)f * channels + c;
-            if (bytes == 2) {
-                ((uint16_t *)planes->mBuffers[c].mData)[offset + f] = ((const uint16_t *)from)[at];
-            } else {
-                ((uint32_t *)planes->mBuffers[c].mData)[offset + f] = ((const uint32_t *)from)[at];
-            }
+            planes[c][offset + f] = from[(size_t)f * channels + c];
         }
     }
 }
@@ -279,7 +267,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 #endif
 
 - (instancetype)initForReading:(NSURL *)url error:(NSError **)error {
-    return [self initForReading:url commonFormat:AVAudioPCMFormatFloat32 interleaved:NO error:error];
+    return [self initForReading:url interleaved:NO error:error];
 }
 
 - (instancetype)initParserForReading:(NSURL *)url error:(NSError **)error {
@@ -348,8 +336,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     return self;
 }
 
-- (instancetype)initForReading:(NSURL *)url commonFormat:(AVAudioCommonFormat)format interleaved:(BOOL)interleaved
-                         error:(NSError **)error {
+- (instancetype)initForReading:(NSURL *)url interleaved:(BOOL)interleaved error:(NSError **)error {
     self = [self initParserForReading:url error:error];
     if (!self) {
         return nil;
@@ -388,17 +375,15 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     }
     _fileFormat = [[AVAudioFormat alloc] initWithStreamDescription:&fileDescription channelLayout:layout];
     _processingFormat = layout
-            ? [[AVAudioFormat alloc] initWithCommonFormat:format sampleRate:fileDescription.mSampleRate interleaved:interleaved channelLayout:layout]
-            : [[AVAudioFormat alloc] initWithCommonFormat:format sampleRate:fileDescription.mSampleRate
+            ? [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32 sampleRate:fileDescription.mSampleRate interleaved:interleaved channelLayout:layout]
+            : [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32 sampleRate:fileDescription.mSampleRate
                                                  channels:fileDescription.mChannelsPerFrame interleaved:interleaved];
     if (!_fileFormat || !_processingFormat) {
         return [self failWithError:error status:kAudioFileUnsupportedDataFormatError
                        description:[NSString stringWithFormat:@"%@ has a format this player cannot decode", name]];
     }
-    _bytesPerFrame = _processingFormat.streamDescription->mBytesPerFrame;
     UInt32 formatID = fileDescription.mFormatID;
-    _mpegChoiceApplies = format == AVAudioPCMFormatFloat32
-            && (formatID == kAudioFormatMPEGLayer1 || formatID == kAudioFormatMPEGLayer2 || formatID == kAudioFormatMPEGLayer3);
+    _mpegChoiceApplies = formatID == kAudioFormatMPEGLayer1 || formatID == kAudioFormatMPEGLayer2 || formatID == kAudioFormatMPEGLayer3;
     _openedUnderApple = atomic_load(&sAppleMPEGDecoder);
     if (_mpegChoiceApplies && !_openedUnderApple && [self openMPEGWithDescription:fileDescription]) {
         return self;
@@ -406,7 +391,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     // Before the client format below, which Apple's FLAC codec refuses for
     // some legal streams dr_flac plays: block sizes of 16 and 65535, rates
     // past 655 kHz, 32-bit samples.
-    if (_descriptor >= 0 && ((format == AVAudioPCMFormatFloat32 && formatID == kAudioFormatFLAC && [self openFLAC]) || [self openWAV])) {
+    if (_descriptor >= 0 && ((formatID == kAudioFormatFLAC && [self openFLAC]) || [self openWAV])) {
         return self;
     }
     const AudioStreamBasicDescription *client = _processingFormat.streamDescription;
@@ -420,6 +405,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         return [self failWithError:error status:status
                        description:[NSString stringWithFormat:@"No decoder for %@'s format (%d)", name, (int)status]];
     }
+    _bytesPerFrame = client->mBytesPerFrame;
     SInt64 length = 0;
     size = sizeof(length);
     if (ExtAudioFileGetProperty(_codec, kExtAudioFileProperty_FileLengthFrames, &size, &length) != noErr) {
@@ -534,9 +520,8 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 }
 
 // Takes a WAV, W64, RF64 or AIFF(-C) file over for dr_wav, as openFLAC does
-// for dr_flac, when it holds a coding dr_wav decodes to the read's format;
-// anything else, a file of another container or one dr_wav reads differently
-// is left to ExtAudioFile.
+// for dr_flac, when it holds a coding dr_wav decodes; anything else, a file of
+// another container or one dr_wav reads differently is left to ExtAudioFile.
 // dr_wav answers the length: the frames the data holds, a COMM or fact count
 // only when it is no more.
 - (BOOL)openWAV {
@@ -550,27 +535,16 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     BOOL decodable = tag == DR_WAVE_FORMAT_PCM || tag == DR_WAVE_FORMAT_ALAW || tag == DR_WAVE_FORMAT_MULAW
             || tag == DR_WAVE_FORMAT_ADPCM || tag == DR_WAVE_FORMAT_DVI_ADPCM
             || (tag == DR_WAVE_FORMAT_IEEE_FLOAT && (_wav->bitsPerSample == 32 || _wav->bitsPerSample == 64));
-    // A float32 read takes every coding. An Int16 or Int32 read, Convert to
-    // FLAC's, takes integers no wider than itself, which dr_wav left-justifies
-    // exactly as Apple's decode does (A-law, µ-law, and ADPCM decode to 16
-    // bits); where it narrows or converts float it truncates, and Apple's
-    // rounds. Integer reads are dr_wav's at all for a sowt AIFF-C wider than
-    // 16 bits, which Apple's decodes wrongly whatever the read.
-    AVAudioCommonFormat read = _processingFormat.commonFormat;
-    BOOL integers = read == AVAudioPCMFormatInt16 || read == AVAudioPCMFormatInt32;
-    BOOL exact = read == AVAudioPCMFormatFloat32
-            || (integers && tag != DR_WAVE_FORMAT_IEEE_FLOAT
-                && (tag != DR_WAVE_FORMAT_PCM || _wav->bitsPerSample <= _processingFormat.streamDescription->mBitsPerChannel));
-    if (!decodable || !exact
-            || ![self adoptStreamDecoderWithChannels:_wav->channels rate:_wav->sampleRate length:_wav->totalPCMFrameCount]) {
+    if (!decodable || ![self adoptStreamDecoderWithChannels:_wav->channels rate:_wav->sampleRate length:_wav->totalPCMFrameCount]) {
         [self closeStreamDecoder];
         return NO;
     }
     // TRAP: CoreAudio's parser describes a sowt AIFF-C as 16-bit whatever its
     // COMM says, so a 24 or 32-bit one would report 16 as its depth and have
-    // bit-perfect output choose 16 bits. The file's description takes the
-    // width dr_wav decodes wherever the two disagree on a sample's size in
-    // bytes; a 20-bit sample in 3 is both's.
+    // bit-perfect output choose 16 bits, and Apple's decoder reads it 1.5 or 2
+    // times as long, so only dr_wav reads one right. The file's description
+    // takes the width dr_wav decodes wherever the two disagree on a sample's
+    // size in bytes; a 20-bit sample in 3 is both's.
     const AudioStreamBasicDescription *parsed = _fileFormat.streamDescription;
     UInt32 bytesPerFrame = (_wav->bitsPerSample + 7) / 8 * _wav->channels;
     if (parsed->mFormatID == kAudioFormatLinearPCM && parsed->mBytesPerFrame != bytesPerFrame) {
@@ -590,15 +564,6 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     if (_streamReadFailed || length == 0 || channels != _processingFormat.channelCount || rate != _processingFormat.sampleRate) {
         return NO;
     }
-    // A planar read neither makes itself, dr_wav's of integers, goes through
-    // the scratch; without it every channel would land in the first plane, so
-    // one that cannot have it is ExtAudioFile's.
-    if (!_processingFormat.isInterleaved && channels > 1 && _processingFormat.commonFormat != AVAudioPCMFormatFloat32) {
-        _streamPCM = malloc((size_t)kVibeStreamReadFrames * channels * _bytesPerFrame);
-        if (!_streamPCM) {
-            return NO;
-        }
-    }
     ExtAudioFileDispose(_codec);
     _codec = NULL;
     [self closeParser];
@@ -609,8 +574,6 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 - (void)closeStreamDecoder {
     drflac_close(_flac);
     _flac = NULL;
-    free(_streamPCM);
-    _streamPCM = NULL;
     if (_wav) {
         drwav_uninit(_wav);
         _wav = NULL;
@@ -836,7 +799,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         if (interleaved || channels == 1) {
             memcpy(planes[0] + (size_t)total * channels, from, (size_t)frames * channels * sizeof(float));
         } else {
-            VibeDeinterleave(from, sizeof(float), channels, buffer.audioBufferList, total, frames);
+            VibeDeinterleave(from, channels, planes, total, frames);
         }
         _mpegPCMOffset += frames;
         _mpegPosition += frames;
@@ -848,49 +811,23 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 
 // dr_flac's or dr_wav's decode, straight into the buffer in one call: a channel
 // to each plane, or interleaved. Each reads all that is asked but at the end of
-// the stream; a planar integer read, dr_wav's alone, goes through _streamPCM a
-// chunk at a time. Reads stop at the length, where dr_flac's would read on.
+// the stream. Reads stop at the length, where dr_flac's would read on.
 - (BOOL)readStreamIntoBuffer:(AVAudioPCMBuffer *)buffer frameCount:(AVAudioFrameCount)wanted error:(NSError **)error {
-    UInt32 channels = _processingFormat.channelCount;
-    AVAudioCommonFormat format = _processingFormat.commonFormat;
-    const AudioBufferList *list = buffer.audioBufferList;
-    wanted = (AVAudioFrameCount)MIN((SInt64)wanted, MAX(0, _length - self.framePosition));
-    AVAudioFrameCount total = 0;
-    while (total < wanted) {
-        AVAudioFrameCount frames = _streamPCM ? MIN(wanted - total, (AVAudioFrameCount)kVibeStreamReadFrames) : wanted - total;
-        void *into = _streamPCM ?: (uint8_t *)list->mBuffers[0].mData + (size_t)total * _bytesPerFrame;
-        UInt32 got;
-        if (format == AVAudioPCMFormatInt16) {
-            got = (UInt32)drwav_read_pcm_frames_s16(_wav, (drwav_uint64)frames, into);
-        } else if (format == AVAudioPCMFormatInt32) {
-            got = (UInt32)drwav_read_pcm_frames_s32(_wav, (drwav_uint64)frames, into);
-        } else if (!_processingFormat.isInterleaved) {
-            float *at[channels];
-            for (UInt32 c = 0; c < channels; c++) {
-                at[c] = (float *)list->mBuffers[c].mData + total;
-            }
-            got = (UInt32)(_flac ? drflac_read_pcm_frames_f32_planar(_flac, (drflac_uint64)frames, at)
-                                 : drwav_read_pcm_frames_f32_planar(_wav, (drwav_uint64)frames, at));
-        } else {
-            got = (UInt32)(_flac ? drflac_read_pcm_frames_f32(_flac, (drflac_uint64)frames, into)
-                                 : drwav_read_pcm_frames_f32(_wav, (drwav_uint64)frames, into));
-        }
-        if (_streamReadFailed) {
-            buffer.frameLength = total;
-            if (error) {
-                *error = VibeHandleError(kAudioFilePositionError, [NSString stringWithFormat:@"Reading %@ failed", _url.lastPathComponent]);
-            }
-            return NO;
-        }
-        if (got == 0) {
-            break; // the end
-        }
-        if (_streamPCM) {
-            VibeDeinterleave(_streamPCM, _bytesPerFrame, channels, list, total, got);
-        }
-        total += got;
+    float *const *planes = buffer.floatChannelData;
+    drflac_uint64 frames = (drflac_uint64)MIN((SInt64)wanted, MAX(0, _length - self.framePosition));
+    drflac_uint64 got;
+    if (!_processingFormat.isInterleaved) {
+        got = _flac ? drflac_read_pcm_frames_f32_planar(_flac, frames, planes) : drwav_read_pcm_frames_f32_planar(_wav, frames, planes);
+    } else {
+        got = _flac ? drflac_read_pcm_frames_f32(_flac, frames, planes[0]) : drwav_read_pcm_frames_f32(_wav, frames, planes[0]);
     }
-    buffer.frameLength = total;
+    buffer.frameLength = (AVAudioFrameCount)got;
+    if (_streamReadFailed) {
+        if (error) {
+            *error = VibeHandleError(kAudioFilePositionError, [NSString stringWithFormat:@"Reading %@ failed", _url.lastPathComponent]);
+        }
+        return NO;
+    }
     return YES;
 }
 

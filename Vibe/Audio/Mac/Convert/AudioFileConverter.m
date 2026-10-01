@@ -687,11 +687,11 @@ static NSString *VibeFileStat(NSURL *url) {
                            toURL:(NSURL *)tempURL
                         progress:(void (^)(double fraction))progress
                            error:(NSError **)error {
-    AudioFileHandle *probe = [[AudioFileHandle alloc] initForReading:sourceURL error:error];
-    if (!probe) {
+    AudioFileHandle *source = [[AudioFileHandle alloc] initForReading:sourceURL error:error];
+    if (!source) {
         return nil;
     }
-    if (probe.length <= 0) {
+    if (source.length <= 0) {
         // Zero frames would skip the loop and "succeed", swapping a playable
         // row for a FLAC nothing can play.
         if (error) {
@@ -700,24 +700,13 @@ static NSString *VibeFileStat(NSURL *url) {
         return nil;
     }
 
-    // The FLAC's declared source depth: 16 bits for an integer source of at
-    // most 16, else 24, the format's ceiling, read from Int32 buffers. Float
-    // is the one lossy case: FLAC stores integers, and every FLAC encoder
-    // quantizes float to 24 bits. The depth is the file format's flag
-    // (kAppleLosslessFormatFlag_16BitSourceData or 24), which the encoder
-    // takes as the buffers' width; the two must agree.
-    const AudioStreamBasicDescription *asbd = probe.fileFormat.streamDescription;
-    BOOL isFloat = (asbd->mFormatFlags & kAudioFormatFlagIsFloat) != 0;
-    BOOL sixteen = !isFloat && asbd->mBitsPerChannel <= 16;
-    AVAudioCommonFormat bufferFormat = sixteen ? AVAudioPCMFormatInt16 : AVAudioPCMFormatInt32;
-
-    AudioFileHandle *source = [[AudioFileHandle alloc] initForReading:sourceURL
-                                                 commonFormat:bufferFormat
-                                                  interleaved:NO
-                                                        error:error];
-    if (!source) {
-        return nil;
-    }
+    // The FLAC's declared source depth, the file format's flag: 16 bits for
+    // an integer source of at most 16, else 24, the format's ceiling. The
+    // encoder rounds the float32 read to it without dither, so integer
+    // sources up to 24 bits are exact. TRAP: fed Int32 buffers, the encoder
+    // wraps a positive full-scale sample to negative full scale.
+    const AudioStreamBasicDescription *asbd = source.fileFormat.streamDescription;
+    BOOL sixteen = !(asbd->mFormatFlags & kAudioFormatFlagIsFloat) && asbd->mBitsPerChannel <= 16;
 
     AudioStreamBasicDescription flac = {0};
     flac.mFormatID = kAudioFormatFLAC;
@@ -734,8 +723,6 @@ static NSString *VibeFileStat(NSURL *url) {
         return nil;
     }
 
-    // Rate, channels and buffer format all carry over unchanged, so the two
-    // processing formats match and a read buffer is written as-is.
     AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:source.processingFormat
                                                             frameCapacity:kConvertBufferFrames];
     if (!buffer) {

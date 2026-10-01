@@ -239,8 +239,7 @@ static int VibeOpenDescriptorCount(void) {
 - (void)testInterleavedProcessingFormatReadsFramesInOrder {
     NSURL *url = [self writePCMNamed:@"interleaved.wav" frames:300 channels:2 rate:48000];
     NSError *error = nil;
-    AudioFileHandle *handle = [[AudioFileHandle alloc] initForReading:url commonFormat:AVAudioPCMFormatFloat32
-                                                          interleaved:YES error:&error];
+    AudioFileHandle *handle = [[AudioFileHandle alloc] initForReading:url interleaved:YES error:&error];
     XCTAssertNotNil(handle, @"%@", error);
     XCTAssertTrue(handle.processingFormat.isInterleaved);
     AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:handle.processingFormat frameCapacity:300];

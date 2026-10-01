@@ -17,25 +17,23 @@
 //  read, write and close operations belong to one consumer at a time (the
 //  bus's decoder after a voice starts, AudioVoiceBus.h).
 //
-//  An MPEG file (MP1, MP2, MP3) read as float32 is decoded by dr_mp3 instead
-//  of ExtAudioFile unless Apple's is chosen, since Apple's MPEG decoder's only
-//  output is 16-bit integers: clipped at full scale and rounded without
-//  dither. CoreAudio's parser still finds its packets, priming and length, so
-//  gapless trims and durations are the ones every other reader sees.
+//  An MPEG file (MP1, MP2, MP3) is decoded by dr_mp3 instead of ExtAudioFile
+//  unless Apple's is chosen, since Apple's MPEG decoder's only output is
+//  16-bit integers: clipped at full scale and rounded without dither.
+//  CoreAudio's parser still finds its packets, priming and length, so gapless
+//  trims and durations are the ones every other reader sees.
 //
-//  A FLAC file read as float32 is decoded by dr_flac, bit-identical to Apple's
-//  decode, which it replaces for its cost and its seeks: Apple's scans the
-//  stream from its start on the first seek into any part not yet read, and
-//  never uses the seek table (docs/audio-quality.md). CoreAudio's parser
-//  answers the file's format and layout and is then closed; dr_flac reads the
-//  stream through the descriptor itself and answers its length, found from
-//  the last frames when STREAMINFO leaves it unknown. The vendored copy
-//  carries fixes of its own (ThirdParty/AGENTS.md).
+//  A FLAC file is decoded by dr_flac, bit-identical to Apple's decode, which
+//  it replaces for its cost and its seeks: Apple's scans the stream from its
+//  start on the first seek into any part not yet read, and never uses the seek
+//  table (docs/audio-quality.md). CoreAudio's parser answers the file's format
+//  and layout and is then closed; dr_flac reads the stream through the
+//  descriptor itself and answers its length, found from the last frames when
+//  STREAMINFO leaves it unknown. The vendored copy carries fixes of its own
+//  (ThirdParty/AGENTS.md).
 //
-//  A WAV or AIFF file read as float32 is decoded by dr_wav the same way, when
-//  it holds a coding dr_wav decodes (ThirdParty/AGENTS.md lists them), and so
-//  is one read as Int16 or Int32, as Convert to FLAC reads, when it holds
-//  integers no wider than the read (openWAV says why).
+//  A WAV or AIFF file is decoded by dr_wav the same way, when it holds a
+//  coding dr_wav decodes (ThirdParty/AGENTS.md lists them).
 //
 
 #import <AVFAudio/AVFAudio.h>
@@ -55,10 +53,9 @@ NS_ASSUME_NONNULL_BEGIN
 // channels and layout — AVAudioFile's standard processing format.
 - (nullable instancetype)initForReading:(NSURL *)url error:(NSError * _Nullable __autoreleasing * _Nullable)error;
 
-// Opens for reading, decoding to `format` (a PCM common format) at the file's
-// rate and channels, interleaved or not.
+// Opens for reading, decoding to float32 at the file's rate, channels and
+// layout, interleaved or not.
 - (nullable instancetype)initForReading:(NSURL *)url
-                           commonFormat:(AVAudioCommonFormat)format
                             interleaved:(BOOL)interleaved
                                   error:(NSError * _Nullable __autoreleasing * _Nullable)error;
 // Creates `url` (replacing any file there) as a `fileType` container holding
