@@ -57,6 +57,8 @@ NS_ASSUME_NONNULL_BEGIN
 // The empty state's hint, in the time row's gap, where the volume control
 // swaps with it on hover.
 - (void)setDropHintShown:(BOOL)shown;
+// The Open shortcut both empty-state hints name; nil when it is unassigned.
+- (void)setOpenShortcut:(nullable NSString *)shortcut;
 // The Volume live effect's body: the slider's position and percentage,
 // whether the hover reveals them (AppSettings.volumeControl), and the theme's
 // tint, labels and corner.

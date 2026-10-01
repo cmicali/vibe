@@ -63,12 +63,14 @@ BOOL VibeDumpWindowSnapshot(NSString *path);
 NSDictionary *VibeStateDictionary(MainPlayerController *controller);
 NSString *VibeViewTreeDump(void);
 NSArray *VibeMenuArray(NSMenu *menu);
-NSString *VibeClickMenuItem(NSString *name);
+NSString *VibeClickMenuItem(MainPlayerController *controller, NSString *name);
 NSDictionary *VibeActionSummaryDictionary(MainPlayerController *controller);
 
 // DebugInput.m — synthesized input, synthetic drags and row selection.
 NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *tokens,
                         BOOL down, BOOL up);
+NSString *VibeSetShortcut(MainPlayerController *controller, NSArray<NSString *> *tokens);
+NSString *VibeResetShortcuts(MainPlayerController *controller);
 NSString *VibeInjectMouse(MainPlayerController *controller, NSArray<NSString *> *tokens);
 NSString *VibeInjectDrag(MainPlayerController *controller, NSArray<NSString *> *tokens);
 NSString *VibeTestGesture(MainPlayerController *controller, NSArray<NSString *> *tokens);

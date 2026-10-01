@@ -3,6 +3,7 @@
 //  Vibe
 //
 
+#import <Carbon/Carbon.h> // TIS and UCKeyTranslate: a key code's character under the current layout
 #import "MainMenuBuilder.h"
 #import "AppDelegate.h"
 #import "AppSettings.h"
@@ -11,10 +12,12 @@
 #import "MainPlayerController.h"
 #import "MainPlayerController+Window.h"
 #import "MainPlayerController+Convert.h"
+#import "MainPlayerController+Settings.h"
 #import "MainPlayerController+Transport.h"
 #import "MenuValidationRules.h"
 #import "OpenRecentMenuController.h"
 #import "OutputDevicesMenuController.h"
+#import "ShortcutRules.h"
 #import "VibeStrings.h"
 
 // TRAP: macOS force-appends AutoFill, Start Dictation and Emoji & Symbols to
@@ -55,6 +58,10 @@ static NSMenuItem *Item(NSString *title, SEL action, id target, NSString *key,
 // keys, so a context menu rebuilt before any menu opens drops out.
 static NSMapTable<NSMenuItem *, NSString *> *sPendingSymbolItems;
 static BOOL sSymbolImagesFilled;
+
+// Each key code's lowercase character under the current ASCII-capable layout,
+// nil until first needed and after an input source change.
+static NSDictionary<NSNumber *, NSString *> *sLayoutCharacters;
 
 static void SetSymbolImage(NSMenuItem *item, NSString *symbolName) {
     if (sSymbolImagesFilled) {
@@ -107,23 +114,6 @@ static NSMenuItem *AddSymbolItem(NSMenu *parent, NSString *title, NSString *symb
     return item;
 }
 
-static NSMenuItem *AddFXItem(NSMenu *parent, NSString *title, NSString *symbolName, SEL action,
-                             id target, NSString *key, NSString *identifier) {
-    NSMenuItem *item = AddSymbolItem(parent, title, symbolName, action, target, key, 0, identifier);
-    // The shortcut applyFXMenuVisibility: restores.
-    item.representedObject = key;
-    return item;
-}
-
-static NSMenuItem *TopLevelMenuItemWithIdentifier(NSString *identifier) {
-    for (NSMenuItem *item in NSApp.mainMenu.itemArray) {
-        if ([item.identifier isEqualToString:identifier]) {
-            return item;
-        }
-    }
-    return nil;
-}
-
 static NSMenuItem *AddSeparator(NSMenu *parent) {
     NSMenuItem *item = [NSMenuItem separatorItem];
     [parent addItem:item];
@@ -172,6 +162,19 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     [self buildHelpMenuIn:mainMenu appDelegate:appDelegate];
 
     NSApp.mainMenu = mainMenu;
+
+    [player applySettingsLiveEffects:VibeSettingsLiveEffectShortcuts];
+    // Labels and key equivalents follow the layout. The menu outlives this
+    // observer's owner question: both last the process.
+    __weak MainPlayerController *weakPlayer = player;
+    [NSDistributedNotificationCenter.defaultCenter
+            addObserverForName:(__bridge NSString *)kTISNotifySelectedKeyboardInputSourceChanged
+                        object:nil
+                         queue:NSOperationQueue.mainQueue
+                    usingBlock:^(NSNotification *note) {
+        sLayoutCharacters = nil;
+        [weakPlayer applySettingsLiveEffects:VibeSettingsLiveEffectShortcuts];
+    }];
 }
 
 + (void)buildAppMenuIn:(NSMenu *)mainMenu appDelegate:(AppDelegate *)appDelegate {
@@ -204,11 +207,11 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
 + (void)buildFileMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player
         openRecentMenuController:(OpenRecentMenuController *)openRecentMenuController {
     NSMenu *fileMenu = Submenu(mainMenu, STR_MENU_FILE).submenu;
-    AddItem(fileMenu, STR_MENU_FILE_OPEN, @selector(openDocument:), nil, @"o", NSEventModifierFlagCommand, nil);
+    AddItem(fileMenu, STR_MENU_FILE_OPEN, @selector(openDocument:), nil, @"", 0, kVibeMenuOpen);
     NSMenuItem *openRecentItem = Submenu(fileMenu, STR_MENU_FILE_OPEN_RECENT);
     openRecentItem.submenu.delegate = openRecentMenuController; // populated from NSDocumentController on open
     AddSeparator(fileMenu);
-    AddSymbolItem(fileMenu, STR_MENU_FILE_SAVE_PLAYLIST, @"square.and.arrow.down", @selector(savePlaylist:), player, @"s", NSEventModifierFlagCommand, kVibeMenuSavePlaylist);
+    AddSymbolItem(fileMenu, STR_MENU_FILE_SAVE_PLAYLIST, @"square.and.arrow.down", @selector(savePlaylist:), player, @"", 0, kVibeMenuSavePlaylist);
     AddSeparator(fileMenu);
     // Nil-targeted so ⌘W follows the key window; Settings and About close
     // themselves.
@@ -223,29 +226,20 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     editItem.representedObject = editMenuCleaner;
     editMenu.delegate = editMenuCleaner;
     AddSymbolItem(editMenu, STR_MENU_EDIT_UNDO, @"arrow.uturn.backward", @selector(undo:), nil, @"z", NSEventModifierFlagCommand, kVibeMenuEditUndo);
-    // ⇧⌘Z: capital "Z", as Copy Name's "C" below.
+    // ⇧⌘Z rides in the capital letter, as ApplyShortcut explains.
     AddSymbolItem(editMenu, STR_MENU_EDIT_REDO, @"arrow.uturn.forward", @selector(redo:), nil, @"Z", NSEventModifierFlagCommand, kVibeMenuEditRedo);
     AddSeparator(editMenu).identifier = @"menu_edit_separator";
 
-    // TRAP: a shifted equivalent rides in the capital letter ("C" with Command
-    // is ⇧⌘C). A lowercase key with Shift in the mask draws right but never
-    // matches a real press.
-    NSMenuItem *copyNameItem = [self copyNameItemWithTarget:player];
-    copyNameItem.keyEquivalent = @"C";
-    copyNameItem.keyEquivalentModifierMask = NSEventModifierFlagCommand;
-    [editMenu addItem:copyNameItem];
+    [editMenu addItem:[self copyNameItemWithTarget:player]];
     NSMenuItem *copyFileItem = [self copyFileItemWithTarget:player];
     copyFileItem.keyEquivalent = @"c";
     copyFileItem.keyEquivalentModifierMask = NSEventModifierFlagCommand;
     [editMenu addItem:copyFileItem];
 
     AddSeparator(editMenu).identifier = @"menu_edit_separator_remove";
-    // minus.circle, not trash: the file stays on disk. NSBackspaceCharacter
-    // draws as ⌫, but a real press delivers NSDeleteCharacter, so
-    // TransportKeyMonitor handles it, and Forward Delete.
+    // minus.circle, not trash: the file stays on disk.
     AddSymbolItem(editMenu, STR_MENU_EDIT_REMOVE_FROM_PLAYLIST, @"minus.circle",
-                  @selector(removeSelectedPlaylistTracks:), player,
-                  [NSString stringWithFormat:@"%C", (unichar)NSBackspaceCharacter], 0,
+                  @selector(removeSelectedPlaylistTracks:), player, @"", 0,
                   kVibeMenuEditRemoveFromPlaylist);
 
     AddSeparator(editMenu).identifier = @"menu_edit_separator_select";
@@ -257,30 +251,26 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
 }
 
 + (void)buildPlaybackMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {
+    // Every shortcut here is applyShortcuts'; the bare keys are display and
+    // fallback only, since TransportKeyMonitor handles the presses.
     NSMenu *playbackMenu = Submenu(mainMenu, STR_MENU_PLAYBACK).submenu;
-    AddSymbolItem(playbackMenu, STR_TRANSPORT_PLAY, @"play.fill", @selector(playPause:), player, @" ", 0, kVibeMenuPlay);
-    AddSymbolItem(playbackMenu, STR_TRANSPORT_PREVIOUS, @"backward.end.fill", @selector(previous:), player, @"b", 0, kVibeMenuPreviousTrack);
-    AddSymbolItem(playbackMenu, STR_TRANSPORT_NEXT, @"forward.end.fill", @selector(next:), player, @"n", 0, kVibeMenuNextTrack);
-    // Bare keys are display and fallback only: TransportKeyMonitor handles
-    // the presses.
-    AddSymbolItem(playbackMenu, STR_MENU_PLAY_SELECTED, @"play.circle", @selector(playSelectedTrack:), player,
-                  [NSString stringWithFormat:@"%c", NSCarriageReturnCharacter], 0, kVibeMenuPlaySelected);
+    AddSymbolItem(playbackMenu, STR_TRANSPORT_PLAY, @"play.fill", @selector(playPause:), player, @"", 0, kVibeMenuPlay);
+    AddSymbolItem(playbackMenu, STR_TRANSPORT_PREVIOUS, @"backward.end.fill", @selector(previous:), player, @"", 0, kVibeMenuPreviousTrack);
+    AddSymbolItem(playbackMenu, STR_TRANSPORT_NEXT, @"forward.end.fill", @selector(next:), player, @"", 0, kVibeMenuNextTrack);
+    AddSymbolItem(playbackMenu, STR_MENU_PLAY_SELECTED, @"play.circle", @selector(playSelectedTrack:), player, @"", 0, kVibeMenuPlaySelected);
     AddSeparator(playbackMenu);
 
-    // ⌘-modified, so TransportKeyMonitor passes them on: bare S is a skip.
-    AddSymbolItem(playbackMenu, STR_TRANSPORT_SHUFFLE, @"shuffle", @selector(toggleShuffle:), player,
-                  @"s", NSEventModifierFlagCommand | NSEventModifierFlagOption, kVibeMenuShuffle);
+    AddSymbolItem(playbackMenu, STR_TRANSPORT_SHUFFLE, @"shuffle", @selector(toggleShuffle:), player, @"", 0, kVibeMenuShuffle);
     // Validation retitles it per mode.
-    AddSymbolItem(playbackMenu, STR_TRANSPORT_REPEAT_OFF, @"repeat", @selector(cycleRepeatMode:), player,
-                  @"r", NSEventModifierFlagCommand, kVibeMenuRepeat);
+    AddSymbolItem(playbackMenu, STR_TRANSPORT_REPEAT_OFF, @"repeat", @selector(cycleRepeatMode:), player, @"", 0, kVibeMenuRepeat);
     AddSeparator(playbackMenu);
 
-    AddSymbolItem(playbackMenu, STR_MENU_SKIP_FORWARD, @"forward", @selector(skipForward:), player, @"a", 0, kVibeMenuSkipForward);
-    AddItem(playbackMenu, STR_MENU_SKIP_FORWARD_MORE, @selector(skipForwardMore:), player, @"s", 0, kVibeMenuSkipForwardMore);
-    AddItem(playbackMenu, STR_MENU_SKIP_FORWARD_MOST, @selector(skipForwardMost:), player, @"d", 0, kVibeMenuSkipForwardMost);
-    AddSymbolItem(playbackMenu, STR_MENU_SKIP_BACK, @"backward", @selector(skipBack:), player, @"z", 0, kVibeMenuSkipBack);
-    AddItem(playbackMenu, STR_MENU_SKIP_BACK_MORE, @selector(skipBackMore:), player, @"x", 0, kVibeMenuSkipBackMore);
-    AddItem(playbackMenu, STR_MENU_SKIP_BACK_MOST, @selector(skipBackMost:), player, @"c", 0, kVibeMenuSkipBackMost);
+    AddSymbolItem(playbackMenu, STR_MENU_SKIP_FORWARD, @"forward", @selector(skipForward:), player, @"", 0, kVibeMenuSkipForward);
+    AddItem(playbackMenu, STR_MENU_SKIP_FORWARD_MORE, @selector(skipForwardMore:), player, @"", 0, kVibeMenuSkipForwardMore);
+    AddItem(playbackMenu, STR_MENU_SKIP_FORWARD_MOST, @selector(skipForwardMost:), player, @"", 0, kVibeMenuSkipForwardMost);
+    AddSymbolItem(playbackMenu, STR_MENU_SKIP_BACK, @"backward", @selector(skipBack:), player, @"", 0, kVibeMenuSkipBack);
+    AddItem(playbackMenu, STR_MENU_SKIP_BACK_MORE, @selector(skipBackMore:), player, @"", 0, kVibeMenuSkipBackMore);
+    AddItem(playbackMenu, STR_MENU_SKIP_BACK_MOST, @selector(skipBackMost:), player, @"", 0, kVibeMenuSkipBackMost);
     AddSeparator(playbackMenu);
 
     NSString *pitchRangeTitle = STR_MENU_PITCH_RANGE;
@@ -296,19 +286,19 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     NSMenuItem *fxItem = Submenu(mainMenu, STR_MENU_FX);
     fxItem.identifier = @"menu_fx";
     NSMenu *fxMenu = fxItem.submenu;
-    AddFXItem(fxMenu, STR_MENU_FX_LOW_KILL, @"dial.min", @selector(toggleLowKill:), player, @"q", kVibeMenuFXLowKill);
-    AddFXItem(fxMenu, STR_MENU_FX_LOW_KILL_BOOST, @"dial.max.fill", @selector(toggleLowKillBoost:), player, @"w", kVibeMenuFXLowKillBoost);
+    AddSymbolItem(fxMenu, STR_MENU_FX_LOW_KILL, @"dial.min", @selector(toggleLowKill:), player, @"", 0, kVibeMenuFXLowKill);
+    AddSymbolItem(fxMenu, STR_MENU_FX_LOW_KILL_BOOST, @"dial.max.fill", @selector(toggleLowKillBoost:), player, @"", 0, kVibeMenuFXLowKillBoost);
     AddSeparator(fxMenu);
-    AddFXItem(fxMenu, STR_MENU_FX_REVERB, @"water.waves", @selector(toggleReverbSend:), player, @"e", kVibeMenuFXReverb);
-    AddFXItem(fxMenu, STR_MENU_FX_DELAY_8, @"wave.3.right", @selector(toggleDelaySend:), player, @"r", kVibeMenuFXDelay);
-    AddFXItem(fxMenu, STR_MENU_FX_DELAY_16, @"wave.3.right.circle", @selector(toggleShortDelaySend:), player, @"t", kVibeMenuFXShortDelay);
-    [self applyFXMenuVisibility:fxItem];
+    AddSymbolItem(fxMenu, STR_MENU_FX_REVERB, @"water.waves", @selector(toggleReverbSend:), player, @"", 0, kVibeMenuFXReverb);
+    AddSymbolItem(fxMenu, STR_MENU_FX_DELAY_8, @"wave.3.right", @selector(toggleDelaySend:), player, @"", 0, kVibeMenuFXDelay);
+    AddSymbolItem(fxMenu, STR_MENU_FX_DELAY_16, @"wave.3.right.circle", @selector(toggleShortDelaySend:), player, @"", 0, kVibeMenuFXShortDelay);
+    fxItem.hidden = !AppSettings.sharedInstance.audioFXAllowed;
 }
 
 + (void)buildViewMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {
     NSMenu *viewMenu = Submenu(mainMenu, STR_MENU_VIEW).submenu;
-    AddSymbolItem(viewMenu, STR_MENU_VIEW_PLAYLIST, @"list.dash", @selector(toggleSize:), player, [NSString stringWithFormat:@"%c", NSTabCharacter], 0, kVibeMenuShowPlaylist);
-    AddSymbolItem(viewMenu, STR_MENU_VIEW_PITCH_CONTROL, @"slider.vertical.3", @selector(togglePitchPanel:), player, @"p", 0, kVibeMenuShowPitch);
+    AddSymbolItem(viewMenu, STR_MENU_VIEW_PLAYLIST, @"list.dash", @selector(toggleSize:), player, @"", 0, kVibeMenuShowPlaylist);
+    AddSymbolItem(viewMenu, STR_MENU_VIEW_PITCH_CONTROL, @"slider.vertical.3", @selector(togglePitchPanel:), player, @"", 0, kVibeMenuShowPitch);
     AddSymbolItem(viewMenu, STR_MENU_VIEW_FILE_INFO, @"info.circle", @selector(toggleFileInfo:), player, @"", 0, kVibeMenuShowFileInfo);
     AddSeparator(viewMenu);
 
@@ -340,37 +330,203 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     [convertMenu addItem:[self convertToFLACItemWithTarget:player]];
     AddSeparator(convertMenu);
     AddSymbolItem(convertMenu, STR_MENU_CONVERT_DELETE_ORIGINAL, @"trash", @selector(toggleDeleteOriginalAfterConvert:), player, @"", 0, kVibeMenuConvertDeleteOriginal);
-    [self applyConvertMenuVisibility:convertItem];
-}
-
-// The context menus' shared item hides through validation instead.
-+ (void)applyConvertMenuVisibility {
-    [self applyConvertMenuVisibility:TopLevelMenuItemWithIdentifier(@"menu_convert")];
-}
-
-+ (void)applyConvertMenuVisibility:(NSMenuItem *)convertItem {
     convertItem.hidden = !AppSettings.sharedInstance.convertEnabled;
 }
 
-+ (void)applyFXMenuVisibility {
-    NSMenuItem *fxItem = TopLevelMenuItemWithIdentifier(@"menu_fx");
-    if (!fxItem) {
-        return;
-    }
-    [self applyFXMenuVisibility:fxItem];
+// The context menus' shared item hides through validation instead.
+// Each also re-applies the shortcuts, which a hidden menu withdraws.
++ (void)applyConvertMenuVisibility {
+    [self mainMenuItemWithIdentifier:@"menu_convert"].hidden = !AppSettings.sharedInstance.convertEnabled;
+    [self applyShortcuts];
 }
 
-// TRAP: hiding a submenu does not deactivate its key equivalents; AppKit still
-// matches Q/W/E/R/T under a hidden menu_fx, so they are cleared with it.
-+ (void)applyFXMenuVisibility:(NSMenuItem *)fxItem {
-    BOOL enabled = AppSettings.sharedInstance.audioFXAllowed;
-    for (NSMenuItem *item in fxItem.submenu.itemArray) {
-        NSString *intendedKey = item.representedObject;
-        if ([intendedKey isKindOfClass:NSString.class]) {
-            item.keyEquivalent = enabled ? intendedKey : @"";
++ (void)applyFXMenuVisibility {
+    [self mainMenuItemWithIdentifier:@"menu_fx"].hidden = !AppSettings.sharedInstance.audioFXAllowed;
+    [self applyShortcuts];
+}
+
+#pragma mark - Shortcuts
+
+static NSMenuItem *ItemWithIdentifier(NSMenu *menu, NSString *identifier) {
+    for (NSMenuItem *item in menu.itemArray) {
+        if ([item.identifier isEqualToString:identifier]) {
+            return item;
+        }
+        NSMenuItem *found = item.submenu ? ItemWithIdentifier(item.submenu, identifier) : nil;
+        if (found) {
+            return found;
         }
     }
-    fxItem.hidden = !enabled;
+    return nil;
+}
+
+// The keys a layout does not name: key equivalent, then the label drawn for it.
+static NSArray<NSString *> *SpecialKey(unsigned short keyCode) {
+    static NSDictionary<NSNumber *, NSArray<NSString *> *> *special;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSString *(^fn)(unichar) = ^NSString *(unichar c) { return [NSString stringWithCharacters:&c length:1]; };
+        NSMutableDictionary *keys = [@{
+            @36:  @[@"\r", VibeNotLocalized(@"↩")],
+            @48:  @[@"\t", VibeNotLocalized(@"⇥")],
+            @49:  @[@" ", STR_SETTINGS_SHORTCUTS_KEY_SPACE],
+            // Reserved, so only ever named in a refusal.
+            @53:  @[@"\e", VibeNotLocalized(@"⎋")],
+            // NSBackspaceCharacter draws as ⌫; a real press delivers
+            // NSDeleteCharacter, which the monitor matches by key code.
+            @51:  @[fn(NSBackspaceCharacter), VibeNotLocalized(@"⌫")],
+            @115: @[fn(NSHomeFunctionKey), VibeNotLocalized(@"↖")],
+            @119: @[fn(NSEndFunctionKey), VibeNotLocalized(@"↘")],
+            @116: @[fn(NSPageUpFunctionKey), VibeNotLocalized(@"⇞")],
+            @121: @[fn(NSPageDownFunctionKey), VibeNotLocalized(@"⇟")],
+        } mutableCopy];
+        // kVK_F1 … kVK_F20.
+        const unsigned short fKeys[] = {122, 120, 99, 118, 96, 97, 98, 100, 101, 109,
+                                        103, 111, 105, 107, 113, 106, 64, 79, 80, 90};
+        for (unichar n = 0; n < sizeof(fKeys) / sizeof(fKeys[0]); n++) {
+            keys[@(fKeys[n])] = @[fn(NSF1FunctionKey + n),
+                                  [NSString stringWithFormat:VibeNotLocalized(@"F%u"), (unsigned)(n + 1)]];
+        }
+        special = keys;
+    });
+    return special[@(keyCode)];
+}
+
+// Built from the ASCII-capable layout so a Greek or Cyrillic user's menus show
+// the Latin letters their Command shortcuts type.
+static NSDictionary<NSNumber *, NSString *> *LayoutCharacters(void) {
+    if (sLayoutCharacters) {
+        return sLayoutCharacters;
+    }
+    NSMutableDictionary<NSNumber *, NSString *> *characters = [NSMutableDictionary dictionary];
+    TISInputSourceRef source = TISCopyCurrentASCIICapableKeyboardLayoutInputSource();
+    CFDataRef data = source ? TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) : NULL;
+    if (!data) {
+        if (source) {
+            CFRelease(source);
+        }
+        source = TISCopyCurrentKeyboardLayoutInputSource();
+        data = source ? TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) : NULL;
+    }
+    if (data) {
+        const UCKeyboardLayout *layout = (const UCKeyboardLayout *)CFDataGetBytePtr(data);
+        for (unsigned short keyCode = 0; keyCode < 128; keyCode++) {
+            UInt32 deadKeyState = 0;
+            UniChar buffer[4];
+            UniCharCount length = 0;
+            // No dead-key state: an accent key labels itself, not a pending accent.
+            OSStatus status = UCKeyTranslate(layout, keyCode, kUCKeyActionDisplay, 0, LMGetKbdType(),
+                                             kUCKeyTranslateNoDeadKeysMask, &deadKeyState,
+                                             4, &length, buffer);
+            if (status != noErr || length != 1
+                    || [NSCharacterSet.controlCharacterSet characterIsMember:buffer[0]]
+                    || [NSCharacterSet.whitespaceAndNewlineCharacterSet characterIsMember:buffer[0]]) {
+                continue;
+            }
+            characters[@(keyCode)] = [NSString stringWithCharacters:buffer length:1].lowercaseString;
+        }
+    }
+    if (source) {
+        CFRelease(source);
+    }
+    sLayoutCharacters = characters;
+    return characters;
+}
+
+// TRAP: hiding a submenu does not deactivate its key equivalents (FX and
+// Convert hide in place), so an item under a hidden menu gets none.
+static BOOL IsUnderHiddenMenu(NSMenuItem *item) {
+    for (NSMenu *menu = item.menu; menu.supermenu; menu = menu.supermenu) {
+        NSInteger index = [menu.supermenu indexOfItemWithSubmenu:menu];
+        if (index >= 0 && [menu.supermenu itemAtIndex:index].hidden) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+static void ApplyShortcut(NSMenuItem *item, VibeShortcut shortcut) {
+    unsigned short key = VibeShortcutKey(shortcut);
+    NSString *equivalent = nil;
+    if (shortcut != kVibeShortcutNone) {
+        equivalent = VibeShortcutIsCharacter(shortcut) ? [NSString stringWithCharacters:&key length:1]
+                : SpecialKey(key)[0] ?: LayoutCharacters()[@(key)];
+    }
+    // A label the layout cannot name gets no equivalent; the monitor still
+    // matches the key in the player window.
+    if (!equivalent) {
+        item.keyEquivalent = @"";
+        item.keyEquivalentModifierMask = 0;
+        return;
+    }
+    // TRAP: a shifted letter rides in the capital letter ("C" with Command is
+    // ⇧⌘C); a lowercase letter with Shift in the mask draws right but never
+    // matches a real press.
+    NSEventModifierFlags modifiers = VibeShortcutModifiers(shortcut);
+    if ((modifiers & NSEventModifierFlagShift)
+            && ![equivalent.uppercaseString isEqualToString:equivalent.lowercaseString]) {
+        equivalent = equivalent.uppercaseString;
+        modifiers &= ~NSEventModifierFlagShift;
+    }
+    item.keyEquivalent = equivalent;
+    item.keyEquivalentModifierMask = modifiers;
+    // A key-code shortcut's character is already the layout's; AppKit must
+    // not localize it again. A character default localizes as any app's ⌘O.
+    item.allowsAutomaticKeyEquivalentLocalization = VibeShortcutIsCharacter(shortcut);
+}
+
+// Cached, since the key monitor asks per keypress: the items it names are
+// built once and only ever retitled or hidden. Weak values, so an item a
+// menu drops is walked for again.
++ (nullable NSMenuItem *)mainMenuItemWithIdentifier:(NSString *)identifier {
+    static NSMapTable<NSString *, NSMenuItem *> *items;
+    if (!items) {
+        items = [NSMapTable strongToWeakObjectsMapTable];
+    }
+    NSMenuItem *item = [items objectForKey:identifier];
+    if (!item) {
+        item = ItemWithIdentifier(NSApp.mainMenu, identifier);
+        if (item) {
+            [items setObject:item forKey:identifier];
+        }
+    }
+    return item;
+}
+
++ (unichar)characterForKeyCode:(unsigned short)keyCode {
+    NSString *character = LayoutCharacters()[@(keyCode)];
+    return character.length == 1 ? [character characterAtIndex:0] : 0;
+}
+
++ (nullable NSString *)labelForKeyCode:(unsigned short)keyCode {
+    return SpecialKey(keyCode)[1] ?: LayoutCharacters()[@(keyCode)].uppercaseString;
+}
+
++ (NSString *)displayStringForShortcut:(VibeShortcut)shortcut {
+    if (shortcut == kVibeShortcutNone) {
+        return STR_SETTINGS_SHORTCUTS_UNASSIGNED;
+    }
+    NSEventModifierFlags modifiers = VibeShortcutModifiers(shortcut);
+    NSMutableString *display = [NSMutableString string];
+    if (modifiers & NSEventModifierFlagControl) [display appendString:VibeNotLocalized(@"⌃")];
+    if (modifiers & NSEventModifierFlagOption)  [display appendString:VibeNotLocalized(@"⌥")];
+    if (modifiers & NSEventModifierFlagShift)   [display appendString:VibeNotLocalized(@"⇧")];
+    if (modifiers & NSEventModifierFlagCommand) [display appendString:VibeNotLocalized(@"⌘")];
+    unsigned short key = VibeShortcutKey(shortcut);
+    NSString *label = VibeShortcutIsCharacter(shortcut)
+            ? [NSString stringWithCharacters:&key length:1].uppercaseString
+            : [self labelForKeyCode:key];
+    [display appendString:label ?: [NSString stringWithFormat:STR_SETTINGS_SHORTCUTS_KEY_UNKNOWN, (long)key]];
+    return display;
+}
+
++ (void)applyShortcuts {
+    NSDictionary *overrides = AppSettings.sharedInstance.shortcutOverrides;
+    for (NSString *identifier in VibeShortcutIdentifiers()) {
+        NSMenuItem *item = [self mainMenuItemWithIdentifier:identifier];
+        ApplyShortcut(item, IsUnderHiddenMenu(item) ? kVibeShortcutNone
+                                                    : VibeShortcutEffective(identifier, overrides));
+    }
 }
 
 + (void)buildOutputMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {

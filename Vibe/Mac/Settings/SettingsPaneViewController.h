@@ -67,6 +67,13 @@ static const CGFloat kPanePadding = 20;
 // Reads and writes NSControlStateValueOn/Off, like a checkbox.
 - (VibeSwitch *)switchWithAction:(SEL)action;
 
+// A secondary-colored wrapping label for rowWithContentView:. It measures
+// its height at preferredMaxLayoutWidth, which the pane's viewDidLayout keeps
+// at the row's real width; its compression resistance sits below the fitting
+// priority, so the unwrapped text never widens every pane, and no width cap
+// is set (rowWithContentView:'s trap).
+- (NSTextField *)wrappingLabelWithString:(NSString *)text;
+
 // Resolves only state that changes the pane's measured layout (rows hidden or
 // revealed). The shared-size pass calls it on every pane, so it must not start
 // refresh work.

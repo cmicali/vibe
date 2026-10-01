@@ -10,18 +10,19 @@
 #import "AudioPlayer+Devices.h"
 #import "AudioTrack.h"
 #import "MainPlayerController.h"
-#import "MainPlayerController+Window.h"
+#import "MainPlayerController+Menus.h"
 #import "MainPlayerController+Transport.h"
 #import "MainWindow.h"
+#import "ShortcutRules.h"
 
 // Each flips its effect at keyDown; keyUp decides: a tap latches the flip, a
 // hold reverts to the pre-press state.
 typedef NS_ENUM(NSInteger, VibeEffectKey) {
-    VibeEffectKeyLowKill = 0,       // Q
-    VibeEffectKeyLowKillBoost,      // W
-    VibeEffectKeyReverb,            // E
-    VibeEffectKeyDelay,             // R (1/8-note taps)
-    VibeEffectKeyShortDelay,        // T (1/16-note taps)
+    VibeEffectKeyLowKill = 0,
+    VibeEffectKeyLowKillBoost,
+    VibeEffectKeyReverb,
+    VibeEffectKeyDelay,             // 1/8-note taps
+    VibeEffectKeyShortDelay,        // 1/16-note taps
     VibeEffectKeyCount
 };
 
@@ -29,18 +30,22 @@ typedef NS_ENUM(NSInteger, VibeEffectKey) {
 // over a beat never latches.
 static const NSTimeInterval kEffectTapMaxDuration = 0.35;
 
-static NSInteger VibeEffectKeyForChars(NSString *chars) {
-    if (chars.length != 1) {
-        return -1;
-    }
-    switch ([chars characterAtIndex:0]) {
-        case 'q': return VibeEffectKeyLowKill;
-        case 'w': return VibeEffectKeyLowKillBoost;
-        case 'e': return VibeEffectKeyReverb;
-        case 'r': return VibeEffectKeyDelay;
-        case 't': return VibeEffectKeyShortDelay;
-    }
-    return -1;
+static NSInteger VibeEffectKeyForCommand(NSString *identifier) {
+    static NSArray<NSString *> *commands;   // indexed by VibeEffectKey
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        commands = @[kVibeMenuFXLowKill, kVibeMenuFXLowKillBoost, kVibeMenuFXReverb,
+                     kVibeMenuFXDelay, kVibeMenuFXShortDelay];
+    });
+    NSUInteger index = [commands indexOfObject:identifier];
+    return index == NSNotFound ? -1 : (NSInteger)index;
+}
+
+// The playlist's physical keys, unmodified: Return, Delete (each folding its
+// twin) and the two arrows that move its selection.
+static BOOL VibeIsPlaylistKey(unsigned short keyCode, NSEventModifierFlags modifiers) {
+    return modifiers == 0 && (keyCode == kVibeKeyCodeReturn || keyCode == kVibeKeyCodeDelete
+                              || keyCode == kVibeKeyCodeDownArrow || keyCode == kVibeKeyCodeUpArrow);
 }
 
 @implementation TransportKeyMonitor {
@@ -55,6 +60,9 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
     BOOL                            _effectKeyIsDown[VibeEffectKeyCount];
     NSTimeInterval                  _effectKeyDownTime[VibeEffectKeyCount];
     BOOL                            _effectStateBeforeDown[VibeEffectKeyCount];
+    // The release is matched by key alone: a modifier pressed or let go
+    // mid-hold must not hide it.
+    unsigned short                  _effectDownKeyCode[VibeEffectKeyCount];
 }
 
 - (instancetype)initWithController:(MainPlayerController *)controller {
@@ -158,85 +166,35 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
 
 #pragma mark - Event handling
 
-// 0 for anything but one character; no key below is NUL.
-static unichar VibeBareKeyChar(NSString *chars) {
-    return chars.length == 1 ? [chars characterAtIndex:0] : 0;
-}
-
-- (BOOL)isPlaySelectionKey:(NSString *)chars {
-    unichar c = VibeBareKeyChar(chars);
-    return c == NSCarriageReturnCharacter || c == NSEnterCharacter;
-}
-
-// The Edit menu advertises Backspace alone; only this monitor knows Forward
-// Delete.
-- (BOOL)isRemoveSelectionKey:(NSString *)chars {
-    unichar c = VibeBareKeyChar(chars);
-    return c == NSDeleteCharacter || c == NSDeleteFunctionKey;
-}
-
-- (BOOL)isSelectionMoveKey:(NSString *)chars {
-    unichar c = VibeBareKeyChar(chars);
-    return c == NSUpArrowFunctionKey || c == NSDownArrowFunctionKey;
-}
-
-// Composed from the three above, so a key added to one is swallowed here too
-// rather than reaching the focused table with the pane closed.
-- (BOOL)isPlaylistKey:(NSString *)chars {
-    return [self isPlaySelectionKey:chars]
-            || [self isRemoveSelectionKey:chars]
-            || [self isSelectionMoveKey:chars];
-}
-
-// Returns nil to swallow a handled key, or the event to pass it on.
+// Returns nil to swallow a handled key, or the event to pass it on. Matched
+// by physical key and the exact modifier set against ShortcutRules.h, so a
+// layout's letters never move a binding.
 - (NSEvent *)handleKeyEvent:(NSEvent *)event inWindow:(NSWindow *)window {
     MainPlayerController *controller = _controller;
     if (!controller || window != controller.window) {
         return event;
     }
+    unsigned short keyCode = VibeShortcutCanonicalKeyCode(event.keyCode);
     if (event.type == NSEventTypeKeyUp) {
-        // Before the modifier guard: a modifier pressed mid-hold must not hide
-        // the release.
-        NSInteger effectKey = VibeEffectKeyForChars(event.charactersIgnoringModifiers.lowercaseString);
-        if (effectKey >= 0 && _effectKeyIsDown[effectKey]) {
-            _effectKeyIsDown[effectKey] = NO;
-            if (event.timestamp - _effectKeyDownTime[effectKey] >= kEffectTapMaxDuration) {
-                [self setEffect:effectKey active:_effectStateBeforeDown[effectKey] controller:controller];
+        for (NSInteger effectKey = 0; effectKey < VibeEffectKeyCount; effectKey++) {
+            if (_effectKeyIsDown[effectKey] && _effectDownKeyCode[effectKey] == keyCode) {
+                _effectKeyIsDown[effectKey] = NO;
+                if (event.timestamp - _effectKeyDownTime[effectKey] >= kEffectTapMaxDuration) {
+                    [self setEffect:effectKey active:_effectStateBeforeDown[effectKey] controller:controller];
+                }
+                return nil;
             }
-            return nil;
         }
-        return event;
-    }
-    // Menu shortcuts and field editors keep their keys.
-    NSEventModifierFlags mods = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
-    if (mods & (NSEventModifierFlagCommand | NSEventModifierFlagControl |
-                NSEventModifierFlagOption | NSEventModifierFlagShift)) {
         return event;
     }
     if ([controller.window.firstResponder isKindOfClass:[NSTextView class]]) {
         return event;
     }
-    NSString *chars = event.charactersIgnoringModifiers.lowercaseString;
-    if ([chars isEqualToString:@" "]) {
-        [controller playPause:nil];
-        return nil;
-    }
-    if ([chars isEqualToString:@"b"]) {
-        [controller previous:nil];
-        return nil;
-    }
-    if ([chars isEqualToString:@"n"]) {
-        [controller next:nil];
-        return nil;
-    }
-    if ([chars isEqualToString:@"p"]) {
-        [controller togglePitchPanel:nil]; // refuses the reveal under bit-perfect output
-        return nil;
-    }
+    NSEventModifierFlags mods = event.modifierFlags & kVibeShortcutModifierMask;
 #if VIBE_VERBOSE_LOGGING
     // Beta instrumentation: M marks the moment a tester hears a problem.
     // keyCode 46 is the physical M under any layout.
-    if ([chars isEqualToString:@"m"] || event.keyCode == 46) {
+    if (keyCode == kVibeKeyCodeM && mods == 0) {
         if (event.isARepeat) return nil;
         static NSUInteger marks;
         AudioPlayer *player = controller.audioPlayer;
@@ -248,71 +206,50 @@ static unichar VibeBareKeyChar(NSString *chars) {
         return nil;
     }
 #endif
-    // Dead while collapsed, and swallowed: the table keeps focus off screen,
-    // and an unhandled key reaching it wedges its input context.
-    if ([self isPlaylistKey:chars]) {
-        if (!((MainWindow *)controller.window).isPlaylistShown) {
-            return nil;
-        }
-        if ([self isPlaySelectionKey:chars]) {
-            [controller playSelectedTrack:nil];   // the keyboard's double-click
-            return nil;
-        }
-        if ([self isRemoveSelectionKey:chars]) {
-            // A held delete takes one gesture's rows, not the playlist.
-            if (!event.isARepeat) {
-                [controller removeSelectedPlaylistTracks:nil];
-            }
-            return nil;
-        }
+    BOOL playlistShown = ((MainWindow *)controller.window).isPlaylistShown;
+    // Dead while collapsed and swallowed whatever is bound: the table keeps
+    // focus off screen, and an unhandled key reaching it wedges its input
+    // context.
+    if (!playlistShown && VibeIsPlaylistKey(keyCode, mods)) {
+        return nil;
+    }
+    // A key-code binding can land on a fixed system shortcut after a layout
+    // switch; the system shortcut wins.
+    NSString *chars = event.charactersIgnoringModifiers.lowercaseString;
+    unichar character = chars.length == 1 ? [chars characterAtIndex:0] : 0;
+    if (VibeShortcutIsReserved(keyCode, character, mods)) {
         return event;   // the arrows are the table's own moveUp:/moveDown:
     }
+    NSString *command = VibeShortcutCommandForKey(keyCode, mods, AppSettings.sharedInstance.shortcutOverrides);
+    if (!command) {
+        return event;
+    }
     // Flipped at keyDown for an instant response; repeats are swallowed. With
-    // no controls or FX disallowed, Q–T pass through. The keyUp side needs no
-    // twin guard: an unhandled keyDown leaves _effectKeyIsDown clear.
-    NSInteger effectKey = VibeEffectKeyForChars(chars);
-    if (effectKey >= 0 && controller.audioPlayer.fx != nil
-            && AppSettings.sharedInstance.audioFXAllowed) {
+    // no controls or FX disallowed, the key passes through. The keyUp side
+    // needs no twin guard: an unhandled keyDown leaves _effectKeyIsDown clear.
+    NSInteger effectKey = VibeEffectKeyForCommand(command);
+    if (effectKey >= 0) {
+        if (controller.audioPlayer.fx == nil || !AppSettings.sharedInstance.audioFXAllowed) {
+            return event;
+        }
         if (!event.isARepeat) {
             BOOL wasActive = [self effectActive:effectKey controller:controller];
             _effectKeyIsDown[effectKey] = YES;
             _effectKeyDownTime[effectKey] = event.timestamp;
+            _effectDownKeyCode[effectKey] = keyCode;
             _effectStateBeforeDown[effectKey] = wasActive;
             [self setEffect:effectKey active:!wasActive controller:controller];
         }
         return nil;
     }
-    // Everything below honors hardware repeat. A/S/D skip forward, Z/X/C back:
-    // the further the key, the longer the skip.
-    if ([chars isEqualToString:@"a"]) {
-        [controller skipForward:nil];
-        return nil;
+    // Validation gates the rest: Play Selected and Remove need the playlist
+    // showing with a row selected, so a press over a collapsed playlist is
+    // swallowed and does nothing. Remove never repeats, so a held delete
+    // takes one gesture's rows.
+    if (!event.isARepeat || VibeShortcutCommandRepeats(command)) {
+        [controller performMenuCommandWithIdentifier:command];
     }
-    if ([chars isEqualToString:@"s"]) {
-        [controller skipForwardMore:nil];
-        return nil;
-    }
-    if ([chars isEqualToString:@"d"]) {
-        [controller skipForwardMost:nil];
-        return nil;
-    }
-    if ([chars isEqualToString:@"z"]) {
-        [controller skipBack:nil];
-        return nil;
-    }
-    if ([chars isEqualToString:@"x"]) {
-        [controller skipBackMore:nil];
-        return nil;
-    }
-    if ([chars isEqualToString:@"c"]) {
-        [controller skipBackMost:nil];
-        return nil;
-    }
-    if ([chars isEqualToString:@"\t"]) {
-        [controller toggleSize:nil];
-        return nil;
-    }
-    return event;
+    return nil;
 }
 
 @end

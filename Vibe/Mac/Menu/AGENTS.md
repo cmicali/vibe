@@ -6,11 +6,15 @@ There is no main nib. `MainMenuBuilder` is a stateless one-shot class method, ca
 
 ## Key equivalents
 
-**TRAP: bare key equivalents must set `keyEquivalentModifierMask = 0` explicitly**, since `NSMenuItem` defaults to Command. Every item here goes through a helper that takes the mask as a parameter, so the bare-key items (Space, B, N, Return, Backspace, Tab, P, A/S/D, Z/X/C, Q/W/E/R/T) pass `0`.
+**Every remappable item's key equivalent is set in one place, `applyShortcuts`**, from the effective shortcut (`ShortcutRules.h`: the defaults table, overridden sparsely by `AppSettings.shortcutOverrides`). The builder passes `@"", 0` for those items and installs, then requests the `Shortcuts` effect, which also runs on an input source change. The fixed system shortcuts (⌘, ⌘H ⌥⌘H ⌘Q ⌘W ⌘Z ⇧⌘Z ⌘C ⌘A) keep their literals here and are reserved, never remappable.
 
-**TRAP: a shifted key equivalent rides in the capital letter** (`"Z"`, `"C"`) per the `NSMenuItem` contract — a lowercase key with Shift in the mask draws right but never matches a real press.
+**A key-code shortcut is shown in the current ASCII-capable layout's character** (TIS and `UCKeyTranslate`, the one Carbon use, rebuilt after `kTISNotifySelectedKeyboardInputSourceChanged`), with `allowsAutomaticKeyEquivalentLocalization` off so AppKit does not localize it again. The character defaults (⌘O, ⌘S, ⇧⌘C, and Shuffle's ⌥⌘S and Repeat's ⌘R) follow the letter, as every Mac app's Command shortcuts do. A key no layout names gets no equivalent; the monitor still matches it.
 
-Bare-key items are **display and fallback only**: `TransportKeyMonitor` (`Mac/MainWindow/Transport/`) handles the actual presses, because only it can tell a tap from a hold.
+**TRAP: a shifted letter rides in the capital letter** (`"C"` with Command is ⇧⌘C) per the `NSMenuItem` contract — a lowercase key with Shift in the mask draws right but never matches a real press. `ApplyShortcut` does the conversion, so no caller spells it.
+
+**TRAP: bare key equivalents must set `keyEquivalentModifierMask = 0` explicitly**, since `NSMenuItem` defaults to Command; every helper takes the mask as a parameter.
+
+Bare-key items are **display and fallback only**: `TransportKeyMonitor` (`Mac/MainWindow/Transport/`) handles the presses in the player window, because only it can tell a tap from a hold. Anything else it performs through `MainPlayerController.performMenuItem:`, so the item's validation applies.
 
 ## Edit
 
@@ -22,7 +26,7 @@ Bare-key items are **display and fallback only**: `TransportKeyMonitor` (`Mac/Ma
 
 **The player's Undo and Redo validate from the stack alone — `canUndo`/`canRedo`, titles from `undoMenuItemTitle`/`redoMenuItemTitle` — never a stat**, since no Convert-adjacent rule may touch the file system during validation (`Audio/Mac/Convert/AGENTS.md`). Three actions register: Convert to FLAC, Remove from Playlist, Reorder (`MainWindow/AGENTS.md`).
 
-**Remove from Playlist is the one Edit item acting on the *selected* rows rather than the current track, and the only one that changes the playlist.** Its symbol is `minus.circle`, never `trash`: it edits the in-memory list and leaves the file on disk. Its bare Backspace is spelled `NSBackspaceCharacter`, which AppKit draws as ⌫ while a real press delivers `NSDeleteCharacter`, so `TransportKeyMonitor` is the actual handler, for the unadvertised Forward Delete twin as well. Validation needs all three of the player window key, the playlist showing and a selection, so a Delete press with Settings or About in front cannot edit an invisible playlist. The row menu carries the same command against the **clicked** row under its own identifier (`Playlist/Mac/AGENTS.md`).
+**Remove from Playlist is the one Edit item acting on the *selected* rows rather than the current track, and the only one that changes the playlist.** Its symbol is `minus.circle`, never `trash`: it edits the in-memory list and leaves the file on disk. Its default Delete is drawn as `NSBackspaceCharacter` (⌫) while a real press delivers `NSDeleteCharacter`, so `TransportKeyMonitor` is the actual handler, matching by key code, for the unadvertised Forward Delete twin as well. Validation needs all three of the player window key, the playlist showing and a selection, so a Delete press with Settings or About in front cannot edit an invisible playlist. The row menu carries the same command against the **clicked** row under its own identifier (`Playlist/Mac/AGENTS.md`).
 
 **There is deliberately no Clear Playlist item.** File > Close retitles itself Close All Files and `closeFile:` owns the complete teardown; a second whole-list command would be an alias or a second teardown path liable to omit a future piece of playback state.
 
@@ -48,9 +52,9 @@ Bare-key items are **display and fallback only**: `TransportKeyMonitor` (`Mac/Ma
 
 ## FX
 
-One checkmarked toggle per effect on bare Q/W/E/R/T, actions in `MainPlayerController+Transport` against its state pass-throughs, so a menu toggle and a bare-key tap are the same flip. **The menu is always built and hidden in place.** `FXControls` clears active effects before hiding it and sends the saved audio settings through the player’s shared rebuild; enabling can create the FX segment without relaunch. Validation and `TransportKeyMonitor` both require `AppSettings.audioFXAllowed` (the FX setting with bit-perfect output outranking it) *and* the FX controls object, so the keys cannot change an effect while the controls are off.
+One checkmarked toggle per effect, on bare Q/W/E/R/T by default, actions in `MainPlayerController+Transport` against its state pass-throughs, so a menu toggle and a bare-key tap are the same flip. **The menu is always built and hidden in place.** `FXControls` clears active effects before hiding it and sends the saved audio settings through the player’s shared rebuild; enabling can create the FX segment without relaunch. Validation and `TransportKeyMonitor` both require `AppSettings.audioFXAllowed` (the FX setting with bit-perfect output outranking it) *and* the FX controls object, so the keys cannot change an effect while the controls are off.
 
-**TRAP: hiding a top-level submenu does not deactivate its children's key equivalents.** AppKit still matches Q/W/E/R/T under a hidden `menu_fx`, even when validation returns NO. The visibility effect must clear and restore those equivalents as well as hiding the item; validation remains the direct-dispatch gate.
+**TRAP: hiding a top-level submenu does not deactivate its children's key equivalents.** AppKit still matches the FX keys under a hidden `menu_fx`, even when validation returns NO. `applyShortcuts` gives no equivalent to any item under a hidden menu, FX and Convert alike, and both visibility hooks call it after hiding; validation remains the direct-dispatch gate.
 
 ## Output
 

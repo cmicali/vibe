@@ -243,7 +243,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     return VibeErrorJSON(@"usage: click_menu <identifier-or-title>");
                 }
                 // The rest of the tokens, so titles with spaces work unquoted.
-                return VibeClickMenuItem(VibeRestArgument(tokens));
+                return VibeClickMenuItem(controller, VibeRestArgument(tokens));
             }),
             VibeTransportCmd(@"skip_forward", ^(MainPlayerController *controller) { [controller skipForward:nil]; }),
             VibeTransportCmd(@"skip_forward_more", ^(MainPlayerController *controller) { [controller skipForwardMore:nil]; }),
@@ -714,6 +714,12 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             }),
             VibeDebugCmd(@"key_up <key> [mods...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeInjectKey(controller, tokens, NO, YES);
+            }),
+            VibeDebugCmd(@"set_shortcut <identifier> <key|none> [mods...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeSetShortcut(controller, tokens);
+            }),
+            VibeDebugCmd(@"reset_shortcuts", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeResetShortcuts(controller);
             }),
             VibeDebugCmd(@"set_pitch <percent>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 double percent = 0;

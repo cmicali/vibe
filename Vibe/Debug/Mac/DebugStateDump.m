@@ -13,6 +13,7 @@
 #import "CoreAudioUtil.h"
 #import "SettingsRules.h"
 #import "DrawnControls.h"
+#import "MainPlayerController+Menus.h"
 
 #if DEBUG
 
@@ -291,27 +292,19 @@ static NSMenuItem *VibeFindMenuItem(NSMenu *menu, NSString *name) {
     return nil;
 }
 
-NSString *VibeClickMenuItem(NSString *name) {
+NSString *VibeClickMenuItem(MainPlayerController *controller, NSString *name) {
     NSMenuItem *item = VibeFindMenuItem(NSApp.mainMenu, name);
     if (!item) {
         return VibeErrorJSON(@"no menu item with identifier or title '%@' (run `dump_menu` to list)", name);
     }
-    [item.menu update]; // same validation pass opening the menu would run
-    if (!item.isEnabled) {
-        return VibeErrorJSON(@"menu item '%@' is disabled", item.title);
-    }
-    // TRAP: AppKit gives a submenu parent submenuAction: even when it was built
-    // with action:NULL, so the nil-action check below misses it, and sending
-    // that action to a responder that does not implement it aborts the app.
-    if (item.hasSubmenu) {
-        return VibeErrorJSON(@"menu item '%@' opens a submenu; click one of its items",
-                             item.title);
-    }
-    if (!item.action) {
-        return VibeErrorJSON(@"menu item '%@' has no action", item.title);
-    }
-    if (![NSApp sendAction:item.action to:item.target from:item]) {
-        return VibeErrorJSON(@"no responder handled %@", NSStringFromSelector(item.action));
+    // The key monitor's dispatch, so a click proves what a shortcut does.
+    if (![controller performMenuItem:item]) {
+        if (item.hasSubmenu) {
+            return VibeErrorJSON(@"menu item '%@' opens a submenu; click one of its items", item.title);
+        }
+        return item.isEnabled
+                ? VibeErrorJSON(@"no responder handled %@", NSStringFromSelector(item.action))
+                : VibeErrorJSON(@"menu item '%@' is disabled", item.title);
     }
     return VibeJSONString(@{
         @"ok": @YES,

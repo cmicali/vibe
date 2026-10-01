@@ -9,6 +9,7 @@
 #import "MainPlayerController+Convert.h" // the two actions the Convert item swaps between
 #import "MainPlayerController+Settings.h"
 #import "MainPlayerController+Window.h" // contentWidthForSizeIdentifier:, for the Size checkmarks
+#import "MainMenuBuilder.h"
 #import "MenuValidationRules.h"
 #import "SettingsRules.h"
 #import "AppSettings.h"
@@ -22,6 +23,23 @@
 #import "VibeStrings.h"
 
 @implementation MainPlayerController (Menus)
+
+- (BOOL)performMenuItem:(NSMenuItem *)item {
+    // TRAP: AppKit gives a submenu parent submenuAction: even when it was
+    // built with action:NULL, and sending that to a responder that does not
+    // implement it aborts the app.
+    if (item.hasSubmenu) {
+        return NO;
+    }
+    [item.menu update]; // the validation pass opening the menu would run
+    return item.isEnabled && item.action
+            && [NSApp sendAction:item.action to:item.target from:item];
+}
+
+- (BOOL)performMenuCommandWithIdentifier:(NSString *)identifier {
+    NSMenuItem *item = [MainMenuBuilder mainMenuItemWithIdentifier:identifier];
+    return item && [self performMenuItem:item];
+}
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
     switch (VibeMenuValidationDomainForIdentifier(menuItem.identifier)) {

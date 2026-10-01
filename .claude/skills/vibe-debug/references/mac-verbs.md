@@ -60,6 +60,8 @@ Raw input is for explicit gesture tests on an isolated test desktop, never unatt
 "$V" --debug-cmd mouse_down 75 122   # primitives (default left; also right); mouse_up likewise
 "$V" --debug-cmd key p               # keyDown+keyUp through the real dispatch path; mods: `key p cmd shift`
 "$V" --debug-cmd key_down w          # one edge — the held W/E/R/T momentary FX; key_up releases. Keys: a-z, 0-9, space, tab, return, esc, delete, forward_delete, up/down/left/right
+"$V" --debug-cmd set_shortcut menu_skip_forward k opt   # {ok, command, shortcut, lost_by} — the Keyboard Shortcuts pane's write path; `none` clears; a reserved combination errors. Identifiers are the menu's (dump_menu); keys as for `key`
+"$V" --debug-cmd reset_shortcuts                        # every command back to its default
 "$V" --debug-cmd key delete repeat   # `repeat` rides the modifier list but sets isARepeat — the only way to exercise a repeat guard (Remove from Playlist takes ONE row per press; the momentary FX keys ignore repeats). `delete` is Backspace, `forward_delete` its twin: different characters reaching different code
 ```
 

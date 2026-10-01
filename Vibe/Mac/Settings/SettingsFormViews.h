@@ -69,6 +69,12 @@ static const CGFloat kSettingsRowInset = 16;
                                 inTableView:(NSTableView *)table
                               imagePosition:(NSCellImagePosition)imagePosition;
 
+// A group header in a list: an ordinary row the delegate refuses to select,
+// not an AppKit group row, whose gap and height would break a row budget.
++ (NSTableCellView *)listGroupCellWithIdentifier:(NSUserInterfaceItemIdentifier)identifier
+                                     inTableView:(NSTableView *)table
+                                           title:(NSString *)title;
+
 // For the debug walker.
 @property (readonly, nullable) NSTextField *titleLabel;
 @property (readonly, nullable) NSTextField *captionLabel;
