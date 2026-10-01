@@ -10,6 +10,8 @@ The `MPRemoteCommandCenter` / `MPNowPlayingInfoCenter` bridge: publishing what i
 
 **Shuffle and repeat are commands, not Now Playing info.** `changeShuffleModeCommand` and `changeRepeatModeCommand` take the system's controls (Siri, the Watch, accessories) to the delegate's `setShuffleEnabled:` and `setRepeatMode:`, which write the setting and apply it exactly as the app's own control does; the state the system shows is `currentShuffleType` and `currentRepeatType` on the commands, written by `updateShuffleEnabled:repeatMode:` wherever a shell applies the modes, so a change from anywhere reaches it. A shuffle request of Items or Collections is on: there is no album-level shuffle.
 
+**TRAP: the command center is process-global — lock screen, Control Center, CarPlay, AirPods and the mac's media keys share it — and the system picks which enabled commands fill the compact transport.** Enabling a new command (the shuffle and repeat pair, or the skip-interval pair `docs/future/carplay.md` weighs) can cost the lock screen its next/previous buttons; check that on a device first.
+
 `MPNowPlayingInfoCenter.playbackState` is the one macOS-only write (the property does not exist on iOS, which derives state from the audio session and the published rate) and it is guarded.
 
 `initWithClock:publish:commandAvailability:` runs the same publication path without registering remote commands. Host-less tests inject the clock and OS writes to cover first-play gating, clearing, dirty detection, command changes and artwork promotion; actual system registration remains a live-app check.
