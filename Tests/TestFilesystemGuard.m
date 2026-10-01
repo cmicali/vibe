@@ -12,10 +12,15 @@
 // Standard defaults would be the XCTest tool's domain, shared by every test
 // process on the machine: the parallel runner's clones and any concurrent
 // `make test` would read each other's writes. So +standardUserDefaults answers
-// a suite of this process's own, removed at exit. Saving and restoring a
+// a store of this process's own, held in memory. Saving and restoring a
 // setting around a test would not do: reading an unset key answers the
-// registered default, so writing it back materializes a key that was never on
-// disk.
+// registered default, so writing it back materializes a key that was never
+// stored.
+//
+// TRAP: in memory, not a cfprefsd-backed suite, even a per-pid one. On CI a
+// suite key intermittently froze at its first value for seconds: later writes
+// and removes read back the old dictionary while other keys wrote normally
+// (OutputFormatRulesTests' carry, then SettingsRulesTests, in one process).
 
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
@@ -24,16 +29,68 @@ static NSString *gRoot;
 static NSString *gToolDomain;
 static NSString *gSuite;
 
-// AppSettings reads its stored settings by the main bundle's identifier, which
-// here names the shared tool domain; answer this process's suite instead.
+// NSUserDefaults' typed accessors funnel through these three primitives.
+// AppSettings reads its whole store by the main bundle's identifier, which
+// here names the shared tool domain; answer this store instead.
 @interface VibeTestUserDefaults : NSUserDefaults
 @end
 
-@implementation VibeTestUserDefaults
+@implementation VibeTestUserDefaults {
+    NSMutableDictionary<NSString *, id> *_stored;
+    NSMutableDictionary<NSString *, id> *_registered;
+}
+
+- (instancetype)initWithSuiteName:(NSString *)suiteName {
+    if ((self = [super initWithSuiteName:suiteName])) {
+        _stored = [NSMutableDictionary dictionary];
+        _registered = [NSMutableDictionary dictionary];
+    }
+    return self;
+}
+
+- (id)objectForKey:(NSString *)defaultName {
+    @synchronized (self) {
+        return _stored[defaultName] ?: _registered[defaultName];
+    }
+}
+
+// A deep immutable copy, as cfprefsd stores it: a caller mutating what it
+// wrote must not change what is read back.
+- (void)setObject:(id)value forKey:(NSString *)defaultName {
+    if (!value) {
+        [self removeObjectForKey:defaultName];
+        return;
+    }
+    id copy = CFBridgingRelease(CFPropertyListCreateDeepCopy(
+            kCFAllocatorDefault, (__bridge CFPropertyListRef)value, kCFPropertyListImmutable));
+    if (!copy) {
+        [NSException raise:NSInvalidArgumentException
+                    format:@"non-property-list value for key %@", defaultName];
+    }
+    @synchronized (self) {
+        _stored[defaultName] = copy;
+    }
+}
+
+- (void)removeObjectForKey:(NSString *)defaultName {
+    @synchronized (self) {
+        [_stored removeObjectForKey:defaultName];
+    }
+}
+
+- (void)registerDefaults:(NSDictionary<NSString *, id> *)registrationDictionary {
+    @synchronized (self) {
+        [_registered addEntriesFromDictionary:registrationDictionary];
+    }
+}
 
 - (NSDictionary<NSString *, id> *)persistentDomainForName:(NSString *)domainName {
-    return [super persistentDomainForName:
-            [domainName isEqualToString:gToolDomain] ? gSuite : domainName];
+    if (![domainName isEqualToString:gToolDomain]) {
+        return [super persistentDomainForName:domainName];
+    }
+    @synchronized (self) {
+        return [_stored copy];
+    }
 }
 
 @end
@@ -56,9 +113,10 @@ static void VibeRestoreTestFilesystem(void) {
     setenv("VIBE_THEME_ART_DIR",
            [gRoot stringByAppendingPathComponent:@"ThemeArt"].UTF8String, 1);
 
-    // TRAP: an absolute-path suite, not a named one. A named suite's plist is
-    // written into ~/Library/Preferences by cfprefsd after the process has
-    // gone, so no exit-time delete can reach it; this one is inside the root.
+    // TRAP: anything not overridden falls through to an absolute-path suite,
+    // not a named one. A named suite's plist is written into
+    // ~/Library/Preferences by cfprefsd after the process has gone, so no
+    // exit-time delete can reach it; this one is inside the root.
     gToolDomain = NSBundle.mainBundle.bundleIdentifier ?: @"com.apple.dt.xctest.tool";
     gSuite = [gRoot stringByAppendingPathComponent:@"defaults"];
     NSUserDefaults *defaults = [[VibeTestUserDefaults alloc] initWithSuiteName:gSuite];
