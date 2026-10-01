@@ -1,9 +1,10 @@
 {
   "suite": 1,
-  "versions": {
+  "app": {
     "1.8": {
       "ref": "v1.8",
       "commit": "a59f7eea0d573253ea3df2e55b790e5f1148f449",
+      "prerelease": false,
       "measured": "2026-09-28",
       "reps": 5,
       "corpus": "911f823547f3298e",
@@ -821,6 +822,7 @@
     "1.9": {
       "ref": "v1.9",
       "commit": "143b0b2325ce428d5eb47b8ef8f2097f93fd859d",
+      "prerelease": false,
       "measured": "2026-09-28",
       "reps": 5,
       "corpus": "911f823547f3298e",
@@ -1638,6 +1640,7 @@
     "1.10": {
       "ref": "v1.10",
       "commit": "162cf0c7f86badc05d56e73f9e3a082ce9271b36",
+      "prerelease": false,
       "measured": "2026-09-28",
       "reps": 5,
       "corpus": "911f823547f3298e",
@@ -2455,6 +2458,7 @@
     "1.11": {
       "ref": "v1.11",
       "commit": "75d0dadf3f78fda5a62942155eafa48906680327",
+      "prerelease": false,
       "measured": "2026-09-28",
       "reps": 5,
       "corpus": "911f823547f3298e",
@@ -3272,6 +3276,7 @@
     "1.12": {
       "ref": "v1.12",
       "commit": "b569cdb91775d4424126fcb595225fe929679177",
+      "prerelease": false,
       "measured": "2026-09-28",
       "reps": 5,
       "corpus": "911f823547f3298e",
@@ -4089,6 +4094,7 @@
     "1.13": {
       "ref": "6992feca",
       "commit": "6992feca246cfc00bfc2970ea8c425005d6aed1a",
+      "prerelease": false,
       "measured": "2026-09-28",
       "reps": 5,
       "corpus": "911f823547f3298e",
@@ -4906,6 +4912,7 @@
     "1.14": {
       "ref": "8ae57716",
       "commit": "8ae57716b2eea835223560b812b7f256d74c151f",
+      "prerelease": false,
       "measured": "2026-09-28",
       "reps": 5,
       "corpus": "911f823547f3298e",
@@ -5721,10 +5728,11 @@
       }
     }
   },
-  "perf": {
+  "components": {
     "1.8": {
       "ref": "v1.8",
       "commit": "a59f7eea0d573253ea3df2e55b790e5f1148f449",
+      "prerelease": false,
       "measured": "2026-10-01",
       "reps": 5,
       "corpus": "a0b3d0387cb40276",
@@ -6148,6 +6156,7 @@
     "1.9": {
       "ref": "v1.9",
       "commit": "143b0b2325ce428d5eb47b8ef8f2097f93fd859d",
+      "prerelease": false,
       "measured": "2026-10-01",
       "reps": 5,
       "corpus": "a0b3d0387cb40276",
@@ -6571,6 +6580,7 @@
     "1.10": {
       "ref": "v1.10",
       "commit": "162cf0c7f86badc05d56e73f9e3a082ce9271b36",
+      "prerelease": false,
       "measured": "2026-10-01",
       "reps": 5,
       "corpus": "a0b3d0387cb40276",
@@ -7001,6 +7011,7 @@
     "1.11": {
       "ref": "v1.11",
       "commit": "75d0dadf3f78fda5a62942155eafa48906680327",
+      "prerelease": false,
       "measured": "2026-10-01",
       "reps": 5,
       "corpus": "a0b3d0387cb40276",
@@ -7431,6 +7442,7 @@
     "1.12": {
       "ref": "v1.12",
       "commit": "b569cdb91775d4424126fcb595225fe929679177",
+      "prerelease": false,
       "measured": "2026-10-01",
       "reps": 5,
       "corpus": "a0b3d0387cb40276",
@@ -7861,6 +7873,7 @@
     "1.13": {
       "ref": "6992feca",
       "commit": "6992feca246cfc00bfc2970ea8c425005d6aed1a",
+      "prerelease": false,
       "measured": "2026-10-01",
       "reps": 5,
       "corpus": "a0b3d0387cb40276",
@@ -8291,6 +8304,7 @@
     "1.14": {
       "ref": "8ae57716",
       "commit": "8ae57716b2eea835223560b812b7f256d74c151f",
+      "prerelease": false,
       "measured": "2026-10-01",
       "reps": 5,
       "corpus": "a0b3d0387cb40276",
@@ -8770,6 +8784,7 @@
     "1.15": {
       "ref": "1057c2ae0e6833988f168435a07ee3ce9ecb6872",
       "commit": "1057c2ae0e6833988f168435a07ee3ce9ecb6872",
+      "prerelease": true,
       "measured": "2026-10-01",
       "reps": 5,
       "corpus": "a0b3d0387cb40276",

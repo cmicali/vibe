@@ -63,7 +63,7 @@ The page's Download button links the **universal** direct-DMG asset, `Vibe-macOS
 
 So the full sequence, all from a machine with `.release-env`: `make release`, `make github-release`, `make deploy-web`.
 
-**Then the performance charts.** Once the tag exists, `make bench VERSIONS="<version>"` builds that tag, runs the benchmark suite and redraws `docs/performance.md`; commit it and `docs/performance/`. It must run on the machine every earlier version was measured on, or the report leaves the new version out and says so ([docs/performance.md](../../../docs/performance.md)). The chart has one point per version, so measuring a version again replaces its point: a final `v1.14` supersedes the prerelease build that stood in for it (`VERSIONS="1.14=v1.14"`).
+**Then the performance charts.** Once the tag exists, `make bench-releases VERSIONS="<version>"` builds that tag, runs the app and component benchmarks and redraws `docs/performance.md`, replacing any `<version> pre-release` point measured before the tag; commit it and `docs/performance/`. It must run on the machine every earlier version was measured on, or the report leaves the new version out and says so ([docs/performance.md](../../../docs/performance.md)). The chart has one point per version, so measuring a version again replaces its point: a final `v1.14` supersedes the beta build that stood in for it (`VERSIONS="1.14=v1.14"`).
 
 ## Product-page metadata
 

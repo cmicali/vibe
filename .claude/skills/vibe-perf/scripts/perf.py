@@ -2,11 +2,16 @@
 """The vibe-perf micro-benchmark driver: build Tests/Perf's VibePerf at any ref,
 run it over a fixed corpus, and compare two refs.
 
-    perf.py corpus                         the corpus (make bench's, plus a few formats)
+    perf.py corpus                         the corpus (the app suite's, plus a few formats)
     perf.py build [REF]                    VibePerf for REF (default: the working tree)
     perf.py run [REF] [--filter RE] [--reps N] [--json OUT]
     perf.py compare BASE [HEAD] [--filter RE] [--reps N] [--rounds R] [--md OUT]
     perf.py list                           the benchmark names
+    perf.py releases [LABEL[=REF] ...] [--reps N]
+                                           the performance page's component charts:
+                                           each release (default: every one in
+                                           docs/performance/results.json), redrawn;
+                                           a LABEL with no vLABEL tag is a pre-release
 
 REF is any git ref, or bin:<path> for a VibePerf built some other way (a
 build-setting experiment); HEAD defaults to the working tree, uncommitted edits
@@ -27,6 +32,7 @@ import shutil
 import statistics
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -43,7 +49,7 @@ def ffmpeg(*args):
     sh('ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', *args)
 
 
-# Formats make bench's corpus leaves out, from its flac-16-44 so the content
+# Formats the app suite's corpus leaves out, from its flac-16-44 so the content
 # matches: the decoders dr_wav and Apple's other readers take.
 EXTRAS = {
     'wav-16-44.wav': ['-c:a', 'pcm_s16le'],
@@ -55,9 +61,8 @@ EXTRAS = {
 
 
 def corpus():
-    sys.path.insert(0, str(ROOT / 'scripts/bench'))
-    import bench
-    bench.make_corpus()
+    """The app suite's corpus plus EXTRAS; answers the corpus's hash."""
+    corpus_hash = bench_module().make_corpus()
     EXTRA.mkdir(parents=True, exist_ok=True)
     source = CORPUS / 'play/flac-16-44.flac'
     for name, codec in EXTRAS.items():
@@ -67,6 +72,7 @@ def corpus():
             tmp = out.with_name('tmp.' + name)
             ffmpeg('-i', str(source), '-map', '0:a', *codec, str(tmp))
             tmp.rename(out)
+    return corpus_hash
 
 
 def resolve(ref):
@@ -273,8 +279,120 @@ def compare(args):
         Path(md).write_text(text)
 
 
+# ---------------------------------------------------------------- every release
+#
+# The component charts on docs/performance.md: one entry per chart,
+# (svg name, title, unit, [(benchmark, measure, legend)], decimals), at most
+# four series; page_value says what each measure is. `releases` runs exactly
+# these benchmarks at each version, and scripts/bench/report.py draws them.
+PAGE_CHARTS = [
+    ('components-decode', 'Decoding, CPU per minute of audio', 'ms', [
+        ('decode.mp3-320', 'cpu_per_minute', 'MP3 320k'),
+        ('decode.aac-256', 'cpu_per_minute', 'AAC 256k'),
+        ('decode.flac-16-44', 'cpu_per_minute', 'FLAC 16/44.1'),
+        ('decode.flac-24-192', 'cpu_per_minute', 'FLAC 24/192')], 1),
+    ('components-open', 'Opening a file', 'ms', [
+        ('open.mp3-320', 'cpu_per_unit', 'MP3 320k'),
+        ('open.aac-256', 'cpu_per_unit', 'AAC 256k'),
+        ('open.flac-16-44', 'cpu_per_unit', 'FLAC 16/44.1'),
+        ('open.wav-24-96', 'cpu_per_unit', 'WAV 24/96')], 2),
+    ('components-seek', 'Seeking, and the first read after it', 'ms', [
+        ('seek.mp3-320', 'cpu_per_unit', 'MP3 320k'),
+        ('seek.aac-256', 'cpu_per_unit', 'AAC 256k'),
+        ('seek.flac-16-44', 'cpu_per_unit', 'FLAC 16/44.1'),
+        ('seek.flac-24-192', 'cpu_per_unit', 'FLAC 24/192')], 2),
+    ('components-waveform', 'Waveform, tempo and key for a new track, 3 min file', 'ms', [
+        ('waveform+bpm+key.mp3-320', 'wall', 'MP3 320k'),
+        ('waveform+bpm+key.aac-256', 'wall', 'AAC 256k'),
+        ('waveform+bpm+key.flac-16-44', 'wall', 'FLAC 16/44.1'),
+        ('waveform+bpm+key.flac-24-192', 'wall', 'FLAC 24/192')], 0),
+    ('components-analysis', 'Tempo and key analysis, CPU per minute of audio', 'ms', [
+        ('bpm.flac-16-44', 'cpu_per_minute', 'Tempo, 44.1 kHz'),
+        ('key.flac-16-44', 'cpu_per_minute', 'Key, 44.1 kHz'),
+        ('bpm.flac-24-96', 'cpu_per_minute', 'Tempo, 96 kHz'),
+        ('key.flac-24-96', 'cpu_per_minute', 'Key, 96 kHz')], 1),
+    ('components-metadata', 'Reading a file\'s tags and cover art', 'ms per file', [
+        ('metadata.mp3-320', 'wall_per_unit', 'MP3, 1000 px cover'),
+        ('metadata.flac-16-44', 'wall_per_unit', 'FLAC, 1000 px cover'),
+        ('metadata.aac-256', 'wall_per_unit', 'AAC, 1000 px cover'),
+        ('metadata.library-mp3', 'wall_per_unit', 'Library MP3, 600 px')], 2),
+    ('components-disk-cache', 'The metadata and waveform disk cache', 'µs per entry', [
+        ('pincache.hit-300', 'us_per_unit', 'Hit'),
+        ('pincache.write-300', 'us_per_unit', 'Write'),
+        ('pincache.write-300-at-limit', 'us_per_unit', 'Write, cache full'),
+        ('pincache.open-2000', 'us_per_unit', 'Launch')], 0),
+    ('components-library', 'Large libraries', 's', [
+        ('scan.sweep-5k', 'wall_s', 'Metadata sweep, 5,000 files'),
+        ('m3u.resolve-10k', 'wall_s', 'M3U, 10,000 entries'),
+        ('walk.10k-name', 'wall_s', 'Folder, 10,000 files'),
+        ('playlist-edit.100k-head', 'wall_s', '20 edits, 100,000 rows')], 2),
+]
+
+
+def page_value(bench, measure):
+    if not bench or not bench.get('units'):
+        return None
+    if measure == 'cpu_per_minute':  # units are the file's audio seconds
+        return bench['cpu_ms'] / bench['units'] * 60
+    if measure == 'cpu_per_unit':
+        return bench['cpu_ms'] / bench['units']
+    if measure == 'wall_per_unit':
+        return bench['wall_ms'] / bench['units']
+    if measure == 'us_per_unit':
+        return bench['wall_ms'] / bench['units'] * 1000
+    if measure == 'wall':
+        return bench['wall_ms']
+    return bench['wall_ms'] / 1000  # wall_s
+
+
+
+
+def page_filter():
+    names = sorted({name for *_, series, _ in PAGE_CHARTS for name, _, _ in series})
+    return '^(' + '|'.join(re.sub(r'([.+])', r'\\\1', name) for name in names) + ')$'  # VibePerf's regex is ECMAScript
+
+
+def bench_module():
+    sys.path.insert(0, str(ROOT / 'scripts/bench'))
+    import bench
+    return bench
+
+
+def measure_release(label, ref, reps):
+    """VibePerf at one version, built by build() with today's harness grafted
+    on, the page's benchmarks only, REPS repetitions, medians: the entry for
+    results.json's `components` section. A benchmark the version cannot build is
+    absent from it, not zero."""
+    bench = bench_module()
+    corpus_hash = corpus()
+    binary = build(ref)
+    out = PERF / f'release-{label}.json'
+    PERF.mkdir(parents=True, exist_ok=True)
+    benches = run_binary(binary, page_filter(), reps, out, quiet=True)
+    medians = {name: {'cpu_ms': round(statistics.median(b['cpu_ms']), 4),
+                      'wall_ms': round(statistics.median(b['wall_ms']), 4),
+                      'minstr': round(statistics.median(b['instructions']) / 1e6, 3),
+                      'units': b['units'], 'unit': b['unit']} for name, b in benches.items()}
+    print(f'{label}: VibePerf, {len(medians)} benchmarks', flush=True)
+    return {'ref': ref, 'commit': resolve(ref), 'prerelease': bench.prerelease(label),
+            'measured': time.strftime('%Y-%m-%d'), 'reps': reps,
+            'corpus': corpus_hash, 'machine': bench.machine(), 'harness': harness_digest(), 'benches': medians}
+
+
+def releases(args):
+    """The page's component charts: measure each version, store it in
+    results.json, redraw docs/performance.md."""
+    reps = option(args, '--reps', 5, int)
+    bench = bench_module()
+    results = bench.load_results()
+    for label, ref in bench.parse_targets(args, results):
+        results.setdefault('components', {})[label] = measure_release(label, ref, reps)
+        bench.save_results(results)
+    import report
+    report.write(results)
+
 def main(argv):
-    if not argv or argv[0] not in ('corpus', 'build', 'run', 'compare', 'list'):
+    if not argv or argv[0] not in ('corpus', 'build', 'run', 'compare', 'list', 'releases'):
         print(__doc__)
         return 64
     command, args = argv[0], argv[1:]
@@ -291,6 +409,8 @@ def main(argv):
         corpus()
         PERF.mkdir(parents=True, exist_ok=True)
         run_binary(build(args[0] if args else None), filter_re, reps, json_out)
+    elif command == 'releases':
+        releases(args)
     else:
         compare(args)
     return 0

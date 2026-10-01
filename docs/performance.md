@@ -2,7 +2,9 @@
 
 <!-- performance:begin -->
 
-The same benchmark suite, run against every release on one machine (Apple M2 Pro, 32 GB, macOS 26.5.2); lower is better everywhere. What each number measures and how to run it is below the charts.
+### The app
+
+The app benchmarks: each release's own app, launched and driven the same way, on one machine (Apple M2 Pro, 32 GB, macOS 26.5.2); lower is better everywhere. A version marked pre-release was measured before its release was tagged. What each number measures and how to run it is below the charts.
 
 | | 1.8 | 1.9 | 1.10 | 1.11 | 1.12 | 1.13 | 1.14 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -39,32 +41,36 @@ The same benchmark suite, run against every release on one machine (Apple M2 Pro
 ![Playback work, instructions retired](performance/playback-work.svg)
 ![Wakeups](performance/wakeups.svg)
 
-### Inside the app
+### Components
 
-The in-process suite, VibePerf, built against each version's own code and run on one machine (Apple M4 Max, 64 GB, macOS 27.0): the code under each feature, without the app around it. A line that starts late is a benchmark of code that version does not have.
+The component benchmarks, VibePerf, built against each version's own code and run on one machine (Apple M4 Max, 64 GB, macOS 27.0): the code under each feature, without the app around it. A line that starts late is a benchmark of code that version does not have; a version marked pre-release was measured before its release was tagged.
 
-![Decoding, CPU per minute of audio](performance/perf-decode.svg)
-![Opening a file](performance/perf-open.svg)
-![Seeking, and the first read after it](performance/perf-seek.svg)
-![Waveform, tempo and key for a new track, 3 min file](performance/perf-waveform.svg)
-![Tempo and key analysis, CPU per minute of audio](performance/perf-analysis.svg)
-![Reading a file's tags and cover art](performance/perf-metadata.svg)
-![The metadata and waveform disk cache](performance/perf-disk-cache.svg)
-![Large libraries](performance/perf-library.svg)
+![Decoding, CPU per minute of audio](performance/components-decode.svg)
+![Opening a file](performance/components-open.svg)
+![Seeking, and the first read after it](performance/components-seek.svg)
+![Waveform, tempo and key for a new track, 3 min file](performance/components-waveform.svg)
+![Tempo and key analysis, CPU per minute of audio](performance/components-analysis.svg)
+![Reading a file's tags and cover art](performance/components-metadata.svg)
+![The metadata and waveform disk cache](performance/components-disk-cache.svg)
+![Large libraries](performance/components-library.svg)
 
 <!-- performance:end -->
 
 ## How it works
 
-The numbers above come from one benchmark suite, `scripts/bench/`, run unchanged against every release. Its job is to show a regression or an improvement between versions, so everything about it is held fixed except the app's own code.
+The numbers above come from two benchmark suites, each run unchanged against every release. Their job is to show a regression or an improvement between versions, so everything about them is held fixed except the app's own code. The **app benchmarks** (`scripts/bench/`, this section) launch each version's own app and drive it; the **component benchmarks** (the `vibe-perf` skill, [below](#the-component-benchmarks)) run each version's production code in-process, without the app.
 
 ```bash
-make bench VERSIONS="1.15"          # a new release: builds tag v1.15, measures it, redraws this page
-make bench VERSIONS="1.15=<ref>"    # measured at any other ref
-make bench-rerun                    # every version in results.json again, e.g. on a new machine
-make bench-report                   # this page's charts and table from results.json alone
-make bench-perf                     # the in-process suite alone, every version in results.json
+make bench-releases VERSIONS="1.16"         # a new release: both suites at tag v1.16, this page redrawn
+make bench-releases VERSIONS="HEAD"         # this checkout before its release, charted as "<its version> pre-release"
+make bench-releases VERSIONS="1.16=<ref>"   # any other commit, under that version
+make bench-releases                         # every version on this page again, e.g. on a new machine
+make bench-app VERSIONS="1.16"              # the app benchmarks alone
+make bench-components-releases              # the component benchmarks alone (no app launches)
+make bench-report                           # this page's charts and table from results.json alone
 ```
+
+A version is a release tag (`1.16` means `v1.16`), a version at a commit (`1.16=<ref>`), or a bare ref such as `HEAD`, which is labelled with the version its own `project.yml` declares. **A version whose `v<version>` tag does not exist yet is a pre-release**: it is stored and charted, labelled `1.16 pre-release`, until a run at the tag replaces it.
 
 A version takes about half an hour on an M4 Max, longer on a slower Mac (five repetitions of every scenario; `ARGS="--reps 1"` for a quick look). The suite launches the app fifteen times per repetition and each launch takes focus, so leave the Mac alone while it runs, and put Bluetooth headphones away: the app is held to the built-in speakers, but a headset that is the system default can still be pulled in by the OS. It needs `ffmpeg` (`brew install ffmpeg`) for the corpus, generated once into `build/bench/corpus`.
 
@@ -79,9 +85,9 @@ A version takes about half an hour on an M4 Max, longer on a slower Mac (five re
   Not `--no-audio-hw`. Its debug pump stands in for the device with a 20 ms timer, and in 1.8, where it drives AVAudioEngine's offline manual rendering, a track switch or seek under load could take tens of seconds that no real device ever showed. Measure the real path.
 - **The corpus.** Generated deterministically by `bench.py` with ffmpeg into `build/bench/corpus` (1.4 GB): decorrelated pink noise under a 120 BPM kick — broadband, so lossless files barely compress and decoding is at its worst — each file tagged with a 1000 px cover. Fifteen playback files: the everyday formats at 3 minutes (MP3 320k and V0, AAC 256k, FLAC 16/44.1, 24/96 and 24/192, WAV 24/96); MP3 at its worst (an hour at 320k and at V0, ten minutes of VBR with no Xing header, so no seek table and no frame count, and 48 kHz, the one MP3 not resampled); and the resampler at awkward ratios (FLAC 24/88.2, 24/176.4, 24/352.8 DXD, and 16/22.05 mono, upsampled). Plus a 600-file library: 30 albums × 20 tracks of MP3, FLAC and AAC, every file tagged with a 600 px cover. `results.json` records a hash of it.
 - **The load.** Before every scenario the runner waits until the whole machine has been at least 80% idle for three seconds running (`top`; `ARGS="--idle <percent>"`), and records that idle level in `results.json`. Another workload would inflate every number, unevenly across cores, and chart as a regression.
-- **The machine.** Results are only comparable from one machine. `results.json` records the chip, memory, macOS and Xcode per version, and the report charts only versions measured on the newest entry's machine and corpus. After a change of either, `make bench-rerun`.
+- **The machine.** Results are only comparable from one machine. `results.json` records the chip, memory, macOS and Xcode per version, and the report charts only versions measured on the newest entry's machine and corpus. After a change of either, `make bench-releases` with no `VERSIONS`.
 
-**Which build each version is.** A release's tag: `v1.8` through `v1.12`. 1.13 never had a final tag, so it is its last build, `1.13-beta11` (`6992feca`); 1.14 is main as of `1.14-beta3` (`8ae57716`), until a final `v1.14` replaces it. `results.json` records the ref and commit of every entry.
+**Which build each version is.** A release's tag: `v1.8` through `v1.12`. 1.13 never had a final tag, so it is its last build, `1.13-beta11` (`6992feca`); 1.14 is `1.14-beta3` (`8ae57716`), until a run at `v1.14` replaces it. A pre-release is the commit it was measured at. `results.json` records the ref, the commit and `prerelease` for every entry.
 
 **Patches.** 1.8 and 1.9 predate `dump_metadata_progress`, the channel verb the library scan settles on; `scripts/bench/patches/<version>.patch` backports it (it reads state and changes nothing). No other version is patched.
 
@@ -109,10 +115,10 @@ CPU, memory, wakeups and energy are read from outside with `proc_pid_rusage`, th
 
 `results.json` keeps every repetition's raw value under `samples` beside the median.
 
-### Inside the app
+### The component benchmarks
 
-The second set of charts is the code under each feature, without the app around it: `Tests/Perf/`'s VibePerf (the `vibe-perf` skill) drives the production code in-process — the player's file reader opening, decoding and seeking, the waveform pass with tempo and key, the analyzers alone, the metadata parse with its cover art, the disk cache, and the large-library operations — and `make bench`, `make bench-rerun` and `make bench-perf` run it against every version into `results.json`'s `perf` section.
+The second set of charts is the code under each feature, without the app around it: `Tests/Perf/`'s VibePerf (the `vibe-perf` skill, whose `SKILL.md` explains running it) drives the production code in-process — the player's file reader opening, decoding and seeking, the waveform pass with tempo and key, the analyzers alone, the metadata parse with its cover art, the disk cache, and the large-library operations — and `make bench-components-releases` (or `make bench-releases`, after the app benchmarks) runs it against every version into `results.json`'s `components` section. No app launches, so the Mac can be in use.
 
-One harness, today's, is built against every version's own code. `perf.py` checks the version out, writes `VibePerfFeatures.h` from what its sources have (the reader was `AVAudioFile` until 1.14 and `AudioFileHandle` from it; the waveform loader was `AVFAudioWaveformLoader`; the analyzers were switched by two settings before 1.10 had a provider; the meter summarized apart from consuming from 1.14), derives a `VibePerf` tool target from that version's own app target (`xcodegen dump`), so 1.8's flat source layout builds as it was, and leaves out any benchmark file that version cannot compile. So a line that starts late is code the version does not have: the level meter from 1.10, the metadata sweep from 1.14, the playlist-file, folder-walk and playlist-edit benchmarks from 1.15.
+One harness, today's, is built against every version's own code. `perf.py releases` checks the version out, writes `VibePerfFeatures.h` from what its sources have (the reader was `AVAudioFile` until 1.14 and `AudioFileHandle` from it; the waveform loader was `AVFAudioWaveformLoader`; the analyzers were switched by two settings before 1.10 had a provider; the meter summarized apart from consuming from 1.14), derives a `VibePerf` tool target from that version's own app target (`xcodegen dump`), so 1.8's flat source layout builds as it was, and leaves out any benchmark file that version cannot compile. So a line that starts late is code the version does not have: the level meter from 1.10, the metadata sweep from 1.14, the playlist-file, folder-walk and playlist-edit benchmarks from 1.15.
 
-Each number is the median of five runs of one process per version, after a warm-up. Decoding and analysis are CPU time per minute of the file's audio, opening and seeking CPU time per operation, the waveform pass wall time (it pipelines across two threads), the metadata parse, the disk cache and the libraries wall time per file, entry or job. The machine is recorded separately from the app suite's, and these charts compare only versions measured on one machine. CPU time stays within a few percent under load, unlike wall time; instructions retired, which hardly move at all, are kept beside it in `results.json` for a check.
+Each number is the median of five runs of one process per version, after a warm-up. Decoding and analysis are CPU time per minute of the file's audio, opening and seeking CPU time per operation, the waveform pass wall time (it pipelines across two threads), the metadata parse, the disk cache and the libraries wall time per file, entry or job. The machine is recorded separately from the app benchmarks', and these charts compare only versions measured on one machine. CPU time stays within a few percent under load, unlike wall time; instructions retired, which hardly move at all, are kept beside it in `results.json` for a check.

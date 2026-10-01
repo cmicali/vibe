@@ -1,26 +1,30 @@
 #!/usr/bin/env python3
 """Vibe's performance benchmark: one suite, run unchanged against every version.
 
-    bench.py build <label>=<ref> ...   build versions (scripts/bench/build-version.sh)
-    bench.py run <label>[=<ref>] ...   build if needed, measure, store in results.json
-    bench.py rerun                     every version already in results.json, again
-    bench.py perf [<label>[=<ref>] ...]  the in-process suite (VibePerf) only, for
-                                       those versions or every one in results.json
-    bench.py report                    the charts and table atop docs/performance.md
+    bench.py app [<label>[=<ref>] ...]   the app suite at those versions, stored in
+                                         results.json, the page redrawn; no labels
+                                         is every version already there
+    bench.py all [<label>[=<ref>] ...]   the app suite, then the component benchmarks
+    bench.py build <label>=<ref> ...     build versions (scripts/bench/build-version.sh)
+    bench.py report                      the charts and table atop docs/performance.md
+
+A label is a release, `1.15` for tag v1.15; `=<ref>` measures any other commit.
+A label with no v<label> tag yet is stored and charted as "<label> pre-release".
 
     --reps N    repetitions per scenario, median taken (default 5)
     --idle P    whole-machine idle % to wait for before each scenario (default 80)
 
 The suite drives each version's own macOS app through the debug command channel
 and reads the process from outside (proc_pid_rusage, the window server), so
-the same numbers mean the same thing in every version. `run` and `perf` also
-run the vibe-perf skill's in-process suite, VibePerf, grafted onto each
-version's own code, into results.json's `perf` section. What each metric is,
-and how it is taken, is docs/performance.md; the traps are here.
+the same numbers mean the same thing in every version; results.json's `app`
+section. `all` also runs the vibe-perf skill's component benchmarks at each
+version (`perf.py releases`, which owns that half of the page and also runs
+alone) into its `components` section. What each metric is, and how it is
+taken, is docs/performance.md; the traps are here.
 
 TRAP: numbers are only comparable from one machine and one corpus. results.json
 records both, and `report` refuses to chart a version measured elsewhere;
-after a machine change, `rerun`.
+after a machine change, run every version again (`all` with no labels).
 """
 import ctypes
 import hashlib
@@ -29,6 +33,7 @@ import os
 import platform
 import plistlib
 import random
+import re
 import shutil
 import signal
 import statistics
@@ -664,19 +669,26 @@ def machine():
 def load_results():
     if RESULTS.exists():
         return json.loads(RESULTS.read_text())
-    return {'suite': SUITE_VERSION, 'versions': {}}
+    return {'suite': SUITE_VERSION, 'app': {}}
 
 
 def save_results(results):
     PERF.mkdir(parents=True, exist_ok=True)
-    results['versions'] = dict(sorted(results['versions'].items(), key=lambda kv: version_key(kv[0])))
-    if 'perf' in results:
-        results['perf'] = dict(sorted(results['perf'].items(), key=lambda kv: version_key(kv[0])))
+    for section in ('app', 'components'):
+        if section in results:
+            results[section] = dict(sorted(results[section].items(), key=lambda kv: version_key(kv[0])))
     RESULTS.write_text(json.dumps(results, indent=2) + '\n')
 
 
 def version_key(label):
     return tuple(int(p) for p in label.split('.'))
+
+
+def prerelease(label):
+    """No v<label> tag yet: numbers from code that has not shipped as that
+    release, charted as such until a run at the tag replaces them."""
+    return subprocess.run(['git', '-C', str(ROOT), 'rev-parse', '--verify', '--quiet', f'refs/tags/v{label}'],
+                          capture_output=True).returncode != 0
 
 
 def build(label, ref):
@@ -715,50 +727,45 @@ def run_version(label, ref, reps, corpus, idle):
                 samples.setdefault(key, []).append(value)
     metrics = {key: round(statistics.median(v for v in values if v is not None), 3)
                for key, values in samples.items() if any(v is not None for v in values)}
-    return {'ref': ref, 'commit': commit, 'measured': time.strftime('%Y-%m-%d'), 'reps': reps,
-            'corpus': corpus, 'machine': machine(), 'metrics': metrics,
+    return {'ref': ref, 'commit': commit, 'prerelease': prerelease(label), 'measured': time.strftime('%Y-%m-%d'),
+            'reps': reps, 'corpus': corpus, 'machine': machine(), 'metrics': metrics,
             'samples': {k: [None if v is None else round(v, 3) for v in vs] for k, vs in samples.items()}}
 
 
-# The in-process benchmarks the page charts; the rest of VibePerf's are for
-# comparing two refs (perf.py compare), not every release.
-PERF_FILTER = (r'^(decode|open|seek|waveform\+bpm\+key|bpm|key|metadata|pincache|levels|resample|m3u|walk'
-               r'|playlist-edit|scan)\.')
+def app_version(ref):
+    """The version the app at REF calls itself (project.yml's MARKETING_VERSION)."""
+    spec = subprocess.run(['git', '-C', str(ROOT), 'show', f'{ref}:project.yml'],
+                          capture_output=True, text=True, check=True).stdout
+    return re.search(r'MARKETING_VERSION:\s*"?([\d.]+)', spec).group(1)
 
 
-def run_perf(label, ref, reps, corpus):
-    """VibePerf at a version: the working tree's harness grafted onto that
-    version's code (the vibe-perf skill's perf.py), one run, medians. A
-    benchmark the version cannot build is absent, not zero."""
-    sys.path.insert(0, str(ROOT / '.claude/skills/vibe-perf/scripts'))
-    import perf
-    perf.corpus()  # make bench's corpus plus the formats only VibePerf reads
-    binary = perf.build(ref)
-    out = BENCH / f'perf-{label}.json'
-    perf.run_binary(binary, PERF_FILTER, reps, out, quiet=True)
-    benches = json.loads(out.read_text())['benches']
-    medians = {name: {'cpu_ms': round(statistics.median(b['cpu_ms']), 4),
-                      'wall_ms': round(statistics.median(b['wall_ms']), 4),
-                      'minstr': round(statistics.median(b['instructions']) / 1e6, 3),
-                      'units': b['units'], 'unit': b['unit']} for name, b in benches.items()}
-    commit = subprocess.run(['git', '-C', str(ROOT), 'rev-parse', ref + '^{commit}'],
-                            capture_output=True, text=True, check=True).stdout.strip()
-    print(f'{label}: VibePerf, {len(medians)} benchmarks', flush=True)
-    return {'ref': ref, 'commit': commit, 'measured': time.strftime('%Y-%m-%d'), 'reps': reps,
-            'corpus': corpus, 'machine': machine(), 'harness': perf.harness_digest(), 'benches': medians}
+def parse_targets(args, results, sections=('app', 'components')):
+    """(label, ref) for each argument, or for every version already in those
+    sections when there are none. `1.15` is that release: tag v1.15 once it
+    exists, so a rerun replaces a pre-release, else the ref stored for it.
+    `1.15=<ref>` is that label at any commit, and a bare ref (`HEAD`) is
+    labelled with the version its own project.yml declares."""
+    known = {}
+    for section in reversed(sections):
+        known.update({label: entry['ref'] for label, entry in results.get(section, {}).items()})
 
-
-def parse_targets(args, results):
+    def release_ref(label):
+        return known.get(label, f'v{label}') if prerelease(label) else f'v{label}'
+    if not args:
+        return [(label, release_ref(label)) for label in sorted(known, key=version_key)]
     targets = []
     for arg in args:
         label, _, ref = arg.partition('=')
-        ref = ref or results['versions'].get(label, {}).get('ref') or f'v{label}'
-        targets.append((label, ref))
+        if not ref and not re.fullmatch(r'\d+(\.\d+)+', label):
+            label, ref = app_version(label), subprocess.run(
+                ['git', '-C', str(ROOT), 'rev-parse', '--verify', label + '^{commit}'],
+                capture_output=True, text=True, check=True).stdout.strip()
+        targets.append((label, ref or release_ref(label)))
     return targets
 
 
 def main(argv):
-    if not argv or argv[0] not in ('build', 'run', 'rerun', 'perf', 'report', 'corpus'):
+    if not argv or argv[0] not in ('app', 'all', 'build', 'report', 'corpus'):
         print(__doc__)
         return 64
     command, args = argv[0], argv[1:]
@@ -782,26 +789,19 @@ def main(argv):
     if command == 'corpus':
         print(corpus)
         return 0
-    if command == 'perf':
-        targets = parse_targets(args, results) if args else \
-            [(label, entry['ref']) for label, entry in results['versions'].items()]
-        for label, ref in targets:
-            results.setdefault('perf', {})[label] = run_perf(label, ref, reps, corpus)
-            save_results(results)
-        import report
-        report.write(results)
-        return 0
     ensure_probe()
-    targets = parse_targets(args, results) if command == 'run' else \
-        [(label, entry['ref']) for label, entry in results['versions'].items()]
-    for label, ref in targets:
-        results['versions'][label] = run_version(label, ref, reps, corpus, idle)
+    sys.path.insert(0, str(ROOT / '.claude/skills/vibe-perf/scripts'))
+    import perf
+    for label, ref in parse_targets(args, results, ('app',) if command == 'app' else ('app', 'components')):
+        results.setdefault('app', {})[label] = run_version(label, ref, reps, corpus, idle)
         save_results(results)
+        if command == 'app':
+            continue
         try:
-            results.setdefault('perf', {})[label] = run_perf(label, ref, reps, corpus)
+            results.setdefault('components', {})[label] = perf.measure_release(label, ref, reps)
             save_results(results)
         except (SystemExit, subprocess.CalledProcessError) as error:
-            print(f'  warning: {label}: VibePerf failed: {error}', flush=True)
+            print(f'  warning: {label}: the component benchmarks failed: {error}', flush=True)
     import report
     report.write(results)
     return 0

@@ -6,7 +6,7 @@ CONFIG ?= Release
 # it from. Under build/, so `make clean` takes it.
 RESULT_BUNDLE ?= build/TestResults.xcresult
 
-.PHONY: bench bench-rerun bench-report bench-perf build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress torture release github-release deploy-web web-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
+.PHONY: bench-components bench-components-releases bench-app bench-releases bench-report build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress torture release github-release deploy-web web-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
 
 # Install the dev-tool dependencies (xcodegen, jq, gh) from the Brewfile.
 setup:
@@ -147,28 +147,32 @@ torture:
 	@test -n "$(PLAYLIST)" || { echo "usage: make torture PLAYLIST=<folder of audio files> [APP=<Vibe.app>]"; exit 64; }
 	.claude/skills/vibe-stress/scripts/run-torture.sh "$(APP)" "$(PLAYLIST)" $(ARGS)
 
-# The performance benchmark over released versions (docs/performance.md):
-# builds each tag, runs the same suite, redraws that page's table and charts.
-# About half an hour a version on an M4 Max; it launches the app over and over, so leave the Mac be.
-#   make bench VERSIONS="1.15"            a new release, tag v1.15
-#   make bench VERSIONS="1.15=<ref>"      measured at another ref
-#   make bench-rerun                      every version again (a new machine)
-#   make bench-report                     the page from results.json only
-bench:
-	@test -n "$(VERSIONS)" || { echo 'usage: make bench VERSIONS="1.15 [1.16=<ref>]"'; exit 64; }
-	python3 scripts/bench/bench.py run $(VERSIONS) $(ARGS)
+# Benchmarks: the vibe-perf skill explains each, docs/performance.md shows them.
+# The component benchmarks (VibePerf) run the production code in-process, no app,
+# so the Mac can be in use; the app benchmarks launch the real app over and over
+# (about half an hour a version), so leave the Mac be while they run.
+#   make bench-components [BASE=main]          this working tree against BASE
+#   make bench-components-releases [VERSIONS=]  component benchmarks per release, page redrawn
+#   make bench-app [VERSIONS=]                  app benchmarks per release, page redrawn
+#   make bench-releases [VERSIONS=]             both per release, page redrawn
+#   make bench-report                           the page from results.json alone
+# VERSIONS: "1.16" is tag v1.16, "1.16=<ref>" any commit, "HEAD" (any ref) the
+# version its project.yml declares. A version with no v<version> tag yet is
+# charted as "<version> pre-release". Without VERSIONS, every version on the page.
+bench-components:
+	python3 .claude/skills/vibe-perf/scripts/perf.py compare $(or $(BASE),main) $(ARGS)
 
-bench-rerun:
-	python3 scripts/bench/bench.py rerun $(ARGS)
+bench-components-releases:
+	python3 .claude/skills/vibe-perf/scripts/perf.py releases $(VERSIONS) $(ARGS)
+
+bench-app:
+	python3 scripts/bench/bench.py app $(VERSIONS) $(ARGS)
+
+bench-releases:
+	python3 scripts/bench/bench.py all $(VERSIONS) $(ARGS)
 
 bench-report:
 	python3 scripts/bench/bench.py report
-
-# The in-process suite alone (VibePerf, the vibe-perf skill), against every
-# version in results.json or VERSIONS="1.15=<ref>"; no app launches, so the
-# Mac can be in use.
-bench-perf:
-	python3 scripts/bench/bench.py perf $(VERSIONS) $(ARGS)
 
 # The rm matters: BSD cp -R copies INTO an existing destination directory, so
 # without it a second install produces /Applications/Vibe.app/Vibe.app.

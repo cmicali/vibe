@@ -1,34 +1,87 @@
 ---
 name: vibe-perf
-description: Measure Vibe's performance in-process and compare two versions of the code — VibePerf, a micro-benchmark tool that drives the production decode, open, seek, resample, waveform, tempo/key, equalizer-meter, metadata-parse and cache-key code (and any area a benchmark file adds) with no app running, counting retired instructions as well as wall and CPU time; perf.py, which builds it at any git ref and runs two refs interleaved; profile.sh, which samples one benchmark to find its hotspots; and --analyze, which prints every file's tempo and key so an analyzer change can be proven exact. Use before and after any change that could move cost, to find where time goes, to decide between two implementations, or to back a performance claim with numbers. The app-level suite (startup, time to play, playback CPU, library scan over released versions) is `make bench`, docs/performance.md.
+description: Measure Vibe's performance in-process and compare two versions of the code — VibePerf, a micro-benchmark tool that drives the production decode, open, seek, resample, waveform, tempo/key, equalizer-meter, metadata-parse and cache-key code (and any area a benchmark file adds) with no app running, counting retired instructions as well as wall and CPU time; perf.py, which builds it at any git ref and runs two refs interleaved; profile.sh, which samples one benchmark to find its hotspots; and --analyze, which prints every file's tempo and key so an analyzer change can be proven exact. Use before and after any change that could move cost, to find where time goes, to decide between two implementations, or to back a performance claim with numbers. Also runs these component benchmarks at every release back to 1.8 for the performance page's Components charts, pre-releases included (make bench-components-releases, perf.py releases), and documents the whole performance page: the app benchmarks (startup, time to play, playback CPU and energy, library scan; make bench-app) and both together (make bench-releases).
 ---
 
 # Measuring performance
 
-Two suites, two questions:
+Two benchmark suites, two questions, one set of names:
 
-- **VibePerf** (`Tests/Perf/`, this skill): what does *this code* cost? Production code in-process, one benchmark at a time, no app, no audio device, no window. Seconds to run, stable on a loaded machine, any two refs comparable.
-- **`make bench`** (`scripts/bench/`, `docs/performance.md`): what does *the app* cost? Launches each version's own app over and over against one corpus; startup, time to play, seek latency, playback CPU, wakeups, memory, library scan. Half an hour a version, wants the Mac quiet.
+| | **Component benchmarks** | **App benchmarks** |
+| --- | --- | --- |
+| Question | What does *this code* cost? | What does *the app* cost, as a user feels it? |
+| What runs | VibePerf (`Tests/Perf/`): the production code in-process, one benchmark at a time; no app, audio device or window | Each version's own app (`scripts/bench/`), launched and driven over and over |
+| Measures | Decode, open, seek, resample, waveform, tempo and key, the meter, metadata, the disk cache, large libraries, UI cells; instructions retired, CPU and wall time | Startup, time to play, seek latency, playback CPU, energy and wakeups, memory, library scan |
+| Cost | Seconds to minutes; stable on a busy Mac | About half an hour a version; the Mac must be left alone |
+| Compare two refs | `make bench-components [BASE=main]` | — |
+| Every release, on `docs/performance.md` | `make bench-components-releases` | `make bench-app` |
 
-Use VibePerf to find and fix; use `make bench` to report what a user would feel.
+`make bench-releases` runs both at every release, and `make bench-report` redraws the page from what is stored. Use the component benchmarks to find and fix; use the app benchmarks to report what a user would feel.
 
-## Running it
+## Comparing two refs
 
 ```bash
-python3 .claude/skills/vibe-perf/scripts/perf.py compare main                    # main vs the working tree, everything
-python3 .claude/skills/vibe-perf/scripts/perf.py compare main --filter '^decode\.' # one group
-python3 .claude/skills/vibe-perf/scripts/perf.py run --filter metadata           # just measure the working tree
-python3 .claude/skills/vibe-perf/scripts/perf.py list                            # benchmark names
-.claude/skills/vibe-perf/scripts/profile.sh '^key.flac-16-44' 6                  # where one benchmark's time goes
+make bench-components                              # main vs the working tree, everything
+make bench-components BASE=v1.14                   # another base
+python3 .claude/skills/vibe-perf/scripts/perf.py compare main --filter '^decode\.'  # one group
+python3 .claude/skills/vibe-perf/scripts/perf.py run --filter metadata             # just measure the working tree
+python3 .claude/skills/vibe-perf/scripts/perf.py list                              # benchmark names
+.claude/skills/vibe-perf/scripts/profile.sh '^key.flac-16-44' 6                    # where one benchmark's time goes
 ```
 
-`compare BASE [HEAD]` builds VibePerf for each side (a ref once per commit under `build/perf/bin/`, the working tree incrementally in `build/PerfDerivedData`), runs them alternately `--rounds` times (default 3) × `--reps` (default 3), and prints a table of medians — instructions, CPU, wall — and their change. `--md OUT` also writes it as markdown; `build/perf/last-compare.json` keeps every sample. A side can be `bin:<path>`, a VibePerf built some other way (a build-setting experiment: `xcodebuild ... -scheme VibePerf GCC_OPTIMIZATION_LEVEL=3 -derivedDataPath build/perf/dd-O3`).
+`make bench-components` is `perf.py compare BASE`. `compare BASE [HEAD]` builds VibePerf for each side (a ref once per commit under `build/perf/bin/`, the working tree incrementally in `build/PerfDerivedData`), runs them alternately `--rounds` times (default 3) × `--reps` (default 3), and prints a table of medians — instructions, CPU, wall — and their change. `--md OUT` also writes it as markdown; `build/perf/last-compare.json` keeps every sample. A side can be `bin:<path>`, a VibePerf built some other way (a build-setting experiment: `xcodebuild ... -scheme VibePerf GCC_OPTIMIZATION_LEVEL=3 -derivedDataPath build/perf/dd-O3`).
 
 **Any ref back to 1.8 runs today's harness.** `perf.py` grafts the working tree's `Tests/Perf/` onto the ref's checkout and writes `VibePerfFeatures.h` from that checkout's sources (`VibePerf.h` lists the questions: the player's reader, `AVAudioFile` before 1.14; the waveform loader's class; the analysis provider, settings before 1.10; the metadata parse's shape; the meter's). When the ref's spec has no `VibePerf` target, it derives one from the ref's own app target (`xcodegen dump`, so 1.8's flat layout builds as it was), and builds without warnings as errors. **A benchmark file the ref cannot compile is left out of that build** and named in the output; the core (`VibePerf.mm`, `VibePerf.h`) never is. That is why benchmarks live one subsystem to a file: a version missing one loses only that file. Binaries are cached per commit and harness digest under `build/perf/bin/`.
 
-**The performance page charts it.** `make bench` and `make bench-rerun` run the suite against each version after the app suite, and `make bench-perf` runs it alone (no app launches, so the Mac can be in use), into `results.json`'s `perf` section; `scripts/bench/report.py`'s `PERF_CHARTS` draws the "Inside the app" charts on `docs/performance.md` from it. `bench.py`'s `PERF_FILTER` is the set it runs; a new benchmark joins the page only by being in both.
+The corpus is the app benchmarks' (`build/bench/corpus`: the play files, a 600-file tagged library) plus a few formats it lacks (`extra/`: 16-bit WAV and AIFF, ALAC, Opus, Vorbis), generated once with ffmpeg by `perf.py corpus`, which every command runs first. A benchmark whose file is missing is skipped, not failed.
 
-The corpus is `make bench`'s (`build/bench/corpus`: the play files, a 600-file tagged library) plus a few formats it lacks (`extra/`: 16-bit WAV and AIFF, ALAC, Opus, Vorbis), generated once with ffmpeg by `perf.py corpus`, which every command runs first. A benchmark whose file is missing is skipped, not failed.
+## Charting every release on the performance page
+
+`docs/performance.md` has two sets of charts: **The app** (the app benchmarks) and **Components** (the component benchmarks). This skill owns the second: `perf.py releases` measures each version, and `PAGE_CHARTS` in `perf.py` decides what is measured and drawn.
+
+### Generating it
+
+```bash
+make bench-components-releases VERSIONS="1.16"         # a new release: tag v1.16, measured, stored, page redrawn
+make bench-components-releases VERSIONS="HEAD"         # this checkout before its release: "1.15 pre-release" today
+make bench-components-releases VERSIONS="1.16=<ref>"   # any commit, under that version
+make bench-components-releases                         # every version already on the page, again
+make bench-components-releases VERSIONS="HEAD" ARGS="--reps 1"   # a quick look; the page uses 5
+make bench-releases VERSIONS="1.16"                    # the app benchmarks, then these, in one command
+make bench-report                                      # redraw the page from results.json, measuring nothing
+```
+
+`make bench-components-releases` is `perf.py releases`; `make bench-releases` is `scripts/bench/bench.py all`, which calls the same code after the app benchmarks. A version takes a few minutes; its first build takes longer, and a rerun with the same harness reuses it. No app launches, so the Mac can be in use, though a busy machine adds noise to CPU and wall time (the page charts those; instructions retired, stored beside them, barely move).
+
+**What a version is.** `1.16` is the release tag `v1.16` (or the ref already stored for it), `1.16=<ref>` that version at any commit, and a bare ref such as `HEAD` is labelled with the version its own `project.yml` declares (`MARKETING_VERSION`). **When `v<version>` is not tagged yet, the version is a pre-release**: the run is stored with `prerelease: true` and charted as `1.15 pre-release`. Once the release is tagged, `make bench-releases VERSIONS="1.15"` measures the tag and replaces the pre-release point.
+
+Before running:
+
+1. **The version must resolve to a git commit**, a tag or the ref given.
+2. **`ffmpeg` must be installed** (`brew install ffmpeg`): the corpus is generated from it once, into `build/bench/corpus`.
+3. **Use one Mac for the whole history.** Each entry records the machine, and the page charts only versions measured on the same machine as the newest. After moving to another Mac, rerun every version (no `VERSIONS`).
+
+Then commit `docs/performance/results.json`, the redrawn `docs/performance/*.svg` and `docs/performance.md`.
+
+### What happens, step by step
+
+For each version, `measure_release` in `perf.py`:
+
+1. **Checks the commit out** as a detached worktree under `build/perf/src/<commit>`.
+2. **Grafts today's harness onto it** (`build`, `graft`): copies the working tree's `Tests/Perf/` in, writes `VibePerfFeatures.h` from what that version's sources have (`features`), and, when its `project.yml` has no `VibePerf` target, derives one from that version's own app target with `xcodegen dump` (`tool_spec`), so even 1.8's flat source layout builds as it shipped.
+3. **Builds it Release, leaving out what it cannot compile.** A benchmark file that fails against the old code is deleted from that checkout and the build retried; the output names it. The binary is cached under `build/perf/bin/<commit>-<harness digest>/`.
+4. **Runs only the page's benchmarks** (`page_filter`, every name in `PAGE_CHARTS`), five repetitions, and stores the medians — CPU ms, wall ms, millions of instructions, units — with the commit, `prerelease`, date, corpus hash, machine and harness digest, under the version in `results.json`'s `components` section. A benchmark the version cannot build is absent, not zero, so its line starts at the first version that has the code.
+5. **Redraws the page** (`scripts/bench/report.py`): one SVG per `PAGE_CHARTS` entry into `docs/performance/components-*.svg`, and the block between the page's `<!-- performance:begin -->` and `<!-- performance:end -->` markers, the app benchmarks' charts included.
+
+### Changing what the page shows
+
+`PAGE_CHARTS` is the only list. Each entry is `(svg name, title, unit, [(benchmark, measure, legend)], decimals)`, at most four series; the measures (`cpu_per_minute`, `cpu_per_unit`, `wall_per_unit`, `us_per_unit`, `wall`, `wall_s`) are `page_value`'s. Adding a series or a chart means adding it there and running `make bench-components-releases` with no `VERSIONS`, so every version gets the new benchmark; one the old versions cannot build simply starts late. A new benchmark *file* also has to build against old code, which is "Adding a benchmark" below.
+
+### When it goes wrong
+
+- **A version fails to build at all** (not just a benchmark file): the log is `build/perf/dd/<commit>.log`. Usually that version's code has a shape the harness assumes; add a flag to `VibePerf.h`'s list and its detection to `features()`.
+- **A chart is missing a version**: that version was measured on another machine or corpus; rerun it here.
+- **A version's numbers jump with no code change**: the harness changed under it (the digest is in its entry). Rerun every version so they share one harness.
 
 ## Reading the numbers
 
@@ -66,4 +119,4 @@ VIBE_PERF_REGISTER(VibePerfRegisterThings)
 
 **A whole-app `-O2` or `-O3` is not a win**: measured, it moves nothing, because the hot paths are vDSP and the third-party decoders and resampler, which already build at `-O3`.
 
-**Never launch the app from here.** VibePerf is its own process with its own defaults domain and touches no app state; `make bench`'s app runs as `VibeBench` with its own bundle identifier, home and channel directory, so neither collides with a `Vibe` instance another session is stressing (which matches `pgrep -x Vibe`).
+**Never launch the app from here.** VibePerf is its own process with its own defaults domain and touches no app state; the app benchmarks' app runs as `VibeBench` with its own bundle identifier, home and channel directory, so neither collides with a `Vibe` instance another session is stressing (which matches `pgrep -x Vibe`).
