@@ -22,9 +22,6 @@ A fast, minimal player for your music files for the Mac, iPhone, and iPad. No th
 
 Website: **[vibeplayer.app](https://vibeplayer.app)**
 
-Audio quality guide: [audio-quality.md](https://github.com/cmicali/vibe/blob/main/docs/audio-quality.md)
-
-
 ![Vibe screenshot](Assets/screenshot-playlist.png)
 
 ## Usage
@@ -84,6 +81,13 @@ The same engine and the same file handling. Uses the (not great) iOS native file
 <img src="Assets/screenshot-ios-iphone-playlist.png" width="240" alt="Vibe on iPhone, playlist">
 </p>
 
+# Audio Quality & Performance
+
+Vibe tries to be as fast as possible while maintaining maximum-possible audio quality.
+
+Audio quality guide: [audio-quality.md](https://github.com/cmicali/vibe/blob/main/docs/audio-quality.md)
+Performance tracking: [docs/performance.md](docs/performance.md)
+
 # Development
 
 Vibe is written in Objective-C/C++ and is focused on performance and speed. It uses CoreAudio directly
@@ -111,7 +115,6 @@ Requirements, the `make` targets for building and testing from the command line,
 
 - **Localization** — adding a string, adding a language, testing one: [docs/localization.md](docs/localization.md)
 - **Releasing** — credentials, localized product-page assets, metadata upload, shipping a build: [docs/app-store-releasing.md](docs/app-store-releasing.md)
-- **Performance** — one benchmark run against every release, charted by version: [docs/performance.md](docs/performance.md)
 
 # License
 
