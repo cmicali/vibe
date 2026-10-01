@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 426" width="720" height="426" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" role="img" aria-label="Playback energy"><style>.bg{fill:#fcfcfb}.t{fill:#0b0b0b}.m{fill:#52514e}.g{stroke:#e4e3df}.a{stroke:#b9b8b2}.b{fill:#c4c3bd}.n{fill:#2a78d6}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}.t{fill:#ffffff}.m{fill:#c3c2b7}.g{stroke:#2f2f2d}.a{stroke:#555550}.b{fill:#5c5b56}.n{fill:#3987e5}}</style>
+<rect class="bg" width="720" height="426" rx="8"/>
+<text class="t" x="16" y="26" font-size="15" font-weight="600">Playback energy</text>
+<text class="m" x="170" y="58" font-size="11">milliwatts (lower is better)</text>
+<rect class="b" x="470" y="17" width="12" height="10" rx="2"/>
+<text class="m" x="488" y="26" font-size="12">Before (main)</text>
+<rect class="n" x="585" y="17" width="12" height="10" rx="2"/>
+<text class="m" x="603" y="26" font-size="12">After (this PR)</text>
+<line class="g" x1="170.0" x2="170.0" y1="66" y2="412"/>
+<text class="m" x="170.0" y="424" font-size="10" text-anchor="middle">0</text>
+<line class="g" x1="266.0" x2="266.0" y1="66" y2="412"/>
+<text class="m" x="266.0" y="424" font-size="10" text-anchor="middle">5</text>
+<line class="g" x1="362.0" x2="362.0" y1="66" y2="412"/>
+<text class="m" x="362.0" y="424" font-size="10" text-anchor="middle">10</text>
+<line class="g" x1="458.0" x2="458.0" y1="66" y2="412"/>
+<text class="m" x="458.0" y="424" font-size="10" text-anchor="middle">15</text>
+<line class="g" x1="554.0" x2="554.0" y1="66" y2="412"/>
+<text class="m" x="554.0" y="424" font-size="10" text-anchor="middle">20</text>
+<line class="g" x1="650.0" x2="650.0" y1="66" y2="412"/>
+<text class="m" x="650.0" y="424" font-size="10" text-anchor="middle">25</text>
+<text class="t" x="160" y="91.0" font-size="12" text-anchor="end">MP3 320k</text>
+<rect class="b" x="170" y="75" width="148.7" height="11" rx="2"/>
+<text class="m" x="324.7" y="85" font-size="11">7.7</text>
+<rect class="n" x="170" y="88" width="122.4" height="11" rx="2"/>
+<text class="m" x="298.4" y="98" font-size="11">6.4</text>
+<text class="t" x="160" y="125.0" font-size="12" text-anchor="end">MP3 V0</text>
+<rect class="b" x="170" y="109" width="142.2" height="11" rx="2"/>
+<text class="m" x="318.2" y="119" font-size="11">7.4</text>
+<rect class="n" x="170" y="122" width="115.9" height="11" rx="2"/>
+<text class="m" x="291.9" y="132" font-size="11">6.0</text>
+<text class="t" x="160" y="159.0" font-size="12" text-anchor="end">AAC 256k</text>
+<rect class="b" x="170" y="143" width="145.0" height="11" rx="2"/>
+<text class="m" x="321.0" y="153" font-size="11">7.6</text>
+<rect class="n" x="170" y="156" width="117.4" height="11" rx="2"/>
+<text class="m" x="293.4" y="166" font-size="11">6.1</text>
+<text class="t" x="160" y="193.0" font-size="12" text-anchor="end">WAV 24/96</text>
+<rect class="b" x="170" y="177" width="105.1" height="11" rx="2"/>
+<text class="m" x="281.1" y="187" font-size="11">5.5</text>
+<rect class="n" x="170" y="190" width="79.7" height="11" rx="2"/>
+<text class="m" x="255.7" y="200" font-size="11">4.2</text>
+<text class="t" x="160" y="227.0" font-size="12" text-anchor="end">FLAC 16/44.1</text>
+<rect class="b" x="170" y="211" width="133.5" height="11" rx="2"/>
+<text class="m" x="309.5" y="221" font-size="11">7.0</text>
+<rect class="n" x="170" y="224" width="108.2" height="11" rx="2"/>
+<text class="m" x="284.2" y="234" font-size="11">5.6</text>
+<text class="t" x="160" y="261.0" font-size="12" text-anchor="end">FLAC 16/22 mono</text>
+<rect class="b" x="170" y="245" width="98.0" height="11" rx="2"/>
+<text class="m" x="274.0" y="255" font-size="11">5.1</text>
+<rect class="n" x="170" y="258" width="52.4" height="11" rx="2"/>
+<text class="m" x="228.4" y="268" font-size="11">2.7</text>
+<text class="t" x="160" y="295.0" font-size="12" text-anchor="end">FLAC 24/96</text>
+<rect class="b" x="170" y="279" width="138.4" height="11" rx="2"/>
+<text class="m" x="314.4" y="289" font-size="11">7.2</text>
+<rect class="n" x="170" y="292" width="112.0" height="11" rx="2"/>
+<text class="m" x="288.0" y="302" font-size="11">5.8</text>
+<text class="t" x="160" y="329.0" font-size="12" text-anchor="end">FLAC 24/192</text>
+<rect class="b" x="170" y="313" width="192.1" height="11" rx="2"/>
+<text class="m" x="368.1" y="323" font-size="11">10.0</text>
+<rect class="n" x="170" y="326" width="181.0" height="11" rx="2"/>
+<text class="m" x="357.0" y="336" font-size="11">9.4</text>
+<text class="t" x="160" y="363.0" font-size="12" text-anchor="end">FLAC 24/352.8</text>
+<rect class="b" x="170" y="347" width="393.6" height="11" rx="2"/>
+<text class="m" x="569.6" y="357" font-size="11">20.5</text>
+<rect class="n" x="170" y="360" width="380.3" height="11" rx="2"/>
+<text class="m" x="556.3" y="370" font-size="11">19.8</text>
+<text class="t" x="160" y="397.0" font-size="12" text-anchor="end">Effects on</text>
+<rect class="b" x="170" y="381" width="278.6" height="11" rx="2"/>
+<text class="m" x="454.6" y="391" font-size="11">14.5</text>
+<rect class="n" x="170" y="394" width="238.2" height="11" rx="2"/>
+<text class="m" x="414.2" y="404" font-size="11">12.4</text>
+</svg>
