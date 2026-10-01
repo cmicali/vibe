@@ -313,7 +313,7 @@ class App:
         # The channel's directory: build-version.sh points it here.
         self.tmp = self.home / 'channel'
         self.tmp.mkdir(parents=True, exist_ok=True)
-        exe = BENCH / 'apps' / label / 'Vibe.app/Contents/MacOS/VibeBench'
+        exe = app_executable(label)
         env = dict(os.environ, CFFIXED_USER_HOME=str(self.home), VIBE_DEBUG_TMPDIR=str(self.tmp) + '/')
         # The real output path, silent: the output unit drives the built-in
         # speakers' clock and --silent zeroes the samples after the meter.
@@ -691,6 +691,10 @@ def prerelease(label):
                           capture_output=True).returncode != 0
 
 
+def app_executable(label):
+    return BENCH / 'apps' / label / 'Vibe.app/Contents/MacOS/VibeBenchApp'
+
+
 def build(label, ref):
     subprocess.run([str(ROOT / 'scripts/bench/build-version.sh'), label, ref], check=True)
 
@@ -704,7 +708,7 @@ def ensure_probe():
 
 
 def run_version(label, ref, reps, corpus, idle):
-    if not (BENCH / 'apps' / label / 'Vibe.app').exists():
+    if not app_executable(label).exists():  # a build from before the process was VibeBenchApp lacks it
         build(label, ref)
     commit = (BENCH / 'apps' / label / 'commit').read_text().strip()
     (BENCH / 'homes').mkdir(parents=True, exist_ok=True)

@@ -1,16 +1,16 @@
 #!/bin/bash
-# Samples one VibePerf benchmark while it loops, and prints the heaviest
+# Samples one VibeBenchComponents benchmark while it loops, and prints the heaviest
 # frames: where a benchmark's time goes, without Instruments.
 #
 # Usage: profile.sh <benchmark regex> [seconds=6] [binary]
-# Output: the call tree in build/perf/profile-<name>.txt, the top of it on stdout.
+# Output: the call tree in build/bench-components/profile-<name>.txt, the top of it on stdout.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
 FILTER="$1"
 SECONDS_TO_SAMPLE="${2:-6}"
-BIN="${3:-$ROOT/build/PerfDerivedData/Build/Products/Release/VibePerf}"
-OUT="$ROOT/build/perf/profile-$(echo "$FILTER" | tr -c 'A-Za-z0-9.-' '_').txt"
-mkdir -p "$ROOT/build/perf"
+BIN="${3:-$ROOT/build/BenchComponentsDerivedData/Build/Products/Release/VibeBenchComponents}"
+OUT="$ROOT/build/bench-components/profile-$(echo "$FILTER" | tr -c 'A-Za-z0-9.-' '_').txt"
+mkdir -p "$ROOT/build/bench-components"
 
 "$BIN" --corpus "$ROOT/build/bench/corpus" --filter "$FILTER" --loop $((SECONDS_TO_SAMPLE + 3)) >/dev/null &
 PID=$!

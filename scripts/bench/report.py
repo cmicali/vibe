@@ -261,7 +261,7 @@ def display_labels(versions):
 
 
 def components_section(results):
-    """The component charts, under their own machine line: VibePerf's numbers
+    """The component charts, under their own machine line: VibeBenchComponents's numbers
     are comparable only with each other, whatever machine the app ran on."""
     versions = comparable(results, 'components')
     if not versions:
@@ -277,7 +277,7 @@ def components_section(results):
         lines.append(f'![{title}](performance/{name}.svg)')
     m = list(versions.values())[-1]['machine']
     return ['', '### Components', '',
-            f'The component benchmarks, VibePerf, built against each version\'s own code and run on one machine '
+            f'The component benchmarks, VibeBenchComponents, built against each version\'s own code and run on one machine '
             f'({m["chip"]}, {m["memory_gb"]} GB, macOS {m["macos"]}): the code under each feature, without the app '
             'around it. A line that starts late is a benchmark of code that version does not have; '
             'a version marked pre-release was measured before its release was tagged.', ''] + lines

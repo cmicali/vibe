@@ -1,12 +1,12 @@
 //
-//  VibePerfAnalysis.mm
-//  VibePerf
+//  VibeBenchComponentsAnalysis.mm
+//  VibeBenchComponents
 //
 //  The waveform pass, the tempo and key analyzers, the waveform's own
 //  downmix and chunks, and --analyze.
 //
 
-#import "VibePerf.h"
+#import "VibeBenchComponents.h"
 
 #import <Accelerate/Accelerate.h>
 
@@ -19,17 +19,17 @@
 
 // MARK: - Benchmarks: the waveform pass and analysis
 
-static void VibePerfRegisterWaveform(void) {
+static void VibeBenchComponentsRegisterWaveform(void) {
     // The whole cold waveform pass, as the cache runs it: open, pipelined
     // decode, downmix, chunks, with and without both analyzers riding along.
     for (NSString *name in @[@"mp3-320", @"flac-16-44", @"flac-24-192", @"aac-256", @"wav-24-96"]) {
         for (int analysis = 0; analysis < 2; analysis++) {
-            auto file = std::make_shared<VibePerfFileState>();
-            VibePerfAdd(analysis ? "waveform+bpm+key" : "waveform", name.UTF8String, "audio s", [name, file]() -> double {
-                file->path = VibePerfFile(name);
-                return VibePerfAudioSeconds(file->path);
+            auto file = std::make_shared<VibeBenchComponentsFileState>();
+            VibeBenchComponentsAdd(analysis ? "waveform+bpm+key" : "waveform", name.UTF8String, "audio s", [name, file]() -> double {
+                file->path = VibeBenchComponentsFile(name);
+                return VibeBenchComponentsAudioSeconds(file->path);
             }, [file, analysis]() {
-                AudioWaveformLoader *loader = VibePerfWaveformLoader(analysis);
+                AudioWaveformLoader *loader = VibeBenchComponentsWaveformLoader(analysis);
                 CodableAudioWaveform *result = [loader load:file->path];
                 (void)result;
             });
@@ -40,16 +40,16 @@ static void VibePerfRegisterWaveform(void) {
     // loader's block size, then the end-of-file estimate.
     for (NSString *name in @[@"flac-16-44", @"flac-24-96"]) {
         std::string n = name.UTF8String;
-        VibePerfAdd("bpm", n, "audio s", VibePerfPCMPrepare(name), [name]() {
-            VibePerfPCM *pcm = VibePerfDecoded(name);
+        VibeBenchComponentsAdd("bpm", n, "audio s", VibeBenchComponentsPCMPrepare(name), [name]() {
+            VibeBenchComponentsPCM *pcm = VibeBenchComponentsDecoded(name);
             AudioBPMAnalyzer *analyzer = [[AudioBPMAnalyzer alloc] initWithSampleRate:pcm->rate];
             for (NSUInteger at = 0; at < pcm->frames; at += 65536) {
                 [analyzer appendMonoSamples:pcm->mono.data() + at frameCount:MIN((NSUInteger)65536, pcm->frames - at)];
             }
             [analyzer finish];
         });
-        VibePerfAdd("key", n, "audio s", VibePerfPCMPrepare(name), [name]() {
-            VibePerfPCM *pcm = VibePerfDecoded(name);
+        VibeBenchComponentsAdd("key", n, "audio s", VibeBenchComponentsPCMPrepare(name), [name]() {
+            VibeBenchComponentsPCM *pcm = VibeBenchComponentsDecoded(name);
             AudioKeyAnalyzer *analyzer = [[AudioKeyAnalyzer alloc] initWithSampleRate:pcm->rate];
             for (NSUInteger at = 0; at < pcm->frames; at += 65536) {
                 [analyzer appendMonoSamples:pcm->mono.data() + at frameCount:MIN((NSUInteger)65536, pcm->frames - at)];
@@ -58,8 +58,8 @@ static void VibePerfRegisterWaveform(void) {
         });
         // The loader's processing side without the analyzers: the downmix
         // and the chunk merge over the waveform's chunks.
-        VibePerfAdd("chunker", n, "audio s", VibePerfPCMPrepare(name), [name]() {
-            VibePerfPCM *pcm = VibePerfDecoded(name);
+        VibeBenchComponentsAdd("chunker", n, "audio s", VibeBenchComponentsPCMPrepare(name), [name]() {
+            VibeBenchComponentsPCM *pcm = VibeBenchComponentsDecoded(name);
             AudioWaveform waveform;
             NSUInteger chunks = waveform.getNumChunks();
             std::vector<float> scratch(65536);
@@ -86,7 +86,7 @@ static void VibePerfRegisterWaveform(void) {
     }
 }
 
-static int VibePerfAnalyzeTree(NSString *root) {
+static int VibeBenchComponentsAnalyzeTree(NSString *root) {
     NSMutableArray<NSString *> *paths = [NSMutableArray array];
     NSSet *audio = [NSSet setWithArray:@[@"mp3", @"flac", @"wav", @"aiff", @"aif", @"m4a", @"ogg", @"opus"]];
     for (NSString *relative in [NSFileManager.defaultManager enumeratorAtPath:root]) {
@@ -101,7 +101,7 @@ static int VibePerfAnalyzeTree(NSString *root) {
     }
     dispatch_apply(paths.count, DISPATCH_APPLY_AUTO, ^(size_t i) {
         @autoreleasepool {
-            AudioWaveformLoader *loader = VibePerfWaveformLoader(YES);
+            AudioWaveformLoader *loader = VibeBenchComponentsWaveformLoader(YES);
             CodableAudioWaveform *result = [loader load:paths[i]];
             NSString *line = [NSString stringWithFormat:@"%@\t%.9g\t%ld", paths[i].lastPathComponent,
                               result ? result.bpm : -1.0f, result ? (long)result.key : -2L];
@@ -116,9 +116,9 @@ static int VibePerfAnalyzeTree(NSString *root) {
     return 0;
 }
 
-static void VibePerfRegisterAnalyzeTree(void) {
-    VibePerfSetAnalyzeTree(VibePerfAnalyzeTree);
+static void VibeBenchComponentsRegisterAnalyzeTree(void) {
+    VibeBenchComponentsSetAnalyzeTree(VibeBenchComponentsAnalyzeTree);
 }
 
-VIBE_PERF_REGISTER(VibePerfRegisterWaveform)
-VIBE_PERF_REGISTER(VibePerfRegisterAnalyzeTree)
+VIBE_BENCH_COMPONENTS_REGISTER(VibeBenchComponentsRegisterWaveform)
+VIBE_BENCH_COMPONENTS_REGISTER(VibeBenchComponentsRegisterAnalyzeTree)

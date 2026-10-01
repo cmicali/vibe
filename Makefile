@@ -148,7 +148,7 @@ torture:
 	.claude/skills/vibe-stress/scripts/run-torture.sh "$(APP)" "$(PLAYLIST)" $(ARGS)
 
 # Benchmarks: the vibe-perf skill explains each, docs/performance.md shows them.
-# The component benchmarks (VibePerf) run the production code in-process, no app,
+# The component benchmarks (VibeBenchComponents) run the production code in-process, no app,
 # so the Mac can be in use; the app benchmarks launch the real app over and over
 # (about half an hour a version), so leave the Mac be while they run.
 #   make bench-components [BASE=main]          this working tree against BASE

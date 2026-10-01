@@ -40,7 +40,7 @@ CGSize VibeEncodedImagePixelSize(NSData *data) {
 // still covers the target — and scaled with vImage. ImageIO's thumbnail path
 // draws its full decode through CoreGraphics instead, converting and
 // resampling a row at a time, at three times the instructions on a 1000px
-// cover (VibePerf's metadata.*). NULL leaves the image to that path: one that
+// cover (the component benchmarks' metadata.*). NULL leaves the image to that path: one that
 // needs no downscale, carries an EXIF orientation, or vImage refuses.
 static CGImageRef _Nullable VibeCreateDownscaledImage(CGImageSourceRef source, CGFloat maxPixelSize) CF_RETURNS_RETAINED {
     NSDictionary *properties = CFBridgingRelease(CGImageSourceCopyPropertiesAtIndex(source, 0, NULL));

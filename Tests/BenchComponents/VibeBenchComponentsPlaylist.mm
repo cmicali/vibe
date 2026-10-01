@@ -1,11 +1,11 @@
 //
-//  VibePerfPlaylist.mm
-//  VibePerf
+//  VibeBenchComponentsPlaylist.mm
+//  VibeBenchComponents
 //
 //  The playlist model's edits on a 100,000-row playlist.
 //
 
-#import "VibePerf.h"
+#import "VibeBenchComponents.h"
 
 #import "AudioTrack.h"
 #import "Playlist.h"
@@ -14,7 +14,7 @@
 
 // MARK: - The playlist model
 
-static void VibePerfRegisterPlaylist(void) {
+static void VibeBenchComponentsRegisterPlaylist(void) {
     // A 100,000-row playlist; one repetition is five single-row removals each
     // undone by its insert, and five single-row moves there and back, at one
     // place in the list.
@@ -34,7 +34,7 @@ static void VibePerfRegisterPlaylist(void) {
     };
     for (double at : {0.0, 0.5, 0.99}) {
         const char *where = at == 0 ? "head" : at == 0.5 ? "middle" : "tail";
-        VibePerfAdd("playlist-edit", std::string("100k-") + where, "edit", prepare, [playlist, at]() {
+        VibeBenchComponentsAdd("playlist-edit", std::string("100k-") + where, "edit", prepare, [playlist, at]() {
             Playlist *list = *playlist;
             NSUInteger row = (NSUInteger)(at * (list.count - 1));
             for (int i = 0; i < 5; i++) {
@@ -49,4 +49,4 @@ static void VibePerfRegisterPlaylist(void) {
     }
 }
 
-VIBE_PERF_REGISTER(VibePerfRegisterPlaylist)
+VIBE_BENCH_COMPONENTS_REGISTER(VibeBenchComponentsRegisterPlaylist)

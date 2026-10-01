@@ -403,14 +403,14 @@ targets:
       - sdk: UniformTypeIdentifiers.framework  # file-type filtering
 
   # The micro-benchmark suite (the vibe-perf skill): every source the macOS app
-  # compiles but main.m, driven in-process by Tests/Perf, Release as it ships.
+  # compiles but main.m, driven in-process by Tests/BenchComponents, Release as it ships.
   # No sandbox, so it reads the corpus by path; no Info.plist, so its defaults
   # domain is its own and never the app's.
-  VibePerf:
+  VibeBenchComponents:
     type: tool
     platform: macOS
     sources:
-      - path: Tests/Perf
+      - path: Tests/BenchComponents
         excludes: ["**/.DS_Store", "**/*.md", "**/*.py"]
       - path: Vibe/Audio
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
@@ -477,7 +477,7 @@ targets:
       groups: [vibe-version, vibe-header-paths]
       base:
         PRODUCT_NAME: "$(TARGET_NAME)"
-        PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.VibePerf
+        PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.VibeBenchComponents
         ARCHS: arm64                        # measured where it ships most; Intel is low priority
         ONLY_ACTIVE_ARCH: YES
         CODE_SIGN_IDENTITY: "-"
@@ -760,7 +760,7 @@ targets:
           - "**/.DS_Store"
           - "**/*.md"
           - "iOSDriver/**"                    # VibeiOSDriver's XCUI sources: iOS-only API
-          - "Perf/**"                         # VibePerf's harness, a tool of its own
+          - "BenchComponents/**"                         # VibeBenchComponents's harness, a tool of its own
           - "AudioPlayerRenderTests.m"         # VibeAudioTests' suite
       - path: Vibe/Audio/Analysis/AudioBPMAnalyzer.mm
       - path: Vibe/Audio/Analysis/AudioKeyAnalyzer.mm
@@ -977,11 +977,11 @@ targets:
       - sdk: Accelerate.framework
 
 schemes:
-  VibePerf:
+  VibeBenchComponents:
     build:
       parallelizeBuild: true
       targets:
-        VibePerf: [run, profile]
+        VibeBenchComponents: [run, profile]
     run:      { config: Release }
     profile:  { config: Release }
   VibeAudioTests:

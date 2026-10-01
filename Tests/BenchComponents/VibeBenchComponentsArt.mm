@@ -1,12 +1,12 @@
 //
-//  VibePerfArt.mm
-//  VibePerf
+//  VibeBenchComponentsArt.mm
+//  VibeBenchComponents
 //
 //  The art re-extraction a full-art miss runs: TagLib's open and the picture
 //  read.
 //
 
-#import "VibePerf.h"
+#import "VibeBenchComponents.h"
 
 #import "AudioTrackArtworkInternal.h"
 #import "AudioTrackMetadata.h"
@@ -16,14 +16,14 @@
 
 // MARK: - Art
 
-static void VibePerfRegisterArt(void) {
+static void VibeBenchComponentsRegisterArt(void) {
     // The art re-extraction a full-art miss runs: TagLib's open and the
     // picture read, twenty per repetition.
     for (NSString *name in @[@"mp3-320", @"flac-16-44", @"aac-256"]) {
-        auto file = std::make_shared<VibePerfFileState>();
+        auto file = std::make_shared<VibeBenchComponentsFileState>();
         auto extractor = std::make_shared<AudioTrackArtworkExtractor>();
-        VibePerfAdd("art-extract", name.UTF8String, "read", [name, file, extractor]() -> double {
-            file->path = VibePerfFile(name);
+        VibeBenchComponentsAdd("art-extract", name.UTF8String, "read", [name, file, extractor]() -> double {
+            file->path = VibeBenchComponentsFile(name);
             if (!file->path) {
                 return -1;
             }
@@ -42,4 +42,4 @@ static void VibePerfRegisterArt(void) {
 
 }
 
-VIBE_PERF_REGISTER(VibePerfRegisterArt)
+VIBE_BENCH_COMPONENTS_REGISTER(VibeBenchComponentsRegisterArt)

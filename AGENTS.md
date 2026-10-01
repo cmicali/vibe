@@ -63,7 +63,7 @@ The **`vibe-debug` skill** launches, drives, inspects and screenshots either app
 
 The **`vibe-stress` skill** (`make stress`, `make torture`) is soak runs, leak and resource-growth hunting, TSan race hunting, fuzzing the file-loading path, and shrinking a failing run to a repro. Read `vibe-debug` first.
 
-The **`vibe-perf` skill** is performance: `Tests/Perf/`'s VibePerf drives the production code in-process and counts retired instructions, so two refs compare on a busy machine (`perf.py compare main`), with a profiler wrapper and an exactness check for the analyzers. A change that could move cost is measured before and after (`make bench-components`). `docs/performance.md` charts every release: `make bench-releases` runs both the app and the component benchmarks against them, and the skill explains it.
+The **`vibe-perf` skill** is performance: `Tests/BenchComponents/`'s VibeBenchComponents drives the production code in-process and counts retired instructions, so two refs compare on a busy machine (`perf.py compare main`), with a profiler wrapper and an exactness check for the analyzers. A change that could move cost is measured before and after (`make bench-components`). `docs/performance.md` charts every release: `make bench-releases` runs both the app and the component benchmarks against them, and the skill explains it.
 
 Test audio: `Assets/test_audio_files/` (gitignored). If missing, generate with the `vibe-debug` skill's `generate-test-audio.sh` rather than synthesizing your own.
 

@@ -1,6 +1,6 @@
 //
-//  VibePerf.mm
-//  VibePerf
+//  VibeBenchComponents.mm
+//  VibeBenchComponents
 //
 //  The micro-benchmark suite: production code driven in-process, one named
 //  benchmark at a time, each measured as wall time and as the instructions
@@ -9,20 +9,20 @@
 //  skill builds it at two refs and compares them; run it alone with --help.
 //
 //  This file is the registry, the shared fixtures and the driver; each
-//  VibePerf*.mm beside it registers one area's benchmarks. A benchmark is a
+//  VibeBenchComponents*.mm beside it registers one area's benchmarks. A benchmark is a
 //  body run once per repetition after one warm-up.
 //
 
-#import "VibePerf.h"
+#import "VibeBenchComponents.h"
 
 #import <AVFAudio/AVFAudio.h>
 
 #import "AppSettings.h"
 #import "AudioWaveformLoader.h"
-#if VIBE_PERF_FILE_HANDLE
+#if VIBE_BENCH_COMPONENTS_FILE_HANDLE
 #import "AudioFileHandle.h"
 #endif
-#if VIBE_PERF_AVF_WAVEFORM_LOADER
+#if VIBE_BENCH_COMPONENTS_AVF_WAVEFORM_LOADER
 #import "AVFAudioWaveformLoader.h"
 #endif
 
@@ -34,7 +34,7 @@
 
 // MARK: - Measurement
 
-struct VibePerfSample {
+struct VibeBenchComponentsSample {
     double wallMs;
     double cpuMs;
     double instructions;
@@ -42,17 +42,17 @@ struct VibePerfSample {
     double syscalls;  // Unix system calls, every thread: reads, opens, stats
 };
 
-static uint64_t VibePerfNow(void) {
+static uint64_t VibeBenchComponentsNow(void) {
     return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
 }
 
-static struct rusage_info_v4 VibePerfUsage(void) {
+static struct rusage_info_v4 VibeBenchComponentsUsage(void) {
     struct rusage_info_v4 info = {};
     proc_pid_rusage(getpid(), RUSAGE_INFO_V4, (rusage_info_t *)&info);
     return info;
 }
 
-static double VibePerfMachToMs(uint64_t mach) {
+static double VibeBenchComponentsMachToMs(uint64_t mach) {
     static mach_timebase_info_data_t base;
     if (base.denom == 0) {
         mach_timebase_info(&base);
@@ -60,32 +60,32 @@ static double VibePerfMachToMs(uint64_t mach) {
     return (double)mach * base.numer / base.denom / 1e6;
 }
 
-static double VibePerfSyscalls(void) {
+static double VibeBenchComponentsSyscalls(void) {
     task_events_info_data_t events = {};
     mach_msg_type_number_t count = TASK_EVENTS_INFO_COUNT;
     task_info(mach_task_self(), TASK_EVENTS_INFO, (task_info_t)&events, &count);
     return (double)events.syscalls_unix;
 }
 
-static VibePerfSample VibePerfMeasure(const std::function<void(void)> &body) {
-    double syscallsBefore = VibePerfSyscalls();
-    struct rusage_info_v4 before = VibePerfUsage();
-    uint64_t start = VibePerfNow();
+static VibeBenchComponentsSample VibeBenchComponentsMeasure(const std::function<void(void)> &body) {
+    double syscallsBefore = VibeBenchComponentsSyscalls();
+    struct rusage_info_v4 before = VibeBenchComponentsUsage();
+    uint64_t start = VibeBenchComponentsNow();
     @autoreleasepool {
         body();
     }
-    uint64_t end = VibePerfNow();
-    struct rusage_info_v4 after = VibePerfUsage();
-    VibePerfSample sample;
+    uint64_t end = VibeBenchComponentsNow();
+    struct rusage_info_v4 after = VibeBenchComponentsUsage();
+    VibeBenchComponentsSample sample;
     sample.wallMs = (double)(end - start) / 1e6;
-    sample.cpuMs = VibePerfMachToMs((after.ri_user_time + after.ri_system_time) - (before.ri_user_time + before.ri_system_time));
+    sample.cpuMs = VibeBenchComponentsMachToMs((after.ri_user_time + after.ri_system_time) - (before.ri_user_time + before.ri_system_time));
     sample.instructions = (double)(after.ri_instructions - before.ri_instructions);
     sample.cycles = (double)(after.ri_cycles - before.ri_cycles);
-    sample.syscalls = VibePerfSyscalls() - syscallsBefore;
+    sample.syscalls = VibeBenchComponentsSyscalls() - syscallsBefore;
     return sample;
 }
 
-static double VibePerfMedian(std::vector<double> values) {
+static double VibeBenchComponentsMedian(std::vector<double> values) {
     if (values.empty()) {
         return 0;
     }
@@ -96,7 +96,7 @@ static double VibePerfMedian(std::vector<double> values) {
 
 // MARK: - Registry
 
-struct VibePerfBench {
+struct VibeBenchComponentsBench {
     std::string name;
     std::string group;
     // What one repetition's per-unit column divides by: "audio s" reports a
@@ -108,32 +108,32 @@ struct VibePerfBench {
     std::function<void(void)> body;
 };
 
-static std::vector<VibePerfBench> &VibePerfRegistry(void) {
-    static std::vector<VibePerfBench> registry;
+static std::vector<VibeBenchComponentsBench> &VibeBenchComponentsRegistry(void) {
+    static std::vector<VibeBenchComponentsBench> registry;
     return registry;
 }
 
-void VibePerfAdd(std::string group, std::string variant, const char *unit,
+void VibeBenchComponentsAdd(std::string group, std::string variant, const char *unit,
                  std::function<double(void)> prepare, std::function<void(void)> body) {
-    VibePerfRegistry().push_back({group + "." + variant, group, unit, std::move(prepare), std::move(body)});
+    VibeBenchComponentsRegistry().push_back({group + "." + variant, group, unit, std::move(prepare), std::move(body)});
 }
 
 static NSString *sCorpus;
 
-NSString *VibePerfCorpus(void) {
+NSString *VibeBenchComponentsCorpus(void) {
     return sCorpus;
 }
 
-static std::vector<VibePerfRegistrar> &VibePerfRegistrars(void) {
-    static std::vector<VibePerfRegistrar> registrars;
+static std::vector<VibeBenchComponentsRegistrar> &VibeBenchComponentsRegistrars(void) {
+    static std::vector<VibeBenchComponentsRegistrar> registrars;
     return registrars;
 }
 
-void VibePerfAddRegistrar(VibePerfRegistrar registrar) {
-    VibePerfRegistrars().push_back(registrar);
+void VibeBenchComponentsAddRegistrar(VibeBenchComponentsRegistrar registrar) {
+    VibeBenchComponentsRegistrars().push_back(registrar);
 }
 
-NSString *VibePerfFile(NSString *name) {
+NSString *VibeBenchComponentsFile(NSString *name) {
     NSFileManager *manager = NSFileManager.defaultManager;
     for (NSString *folder in @[@"play", @"extra"]) {
         NSString *dir = [sCorpus stringByAppendingPathComponent:folder];
@@ -146,8 +146,8 @@ NSString *VibePerfFile(NSString *name) {
     return nil;
 }
 
-@implementation VibePerfReader {
-#if VIBE_PERF_FILE_HANDLE
+@implementation VibeBenchComponentsReader {
+#if VIBE_BENCH_COMPONENTS_FILE_HANDLE
     AudioFileHandle *_handle;
 #endif
     AVAudioFile *_file;
@@ -159,8 +159,8 @@ NSString *VibePerfFile(NSString *name) {
     if (!self || !url) {
         return nil;
     }
-#if VIBE_PERF_FILE_HANDLE
-#if VIBE_PERF_FILE_HANDLE_COMMON_FORMAT
+#if VIBE_BENCH_COMPONENTS_FILE_HANDLE
+#if VIBE_BENCH_COMPONENTS_FILE_HANDLE_COMMON_FORMAT
     _handle = interleaved ? [[AudioFileHandle alloc] initForReading:url commonFormat:AVAudioPCMFormatFloat32
                                                          interleaved:YES error:nil]
                           : [[AudioFileHandle alloc] initForReading:url error:nil];
@@ -176,7 +176,7 @@ NSString *VibePerfFile(NSString *name) {
 }
 
 - (AVAudioFormat *)processingFormat {
-#if VIBE_PERF_FILE_HANDLE
+#if VIBE_BENCH_COMPONENTS_FILE_HANDLE
     return _handle.processingFormat;
 #else
     return _file.processingFormat;
@@ -184,7 +184,7 @@ NSString *VibePerfFile(NSString *name) {
 }
 
 - (long long)length {
-#if VIBE_PERF_FILE_HANDLE
+#if VIBE_BENCH_COMPONENTS_FILE_HANDLE
     return _handle.length;
 #else
     return _file.length;
@@ -192,7 +192,7 @@ NSString *VibePerfFile(NSString *name) {
 }
 
 - (BOOL)read:(AVAudioPCMBuffer *)buffer {
-#if VIBE_PERF_FILE_HANDLE
+#if VIBE_BENCH_COMPONENTS_FILE_HANDLE
     return [_handle readIntoBuffer:buffer error:nil] && buffer.frameLength > 0;
 #else
     return [_file readIntoBuffer:buffer error:nil] && buffer.frameLength > 0;
@@ -200,7 +200,7 @@ NSString *VibePerfFile(NSString *name) {
 }
 
 - (void)seekTo:(long long)frame {
-#if VIBE_PERF_FILE_HANDLE
+#if VIBE_BENCH_COMPONENTS_FILE_HANDLE
     [_handle seekToFrame:frame error:nil];
 #else
     _file.framePosition = frame;
@@ -209,18 +209,18 @@ NSString *VibePerfFile(NSString *name) {
 
 @end
 
-double VibePerfAudioSeconds(NSString *path) {
-    VibePerfReader *reader = [[VibePerfReader alloc] initWithPath:path interleaved:NO];
+double VibeBenchComponentsAudioSeconds(NSString *path) {
+    VibeBenchComponentsReader *reader = [[VibeBenchComponentsReader alloc] initWithPath:path interleaved:NO];
     return reader ? (double)reader.length / reader.processingFormat.sampleRate : -1;
 }
 
-id VibePerfWaveformLoader(BOOL analyzers) {
-#if VIBE_PERF_AVF_WAVEFORM_LOADER
+id VibeBenchComponentsWaveformLoader(BOOL analyzers) {
+#if VIBE_BENCH_COMPONENTS_AVF_WAVEFORM_LOADER
     AudioWaveformLoader *loader = [[AVFAudioWaveformLoader alloc] init];
 #else
     AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] init];
 #endif
-#if VIBE_PERF_ANALYSIS_PROVIDER
+#if VIBE_BENCH_COMPONENTS_ANALYSIS_PROVIDER
     if (analyzers) {
         loader.analysisProvider = ^VibeWaveformAnalysis {
             return (VibeWaveformAnalysis){YES, YES};
@@ -239,28 +239,28 @@ id VibePerfWaveformLoader(BOOL analyzers) {
     return loader;
 }
 
-static VibePerfAnalyzeTreeFunction sAnalyzeTree;
+static VibeBenchComponentsAnalyzeTreeFunction sAnalyzeTree;
 
-void VibePerfSetAnalyzeTree(VibePerfAnalyzeTreeFunction function) {
+void VibeBenchComponentsSetAnalyzeTree(VibeBenchComponentsAnalyzeTreeFunction function) {
     sAnalyzeTree = function;
 }
 
 // MARK: - Shared fixtures
 
-VibePerfPCM *VibePerfDecoded(NSString *name) {
+VibeBenchComponentsPCM *VibeBenchComponentsDecoded(NSString *name) {
     static NSMutableDictionary<NSString *, NSValue *> *cache;
     if (!cache) {
         cache = [NSMutableDictionary dictionary];
     }
     NSValue *hit = cache[name];
     if (hit) {
-        return (VibePerfPCM *)hit.pointerValue;
+        return (VibeBenchComponentsPCM *)hit.pointerValue;
     }
-    VibePerfReader *file = [[VibePerfReader alloc] initWithPath:VibePerfFile(name) interleaved:YES];
+    VibeBenchComponentsReader *file = [[VibeBenchComponentsReader alloc] initWithPath:VibeBenchComponentsFile(name) interleaved:YES];
     if (!file) {
         return nullptr;
     }
-    VibePerfPCM *pcm = new VibePerfPCM();
+    VibeBenchComponentsPCM *pcm = new VibeBenchComponentsPCM();
     pcm->rate = file.processingFormat.sampleRate;
     pcm->channels = file.processingFormat.channelCount;
     AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat frameCapacity:65536];
@@ -289,16 +289,16 @@ VibePerfPCM *VibePerfDecoded(NSString *name) {
     return pcm;
 }
 
-std::function<double(void)> VibePerfPCMPrepare(NSString *name, double outputRate) {
+std::function<double(void)> VibeBenchComponentsPCMPrepare(NSString *name, double outputRate) {
     return [name, outputRate]() -> double {
-        VibePerfPCM *pcm = VibePerfDecoded(name);
+        VibeBenchComponentsPCM *pcm = VibeBenchComponentsDecoded(name);
         return pcm ? (double)pcm->frames / (outputRate > 0 ? outputRate : pcm->rate) : -1;
     };
 }
 
 // MARK: - Temporary files
 
-static NSMutableArray<NSString *> *VibePerfTemporaryRoots(void) {
+static NSMutableArray<NSString *> *VibeBenchComponentsTemporaryRoots(void) {
     static NSMutableArray<NSString *> *roots;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
@@ -313,17 +313,17 @@ static NSMutableArray<NSString *> *VibePerfTemporaryRoots(void) {
 }
 
 // A fresh directory, removed when the process exits.
-NSString *VibePerfTemporaryDirectory(NSString *label) {
+NSString *VibeBenchComponentsTemporaryDirectory(NSString *label) {
     NSString *root = [NSTemporaryDirectory() stringByAppendingPathComponent:
             [NSString stringWithFormat:@"vibe-perf-%@-%@", label, NSUUID.UUID.UUIDString]];
     [NSFileManager.defaultManager createDirectoryAtPath:root withIntermediateDirectories:YES attributes:nil error:nil];
-    [VibePerfTemporaryRoots() addObject:root];
+    [VibeBenchComponentsTemporaryRoots() addObject:root];
     return root;
 }
 
 // Runs the main queue, where metadata deliveries land, until done or a
 // generous bound.
-void VibePerfSpinMainUntil(BOOL (^done)(void)) {
+void VibeBenchComponentsSpinMainUntil(BOOL (^done)(void)) {
     NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:600];
     while (!done() && deadline.timeIntervalSinceNow > 0) {
         CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.002, true);
@@ -334,7 +334,7 @@ void VibePerfSpinMainUntil(BOOL (^done)(void)) {
 }
 
 // `count` one-byte files in folders of 100, the relative paths returned.
-NSArray<NSString *> *VibePerfMakeFiles(NSString *root, NSUInteger count, NSString *extension) {
+NSArray<NSString *> *VibeBenchComponentsMakeFiles(NSString *root, NSUInteger count, NSString *extension) {
     NSMutableArray<NSString *> *relative = [NSMutableArray arrayWithCapacity:count];
     NSData *byte = [NSData dataWithBytes:"\1" length:1];
     for (NSUInteger i = 0; i < count; i++) {
@@ -354,8 +354,8 @@ NSArray<NSString *> *VibePerfMakeFiles(NSString *root, NSUInteger count, NSStrin
 
 // MARK: - Driver
 
-static void VibePerfUsageText(void) {
-    printf("usage: VibePerf --corpus <dir> [--reps N] [--filter <regex>] [--json <out>] [--list] [--loop <seconds>] [--analyze <dir>]\n"
+static void VibeBenchComponentsUsageText(void) {
+    printf("usage: VibeBenchComponents --corpus <dir> [--reps N] [--filter <regex>] [--json <out>] [--list] [--loop <seconds>] [--analyze <dir>]\n"
            "  --corpus   the corpus root (play/, extra/, library/); default build/bench/corpus\n"
            "  --reps     measured repetitions per benchmark, after one warm-up (default 5)\n"
            "  --filter   ECMAScript regex over benchmark names\n"
@@ -369,7 +369,7 @@ int main(int argc, const char *argv[]) {
     setvbuf(stdout, NULL, _IOLBF, 0);
     @autoreleasepool {
         sCorpus = @"build/bench/corpus";
-        for (VibePerfRegistrar registrar : VibePerfRegistrars()) {
+        for (VibeBenchComponentsRegistrar registrar : VibeBenchComponentsRegistrars()) {
             registrar();
         }
         int reps = 5;
@@ -400,7 +400,7 @@ int main(int argc, const char *argv[]) {
             } else if (arg == "--list") {
                 list = YES;
             } else {
-                VibePerfUsageText();
+                VibeBenchComponentsUsageText();
                 return arg == "--help" || arg == "-h" ? 0 : 64;
             }
         }
@@ -410,7 +410,7 @@ int main(int argc, const char *argv[]) {
         if (!list) {
             printf("%-34s %10s %10s %12s %10s %9s %12s\n", "benchmark", "wall ms", "cpu ms", "Minstr", "Mcycles", "syscalls", "per unit");
         }
-        for (auto &bench : VibePerfRegistry()) {
+        for (auto &bench : VibeBenchComponentsRegistry()) {
             if (!std::regex_search(bench.name, selector)) {
                 continue;
             }
@@ -424,9 +424,9 @@ int main(int argc, const char *argv[]) {
                 continue;
             }
             if (loopSeconds > 0) {
-                uint64_t until = VibePerfNow() + (uint64_t)(loopSeconds * 1e9);
+                uint64_t until = VibeBenchComponentsNow() + (uint64_t)(loopSeconds * 1e9);
                 int runs = 0;
-                while (VibePerfNow() < until) {
+                while (VibeBenchComponentsNow() < until) {
                     @autoreleasepool {
                         bench.body();
                     }
@@ -435,29 +435,29 @@ int main(int argc, const char *argv[]) {
                 printf("%-34s looped %d times\n", bench.name.c_str(), runs);
                 continue;
             }
-            VibePerfMeasure(bench.body);
+            VibeBenchComponentsMeasure(bench.body);
             std::vector<double> wall, cpu, instructions, cycles, syscalls;
             for (int r = 0; r < reps; r++) {
-                VibePerfSample sample = VibePerfMeasure(bench.body);
+                VibeBenchComponentsSample sample = VibeBenchComponentsMeasure(bench.body);
                 wall.push_back(sample.wallMs);
                 cpu.push_back(sample.cpuMs);
                 instructions.push_back(sample.instructions);
                 cycles.push_back(sample.cycles);
                 syscalls.push_back(sample.syscalls);
             }
-            double medianInstructions = VibePerfMedian(instructions);
+            double medianInstructions = VibeBenchComponentsMedian(instructions);
             std::string perUnit = "";
             if (units > 0) {
                 char text[64];
                 if (strcmp(bench.unit, "audio s") == 0) {
-                    snprintf(text, sizeof(text), "%.0fx rt", units * 1000.0 / VibePerfMedian(cpu));
+                    snprintf(text, sizeof(text), "%.0fx rt", units * 1000.0 / VibeBenchComponentsMedian(cpu));
                 } else {
-                    snprintf(text, sizeof(text), "%.3f ms/%s", VibePerfMedian(wall) / units, bench.unit);
+                    snprintf(text, sizeof(text), "%.3f ms/%s", VibeBenchComponentsMedian(wall) / units, bench.unit);
                 }
                 perUnit = text;
             }
-            printf("%-34s %10.2f %10.2f %12.2f %10.2f %9.0f %12s\n", bench.name.c_str(), VibePerfMedian(wall), VibePerfMedian(cpu),
-                   medianInstructions / 1e6, VibePerfMedian(cycles) / 1e6, VibePerfMedian(syscalls), perUnit.c_str());
+            printf("%-34s %10.2f %10.2f %12.2f %10.2f %9.0f %12s\n", bench.name.c_str(), VibeBenchComponentsMedian(wall), VibeBenchComponentsMedian(cpu),
+                   medianInstructions / 1e6, VibeBenchComponentsMedian(cycles) / 1e6, VibeBenchComponentsMedian(syscalls), perUnit.c_str());
             fflush(stdout);
             NSMutableArray *(^array)(const std::vector<double> &) = ^(const std::vector<double> &values) {
                 NSMutableArray *out = [NSMutableArray array];
