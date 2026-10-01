@@ -461,7 +461,7 @@ static const double kWaveformGainDetentDB = 0.75;
         return cell;
     }
     if (!identifier) {
-        return [self groupCellInTableView:tableView title:
+        return [SettingsRowView listGroupCellWithIdentifier:kThemeGroupCellIdentifier inTableView:tableView title:
                 (row == 0 ? STR_SETTINGS_THEME_GROUP_BUILT_IN : STR_SETTINGS_THEME_GROUP_USER)];
     }
     NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:kThemeCellIdentifier
@@ -474,15 +474,6 @@ static const double kWaveformGainDetentDB = 0.75;
 
 - (NSTableRowView *)tableView:(NSTableView *)tableView rowViewForRow:(NSInteger)row {
     return [SettingsRowView listRowViewForRow:row];
-}
-
-- (NSTableCellView *)groupCellInTableView:(NSTableView *)tableView title:(NSString *)title {
-    NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:kThemeGroupCellIdentifier
-                                                        inTableView:tableView imagePosition:NSNoImage];
-    cell.textField.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize weight:NSFontWeightSemibold];
-    cell.textField.textColor = NSColor.secondaryLabelColor;
-    cell.textField.stringValue = title;
-    return cell;
 }
 
 // Selection IS activation, as in View > Theme.

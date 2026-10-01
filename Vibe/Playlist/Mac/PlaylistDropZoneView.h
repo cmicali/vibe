@@ -19,7 +19,7 @@ NS_ASSUME_NONNULL_BEGIN
 // The playlist pane's drop-target UI, spanning the pane in both playlist
 // states:
 //   - Empty playlist at rest: a Finder-style dashed well inviting a drag, or
-//     a ⌘O; clicking it sends openDocument: up the responder chain.
+//     the Open shortcut; clicking it sends openDocument: up the responder chain.
 //   - Empty playlist, with files dragged over the window: one full-width "add
 //     to playlist" well, since replace against add is meaningless with no rows.
 //   - Populated playlist, with files dragged over: side-by-side replace and add
@@ -31,6 +31,8 @@ NS_ASSUME_NONNULL_BEGIN
 @interface PlaylistDropZoneView : NSView
 
 @property (nonatomic) BOOL playlistEmpty;
+// The Open shortcut's keycap text; nil drops the "or press" line.
+@property (nonatomic, copy, nullable) NSString *openShortcut;
 
 // Window coordinates. An update enters drag-over and moves the highlight; it
 // no-ops while the view is hidden or collapsed.

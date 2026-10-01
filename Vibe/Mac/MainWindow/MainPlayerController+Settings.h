@@ -4,6 +4,7 @@
 //
 
 #import "MainPlayerController.h"
+#import "ShortcutRules.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -59,6 +60,9 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     VibeSettingsLiveEffectVolume           = 1UL << 26,
     // Pushes the MP3 decoder choice to AudioFileHandle and reopens the park.
     VibeSettingsLiveEffectMP3Decoder       = 1UL << 27,
+    // The menu's key equivalents and the empty-state hints' Open shortcut,
+    // under the current layout; also requested on an input source change.
+    VibeSettingsLiveEffectShortcuts        = 1UL << 28,
     // WindowAppearance is included because a single-mode theme pins the
     // window dark (AppTheme.requiredWindowAppearance).
     VibeSettingsLiveEffectThemeApply       = VibeSettingsLiveEffectWindowAppearance
@@ -80,7 +84,21 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     VibeSettingsLiveEffectAll              = NSUIntegerMax,
 };
 
+typedef NS_ENUM(NSInteger, VibeShortcutAssignment) {
+    VibeShortcutAssignmentStored,
+    VibeShortcutAssignmentReserved,   // a fixed system shortcut, the arrows or Escape
+    VibeShortcutAssignmentUnusable,   // a key no layout names, so no menu could draw it
+};
+
 @interface MainPlayerController (Settings)
+
+// The one write path for shortcuts, the Keyboard Shortcuts pane's and the
+// debug verb's: refuses, or stores and requests the Shortcuts effect.
+// kVibeShortcutNone clears. A command that held the shortcut loses it and is
+// named in *loser.
+- (VibeShortcutAssignment)assignShortcut:(VibeShortcut)shortcut toCommand:(NSString *)identifier
+                                   loser:(NSString *_Nullable *_Nullable)loser;
+- (void)resetShortcuts;
 
 // Pushes the theme's fonts into Fonts, which may not read a setting.
 // buildContentInWindow: runs it before any label exists.

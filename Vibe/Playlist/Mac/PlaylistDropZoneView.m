@@ -20,7 +20,7 @@ static const CGFloat kWellGap = 16;          // between the two drag-over wells
 
 // The rest state: two stacked lines.
 static const CGFloat kRestLineGap = 8;
-// The ⌘O keycap chip on the second line.
+// The Open shortcut's keycap chip on the second line.
 static const CGFloat kKeycapPaddingH = 6;
 static const CGFloat kKeycapPaddingV = 2;
 static const CGFloat kKeycapCornerRadius = 4;
@@ -116,6 +116,14 @@ static NSColor *HexColor(uint32_t rgb) {
     }
     _playlistEmpty = playlistEmpty;
     [self updateBlur];
+    _canvas.needsDisplay = YES;
+}
+
+- (void)setOpenShortcut:(NSString *)openShortcut {
+    if ([_openShortcut isEqualToString:openShortcut] || _openShortcut == openShortcut) {
+        return;
+    }
+    _openShortcut = [openShortcut copy];
     _canvas.needsDisplay = YES;
 }
 
@@ -317,14 +325,21 @@ static void drawTextCenteredAt(NSAttributedString *text, CGFloat centerX, CGFloa
     NSAttributedString *line1 = [[NSAttributedString alloc]
             initWithString:STR_LABEL_PLAYLIST_DRAG_HINT
                 attributes:textAttributes([Fonts font:14], HexColor(0x85878F))];
+    NSSize line1Size = line1.size;
+    CGFloat midX = NSMidX(well);
+    // With Open unassigned there is no second line to offer.
+    if (!_openShortcut) {
+        drawTextCenteredAt(line1, midX, NSMidY(well) - line1Size.height / 2,
+                           NSWidth(well) - 2 * kWellLabelInset);
+        return;
+    }
     NSAttributedString *orPress = [[NSAttributedString alloc]
             initWithString:STR_LABEL_PLAYLIST_OR_PRESS
                 attributes:textAttributes([Fonts font:13], HexColor(0x64666F))];
     NSAttributedString *keycapText = [[NSAttributedString alloc]
-            initWithString:VibeNotLocalized(@"⌘O")
+            initWithString:_openShortcut
                 attributes:textAttributes([Fonts font:12], HexColor(0x85878F))];
 
-    NSSize line1Size = line1.size;
     NSSize orPressSize = orPress.size;
     NSSize keycapTextSize = keycapText.size;
     NSSize keycapSize = NSMakeSize(ceil(keycapTextSize.width) + 2 * kKeycapPaddingH,
@@ -332,11 +347,9 @@ static void drawTextCenteredAt(NSAttributedString *text, CGFloat centerX, CGFloa
 
     CGFloat line2Height = MAX(orPressSize.height, keycapSize.height);
     CGFloat totalHeight = line1Size.height + kRestLineGap + line2Height;
-    CGFloat midX = NSMidX(well);
     // The view is not flipped, so line 1 sits above line 2.
     CGFloat line2Y = NSMidY(well) - totalHeight / 2;
     CGFloat line1Y = line2Y + line2Height + kRestLineGap;
-
     drawTextCenteredAt(line1, midX, line1Y, NSWidth(well) - 2 * kWellLabelInset);
 
     CGFloat line2Width = orPressSize.width + kKeycapGap + keycapSize.width;

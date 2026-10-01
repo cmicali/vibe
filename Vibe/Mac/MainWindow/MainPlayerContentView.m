@@ -387,6 +387,14 @@ static NSView *FadeTarget(NSView *view, BOOL animated) {
     }];
 }
 
+- (void)setOpenShortcut:(NSString *)shortcut {
+    // The shortcut is a separate argument so a translation can move it in the sentence.
+    _dropHintTextField.stringValue = shortcut
+            ? [NSString stringWithFormat:STR_LABEL_DROP_HINT, shortcut]
+            : STR_LABEL_DROP_HINT_NO_SHORTCUT;
+    _playlistDropZoneView.openShortcut = shortcut;
+}
+
 - (void)setDropHintShown:(BOOL)shown {
     if (shown == _dropHintShown) {
         return;
@@ -745,9 +753,6 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _dropHintTextField.font = [Fonts font:13];
     _dropHintTextField.alignment = NSTextAlignmentCenter;
     _dropHintTextField.textColor = dimmedTextColor;
-    // The shortcut is a separate argument so a translation can move it in the sentence.
-    _dropHintTextField.stringValue = [NSString stringWithFormat:STR_LABEL_DROP_HINT,
-                                                                VibeNotLocalized(@"⌘O")];
     // Long translations ellipsize.
     _dropHintTextField.lineBreakMode = NSLineBreakByTruncatingTail;
     _dropHintTextField.maximumNumberOfLines = 1;

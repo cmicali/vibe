@@ -403,6 +403,16 @@ static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat
     return view;
 }
 
++ (NSTableCellView *)listGroupCellWithIdentifier:(NSUserInterfaceItemIdentifier)identifier
+                                     inTableView:(NSTableView *)table
+                                           title:(NSString *)title {
+    NSTableCellView *cell = [self listCellWithIdentifier:identifier inTableView:table imagePosition:NSNoImage];
+    cell.textField.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize weight:NSFontWeightSemibold];
+    cell.textField.textColor = NSColor.secondaryLabelColor;
+    cell.textField.stringValue = title;
+    return cell;
+}
+
 + (NSTableCellView *)listCellWithIdentifier:(NSUserInterfaceItemIdentifier)identifier
                                 inTableView:(NSTableView *)table
                               imagePosition:(NSCellImagePosition)imagePosition {

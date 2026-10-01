@@ -12,9 +12,6 @@
 #import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
-// The explainer's wrap width before first layout: the design-width pane's row
-// content, so the first shared-floor height is the design one.
-static const CGFloat kExplainWrapWidth = 408;
 static NSString *const kFolderCellIdentifier = @"FolderCell";
 // Stable identifiers, so the debug channel can pick an item by name.
 static NSString *const kAlbumArtFileOnly = @"file_only";
@@ -41,7 +38,6 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
 @end
 
 @implementation SettingsFilesViewController {
-    NSTextField *_explainLabel;
     NSTableView *_tableView;
     NSPopUpButton *_addCommonButton;
     NSButton *_removeButton;
@@ -56,28 +52,6 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     uint64_t _commonFolderProbeGeneration;
 }
 
-// A wrapping label measures its height at preferredMaxLayoutWidth, so
-// viewDidLayout follows the row's real width. Compression resistance sits
-// below the fitting priority so the unwrapped text never widens every pane,
-// and no width cap is set (rowWithContentView:'s trap).
-- (NSTextField *)explainLabel:(NSString *)text {
-    NSTextField *label = [NSTextField wrappingLabelWithString:text];
-    label.selectable = NO;
-    label.textColor = NSColor.secondaryLabelColor;
-    label.preferredMaxLayoutWidth = kExplainWrapWidth;
-    [label setContentCompressionResistancePriority:NSLayoutPriorityFittingSizeCompression - 1
-                                    forOrientation:NSLayoutConstraintOrientationHorizontal];
-    return label;
-}
-
-- (void)viewDidLayout {
-    [super viewDidLayout];
-    CGFloat width = NSWidth(_explainLabel.frame);
-    if (width > 0 && fabs(_explainLabel.preferredMaxLayoutWidth - width) > 0.5) {
-        _explainLabel.preferredMaxLayoutWidth = width; // invalidates the intrinsic size itself
-    }
-}
-
 - (void)loadView {
     _folders = @[];
 
@@ -90,7 +64,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     _albumArtPopUp = [self popUpButtonWithWidth:260 action:@selector(albumArtSourceChanged:)];
     [self addItem:STR_SETTINGS_ALBUM_ART_FILE_ONLY value:kAlbumArtFileOnly to:_albumArtPopUp];
     [self addItem:STR_SETTINGS_ALBUM_ART_FOLDER value:kAlbumArtFolder to:_albumArtPopUp];
-    _explainLabel = [self explainLabel:STR_SETTINGS_PERMISSIONS_EXPLAIN];
+    NSTextField *explainLabel = [self wrappingLabelWithString:STR_SETTINGS_PERMISSIONS_EXPLAIN];
 
     _tableView = [SettingsRowView listTableWithColumnIdentifiers:@[kFolderCellIdentifier] delegate:self];
     _tableView.allowsMultipleSelection = YES;
@@ -123,7 +97,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
             [SettingsRowView rowWithTitle:STR_SETTINGS_ALBUM_ART_LABEL control:_albumArtPopUp],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PERMISSIONS_LABEL rows:@[
-            [SettingsRowView rowWithContentView:_explainLabel],
+            [SettingsRowView rowWithContentView:explainLabel],
             listRow,
             buttonRow,
         ]],

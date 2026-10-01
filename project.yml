@@ -394,6 +394,7 @@ targets:
       - sdk: Accelerate.framework
       - sdk: ApplicationServices.framework
       - sdk: AudioToolbox.framework
+      - sdk: Carbon.framework               # TIS/UCKeyTranslate: shortcut labels under the current keyboard layout
       - sdk: CoreAudio.framework
       - sdk: ImageIO.framework              # bounded art decode, debug screenshots
       - sdk: MediaPlayer.framework

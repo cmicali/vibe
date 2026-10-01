@@ -15,6 +15,7 @@
 #import "SettingsGeneralViewController.h"
 #import "SettingsPaneViewController.h"
 #import "SettingsPlaybackViewController.h"
+#import "SettingsShortcutsViewController.h"
 #import "NSView+DarkMode.h"
 #import "VibeStrings.h"
 
@@ -325,6 +326,8 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
                                   @"audio", STR_SETTINGS_AUDIO_SECTION, @"speaker.wave.2")];
     [tabs addTabViewItem:PaneItem([[SettingsPlaybackViewController alloc] initWithPlayerController:playerController],
                                   @"playback", STR_MENU_PLAYBACK, @"play.circle")];
+    [tabs addTabViewItem:PaneItem([[SettingsShortcutsViewController alloc] initWithPlayerController:playerController],
+                                  @"shortcuts", STR_SETTINGS_SHORTCUTS, @"keyboard")];
     [tabs addTabViewItem:PaneItem([[SettingsAppearanceViewController alloc] initWithPlayerController:playerController],
                                   @"appearance", STR_MENU_VIEW_APPEARANCE, @"paintbrush")];
     [tabs addTabViewItem:PaneItem([[SettingsFilesViewController alloc] initWithPlayerController:playerController],

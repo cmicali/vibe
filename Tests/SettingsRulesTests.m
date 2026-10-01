@@ -148,6 +148,27 @@
     }
 }
 
+// Absent is every default, an empty write removes the key, and Reset to
+// defaults clears remaps with the rest.
+- (void)testShortcutOverridesAreSparseAndResetWithTheRest {
+    AppSettings *settings = [self freshSettings];
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    NSString *key = @"Shortcuts.overrides";
+    XCTAssertEqualObjects(settings.shortcutOverrides, @{});
+    XCTAssertTrue(settings.allSettingsAtDefaults);
+    settings.shortcutOverrides = @{@"menu_play": @40};
+    XCTAssertEqualObjects(settings.shortcutOverrides, @{@"menu_play": @40});
+    XCTAssertFalse(settings.allSettingsAtDefaults);
+    settings.shortcutOverrides = @{};
+    XCTAssertNil([defaults objectForKey:key]);
+    settings.shortcutOverrides = @{@"menu_play": @40};
+    [settings resetToDefaults];
+    XCTAssertNil([defaults objectForKey:key]);
+    [defaults setObject:@"garbage" forKey:key];
+    XCTAssertEqualObjects(settings.shortcutOverrides, @{});
+    [defaults removeObjectForKey:key];
+}
+
 // The store is keyed by device UID and never asks whether the device is
 // present, which is what lets an unplugged device keep its modes.
 - (void)testOutputModesAreRememberedPerDeviceAndOffStoresNothing {
