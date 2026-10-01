@@ -114,15 +114,6 @@ static NSMenuItem *AddSymbolItem(NSMenu *parent, NSString *title, NSString *symb
     return item;
 }
 
-static NSMenuItem *TopLevelMenuItemWithIdentifier(NSString *identifier) {
-    for (NSMenuItem *item in NSApp.mainMenu.itemArray) {
-        if ([item.identifier isEqualToString:identifier]) {
-            return item;
-        }
-    }
-    return nil;
-}
-
 static NSMenuItem *AddSeparator(NSMenu *parent) {
     NSMenuItem *item = [NSMenuItem separatorItem];
     [parent addItem:item];
@@ -296,7 +287,7 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     AddSymbolItem(fxMenu, STR_MENU_FX_REVERB, @"water.waves", @selector(toggleReverbSend:), player, @"", 0, kVibeMenuFXReverb);
     AddSymbolItem(fxMenu, STR_MENU_FX_DELAY_8, @"repeat", @selector(toggleDelaySend:), player, @"", 0, kVibeMenuFXDelay);
     AddSymbolItem(fxMenu, STR_MENU_FX_DELAY_16, @"repeat.circle", @selector(toggleShortDelaySend:), player, @"", 0, kVibeMenuFXShortDelay);
-    [self applyFXMenuVisibility:fxItem];
+    fxItem.hidden = !AppSettings.sharedInstance.audioFXAllowed;
 }
 
 + (void)buildViewMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {
@@ -334,28 +325,18 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     [convertMenu addItem:[self convertToFLACItemWithTarget:player]];
     AddSeparator(convertMenu);
     AddSymbolItem(convertMenu, STR_MENU_CONVERT_DELETE_ORIGINAL, @"trash", @selector(toggleDeleteOriginalAfterConvert:), player, @"", 0, kVibeMenuConvertDeleteOriginal);
-    [self applyConvertMenuVisibility:convertItem];
-}
-
-// The context menus' shared item hides through validation instead.
-+ (void)applyConvertMenuVisibility {
-    [self applyConvertMenuVisibility:TopLevelMenuItemWithIdentifier(@"menu_convert")];
-}
-
-+ (void)applyConvertMenuVisibility:(NSMenuItem *)convertItem {
     convertItem.hidden = !AppSettings.sharedInstance.convertEnabled;
 }
 
-+ (void)applyFXMenuVisibility {
-    NSMenuItem *fxItem = TopLevelMenuItemWithIdentifier(@"menu_fx");
-    if (!fxItem) {
-        return;
-    }
-    [self applyFXMenuVisibility:fxItem];
+// The context menus' shared item hides through validation instead.
+// Each also re-applies the shortcuts, which a hidden menu withdraws.
++ (void)applyConvertMenuVisibility {
+    [self mainMenuItemWithIdentifier:@"menu_convert"].hidden = !AppSettings.sharedInstance.convertEnabled;
+    [self applyShortcuts];
 }
 
-+ (void)applyFXMenuVisibility:(NSMenuItem *)fxItem {
-    fxItem.hidden = !AppSettings.sharedInstance.audioFXAllowed;
++ (void)applyFXMenuVisibility {
+    [self mainMenuItemWithIdentifier:@"menu_fx"].hidden = !AppSettings.sharedInstance.audioFXAllowed;
     [self applyShortcuts];
 }
 
@@ -384,6 +365,8 @@ static NSArray<NSString *> *SpecialKey(unsigned short keyCode) {
             @36:  @[@"\r", VibeNotLocalized(@"↩")],
             @48:  @[@"\t", VibeNotLocalized(@"⇥")],
             @49:  @[@" ", STR_SETTINGS_SHORTCUTS_KEY_SPACE],
+            // Reserved, so only ever named in a refusal.
+            @53:  @[@"\e", VibeNotLocalized(@"⎋")],
             // NSBackspaceCharacter draws as ⌫; a real press delivers
             // NSDeleteCharacter, which the monitor matches by key code.
             @51:  @[fn(NSBackspaceCharacter), VibeNotLocalized(@"⌫")],
@@ -445,6 +428,18 @@ static NSDictionary<NSNumber *, NSString *> *LayoutCharacters(void) {
     return characters;
 }
 
+// TRAP: hiding a submenu does not deactivate its key equivalents (FX and
+// Convert hide in place), so an item under a hidden menu gets none.
+static BOOL IsUnderHiddenMenu(NSMenuItem *item) {
+    for (NSMenu *menu = item.menu; menu.supermenu; menu = menu.supermenu) {
+        NSInteger index = [menu.supermenu indexOfItemWithSubmenu:menu];
+        if (index >= 0 && [menu.supermenu itemAtIndex:index].hidden) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
 static void ApplyShortcut(NSMenuItem *item, VibeShortcut shortcut) {
     unsigned short key = VibeShortcutKey(shortcut);
     NSString *equivalent = nil;
@@ -475,8 +470,22 @@ static void ApplyShortcut(NSMenuItem *item, VibeShortcut shortcut) {
     item.allowsAutomaticKeyEquivalentLocalization = VibeShortcutIsCharacter(shortcut);
 }
 
+// Cached, since the key monitor asks per keypress: the items it names are
+// built once and only ever retitled or hidden. Weak values, so an item a
+// menu drops is walked for again.
 + (nullable NSMenuItem *)mainMenuItemWithIdentifier:(NSString *)identifier {
-    return ItemWithIdentifier(NSApp.mainMenu, identifier);
+    static NSMapTable<NSString *, NSMenuItem *> *items;
+    if (!items) {
+        items = [NSMapTable strongToWeakObjectsMapTable];
+    }
+    NSMenuItem *item = [items objectForKey:identifier];
+    if (!item) {
+        item = ItemWithIdentifier(NSApp.mainMenu, identifier);
+        if (item) {
+            [items setObject:item forKey:identifier];
+        }
+    }
+    return item;
 }
 
 + (unichar)characterForKeyCode:(unsigned short)keyCode {
@@ -508,13 +517,10 @@ static void ApplyShortcut(NSMenuItem *item, VibeShortcut shortcut) {
 
 + (void)applyShortcuts {
     NSDictionary *overrides = AppSettings.sharedInstance.shortcutOverrides;
-    BOOL fxAllowed = AppSettings.sharedInstance.audioFXAllowed;
     for (NSString *identifier in VibeShortcutIdentifiers()) {
         NSMenuItem *item = [self mainMenuItemWithIdentifier:identifier];
-        // TRAP: hiding a submenu does not deactivate its key equivalents, so
-        // the FX items lose theirs while FX is off.
-        BOOL withdrawn = !fxAllowed && VibeMenuValidationDomainForIdentifier(identifier) == VibeMenuValidationDomainFX;
-        ApplyShortcut(item, withdrawn ? kVibeShortcutNone : VibeShortcutEffective(identifier, overrides));
+        ApplyShortcut(item, IsUnderHiddenMenu(item) ? kVibeShortcutNone
+                                                    : VibeShortcutEffective(identifier, overrides));
     }
 }
 

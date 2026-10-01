@@ -821,8 +821,7 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
 
 // Shape-checked only; which entries mean anything is ShortcutRules.h's.
 - (NSDictionary<NSString *, NSNumber *> *)shortcutOverrides {
-    NSDictionary *stored = [NSUserDefaults.standardUserDefaults dictionaryForKey:SETTING_SHORTCUT_OVERRIDES];
-    return [stored isKindOfClass:NSDictionary.class] ? stored : @{};
+    return [NSUserDefaults.standardUserDefaults dictionaryForKey:SETTING_SHORTCUT_OVERRIDES] ?: @{};
 }
 
 - (void)setShortcutOverrides:(NSDictionary<NSString *, NSNumber *> *)overrides {

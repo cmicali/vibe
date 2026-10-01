@@ -35,10 +35,10 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSMenuItem *)copyFileItemWithTarget:(nullable id)target;
 + (NSMenuItem *)convertToFLACItemWithTarget:(nullable id)target;
 
-// The ConvertMenu settings effect's hook; the menu is always built.
+// The ConvertMenu and FX settings effects' hooks. Each menu is always built
+// and hidden in place, and each call re-applies the shortcuts, which a
+// hidden menu withdraws.
 + (void)applyConvertMenuVisibility;
-
-// Also withdraws or restores the FX shortcuts; the menu is always built.
 + (void)applyFXMenuVisibility;
 
 // The Shortcuts settings effect's hook: the one place a remappable item's key

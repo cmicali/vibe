@@ -24,8 +24,6 @@ static const unsigned short kKeyDelete = 51, kKeyForwardDelete = 117, kKeyDown =
 @property (nonatomic) BOOL reverbSendActive;
 @property (nonatomic) BOOL delaySendActive;
 @property (nonatomic) BOOL shortDelaySendActive;
-@property (nonatomic) NSUInteger removals;
-@property (nonatomic) NSUInteger selectionPlays;
 @property (nonatomic) NSUInteger markerReads;
 @property (nonatomic) NSMutableArray<NSString *> *commands;
 @end
@@ -50,8 +48,6 @@ static const unsigned short kKeyDelete = 51, kKeyForwardDelete = 117, kKeyDown =
 - (BOOL)isPlaying { return NO; }
 - (BOOL)isLoading { return NO; }
 - (NSDictionary *)bitPerfectReportDictionary { self.markerReads++; return @{}; }
-- (void)removeSelectedPlaylistTracks:(id)sender { self.removals++; }
-- (void)playSelectedTrack:(id)sender { self.selectionPlays++; }
 - (BOOL)performMenuCommandWithIdentifier:(NSString *)identifier {
     [self.commands addObject:identifier];
     return YES;
@@ -169,15 +165,16 @@ static const unsigned short kKeyDelete = 51, kKeyForwardDelete = 117, kKeyDown =
     }
 }
 
+// Remove goes through its menu item, whose validation needs the playlist
+// showing; a held delete takes one gesture's rows.
 - (void)testDeleteRepeatIsSwallowedAndHiddenOrModifiedDeletesDoNotRemove {
     TransportKeyMonitor *monitor = [[TransportKeyMonitor alloc] initWithController:(id)self];
     for (NSNumber *keyCode in @[@(kKeyDelete), @(kKeyForwardDelete)]) {
         unsigned short code = keyCode.unsignedShortValue;
         self.playlistShown = YES;
-        self.removals = 0;
+        [self.commands removeAllObjects];
         NSEvent *down = [self down:code];
         XCTAssertEqual([monitor handleKeyEvent:down inWindow:nil], down);
-        XCTAssertEqual(self.removals, 0u);
         XCTAssertNil([monitor handleKeyEvent:down inWindow:self.window]);
         XCTAssertNil([monitor handleKeyEvent:[self key:code characters:@"x" type:NSEventTypeKeyDown time:11
                 repeat:YES modifiers:0] inWindow:self.window]);
@@ -187,7 +184,7 @@ static const unsigned short kKeyDelete = 51, kKeyForwardDelete = 117, kKeyDown =
         NSEvent *modified = [self key:code characters:@"x" type:NSEventTypeKeyDown time:12 repeat:NO
                             modifiers:NSEventModifierFlagCommand];
         XCTAssertEqual([monitor handleKeyEvent:modified inWindow:self.window], modified);
-        XCTAssertEqual(self.removals, 1u);
+        XCTAssertEqualObjects(self.commands, @[kVibeMenuEditRemoveFromPlaylist]);
     }
 }
 
@@ -244,7 +241,6 @@ static const unsigned short kKeyDelete = 51, kKeyForwardDelete = 117, kKeyDown =
     XCTAssertNil([monitor handleKeyEvent:ret inWindow:self.window]);
     XCTAssertNil([monitor handleKeyEvent:arrow inWindow:self.window]);
     XCTAssertNil([monitor handleKeyEvent:[self down:76] inWindow:self.window], @"keypad Enter");
-    XCTAssertEqual(self.selectionPlays, 0u);
     XCTAssertEqualObjects(self.commands, @[]);
 }
 

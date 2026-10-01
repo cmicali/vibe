@@ -16,8 +16,6 @@ static NSString *const kShortcutColumn = @"shortcut";
 static NSString *const kGroupCellIdentifier = @"group";
 static const NSUInteger kShortcutListRowCount = 14;
 static const CGFloat kShortcutColumnWidth = 120;
-// The caption's wrap width before first layout, as the Files pane's.
-static const CGFloat kCaptionWrapWidth = 408;
 
 @interface SettingsShortcutsViewController () <NSTableViewDataSource, NSTableViewDelegate>
 @end
@@ -61,14 +59,7 @@ static const CGFloat kCaptionWrapWidth = 408;
     buttons.spacing = 8;
     SettingsRowView *buttonRow = [SettingsRowView rowWithContentView:buttons];
 
-    // Wraps at the row's real width (viewDidLayout); compression resistance
-    // below the fitting priority, so the unwrapped text never widens the pane.
-    _captionLabel = [NSTextField wrappingLabelWithString:STR_SETTINGS_SHORTCUTS_EXPLAIN];
-    _captionLabel.selectable = NO;
-    _captionLabel.textColor = NSColor.secondaryLabelColor;
-    _captionLabel.preferredMaxLayoutWidth = kCaptionWrapWidth;
-    [_captionLabel setContentCompressionResistancePriority:NSLayoutPriorityFittingSizeCompression - 1
-                                            forOrientation:NSLayoutConstraintOrientationHorizontal];
+    _captionLabel = [self wrappingLabelWithString:STR_SETTINGS_SHORTCUTS_EXPLAIN];
 
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithRows:@[
@@ -80,14 +71,6 @@ static const CGFloat kCaptionWrapWidth = 408;
     // The list is its own divider; the section's hairlines would double it.
     listRow.showsTopSeparator = NO;
     buttonRow.showsTopSeparator = NO;
-}
-
-- (void)viewDidLayout {
-    [super viewDidLayout];
-    CGFloat width = NSWidth(_captionLabel.frame);
-    if (width > 0 && fabs(_captionLabel.preferredMaxLayoutWidth - width) > 0.5) {
-        _captionLabel.preferredMaxLayoutWidth = width;
-    }
 }
 
 - (void)dealloc {
@@ -236,28 +219,28 @@ static const CGFloat kCaptionWrapWidth = 408;
 - (void)captureKeyEvent:(NSEvent *)event {
     NSString *identifier = _recordingIdentifier;
     _recordingIdentifier = nil;  // the monitor stays for the release
-    unsigned short keyCode = VibeShortcutCanonicalKeyCode(event.keyCode);
     NSEventModifierFlags modifiers = event.modifierFlags & kVibeShortcutModifierMask;
-    if (keyCode == 53 && modifiers == 0) {   // Escape
+    if (event.keyCode == kVibeKeyCodeEscape && modifiers == 0) {
         [self refreshControls];
         return;
     }
-    VibeShortcut shortcut = VibeShortcutMake(keyCode, modifiers);
-    unichar character = [MainMenuBuilder characterForKeyCode:keyCode];
-    if (VibeShortcutIsReserved(keyCode, character, modifiers)) {
-        _status = [NSString stringWithFormat:STR_SETTINGS_SHORTCUTS_RESERVED,
-                                             [MainMenuBuilder displayStringForShortcut:shortcut]];
-    }
-    else if (![MainMenuBuilder labelForKeyCode:keyCode]) {
-        _status = STR_SETTINGS_SHORTCUTS_UNUSABLE;
-    }
-    else {
-        NSString *loser = [self assignShortcut:shortcut character:character to:identifier];
-        _status = loser ? [NSString stringWithFormat:STR_SETTINGS_SHORTCUTS_REASSIGNED,
-                                                     [MainMenuBuilder displayStringForShortcut:shortcut],
-                                                     [self labelForCommand:identifier],
-                                                     [self labelForCommand:loser]]
-                        : nil;
+    VibeShortcut shortcut = VibeShortcutMake(VibeShortcutCanonicalKeyCode(event.keyCode), modifiers);
+    NSString *loser = nil;
+    switch ([self.playerController assignShortcut:shortcut toCommand:identifier loser:&loser]) {
+        case VibeShortcutAssignmentReserved:
+            _status = [NSString stringWithFormat:STR_SETTINGS_SHORTCUTS_RESERVED,
+                                                 [MainMenuBuilder displayStringForShortcut:shortcut]];
+            break;
+        case VibeShortcutAssignmentUnusable:
+            _status = STR_SETTINGS_SHORTCUTS_UNUSABLE;
+            break;
+        case VibeShortcutAssignmentStored:
+            _status = loser ? [NSString stringWithFormat:STR_SETTINGS_SHORTCUTS_REASSIGNED,
+                                                         [MainMenuBuilder displayStringForShortcut:shortcut],
+                                                         [self labelForCommand:identifier],
+                                                         [self labelForCommand:loser]]
+                            : nil;
+            break;
     }
     [self refreshFromSettings];
 }
@@ -277,29 +260,16 @@ static const CGFloat kCaptionWrapWidth = 408;
 - (void)clearShortcut:(id)sender {
     NSString *identifier = [self selectedIdentifier];
     if (identifier) {
-        [self assignShortcut:kVibeShortcutNone character:0 to:identifier];
+        [self.playerController assignShortcut:kVibeShortcutNone toCommand:identifier loser:NULL];
         _status = nil;
         [self refreshFromSettings];
     }
 }
 
 - (void)resetAllShortcuts:(id)sender {
-    AppSettings.sharedInstance.shortcutOverrides = @{};
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectShortcuts];
+    [self.playerController resetShortcuts];
     _status = nil;
     [self refreshFromSettings];
-}
-
-// The store, then the effect: the pane's one write path. Answers the command
-// that lost the shortcut.
-- (nullable NSString *)assignShortcut:(VibeShortcut)shortcut character:(unichar)character
-                                   to:(NSString *)identifier {
-    NSString *loser = nil;
-    AppSettings *settings = AppSettings.sharedInstance;
-    settings.shortcutOverrides = VibeShortcutOverridesByAssigning(settings.shortcutOverrides, identifier,
-                                                                  shortcut, character, &loser);
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectShortcuts];
-    return loser;
 }
 
 #pragma mark - Table
@@ -308,7 +278,6 @@ static const CGFloat kCaptionWrapWidth = 408;
     return (NSInteger)_rows.count;
 }
 
-// A header is an ordinary row the delegate refuses, as the theme list's.
 - (BOOL)tableView:(NSTableView *)tableView shouldSelectRow:(NSInteger)row {
     return [self identifierForRow:row] != nil;
 }
@@ -321,12 +290,8 @@ static const CGFloat kCaptionWrapWidth = 408;
     NSString *identifier = [self identifierForRow:row];
     BOOL commandColumn = [tableColumn.identifier isEqualToString:kCommandColumn];
     if (!identifier) {
-        NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:kGroupCellIdentifier
-                                                            inTableView:tableView imagePosition:NSNoImage];
-        cell.textField.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize weight:NSFontWeightSemibold];
-        cell.textField.textColor = NSColor.secondaryLabelColor;
-        cell.textField.stringValue = commandColumn ? [_rows[(NSUInteger)row] firstObject] : @"";
-        return cell;
+        return [SettingsRowView listGroupCellWithIdentifier:kGroupCellIdentifier inTableView:tableView
+                                                      title:commandColumn ? [_rows[(NSUInteger)row] firstObject] : @""];
     }
     NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:tableColumn.identifier
                                                         inTableView:tableView imagePosition:NSNoImage];

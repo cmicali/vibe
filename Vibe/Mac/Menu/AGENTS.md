@@ -54,7 +54,7 @@ Bare-key items are **display and fallback only**: `TransportKeyMonitor` (`Mac/Ma
 
 One checkmarked toggle per effect, on bare Q/W/E/R/T by default, actions in `MainPlayerController+Transport` against its state pass-throughs, so a menu toggle and a bare-key tap are the same flip. **The menu is always built and hidden in place.** `FXControls` clears active effects before hiding it and sends the saved audio settings through the player’s shared rebuild; enabling can create the FX segment without relaunch. Validation and `TransportKeyMonitor` both require `AppSettings.audioFXAllowed` (the FX setting with bit-perfect output outranking it) *and* the FX controls object, so the keys cannot change an effect while the controls are off.
 
-**TRAP: hiding a top-level submenu does not deactivate its children's key equivalents.** AppKit still matches the FX keys under a hidden `menu_fx`, even when validation returns NO. `applyShortcuts` withdraws them while `audioFXAllowed` is off, and the visibility effect calls it after hiding; validation remains the direct-dispatch gate.
+**TRAP: hiding a top-level submenu does not deactivate its children's key equivalents.** AppKit still matches the FX keys under a hidden `menu_fx`, even when validation returns NO. `applyShortcuts` gives no equivalent to any item under a hidden menu, FX and Convert alike, and both visibility hooks call it after hiding; validation remains the direct-dispatch gate.
 
 ## Output
 

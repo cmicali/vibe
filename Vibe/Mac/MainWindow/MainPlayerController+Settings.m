@@ -31,6 +31,31 @@
     [Fonts applyThemeFonts:AppSettings.sharedInstance.currentTheme];
 }
 
+- (VibeShortcutAssignment)assignShortcut:(VibeShortcut)shortcut toCommand:(NSString *)identifier
+                                   loser:(NSString **)loser {
+    unichar character = 0;
+    if (shortcut != kVibeShortcutNone) {
+        unsigned short keyCode = VibeShortcutCanonicalKeyCode(VibeShortcutKey(shortcut));
+        character = [MainMenuBuilder characterForKeyCode:keyCode];
+        if (VibeShortcutIsReserved(keyCode, character, VibeShortcutModifiers(shortcut))) {
+            return VibeShortcutAssignmentReserved;
+        }
+        if (![MainMenuBuilder labelForKeyCode:keyCode]) {
+            return VibeShortcutAssignmentUnusable;
+        }
+    }
+    AppSettings *settings = AppSettings.sharedInstance;
+    settings.shortcutOverrides = VibeShortcutOverridesByAssigning(settings.shortcutOverrides, identifier,
+                                                                  shortcut, character, loser);
+    [self applySettingsLiveEffects:VibeSettingsLiveEffectShortcuts];
+    return VibeShortcutAssignmentStored;
+}
+
+- (void)resetShortcuts {
+    AppSettings.sharedInstance.shortcutOverrides = @{};
+    [self applySettingsLiveEffects:VibeSettingsLiveEffectShortcuts];
+}
+
 - (void)applySettingsLiveEffects:(VibeSettingsLiveEffect)effects {
     [self applySettingsLiveEffects:effects updatingOutputModes:YES];
 }

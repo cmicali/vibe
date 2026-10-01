@@ -29,6 +29,17 @@ static const NSEventModifierFlags kVibeShortcutModifierMask =
 // Unassigned: stored over a default to remove it.
 static const VibeShortcut kVibeShortcutNone = 0xFFFF;
 
+// HIToolbox kVK_* codes the rules and their callers name, inline so Carbon
+// stays unimported.
+static const unsigned short kVibeKeyCodeReturn = 36;
+static const unsigned short kVibeKeyCodeDelete = 51;
+static const unsigned short kVibeKeyCodeEscape = 53;
+static const unsigned short kVibeKeyCodeKeypadEnter = 76;
+static const unsigned short kVibeKeyCodeForwardDelete = 117;
+static const unsigned short kVibeKeyCodeDownArrow = 125;
+static const unsigned short kVibeKeyCodeUpArrow = 126;
+static const unsigned short kVibeKeyCodeM = 46;
+
 static inline VibeShortcut VibeShortcutMake(unsigned short keyCode, NSEventModifierFlags modifiers) {
     return (keyCode & kVibeShortcutKeyMask) | (modifiers & kVibeShortcutModifierMask);
 }
@@ -54,8 +65,8 @@ static inline NSEventModifierFlags VibeShortcutModifiers(VibeShortcut shortcut) 
 // a binding of either answers both.
 static inline unsigned short VibeShortcutCanonicalKeyCode(unsigned short keyCode) {
     switch (keyCode) {
-        case 76:  return 36;
-        case 117: return 51;
+        case kVibeKeyCodeKeypadEnter:   return kVibeKeyCodeReturn;
+        case kVibeKeyCodeForwardDelete: return kVibeKeyCodeDelete;
     }
     return keyCode;
 }
@@ -121,12 +132,17 @@ static inline NSArray<NSString *> *VibeShortcutIdentifiers(void) {
 
 // kVibeShortcutNone for an identifier that is not a remappable command.
 static inline VibeShortcut VibeShortcutDefault(NSString *identifier) {
-    for (NSArray *entry in VibeShortcutTable()) {
-        if ([entry[0] isEqualToString:identifier]) {
-            return [entry[1] unsignedIntegerValue];
+    static NSDictionary<NSString *, NSNumber *> *defaults;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSMutableDictionary *all = [NSMutableDictionary dictionary];
+        for (NSArray *entry in VibeShortcutTable()) {
+            all[entry[0]] = entry[1];
         }
-    }
-    return kVibeShortcutNone;
+        defaults = all;
+    });
+    NSNumber *shortcut = defaults[identifier];
+    return shortcut ? shortcut.unsignedIntegerValue : kVibeShortcutNone;
 }
 
 // A stored value is a number naming a key code and modifiers, or None. A
@@ -171,15 +187,15 @@ static inline BOOL VibeShortcutIsReserved(unsigned short keyCode, unichar charac
     keyCode = VibeShortcutCanonicalKeyCode(keyCode);
     modifiers &= kVibeShortcutModifierMask;
     switch (keyCode) {
-        case 53:                                        // Escape
-        case 123: case 124: case 125: case 126:         // arrows
+        case kVibeKeyCodeEscape:
+        case 123: case 124: case kVibeKeyCodeDownArrow: case kVibeKeyCodeUpArrow:
         case 65: case 67: case 69: case 71: case 75: case 78: case 81:
         case 82: case 83: case 84: case 85: case 86: case 87: case 88: case 89:
         case 91: case 92:                               // keypad
             return YES;
     }
 #if VIBE_VERBOSE_LOGGING
-    if (keyCode == 46 && modifiers == 0) {
+    if (keyCode == kVibeKeyCodeM && modifiers == 0) {
         return YES;
     }
 #endif
@@ -262,17 +278,12 @@ static inline NSDictionary<NSString *, NSNumber *> *VibeShortcutOverridesByAssig
     return result;
 }
 
-// Which commands a held key repeats: the skips walk the track and Next and
-// Previous walk the playlist. A held Space, Tab or P would flutter.
+// Which commands a held key repeats: the transport ones, which walk the
+// track or the playlist, but Play Selected. A held Space, Tab or P would
+// flutter.
 static inline BOOL VibeShortcutCommandRepeats(NSString *identifier) {
-    return [identifier isEqualToString:kVibeMenuNextTrack]
-            || [identifier isEqualToString:kVibeMenuPreviousTrack]
-            || [identifier isEqualToString:kVibeMenuSkipForward]
-            || [identifier isEqualToString:kVibeMenuSkipForwardMore]
-            || [identifier isEqualToString:kVibeMenuSkipForwardMost]
-            || [identifier isEqualToString:kVibeMenuSkipBack]
-            || [identifier isEqualToString:kVibeMenuSkipBackMore]
-            || [identifier isEqualToString:kVibeMenuSkipBackMost];
+    return VibeMenuValidationDomainForIdentifier(identifier) == VibeMenuValidationDomainTransport
+            && ![identifier isEqualToString:kVibeMenuPlaySelected];
 }
 
 NS_ASSUME_NONNULL_END

@@ -155,6 +155,7 @@ static const CGFloat kInlineTitleInset = 10;
     NSSize _lastNaturalSize;
     id _windowKeyObserver;
     id _menuTrackingObserver;
+    NSHashTable<NSTextField *> *_wrappingLabels;
 }
 
 - (instancetype)initWithPlayerController:(MainPlayerController *)playerController {
@@ -352,6 +353,34 @@ static const CGFloat kInlineTitleInset = 10;
     toggle.target = self;
     toggle.action = action;
     return toggle;
+}
+
+// The design-width pane's row content, so the first shared-floor height is
+// the design one.
+static const CGFloat kWrappingLabelInitialWidth = 408;
+
+- (NSTextField *)wrappingLabelWithString:(NSString *)text {
+    NSTextField *label = [NSTextField wrappingLabelWithString:text];
+    label.selectable = NO;
+    label.textColor = NSColor.secondaryLabelColor;
+    label.preferredMaxLayoutWidth = kWrappingLabelInitialWidth;
+    [label setContentCompressionResistancePriority:NSLayoutPriorityFittingSizeCompression - 1
+                                    forOrientation:NSLayoutConstraintOrientationHorizontal];
+    if (!_wrappingLabels) {
+        _wrappingLabels = [NSHashTable weakObjectsHashTable];
+    }
+    [_wrappingLabels addObject:label];
+    return label;
+}
+
+- (void)viewDidLayout {
+    [super viewDidLayout];
+    for (NSTextField *label in _wrappingLabels) {
+        CGFloat width = NSWidth(label.frame);
+        if (width > 0 && fabs(label.preferredMaxLayoutWidth - width) > 0.5) {
+            label.preferredMaxLayoutWidth = width; // invalidates the intrinsic size itself
+        }
+    }
 }
 
 - (void)resolveLayoutStateFromSettings {

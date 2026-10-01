@@ -31,8 +31,12 @@ typedef NS_ENUM(NSInteger, VibeEffectKey) {
 static const NSTimeInterval kEffectTapMaxDuration = 0.35;
 
 static NSInteger VibeEffectKeyForCommand(NSString *identifier) {
-    NSArray<NSString *> *commands = @[kVibeMenuFXLowKill, kVibeMenuFXLowKillBoost, kVibeMenuFXReverb,
-                                      kVibeMenuFXDelay, kVibeMenuFXShortDelay];
+    static NSArray<NSString *> *commands;   // indexed by VibeEffectKey
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        commands = @[kVibeMenuFXLowKill, kVibeMenuFXLowKillBoost, kVibeMenuFXReverb,
+                     kVibeMenuFXDelay, kVibeMenuFXShortDelay];
+    });
     NSUInteger index = [commands indexOfObject:identifier];
     return index == NSNotFound ? -1 : (NSInteger)index;
 }
@@ -40,7 +44,8 @@ static NSInteger VibeEffectKeyForCommand(NSString *identifier) {
 // The playlist's physical keys, unmodified: Return, Delete (each folding its
 // twin) and the two arrows that move its selection.
 static BOOL VibeIsPlaylistKey(unsigned short keyCode, NSEventModifierFlags modifiers) {
-    return modifiers == 0 && (keyCode == 36 || keyCode == 51 || keyCode == 125 || keyCode == 126);
+    return modifiers == 0 && (keyCode == kVibeKeyCodeReturn || keyCode == kVibeKeyCodeDelete
+                              || keyCode == kVibeKeyCodeDownArrow || keyCode == kVibeKeyCodeUpArrow);
 }
 
 @implementation TransportKeyMonitor {
@@ -189,7 +194,7 @@ static BOOL VibeIsPlaylistKey(unsigned short keyCode, NSEventModifierFlags modif
 #if VIBE_VERBOSE_LOGGING
     // Beta instrumentation: M marks the moment a tester hears a problem.
     // keyCode 46 is the physical M under any layout.
-    if (keyCode == 46 && mods == 0) {
+    if (keyCode == kVibeKeyCodeM && mods == 0) {
         if (event.isARepeat) return nil;
         static NSUInteger marks;
         AudioPlayer *player = controller.audioPlayer;
@@ -237,20 +242,10 @@ static BOOL VibeIsPlaylistKey(unsigned short keyCode, NSEventModifierFlags modif
         }
         return nil;
     }
-    if ([command isEqualToString:kVibeMenuPlaySelected]
-            || [command isEqualToString:kVibeMenuEditRemoveFromPlaylist]) {
-        if (!playlistShown) {
-            return nil;
-        }
-        if ([command isEqualToString:kVibeMenuPlaySelected]) {
-            [controller playSelectedTrack:nil];   // the keyboard's double-click
-        }
-        else if (!event.isARepeat) {
-            // A held delete takes one gesture's rows, not the playlist.
-            [controller removeSelectedPlaylistTracks:nil];
-        }
-        return nil;
-    }
+    // Validation gates the rest: Play Selected and Remove need the playlist
+    // showing with a row selected, so a press over a collapsed playlist is
+    // swallowed and does nothing. Remove never repeats, so a held delete
+    // takes one gesture's rows.
     if (!event.isARepeat || VibeShortcutCommandRepeats(command)) {
         [controller performMenuCommandWithIdentifier:command];
     }
