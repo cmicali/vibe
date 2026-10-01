@@ -133,7 +133,12 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     return _text;
 }
 
+// The tick writes it three times a second, and an unchanged write would still
+// invalidate the layout.
 - (void)setText:(NSString *)text {
+    if (text == _text || [text isEqualToString:_text]) {
+        return;
+    }
     _text = [text copy];
     _label.text = text;
     self.accessibilityValue = text;
