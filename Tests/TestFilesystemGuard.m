@@ -24,6 +24,8 @@
 
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
+#include <errno.h>
+#include <signal.h>
 
 static NSString *gRoot;
 static NSString *gToolDomain;
@@ -104,8 +106,23 @@ static void VibeRestoreTestFilesystem(void) {
     [NSFileManager.defaultManager removeItemAtPath:gRoot error:NULL];
 }
 
+// TRAP: atexit never runs in a process that crashes or is killed (a hang, a
+// runner's teardown), so its root outlives it. Each process removes the roots
+// of pids that are gone; a live pid's root, another run's, is left alone.
+static void VibeRemoveOrphanedTestRoots(NSString *temporary) {
+    NSFileManager *files = NSFileManager.defaultManager;
+    for (NSString *name in [files contentsOfDirectoryAtPath:temporary error:NULL]) {
+        if (![name hasPrefix:@"VibeTests-"]) continue;
+        pid_t pid = [name substringFromIndex:@"VibeTests-".length].intValue;
+        if (pid <= 0 || ![name isEqualToString:[NSString stringWithFormat:@"VibeTests-%d", pid]]) continue;
+        if (kill(pid, 0) == 0 || errno != ESRCH) continue;
+        [files removeItemAtPath:[temporary stringByAppendingPathComponent:name] error:NULL];
+    }
+}
+
 + (void)load {
     // Per process, so concurrent runs cannot delete each other's root at exit.
+    VibeRemoveOrphanedTestRoots(NSTemporaryDirectory());
     gRoot = [NSTemporaryDirectory() stringByAppendingPathComponent:
             [NSString stringWithFormat:@"VibeTests-%d", getpid()]];
     [NSFileManager.defaultManager createDirectoryAtPath:gRoot
