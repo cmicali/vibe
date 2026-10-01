@@ -35,6 +35,7 @@ the original, and the corpus is the user's real music.
 """
 
 import argparse
+import contextlib
 import json
 import os
 import random
@@ -68,8 +69,12 @@ VERB_TIMEOUTS = {"file_cache": 90, "quiesce": 40}
 # main-thread stall rather than a slow verb. Ordinary probe latency is ~110ms.
 STALL_PROBE_MS = 2000
 
-AUDIO_SUFFIXES = {".mp3", ".mp2", ".m4a", ".mp4", ".qta", ".aac", ".flac",
-                  ".wav", ".wave", ".bwf", ".aif", ".aiff"}
+# PlayableExtensions.ordered, in its order: the cue reader probes a missing
+# FILE's other spellings in it, and make-cue-corpus.py resolves them the same
+# way. The runner tests hold this to the source.
+AUDIO_SUFFIXES = (".wav", ".wave", ".bwf", ".w64", ".aif", ".aiff", ".flac", ".caf",
+                  ".m4a", ".mp4", ".qta", ".m4b", ".m4r", ".aac", ".adts",
+                  ".ogg", ".oga", ".opus", ".mp3", ".mp2")
 PLAYLIST_SUFFIXES = {".m3u", ".m3u8", ".cue"}   # PlaylistFile.isPlaylistExtension:
 
 # TRAP: raw input can start native file and window drags, so unattended runs
@@ -267,8 +272,8 @@ def app_is_running():
 
 # TRAP: these settings gate whole subsystems and persist in NSUserDefaults, so
 # a run inherits the last run's final toggle, and with one off it passes over
-# code it never entered. Forced on at launch, printed in the header, and forced
-# back on at teardown.
+# code it never entered. Forced on at launch and printed in the header;
+# teardown puts back the user's own values, so the next run forces them again.
 FEATURE_SETTINGS = {
     "folderArt": ["set_folder_art", "on"],
     "analyzeBPM": ["set_analysis", "bpm", "on"],
@@ -285,43 +290,104 @@ def describe_feature_settings(channel) -> str:
     return ", ".join(parts)
 
 
-def user_settings_snapshot(channel) -> dict:
-    """The user's persisted preferences that ops flip, to be put back at the
-    end whether the run passed or not."""
+def on_off(value):
+    return "on" if value else "off"
+
+
+PITCH_PANEL_WIDTH = 96   # kPitchPanelWidth, outside set_window_width's body width
+
+
+def window_restore(before):
+    width, height = (float(n) for n in re.findall(r"-?[\d.]+", before["windowFrame"])[2:4])
+    panel = PITCH_PANEL_WIDTH if before.get("pitchPanelShown") else 0
+    return ["set_window_width", f"{width - panel:g}", f"{height:g}"]
+
+
+# TRAP: the store a run moves is the user's real one, since the sandbox
+# container is shared with the installed app. Every persisted value an op can
+# move needs its command here, given the starting snapshot; teardown reports
+# any other key that moved as STILL CHANGED. It sends one only for a key that
+# moved, re-reading after each, so a toggle restores by being sent again.
+# Order matters: the theme first, since an apply carries the waveform style
+# and theme and can pin the appearance (a single-mode theme outranks
+# windowAppearance); the window's frame last, since the panels move it.
+SETTING_RESTORERS = {
+    "activeTheme": lambda b: ["set_theme", b["activeTheme"]],
+    "windowAppearance": lambda b: ["set_appearance", b["windowAppearance"]],
+    "pauseAtTrackEnd": lambda b: ["set_pause_at_track_end", on_off(b["pauseAtTrackEnd"])],
+    "folderArt": lambda b: ["set_folder_art", on_off(b["folderArt"])],
+    "analyzeBPM": lambda b: ["set_analysis", "bpm", on_off(b["analyzeBPM"])],
+    "analyzeKey": lambda b: ["set_analysis", "key", on_off(b["analyzeKey"])],
+    "pitchRange": lambda b: ["click_menu", f"pitch_range_{b['pitchRange']}"],
+    "playlistShown": lambda b: ["click_menu", "menu_show_playlist"],
+    "pitchPanelShown": lambda b: ["toggle_pitch_panel"],
+    "windowFrame": window_restore,
+}
+
+
+def current_settings(channel):
+    """dump_state.settings plus the main window's frame, which NSWindow
+    autosaves to the same store; None when the app does not answer."""
     code, state, _ = channel.run(["dump_state"], timeout=20)
     if code != 0 or not isinstance(state, dict):
-        return {}
-    settings = state.get("settings") or {}
-    # dump_state reports appearance in set_appearance's own vocabulary
-    # (light|dark|system), so restore hands it back verbatim.
-    return {key: settings[key]
-            for key in ("windowAppearance", "activeTheme", "pauseAtTrackEnd")
-            if key in settings}
+        return None
+    settings = dict(state.get("settings") or {})
+    settings["windowFrame"] = (state.get("window") or {}).get("frame")
+    return settings
 
 
-def user_settings_restore(channel, snapshot: dict, imported_themes=()):
+def user_settings_restore(channel, before, imported_themes, corpus, app):
+    """Put back what the run moved, pass or fail, and print one line saying
+    what — including any key still off its starting value."""
+    relaunched = ""
+    if before and app_pid() is None:
+        # A crash or an exit left the store as the run moved it.
+        try:
+            launch(corpus, app)
+            relaunched = "relaunched to restore; "
+        except SystemExit as error:
+            print(f"settings: NOT restored, relaunch failed: {error}", file=sys.stderr)
+            return
+    now = current_settings(channel) if before else None
+    if now is None:
+        print("settings: NOT restored — "
+              + ("the app is not answering" if before else "no starting snapshot")
+              + f"; {len(imported_themes)} imported themes remain", file=sys.stderr)
+        return
+    channel.run(["reorder_cancel"])
     # Imports first: each is a persisted user theme, and one left behind
     # changes the next run's theme list and so the op sequence its seed draws.
     # remove_theme falls back to vibe when the removed theme is active.
-    for identifier in imported_themes:
-        channel.run(["remove_theme", str(identifier)])
-    # Theme before appearance: a theme apply can pin the appearance (a
-    # single-mode theme outranks windowAppearance). The theme also carries the
-    # waveform style, so nothing restores that separately.
-    theme = snapshot.get("activeTheme")
-    if theme:
-        channel.run(["set_theme", theme])
-    appearance = snapshot.get("windowAppearance")
-    if appearance:
-        code, payload, _ = channel.run(["set_appearance", appearance])
-        if code != 0 or not (payload or {}).get("ok"):
-            print(f"  warning: could not restore appearance {appearance!r}",
-                  file=sys.stderr)
-    pause = snapshot.get("pauseAtTrackEnd")
-    if pause is not None:
-        channel.run(["set_pause_at_track_end", "on" if pause else "off"])
-    for argv in FEATURE_SETTINGS.values():
-        channel.run(argv)
+    removed = sum(channel.run(["remove_theme", str(identifier)])[0] == 0
+                  for identifier in imported_themes)
+    restored = []
+    now = current_settings(channel) or now
+    for key, restorer in SETTING_RESTORERS.items():
+        if before.get(key) is not None and now.get(key) != before[key]:
+            channel.run(restorer(before))
+            restored.append(f"{key}={before[key]}")
+            now = current_settings(channel) or now
+    left = [f"{key} {before[key]!r} -> {now.get(key)!r}"
+            for key in sorted(before) if now.get(key) != before[key]]
+    line = (f"settings: {relaunched}removed {removed}/{len(imported_themes)} imported themes, "
+            f"restored {', '.join(restored) or 'nothing (none moved)'}")
+    if left:
+        print(f"{line}; STILL CHANGED: {'; '.join(left)}", file=sys.stderr)
+    else:
+        print(f"{line}; the store matches the start")
+
+
+@contextlib.contextmanager
+def user_settings_preserved(channel, corpus: Path, app: Path):
+    """Snapshot the settings before the run forces any, and restore them on
+    every exit Python sees (SIGTERM and SIGHUP raise KeyboardInterrupt; see
+    main). Yields the list the run appends imported theme ids to."""
+    before = current_settings(channel)
+    imported_themes = []
+    try:
+        yield imported_themes
+    finally:
+        user_settings_restore(channel, before, imported_themes, corpus, app)
 
 
 def launch(corpus: Path, app: Path):
@@ -1505,172 +1571,173 @@ def run(args):
 
     started = time.time()
     launch(corpus, app)
-    menu_ids = collect_menu_ids(channel)
-    # Window restoration (NSQuitAlwaysKeepsWindows) reopens Settings if it was
-    # open at quit: ~600 views in the baseline, or a false growth failure after
-    # it. Close it before the first sample.
-    channel.run(["settings_close"], timeout=20)
-    themes, theme_base = collect_themes(channel)
-    print(f"menu:   {len(menu_ids)} allowed app actions")
-    print("input:  command-only (no pointer events, key events or activation)")
-    print(f"settings: {describe_feature_settings(channel)}")
-    print(f"themes: {len(themes)} applicable, "
-          f"base record {'from ' + str(theme_base.get('name')) if theme_base else 'UNAVAILABLE'}")
-    if IGNORED_METRICS:
-        print(f"RELAXED: not scoring {', '.join(sorted(IGNORED_METRICS))} "
-              f"— this run cannot report those")
-    restore = user_settings_snapshot(channel)
+    with user_settings_preserved(channel, corpus, app) as imported_themes:
+        menu_ids = collect_menu_ids(channel)
+        # Window restoration (NSQuitAlwaysKeepsWindows) reopens Settings if it was
+        # open at quit: ~600 views in the baseline, or a false growth failure after
+        # it. Close it before the first sample.
+        channel.run(["settings_close"], timeout=20)
+        themes, theme_base = collect_themes(channel)
+        print(f"menu:   {len(menu_ids)} allowed app actions")
+        print("input:  command-only (no pointer events, key events or activation)")
+        print(f"settings: {describe_feature_settings(channel)}")
+        base_name = 'from ' + str(theme_base.get('name')) if theme_base else 'UNAVAILABLE'
+        print(f"themes: {len(themes)} applicable, base record {base_name}")
+        if IGNORED_METRICS:
+            print(f"RELAXED: not scoring {', '.join(sorted(IGNORED_METRICS))} "
+                  f"— this run cannot report those")
 
-    if args.profile == "cloud":
-        # Armed before the first op, so the first batch's opens are downloads.
-        # The 0.9s base sits above the player's 0.5s slow-open indicator delay,
-        # so the loading UI is exercised; per-file times spread around it with
-        # slow and stuck tails (VibeFakeCloud). capacity=1 is install's default
-        # too, stated because the hold is unobservable without it (see
-        # op_cloud_churn).
-        code, payload, _ = channel.run(
-            ["set_fake_cloud", "0.9", str(args.cloud_percent), "capacity=1"])
-        if code != 0 or not (payload or {}).get("installed"):
-            sys.exit("cloud profile: could not arm the fake provider "
-                     f"(exit {code}, reply {payload}) — needs a Debug build")
-        print(f"cloud:  fake provider armed, {payload['percent']}% of files cloudy, "
-              f"0.90s base with slow and stuck tails, {payload['capacity']} transfer slot")
+        if args.profile == "cloud":
+            # Armed before the first op, so the first batch's opens are downloads.
+            # The 0.9s base sits above the player's 0.5s slow-open indicator delay,
+            # so the loading UI is exercised; per-file times spread around it with
+            # slow and stuck tails (VibeFakeCloud). capacity=1 is install's default
+            # too, stated because the hold is unobservable without it (see
+            # op_cloud_churn).
+            code, payload, _ = channel.run(
+                ["set_fake_cloud", "0.9", str(args.cloud_percent), "capacity=1"])
+            if code != 0 or not (payload or {}).get("installed"):
+                sys.exit("cloud profile: could not arm the fake provider "
+                         f"(exit {code}, reply {payload}) — needs a Debug build")
+            print(f"cloud:  fake provider armed, {payload['percent']}% of files cloudy, "
+                  f"0.90s base with slow and stuck tails, {payload['capacity']} transfer slot")
 
-    generator = OpGenerator(rng, files, playlists, dirs, menu_ids, args.profile,
-                            themes=themes, theme_base=theme_base)
-    journal_path = (Path(args.journal) if args.journal
-                    else DEFAULT_OUTPUT_DIR / f"stress-{seed}.ndjson")
-    # The health series, stall samples and failure directory all land here.
-    journal_path.parent.mkdir(parents=True, exist_ok=True)
-    stalls = {"dir": journal_path.parent / f"stress-{seed}-stalls", "count": 0,
-              "samples": 0, "max": args.max_stalls}
-    imported_themes = []
-    health_samples = []
-    growth_streaks = {}
-    baseline = None
-    # The quiesced series, scored against the tight resting limits.
-    resting_samples = []
-    resting_streaks = {}
-    resting_baseline = None
-    batches = 0
-    failure = None
-    executed = 0
-    deadline = started + args.duration if args.duration else None
+        generator = OpGenerator(rng, files, playlists, dirs, menu_ids, args.profile,
+                                themes=themes, theme_base=theme_base)
+        journal_path = (Path(args.journal) if args.journal
+                        else DEFAULT_OUTPUT_DIR / f"stress-{seed}.ndjson")
+        # The health series, stall samples and failure directory all land here.
+        journal_path.parent.mkdir(parents=True, exist_ok=True)
+        stalls = {"dir": journal_path.parent / f"stress-{seed}-stalls", "count": 0,
+                  "samples": 0, "max": args.max_stalls}
+        health_samples = []
+        growth_streaks = {}
+        baseline = None
+        # The quiesced series, scored against the tight resting limits.
+        resting_samples = []
+        resting_streaks = {}
+        resting_baseline = None
+        batches = 0
+        failure = None
+        interrupted = False
+        executed = 0
+        deadline = started + args.duration if args.duration else None
 
-    with open(journal_path, "w") as journal:
-        journal.write(json.dumps({
-            "seed": seed, "profile": args.profile, "corpus": str(corpus),
-            "app": str(app), "iterations": args.iterations, "batch": args.batch,
-        }) + "\n")
+        with open(journal_path, "w") as journal:
+            journal.write(json.dumps({
+                "seed": seed, "profile": args.profile, "corpus": str(corpus),
+                "app": str(app), "iterations": args.iterations, "batch": args.batch,
+            }) + "\n")
 
-        try:
-            while executed < args.iterations:
-                batch = []
-                while len(batch) < args.batch and executed + len(batch) < args.iterations:
-                    batch.extend(generator.next_ops())
+            try:
+                while executed < args.iterations:
+                    batch = []
+                    while len(batch) < args.batch and executed + len(batch) < args.iterations:
+                        batch.extend(generator.next_ops())
 
-                failure = replay_ops(channel, batch, journal=journal, stalls=stalls,
-                                     imported_themes=imported_themes)
-                executed += len(batch)
-                if failure:
-                    break
-
-                state = check_liveness(channel, since=started)
-                generator.note_state(state)
-
-                violations = check_consistency(channel)
-                if violations:
-                    failure = Failure("consistency",
-                                      "; ".join(f"{v['id']}: {v['detail']}" for v in violations))
-                    break
-
-                code, health, _ = channel.run(["dump_health"], timeout=20)
-                if code == 0 and health:
-                    health["_ops"] = executed
-                    # An open auxiliary window counts its subtree as views
-                    # (Settings is ~600), failing the run on a window rather
-                    # than a leak. No op opens Settings on purpose, so the
-                    # note names the batch's ops to localize whatever did.
-                    aux_views = (health.get("ui") or {}).get("views", 0)
-                    if ((health.get("ui") or {}).get("visibleWindows", 1) > 1
-                            and baseline is not None
-                            and aux_views > baseline.get("ui", {}).get("views", 0) + 200):
-                        journal.write(json.dumps({
-                            "note": "auxiliary window open — closing",
-                            "afterOp": executed,
-                            "visibleWindows": health["ui"]["visibleWindows"],
-                            "views": health["ui"].get("views"),
-                            "recentOps": [o[0] for o in batch[-12:]],
-                        }) + "\n")
-                        journal.flush()
-                        channel.run(["settings_close"], timeout=20)
-                        code2, health2, _ = channel.run(["dump_health"], timeout=20)
-                        if code2 == 0 and health2:
-                            health = health2
-                            health["_ops"] = executed
-                    health_samples.append(health)
-                    if baseline is None:
-                        if len(health_samples) >= BASELINE_SAMPLES:
-                            baseline = min_baseline(health_samples)
-                    else:
-                        grew = health_growth(baseline, health, growth_streaks)
-                        if grew:
-                            failure = Failure("resource", "; ".join(grew))
-                            break
-
-                    if len(health_samples) % 5 == 0 or args.verbose:
-                        footprint = health["process"].get("footprintBytes", 0) // (1024 * 1024)
-                        print(f"  {executed:6d} ops   {footprint:5d} MB   "
-                              f"{health['app'].get('hostedUnits', '?')} units   "
-                              f"{health['process'].get('fileDescriptors', '?')} fds")
-
-                batches += 1
-                if args.quiesce_every and batches % args.quiesce_every == 0:
-                    failure, resting_baseline = quiesced_checkpoint(
-                        channel, resting_samples, resting_streaks, resting_baseline,
-                        executed, args.verbose)
+                    failure = replay_ops(channel, batch, journal=journal, stalls=stalls,
+                                         imported_themes=imported_themes)
+                    executed += len(batch)
                     if failure:
                         break
-                    # quiesce empties the playlist, and `ui` never opens one.
-                    if files:
-                        channel.run(["open", str(rng.choice(files))])
 
-                if deadline and time.time() > deadline:
-                    print(f"  duration limit reached after {executed} ops")
-                    break
-        except Failure as caught:
-            failure = caught
-        except KeyboardInterrupt:
-            print("\ninterrupted", file=sys.stderr)
+                    state = check_liveness(channel, since=started)
+                    generator.note_state(state)
 
-    channel.run(["reorder_cancel"])
-    user_settings_restore(channel, restore, imported_themes)
+                    violations = check_consistency(channel)
+                    if violations:
+                        failure = Failure("consistency", "; ".join(
+                            f"{v['id']}: {v['detail']}" for v in violations))
+                        break
 
-    if health_samples or resting_samples:
-        samples_path = journal_path.with_suffix(".health.ndjson")
-        combined = sorted(health_samples + resting_samples, key=lambda s: s["_ops"])
-        samples_path.write_text("".join(json.dumps(s) + "\n" for s in combined))
-        print(f"health: {samples_path} ({len(health_samples)} in-flight, "
-              f"{len(resting_samples)} at rest)")
+                    code, health, _ = channel.run(["dump_health"], timeout=20)
+                    if code == 0 and health:
+                        health["_ops"] = executed
+                        # An open auxiliary window counts its subtree as views
+                        # (Settings is ~600), failing the run on a window rather
+                        # than a leak. No op opens Settings on purpose, so the
+                        # note names the batch's ops to localize whatever did.
+                        aux_views = (health.get("ui") or {}).get("views", 0)
+                        if ((health.get("ui") or {}).get("visibleWindows", 1) > 1
+                                and baseline is not None
+                                and aux_views > baseline.get("ui", {}).get("views", 0) + 200):
+                            journal.write(json.dumps({
+                                "note": "auxiliary window open — closing",
+                                "afterOp": executed,
+                                "visibleWindows": health["ui"]["visibleWindows"],
+                                "views": health["ui"].get("views"),
+                                "recentOps": [o[0] for o in batch[-12:]],
+                            }) + "\n")
+                            journal.flush()
+                            channel.run(["settings_close"], timeout=20)
+                            code2, health2, _ = channel.run(["dump_health"], timeout=20)
+                            if code2 == 0 and health2:
+                                health = health2
+                                health["_ops"] = executed
+                        health_samples.append(health)
+                        if baseline is None:
+                            if len(health_samples) >= BASELINE_SAMPLES:
+                                baseline = min_baseline(health_samples)
+                        else:
+                            grew = health_growth(baseline, health, growth_streaks)
+                            if grew:
+                                failure = Failure("resource", "; ".join(grew))
+                                break
 
-    print(f"journal: {journal_path}")
-    print(f"exercised: {describe_materialization_coverage(channel)}")
-    if stalls["count"]:
-        print(f"stalls:  {stalls['count']} recoverable main-thread stalls over 5s, "
-              f"sampled in {stalls['dir']}")
+                        if len(health_samples) % 5 == 0 or args.verbose:
+                            footprint = health["process"].get("footprintBytes", 0) // (1024 * 1024)
+                            print(f"  {executed:6d} ops   {footprint:5d} MB   "
+                                  f"{health['app'].get('hostedUnits', '?')} units   "
+                                  f"{health['process'].get('fileDescriptors', '?')} fds")
 
-    if failure:
-        out_dir = journal_path.parent / f"stress-{seed}-failure"
-        notes = capture_diagnostics(channel, out_dir, failure, started)
-        print(f"\nFAILED after {executed} ops: {failure.kind} — {failure.detail}")
-        for note in notes[2:]:
-            print(f"  {note}")
-        print(f"  diagnostics: {out_dir}")
-        print(f"  minimize:    {sys.argv[0]} --corpus {corpus} --shrink {journal_path}")
-        return 1
+                    batches += 1
+                    if args.quiesce_every and batches % args.quiesce_every == 0:
+                        failure, resting_baseline = quiesced_checkpoint(
+                            channel, resting_samples, resting_streaks, resting_baseline,
+                            executed, args.verbose)
+                        if failure:
+                            break
+                        # quiesce empties the playlist, and `ui` never opens one.
+                        if files:
+                            channel.run(["open", str(rng.choice(files))])
 
-    print(f"\nPASSED {executed} ops, no violations, no unbounded growth")
-    return 0
+                    if deadline and time.time() > deadline:
+                        print(f"  duration limit reached after {executed} ops")
+                        break
+            except Failure as caught:
+                failure = caught
+            except KeyboardInterrupt:
+                interrupted = True
+
+        if health_samples or resting_samples:
+            samples_path = journal_path.with_suffix(".health.ndjson")
+            combined = sorted(health_samples + resting_samples, key=lambda s: s["_ops"])
+            samples_path.write_text("".join(json.dumps(s) + "\n" for s in combined))
+            print(f"health: {samples_path} ({len(health_samples)} in-flight, "
+                  f"{len(resting_samples)} at rest)")
+
+        print(f"journal: {journal_path}")
+        print(f"exercised: {describe_materialization_coverage(channel)}")
+        if stalls["count"]:
+            print(f"stalls:  {stalls['count']} recoverable main-thread stalls over 5s, "
+                  f"sampled in {stalls['dir']}")
+
+        if failure:
+            out_dir = journal_path.parent / f"stress-{seed}-failure"
+            notes = capture_diagnostics(channel, out_dir, failure, started)
+            print(f"\nFAILED after {executed} ops: {failure.kind} — {failure.detail}")
+            for note in notes[2:]:
+                print(f"  {note}")
+            print(f"  diagnostics: {out_dir}")
+            print(f"  minimize:    {sys.argv[0]} --corpus {corpus} --shrink {journal_path}")
+            return 1
+
+        if interrupted:
+            # A killed run is not a pass: SIGTERM lands here too (see main).
+            print(f"\nINTERRUPTED after {executed} ops, no violations so far")
+            return 130
+        print(f"\nPASSED {executed} ops, no violations, no unbounded growth")
+        return 0
 
 
 # --------------------------------------------------------------------------
@@ -1690,7 +1757,7 @@ def load_journal(path: Path):
     return ops
 
 
-def reproduces(channel, corpus, app, ops, resting_mb=0):
+def reproduces(channel, corpus, app, ops, resting_mb=0, imported_themes=None):
     """Fresh app, replay ops, run the oracles. True if it still fails.
 
     resting_mb also counts an at-rest footprint above it as a failure, so a
@@ -1699,7 +1766,7 @@ def reproduces(channel, corpus, app, ops, resting_mb=0):
     for _, argv, _ in ops:
         require_command(argv)
     launch(corpus, app)
-    failure = replay_ops(channel, ops)
+    failure = replay_ops(channel, ops, imported_themes=imported_themes)
     if failure:
         return True
     try:
@@ -1735,27 +1802,30 @@ def shrink(args):
     resting_mb = args.shrink_resting_mb
     if resting_mb:
         print(f"  predicate includes resting footprint > {resting_mb} MB")
-    if not reproduces(channel, corpus, app, ops, resting_mb):
-        sys.exit("the full journal does not reproduce a failure — nothing to shrink")
+    launch(corpus, app)
+    with user_settings_preserved(channel, corpus, app) as imported_themes:
+        if not reproduces(channel, corpus, app, ops, resting_mb, imported_themes):
+            sys.exit("the full journal does not reproduce a failure — nothing to shrink")
 
-    n = 2
-    while len(ops) >= 2:
-        chunk = max(1, len(ops) // n)
-        reduced = False
-        for start in range(0, len(ops), chunk):
-            candidate = ops[:start] + ops[start + chunk:]
-            if not candidate:
-                continue
-            print(f"  trying {len(candidate)} ops…", flush=True)
-            if reproduces(channel, corpus, app, candidate, resting_mb):
-                ops = candidate
-                n = max(2, n - 1)
-                reduced = True
-                break
-        if not reduced:
-            if n >= len(ops):
-                break
-            n = min(len(ops), n * 2)
+        n = 2
+        while len(ops) >= 2:
+            chunk = max(1, len(ops) // n)
+            reduced = False
+            for start in range(0, len(ops), chunk):
+                candidate = ops[:start] + ops[start + chunk:]
+                if not candidate:
+                    continue
+                print(f"  trying {len(candidate)} ops…", flush=True)
+                if reproduces(channel, corpus, app, candidate, resting_mb,
+                              imported_themes):
+                    ops = candidate
+                    n = max(2, n - 1)
+                    reduced = True
+                    break
+            if not reduced:
+                if n >= len(ops):
+                    break
+                n = min(len(ops), n * 2)
 
     out = Path(args.shrink).with_suffix(".min.txt")
     lines = []
@@ -1904,6 +1974,11 @@ def main():
     IGNORED_METRICS.update(args.ignore_metric)
 
     signal.signal(signal.SIGINT, signal.default_int_handler)
+    # Python's default for these exits without running a `finally`, so a
+    # killed run (a timeout, `kill`, a closed terminal) would leave the user's
+    # real settings and theme store as it moved them.
+    signal.signal(signal.SIGTERM, signal.default_int_handler)
+    signal.signal(signal.SIGHUP, signal.default_int_handler)
 
     if args.shrink:
         return shrink(args)
@@ -1915,16 +1990,18 @@ def main():
         ops = load_journal(Path(args.replay))
         print(f"replaying {len(ops)} ops from {args.replay}")
         launch(corpus, app)
-        failure = replay_ops(channel, ops, check_every=args.batch)
-        if failure:
-            print(f"FAILED: {failure.kind} — {failure.detail}")
-            return 1
-        violations = check_consistency(channel)
-        if violations:
-            print("FAILED: " + "; ".join(v["id"] for v in violations))
-            return 1
-        print("PASSED")
-        return 0
+        with user_settings_preserved(channel, corpus, app) as imported_themes:
+            failure = replay_ops(channel, ops, check_every=args.batch,
+                                 imported_themes=imported_themes)
+            if failure:
+                print(f"FAILED: {failure.kind} — {failure.detail}")
+                return 1
+            violations = check_consistency(channel)
+            if violations:
+                print("FAILED: " + "; ".join(v["id"] for v in violations))
+                return 1
+            print("PASSED")
+            return 0
     return run(args)
 
 

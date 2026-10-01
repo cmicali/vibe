@@ -47,7 +47,9 @@ import struct
 import subprocess
 import sys
 
-AUDIO_SUFFIXES = {".mp3", ".m4a", ".flac", ".wav", ".aif", ".aiff"}
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from stress import AUDIO_SUFFIXES  # noqa: E402
+
 EMBEDDED_MINIMUM = 100 * 1024 * 1024    # NSURLUtil's kVibeEmbeddedCueMinimumBytes
 CD_FRAMES = 75
 
@@ -113,7 +115,7 @@ def resolve_beside(sheet_dir, name):
     base = sheet_dir / pathlib.PureWindowsPath(name).name
     if base.exists():
         return base
-    for suffix in (".flac", ".wav", ".aiff", ".aif", ".m4a", ".mp3"):
+    for suffix in AUDIO_SUFFIXES:
         if base.with_suffix(suffix).exists():
             return base.with_suffix(suffix)
     return None

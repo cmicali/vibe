@@ -23,8 +23,8 @@ import shutil
 import struct
 import sys
 
-AUDIO_SUFFIXES = {".mp3", ".m4a", ".flac", ".wav", ".wave", ".bwf",
-                  ".aif", ".aiff", ".mp4", ".aac", ".mp2"}
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from stress import AUDIO_SUFFIXES  # noqa: E402
 
 
 def pick_sources(source: pathlib.Path, rng, want):
