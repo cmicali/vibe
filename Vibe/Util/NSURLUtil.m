@@ -204,48 +204,57 @@ static BOOL VibePathIsDirectlyInside(NSString *path, NSString *directory) {
 //
 // TRAP: decorate the dates and names once, never read them in the comparator,
 // which runs O(n log n) times: NSURL.path mints a string per read, and a date
-// the enumeration did not prefetch is a file-provider round trip.
+// the enumeration did not prefetch is a file-provider round trip. They are
+// read by position, as hashing an NSURL in the comparator costs a pass over
+// its string; the positions sort as the URLs did, by the same comparisons.
 static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort sort,
                               BOOL byFullPath) {
     if (sort == VibeFolderOpenSortAsReceived) {
         return;
     }
-    NSMutableDictionary<NSURL*, NSString*> *nameByURL =
-            [NSMutableDictionary dictionaryWithCapacity:urls.count];
+    NSUInteger count = urls.count;
+    NSMutableArray<NSString*> *names = [NSMutableArray arrayWithCapacity:count];
+    NSMutableArray<NSNumber*> *order = [NSMutableArray arrayWithCapacity:count];
     for (NSURL *url in urls) {
-        nameByURL[url] = (byFullPath ? url.path : url.lastPathComponent) ?: @"";
+        [order addObject:@(names.count)];
+        [names addObject:(byFullPath ? url.path : url.lastPathComponent) ?: @""];
     }
-    NSComparisonResult (^byName)(NSURL *, NSURL *) = ^(NSURL *a, NSURL *b) {
-        return [nameByURL[a] localizedStandardCompare:nameByURL[b]];
+    NSComparisonResult (^byName)(NSUInteger, NSUInteger) = ^(NSUInteger a, NSUInteger b) {
+        return [names[a] localizedStandardCompare:names[b]];
     };
     if (sort != VibeFolderOpenSortNewestFirst) {
-        [urls sortUsingComparator:^NSComparisonResult(NSURL *a, NSURL *b) {
-            return byName(a, b);
+        [order sortUsingComparator:^NSComparisonResult(NSNumber *a, NSNumber *b) {
+            return byName(a.unsignedIntegerValue, b.unsignedIntegerValue);
         }];
-        return;
     }
-    NSMutableDictionary<NSURL*, NSDate*> *dateByURL =
-            [NSMutableDictionary dictionaryWithCapacity:urls.count];
-    for (NSURL *url in urls) {
-        NSDate *modified = nil;
-        if ([url getResourceValue:&modified forKey:NSURLContentModificationDateKey error:NULL]
-                && modified) {
-            dateByURL[url] = modified;
+    else {
+        // NSNull for undated.
+        NSMutableArray *dates = [NSMutableArray arrayWithCapacity:count];
+        for (NSURL *url in urls) {
+            NSDate *modified = nil;
+            [url getResourceValue:&modified forKey:NSURLContentModificationDateKey error:NULL];
+            [dates addObject:modified ?: NSNull.null];
         }
-    }
-    // Undated files sort last, by name, keeping the order total.
-    [urls sortUsingComparator:^NSComparisonResult(NSURL *a, NSURL *b) {
-        NSDate *dateA = dateByURL[a];
-        NSDate *dateB = dateByURL[b];
-        if (!dateA || !dateB) {
-            if (dateA != dateB) {
-                return dateA ? NSOrderedAscending : NSOrderedDescending;
+        // Undated files sort last, by name, keeping the order total.
+        [order sortUsingComparator:^NSComparisonResult(NSNumber *a, NSNumber *b) {
+            NSUInteger indexA = a.unsignedIntegerValue;
+            NSUInteger indexB = b.unsignedIntegerValue;
+            id dateA = dates[indexA];
+            id dateB = dates[indexB];
+            if (dateA == NSNull.null || dateB == NSNull.null) {
+                if (dateA != dateB) {
+                    return dateA != NSNull.null ? NSOrderedAscending : NSOrderedDescending;
+                }
+                return byName(indexA, indexB);
             }
-            return byName(a, b);
-        }
-        NSComparisonResult newestFirst = [dateB compare:dateA];
-        return newestFirst != NSOrderedSame ? newestFirst : byName(a, b);
-    }];
+            NSComparisonResult newestFirst = [(NSDate *)dateB compare:dateA];
+            return newestFirst != NSOrderedSame ? newestFirst : byName(indexA, indexB);
+        }];
+    }
+    NSArray<NSURL*> *unsorted = [urls copy];
+    for (NSUInteger position = 0; position < count; position++) {
+        urls[position] = unsorted[order[position].unsignedIntegerValue];
+    }
 }
 
 // The walk ranks cover candidates on the way past, so the walked-directories
