@@ -262,6 +262,39 @@ static void VibePerfRegisterMetadata(void) {
     });
 }
 
+int VibePerfAnalyzeTree(NSString *root) {
+    NSMutableArray<NSString *> *paths = [NSMutableArray array];
+    NSSet *audio = [NSSet setWithArray:@[@"mp3", @"flac", @"wav", @"aiff", @"aif", @"m4a", @"ogg", @"opus"]];
+    for (NSString *relative in [NSFileManager.defaultManager enumeratorAtPath:root]) {
+        if ([audio containsObject:relative.pathExtension.lowercaseString]) {
+            [paths addObject:[root stringByAppendingPathComponent:relative]];
+        }
+    }
+    [paths sortUsingSelector:@selector(compare:)];
+    NSMutableArray<NSString *> *lines = [NSMutableArray arrayWithCapacity:paths.count];
+    for (NSUInteger i = 0; i < paths.count; i++) {
+        [lines addObject:@""];
+    }
+    dispatch_apply(paths.count, DISPATCH_APPLY_AUTO, ^(size_t i) {
+        @autoreleasepool {
+            AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] init];
+            loader.analysisProvider = ^VibeWaveformAnalysis {
+                return (VibeWaveformAnalysis){YES, YES};
+            };
+            CodableAudioWaveform *result = [loader load:paths[i]];
+            NSString *line = [NSString stringWithFormat:@"%@\t%.9g\t%ld", paths[i].lastPathComponent,
+                              result ? result.bpm : -1.0f, result ? (long)result.key : -2L];
+            @synchronized (lines) {
+                lines[i] = line;
+            }
+        }
+    });
+    for (NSString *line in lines) {
+        printf("%s\n", line.UTF8String);
+    }
+    return 0;
+}
+
 VIBE_PERF_REGISTER(VibePerfRegisterDecode)
 VIBE_PERF_REGISTER(VibePerfRegisterResample)
 VIBE_PERF_REGISTER(VibePerfRegisterWaveform)

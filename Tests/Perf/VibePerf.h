@@ -54,3 +54,8 @@ struct VibePerfPCM {
 VibePerfPCM *VibePerfDecoded(NSString *name);
 // A prepare answering that file's seconds, at `outputRate` when nonzero.
 std::function<double(void)> VibePerfPCMPrepare(NSString *name, double outputRate = 0);
+
+// --analyze: every audio file under `root` through the waveform loader with
+// both analyzers, one "path<TAB>bpm<TAB>key" line each, in path order, so two
+// builds' answers can be diffed for exactness.
+int VibePerfAnalyzeTree(NSString *root);

@@ -186,13 +186,14 @@ std::function<double(void)> VibePerfPCMPrepare(NSString *name, double outputRate
 // MARK: - Driver
 
 static void VibePerfUsageText(void) {
-    printf("usage: VibePerf --corpus <dir> [--reps N] [--filter <regex>] [--json <out>] [--list] [--loop <seconds>]\n"
+    printf("usage: VibePerf --corpus <dir> [--reps N] [--filter <regex>] [--json <out>] [--list] [--loop <seconds>] [--analyze <dir>]\n"
            "  --corpus   the corpus root (play/, extra/, library/); default build/bench/corpus\n"
            "  --reps     measured repetitions per benchmark, after one warm-up (default 5)\n"
            "  --filter   ECMAScript regex over benchmark names\n"
            "  --json     write every sample as JSON\n"
            "  --list     print the benchmark names and exit\n"
-           "  --loop     run each selected benchmark repeatedly for that long, unmeasured, for a profiler\n");
+           "  --loop     run each selected benchmark repeatedly for that long, unmeasured, for a profiler\n"
+           "  --analyze  print tempo and key for every audio file under a folder, and exit\n");
 }
 
 int main(int argc, const char *argv[]) {
@@ -218,6 +219,8 @@ int main(int argc, const char *argv[]) {
                 jsonPath = @(argv[++i]);
             } else if (arg == "--loop" && hasValue) {
                 loopSeconds = atof(argv[++i]);
+            } else if (arg == "--analyze" && hasValue) {
+                return VibePerfAnalyzeTree(@(argv[++i]));
             } else if (arg == "--list") {
                 list = YES;
             } else {
