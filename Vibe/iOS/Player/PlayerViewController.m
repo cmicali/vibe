@@ -595,7 +595,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     for (TrackPageCell *cell in _pagesView.visibleCells) {
         NSIndexPath *path = [_pagesView indexPathForCell:cell];
         if (path) {
-            [self applyPlayOrderToPageAtIndex:(NSUInteger)path.item];
+            [self applyPlayOrderToCell:cell atIndex:(NSUInteger)path.item];
         }
     }
 }

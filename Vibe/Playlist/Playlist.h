@@ -52,7 +52,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
-@interface Playlist : NSObject <AudioTrackIndexedSource>
+@interface Playlist : NSObject
 
 @property (nonatomic, weak, nullable) id<PlaylistObserver> observer;
 
@@ -129,6 +129,10 @@ NS_ASSUME_NONNULL_BEGIN
 // makes the next order on first ask and keeps it, so the track a gapless
 // splice armed is the one next lands on.
 - (nullable AudioTrack *)nextTrack;
+
+// The next track, the one after it and the previous one, in the order a
+// listener reaches them: what the metadata scan ranks first.
+- (NSArray<AudioTrack *> *)neighborhoodTracks;
 
 // What follows a track that plays out, or nil to park: the current track
 // itself under Repeat One, otherwise nextTrack. Every successor prefetch and

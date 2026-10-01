@@ -54,6 +54,9 @@ NSString *VibeRestArgument(NSArray<NSString *> *tokens);
 // VibeRestArgument with a leading ~ expanded.
 NSString *VibePathArgument(NSArray<NSString *> *tokens);
 
+// The <on|off> argument every settings switch verb takes; NO for anything else.
+BOOL VibeParseOnOff(NSArray<NSString *> *tokens, BOOL *on);
+
 // For verbs taking one existing-file argument, so their contracts cannot
 // drift. Returns the path, or nil with *errorJSON set to the reply; errorJSON
 // is written unchecked, so it is required.

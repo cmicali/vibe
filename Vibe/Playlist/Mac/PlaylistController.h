@@ -15,8 +15,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface PlaylistController : NSObject <NSTableViewDataSource, NSTableViewDelegate,
-                                          AudioTrackIndexedSource>
+@interface PlaylistController : NSObject <NSTableViewDataSource, NSTableViewDelegate>
 
 @property NSUInteger currentIndex;
 
@@ -87,11 +86,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)previous;
 
 // Playlist's transport modes, pushed in by the shell's end-of-track apply.
-@property (nonatomic) VibeRepeatMode repeatMode;
-@property (nonatomic) BOOL shuffleEnabled;
+- (void)setRepeatMode:(VibeRepeatMode)repeatMode shuffleEnabled:(BOOL)shuffleEnabled;
 
 // Playlist's: what follows a track that plays out, or nil to park.
 - (nullable AudioTrack *)trackEndSuccessor;
+
+// Playlist's: the next, the one after and the previous, in play order.
+- (NSArray<AudioTrack *> *)neighborhoodTracks;
 
 // The track end's advance: moves to trackEndSuccessor and plays it, as next
 // does. NO, changing nothing, when there is none.
@@ -111,7 +112,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (AudioTrack * _Nullable)currentTrack;
 - (NSUInteger)count;
 
-- (NSInteger)getIndexForTrack:(AudioTrack *)track;
+- (NSInteger)getIndexForTrack:(nullable AudioTrack *)track;
 
 // The convert swap: every row still holding this file gets a fresh
 // AudioTrack. Playback is untouched; the shell restarts a replaced playing row.

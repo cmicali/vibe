@@ -132,11 +132,4 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
-// Rows by index, so a caller wanting a few neighbours need not take the mac
-// playlist's defensive copy, O(playlist) retains on every play.
-@protocol AudioTrackIndexedSource <NSObject>
-- (nullable AudioTrack *)trackAtIndex:(NSUInteger)index;
-- (NSUInteger)count;
-@end
-
 NS_ASSUME_NONNULL_END

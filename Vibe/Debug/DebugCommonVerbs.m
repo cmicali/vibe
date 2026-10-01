@@ -568,11 +568,11 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             VibeDebugCmd(@"set_pause_at_track_end <on|off>", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
-                NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
-                if (![arg isEqualToString:@"on"] && ![arg isEqualToString:@"off"]) {
+                BOOL on = NO;
+                if (!VibeParseOnOff(tokens, &on)) {
                     return VibeErrorJSON(@"usage: set_pause_at_track_end <on|off>");
                 }
-                AppSettings.sharedInstance.pauseAtTrackEnd = [arg isEqualToString:@"on"];
+                AppSettings.sharedInstance.pauseAtTrackEnd = on;
                 [surface debugApplyEndOfTrackSetting];
                 return VibeJSONString(@{
                     @"ok": @YES,
@@ -597,11 +597,11 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             VibeDebugCmd(@"set_shuffle <on|off>", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
-                NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
-                if (![arg isEqualToString:@"on"] && ![arg isEqualToString:@"off"]) {
+                BOOL on = NO;
+                if (!VibeParseOnOff(tokens, &on)) {
                     return VibeErrorJSON(@"usage: set_shuffle <on|off>");
                 }
-                AppSettings.sharedInstance.shuffleEnabled = [arg isEqualToString:@"on"];
+                AppSettings.sharedInstance.shuffleEnabled = on;
                 [surface debugApplyEndOfTrackSetting];
                 return VibeJSONString(@{
                     @"ok": @YES,

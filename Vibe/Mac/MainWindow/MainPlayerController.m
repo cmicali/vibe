@@ -738,8 +738,7 @@ static NSURL *VibeLastPlaylistURL(void) {
 // Called from the index funnel and from structural edits, which that funnel
 // does not fire for.
 - (void)updateMetadataNeighborhood {
-    [self.metadataCache setNeighborhoodAroundIndex:self.playlistController.currentIndex
-                                          inTracks:self.playlistController];
+    [self.metadataCache setNeighborhoodTracks:self.playlistController.neighborhoodTracks];
 }
 
 - (IBAction)removeSelectedPlaylistTracks:(nullable id)sender {
@@ -977,8 +976,7 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 // The model and the system's controls, which show the same modes.
 - (void)pushTransportModesToPlaylist {
     AppSettings *settings = AppSettings.sharedInstance;
-    self.playlistController.repeatMode = settings.repeatMode;
-    self.playlistController.shuffleEnabled = settings.shuffleEnabled;
+    [self.playlistController setRepeatMode:settings.repeatMode shuffleEnabled:settings.shuffleEnabled];
     [self.nowPlayingController updateShuffleEnabled:settings.shuffleEnabled
                                          repeatMode:settings.repeatMode];
 }
@@ -989,8 +987,9 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
     // advance anyway; a new successor replaces one armed before a repeat or
     // shuffle change.
     [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
-    // Next's enablement follows the modes.
-    [self updateUI];
+    // Next's availability follows the modes, on screen and in Now Playing.
+    self.nextButton.enabled = self.playlistController.hasNextTrack;
+    [self updateNowPlaying];
 }
 
 - (void)applyPitchRange {

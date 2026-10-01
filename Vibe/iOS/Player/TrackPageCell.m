@@ -209,11 +209,6 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     NSLayoutConstraint *_remainingCenteredOnRoute;
     NSLayoutConstraint *_remainingTrailingOnRoute;
 
-    // What the flanking buttons show, so a reconfigure that changes nothing
-    // reinstalls no images. -1 until the first set.
-    NSInteger           _shownShuffle;
-    NSInteger           _shownRepeatMode;
-
     // Joined on one line in portrait, stacked in landscape as on the mac.
     NSString           *_fileInfo;
     NSString           *_tempoInfo;
@@ -342,6 +337,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         [content addSubview:_fxPadView];
 
         _shuffleButton = [self makeTransportButtonWithSide:kTransportFlankButtonSide];
+        _shuffleButton.accessibilityLabel = STR_TRANSPORT_SHUFFLE;
         _previousButton = [self makeTransportButtonWithSide:kTransportButtonSide];
         _previousButton.accessibilityLabel = STR_TRANSPORT_PREVIOUS;
         [self setGlyph:@"backward.end.fill" onButton:_previousButton
@@ -353,8 +349,6 @@ static void VibeConfigureTimeLabel(UILabel *label) {
              pointSize:kCellSideGlyphPointSize];
         _repeatButton = [self makeTransportButtonWithSide:kTransportFlankButtonSide];
         [self setGlyphPlaying:NO];
-        _shownShuffle = -1;
-        _shownRepeatMode = -1;
         [self setShuffleEnabled:NO repeatMode:VibeRepeatModeOff];
 
         // Landscape: the artist (750) truncates before the codec line.
@@ -457,18 +451,24 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     return button;
 }
 
-- (void)setGlyph:(NSString *)symbol onButton:(UIButton *)button pointSize:(CGFloat)pointSize {
+static UIImage *TransportGlyph(NSString *symbol, CGFloat pointSize) {
     UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration
             configurationWithPointSize:pointSize
                                 weight:UIImageSymbolWeightMedium];
-    UIImage *glyph = [UIImage systemImageNamed:symbol withConfiguration:config];
+    return [UIImage systemImageNamed:symbol withConfiguration:config];
+}
+
+// The disabled and off looks, drawn; see setNextEnabled:.
+static UIImage *DimmedGlyph(UIImage *glyph) {
+    return [[glyph imageWithTintColor:[UIColor.labelColor colorWithAlphaComponent:kTransportDisabledAlpha]
+                        renderingMode:UIImageRenderingModeAlwaysOriginal]
+            imageWithRenderingMode:UIImageRenderingModeAlwaysOriginal];
+}
+
+- (void)setGlyph:(NSString *)symbol onButton:(UIButton *)button pointSize:(CGFloat)pointSize {
+    UIImage *glyph = TransportGlyph(symbol, pointSize);
     [button setImage:glyph forState:UIControlStateNormal];
-    // The disabled look, drawn; see setNextEnabled:.
-    [button setImage:[[glyph imageWithTintColor:
-                    [UIColor.labelColor colorWithAlphaComponent:kTransportDisabledAlpha]
-                                  renderingMode:UIImageRenderingModeAlwaysOriginal]
-                     imageWithRenderingMode:UIImageRenderingModeAlwaysOriginal]
-            forState:UIControlStateDisabled];
+    [button setImage:DimmedGlyph(glyph) forState:UIControlStateDisabled];
 }
 
 - (NSArray<NSLayoutConstraint *> *)buildPortraitConstraints {
@@ -836,38 +836,19 @@ static void VibeConfigureTimeLabel(UILabel *label) {
 }
 
 - (void)setShuffleEnabled:(BOOL)shuffleEnabled repeatMode:(VibeRepeatMode)repeatMode {
-    if (_shownShuffle != shuffleEnabled) {
-        _shownShuffle = shuffleEnabled;
-        [self setFlankGlyph:@"shuffle" active:shuffleEnabled onButton:_shuffleButton];
-        _shuffleButton.accessibilityLabel = STR_TRANSPORT_SHUFFLE;
-        _shuffleButton.accessibilityTraits = shuffleEnabled
-                ? (UIAccessibilityTraitButton | UIAccessibilityTraitSelected)
-                : UIAccessibilityTraitButton;
-    }
-    if (_shownRepeatMode != repeatMode) {
-        _shownRepeatMode = repeatMode;
-        BOOL active = repeatMode != VibeRepeatModeOff;
-        [self setFlankGlyph:VibeRepeatModeSymbolName(repeatMode) active:active onButton:_repeatButton];
-        _repeatButton.accessibilityLabel = VibeRepeatModeTitle(repeatMode);
-        _repeatButton.accessibilityTraits = active
-                ? (UIAccessibilityTraitButton | UIAccessibilityTraitSelected)
-                : UIAccessibilityTraitButton;
-    }
+    [self setFlankGlyph:@"shuffle" active:shuffleEnabled onButton:_shuffleButton];
+    [self setFlankGlyph:VibeRepeatModeSymbolName(repeatMode) active:repeatMode != VibeRepeatModeOff
+               onButton:_repeatButton];
+    _repeatButton.accessibilityLabel = VibeRepeatModeTitle(repeatMode);
 }
 
-// Off is drawn dimmed, as the disabled look is, and for the same TRAP: an
-// alpha over a system button's own dimming compounds.
+// Off is drawn dimmed, as the disabled look is.
 - (void)setFlankGlyph:(NSString *)symbol active:(BOOL)active onButton:(UIButton *)button {
-    UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration
-            configurationWithPointSize:kCellFlankGlyphPointSize
-                                weight:UIImageSymbolWeightMedium];
-    UIImage *glyph = [UIImage systemImageNamed:symbol withConfiguration:config];
-    if (!active) {
-        glyph = [[glyph imageWithTintColor:[UIColor.labelColor colorWithAlphaComponent:kTransportDisabledAlpha]
-                             renderingMode:UIImageRenderingModeAlwaysOriginal]
-                imageWithRenderingMode:UIImageRenderingModeAlwaysOriginal];
-    }
-    [button setImage:glyph forState:UIControlStateNormal];
+    UIImage *glyph = TransportGlyph(symbol, kCellFlankGlyphPointSize);
+    [button setImage:(active ? glyph : DimmedGlyph(glyph)) forState:UIControlStateNormal];
+    button.accessibilityTraits = active
+            ? (UIAccessibilityTraitButton | UIAccessibilityTraitSelected)
+            : UIAccessibilityTraitButton;
 }
 
 // The codec line and the tempo line: the mac's two lines in landscape, one

@@ -8,15 +8,16 @@
 
 #import <Foundation/Foundation.h>
 
-// MPRepeatType's three cases, in the order a tap or ⌘R cycles them.
+// MPRepeatType's three cases with its raw values, so Now Playing converts by
+// cast. The order a tap or ⌘R cycles them is VibeRepeatModeAfter's.
 typedef NS_ENUM(NSInteger, VibeRepeatMode) {
     // The end of the playlist parks. The default.
     VibeRepeatModeOff = 0,
+    // A track that plays out replays. Next and Previous behave as under Off.
+    VibeRepeatModeOne = 1,
     // The end of the playlist continues from its start, or into a fresh
     // shuffled order.
-    VibeRepeatModeAll,
-    // A track that plays out replays. Next and Previous behave as under Off.
-    VibeRepeatModeOne,
+    VibeRepeatModeAll = 2,
 };
 
 // Stable stored identifiers, never display names.

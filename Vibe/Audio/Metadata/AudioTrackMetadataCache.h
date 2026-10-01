@@ -8,7 +8,6 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @protocol AudioTrackMetadataCacheDelegate;
-@protocol AudioTrackIndexedSource;   // AudioTrack.h
 @class AudioTrack;
 
 @interface AudioTrackMetadataCache : NSObject
@@ -32,12 +31,10 @@ NS_ASSUME_NONNULL_BEGIN
 // receivers drop its delivery. Main thread only.
 - (void)abandonQueuedTrack:(AudioTrack *)track;
 
-// Ranks the pending scan around the track at index (next, second-next,
-// previous). Both shells call it from their current-index funnel. Takes the
-// playlist, not an array: it reads three rows, and the mac `tracks` getter
-// copies the whole list. Main thread only.
-- (void)setNeighborhoodAroundIndex:(NSUInteger)index
-                          inTracks:(id<AudioTrackIndexedSource>)tracks;
+// Ranks the pending scan by these tracks, first first: the playlist's
+// neighborhoodTracks, which follow shuffle. Both shells call it from their
+// current-index funnel. Main thread only.
+- (void)setNeighborhoodTracks:(NSArray<AudioTrack *> *)tracks;
 
 // The completion fires on the cache's internal queue. A parse in flight
 // cannot repopulate it, though its UI delivery still happens.

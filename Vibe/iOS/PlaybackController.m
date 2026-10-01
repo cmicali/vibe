@@ -45,17 +45,14 @@ static const NSUInteger kUIUpdateHz = 3;
 
         _playlist = [[Playlist alloc] init];
         _playlist.observer = self;
-        // Before any restore, so a shuffled restore starts its order on the
-        // remembered row.
-        _playlist.repeatMode = AppSettings.sharedInstance.repeatMode;
-        _playlist.shuffleEnabled = AppSettings.sharedInstance.shuffleEnabled;
         _metadataCache = [[AudioTrackMetadataCache alloc] init];
         _metadataCache.delegate = self;
         _folderSession = [[FolderSession alloc] init];
         _folderSession.delegate = self;
         _nowPlaying = [[NowPlayingController alloc] initWithDelegate:self];
-        [_nowPlaying updateShuffleEnabled:AppSettings.sharedInstance.shuffleEnabled
-                               repeatMode:AppSettings.sharedInstance.repeatMode];
+        // Before any restore, so a shuffled restore starts its order on the
+        // remembered row.
+        [self pushTransportModes];
         _widgetPublisher = [[WidgetPublisher alloc] init];
         _launchOpenWaiters = [NSMutableArray array];
         // The setting as is: no bit-perfect mode here to outrank it.
@@ -457,9 +454,7 @@ static const NSUInteger kUIUpdateHz = 3;
 - (void)applyTrackTransitionSettings {
     AppSettings *settings = AppSettings.sharedInstance;
     _player.crossfadeMilliseconds = settings.crossfadeMilliseconds;
-    _playlist.repeatMode = settings.repeatMode;
-    _playlist.shuffleEnabled = settings.shuffleEnabled;
-    [_nowPlaying updateShuffleEnabled:settings.shuffleEnabled repeatMode:settings.repeatMode];
+    [self pushTransportModes];
     // prefetchTrack:nil unschedules an armed splice, so a mid-track switch to
     // Pause does not advance anyway; a new successor replaces one armed
     // before a repeat or shuffle change.
@@ -470,7 +465,15 @@ static const NSUInteger kUIUpdateHz = 3;
         }
     }
     // Now Playing's next-track availability follows the modes.
-    [self notifyDidTick];
+    [self publishNowPlaying];
+}
+
+// The model and the system's controls, which show the same modes.
+- (void)pushTransportModes {
+    AppSettings *settings = AppSettings.sharedInstance;
+    _playlist.repeatMode = settings.repeatMode;
+    _playlist.shuffleEnabled = settings.shuffleEnabled;
+    [_nowPlaying updateShuffleEnabled:settings.shuffleEnabled repeatMode:settings.repeatMode];
 }
 
 - (void)toggleShuffle {
@@ -594,7 +597,7 @@ static const NSUInteger kUIUpdateHz = 3;
 // Re-sent on every current-index change, the funnel every play, skip and
 // auto-advance passes through; the ranking is the cache's.
 - (void)updateMetadataNeighborhood {
-    [_metadataCache setNeighborhoodAroundIndex:_playlist.currentIndex inTracks:_playlist];
+    [_metadataCache setNeighborhoodTracks:_playlist.neighborhoodTracks];
 }
 
 #pragma mark - Transport follow-ups

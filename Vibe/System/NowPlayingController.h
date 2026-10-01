@@ -71,7 +71,7 @@ typedef NS_ENUM(NSInteger, NowPlayingPlaybackState) {
 
 // The modes the system's controls show. There is no Now Playing info key for
 // either: the state lives on the commands, so it is written wherever a mode is
-// applied, whoever changed it. Written only on a change. Main thread.
+// applied, whoever changed it. Main thread.
 - (void)updateShuffleEnabled:(BOOL)shuffleEnabled repeatMode:(VibeRepeatMode)repeatMode;
 
 @end

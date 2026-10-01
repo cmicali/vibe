@@ -654,24 +654,17 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     return NO;
 }
 
-- (VibeRepeatMode)repeatMode {
-    return _model.repeatMode;
-}
-
-- (void)setRepeatMode:(VibeRepeatMode)repeatMode {
+- (void)setRepeatMode:(VibeRepeatMode)repeatMode shuffleEnabled:(BOOL)shuffleEnabled {
     _model.repeatMode = repeatMode;
-}
-
-- (BOOL)shuffleEnabled {
-    return _model.shuffleEnabled;
-}
-
-- (void)setShuffleEnabled:(BOOL)shuffleEnabled {
     _model.shuffleEnabled = shuffleEnabled;
 }
 
 - (AudioTrack *)trackEndSuccessor {
     return _model.trackEndSuccessor;
+}
+
+- (NSArray<AudioTrack *> *)neighborhoodTracks {
+    return _model.neighborhoodTracks;
 }
 
 - (BOOL)advanceAtTrackEnd {

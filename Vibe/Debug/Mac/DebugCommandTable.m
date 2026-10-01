@@ -29,12 +29,6 @@
 
 #pragma mark Command table
 
-// The <on|off> argument every settings switch verb takes; NO for anything else.
-static BOOL VibeParseOnOff(NSArray<NSString *> *tokens, BOOL *on) {
-    NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
-    *on = [arg isEqualToString:@"on"];
-    return *on || [arg isEqualToString:@"off"];
-}
 // Applied once the submitted selection settles: the mode setters write the
 // SAVED device's mode, so applying one before the bind lands would name the
 // device being left (the pane disables both switches while pending for the
