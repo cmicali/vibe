@@ -92,7 +92,7 @@ std::function<double(void)> VibeBenchComponentsPCMPrepare(NSString *name, double
 // A fresh directory, removed when the process exits.
 NSString *VibeBenchComponentsTemporaryDirectory(NSString *label);
 // Runs the main queue, where metadata deliveries land, until done or a
-// generous bound.
+// generous bound; running out fails the benchmark.
 void VibeBenchComponentsSpinMainUntil(BOOL (^done)(void));
 // `count` one-byte files in folders of 100, the relative paths returned.
 NSArray<NSString *> *VibeBenchComponentsMakeFiles(NSString *root, NSUInteger count, NSString *extension);

@@ -321,15 +321,18 @@ NSString *VibeBenchComponentsTemporaryDirectory(NSString *label) {
     return root;
 }
 
+// Set by a wait that ran out, so the driver fails the benchmark it ran in.
+static BOOL sWaitTimedOut;
+
 // Runs the main queue, where metadata deliveries land, until done or a
-// generous bound.
+// generous bound; running out fails the benchmark.
 void VibeBenchComponentsSpinMainUntil(BOOL (^done)(void)) {
     NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:600];
     while (!done() && deadline.timeIntervalSinceNow > 0) {
         CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.002, true);
     }
     if (!done()) {
-        printf("warning: wait timed out\n");
+        sWaitTimedOut = YES;
     }
 }
 
@@ -435,15 +438,22 @@ int main(int argc, const char *argv[]) {
                 printf("%-34s looped %d times\n", bench.name.c_str(), runs);
                 continue;
             }
+            sWaitTimedOut = NO;
             VibeBenchComponentsMeasure(bench.body);
             std::vector<double> wall, cpu, instructions, cycles, syscalls;
-            for (int r = 0; r < reps; r++) {
+            for (int r = 0; r < reps && !sWaitTimedOut; r++) {
                 VibeBenchComponentsSample sample = VibeBenchComponentsMeasure(bench.body);
                 wall.push_back(sample.wallMs);
                 cpu.push_back(sample.cpuMs);
                 instructions.push_back(sample.instructions);
                 cycles.push_back(sample.cycles);
                 syscalls.push_back(sample.syscalls);
+            }
+            // Absent from the JSON, as perf.py reads a benchmark a version
+            // cannot build, rather than a stopped clock in the median.
+            if (sWaitTimedOut) {
+                fprintf(stderr, "%-34s FAILED: a wait timed out; left out of the results\n", bench.name.c_str());
+                continue;
             }
             double medianInstructions = VibeBenchComponentsMedian(instructions);
             std::string perUnit = "";
