@@ -74,10 +74,10 @@ Shared, Foundation only, tested in `Tests/PlaylistTests.m`.
 ## Phase 3 — iOS
 
 - `PlaybackController` pushes the mode into its `Playlist` at init and in `applyTrackTransitionSettings`, which every writer already ends on and which already re-parks. A `cycleRepeatMode` (Off → All → One → Off, the iOS convention) writes the setting and applies.
-- A repeat button on the now-playing card, `repeat` dimmed at Off, tinted at All, `repeat.1` tinted at One, beside the shuffle button; where the pair goes in both card layouts is `Vibe/iOS/Player/AGENTS.md`'s call and is decided once for both.
+- **The pair flanks the transport row** (decided on #45): shuffle, previous, play, next, repeat, in both card layouts, as the row's own buttons (`makeTransportButton`). Repeat draws `repeat` dimmed at Off, tinted at All, and `repeat.1` tinted at One. The tint and the dim are drawn images, under the same TRAP as Next's disabled look (`setGlyph:onButton:pointSize:`): an alpha over a system button's own dimming compounds. Portrait has the width. **Landscape is the risk**: the row sits between the FX pad and the route pill, and the pill already gives way to the row, so a two-button-wider row squeezes the device name; check the smallest supported phone in landscape with a long AirPlay name, and shrink the flanking buttons' glyphs before the row's spacing. Record the layout in `Vibe/iOS/Player/AGENTS.md`.
 - No row in Settings > Playback: like shuffle, it is transport state.
 
-**Acceptance**: `make build-ios`; on the simulator (`launch-ios.sh`, `drive-ios.sh`): cycle the button and see the glyph; seek near the end of the last track under All and see the first page commit; seek near the end under One and see the same page replay; Next on the last page lights under All.
+**Acceptance**: `make build-ios`; on the simulator (`launch-ios.sh`, `drive-ios.sh`): cycle the button and see the glyph; check both layouts on the smallest phone, landscape with a long route name; seek near the end of the last track under All and see the first page commit; seek near the end under One and see the same page replay; Next on the last page lights under All.
 
 ## Phase 4 — Now Playing
 

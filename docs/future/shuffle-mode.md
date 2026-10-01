@@ -83,7 +83,7 @@ Tests (deterministic via `randomBelow`): every row visited exactly once walking 
 ## Phase 3 — iOS
 
 - `PlaybackController` pushes the setting into its `Playlist` at init and in `applyTrackTransitionSettings`, and gains `toggleShuffle`, writing the setting and ending on `applyTrackTransitionSettings` so the successor is re-parked. `next`, `previous`, and `selectTrackAtIndex:` already go through the model.
-- A shuffle button on the now-playing card beside the repeat button, tinted when active; `Vibe/iOS/Player/AGENTS.md` owns where the pair goes. The library rows and the mini player need nothing.
+- A shuffle button at the leading end of the transport row, `shuffle` dimmed off and tinted on; repeat takes the trailing end, and `repeat-mode.md` Phase 3 has the layout and its landscape check. The library rows and the mini player need nothing.
 - **The pager pages in playlist order** (follows from keeping the visible order). A swipe to a neighboring page is a manual pick of that row, which splices into the order with no repeat. Next and the end of a track usually land on a page far from the current one: the commit must jump there without animating through every page between, and the art prefetch around the current page (`kArtPrefetchRadius`) must still center on the landing page.
 
 **Acceptance**: `make build-ios`; on the simulator (`launch-ios.sh`, `drive-ios.sh`): toggle, advance through the folder, and confirm the no-repeat walk, the park at the end under Off, the jump to a distant page without a long scroll, and a swipe continuing with no repeat.
