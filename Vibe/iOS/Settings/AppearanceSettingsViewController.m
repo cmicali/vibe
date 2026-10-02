@@ -246,10 +246,9 @@ static NSString *const kValueCellIdentifier  = @"value";
 
 - (void)shuffleRepeatToggled:(UISwitch *)toggle {
     VibeSetShowsShuffleRepeat(toggle.isOn);
-    if (!toggle.isOn) {
-        // Hidden is off: the model clears both modes as it applies them.
-        [_playback applyTrackTransitionSettings];
-    }
+    // Either way: hidden clears both modes and CarPlay's buttons, shown
+    // brings the buttons back.
+    [_playback applyTrackTransitionSettings];
     VibeNotifyDisplaySettingsChanged();
 }
 

@@ -31,8 +31,8 @@ BOOL VibeShowsFileInfo(void);
 void VibeSetShowsFileInfo(BOOL show);
 
 // The shuffle and repeat buttons flanking the card's transport row; on by
-// default. Hidden, both modes are off, and PlaybackController refuses a
-// request to turn one on from CarPlay or Siri.
+// default. Hidden, both modes are off and CarPlay offers neither
+// (PlaybackController.pushTransportModes).
 BOOL VibeShowsShuffleRepeat(void);
 void VibeSetShowsShuffleRepeat(BOOL show);
 

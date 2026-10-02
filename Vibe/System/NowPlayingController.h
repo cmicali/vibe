@@ -69,10 +69,13 @@ typedef NS_ENUM(NSInteger, NowPlayingPlaybackState) {
                 hasNext:(BOOL)hasNext
             hasPrevious:(BOOL)hasPrevious;
 
-// The modes the system's controls show. There is no Now Playing info key for
-// either: the state lives on the commands, so it is written wherever a mode is
-// applied, whoever changed it. Main thread.
-- (void)updateShuffleEnabled:(BOOL)shuffleEnabled repeatMode:(VibeRepeatMode)repeatMode;
+// The modes the system's controls show, and whether they offer them at all:
+// unavailable, CarPlay draws neither button. There is no Now Playing info key
+// for either: the state lives on the commands, so it is written wherever a
+// mode is applied, whoever changed it. Main thread.
+- (void)updateShuffleEnabled:(BOOL)shuffleEnabled
+                  repeatMode:(VibeRepeatMode)repeatMode
+                   available:(BOOL)available;
 
 @end
 

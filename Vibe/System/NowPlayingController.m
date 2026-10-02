@@ -163,7 +163,8 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
     // Control Center show no shuffle or repeat at all); the skip-interval
     // pair takes their place.
     // Check any further command on a device first.
-    // State follows updateShuffleEnabled:repeatMode:; a request only asks.
+    // State and availability follow updateShuffleEnabled:repeatMode:available:;
+    // a request only asks.
     center.changeShuffleModeCommand.enabled = YES;
     [center.changeShuffleModeCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
         NowPlayingController *strongSelf = weakSelf;
@@ -279,11 +280,15 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
     }
 }
 
-- (void)updateShuffleEnabled:(BOOL)shuffleEnabled repeatMode:(VibeRepeatMode)repeatMode {
+- (void)updateShuffleEnabled:(BOOL)shuffleEnabled
+                  repeatMode:(VibeRepeatMode)repeatMode
+                   available:(BOOL)available {
     if (!_commandsRegistered) {
         return;
     }
     MPRemoteCommandCenter *center = MPRemoteCommandCenter.sharedCommandCenter;
+    center.changeShuffleModeCommand.enabled = available;
+    center.changeRepeatModeCommand.enabled = available;
     center.changeShuffleModeCommand.currentShuffleType = shuffleEnabled ? MPShuffleTypeItems : MPShuffleTypeOff;
     center.changeRepeatModeCommand.currentRepeatType = (MPRepeatType)repeatMode;
 }

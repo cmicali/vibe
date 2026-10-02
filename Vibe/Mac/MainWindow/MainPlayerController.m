@@ -978,7 +978,8 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
     AppSettings *settings = AppSettings.sharedInstance;
     [self.playlistController setRepeatMode:settings.repeatMode shuffleEnabled:settings.shuffleEnabled];
     [self.nowPlayingController updateShuffleEnabled:settings.shuffleEnabled
-                                         repeatMode:settings.repeatMode];
+                                         repeatMode:settings.repeatMode
+                                          available:YES];
 }
 
 - (void)applyEndOfTrackAction {
