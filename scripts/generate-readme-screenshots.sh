@@ -9,8 +9,9 @@
 # ALLOW_GLOBAL_INPUT=1 (screenshots/screenshot-lib.sh); moves the real pointer
 # and leaves it parked outside the window. Audio stays off the hardware
 # (launch.sh's default). Track paths are hardcoded: an authoring tool, not a
-# test. Pins the window appearance to $APPEARANCE (default dark) and quits with
-# the playlist and pitch panel hidden and the theme back at `vibe`.
+# test. Pins the window appearance to $APPEARANCE (default dark), waveform
+# normalization on and the pitch range at 8%, and quits with the playlist and
+# pitch panel hidden and the theme back at `vibe`.
 set -euo pipefail
 
 # shellcheck source=scripts/screenshots/screenshot-lib.sh
@@ -44,7 +45,7 @@ THEME_BASIC="${THEME_BASIC:-vibe}"
 THEME_PLAYLIST="${THEME_PLAYLIST:-snake}"
 THEME_THEMES="${THEME_THEMES:-sonic_cirrus}"
 THEME_PLAYLIST_PITCH="${THEME_PLAYLIST_PITCH:-technical}"
-THEME_PITCH="${THEME_PITCH:-vibe}"
+THEME_PITCH="${THEME_PITCH:-record_bin}"
 
 # Every capture is sized explicitly: the autosaved frame differs between a
 # single-file and a folder launch. These are the published sizes; changing one
@@ -69,9 +70,10 @@ FOLDER_TRACK_PLAYLIST="The Mountain People - Memorandum.flac"
 FOLDER_TRACK_PITCH="Steve O'Sullivan - No Aura (Original Mix).aiff"
 FOLDER_TRACK_THEMES="DJ Tennis Carlita - Trouble Symphony.flac"
 
-# Playhead position as a fraction of the track.
+# Playhead position as a fraction of the track. SEEK_PITCH is mid-way through
+# the full section after Shushu's breakdown (0.48-0.56).
 SEEK_BASIC=0.40
-SEEK_PITCH=0.35
+SEEK_PITCH=0.64
 SEEK_FOLDER=0.40
 
 # Seconds for the folder's metadata scan: ~30s for 67 files cold off Dropbox,
@@ -79,6 +81,23 @@ SEEK_FOLDER=0.40
 SCAN_WAIT="${SCAN_WAIT:-30}"
 
 # --- setup ------------------------------------------------------------------
+
+# The factory values of two settings the shots show, so a capture never
+# carries its author's own: normalization fills the waveform's height, and the
+# fader reads ±8. Neither has a channel verb, so this drives the Settings
+# window; the switch sits behind a disclosure, and clicking an open one would
+# close it.
+pin_settings_defaults() {
+    quiet settings_open appearance
+    if [ "$("$V" --debug-cmd dump_settings_ui \
+            | jq -r '.controls[] | select(.name == "Normalize waveform") | .hidden')" = true ]; then
+        quiet settings_click Waveform
+    fi
+    quiet settings_click "Normalize waveform" on
+    quiet settings_open playback
+    quiet settings_click 8%
+    quiet settings_close
+}
 
 [ "$#" -gt 0 ] && SHOTS=("$@") || SHOTS=(basic pitch themes playlist playlist-pitch)
 
@@ -96,6 +115,7 @@ pkill -x Vibe 2>/dev/null && sleep 1 || true
 # run exits.
 launch
 quiet set_appearance "$APPEARANCE"
+pin_settings_defaults
 
 if [ "$BACKDROP" = 1 ]; then
     if [ -z "$BACKDROP_IMAGE" ]; then
