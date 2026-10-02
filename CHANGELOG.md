@@ -1,5 +1,30 @@
 # v1.15 (unreleased)
 
+* Added shuffle, repeat, and repeat all
+* Added CUE sheet (file and embedded) playback
+* Added Ogg Opus, Ogg Vorbis (mac only), CAF, W64, M4B, M4R, and ADTS playback
+* Added the 3-Band waveform style and Record Bin theme (mac only) that uses it 
+* Improved FLAC decoding: seeking is now near-instant even for long files, less CPU and memory, and better compatibility
+* Improved WAV and AIFF decoding: 1.4x-3.2x times faster, better compatibility
+* Improved playback performance: 20–30% less CPU and 15–25% less energy
+* Improved scan performance: tags and artwork 2x faster, library scans use 20% less CPU
+* Improved load performance: metadata cache at launch, large M3U playlists, and editing very large playlists
+* Changed: release builds no longer write diagnostic logging, including file paths, to the system log
+* Fixed 24 and 32-bit little-endian AIFF-C files playing at the wrong length
+* Fixed seeks in low-bitrate MPEG-2 MP3 files landing slightly off
+* Fixed FLAC files that don't record their length showing no duration
+* mac: Added a Keyboard Shortcuts pane in Settings for full customization
+* mac: Added Shuffle (⌥⌘S) and Repeat (⌘R) to the Playback menu, with their icons on the file-info line
+* mac: Changed: holding a key repeats only Next, Previous, and the skips; a held Space, Tab, or P no longer fires over and over
+* mac: Fixed single-key shortcuts on AZERTY, Greek, Cyrillic, and other non-US keyboard layouts
+* mac: Fixed Convert to FLAC adding a click at every full-scale peak of a float file, and misreading 24 and 32-bit little-endian AIFF-C files
+* mac: Fixed opening a CUE sheet or M3U playlist whose files are all missing doing nothing; Vibe now says it couldn't open them
+* ios: Added shuffle and repeat buttons beside the transport controls, which can be hidden in Settings > Appearance
+* ios: Added compact now-playing layouts for short iPad windows
+* ios: Fixed pinch-zooming the waveform making playback jump back
+* ios: Fixed swiping back to a track showing its old position before jumping to the start
+* ios: Fixed the FX pad sometimes opening no bigger than its circle after a few track changes
+
 # v1.14
 
 * Added a rebuilt playback engine that plays every track straight to your audio device - faster, more stable, and better at handling devices coming and going
