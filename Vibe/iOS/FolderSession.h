@@ -68,10 +68,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (uint64_t)addRequestToken;
 - (void)addURLs:(NSArray<NSURL *> *)urls token:(uint64_t)token;
 
-// A search hit, played alone or, inFolder, as its own directory with it
-// selected. The covering grant is retained for this playlist even if its
-// Settings row goes; the session bookmark is left alone.
-- (void)openFileFromSearchRoots:(NSURL *)url inFolder:(BOOL)inFolder;
+// One URL: a folder opens; a file plays alone or, inFolder, as its own
+// directory with it selected where a root covers that. The covering grant is
+// retained for this playlist even if its Settings row goes. Whether the open
+// becomes the session bookmark is decided here, never by the caller.
+- (void)openURL:(NSURL *)url inFolder:(BOOL)inFolder;
 
 // Every file and folder opened or added, newest first, at most 50, each
 // {path, bookmark (absent when the mint failed), folder}. Persisted; a restore

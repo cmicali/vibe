@@ -821,6 +821,10 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
     content.text = path.lastPathComponent;
     content.secondaryText = path.stringByDeletingLastPathComponent.lastPathComponent;
     content.secondaryTextProperties.color = UIColor.secondaryLabelColor;
+    // Search's hit row: one line each, the glyph capped.
+    content.textProperties.numberOfLines = 1;
+    content.secondaryTextProperties.numberOfLines = 1;
+    content.imageProperties.maximumSize = CGSizeMake(40, 40);
     content.imageProperties.tintColor = UIColor.secondaryLabelColor;
     content.image = [UIImage systemImageNamed:[item[@"folder"] boolValue] ? @"folder" : @"music.note"];
     cell.contentConfiguration = content;
@@ -868,7 +872,6 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
 - (void)openItem:(NSDictionary *)item appending:(BOOL)appending inFolder:(BOOL)inFolder {
     PlaybackController *playback = _playback;
     uint64_t token = appending ? [playback addRequestToken] : 0;
-    BOOL folder = [item[@"folder"] boolValue];
     NSString *name = [item[@"path"] lastPathComponent];
     __weak RecentsViewController *weakSelf = self;
     [playback resolveRecentItem:item completion:^(NSURL *url) {
@@ -877,9 +880,6 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
         }
         else if (appending) {
             [playback addURLs:@[url] token:token];
-        }
-        else if (folder) {
-            [playback openURLs:@[url] openInPlace:YES];
         }
         else {
             [playback openFileURL:url inFolder:inFolder];

@@ -226,8 +226,8 @@ NS_ASSUME_NONNULL_BEGIN
 // Documents, then resolved favorites. FileSearchIndex prunes nesting.
 @property (nonatomic, readonly) NSArray<NSURL *> *searchRoots;
 
-// A search hit or a recent file: played alone or, inFolder, its directory
-// with it selected. Leaves the persisted session bookmark alone.
+// A search hit or a recent (FolderSession openURL:inFolder:): a folder opens,
+// a file plays alone or, inFolder, its directory with it selected.
 - (void)openFileURL:(NSURL *)url inFolder:(BOOL)inFolder;
 
 // FolderSession's recents, newest first, and their resolve.

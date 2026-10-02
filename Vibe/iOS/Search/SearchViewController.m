@@ -588,20 +588,23 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
                                                        : _dropboxHits[(NSUInteger)indexPath.row];
 }
 
-// A Dropbox hit in its folder, or a Dropbox folder, opens as a pick does,
-// which persists the mirror folder for the next launch.
 - (void)openHit:(id)hit inFolder:(BOOL)inFolder {
     // Resigns the field but keeps the query.
     [_searchController.searchBar resignFirstResponder];
-    BOOL dropbox = ![hit isKindOfClass:FileSearchHit.class];
     PlaybackController *playback = _playback;
     [self resolveHit:hit completion:^(NSURL *url, BOOL folder) {
-        if (dropbox && (folder || inFolder)) {
-            [playback openURLs:@[url] openInPlace:YES];
-        }
-        else {
-            [playback openFileURL:url inFolder:inFolder];
-        }
+        [playback openFileURL:url inFolder:inFolder];
+    }];
+}
+
+// A Dropbox hit's resolve lists a folder, so the Add takes its token first:
+// a replace made meanwhile supersedes it.
+- (void)addHit:(id)hit {
+    [_searchController.searchBar resignFirstResponder];
+    PlaybackController *playback = _playback;
+    uint64_t token = [playback addRequestToken];
+    [self resolveHit:hit completion:^(NSURL *url, BOOL folder) {
+        [playback addURLs:@[url] token:token];
     }];
 }
 
@@ -616,10 +619,10 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     }];
 }
 
-// A file hit's long press: Play, as a tap does, Play in Folder, its whole
-// directory with it selected, or Open Folder, that directory in the Files
-// tab. A folder hit has only the last. The hit, not the row, is captured: a
-// late answer can reload the section while the menu is up.
+// A hit's long press, the rule Recents follows too: Play, Play in Folder for
+// a file, Add to Playlist, and Open Folder, its directory in the Files tab.
+// The hit, not the row, is captured: a late answer can reload the section
+// while the menu is up.
 - (UIContextMenuConfiguration *)tableView:(UITableView *)tableView
         contextMenuConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath
                                             point:(CGPoint)point {
@@ -630,31 +633,30 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     BOOL folder = [hit isKindOfClass:NSDictionary.class]
             && VibeDropboxEntryKindOf(hit) == VibeDropboxEntryKindFolder;
     __weak SearchViewController *weakSelf = self;
+    UIAction *(^action)(NSString *, NSString *, void (^)(void)) = ^(NSString *title, NSString *symbol,
+                                                                    void (^handler)(void)) {
+        return [UIAction actionWithTitle:title image:[UIImage systemImageNamed:symbol] identifier:nil
+                                 handler:^(UIAction *a) { handler(); }];
+    };
     return [UIContextMenuConfiguration configurationWithIdentifier:nil
                                                    previewProvider:nil
                                                     actionProvider:^UIMenu *(NSArray<UIMenuElement *> *suggested) {
-        UIAction *openFolder = [UIAction actionWithTitle:STR_MENU_CONTEXT_OPEN_FOLDER
-                                                   image:[UIImage systemImageNamed:@"folder"]
-                                              identifier:nil
-                                                 handler:^(UIAction *action) {
-            [weakSelf showFolderOfHit:hit];
-        }];
-        if (folder) {
-            return [UIMenu menuWithChildren:@[openFolder]];
-        }
-        UIAction *play = [UIAction actionWithTitle:STR_MENU_CONTEXT_PLAY
-                                             image:[UIImage systemImageNamed:@"play.fill"]
-                                        identifier:nil
-                                           handler:^(UIAction *action) {
+        NSMutableArray<UIMenuElement *> *items = [NSMutableArray array];
+        [items addObject:action(STR_MENU_CONTEXT_PLAY, @"play.fill", ^{
             [weakSelf openHit:hit inFolder:NO];
-        }];
-        UIAction *playInFolder = [UIAction actionWithTitle:STR_MENU_CONTEXT_PLAY_IN_FOLDER
-                                                     image:[UIImage systemImageNamed:@"folder"]
-                                                identifier:nil
-                                                   handler:^(UIAction *action) {
-            [weakSelf openHit:hit inFolder:YES];
-        }];
-        return [UIMenu menuWithChildren:@[play, playInFolder, openFolder]];
+        })];
+        if (!folder) {
+            [items addObject:action(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"folder", ^{
+                [weakSelf openHit:hit inFolder:YES];
+            })];
+        }
+        [items addObject:action(STR_MENU_CONTEXT_ADD_TO_PLAYLIST, @"text.badge.plus", ^{
+            [weakSelf addHit:hit];
+        })];
+        [items addObject:action(STR_MENU_CONTEXT_OPEN_FOLDER, @"folder", ^{
+            [weakSelf showFolderOfHit:hit];
+        })];
+        return [UIMenu menuWithChildren:items];
     }];
 }
 

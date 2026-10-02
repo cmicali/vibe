@@ -749,7 +749,7 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 }
 
 - (void)openFileURL:(NSURL *)url inFolder:(BOOL)inFolder {
-    [_folderSession openFileFromSearchRoots:url inFolder:inFolder];
+    [_folderSession openURL:url inFolder:inFolder];
 }
 
 - (NSArray<NSDictionary *> *)recentItems {
