@@ -31,6 +31,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The whole row set changed and the cursor is final.
 - (void)playbackDidReplacePlaylist:(PlaybackController *)playback;
+// Empty when an Add landed nothing: every Add ends in one of these.
 - (void)playback:(PlaybackController *)playback didAppendTracksAtIndexes:(NSIndexSet *)indexes;
 - (void)playback:(PlaybackController *)playback didReplaceTrackAtIndex:(NSUInteger)index;
 - (void)playback:(PlaybackController *)playback

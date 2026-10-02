@@ -897,7 +897,10 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             _landedOpenIntentGeneration = openIntentGeneration;
         }
         if (appending) {
+            // Delivered empty, never dropped: whoever asked is waiting to
+            // hear how it landed, and nothing else will tell them.
             LogInfo(@"FolderSession: nothing to append");
+            [self.delegate folderSession:self didAppendTracks:@[]];
         }
         else if (restored) {
             [self.delegate folderSessionRestoreDidFail:self];

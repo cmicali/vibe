@@ -877,6 +877,9 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
         }
     }
     if (fresh.count == 0) {
+        // The playlist is untouched, so it posts nothing; the Add still
+        // settles for the rows lifted for it.
+        [self playlist:_playlist didAppendTracksAtIndexes:[NSIndexSet indexSet]];
         return;
     }
     [_playlist appendTracks:fresh];

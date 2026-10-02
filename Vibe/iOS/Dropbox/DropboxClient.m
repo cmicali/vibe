@@ -118,18 +118,24 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
         _keychainService = [keychainService copy];
         _lock = OS_UNFAIR_LOCK_INIT;
         _downloads = [NSMutableDictionary dictionary];
-        NSOperationQueue *delegateQueue = [[NSOperationQueue alloc] init];
-        delegateQueue.maxConcurrentOperationCount = 1;
-        delegateQueue.name = @"com.commonwealthrecordings.Vibe.dropbox";
-        // TRAP: a delegate session retains its delegate until invalidated.
-        // The client lives as long as the app, so this is never broken.
-        _downloadSession = [NSURLSession sessionWithConfiguration:configuration
-                                                         delegate:self
-                                                    delegateQueue:delegateQueue];
-        _callSession = [NSURLSession sessionWithConfiguration:configuration];
+        [self useSessionConfiguration:configuration];
         [self loadAccount];
     }
     return self;
+}
+
+- (void)useSessionConfiguration:(NSURLSessionConfiguration *)configuration {
+    [_downloadSession finishTasksAndInvalidate];
+    [_callSession finishTasksAndInvalidate];
+    NSOperationQueue *delegateQueue = [[NSOperationQueue alloc] init];
+    delegateQueue.maxConcurrentOperationCount = 1;
+    delegateQueue.name = @"com.commonwealthrecordings.Vibe.dropbox";
+    // TRAP: a delegate session retains its delegate until invalidated. The
+    // client lives as long as the app, so only a replaced session is.
+    _downloadSession = [NSURLSession sessionWithConfiguration:configuration
+                                                     delegate:self
+                                                delegateQueue:delegateQueue];
+    _callSession = [NSURLSession sessionWithConfiguration:configuration];
 }
 
 #pragma mark - Account

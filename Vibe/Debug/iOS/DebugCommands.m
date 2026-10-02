@@ -14,6 +14,7 @@
 #import "DebugCommonVerbs.h"
 #import "AudioTrack.h"
 #import "DropboxMirror.h"
+#import "VibeFakeDropbox.h"
 #import "NSURLUtil.h"
 #import "Playlist.h"
 #import "FavoritesStore.h"
@@ -241,6 +242,7 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 DropboxMirror *mirror = DropboxMirror.shared;
                 NSMutableDictionary *reply = [NSMutableDictionary dictionary];
                 reply[@"linked"] = @(mirror.client.isLinked);
+                reply[@"fake"] = @(VibeFakeDropbox.isInstalled);
                 reply[@"accountID"] = mirror.client.accountID ?: NSNull.null;
                 reply[@"accountName"] = mirror.client.accountName ?: NSNull.null;
                 reply[@"accountPath"] = mirror.accountURL.path ?: NSNull.null;
@@ -255,6 +257,76 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 }
                 reply[@"playlistTracks"] = playlistInMirror;
                 return VibeJSONString(reply);
+            }),
+            // A directory on disk answers as the account over the client's own
+            // HTTP boundary (VibeFakeDropbox.h): no sign-in, no network. The
+            // fixture is read by the app, so the simulator's host paths work.
+            VibeDebugCmd(@"set_fake_dropbox <directory>|off [<transfer-seconds>] [name=<account name>]", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: set_fake_dropbox <directory>|off [<transfer-seconds>] [name=<account name>]");
+                }
+                DropboxClient *client = DropboxMirror.shared.client;
+                if ([tokens[1] isEqualToString:@"off"]) {
+                    [VibeFakeDropbox uninstallFromClient:client];
+                    return VibeJSONString(@{@"ok": @YES, @"fake": @NO});
+                }
+                NSURL *directory = [NSURL fileURLWithPath:tokens[1] isDirectory:YES];
+                BOOL isDirectory = NO;
+                if (![NSFileManager.defaultManager fileExistsAtPath:directory.path isDirectory:&isDirectory]
+                        || !isDirectory) {
+                    return VibeErrorJSON(@"not a directory: %@", tokens[1]);
+                }
+                double seconds = 0;
+                NSString *name = @"Fake Dropbox";
+                for (NSString *token in [tokens subarrayWithRange:NSMakeRange(2, tokens.count - 2)]) {
+                    if ([token hasPrefix:@"name="]) {
+                        name = [token substringFromIndex:5];
+                    }
+                    else if (!VibeParseDouble(token, &seconds) || seconds < 0) {
+                        return VibeErrorJSON(@"not a number of seconds: %@", token);
+                    }
+                }
+                [VibeFakeDropbox installWithDirectory:directory accountName:name
+                                      transferSeconds:seconds client:client];
+                return VibeJSONString(@{@"ok": @YES, @"fake": @YES, @"directory": directory.path,
+                                        @"transferSeconds": @(seconds), @"accountName": name});
+            }),
+            VibeDebugCmd(@"dump_fake_dropbox", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                return VibeJSONString(@{@"fake": @(VibeFakeDropbox.isInstalled),
+                                        @"requests": VibeFakeDropbox.statistics});
+            }),
+            // The live layout under the card, in window points. Sampled on a
+            // display link across a gesture (sample, then drive-ios.sh, then
+            // dump), every anchor must hold still: what moves is a snapshot.
+            VibeDebugCmd(@"dump_layout_anchors", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                return VibeJSONString([controller debugLayoutAnchors]);
+            }),
+            VibeDebugCmd(@"sample_layout_anchors <seconds> [<hz>]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                double seconds = 0;
+                if (tokens.count < 2 || !VibeParseDouble(tokens[1], &seconds) || seconds <= 0 || seconds > 60) {
+                    return VibeErrorJSON(@"usage: sample_layout_anchors <seconds (0-60)> [<hz>]");
+                }
+                NSInteger hertz = tokens.count > 2 ? tokens[2].integerValue : 30;
+                [controller debugBeginLayoutSamplingForSeconds:seconds hertz:MAX(1, MIN(120, hertz))];
+                return VibeJSONString(@{@"ok": @YES, @"seconds": @(seconds), @"hz": @(hertz)});
+            }),
+            VibeDebugCmd(@"dump_layout_samples", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                return VibeJSONString([controller debugLayoutSamples]);
+            }),
+            // Frames the app is granted across a gesture, and how many ran
+            // long. On a phone, launch with --frame-rate-probe and read the
+            // same report in the log every five seconds.
+            VibeDebugCmd(@"sample_frame_rate <seconds>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                double seconds = 0;
+                if (tokens.count < 2 || !VibeParseDouble(tokens[1], &seconds) || seconds <= 0 || seconds > 60) {
+                    return VibeErrorJSON(@"usage: sample_frame_rate <seconds (0-60)>");
+                }
+                [controller debugBeginFrameProbeForSeconds:seconds logging:NO];
+                return VibeJSONString(@{@"ok": @YES, @"seconds": @(seconds)});
+            }),
+            VibeDebugCmd(@"dump_frame_rate", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                return VibeJSONString([controller debugFrameProbeReport]);
             }),
             VibeDebugCmd(@"dump_search", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 return VibeJSONString(VibeSearchScopeDictionary(controller));
@@ -425,10 +497,30 @@ static NSString *VibeiOSExecuteDebugCommand(NSArray<NSString *> *tokens, NSStrin
     return ((VibeDebugCommandHandler)spec[@"handler"])(tokens, commandId, controller);
 }
 
+// The device's road to the frame probe: no channel reaches a phone, so the
+// flag starts one that logs, and --log-stderr relays it. Started once the
+// scene is up, which is when there is a root to hang it on.
+static void VibeiOSStartLaunchProbes(void) {
+    if (![NSProcessInfo.processInfo.arguments containsObject:@"--frame-rate-probe"]) {
+        return;
+    }
+    __block id observer = [NSNotificationCenter.defaultCenter
+            addObserverForName:UISceneDidActivateNotification object:nil queue:NSOperationQueue.mainQueue
+                    usingBlock:^(NSNotification *note) {
+        RootViewController *controller = VibeDebugRootController();
+        if (controller) {
+            [controller debugBeginFrameProbeForSeconds:0 logging:YES];
+            [NSNotificationCenter.defaultCenter removeObserver:observer];
+        }
+    }];
+}
+
 void VibeiOSInstallDebugCommandHook(void) {
     VibeInstallDebugCommandChannel(^NSString *(NSArray<NSString *> *args, NSString *commandId) {
         return VibeiOSExecuteDebugCommand(args, commandId);
     });
+    VibeiOSStartLaunchProbes();
 }
+
 
 #endif

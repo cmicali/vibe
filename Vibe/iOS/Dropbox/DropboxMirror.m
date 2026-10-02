@@ -114,8 +114,10 @@ static NSError *VibePOSIXError(void) {
     return [self indexOfDirectory:directory key:VibeComparablePath(directory.path)];
 }
 
+// A folder its parent's listing made carries only its path; one listed
+// itself carries its files.
 - (BOOL)hasListedDirectory:(NSURL *)url {
-    return [self indexOfDirectory:url] != nil;
+    return [self indexOfDirectory:url][@"files"] != nil;
 }
 
 - (NSDictionary *)indexOfDirectory:(NSURL *)directory key:(NSString *)key {

@@ -35,10 +35,30 @@
 @property (nonatomic, readonly, getter=isPlayerExpanded) BOOL playerExpanded;
 @property (nonatomic, readonly, getter=isMiniPlayerShown) BOOL miniPlayerShown;
 @property (nonatomic, copy) NSString *selectedTabIdentifier;
+// Seconds since each Add's rows were lifted and not yet settled, oldest
+// first; one past a few seconds is an Add that never came back.
+@property (nonatomic, readonly) NSArray<NSNumber *> *liftedRowAges;
+// The live tabs (the view controller and its view), the strip, and what
+// moves over them: the backdrop snapshot's scale (1 with none up) and the
+// card's offset from fully up. For the layout probe.
+@property (nonatomic, readonly) UITabBarController *tabs;
+@property (nonatomic, readonly) UIView *miniPlayerView;
+@property (nonatomic, readonly) CGFloat backdropScale;
+@property (nonatomic, readonly) CGFloat cardOffset;
 
 - (void)expandPlayerAnimated:(BOOL)animated;
 - (void)minimizePlayerAnimated:(BOOL)animated;
 
+@end
+
+@interface RootViewController (DebugLayout)
+- (NSDictionary *)debugLayoutAnchors;
+- (void)debugBeginLayoutSamplingForSeconds:(NSTimeInterval)seconds hertz:(NSInteger)hertz;
+- (NSDictionary *)debugLayoutSamples;
+// seconds of 0 runs until replaced; logging reports every five seconds, the
+// device's road, since --log-stderr is all a phone offers.
+- (void)debugBeginFrameProbeForSeconds:(NSTimeInterval)seconds logging:(BOOL)logging;
+- (NSDictionary *)debugFrameProbeReport;
 @end
 
 @interface LibraryViewController (DebugSurface)

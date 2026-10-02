@@ -82,6 +82,22 @@ static NSString *const kTabSearch = @"search";
     return _playback;
 }
 
+- (UITabBarController *)tabs {
+    return _tabs;
+}
+
+- (UIView *)miniPlayerView {
+    return _miniPlayer;
+}
+
+- (CGFloat)backdropScale {
+    return _backdropSnapshot ? _backdropSnapshot.transform.a : 1;
+}
+
+- (CGFloat)cardOffset {
+    return _player.view.transform.ty;
+}
+
 - (LibraryViewController *)library {
     return _library;
 }
@@ -713,9 +729,10 @@ static NSString *const kTabSearch = @"search";
     }
 }
 
+// Every Add ends here, empty when it landed nothing; the oldest lift is its.
 - (void)playback:(PlaybackController *)playback didAppendTracksAtIndexes:(NSIndexSet *)indexes {
     if (_liftedRowBatches.count > 0) {
-        [self settleLiftedRows:_liftedRowBatches.firstObject landed:YES];
+        [self settleLiftedRows:_liftedRowBatches.firstObject landed:indexes.count > 0];
     }
 }
 
@@ -724,8 +741,9 @@ static NSString *const kTabSearch = @"search";
 // An Add in the Files tab changes nothing on its own screen, so its rows say
 // what happened: they lift when asked for, fly into the Playlist tab when the
 // tracks land, and set back down when nothing did (all already there, or a
-// folder with no songs directly inside), which sends no event to wait for.
-static const NSTimeInterval kLiftedRowsTimeout = 1.5;
+// folder with no songs directly inside). Every Add ends in an append event,
+// empty for nothing, so there is no timer: a lift that outlives its Add is a
+// bug, and check_consistency reports one (liftedRowAges).
 static const NSTimeInterval kRowLiftDuration = 0.25;
 static const NSTimeInterval kRowFlightDuration = 0.7;
 static const NSTimeInterval kRowFlightStagger = 0.07;
@@ -761,11 +779,15 @@ static const CGFloat kLandedRowScale = 0.1;
             }
         } completion:nil];
     }
-    __weak RootViewController *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kLiftedRowsTimeout * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-        [weakSelf settleLiftedRows:rows landed:NO];
-    });
+}
+
+- (NSArray<NSNumber *> *)liftedRowAges {
+    NSMutableArray<NSNumber *> *ages = [NSMutableArray array];
+    CFTimeInterval now = CACurrentMediaTime();
+    for (NSNumber *liftedAt in _liftedRowBatchTimes) {
+        [ages addObject:@(now - liftedAt.doubleValue)];
+    }
+    return ages;
 }
 
 - (void)settleLiftedRows:(NSArray<UIView *> *)rows landed:(BOOL)landed {
