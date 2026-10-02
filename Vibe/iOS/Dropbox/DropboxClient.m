@@ -48,6 +48,12 @@ static NSError *VibeCancelledError(void) {
     return VibeDropboxMakeError(VibeDropboxErrorCancelled, @"cancelled");
 }
 
+// A file's size in its metadata, -1 when it names none.
+static int64_t VibeMetadataSize(NSDictionary *_Nullable metadata) {
+    id size = metadata[@"size"];
+    return [size isKindOfClass:NSNumber.class] && [size longLongValue] >= 0 ? [size longLongValue] : -1;
+}
+
 // A link that dropped or stalled, which a resend may outlast; anything else
 // (TLS, a malformed response) would only fail again.
 static BOOL VibeIsConnectionError(NSError *error) {
@@ -87,11 +93,13 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 // The download's metadata, or the read's bytes; finishTransfer: calls it once.
 @property (nonatomic, copy, nullable) void (^completion)(id _Nullable, NSError *_Nullable);
 // A download's only. The file, made at the first accepted response, and
-// that response's metadata span every attempt; bytesWritten is the resume
-// offset. The rest is per response.
+// that response's metadata and size span every attempt; bytesWritten is the
+// resume offset. The rest is per response.
 @property (nonatomic, copy, nullable) NSURL *destination;
+@property (nonatomic, copy, nullable) void (^progress)(uint64_t, int64_t);
 @property (nonatomic, nullable) NSFileHandle *file;
 @property (nonatomic, nullable) NSDictionary *metadata;
+@property (nonatomic) int64_t size;
 @property (nonatomic) uint64_t bytesWritten;
 @property (nonatomic) NSInteger networkRetries;
 @property (nonatomic) NSInteger status;
@@ -814,10 +822,12 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 
 - (dispatch_block_t)downloadPath:(NSString *)path
                            toURL:(NSURL *)destination
+                        progress:(void (^)(uint64_t, int64_t))progress
                       completion:(void (^)(NSDictionary *, NSError *))completion {
     DropboxTransfer *download = [[DropboxTransfer alloc] init];
     download.path = path;
     download.destination = destination;
+    download.progress = progress;
     download.completion = completion;
     download.attempts = 1;
     [self startDownload:download];
@@ -908,6 +918,7 @@ didReceiveResponse:(NSURLResponse *)response
     }
     // Made once per transfer, at its first accepted response.
     download.metadata = metadata;
+    download.size = VibeMetadataSize(metadata);
     NSFileManager *files = NSFileManager.defaultManager;
     [files removeItemAtURL:download.destination error:NULL];
     if (![files createFileAtPath:download.destination.path contents:nil attributes:nil]) {
@@ -918,6 +929,9 @@ didReceiveResponse:(NSURLResponse *)response
     NSError *error = nil;
     download.file = [NSFileHandle fileHandleForWritingToURL:download.destination error:&error];
     download.failure = error;
+    if (download.file && download.progress) {
+        download.progress(0, download.size);
+    }
     completionHandler(download.file ? NSURLSessionResponseAllow : NSURLSessionResponseCancel);
 }
 
@@ -948,8 +962,12 @@ didReceiveResponse:(NSURLResponse *)response
     }
     download.networkRetries = 0;
     os_unfair_lock_lock(&_lock);
-    download.bytesWritten += data.length;
+    uint64_t written = download.bytesWritten += data.length;
     os_unfair_lock_unlock(&_lock);
+    // After the write: a reader told of these bytes finds them on disk.
+    if (download.progress) {
+        download.progress(written, download.size);
+    }
 }
 
 - (void)URLSession:(NSURLSession *)session
@@ -971,6 +989,11 @@ didCompleteWithError:(NSError *)error {
         [self finishTransfer:download result:nil error:download.failure];
         return;
     }
+    // Every byte is here: a resend would ask for bytes=<size>-, which 416s.
+    BOOL whole = download.file && download.size >= 0 && download.bytesWritten == (uint64_t)download.size;
+    if (error && whole && !download.errorData && VibeIsConnectionError(error)) {
+        error = nil;
+    }
     if (error) {
         if (download.file && download.networkRetries < kMaximumNetworkRetries && VibeIsConnectionError(error)) {
             download.networkRetries++;
@@ -986,7 +1009,13 @@ didCompleteWithError:(NSError *)error {
         return;
     }
     if (!download.errorData) {
-        [self finishTransfer:download result:download.metadata ?: @{} error:nil];
+        // A file of another length than its version's is not that version.
+        NSError *mismatch = download.size < 0 || whole ? nil
+                : VibeDropboxMakeError(VibeDropboxErrorAPI, @"the download's length differs from its file's size");
+        if (mismatch) {
+            LogWarn(@"Dropbox: %@ ended at byte %llu of %lld", download.path, download.bytesWritten, download.size);
+        }
+        [self finishTransfer:download result:download.metadata ?: @{} error:mismatch];
         return;
     }
     [self handleFailureStatus:download.status data:download.errorData retryAfter:download.retryAfter

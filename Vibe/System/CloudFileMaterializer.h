@@ -18,7 +18,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 // Created before the caller dispatches its worker, so -cancel reaches a call
-// that has not yet entered materializeURL:token:error:. A token, not a claim:
+// that has not yet entered materializeURL:. A token, not a claim:
 // each caller owns its materializer, and a later preparation supersedes it.
 @interface CloudFileMaterializationToken : NSObject
 
@@ -31,8 +31,13 @@ NS_ASSUME_NONNULL_BEGIN
 // iOS: the Dropbox mirror). Blocks the worker until url holds its bytes.
 // onCancel hands over the block -cancel runs, from any thread; a cancel that
 // came first runs it at once. Unlike the provider path, this cancel stops the
-// transfer, not just the wait.
+// transfer, not just the wait. onReadable, when given, is called at most
+// once, from the transfer's own thread and so must return at once, when the
+// file can be opened before it is complete: availabilityForURL: answers it
+// and enough of its head is written. A file that completes first never calls
+// it, and the return still says whether the transfer completed.
 typedef BOOL (^CloudFileRemoteFetch)(NSURL *url,
+                                     dispatch_block_t _Nullable onReadable,
                                      void (^onCancel)(dispatch_block_t cancel),
                                      NSError *__autoreleasing _Nullable *_Nullable error);
 
@@ -116,9 +121,11 @@ typedef CloudFileAvailability *_Nullable (^CloudFileRemoteAvailability)(NSURL *u
 
 // Blocks until url's data is on disk; a local file costs only the probe.
 // Background only: it blocks for a download, and coordinating on main is how
-// an app deadlocks against its own presenters.
+// an app deadlocks against its own presenters. onReadable is handed to the
+// remote fetch as it is (CloudFileRemoteFetch); no other backend calls it.
 - (BOOL)materializeURL:(NSURL *)url
                  token:(CloudFileMaterializationToken *)token
+            onReadable:(nullable dispatch_block_t)onReadable
                  error:(NSError *__autoreleasing _Nullable *_Nullable)error;
 
 // Any thread, returns at once; the call returns NO with NSUserCancelledError.

@@ -49,13 +49,13 @@
     [materializer cancel];
 
     NSError *error = nil;
-    XCTAssertFalse([materializer materializeURL:url token:cancelledToken error:&error]);
+    XCTAssertFalse([materializer materializeURL:url token:cancelledToken onReadable:nil error:&error]);
     XCTAssertEqualObjects(error.domain, NSCocoaErrorDomain);
     XCTAssertEqual(error.code, NSUserCancelledError);
 
     CloudFileMaterializationToken *nextToken = [materializer prepareMaterialization];
     error = nil;
-    XCTAssertTrue([materializer materializeURL:url token:nextToken error:&error]);
+    XCTAssertTrue([materializer materializeURL:url token:nextToken onReadable:nil error:&error]);
     XCTAssertNil(error);
     XCTAssertEqualObjects(completions, (@[@NO, @YES]));
 }
@@ -73,6 +73,7 @@
     NSError *error = nil;
     XCTAssertTrue([materializer materializeURL:url
                                          token:[materializer prepareMaterialization]
+                                    onReadable:nil
                                          error:&error]);
     XCTAssertNil(error);
     XCTAssertEqual(completions.count, 0u);
@@ -93,6 +94,7 @@
     NSError *error = nil;
     XCTAssertTrue([materializer materializeURL:url
                                          token:[materializer prepareMaterialization]
+                                    onReadable:nil
                                          error:&error]);
     XCTAssertNil(error);
     XCTAssertEqualObjects(completions, (@[@YES]));
@@ -110,6 +112,7 @@
     NSError *error = nil;
     XCTAssertTrue([materializer materializeURL:url
                                          token:[materializer prepareMaterialization]
+                                    onReadable:nil
                                          error:&error]);
     XCTAssertNil(error);
     [NSFileManager.defaultManager removeItemAtURL:url error:NULL];
@@ -139,7 +142,7 @@
         [materializer cancel];
     });
     NSError *error = nil;
-    XCTAssertFalse([materializer materializeURL:url token:token error:&error]);
+    XCTAssertFalse([materializer materializeURL:url token:token onReadable:nil error:&error]);
     XCTAssertEqualObjects(error.domain, NSCocoaErrorDomain);
     XCTAssertEqual(error.code, NSUserCancelledError);
     XCTAssertEqualObjects(completions, (@[@NO]));
@@ -168,7 +171,7 @@
     __block BOOL ready = YES;
     __block NSError *finishError = nil;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-        ready = [materializer materializeURL:url token:token error:&finishError];
+        ready = [materializer materializeURL:url token:token onReadable:nil error:&finishError];
         [returned fulfill];
     });
     [self waitForExpectations:@[acquired] timeout:VIBE_TEST_HANG_TIMEOUT];
@@ -207,6 +210,7 @@
     NSError *error = nil;
     XCTAssertFalse([materializer materializeURL:url
                                          token:[materializer prepareMaterialization]
+                                    onReadable:nil
                                          error:&error]);
     XCTAssertEqualObjects(error.domain, @"com.vibe.fake-cloud");
     XCTAssertEqual(releases, 1u);
@@ -316,12 +320,54 @@
     XCTAssertEqual([availability waitForBytesAt:0 length:10 interrupted:isInterrupted error:NULL], CloudFileAvailabilityReady);
 }
 
+// The remote fetch is handed the caller's readable callback as it is, and
+// nil when there is none.
+- (void)testTheRemoteFetchIsHandedTheReadableCallback {
+    char resolved[PATH_MAX];
+    NSString *base = [NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString];
+    [NSFileManager.defaultManager createDirectoryAtPath:base withIntermediateDirectories:YES attributes:nil error:NULL];
+    NSURL *root = [NSURL fileURLWithPath:@(realpath(base.fileSystemRepresentation, resolved)) isDirectory:YES];
+    NSURL *url = [root URLByAppendingPathComponent:@"track.flac"];
+    XCTAssertTrue([NSFileManager.defaultManager createFileAtPath:url.path contents:[NSData dataWithBytes:"x" length:1]
+                                                      attributes:@{NSFilePosixPermissions: @0}]);
+    __block NSUInteger fetches = 0;
+    __block dispatch_block_t handed = nil;
+    [CloudFileMaterializer setRemoteRoot:root fetch:^BOOL(NSURL *candidate, dispatch_block_t onReadable,
+                                                          void (^onCancel)(dispatch_block_t), NSError **error) {
+        fetches++;
+        handed = onReadable;
+        if (onReadable) {
+            onReadable();
+        }
+        return YES;
+    } read:^NSData *(NSURL *candidate, uint64_t offset, uint64_t length, NSError **error) {
+        return nil;
+    } availability:nil];
+
+    CloudFileMaterializer *materializer = [CloudFileMaterializer new];
+    __block NSUInteger readables = 0;
+    dispatch_block_t onReadable = ^{
+        readables++;
+    };
+    XCTAssertTrue([materializer materializeURL:url token:[materializer prepareMaterialization]
+                                    onReadable:onReadable error:NULL]);
+    XCTAssertEqual(readables, 1u);
+    XCTAssertEqual(handed, onReadable);
+    XCTAssertTrue([materializer materializeURL:url token:[materializer prepareMaterialization]
+                                    onReadable:nil error:NULL]);
+    XCTAssertEqual(fetches, 2u);
+    XCTAssertNil(handed);
+
+    [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
+    [NSFileManager.defaultManager removeItemAtURL:root error:NULL];
+}
+
 // The streaming lookup is asked only while a backend installs one.
 - (void)testTheStreamingLookupAnswersOnlyWhileInstalled {
     NSURL *url = [NSURL fileURLWithPath:@"/remote/track.flac"];
     XCTAssertNil([CloudFileMaterializer availabilityForURL:url]);
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/remote/.part"] size:1];
-    [CloudFileMaterializer setRemoteRoot:[NSURL fileURLWithPath:@"/remote"] fetch:^BOOL(NSURL *candidate, void (^onCancel)(dispatch_block_t), NSError **error) {
+    [CloudFileMaterializer setRemoteRoot:[NSURL fileURLWithPath:@"/remote"] fetch:^BOOL(NSURL *candidate, dispatch_block_t onReadable, void (^onCancel)(dispatch_block_t), NSError **error) {
         return NO;
     } read:^NSData *(NSURL *candidate, uint64_t offset, uint64_t length, NSError **error) {
         return nil;

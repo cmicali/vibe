@@ -249,7 +249,7 @@ static NSData *VibeDecode(AudioFileHandle *handle, AVAudioFrameCount chunk, AVAu
     _streams = [NSMutableDictionary dictionary];
     _lookups = [NSMutableArray array];
     __weak AudioFileHandleStreamingTests *weakSelf = self;
-    [CloudFileMaterializer setRemoteRoot:_directory fetch:^BOOL(NSURL *url, void (^onCancel)(dispatch_block_t), NSError **error) {
+    [CloudFileMaterializer setRemoteRoot:_directory fetch:^BOOL(NSURL *url, dispatch_block_t onReadable, void (^onCancel)(dispatch_block_t), NSError **error) {
         return NO;
     } read:^NSData *(NSURL *url, uint64_t offset, uint64_t length, NSError **error) {
         return nil;

@@ -75,11 +75,17 @@ extern NSNotificationName const VibeDropboxAccountDidChangeNotification;
 // a resend (a refreshed token, a throttle, a dropped connection) continues it
 // with a Range header rather than starting over, and only for the same rev.
 // The completion carries the first response's metadata (the
-// Dropbox-API-Result header); on failure destination is gone.
+// Dropbox-API-Result header); on failure destination is gone. A file whose
+// length differs from that metadata's size fails, and one dropped after its
+// last byte is complete.
+// progress, on the download's serial delivery queue and never after the
+// completion, is called with 0 once the file is made, then after each write
+// with the bytes on disk; size is the metadata's, -1 when it names none.
 // The returned block cancels, any thread, at any point: before the request
 // starts it never starts.
 - (dispatch_block_t)downloadPath:(NSString *)path
                            toURL:(NSURL *)destination
+                        progress:(nullable void (^)(uint64_t bytesWritten, int64_t size))progress
                       completion:(void (^)(NSDictionary *_Nullable metadata, NSError *_Nullable error))completion;
 
 // `length` bytes of files/download from `offset`, through a Range header:

@@ -181,7 +181,7 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
 }
 
 - (BOOL)runWithError:(NSError *__autoreleasing *)error {
-    return [_materializer materializeURL:_url token:_token error:error];
+    return [_materializer materializeURL:_url token:_token onReadable:nil error:error];
 }
 
 - (void)cancel {

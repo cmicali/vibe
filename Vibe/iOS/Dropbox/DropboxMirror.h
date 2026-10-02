@@ -19,6 +19,8 @@
 
 #import "DropboxClient.h"
 
+@class CloudFileAvailability;
+
 NS_ASSUME_NONNULL_BEGIN
 
 // A fetch landed, with whatever the budget then evicted. Posted on main with
@@ -88,10 +90,18 @@ extern NSString *const VibeDropboxDownloadsBytesKey;
 - (void)removeDownloadsWithCompletion:(dispatch_block_t)completion;
 
 // CloudFileMaterializer's remote fetch: blocks until url's bytes have
-// replaced its placeholder. Background threads only.
+// replaced its placeholder, the part file they stream into readable through
+// availabilityForURL: meanwhile. onReadable as CloudFileRemoteFetch says, on
+// the client's delivery queue. Background threads only.
 - (BOOL)fetchPlaceholderAtURL:(NSURL *)url
+                   onReadable:(nullable dispatch_block_t)onReadable
                      onCancel:(void (^)(dispatch_block_t cancel))onCancel
                         error:(NSError *__autoreleasing _Nullable *_Nullable)error;
+
+// CloudFileMaterializer's streaming lookup: the availability of url's fetch
+// from its first response until it has finished, after the install or the
+// failure; nil otherwise, and for a response naming no size. Any thread.
+- (nullable CloudFileAvailability *)availabilityForURL:(NSURL *)url;
 
 // CloudFileMaterializer's remote read: bytes of the file a placeholder stands
 // for, by range, blocking, for a tag parse. Background threads only.

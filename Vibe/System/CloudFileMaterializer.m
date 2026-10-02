@@ -283,6 +283,7 @@ static NSError *VibeMaterializationCancelledError(void) {
 
 - (BOOL)materializeURL:(NSURL *)url
                  token:(CloudFileMaterializationToken *)token
+            onReadable:(dispatch_block_t)onReadable
                  error:(NSError *__autoreleasing *)error {
 #if DEBUG
     // Asked ahead of the placeholder probe; the provider answers 0 for a path
@@ -338,7 +339,7 @@ static NSError *VibeMaterializationCancelledError(void) {
     }
 
     if ([NSURLUtil isRemotePlaceholderFile:url]) {
-        return [self fetchRemoteURL:url token:token error:error];
+        return [self fetchRemoteURL:url token:token onReadable:onReadable error:error];
     }
 
     // Fresh per download: cancelling poisons a coordinator for good.
@@ -372,6 +373,7 @@ static NSError *VibeMaterializationCancelledError(void) {
 
 - (BOOL)fetchRemoteURL:(NSURL *)url
                  token:(CloudFileMaterializationToken *)token
+            onReadable:(dispatch_block_t)onReadable
                  error:(NSError *__autoreleasing *)error {
     CloudFileRemoteFetch fetch = VibeRemoteFetch();
     os_unfair_lock_lock(&_lock);
@@ -387,7 +389,7 @@ static NSError *VibeMaterializationCancelledError(void) {
 
     __weak CloudFileMaterializer *weakSelf = self;
     NSError *fetchError = nil;
-    BOOL fetched = fetch(url, ^(dispatch_block_t cancel) {
+    BOOL fetched = fetch(url, onReadable, ^(dispatch_block_t cancel) {
         if (![weakSelf installCancelTransfer:cancel token:token]) {
             cancel();
         }

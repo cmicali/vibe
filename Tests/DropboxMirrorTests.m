@@ -5,16 +5,20 @@
 //  in the session's configuration) and a per-test temp root: listing
 //  reconciliation, the placeholder-to-bytes fetch through
 //  CloudFileMaterializer, its cancellation, a download resumed in place, the
-//  token refresh and the unlink.
+//  fetch's part file read while it streams, the token refresh and the unlink.
 //
 
 #import <XCTest/XCTest.h>
+#import <objc/runtime.h>
 
 #include <os/lock.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 
+#import "AudioFileHandle.h"
+#import "AudioFixtures.h"
 #import "CloudFileMaterializer.h"
 #import "DropboxClientInternal.h"
 #import "DropboxMirror.h"
@@ -26,7 +30,9 @@
 // answer only once `gate` is signalled, without holding the loader thread,
 // so other requests are answered meanwhile. A failure ends the load after
 // the body, a dropped connection, once failWhen answers YES; with status 0 it
-// comes before any response.
+// comes before any response. With a chunk length the body goes out in
+// chunks, beforeChunk asked off the loading thread ahead of each, so a test
+// can hold the next one back.
 typedef struct {
     NSInteger status;
     NSDictionary<NSString *, NSString *> *_Nullable headers;
@@ -35,6 +41,8 @@ typedef struct {
     dispatch_semaphore_t _Nullable gate;
     NSError *_Nullable failure;
     BOOL (^_Nullable failWhen)(void);
+    NSUInteger chunk;
+    void (^_Nullable beforeChunk)(NSUInteger index);
 } DropboxStubResponse;
 
 typedef DropboxStubResponse (^DropboxStubHandler)(NSURLRequest *request, NSDictionary *_Nullable json);
@@ -48,7 +56,18 @@ static DropboxStubResponse DropboxStubJSON(NSInteger status, id object) {
             [NSJSONSerialization dataWithJSONObject:object options:0 error:NULL], NO};
 }
 
+// The loading thread's run loop may next turn in either mode.
+static NSArray<NSString *> *DropboxStubModes(void) {
+    NSMutableArray<NSString *> *modes = [NSMutableArray arrayWithObject:NSDefaultRunLoopMode];
+    NSString *mode = NSRunLoop.currentRunLoop.currentMode;
+    if (mode && ![mode isEqualToString:NSDefaultRunLoopMode]) {
+        [modes addObject:mode];
+    }
+    return modes;
+}
+
 @interface DropboxStubProtocol : NSURLProtocol
+@property (atomic) BOOL stopped;
 @end
 
 @implementation DropboxStubProtocol {
@@ -121,6 +140,26 @@ static NSData *DropboxStubBody(NSURLRequest *request) {
                                                          HTTPVersion:@"HTTP/1.1"
                                                         headerFields:response.headers];
     [self.client URLProtocol:self didReceiveResponse:http cacheStoragePolicy:NSURLCacheStorageNotAllowed];
+    if (response.body && response.chunk > 0) {
+        NSThread *thread = NSThread.currentThread;
+        NSArray<NSString *> *modes = DropboxStubModes();
+        NSData *body = response.body;
+        NSUInteger chunk = response.chunk;
+        void (^beforeChunk)(NSUInteger) = response.beforeChunk;
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            for (NSUInteger start = 0, index = 0; start < body.length && !self.stopped; start += chunk, index++) {
+                if (beforeChunk) {
+                    beforeChunk(index);
+                }
+                NSData *slice = [body subdataWithRange:NSMakeRange(start, MIN(chunk, body.length - start))];
+                [self performSelector:@selector(deliverData:) onThread:thread withObject:slice
+                        waitUntilDone:NO modes:modes];
+            }
+            [self performSelector:@selector(finishLoading) onThread:thread withObject:nil
+                    waitUntilDone:NO modes:modes];
+        });
+        return;
+    }
     if (response.body) {
         [self.client URLProtocol:self didLoadData:response.body];
     }
@@ -129,12 +168,7 @@ static NSData *DropboxStubBody(NSURLRequest *request) {
         // the delegate never sees those bytes, so it waits until the client
         // has written them, then goes on the thread that started the load.
         NSThread *thread = NSThread.currentThread;
-        // The loading thread's run loop may next turn in either mode.
-        NSMutableArray<NSString *> *modes = [NSMutableArray arrayWithObject:NSDefaultRunLoopMode];
-        NSString *mode = NSRunLoop.currentRunLoop.currentMode;
-        if (mode && ![mode isEqualToString:NSDefaultRunLoopMode]) {
-            [modes addObject:mode];
-        }
+        NSArray<NSString *> *modes = DropboxStubModes();
         BOOL (^ready)(void) = response.failWhen;
         NSError *failure = response.failure;
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
@@ -154,7 +188,20 @@ static NSData *DropboxStubBody(NSURLRequest *request) {
     [self.client URLProtocol:self didFailWithError:failure];
 }
 
+- (void)deliverData:(NSData *)data {
+    if (!self.stopped) {
+        [self.client URLProtocol:self didLoadData:data];
+    }
+}
+
+- (void)finishLoading {
+    if (!self.stopped) {
+        [self.client URLProtocolDidFinishLoading:self];
+    }
+}
+
 - (void)stopLoading {
+    self.stopped = YES;
 }
 
 @end
@@ -164,6 +211,8 @@ static NSData *DropboxStubBody(NSURLRequest *request) {
 static NSString *const kStamp = @"2020-01-02T03:04:05Z";
 static const time_t kStampSeconds = 1577934245;
 static NSString *const kRev = @"015c0ffee";
+// DropboxMirror's kStreamReadableBytes.
+static const uint64_t kReadableBytes = 256 * 1024;
 
 // files/download as Dropbox answers it: the whole file, or 206 from a Range's
 // first byte, with the version's metadata either way.
@@ -214,6 +263,65 @@ static NSDictionary *FolderEntry(NSString *folder, NSString *name) {
              @"path_lower": path.lowercaseString};
 }
 
+// Every availability's notes and finish pass through these while they are
+// set, so a test sees each as the mirror makes it, before it lands.
+static os_unfair_lock sObserverLock = OS_UNFAIR_LOCK_INIT;
+static void (^sNoteObserver)(CloudFileAvailability *availability, uint64_t bytes);
+static void (^sFinishObserver)(CloudFileAvailability *availability, NSError *error);
+static IMP sNoteIMP;
+static IMP sFinishIMP;
+
+static void ObservedNote(id availability, SEL selector, uint64_t bytes) {
+    os_unfair_lock_lock(&sObserverLock);
+    void (^observer)(CloudFileAvailability *, uint64_t) = sNoteObserver;
+    os_unfair_lock_unlock(&sObserverLock);
+    if (observer) {
+        observer(availability, bytes);
+    }
+    ((void (*)(id, SEL, uint64_t))sNoteIMP)(availability, selector, bytes);
+}
+
+static void ObservedFinish(id availability, SEL selector, NSError *error) {
+    os_unfair_lock_lock(&sObserverLock);
+    void (^observer)(CloudFileAvailability *, NSError *) = sFinishObserver;
+    os_unfair_lock_unlock(&sObserverLock);
+    if (observer) {
+        observer(availability, error);
+    }
+    ((void (*)(id, SEL, NSError *))sFinishIMP)(availability, selector, error);
+}
+
+static void ObserveAvailabilities(void (^_Nullable note)(CloudFileAvailability *, uint64_t),
+                                  void (^_Nullable finish)(CloudFileAvailability *, NSError *)) {
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        Class cls = CloudFileAvailability.class;
+        sNoteIMP = method_setImplementation(class_getInstanceMethod(cls, @selector(noteWrittenBytes:)),
+                                            (IMP)ObservedNote);
+        sFinishIMP = method_setImplementation(class_getInstanceMethod(cls, @selector(finishWithError:)),
+                                              (IMP)ObservedFinish);
+    });
+    os_unfair_lock_lock(&sObserverLock);
+    sNoteObserver = [note copy];
+    sFinishObserver = [finish copy];
+    os_unfair_lock_unlock(&sObserverLock);
+}
+
+// Interleaved float32 from the cursor to the end; nil when a read answers NO.
+static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
+    AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:handle.processingFormat frameCapacity:4096];
+    NSMutableData *pcm = [NSMutableData data];
+    for (;;) {
+        if (![handle readIntoBuffer:buffer frameCount:4096 error:error]) {
+            return nil;
+        }
+        if (buffer.frameLength == 0) {
+            return pcm;
+        }
+        VibeAppendPCM(pcm, buffer);
+    }
+}
+
 @interface DropboxMirrorTests : XCTestCase
 @end
 
@@ -228,6 +336,15 @@ static NSDictionary *FolderEntry(NSString *folder, NSString *name) {
     NSInteger _tokenRequests;
     // What the stub's files/search_v2 answers.
     NSArray<NSDictionary *> *_searchEntries;
+    // Streaming: each held chunk waits on the gate; the observed notes and
+    // finishes; the fetch's track and its outcome.
+    dispatch_semaphore_t _chunkGate;
+    dispatch_semaphore_t _noteSignal;
+    NSMutableArray<NSArray *> *_notes;
+    NSMutableArray<NSDictionary *> *_finishes;
+    NSURL *_streamTrack;
+    BOOL _fetched;
+    NSError *_fetchError;
 }
 
 - (void)setUp {
@@ -240,6 +357,8 @@ static NSDictionary *FolderEntry(NSString *folder, NSString *name) {
     _root = [NSURL fileURLWithPath:@(realpath(base.fileSystemRepresentation, resolved)) isDirectory:YES];
     _listings = [NSMutableDictionary dictionary];
     _contents = [NSMutableDictionary dictionary];
+    _chunkGate = dispatch_semaphore_create(0);
+    _noteSignal = dispatch_semaphore_create(0);
 
     os_unfair_lock_lock(&sStubLock);
     sStubRequests = [NSMutableArray array];
@@ -257,6 +376,12 @@ static NSDictionary *FolderEntry(NSString *folder, NSString *name) {
 }
 
 - (void)tearDown {
+    os_unfair_lock_lock(&sObserverLock);
+    sNoteObserver = nil;
+    sFinishObserver = nil;
+    os_unfair_lock_unlock(&sObserverLock);
+    // A held chunk's stub, cancelled under it, goes on to find its load stopped.
+    [self releaseChunks:1000];
     [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
     [self installHandler:nil];
     // Let the adopt's posted notification land before the root goes.
@@ -479,6 +604,21 @@ static struct stat StatOf(NSURL *url) {
     XCTAssertFalse([_mirror containsURL:[NSURL fileURLWithPath:@"/tmp/elsewhere.flac"]]);
 }
 
+// The install dates a part to its version just before renaming it, so the
+// stale sweep goes by when it last changed, which a write or that dating
+// moves, never by its mtime.
+- (void)testARelistingKeepsAPartDatedToItsVersion {
+    _listings[@"/music"] = @[FileEntry(@"/Music", @"a.flac", 5, kStamp)];
+    NSURL *folder = [self refresh:@"/Music"];
+    NSURL *part = [NSURLUtil remotePlaceholderPartURL:[folder URLByAppendingPathComponent:@"a.flac"]];
+    XCTAssertTrue([[@"12345" dataUsingEncoding:NSUTF8StringEncoding] writeToURL:part atomically:NO]);
+    struct timeval times[2] = {{kStampSeconds, 0}, {kStampSeconds, 0}};
+    XCTAssertEqual(utimes(part.fileSystemRepresentation, times), 0);
+
+    [self refresh:@"/Music"];
+    XCTAssertTrue([NSFileManager.defaultManager fileExistsAtPath:part.path]);
+}
+
 #pragma mark Search
 
 - (void)testASearchHitResolvesToItsPlaceholderAfterItsFolderIsListed {
@@ -571,11 +711,13 @@ static struct stat StatOf(NSURL *url) {
 
 - (void)installMirrorFetch {
     DropboxMirror *mirror = _mirror;
-    [CloudFileMaterializer setRemoteRoot:_root fetch:^BOOL(NSURL *url, void (^onCancel)(dispatch_block_t), NSError **error) {
-        return [mirror fetchPlaceholderAtURL:url onCancel:onCancel error:error];
+    [CloudFileMaterializer setRemoteRoot:_root fetch:^BOOL(NSURL *url, dispatch_block_t onReadable, void (^onCancel)(dispatch_block_t), NSError **error) {
+        return [mirror fetchPlaceholderAtURL:url onReadable:onReadable onCancel:onCancel error:error];
     } read:^NSData *(NSURL *url, uint64_t offset, uint64_t length, NSError **error) {
         return [mirror readPlaceholderAtURL:url offset:offset length:length error:error];
-    } availability:nil];
+    } availability:^CloudFileAvailability *(NSURL *url) {
+        return [mirror availabilityForURL:url];
+    }];
 }
 
 - (void)testMaterializingAPlaceholderDownloadsItsBytesInPlace {
@@ -587,7 +729,7 @@ static struct stat StatOf(NSURL *url) {
 
     CloudFileMaterializer *materializer = [CloudFileMaterializer new];
     NSError *error = nil;
-    XCTAssertTrue([materializer materializeURL:track token:[materializer prepareMaterialization] error:&error]);
+    XCTAssertTrue([materializer materializeURL:track token:[materializer prepareMaterialization] onReadable:nil error:&error]);
     XCTAssertNil(error);
 
     XCTAssertEqualObjects([NSString stringWithContentsOfURL:track encoding:NSUTF8StringEncoding error:NULL], @"BYTES");
@@ -635,7 +777,7 @@ static struct stat StatOf(NSURL *url) {
 
 - (BOOL)materialize:(NSURL *)url {
     CloudFileMaterializer *materializer = [CloudFileMaterializer new];
-    return [materializer materializeURL:url token:[materializer prepareMaterialization] error:NULL];
+    return [materializer materializeURL:url token:[materializer prepareMaterialization] onReadable:nil error:NULL];
 }
 
 // The budget is 8 bytes here: the second 5-byte download pushes the first
@@ -735,7 +877,7 @@ static struct stat StatOf(NSURL *url) {
     __block NSError *failure = nil;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         NSError *error = nil;
-        materialized = [materializer materializeURL:track token:token error:&error];
+        materialized = [materializer materializeURL:track token:token onReadable:nil error:&error];
         failure = error;
         [returned fulfill];
     });
@@ -802,7 +944,8 @@ static NSData *PatternBytes(NSUInteger length) {
     XCTestExpectation *done = [self expectationWithDescription:@"download"];
     __block NSError *failure = nil;
     __block NSDictionary *result = nil;
-    [_client downloadPath:@"/song.flac" toURL:[self partURL] completion:^(NSDictionary *answer, NSError *error) {
+    [_client downloadPath:@"/song.flac" toURL:[self partURL] progress:nil
+               completion:^(NSDictionary *answer, NSError *error) {
         result = answer;
         failure = error;
         [done fulfill];
@@ -978,7 +1121,7 @@ static NSData *PatternBytes(NSUInteger length) {
     XCTestExpectation *done = [self expectationWithDescription:@"download"];
     __block NSInteger completions = 0;
     __block NSError *failure = nil;
-    dispatch_block_t cancel = [_client downloadPath:@"/song.flac" toURL:[self partURL]
+    dispatch_block_t cancel = [_client downloadPath:@"/song.flac" toURL:[self partURL] progress:nil
                                          completion:^(NSDictionary *metadata, NSError *error) {
         @synchronized (self) {
             completions++;
@@ -995,6 +1138,493 @@ static NSData *PatternBytes(NSUInteger length) {
     XCTAssertEqualObjects(failure.domain, VibeDropboxErrorDomain);
     XCTAssertEqual(failure.code, VibeDropboxErrorCancelled);
     XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[self partURL].path]);
+}
+
+// A dropped connection after the last byte is the whole file: a resend
+// would ask for bytes=<size>-, which Dropbox answers 416.
+- (void)testAConnectionDroppedAfterTheLastByteCompletesWithoutAResume {
+    NSData *bytes = PatternBytes(4000);
+    _contents[@"/song.flac"] = bytes;
+    [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
+        return Dropped([self answer:request], request, bytes.length, [self partURL]);
+    }];
+
+    XCTAssertNil([self downloadSong:NULL]);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:[self partURL]], bytes);
+    XCTAssertEqual([self requestsToPath:@"/2/files/download"].count, 1u);
+}
+
+// Short or long against its version's size, a file is not that version.
+- (void)testADownloadOfAnotherLengthThanItsSizeFailsAndDeletesThePart {
+    NSData *bytes = PatternBytes(4000);
+    _contents[@"/song.flac"] = bytes;
+    for (NSNumber *size in @[@3000, @5000]) {
+        [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
+            return DownloadAnswer(request, bytes, @{@"rev": kRev, @"server_modified": kStamp, @"size": size});
+        }];
+        NSError *error = [self downloadSong:NULL];
+        XCTAssertEqualObjects(error.domain, VibeDropboxErrorDomain, @"size %@", size);
+        XCTAssertEqual(error.code, VibeDropboxErrorAPI, @"size %@", size);
+        XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[self partURL].path], @"size %@", size);
+    }
+}
+
+#pragma mark Streaming
+
+// One mirrored track whose download is held back a chunk at a time, every
+// chunk waiting on _chunkGate; chunk 0 delivers it whole.
+- (NSURL *)streamingTrack:(NSData *)bytes name:(NSString *)name chunk:(NSUInteger)chunk {
+    _listings[@"/music"] = @[FileEntry(@"/Music", name, (long long)bytes.length, kStamp)];
+    _contents[[@"/music/" stringByAppendingString:name.lowercaseString]] = bytes;
+    NSURL *track = [[self refresh:@"/Music"] URLByAppendingPathComponent:name];
+    [self installMirrorFetch];
+    dispatch_semaphore_t gate = _chunkGate;
+    [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
+        DropboxStubResponse answer = [self answer:request];
+        answer.chunk = chunk;
+        answer.beforeChunk = ^(NSUInteger chunkIndex) {
+            dispatch_semaphore_wait(gate, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC)));
+        };
+        return answer;
+    }];
+    _streamTrack = track;
+    return track;
+}
+
+- (void)releaseChunks:(NSUInteger)count {
+    for (NSUInteger i = 0; i < count; i++) {
+        dispatch_semaphore_signal(_chunkGate);
+    }
+}
+
+// Each note with the part file's size as it was made, and each finish with
+// what the install and the lookup looked like then.
+- (void)recordAvailabilities {
+    @synchronized (self) {
+        _notes = [NSMutableArray array];
+        _finishes = [NSMutableArray array];
+    }
+    __weak DropboxMirrorTests *weakSelf = self;
+    ObserveAvailabilities(^(CloudFileAvailability *availability, uint64_t bytes) {
+        DropboxMirrorTests *test = weakSelf;
+        if (!test) {
+            return;
+        }
+        struct stat st = {0};
+        stat(availability.partURL.fileSystemRepresentation, &st);
+        @synchronized (test) {
+            [test->_notes addObject:@[availability, @(bytes), @(st.st_size)]];
+        }
+        dispatch_semaphore_signal(test->_noteSignal);
+    }, ^(CloudFileAvailability *availability, NSError *error) {
+        DropboxMirrorTests *test = weakSelf;
+        if (!test) {
+            return;
+        }
+        NSURL *track = test->_streamTrack;
+        NSDictionary *finish = @{
+            @"availability": availability,
+            @"error": error ?: NSNull.null,
+            @"partExists": @([NSFileManager.defaultManager fileExistsAtPath:availability.partURL.path]),
+            @"installed": @((StatOf(track).st_mode & 0777) == 0644),
+            @"registered": @([test->_mirror availabilityForURL:track] == availability),
+        };
+        @synchronized (test) {
+            [test->_finishes addObject:finish];
+        }
+    });
+}
+
+- (NSArray<NSArray *> *)notes {
+    @synchronized (self) {
+        return [_notes copy];
+    }
+}
+
+- (NSArray<NSDictionary *> *)finishes {
+    @synchronized (self) {
+        return [_finishes copy];
+    }
+}
+
+- (uint64_t)mostNoted {
+    uint64_t most = 0;
+    for (NSArray *note in [self notes]) {
+        most = MAX(most, [note[1] unsignedLongLongValue]);
+    }
+    return most;
+}
+
+// Until a note has reached `bytes`, or `count` notes were made.
+- (void)awaitNoted:(uint64_t)bytes count:(NSUInteger)count {
+    while ([self mostNoted] < bytes || [self notes].count < count) {
+        if (dispatch_semaphore_wait(_noteSignal, dispatch_time(DISPATCH_TIME_NOW,
+                (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))) != 0) {
+            XCTFail(@"noted %llu of %llu in %lu notes", [self mostNoted], bytes, (unsigned long)[self notes].count);
+            return;
+        }
+    }
+}
+
+// The fetch's availability, once its first response made the part file.
+- (CloudFileAvailability *)awaitAvailability {
+    [self awaitNoted:0 count:1];
+    return [self notes].firstObject[0];
+}
+
+// Materializes the track on a worker; _fetched and _fetchError once fulfilled.
+- (XCTestExpectation *)fetch:(NSURL *)track materializer:(CloudFileMaterializer *)materializer
+                  onReadable:(dispatch_block_t)onReadable {
+    XCTestExpectation *returned = [self expectationWithDescription:@"fetched"];
+    CloudFileMaterializationToken *token = [materializer prepareMaterialization];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        NSError *error = nil;
+        self->_fetched = [materializer materializeURL:track token:token onReadable:onReadable error:&error];
+        self->_fetchError = error;
+        [returned fulfill];
+    });
+    return returned;
+}
+
+// A wait for [offset, offset + length) on a worker: `blocked` is signalled
+// once it is about to block, and the returned semaphore when it returns.
+- (dispatch_semaphore_t)read:(CloudFileAvailability *)availability at:(uint64_t)offset length:(uint64_t)length
+                     blocked:(dispatch_semaphore_t)blocked result:(CloudFileAvailabilityWait *)result
+                       error:(NSError *__strong *)error {
+    dispatch_semaphore_t returned = dispatch_semaphore_create(0);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        __block BOOL signalled = NO;
+        NSError *waitError = nil;
+        *result = [availability waitForBytesAt:offset length:length interrupted:^BOOL{
+            if (!signalled) {
+                signalled = YES;
+                dispatch_semaphore_signal(blocked);
+            }
+            return NO;
+        } error:&waitError];
+        if (error) {
+            *error = waitError;
+        }
+        dispatch_semaphore_signal(returned);
+    });
+    return returned;
+}
+
+- (BOOL)await:(dispatch_semaphore_t)semaphore {
+    BOOL signalled = dispatch_semaphore_wait(semaphore, dispatch_time(DISPATCH_TIME_NOW,
+            (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))) == 0;
+    XCTAssertTrue(signalled);
+    return signalled;
+}
+
+// The finish came after the install, or the failure, and before the lookup
+// let go; then it lets go.
+- (void)assertFinishedOnce:(CloudFileAvailability *)availability error:(NSError *)error {
+    NSArray<NSDictionary *> *finishes = [self finishes];
+    XCTAssertEqual(finishes.count, 1u);
+    NSDictionary *finish = finishes.firstObject;
+    XCTAssertEqual(finish[@"availability"], availability);
+    XCTAssertEqualObjects(finish[@"error"], error ?: NSNull.null);
+    XCTAssertEqualObjects(finish[@"partExists"], @NO);
+    XCTAssertEqualObjects(finish[@"installed"], @(error == nil));
+    XCTAssertEqualObjects(finish[@"registered"], @YES, @"the lookup let go before the finish");
+    XCTAssertNil([_mirror availabilityForURL:_streamTrack]);
+    XCTAssertNil([CloudFileMaterializer availabilityForURL:_streamTrack]);
+}
+
+// Registered at the first response, before any byte; noted after each write
+// with no more than is on disk; readable once, past 256 KB; a reader waiting
+// ahead released by the download alone.
+- (void)testAStreamingFetchIsReadableThroughTheLookupAsItsBytesArrive {
+    const NSUInteger chunk = 64 * 1024;
+    NSData *bytes = PatternBytes(16 * chunk);
+    NSURL *track = [self streamingTrack:bytes name:@"stream.flac" chunk:chunk];
+    NSURL *part = [NSURLUtil remotePlaceholderPartURL:track];
+    [self recordAvailabilities];
+    DropboxMirror *mirror = _mirror;
+    __block _Atomic int readables = 0;
+    __block uint64_t readableOnDisk = 0;
+    __block CloudFileAvailability *readableRegistered = nil;
+    XCTestExpectation *fetched = [self fetch:track materializer:[CloudFileMaterializer new] onReadable:^{
+        readableOnDisk = (uint64_t)StatOf(part).st_size;
+        readableRegistered = [mirror availabilityForURL:track];
+        atomic_fetch_add(&readables, 1);
+    }];
+
+    CloudFileAvailability *availability = [self awaitAvailability];
+    XCTAssertEqual([_mirror availabilityForURL:track], availability);
+    XCTAssertEqual([CloudFileMaterializer availabilityForURL:track], availability);
+    XCTAssertEqualObjects(availability.partURL.path, part.path);
+    XCTAssertEqual(availability.size, (uint64_t)bytes.length);
+    XCTAssertEqual(StatOf(part).st_size, (off_t)0, @"registered before any byte");
+
+    dispatch_semaphore_t blocked = dispatch_semaphore_create(0);
+    CloudFileAvailabilityWait waited = CloudFileAvailabilityFailed;
+    dispatch_semaphore_t returned = [self read:availability at:9 * chunk + 100 length:1000
+                                       blocked:blocked result:&waited error:NULL];
+    [self await:blocked];
+    for (NSUInteger i = 1; i <= 16; i++) {
+        [self releaseChunks:1];
+        [self awaitNoted:i * chunk count:0];
+        if (i * chunk < kReadableBytes) {
+            XCTAssertEqual(atomic_load(&readables), 0, @"chunk %lu", (unsigned long)i);
+        }
+        else if (i * chunk > kReadableBytes) {
+            XCTAssertEqual(atomic_load(&readables), 1, @"chunk %lu", (unsigned long)i);
+        }
+        if (i < 10) {
+            XCTAssertNotEqual(dispatch_semaphore_wait(returned, DISPATCH_TIME_NOW), 0, @"chunk %lu", (unsigned long)i);
+        }
+        else if (i == 10) {
+            [self await:returned];
+            XCTAssertEqual(waited, CloudFileAvailabilityReady);
+        }
+    }
+
+    [self waitForExpectations:@[fetched] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertTrue(_fetched, @"%@", _fetchError);
+    XCTAssertEqual(atomic_load(&readables), 1);
+    XCTAssertGreaterThanOrEqual(readableOnDisk, kReadableBytes);
+    XCTAssertEqual(readableRegistered, availability);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:track], bytes);
+
+    NSArray<NSArray *> *notes = [self notes];
+    XCTAssertGreaterThan(notes.count, 16u);
+    uint64_t previous = 0;
+    for (NSArray *note in notes) {
+        XCTAssertEqual(note[0], availability);
+        uint64_t noted = [note[1] unsignedLongLongValue];
+        XCTAssertGreaterThanOrEqual([note[2] unsignedLongLongValue], noted, @"noted before it was written");
+        XCTAssertGreaterThanOrEqual(noted, previous);
+        previous = noted;
+    }
+    XCTAssertEqual(previous, (uint64_t)bytes.length);
+    [self assertFinishedOnce:availability error:nil];
+}
+
+// Completing says ready: a file no bigger than the readable mark never
+// reports readable, though it streams.
+- (void)testASmallFileCompletesWithoutReportingReadable {
+    NSData *bytes = PatternBytes(100 * 1024);
+    NSURL *track = [self streamingTrack:bytes name:@"short.flac" chunk:16 * 1024];
+    [self recordAvailabilities];
+    [self releaseChunks:7];
+    __block _Atomic int readables = 0;
+    XCTestExpectation *fetched = [self fetch:track materializer:[CloudFileMaterializer new] onReadable:^{
+        atomic_fetch_add(&readables, 1);
+    }];
+    [self waitForExpectations:@[fetched] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertTrue(_fetched, @"%@", _fetchError);
+    XCTAssertEqual(atomic_load(&readables), 0);
+    XCTAssertEqual([self mostNoted], (uint64_t)bytes.length);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:track], bytes);
+}
+
+// The previous steps and this one end to end: the handle opens the part file
+// while the rest of the download is held back, reads on as it arrives,
+// follows the rename, and decodes exactly what the whole file decodes.
+- (void)testAHandleOpenedMidFetchDecodesAsTheWholeFile {
+    NSURL *sources = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:
+            [NSString stringWithFormat:@"DropboxMirrorTests-sources-%@", NSUUID.UUID.UUIDString]] isDirectory:YES];
+    [NSFileManager.defaultManager createDirectoryAtURL:sources withIntermediateDirectories:YES attributes:nil error:NULL];
+    // Four seconds of 16-bit stereo, 690 KB: past the readable mark twice over.
+    const NSUInteger frames = 4 * 44100;
+    NSMutableData *samples = [NSMutableData dataWithLength:frames * 2 * 2];
+    int16_t *out = samples.mutableBytes;
+    uint32_t state = 0x2468ace1;
+    for (NSUInteger i = 0; i < frames * 2; i++) {
+        state = state * 1664525u + 1013904223u;
+        out[i] = (int16_t)(sin((double)i * 0.0123) * 12000.0 + (double)(int16_t)(state >> 16) * 0.5);
+    }
+    NSMutableArray<NSURL *> *files = [NSMutableArray array];
+    NSURL *wav = VibeWriteWAV([sources URLByAppendingPathComponent:@"noise.wav"], samples, 44100, 2, 16,
+                              (uint32_t)samples.length);
+    XCTAssertNotNil(wav);
+    if (wav) {
+        [files addObject:wav];
+    }
+    // The real encode with a seek table, when the gitignored corpus is here.
+    NSString *tone = [[NSString stringWithUTF8String:__FILE__].stringByDeletingLastPathComponent
+            stringByAppendingPathComponent:@"../Assets/test_audio_files/tone.flac"].stringByStandardizingPath;
+    if ([NSFileManager.defaultManager fileExistsAtPath:tone]) {
+        [files addObject:[NSURL fileURLWithPath:tone]];
+    }
+
+    const NSUInteger chunk = 32 * 1024;
+    NSUInteger streamed = 0;
+    for (NSURL *source in files) {
+        NSData *bytes = [NSData dataWithContentsOfURL:source];
+        if (bytes.length < 2 * kReadableBytes) {
+            continue;
+        }
+        streamed++;
+        NSError *error = nil;
+        AudioFileHandle *whole = [[AudioFileHandle alloc] initForReading:source error:&error];
+        NSData *reference = whole ? DecodeAll(whole, &error) : nil;
+        XCTAssertNotNil(reference, @"%@: %@", source.lastPathComponent, error);
+
+        _chunkGate = dispatch_semaphore_create(0);
+        NSURL *track = [self streamingTrack:bytes name:source.lastPathComponent chunk:chunk];
+        [self recordAvailabilities];
+        dispatch_semaphore_t readable = dispatch_semaphore_create(0);
+        XCTestExpectation *fetched = [self fetch:track materializer:[CloudFileMaterializer new] onReadable:^{
+            dispatch_semaphore_signal(readable);
+        }];
+        NSUInteger chunks = (bytes.length + chunk - 1) / chunk;
+        NSUInteger head = (NSUInteger)(kReadableBytes / chunk);
+        [self releaseChunks:head];
+        if (![self await:readable]) {
+            [self releaseChunks:chunks];
+            [self waitForExpectations:@[fetched] timeout:VIBE_TEST_HANG_TIMEOUT];
+            continue;
+        }
+        CloudFileAvailability *availability = [self awaitAvailability];
+
+        dispatch_semaphore_t opened = dispatch_semaphore_create(0);
+        dispatch_semaphore_t decoded = dispatch_semaphore_create(0);
+        __block AudioFileHandle *handle = nil;
+        __block NSData *pcm = nil;
+        __block NSError *readError = nil;
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            NSError *failure = nil;
+            handle = [[AudioFileHandle alloc] initForReading:track error:&failure];
+            dispatch_semaphore_signal(opened);
+            pcm = handle ? DecodeAll(handle, &failure) : nil;
+            readError = failure;
+            dispatch_semaphore_signal(decoded);
+        });
+        // Opened with most of the file still held back: from the part file.
+        XCTAssertTrue([self await:opened], @"%@", source.lastPathComponent);
+        XCTAssertNotNil(handle, @"%@: %@", source.lastPathComponent, readError);
+        XCTAssertLessThan([self mostNoted], (uint64_t)bytes.length);
+        [self releaseChunks:chunks];
+
+        XCTAssertTrue([self await:decoded]);
+        [self waitForExpectations:@[fetched] timeout:VIBE_TEST_HANG_TIMEOUT];
+        XCTAssertTrue(_fetched, @"%@: %@", source.lastPathComponent, _fetchError);
+        XCTAssertNotNil(pcm, @"%@: %@", source.lastPathComponent, readError);
+        XCTAssertEqual(pcm.length, reference.length, @"%@", source.lastPathComponent);
+        XCTAssertTrue([pcm isEqualToData:reference], @"%@: the streamed decode differs", source.lastPathComponent);
+        [self assertFinishedOnce:availability error:nil];
+    }
+    XCTAssertGreaterThan(streamed, 0u);
+    [NSFileManager.defaultManager removeItemAtURL:sources error:NULL];
+}
+
+// A transfer failing mid-way, by a changed version or an error answer to its
+// resume, fails a reader waiting ahead with the fetch's own error, and is
+// then forgotten.
+- (void)testAFailedResumeWakesAWaitingReaderWithTheFailure {
+    for (NSNumber *changed in @[@YES, @NO]) {
+        NSData *bytes = PatternBytes(1024 * 1024);
+        NSURL *track = [self streamingTrack:bytes name:@"fails.flac" chunk:0];
+        NSURL *part = [NSURLUtil remotePlaceholderPartURL:track];
+        [self recordAvailabilities];
+        dispatch_semaphore_t blocked = dispatch_semaphore_create(0);
+        dispatch_semaphore_t resume = dispatch_semaphore_create(0);
+        [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
+            if (index == 0) {
+                return Dropped([self answer:request], request, 300 * 1024, part);
+            }
+            // Only once the reader is waiting past what was written.
+            dispatch_semaphore_wait(resume, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC)));
+            return changed.boolValue
+                    ? DownloadAnswer(request, bytes, @{@"rev": @"0200beef", @"server_modified": kStamp})
+                    : DropboxStubJSON(409, @{@"error_summary": @"path/not_found/"});
+        }];
+        XCTestExpectation *fetched = [self fetch:track materializer:[CloudFileMaterializer new] onReadable:nil];
+        CloudFileAvailability *availability = [self awaitAvailability];
+        CloudFileAvailabilityWait waited = CloudFileAvailabilityReady;
+        NSError *readError = nil;
+        dispatch_semaphore_t returned = [self read:availability at:600 * 1024 length:1000
+                                           blocked:blocked result:&waited error:&readError];
+        [self await:blocked];
+        dispatch_semaphore_signal(resume);
+
+        [self await:returned];
+        [self waitForExpectations:@[fetched] timeout:VIBE_TEST_HANG_TIMEOUT];
+        XCTAssertFalse(_fetched);
+        XCTAssertEqual(waited, CloudFileAvailabilityFailed, @"changed %@", changed);
+        XCTAssertEqualObjects(readError, _fetchError);
+        if (changed.boolValue) {
+            XCTAssertEqual(readError.code, VibeDropboxErrorFileChanged);
+        }
+        XCTAssertEqual(StatOf(track).st_mode & 0777, 0);
+        [self assertFinishedOnce:availability error:_fetchError];
+    }
+}
+
+// The client's cancel reaches a waiting reader as the failure it is, never
+// a clean end or a wait that outlives the transfer.
+- (void)testCancellingAStreamingFetchWakesItsReaderAndForgetsIt {
+    const NSUInteger chunk = 64 * 1024;
+    NSURL *track = [self streamingTrack:PatternBytes(8 * chunk) name:@"cancel.flac" chunk:chunk];
+    [self recordAvailabilities];
+    CloudFileMaterializer *materializer = [CloudFileMaterializer new];
+    XCTestExpectation *fetched = [self fetch:track materializer:materializer onReadable:nil];
+    [self releaseChunks:1];
+    [self awaitNoted:chunk count:0];
+    CloudFileAvailability *availability = [self notes].firstObject[0];
+
+    dispatch_semaphore_t blocked = dispatch_semaphore_create(0);
+    CloudFileAvailabilityWait waited = CloudFileAvailabilityReady;
+    NSError *readError = nil;
+    dispatch_semaphore_t returned = [self read:availability at:3 * chunk length:1000
+                                       blocked:blocked result:&waited error:&readError];
+    [self await:blocked];
+    [materializer cancel];
+
+    [self await:returned];
+    [self waitForExpectations:@[fetched] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertEqual(waited, CloudFileAvailabilityFailed);
+    XCTAssertEqualObjects(readError.domain, VibeDropboxErrorDomain);
+    XCTAssertEqual(readError.code, VibeDropboxErrorCancelled);
+    XCTAssertFalse(_fetched);
+    XCTAssertEqual(_fetchError.code, NSUserCancelledError);
+    XCTAssertEqual(StatOf(track).st_mode & 0777, 0);
+    [self assertFinishedOnce:availability error:readError];
+}
+
+// A resume continues the transfer, so it continues its availability: one
+// object from the first byte to the last, a reader across the gap included.
+- (void)testAResumedFetchKeepsItsAvailability {
+    NSData *bytes = PatternBytes(1024 * 1024);
+    NSURL *track = [self streamingTrack:bytes name:@"resumed.flac" chunk:0];
+    NSURL *part = [NSURLUtil remotePlaceholderPartURL:track];
+    [self recordAvailabilities];
+    dispatch_semaphore_t resume = dispatch_semaphore_create(0);
+    [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
+        if (index == 0) {
+            return Dropped([self answer:request], request, 300 * 1024, part);
+        }
+        dispatch_semaphore_wait(resume, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC)));
+        return [self answer:request];
+    }];
+    __block _Atomic int readables = 0;
+    XCTestExpectation *fetched = [self fetch:track materializer:[CloudFileMaterializer new] onReadable:^{
+        atomic_fetch_add(&readables, 1);
+    }];
+    CloudFileAvailability *availability = [self awaitAvailability];
+    dispatch_semaphore_t blocked = dispatch_semaphore_create(0);
+    CloudFileAvailabilityWait waited = CloudFileAvailabilityFailed;
+    dispatch_semaphore_t returned = [self read:availability at:900 * 1024 length:1000
+                                       blocked:blocked result:&waited error:NULL];
+    [self await:blocked];
+    dispatch_semaphore_signal(resume);
+
+    [self await:returned];
+    [self waitForExpectations:@[fetched] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertTrue(_fetched, @"%@", _fetchError);
+    XCTAssertEqual(waited, CloudFileAvailabilityReady);
+    XCTAssertEqual(atomic_load(&readables), 1);
+    XCTAssertEqualObjects([[self requestsToPath:@"/2/files/download"].lastObject valueForHTTPHeaderField:@"Range"],
+                          @"bytes=307200-");
+    for (NSArray *note in [self notes]) {
+        XCTAssertEqual(note[0], availability);
+    }
+    XCTAssertEqual([self mostNoted], (uint64_t)bytes.length);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:track], bytes);
+    [self assertFinishedOnce:availability error:nil];
 }
 
 #pragma mark The account

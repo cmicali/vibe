@@ -22,12 +22,14 @@
     // here a mirror placeholder is dataless, opening it downloads it, and its
     // tags are read by range, so opening a folder does not download it whole.
     [CloudFileMaterializer setRemoteRoot:DropboxMirror.shared.rootURL
-                                   fetch:^BOOL(NSURL *url, void (^onCancel)(dispatch_block_t),
-                                               NSError **error) {
-        return [DropboxMirror.shared fetchPlaceholderAtURL:url onCancel:onCancel error:error];
+                                   fetch:^BOOL(NSURL *url, dispatch_block_t onReadable,
+                                               void (^onCancel)(dispatch_block_t), NSError **error) {
+        return [DropboxMirror.shared fetchPlaceholderAtURL:url onReadable:onReadable onCancel:onCancel error:error];
     } read:^NSData *(NSURL *url, uint64_t offset, uint64_t length, NSError **error) {
         return [DropboxMirror.shared readPlaceholderAtURL:url offset:offset length:length error:error];
-    } availability:nil];
+    } availability:^CloudFileAvailability *(NSURL *url) {
+        return [DropboxMirror.shared availabilityForURL:url];
+    }];
 #if DEBUG
     VibeiOSInstallDebugCommandHook();
 #endif

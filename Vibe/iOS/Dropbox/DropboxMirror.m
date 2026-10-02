@@ -6,11 +6,13 @@
 #import "DropboxMirror.h"
 
 #include <fcntl.h>
+#include <os/lock.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/xattr.h>
 #include <unistd.h>
 
+#import "CloudFileMaterializer.h"
 #import "DropboxRules.h"
 #import "FileSearchRules.h"
 #import "NSURLUtil.h"
@@ -34,6 +36,10 @@ static const NSTimeInterval kRangedReadTimeout = 30;
 static const NSInteger kSearchResultLimit = 50;
 // A part file this old belongs to a download that died with the process.
 static const NSTimeInterval kStalePartSeconds = 24 * 60 * 60;
+// A fetch reports its file readable once this much of its head is on disk.
+// An anti-stutter knob, not a correctness requirement: a reader past the
+// bytes written waits for them regardless.
+static const uint64_t kStreamReadableBytes = 256 * 1024;
 
 // On every mirror directory: {"path": its Dropbox path, "files": {index key:
 // Dropbox id}}. On the directory, not the files, because a placeholder's
@@ -57,6 +63,10 @@ static NSError *VibePOSIXError(void) {
     // The disk queue's: the sheets being fetched, by local path, each with
     // the refreshes waiting on it. The claim on a sheet's download.
     NSMutableDictionary<NSString *, NSMutableArray<dispatch_block_t> *> *_sidecarWaiters;
+    // Each fetch's availability while its transfer writes the part file, by
+    // the file's comparable path; removed only once finished.
+    os_unfair_lock _streamsLock;
+    NSMutableDictionary<NSString *, CloudFileAvailability *> *_streams;
 }
 
 + (DropboxMirror *)shared {
@@ -93,6 +103,8 @@ static NSError *VibePOSIXError(void) {
         _rootURL = [rootURL copy];
         _downloadBudget = downloadBudget;
         _indexes = [[NSCache alloc] init];
+        _streamsLock = OS_UNFAIR_LOCK_INIT;
+        _streams = [NSMutableDictionary dictionary];
         _diskQueue = dispatch_queue_create("com.commonwealthrecordings.Vibe.dropbox-mirror",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
         // Not pruned here: before first unlock the Keychain reads as no
@@ -314,13 +326,14 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
     return YES;
 }
 
-// The download into url's part file, then the install; completion on the
-// client's queue. Returns the cancel.
+// The download into url's part file, then the install; progress and
+// completion on the client's queue. Returns the cancel.
 - (dispatch_block_t)downloadDropboxPath:(NSString *)path
                                   toURL:(NSURL *)url
+                               progress:(void (^_Nullable)(uint64_t bytesWritten, int64_t size))progress
                              completion:(void (^)(NSError *_Nullable error))completion {
     NSURL *part = [NSURLUtil remotePlaceholderPartURL:url];
-    return [_client downloadPath:path toURL:part completion:^(NSDictionary *metadata, NSError *error) {
+    return [_client downloadPath:path toURL:part progress:progress completion:^(NSDictionary *metadata, NSError *error) {
         NSError *installError = nil;
         if (!error && !VibeInstallPart(part, url, metadata, &installError)) {
             error = installError;
@@ -399,14 +412,16 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
 
     [self writeIndex:@{@"path": folderPath, @"files": identifiers} ofDirectory:directory];
 
-    NSDate *staleBefore = [NSDate dateWithTimeIntervalSinceNow:-kStalePartSeconds];
+    time_t staleBefore = time(NULL) - (time_t)kStalePartSeconds;
     for (NSString *name in existing) {
         NSURL *url = [directory URLByAppendingPathComponent:name];
         if ([name hasPrefix:@"."]) {
-            NSDate *modified = nil;
-            [url getResourceValue:&modified forKey:NSURLContentModificationDateKey error:NULL];
-            if ([name hasSuffix:VibeRemotePlaceholderPartSuffix]
-                    && [modified compare:staleBefore] == NSOrderedAscending) {
+            // TRAP: by ctime, not mtime. The install dates a live part to its
+            // version's server_modified just before the rename, and an mtime
+            // sweep landing between the two would delete a finished download.
+            struct stat st;
+            if ([name hasSuffix:VibeRemotePlaceholderPartSuffix] && lstat(url.fileSystemRepresentation, &st) == 0
+                    && st.st_ctimespec.tv_sec < staleBefore) {
                 [files removeItemAtURL:url error:NULL];
             }
             continue;
@@ -504,7 +519,8 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
                     self->_sidecarWaiters = [NSMutableDictionary dictionary];
                 }
                 self->_sidecarWaiters[key] = [NSMutableArray arrayWithObject:leave];
-                [self downloadDropboxPath:sidecar[@"path"] toURL:sidecar[@"url"] completion:^(NSError *fetchError) {
+                [self downloadDropboxPath:sidecar[@"path"] toURL:sidecar[@"url"] progress:nil
+                               completion:^(NSError *fetchError) {
                     if (fetchError) {
                         LogWarn(@"Dropbox: could not fetch %@: %@",
                                 [sidecar[@"url"] lastPathComponent], fetchError.localizedDescription);
@@ -698,7 +714,16 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
 
 #pragma mark - Fetch
 
+- (CloudFileAvailability *)availabilityForURL:(NSURL *)url {
+    NSString *key = VibeComparablePath(url.path);
+    os_unfair_lock_lock(&_streamsLock);
+    CloudFileAvailability *availability = _streams[key];
+    os_unfair_lock_unlock(&_streamsLock);
+    return availability;
+}
+
 - (BOOL)fetchPlaceholderAtURL:(NSURL *)url
+                   onReadable:(dispatch_block_t)onReadable
                      onCancel:(void (^)(dispatch_block_t))onCancel
                         error:(NSError **)error {
     NSString *path = [self downloadArgumentForURL:url];
@@ -707,10 +732,46 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
         return NO;
     }
     CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
+    NSURL *part = [NSURLUtil remotePlaceholderPartURL:url];
+    NSString *key = VibeComparablePath(url.path);
     dispatch_semaphore_t done = dispatch_semaphore_create(0);
     __block NSError *failure = nil;
-    onCancel([self downloadDropboxPath:path toURL:url completion:^(NSError *downloadError) {
+    // The client's delivery queue's, and the completion runs after its last
+    // progress call. The size is the response's, not the placeholder's: a
+    // file re-uploaded since its listing is downloaded as it is now.
+    __block CloudFileAvailability *stream = nil;
+    __block BOOL readable = NO;
+    onCancel([self downloadDropboxPath:path toURL:url progress:^(uint64_t written, int64_t size) {
+        if (!stream) {
+            if (size < 0) {
+                // No size to read against: it downloads whole, as a provider's does.
+                return;
+            }
+            stream = [[CloudFileAvailability alloc] initWithPartURL:part size:(uint64_t)size];
+            os_unfair_lock_lock(&self->_streamsLock);
+            self->_streams[key] = stream;
+            os_unfair_lock_unlock(&self->_streamsLock);
+        }
+        [stream noteWrittenBytes:written];
+        if (onReadable && !readable && written >= kStreamReadableBytes && written < stream.size) {
+            readable = YES;
+            onReadable();
+        }
+    } completion:^(NSError *downloadError) {
         failure = downloadError;
+        // TRAP: finished after the install and before the lookup forgets it.
+        // A reader whose part open missed the rename waits for the finish,
+        // then opens url; one looking it up next opens url, the whole file.
+        // A failure has deleted the part already, which that same wait turns
+        // into the failure, never a missing file.
+        if (stream) {
+            [stream finishWithError:downloadError];
+            os_unfair_lock_lock(&self->_streamsLock);
+            if (self->_streams[key] == stream) {
+                [self->_streams removeObjectForKey:key];
+            }
+            os_unfair_lock_unlock(&self->_streamsLock);
+        }
         dispatch_semaphore_signal(done);
     }]);
     // The client always completes: its request timeout bounds a stall.
