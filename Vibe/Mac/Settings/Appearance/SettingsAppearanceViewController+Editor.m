@@ -445,6 +445,7 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
 
     _backgroundPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(backgroundStyleChanged:)];
     [self addItem:STR_SETTINGS_THEME_BACKGROUND_GLASS value:SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS to:_backgroundPopUp];
+    [self addItem:STR_SETTINGS_THEME_BACKGROUND_FROSTED value:SETTINGS_VALUE_WINDOW_BACKGROUND_FROSTED to:_backgroundPopUp];
     [self addItem:STR_SETTINGS_THEME_BACKGROUND_SOLID value:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID to:_backgroundPopUp];
     [self addItem:STR_SETTINGS_THEME_BACKGROUND_CLEAR value:SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR to:_backgroundPopUp];
     _backgroundColorsRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BACKGROUND_COLORS
@@ -817,8 +818,7 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     BOOL customTint = [theme.windowTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
     _windowTintDarkRow.hidden = !customTint;
     _windowTintLightRow.hidden = !customTint || single;
-    _backgroundColorsRow.hidden = ![theme.windowBackgroundStyle
-            isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
+    _backgroundColorsRow.hidden = !VibeWindowBackgroundTakesColor(theme.windowBackgroundStyle);
     BOOL customPlaylistTint = [theme.playlistTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
     _playlistTintDarkRow.hidden = !customPlaylistTint;
     _playlistTintLightRow.hidden = !customPlaylistTint || single;
@@ -1013,12 +1013,12 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 }
 
 // Every popup that reveals color rows: the revealing choice seeds its wells
-// first, so the surface matches what they show.
+// first, so the surface matches what they show. nil reveals nothing.
 - (void)chooseFromPopUp:(NSPopUpButton *)popUp revealing:(NSString *)revealing
                   wells:(NSArray<NSView *> *)rows effect:(VibeSettingsLiveEffect)effect
                   write:(void (^)(AppTheme *theme, NSString *identifier))write {
     NSString *identifier = popUp.selectedItem.representedObject;
-    if ([identifier isEqualToString:revealing]) {
+    if (revealing && [identifier isEqualToString:revealing]) {
         [self seedWellsIn:rows];
     }
     write(AppSettings.sharedInstance.currentTheme, identifier);
@@ -1029,7 +1029,9 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 #pragma mark - Editor: window
 
 - (void)backgroundStyleChanged:(id)sender {
-    [self chooseFromPopUp:_backgroundPopUp revealing:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID
+    // Frosted and solid share the color pair, so either reveals it.
+    NSString *chosen = _backgroundPopUp.selectedItem.representedObject;
+    [self chooseFromPopUp:_backgroundPopUp revealing:VibeWindowBackgroundTakesColor(chosen) ? chosen : nil
                     wells:@[_backgroundColorsRow] effect:VibeSettingsLiveEffectWindowChrome
                     write:^(AppTheme *theme, NSString *identifier) { theme.windowBackgroundStyle = identifier; }];
 }

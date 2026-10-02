@@ -24,6 +24,7 @@
 #import "MainPlayerContentView.h"
 #import "PitchControlPanel.h"
 #import "TrackDisplayController.h"
+#import "AudioWaveformCache.h"
 
 @implementation MainPlayerController (Settings)
 
@@ -152,6 +153,13 @@
     }
     if (effects & VibeSettingsLiveEffectWaveformStyle) {
         self.waveformView.waveformStyle = settings.currentTheme.waveformStyle;
+        // The track on screen was likely decoded without the bands.
+        BOOL bandsWanted = self.waveformCache.analysisProvider().bands;
+        AudioTrack *track = self.playlistController.currentTrack;
+        if (bandsWanted && !_waveformBandsWanted && track && [self displayState] == TrackDisplayStateTrack) {
+            [self.waveformCache loadWaveformForTrack:track];
+        }
+        _waveformBandsWanted = bandsWanted;
     }
     if (effects & VibeSettingsLiveEffectWaveformTheme) {
         [self refreshWaveformTheme];

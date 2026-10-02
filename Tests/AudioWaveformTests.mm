@@ -8,6 +8,7 @@
 #import "VibeStrings.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <vector>
 
@@ -195,7 +196,9 @@
     AudioWaveform waveform(chunks.size(), chunks.data());
     for (NSString *identifier in [WaveformRendererRegistry availableIdentifiers]) {
         // These two draw individual layers; the next test covers their geometry.
-        if ([identifier isEqualToString:@"sonic_cirrus"] || [identifier isEqualToString:@"cupertino_basic"]) continue;
+        // 3-Band draws three levels a bar, which its own tests cover.
+        if ([identifier isEqualToString:@"sonic_cirrus"] || [identifier isEqualToString:@"cupertino_basic"] ||
+            [identifier isEqualToString:@"three_band"]) continue;
         DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)[self rendererForStyle:identifier];
         XCTAssertTrue([renderer isKindOfClass:DetailedAudioWaveformRenderer.class], @"%@", identifier);
         for (CGFloat width : {257.0, 512.0, 773.0}) {
@@ -407,6 +410,313 @@
     XCTAssertTrue(archived.isComplete());
 }
 
+#pragma mark - 3-Band
+
+// The painter's layers, in order: low, mid, high, low+mid, low+high, mid+high,
+// all three.
+static const NSUInteger kThreeBandLayers = 7;
+
+// 1,024 identical chunks with these band mean squares, under a broadband RMS
+// of 0.1.
+static AudioWaveform VibeThreeBandTestWaveform(std::array<float, 3> bands) {
+    std::vector<AudioWaveformCacheChunk> chunks(1024);
+    std::vector<float> bandSums;
+    for (auto &chunk : chunks) {
+        chunk.set(-0.1f, 0.1f, 0.01f, 1);
+        bandSums.insert(bandSums.end(), bands.begin(), bands.end());
+    }
+    return AudioWaveform(chunks.size(), chunks.data(), bandSums.data());
+}
+
+// 32-bit host order, alpha first: B, G, R, A in memory.
+static uint32_t VibeARGBAt(CGImageRef image, size_t row, size_t column) {
+    NSData *pixels = CFBridgingRelease(CGDataProviderCopyData(CGImageGetDataProvider(image)));
+    const uint8_t *p = (const uint8_t *)pixels.bytes + row * CGImageGetBytesPerRow(image) + column * 4;
+    return (uint32_t)p[3] << 24 | (uint32_t)p[2] << 16 | (uint32_t)p[1] << 8 | p[0];
+}
+static uint32_t VibeRGBAt(CGImageRef image, size_t row, size_t column) {
+    return VibeARGBAt(image, row, column) & 0xffffff;
+}
+
+// The band layers' host, which the sides' mask covers.
+static CALayer *VibeThreeBandHost(AudioWaveformRenderer *renderer) {
+    return renderer.parentLayer.sublayers.firstObject.sublayers.firstObject;
+}
+
+static NSArray<CAShapeLayer *> *VibeThreeBandLayers(AudioWaveformRenderer *renderer) {
+    return (NSArray<CAShapeLayer *> *)VibeThreeBandHost(renderer).sublayers;
+}
+
+static CGFloat VibeAlphaOf(id color) {
+    return CGColorGetAlpha((__bridge CGColorRef)color);
+}
+
+static NSUInteger VibeSubpathCount(CGPathRef path) {
+    __block NSUInteger count = 0;
+    CGPathApplyWithBlock(path, ^(const CGPathElement *element) {
+        if (element->type == kCGPathElementMoveToPoint) count++;
+    });
+    return count;
+}
+
+// Each layer's drawn height for VibeThreeBandTestWaveform (0 where it draws
+// nothing).
+- (std::vector<CGFloat>)threeBandLayerHeightsForBands:(std::array<float, 3>)bands
+                                            normalize:(BOOL)normalize
+                                             waveform:(BOOL)hasWaveform {
+    AudioWaveform waveform = VibeThreeBandTestWaveform(bands);
+    AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
+    renderer.normalizesLevels = normalize;
+    CALayer *host = renderer.parentLayer;
+    [renderer updateWaveform:host.bounds progress:0.5 waveform:hasWaveform ? &waveform : nullptr];
+    [renderer settleMorphImmediately];
+    NSArray<CAShapeLayer *> *stack = VibeThreeBandLayers(renderer);
+    XCTAssertEqual(stack.count, kThreeBandLayers);
+    std::vector<CGFloat> heights;
+    for (CAShapeLayer *layer in stack) {
+        CGPathRef path = layer.path;
+        heights.push_back(path && !CGPathIsEmpty(path) ? CGPathGetPathBoundingBox(path).size.height : 0);
+    }
+    return heights;
+}
+
+- (std::vector<CGFloat>)threeBandLayerHeightsForBands:(std::array<float, 3>)bands {
+    return [self threeBandLayerHeightsForBands:bands normalize:NO waveform:YES];
+}
+
+// What shows of each layer when every bar is alike: every set's envelope is
+// built, and a layer no taller than one painted after it is covered.
+- (std::vector<CGFloat>)visibleThreeBandLayerHeightsForBands:(std::array<float, 3>)bands {
+    std::vector<CGFloat> visible = [self threeBandLayerHeightsForBands:bands];
+    CGFloat above = 0;
+    for (NSUInteger layer = visible.size(); layer-- > 0;) {
+        CGFloat drawn = visible[layer];
+        if (drawn <= above) visible[layer] = 0;
+        above = MAX(above, drawn);
+    }
+    return visible;
+}
+
+// Which layers show: each band alone in its own color, and every ring
+// colored by the set of bands reaching it, so the rings nest as the sets do.
+- (void)testThreeBandRingsAreTheSetsOfBandsReachingThem {
+    std::vector<CGFloat> low = [self visibleThreeBandLayerHeightsForBands:{1, 0, 0}];
+    std::vector<CGFloat> mid = [self visibleThreeBandLayerHeightsForBands:{0, 1, 0}];
+    std::vector<CGFloat> high = [self visibleThreeBandLayerHeightsForBands:{0, 0, 1}];
+    for (NSUInteger layer = 0; layer < kThreeBandLayers; layer++) {
+        XCTAssertEqual(low[layer] > 0, layer == 0, @"layer %lu", layer);
+        XCTAssertEqual(mid[layer] > 0, layer == 1, @"layer %lu", layer);
+        XCTAssertEqual(high[layer] > 0, layer == 2, @"layer %lu", layer);
+    }
+
+    // A loud low, a mid and a faint high: blue out to the low, brown out to
+    // the mid, the all-bands core out to the high.
+    std::vector<CGFloat> nested = [self visibleThreeBandLayerHeightsForBands:{1, 0.01f, 0.0001f}];
+    XCTAssertGreaterThan(nested[0], nested[3]);
+    XCTAssertGreaterThan(nested[3], nested[6]);
+    XCTAssertGreaterThan(nested[6], 0);
+    XCTAssertEqual(nested[1] + nested[2] + nested[4] + nested[5], 0);
+
+    // The same, led by the high band: white, then mid+high, then the core.
+    std::vector<CGFloat> bright = [self visibleThreeBandLayerHeightsForBands:{0.0001f, 0.01f, 1}];
+    XCTAssertGreaterThan(bright[2], bright[5]);
+    XCTAssertGreaterThan(bright[5], bright[6]);
+    XCTAssertEqual(bright[0] + bright[1] + bright[3] + bright[4], 0);
+}
+
+- (void)testThreeBandSilenceIsAHairlineAndNoWaveformIsNothing {
+    std::vector<CGFloat> silence = [self visibleThreeBandLayerHeightsForBands:{0, 0, 0}];
+    std::vector<CGFloat> empty = [self threeBandLayerHeightsForBands:{0, 0, 0} normalize:NO waveform:NO];
+    for (NSUInteger layer = 0; layer < kThreeBandLayers; layer++) {
+        XCTAssertEqual(silence[layer], layer == kThreeBandLayers - 1 ? 1 : 0, @"layer %lu", layer);
+        XCTAssertEqual(empty[layer], 0, @"layer %lu", layer);
+    }
+}
+
+// Under Normalize, the tallest band against its share reaches full height,
+// whichever band it is; a band already past full stays where it was.
+- (void)testThreeBandNormalizeFillsTheTallestBand {
+    CGFloat full = 2 * VibeBarVScale([self rendererForStyle:@"three_band"].parentLayer.bounds.size.height);
+    std::vector<CGFloat> lowLed = [self threeBandLayerHeightsForBands:{0.001f, 0.0001f, 0.00001f}
+                                                            normalize:YES waveform:YES];
+    XCTAssertEqualWithAccuracy(lowLed[0], full, 0.01);
+    std::vector<CGFloat> highLed = [self threeBandLayerHeightsForBands:{0.00001f, 0.00001f, 0.001f}
+                                                             normalize:YES waveform:YES];
+    XCTAssertEqualWithAccuracy(highLed[2], full, 0.01);
+    std::array<float, 3> loud = {1, 0.01f, 0.0001f};
+    XCTAssertTrue([self threeBandLayerHeightsForBands:loud normalize:YES waveform:YES] ==
+                  [self threeBandLayerHeightsForBands:loud]);
+}
+
+// The bars' levels, low to high, as 3-Band draws them across this width.
+- (std::vector<float>)threeBandLevelsForWaveform:(AudioWaveform *)waveform width:(CGFloat)width {
+    AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
+    CGRect bounds = renderer.parentLayer.bounds;
+    renderer.parentLayer.bounds = CGRectMake(0, 0, width, bounds.size.height);
+    NSData *samples = [renderer envelopeSamplesForWaveform:waveform];
+    const float *levels = (const float *)samples.bytes;
+    return std::vector<float>(levels, levels + samples.length / sizeof(float));
+}
+
+// A bar a point, up to the waveform's chunks.
+- (void)testThreeBandBarsFollowTheDrawnWidth {
+    AudioWaveform waveform = VibeThreeBandTestWaveform({1, 0.01f, 0.0001f});
+    for (std::array<CGFloat, 2> widthAndBars : {std::array<CGFloat, 2>{512, 512}, {3000, 3000}, {20000, 8192}}) {
+        XCTAssertEqual([self threeBandLevelsForWaveform:&waveform width:widthAndBars[0]].size(),
+                       (NSUInteger)widthAndBars[1] * kAudioWaveformBandCount);
+    }
+}
+
+// Zoomed in, the bars resolve a kick every eight chunks, which the 1/1024
+// floor would average into one steady column.
+- (void)testThreeBandZoomResolvesKicksTheFloorAverages {
+    std::vector<AudioWaveformCacheChunk> chunks(8192);
+    std::vector<float> bandSums;
+    for (NSUInteger i = 0; i < chunks.size(); i++) {
+        chunks[i].set(-0.1f, 0.1f, 0.01f, 1);
+        float low = i % 8 < 2 ? 0.04f : 0.0001f;
+        bandSums.insert(bandSums.end(), {low, 0.0001f, 0.00001f});
+    }
+    AudioWaveform waveform(chunks.size(), chunks.data(), bandSums.data());
+    auto lowLevels = [&](CGFloat width) {
+        std::vector<float> levels = [self threeBandLevelsForWaveform:&waveform width:width];
+        std::vector<float> low;
+        for (NSUInteger i = 0; i < levels.size(); i += kAudioWaveformBandCount) low.push_back(levels[i]);
+        return low;
+    };
+    std::vector<float> overview = lowLevels(1024);
+    XCTAssertEqualWithAccuracy(*std::max_element(overview.begin(), overview.end()),
+                               *std::min_element(overview.begin(), overview.end()), 1e-6);
+    std::vector<float> zoomed = lowLevels(8192);
+    XCTAssertGreaterThan(zoomed[0], 3 * zoomed[4]);
+    XCTAssertEqualWithAccuracy(zoomed[0], zoomed[8], 1e-6);
+}
+
+// Each layer is one outline through the bars, never a shape per bar.
+- (void)testThreeBandDrawsOneOutlinePerLayer {
+    AudioWaveform waveform = VibeThreeBandTestWaveform({1, 0.01f, 0.0001f});
+    AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
+    [renderer updateWaveform:renderer.parentLayer.bounds progress:0.5 waveform:&waveform];
+    [renderer settleMorphImmediately];
+    for (CAShapeLayer *layer in VibeThreeBandLayers(renderer)) {
+        XCTAssertEqual(VibeSubpathCount(layer.path), 1u);
+    }
+}
+
+// The bake fills the same rings in the palette's colors: the core, the
+// low+mid ring and the low band's own, read at the bitmap's center column.
+- (void)testThreeBandBakePaintsEachRingInItsBandsColor {
+    std::array<float, 3> bands = {1, 0.01f, 0.0001f};
+    AudioWaveform waveform = VibeThreeBandTestWaveform(bands);
+    AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
+    WaveformTheme *flat = [WaveformTheme monochromeThemeIsDark:YES];
+    flat.flatFill = YES;
+    renderer.theme = flat;
+    [renderer updateColors:YES];
+    XCTAssertTrue(renderer.supportsEnvelopeBake);
+    CGSize size = renderer.parentLayer.bounds.size;
+    CGImageRef image = [renderer newEnvelopeImageForSize:size scale:1
+                                                 samples:[renderer envelopeSamplesForWaveform:&waveform]];
+    XCTAssertTrue(image != NULL);
+    XCTAssertTrue([renderer newUnplayedEnvelopeImageForSize:size scale:1 samples:NSData.data] == NULL,
+                  @"the unplayed side is the one bitmap, dimmed");
+    XCTAssertLessThan([renderer unplayedOverPlayedOpacity], 1);
+    size_t center = CGImageGetHeight(image) / 2;
+    std::vector<CGFloat> heights = [self threeBandLayerHeightsForBands:bands];
+    size_t brownRow = center - (size_t)((heights[3] / 2 + heights[6] / 2) / 2);
+    size_t blueRow = center - (size_t)((heights[0] / 2 + heights[3] / 2) / 2);
+    XCTAssertEqual(VibeRGBAt(image, center, 256), 0xf5ebd7u, @"the core: all three bands");
+    XCTAssertEqual(VibeRGBAt(image, brownRow, 256), 0xb4690au, @"low and mid");
+    XCTAssertEqual(VibeRGBAt(image, blueRow, 256), 0x0055e1u, @"low alone");
+    CGImageRelease(image);
+
+    // Light turns the luminance over, so the white-led core goes dark.
+    [renderer updateColors:NO];
+    CGImageRef light = [renderer newEnvelopeImageForSize:size scale:1
+                                                 samples:[renderer envelopeSamplesForWaveform:&waveform]];
+    XCTAssertEqual(VibeRGBAt(light, center, 256), 0x33302cu);
+    CGImageRelease(light);
+}
+
+// The theme's gradient is Detailed's ramp, live and baked alike: full at the
+// top, dimmer toward the bottom. A flat theme drops it.
+- (void)testThreeBandRampsLikeDetailedUnlessTheThemeIsFlat {
+    AudioWaveform waveform = VibeThreeBandTestWaveform({1, 0.01f, 0.0001f});
+    AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
+    CGSize size = renderer.parentLayer.bounds.size;
+    // Inside the bands, the same distance above and below the midline; row 0
+    // is the image's top.
+    size_t offset = (size_t)(VibeBarVScale(size.height) * 0.5);
+    size_t upper = (size_t)size.height / 2 - offset, lower = (size_t)size.height / 2 + offset;
+    for (BOOL flatFill : {NO, YES}) {
+        WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
+        theme.flatFill = flatFill;
+        renderer.theme = theme;
+        [renderer updateColors:YES];
+        NSArray<CAGradientLayer *> *sides = (NSArray<CAGradientLayer *> *)VibeThreeBandHost(renderer).mask.sublayers;
+        XCTAssertEqual(sides.count, 2u);
+        for (CAGradientLayer *side in sides) {
+            CGFloat top = VibeAlphaOf(side.colors.firstObject), bottom = VibeAlphaOf(side.colors.lastObject);
+            XCTAssertEqualWithAccuracy(bottom / top, flatFill ? 1 : kVibeBarGradientBottomAlpha, 1e-6);
+        }
+        XCTAssertEqualWithAccuracy(VibeAlphaOf(sides[1].colors.firstObject) / VibeAlphaOf(sides[0].colors.firstObject),
+                                   renderer.unplayedOverPlayedOpacity, 1e-6, @"the unplayed side's level");
+        CGImageRef image = [renderer newEnvelopeImageForSize:size scale:1
+                                                     samples:[renderer envelopeSamplesForWaveform:&waveform]];
+        uint32_t upperAlpha = VibeARGBAt(image, upper, 256) >> 24;
+        uint32_t lowerAlpha = VibeARGBAt(image, lower, 256) >> 24;
+        if (flatFill) {
+            XCTAssertEqual(upperAlpha, 255u);
+            XCTAssertEqual(lowerAlpha, 255u);
+        } else {
+            XCTAssertGreaterThan(upperAlpha, lowerAlpha + 40);
+            XCTAssertGreaterThan(lowerAlpha, (uint32_t)(255 * kVibeBarGradientBottomAlpha));
+        }
+        CGImageRelease(image);
+    }
+}
+
+// The playhead splits the mask over one set of band layers.
+- (void)testThreeBandProgressSplitsTheSides {
+    AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
+    CGFloat width = renderer.parentLayer.bounds.size.width;
+    [renderer updateProgress:0.25 waveform:nullptr];
+    NSArray<CALayer *> *sides = VibeThreeBandHost(renderer).mask.sublayers;
+    XCTAssertEqual(CGRectGetMaxX(sides[0].frame), width * 0.25);
+    XCTAssertEqual(CGRectGetMinX(sides[1].frame), width * 0.25);
+    XCTAssertEqual(CGRectGetMaxX(sides[1].frame), width);
+    XCTAssertEqual(VibeThreeBandLayers(renderer).count, kThreeBandLayers);
+}
+
+// The hover slice's outline is the tallest band, built only while it shows.
+- (void)testThreeBandBuildsItsHoverOutlineOnlyWhileShown {
+    std::array<float, 3> bands = {1, 0.01f, 0.0001f};
+    AudioWaveform waveform = VibeThreeBandTestWaveform(bands);
+    AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
+    CALayer *host = renderer.parentLayer;
+    [renderer updateWaveform:host.bounds progress:0.5 waveform:&waveform];
+    [renderer settleMorphImmediately];
+    CALayer *hoverHost = host.sublayers.firstObject.sublayers.lastObject;
+    CAShapeLayer *outline = (CAShapeLayer *)hoverHost.mask;
+    XCTAssertTrue(hoverHost.hidden);
+    XCTAssertTrue(!outline.path || CGPathIsEmpty(outline.path));
+    [renderer setHoverHighlightX:100];
+    XCTAssertFalse(hoverHost.hidden);
+    CGFloat lowHeight = [self threeBandLayerHeightsForBands:bands][0];
+    XCTAssertEqual(CGPathGetPathBoundingBox(outline.path).size.height, lowHeight);
+    [renderer setHoverHighlightX:-1];
+    XCTAssertTrue(hoverHost.hidden);
+}
+
+- (void)testOnlyThreeBandReadsTheBands {
+    for (NSString *identifier in WaveformRendererRegistry.availableIdentifiers) {
+        XCTAssertEqual([WaveformRendererRegistry readsBandsForIdentifier:identifier],
+                       [identifier isEqualToString:@"three_band"], @"%@", identifier);
+    }
+    XCTAssertFalse([WaveformRendererRegistry readsBandsForIdentifier:nil]);
+    XCTAssertFalse([WaveformRendererRegistry readsBandsForIdentifier:@"missing-style"]);
+}
+
 #pragma mark - getMaxMeanSquare
 
 // 64 chunks whose mean square is their index, so the loudest column at any
@@ -480,6 +790,45 @@
     delete w;
 }
 
+- (void)testBandMeanSquaresAverageEachColumn {
+    // Chunk i holds i, 2i and 3i in its bands over one frame, so a column
+    // [start, end) reads the mean index times 1, 2 and 3, at the source's
+    // width and two that combine unevenly.
+    std::vector<AudioWaveformCacheChunk> source(64, AudioWaveformCacheChunk());
+    std::vector<float> bands;
+    for (NSUInteger i = 0; i < 64; i++) {
+        source[i].set(0, 0, 0, 1);
+        bands.insert(bands.end(), {(float)i, (float)i * 2, (float)i * 3});
+    }
+    AudioWaveform w(source.size(), source.data(), bands.data());
+    for (NSUInteger size : {(NSUInteger)64, (NSUInteger)5, (NSUInteger)3}) {
+        for (NSUInteger i = 0; i < size; i++) {
+            NSUInteger start = 64 * i / size, end = 64 * (i + 1) / size;
+            float meanIndex = (float)(start + end - 1) / 2;
+            float meanSquares[kAudioWaveformBandCount];
+            w.getBandMeanSquares(i, size, meanSquares);
+            for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+                XCTAssertEqualWithAccuracy(meanSquares[b], meanIndex * (b + 1), 1e-4,
+                                           @"size %lu column %lu band %lu", size, i, b);
+            }
+        }
+    }
+    AudioWaveform copy(w);
+    float meanSquares[kAudioWaveformBandCount];
+    copy.getBandMeanSquares(63, 64, meanSquares);
+    XCTAssertEqual(meanSquares[2], 189, @"a copy carries the bands");
+
+    // Without bands every read is silence and every write a no-op.
+    AudioWaveform plain(source.size(), source.data());
+    XCTAssertFalse(plain.hasBands());
+    const float sums[kAudioWaveformBandCount] = {1, 2, 3};
+    plain.setBandSumSquaresAtIndex(sums, 0);
+    plain.copyChunk(0, 1);
+    plain.getBandMeanSquares(0, 64, meanSquares);
+    XCTAssertEqual(meanSquares[0] + meanSquares[1] + meanSquares[2], 0);
+    XCTAssertFalse(AudioWaveform(plain).hasBands());
+}
+
 - (void)testColumnsTileTheSourceWithoutSkippingChunks {
     // Why columns are [start(i), start(i+1)) rather than a floored fixed width:
     // at a fractional ratio the latter skips source chunks, and a transient
@@ -536,6 +885,8 @@
     AudioWaveform *w = new AudioWaveform();
     XCTAssertGreaterThan(w->getNumChunks(), (NSUInteger)0);
     XCTAssertEqual(w->getNumBytes(), w->getNumChunks() * sizeof(AudioWaveformCacheChunk));
+    XCTAssertFalse(w->hasBands(), @"only a decode asked for the bands holds them");
+    XCTAssertEqual(w->getNumBandBytes(), 0u);
     XCTAssertEqual(w->getChunkAtIndex(0, w->getNumChunks()).getMax(), 0.0f);
     delete w;
 }

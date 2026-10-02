@@ -751,6 +751,7 @@ targets:
       - path: Vibe/WaveformUI/Renderers/DetailedAudioWaveformRenderer.mm
       - path: Vibe/WaveformUI/Renderers/OversamplingDetailedAudioWaveformRenderer.mm
       - path: Vibe/WaveformUI/Renderers/SonicCirrusWaveformRenderer.mm
+      - path: Vibe/WaveformUI/Renderers/ThreeBandWaveformRenderer.mm
       - path: Vibe/WaveformUI/Renderers/WaveformRendererRegistry.mm
       - path: Vibe/Debug/VibeWorkTally.m
     settings:

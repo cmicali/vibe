@@ -10,6 +10,7 @@
 #import "AudioWaveform.h"
 #import "WaveformTheme.h"
 #import "WaveformLevelMath.h"
+#import "PlatformColor.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -51,8 +52,9 @@ static inline NSUInteger VibeWaveformEnergyColumnIndexForBar(NSUInteger i, NSUIn
             ? i * kVibeWaveformEnergyColumns / count : i;
 }
 
-// Every bar-level consumer maps through this, never its own chunk's energy,
-// so bars finer than the column cannot re-peg to sub-beat RMS.
+// Every bar-level consumer but 3-Band, whose level is its only shape, maps
+// through this, never its own chunk's energy, so bars finer than the column
+// cannot re-peg to sub-beat RMS.
 static inline AudioWaveformCacheChunk VibeWaveformEnergyColumnForBar(AudioWaveform *waveform,
                                                                      NSUInteger i,
                                                                      NSUInteger count) {
@@ -63,17 +65,26 @@ static inline AudioWaveformCacheChunk VibeWaveformEnergyColumnForBar(AudioWavefo
 }
 
 // Normalize only raises levels: its reference cannot exceed the fixed one.
+// Silence keeps the fixed reference to avoid division by zero.
+static inline float VibeWaveformNormalizedFullScaleRMS(float loudest) {
+    return loudest > 0 ? fminf(loudest, kVibeWaveformFullScaleRMS) : kVibeWaveformFullScaleRMS;
+}
+
 // Match the drawn energy windows, including the finer styles' 1/1024 floor.
-// Silence and empty waveforms keep the fixed reference to avoid division by zero.
-// A streaming load keeps it too: its loudest column is only the loudest SO
-// FAR, and a reference that rises per delivery shrinks bars already drawn.
+// Empty waveforms keep the fixed reference. A streaming load keeps it too:
+// its loudest column is only the loudest SO FAR, and a reference that rises
+// per delivery shrinks bars already drawn.
 static inline float VibeWaveformFullScaleRMSForWaveform(AudioWaveform * _Nullable waveform,
                                                         BOOL normalize,
                                                         NSUInteger count) {
     float loudest = (normalize && waveform && waveform->isComplete())
             ? sqrtf(waveform->getMaxMeanSquare(MIN(count, kVibeWaveformEnergyColumns))) : 0;
-    return loudest > 0 ? fminf(loudest, kVibeWaveformFullScaleRMS) : kVibeWaveformFullScaleRMS;
+    return VibeWaveformNormalizedFullScaleRMS(loudest);
 }
+
+// The waveform's resolution: a bar finer than a chunk only repeats its
+// neighbor. Caps the styles whose count follows the scrubber's zoomed width.
+static const NSUInteger kVibeWaveformMaxBars = 8192;
 
 // Pixel-snapped, since half-lit edge pixels blur the crispest thing in the
 // waveform. Bounds-relative; x may overshoot either edge.
@@ -83,6 +94,67 @@ static inline CGRect VibeSnappedColumnRect(CGFloat x, CGFloat columnWidth,
     CGFloat left = floor((x - width / 2) * scale) / scale;
     left = clampRange(left, 0, MAX(0, boundsWidth - width));
     return CGRectMake(left, 0, width, height);
+}
+
+// The Detailed family's band, which 3-Band shares: bars reach this share of
+// half the height either side of the midline. The one normalized-to-pixels
+// scale, shared by the seek band, the morph's frame-skip heuristic, the masks
+// and the gradient band: they disagree silently if any site re-derives it.
+static const CGFloat kVibeBarAmplitudeOfHalfHeight = 0.75;
+static inline CGFloat VibeBarVScale(CGFloat height) {
+    return (height / 2) * kVibeBarAmplitudeOfHalfHeight;
+}
+static inline CGRect VibeBarSeekHitBand(CGRect bounds) {
+    CGFloat midY = bounds.size.height / 2;
+    CGFloat vscale = VibeBarVScale(bounds.size.height);
+    CGFloat bottomY = round(midY - vscale);
+    CGFloat topY = round(midY + vscale);
+    return CGRectMake(bounds.origin.x, bottomY, bounds.size.width, topY - bottomY);
+}
+
+// Both styles' gradient: a ramp down the band, the resting level at the top
+// and this share of it at the bottom. The live layer and the bake aim it
+// here, so the two stay pixel-identical.
+static const CGFloat kVibeBarGradientBottomAlpha = 0.45;
+static inline NSArray<VibeColor *> *VibeBarRampColors(VibeColor *color, BOOL flat) {
+    return @[color, flat ? color : VibeColorWithScaledAlpha(color, kVibeBarGradientBottomAlpha)];
+}
+static inline void VibeAimBarGradient(CAGradientLayer *gradient) {
+    // y = 1 is the top.
+    gradient.startPoint = CGPointMake(0.5, (1 + kVibeBarAmplitudeOfHalfHeight) / 2);
+    gradient.endPoint = CGPointMake(0.5, (1 - kVibeBarAmplitudeOfHalfHeight) / 2);
+}
+static inline void VibeFillBarGradient(CGContextRef ctx, CGSize size, NSArray *stops) {
+    CGGradientRef gradient = CGGradientCreateWithColors(CGBitmapContextGetColorSpace(ctx),
+                                                        (__bridge CFArrayRef)stops, NULL);
+    CGContextDrawLinearGradient(ctx, gradient,
+            CGPointMake(0, size.height * (1 + kVibeBarAmplitudeOfHalfHeight) / 2),
+            CGPointMake(0, size.height * (1 - kVibeBarAmplitudeOfHalfHeight) / 2),
+            kCGGradientDrawsBeforeStartLocation | kCGGradientDrawsAfterEndLocation);
+    CGGradientRelease(gradient);
+}
+
+// A few pixels over Detailed's sub-point bars and 3-Band's point-wide ones: a
+// lit slice, not a blob. Pixel-snapped at use.
+static const CGFloat kVibeHoverHighlightWidth = 1.5;
+
+// The envelope bake's bitmap, in the format the iOS scrubber installs: sRGB,
+// premultiplied alpha first in host order, scaled to points. NULL when empty.
+static inline CGContextRef _Nullable VibeNewEnvelopeBitmapContext(CGSize size, CGFloat scale) CF_RETURNS_RETAINED;
+static inline CGContextRef _Nullable VibeNewEnvelopeBitmapContext(CGSize size, CGFloat scale) {
+    size_t pixelWidth = (size_t)llround(size.width * scale);
+    size_t pixelHeight = (size_t)llround(size.height * scale);
+    if (pixelWidth == 0 || pixelHeight == 0) {
+        return NULL;
+    }
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    CGContextRef ctx = CGBitmapContextCreate(NULL, pixelWidth, pixelHeight, 8, 0, space,
+            kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
+    CGColorSpaceRelease(space);
+    if (ctx) {
+        CGContextScaleCTM(ctx, scale, scale);
+    }
+    return ctx;
 }
 
 // Both views own their layer trees, so a display change re-stamps them here,
@@ -147,6 +219,10 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 // Localized, user-visible name. Display only.
 + (NSString *)displayName;
 
+// Whether the style draws the bands, which a waveform holds only when its
+// decode was asked for them. NO here.
++ (BOOL)readsBands;
+
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark;
 
 - (void)updateColors:(BOOL)isDark;
@@ -178,6 +254,21 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 // that changes its gradient aim or played-fill quantization must answer for
 // itself — why Basic answers NO despite subclassing Detailed.
 @property (readonly) BOOL supportsEnvelopeBake;
+
+// The bake, for a style that supports it: the iOS scrubber's settled fast
+// path draws the whole envelope as one bitmap, so scrolling translates a
+// texture instead of re-compositing the live tree. Extract samples on main;
+// the bakes touch no layer state and may run on any queue.
+- (NSData *)envelopeSamplesForWaveform:(AudioWaveform *)waveform;
+- (nullable CGImageRef)newEnvelopeImageForSize:(CGSize)size
+                                         scale:(CGFloat)scale
+                                       samples:(NSData *)samples CF_RETURNS_RETAINED;
+// NULL when the unplayed side is the played bitmap at
+// unplayedOverPlayedOpacity, which halves the bake's bytes.
+- (nullable CGImageRef)newUnplayedEnvelopeImageForSize:(CGSize)size
+                                                 scale:(CGFloat)scale
+                                               samples:(NSData *)samples CF_RETURNS_RETAINED;
+- (CGFloat)unplayedOverPlayedOpacity;
 
 @end
 

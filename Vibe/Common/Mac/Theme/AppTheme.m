@@ -382,7 +382,7 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
 
         [rows addObject:Field(kFieldPlaylistBackgroundStyle, playlist, @"backgroundStyle",
                               SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS,
-                              LadderField(VibeNormalizedWindowBackgroundStyle))];
+                              LadderField(VibeNormalizedPlaylistBackgroundStyle))];
         AddColorPair(rows, kVibeThemeColorPlaylistBackground, playlist, @"backgroundColor");
         [rows addObject:Field(kFieldPlaylistTint, playlist, @"tint", SETTINGS_VALUE_WINDOW_TINT_MONO,
                               LadderField(VibeNormalizedPlaylistTint))];
@@ -1407,7 +1407,7 @@ static id RandomPick(NSArray *choices) {
     NSArray *backgrounds = @[SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS, SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID,
                              SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR];
     NSArray *tints = @[SETTINGS_VALUE_WINDOW_TINT_MONO, SETTINGS_VALUE_WINDOW_TINT_ARTWORK];
-    self.windowBackgroundStyle = RandomPick(backgrounds);
+    self.windowBackgroundStyle = RandomPick([backgrounds arrayByAddingObject:SETTINGS_VALUE_WINDOW_BACKGROUND_FROSTED]);
     self.windowTint = RandomPick(tints);
     // Radius first: the switch's off is kept only beside a stored radius.
     self.windowCornerRadius = [RandomPick(@[@0, @8, @12, @16, @20, @28, @36]) doubleValue];

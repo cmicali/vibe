@@ -155,11 +155,21 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
 
 - (void)loadWaveformForTrack:(AudioTrack *)track {
     NSString *key = track.standardizedSourceKey;
+    // On main, so a provider reading main-confined settings (the mac's theme)
+    // is never called off it.
+    VibeWaveformAnalysis analysis = self.analysisProvider ? self.analysisProvider() : (VibeWaveformAnalysis){};
     [self detachCurrentLoader];
     VibeWaveformLoadClaim *existing = _claimsByKey[key];
     if (existing) {
         existing.deliveryTrack = track;
         _currentLoadTrack = track;
+        // A decode without the bands, as when 3-Band is chosen mid-load, is
+        // stopped rather than reattached or waited out: it would persist an
+        // entry this very request misses on.
+        BOOL answers = !analysis.bands || existing.loader.analysis.bands;
+        if (!answers) {
+            [existing.loader cancel];
+        }
         if (!existing.loader.isCancelled && !existing.loader.isComplete) {
             // A detached decode of this same file resumes delivering instead
             // of racing a second decode: progress picks up at its live point.
@@ -174,11 +184,14 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
             existing.retryTrack = track;
             _currentLoader = nil;
             [self armWaitTimeoutForClaim:existing];
+            if (!answers && [existing.workToken cancelIfPending]) {
+                [self settleClaim:existing];
+            }
         }
         return;
     }
     AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] initWithDelegate:self];
-    loader.analysisProvider = self.analysisProvider;
+    loader.analysis = analysis;
     loader.claimKey = key;
     loader.cueStart = track.cueStart;
     loader.cueEnd = track.cueEnd;
@@ -402,6 +415,12 @@ awaitPersist:(BOOL)awaitPersist
         [self->_waveformCache.diskCache removeObjectForKey:cacheKey];
         cachedWaveform = nil;
     }
+    // An entry decoded without the bands is a miss for a request that wants
+    // them, and that decode replaces it with one that has them. Every other
+    // request takes it, so no entry is ever invalidated for the bands.
+    if (cachedWaveform && loader.analysis.bands && !cachedWaveform.waveform->hasBands()) {
+        cachedWaveform = nil;
+    }
     if (cachedWaveform) {
         // A hit finishes this loader as surely as a decode does; without the
         // mark, a detach pools it and a same-file re-request reattaches a
@@ -541,7 +560,7 @@ awaitPersist:(BOOL)awaitPersist
     // local dodges -Wnonnull.
     id<AudioWaveformLoaderDelegate> noDelegate = nil;
     AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] initWithDelegate:noDelegate];
-    loader.analysisProvider = self.analysisProvider;
+    loader.analysis = self.analysisProvider ? self.analysisProvider() : (VibeWaveformAnalysis){};
     // The key is computed off the loader queue; see loadWaveformForTrack:.
     [_lookupScheduler submitWork:^{
         NSString *cacheKey = track.cacheKey;

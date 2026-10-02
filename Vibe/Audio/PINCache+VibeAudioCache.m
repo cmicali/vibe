@@ -6,7 +6,8 @@
 #import "PINCache+VibeAudioCache.h"
 
 // Per cache, about ten thousand tracks before LRU eviction: a waveform is
-// 128 KB, a metadata archive 5–20 KB plus up to ~60 KB of display art.
+// 128 KB (176 KB with 3-Band's bands), a metadata archive 5–20 KB plus up to
+// ~60 KB of display art.
 static const NSUInteger kAudioCacheByteLimit = 1024 * 1024 * 1024;
 
 // A rewritten or moved file orphans its entry (the key never matches again),

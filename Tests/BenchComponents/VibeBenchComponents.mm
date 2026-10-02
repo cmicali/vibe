@@ -220,7 +220,11 @@ id VibeBenchComponentsWaveformLoader(BOOL analyzers) {
 #else
     AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] init];
 #endif
-#if VIBE_BENCH_COMPONENTS_ANALYSIS_PROVIDER
+#if VIBE_BENCH_COMPONENTS_ANALYSIS_VALUE
+    if (analyzers) {
+        loader.analysis = (VibeWaveformAnalysis){.bpm = YES, .key = YES};
+    }
+#elif VIBE_BENCH_COMPONENTS_ANALYSIS_PROVIDER
     if (analyzers) {
         loader.analysisProvider = ^VibeWaveformAnalysis {
             return (VibeWaveformAnalysis){YES, YES};

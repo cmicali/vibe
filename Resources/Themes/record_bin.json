@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "name": "Record Bin",
+  "description": "A single-mode charcoal window with no glass: the 3-Band waveform drawn flat, key colors in the readouts, and a soft white volume bar.",
+  "window": {
+    "backgroundColorDark": "#1C1C1C",
+    "backgroundColorLight": "#EDEDEDF2",
+    "backgroundStyle": "solid",
+    "cornerRadius": 4,
+    "customCornerRadius": true,
+    "mode": "single",
+    "tint": "mono",
+    "tintColorDark": "#24242466"
+  },
+  "info": {
+    "keyColorsEnabled": true
+  },
+  "waveform": {
+    "gradient": false,
+    "style": "three_band"
+  },
+  "volume": {
+    "bar": "custom",
+    "barColorDark": "#FFFFFFD0"
+  }
+}

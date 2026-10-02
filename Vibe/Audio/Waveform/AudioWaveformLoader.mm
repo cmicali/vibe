@@ -17,6 +17,8 @@
 #import "PlaybackIntent.h"
 #import <AVFAudio/AVFAudio.h>
 
+#include <array>
+#include <memory>
 #include <vector>
 
 @implementation AudioWaveformLoader
@@ -79,10 +81,7 @@
     // or key — a file scanned while off is not re-analyzed on re-enable until
     // its cache entry goes. The explicit scan_bpm and scan_key debug paths run
     // the analyzers directly and ignore this.
-    //
-    // No provider means neither runs.
-    VibeWaveformAnalysis analysis = self.analysisProvider ? self.analysisProvider()
-                                                          : (VibeWaveformAnalysis){NO, NO};
+    VibeWaveformAnalysis analysis = self.analysis;
     AudioBPMAnalyzer *bpmAnalyzer = analysis.bpm
             ? [[AudioBPMAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate]
             : nil;
@@ -181,7 +180,7 @@
 - (CodableAudioWaveform *)makeWaveformForPass:(struct VibeWaveformDecodePass *)pass
                                      waveform:(AudioWaveform **)outWaveform
                                     numChunks:(NSUInteger *)outNumChunks {
-    AudioWaveform *waveform = new AudioWaveform();
+    AudioWaveform *waveform = new AudioWaveform(self.analysis.bands);
     // Wrap it immediately so that ARC manages the lifetime. The decode pass's
     // blocks capture the result strongly, keeping the waveform alive until
     // every pending callback has fired.
@@ -211,13 +210,13 @@
 #pragma mark - Phase 3: the pipelined decode
 
 // Reads the file in large blocks, downmixes each to mono once, and feeds that
-// mono block to the chunker and both analyzers on a serial queue one block
-// behind the decode. NO when the pass has nothing worth keeping — a cancel
-// that landed while chunks were still missing, or buffers that would not
-// allocate. A read failure answers YES with the error in pass->readError;
-// isDecodeComplete: still fails the pass, so the partial result is never
-// delivered or persisted — only the progressive snapshots already shown
-// survive, and they survive a NO the same way.
+// mono block to the chunker, with its three bands, and to both analyzers on a
+// serial queue one block behind the decode. NO when the pass has nothing worth
+// keeping — a cancel that landed while chunks were still missing, or buffers
+// that would not allocate. A read failure answers YES with the error in
+// pass->readError; isDecodeComplete: still fails the pass, so the partial
+// result is never delivered or persisted — only the progressive snapshots
+// already shown survive, and they survive a NO the same way.
 - (BOOL)runDecodePass:(struct VibeWaveformDecodePass *)pass
                  file:(AudioFileHandle *)file
              filename:(NSString *)filename
@@ -265,6 +264,14 @@
         monoScratches[0].resize(kReadBlockFrames);
         monoScratches[1].resize(kReadBlockFrames);
     }
+    // The chunker's three bands, split from the mono block when the waveform
+    // has room for them. One split, not one per slot: only the serial
+    // processing side touches it, and its filters must see the blocks in
+    // stream order.
+    std::unique_ptr<AudioWaveformBandSplit> bandSplit = waveform->hasBands()
+            ? std::make_unique<AudioWaveformBandSplit>(file.processingFormat.sampleRate)
+            : nullptr;
+    AudioWaveformBandSplit *bands = bandSplit.get();
 
     // Everything the processing blocks touch. They run one at a time on the
     // serial queue and the decode loop never reads these until the final
@@ -284,6 +291,7 @@
     // Accumulates a chunk across block boundaries, since a chunk rarely aligns
     // with a block edge.
     __block AudioWaveformCacheChunk currentChunk;
+    __block std::array<float, kAudioWaveformBandCount> currentBandSums = {};
     __block BOOL currentChunkHasFrames = NO;
 
     dispatch_semaphore_t slotFree[2] = { dispatch_semaphore_create(1), dispatch_semaphore_create(1) };
@@ -322,8 +330,8 @@
 
         dispatch_semaphore_t slotDone = slotFree[slot];
         dispatch_async(processQueue, ^{
-            // The downmix counts as baseline: the chunker needs it whether or
-            // not an analyzer is running.
+            // The downmix and any band split count as baseline: the chunker
+            // needs them whether or not an analyzer is running.
             uint64_t procStart = VibeLoadClockNow();
             const float *mono = AudioWaveformMonoMix(buffer.floatChannelData[0], scratch,
                                                      numFrames, numChannels);
@@ -345,12 +353,15 @@
                 NSUInteger take = (NSUInteger)MIN((AVAudioFramePosition)(numFrames - offset),
                                                   chunkEnd - pos);
                 currentChunk.mergeFromMonoBuffer(mono + offset, take);
+                if (bands) bands->addSumSquares(mono + offset, take, currentBandSums.data());
                 currentChunkHasFrames = YES;
                 offset += take;
                 if (framesProcessed + (AVAudioFramePosition)offset >= chunkEnd) {
                     waveform->setChunkAtIndex(currentChunk, chunkIndex);
+                    waveform->setBandSumSquaresAtIndex(currentBandSums.data(), chunkIndex);
                     chunksFilled = ++chunkIndex;
                     currentChunk = AudioWaveformCacheChunk();
+                    currentBandSums = {};
                     currentChunkHasFrames = NO;
                     chunkEnd = totalFrames * (AVAudioFramePosition)(chunkIndex + 1)
                             / (AVAudioFramePosition)effectiveChunks;
@@ -398,6 +409,7 @@
     // EOF with a partly accumulated chunk: keep it.
     if (currentChunkHasFrames && chunkIndex < effectiveChunks) {
         waveform->setChunkAtIndex(currentChunk, chunkIndex);
+        waveform->setBandSumSquaresAtIndex(currentBandSums.data(), chunkIndex);
         chunksFilled = chunkIndex + 1;
     }
 
@@ -453,7 +465,7 @@
     NSUInteger chunksFilled = pass->chunksFilled;
     for (NSInteger i = (NSInteger)numChunks - 1; i >= 0; i--) {
         NSUInteger src = (NSUInteger)i * chunksFilled / numChunks;
-        waveform->setChunkAtIndex(waveform->getChunkAtIndex(src, numChunks), (NSUInteger)i);
+        waveform->copyChunk(src, (NSUInteger)i);
     }
 }
 

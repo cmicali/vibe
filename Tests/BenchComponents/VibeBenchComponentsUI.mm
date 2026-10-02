@@ -26,6 +26,9 @@
 #import "PlaylistTableView.h"
 #import "PlaylistTextCell.h"
 #import "SonicCirrusWaveformRenderer.h"
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
+#import "ThreeBandWaveformRenderer.h"
+#endif
 #import "WaveformMorphEngine.h"
 
 #include <cmath>
@@ -254,7 +257,11 @@ static void VibeBenchComponentsRegisterTick(void) {
 // A complete waveform of the loader's 8,192 chunks with a loud middle, so
 // normalize has something to raise.
 static std::shared_ptr<AudioWaveform> VibeBenchComponentsUIWaveform(uint32_t seed) {
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
+    auto waveform = std::make_shared<AudioWaveform>(true);
+#else
     auto waveform = std::make_shared<AudioWaveform>();
+#endif
     NSUInteger chunks = waveform->getNumChunks();
     uint32_t state = seed;
     for (NSUInteger i = 0; i < chunks; i++) {
@@ -262,9 +269,16 @@ static std::shared_ptr<AudioWaveform> VibeBenchComponentsUIWaveform(uint32_t see
         float envelope = 0.15f + 0.35f * (float)std::sin(M_PI * (double)i / (double)chunks);
         float jitter = (float)(state >> 8) / 16777216.0f;
         float peak = envelope * (0.5f + 0.5f * jitter);
+        float sumSquares = peak * peak * 0.3f * 512;
         AudioWaveformCacheChunk chunk;
-        chunk.set(-peak * 0.9f, peak, peak * peak * 0.3f * 512, 512);
+        chunk.set(-peak * 0.9f, peak, sumSquares, 512);
         waveform->setChunkAtIndex(chunk, i);
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
+        // A mix's balance, the lead drifting between the bands.
+        float bands[kAudioWaveformBandCount] = {sumSquares * (0.3f + 0.7f * jitter), sumSquares * 0.06f,
+                                                sumSquares * 0.02f * (1.5f - jitter)};
+        waveform->setBandSumSquaresAtIndex(bands, i);
+#endif
     }
     waveform->markComplete();
     return waveform;
@@ -291,6 +305,17 @@ struct VibeBenchComponentsUIRenderer {
     WaveformMorphEngine *morph;
     std::shared_ptr<AudioWaveform> waveform;
 };
+
+// Sixty frames of a live resize, 700 to 936pt.
+static void VibeBenchComponentsUILiveResize(VibeBenchComponentsUIRenderer *state) {
+    for (int i = 0; i < 60; i++) {
+        CGRect bounds = CGRectMake(0, 0, 700 + 4 * i, 60);
+        state->parent.bounds = bounds;
+        [state->renderer updateWaveform:bounds progress:0.4 waveform:state->waveform.get()];
+    }
+    [state->renderer settleMorphImmediately];
+    [CATransaction flush];
+}
 
 static void VibeBenchComponentsRegisterRenderers(void) {
     // Sonic Cirrus at its 1,024-bar cap: a convert dip, its settle and a
@@ -360,14 +385,36 @@ static void VibeBenchComponentsRegisterRenderers(void) {
         VibeBenchComponentsUIDump(@"ui-waveform-detailed-resize.raw", envelopes);
         return 60;
     }, [detailed]() {
-        for (int i = 0; i < 60; i++) {
-            CGRect bounds = CGRectMake(0, 0, 700 + 4 * i, 60);
-            detailed->parent.bounds = bounds;
-            [detailed->renderer updateWaveform:bounds progress:0.4 waveform:detailed->waveform.get()];
-        }
-        [detailed->renderer settleMorphImmediately];
-        [CATransaction flush];
+        VibeBenchComponentsUILiveResize(detailed.get());
     });
+
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
+    // 3-Band through the same live resize as Detailed's: seven painter's
+    // layers under the sides' mask, a bar a point.
+    auto threeBand = std::make_shared<VibeBenchComponentsUIRenderer>();
+    VibeBenchComponentsAdd("ui-waveform", "three-band-resize", "frame", [threeBand]() -> double {
+        threeBand->parent = [CALayer layer];
+        threeBand->parent.contentsScale = 2;
+        CGRect bounds = CGRectMake(0, 0, 800, 60);
+        threeBand->parent.bounds = bounds;
+        threeBand->waveform = VibeBenchComponentsUIWaveform(13);
+        threeBand->renderer = [[ThreeBandWaveformRenderer alloc] initWithLayer:threeBand->parent bounds:bounds
+                                                                        isDark:YES];
+        threeBand->renderer.normalizesLevels = YES;
+        NSMutableData *envelopes = [NSMutableData data];
+        for (CGFloat width : {300.0, 801.0, 1600.0, 3000.0, 801.0}) {
+            threeBand->parent.bounds = CGRectMake(0, 0, width, 60);
+            [threeBand->renderer updateWaveform:threeBand->parent.bounds progress:0.4
+                                       waveform:threeBand->waveform.get()];
+            [envelopes appendData:[threeBand->renderer envelopeSamplesForWaveform:threeBand->waveform.get()]];
+            [threeBand->renderer settleMorphImmediately];
+        }
+        VibeBenchComponentsUIDump(@"ui-waveform-three-band-resize.raw", envelopes);
+        return 60;
+    }, [threeBand]() {
+        VibeBenchComponentsUILiveResize(threeBand.get());
+    });
+#endif
 }
 
 VIBE_BENCH_COMPONENTS_REGISTER(VibeBenchComponentsRegisterPlaylist)

@@ -4,7 +4,7 @@
   "window" : {
     "backgroundColorDark" : "#0E0E0E",
     "backgroundColorLight" : "#C9C9C3",
-    "backgroundStyle" : "solid",
+    "backgroundStyle" : "frosted",
     "customCornerRadius" : true,
     "cornerRadius" : 2,
     "tint" : "mono"

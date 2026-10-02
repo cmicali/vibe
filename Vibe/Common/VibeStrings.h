@@ -184,6 +184,7 @@ static inline NSString *VibeAppName(void) {
 #define STR_WAVEFORM_STYLE_OVERSAMPLING_X2 NSLS(@"waveform.style.oversampling_x2", @"Oversampling Detailed x2", @"Waveform style name: detailed rendering at 2x oversampling. Keep the 'x2'.")
 #define STR_WAVEFORM_STYLE_OVERSAMPLING_X4 NSLS(@"waveform.style.oversampling_x4", @"Oversampling Detailed x4", @"Waveform style name: detailed rendering at 4x oversampling. Keep the 'x4'.")
 #define STR_WAVEFORM_STYLE_OVERSAMPLING_X8 NSLS(@"waveform.style.oversampling_x8", @"Oversampling Detailed x8", @"Waveform style name: detailed rendering at 8x oversampling. Keep the 'x8'.")
+#define STR_WAVEFORM_STYLE_THREE_BAND      NSLS(@"waveform.style.three_band",      @"3-Band",                   @"Waveform style name: the DJ-player style that draws the low, mid and high frequency bands in their own colors. Keep the digit 3; translate 'Band' as the word for a frequency band.")
 
 #pragma mark - Themes
 
@@ -371,7 +372,8 @@ static inline NSString *VibeAppName(void) {
 #define STR_SETTINGS_THEME_MODE_SINGLE         NSLS(@"settings.appearance.theme.mode_single",         @"Single Mode",                  @"Theme editor, Appearance dropdown: the theme keeps one color per field and always uses it, whatever the system or Vibe appearance setting says.")
 #define STR_SETTINGS_THEME_BACKGROUND_LABEL    NSLS(@"settings.appearance.theme.background_label",    @"Background",                   @"Theme editor, Window group: row beside the dropdown choosing the window background — the glass look, or a solid color.")
 #define STR_SETTINGS_THEME_BACKGROUND_GLASS    NSLS(@"settings.appearance.theme.background.glass",    @"Glass",                        @"Window background choice: the translucent glass look the app ships with.")
-#define STR_SETTINGS_THEME_BACKGROUND_SOLID    NSLS(@"settings.appearance.theme.background.solid",    @"Solid color",                  @"Window background choice: a picked color covers the glass; the color's opacity decides how much glass still shows.")
+#define STR_SETTINGS_THEME_BACKGROUND_FROSTED  NSLS(@"settings.appearance.theme.background.frosted",  @"Frosted",                      @"Window background choice: a picked color under the window's frosted glass panes, which stay over it. Pairs with 'Clear glass': the frosted kind of glass.")
+#define STR_SETTINGS_THEME_BACKGROUND_SOLID    NSLS(@"settings.appearance.theme.background.solid",    @"Solid color",                  @"Window and playlist background choice: a picked color is the whole background, with no glass over it; the color's opacity decides how much of the glass behind still shows.")
 #define STR_SETTINGS_THEME_BACKGROUND_CLEAR    NSLS(@"settings.appearance.theme.background.clear",    @"Clear glass",                  @"Window and playlist background choice: no frosted pane at all — the window's clear glass, with what is behind the window showing through, is the whole background.")
 #define STR_SETTINGS_THEME_BACKGROUND_COLORS   NSLS(@"settings.appearance.theme.background_colors",   @"Background colors",            @"Theme editor, Window group: row beside the solid background's two color wells, one per appearance.")
 #define STR_SETTINGS_THEME_CORNER_RADIUS       NSLS(@"settings.appearance.theme.corner_radius",       @"Corner radius",                @"Theme editor, Window group: row beside the slider rounding the window's corners.")

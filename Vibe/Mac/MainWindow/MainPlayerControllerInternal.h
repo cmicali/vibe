@@ -43,6 +43,9 @@ NS_ASSUME_NONNULL_BEGIN
     __weak AudioTrack*          _lastReloadedTrack;
     PitchControlPanel*          _pitchPanel;
     ArtworkDisplayController*   _artworkController;
+    // The waveform provider's bands answer as of the last style change, so
+    // only the change into a style reading them asks for the track again.
+    BOOL                        _waveformBandsWanted;
 }
 
 @property (readwrite, strong) OutputDevicesMenuController *devicesMenuController;

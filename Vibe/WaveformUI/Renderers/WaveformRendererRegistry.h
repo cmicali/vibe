@@ -28,6 +28,9 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)supportsBarDensityForIdentifier:(NSString *)identifier;
 + (BOOL)supportsBarWidthForIdentifier:(NSString *)identifier;
 + (BOOL)supportsLevelsForIdentifier:(NSString *)identifier;
+// AudioWaveformRenderer.readsBands, for a persisted style; NO for nil or an
+// unregistered one.
++ (BOOL)readsBandsForIdentifier:(nullable NSString *)identifier;
 // A static sample rendered by the actual style and current display settings.
 + (nullable CGImageRef)newPreviewForIdentifier:(NSString *)identifier dark:(BOOL)dark
                                         theme:(WaveformTheme *)theme barDensity:(CGFloat)barDensity

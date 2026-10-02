@@ -20,6 +20,7 @@
 #import "PitchControlPanel.h"
 #import "PlaylistController.h"
 #import "PlaylistTableView.h"
+#import "SettingsRules.h"
 #import "NSView+DarkMode.h"
 #import "SymbolButton.h"
 #import "TrackDisplayController.h"
@@ -274,8 +275,7 @@
     // appearance (APPEARANCE.md's refreshTintWashes trap).
     BOOL dark = self.window.effectiveAppearance.isDark;
     // An unset pair (a hand-edited import) draws the accessor's default.
-    NSColor *color = [theme.windowBackgroundStyle
-            isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID]
+    NSColor *color = VibeWindowBackgroundTakesColor(theme.windowBackgroundStyle)
             ? [theme displayColorForBase:kVibeThemeColorWindowBackground dark:dark] : nil;
     overlay.hidden = (color == nil);
     overlay.layer.backgroundColor = color.CGColor;

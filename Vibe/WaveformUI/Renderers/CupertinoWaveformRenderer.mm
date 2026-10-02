@@ -44,11 +44,10 @@ static const CGFloat kCupertinoBarWidth = 1;
     if (self.theme.flatFill) {
         return @[color, color];
     }
-    const CGFloat kEndAlpha = 0.45;
     return @[
-            VibeColorWithScaledAlpha(color, kEndAlpha),
+            VibeColorWithScaledAlpha(color, kVibeBarGradientBottomAlpha),
             color,
-            VibeColorWithScaledAlpha(color, kEndAlpha),
+            VibeColorWithScaledAlpha(color, kVibeBarGradientBottomAlpha),
     ];
 }
 
