@@ -1,6 +1,6 @@
 # Future: streaming Dropbox playback
 
-**Status: planned, not implemented (written and reviewed against the code 2026-10-02).** Today a Dropbox track plays only once its whole file is local, its waveform starts only then, and a seek is anywhere in a complete file.
+**Status: in progress on the `dropbox-streaming` branch (planned and measured 2026-10-02).** Today a Dropbox track plays only once its whole file is local, its waveform starts only then, and a seek is anywhere in a complete file.
 
 The goal: start playing once enough of a file has arrived, keep downloading while it plays, and draw the waveform as the bytes come in.
 
@@ -38,25 +38,34 @@ These were found reading the code, and each is a way the feature fails if it is 
 - **A metadata bitrate may not exist yet.** Each shell defers the sweep until the picked track's open settles (`scheduleDeferredMetadataLoad`), so the first track tapped in a fresh folder has no scanned bitrate. Nothing in the start decision may depend on one.
 - **The waveform gives up after 20 seconds.** `kWaveformClaimWaitSeconds` abandons a parked wait, and a streaming decode runs as long as the download does. The decode also holds one of three decode slots for that long.
 
-## The spike that comes first (about a day)
+## What the spike measured
 
-Measure before building: which bytes does each decoder touch? Instrument `VibeHandleRead`, `VibeStreamRead`, and `VibeStreamSeek` to log the furthest offset and every jump past the current read point, during three things: the open, the first ten seconds of decode, and **seeks** (to 10 %, 50 %, and 90 %, and back). Seeks matter because dr_flac without a seek table bisects the byte range up to `_size`, and a probe can land past the download's edge even for a target behind it.
+Every requested read of `VibeHandleRead` and `VibeStreamRead` was logged through the production `AudioFileHandle` while opening, decoding the first ten seconds, and seeking (to 10 %, 50 %, 90 %, and back), over 69 files: the fixtures plus generated 6-minute and 60-minute files from ffmpeg, LAME, and afconvert. Measured on macOS 27; the same harness in the iOS 27 simulator gave identical read sequences for every file it opens. Not measured: a device's CoreAudio, files from Apple's own encoders, VBRI, APE tags, and RF64.
 
-Run every format in `Assets/test_audio_files`, plus a sample of real library files: iTunes-encoded and ffmpeg-encoded M4A, LAME MP3 with and without a Xing frame, FLAC with and without STREAMINFO totals and seek tables, Ogg Vorbis and Opus, and WAV with `fmt ` after `data`.
+| Format | The open reads | A seek reads |
+| --- | --- | --- |
+| M4A/ALAC with `moov` first (afconvert's default, ffmpeg `+faststart`), CAF, WAV, W64, AIFF | the head only, at most 354 KB | one region at the target |
+| FLAC with a known total | the head only | with a seek table, 2 to 4 regions just before the target; **without one (ffmpeg and afconvert write none), a bisection of 3 to 10 regions reaching 11 % of the file past the target** |
+| MP3 with a Xing or Info frame | the head, plus 4 to 128 bytes at the end (an ID3v1 check on every open) | **every frame header between the furthest byte read and the target**: the parser ignores the Xing table |
+| M4A with `moov` last (ffmpeg's default) | the head, plus one tail region: 61 KB at 6 minutes, 608 KB at 60 | one region at the target |
+| FLAC with an unknown total | the head, plus 64 KB at the end | as FLAC |
+| WAV with `fmt ` after `data` | the head, plus 24 bytes at the end | one region |
+| Ogg Vorbis and Opus, ADTS AAC, MP3 with no Xing or Info frame | **the whole file, in order** | direct |
 
-The output is a table of format × encoder: for each, how many bytes past the read point the open touches, where, and in how many separate regions. That table decides which formats phase 1 serves, whether phase 2 is needed at all, and what its caps should be. Also record today's time from tap to first audio for the same files over a throttled link, as the number the feature must beat.
+What follows from it:
 
-Expected, still unverified:
+- **Phase 1 needs no format gate.** A whole-file opener reads strictly in order, so under waiting reads its open simply returns when the download completes: today's behaviour, with no rule to write. A tail read waits the same way. Streaming a file it cannot help costs nothing and decides nothing.
+- **Every tail is one region within the last 900 KB.** No format jumps anywhere else during an open, and the first ten seconds of decode never jump at all.
+- **No backward seek ever read past the furthest byte already read**, in any file. Forward seeks are the only seeks that wait.
+- **Ranged reads cannot speed up an MP3 seek ahead**, since the parser wants every byte up to the target, and a FLAC without a seek table probes well past its target. Seeking ahead is therefore a wait for the download in the two most common lossy and lossless formats, whatever phase 2 builds.
+- **A read at or past the known size is the end, at once.** AIFF and the `fmt `-last WAV each read at `offset == size`; the wait must answer that immediately rather than park on bytes that will never exist.
 
-- **Streams from the head:** FLAC with a known total, WAV/AIFF, and MP3 with Xing/VBRI.
-- **Touches the tail:** MP4/M4A with `moov` after `mdat`; MP3 without a Xing frame, where Apple's parser may walk every packet to count them; FLAC with an unknown total, where the patched `drflac__find_unknown_total_pcm_frame_count` reads the end; Ogg, whose duration is the last page's granule position; and ID3v1 and APE trailers.
+## Phase 1: sequential streaming
 
-## Phase 1: sequential streaming for the formats that stream from the head
-
-Every format the spike marks "touches the tail" keeps today's full download. A read past the download's edge waits for it, so a seek ahead waits, and a CUE row deep in a large image starts when the download reaches it, as it does today.
+Every read past the download's edge waits for it. So a head-only format plays as soon as its head and first seconds arrive; a format that reads its tail or its whole file at open starts when the download gets there, as today; a seek ahead waits; and a CUE row deep in a large image starts when the download reaches it.
 
 1. **One wait, shaped as a range.** The seam is a third block installed on `CloudFileMaterializer` beside the fetch and the ranged read: "block until `[offset, offset + length)` of this URL is readable, the transfer failed, or this wait was interrupted". `AudioFileHandle` calls it from its read callbacks and knows nothing of Dropbox, so a test feeds it a throttled local file. Asking for a range rather than a single "bytes so far" number costs nothing now and means phase 2 changes what answers the wait, not who calls it. Behind it, `DropboxMirror` keeps the bytes written so far per streaming path. Whether that needs a type of its own or is a field on the transfer the mirror already tracks is settled when it is written; the budget is zero new types, and a number plus a condition is not obviously one.
-2. **A streaming mode for `AudioFileHandle`.** Open the part file, take `_size` from the placeholder rather than `fstat`, and wait for the requested bytes before each `pread`. A read returns short only at the true end. A failed transfer is `_streamReadFailed`, as any read error is. An interrupted wait is a third outcome that neither ends nor fails the stream: the turn ends, and the voice or the open that asked is already being torn down.
+2. **A streaming mode for `AudioFileHandle`.** Open the part file, take `_size` from the placeholder rather than `fstat`, and wait for the requested bytes before each `pread`. A read returns short only at the true end. A read at or past `_size` never waits. A failed transfer is `_streamReadFailed`, as any read error is. An interrupted wait is a third outcome that neither ends nor fails the stream: the turn ends, and the voice or the open that asked is already being torn down.
 3. **A transfer that never restarts under a reader.** A resend after a 401 or a throttle, and a bounded number of retries after a network error, continue with `Range: bytes=<written>-` and append to the same file. The destination is created once per transfer, never per response. Every response's `Dropbox-API-Result` `rev` must equal the first response's; a mismatch fails the transfer, wakes its readers with an error, and deletes the part, since the file changed and nothing already read can be trusted. A cancel deletes the part, as today: resuming across launches would need a persisted version stamp, and nothing here needs it.
 4. **Readable, then complete.** A stage-1 claim for a streamable file reports **readable** once its transfer's first response has been checked, and stays `Running` until the transfer is **complete**. Handle runs dispatch on readable. The claim keeps its lane, its `CloudTransferRegistry` entry, and its row's loading bar until complete, because the transfer is still running; and it counts toward the foreground hold while a playback or prefetch handle is reading from it, not only while a waiter is parked on it. The handle-run ceiling and the lane bounds are re-derived with this in mind, and their tests with them.
 5. **Buffering, with one hysteresis.** `AudioPlayer` gains a modeled buffering flag beside its state, raised when the current voice's decode has waited for bytes past a short grace. While it is up the voice is held by the existing pause path, and released when the ring has refilled, so playback resumes once rather than in fragments. This is a decision the player makes from the voice's snapshot; the render is not touched. The transport and mini player draw it, and Now Playing publishes rate 0 for it. A stall past a no-progress deadline (the model `AudioFileOpenTimeoutMath.h` already has for opens) pauses with an error, "Lost connection", and never skips to the next track. **Verify on a device that buffering in the background does not trip the iOS output's idle stop** (`Audio/iOS/AGENTS.md`): a suspended app's download dies, so the output must stay running while a stream buffers.
@@ -70,16 +79,17 @@ Every format the spike marks "touches the tail" keeps today's full download. A r
 
 Phase 1 leaves two gaps. Formats whose open touches the tail wait for the whole download, and a seek past the download's edge waits too. The options, cheapest to maintain first.
 
-### Option A: a ranged overlay, in memory (recommended)
+### Option A: a tail window, in memory (recommended)
 
-A read past the download's edge that is **far** from it is served by a ranged read into an in-memory block cache; a read **near** it waits, as in phase 1. Nothing else changes: the sequential download keeps writing the one part file, from byte 0, with one writer. The cached blocks are dropped as the download passes them.
+When a stream starts, one ranged read fetches the file's last 2 MB into memory, and a read that falls inside that window is served from it instead of waiting. Everything else is phase 1: the sequential download keeps writing the one part file from byte 0, with one writer, and the window is dropped when the download reaches it.
 
-- **Format-blind.** The decoders are the format experts and already know where their index is. An M4A's parser reads `mdat`'s header, jumps to `moov`, and reads it; each jump is a block fetch with read-ahead, and a few hundred KB of `moov` arrives in one or two requests. The same holds for an Ogg tail, a FLAC end scan, and an ID3v1 trailer, with no rule written for any of them.
-- **Seeking ahead comes with it.** A seek past the edge reads there, the overlay fetches ahead of the play position in larger blocks, and playback continues from memory until the download catches up.
-- **Bounded, and it degrades to today.** Two caps: bytes fetched during an open, and blocks held in memory. An open that exceeds its cap (an MP3 with no Xing frame, whose parser walks every packet) abandons streaming for that file and waits for the whole download, which is today's behaviour. The spike's table sets the caps.
-- **No new storage.** No sparse file, no coverage map, no second writer, nothing persisted, and nothing for the download budget or the 24-hour part sweep to learn about.
-- **What it consolidates.** `VibeRangedStream`'s aligned block cache (fetch a run of missing blocks in one request, deeper for the first) is the same mechanism. It moves out of the TagLib adapter into one cache that both the tag parse and the handle use, rather than gaining a twin.
-- **The cost: some bytes are downloaded twice.** Whatever plays from the overlay is fetched again by the sequential download. For an open's index that is a few hundred KB. For a seek to the middle right after starting, it is everything played before the download catches up. Measure it; if it matters, option C addresses exactly this and nothing else.
+- **It is exactly what the spike measured.** Every tail-reading open touched one region within the last 900 KB, at most 608 KB of it; 2 MB covers a `moov` for roughly three hours of AAC (inferred from 10 KB a minute). With it, an M4A with `moov` last, a FLAC with an unknown total, and every MP3's ID3v1 check open from the head.
+- **Format-blind.** No rule per format and no sniffing: the decoders ask for their index and find it there.
+- **It degrades to today.** A read past the edge and outside the window waits, so a `moov` larger than the window, or a format nobody measured, waits for the download as it does now.
+- **No new storage.** No sparse file, no coverage map, no second writer, nothing persisted, and at most 2 MB a stream held in memory.
+- **The cost:** one extra request per play, and up to 2 MB downloaded twice. A file smaller than a few MB should skip the window, since the download gets there as fast.
+
+**Seeking ahead is left as a wait.** A general overlay that fetched any far read would serve only M4A, WAV, and FLAC with a seek table; the spike shows MP3 and seek-table-less FLAC cannot use it. That is not worth a second mechanism. If seeking ahead in those formats later matters, the window generalizes to a block cache keyed by offset, behind the same wait, and `VibeRangedStream`'s cache is the one to share.
 
 ### Option B: a pre-scan, with a rule for each format
 
@@ -91,17 +101,17 @@ Before the open, read the regions the format needs with ranged reads, then strea
 - **Ogg:** the last ~64 KB for the final page.
 - **WAV/AIFF:** the chunk walk.
 
-It makes the fewest requests, and each is predictable. But it is five parsers' worth of format knowledge that the decoders already have, each a new place to mis-parse and a new thing to keep in step with dr_flac, dr_wav, and Apple's parser. It needs somewhere to put the bytes it read (the sparse file of option C), and it does nothing for seeking ahead. Option A gets the same bytes by letting the decoder ask for them. Worth revisiting only if the spike shows a format the overlay serves badly.
+It fetches exactly the index and nothing more. But it is five parsers' worth of format knowledge that the decoders already have, each a new place to mis-parse and a new thing to keep in step with dr_flac, dr_wav, and Apple's parser, and it needs somewhere to put the bytes it read (the sparse file of option C). The spike shows the tail window gets the same bytes with one blind request.
 
 **Not recommended: having the metadata scan deposit its head blocks for later plays.** The sweep already fetches each file's head, so keeping it looks free. It is not: at the measured 230 to 360 KB a file, a 954-track folder leaves about 300 MB of blocks the download budget does not count (it skips hidden files), which the 24-hour part sweep then deletes, and which need a persisted coverage record and a version stamp to be trusted days later. That is a second cache with its own eviction, bought to save one round trip per play.
 
 ### Option C: a sparse part file with a coverage map
 
-Write ranged bytes into the part file at their offsets and track which ranges are present, so the sequential download can skip what is already there and restart from a seek point. This removes option A's double download. It costs the most: two writers into one file, a map shared across threads, gap filling to schedule, and coverage that must be persisted or discarded. Build it only on a measured need, and behind the same range wait, so no caller changes.
+Write ranged bytes into the part file at their offsets and track which ranges are present, so the sequential download can restart from a seek point. This is the only option that makes a seek ahead fast, and only for the formats that seek directly. It costs the most: two writers into one file, a map shared across threads, gap filling to schedule, and coverage that must be persisted or discarded. Build it only on a measured need, and behind the same range wait, so no caller changes.
 
 ### Option D: Apple's push parser for MP3 and AAC
 
-`AudioFileStream` parses packets as bytes arrive and estimates duration from the bitrate, so an MP3 without a Xing frame would stream. It helps two formats and is a second packet road beside the file parser. Hold it in reserve for exactly that case, if the spike shows it is common in the library.
+`AudioFileStream` parses packets as bytes arrive and estimates duration from the bitrate, so an MP3 without a Xing frame and an ADTS file, which the spike shows read the whole file at open, would stream. It is a second packet road beside the file parser, and it does nothing for Ogg. Hold it in reserve until those files prove common in a real library.
 
 ### Option E: let AVFoundation stream (rejected)
 
@@ -109,11 +119,11 @@ Dropbox's `files/get_temporary_link` gives a plain HTTPS URL, and `AVPlayer` wou
 
 ### Option F: stop after phase 1
 
-If the spike shows that most of the library streams from the head, stop. That is honest and cheap. Its cost depends on the library: an iTunes-heavy M4A collection gets nothing.
+Head-only formats and MP3 are served by phase 1 only if an MP3's 4-byte ID3v1 check is too: without the tail window every MP3 open waits for the whole file. So stopping here serves FLAC, WAV, AIFF, and `moov`-first M4A, and nothing else.
 
 ### Recommendation
 
-**Phase 1, then option A if the spike's table shows tail-touching formats are common, and nothing else until a measurement asks for it.** Option A adds one decision to phase 1's read ("near: wait; far: fetch") and one shared block cache, and its failure mode is today's behaviour. Options B and C each add a mechanism with its own state to keep correct, and are justified only by numbers this plan does not have yet.
+**Phase 1, then option A, and nothing else until a measurement asks for it.** Option A is no longer optional in practice: CoreAudio reads the last bytes of every MP3 at open, so without the window the most common format never streams. It adds one request and one comparison to phase 1's read, and its failure mode is today's behaviour. Options B, C, and D each add a mechanism with its own state to keep correct, for cases the spike shows are narrower than they looked.
 
 ## Phase 3: polish
 
