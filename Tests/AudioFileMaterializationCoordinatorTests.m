@@ -219,7 +219,7 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
     return self;
 }
 
-- (BOOL)runWithError:(NSError *__autoreleasing *)error {
+- (BOOL)runOnReadable:(dispatch_block_t)onReadable error:(NSError *__autoreleasing *)error {
     [_condition lock];
     _started = YES;
     [_condition broadcast];

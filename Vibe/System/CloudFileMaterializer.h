@@ -87,6 +87,15 @@ typedef NS_ENUM(NSInteger, CloudFileAvailabilityWait) {
 // one answer YES.
 - (void)wakeWaiters;
 
+// A reader is an AudioFileHandle open on the part file, counted from its open
+// to its dealloc, so whoever runs the transfer can tell when nobody reads it.
+- (void)addReader;
+- (void)removeReader;
+@property (nonatomic, readonly) NSUInteger readerCount;
+// Called after each removal that leaves no reader, on the removing thread and
+// outside the lock, so it must return at once.
+@property (nonatomic, copy, nullable) dispatch_block_t onLastReaderGone;
+
 @end
 
 // The same backend's streaming lookup: the availability of a file whose

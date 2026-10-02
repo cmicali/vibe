@@ -16,6 +16,8 @@
 #import "OutputFormatRules.h"
 #import <objc/runtime.h>
 #import "AudioFileMaterializationCoordinatorInternal.h"
+#import "CloudFileMaterializer.h"
+#import "NSURLUtil.h"
 #include <float.h>
 #include <stdatomic.h>
 
@@ -1461,11 +1463,11 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     AudioFileHandle.appleMPEGDecoder = NO;
     dispatch_semaphore_t opened = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
     __block BOOL held = NO;
-    SEL selector = @selector(initForReading:interleaved:error:);
+    SEL selector = @selector(initForReading:interleaved:interrupted:error:);
     Method initializer = class_getInstanceMethod(AudioFileHandle.class, selector);
     __block IMP original;
-    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *url, BOOL interleaved, NSError **error) {
-        id handle = ((id (*)(id, SEL, NSURL *, BOOL, NSError **))original)(receiver, selector, url, interleaved, error);
+    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *url, BOOL interleaved, BOOL (^interrupted)(void), NSError **error) {
+        id handle = ((id (*)(id, SEL, NSURL *, BOOL, BOOL (^)(void), NSError **))original)(receiver, selector, url, interleaved, interrupted, error);
         if ([url.path isEqualToString:second.path] && !held) {
             held = YES;
             dispatch_semaphore_signal(opened);
@@ -1518,11 +1520,11 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     NSArray<dispatch_semaphore_t> *opened = @[dispatch_semaphore_create(0), dispatch_semaphore_create(0)];
     NSArray<dispatch_semaphore_t> *release = @[dispatch_semaphore_create(0), dispatch_semaphore_create(0)];
     __block NSInteger opens = 0;
-    SEL selector = @selector(initForReading:interleaved:error:);
+    SEL selector = @selector(initForReading:interleaved:interrupted:error:);
     Method initializer = class_getInstanceMethod(AudioFileHandle.class, selector);
     __block IMP original;
-    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *url, BOOL interleaved, NSError **error) {
-        id handle = ((id (*)(id, SEL, NSURL *, BOOL, NSError **))original)(receiver, selector, url, interleaved, error);
+    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *url, BOOL interleaved, BOOL (^interrupted)(void), NSError **error) {
+        id handle = ((id (*)(id, SEL, NSURL *, BOOL, BOOL (^)(void), NSError **))original)(receiver, selector, url, interleaved, interrupted, error);
         NSInteger index = -1;
         if ([url.path isEqualToString:second.path]) {
             @synchronized (self) { index = opens < 2 ? opens++ : -1; }
@@ -1850,6 +1852,61 @@ static NSData *UniqueNoise(NSUInteger frames, uint32_t seed) {
     XCTAssertLessThanOrEqual(_player.position, 2.0);
 }
 
+// A remote file readable with too little of its head to open: the open waits
+// at the download's edge, the deadline cancels it, and the cancel ends that
+// wait, so the player times out, the run leaves the ceiling, and the transfer
+// nobody reads is cancelled.
+- (void)testTheOpenDeadlineStopsAStreamingOpenParkedAtTheEdge {
+    NSData *bytes = [NSData dataWithContentsOfURL:[self fixture:@"noise-48000-24-2.wav"]];
+    NSURL *url = [_temporary URLByAppendingPathComponent:@"streaming.wav"];
+    XCTAssertTrue([NSFileManager.defaultManager createFileAtPath:url.path contents:nil attributes:@{NSFilePosixPermissions: @0}]);
+    NSURL *part = [NSURLUtil remotePlaceholderPartURL:url];
+    XCTAssertTrue([[bytes subdataWithRange:NSMakeRange(0, 16)] writeToURL:part atomically:NO]);
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:part size:bytes.length];
+    [availability noteWrittenBytes:16];
+    dispatch_semaphore_t cancelled = dispatch_semaphore_create(0);
+    __block _Atomic NSUInteger cancels = 0;
+    NSError *cancellation = [NSError errorWithDomain:NSCocoaErrorDomain code:NSUserCancelledError userInfo:nil];
+    [CloudFileMaterializer setRemoteRoot:_temporary fetch:^BOOL(NSURL *fetched, dispatch_block_t onReadable,
+                                                                 void (^onCancel)(dispatch_block_t), NSError **error) {
+        onCancel(^{
+            atomic_fetch_add(&cancels, 1);
+            dispatch_semaphore_signal(cancelled);
+        });
+        onReadable();
+        dispatch_semaphore_wait(cancelled, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC)));
+        dispatch_semaphore_signal(cancelled);
+        [availability finishWithError:cancellation];
+        if (error) *error = cancellation;
+        return NO;
+    } read:^NSData *(NSURL *read, uint64_t offset, uint64_t length, NSError **error) {
+        return nil;
+    } availability:^CloudFileAvailability *(NSURL *candidate) {
+        return [candidate.path isEqualToString:url.path] ? availability : nil;
+    }];
+    @try {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+        VibeAudioLoadingConfigurationValues values = VibeAudioLoadingProductionConfigurationValues();
+        values.openTimeouts = VibeAudioOpenTimeoutConfigurationMake(0.5, 0.5);
+        [_player applyLoadingConfiguration:[[AudioLoadingConfiguration alloc] initWithValues:values error:NULL]];
+        AudioFileMaterializationCoordinator *coordinator = AudioFileMaterializationCoordinator.sharedCoordinator;
+        uint64_t started = coordinator.stateSnapshotForTesting.handleOpensStarted;
+        [_player play:[AudioTrack withURL:url] atPosition:0 startPaused:NO];
+        [self settleUntil:^BOOL { return self->_playError != nil; }];
+        XCTAssertEqual(_playError.code, VibeAudioErrorFileOpenTimedOut, @"%@", _playError);
+        XCTAssertEqual(coordinator.stateSnapshotForTesting.handleOpensStarted, started + 1, @"the open began, on the part file");
+        [self settleUntil:^BOOL {
+            VibeAudioFileMaterializationCoordinatorSnapshot snapshot = coordinator.stateSnapshotForTesting;
+            return snapshot.handleOpensCompleted == snapshot.handleOpensStarted && snapshot.handleRunCount == 0
+                    && snapshot.claimCount == 0 && snapshot.interactiveRunningCount == 0 && atomic_load(&cancels) == 1;
+        }];
+        XCTAssertEqual([self count:@"start"], 0u);
+    } @finally {
+        dispatch_semaphore_signal(cancelled); // a failed run must not strand the fetch
+        [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
+    }
+}
+
 // Another row of the file an open is waiting on rebinds that open, and plays
 // its own window when it lands: one open, the latest row.
 - (void)testAPickOfAnotherRowOfTheFileBeingOpenedRebindsTheOpen {
@@ -1857,11 +1914,11 @@ static NSData *UniqueNoise(NSUInteger frames, uint32_t seed) {
     NSData *reference = PCM([self read:url]);
     dispatch_semaphore_t opened = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
     __block BOOL held = NO;
-    SEL selector = @selector(initForReading:interleaved:error:);
+    SEL selector = @selector(initForReading:interleaved:interrupted:error:);
     Method initializer = class_getInstanceMethod(AudioFileHandle.class, selector);
     __block IMP original;
-    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *opening, BOOL interleaved, NSError **error) {
-        id handle = ((id (*)(id, SEL, NSURL *, BOOL, NSError **))original)(receiver, selector, opening, interleaved, error);
+    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *opening, BOOL interleaved, BOOL (^interrupted)(void), NSError **error) {
+        id handle = ((id (*)(id, SEL, NSURL *, BOOL, BOOL (^)(void), NSError **))original)(receiver, selector, opening, interleaved, interrupted, error);
         if ([opening.path isEqualToString:url.path] && !held) {
             held = YES;
             dispatch_semaphore_signal(opened);
@@ -1900,11 +1957,11 @@ static NSData *UniqueNoise(NSUInteger frames, uint32_t seed) {
     NSData *reference = PCM([self read:url]);
     dispatch_semaphore_t opened = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
     __block BOOL held = NO;
-    SEL selector = @selector(initForReading:interleaved:error:);
+    SEL selector = @selector(initForReading:interleaved:interrupted:error:);
     Method initializer = class_getInstanceMethod(AudioFileHandle.class, selector);
     __block IMP original;
-    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *opening, BOOL interleaved, NSError **error) {
-        id handle = ((id (*)(id, SEL, NSURL *, BOOL, NSError **))original)(receiver, selector, opening, interleaved, error);
+    IMP holding = imp_implementationWithBlock(^id(id receiver, NSURL *opening, BOOL interleaved, BOOL (^interrupted)(void), NSError **error) {
+        id handle = ((id (*)(id, SEL, NSURL *, BOOL, BOOL (^)(void), NSError **))original)(receiver, selector, opening, interleaved, interrupted, error);
         if ([opening.path isEqualToString:url.path] && !held) {
             held = YES;
             dispatch_semaphore_signal(opened);

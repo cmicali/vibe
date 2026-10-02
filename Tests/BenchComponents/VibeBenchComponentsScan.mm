@@ -43,7 +43,7 @@
 @end
 
 @implementation VibeBenchComponentsReadyOperation
-- (BOOL)runWithError:(NSError *__autoreleasing *)error {
+- (BOOL)runOnReadable:(dispatch_block_t)onReadable error:(NSError *__autoreleasing *)error {
     return YES;
 }
 - (void)cancel {

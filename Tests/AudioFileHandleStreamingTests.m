@@ -14,8 +14,10 @@
 #include <stdatomic.h>
 
 #import "AudioFileHandle.h"
+#import "AudioFileMaterializationCoordinatorInternal.h"
 #import "AudioFixtures.h"
 #import "CloudFileMaterializer.h"
+#import "CloudTransferRegistry.h"
 
 #pragma mark - A file written in step with its reader
 
@@ -228,6 +230,9 @@ static NSData *VibeDecode(AudioFileHandle *handle, AVAudioFrameCount chunk, AVAu
     return pcm;
 }
 
+// What a test's remote fetch was told, once.
+enum { VibeFetchRunning = 0, VibeFetchCompleted, VibeFetchFailed, VibeFetchCancelled };
+
 @interface AudioFileHandleStreamingTests : XCTestCase
 @end
 
@@ -237,6 +242,14 @@ static NSData *VibeDecode(AudioFileHandle *handle, AVAudioFrameCount chunk, AVAu
     NSMutableDictionary<NSString *, CloudFileAvailability *> *_streams;
     NSMutableArray<NSString *> *_lookups;
     CloudFileAvailability *_Nullable (^_lookupOverride)(NSURL *url);
+    // Through the coordinator: the remote fetch, and what the test decided.
+    CloudFileRemoteFetch _fetch;
+    dispatch_semaphore_t _fetchVerdict;
+    _Atomic int _fetchOutcome;
+    _Atomic NSUInteger _fetchCancels;
+    NSError *_fetchFailure;
+    VibeGrowingFile *_remote;
+    AudioFileMaterializationCoordinator *_coordinator;
 }
 
 - (void)setUp {
@@ -250,7 +263,9 @@ static NSData *VibeDecode(AudioFileHandle *handle, AVAudioFrameCount chunk, AVAu
     _lookups = [NSMutableArray array];
     __weak AudioFileHandleStreamingTests *weakSelf = self;
     [CloudFileMaterializer setRemoteRoot:_directory fetch:^BOOL(NSURL *url, dispatch_block_t onReadable, void (^onCancel)(dispatch_block_t), NSError **error) {
-        return NO;
+        AudioFileHandleStreamingTests *test = weakSelf;
+        CloudFileRemoteFetch fetch = test ? test->_fetch : nil;
+        return fetch ? fetch(url, onReadable, onCancel, error) : NO;
     } read:^NSData *(NSURL *url, uint64_t offset, uint64_t length, NSError **error) {
         return nil;
     } availability:^CloudFileAvailability *(NSURL *url) {
@@ -259,6 +274,10 @@ static NSData *VibeDecode(AudioFileHandle *handle, AVAudioFrameCount chunk, AVAu
 }
 
 - (void)tearDown {
+    if (_coordinator) {
+        [self finishRemote:VibeFetchCancelled];
+        [self assertCoordinatorSettles];
+    }
     [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
     [NSFileManager.defaultManager removeItemAtURL:_directory error:NULL];
     [super tearDown];
@@ -742,6 +761,325 @@ static NSData *VibeDecode(AudioFileHandle *handle, AVAudioFrameCount chunk, AVAu
     [handle interruptReads];
     XCTAssertTrue([handle seekToFrame:0 error:&error], @"a whole file has nothing to interrupt: %@", error);
     XCTAssertEqualObjects(VibeDecode(handle, 4096, INT64_MAX, &error), pcm);
+}
+
+
+#pragma mark - Through the coordinator
+
+// The source as a remote placeholder whose fetch does what the mirror's does:
+// publishes the part file with `prefix` written, reports it readable unless
+// told not to, and holds until the test completes or fails it or the
+// coordinator cancels it.
+- (VibeGrowingFile *)remote:(NSURL *)source prefix:(uint64_t)prefix readable:(BOOL)readable {
+    VibeGrowingFile *file = [self stream:source prefix:prefix];
+    XCTAssertTrue([NSFileManager.defaultManager createFileAtPath:file.url.path contents:nil
+                                                      attributes:@{NSFilePosixPermissions: @0}]);
+    if (!_coordinator) {
+        _coordinator = [[AudioFileMaterializationCoordinator alloc] init];
+    }
+    _remote = file;
+    _fetchVerdict = dispatch_semaphore_create(0);
+    atomic_store(&_fetchOutcome, VibeFetchRunning);
+    atomic_store(&_fetchCancels, 0);
+    _fetchFailure = nil;
+    dispatch_semaphore_t verdict = _fetchVerdict;
+    __weak AudioFileHandleStreamingTests *weakSelf = self;
+    _fetch = ^BOOL(NSURL *url, dispatch_block_t onReadable, void (^onCancel)(dispatch_block_t), NSError **error) {
+        onCancel(^{
+            AudioFileHandleStreamingTests *test = weakSelf;
+            if ([test finishRemote:VibeFetchCancelled]) {
+                atomic_fetch_add(&test->_fetchCancels, 1);
+            }
+        });
+        if (readable && onReadable) {
+            onReadable();
+        }
+        dispatch_semaphore_wait(verdict, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC)));
+        dispatch_semaphore_signal(verdict); // a fetch after the verdict answers at once
+        AudioFileHandleStreamingTests *test = weakSelf;
+        int outcome = test ? atomic_load(&test->_fetchOutcome) : VibeFetchCancelled;
+        if (outcome == VibeFetchCompleted) {
+            return YES;
+        }
+        if (error) {
+            *error = outcome == VibeFetchFailed ? test->_fetchFailure
+                                                : [NSError errorWithDomain:NSCocoaErrorDomain code:NSUserCancelledError userInfo:nil];
+        }
+        return NO;
+    };
+    return file;
+}
+
+// The fetch's verdict, once, in the mirror's order: the bytes installed then
+// the finish, or the part deleted and its readers failed; then forgotten.
+- (BOOL)finishRemote:(int)outcome {
+    int running = VibeFetchRunning;
+    if (!_remote || !atomic_compare_exchange_strong(&_fetchOutcome, &running, outcome)) {
+        return NO;
+    }
+    VibeGrowingFile *file = _remote;
+    if (outcome == VibeFetchCompleted) {
+        [file complete];
+    }
+    else {
+        [NSFileManager.defaultManager removeItemAtURL:file.availability.partURL error:NULL];
+        [file.availability finishWithError:outcome == VibeFetchFailed ? _fetchFailure
+                : [NSError errorWithDomain:NSCocoaErrorDomain code:NSUserCancelledError userInfo:nil]];
+    }
+    os_unfair_lock_lock(&_streamsLock);
+    [_streams removeObjectForKey:file.url.path];
+    os_unfair_lock_unlock(&_streamsLock);
+    dispatch_semaphore_signal(_fetchVerdict);
+    return YES;
+}
+
+- (AudioFileOpenToken *)open:(VibeGrowingFile *)file purpose:(VibeAudioFileOpenPurpose)purpose
+                  completion:(void (^)(AudioFileHandle *handle, NSError *error))completion {
+    return [_coordinator openURL:file.url purpose:purpose
+                 completionQueue:dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0)
+                      completion:^(AudioFileHandle *handle, NSError *error, NSTimeInterval elapsed) {
+        completion(handle, error);
+    }];
+}
+
+// Call inside an autorelease pool when the test lets the handle go.
+- (AudioFileHandle *)deliver:(VibeGrowingFile *)file purpose:(VibeAudioFileOpenPurpose)purpose {
+    __block AudioFileHandle *delivered = nil;
+    __block NSError *failure = nil;
+    XCTestExpectation *done = [self expectationWithDescription:@"delivered"];
+    [self open:file purpose:purpose completion:^(AudioFileHandle *handle, NSError *error) {
+        delivered = handle;
+        failure = error;
+        [done fulfill];
+    }];
+    [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertNotNil(delivered, @"%@", failure);
+    return delivered;
+}
+
+// Spins main, which carries the registry's edges, until the condition holds.
+- (BOOL)eventually:(BOOL (^)(void))condition {
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
+    while (!condition()) {
+        if (deadline.timeIntervalSinceNow <= 0) {
+            return NO;
+        }
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.005]];
+    }
+    return YES;
+}
+
+- (BOOL)transferring:(VibeGrowingFile *)file {
+    XCTestExpectation *drained = [self expectationWithDescription:@"main drained"];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [drained fulfill];
+    });
+    [self waitForExpectations:@[drained] timeout:VIBE_TEST_HANG_TIMEOUT];
+    return [CloudTransferRegistry.sharedRegistry isTransferringURL:file.url];
+}
+
+// The streaming claim's whole life: transfer, lane, hold and runs.
+- (BOOL)running:(BOOL)running {
+    VibeAudioFileMaterializationCoordinatorSnapshot snapshot = _coordinator.stateSnapshotForTesting;
+    return snapshot.claimCount == (running ? 1u : 0u) && snapshot.interactiveRunningCount == (running ? 1u : 0u);
+}
+
+- (void)assertCoordinatorSettles {
+    __block VibeAudioFileMaterializationCoordinatorSnapshot snapshot;
+    BOOL settled = [self eventually:^BOOL {
+        snapshot = self->_coordinator.stateSnapshotForTesting;
+        return snapshot.claimCount == 0 && snapshot.waiterCount == 0 && snapshot.interactiveRunningCount == 0
+                && snapshot.backgroundRunningCount == 0 && snapshot.handleRunCount == 0
+                && !snapshot.foregroundTransferActive && snapshot.handleOpensStarted == snapshot.handleOpensCompleted;
+    }];
+    XCTAssertTrue(settled, @"coordinator did not settle: claims %lu, waiters %lu, lanes %lu/%lu, runs %lu, hold %d, opens %llu/%llu",
+                  (unsigned long)snapshot.claimCount, (unsigned long)snapshot.waiterCount,
+                  (unsigned long)snapshot.interactiveRunningCount, (unsigned long)snapshot.backgroundRunningCount,
+                  (unsigned long)snapshot.handleRunCount, snapshot.foregroundTransferActive,
+                  snapshot.handleOpensStarted, snapshot.handleOpensCompleted);
+}
+
+- (NSURL *)remoteSource {
+    return VibeWriteWAV([self sourceNamed:@"remote.wav"], VibeNoiseSamples(88200, 2), 44100, 2, 16, 88200 * 4);
+}
+
+// Readable delivers the playback handle on the part file while the transfer
+// runs on, holding its lane, its registry entry and the hold; complete then
+// settles the claim with no second delivery, and the handle reads the file
+// the part became.
+- (void)testAReadableTransferDeliversPlaybackAndSettlesReadyWhenComplete {
+    NSURL *source = [self remoteSource];
+    VibeGrowingFile *file = [self remote:source prefix:64 * 1024 readable:YES];
+    __block _Atomic NSUInteger deliveries = 0;
+    __block AudioFileHandle *handle = nil;
+    XCTestExpectation *delivered = [self expectationWithDescription:@"delivered"];
+    [self open:file purpose:VibeAudioFileOpenPurposePlayback completion:^(AudioFileHandle *opened, NSError *error) {
+        if (atomic_fetch_add(&deliveries, 1) == 0) {
+            handle = opened;
+            [delivered fulfill];
+        }
+    }];
+    [self waitForExpectations:@[delivered] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertNotNil(handle);
+    XCTAssertEqual(atomic_load(&_fetchOutcome), VibeFetchRunning, @"delivered before the transfer completed");
+    XCTAssertTrue([self running:YES], @"the claim runs on, holding its lane");
+    XCTAssertTrue([self transferring:file], @"and its registry entry");
+    XCTAssertTrue(_coordinator.isForegroundTransferActive, @"and the hold, while its handle reads");
+    XCTAssertEqual(_coordinator.stateSnapshotForTesting.handleRunCount, 0u, @"the run ended when its open returned");
+
+    XCTAssertTrue([self finishRemote:VibeFetchCompleted]);
+    XCTAssertTrue([self eventually:^BOOL { return [self running:NO]; }]);
+    XCTAssertFalse([self transferring:file]);
+    XCTAssertFalse(_coordinator.isForegroundTransferActive);
+    VibeAudioFileMaterializationCoordinatorSnapshot snapshot = _coordinator.stateSnapshotForTesting;
+    XCTAssertEqual(snapshot.requestsReady, 1u, @"readable served the one waiter; complete served none");
+    XCTAssertEqual(snapshot.handleOpensStarted, 1u);
+    XCTAssertEqual(atomic_load(&deliveries), 1u);
+    NSError *error = nil;
+    [self assertPCM:VibeDecode(handle, 4096, INT64_MAX, &error) equals:[self referenceOf:source from:0 frames:INT64_MAX]
+            context:@"streamed"];
+}
+
+// A prefetch joining a readable claim is served at once, its own handle.
+- (void)testAPrefetchJoiningAReadableTransferIsDeliveredAtOnce {
+    VibeGrowingFile *file = [self remote:[self remoteSource] prefix:64 * 1024 readable:YES];
+    AudioFileHandle *playback = [self deliver:file purpose:VibeAudioFileOpenPurposePlayback];
+    AudioFileHandle *prefetch = [self deliver:file purpose:VibeAudioFileOpenPurposePrefetch];
+    XCTAssertNotNil(playback);
+    XCTAssertNotNil(prefetch);
+    XCTAssertNotEqual(playback, prefetch);
+    XCTAssertEqual(atomic_load(&_fetchOutcome), VibeFetchRunning);
+    XCTAssertEqual(_coordinator.stateSnapshotForTesting.handleOpensStarted, 2u);
+    XCTAssertTrue([self running:YES]);
+    XCTAssertTrue([self finishRemote:VibeFetchCompleted]);
+}
+
+// A run cancelled while its open waits at the download's edge ends at once,
+// as a cancellation: no delivery, out of the ceiling, and the transfer it was
+// the only reason for is cancelled with it.
+- (void)testCancellingAnOpenParkedAtTheEdgeEndsItAsACancellation {
+    VibeGrowingFile *file = [self remote:[self remoteSource] prefix:16 readable:YES];
+    XCTestExpectation *silent = [self expectationWithDescription:@"no delivery"];
+    silent.inverted = YES;
+    AudioFileOpenToken *token = [self open:file purpose:VibeAudioFileOpenPurposePlayback
+                                completion:^(AudioFileHandle *handle, NSError *error) {
+        [silent fulfill];
+    }];
+    XCTAssertTrue([self awaitBlock:file], @"the open waits for its header");
+    VibeAudioFileMaterializationCoordinatorSnapshot parked = _coordinator.stateSnapshotForTesting;
+    XCTAssertEqual(parked.handleRunCount, 1u);
+    XCTAssertEqual(parked.handleOpensStarted, 1u);
+    XCTAssertEqual(parked.handleOpensCompleted, 0u);
+
+    [token cancel];
+    XCTAssertTrue([self eventually:^BOOL {
+        VibeAudioFileMaterializationCoordinatorSnapshot snapshot = self->_coordinator.stateSnapshotForTesting;
+        return snapshot.handleOpensCompleted == 1 && snapshot.handleRunCount == 0;
+    }], @"the parked open returned and left the ceiling");
+    XCTAssertTrue([self eventually:^BOOL { return atomic_load(&self->_fetchCancels) == 1 && [self running:NO]; }],
+                  @"the transfer nobody reads was cancelled");
+    XCTAssertFalse([self transferring:file]);
+    [self waitForExpectations:@[silent] timeout:0.2];
+}
+
+// The hold stays raised while a delivered handle reads a running transfer,
+// with no waiter left on the claim, and drops once the transfer completes,
+// though the handle lives on.
+- (void)testTheHoldFollowsALiveHandleOnARunningTransfer {
+    VibeGrowingFile *file = [self remote:[self remoteSource] prefix:64 * 1024 readable:YES];
+    AudioFileHandle *handle = [self deliver:file purpose:VibeAudioFileOpenPurposePlayback];
+    XCTAssertEqual(_coordinator.stateSnapshotForTesting.waiterCount, 0u, @"the playback waiter was served");
+    XCTAssertTrue(_coordinator.isForegroundTransferActive);
+    XCTAssertTrue([self finishRemote:VibeFetchCompleted]);
+    XCTAssertTrue([self eventually:^BOOL { return !self->_coordinator.isForegroundTransferActive; }]);
+    XCTAssertNotNil(handle);
+}
+
+// Every handle on a readable, running transfer gone and nothing waiting: the
+// transfer is cancelled, its lane and registry entry released.
+- (void)testAnAbandonedStreamIsCancelled {
+    VibeGrowingFile *file = [self remote:[self remoteSource] prefix:64 * 1024 readable:YES];
+    AudioFileHandle *handle = nil;
+    @autoreleasepool {
+        handle = [self deliver:file purpose:VibeAudioFileOpenPurposePlayback];
+    }
+    XCTAssertTrue([self running:YES]);
+    handle = nil;
+    XCTAssertTrue([self eventually:^BOOL { return atomic_load(&self->_fetchCancels) == 1 && [self running:NO]; }]);
+    XCTAssertFalse([self transferring:file]);
+    XCTAssertFalse(_coordinator.isForegroundTransferActive);
+}
+
+// A prefetch handle still alive keeps the stream running when the playback
+// handle goes; the stream is cancelled only once it goes too.
+- (void)testALivePrefetchHandleKeepsTheStreamRunning {
+    VibeGrowingFile *file = [self remote:[self remoteSource] prefix:64 * 1024 readable:YES];
+    AudioFileHandle *playback = nil, *prefetch = nil;
+    @autoreleasepool {
+        playback = [self deliver:file purpose:VibeAudioFileOpenPurposePlayback];
+        prefetch = [self deliver:file purpose:VibeAudioFileOpenPurposePrefetch];
+    }
+    playback = nil;
+    [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.2]];
+    XCTAssertEqual(atomic_load(&_fetchCancels), 0u);
+    XCTAssertTrue([self running:YES]);
+    XCTAssertTrue(_coordinator.isForegroundTransferActive);
+    prefetch = nil;
+    XCTAssertTrue([self eventually:^BOOL { return atomic_load(&self->_fetchCancels) == 1 && [self running:NO]; }]);
+}
+
+// A transfer that never reports readable (the provider's road) delivers only
+// once complete, as before streaming.
+- (void)testATransferThatIsNeverReadableDeliversOnlyWhenComplete {
+    VibeGrowingFile *file = [self remote:[self remoteSource] prefix:64 * 1024 readable:NO];
+    __block AudioFileHandle *handle = nil;
+    XCTestExpectation *early = [self expectationWithDescription:@"no early delivery"];
+    early.inverted = YES;
+    XCTestExpectation *delivered = [self expectationWithDescription:@"delivered"];
+    [self open:file purpose:VibeAudioFileOpenPurposePlayback completion:^(AudioFileHandle *opened, NSError *error) {
+        handle = opened;
+        [early fulfill];
+        [delivered fulfill];
+    }];
+    [self waitForExpectations:@[early] timeout:0.2];
+    XCTAssertEqual(_coordinator.stateSnapshotForTesting.handleOpensStarted, 0u);
+    XCTAssertTrue([self finishRemote:VibeFetchCompleted]);
+    [self waitForExpectations:@[delivered] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertNotNil(handle);
+    XCTAssertEqual(_coordinator.stateSnapshotForTesting.requestsReady, 1u);
+}
+
+// A transfer failing after readable: the claim fails, releasing its lane and
+// registry entry; a waiter that joined since gets the failure; the delivered
+// handle's next wait fails with the transfer's error.
+- (void)testAFailureAfterReadableFailsTheClaimItsLateWaiterAndItsHandle {
+    VibeGrowingFile *file = [self remote:[self remoteSource] prefix:64 * 1024 readable:YES];
+    AudioFileHandle *handle = [self deliver:file purpose:VibeAudioFileOpenPurposePlayback];
+    __block VibeAudioFileMaterializationResult result = VibeAudioFileMaterializationResultReady;
+    __block NSError *joinedError = nil;
+    XCTestExpectation *settled = [self expectationWithDescription:@"late waiter settled"];
+    AudioFileMaterializationRequestToken *late = [_coordinator materializeURL:file.url
+            role:VibeAudioFileMaterializationRoleMetadataPriority
+            completionQueue:dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0)
+            completion:^(VibeAudioFileMaterializationResult settledResult, NSError *error, NSTimeInterval elapsed) {
+        result = settledResult;
+        joinedError = error;
+        [settled fulfill];
+    }];
+    XCTAssertTrue([self eventually:^BOOL { return self->_coordinator.stateSnapshotForTesting.waiterCount == 1; }],
+                  @"a metadata waiter joins the stream the user hears, not yielded by its hold");
+    NSError *transferError = [NSError errorWithDomain:@"com.vibe.test-transfer" code:7 userInfo:nil];
+    _fetchFailure = transferError;
+    XCTAssertTrue([self finishRemote:VibeFetchFailed]);
+    [self waitForExpectations:@[settled] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertEqual(result, VibeAudioFileMaterializationResultFailed);
+    XCTAssertEqualObjects(joinedError, transferError);
+    XCTAssertTrue([self eventually:^BOOL { return [self running:NO]; }]);
+    XCTAssertFalse([self transferring:file]);
+    NSError *error = nil;
+    XCTAssertNil(VibeDecode(handle, 4096, INT64_MAX, &error));
+    XCTAssertEqualObjects(error, transferError);
+    (void)late;
 }
 
 @end

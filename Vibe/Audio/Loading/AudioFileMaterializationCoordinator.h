@@ -87,9 +87,10 @@ typedef void (^VibeAudioFileOpenCompletion)(AudioFileHandle * _Nullable file,
 + (instancetype)new NS_UNAVAILABLE;
 
 // Suppresses a result whose completion block has not begun and detaches the
-// stage-1 waiter. A handle open already begun is uncancellable: its run stays
-// registered until the call returns, so a same-purpose/path retry binds to it
-// instead of starting another.
+// stage-1 waiter. A handle open already begun keeps its run registered until
+// the call returns, so a same-purpose/path retry binds to it instead of
+// starting another: a streaming open returns at once, its waits interrupted,
+// and a whole-file open, which does no waits, cannot be stopped.
 //
 // No detach-without-cancel variant: cancelling also marks the run abandoned,
 // which is how a rebound waiter gets a fresh run instead of the abandoned
@@ -119,8 +120,11 @@ typedef void (^VibeAudioFileOpenCompletion)(AudioFileHandle * _Nullable file,
 
 // Stage 2: one current waiter per (purpose, standardized path); a later
 // request for that key rebinds delivery without another handle open. Both
-// purposes ride the path's stage-1 claim, whose transfer lane ends when it
-// settles. At most six handle runs live at once, purpose-blind: an existing
+// purposes ride the path's stage-1 claim and open once it is Ready or, for a
+// remote transfer, readable: the handle then reads the part file while the
+// claim runs on, holding its lane until the transfer settles, and a stream no
+// handle reads any more is cancelled. At most six handle runs live at once,
+// purpose-blind: an existing
 // key rebinds even at the ceiling, a seventh is refused before stage 1, so
 // saturation can refuse playback. No queue, grace or configuration. Both
 // refusals are VibeAudioFileOpenErrorAdmissionExhausted, distinct from the
@@ -131,7 +135,8 @@ typedef void (^VibeAudioFileOpenCompletion)(AudioFileHandle * _Nullable file,
                       completion:(VibeAudioFileOpenCompletion)completion;
 
 // YES while any claim has a playback or prefetch waiter whose stage 1 has not
-// settled: the C1 rule's single source. While YES the coordinator yields
+// settled, or a readable transfer still running under a live playback or
+// prefetch handle: the C1 rule's single source. While YES the coordinator yields
 // metadata-only dataless work itself, and settlement reopens admission, so
 // there is no release edge to miss. A metadata waiter may still join a
 // same-path foreground claim, and an already-local file is exempt. A snapshot:

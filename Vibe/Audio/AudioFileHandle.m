@@ -419,6 +419,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     // file's pread ignores the flag.
     int flags = O_RDONLY | O_NONBLOCK | O_CLOEXEC;
     _availability = [CloudFileMaterializer availabilityForURL:url];
+    [_availability addReader]; // removed by dealloc
     _descriptor = open((_availability ? _availability.partURL : url).fileSystemRepresentation, flags);
     if (_descriptor < 0 && _availability && errno == ENOENT) {
         // TRAP: the transfer can finish and rename its part over url between
@@ -426,6 +427,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         if (!VibeHandleAwait(self, 0, (SInt64)_availability.size)) {
             return [self failWithError:error status:noErr description:@""];
         }
+        [_availability removeReader];
         _availability = nil;
         _descriptor = open(url.fileSystemRepresentation, flags);
     }
@@ -803,6 +805,7 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
         close(_descriptor);
         _descriptor = -1;
     }
+    [_availability removeReader];
 }
 
 #pragma mark - The cursor

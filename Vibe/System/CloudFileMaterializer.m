@@ -52,6 +52,8 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
     uint64_t _written;
     BOOL _complete;
     NSError *_failure;
+    NSUInteger _readers;
+    dispatch_block_t _onLastReaderGone;
 }
 
 - (instancetype)initWithPartURL:(NSURL *)partURL size:(uint64_t)size {
@@ -118,6 +120,45 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
 - (void)wakeWaiters {
     [_condition lock];
     [_condition broadcast];
+    [_condition unlock];
+}
+
+- (void)addReader {
+    [_condition lock];
+    _readers++;
+    [_condition unlock];
+}
+
+- (void)removeReader {
+    [_condition lock];
+    dispatch_block_t gone = nil;
+    if (_readers > 0 && --_readers == 0) {
+        gone = _onLastReaderGone;
+    }
+    [_condition unlock];
+    if (gone) {
+        gone();
+    }
+}
+
+- (NSUInteger)readerCount {
+    [_condition lock];
+    NSUInteger readers = _readers;
+    [_condition unlock];
+    return readers;
+}
+
+- (dispatch_block_t)onLastReaderGone {
+    [_condition lock];
+    dispatch_block_t gone = _onLastReaderGone;
+    [_condition unlock];
+    return gone;
+}
+
+- (void)setOnLastReaderGone:(dispatch_block_t)onLastReaderGone {
+    dispatch_block_t copied = [onLastReaderGone copy];
+    [_condition lock];
+    _onLastReaderGone = copied;
     [_condition unlock];
 }
 

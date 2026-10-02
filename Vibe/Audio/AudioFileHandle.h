@@ -43,7 +43,8 @@
 //  wait ends in one of three ways: the bytes arrived; the transfer failed, a
 //  read failure with its error; or it was interrupted, which is neither the
 //  end nor a failure. Waits happen only on the reading thread, never the
-//  render's.
+//  render's. The handle is one of the transfer's readers from its open to its
+//  dealloc (CloudFileAvailability's addReader).
 //
 
 #import <AVFAudio/AVFAudio.h>

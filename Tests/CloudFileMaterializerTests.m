@@ -110,11 +110,13 @@
 
     CloudFileMaterializer *materializer = [CloudFileMaterializer new];
     NSError *error = nil;
+    __block BOOL readable = NO;
     XCTAssertTrue([materializer materializeURL:url
                                          token:[materializer prepareMaterialization]
-                                    onReadable:nil
+                                    onReadable:^{ readable = YES; }
                                          error:&error]);
     XCTAssertNil(error);
+    XCTAssertFalse(readable, @"a provider's file is never readable before it is whole");
     [NSFileManager.defaultManager removeItemAtURL:url error:NULL];
 }
 
@@ -318,6 +320,27 @@
     [self awaitReturn:returned];
     XCTAssertEqual(result, CloudFileAvailabilityInterrupted);
     XCTAssertEqual([availability waitForBytesAt:0 length:10 interrupted:isInterrupted error:NULL], CloudFileAvailabilityReady);
+}
+
+// The last reader leaving calls back each time, and nothing else does.
+- (void)testAvailabilityCallsBackWhenItsLastReaderGoes {
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
+    __block NSUInteger gone = 0;
+    availability.onLastReaderGone = ^{
+        gone++;
+    };
+    [availability removeReader];
+    [availability addReader];
+    [availability addReader];
+    [availability removeReader];
+    XCTAssertEqual(availability.readerCount, 1u);
+    XCTAssertEqual(gone, 0u);
+    [availability removeReader];
+    XCTAssertEqual(gone, 1u);
+    [availability addReader];
+    [availability removeReader];
+    XCTAssertEqual(gone, 2u);
+    XCTAssertEqual(availability.readerCount, 0u);
 }
 
 // The remote fetch is handed the caller's readable callback as it is, and

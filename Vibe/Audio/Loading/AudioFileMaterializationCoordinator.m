@@ -80,6 +80,8 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
 @property (nonatomic, strong, nullable) AudioFileMaterializationRequestToken *materializationToken;
 @property (nonatomic) uint64_t runGeneration;
 @property (nonatomic) BOOL runWasCancelled;
+// What the open's interrupted block answers, read on its worker.
+@property (atomic) BOOL openInterrupted;
 @property (nonatomic) NSTimeInterval submittedAt;
 @end
 
@@ -141,6 +143,13 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
 @property (nonatomic, strong, nullable) AudioWorkToken *probeToken;
 @property (nonatomic) BOOL yieldIfDatalessAfterProbe;
 @property (nonatomic, strong, nullable) id<AudioFileMaterializationOperation> operation;
+// Running and readable: the transfer goes on, its playback and prefetch
+// waiters were served, and its handles read the part file through
+// `availability` until the run settles.
+@property (nonatomic) BOOL readable;
+@property (nonatomic, strong, nullable) CloudFileAvailability *availability;
+// Handle opens dispatched while readable and not yet returned.
+@property (nonatomic) NSUInteger streamOpens;
 @end
 
 @implementation VibeAudioFileMaterializationClaim
@@ -180,8 +189,8 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
     return self;
 }
 
-- (BOOL)runWithError:(NSError *__autoreleasing *)error {
-    return [_materializer materializeURL:_url token:_token onReadable:nil error:error];
+- (BOOL)runOnReadable:(dispatch_block_t)onReadable error:(NSError *__autoreleasing *)error {
+    return [_materializer materializeURL:_url token:_token onReadable:onReadable error:error];
 }
 
 - (void)cancel {
@@ -358,7 +367,8 @@ static const NSUInteger kMaximumDatalessProbeRunningCount = 8;
 static const NSUInteger kMaximumDatalessProbePendingCount = 16;
 static const NSTimeInterval kDatalessProbePendingGrace = 5;
 // One production player with two open sources (playback, prefetch), plus four
-// stranded calls. Purpose-blind, so saturation can refuse playback. A new
+// stranded whole-file calls; a streaming open never strands, since a cancel
+// ends its waits. Purpose-blind, so saturation can refuse playback. A new
 // player, source or multi-flight source means re-deriving it.
 static const NSUInteger kMaximumHandleRunCount = 6;
 
@@ -406,8 +416,8 @@ static const NSUInteger kMaximumHandleRunCount = 6;
 }
 
 static VibeAudioFileOpener const kProductionFileOpener =
-        ^AudioFileHandle *(NSURL *url, NSError **error) {
-    return [[AudioFileHandle alloc] initForReading:url error:error];
+        ^AudioFileHandle *(NSURL *url, BOOL (^interrupted)(void), NSError **error) {
+    return [[AudioFileHandle alloc] initForReading:url interleaved:NO interrupted:interrupted error:error];
 };
 
 - (instancetype)init {
@@ -549,21 +559,29 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
     return role;
 }
 
-- (BOOL)claimHasNonMetadataWaiter:(VibeAudioFileMaterializationClaim *)claim {
+// A readable stream's open in flight or handle alive: its playback and
+// prefetch waiters were served, but what they opened still reads the transfer.
+- (BOOL)streamIsReadForClaim:(VibeAudioFileMaterializationClaim *)claim {
+    return claim.readable && (claim.streamOpens > 0 || claim.availability.readerCount > 0);
+}
+
+// A playback or prefetch waiter, or a stream one of their handles reads.
+- (BOOL)claimServesForeground:(VibeAudioFileMaterializationClaim *)claim {
     for (VibeAudioFileMaterializationWaiter *waiter in claim.waiters.objectEnumerator) {
         if (!VibeMaterializationRoleIsMetadata(waiter.role)) {
             return YES;
         }
     }
-    return NO;
+    return [self streamIsReadForClaim:claim];
 }
 
 // Derived from the claim table, never counted: claims leave at settlement, and
-// the drainPendingClaims every settlement runs is the release. O(claims), a
-// table bounded by the probe, lane and caller-side admissions.
+// the drainPendingClaims every settlement and every stream's last reader runs
+// is the release. O(claims), a table bounded by the probe, lane and
+// caller-side admissions.
 - (BOOL)foregroundTransferActiveLocked {
     for (VibeAudioFileMaterializationClaim *claim in _claims.objectEnumerator) {
-        if (claim.waiters.count && [self claimHasNonMetadataWaiter:claim]) {
+        if ([self claimServesForeground:claim]) {
             return YES;
         }
     }
@@ -613,7 +631,7 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
                 || claim.state == VibeMaterializationClaimStateRefreshing) {
             continue;
         }
-        if (claim.waiters.count && ![self claimHasNonMetadataWaiter:claim]
+        if (claim.waiters.count && ![self claimServesForeground:claim]
                 && claim.dataless) {
             [self yieldClaim:claim];
         }
@@ -663,7 +681,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     }
     claim.probeToken = nil;
     claim.dataless = dataless;
-    BOOL metadataOnly = ![self claimHasNonMetadataWaiter:claim];
+    BOOL metadataOnly = ![self claimServesForeground:claim];
     if (dataless && metadataOnly
             && ([self foregroundTransferActiveLocked]
                     || claim.yieldIfDatalessAfterProbe)) {
@@ -758,7 +776,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
                 && claim.state != VibeMaterializationClaimStateProbing
                 && claim.state != VibeMaterializationClaimStateRefreshing;
         if (suspendedMetadata && claimClassificationIsKnown
-                && ![self claimHasNonMetadataWaiter:claim] && claim.dataless) {
+                && ![self claimServesForeground:claim] && claim.dataless) {
             [self countSettledRequest:VibeAudioFileMaterializationResultYielded];
             [token settleWithResult:VibeAudioFileMaterializationResultYielded
                              error:nil elapsed:0];
@@ -778,12 +796,20 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
             VibeAudioFileMaterializationRole oldRole = claim.effectiveRole;
             claim.waiters[@(identifier)] = waiter;
             claim.effectiveRole = [self effectiveRoleForClaim:claim];
-            if ([self claimHasNonMetadataWaiter:claim]) {
+            if ([self claimServesForeground:claim]) {
                 claim.yieldIfDatalessAfterProbe = NO;
             }
             if (claim.state == VibeMaterializationClaimStatePending
                     && claim.effectiveRole != oldRole) {
                 [self readmitPendingClaim:claim];
+            }
+            if (claim.readable && !VibeMaterializationRoleIsMetadata(role)) {
+                // Next turn: a handle run sets its token after this returns,
+                // and the installed waiter holds the stream until then.
+                uint64_t runGeneration = claim.runGeneration;
+                dispatch_async(self->_stateQueue, ^{
+                    [self serveReadableClaim:claim runGeneration:runGeneration];
+                });
             }
             if (foregroundRising) {
                 [self preemptMetadataClaimsForForegroundRiseExcludingPath:path];
@@ -885,7 +911,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     }
     claim.dataless = dataless;
     BOOL metadataMustYield = claim.waiters.count && dataless
-            && ![self claimHasNonMetadataWaiter:claim]
+            && ![self claimServesForeground:claim]
             && ([self foregroundTransferActiveLocked]
                     || claim.yieldIfDatalessAfterProbe);
     if (metadataMustYield) {
@@ -946,12 +972,23 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
 
     dispatch_queue_t workerQueue = claim.lane == VibeMaterializationLaneInteractive
             ? _interactiveWorkerQueue : _backgroundWorkerQueue;
+    __weak AudioFileMaterializationCoordinator *weakSelf = self;
+    dispatch_block_t onReadable = ^{
+        // TRAP: called on the remote client's delivery queue, which every
+        // download shares, and it can race a cancel: hop, never block, and let
+        // the state queue match the run.
+        AudioFileMaterializationCoordinator *strongSelf = weakSelf;
+        if (strongSelf) {
+            dispatch_async(strongSelf->_stateQueue, ^{
+                [strongSelf claimBecameReadable:claim runGeneration:runGeneration];
+            });
+        }
+    };
     if (refreshBeforeStart) {
         claim.state = VibeMaterializationClaimStateRefreshing;
         VibeAudioFileMaterializationDatalessProbe probe = _datalessProbe;
         VibeDatalessProbeActivity *activity = _datalessProbeActivity;
         NSURL *url = claim.url;
-        __weak AudioFileMaterializationCoordinator *weakSelf = self;
         [activity beginAttempt];
         dispatch_async(workerQueue, ^{
             BOOL dataless = probe(url);
@@ -971,7 +1008,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
                 return;
             }
             NSError *error = nil;
-            BOOL ready = [operation runWithError:&error];
+            BOOL ready = [operation runOnReadable:onReadable error:&error];
             AudioFileMaterializationCoordinator *completionSelf = weakSelf;
             if (completionSelf) {
                 dispatch_async(completionSelf->_stateQueue, ^{
@@ -987,10 +1024,9 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     if (claim.dataless) {
         [self publishTransferBeginForClaim:claim];
     }
-    __weak AudioFileMaterializationCoordinator *weakSelf = self;
     dispatch_async(workerQueue, ^{
         NSError *error = nil;
-        BOOL ready = [operation runWithError:&error];
+        BOOL ready = [operation runOnReadable:onReadable error:&error];
         AudioFileMaterializationCoordinator *strongSelf = weakSelf;
         if (!strongSelf) {
             return;
@@ -1022,6 +1058,10 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     }
     [self releaseLaneForClaim:claim];
     claim.operation = nil;
+    claim.availability.onLastReaderGone = nil;
+    claim.availability = nil;
+    claim.readable = NO;
+    claim.streamOpens = 0;
     if (ready) {
         claim.dataless = NO;
     }
@@ -1085,6 +1125,101 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     else {
         if (_backgroundRunningCount > 0) _backgroundRunningCount--;
     }
+}
+
+- (BOOL)claim:(VibeAudioFileMaterializationClaim *)claim isRunningGeneration:(uint64_t)runGeneration {
+    return claim && _claims[claim.path] == claim && claim.runGeneration == runGeneration
+            && claim.state == VibeMaterializationClaimStateRunning && !claim.runWasCancelled;
+}
+
+// The remote fetch's onReadable: the run stays Running, holding its lane and
+// its registry entry, and its playback and prefetch waiters are served now.
+- (void)claimBecameReadable:(VibeAudioFileMaterializationClaim *)claim
+              runGeneration:(uint64_t)runGeneration {
+    if (![self claim:claim isRunningGeneration:runGeneration] || claim.readable) {
+        return;
+    }
+    // Nil only once the transfer has finished, and its completion is coming.
+    CloudFileAvailability *availability = [CloudFileMaterializer availabilityForURL:claim.url];
+    if (!availability) {
+        return;
+    }
+    claim.readable = YES;
+    claim.availability = availability;
+    __weak AudioFileMaterializationCoordinator *weakSelf = self;
+    __weak VibeAudioFileMaterializationClaim *weakClaim = claim;
+    availability.onLastReaderGone = ^{
+        AudioFileMaterializationCoordinator *strongSelf = weakSelf;
+        if (strongSelf) {
+            dispatch_async(strongSelf->_stateQueue, ^{
+                [strongSelf streamReleasedForClaim:weakClaim runGeneration:runGeneration openReturned:NO];
+            });
+        }
+    };
+    [self serveReadableClaim:claim runGeneration:runGeneration];
+}
+
+// Each playback and prefetch waiter leaves as a Ready would settle it. A
+// handle run's open is dispatched in this turn, never through its token, so
+// streamOpens holds the stream from the waiter's leaving onward.
+- (void)serveReadableClaim:(VibeAudioFileMaterializationClaim *)claim
+             runGeneration:(uint64_t)runGeneration {
+    if (![self claim:claim isRunningGeneration:runGeneration] || !claim.readable) {
+        return;
+    }
+    NSTimeInterval now = _clock();
+    for (VibeAudioFileMaterializationWaiter *waiter in claim.waiters.allValues) {
+        if (VibeMaterializationRoleIsMetadata(waiter.role)) {
+            continue;
+        }
+        [claim.waiters removeObjectForKey:@(waiter.identifier)];
+        [self countSettledRequest:VibeAudioFileMaterializationResultReady];
+        VibeAudioHandleRun *served = nil;
+        for (VibeAudioHandleRun *run in _handleRuns.objectEnumerator) {
+            if (run.materializationToken == waiter.token) {
+                served = run;
+                break;
+            }
+        }
+        if (served) {
+            [self handleRunTransferSettled:served runGeneration:served.runGeneration
+                                    result:VibeAudioFileMaterializationResultReady error:nil];
+        }
+        else {
+            [waiter.token settleWithResult:VibeAudioFileMaterializationResultReady error:nil
+                                   elapsed:MAX(0, now - waiter.submittedAt)];
+        }
+    }
+    // What a restart of this run would be admitted as; the lane held now is
+    // released by claim.lane, which stays.
+    claim.effectiveRole = [self effectiveRoleForClaim:claim];
+}
+
+// Nobody waits and no handle reads: the transfer stops, as it does when a
+// run's last waiter leaves. TRAP: a readable stream's served handles hold it,
+// so an empty waiter table alone does not abandon it, and its last reader
+// leaving (onLastReaderGone, a failed or interrupted open) must ask again.
+- (void)cancelRunIfAbandoned:(VibeAudioFileMaterializationClaim *)claim {
+    if (claim.waiters.count || [self streamIsReadForClaim:claim]) {
+        return;
+    }
+    claim.runWasCancelled = YES;
+    [claim.operation cancel];
+}
+
+- (void)streamReleasedForClaim:(VibeAudioFileMaterializationClaim *)claim
+                 runGeneration:(uint64_t)runGeneration
+                  openReturned:(BOOL)openReturned {
+    if (![self claim:claim isRunningGeneration:runGeneration] || !claim.readable) {
+        return;
+    }
+    if (openReturned && claim.streamOpens > 0) {
+        claim.streamOpens--;
+    }
+    [self cancelRunIfAbandoned:claim];
+    // The hold may have dropped with it.
+    [self drainPendingClaims];
+    [self reschedulePendingTimer];
 }
 
 - (void)settleClaim:(VibeAudioFileMaterializationClaim *)claim
@@ -1199,8 +1334,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
                 }
             }
             else {
-                claim.runWasCancelled = YES;
-                [claim.operation cancel];
+                [self cancelRunIfAbandoned:claim];
             }
         }
         else {
@@ -1209,7 +1343,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
             // also when the foreground itself left: its passengers (C3) must
             // not keep a dead open's transfer alive with no deadline of their
             // own. The pick returns to the sweep at its rank (B4).
-            BOOL metadataOnly = ![self claimHasNonMetadataWaiter:claim];
+            BOOL metadataOnly = ![self claimServesForeground:claim];
             BOOL probeOutstanding = claim.state == VibeMaterializationClaimStateProbing
                     || claim.state == VibeMaterializationClaimStateRefreshing;
             if (!metadataOnly) {
@@ -1345,7 +1479,13 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
             run.materializationToken = nil;
             [self->_handleRuns removeObjectForKey:run.key];
         }
-        // Otherwise the handle open keeps its membership until it returns.
+        else {
+            // The open keeps its membership until it returns: at once for a
+            // streaming open, whose waits end here; a whole-file open does
+            // none and cannot be stopped.
+            run.openInterrupted = YES;
+            [[CloudFileMaterializer availabilityForURL:run.url] wakeWaiters];
+        }
     });
 }
 
@@ -1430,6 +1570,18 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
 #endif
     // Snapshotted on the state queue: the debug channel swaps the opener.
     VibeAudioFileOpener opener = _fileOpener;
+    // Counted until the open returns, so the stream is not abandoned before
+    // the handle that will hold it exists.
+    VibeAudioFileMaterializationClaim *stream = _claims[run.path];
+    if (!stream.readable) {
+        stream = nil;
+    }
+    uint64_t streamGeneration = stream.runGeneration;
+    stream.streamOpens++;
+    run.openInterrupted = NO;
+    BOOL (^interrupted)(void) = ^BOOL{
+        return run.openInterrupted;
+    };
     __weak AudioFileMaterializationCoordinator *weakSelf = self;
     dispatch_async(workerQueue, ^{
         AudioFileMaterializationCoordinator *strongSelf = weakSelf;
@@ -1437,13 +1589,16 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
             return;
         }
         NSError *error = nil;
-        AudioFileHandle *file = opener(run.url, &error);
+        AudioFileHandle *file = opener(run.url, interrupted, &error);
         dispatch_async(strongSelf->_stateQueue, ^{
 #if DEBUG
             atomic_fetch_add(&strongSelf->_handleOpensCompleted, 1);
 #endif
+            // First: a rebound run's restart installs its waiter, which
+            // holds the stream before the open's count lets it go.
             [strongSelf finishHandleRun:run runGeneration:runGeneration
                                    file:file error:error];
+            [strongSelf streamReleasedForClaim:stream runGeneration:streamGeneration openReturned:YES];
         });
     });
 }
