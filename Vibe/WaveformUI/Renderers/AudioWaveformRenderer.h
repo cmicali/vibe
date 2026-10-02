@@ -101,6 +101,28 @@ static inline CGRect VibeBarSeekHitBand(CGRect bounds) {
     return CGRectMake(bounds.origin.x, bottomY, bounds.size.width, topY - bottomY);
 }
 
+// Both styles' bar pitch.
+static const CGFloat kVibeBarPitch = 0.5;
+
+// Both styles' gradient: a ramp down the band, the resting level at the top
+// and this share of it at the bottom. The live layer and the bake aim it
+// here, so the two stay pixel-identical.
+static const CGFloat kVibeBarGradientBottomAlpha = 0.45;
+static inline void VibeAimBarGradient(CAGradientLayer *gradient) {
+    // y = 1 is the top.
+    gradient.startPoint = CGPointMake(0.5, (1 + kVibeBarAmplitudeOfHalfHeight) / 2);
+    gradient.endPoint = CGPointMake(0.5, (1 - kVibeBarAmplitudeOfHalfHeight) / 2);
+}
+static inline void VibeFillBarGradient(CGContextRef ctx, CGSize size, NSArray *stops) {
+    CGGradientRef gradient = CGGradientCreateWithColors(CGBitmapContextGetColorSpace(ctx),
+                                                        (__bridge CFArrayRef)stops, NULL);
+    CGContextDrawLinearGradient(ctx, gradient,
+            CGPointMake(0, size.height * (1 + kVibeBarAmplitudeOfHalfHeight) / 2),
+            CGPointMake(0, size.height * (1 - kVibeBarAmplitudeOfHalfHeight) / 2),
+            kCGGradientDrawsBeforeStartLocation | kCGGradientDrawsAfterEndLocation);
+    CGGradientRelease(gradient);
+}
+
 // A bar is sub-point wide in both, so the hover column spans a few: a lit
 // slice, not a blob. Pixel-snapped at use.
 static const CGFloat kVibeHoverHighlightWidth = 1.5;

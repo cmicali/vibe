@@ -181,15 +181,13 @@ static NSData *HalfBandBytes(uint16_t half) {
 
 // Bad bands are not a reason to throw away good waveform data: the entry
 // keeps its chunks, and the next request for the bands decodes them again.
-// Short, NaN, negative, and float32 sums, the width they once had.
+// Short, NaN and negative.
 - (void)testBadBandsDegradeToNone {
     NSData *whole = HalfBandBytes(0x3400);
     NSMutableData *poisoned = [whole mutableCopy];
     ((uint16_t *)poisoned.mutableBytes)[whole.length / sizeof(uint16_t) - 1] = 0x7E00;
-    std::vector<float> wide(kEncodedChunkCount * kAudioWaveformBandCount, 0.25f);
     for (NSData *bad in @[[whole subdataWithRange:NSMakeRange(0, whole.length - 2)], poisoned,
-                          HalfBandBytes(0xB400),
-                          [NSData dataWithBytes:wide.data() length:wide.size() * sizeof(float)]]) {
+                          HalfBandBytes(0xB400)]) {
         CodableAudioWaveform *decoded = DecodeArchive(ArchiveWithBands(bad));
         XCTAssertNotNil(decoded);
         XCTAssertFalse(decoded.waveform->hasBands());

@@ -10,10 +10,6 @@
 #include <vector>
 #include <cmath>
 
-// Detailed's pitch, up to the energy floor's columns: every level is a
-// column's, so a bar past them would only repeat its neighbor.
-static const CGFloat kBarPitch = 0.5;
-
 // Each band's full height as a share of the broadband reference. Over dance
 // masters, at the energy floor's resolution, the lows carry nearly all of a
 // column's energy, the mids sit about 12 dB under them and the highs about
@@ -99,7 +95,7 @@ static void VibeAddThreeBandPaths(CGMutablePathRef *paths, CGMutablePathRef outl
         CGFloat lowMid = MIN(half[0], half[1]);
         const CGFloat heights[8] = {tallest, half[0], half[1], lowMid, half[2], MIN(half[0], half[2]),
                                     MIN(half[1], half[2]), MIN(lowMid, half[2])};
-        for (NSUInteger mask = 0; mask < 8; mask++) {
+        for (NSUInteger mask = outline ? 0 : 1; mask < 8; mask++) {
             CGPoint *polygon = points->data() + mask * stride;
             polygon[1 + i] = CGPointMake(x, midY + heights[mask]);
             polygon[stride - 2 - i] = CGPointMake(x, midY - heights[mask]);
@@ -120,13 +116,10 @@ static void VibeAddThreeBandPaths(CGMutablePathRef *paths, CGMutablePathRef outl
     }
 }
 
-// A side's mask stops at its level: Detailed's ramp over the same band, full
-// at the top and kBottomAlpha of it at the bottom, or flat.
-static const CGFloat kBottomAlpha = 0.45;
-
+// A side's mask stops at its level: Detailed's ramp, or flat.
 static NSArray *VibeThreeBandSideColors(CGFloat level, BOOL flat) {
     return @[(id)[VibeColor colorWithWhite:1 alpha:level].CGColor,
-             (id)[VibeColor colorWithWhite:1 alpha:flat ? level : level * kBottomAlpha].CGColor];
+             (id)[VibeColor colorWithWhite:1 alpha:flat ? level : level * kVibeBarGradientBottomAlpha].CGColor];
 }
 
 static id VibePinned(CALayer *layer, CGFloat scale) {
@@ -139,10 +132,8 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 @implementation ThreeBandWaveformRenderer {
     CALayer *_container;
     // The seven band layers, drawn once, under one mask that gives each side
-    // its level. A dimmed copy of the stack for the unplayed side would hand
-    // every rebuild's paths to fourteen layers, each of which copies the path
-    // it is handed; and the mask dims the composited stack, so the outer
-    // rings never show through the inner ones.
+    // its level. It dims the composited stack, so the outer rings never show
+    // through the inner ones.
     CALayer *_bands;
     CAShapeLayer *_bandLayers[kLayerCount];
     CALayer *_sides;
@@ -199,8 +190,7 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     _playedSide = VibePinned([CAGradientLayer layer], scale);
     _unplayedSide = VibePinned([CAGradientLayer layer], scale);
     for (CAGradientLayer *side in @[_playedSide, _unplayedSide]) {
-        side.startPoint = CGPointMake(0.5, (1 + kVibeBarAmplitudeOfHalfHeight) / 2);
-        side.endPoint = CGPointMake(0.5, (1 - kVibeBarAmplitudeOfHalfHeight) / 2);
+        VibeAimBarGradient(side);
         [_sides addSublayer:side];
     }
     _bands.mask = _sides;
@@ -211,8 +201,6 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     _hoverMask.fillColor = [VibeColor whiteColor].CGColor;
     _hoverHost.mask = _hoverMask;
     _hoverColumn = VibePinned([CALayer layer], scale);
-    _hoverColumn.actions = @{@"bounds": [NSNull null], @"position": [NSNull null],
-                             @"backgroundColor": [NSNull null]};
     [_hoverHost addSublayer:_hoverColumn];
     [_container addSublayer:_hoverHost];
 }
@@ -228,12 +216,12 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     }
     _playedSide.colors = VibeThreeBandSideColors(1, self.theme.flatFill);
     _unplayedSide.colors = VibeThreeBandSideColors(kUnplayedOpacity, self.theme.flatFill);
-    [CATransaction commit];
     _hoverColumn.backgroundColor = self.theme.hoverColor.CGColor;
+    [CATransaction commit];
 }
 
 - (NSUInteger)barCountForWidth:(CGFloat)width {
-    NSUInteger count = (NSUInteger)llround(clampMin(width, 1) / kBarPitch);
+    NSUInteger count = (NSUInteger)llround(clampMin(width, 1) / kVibeBarPitch);
     return clampRange(count, (NSUInteger)2, kVibeWaveformEnergyColumns);
 }
 
@@ -385,12 +373,7 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     if (!self.theme.flatFill) {
         // The played side's mask, so the bake matches the live layers.
         CGContextSetBlendMode(ctx, kCGBlendModeDestinationIn);
-        CGGradientRef fade = CGGradientCreateWithColors(CGBitmapContextGetColorSpace(ctx),
-                                                        (__bridge CFArrayRef)VibeThreeBandSideColors(1, NO), NULL);
-        CGContextDrawLinearGradient(ctx, fade, CGPointMake(0, size.height * (1 + kVibeBarAmplitudeOfHalfHeight) / 2),
-                                    CGPointMake(0, size.height * (1 - kVibeBarAmplitudeOfHalfHeight) / 2),
-                                    kCGGradientDrawsBeforeStartLocation | kCGGradientDrawsAfterEndLocation);
-        CGGradientRelease(fade);
+        VibeFillBarGradient(ctx, size, VibeThreeBandSideColors(1, NO));
     }
     CGImageRef image = CGBitmapContextCreateImage(ctx);
     CGContextRelease(ctx);

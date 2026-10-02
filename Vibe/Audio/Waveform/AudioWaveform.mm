@@ -6,6 +6,7 @@
 #import "AudioWaveform.h"
 
 #include <algorithm>
+#include <vector>
 
 #define NUM_CHUNKS     (4096*2)
 
@@ -142,6 +143,13 @@ void AudioWaveform::copyChunk(NSUInteger from, NSUInteger to) {
     }
 }
 
+// 2nd-order Butterworth crossovers at the handovers cdj3k-mods measured off a
+// CDJ-3000's 3-band display: wide ones, at 280 Hz low and mid still answer
+// almost equally, which is a shallow crossover's shape. Mid is the low
+// crossover's highpass into the high one's lowpass.
+static const double kAudioWaveformLowCrossoverHz = 300;
+static const double kAudioWaveformHighCrossoverHz = 2500;
+
 // The RBJ cookbook's 2nd-order Butterworth (Q = 1/√2), as vDSP_biquad wants a
 // section: b0, b1, b2, a1, a2, normalized by a0.
 static void AudioWaveformButterworthSection(double cutoffHz, double sampleRate, bool highpass,
@@ -178,9 +186,9 @@ AudioWaveformBandSplit::AudioWaveformBandSplit(double sampleRate) {
 // which leaves no lane waiting on another within a sample, and direct form I
 // leaves one FMA on each recurrence. vDSP_biquad runs a setup's sections one
 // after another, at 2.6x the cost. The mid band lags the others by two
-// samples, a shift no chunk can see. Double,
-// since a 300 Hz pole at 352.8 kHz sits close enough to the unit circle that
-// float's rounding shows in the energies.
+// samples, a shift no chunk can see. Double, since a 300 Hz pole at 352.8 kHz
+// sits close enough to the unit circle that float's rounding shows in the
+// energies.
 void AudioWaveformBandSplit::addSumSquares(const float* mono, NSUInteger numFrames, float* sums) {
     // Locals, so the stores through sums cannot alias the state.
     simd_double4 x1 = this->x1, x2 = this->x2, y1 = this->y1, y2 = this->y2;

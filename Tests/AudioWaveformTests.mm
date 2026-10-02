@@ -608,7 +608,7 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
         XCTAssertEqual(sides.count, 2u);
         for (CAGradientLayer *side in sides) {
             CGFloat top = VibeAlphaOf(side.colors.firstObject), bottom = VibeAlphaOf(side.colors.lastObject);
-            XCTAssertEqualWithAccuracy(bottom / top, flatFill ? 1 : 0.45, 1e-6);
+            XCTAssertEqualWithAccuracy(bottom / top, flatFill ? 1 : kVibeBarGradientBottomAlpha, 1e-6);
         }
         XCTAssertEqualWithAccuracy(VibeAlphaOf(sides[1].colors.firstObject) / VibeAlphaOf(sides[0].colors.firstObject),
                                    renderer.unplayedOverPlayedOpacity, 1e-6, @"the unplayed side's level");
@@ -621,7 +621,7 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
             XCTAssertEqual(lowerAlpha, 255u);
         } else {
             XCTAssertGreaterThan(upperAlpha, lowerAlpha + 40);
-            XCTAssertGreaterThan(lowerAlpha, (uint32_t)(255 * 0.45));
+            XCTAssertGreaterThan(lowerAlpha, (uint32_t)(255 * kVibeBarGradientBottomAlpha));
         }
         CGImageRelease(image);
     }

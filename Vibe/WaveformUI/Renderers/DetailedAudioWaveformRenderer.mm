@@ -100,13 +100,12 @@ static CGPathRef VibeNewWigglePath(CGSize size, const float *samples, NSUInteger
 
 // The cap bounds the mask path against huge widths (the scrubber's zoomed
 // virtual width) at data resolution: the waveform holds 8,192 chunks.
-static const CGFloat kDetailedBarPitch = 0.5;
 static const NSUInteger kDetailedMaxBars = 8192;
 
 - (NSUInteger)numBarsForWidth:(CGFloat)width {
     if (_wiggle && self.samplingWidth > 0) width = self.samplingWidth;
     NSUInteger count = (NSUInteger)llround(clampMin(width, 1) * (_wiggle ? self.barDensity : 1)
-                                           / (_wiggle ? kWigglePitch : kDetailedBarPitch));
+                                           / (_wiggle ? kWigglePitch : kVibeBarPitch));
     return clampRange(count, (NSUInteger)2, _wiggle ? kWiggleMaxLoops : kDetailedMaxBars);
 }
 
@@ -191,11 +190,10 @@ static const NSUInteger kDetailedMaxBars = 8192;
     [_waveformContainer addSublayer:_hoverColumn];
 }
 
+// Pinned to the bars' band rather than the full view, so the whole ramp lands
+// across the visible bars.
 - (void)configureGradient:(CAGradientLayer *)gradient {
-    // Top to bottom (y=1 is the top), pinned to the bars' band rather than the
-    // full view so the whole ramp lands across the visible bars.
-    gradient.startPoint = CGPointMake(0.5, (1 + kVibeBarAmplitudeOfHalfHeight) / 2);
-    gradient.endPoint = CGPointMake(0.5, (1 - kVibeBarAmplitudeOfHalfHeight) / 2);
+    VibeAimBarGradient(gradient);
 }
 
 - (void)dealloc {
@@ -218,16 +216,15 @@ static const NSUInteger kDetailedMaxBars = 8192;
     _hoverColumn.backgroundColor = self.theme.hoverColor.CGColor;
 }
 
-// The color's resting alpha at the top, kBottomAlpha of it at the bottom; one
-// shape for both sides and both appearances.
+// The color's resting alpha at the top, kVibeBarGradientBottomAlpha of it at
+// the bottom; one shape for both sides and both appearances.
 - (NSArray<VibeColor *> *)gradientColorsForColor:(VibeColor *)color isDark:(BOOL)isDark {
     if (self.theme.flatFill) {
         return @[color, color];
     }
-    const CGFloat kBottomAlpha = 0.45;
     return @[
             color,
-            VibeColorWithScaledAlpha(color, kBottomAlpha),
+            VibeColorWithScaledAlpha(color, kVibeBarGradientBottomAlpha),
     ];
 }
 
@@ -459,15 +456,9 @@ static const NSUInteger kDetailedMaxBars = 8192;
         CGContextClip(ctx);
     }
 
-    // configureGradient:'s band, and the live layers' stops: the two must stay
-    // pixel-identical. Basic re-aims its gradient, so it cannot bake.
-    CGGradientRef gradient = CGGradientCreateWithColors(CGBitmapContextGetColorSpace(ctx),
-                                                        (__bridge CFArrayRef)stops, NULL);
-    CGFloat topY = size.height * (1 + kVibeBarAmplitudeOfHalfHeight) / 2;
-    CGFloat bottomY = size.height * (1 - kVibeBarAmplitudeOfHalfHeight) / 2;
-    CGContextDrawLinearGradient(ctx, gradient, CGPointMake(0, topY), CGPointMake(0, bottomY),
-            kCGGradientDrawsBeforeStartLocation | kCGGradientDrawsAfterEndLocation);
-    CGGradientRelease(gradient);
+    // The live layers' stops over configureGradient:'s band. Basic re-aims its
+    // gradient, so it cannot bake.
+    VibeFillBarGradient(ctx, size, stops);
 
     CGImageRef image = CGBitmapContextCreateImage(ctx);
     CGContextRelease(ctx);

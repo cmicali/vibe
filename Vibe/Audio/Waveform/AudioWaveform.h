@@ -6,7 +6,6 @@
 #include <Accelerate/Accelerate.h>
 #include <simd/simd.h>
 #include <cmath>
-#include <vector>
 
 // The interleaved-to-mono downmix shared by the waveform chunker and the BPM
 // analyzer: one mix per decode buffer rather than one per consumer. For mono
@@ -33,14 +32,8 @@ static inline const float* AudioWaveformMonoMix(const float* buffer, float* scra
     return scratch;
 }
 
-// Low, mid and high, split from the mono mix by 2nd-order Butterworth
-// crossovers at the handovers cdj3k-mods measured off a CDJ-3000's 3-band
-// display: wide ones, at 280 Hz low and mid still answer almost equally, which
-// is a shallow crossover's shape. Mid is the low crossover's highpass into the
-// high one's lowpass.
+// Low, mid and high, split from the mono mix (AudioWaveformBandSplit).
 static const NSUInteger kAudioWaveformBandCount = 3;
-static const double kAudioWaveformLowCrossoverHz = 300;
-static const double kAudioWaveformHighCrossoverHz = 2500;
 
 // The streaming band split: the chunker hands it each chunk's slice of the
 // mono stream, in order, and it filters the slice and sums each band's
