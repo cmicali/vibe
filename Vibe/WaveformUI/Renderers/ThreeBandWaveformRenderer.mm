@@ -72,72 +72,24 @@ static CGFloat VibeThreeBandHalves(const float *bar, CGFloat vscale, CGFloat min
     return tallest;
 }
 
-// 3-Band: one rect per ring of each column, into its layer. The ring a band
-// tops spans the midline out to that band, colored by every band at least as
-// tall, and the layer order paints the inner rings over it. A zero scale keeps
-// morph frames between pixels rather than rounding their motion into steps.
-static void VibeFillThreeBandRects(std::vector<CGRect> *rects, std::vector<CGRect> *outline, CGSize size,
-                                   const float *samples, NSUInteger count, CGFloat minimumHeight,
-                                   CGFloat scale) {
-    for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
-        rects[layer].clear();
-    }
-    if (outline) {
-        outline->clear();
-    }
-    CGFloat midY = size.height / 2;
-    CGFloat vscale = VibeBarVScale(size.height);
-    CGFloat pitch = count ? size.width / (CGFloat)count : 0;
-    auto addRing = [&](CGFloat x, CGFloat half, std::vector<CGRect> &into) {
-        CGFloat top = midY + half;
-        CGFloat bottom = midY - half;
-        if (scale > 0) {
-            top = round(top * scale) / scale;
-            bottom = round(bottom * scale) / scale;
-        }
-        if (top > bottom) {
-            into.push_back(CGRectMake(x, bottom, pitch, top - bottom));
-        }
-    };
-    for (NSUInteger i = 0; i < count; i++) {
-        CGFloat half[kAudioWaveformBandCount];
-        CGFloat tallest = VibeThreeBandHalves(samples + i * kAudioWaveformBandCount, vscale, minimumHeight, half);
-        CGFloat x = pitch * (CGFloat)i;
-        for (NSUInteger ring = 0; ring < kAudioWaveformBandCount; ring++) {
-            NSUInteger reaching = 0;
-            // Tied bands share one ring, the first's.
-            BOOL tied = NO;
-            for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
-                if (half[b] >= half[ring]) reaching |= 1 << b;
-                if (b < ring && half[b] == half[ring]) tied = YES;
-            }
-            if (!tied) {
-                addRing(x, half[ring], rects[kLayerForBands[reaching]]);
-            }
-        }
-        if (outline) {
-            addRing(x, tallest, *outline);
-        }
-    }
-}
-
-// 3-Band Smooth: each layer one mirrored polygon through the bars' centers,
-// out to the lowest band of its set, so the painter's order alone colors it
-// and the fill's antialiasing smooths what 3-Band draws as columns. The
-// envelopes nest as their sets do, since a set's lowest band is never above a
-// subset's, so no layer pokes through another.
-static void VibeAddThreeBandEnvelopes(CGMutablePathRef *paths, CGMutablePathRef outline,
-                                      std::vector<CGPoint> *points, CGSize size, const float *samples,
-                                      NSUInteger count, CGFloat minimumHeight) {
+// Each layer one mirrored polygon through the bars' centers, out to the
+// lowest band of its set, appended to the caller's paths, plus the hover
+// slice's outline (the tallest band) when one is given. The envelopes nest as
+// their sets do, since a set's lowest band is never above a subset's, so the
+// painter's order alone colors each height by the bands reaching it, and the
+// fill's antialiasing smooths the steps between bars. The live layers and the
+// bake both draw from here, which keeps them pixel-identical; points is the
+// caller's scratch.
+static void VibeAddThreeBandPaths(CGMutablePathRef *paths, CGMutablePathRef outline, std::vector<CGPoint> *points,
+                                  CGSize size, const float *samples, NSUInteger count, CGFloat minimumHeight) {
     if (count == 0) {
         return;
     }
     CGFloat midY = size.height / 2;
     CGFloat vscale = VibeBarVScale(size.height);
     CGFloat pitch = size.width / (CGFloat)count;
-    // Per band set (by mask; 0 is the outline, the tallest), one polygon:
-    // the left edge, the top through the bars' centers, the right edge, the
-    // bottom back.
+    // Per band set (by mask; 0 is the outline), one polygon: the left edge,
+    // the top through the bars' centers, the right edge, the bottom back.
     NSUInteger stride = 2 * count + 4;
     points->resize(8 * stride);
     for (NSUInteger i = 0; i < count; i++) {
@@ -169,35 +121,12 @@ static void VibeAddThreeBandEnvelopes(CGMutablePathRef *paths, CGMutablePathRef 
     }
 }
 
-// The seven layers' shapes, appended to the caller's paths, and the hover
-// slice's outline (the tallest band) when one is given. The live layers and
-// the bake both draw from here, which keeps them pixel-identical. rects
-// (kLayerCount + 1 vectors) and points are the caller's scratch, for the
-// columns and the envelopes.
-static void VibeAddThreeBandPaths(CGMutablePathRef *paths, CGMutablePathRef outline, BOOL smooth,
-                                  std::vector<CGRect> *rects, std::vector<CGPoint> *points, CGSize size,
-                                  const float *samples, NSUInteger count, CGFloat minimumHeight, CGFloat scale) {
-    if (smooth) {
-        VibeAddThreeBandEnvelopes(paths, outline, points, size, samples, count, minimumHeight);
-        return;
-    }
-    VibeFillThreeBandRects(rects, outline ? &rects[kLayerCount] : nullptr, size, samples, count,
-                           minimumHeight, scale);
-    for (NSUInteger layer = 0; layer <= kLayerCount; layer++) {
-        CGMutablePathRef path = layer < kLayerCount ? paths[layer] : outline;
-        if (path && !rects[layer].empty()) {
-            CGPathAddRects(path, NULL, rects[layer].data(), rects[layer].size());
-        }
-    }
-}
-
-// The theme's gradient as Cupertino's fade, mirrored as the bars are: full at
-// the midline, Detailed's bottom level at the band's edges.
-static const CGFloat kEdgeAlpha = 0.45;
+// The theme's gradient is Detailed's ramp over the same band: full at the
+// top, kBottomAlpha of it at the bottom.
+static const CGFloat kBottomAlpha = 0.45;
 
 static NSArray *VibeThreeBandFadeColors(void) {
-    return @[(id)[VibeColor colorWithWhite:1 alpha:kEdgeAlpha].CGColor, (id)[VibeColor whiteColor].CGColor,
-             (id)[VibeColor colorWithWhite:1 alpha:kEdgeAlpha].CGColor];
+    return @[(id)[VibeColor whiteColor].CGColor, (id)[VibeColor colorWithWhite:1 alpha:kBottomAlpha].CGColor];
 }
 
 static CALayer *VibeNewPinnedLayer(CGFloat scale) {
@@ -209,7 +138,6 @@ static CALayer *VibeNewPinnedLayer(CGFloat scale) {
 }
 
 @implementation ThreeBandWaveformRenderer {
-    BOOL _smooth;
     CALayer *_container;
     // Holds both sides, masked by the fade unless the theme is flat.
     CALayer *_bandsHost;
@@ -226,8 +154,7 @@ static CALayer *VibeNewPinnedLayer(CGFloat scale) {
     CALayer *_hoverHost;
     CAShapeLayer *_hoverMask;
     CALayer *_hoverColumn;
-    // Kept across morph frames so the vectors do not regrow per rebuild.
-    std::vector<CGRect> _rects[kLayerCount + 1];
+    // Kept across morph frames so the vector does not regrow per rebuild.
     std::vector<CGPoint> _points;
 }
 
@@ -240,14 +167,8 @@ static CALayer *VibeNewPinnedLayer(CGFloat scale) {
 }
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
-    return [self initWithLayer:parentLayer bounds:bounds isDark:isDark smooth:NO];
-}
-
-- (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark
-                       smooth:(BOOL)smooth {
     self = [super initWithLayer:parentLayer bounds:bounds isDark:isDark];
     if (self) {
-        _smooth = smooth;
         __weak __typeof__(self) weakSelf = self;
         _morph = [[WaveformMorphEngine alloc]
                 initWithVScale:^CGFloat(CGFloat height) { return VibeBarVScale(height); }
@@ -414,8 +335,7 @@ static CALayer *VibeNewPinnedLayer(CGFloat scale) {
     }
 }
 
-// The morph's rebuild callback. The columns pixel-round only when settled, as
-// Detailed does.
+// The morph's rebuild callback.
 - (void)rebuildPaths {
     const std::vector<float> &samples = [_morph displayedSamples];
     NSUInteger count = samples.size() / kAudioWaveformBandCount;
@@ -429,8 +349,7 @@ static CALayer *VibeNewPinnedLayer(CGFloat scale) {
     }
     // setHoverHighlightX: rebuilds as the slice appears.
     CGMutablePathRef outline = _hoverHost.hidden ? NULL : CGPathCreateMutable();
-    VibeAddThreeBandPaths(paths, outline, _smooth, _rects, &_points, _morph.size, samples.data(), count,
-                          _morph.barMinHeight, _morph.isSettled ? VibeBackingScaleForLayer(self.parentLayer) : 0);
+    VibeAddThreeBandPaths(paths, outline, &_points, _morph.size, samples.data(), count, _morph.barMinHeight);
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
@@ -471,12 +390,9 @@ static CALayer *VibeNewPinnedLayer(CGFloat scale) {
     for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
         paths[layer] = CGPathCreateMutable();
     }
-    std::vector<CGRect> rects[kLayerCount + 1];
     std::vector<CGPoint> points;
-    VibeAddThreeBandPaths(paths, NULL, _smooth, rects, &points, size, (const float *)samples.bytes, count, 1, scale);
+    VibeAddThreeBandPaths(paths, NULL, &points, size, (const float *)samples.bytes, count, 1);
     for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
-        // One path fill a layer, as the shape layers do: filling each rect
-        // alone would composite the shared antialiased edges twice.
         if (!CGPathIsEmpty(paths[layer])) {
             CGContextAddPath(ctx, paths[layer]);
             CGContextSetFillColorWithColor(ctx, VibeThreeBandColor(layer, self.isDark));

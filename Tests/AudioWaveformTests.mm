@@ -198,7 +198,7 @@
         // These two draw individual layers; the next test covers their geometry.
         // 3-Band draws three levels a bar, which its own tests cover.
         if ([identifier isEqualToString:@"sonic_cirrus"] || [identifier isEqualToString:@"cupertino_basic"] ||
-            [identifier hasPrefix:@"three_band"]) continue;
+            [identifier isEqualToString:@"three_band"]) continue;
         DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)[self rendererForStyle:identifier];
         XCTAssertTrue([renderer isKindOfClass:DetailedAudioWaveformRenderer.class], @"%@", identifier);
         for (CGFloat width : {257.0, 512.0, 773.0}) {
@@ -416,10 +416,6 @@
 // all three.
 static const NSUInteger kThreeBandLayers = 7;
 
-static NSArray<NSString *> *VibeThreeBandStyles(void) {
-    return @[@"three_band", @"three_band_smooth"];
-}
-
 // 1,024 identical chunks with these band mean squares, under a broadband RMS
 // of 0.1, below Normalize's ceiling, so it raises levels 3.5x.
 static AudioWaveform VibeThreeBandTestWaveform(std::array<float, 3> bands) {
@@ -461,12 +457,11 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
 
 // Each layer's drawn height for VibeThreeBandTestWaveform (0 where it draws
 // nothing), read off the unplayed stack.
-- (std::vector<CGFloat>)threeBandLayerHeightsForStyle:(NSString *)style
-                                                bands:(std::array<float, 3>)bands
+- (std::vector<CGFloat>)threeBandLayerHeightsForBands:(std::array<float, 3>)bands
                                             normalize:(BOOL)normalize
                                              waveform:(BOOL)hasWaveform {
     AudioWaveform waveform = VibeThreeBandTestWaveform(bands);
-    AudioWaveformRenderer *renderer = [self rendererForStyle:style];
+    AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
     renderer.normalizesLevels = normalize;
     CALayer *host = renderer.parentLayer;
     [renderer updateWaveform:host.bounds progress:0.5 waveform:hasWaveform ? &waveform : nullptr];
@@ -481,93 +476,77 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     return heights;
 }
 
-- (std::vector<CGFloat>)threeBandLayerHeightsForStyle:(NSString *)style bands:(std::array<float, 3>)bands {
-    return [self threeBandLayerHeightsForStyle:style bands:bands normalize:NO waveform:YES];
+- (std::vector<CGFloat>)threeBandLayerHeightsForBands:(std::array<float, 3>)bands {
+    return [self threeBandLayerHeightsForBands:bands normalize:NO waveform:YES];
 }
 
-// What shows of each layer when every bar is alike: a layer no taller than one
-// painted after it is covered. 3-Band builds only what shows; Smooth's
-// envelopes nest, so it builds every set and the painter's order covers them.
-- (std::vector<CGFloat>)visibleThreeBandLayerHeightsForStyle:(NSString *)style
-                                                       bands:(std::array<float, 3>)bands {
-    std::vector<CGFloat> drawn = [self threeBandLayerHeightsForStyle:style bands:bands];
-    std::vector<CGFloat> visible = drawn;
+// What shows of each layer when every bar is alike: every set's envelope is
+// built, and a layer no taller than one painted after it is covered.
+- (std::vector<CGFloat>)visibleThreeBandLayerHeightsForBands:(std::array<float, 3>)bands {
+    std::vector<CGFloat> visible = [self threeBandLayerHeightsForBands:bands];
     CGFloat above = 0;
-    for (NSUInteger layer = drawn.size(); layer-- > 0;) {
-        if (drawn[layer] <= above) visible[layer] = 0;
-        above = MAX(above, drawn[layer]);
-    }
-    if ([style isEqualToString:@"three_band"]) {
-        XCTAssertTrue(drawn == visible, @"3-Band builds no covered ring");
+    for (NSUInteger layer = visible.size(); layer-- > 0;) {
+        CGFloat drawn = visible[layer];
+        if (drawn <= above) visible[layer] = 0;
+        above = MAX(above, drawn);
     }
     return visible;
 }
 
-// Which layers draw: each band alone in its own color, and every ring
+// Which layers show: each band alone in its own color, and every ring
 // colored by the set of bands reaching it, so the rings nest as the sets do.
 - (void)testThreeBandRingsAreTheSetsOfBandsReachingThem {
-    for (NSString *style in VibeThreeBandStyles()) {
-        std::vector<CGFloat> low = [self visibleThreeBandLayerHeightsForStyle:style bands:{1, 0, 0}];
-        std::vector<CGFloat> mid = [self visibleThreeBandLayerHeightsForStyle:style bands:{0, 1, 0}];
-        std::vector<CGFloat> high = [self visibleThreeBandLayerHeightsForStyle:style bands:{0, 0, 1}];
-        for (NSUInteger layer = 0; layer < kThreeBandLayers; layer++) {
-            XCTAssertEqual(low[layer] > 0, layer == 0, @"%@ layer %lu", style, layer);
-            XCTAssertEqual(mid[layer] > 0, layer == 1, @"%@ layer %lu", style, layer);
-            XCTAssertEqual(high[layer] > 0, layer == 2, @"%@ layer %lu", style, layer);
-        }
-
-        // A loud low, a mid and a faint high: blue out to the low, brown out
-        // to the mid, the all-bands core out to the high.
-        std::vector<CGFloat> nested = [self visibleThreeBandLayerHeightsForStyle:style bands:{1, 0.01f, 0.0001f}];
-        XCTAssertGreaterThan(nested[0], nested[3], @"%@", style);
-        XCTAssertGreaterThan(nested[3], nested[6], @"%@", style);
-        XCTAssertGreaterThan(nested[6], 0, @"%@", style);
-        XCTAssertEqual(nested[1] + nested[2] + nested[4] + nested[5], 0, @"%@", style);
-
-        // The same, led by the high band: white, then mid+high, then the core.
-        std::vector<CGFloat> bright = [self visibleThreeBandLayerHeightsForStyle:style bands:{0.0001f, 0.01f, 1}];
-        XCTAssertGreaterThan(bright[2], bright[5], @"%@", style);
-        XCTAssertGreaterThan(bright[5], bright[6], @"%@", style);
-        XCTAssertEqual(bright[0] + bright[1] + bright[3] + bright[4], 0, @"%@", style);
+    std::vector<CGFloat> low = [self visibleThreeBandLayerHeightsForBands:{1, 0, 0}];
+    std::vector<CGFloat> mid = [self visibleThreeBandLayerHeightsForBands:{0, 1, 0}];
+    std::vector<CGFloat> high = [self visibleThreeBandLayerHeightsForBands:{0, 0, 1}];
+    for (NSUInteger layer = 0; layer < kThreeBandLayers; layer++) {
+        XCTAssertEqual(low[layer] > 0, layer == 0, @"layer %lu", layer);
+        XCTAssertEqual(mid[layer] > 0, layer == 1, @"layer %lu", layer);
+        XCTAssertEqual(high[layer] > 0, layer == 2, @"layer %lu", layer);
     }
+
+    // A loud low, a mid and a faint high: blue out to the low, brown out to
+    // the mid, the all-bands core out to the high.
+    std::vector<CGFloat> nested = [self visibleThreeBandLayerHeightsForBands:{1, 0.01f, 0.0001f}];
+    XCTAssertGreaterThan(nested[0], nested[3]);
+    XCTAssertGreaterThan(nested[3], nested[6]);
+    XCTAssertGreaterThan(nested[6], 0);
+    XCTAssertEqual(nested[1] + nested[2] + nested[4] + nested[5], 0);
+
+    // The same, led by the high band: white, then mid+high, then the core.
+    std::vector<CGFloat> bright = [self visibleThreeBandLayerHeightsForBands:{0.0001f, 0.01f, 1}];
+    XCTAssertGreaterThan(bright[2], bright[5]);
+    XCTAssertGreaterThan(bright[5], bright[6]);
+    XCTAssertEqual(bright[0] + bright[1] + bright[3] + bright[4], 0);
 }
 
 - (void)testThreeBandSilenceIsAHairlineAndNoWaveformIsNothing {
-    for (NSString *style in VibeThreeBandStyles()) {
-        std::vector<CGFloat> silence = [self visibleThreeBandLayerHeightsForStyle:style bands:{0, 0, 0}];
-        std::vector<CGFloat> empty = [self threeBandLayerHeightsForStyle:style bands:{0, 0, 0} normalize:NO waveform:NO];
-        for (NSUInteger layer = 0; layer < kThreeBandLayers; layer++) {
-            XCTAssertEqual(silence[layer], layer == kThreeBandLayers - 1 ? 1 : 0, @"%@ layer %lu", style, layer);
-            XCTAssertEqual(empty[layer], 0, @"%@ layer %lu", style, layer);
-        }
+    std::vector<CGFloat> silence = [self visibleThreeBandLayerHeightsForBands:{0, 0, 0}];
+    std::vector<CGFloat> empty = [self threeBandLayerHeightsForBands:{0, 0, 0} normalize:NO waveform:NO];
+    for (NSUInteger layer = 0; layer < kThreeBandLayers; layer++) {
+        XCTAssertEqual(silence[layer], layer == kThreeBandLayers - 1 ? 1 : 0, @"layer %lu", layer);
+        XCTAssertEqual(empty[layer], 0, @"layer %lu", layer);
     }
 }
 
 // Normalize raises a quiet track's bands and never lowers one.
 - (void)testThreeBandNormalizationOnlyRaises {
     std::array<float, 3> quiet = {0.001f, 0.0001f, 0.00001f};
-    for (NSString *style in VibeThreeBandStyles()) {
-        std::vector<CGFloat> plain = [self threeBandLayerHeightsForStyle:style bands:quiet normalize:NO waveform:YES];
-        std::vector<CGFloat> normalized = [self threeBandLayerHeightsForStyle:style bands:quiet normalize:YES waveform:YES];
-        for (NSUInteger layer : {0, 3, 6}) {
-            XCTAssertGreaterThan(normalized[layer], plain[layer], @"%@ layer %lu", style, layer);
-        }
+    std::vector<CGFloat> plain = [self threeBandLayerHeightsForBands:quiet normalize:NO waveform:YES];
+    std::vector<CGFloat> normalized = [self threeBandLayerHeightsForBands:quiet normalize:YES waveform:YES];
+    for (NSUInteger layer : {0, 3, 6}) {
+        XCTAssertGreaterThan(normalized[layer], plain[layer], @"layer %lu", layer);
     }
 }
 
-// 3-Band draws a rect per ring of each column; Smooth one outline per layer.
-- (void)testThreeBandSmoothDrawsOneOutlinePerLayer {
+// Each layer is one outline through the bars, never a shape per bar.
+- (void)testThreeBandDrawsOneOutlinePerLayer {
     AudioWaveform waveform = VibeThreeBandTestWaveform({1, 0.01f, 0.0001f});
-    for (NSString *style in VibeThreeBandStyles()) {
-        AudioWaveformRenderer *renderer = [self rendererForStyle:style];
-        [renderer updateWaveform:renderer.parentLayer.bounds progress:0.5 waveform:&waveform];
-        [renderer settleMorphImmediately];
-        NSUInteger subpaths = VibeSubpathCount(VibeThreeBandUnplayedLayers(renderer)[0].path);
-        if ([style isEqualToString:@"three_band_smooth"]) {
-            XCTAssertEqual(subpaths, 1u);
-        } else {
-            XCTAssertEqual(subpaths, 1024u, @"a column per bar, 512pt at the 0.5pt pitch");
-        }
+    AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
+    [renderer updateWaveform:renderer.parentLayer.bounds progress:0.5 waveform:&waveform];
+    [renderer settleMorphImmediately];
+    for (CAShapeLayer *layer in VibeThreeBandUnplayedLayers(renderer)) {
+        XCTAssertEqual(VibeSubpathCount(layer.path), 1u);
     }
 }
 
@@ -576,67 +555,66 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
 - (void)testThreeBandBakePaintsEachRingInItsBandsColor {
     std::array<float, 3> bands = {1, 0.01f, 0.0001f};
     AudioWaveform waveform = VibeThreeBandTestWaveform(bands);
-    for (NSString *style in VibeThreeBandStyles()) {
-        AudioWaveformRenderer *renderer = [self rendererForStyle:style];
-        WaveformTheme *flat = [WaveformTheme monochromeThemeIsDark:YES];
-        flat.flatFill = YES;
-        renderer.theme = flat;
-        [renderer updateColors:YES];
-        XCTAssertTrue(renderer.supportsEnvelopeBake);
-        CGSize size = renderer.parentLayer.bounds.size;
-        CGImageRef image = [renderer newEnvelopeImageForSize:size scale:1
-                                                     samples:[renderer envelopeSamplesForWaveform:&waveform]];
-        XCTAssertTrue(image != NULL);
-        XCTAssertTrue([renderer newUnplayedEnvelopeImageForSize:size scale:1 samples:NSData.data] == NULL,
-                      @"the unplayed side is the one bitmap, dimmed");
-        XCTAssertLessThan([renderer unplayedOverPlayedOpacity], 1);
-        size_t center = CGImageGetHeight(image) / 2;
-        std::vector<CGFloat> heights = [self threeBandLayerHeightsForStyle:style bands:bands];
-        size_t brownRow = center - (size_t)((heights[3] / 2 + heights[6] / 2) / 2);
-        size_t blueRow = center - (size_t)((heights[0] / 2 + heights[3] / 2) / 2);
-        XCTAssertEqual(VibeRGBAt(image, center, 256), 0xf5ebd7u, @"%@: the core, all three bands", style);
-        XCTAssertEqual(VibeRGBAt(image, brownRow, 256), 0xb4690au, @"%@: low and mid", style);
-        XCTAssertEqual(VibeRGBAt(image, blueRow, 256), 0x0055e1u, @"%@: low alone", style);
-        CGImageRelease(image);
+    AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
+    WaveformTheme *flat = [WaveformTheme monochromeThemeIsDark:YES];
+    flat.flatFill = YES;
+    renderer.theme = flat;
+    [renderer updateColors:YES];
+    XCTAssertTrue(renderer.supportsEnvelopeBake);
+    CGSize size = renderer.parentLayer.bounds.size;
+    CGImageRef image = [renderer newEnvelopeImageForSize:size scale:1
+                                                 samples:[renderer envelopeSamplesForWaveform:&waveform]];
+    XCTAssertTrue(image != NULL);
+    XCTAssertTrue([renderer newUnplayedEnvelopeImageForSize:size scale:1 samples:NSData.data] == NULL,
+                  @"the unplayed side is the one bitmap, dimmed");
+    XCTAssertLessThan([renderer unplayedOverPlayedOpacity], 1);
+    size_t center = CGImageGetHeight(image) / 2;
+    std::vector<CGFloat> heights = [self threeBandLayerHeightsForBands:bands];
+    size_t brownRow = center - (size_t)((heights[3] / 2 + heights[6] / 2) / 2);
+    size_t blueRow = center - (size_t)((heights[0] / 2 + heights[3] / 2) / 2);
+    XCTAssertEqual(VibeRGBAt(image, center, 256), 0xf5ebd7u, @"the core: all three bands");
+    XCTAssertEqual(VibeRGBAt(image, brownRow, 256), 0xb4690au, @"low and mid");
+    XCTAssertEqual(VibeRGBAt(image, blueRow, 256), 0x0055e1u, @"low alone");
+    CGImageRelease(image);
 
-        // Light turns the luminance over, so the white-led core goes dark.
-        [renderer updateColors:NO];
-        CGImageRef light = [renderer newEnvelopeImageForSize:size scale:1
-                                                     samples:[renderer envelopeSamplesForWaveform:&waveform]];
-        XCTAssertEqual(VibeRGBAt(light, center, 256), 0x33302cu, @"%@", style);
-        CGImageRelease(light);
-    }
+    // Light turns the luminance over, so the white-led core goes dark.
+    [renderer updateColors:NO];
+    CGImageRef light = [renderer newEnvelopeImageForSize:size scale:1
+                                                 samples:[renderer envelopeSamplesForWaveform:&waveform]];
+    XCTAssertEqual(VibeRGBAt(light, center, 256), 0x33302cu);
+    CGImageRelease(light);
 }
 
-// The theme's gradient fades the bands toward the band's edges, live and
-// baked alike; a flat theme drops the fade.
-- (void)testThreeBandFadesUnlessTheThemeIsFlat {
+// The theme's gradient is Detailed's ramp, live and baked alike: full at the
+// top, dimmer toward the bottom. A flat theme drops it.
+- (void)testThreeBandRampsLikeDetailedUnlessTheThemeIsFlat {
     AudioWaveform waveform = VibeThreeBandTestWaveform({1, 0.01f, 0.0001f});
-    for (NSString *style in VibeThreeBandStyles()) {
-        AudioWaveformRenderer *renderer = [self rendererForStyle:style];
-        CGSize size = renderer.parentLayer.bounds.size;
-        size_t center = (size_t)size.height / 2;
-        // Inside the low band, which reaches about 0.6 of the band's height.
-        size_t outer = center - (size_t)(VibeBarVScale(size.height) * 0.5);
-        for (BOOL flatFill : {NO, YES}) {
-            WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
-            theme.flatFill = flatFill;
-            renderer.theme = theme;
-            [renderer updateColors:YES];
-            XCTAssertEqual(VibeThreeBandHost(renderer).mask == nil, flatFill, @"%@", style);
-            CGImageRef image = [renderer newEnvelopeImageForSize:size scale:1
-                                                         samples:[renderer envelopeSamplesForWaveform:&waveform]];
-            uint32_t centerAlpha = VibeARGBAt(image, center, 256) >> 24;
-            uint32_t outerAlpha = VibeARGBAt(image, outer, 256) >> 24;
-            XCTAssertGreaterThan(centerAlpha, 250u, @"%@", style);
-            if (flatFill) {
-                XCTAssertEqual(outerAlpha, 255u, @"%@", style);
-            } else {
-                XCTAssertLessThan(outerAlpha, 220u, @"%@", style);
-                XCTAssertGreaterThan(outerAlpha, (uint32_t)(255 * 0.45), @"%@", style);
-            }
-            CGImageRelease(image);
+    AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
+    CGSize size = renderer.parentLayer.bounds.size;
+    // Inside the low band, which reaches about 0.6 of the band's height, the
+    // same distance above and below the midline; row 0 is the image's top.
+    size_t offset = (size_t)(VibeBarVScale(size.height) * 0.5);
+    size_t upper = (size_t)size.height / 2 - offset, lower = (size_t)size.height / 2 + offset;
+    for (BOOL flatFill : {NO, YES}) {
+        WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
+        theme.flatFill = flatFill;
+        renderer.theme = theme;
+        [renderer updateColors:YES];
+        CAGradientLayer *mask = (CAGradientLayer *)VibeThreeBandHost(renderer).mask;
+        XCTAssertEqual(mask == nil, flatFill);
+        CGImageRef image = [renderer newEnvelopeImageForSize:size scale:1
+                                                     samples:[renderer envelopeSamplesForWaveform:&waveform]];
+        uint32_t upperAlpha = VibeARGBAt(image, upper, 256) >> 24;
+        uint32_t lowerAlpha = VibeARGBAt(image, lower, 256) >> 24;
+        if (flatFill) {
+            XCTAssertEqual(upperAlpha, 255u);
+            XCTAssertEqual(lowerAlpha, 255u);
+        } else {
+            XCTAssertEqual(mask.colors.count, 2u);
+            XCTAssertGreaterThan(upperAlpha, lowerAlpha + 40);
+            XCTAssertGreaterThan(lowerAlpha, (uint32_t)(255 * 0.45));
         }
+        CGImageRelease(image);
     }
 }
 
@@ -644,28 +622,26 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
 - (void)testThreeBandBuildsItsHoverOutlineOnlyWhileShown {
     std::array<float, 3> bands = {1, 0.01f, 0.0001f};
     AudioWaveform waveform = VibeThreeBandTestWaveform(bands);
-    for (NSString *style in VibeThreeBandStyles()) {
-        AudioWaveformRenderer *renderer = [self rendererForStyle:style];
-        CALayer *host = renderer.parentLayer;
-        [renderer updateWaveform:host.bounds progress:0.5 waveform:&waveform];
-        [renderer settleMorphImmediately];
-        CALayer *hoverHost = host.sublayers.firstObject.sublayers.lastObject;
-        CAShapeLayer *outline = (CAShapeLayer *)hoverHost.mask;
-        XCTAssertTrue(hoverHost.hidden, @"%@", style);
-        XCTAssertTrue(!outline.path || CGPathIsEmpty(outline.path), @"%@", style);
-        [renderer setHoverHighlightX:100];
-        XCTAssertFalse(hoverHost.hidden, @"%@", style);
-        CGFloat lowHeight = [self threeBandLayerHeightsForStyle:style bands:bands][0];
-        XCTAssertEqual(CGPathGetPathBoundingBox(outline.path).size.height, lowHeight, @"%@", style);
-        [renderer setHoverHighlightX:-1];
-        XCTAssertTrue(hoverHost.hidden, @"%@", style);
-    }
+    AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
+    CALayer *host = renderer.parentLayer;
+    [renderer updateWaveform:host.bounds progress:0.5 waveform:&waveform];
+    [renderer settleMorphImmediately];
+    CALayer *hoverHost = host.sublayers.firstObject.sublayers.lastObject;
+    CAShapeLayer *outline = (CAShapeLayer *)hoverHost.mask;
+    XCTAssertTrue(hoverHost.hidden);
+    XCTAssertTrue(!outline.path || CGPathIsEmpty(outline.path));
+    [renderer setHoverHighlightX:100];
+    XCTAssertFalse(hoverHost.hidden);
+    CGFloat lowHeight = [self threeBandLayerHeightsForBands:bands][0];
+    XCTAssertEqual(CGPathGetPathBoundingBox(outline.path).size.height, lowHeight);
+    [renderer setHoverHighlightX:-1];
+    XCTAssertTrue(hoverHost.hidden);
 }
 
 - (void)testOnlyThreeBandReadsTheBands {
     for (NSString *identifier in WaveformRendererRegistry.availableIdentifiers) {
         XCTAssertEqual([WaveformRendererRegistry readsBandsForIdentifier:identifier],
-                       [VibeThreeBandStyles() containsObject:identifier], @"%@", identifier);
+                       [identifier isEqualToString:@"three_band"], @"%@", identifier);
     }
     XCTAssertFalse([WaveformRendererRegistry readsBandsForIdentifier:nil]);
     XCTAssertFalse([WaveformRendererRegistry readsBandsForIdentifier:@"missing-style"]);
