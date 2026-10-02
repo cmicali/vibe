@@ -82,6 +82,7 @@ NS_ASSUME_NONNULL_BEGIN
 // The recent's URL from its bookmark, else its path while something is there.
 // Off main; completion on main, nil when neither reaches it.
 - (void)resolveRecentItem:(NSDictionary *)item completion:(void (^)(NSURL *_Nullable url))completion;
+- (void)clearRecentItems;
 
 // Back to never-opened: every scope released, and the persisted bookmarks and
 // remembered track REMOVED, so the next launch restores nothing. Supersedes

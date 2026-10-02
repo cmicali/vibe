@@ -3223,6 +3223,30 @@
       },
       "extractionState": "manual"
     },
+    "browser.recents_clear": {
+      "comment": "iOS Files tab: the button in the Recents screen's bar that opens a menu confirming the list should be emptied. A verb.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "browser.recents_clear_confirm": {
+      "comment": "iOS Files tab: the destructive menu item under the Recents screen's Clear button; empties the Recents list. It deletes no files and leaves the playlist alone.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear Recents"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "browser.recents_empty": {
       "comment": "iOS Files tab: shown in place of the Recents list before the user has played or added anything.",
       "localizations": {

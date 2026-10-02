@@ -231,6 +231,10 @@ static const NSUInteger kMaximumRecentItems = 50;
                                             forKey:kRecentItemsKey];
 }
 
+- (void)clearRecentItems {
+    [NSUserDefaults.standardUserDefaults removeObjectForKey:kRecentItemsKey];
+}
+
 // A stale bookmark — the item moved or was replaced — is minted again and
 // stored with where it now is, as FavoritesStore refreshes its own. Minting
 // needs the scope open; the open that follows starts its own.

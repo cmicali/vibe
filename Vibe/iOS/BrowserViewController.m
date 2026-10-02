@@ -792,12 +792,35 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
     [super viewDidLoad];
     self.navigationItem.title = STR_BROWSER_RECENTS;
     self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeNever;
+    // A menu, so one stray tap cannot empty the list.
+    __weak RecentsViewController *weakSelf = self;
+    UIAction *clear = [UIAction actionWithTitle:STR_BROWSER_RECENTS_CLEAR_CONFIRM
+                                          image:[UIImage systemImageNamed:@"trash"]
+                                     identifier:nil
+                                        handler:^(UIAction *action) {
+        [weakSelf clearRecents];
+    }];
+    clear.attributes = UIMenuElementAttributesDestructive;
+    self.navigationItem.rightBarButtonItem =
+            [[UIBarButtonItem alloc] initWithTitle:STR_BROWSER_RECENTS_CLEAR
+                                              menu:[UIMenu menuWithChildren:@[clear]]];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
+    [self reloadItems];
+}
+
+- (void)clearRecents {
+    [_playback clearRecentItems];
+    [self reloadItems];
+}
+
+- (void)reloadItems {
     _items = _playback.recentItems;
     [self.tableView reloadData];
+    // Absent, not disabled, with nothing to clear.
+    self.navigationItem.rightBarButtonItem.hidden = _items.count == 0;
     if (_items.count > 0) {
         self.contentUnavailableConfiguration = nil;
         return;

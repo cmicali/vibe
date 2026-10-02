@@ -760,6 +760,10 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     [_folderSession resolveRecentItem:item completion:completion];
 }
 
+- (void)clearRecentItems {
+    [_folderSession clearRecentItems];
+}
+
 - (void)restorePersistedSession {
     if (![_folderSession restorePersistedFolder]) {
         [self notifyHasNothingToRestore];
