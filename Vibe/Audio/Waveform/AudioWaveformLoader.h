@@ -53,6 +53,7 @@ typedef struct {
 @property (atomic) NSUInteger cueStart;
 @property (atomic) NSUInteger cueEnd;
 
+// Permanent, and it ends a streaming file's waits for bytes at once.
 - (void)cancel;
 - (void)detach;
 - (void)reattach;

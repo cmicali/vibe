@@ -96,6 +96,10 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
 }
 
 - (id)init {
+    return [self initWithRootPath:nil];
+}
+
+- (instancetype)initWithRootPath:(NSString *)rootPath {
     self = [super init];
     if (self) {
         // Utility, not user-initiated. The loader blocks on PINCache's own
@@ -129,7 +133,9 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
         dispatch_async(_loaderQueue, ^{
             // No memory cache (PINCache+VibeAudioCache): the view retains the
             // one live waveform, and a replay re-reads from disk in a few ms.
-            self->_waveformCache = [PINCache audioCacheWithName:AudioWaveformCache.cacheName];
+            self->_waveformCache = rootPath
+                    ? [[PINCache alloc] initWithName:AudioWaveformCache.cacheName rootPath:rootPath]
+                    : [PINCache audioCacheWithName:AudioWaveformCache.cacheName];
         });
     }
     return self;

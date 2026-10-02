@@ -43,8 +43,9 @@
 //  wait ends in one of three ways: the bytes arrived; the transfer failed, a
 //  read failure with its error; or it was interrupted, which is neither the
 //  end nor a failure. Waits happen only on the reading thread, never the
-//  render's. The handle is one of the transfer's readers from its open to its
-//  dealloc (CloudFileAvailability's addReader).
+//  render's. A handle that holdStream was sent is one of the transfer's
+//  readers until its dealloc (CloudFileAvailability's addReader); one that
+//  was not reads what the transfer writes and fails with it.
 //
 
 #import <AVFAudio/AVFAudio.h>
@@ -144,6 +145,12 @@ NS_ASSUME_NONNULL_BEGIN
 // How much of a streaming file its transfer has written so far; the size of
 // a whole file. Any thread.
 @property (nonatomic, readonly) uint64_t bytesWritten;
+// Once, on the opening thread before the handle is shared: makes it one of
+// its transfer's readers until dealloc, which keeps the transfer from being
+// abandoned. The coordinator sends it to every handle it serves; the waveform
+// loader's never is, so a waveform rides the play's stream and never holds it.
+// A whole file ignores it.
+- (void)holdStream;
 
 // Writing only: appends the buffer's frameLength frames, whose format must be
 // processingFormat, and advances length by them.

@@ -113,6 +113,7 @@ typedef NS_ENUM(uint8_t, VibeWaitFault) {
     // A file still streaming: every read past the bytes written waits for
     // them. Set by the open and fixed from then on; nil for a whole file.
     CloudFileAvailability *_availability;
+    BOOL _holdsStream; // one of _availability's readers (holdStream)
     _Atomic bool _readsInterrupted;
     _Atomic bool _waitingForBytes;
     BOOL (^_openInterrupted)(void); // the open's caller's, while it runs
@@ -418,6 +419,13 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     return _availability ? _availability.writtenBytes : (uint64_t)MAX(0, _size);
 }
 
+- (void)holdStream {
+    if (_availability && !_holdsStream) {
+        _holdsStream = YES;
+        [_availability addReader]; // removed by dealloc
+    }
+}
+
 - (instancetype)initParserForReading:(NSURL *)url interrupted:(BOOL (^)(void))interrupted error:(NSError **)error {
     self = [super init];
     if (!self) {
@@ -436,7 +444,6 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     // file's pread ignores the flag.
     int flags = O_RDONLY | O_NONBLOCK | O_CLOEXEC;
     _availability = [CloudFileMaterializer availabilityForURL:url];
-    [_availability addReader]; // removed by dealloc
     _descriptor = open((_availability ? _availability.partURL : url).fileSystemRepresentation, flags);
     if (_descriptor < 0 && _availability && errno == ENOENT) {
         // TRAP: the transfer can finish and rename its part over url between
@@ -444,7 +451,6 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         if (!VibeHandleAwait(self, 0, (SInt64)_availability.size)) {
             return [self failWithError:error status:noErr description:@""];
         }
-        [_availability removeReader];
         _availability = nil;
         _descriptor = open(url.fileSystemRepresentation, flags);
     }
@@ -822,7 +828,9 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
         close(_descriptor);
         _descriptor = -1;
     }
-    [_availability removeReader];
+    if (_holdsStream) {
+        [_availability removeReader];
+    }
 }
 
 #pragma mark - The cursor

@@ -16,8 +16,10 @@
 #import "AudioFileHandle.h"
 #import "AudioFileMaterializationCoordinatorInternal.h"
 #import "AudioFixtures.h"
+#import "AudioTrack.h"
 #import "CloudFileMaterializer.h"
 #import "CloudTransferRegistry.h"
+#import "NSURL+Hash.h"
 
 #pragma mark - A file written in step with its reader
 
@@ -1026,6 +1028,23 @@ enum { VibeFetchRunning = 0, VibeFetchCompleted, VibeFetchFailed, VibeFetchCance
     XCTAssertTrue(_coordinator.isForegroundTransferActive);
     prefetch = nil;
     XCTAssertTrue([self eventually:^BOOL { return atomic_load(&self->_fetchCancels) == 1 && [self running:NO]; }]);
+}
+
+// A transfer that installs another version than its placeholder stood for
+// (here the placeholder is empty) retires the memoized keys, so the file's
+// waveform and metadata are filed under the version it now holds.
+- (void)testATransferInstallingAnotherVersionRetiresTheMemoizedKeys {
+    VibeGrowingFile *file = [self remote:[self remoteSource] prefix:64 * 1024 readable:YES];
+    AudioTrack *track = [AudioTrack withURL:file.url];
+    NSString *placeholderKey = track.cacheKey;
+    XCTAssertNotNil(placeholderKey);
+    AudioFileHandle *handle = [self deliver:file purpose:VibeAudioFileOpenPurposePlayback];
+    XCTAssertEqualObjects(track.cacheKey, placeholderKey, @"while it streams, the placeholder's");
+    XCTAssertTrue([self finishRemote:VibeFetchCompleted]);
+    XCTAssertTrue([self eventually:^BOOL { return [self running:NO]; }]);
+    XCTAssertNotEqualObjects(track.cacheKey, placeholderKey);
+    XCTAssertEqualObjects(track.cacheKey, file.url.cacheKey);
+    XCTAssertNotNil(handle);
 }
 
 // A transfer that never reports readable (the provider's road) delivers only

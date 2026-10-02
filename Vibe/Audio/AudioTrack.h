@@ -103,6 +103,11 @@ NS_ASSUME_NONNULL_BEGIN
 // memoized, so a later call retries — and a caller must then skip caching.
 - (nullable NSString *)cacheKey;
 
+// A file was replaced under its URL by another version (a download that
+// installed something other than its placeholder's size and mtime): every
+// track's next cacheKey stats its file again, once. Any thread.
++ (void)invalidateMemoizedCacheKeys;
+
 - (NSString *)title;
 - (NSString *)artist;
 - (NSTimeInterval)duration;

@@ -12,7 +12,16 @@
 
 #import "AudioWaveformLoaderInternal.h"
 #import "AudioFixtures.h"
+#import "AudioTrack.h"
 #import "AudioWaveform.h"
+#import "AudioWaveformCache.h"
+#import "CloudFileMaterializer.h"
+#import "NSURL+Hash.h"
+
+#include <fcntl.h>
+#include <atomic>
+#include <sys/stat.h>
+#include <sys/time.h>
 
 @interface RecordingWaveformLoaderDelegate : NSObject <AudioWaveformLoaderDelegate>
 @property (nonatomic, strong) XCTestExpectation *progressExpectation;
@@ -26,12 +35,81 @@
 }
 @end
 
+// Each progressive snapshot, on main, as the loader delivers it.
+@interface WaveformSnapshotRecorder : NSObject <AudioWaveformLoaderDelegate>
+@property (nonatomic, readonly) NSMutableArray<CodableAudioWaveform *> *snapshots;
+@property (nonatomic, readonly) NSMutableArray<NSNumber *> *fractions;
+@end
+
+@implementation WaveformSnapshotRecorder
+- (instancetype)init {
+    if ((self = [super init])) {
+        _snapshots = [NSMutableArray array];
+        _fractions = [NSMutableArray array];
+    }
+    return self;
+}
+- (void)audioWaveformLoader:(AudioWaveformLoader *)loader
+                   waveform:(CodableAudioWaveform *)waveform
+                didLoadData:(float)percentLoaded {
+    [_snapshots addObject:waveform];
+    [_fractions addObject:@(percentLoaded)];
+}
+@end
+
+// The cache's deliveries, on main.
+@interface WaveformCacheRecorder : NSObject <AudioWaveformCacheDelegate>
+@property (nonatomic) CodableAudioWaveform *complete;
+@property (nonatomic) NSUInteger completions;
+@property (nonatomic) NSUInteger failures;
+@end
+
+@implementation WaveformCacheRecorder
+- (void)audioWaveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded forTrack:(AudioTrack *)track {
+    if (percentLoaded >= 1) {
+        _complete = waveform;
+        _completions++;
+    }
+}
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didFailToLoadForTrack:(AudioTrack *)track {
+    _failures++;
+}
+@end
+
+// A remote placeholder's bytes streaming into its part file, as the mirror's
+// fetch writes them; each wait about to block signals `event`.
+@interface WaveformStreamAvailability : CloudFileAvailability
+@property (nonatomic) dispatch_semaphore_t event;
+@end
+
+@implementation WaveformStreamAvailability {
+    std::atomic<bool> _finished;
+}
+- (void)finishWithError:(NSError *)error {
+    _finished = true;
+    [super finishWithError:error];
+}
+- (CloudFileAvailabilityWait)waitForBytesAt:(uint64_t)offset
+                                     length:(uint64_t)length
+                                interrupted:(BOOL (NS_NOESCAPE ^)(void))interrupted
+                                      error:(NSError *__autoreleasing *)error {
+    uint64_t end = offset >= self.size || length == 0 ? 0 : offset + MIN(length, self.size - offset);
+    if (!_finished && end > self.writtenBytes) {
+        dispatch_semaphore_signal(_event);
+    }
+    return [super waitForBytesAt:offset length:length interrupted:interrupted error:error];
+}
+@end
+
 @interface AudioWaveformLoaderTests : XCTestCase
 @end
 
 @implementation AudioWaveformLoaderTests {
     AudioWaveformLoader *_loader;
     NSURL *_tempDirectory;
+    // The streams the remote backend answers, by path; set only by a test
+    // that streams, and uninstalled in tearDown.
+    NSMutableDictionary<NSString *, WaveformStreamAvailability *> *_streams;
 }
 
 - (void)setUp {
@@ -52,6 +130,9 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
 }
 
 - (void)tearDown {
+    if (_streams) {
+        [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
+    }
     [NSFileManager.defaultManager removeItemAtURL:_tempDirectory error:nil];
     _loader = nil;
     [super tearDown];
@@ -422,6 +503,306 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
     NSUInteger numChunks = waveform->getNumChunks();
     XCTAssertTrue(ChunkHasContent(waveform->getChunkAtIndex(numChunks - 1, numChunks)),
                   @"a short file must be stretched to the last chunk");
+}
+
+
+#pragma mark - A file still downloading
+
+static const time_t kStreamModified = 1700000000;
+
+// A 16-bit stereo WAV of nonperiodic noise, so a chunk read from the wrong
+// offset never matches the reference's.
+- (NSURL *)writeNoiseWAVNamed:(NSString *)name seconds:(double)seconds seed:(uint32_t)seed {
+    uint32_t frames = (uint32_t)(44100.0 * seconds);
+    NSMutableData *samples = [NSMutableData dataWithLength:(NSUInteger)frames * 4];
+    int16_t *out = (int16_t *)samples.mutableBytes;
+    uint32_t state = seed;
+    for (NSUInteger i = 0; i < (NSUInteger)frames * 2; i++) {
+        state = state * 1664525u + 1013904223u;
+        out[i] = (int16_t)(sin((double)i * 0.00071) * 16000.0 + (double)(int16_t)(state >> 16) * 0.4);
+    }
+    NSURL *url = [_tempDirectory URLByAppendingPathComponent:name];
+    XCTAssertNotNil(VibeWriteWAV(url, samples, 44100, 2, 16, frames * 4));
+    return url;
+}
+
+- (void)installRemoteBackend {
+    if (_streams) {
+        return;
+    }
+    _streams = [NSMutableDictionary dictionary];
+    NSMutableDictionary<NSString *, WaveformStreamAvailability *> *streams = _streams;
+    [CloudFileMaterializer setRemoteRoot:_tempDirectory fetch:^BOOL(NSURL *url, dispatch_block_t onReadable,
+                                                                    void (^onCancel)(dispatch_block_t), NSError **error) {
+        return NO;
+    } read:^NSData *(NSURL *url, uint64_t offset, uint64_t length, NSError **error) {
+        return nil;
+    } availability:^CloudFileAvailability *(NSURL *url) {
+        @synchronized (streams) {
+            return streams[url.path];
+        }
+    }];
+}
+
+// `source` as the mirror leaves a file it streams: a placeholder of the final
+// size and the version's mtime with no permissions, and a part file holding
+// its first `prefix` bytes.
+- (WaveformStreamAvailability *)stream:(NSURL *)source as:(NSURL *)url prefix:(NSUInteger)prefix {
+    [self installRemoteBackend];
+    NSData *bytes = [NSData dataWithContentsOfURL:source];
+    int fd = open(url.fileSystemRepresentation, O_CREAT | O_WRONLY | O_TRUNC, 0600);
+    struct timeval times[2] = {{kStreamModified, 0}, {kStreamModified, 0}};
+    XCTAssertTrue(fd >= 0 && ftruncate(fd, (off_t)bytes.length) == 0 && futimes(fd, times) == 0 && fchmod(fd, 0) == 0);
+    close(fd);
+    NSURL *part = [url.URLByDeletingLastPathComponent
+            URLByAppendingPathComponent:[NSString stringWithFormat:@".%@.part", url.lastPathComponent]];
+    WaveformStreamAvailability *stream = [[WaveformStreamAvailability alloc] initWithPartURL:part size:bytes.length];
+    stream.event = dispatch_semaphore_create(0);
+    [[bytes subdataWithRange:NSMakeRange(0, prefix)] writeToURL:part atomically:NO];
+    [stream noteWrittenBytes:prefix];
+    @synchronized (_streams) {
+        _streams[url.path] = stream;
+    }
+    return stream;
+}
+
+- (void)write:(WaveformStreamAvailability *)stream from:(NSURL *)source to:(uint64_t)end {
+    NSData *bytes = [NSData dataWithContentsOfURL:source];
+    end = MIN(end, (uint64_t)bytes.length);
+    uint64_t written = stream.writtenBytes;
+    if (end <= written) {
+        return;
+    }
+    NSFileHandle *part = [NSFileHandle fileHandleForWritingToURL:stream.partURL error:NULL];
+    [part seekToEndOfFile];
+    [part writeData:[bytes subdataWithRange:NSMakeRange((NSUInteger)written, (NSUInteger)(end - written))]];
+    [part closeFile];
+    [stream noteWrittenBytes:end];
+}
+
+// The mirror's install: the last bytes, the version's mtime and the rename,
+// then the finish, then forgotten.
+- (void)complete:(WaveformStreamAvailability *)stream from:(NSURL *)source as:(NSURL *)url {
+    [self write:stream from:source to:UINT64_MAX];
+    struct timeval times[2] = {{kStreamModified, 0}, {kStreamModified, 0}};
+    XCTAssertEqual(chmod(stream.partURL.fileSystemRepresentation, 0644), 0);
+    XCTAssertEqual(utimes(stream.partURL.fileSystemRepresentation, times), 0);
+    XCTAssertEqual(rename(stream.partURL.fileSystemRepresentation, url.fileSystemRepresentation), 0);
+    [stream finishWithError:nil];
+    @synchronized (_streams) {
+        [_streams removeObjectForKey:url.path];
+    }
+}
+
+// What the coordinator's cancel comes to once the play lets the stream go.
+- (void)abandon:(WaveformStreamAvailability *)stream as:(NSURL *)url {
+    [NSFileManager.defaultManager removeItemAtURL:stream.partURL error:NULL];
+    [stream finishWithError:[NSError errorWithDomain:NSCocoaErrorDomain code:NSUserCancelledError userInfo:nil]];
+    @synchronized (_streams) {
+        [_streams removeObjectForKey:url.path];
+    }
+}
+
+- (BOOL)await:(dispatch_semaphore_t)semaphore {
+    return dispatch_semaphore_wait(semaphore, dispatch_time(DISPATCH_TIME_NOW,
+            (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))) == 0;
+}
+
+// Spins main, where deliveries land, until the condition holds.
+- (BOOL)eventually:(BOOL (^)(void))condition {
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
+    while (!condition()) {
+        if (deadline.timeIntervalSinceNow <= 0) {
+            return NO;
+        }
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.005]];
+    }
+    return YES;
+}
+
+static BOOL ChunksEqual(AudioWaveformCacheChunk a, AudioWaveformCacheChunk b) {
+    return a.getMin() == b.getMin() && a.getMax() == b.getMax() && a.getMeanSquare() == b.getMeanSquare();
+}
+
+// How many leading chunks of `waveform` are exactly the reference's.
+static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWaveform *reference) {
+    NSUInteger count = reference.waveform->getNumChunks();
+    NSUInteger i = 0;
+    while (i < count && ChunksEqual(waveform.waveform->getChunkAtIndex(i, count),
+                                    reference.waveform->getChunkAtIndex(i, count))) {
+        i++;
+    }
+    return i;
+}
+
+// The decode fills in as the download arrives: every snapshot's filled chunks
+// are the whole file's exactly and the rest still empty; it completes once the
+// download does, never holding the transfer; and the key it would be filed
+// under, the placeholder's, is the installed file's.
+- (void)testAStreamingLoadFillsInAsTheDownloadArrivesAndCompletesWithIt {
+    NSURL *source = [self writeNoiseWAVNamed:@"whole.wav" seconds:6.0 seed:7];
+    CodableAudioWaveform *reference = [[[AudioWaveformLoader alloc] init] load:source.path];
+    XCTAssertNotNil(reference);
+    NSURL *url = [_tempDirectory URLByAppendingPathComponent:@"streaming.wav"];
+    WaveformStreamAvailability *stream = [self stream:source as:url prefix:64 * 1024];
+    NSString *placeholderKey = [AudioTrack withURL:url].cacheKey;
+    XCTAssertNotNil(placeholderKey);
+
+    WaveformSnapshotRecorder *recorder = [[WaveformSnapshotRecorder alloc] init];
+    AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] initWithDelegate:recorder];
+    __block CodableAudioWaveform *result = nil;
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        result = [loader load:url.path];
+        dispatch_semaphore_signal(done);
+    });
+    // A block's worth at a time, each past the snapshot throttle.
+    const uint64_t step = 256 * 1024;
+    uint64_t size = stream.size;
+    while (stream.writtenBytes + step < size) {
+        XCTAssertTrue([self await:stream.event], @"the decode waits at the download's edge");
+        XCTAssertEqual(stream.readerCount, 0u, @"a waveform never holds the transfer");
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.15]];
+        [self write:stream from:source to:stream.writtenBytes + step];
+    }
+    XCTAssertTrue([self await:stream.event]);
+    XCTAssertFalse(loader.isComplete, @"not before the download is");
+    [self complete:stream from:source as:url];
+    XCTAssertTrue([self await:done]);
+    XCTAssertTrue([self eventually:^BOOL { return recorder.snapshots.count >= 2; }]);
+
+    NSUInteger count = reference.waveform->getNumChunks();
+    NSUInteger partial = 0;
+    for (NSUInteger i = 0; i < recorder.snapshots.count; i++) {
+        float fraction = recorder.fractions[i].floatValue;
+        NSUInteger filled = (NSUInteger)lroundf(fraction * (float)count);
+        if (filled >= count) {
+            continue;
+        }
+        partial++;
+        CodableAudioWaveform *snapshot = recorder.snapshots[i];
+        XCTAssertFalse(snapshot.waveform->isComplete());
+        XCTAssertGreaterThanOrEqual(MatchingChunks(snapshot, reference), filled, @"snapshot %lu", (unsigned long)i);
+        AudioWaveformCacheChunk last = snapshot.waveform->getChunkAtIndex(count - 1, count);
+        XCTAssertEqual(last.getMeanSquare(), 0.0f, @"what has not arrived is still empty");
+    }
+    XCTAssertGreaterThanOrEqual(partial, 2u, @"it filled in as the download proceeded");
+    XCTAssertTrue(loader.isComplete);
+    XCTAssertTrue(result.waveform->isComplete());
+    XCTAssertEqual(MatchingChunks(result, reference), count);
+    XCTAssertEqualObjects(url.cacheKey, placeholderKey, @"filed under the key the installed file answers");
+}
+
+// A cancel ends a decode parked at the download's edge at once, in the open
+// or in a read, freeing its slot without completing.
+- (void)testCancellingAStreamingLoadParkedAtTheEdgeEndsItPromptly {
+    NSURL *source = [self writeNoiseWAVNamed:@"whole.wav" seconds:3.0 seed:11];
+    for (NSNumber *prefix in @[@16, @(128 * 1024)]) {
+        NSURL *url = [_tempDirectory URLByAppendingPathComponent:
+                [NSString stringWithFormat:@"parked-%@.wav", prefix]];
+        WaveformStreamAvailability *stream = [self stream:source as:url prefix:prefix.unsignedIntegerValue];
+        AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] init];
+        __block CodableAudioWaveform *result = nil;
+        dispatch_semaphore_t done = dispatch_semaphore_create(0);
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+            result = [loader load:url.path];
+            dispatch_semaphore_signal(done);
+        });
+        XCTAssertTrue([self await:stream.event], @"%@: parked", prefix);
+        [loader cancel];
+        XCTAssertTrue([self await:done], @"%@: the cancel ended the wait", prefix);
+        XCTAssertNil(result);
+        XCTAssertFalse(loader.isComplete);
+        XCTAssertEqual(stream.writtenBytes, prefix.unsignedLongLongValue, @"%@: nothing more arrived", prefix);
+        [self abandon:stream as:url];
+    }
+}
+
+// The play letting its stream go cancels the transfer, which ends a waveform
+// riding it: no completion, so nothing is persisted.
+- (void)testAStreamThePlayLetsGoEndsTheLoadUnfinished {
+    NSURL *source = [self writeNoiseWAVNamed:@"whole.wav" seconds:3.0 seed:13];
+    NSURL *url = [_tempDirectory URLByAppendingPathComponent:@"abandoned.wav"];
+    WaveformStreamAvailability *stream = [self stream:source as:url prefix:128 * 1024];
+    AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] init];
+    [loader detach];
+    __block CodableAudioWaveform *result = nil;
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        result = [loader load:url.path];
+        dispatch_semaphore_signal(done);
+    });
+    XCTAssertTrue([self await:stream.event]);
+    [self abandon:stream as:url];
+    XCTAssertTrue([self await:done]);
+    XCTAssertFalse(loader.isComplete, @"a partial decode is never complete, so never persisted");
+}
+
+#pragma mark - Through the cache
+
+- (AudioWaveformCache *)cacheWithRecorder:(WaveformCacheRecorder *)recorder {
+    NSString *root = [_tempDirectory URLByAppendingPathComponent:@"cache"].path;
+    AudioWaveformCache *cache = [[AudioWaveformCache alloc] initWithRootPath:root];
+    cache.delegate = recorder;
+    return cache;
+}
+
+// A streaming load persists under the installed file's key: once the bytes
+// are replaced at the same size and mtime with ones that cannot be decoded,
+// a fresh track's request is answered from the cache.
+- (void)testAStreamingLoadIsFoundByALaterLookupOfTheInstalledFile {
+    NSURL *source = [self writeNoiseWAVNamed:@"whole.wav" seconds:3.0 seed:17];
+    CodableAudioWaveform *reference = [[[AudioWaveformLoader alloc] init] load:source.path];
+    NSURL *url = [_tempDirectory URLByAppendingPathComponent:@"cached.wav"];
+    WaveformStreamAvailability *stream = [self stream:source as:url prefix:128 * 1024];
+    WaveformCacheRecorder *recorder = [[WaveformCacheRecorder alloc] init];
+    AudioWaveformCache *cache = [self cacheWithRecorder:recorder];
+
+    [cache loadWaveformForTrack:[AudioTrack withURL:url]];
+    XCTAssertTrue([self await:stream.event]);
+    [self complete:stream from:source as:url];
+    XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 1; }]);
+    NSUInteger count = reference.waveform->getNumChunks();
+    XCTAssertEqual(MatchingChunks(recorder.complete, reference), count);
+
+    NSString *installedKey = url.cacheKey;
+    NSData *zeros = [NSMutableData dataWithLength:[NSData dataWithContentsOfURL:url].length];
+    XCTAssertTrue([zeros writeToURL:url atomically:NO]);
+    struct timeval times[2] = {{kStreamModified, 0}, {kStreamModified, 0}};
+    XCTAssertEqual(utimes(url.fileSystemRepresentation, times), 0);
+    XCTAssertEqualObjects(url.cacheKey, installedKey);
+    recorder.complete = nil;
+    [cache loadWaveformForTrack:[AudioTrack withURL:url]];
+    XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 2 || recorder.failures > 0; }]);
+    XCTAssertEqual(recorder.failures, 0u, @"a miss would have decoded the zeros and failed");
+    XCTAssertEqual(MatchingChunks(recorder.complete, reference), count);
+}
+
+// A file replaced by another version under its URL: the memoized key keeps
+// answering the old version's entry until the memos are retired, after which
+// the cache misses and decodes what the file now holds.
+- (void)testAReKeyedTrackMissesTheOldVersionsEntry {
+    NSURL *url = [self writeNoiseWAVNamed:@"track.wav" seconds:2.0 seed:19];
+    CodableAudioWaveform *first = [[[AudioWaveformLoader alloc] init] load:url.path];
+    WaveformCacheRecorder *recorder = [[WaveformCacheRecorder alloc] init];
+    AudioWaveformCache *cache = [self cacheWithRecorder:recorder];
+    AudioTrack *track = [AudioTrack withURL:url];
+    [cache loadWaveformForTrack:track];
+    XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 1; }]);
+    NSUInteger count = first.waveform->getNumChunks();
+    XCTAssertEqual(MatchingChunks(recorder.complete, first), count);
+
+    [self writeNoiseWAVNamed:@"track.wav" seconds:2.5 seed:23];
+    CodableAudioWaveform *second = [[[AudioWaveformLoader alloc] init] load:url.path];
+    [cache loadWaveformForTrack:track];
+    XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 2; }]);
+    XCTAssertEqual(MatchingChunks(recorder.complete, first), count, @"the stale memo serves the old version");
+
+    [AudioTrack invalidateMemoizedCacheKeys];
+    [cache loadWaveformForTrack:track];
+    XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 3; }]);
+    XCTAssertEqual(MatchingChunks(recorder.complete, second), count, @"re-keyed, it misses and decodes the new one");
+    XCTAssertEqual(recorder.failures, 0u);
 }
 
 @end

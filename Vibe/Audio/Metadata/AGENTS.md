@@ -21,6 +21,8 @@ A loader snapshots `AudioLoadingConfiguration`; a settings change reaches only l
 
 **Pending misses are app-owned records picked one at a time, never sorted** (`MetadataScanOrderRules.h`, tested): already-local first, then untried before deferred, then neighborhood rank, then playlist index. A real playlist holds more than 100,000 misses, so a track change replaces only the small locked neighborhood snapshot and enqueues a coalesced kick. Each shell sends that snapshot from its one current-index funnel through `setNeighborhoodTracks:`, handing over the playlist's `neighborhoodTracks` — the next, the one after and the previous in play order, so under shuffle the scan ranks what will actually play — never the whole list, whose mac getter's defensive copy costs one retain per track.
 
+**The cache key is the row's `AudioTrack.cacheKey`, memoized for the row's life, until a download installs another version than its placeholder's** (`Loading/AGENTS.md`): then every memo is retired and the next lookup stats the file again. A row already holding metadata keeps it until it is next parsed.
+
 ## Duplicate rows and delivery
 
 **One parse per standardized path** (`VibeStandardizedAudioOpenPath`, the spelling every loader identity uses, so two spellings cannot get two owners). `MetadataParseCoordinator` holds duplicate rows weakly as waiters; the owner rechecks the disk cache after claiming, since another lane may have won. Its answer, that hit or a successful parse, is copied into every unresolved waiter while the holder still gates new owners, and the last empty drain releases the claim before publication. Each copy has its own mutable artwork state.

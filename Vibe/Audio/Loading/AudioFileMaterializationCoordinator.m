@@ -7,9 +7,11 @@
 #import "AudioFileHandle.h"
 
 #import "AudioFileOpenRules.h"
+#import "AudioTrack.h"
 #import "AudioWorkScheduler.h"
 #import "CloudFileMaterializer.h"
 #import "CloudTransferRegistryInternal.h"
+#import "NSURL+Hash.h"
 #import "NSURLUtil.h"
 
 #import <os/lock.h>
@@ -189,8 +191,18 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
     return self;
 }
 
+// A download can install another version than its placeholder stood for (a
+// file re-uploaded since its folder was listed), so every track's memoized
+// key is retired when the file's own key moved: its waveform and metadata
+// must not be filed under, or served from, the old version's entries.
 - (BOOL)runOnReadable:(dispatch_block_t)onReadable error:(NSError *__autoreleasing *)error {
-    return [_materializer materializeURL:_url token:_token onReadable:onReadable error:error];
+    NSString *placeholderKey = [_url cacheKey];
+    BOOL ready = [_materializer materializeURL:_url token:_token onReadable:onReadable error:error];
+    if (ready && placeholderKey && ![placeholderKey isEqualToString:[_url cacheKey]]) {
+        LogInfo(@"%@ downloaded as another version than its placeholder's; re-keying", _url.lastPathComponent);
+        [AudioTrack invalidateMemoizedCacheKeys];
+    }
+    return ready;
 }
 
 - (void)cancel {
@@ -1590,6 +1602,8 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
         }
         NSError *error = nil;
         AudioFileHandle *file = opener(run.url, interrupted, &error);
+        // Before the open's count lets the stream go below.
+        [file holdStream];
         dispatch_async(strongSelf->_stateQueue, ^{
 #if DEBUG
             atomic_fetch_add(&strongSelf->_handleOpensCompleted, 1);

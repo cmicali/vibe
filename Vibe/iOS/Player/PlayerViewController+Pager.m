@@ -63,8 +63,10 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
 // A provider's dataless file is not asked for: its decode would hold a slot
 // through the download, and playbackDidFinishLoading: asks again once the
 // open lands. A remote placeholder is: its stat is the file's, so the cache
-// answers for an evicted track parked at relaunch, and a miss refuses the
-// open at once (the page keeps its indicator; didFailWaveformForIndex:).
+// answers for an evicted track parked at relaunch; a miss refuses the open at
+// once (the page keeps its indicator; didFailWaveformForIndex:) unless a
+// stream is live for it, when the decode rides the download the play holds.
+// Either way the page starts no download of its own.
 - (void)requestWaveformForIndex:(NSUInteger)index {
     AudioTrack *track = [_playlist trackAtIndex:index];
     if (!track || ([NSURLUtil isDatalessFile:track.url] && ![NSURLUtil isRemotePlaceholderFile:track.url])) {

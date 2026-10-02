@@ -38,6 +38,10 @@ typedef VibeWaveformAnalysis (^VibeWaveformAnalysisProvider)(void);
 // reports the name, such as the debug clear_caches reply.
 + (NSString *)cacheName;
 
+// The store under rootPath rather than the user's caches: the tests' own.
+- (instancetype)initWithRootPath:(nullable NSString *)rootPath NS_DESIGNATED_INITIALIZER;
+- (instancetype)init;
+
 // The completion fires on the cache's serial loader queue once the disk cache
 // has been emptied. Decodes already in flight run through the cache's
 // fixed-slot utility scheduler rather than the loader queue, and they cannot
@@ -53,7 +57,9 @@ typedef VibeWaveformAnalysis (^VibeWaveformAnalysisProvider)(void);
 - (void)loadWaveformForTrack:(AudioTrack *)track;
 // Supersedes the in-flight load: no further waveform deliveries until the
 // next loadWaveformForTrack:. The decode is NOT aborted: it detaches, runs to
-// completion and persists, so the next request for that file is a disk hit.
+// completion and persists, so the next request for that file is a disk hit;
+// a file still streaming decodes only while the play's stream lasts, and
+// ends unpersisted when the play lets it go.
 // Up to two detached decodes run at once; beyond that the oldest is
 // cancelled, and its uncancellable stat/open worker keeps the path's claim
 // until it returns, so a same-file request waits and restarts once rather

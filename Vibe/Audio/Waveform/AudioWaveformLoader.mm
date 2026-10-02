@@ -14,6 +14,7 @@
 #import "AudioBPMAnalyzer.h"
 #import "AudioKeyAnalyzer.h"
 #import "AudioLoadTiming.h"
+#import "CloudFileMaterializer.h"
 #import "PlaybackIntent.h"
 #import <AVFAudio/AVFAudio.h>
 
@@ -21,7 +22,12 @@
 #include <memory>
 #include <vector>
 
-@implementation AudioWaveformLoader
+@implementation AudioWaveformLoader {
+    // What cancel interrupts, under @synchronized (self): the file the open
+    // asked for, and the handle once it returned.
+    NSURL *_url;
+    AudioFileHandle *_file;
+}
 
 - (instancetype)initWithDelegate:(id <AudioWaveformLoaderDelegate>)delegate {
     self = [super init];
@@ -36,7 +42,20 @@
 - (void)cancel {
     // Always set isCancelled — even after completion — so a completed-but-
     // undelivered waveform for a previous track is dropped at delivery time.
-    self.isCancelled = YES;
+    NSURL *url;
+    AudioFileHandle *file;
+    @synchronized (self) {
+        self.isCancelled = YES;
+        url = _url;
+        file = _file;
+    }
+    // A streaming file's wait for bytes ends here, so its decode slot frees
+    // now rather than when the download gets there: the open's through its
+    // interrupted block, a read's through the handle.
+    [file interruptReads];
+    if (url) {
+        [[CloudFileMaterializer availabilityForURL:url] wakeWaiters];
+    }
 }
 
 - (void)detach {
@@ -142,16 +161,30 @@
 - (AudioFileHandle *)openFileAtPath:(NSString *)filename pass:(struct VibeWaveformDecodePass *)pass {
     NSError *error = nil;
     NSURL *url = [NSURL fileURLWithPath:filename];
+    @synchronized (self) {
+        _url = url;
+    }
     // Interleaved float32, because AudioWaveformMonoMix expects the sample
-    // layout L0 R0 L1 R1 and so on.
-    AudioFileHandle *file = [[AudioFileHandle alloc] initForReading:url
-                                                        interleaved:YES
-                                                              error:&error];
+    // layout L0 R0 L1 R1 and so on. A streaming file's handle never holds
+    // its transfer (holdStream): the play's do, and when they let it go the
+    // reads fail with it.
+    __weak AudioWaveformLoader *weakSelf = self;
+    AudioFileHandle *file = [[AudioFileHandle alloc] initForReading:url interleaved:YES interrupted:^BOOL{
+        AudioWaveformLoader *loader = weakSelf;
+        return !loader || loader.isCancelled;
+    } error:&error];
     if (!file) {
-        LogError(@"Audio open failed for %@: %@", filename, error);
+        if (![AudioFileHandle isInterruption:error]) {
+            LogError(@"Audio open failed for %@: %@", filename, error);
+        }
         return nil;
     }
-    if (self.isCancelled) {
+    BOOL cancelled;
+    @synchronized (self) {
+        _file = file;
+        cancelled = self.isCancelled;
+    }
+    if (cancelled) {
         // The open blocked, on a cloud placeholder or a slow mount, and the
         // track changed meanwhile. Skip the decode setup entirely.
         return nil;
@@ -314,8 +347,12 @@
         BOOL readOK = [file readIntoBuffer:buffer frameCount:toRead error:&error];
         nanos->read += VibeLoadClockNow() - phaseStart;
         if (!readOK) {
-            LogError(@"Read failed at frame %lld of %lld in %@: %@",
-                     framesRead, totalFrames, filename, error);
+            // An interruption is cancel's own. A detached load's stream
+            // failing is the play letting it go, not a fault of this file.
+            if (![AudioFileHandle isInterruption:error]) {
+                VibeLogAt(self.isDetached ? OS_LOG_TYPE_DEFAULT : OS_LOG_TYPE_ERROR,
+                          @"Read failed at frame %lld of %lld in %@: %@", framesRead, totalFrames, filename, error);
+            }
             readError = YES;
             dispatch_semaphore_signal(slotFree[slot]);
             break;

@@ -48,6 +48,16 @@ The flag is checked **on delivery, not at enqueue**, so a reattach landing first
 
 Progress is different: detached and cancelled loaders do not construct or enqueue progressive snapshots. A reattached loader resumes them from its live decode position. The final waveform still persists while detached.
 
+## A file still downloading rides the play's stream
+
+**The loader opens a streaming file like any other** (`AudioFileHandle` finds the transfer's `CloudFileAvailability`), so its decode fills in as the bytes arrive, at the download's pace, and reaches `isComplete` only once the last byte has; persistence is unchanged. The key it is filed under is the placeholder's size and mtime, which the install keeps, so a later lookup of the installed file finds it. A download that installed another version re-keys every track instead (`Loading/AGENTS.md`); until that install, a cached entry of the placeholder's version is what a lookup finds.
+
+**A waveform never holds a stream: the play's handles do** (`holdStream`, sent only to handles the coordinator serves). So a stream lives exactly as long as the play wants it, and when the play lets it go — a skip, a stall's pause (`Audio/AGENTS.md`), a failed open — the coordinator cancels the transfer and the decode's next wait fails with it: a read error, never complete, never persisted, delivered as a failure only while that load is still current. This is why a detached streaming decode needs no rule of its own: detached, it still runs only while the stream does, so a pager peek reattaches it and a skip ends it.
+
+**A cancel ends a streaming decode's wait at once** (`cancel`: `interruptReads` on the handle, and the open's `interrupted` block with the file's waiters woken), so the cap's eviction frees its decode slot now, not when the download gets there, and an interruption is logged as nothing. **The 20 s claim wait is not a streaming timeout**: it bounds a request parked behind a cancelled worker, which the interrupt now returns promptly. A streaming decode has no deadline of its own; the play's stall deadline and the transfer's own request timeout bound it, through the cancel above.
+
+**One decode slot per window for the length of the download**: the claim and reattachment keep a second request for the same window off a second slot, so one playing track holds one of the three. Each cue row is its own window, so rows of one streaming image each take one.
+
 ## Every delivery carries the track it was loaded for
 
 `audioWaveform:didLoadData:forTrack:`, the terminal-failure callback, and the BPM and key twins — because a delivery can land after the track has changed. Receivers match its `sourceKey` against their current track's, not its URL, since rows of one file share the URL and each has its own waveform and tempo: `MainPlayerController+Delivery` and the iOS `PageWaveformCoordinator` each do, and a tempo or key is stamped on every row sounding that window (`Playlist.stampTracksSounding:usingBlock:`). Failure is delivered only while that loader is still current; it makes the attempt terminal before delivery so a same-window request starts fresh. The BPM and key twins are optional; iOS implements the BPM one (the coordinator forwards it through `PlayerViewController` to `PlaybackController.noteDetectedBPM:forTrack:`) and not the key, since key analysis is macOS-only.

@@ -12,6 +12,12 @@
 #import "PlaybackIntent.h"
 #import "VibeStrings.h"
 
+#include <stdatomic.h>
+
+// Bumped when a file is replaced under its URL by another version: a memo
+// stamped with an older one is stale.
+static _Atomic uint64_t sCacheKeyGeneration;
+
 @interface AudioTrack ()
 @property(copy, readwrite) NSURL *url;
 @property(atomic, strong, nullable, readwrite) AudioTrackMetadata *metadata;
@@ -27,6 +33,9 @@
     NSString *_sourceKey;
     // A cue row's own name — its TITLE, else "Track n" — or nil.
     NSString *_cueRowTitle;
+    // The sCacheKeyGeneration memoizedCacheKey was computed under; stored
+    // after it, so a reader matching it reads that key or a newer one.
+    _Atomic uint64_t _memoizedCacheKeyGeneration;
 }
 
 - (instancetype)initWithURL:(NSURL *)url {
@@ -123,8 +132,15 @@
     }
 }
 
++ (void)invalidateMemoizedCacheKeys {
+    atomic_fetch_add(&sCacheKeyGeneration, 1);
+}
+
 - (nullable NSString *)cacheKey {
-    NSString *key = self.memoizedCacheKey;
+    // Read before the stat, so a replacement landing during it stamps this
+    // key stale.
+    uint64_t generation = atomic_load(&sCacheKeyGeneration);
+    NSString *key = atomic_load(&_memoizedCacheKeyGeneration) == generation ? self.memoizedCacheKey : nil;
     if (!key) {
         // Outside the monitor: the stat can block indefinitely on a hung
         // mount or a dataless file, and would wedge every caller with it.
@@ -135,8 +151,9 @@
             return nil;
         }
         @synchronized (self) {
-            if (!self.memoizedCacheKey) {
+            if (!self.memoizedCacheKey || atomic_load(&_memoizedCacheKeyGeneration) < generation) {
                 self.memoizedCacheKey = key;
+                atomic_store(&_memoizedCacheKeyGeneration, generation);
             }
             key = self.memoizedCacheKey;
         }
