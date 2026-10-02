@@ -7,7 +7,7 @@
 Concurrent agents build and run the macOS Debug app from one checkout, and every build has the same
 executable name, bundle id, and sandbox container. So every quit path reaches every instance
 (`launch.sh` quits through a channel any instance may answer, then signals every non-simulator
-`pgrep -x Vibe` pid; `generate-readme-screenshots.sh` still runs a bare `pkill -x Vibe`), and one
+`pgrep -x Vibe` pid), and one
 container means one channel: `VibeSweepStaleChannelFiles` (`DebugChannel.m`) deletes every
 `vibe-command-*`, `vibe-response-*`, and `vibe-screenshot-*` file at launch, destroying another
 agent's in-flight commands. Worst, one container means shared `NSUserDefaults`, PINCaches, and folder-access

@@ -90,10 +90,10 @@ trap screenshot_cleanup EXIT INT TERM
 require_global_input
 require_debug_build
 mkdir -p "$OUT_DIR"
-pkill -x Vibe 2>/dev/null && sleep 1 || true
-# TRAP: --debug-cmd needs a RUNNING app and the pkill just ended it, so the
-# appearance pin needs this launch; without it the command times out and the
-# run exits.
+# TRAP: --debug-cmd needs a RUNNING debug build and no shot has launched one
+# yet, so the appearance pin needs this launch; without it the command times
+# out and the run exits. launch.sh quits any mac Vibe already running, never
+# the simulator's.
 launch
 quiet set_appearance "$APPEARANCE"
 
