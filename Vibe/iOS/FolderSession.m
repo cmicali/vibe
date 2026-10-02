@@ -195,6 +195,7 @@ static const NSUInteger kMaximumRecentItems = 50;
     _searchGrants = [NSMutableArray array];
     _folderURL = nil;
     _addedFolderURLs = [NSMutableArray array];
+    _hasAdditions = NO;
     _additionsPersisted = NO;
     // Nothing has landed, so the next Add is promoted to an Open.
     _landedOpenIntentGeneration = 0;
@@ -802,7 +803,7 @@ static const NSUInteger kMaximumRecentItems = 50;
             // The picked URLs that produced tracks; a file that expanded is
             // still the file, and only a lone file expands.
             NSArray<NSURL *> *opened = selectedURL ? @[selectedURL] : contributors;
-            NSMutableArray<NSDictionary *> *recents = [NSMutableArray arrayWithCapacity:opened.count];
+            NSMutableArray<NSMutableDictionary *> *recents = [NSMutableArray arrayWithCapacity:opened.count];
             for (NSURL *url in opened) {
                 NSMutableDictionary *item = [NSMutableDictionary dictionary];
                 item[@"path"] = url.URLByStandardizingPath.path ?: url.path;
@@ -811,6 +812,12 @@ static const NSUInteger kMaximumRecentItems = 50;
                 [recents addObject:item];
             }
             run_on_main_thread({
+                // On main: the name asks the Dropbox mirror and UIDevice.
+                for (NSMutableDictionary *item in recents) {
+                    NSString *parent = [item[@"path"] stringByDeletingLastPathComponent];
+                    item[@"location"] = [SearchFolderStore displayNameForFolderURL:
+                            [NSURL fileURLWithPath:parent isDirectory:YES]];
+                }
                 [self recordRecentItems:recents];
             });
         }
@@ -890,6 +897,7 @@ static const NSUInteger kMaximumRecentItems = 50;
             }
         }
         [self persistAdditionBookmarks:additionBookmarks];
+        _hasAdditions = YES;
         [self.delegate folderSession:self didAppendTracks:tracks];
         return;
     }
@@ -902,6 +910,7 @@ static const NSUInteger kMaximumRecentItems = 50;
     _searchGrants = [ownedGrants mutableCopy];
     _folderURL = folderURL;
     _addedFolderURLs = [addedFolders mutableCopy];
+    _hasAdditions = addedFolders.count > 0;
     _landedOpenIntentGeneration = openIntentGeneration;
     _additionsPersisted = baseBookmark != nil;
     if (baseBookmark) {

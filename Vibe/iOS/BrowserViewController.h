@@ -33,8 +33,16 @@ NS_ASSUME_NONNULL_BEGIN
 
 // On the root: makes its stack the path to `directory`, one screen per folder
 // from the source covering it, so Back walks up; a directory no source covers
-// is pushed alone.
-- (void)showDirectory:(NSURL *)directory;
+// is pushed alone. A file in it is scrolled to and selected for a moment.
+- (void)showDirectory:(NSURL *)directory highlighting:(nullable NSURL *)file;
+
+// Asks before a pick replaces a playlist the user added to by hand, offering
+// to add the pick instead; any other playlist is replaced at once. Every
+// screen whose tap replaces the playlist comes through here.
++ (void)confirmReplacingPlaylistOf:(PlaybackController *)playback
+                              from:(UIViewController *)presenter
+                           replace:(dispatch_block_t)replace
+                               add:(nullable dispatch_block_t)add;
 
 // On the root: handed snapshots of the rows an Add was asked for, framed in
 // window coordinates, before the Add is requested. The shell animates them

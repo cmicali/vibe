@@ -7,10 +7,12 @@
 
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
+#import "BrowserViewController.h"
 #import "DropboxMirror.h"
 #import "DropboxRules.h"
 #import "FileSearchIndex.h"
 #import "FileSearchRules.h"
+#import "NSURLUtil.h"
 #import "PlaybackController.h"
 #import "Playlist.h"
 #import "FavoritesStore.h"
@@ -58,6 +60,10 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     // Stamped on each query sent; only the newest answer lands.
     uint64_t            _dropboxSearchGeneration;
     BOOL                _dropboxSearching;
+    // The answer to _dropboxQuery was an error, not an empty list.
+    BOOL                _dropboxFailed;
+    // A files match is out and unanswered; no "No Results" until it lands.
+    BOOL                _fileHitsPending;
     // The scope bar: one section, or VibeSearchSectionCount for All. A half
     // outside it shows nothing; Dropbox keeps the answer it has, so a scope
     // switched away and back asks nothing again.
@@ -191,6 +197,11 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     _viewPresentationVisible = YES;
+    // A scope left over from the last search made the next one look empty.
+    if ([self currentQuery].length == 0 && _scope != VibeSearchSectionCount) {
+        _scope = VibeSearchSectionCount;
+        [self refreshScopeButtons];
+    }
     [self applySearchRoots];
     // Unconditional: reloads are dropped while hidden.
     [self filterWithQuery:[self currentQuery]];
@@ -249,6 +260,17 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     [self updateDropboxForQuery:query];
     [self.tableView reloadData];
     [self requestFileHitsForQuery:query];
+    [self refreshEmptyState];
+}
+
+// "No Results" once every half in scope has answered with nothing. A half
+// still asking, or a Dropbox failure, which says so itself, is not that.
+- (void)refreshEmptyState {
+    BOOL settledEmpty = [self currentQuery].length > 0 && _matches.count == 0 && _fileHits.count == 0
+            && _dropboxHits.count == 0 && !_fileHitsPending && !_fileIndex.isBuilding
+            && !_dropboxSearching && !_dropboxFailed;
+    self.contentUnavailableConfiguration = settledEmpty
+            ? [UIContentUnavailableConfiguration searchConfiguration] : nil;
 }
 
 - (void)matchPlaylistForQuery:(NSString *)query {
@@ -273,11 +295,12 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     return _scope == VibeSearchSectionCount || _scope == section;
 }
 
-// The buttons in order: All, Files, Dropbox while linked, Playlist.
+// The buttons in the order the sections are drawn: All, Playlist, Local,
+// Dropbox while linked.
 - (NSArray<NSNumber *> *)scopeSections {
     return DropboxMirror.shared.client.isLinked
-            ? @[@(VibeSearchSectionCount), @(VibeSearchSectionFiles), @(VibeSearchSectionDropbox), @(VibeSearchSectionPlaylist)]
-            : @[@(VibeSearchSectionCount), @(VibeSearchSectionFiles), @(VibeSearchSectionPlaylist)];
+            ? @[@(VibeSearchSectionCount), @(VibeSearchSectionPlaylist), @(VibeSearchSectionFiles), @(VibeSearchSectionDropbox)]
+            : @[@(VibeSearchSectionCount), @(VibeSearchSectionPlaylist), @(VibeSearchSectionFiles)];
 }
 
 // A Dropbox scope that lost its account falls back to All.
@@ -344,6 +367,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(runDropboxSearch) object:nil];
     _dropboxSearchGeneration++;
     _dropboxSearching = NO;
+    _dropboxFailed = NO;
     _dropboxQuery = nil;
     _dropboxEntries = @[];
     _dropboxHits = @[];
@@ -374,6 +398,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
             LogWarn(@"Dropbox: search failed: %@", error.localizedDescription);
         }
         strongSelf->_dropboxSearching = NO;
+        strongSelf->_dropboxFailed = error != nil;
         strongSelf->_dropboxEntries = entries ?: @[];
         strongSelf->_dropboxHits = [strongSelf dropboxEntriesNotInPlaylist:strongSelf->_dropboxEntries];
         [strongSelf reloadDropboxSection];
@@ -384,6 +409,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     if ([self isMateriallyVisible]) {
         [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:VibeSearchSectionDropbox]
                       withRowAnimation:UITableViewRowAnimationNone];
+        [self refreshEmptyState];
     }
 }
 
@@ -414,8 +440,10 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 - (void)requestFileHitsForQuery:(NSString *)query {
     if (![self isMateriallyVisible] || query.length == 0 || ![self scopeIncludes:VibeSearchSectionFiles]) {
         [_fileIndex cancelPendingHitRequests];
+        _fileHitsPending = NO;
         return;
     }
+    _fileHitsPending = YES;
     NSString *querySnapshot = [query copy];
     NSSet<NSString *> *playlistPathsSnapshot = _playlistPaths;
     __weak SearchViewController *weakSelf = self;
@@ -429,10 +457,15 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
                 || strongSelf->_playlistPaths != playlistPathsSnapshot) {
             return;
         }
-        strongSelf->_fileHits = hits;
+        // By name, as a folder lists them: the walk's order is the disk's.
+        strongSelf->_fileHits = [hits sortedArrayUsingComparator:^NSComparisonResult(FileSearchHit *a, FileSearchHit *b) {
+            return [a.fileName localizedStandardCompare:b.fileName];
+        }];
+        strongSelf->_fileHitsPending = NO;
         [strongSelf.tableView reloadSections:
                 [NSIndexSet indexSetWithIndex:VibeSearchSectionFiles]
                             withRowAnimation:UITableViewRowAnimationNone];
+        [strongSelf refreshEmptyState];
     }];
 }
 
@@ -484,7 +517,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 
 - (BOOL)showsDropboxSection {
     return [self searchesDropbox] && [self scopeIncludes:VibeSearchSectionDropbox]
-            && (_dropboxHits.count > 0 || _dropboxSearching);
+            && (_dropboxHits.count > 0 || _dropboxSearching || _dropboxFailed);
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
@@ -494,14 +527,39 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
                 ? STR_SEARCH_SECTION_PLAYLIST : nil;
     }
     if (section == VibeSearchSectionDropbox) {
-        // While asking, the heading says so: a footer under no rows draws
-        // above its own section's header.
+        // While asking, and when the ask failed, the heading says so: a
+        // footer under no rows draws above its own section's header.
         if (![self showsDropboxSection]) {
             return nil;
+        }
+        if (_dropboxFailed) {
+            return STR_BROWSER_DROPBOX_UNREACHABLE;
         }
         return _dropboxSearching ? STR_SEARCH_DROPBOX_SEARCHING : VibeNotLocalized(@"Dropbox");
     }
     return [self showsFilesSection] ? STR_SEARCH_SECTION_FILES : nil;
+}
+
+// The Dropbox heading spins while it asks: the words alone read as a label.
+- (void)tableView:(UITableView *)tableView willDisplayHeaderView:(UIView *)view forSection:(NSInteger)section {
+    static const NSInteger kSpinnerTag = 0x5350;
+    UIActivityIndicatorView *spinner = [view viewWithTag:kSpinnerTag];
+    if (section != VibeSearchSectionDropbox || !_dropboxSearching) {
+        [spinner removeFromSuperview];
+        return;
+    }
+    if (!spinner) {
+        spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
+        spinner.tag = kSpinnerTag;
+        spinner.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleTopMargin
+                | UIViewAutoresizingFlexibleBottomMargin;
+        [view addSubview:spinner];
+    }
+    BOOL rightToLeft = view.effectiveUserInterfaceLayoutDirection == UIUserInterfaceLayoutDirectionRightToLeft;
+    CGFloat inset = view.layoutMargins.right + CGRectGetWidth(spinner.bounds) / 2;
+    spinner.center = CGPointMake(rightToLeft ? inset : CGRectGetWidth(view.bounds) - inset,
+                                 CGRectGetMidY(view.bounds));
+    [spinner startAnimating];
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
@@ -542,7 +600,8 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 - (UITableViewCell *)hitCellForTableView:(UITableView *)tableView
                                     name:(NSString *)name
                                   folder:(NSString *)folder
-                                   glyph:(NSString *)glyph {
+                                   glyph:(NSString *)glyph
+                           notDownloaded:(BOOL)notDownloaded {
     static NSString *const identifier = @"hit";
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:identifier];
     if (!cell) {
@@ -555,15 +614,24 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     content.imageProperties.tintColor = UIColor.secondaryLabelColor;
     content.text = name;
     content.secondaryText = folder;
-    content.textProperties.numberOfLines = 1;
+    content.textProperties.numberOfLines = 2;
+    content.textProperties.lineBreakMode = NSLineBreakByTruncatingMiddle;
     content.secondaryTextProperties.numberOfLines = 1;
     cell.contentConfiguration = content;
+    // The browser's mark: a tap waits on the network.
+    UIImageView *mark = nil;
+    if (notDownloaded) {
+        mark = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"arrow.down.circle"]];
+        mark.tintColor = UIColor.secondaryLabelColor;
+    }
+    cell.accessoryView = mark;
     return cell;
 }
 
 - (UITableViewCell *)fileCellForTableView:(UITableView *)tableView row:(NSUInteger)row {
     FileSearchHit *hit = _fileHits[row];
-    return [self hitCellForTableView:tableView name:hit.fileName folder:hit.folderName glyph:@"music.note"];
+    return [self hitCellForTableView:tableView name:hit.fileName folder:hit.folderName glyph:@"music.note"
+                       notDownloaded:NO];
 }
 
 - (UITableViewCell *)dropboxCellForTableView:(UITableView *)tableView row:(NSUInteger)row {
@@ -571,10 +639,17 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     NSString *display = entry[@"path_display"] ?: entry[@"path_lower"];
     NSString *parent = display.stringByDeletingLastPathComponent.lastPathComponent;
     BOOL folder = VibeDropboxEntryKindOf(entry) == VibeDropboxEntryKindFolder;
+    // Downloaded only if the mirror already holds its bytes; a path the
+    // mirror spells another way reads as not downloaded, which errs safe.
+    NSURL *account = DropboxMirror.shared.accountURL;
+    NSURL *local = account && display ? [account URLByAppendingPathComponent:display] : nil;
+    BOOL downloaded = local && [NSFileManager.defaultManager fileExistsAtPath:local.path]
+            && ![NSURLUtil isRemotePlaceholderFile:local];
     return [self hitCellForTableView:tableView
                                 name:entry[@"name"]
                               folder:[parent isEqualToString:@"/"] ? VibeNotLocalized(@"Dropbox") : parent
-                               glyph:folder ? @"folder" : @"music.note"];
+                               glyph:folder ? @"folder" : @"music.note"
+                       notDownloaded:!folder && !downloaded];
 }
 
 // A playlist row selects and stays; a file row plays that file alone, and a
@@ -605,8 +680,17 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     // Resigns the field but keeps the query.
     [_searchController.searchBar resignFirstResponder];
     PlaybackController *playback = _playback;
+    __weak SearchViewController *weakSelf = self;
     [self resolveHit:hit completion:^(NSURL *url, BOOL folder) {
-        [playback openFileURL:url inFolder:inFolder];
+        SearchViewController *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return;
+        }
+        [BrowserViewController confirmReplacingPlaylistOf:playback from:strongSelf replace:^{
+            [playback openFileURL:url inFolder:inFolder];
+        } add:^{
+            [playback addURLs:@[url]];
+        }];
     }];
 }
 
@@ -622,13 +706,13 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 }
 
 - (void)showFolderOfHit:(id)hit {
-    void (^handler)(NSURL *) = _showDirectoryHandler;
+    void (^handler)(NSURL *, NSURL *) = _showDirectoryHandler;
     if (!handler) {
         return;
     }
     [_searchController.searchBar resignFirstResponder];
     [self resolveHit:hit completion:^(NSURL *url, BOOL folder) {
-        handler(folder ? url : url.URLByDeletingLastPathComponent);
+        handler(folder ? url : url.URLByDeletingLastPathComponent, folder ? nil : url);
     }];
 }
 
@@ -659,7 +743,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
             [weakSelf openHit:hit inFolder:NO];
         })];
         if (!folder) {
-            [items addObject:action(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"folder", ^{
+            [items addObject:action(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"play.square.stack", ^{
                 [weakSelf openHit:hit inFolder:YES];
             })];
         }

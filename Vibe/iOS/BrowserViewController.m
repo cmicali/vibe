@@ -8,6 +8,7 @@
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #import "AppSettings.h"
+#import "AudioTrack.h"
 #import "DocumentTypes.h"
 #import "DropboxMirror.h"
 #import "FavoritesStore.h"
@@ -27,12 +28,17 @@ typedef NS_ENUM(NSInteger, VibeBrowserRootSection) {
     VibeBrowserRootSectionCount,
 };
 
-// The rows of the sources group.
-typedef NS_ENUM(NSInteger, VibeBrowserSource) {
-    VibeBrowserSourceDevice = 0,
-    VibeBrowserSourceDropbox,
-    VibeBrowserSourceRecents,
-    VibeBrowserSourceCount,
+// What a row of the root is. Sources: the device, Dropbox once linked, and
+// Recents. Locations: the granted folders, then the rows that add one, with
+// Connect to Dropbox among them until an account is linked.
+typedef NS_ENUM(NSInteger, VibeBrowserRootRow) {
+    VibeBrowserRootRowDevice = 0,
+    VibeBrowserRootRowDropbox,
+    VibeBrowserRootRowRecents,
+    VibeBrowserRootRowLocation,
+    VibeBrowserRootRowConnectDropbox,
+    VibeBrowserRootRowAddFolder,
+    VibeBrowserRootRowBrowseFiles,
 };
 
 typedef NS_ENUM(NSInteger, VibeBrowserSection) {
@@ -50,12 +56,14 @@ static NSString *const kItemCellIdentifier = @"item";
 static const CFTimeInterval kRelistInterval = 60;
 // A larger selection lifts its first rows only: the rest would be a blur.
 static const NSUInteger kMaximumLiftedRows = 6;
+// How long Open Folder keeps the file it came from highlighted.
+static const NSTimeInterval kHighlightInterval = 1.2;
 
-@interface BrowserViewController () <UIDocumentPickerDelegate>
+@interface BrowserViewController () <UIDocumentPickerDelegate, UISearchResultsUpdating, PlaybackObserver>
 @end
 
 // Every file and folder played or added, newest first (FolderSession). A file
-// plays alone, as a search hit does; a folder opens as the playlist. Its own
+// plays alone, as a search hit does; a folder opens in the browser. Its own
 // screen rather than a browser mode: it lists no directory, and every one of
 // the browser's directory branches would need a third arm.
 @interface RecentsViewController : UITableViewController
@@ -79,16 +87,30 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
     }];
 }
 
+// A file or folder name: two lines, cut in the middle, so the ends that tell
+// two long names apart both show.
+static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
+    content.textProperties.numberOfLines = 2;
+    content.textProperties.lineBreakMode = NSLineBreakByTruncatingMiddle;
+    content.secondaryTextProperties.numberOfLines = 1;
+    content.secondaryTextProperties.color = UIColor.secondaryLabelColor;
+}
+
 @implementation BrowserViewController {
     PlaybackController *_playback;
     NSURL *_directoryURL;
     BOOL _appending;
 
-    // A directory's rows, sorted as the Files app sorts names, and which of
-    // the files are Dropbox placeholders — found with the listing, off main.
+    // A directory's whole listing, sorted as the Files app sorts names; which
+    // of the files are Dropbox placeholders and each file's size — found with
+    // the listing, off main.
+    NSArray<NSURL *> *_allFolders;
+    NSArray<NSURL *> *_allFiles;
+    NSSet<NSURL *> *_placeholders;
+    NSDictionary<NSURL *, NSNumber *> *_fileSizes;
+    // The rows drawn: the listing narrowed by the filter field.
     NSArray<NSURL *> *_folders;
     NSArray<NSURL *> *_files;
-    NSSet<NSURL *> *_placeholders;
     // Stamped on each disk listing, so a slow one cannot overwrite a newer.
     uint64_t _listingGeneration;
     // The Dropbox folder this directory mirrors ("" for the root), nil
@@ -99,14 +121,20 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
     // When this screen last listed its folder from Dropbox; a reappearance
     // within kRelistInterval shows the disk alone.
     CFAbsoluteTime _listedAt;
+    // Open Folder's file, shown and briefly selected once the listing lands.
+    NSURL *_highlightURL;
 
     // Which picker is up: a location grant, or a one-off pick.
     BOOL _pickingLocation;
-    // A row swipe sets isEditing too; only the Edit button's is multi-select.
+    // A row swipe sets isEditing too; only the Select button's is multi-select.
     BOOL _swipingRow;
     UIBarButtonItem *_playItem;
     UIBarButtonItem *_addSelectedItem;
     UIBarButtonItem *_sortItem;
+    UIBarButtonItem *_selectItem;
+    UIBarButtonItem *_doneItem;
+    UIBarButtonItem *_selectAllItem;
+    UIBarButtonItem *_closeItem;
 }
 
 - (instancetype)initWithPlayback:(PlaybackController *)playback
@@ -117,9 +145,12 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
         _playback = playback;
         _directoryURL = [directoryURL copy];
         _appending = appending;
+        _allFolders = @[];
+        _allFiles = @[];
         _folders = @[];
         _files = @[];
         _placeholders = [NSSet set];
+        _fileSizes = @{};
         _dropboxPath = directoryURL ? [DropboxMirror.shared dropboxPathForURL:directoryURL] : nil;
     }
     return self;
@@ -129,19 +160,35 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
     return _directoryURL == nil;
 }
 
+- (NSString *)directoryTitle {
+    return [SearchFolderStore displayNameForFolderURL:_directoryURL];
+}
+
 - (void)viewDidLoad {
     [super viewDidLoad];
+    BOOL sheetRoot = _appending && self.navigationController.viewControllers.firstObject == self;
+    if (_appending) {
+        _closeItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemClose
+                                                                   target:self
+                                                                   action:@selector(dismissSheet)];
+    }
     if (self.isRoot) {
-        self.navigationItem.title = STR_TAB_FILES;
+        // The add sheet says what a tap in it does: it is the Files tab's
+        // twin, and there a tap plays.
+        self.navigationItem.title = _appending ? STR_MENU_CONTEXT_ADD_TO_PLAYLIST : STR_TAB_FILES;
         self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeAlways;
         self.navigationController.navigationBar.prefersLargeTitles = YES;
         [NSNotificationCenter.defaultCenter addObserver:self
                                                selector:@selector(sourcesDidChange:)
                                                    name:VibeSearchFoldersDidChangeNotification
                                                  object:SearchFolderStore.shared];
+        if (sheetRoot) {
+            self.navigationItem.leftBarButtonItem = _closeItem;
+        }
     }
     else {
-        self.navigationItem.title = [SearchFolderStore displayNameForFolderURL:_directoryURL];
+        self.navigationItem.title = [self directoryTitle];
+        self.navigationItem.prompt = _appending ? STR_MENU_CONTEXT_ADD_TO_PLAYLIST : nil;
         self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeNever;
         self.tableView.allowsMultipleSelectionDuringEditing = YES;
         _playItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:
@@ -158,19 +205,34 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
         _sortItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"arrow.up.arrow.down"]
                                                       menu:[self sortMenu]];
         _sortItem.accessibilityLabel = STR_BROWSER_SORT;
+        // "Select", not the system's "Edit": nothing here is edited. A glyph,
+        // since the word beside two others truncates the folder's name.
+        _selectItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"checkmark.circle"]
+                                                       style:UIBarButtonItemStylePlain
+                                                      target:self
+                                                      action:@selector(toggleSelecting)];
+        _selectItem.accessibilityLabel = STR_BROWSER_SELECT;
+        _doneItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                                                                  target:self
+                                                                  action:@selector(toggleSelecting)];
+        _selectAllItem = [[UIBarButtonItem alloc] initWithTitle:STR_MENU_EDIT_SELECT_ALL
+                                                          style:UIBarButtonItemStylePlain
+                                                         target:self
+                                                         action:@selector(selectAllRows)];
+        // The filter field narrows this listing by name; tucked away until
+        // the list is pulled down.
+        UISearchController *filter = [[UISearchController alloc] initWithSearchResultsController:nil];
+        filter.searchResultsUpdater = self;
+        filter.obscuresBackgroundDuringPresentation = NO;
+        filter.searchBar.placeholder = STR_BROWSER_FILTER;
+        self.navigationItem.searchController = filter;
+        self.navigationItem.hidesSearchBarWhenScrolling = YES;
+        self.navigationItem.preferredSearchBarPlacement = UINavigationItemSearchBarPlacementStacked;
         [self refreshBarItems];
-        if (_dropboxPath) {
-            UIRefreshControl *refresh = [[UIRefreshControl alloc] init];
-            [refresh addTarget:self action:@selector(refreshFromDropbox) forControlEvents:UIControlEventValueChanged];
-            self.refreshControl = refresh;
-        }
-    }
-    // The add sheet is modal and needs its own way out.
-    if (_appending && self.navigationController.viewControllers.firstObject == self) {
-        self.navigationItem.leftBarButtonItem =
-                [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemClose
-                                                              target:self
-                                                              action:@selector(dismissSheet)];
+        UIRefreshControl *refresh = [[UIRefreshControl alloc] init];
+        [refresh addTarget:self action:@selector(refreshDirectory) forControlEvents:UIControlEventValueChanged];
+        self.refreshControl = refresh;
+        [_playback addObserver:self];
     }
     [NSNotificationCenter.defaultCenter addObserver:self
                                            selector:@selector(sourcesDidChange:)
@@ -220,14 +282,17 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
     // Off main: a granted location can be a provider's folder, whose listing
     // is IPC that can take seconds.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSArray<NSURLResourceKey> *keys = [[NSURLUtil listingKeysForSort:sort]
+                arrayByAddingObject:NSURLFileSizeKey];
         NSArray<NSURL *> *contents = [NSFileManager.defaultManager
                 contentsOfDirectoryAtURL:directory
-              includingPropertiesForKeys:[NSURLUtil listingKeysForSort:sort]
+              includingPropertiesForKeys:keys
                                  options:NSDirectoryEnumerationSkipsHiddenFiles
                                    error:NULL] ?: @[];
         NSMutableArray<NSURL *> *folders = [NSMutableArray array];
         NSMutableArray<NSURL *> *files = [NSMutableArray array];
         NSMutableSet<NSURL *> *placeholders = [NSMutableSet set];
+        NSMutableDictionary<NSURL *, NSNumber *> *sizes = [NSMutableDictionary dictionary];
         for (NSURL *url in contents) {
             NSNumber *isDirectory = nil;
             [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
@@ -240,6 +305,13 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
                 if ([NSURLUtil isRemotePlaceholderFile:url]) {
                     [placeholders addObject:url];
                 }
+                // A placeholder carries the remote size, so this is what a
+                // tap would download.
+                NSNumber *size = nil;
+                [url getResourceValue:&size forKey:NSURLFileSizeKey error:NULL];
+                if (size) {
+                    sizes[url] = size;
+                }
             }
         }
         [NSURLUtil sortURLs:folders by:sort];
@@ -249,16 +321,30 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
             if (!strongSelf || generation != strongSelf->_listingGeneration) {
                 return;
             }
-            strongSelf->_folders = folders;
-            strongSelf->_files = files;
+            strongSelf->_allFolders = folders;
+            strongSelf->_allFiles = files;
             strongSelf->_placeholders = placeholders;
-            if (!strongSelf.tableView.isEditing) {
-                [strongSelf.tableView reloadData];
+            strongSelf->_fileSizes = sizes;
+            if (!strongSelf->_refreshing) {
+                [strongSelf.refreshControl endRefreshing];
             }
-            [strongSelf refreshEmptyState];
-            [strongSelf refreshBarItems];
+            // A selection in progress is rows by index: it keeps its list.
+            if (![strongSelf isSelecting]) {
+                [strongSelf applyFilter];
+            }
+            [strongSelf showHighlightedFile];
         });
     });
+}
+
+// Pull to refresh: Dropbox is asked again; any other folder is relisted.
+- (void)refreshDirectory {
+    if (_dropboxPath) {
+        [self refreshFromDropbox];
+    }
+    else {
+        [self reloadFromDisk];
+    }
 }
 
 - (void)refreshFromDropbox {
@@ -286,13 +372,50 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
     }];
 }
 
+#pragma mark - The filter field
+
+- (NSString *)filterText {
+    return self.navigationItem.searchController.searchBar.text ?: @"";
+}
+
+- (void)updateSearchResultsForSearchController:(UISearchController *)searchController {
+    if (![self isSelecting]) {
+        [self applyFilter];
+    }
+}
+
+// The drawn rows from the listing: all of it, or the names holding the
+// filter's text.
+- (void)applyFilter {
+    NSString *filter = [self filterText];
+    if (filter.length == 0) {
+        _folders = _allFolders;
+        _files = _allFiles;
+    }
+    else {
+        NSPredicate *matches = [NSPredicate predicateWithBlock:^BOOL(NSURL *url, NSDictionary *bindings) {
+            return [url.lastPathComponent localizedStandardContainsString:filter];
+        }];
+        _folders = [_allFolders filteredArrayUsingPredicate:matches];
+        _files = [_allFiles filteredArrayUsingPredicate:matches];
+    }
+    [self.tableView reloadData];
+    [self refreshEmptyState];
+    [self refreshBarItems];
+}
+
 - (BOOL)isEmpty {
-    return _folders.count == 0 && _files.count == 0;
+    return _allFolders.count == 0 && _allFiles.count == 0;
 }
 
 - (void)refreshEmptyState {
-    if (self.isRoot || !self.isEmpty) {
-        self.contentUnavailableConfiguration = nil;
+    if (self.isRoot) {
+        return;
+    }
+    if (!self.isEmpty) {
+        // A filter that matches nothing is a search with no results.
+        self.contentUnavailableConfiguration = _folders.count == 0 && _files.count == 0
+                ? [UIContentUnavailableConfiguration searchConfiguration] : nil;
         return;
     }
     if (_refreshing) {
@@ -311,31 +434,53 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
     self.contentUnavailableConfiguration = empty;
 }
 
+#pragma mark - The bar
+
+// Multi-select, as opposed to the editing state a row swipe also sets.
+- (BOOL)isSelecting {
+    return self.tableView.isEditing && !_swipingRow;
+}
+
 - (void)refreshBarItems {
     if (self.isRoot) {
         return;
     }
-    if (self.tableView.isEditing && !_swipingRow) {
-        _addSelectedItem.enabled = self.tableView.indexPathsForSelectedRows.count > 0;
-        self.navigationItem.rightBarButtonItems = @[self.editButtonItem, _addSelectedItem];
+    if ([self isSelecting]) {
+        NSUInteger count = self.tableView.indexPathsForSelectedRows.count;
+        _addSelectedItem.enabled = count > 0;
+        self.navigationItem.title = [NSString stringWithFormat:STR_BROWSER_SELECTED_COUNT, (unsigned long)count];
+        self.navigationItem.rightBarButtonItems = @[_doneItem, _addSelectedItem];
+        self.navigationItem.leftBarButtonItem = _selectAllItem;
+        self.navigationItem.hidesBackButton = YES;
         return;
     }
+    self.navigationItem.title = [self directoryTitle];
+    self.navigationItem.leftBarButtonItem = nil;
+    self.navigationItem.hidesBackButton = NO;
     // Absent, not disabled, with nothing to act on: the Playlist tab's rule.
     // A folder's listing is flat, so one holding only folders plays nothing.
     NSMutableArray<UIBarButtonItem *> *items = [NSMutableArray array];
-    if (!self.isEmpty) {
-        [items addObject:self.editButtonItem];
+    // The add sheet is modal and needs its way out at every level.
+    if (_closeItem) {
+        [items addObject:_closeItem];
     }
-    if (_files.count > 0) {
+    if (!self.isEmpty) {
+        [items addObject:_selectItem];
+    }
+    if (_allFiles.count > 0) {
         [items addObject:_playItem];
     }
-    if (!self.isEmpty) {
+    // Not in the add sheet: with Close the bar has no room, and the order is
+    // a setting the Files tab changes.
+    if (!self.isEmpty && !_appending) {
         [items addObject:_sortItem];
     }
     self.navigationItem.rightBarButtonItems = items;
 }
 
 // Built when opened, so its check follows a change made on another screen.
+// The title says what the choice reaches: it is the one folder-open setting,
+// not this folder's view.
 - (UIMenu *)sortMenu {
     __weak BrowserViewController *weakSelf = self;
     UIDeferredMenuElement *choices = [UIDeferredMenuElement elementWithUncachedProvider:
@@ -355,7 +500,23 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
         }
         completion(actions);
     }];
-    return [UIMenu menuWithChildren:@[choices]];
+    return [UIMenu menuWithTitle:STR_BROWSER_SORT_TITLE children:@[choices]];
+}
+
+- (void)toggleSelecting {
+    [self setEditing:!self.tableView.isEditing animated:YES];
+}
+
+- (void)selectAllRows {
+    for (NSInteger section = 0; section < VibeBrowserSectionCount; section++) {
+        NSInteger rows = [self.tableView numberOfRowsInSection:section];
+        for (NSInteger row = 0; row < rows; row++) {
+            [self.tableView selectRowAtIndexPath:[NSIndexPath indexPathForRow:row inSection:section]
+                                        animated:NO
+                                  scrollPosition:UITableViewScrollPositionNone];
+        }
+    }
+    [self refreshBarItems];
 }
 
 - (void)setEditing:(BOOL)editing animated:(BOOL)animated {
@@ -379,26 +540,58 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
 
 #pragma mark - Opening
 
-// Every open is one of PlaybackController's roads. A file opened alone
-// becomes its folder with it selected (FolderSession), since the browser's
-// sources are all roots an open covers.
-- (void)openURLs:(NSArray<NSURL *> *)urls appending:(BOOL)appending {
++ (void)confirmReplacingPlaylistOf:(PlaybackController *)playback
+                              from:(UIViewController *)presenter
+                           replace:(dispatch_block_t)replace
+                               add:(dispatch_block_t)add {
+    if (!playback.playlistHasAdditions) {
+        replace();
+        return;
+    }
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:STR_PLAYLIST_REPLACE_TITLE
+                                                                   message:STR_PLAYLIST_REPLACE_MESSAGE
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:STR_PLAYLIST_REPLACE_CONFIRM
+                                              style:UIAlertActionStyleDestructive
+                                            handler:^(UIAlertAction *action) { replace(); }]];
+    if (add) {
+        [alert addAction:[UIAlertAction actionWithTitle:STR_PLAYLIST_REPLACE_ADD
+                                                  style:UIAlertActionStyleDefault
+                                                handler:^(UIAlertAction *action) { add(); }]];
+    }
+    [alert addAction:[UIAlertAction actionWithTitle:STR_BUTTON_CANCEL style:UIAlertActionStyleCancel handler:nil]];
+    [presenter presentViewController:alert animated:YES completion:nil];
+}
+
+// Every open is one of PlaybackController's roads.
+- (void)addURLs:(NSArray<NSURL *> *)urls {
     if (urls.count == 0) {
         return;
     }
-    if (appending) {
-        [_playback addURLs:urls];
-    }
-    else {
-        [_playback openURLs:urls openInPlace:YES];
-    }
+    [_playback addURLs:urls];
     if (_appending) {
         [self dismissSheet];
     }
 }
 
+// A replace: a file alone, a file with its folder, or a folder. In the add
+// sheet nothing replaces; the same pick is added.
+- (void)playURL:(NSURL *)url inFolder:(BOOL)inFolder {
+    if (_appending) {
+        [self addURLs:@[url]];
+        return;
+    }
+    PlaybackController *playback = _playback;
+    __weak BrowserViewController *weakSelf = self;
+    [BrowserViewController confirmReplacingPlaylistOf:playback from:self replace:^{
+        [playback openFileURL:url inFolder:inFolder];
+    } add:^{
+        [weakSelf addURLs:@[url]];
+    }];
+}
+
 - (void)openDirectory {
-    [self openURLs:@[_directoryURL] appending:_appending];
+    [self playURL:_directoryURL inFolder:NO];
 }
 
 // The rows of an Add, lifted for the shell to carry into the Playlist tab.
@@ -435,7 +628,7 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
         }
     }
     [self setEditing:NO animated:YES];
-    [self openURLs:urls appending:YES];
+    [self addURLs:urls];
 }
 
 - (void)dismissSheet {
@@ -450,7 +643,7 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
     [self.navigationController pushViewController:[self browserForDirectory:url] animated:YES];
 }
 
-- (void)showDirectory:(NSURL *)directory {
+- (void)showDirectory:(NSURL *)directory highlighting:(NSURL *)file {
     NSMutableArray<NSURL *> *sources = [NSMutableArray array];
     if (DropboxMirror.shared.accountURL) {
         [sources addObject:DropboxMirror.shared.accountURL];
@@ -476,7 +669,34 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
             [stack addObject:[self browserForDirectory:step]];
         }
     }
+    ((BrowserViewController *)stack.lastObject)->_highlightURL = [file copy];
     [self.navigationController setViewControllers:stack animated:NO];
+}
+
+// Open Folder arrives on the file it came from: scrolled to and selected for
+// a moment, once a listing holds it.
+- (void)showHighlightedFile {
+    if (!_highlightURL) {
+        return;
+    }
+    NSString *name = _highlightURL.lastPathComponent;
+    NSUInteger row = [_files indexOfObjectPassingTest:^BOOL(NSURL *url, NSUInteger i, BOOL *stop) {
+        return [url.lastPathComponent isEqualToString:name];
+    }];
+    if (row == NSNotFound) {
+        return;   // a Dropbox folder not listed yet: the relist's landing tries again
+    }
+    _highlightURL = nil;
+    NSIndexPath *indexPath = [NSIndexPath indexPathForRow:(NSInteger)row inSection:VibeBrowserSectionFiles];
+    [self.tableView selectRowAtIndexPath:indexPath animated:NO scrollPosition:UITableViewScrollPositionMiddle];
+    __weak BrowserViewController *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kHighlightInterval * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        BrowserViewController *strongSelf = weakSelf;
+        if (strongSelf && ![strongSelf isSelecting]) {
+            [strongSelf.tableView deselectRowAtIndexPath:indexPath animated:YES];
+        }
+    });
 }
 
 - (void)favoriteFolder:(NSURL *)url {
@@ -488,7 +708,41 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
     }];
 }
 
+#pragma mark - PlaybackObserver
+
+// The playing file's row carries the mark.
+- (void)playbackDidMoveToCurrentTrack:(PlaybackController *)playback animated:(BOOL)animated {
+    if (self.viewIfLoaded.window && ![self isSelecting]) {
+        [self.tableView reloadData];
+    }
+}
+
 #pragma mark - Table
+
+- (NSArray<NSNumber *> *)rootRowsInSection:(NSInteger)section {
+    BOOL linked = DropboxMirror.shared.client.isLinked;
+    if (section == VibeBrowserRootSectionSources) {
+        return linked ? @[@(VibeBrowserRootRowDevice), @(VibeBrowserRootRowDropbox), @(VibeBrowserRootRowRecents)]
+                      : @[@(VibeBrowserRootRowDevice), @(VibeBrowserRootRowRecents)];
+    }
+    NSMutableArray<NSNumber *> *rows = [NSMutableArray array];
+    // First, so a location's row is its index in the store.
+    for (NSUInteger i = 0; i < SearchFolderStore.shared.folderURLs.count; i++) {
+        [rows addObject:@(VibeBrowserRootRowLocation)];
+    }
+    if (!linked) {
+        [rows addObject:@(VibeBrowserRootRowConnectDropbox)];
+    }
+    [rows addObject:@(VibeBrowserRootRowAddFolder)];
+    [rows addObject:@(VibeBrowserRootRowBrowseFiles)];
+    return rows;
+}
+
+- (VibeBrowserRootRow)rootRowAtIndexPath:(NSIndexPath *)indexPath {
+    NSArray<NSNumber *> *rows = [self rootRowsInSection:indexPath.section];
+    return (NSUInteger)indexPath.row < rows.count
+            ? (VibeBrowserRootRow)rows[(NSUInteger)indexPath.row].integerValue : VibeBrowserRootRowBrowseFiles;
+}
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
     return self.isRoot ? (NSInteger)VibeBrowserRootSectionCount : (NSInteger)VibeBrowserSectionCount;
@@ -498,13 +752,7 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
     if (!self.isRoot) {
         return (NSInteger)(section == VibeBrowserSectionFolders ? _folders.count : _files.count);
     }
-    switch ((VibeBrowserRootSection)section) {
-        case VibeBrowserRootSectionLocations:
-            // Plus Add Folder… and Browse Files….
-            return (NSInteger)SearchFolderStore.shared.folderURLs.count + 2;
-        default:
-            return VibeBrowserSourceCount;
-    }
+    return (NSInteger)[self rootRowsInSection:section].count;
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
@@ -515,8 +763,12 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
-    if (self.isRoot && section == VibeBrowserRootSectionLocations) {
-        return [NSString stringWithFormat:STR_SETTINGS_SEARCH_FOLDERS_FOOTER, VibeAppName()];
+    if (self.isRoot) {
+        return section == VibeBrowserRootSectionLocations ? STR_SETTINGS_SEARCH_FOLDERS_FOOTER : nil;
+    }
+    // A relist that failed over rows already here: they may be out of date.
+    if (section == VibeBrowserSectionFiles && _refreshError && !self.isEmpty) {
+        return STR_BROWSER_DROPBOX_UNAVAILABLE;
     }
     return nil;
 }
@@ -538,8 +790,9 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
 - (UITableViewCell *)itemCellAtIndexPath:(NSIndexPath *)indexPath {
     UITableViewCell *cell = [self cellWithIdentifier:kItemCellIdentifier];
     NSURL *url = [self itemAtIndexPath:indexPath];
-    UIListContentConfiguration *content = [UIListContentConfiguration cellConfiguration];
+    UIListContentConfiguration *content = [UIListContentConfiguration subtitleCellConfiguration];
     content.text = url.lastPathComponent;
+    VibeApplyFileNameStyle(content);
     content.imageProperties.tintColor = UIColor.secondaryLabelColor;
     if (indexPath.section == VibeBrowserSectionFolders) {
         content.image = [UIImage systemImageNamed:@"folder"];
@@ -547,13 +800,27 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
     }
     else {
         BOOL sheet = [PlaylistFile isCueExtension:url.pathExtension.lowercaseString];
-        content.image = [UIImage systemImageNamed:sheet ? @"music.note.list" : @"music.note"];
-        // Not downloaded yet: the cloud says a tap waits on the network.
+        BOOL playing = [_playback.currentTrack.url.URLByStandardizingPath.path
+                isEqualToString:url.URLByStandardizingPath.path];
+        if (playing) {
+            content.image = [UIImage systemImageNamed:@"speaker.wave.2.fill"];
+            content.imageProperties.tintColor = self.view.tintColor;
+        }
+        else {
+            content.image = [UIImage systemImageNamed:sheet ? @"music.note.list" : @"music.note"];
+        }
+        // From the stat alone: what the file takes, or would download.
+        NSNumber *size = _fileSizes[url];
+        if (size && !sheet) {
+            content.secondaryText = [NSByteCountFormatter stringFromByteCount:size.longLongValue
+                                                                   countStyle:NSByteCountFormatterCountStyleFile];
+        }
+        // Not downloaded yet: a tap waits on the network.
         if ([_placeholders containsObject:url]) {
-            UIImageView *cloud = [[UIImageView alloc] initWithImage:
-                    [UIImage systemImageNamed:@"icloud.and.arrow.down"]];
-            cloud.tintColor = UIColor.tertiaryLabelColor;
-            cell.accessoryView = cloud;
+            UIImageView *mark = [[UIImageView alloc] initWithImage:
+                    [UIImage systemImageNamed:@"arrow.down.circle"]];
+            mark.tintColor = UIColor.secondaryLabelColor;
+            cell.accessoryView = mark;
         }
     }
     cell.contentConfiguration = content;
@@ -561,45 +828,44 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
 }
 
 - (UITableViewCell *)sourceCellAtIndexPath:(NSIndexPath *)indexPath {
-    DropboxClient *dropbox = DropboxMirror.shared.client;
     UIListContentConfiguration *content = [UIListContentConfiguration subtitleCellConfiguration];
     content.imageProperties.tintColor = UIColor.secondaryLabelColor;
     BOOL action = NO;
-    if (indexPath.section == VibeBrowserRootSectionLocations) {
-        NSUInteger count = SearchFolderStore.shared.folderURLs.count;
-        NSUInteger row = (NSUInteger)indexPath.row;
-        if (row < count) {
-            content.text = [SearchFolderStore displayNameForFolderURL:SearchFolderStore.shared.folderURLs[row]];
-            content.image = [UIImage systemImageNamed:@"folder"];
-        }
-        else {
-            content.text = row == count ? STR_SETTINGS_SEARCH_FOLDERS_ADD : STR_BROWSER_OTHER_FILES;
-            content.image = [UIImage systemImageNamed:row == count ? @"folder.badge.plus" : @"doc.badge.ellipsis"];
-            action = YES;
-        }
-    }
-    else switch ((VibeBrowserSource)indexPath.row) {
-        case VibeBrowserSourceDropbox:
-            content.image = [UIImage systemImageNamed:@"shippingbox"];
-            if (dropbox.isLinked) {
-                content.text = VibeNotLocalized(@"Dropbox");
-                content.secondaryText = dropbox.accountName;
-            }
-            else {
-                content.text = STR_SETTINGS_DROPBOX_CONNECT;
-                action = YES;
-            }
-            break;
-        case VibeBrowserSourceDevice:
+    UIImage *dropboxGlyph = [UIImage imageNamed:@"dropbox-glyph"];
+    switch ([self rootRowAtIndexPath:indexPath]) {
+        case VibeBrowserRootRowDevice:
             content.text = [SearchFolderStore displayNameForFolderURL:SearchFolderStore.containerDocumentsURL];
             content.image = [UIImage systemImageNamed:
                     UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad ? @"ipad" : @"iphone"];
             break;
-        case VibeBrowserSourceRecents:
+        case VibeBrowserRootRowDropbox:
+            content.text = VibeNotLocalized(@"Dropbox");
+            content.secondaryText = DropboxMirror.shared.client.accountName;
+            content.image = dropboxGlyph;
+            break;
+        case VibeBrowserRootRowRecents:
             content.text = STR_BROWSER_RECENTS;
             content.image = [UIImage systemImageNamed:@"clock"];
             break;
-        case VibeBrowserSourceCount:
+        case VibeBrowserRootRowLocation:
+            content.text = [SearchFolderStore displayNameForFolderURL:
+                    SearchFolderStore.shared.folderURLs[(NSUInteger)indexPath.row]];
+            content.image = [UIImage systemImageNamed:@"folder"];
+            break;
+        case VibeBrowserRootRowConnectDropbox:
+            content.text = STR_SETTINGS_DROPBOX_CONNECT;
+            content.image = dropboxGlyph;
+            action = YES;
+            break;
+        case VibeBrowserRootRowAddFolder:
+            content.text = STR_SETTINGS_SEARCH_FOLDERS_ADD;
+            content.image = [UIImage systemImageNamed:@"folder.badge.plus"];
+            action = YES;
+            break;
+        case VibeBrowserRootRowBrowseFiles:
+            content.text = STR_BROWSER_OTHER_FILES;
+            content.image = [UIImage systemImageNamed:@"doc.badge.ellipsis"];
+            action = YES;
             break;
     }
     UITableViewCell *cell = [self cellWithIdentifier:action ? kActionCellIdentifier : kSourceCellIdentifier];
@@ -616,6 +882,8 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
 
 #pragma mark - Selection
 
+// A file plays alone and a folder opens, here as in Search and Recents; the
+// long press has Play in Folder.
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     if (tableView.isEditing) {
         [self refreshBarItems];
@@ -634,7 +902,7 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
         [self pushDirectory:url];
     }
     else {
-        [self openURLs:@[url] appending:_appending];
+        [self playURL:url inFolder:NO];
     }
 }
 
@@ -645,54 +913,61 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
 }
 
 - (void)selectSourceAtIndexPath:(NSIndexPath *)indexPath {
-    if (indexPath.section == VibeBrowserRootSectionLocations) {
-        NSArray<NSURL *> *locations = SearchFolderStore.shared.folderURLs;
-        NSUInteger row = (NSUInteger)indexPath.row;
-        if (row < locations.count) {
-            [self pushDirectory:locations[row]];
-        }
-        else {
-            [self presentPickerForLocation:row == locations.count];
-        }
-        return;
-    }
-    switch ((VibeBrowserSource)indexPath.row) {
-        case VibeBrowserSourceDropbox: {
-            DropboxMirror *mirror = DropboxMirror.shared;
-            if (mirror.client.isLinked && mirror.accountURL) {
-                [self pushDirectory:mirror.accountURL];
-            }
-            else {
-                [mirror.client signInWithPresentationAnchor:self.view.window completion:^(NSError *error) {
-                    if (error) {
-                        LogWarn(@"Dropbox: sign-in failed: %@", error.localizedDescription);
-                        VibePresentAlert(self, VibeNotLocalized(@"Dropbox"), STR_SETTINGS_DROPBOX_CONNECT_FAILED);
-                    }
-                }];
-            }
-            return;
-        }
-        case VibeBrowserSourceDevice:
+    switch ([self rootRowAtIndexPath:indexPath]) {
+        case VibeBrowserRootRowDevice:
             [self pushDirectory:SearchFolderStore.containerDocumentsURL];
             return;
-        case VibeBrowserSourceRecents:
+        case VibeBrowserRootRowDropbox:
+            if (DropboxMirror.shared.accountURL) {
+                [self pushDirectory:DropboxMirror.shared.accountURL];
+            }
+            return;
+        case VibeBrowserRootRowRecents:
             [self.navigationController pushViewController:[[RecentsViewController alloc] initWithPlayback:_playback
                                                                                                 appending:_appending]
                                                  animated:YES];
             return;
-        case VibeBrowserSourceCount:
+        case VibeBrowserRootRowLocation:
+            [self pushDirectory:SearchFolderStore.shared.folderURLs[(NSUInteger)indexPath.row]];
+            return;
+        case VibeBrowserRootRowConnectDropbox:
+            [self connectDropbox];
+            return;
+        case VibeBrowserRootRowAddFolder:
+            [self presentPickerForLocation:YES];
+            return;
+        case VibeBrowserRootRowBrowseFiles:
+            [self presentPickerForLocation:NO];
             return;
     }
+}
+
+// A sign-in that lands goes straight into the account: the row was tapped to
+// get there.
+- (void)connectDropbox {
+    __weak BrowserViewController *weakSelf = self;
+    [DropboxMirror.shared.client signInWithPresentationAnchor:self.view.window completion:^(NSError *error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            BrowserViewController *strongSelf = weakSelf;
+            if (!strongSelf) {
+                return;
+            }
+            if (error) {
+                LogWarn(@"Dropbox: sign-in failed: %@", error.localizedDescription);
+                VibePresentAlert(strongSelf, VibeNotLocalized(@"Dropbox"), STR_SETTINGS_DROPBOX_CONNECT_FAILED);
+            }
+            else if (DropboxMirror.shared.accountURL
+                    && strongSelf.navigationController.topViewController == strongSelf) {
+                [strongSelf pushDirectory:DropboxMirror.shared.accountURL];
+            }
+        });
+    }];
 }
 
 #pragma mark - Row actions
 
 - (BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath {
-    if (!self.isRoot) {
-        return YES;
-    }
-    return indexPath.section == VibeBrowserRootSectionLocations
-            && (NSUInteger)indexPath.row < SearchFolderStore.shared.folderURLs.count;
+    return !self.isRoot || [self rootRowAtIndexPath:indexPath] == VibeBrowserRootRowLocation;
 }
 
 // Root only: the system draws and localizes Delete, which forgets a location.
@@ -722,7 +997,7 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
                                 title:STR_MENU_CONTEXT_ADD_TO_PLAYLIST
                               handler:^(UIContextualAction *action, UIView *source, void (^completion)(BOOL)) {
         [weakSelf liftRowsAtIndexPaths:@[indexPath]];
-        [weakSelf openURLs:@[url] appending:YES];
+        [weakSelf addURLs:@[url]];
         completion(YES);
     }];
     add.image = [UIImage systemImageNamed:@"text.badge.plus"];
@@ -735,25 +1010,53 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
 - (UIContextMenuConfiguration *)tableView:(UITableView *)tableView
         contextMenuConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath
                                             point:(CGPoint)point {
-    NSURL *url = self.isRoot ? nil : [self itemAtIndexPath:indexPath];
-    if (!url || tableView.isEditing) {
+    if (tableView.isEditing) {
+        return nil;
+    }
+    __weak BrowserViewController *weakSelf = self;
+    if (self.isRoot) {
+        // The swipe's Delete, where a long press finds it too.
+        if ([self rootRowAtIndexPath:indexPath] != VibeBrowserRootRowLocation) {
+            return nil;
+        }
+        NSURL *location = SearchFolderStore.shared.folderURLs[(NSUInteger)indexPath.row];
+        return [UIContextMenuConfiguration configurationWithIdentifier:nil
+                                                       previewProvider:nil
+                                                        actionProvider:^UIMenu *(NSArray<UIMenuElement *> *suggested) {
+            UIAction *remove = VibeMenuAction(STR_BROWSER_REMOVE_LOCATION, @"minus.circle", ^{
+                // By URL: the list can move while the menu is up.
+                NSUInteger index = [SearchFolderStore.shared.folderURLs indexOfObject:location];
+                if (index != NSNotFound) {
+                    [SearchFolderStore.shared removeFolderAtIndex:index];
+                }
+            });
+            remove.attributes = UIMenuElementAttributesDestructive;
+            return [UIMenu menuWithChildren:@[remove]];
+        }];
+    }
+    NSURL *url = [self itemAtIndexPath:indexPath];
+    if (!url) {
         return nil;
     }
     BOOL folder = indexPath.section == VibeBrowserSectionFolders;
     BOOL appendingSheet = _appending;
-    __weak BrowserViewController *weakSelf = self;
     return [UIContextMenuConfiguration configurationWithIdentifier:nil
                                                    previewProvider:nil
                                                     actionProvider:^UIMenu *(NSArray<UIMenuElement *> *suggested) {
         NSMutableArray<UIMenuElement *> *items = [NSMutableArray array];
         if (!appendingSheet) {
             [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY, @"play.fill", ^{
-                [weakSelf openURLs:@[url] appending:NO];
+                [weakSelf playURL:url inFolder:NO];
             })];
+            if (!folder) {
+                [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"play.square.stack", ^{
+                    [weakSelf playURL:url inFolder:YES];
+                })];
+            }
         }
         [items addObject:VibeMenuAction(STR_MENU_CONTEXT_ADD_TO_PLAYLIST, @"text.badge.plus", ^{
             [weakSelf liftRowsAtIndexPaths:@[indexPath]];
-            [weakSelf openURLs:@[url] appending:YES];
+            [weakSelf addURLs:@[url]];
         })];
         if (folder && !appendingSheet && ![FavoritesStore.shared containsFolderURL:url]) {
             NSString *title = [NSString stringWithFormat:STR_MENU_CONTEXT_ADD_FAVORITE, VibeAppName()];
@@ -785,7 +1088,16 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
 - (void)documentPicker:(UIDocumentPickerViewController *)controller
         didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     if (!_pickingLocation) {
-        [self openURLs:urls appending:_appending];
+        if (_appending) {
+            [self addURLs:urls];
+            return;
+        }
+        PlaybackController *playback = _playback;
+        [BrowserViewController confirmReplacingPlaylistOf:playback from:self replace:^{
+            [playback openURLs:urls openInPlace:YES];
+        } add:^{
+            [playback addURLs:urls];
+        }];
         return;
     }
     NSURL *url = urls.firstObject;
@@ -819,6 +1131,16 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
     [super viewDidLoad];
     self.navigationItem.title = STR_BROWSER_RECENTS;
     self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeNever;
+    self.navigationItem.prompt = _appending ? STR_MENU_CONTEXT_ADD_TO_PLAYLIST : nil;
+    // The add sheet adds; it is no place to manage the list, and its bar
+    // carries the way out instead.
+    if (_appending) {
+        self.navigationItem.rightBarButtonItem =
+                [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemClose
+                                                              target:self
+                                                              action:@selector(dismissSheet)];
+        return;
+    }
     // A menu, so one stray tap cannot empty the list.
     __weak RecentsViewController *weakSelf = self;
     UIAction *clear = [UIAction actionWithTitle:STR_BROWSER_RECENTS_CLEAR_CONFIRM
@@ -838,6 +1160,10 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
     [self reloadItems];
 }
 
+- (void)dismissSheet {
+    [self.navigationController dismissViewControllerAnimated:YES completion:nil];
+}
+
 - (void)clearRecents {
     [_playback clearRecentItems];
     [self reloadItems];
@@ -847,7 +1173,7 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
     _items = _playback.recentItems;
     [self.tableView reloadData];
     // Absent, not disabled, with nothing to clear.
-    self.navigationItem.rightBarButtonItem.hidden = _items.count == 0;
+    self.navigationItem.rightBarButtonItem.hidden = !_appending && _items.count == 0;
     if (_items.count > 0) {
         self.contentUnavailableConfiguration = nil;
         return;
@@ -869,12 +1195,11 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
     NSString *path = item[@"path"];
     UIListContentConfiguration *content = [UIListContentConfiguration subtitleCellConfiguration];
     content.text = path.lastPathComponent;
-    content.secondaryText = [SearchFolderStore displayNameForFolderURL:
+    // The folder's name as recorded with the item: the path can outlive the
+    // container it names, and then says nothing a user would recognize.
+    content.secondaryText = item[@"location"] ?: [SearchFolderStore displayNameForFolderURL:
             [NSURL fileURLWithPath:path.stringByDeletingLastPathComponent isDirectory:YES]];
-    content.secondaryTextProperties.color = UIColor.secondaryLabelColor;
-    // Search's hit row: one line each, the glyph capped.
-    content.textProperties.numberOfLines = 1;
-    content.secondaryTextProperties.numberOfLines = 1;
+    VibeApplyFileNameStyle(content);
     content.imageProperties.maximumSize = CGSizeMake(40, 40);
     content.imageProperties.tintColor = UIColor.secondaryLabelColor;
     content.image = [UIImage systemImageNamed:[item[@"folder"] boolValue] ? @"folder" : @"music.note"];
@@ -884,7 +1209,14 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
-    [self openItem:_items[(NSUInteger)indexPath.row] appending:_appending inFolder:NO];
+    NSDictionary *item = _items[(NSUInteger)indexPath.row];
+    // A folder opens in the browser, as a folder row does there; its long
+    // press plays it.
+    if ([item[@"folder"] boolValue]) {
+        [self showFolderOfItem:item];
+        return;
+    }
+    [self openItem:item appending:_appending inFolder:NO];
 }
 
 - (UIContextMenuConfiguration *)tableView:(UITableView *)tableView
@@ -903,7 +1235,7 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
                 [weakSelf openItem:item appending:NO inFolder:NO];
             })];
             if (!folder) {
-                [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"folder", ^{
+                [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"play.square.stack", ^{
                     [weakSelf openItem:item appending:NO inFolder:YES];
                 })];
             }
@@ -933,11 +1265,19 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
             [playback addURLs:@[url] token:token];
         }
         else {
-            [playback openFileURL:url inFolder:inFolder];
+            RecentsViewController *strongSelf = weakSelf;
+            if (!strongSelf) {
+                return;
+            }
+            [BrowserViewController confirmReplacingPlaylistOf:playback from:strongSelf replace:^{
+                [playback openFileURL:url inFolder:inFolder];
+            } add:^{
+                [playback addURLs:@[url]];
+            }];
         }
     }];
     if (_appending) {
-        [self.navigationController dismissViewControllerAnimated:YES completion:nil];
+        [self dismissSheet];
     }
 }
 
@@ -954,7 +1294,8 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
             [strongSelf showUnavailableAlertForName:name];
         }
         else if ([root isKindOfClass:BrowserViewController.class]) {
-            [root showDirectory:folder ? url : url.URLByDeletingLastPathComponent];
+            [root showDirectory:folder ? url : url.URLByDeletingLastPathComponent
+                   highlighting:folder ? nil : url];
         }
     }];
 }

@@ -5,6 +5,7 @@
 
 #import "FavoritesViewController.h"
 
+#import "BrowserViewController.h"
 #import "FavoritesStore.h"
 #import "PlaybackController.h"
 #import "VibeStrings.h"
@@ -204,7 +205,12 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
         [_playback addURLs:@[folderURL] token:token];
     }
     else {
-        [_playback openURLs:@[folderURL] openInPlace:YES];
+        PlaybackController *playback = _playback;
+        [BrowserViewController confirmReplacingPlaylistOf:playback from:self replace:^{
+            [playback openURLs:@[folderURL] openInPlace:YES];
+        } add:^{
+            [playback addURLs:@[folderURL]];
+        }];
     }
 }
 

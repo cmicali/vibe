@@ -183,8 +183,8 @@ static NSString *const kTabSearch = @"search";
         SearchViewController *results =
                 [[SearchViewController alloc] initWithPlayback:root->_playback];
         root->_searchController = results;
-        results.showDirectoryHandler = ^(NSURL *directory) {
-            [weakSelf showDirectoryInFiles:directory];
+        results.showDirectoryHandler = ^(NSURL *directory, NSURL *file) {
+            [weakSelf showDirectoryInFiles:directory highlighting:file];
         };
         [root syncTabSurfaces];
         return [[UINavigationController alloc] initWithRootViewController:results];
@@ -615,10 +615,10 @@ static NSString *const kTabSearch = @"search";
 
 // The stack is built before the tab shows, so the tab arrives on the folder
 // rather than on its old screen and then jumping.
-- (void)showDirectoryInFiles:(NSURL *)directory {
+- (void)showDirectoryInFiles:(NSURL *)directory highlighting:(NSURL *)file {
     // A tab's controller is built on first ask: one never visited has none yet.
     (void)[_tabs tabForIdentifier:kTabFiles].viewController;
-    [_filesController showDirectory:directory];
+    [_filesController showDirectory:directory highlighting:file];
     [self setSelectedTabIdentifier:kTabFiles];
 }
 

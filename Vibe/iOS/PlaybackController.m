@@ -325,6 +325,10 @@ static const NSUInteger kUIUpdateHz = 3;
     return _folderSession.folderDisplayName;
 }
 
+- (BOOL)playlistHasAdditions {
+    return _folderSession.hasAdditions;
+}
+
 #pragma mark - Display state
 
 - (VibePlayerScreenState)screenState {

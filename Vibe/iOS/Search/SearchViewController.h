@@ -28,8 +28,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, getter=isMaterialSurfaceVisible) BOOL materialSurfaceVisible;
 
 // Open Folder: shows a directory in the Files tab, which this screen knows
-// nothing about.
-@property (nonatomic, copy, nullable) void (^showDirectoryHandler)(NSURL *directory);
+// nothing about, on the file the hit named.
+@property (nonatomic, copy, nullable) void (^showDirectoryHandler)(NSURL *directory, NSURL *_Nullable file);
 
 @end
 
