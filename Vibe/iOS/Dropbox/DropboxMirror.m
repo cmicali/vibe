@@ -37,22 +37,11 @@ static const NSTimeInterval kStalePartSeconds = 24 * 60 * 60;
 // attributes are as unreadable as its bytes.
 static const char *const kIndexAttribute = "com.commonwealthrecordings.vibe.dropbox";
 
-// The comparable spelling of a path: standardized, and without the /private
-// that one API adds to /var and another drops.
-static NSString *VibeComparablePath(NSString *path) {
-    NSString *standard = path.stringByStandardizingPath;
-    if ([standard hasPrefix:@"/private/var/"]) {
-        return [standard substringFromIndex:@"/private".length];
-    }
-    return standard;
-}
-
 static NSError *VibePOSIXError(void) {
     return [NSError errorWithDomain:NSPOSIXErrorDomain code:errno userInfo:nil];
 }
 
 @implementation DropboxMirror {
-    NSURL *_rootURL;
     long long _downloadBudget;
     // Serial: every change to the mirror's directories, so two refreshes of
     // one folder cannot interleave their reconciles.
@@ -116,8 +105,10 @@ static NSError *VibePOSIXError(void) {
 
 #pragma mark - The index
 
+// Keyed by the comparable spelling: a write through /var and a read through
+// /private/var are one directory.
 - (NSDictionary *)indexOfDirectory:(NSURL *)directory {
-    NSString *key = directory.path;
+    NSString *key = VibeComparablePath(directory.path);
     id cached = [_indexes objectForKey:key];
     if (cached) {
         return cached == NSNull.null ? nil : cached;
@@ -144,10 +135,10 @@ static NSError *VibePOSIXError(void) {
     NSData *data = [NSJSONSerialization dataWithJSONObject:index options:0 error:NULL];
     if (setxattr(directory.fileSystemRepresentation, kIndexAttribute, data.bytes, data.length, 0, XATTR_NOFOLLOW) != 0) {
         LogWarn(@"Dropbox: could not index %@: %s", directory.lastPathComponent, strerror(errno));
-        [_indexes removeObjectForKey:directory.path];
+        [_indexes removeObjectForKey:VibeComparablePath(directory.path)];
         return;
     }
-    [_indexes setObject:index forKey:directory.path];
+    [_indexes setObject:index forKey:VibeComparablePath(directory.path)];
 }
 
 #pragma mark - Account
@@ -515,9 +506,13 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
     }];
 }
 
+// Listed by path_display, not path_lower: a folder not mirrored yet is made
+// in the spelling it is listed by, and path_lower would name it in lowercase.
+// Dropbox matches either.
 - (void)localURLForEntry:(NSDictionary *)entry
               completion:(void (^)(NSURL *, NSError *))completion {
-    NSString *path = entry[@"path_lower"];
+    NSString *path = [entry[@"path_display"] isKindOfClass:NSString.class]
+            ? entry[@"path_display"] : entry[@"path_lower"];
     if (![path isKindOfClass:NSString.class]) {
         completion(nil, VibeDropboxMakeError(VibeDropboxErrorAPI, @"entry without a path"));
         return;

@@ -170,15 +170,17 @@ private:
 };
 
 // The stream a parse reads: the file, or its remote bytes by range when it
-// is a remote placeholder. A read is installed exactly while the placeholder
-// rule is on (setRemoteFetch:read:), so the mode is the whole test, and the
-// mac, which installs none, pays no stat.
+// is a remote placeholder. A read is installed exactly while a placeholder
+// root is (setRemoteRoot:fetch:read:), so the mac, which installs none, pays
+// no stat, and only a placeholder pays the root test.
 static std::unique_ptr<TagLib::IOStream> VibeOpenTagStream(const char *path) {
     CloudFileRemoteRead read = CloudFileMaterializer.remoteRead;
     struct stat st;
     if (read && stat(path, &st) == 0 && VibeFileModeIsRemotePlaceholder(st.st_mode)) {
-        return std::make_unique<VibeRangedStream>([NSURL fileURLWithPath:@(path)], read,
-                                                  (TagLib::offset_t)st.st_size);
+        NSURL *url = [NSURL fileURLWithPath:@(path)];
+        if ([NSURLUtil isRemotePlaceholderFile:url]) {
+            return std::make_unique<VibeRangedStream>(url, read, (TagLib::offset_t)st.st_size);
+        }
     }
     return std::make_unique<TagLib::FileStream>(path, true);
 }

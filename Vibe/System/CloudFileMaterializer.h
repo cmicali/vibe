@@ -27,7 +27,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
-// A remote placeholder's backend (NSURLUtil's setRemotePlaceholdersEnabled:;
+// A remote placeholder's backend (NSURLUtil's setRemotePlaceholderRoot:;
 // iOS: the Dropbox mirror). Blocks the worker until url holds its bytes.
 // onCancel hands over the block -cancel runs, from any thread; a cancel that
 // came first runs it at once. Unlike the provider path, this cancel stops the
@@ -44,10 +44,12 @@ typedef NSData *_Nullable (^CloudFileRemoteRead)(NSURL *url, uint64_t offset, ui
 
 @interface CloudFileMaterializer : NSObject
 
-// The remote backend, once at launch before anything opens a file: both or
-// neither. It also turns NSURLUtil's remote placeholder rule on, so while a
+// The remote backend, once at launch before anything opens a file: all three
+// or none. The root scopes NSURLUtil's remote placeholder rule, so while a
 // file is a remote placeholder both blocks are there to serve it.
-+ (void)setRemoteFetch:(nullable CloudFileRemoteFetch)fetch read:(nullable CloudFileRemoteRead)read;
++ (void)setRemoteRoot:(nullable NSURL *)root
+                fetch:(nullable CloudFileRemoteFetch)fetch
+                 read:(nullable CloudFileRemoteRead)read;
 
 // AudioTrackMetadata's parse reads a remote placeholder through it.
 @property (class, nonatomic, readonly, copy, nullable) CloudFileRemoteRead remoteRead;

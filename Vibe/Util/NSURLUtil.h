@@ -16,7 +16,11 @@ NS_ASSUME_NONNULL_BEGIN
 // The end of every remote placeholder's part file name.
 extern NSString *const VibeRemotePlaceholderPartSuffix;
 
-// The remote placeholder's mode: see setRemotePlaceholdersEnabled:.
+// A path's spelling for comparison: standardized, and without the /private
+// that one API adds to /var and another drops.
+NSString *VibeComparablePath(NSString *path);
+
+// The remote placeholder's mode: see setRemotePlaceholderRoot:.
 static inline BOOL VibeFileModeIsRemotePlaceholder(mode_t mode) {
     return S_ISREG(mode) && (mode & S_IRUSR) == 0;
 }
@@ -52,12 +56,13 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 // YES too.
 + (BOOL)isDatalessFile:(NSURL *)url;
 
-// While a remote backend is installed (iOS: the Dropbox mirror, through
-// CloudFileMaterializer's setRemoteFetch:read:), a regular file its owner may not
-// read is a placeholder for a remote file: its stat — size, mtime, the cache
-// key — is the remote file's, and any direct open fails instead of reading
-// zeros. Off, as on the mac, an unreadable file is merely unreadable.
-+ (void)setRemotePlaceholdersEnabled:(BOOL)enabled;
+// Under the remote backend's root (iOS: the Dropbox mirror, installed through
+// CloudFileMaterializer's setRemoteRoot:fetch:read:), a regular file its
+// owner may not read is a placeholder for a remote file: its stat — size,
+// mtime, the cache key — is the remote file's, and any direct open fails
+// instead of reading zeros. Anywhere else, and on the mac, which installs no
+// root, an unreadable file is merely unreadable.
++ (void)setRemotePlaceholderRoot:(nullable NSURL *)root;
 + (BOOL)isRemotePlaceholderFile:(NSURL *)url;
 
 // Where a remote placeholder's bytes stream in until they replace it: a

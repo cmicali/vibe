@@ -95,6 +95,9 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     // Bumped by every sign-in and sign-out, so a refresh or a 401 that
     // belongs to the previous account can neither restore nor unlink it.
     uint64_t _accountGeneration;
+    // The Keychain answered "locked" (a launch before first unlock): the
+    // account is read again at the next use rather than taken as absent.
+    BOOL _accountLoadDeferred;
     NSMutableDictionary<NSNumber *, DropboxTransfer *> *_downloads;
 
     // Main thread: the sign-in in progress.
@@ -120,7 +123,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
                                                          delegate:self
                                                     delegateQueue:delegateQueue];
         _callSession = [NSURLSession sessionWithConfiguration:configuration];
-        [self loadAccount];
+        [self loadAccountPostingChange:NO];
     }
     return self;
 }
@@ -128,6 +131,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 #pragma mark - Account
 
 - (BOOL)isLinked {
+    [self retryDeferredAccountLoad];
     os_unfair_lock_lock(&_lock);
     BOOL linked = _refreshToken != nil;
     os_unfair_lock_unlock(&_lock);
@@ -135,6 +139,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 }
 
 - (NSString *)accountID {
+    [self retryDeferredAccountLoad];
     os_unfair_lock_lock(&_lock);
     NSString *value = _accountIDValue;
     os_unfair_lock_unlock(&_lock);
@@ -146,6 +151,15 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     NSString *value = _accountNameValue;
     os_unfair_lock_unlock(&_lock);
     return value;
+}
+
+- (void)retryDeferredAccountLoad {
+    os_unfair_lock_lock(&_lock);
+    BOOL deferred = _accountLoadDeferred;
+    os_unfair_lock_unlock(&_lock);
+    if (deferred) {
+        [self loadAccountPostingChange:YES];
+    }
 }
 
 // The one writer of the account: a sign-in, an adopt, a sign-out (all nil)
@@ -170,7 +184,9 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     };
 }
 
-- (void)loadAccount {
+// TRAP: before the device's first unlock the item reads as locked, not
+// absent; taken as absent, the whole session would run signed out.
+- (void)loadAccountPostingChange:(BOOL)post {
     if (!_keychainService) {
         return;
     }
@@ -179,20 +195,28 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     query[(__bridge id)kSecMatchLimit] = (__bridge id)kSecMatchLimitOne;
     CFTypeRef result = NULL;
     OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)query, &result);
-    if (status != errSecSuccess) {
-        if (status != errSecItemNotFound) {
-            LogWarn(@"Dropbox: keychain read failed: %d", (int)status);
-        }
-        return;
-    }
-    NSDictionary *account = VibeJSONObject((__bridge_transfer NSData *)result);
+    NSDictionary *account = status == errSecSuccess ? VibeJSONObject((__bridge_transfer NSData *)result) : nil;
     NSString *refresh = account[@"refresh_token"];
-    if (![refresh isKindOfClass:NSString.class] || refresh.length == 0) {
-        return;
+    BOOL found = [refresh isKindOfClass:NSString.class] && refresh.length > 0;
+    os_unfair_lock_lock(&_lock);
+    BOOL wasDeferred = _accountLoadDeferred;
+    BOOL stillDeferred = status == errSecInteractionNotAllowed;
+    _accountLoadDeferred = stillDeferred;
+    // A sign-in made meanwhile is newer than what the Keychain held.
+    BOOL adopt = found && !_refreshToken;
+    if (adopt) {
+        _refreshToken = refresh;
+        _accountIDValue = [account[@"account_id"] isKindOfClass:NSString.class] ? account[@"account_id"] : nil;
+        _accountNameValue = [account[@"name"] isKindOfClass:NSString.class] ? account[@"name"] : nil;
     }
-    _refreshToken = refresh;
-    _accountIDValue = account[@"account_id"];
-    _accountNameValue = account[@"name"];
+    os_unfair_lock_unlock(&_lock);
+    if (status != errSecSuccess && status != errSecItemNotFound && !(wasDeferred && stillDeferred)) {
+        LogWarn(@"Dropbox: keychain read failed: %d", (int)status);
+    }
+    if (adopt && post) {
+        LogInfo(@"Dropbox: account read once the device unlocked");
+        [self postAccountDidChange];
+    }
 }
 
 // Called with the lock NOT held; snapshot what to persist first.
@@ -488,6 +512,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 
 // Single-flight: every caller arriving during a refresh waits on that one.
 - (void)withAccessToken:(VibeDropboxTokenWaiter)waiter {
+    [self retryDeferredAccountLoad];
     os_unfair_lock_lock(&_lock);
     if (!_refreshToken) {
         os_unfair_lock_unlock(&_lock);
@@ -667,12 +692,15 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
                 return;
             }
             NSHTTPURLResponse *http = (NSHTTPURLResponse *)response;
-            // 200 is a server ignoring the range: the whole file, so cut it.
+            // 200 is a server ignoring the range: the whole file, so cut it,
+            // and a range past its end is nothing, never bytes from its start.
             if (http.statusCode == 206 || http.statusCode == 200) {
                 NSData *bytes = data ?: [NSData data];
-                if (http.statusCode == 200 && bytes.length > offset) {
-                    bytes = [bytes subdataWithRange:NSMakeRange((NSUInteger)offset,
-                            (NSUInteger)MIN((uint64_t)bytes.length - offset, length))];
+                if (http.statusCode == 200) {
+                    bytes = bytes.length > offset
+                            ? [bytes subdataWithRange:NSMakeRange((NSUInteger)offset,
+                                    (NSUInteger)MIN((uint64_t)bytes.length - offset, length))]
+                            : [NSData data];
                 }
                 completion(bytes, nil);
                 return;

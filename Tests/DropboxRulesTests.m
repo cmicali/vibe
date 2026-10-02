@@ -20,7 +20,7 @@
 @implementation DropboxRulesTests
 
 - (void)tearDown {
-    [NSURLUtil setRemotePlaceholdersEnabled:NO];
+    [NSURLUtil setRemotePlaceholderRoot:nil];
     [super tearDown];
 }
 
@@ -175,7 +175,11 @@
 #pragma mark - NSURLUtil's remote placeholders
 
 - (NSURL *)makeFileWithMode:(mode_t)mode size:(off_t)size {
-    NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:
+    return [self makeFileWithMode:mode size:size in:NSTemporaryDirectory()];
+}
+
+- (NSURL *)makeFileWithMode:(mode_t)mode size:(off_t)size in:(NSString *)directory {
+    NSString *path = [directory stringByAppendingPathComponent:
             [NSString stringWithFormat:@"placeholder-%@.flac", NSUUID.UUID.UUIDString]];
     int fd = open(path.fileSystemRepresentation, O_CREAT | O_EXCL | O_WRONLY, 0600);
     XCTAssertGreaterThanOrEqual(fd, 0);
@@ -189,14 +193,23 @@
     return url;
 }
 
-- (void)testAnUnreadableFileIsAPlaceholderOnlyWhileABackendIsInstalled {
-    NSURL *placeholder = [self makeFileWithMode:0 size:1 << 20];
-    NSURL *ordinary = [self makeFileWithMode:0644 size:1 << 20];
+- (void)testAnUnreadableFileIsAPlaceholderOnlyUnderTheBackendsRoot {
+    NSString *root = [NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString];
+    [NSFileManager.defaultManager createDirectoryAtPath:root withIntermediateDirectories:YES attributes:nil error:NULL];
+    [self addTeardownBlock:^{
+        [NSFileManager.defaultManager removeItemAtPath:root error:NULL];
+    }];
+    NSURL *placeholder = [self makeFileWithMode:0 size:1 << 20 in:root];
+    NSURL *ordinary = [self makeFileWithMode:0644 size:1 << 20 in:root];
+    NSURL *outside = [self makeFileWithMode:0 size:1 << 20];
 
     XCTAssertFalse([NSURLUtil isDatalessFile:placeholder], @"the mac never installs a backend");
     XCTAssertFalse([NSURLUtil isRemotePlaceholderFile:placeholder]);
 
-    [NSURLUtil setRemotePlaceholdersEnabled:YES];
+    [NSURLUtil setRemotePlaceholderRoot:[NSURL fileURLWithPath:root isDirectory:YES]];
+    // An unreadable file elsewhere is merely unreadable: no backend serves it.
+    XCTAssertFalse([NSURLUtil isDatalessFile:outside]);
+    XCTAssertFalse([NSURLUtil isRemotePlaceholderFile:outside]);
     XCTAssertTrue([NSURLUtil isDatalessFile:placeholder]);
     XCTAssertTrue([NSURLUtil isRemotePlaceholderFile:placeholder]);
     XCTAssertFalse([NSURLUtil isDatalessFile:ordinary]);

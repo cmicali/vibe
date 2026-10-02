@@ -22,6 +22,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (class, readonly) NSSet<NSString *> *lookup;
 
+// The playable ones TagLib parses (AudioTrackMetadata.mm's openByExtension,
+// adts by its content). The rest — w64, caf — take their facts from
+// CoreAudio, which reads only a whole local file.
+@property (class, readonly) NSSet<NSString *> *tagParsed;
+
 @end
 
 NS_ASSUME_NONNULL_END

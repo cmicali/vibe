@@ -38,6 +38,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, readonly) DropboxClient *client;
 
+// Every account's mirror lives under it; the remote placeholder root.
+@property (nonatomic, readonly) NSURL *rootURL;
+
 // The linked account's Dropbox root, nil while unlinked.
 @property (nonatomic, readonly, nullable) NSURL *accountURL;
 

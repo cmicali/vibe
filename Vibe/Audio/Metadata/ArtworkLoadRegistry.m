@@ -145,10 +145,20 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
 
 // A remote placeholder's art is read by range, as its tags are
 // (AudioTrackMetadataLoader's submission): materializing it would download
-// the whole song to show its picture.
+// the whole song to show its picture. It is still a network read, so it
+// waits out the user's open as the tag scan does.
 - (void)beginRequest:(ArtworkLoadRequest *)request {
-    if (!request.sourceURL || [NSURLUtil isRemotePlaceholderFile:request.sourceURL]) {
+    if (!request.sourceURL) {
         [self submitWorkForRequest:request];
+        return;
+    }
+    if ([NSURLUtil isRemotePlaceholderFile:request.sourceURL]) {
+        if ([_materializationCoordinator isForegroundTransferActive]) {
+            [self scheduleAdmissionRetryForRequest:request];
+        }
+        else {
+            [self submitWorkForRequest:request];
+        }
         return;
     }
 

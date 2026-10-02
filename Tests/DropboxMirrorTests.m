@@ -159,7 +159,7 @@ static NSDictionary *FolderEntry(NSString *folder, NSString *name) {
 }
 
 - (void)tearDown {
-    [CloudFileMaterializer setRemoteFetch:nil read:nil];
+    [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil];
     [self installHandler:nil];
     // Let the adopt's posted notification land before the root goes.
     [self spinMainQueue];
@@ -290,10 +290,10 @@ static struct stat StatOf(NSURL *url) {
                                                      isDirectory:&isDirectory]);
     XCTAssertTrue(isDirectory);
 
-    [NSURLUtil setRemotePlaceholdersEnabled:YES];
+    [NSURLUtil setRemotePlaceholderRoot:_root];
     XCTAssertTrue([NSURLUtil isDatalessFile:[folder URLByAppendingPathComponent:@"01 Song.flac"]]);
     XCTAssertFalse([NSURLUtil isDatalessFile:[folder URLByAppendingPathComponent:@"Album.cue"]]);
-    [NSURLUtil setRemotePlaceholdersEnabled:NO];
+    [NSURLUtil setRemotePlaceholderRoot:nil];
 }
 
 - (void)testARefreshKeepsCurrentBytesRewritesChangedFilesAndDropsDeparted {
@@ -373,10 +373,44 @@ static struct stat StatOf(NSURL *url) {
     [self waitForExpectations:@[resolved] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqualObjects(track.lastPathComponent, @"01 Song.flac");
     XCTAssertEqual(StatOf(track).st_size, 77);
-    XCTAssertEqualObjects([_mirror dropboxPathForURL:track.URLByDeletingLastPathComponent], @"/music/album");
+    XCTAssertEqualObjects([_mirror dropboxPathForURL:track.URLByDeletingLastPathComponent], @"/Music/Album");
+}
+
+// A folder made on the way to a search hit takes the hit's display
+// spelling, not path_lower's lowercase.
+- (void)testASearchHitsFolderIsMadeInItsDisplaySpelling {
+    NSDictionary *hit = FileEntry(@"/Music/TECHNO", @"x.wav", 3, kStamp);
+    _listings[@"/music/techno"] = @[hit];
+    XCTestExpectation *resolved = [self expectationWithDescription:@"resolve"];
+    __block NSURL *track = nil;
+    [_mirror localURLForEntry:hit completion:^(NSURL *url, NSError *error) {
+        XCTAssertNil(error);
+        track = url;
+        [resolved fulfill];
+    }];
+    [self waitForExpectations:@[resolved] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertEqualObjects([track.URLByDeletingLastPathComponent.path
+            substringFromIndex:_mirror.accountURL.path.length], @"/Music/TECHNO");
 }
 
 #pragma mark Ranged reads
+
+// A server that ignores Range answers 200 with the whole file; past its end
+// that is nothing, never bytes from its start.
+- (void)testAWholeFileAnswerPastTheEndReadsAsNothing {
+    _listings[@"/music"] = @[FileEntry(@"/Music", @"short.mp3", 100, kStamp)];
+    NSURL *track = [[self refresh:@"/Music"] URLByAppendingPathComponent:@"short.mp3"];
+    [self installHandler:^DropboxStubResponse(NSURLRequest *request, NSDictionary *json) {
+        if ([request.URL.path isEqualToString:@"/2/files/download"]) {
+            return (DropboxStubResponse){200, @{}, [@"SHRUNK" dataUsingEncoding:NSUTF8StringEncoding], NO};
+        }
+        return [self defaultResponseFor:request json:json];
+    }];
+    NSError *error = nil;
+    XCTAssertEqualObjects([_mirror readPlaceholderAtURL:track offset:90 length:10 error:&error], [NSData data]);
+    XCTAssertEqualObjects([_mirror readPlaceholderAtURL:track offset:2 length:3 error:&error],
+                          [@"RUN" dataUsingEncoding:NSUTF8StringEncoding]);
+}
 
 // A tag parse's read: the bytes asked for, by the listed id, and the
 // placeholder left a placeholder.
@@ -403,7 +437,7 @@ static struct stat StatOf(NSURL *url) {
 
 - (void)installMirrorFetch {
     DropboxMirror *mirror = _mirror;
-    [CloudFileMaterializer setRemoteFetch:^BOOL(NSURL *url, void (^onCancel)(dispatch_block_t), NSError **error) {
+    [CloudFileMaterializer setRemoteRoot:_root fetch:^BOOL(NSURL *url, void (^onCancel)(dispatch_block_t), NSError **error) {
         return [mirror fetchPlaceholderAtURL:url onCancel:onCancel error:error];
     } read:^NSData *(NSURL *url, uint64_t offset, uint64_t length, NSError **error) {
         return [mirror readPlaceholderAtURL:url offset:offset length:length error:error];

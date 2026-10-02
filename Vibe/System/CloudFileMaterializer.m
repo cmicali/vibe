@@ -12,7 +12,7 @@
 #include <errno.h>
 #include <os/lock.h>
 
-// The remote backend, installed as one pair (setRemoteFetch:read:).
+// The remote backend, installed together (setRemoteRoot:fetch:read:).
 static os_unfair_lock sRemoteLock = OS_UNFAIR_LOCK_INIT;
 static CloudFileRemoteFetch sRemoteFetch;
 static CloudFileRemoteRead sRemoteRead;
@@ -118,13 +118,13 @@ static NSError *VibeMaterializationCancelledError(void) {
     return [NSError errorWithDomain:NSCocoaErrorDomain code:NSUserCancelledError userInfo:nil];
 }
 
-+ (void)setRemoteFetch:(CloudFileRemoteFetch)fetch read:(CloudFileRemoteRead)read {
-    NSParameterAssert((fetch == nil) == (read == nil));
++ (void)setRemoteRoot:(NSURL *)root fetch:(CloudFileRemoteFetch)fetch read:(CloudFileRemoteRead)read {
+    NSParameterAssert((root == nil) == (fetch == nil) && (fetch == nil) == (read == nil));
     os_unfair_lock_lock(&sRemoteLock);
     sRemoteFetch = [fetch copy];
     sRemoteRead = [read copy];
     os_unfair_lock_unlock(&sRemoteLock);
-    [NSURLUtil setRemotePlaceholdersEnabled:fetch != nil];
+    [NSURLUtil setRemotePlaceholderRoot:root];
 }
 
 + (CloudFileRemoteRead)remoteRead {

@@ -27,4 +27,15 @@
     return lookup;
 }
 
++ (NSSet<NSString *> *)tagParsed {
+    static NSSet<NSString *> *tagParsed;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        NSMutableSet<NSString *> *set = [PlayableExtensions.lookup mutableCopy];
+        [set minusSet:[NSSet setWithArray:@[@"w64", @"caf"]]];
+        tagParsed = set;
+    });
+    return tagParsed;
+}
+
 @end
