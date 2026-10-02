@@ -65,6 +65,8 @@ The scene's root: a `UITabBarController` child, the mini player in its `bottomAc
 
 **The card is built once and never torn down.** Minimize translates it off the bottom. Its pager, art window and waveform snapshots survive, or every expand would re-read and re-decode art; art is not pruned on minimize either — the byte budget bounds it, and pruning costs a placeholder flash.
 
+**TRAP: the tabs' safe area follows their transformed frame.** Scaled about its center under the card, the tabs view's top edge drops below the status bar and its bottom rises above the home indicator, UIKit takes the system insets away, and the navigation bar, the large title and the tab bar re-lay out: the screen jumped under the card on every expand and dismiss. `applyBackdropProgress:` gives the insets back as `additionalSafeAreaInsets`, so the layout holds still and only scales.
+
 **TRAP: the card moves by TRANSFORM, never by frame.** Its pages carry `WaveformScrubberView`s, which re-bake their envelope on any bounds change. `dump_state`'s `ui.waveformBaked` checks it.
 
 **TRAP: `shouldAutomaticallyForwardAppearanceMethods` is per-parent.** Turning it off for the card turns it off for the tabs, so both are forwarded by hand; each begin snapshots its exact children and the end consumes that snapshot, because `_expanded` can change between them.

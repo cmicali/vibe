@@ -552,6 +552,15 @@ static NSString *const kTabSearch = @"search";
     _tabs.view.transform = CGAffineTransformMakeScale(scale, scale);
     _tabs.view.layer.cornerRadius = kBackdropCornerRadius * (1 - t);
     _tabs.view.layer.masksToBounds = t < 1;
+    // TRAP: the safe area follows the transformed frame. Scaled about its
+    // center, the tabs view's top edge drops below the status bar and its
+    // bottom rises above the home indicator, UIKit takes the system insets
+    // away, and the navigation bar, the large title and the tab bar re-lay
+    // out: the screen under the card jumped. The insets are given back as
+    // additional ones, so the layout holds still and only scales.
+    CGFloat inset = CGRectGetHeight(self.view.bounds) * (1 - scale) / 2;
+    UIEdgeInsets safe = self.view.safeAreaInsets;
+    _tabs.additionalSafeAreaInsets = UIEdgeInsetsMake(MIN(safe.top, inset), 0, MIN(safe.bottom, inset), 0);
 }
 
 #pragma mark - The interactive minimize
