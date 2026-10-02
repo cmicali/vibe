@@ -54,10 +54,12 @@ typedef NS_ENUM(NSInteger, CloudFileAvailabilityWait) {
 };
 
 // How much of a remote file is readable while its transfer writes it into a
-// part file from byte 0, the final size known before the first byte. The
-// writer writes before it notes, and finishes once; a reader opens the part
-// and waits for the bytes it is about to read. Worker threads only: a wait
-// blocks, and nothing here is reachable from the render.
+// part file from byte 0, the final size known before the first byte, plus at
+// most one window of bytes past the download's edge held in memory (the tail
+// a stream reads ahead by range). The writer writes before it notes, and
+// finishes once; a reader opens the part and waits for the bytes it is about
+// to read. Worker threads only: a wait blocks, and nothing here is reachable
+// from the render.
 @interface CloudFileAvailability : NSObject
 
 - (instancetype)initWithPartURL:(NSURL *)partURL size:(uint64_t)size NS_DESIGNATED_INITIALIZER;
@@ -73,17 +75,30 @@ typedef NS_ENUM(NSInteger, CloudFileAvailabilityWait) {
 // and what tells a reader a stalled transfer from a slow one.
 @property (nonatomic, readonly) uint64_t writtenBytes;
 // Once: nil is complete, after which every range is ready; an error fails
-// every wait, since nothing already read can be trusted.
+// every wait, since nothing already read can be trusted. Either drops the window.
 - (void)finishWithError:(nullable NSError *)error;
+// The file's bytes at [offset, offset + bytes.length), read ahead of the
+// download, held until the download reaches offset. Ignored once finished,
+// when the download is already there, when one is held, or past the size.
+- (void)installWindow:(NSData *)bytes atOffset:(uint64_t)offset;
+// The bytes the window holds now; 0 when none is.
+@property (nonatomic, readonly) uint64_t windowLength;
 
 // Blocks until [offset, offset + length) is on disk, the transfer finished,
 // or `interrupted` answers YES; it is asked each time the wait would block,
 // under the lock wakeWaiters takes. A range is clipped to the size, and one
 // at or past it is the end, never a wait. A range already readable is Ready
-// even when interrupted: an interrupt ends waits, not reads. The one range
-// question, so a later source of bytes changes what answers it, not who asks.
+// even when interrupted: an interrupt ends waits, not reads. With a buffer,
+// a range not on disk but wholly inside the window is Ready too, and up to
+// `capacity` bytes from offset are copied out of the window into it, their
+// count in *copied (0: read the disk); a range straddling the window's start
+// waits for the disk. The one range question, so a source of bytes changes
+// what answers it, not who asks.
 - (CloudFileAvailabilityWait)waitForBytesAt:(uint64_t)offset
                                      length:(uint64_t)length
+                                 windowInto:(void *_Nullable)buffer
+                                   capacity:(uint64_t)capacity
+                                     copied:(uint64_t *_Nullable)copied
                                 interrupted:(BOOL (NS_NOESCAPE ^_Nullable)(void))interrupted
                                       error:(NSError *__autoreleasing _Nullable *_Nullable)error;
 // Any thread: every wait asks its `interrupted` again. Call it after making

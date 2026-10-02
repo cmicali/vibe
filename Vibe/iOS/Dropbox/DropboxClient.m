@@ -54,6 +54,12 @@ static int64_t VibeMetadataSize(NSDictionary *_Nullable metadata) {
     return [size isKindOfClass:NSNumber.class] && [size longLongValue] >= 0 ? [size longLongValue] : -1;
 }
 
+// The version a file's metadata names, nil when it names none.
+static NSString *_Nullable VibeMetadataRev(NSDictionary *_Nullable metadata) {
+    id rev = metadata[@"rev"];
+    return [rev isKindOfClass:NSString.class] ? rev : nil;
+}
+
 // A link that dropped or stalled, which a resend may outlast; anything else
 // (TLS, a malformed response) would only fail again.
 static BOOL VibeIsConnectionError(NSError *error) {
@@ -96,7 +102,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 // that response's metadata and size span every attempt; bytesWritten is the
 // resume offset. The rest is per response.
 @property (nonatomic, copy, nullable) NSURL *destination;
-@property (nonatomic, copy, nullable) void (^progress)(uint64_t, int64_t);
+@property (nonatomic, copy, nullable) void (^progress)(uint64_t, int64_t, NSString *_Nullable);
 @property (nonatomic, nullable) NSFileHandle *file;
 @property (nonatomic, nullable) NSDictionary *metadata;
 @property (nonatomic) int64_t size;
@@ -822,7 +828,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 
 - (dispatch_block_t)downloadPath:(NSString *)path
                            toURL:(NSURL *)destination
-                        progress:(void (^)(uint64_t, int64_t))progress
+                        progress:(void (^)(uint64_t, int64_t, NSString *))progress
                       completion:(void (^)(NSDictionary *, NSError *))completion {
     DropboxTransfer *download = [[DropboxTransfer alloc] init];
     download.path = path;
@@ -903,8 +909,8 @@ didReceiveResponse:(NSURLResponse *)response
         // resend after a re-upload would splice two versions into one file.
         // Every response must name the first one's rev; with none to compare,
         // nothing proves the bytes match, and the transfer fails the same way.
-        NSString *pinned = download.metadata[@"rev"];
-        if (![pinned isKindOfClass:NSString.class] || ![metadata[@"rev"] isEqual:pinned]) {
+        NSString *pinned = VibeMetadataRev(download.metadata);
+        if (!pinned || ![metadata[@"rev"] isEqual:pinned]) {
             LogWarn(@"Dropbox: %@ changed during its download (rev %@, now %@)",
                     download.path, pinned, metadata[@"rev"]);
             download.failure = VibeDropboxMakeError(VibeDropboxErrorFileChanged,
@@ -930,7 +936,7 @@ didReceiveResponse:(NSURLResponse *)response
     download.file = [NSFileHandle fileHandleForWritingToURL:download.destination error:&error];
     download.failure = error;
     if (download.file && download.progress) {
-        download.progress(0, download.size);
+        download.progress(0, download.size, VibeMetadataRev(download.metadata));
     }
     completionHandler(download.file ? NSURLSessionResponseAllow : NSURLSessionResponseCancel);
 }
@@ -966,7 +972,7 @@ didReceiveResponse:(NSURLResponse *)response
     os_unfair_lock_unlock(&_lock);
     // After the write: a reader told of these bytes finds them on disk.
     if (download.progress) {
-        download.progress(written, download.size);
+        download.progress(written, download.size, VibeMetadataRev(download.metadata));
     }
 }
 

@@ -91,13 +91,17 @@
 }
 - (CloudFileAvailabilityWait)waitForBytesAt:(uint64_t)offset
                                      length:(uint64_t)length
+                                 windowInto:(void *)buffer
+                                   capacity:(uint64_t)capacity
+                                     copied:(uint64_t *)copied
                                 interrupted:(BOOL (NS_NOESCAPE ^)(void))interrupted
                                       error:(NSError *__autoreleasing *)error {
     uint64_t end = offset >= self.size || length == 0 ? 0 : offset + MIN(length, self.size - offset);
     if (!_finished && end > self.writtenBytes) {
         dispatch_semaphore_signal(_event);
     }
-    return [super waitForBytesAt:offset length:length interrupted:interrupted error:error];
+    return [super waitForBytesAt:offset length:length windowInto:buffer capacity:capacity copied:copied
+                     interrupted:interrupted error:error];
 }
 @end
 

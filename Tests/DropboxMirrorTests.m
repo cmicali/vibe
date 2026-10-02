@@ -1303,7 +1303,7 @@ static NSData *PatternBytes(NSUInteger length) {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         __block BOOL signalled = NO;
         NSError *waitError = nil;
-        *result = [availability waitForBytesAt:offset length:length interrupted:^BOOL{
+        *result = [availability waitForBytesAt:offset length:length windowInto:NULL capacity:0 copied:NULL interrupted:^BOOL{
             if (!signalled) {
                 signalled = YES;
                 dispatch_semaphore_signal(blocked);
@@ -1633,6 +1633,189 @@ static NSData *PatternBytes(NSUInteger length) {
     XCTAssertEqual([self mostNoted], (uint64_t)bytes.length);
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:track], bytes);
     [self assertFinishedOnce:availability error:nil];
+}
+
+#pragma mark The tail window
+
+// DropboxMirror's kTailWindowBytes.
+static const uint64_t kWindowBytes = 2 * 1024 * 1024;
+
+static BOOL IsTailRead(NSURLRequest *request) {
+    return [[request valueForHTTPHeaderField:@"Dropbox-API-Arg"] containsString:@"\"rev:"];
+}
+
+- (NSArray<NSURLRequest *> *)tailReads {
+    return [[self requestsToPath:@"/2/files/download"] filteredArrayUsingPredicate:
+            [NSPredicate predicateWithBlock:^BOOL(NSURLRequest *request, NSDictionary *bindings) {
+        return IsTailRead(request);
+    }]];
+}
+
+// A stream whose download is held a chunk at a time, its tail read answered
+// by `tail` (nil: the file's bytes by range, held until `tailGate`).
+- (NSURL *)tailedTrack:(NSData *)bytes name:(NSString *)name chunk:(NSUInteger)chunk
+                  tail:(DropboxStubResponse (^_Nullable)(NSURLRequest *request))tail
+              tailGate:(dispatch_semaphore_t)tailGate {
+    NSURL *track = [self streamingTrack:bytes name:name chunk:chunk];
+    dispatch_semaphore_t gate = _chunkGate;
+    NSDictionary *metadata = @{@"server_modified": kStamp, @"size": @(bytes.length), @"rev": kRev};
+    [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
+        if (IsTailRead(request)) {
+            if (tail) {
+                return tail(request);
+            }
+            DropboxStubResponse answer = DownloadAnswer(request, bytes, metadata);
+            answer.chunk = answer.body.length;
+            answer.beforeChunk = ^(NSUInteger index) {
+                dispatch_semaphore_wait(tailGate, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC)));
+            };
+            return answer;
+        }
+        DropboxStubResponse answer = [self answer:request];
+        answer.chunk = chunk;
+        answer.beforeChunk = ^(NSUInteger chunkIndex) {
+            dispatch_semaphore_wait(gate, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC)));
+        };
+        return answer;
+    }];
+    return track;
+}
+
+// A stream past twice the window reads its last 2 MB once, by the version
+// being downloaded, as it starts; readable does not wait for it; the window
+// holds it, so an MP3, whose open reads its last bytes, opens on the part file
+// with only its head downloaded; the download reaching the window drops it;
+// and the decode is the whole file's.
+- (void)testAStreamReadsItsTailOnceAndAnMP3OpensOnTheHeadAndTheWindow {
+    NSData *bytes = VibeMP3WithInfoFrame(4200, YES);
+    XCTAssertGreaterThan(bytes.length, 2 * kWindowBytes);
+    NSURL *sources = [_root URLByAppendingPathComponent:@"sources" isDirectory:YES];
+    [NSFileManager.defaultManager createDirectoryAtURL:sources withIntermediateDirectories:YES attributes:nil error:NULL];
+    NSURL *local = [sources URLByAppendingPathComponent:@"long.mp3"];
+    XCTAssertTrue([bytes writeToURL:local atomically:YES]);
+    NSError *error = nil;
+    AudioFileHandle *whole = [[AudioFileHandle alloc] initForReading:local error:&error];
+    NSData *reference = whole ? DecodeAll(whole, &error) : nil;
+    XCTAssertNotNil(reference, @"%@", error);
+
+    const NSUInteger chunk = 64 * 1024;
+    dispatch_semaphore_t tailGate = dispatch_semaphore_create(0);
+    NSURL *track = [self tailedTrack:bytes name:@"long.mp3" chunk:chunk tail:nil tailGate:tailGate];
+    [self recordAvailabilities];
+    dispatch_semaphore_t readable = dispatch_semaphore_create(0);
+    XCTestExpectation *fetched = [self fetch:track materializer:[CloudFileMaterializer new] onReadable:^{
+        dispatch_semaphore_signal(readable);
+    }];
+    CloudFileAvailability *availability = [self awaitAvailability];
+    XCTAssertTrue([self eventually:^BOOL { return [self tailReads].count == 1; }]);
+    NSURLRequest *tailRead = [self tailReads].firstObject;
+    uint64_t windowOffset = bytes.length - kWindowBytes;
+    XCTAssertEqualObjects([tailRead valueForHTTPHeaderField:@"Range"],
+                          ([NSString stringWithFormat:@"bytes=%llu-%llu", windowOffset, (uint64_t)bytes.length - 1]));
+    XCTAssertTrue([[tailRead valueForHTTPHeaderField:@"Dropbox-API-Arg"] containsString:kRev]);
+
+    // Readable at the mark, the tail read still held.
+    [self releaseChunks:(NSUInteger)(kReadableBytes / chunk)];
+    XCTAssertTrue([self await:readable]);
+    XCTAssertEqual(availability.windowLength, 0u);
+    dispatch_semaphore_signal(tailGate);
+    XCTAssertTrue([self eventually:^BOOL { return availability.windowLength == kWindowBytes; }]);
+
+    // Opened on the head and the window, nothing more released.
+    dispatch_semaphore_t opened = dispatch_semaphore_create(0);
+    dispatch_semaphore_t decoded = dispatch_semaphore_create(0);
+    __block AudioFileHandle *handle = nil;
+    __block NSData *pcm = nil;
+    __block NSError *readError = nil;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSError *failure = nil;
+        handle = [[AudioFileHandle alloc] initForReading:track error:&failure];
+        dispatch_semaphore_signal(opened);
+        pcm = handle ? DecodeAll(handle, &failure) : nil;
+        readError = failure;
+        dispatch_semaphore_signal(decoded);
+    });
+    XCTAssertTrue([self await:opened]);
+    XCTAssertNotNil(handle, @"%@", readError);
+    XCTAssertEqual([self mostNoted], kReadableBytes, @"opened without another byte of the download");
+    XCTAssertEqual(handle.length, whole.length);
+
+    // Up to the window's start: dropped, the rest still downloading.
+    [self releaseChunks:(NSUInteger)((windowOffset + chunk - 1) / chunk - kReadableBytes / chunk)];
+    [self awaitNoted:windowOffset count:0];
+    XCTAssertEqual(availability.windowLength, 0u, @"the download reached the window");
+    XCTAssertLessThan([self mostNoted], (uint64_t)bytes.length);
+    [self releaseChunks:bytes.length / chunk + 1];
+
+    XCTAssertTrue([self await:decoded]);
+    [self waitForExpectations:@[fetched] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertTrue(_fetched, @"%@", _fetchError);
+    XCTAssertNotNil(pcm, @"%@", readError);
+    XCTAssertTrue([pcm isEqualToData:reference], @"the streamed decode differs");
+    XCTAssertEqual([self tailReads].count, 1u);
+    [self assertFinishedOnce:availability error:nil];
+}
+
+// The tail read failing, or stalling until the download's end cancels it, is
+// not the transfer's failure: the window stays absent, a read inside it waits
+// for the download, and the fetch completes with every byte.
+- (void)testAFailedOrStalledTailReadLeavesTheTransferWhole {
+    for (NSNumber *stall in @[@NO, @YES]) {
+        NSData *bytes = PatternBytes((NSUInteger)(2 * kWindowBytes + 1));
+        _chunkGate = dispatch_semaphore_create(0);
+        NSURL *track = [self tailedTrack:bytes name:stall.boolValue ? @"stalled.flac" : @"failed.flac" chunk:256 * 1024
+                                    tail:^DropboxStubResponse(NSURLRequest *request) {
+            if (stall.boolValue) {
+                return (DropboxStubResponse){.hang = YES};
+            }
+            return DropboxStubJSON(500, @{@"error_summary": @"internal/"});
+        } tailGate:nil];
+        [self recordAvailabilities];
+        XCTestExpectation *fetched = [self fetch:track materializer:[CloudFileMaterializer new] onReadable:nil];
+        CloudFileAvailability *availability = [self awaitAvailability];
+        XCTAssertTrue([self eventually:^BOOL { return [self tailReads].count == 1; }], @"stall %@", stall);
+
+        dispatch_semaphore_t blocked = dispatch_semaphore_create(0);
+        __block CloudFileAvailabilityWait waited = CloudFileAvailabilityFailed;
+        __block uint64_t copied = 0;
+        uint8_t *buffer = malloc(4096);
+        dispatch_semaphore_t returned = dispatch_semaphore_create(0);
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            __block BOOL signalled = NO;
+            uint64_t got = 0;
+            waited = [availability waitForBytesAt:bytes.length - 128 length:128 windowInto:buffer capacity:4096
+                                           copied:&got interrupted:^BOOL{
+                if (!signalled) {
+                    signalled = YES;
+                    dispatch_semaphore_signal(blocked);
+                }
+                return NO;
+            } error:NULL];
+            copied = got;
+            dispatch_semaphore_signal(returned);
+        });
+        XCTAssertTrue([self await:blocked]);
+        XCTAssertNotEqual(dispatch_semaphore_wait(returned, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC / 5)), 0,
+                          @"stall %@: the tail waits for the download", stall);
+        XCTAssertEqual(availability.windowLength, 0u);
+        [self releaseChunks:bytes.length / (256 * 1024) + 1];
+
+        XCTAssertTrue([self await:returned]);
+        XCTAssertEqual(waited, CloudFileAvailabilityReady);
+        XCTAssertEqual(copied, 0u, @"read from the disk");
+        free(buffer);
+        [self waitForExpectations:@[fetched] timeout:VIBE_TEST_HANG_TIMEOUT];
+        XCTAssertTrue(_fetched, @"stall %@: %@", stall, _fetchError);
+        XCTAssertEqualObjects([NSData dataWithContentsOfURL:track], bytes);
+        XCTAssertEqual([self tailReads].count, 1u, @"stall %@: one read, never retried", stall);
+        [self assertFinishedOnce:availability error:nil];
+        [self installHandler:^DropboxStubResponse(NSURLRequest *request, NSDictionary *json) {
+            return [self defaultResponseFor:request json:json];
+        }];
+        os_unfair_lock_lock(&sStubLock);
+        [sStubRequests removeAllObjects];
+        os_unfair_lock_unlock(&sStubLock);
+    }
 }
 
 #pragma mark The row's loading bar

@@ -80,12 +80,14 @@ extern NSNotificationName const VibeDropboxAccountDidChangeNotification;
 // last byte is complete.
 // progress, on the download's serial delivery queue and never after the
 // completion, is called with 0 once the file is made, then after each write
-// with the bytes on disk; size is the metadata's, -1 when it names none.
+// with the bytes on disk; size and rev are the metadata's, -1 and nil when it
+// names none.
 // The returned block cancels, any thread, at any point: before the request
 // starts it never starts.
 - (dispatch_block_t)downloadPath:(NSString *)path
                            toURL:(NSURL *)destination
-                        progress:(nullable void (^)(uint64_t bytesWritten, int64_t size))progress
+                        progress:(nullable void (^)(uint64_t bytesWritten, int64_t size,
+                                                    NSString *_Nullable rev))progress
                       completion:(void (^)(NSDictionary *_Nullable metadata, NSError *_Nullable error))completion;
 
 // `length` bytes of files/download from `offset`, through a Range header:

@@ -145,8 +145,11 @@ typedef NS_ENUM(uint8_t, VibeWaitFault) {
 
 // A streaming handle's wait for the bytes a read asked for, before it reads
 // them. Once one answers no, every wait does until a seek clears an
-// interruption; a failure stays.
-static BOOL VibeHandleAwait(AudioFileHandle *handle, SInt64 position, SInt64 count) {
+// interruption; a failure stays. With a buffer, bytes the tail window holds
+// past the download's edge are copied into it, up to `capacity`, their count
+// in *copied; 0 means they are on disk.
+static BOOL VibeHandleAwait(AudioFileHandle *handle, SInt64 position, SInt64 count,
+                            void *window, UInt32 capacity, UInt32 *copied) {
     if (handle->_waitFault != VibeWaitFaultNone) {
         return NO;
     }
@@ -154,10 +157,14 @@ static BOOL VibeHandleAwait(AudioFileHandle *handle, SInt64 position, SInt64 cou
     _Atomic bool *waiting = &handle->_waitingForBytes;
     BOOL (^openInterrupted)(void) = handle->_openInterrupted;
     NSError *error = nil;
+    uint64_t fromWindow = 0;
     // Asked only when the wait is about to block, so the flag is up for a
-    // wait and never for bytes already on disk.
+    // wait and never for bytes already readable.
     CloudFileAvailabilityWait wait = [handle->_availability waitForBytesAt:(uint64_t)MAX(0, position)
                                                                     length:(uint64_t)MAX(0, count)
+                                                                windowInto:window
+                                                                  capacity:capacity
+                                                                    copied:&fromWindow
                                                                interrupted:^BOOL{
         if (atomic_load(interrupted) || (openInterrupted && openInterrupted())) {
             return YES;
@@ -166,6 +173,9 @@ static BOOL VibeHandleAwait(AudioFileHandle *handle, SInt64 position, SInt64 cou
         return NO;
     } error:&error];
     atomic_store(waiting, false);
+    if (copied) {
+        *copied = (UInt32)fromWindow;
+    }
     if (wait == CloudFileAvailabilityReady) {
         return YES;
     }
@@ -176,7 +186,10 @@ static BOOL VibeHandleAwait(AudioFileHandle *handle, SInt64 position, SInt64 cou
 
 // A read inside the block, filling it from `position` first when the read is
 // not all in it already. A streaming fill waits for the bytes asked for, not
-// the block, and takes whatever more is on disk.
+// the block, and takes whatever more is there, from one source: the disk,
+// where the part file ends at the bytes written (appended to, never extended,
+// so a fill comes up short there rather than reading zeros), or the tail
+// window.
 static OSStatus VibeHandleReadBlock(AudioFileHandle *handle, SInt64 position, UInt32 requestCount, UInt32 fill,
                                     void *buffer, UInt32 *actualCount) {
     if (!handle->_readBlock && !(handle->_readBlock = malloc(kVibeReadBlock))) {
@@ -185,14 +198,18 @@ static OSStatus VibeHandleReadBlock(AudioFileHandle *handle, SInt64 position, UI
     }
     if (position < handle->_readBlockStart
             || position + requestCount > handle->_readBlockStart + handle->_readBlockLength) {
-        if (handle->_availability && !VibeHandleAwait(handle, position, requestCount)) {
+        UInt32 fromWindow = 0;
+        if (handle->_availability
+                && !VibeHandleAwait(handle, position, requestCount, handle->_readBlock, fill, &fromWindow)) {
             *actualCount = 0;
             return kAudioFileUnspecifiedError;
         }
-        ssize_t filled;
-        do {
-            filled = pread(handle->_descriptor, handle->_readBlock, fill, position);
-        } while (filled < 0 && errno == EINTR);
+        ssize_t filled = fromWindow;
+        if (!fromWindow) {
+            do {
+                filled = pread(handle->_descriptor, handle->_readBlock, fill, position);
+            } while (filled < 0 && errno == EINTR);
+        }
         if (filled < 0) {
             handle->_readBlockLength = 0;
             *actualCount = 0;
@@ -215,11 +232,12 @@ static OSStatus VibeHandleRead(void *clientData, SInt64 position, UInt32 request
     if (requestCount < kVibeReadBlock && position >= 0) {
         return VibeHandleReadBlock(handle, position, requestCount, kVibeReadBlock, buffer, actualCount);
     }
-    if (handle->_availability && !VibeHandleAwait(handle, position, requestCount)) {
+    UInt32 fromWindow = 0;
+    if (handle->_availability && !VibeHandleAwait(handle, position, requestCount, buffer, requestCount, &fromWindow)) {
         *actualCount = 0;
         return kAudioFileUnspecifiedError;
     }
-    ssize_t got = pread(handle->_descriptor, buffer, requestCount, position);
+    ssize_t got = fromWindow ? fromWindow : pread(handle->_descriptor, buffer, requestCount, position);
     if (got < 0) {
         *actualCount = 0;
         return kAudioFilePositionError;
@@ -249,8 +267,14 @@ static size_t VibeStreamRead(void *user, void *buffer, size_t count) {
         handle->_streamCursor += got;
         return got;
     }
-    if (handle->_availability && !VibeHandleAwait(handle, handle->_streamCursor, (SInt64)count)) {
+    UInt32 fromWindow = 0;
+    if (handle->_availability && !VibeHandleAwait(handle, handle->_streamCursor, (SInt64)count, buffer,
+                                                  (UInt32)MIN(count, (size_t)UINT32_MAX), &fromWindow)) {
         return 0;
+    }
+    if (fromWindow) {
+        handle->_streamCursor += fromWindow;
+        return fromWindow;
     }
     size_t filled = 0;
     while (filled < count) {
@@ -448,7 +472,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     if (_descriptor < 0 && _availability && errno == ENOENT) {
         // TRAP: the transfer can finish and rename its part over url between
         // the lookup and the open. Once it has finished, url is the whole file.
-        if (!VibeHandleAwait(self, 0, (SInt64)_availability.size)) {
+        if (!VibeHandleAwait(self, 0, (SInt64)_availability.size, NULL, 0, NULL)) {
             return [self failWithError:error status:noErr description:@""];
         }
         _availability = nil;

@@ -40,6 +40,15 @@ static const NSTimeInterval kStalePartSeconds = 24 * 60 * 60;
 // An anti-stutter knob, not a correctness requirement: a reader past the
 // bytes written waits for them regardless.
 static const uint64_t kStreamReadableBytes = 256 * 1024;
+// A stream's tail window: every open that reads past the head reads one
+// region in the file's last 900 KB and nothing else out of order (measured:
+// an MP3's ID3v1 check on every open, a moov-last M4A's index, 608 KB at 60
+// minutes, a FLAC with no length's last 64 KB), so one ranged read of this
+// much at a stream's start lets them open from the head.
+static const uint64_t kTailWindowBytes = 2 * 1024 * 1024;
+// No window for a file at most this size: the download, sharing the link with
+// the tail read, reaches the tail about when the window would arrive.
+static const uint64_t kTailWindowMinimumFileBytes = 2 * kTailWindowBytes;
 
 // On every mirror directory: {"path": its Dropbox path, "files": {index key:
 // Dropbox id}}. On the directory, not the files, because a placeholder's
@@ -330,7 +339,8 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
 // completion on the client's queue. Returns the cancel.
 - (dispatch_block_t)downloadDropboxPath:(NSString *)path
                                   toURL:(NSURL *)url
-                               progress:(void (^_Nullable)(uint64_t bytesWritten, int64_t size))progress
+                               progress:(void (^_Nullable)(uint64_t bytesWritten, int64_t size,
+                                                           NSString *_Nullable rev))progress
                              completion:(void (^)(NSError *_Nullable error))completion {
     NSURL *part = [NSURLUtil remotePlaceholderPartURL:url];
     return [_client downloadPath:path toURL:part progress:progress completion:^(NSDictionary *metadata, NSError *error) {
@@ -714,6 +724,28 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
 
 #pragma mark - Fetch
 
+// One ranged read of a stream's last kTailWindowBytes, of the version being
+// downloaded (`rev:`, never the id, which answers whatever is current), on
+// the call session, installed as the stream's window. Answers its cancel, or
+// nil when the file is too small or names no version. A failure is not the
+// transfer's: the window stays absent, and reads there wait for the download.
+- (dispatch_block_t)readTailOf:(CloudFileAvailability *)stream rev:(NSString *)rev name:(NSString *)name {
+    if (stream.size <= kTailWindowMinimumFileBytes || rev.length == 0) {
+        return nil;
+    }
+    uint64_t offset = stream.size - kTailWindowBytes;
+    return [_client readPath:[@"rev:" stringByAppendingString:rev] offset:offset length:kTailWindowBytes
+                  completion:^(NSData *data, NSError *error) {
+        if (data.length == kTailWindowBytes) {
+            [stream installWindow:data atOffset:offset];
+        }
+        else if (!([error.domain isEqualToString:VibeDropboxErrorDomain] && error.code == VibeDropboxErrorCancelled)) {
+            LogWarn(@"Dropbox: no tail window for %@ (%lu bytes): %@", name, (unsigned long)data.length,
+                    error.localizedDescription);
+        }
+    }];
+}
+
 - (CloudFileAvailability *)availabilityForURL:(NSURL *)url {
     NSString *key = VibeComparablePath(url.path);
     os_unfair_lock_lock(&_streamsLock);
@@ -740,8 +772,9 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
     // progress call. The size is the response's, not the placeholder's: a
     // file re-uploaded since its listing is downloaded as it is now.
     __block CloudFileAvailability *stream = nil;
+    __block dispatch_block_t cancelTail = nil;
     __block BOOL readable = NO;
-    onCancel([self downloadDropboxPath:path toURL:url progress:^(uint64_t written, int64_t size) {
+    onCancel([self downloadDropboxPath:path toURL:url progress:^(uint64_t written, int64_t size, NSString *rev) {
         if (!stream) {
             if (size < 0) {
                 // No size to read against: it downloads whole, as a provider's does.
@@ -751,6 +784,7 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
             os_unfair_lock_lock(&self->_streamsLock);
             self->_streams[key] = stream;
             os_unfair_lock_unlock(&self->_streamsLock);
+            cancelTail = [self readTailOf:stream rev:rev name:url.lastPathComponent];
         }
         [stream noteWrittenBytes:written];
         if (onReadable && !readable && written >= kStreamReadableBytes && written < stream.size) {
@@ -759,6 +793,9 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
         }
     } completion:^(NSError *downloadError) {
         failure = downloadError;
+        if (cancelTail) {
+            cancelTail();
+        }
         // TRAP: finished after the install and before the lookup forgets it.
         // A reader whose part open missed the rename waits for the finish,
         // then opens url; one looking it up next opens url, the whole file.

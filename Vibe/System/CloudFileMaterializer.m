@@ -54,6 +54,10 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
     NSError *_failure;
     NSUInteger _readers;
     dispatch_block_t _onLastReaderGone;
+    // While held, _written < _windowOffset: no range is on disk and in the
+    // window at once, so a read never mixes the two.
+    NSData *_window;
+    uint64_t _windowOffset;
 }
 
 - (instancetype)initWithPartURL:(NSURL *)partURL size:(uint64_t)size {
@@ -70,6 +74,12 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
     [_condition lock];
     if (bytes > _written) {
         _written = MIN(bytes, _size);
+        // TRAP: dropped under the lock a reader copies under, so a wait the
+        // window answered has copied before the window can go. A range in it
+        // past the download's edge waits for the disk from here.
+        if (_window && _written >= _windowOffset) {
+            _window = nil;
+        }
         [_condition broadcast];
     }
     [_condition unlock];
@@ -87,17 +97,45 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
     if (!_complete && !_failure) {
         _complete = error == nil;
         _failure = error;
+        _window = nil;
         [_condition broadcast];
     }
     [_condition unlock];
 }
 
+- (void)installWindow:(NSData *)bytes atOffset:(uint64_t)offset {
+    [_condition lock];
+    if (!_complete && !_failure && !_window && bytes.length > 0 && offset > _written && offset < _size
+            && bytes.length <= _size - offset) {
+        // A contiguous copy of its own: a response's bytes can be dispatch
+        // data in pieces, which reading them through .bytes would flatten
+        // into a second buffer held beside the first.
+        NSMutableData *window = [NSMutableData dataWithLength:bytes.length];
+        [bytes getBytes:window.mutableBytes length:bytes.length];
+        _window = window;
+        _windowOffset = offset;
+        [_condition broadcast];
+    }
+    [_condition unlock];
+}
+
+- (uint64_t)windowLength {
+    [_condition lock];
+    uint64_t length = _window.length;
+    [_condition unlock];
+    return length;
+}
+
 - (CloudFileAvailabilityWait)waitForBytesAt:(uint64_t)offset
                                      length:(uint64_t)length
+                                 windowInto:(void *)buffer
+                                   capacity:(uint64_t)capacity
+                                     copied:(uint64_t *)copied
                                 interrupted:(BOOL (NS_NOESCAPE ^)(void))interrupted
                                       error:(NSError *__autoreleasing *)error {
     BOOL end = offset >= _size || length == 0;
     uint64_t last = end ? 0 : offset + MIN(length, _size - offset);
+    uint64_t fromWindow = 0;
     CloudFileAvailabilityWait result;
     NSError *failure = nil;
     [_condition lock];
@@ -111,6 +149,13 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
             result = CloudFileAvailabilityReady;
             break;
         }
+        uint64_t windowEnd = _windowOffset + _window.length;
+        if (buffer && _window && offset >= _windowOffset && last <= windowEnd) {
+            fromWindow = MIN(capacity, windowEnd - offset);
+            memcpy(buffer, (const uint8_t *)_window.bytes + (offset - _windowOffset), (size_t)fromWindow);
+            result = CloudFileAvailabilityReady;
+            break;
+        }
         if (interrupted && interrupted()) {
             result = CloudFileAvailabilityInterrupted;
             break;
@@ -118,6 +163,9 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
         [_condition wait];
     }
     [_condition unlock];
+    if (copied) {
+        *copied = fromWindow;
+    }
     if (failure && error) {
         *error = failure;
     }

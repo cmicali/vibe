@@ -232,7 +232,7 @@
     dispatch_semaphore_t returned = dispatch_semaphore_create(0);
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSError *waitError = nil;
-        *result = [availability waitForBytesAt:offset length:length interrupted:interrupted error:&waitError];
+        *result = [availability waitForBytesAt:offset length:length windowInto:NULL capacity:0 copied:NULL interrupted:interrupted error:&waitError];
         if (error) {
             *error = waitError;
         }
@@ -253,9 +253,9 @@
 // AIFF and some WAVs read at exactly the size: the end, never a wait.
 - (void)testAvailabilityAnswersARangeAtOrPastTheSizeAtOnce {
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
-    XCTAssertEqual([availability waitForBytesAt:100 length:4 interrupted:nil error:NULL], CloudFileAvailabilityReady);
-    XCTAssertEqual([availability waitForBytesAt:500 length:1 interrupted:nil error:NULL], CloudFileAvailabilityReady);
-    XCTAssertEqual([availability waitForBytesAt:10 length:0 interrupted:nil error:NULL], CloudFileAvailabilityReady);
+    XCTAssertEqual([availability waitForBytesAt:100 length:4 windowInto:NULL capacity:0 copied:NULL interrupted:nil error:NULL], CloudFileAvailabilityReady);
+    XCTAssertEqual([availability waitForBytesAt:500 length:1 windowInto:NULL capacity:0 copied:NULL interrupted:nil error:NULL], CloudFileAvailabilityReady);
+    XCTAssertEqual([availability waitForBytesAt:10 length:0 windowInto:NULL capacity:0 copied:NULL interrupted:nil error:NULL], CloudFileAvailabilityReady);
 }
 
 // A range is clipped to the size, so one running past it waits only for the
@@ -264,7 +264,7 @@
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
     [availability noteWrittenBytes:60];
     [availability noteWrittenBytes:20];
-    XCTAssertEqual([availability waitForBytesAt:0 length:60 interrupted:nil error:NULL], CloudFileAvailabilityReady);
+    XCTAssertEqual([availability waitForBytesAt:0 length:60 windowInto:NULL capacity:0 copied:NULL interrupted:nil error:NULL], CloudFileAvailabilityReady);
     CloudFileAvailabilityWait result = CloudFileAvailabilityFailed;
     dispatch_semaphore_t returned = [self wait:availability at:90 length:50 interrupted:nil result:&result error:NULL];
     [availability noteWrittenBytes:99];
@@ -282,7 +282,7 @@
     [availability finishWithError:[NSError errorWithDomain:@"late" code:1 userInfo:nil]];
     [self awaitReturn:returned];
     XCTAssertEqual(result, CloudFileAvailabilityReady);
-    XCTAssertEqual([availability waitForBytesAt:50 length:50 interrupted:nil error:NULL], CloudFileAvailabilityReady);
+    XCTAssertEqual([availability waitForBytesAt:50 length:50 windowInto:NULL capacity:0 copied:NULL interrupted:nil error:NULL], CloudFileAvailabilityReady);
 }
 
 // A failed transfer fails every wait, a blocked one with its error, and
@@ -299,7 +299,7 @@
     XCTAssertEqual(result, CloudFileAvailabilityFailed);
     XCTAssertEqualObjects(error, failure);
     error = nil;
-    XCTAssertEqual([availability waitForBytesAt:0 length:10 interrupted:nil error:&error], CloudFileAvailabilityFailed);
+    XCTAssertEqual([availability waitForBytesAt:0 length:10 windowInto:NULL capacity:0 copied:NULL interrupted:nil error:&error], CloudFileAvailabilityFailed);
     XCTAssertEqualObjects(error, failure);
 }
 
@@ -319,7 +319,116 @@
     [availability wakeWaiters];
     [self awaitReturn:returned];
     XCTAssertEqual(result, CloudFileAvailabilityInterrupted);
-    XCTAssertEqual([availability waitForBytesAt:0 length:10 interrupted:isInterrupted error:NULL], CloudFileAvailabilityReady);
+    XCTAssertEqual([availability waitForBytesAt:0 length:10 windowInto:NULL capacity:0 copied:NULL interrupted:isInterrupted error:NULL], CloudFileAvailabilityReady);
+}
+
+#pragma mark - The tail window
+
+static NSData *WindowPattern(NSUInteger length) {
+    NSMutableData *data = [NSMutableData dataWithLength:length];
+    for (NSUInteger i = 0; i < length; i++) {
+        ((uint8_t *)data.mutableBytes)[i] = (uint8_t)(i * 13 + 5);
+    }
+    return data;
+}
+
+// A probe that never blocks: Interrupted means the range would have waited.
+static CloudFileAvailabilityWait Probe(CloudFileAvailability *availability, uint64_t offset, uint64_t length,
+                                       uint8_t *_Nullable buffer, uint64_t capacity, uint64_t *copied) {
+    return [availability waitForBytesAt:offset length:length windowInto:buffer capacity:capacity copied:copied
+                            interrupted:^BOOL { return YES; } error:NULL];
+}
+
+// A range wholly inside the window is ready past the download's edge and
+// copied out of it, as much as the capacity takes; without a buffer, or
+// straddling the window's start, it waits for the disk.
+- (void)testAvailabilityServesARangeInsideTheWindowFromMemory {
+    NSData *file = WindowPattern(100);
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
+    [availability noteWrittenBytes:10];
+    [availability installWindow:[file subdataWithRange:NSMakeRange(60, 40)] atOffset:60];
+    XCTAssertEqual(availability.windowLength, 40u);
+
+    uint8_t buffer[64] = {0};
+    uint64_t copied = 99;
+    XCTAssertEqual(Probe(availability, 70, 10, buffer, 64, &copied), CloudFileAvailabilityReady);
+    XCTAssertEqual(copied, 30u, @"to the window's end, within the capacity");
+    XCTAssertEqual(memcmp(buffer, (const uint8_t *)file.bytes + 70, 30), 0);
+    XCTAssertEqual(Probe(availability, 60, 4, buffer, 2, &copied), CloudFileAvailabilityReady);
+    XCTAssertEqual(copied, 2u, @"never past the capacity");
+    XCTAssertEqual(Probe(availability, 95, 50, buffer, 64, &copied), CloudFileAvailabilityReady);
+    XCTAssertEqual(copied, 5u, @"clipped to the size");
+    XCTAssertEqual(memcmp(buffer, (const uint8_t *)file.bytes + 95, 5), 0);
+
+    XCTAssertEqual(Probe(availability, 70, 10, NULL, 0, &copied), CloudFileAvailabilityInterrupted,
+                   @"a reader of the disk alone waits");
+    XCTAssertEqual(Probe(availability, 55, 10, buffer, 64, &copied), CloudFileAvailabilityInterrupted,
+                   @"a range straddling the window's start waits for the disk");
+    XCTAssertEqual(Probe(availability, 0, 10, buffer, 64, &copied), CloudFileAvailabilityReady);
+    XCTAssertEqual(copied, 0u, @"bytes on disk are read from the disk");
+}
+
+// The download reaching the window's start drops it: the straddling range is
+// then on disk, and a range in the window past the edge waits for the disk.
+- (void)testAvailabilityDropsTheWindowWhenTheDownloadReachesIt {
+    NSData *file = WindowPattern(100);
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
+    [availability installWindow:[file subdataWithRange:NSMakeRange(60, 40)] atOffset:60];
+    [availability noteWrittenBytes:59];
+    XCTAssertEqual(availability.windowLength, 40u);
+    [availability noteWrittenBytes:65];
+    XCTAssertEqual(availability.windowLength, 0u);
+    uint8_t buffer[64];
+    uint64_t copied = 99;
+    XCTAssertEqual(Probe(availability, 55, 10, buffer, 64, &copied), CloudFileAvailabilityReady);
+    XCTAssertEqual(copied, 0u);
+    XCTAssertEqual(Probe(availability, 70, 10, buffer, 64, &copied), CloudFileAvailabilityInterrupted);
+
+    [availability installWindow:[file subdataWithRange:NSMakeRange(60, 40)] atOffset:60];
+    XCTAssertEqual(availability.windowLength, 0u, @"a window the download has reached is never installed");
+    [availability installWindow:[file subdataWithRange:NSMakeRange(80, 20)] atOffset:80];
+    XCTAssertEqual(availability.windowLength, 20u);
+    [availability installWindow:[file subdataWithRange:NSMakeRange(90, 10)] atOffset:90];
+    XCTAssertEqual(availability.windowLength, 20u, @"one window at a time");
+    [availability finishWithError:nil];
+    XCTAssertEqual(availability.windowLength, 0u, @"the finish drops it");
+}
+
+// A window arriving wakes a reader already waiting inside it; one past the
+// size, or after a failure, is refused, and a failure still fails every wait.
+- (void)testAvailabilityWindowWakesAWaitingReaderAndNeverOutlivesAFailure {
+    NSData *file = WindowPattern(100);
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
+    __block CloudFileAvailabilityWait result = CloudFileAvailabilityFailed;
+    __block uint64_t copied = 0;
+    uint8_t *buffer = calloc(64, 1);
+    dispatch_semaphore_t returned = dispatch_semaphore_create(0);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        uint64_t got = 0;
+        result = [availability waitForBytesAt:96 length:4 windowInto:buffer capacity:64 copied:&got interrupted:nil error:NULL];
+        copied = got;
+        dispatch_semaphore_signal(returned);
+    });
+    [self assertStillWaiting:returned];
+    [availability installWindow:WindowPattern(51) atOffset:50];
+    XCTAssertEqual(availability.windowLength, 0u, @"past the size");
+    [availability installWindow:[file subdataWithRange:NSMakeRange(50, 50)] atOffset:50];
+    [self awaitReturn:returned];
+    XCTAssertEqual(result, CloudFileAvailabilityReady);
+    XCTAssertEqual(copied, 4u);
+    XCTAssertEqual(memcmp(buffer, (const uint8_t *)file.bytes + 96, 4), 0);
+    free(buffer);
+
+    NSError *failure = [NSError errorWithDomain:@"com.vibe.test-transfer" code:4 userInfo:nil];
+    [availability finishWithError:failure];
+    XCTAssertEqual(availability.windowLength, 0u);
+    NSError *error = nil;
+    uint8_t probe[8];
+    XCTAssertEqual([availability waitForBytesAt:96 length:4 windowInto:probe capacity:8 copied:NULL
+                                    interrupted:nil error:&error], CloudFileAvailabilityFailed);
+    XCTAssertEqualObjects(error, failure);
+    [availability installWindow:[file subdataWithRange:NSMakeRange(50, 50)] atOffset:50];
+    XCTAssertEqual(availability.windowLength, 0u, @"nothing is installed once finished");
 }
 
 // The last reader leaving calls back each time, and nothing else does.

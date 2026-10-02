@@ -79,7 +79,9 @@ Every read past the download's edge waits for it. So a head-only format plays as
 
 Phase 1 leaves two gaps. Formats whose open touches the tail wait for the whole download, and a seek past the download's edge waits too. The options, cheapest to maintain first.
 
-### Option A: a tail window, in memory (recommended)
+### Option A: a tail window, in memory (built)
+
+**Built on the `dropbox-streaming` branch** (`DropboxMirror readTailOf:`, `CloudFileAvailability installWindow:atOffset:`, `AudioFileHandle`'s three read paths). Measured in the host-less tests: an MP3 with an Info frame and an ID3v1 tag, LAME's CBR and VBR encodes, an ALAC M4A with its `moov` last, and a FLAC whose STREAMINFO counts no samples each open on a 64 KB head and an 80 KB window without waiting, and decode exactly as the whole file; a WAV never reads the window. Where it differs from the sketch below: the tail is read by `rev:`, the version the download pins, never by id; a file of 4 MB or less (twice the window) skips it, since the download sharing the link reaches the tail about when the window would arrive; **readable does not wait for the window**, because the 2 MB read is eight times the 256 KB readable head on the same link, so waiting would delay every head-only format for nothing while a tail-reading open blocks at its tail read for exactly as long; and the window is not `VibeRangedStream`'s cache moved (below, under costs). A range straddling the window's start waits for the download.
 
 When a stream starts, one ranged read fetches the file's last 2 MB into memory, and a read that falls inside that window is served from it instead of waiting. Everything else is phase 1: the sequential download keeps writing the one part file from byte 0, with one writer, and the window is dropped when the download reaches it.
 
@@ -135,7 +137,7 @@ Head-only formats and MP3 are served by phase 1 only if an MP3's 4-byte ID3v1 ch
 - **"The open the user is waiting on outranks every background read"** must hold while a stream is readable but incomplete. The hold stays raised for as long as a playback or prefetch handle reads from a running transfer.
 - **"The handle-open ceiling"** is derived from one player with two open sources and lanes that end before a handle opens. Both halves change, so the derivation and its tests are redone (`Audio/Loading/AGENTS.md`).
 - **A new guarantee: a wait for bytes happens only on decode, loader, and open workers, never on the render thread or main, and every such wait can be interrupted.** It replaces the "Ready means the whole file" assumption rather than adding to the total.
-- **New types: one.** `CloudFileAvailability` (`Vibe/System/`) is the wait: a byte count and a condition, shared code so the handle and its tests never see Dropbox. Everything else lands in the classes that own the concern; the tail window's block cache is `VibeRangedStream`'s, moved.
+- **New types: one.** `CloudFileAvailability` (`Vibe/System/`) is the wait: a byte count and a condition, shared code so the handle and its tests never see Dropbox. Everything else lands in the classes that own the concern. The tail window is two fields on it, not `VibeRangedStream`'s cache moved: that cache is a C++ map of 64 KB blocks behind TagLib's `IOStream`, each filled on demand by a blocking ranged read and kept for one parse, while the window is one contiguous region filled once, ahead of any read, shared by every handle on the stream, and dropped when the download reaches it. Sharing would have brought a block map, on-demand fetching and C++ into a Foundation-only wait to serve one region, so the two stay apart until seeking ahead (above) needs a block cache.
 - **Two roads, permanently.** The full download remains for providers and for declined files, so every change must keep it working, and the tests run both.
 
 ## Testing

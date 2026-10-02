@@ -10,6 +10,7 @@
 
 #import <XCTest/XCTest.h>
 #import <AVFoundation/AVFoundation.h>
+#include <libkern/OSByteOrder.h>
 #include <os/lock.h>
 #include <stdatomic.h>
 
@@ -23,34 +24,16 @@
 
 #pragma mark - A file written in step with its reader
 
-// Reports each wait that is about to block, with the end it waits for, and
-// the furthest range asked. A range inside the last `readyTail` bytes is
-// ready at once, as a later phase's tail window will be.
+// Reports each wait as it is about to block, once, with the end it waits
+// for, and the furthest range asked.
 @interface VibeSteppedAvailability : CloudFileAvailability
 @property (atomic, copy, nullable) void (^willBlock)(uint64_t end);
 @property (atomic, readonly) uint64_t furthestOffsetAsked;
-@property (atomic) uint64_t readyTail;
 @end
 
 @implementation VibeSteppedAvailability {
     os_unfair_lock _lock;
-    uint64_t _noted;
-    BOOL _finished;
     uint64_t _furthestOffsetAsked;
-}
-
-- (void)noteWrittenBytes:(uint64_t)bytes {
-    [super noteWrittenBytes:bytes];
-    os_unfair_lock_lock(&_lock);
-    _noted = MAX(_noted, bytes);
-    os_unfair_lock_unlock(&_lock);
-}
-
-- (void)finishWithError:(NSError *)error {
-    [super finishWithError:error];
-    os_unfair_lock_lock(&_lock);
-    _finished = YES;
-    os_unfair_lock_unlock(&_lock);
 }
 
 - (uint64_t)furthestOffsetAsked {
@@ -62,33 +45,44 @@
 
 - (CloudFileAvailabilityWait)waitForBytesAt:(uint64_t)offset
                                      length:(uint64_t)length
+                                 windowInto:(void *)buffer
+                                   capacity:(uint64_t)capacity
+                                     copied:(uint64_t *)copied
                                 interrupted:(BOOL (NS_NOESCAPE ^)(void))interrupted
                                       error:(NSError *__autoreleasing *)error {
     uint64_t end = offset >= self.size || length == 0 ? 0 : offset + MIN(length, self.size - offset);
     os_unfair_lock_lock(&_lock);
-    BOOL blocks = !_finished && end > _noted;
     _furthestOffsetAsked = MAX(_furthestOffsetAsked, offset);
     os_unfair_lock_unlock(&_lock);
-    if (self.readyTail && offset + self.readyTail >= self.size) {
-        return CloudFileAvailabilityReady;
-    }
     void (^willBlock)(uint64_t) = self.willBlock;
-    if (blocks && willBlock) {
-        willBlock(end);
-    }
-    return [super waitForBytesAt:offset length:length interrupted:interrupted error:error];
+    __block BOOL reported = NO;
+    // The interrupt is asked exactly when the wait would block.
+    return [super waitForBytesAt:offset length:length windowInto:buffer capacity:capacity copied:copied
+                     interrupted:^BOOL{
+        if (interrupted && interrupted()) {
+            return YES;
+        }
+        if (!reported && willBlock) {
+            reported = YES;
+            willBlock(end);
+        }
+        return NO;
+    } error:error];
 }
 
 @end
 
-// A download's part file: `bytes` written into it from byte 0 as the test
-// says, renamed over `url` when complete. With a ready tail every byte is on
-// disk from the start and only noted as the test says, so the tail is there.
+// A download's part file: `bytes` appended to it from byte 0 as the test
+// says, renamed over `url` when complete; with a window, the file's last
+// `window` bytes installed as the tail window at the start, as the mirror's
+// tail read does.
 @interface VibeGrowingFile : NSObject
 @property (nonatomic, readonly) NSURL *url;
 @property (nonatomic, readonly) NSData *bytes;
 @property (nonatomic, readonly) VibeSteppedAvailability *availability;
 @property (atomic, readonly) uint64_t written;
+// Where the window starts; the size when there is none.
+@property (nonatomic, readonly) uint64_t windowOffset;
 // Signalled each time the reader is about to wait, and once it is done.
 @property (nonatomic, readonly) dispatch_semaphore_t event;
 @property (atomic) uint64_t blockedEnd;
@@ -97,7 +91,7 @@
 
 @implementation VibeGrowingFile
 
-- (instancetype)initWithBytes:(NSData *)bytes url:(NSURL *)url prefix:(uint64_t)prefix readyTail:(uint64_t)readyTail {
+- (instancetype)initWithBytes:(NSData *)bytes url:(NSURL *)url prefix:(uint64_t)prefix window:(uint64_t)window {
     self = [super init];
     if (self) {
         _bytes = bytes;
@@ -105,9 +99,8 @@
         _event = dispatch_semaphore_create(0);
         NSURL *part = [url.URLByDeletingLastPathComponent
                 URLByAppendingPathComponent:[NSString stringWithFormat:@".%@.part", url.lastPathComponent]];
-        [(readyTail ? bytes : NSData.data) writeToURL:part atomically:NO];
+        [NSData.data writeToURL:part atomically:NO];
         _availability = [[VibeSteppedAvailability alloc] initWithPartURL:part size:bytes.length];
-        _availability.readyTail = readyTail;
         __weak VibeGrowingFile *weakSelf = self;
         _availability.willBlock = ^(uint64_t end) {
             VibeGrowingFile *file = weakSelf;
@@ -115,6 +108,12 @@
             dispatch_semaphore_signal(file.event);
         };
         [self writeTo:prefix];
+        _windowOffset = bytes.length - MIN(window, (uint64_t)bytes.length);
+        if (window) {
+            [_availability installWindow:[bytes subdataWithRange:NSMakeRange((NSUInteger)_windowOffset,
+                                                                             (NSUInteger)(bytes.length - _windowOffset))]
+                                atOffset:_windowOffset];
+        }
     }
     return self;
 }
@@ -125,12 +124,10 @@
     if (end <= written) {
         return;
     }
-    if (!_availability.readyTail) {
-        NSFileHandle *part = [NSFileHandle fileHandleForWritingToURL:_availability.partURL error:NULL];
-        [part seekToEndOfFile];
-        [part writeData:[_bytes subdataWithRange:NSMakeRange((NSUInteger)written, (NSUInteger)(end - written))]];
-        [part closeFile];
-    }
+    NSFileHandle *part = [NSFileHandle fileHandleForWritingToURL:_availability.partURL error:NULL];
+    [part seekToEndOfFile];
+    [part writeData:[_bytes subdataWithRange:NSMakeRange((NSUInteger)written, (NSUInteger)(end - written))]];
+    [part closeFile];
     _written = end;
     [_availability noteWrittenBytes:end];
 }
@@ -180,27 +177,6 @@ static NSURL *VibeWriteEncoded(NSURL *url, AudioFileTypeID type, AudioStreamBasi
                                                            fileFormat:[[AVAudioFormat alloc] initWithStreamDescription:&file]
                                                      processingFormat:buffer.format error:error];
     return [writer writeFromBuffer:buffer error:error] && [writer closeWithError:error] ? url : nil;
-}
-
-// MPEG-1 Layer III, 320 kbps, 44.1 kHz, stereo: a LAME Info frame counting
-// `frames` silent frames after it, which, as for every MP3 with one, makes
-// CoreAudio's open read the file's head and then its last bytes.
-static NSData *VibeMP3WithInfoFrame(uint32_t frames) {
-    const uint8_t header[4] = {0xFF, 0xFB, 0xE0, 0x00};
-    NSMutableData *bytes = [NSMutableData data];
-    for (uint32_t i = 0; i <= frames; i++) {
-        NSMutableData *frame = [NSMutableData dataWithLength:1044];
-        uint8_t *out = frame.mutableBytes;
-        memcpy(out, header, sizeof(header));
-        if (i == 0) {
-            const uint32_t fields[3] = {CFSwapInt32HostToBig(3), CFSwapInt32HostToBig(frames + 1),
-                                        CFSwapInt32HostToBig((frames + 1) * 1044)};
-            memcpy(out + 36, "Info", 4);
-            memcpy(out + 40, fields, sizeof(fields));
-        }
-        [bytes appendData:frame];
-    }
-    return bytes;
 }
 
 static NSURL *VibeAssetFixture(NSString *name) {
@@ -318,7 +294,7 @@ enum { VibeFetchRunning = 0, VibeFetchCompleted, VibeFetchFailed, VibeFetchCance
                                        .mFramesPerPacket = 1024, .mChannelsPerFrame = 2};
     add(VibeWriteEncoded([self sourceNamed:@"noise-aac.m4a"], kAudioFileM4AType, aac, &error), @"apple");
     NSURL *mp3 = [self sourceNamed:@"info.mp3"];
-    add([VibeMP3WithInfoFrame(400) writeToURL:mp3 atomically:YES] ? mp3 : nil, @"dr_mp3");
+    add([VibeMP3WithInfoFrame(400, NO) writeToURL:mp3 atomically:YES] ? mp3 : nil, @"dr_mp3");
     // Real encodes when the gitignored corpus is here: a seek table, LAME's
     // CBR Info frame and a VBR Xing frame.
     for (NSString *name in @[@"tone.flac", @"tone-cbr.mp3", @"tone-vbr.mp3"]) {
@@ -340,14 +316,14 @@ enum { VibeFetchRunning = 0, VibeFetchCompleted, VibeFetchFailed, VibeFetchCance
 // The source's bytes, streaming under a name of their own with `prefix` of
 // them written.
 - (VibeGrowingFile *)stream:(NSURL *)source prefix:(uint64_t)prefix {
-    return [self stream:source prefix:prefix readyTail:0];
+    return [self stream:source prefix:prefix window:0];
 }
 
-- (VibeGrowingFile *)stream:(NSURL *)source prefix:(uint64_t)prefix readyTail:(uint64_t)readyTail {
+- (VibeGrowingFile *)stream:(NSURL *)source prefix:(uint64_t)prefix window:(uint64_t)window {
     NSURL *url = [_directory URLByAppendingPathComponent:source.lastPathComponent];
     [NSFileManager.defaultManager removeItemAtURL:url error:NULL];
     VibeGrowingFile *file = [[VibeGrowingFile alloc] initWithBytes:[NSData dataWithContentsOfURL:source] url:url
-                                                            prefix:prefix readyTail:readyTail];
+                                                            prefix:prefix window:window];
     os_unfair_lock_lock(&_streamsLock);
     _streams[url.path] = file.availability;
     os_unfair_lock_unlock(&_streamsLock);
@@ -436,7 +412,7 @@ enum { VibeFetchRunning = 0, VibeFetchCompleted, VibeFetchFailed, VibeFetchCance
 // blocks there, and the PCM is the whole file's. A one-byte step ends every
 // fill just past what it was asked for, the block cache's worst case. An MP3
 // open reads its last bytes, so a tail window serves them here (the next
-// test is the open without one).
+// test is the open without one), and the download reaching it drops it.
 - (void)testAGrowingFileDecodesExactlyAsTheWholeFile {
     NSDictionary<NSURL *, NSString *> *fixtures = [self fixtures];
     for (NSURL *source in fixtures) {
@@ -445,7 +421,7 @@ enum { VibeFetchRunning = 0, VibeFetchCompleted, VibeFetchFailed, VibeFetchCance
             for (NSNumber *chunk in @[@333, @4096]) {
                 NSString *context = [NSString stringWithFormat:@"%@, step %@, chunk %@", source.lastPathComponent, step, chunk];
                 VibeGrowingFile *file = [self stream:source prefix:100
-                                           readyTail:[source.pathExtension isEqualToString:@"mp3"] ? 128 : 0];
+                                              window:[source.pathExtension isEqualToString:@"mp3"] ? 128 : 0];
                 __block NSData *pcm = nil;
                 __block NSString *decoder = nil;
                 __block NSError *error = nil;
@@ -489,8 +465,8 @@ enum { VibeFetchRunning = 0, VibeFetchCompleted, VibeFetchFailed, VibeFetchCance
     }
 }
 
-// Every MP3 open reads its last bytes (an ID3v1 check), so on a prefix it
-// waits for the tail, and opens once the file is complete.
+// Every MP3 open reads its last bytes (an ID3v1 check), so on a prefix with no
+// tail window it waits for the tail, and opens once the file is complete.
 - (void)testAnMP3OpenWaitsForTheTailThenOpensWhenTheFileCompletes {
     NSDictionary<NSURL *, NSString *> *fixtures = [self fixtures];
     for (NSURL *source in fixtures) {
@@ -523,6 +499,179 @@ enum { VibeFetchRunning = 0, VibeFetchCompleted, VibeFetchFailed, VibeFetchCance
     }
 }
 
+#pragma mark - The tail window
+
+// Each chunk offset inside the atoms from `at` to `end` moved back by `shift`.
+static void VibeShiftChunkOffsets(uint8_t *bytes, NSUInteger at, NSUInteger end, uint32_t shift) {
+    while (at + 8 <= end) {
+        uint32_t size = OSReadBigInt32(bytes, at);
+        if (size < 8 || at + size > end) {
+            return;
+        }
+        const void *type = bytes + at + 4;
+        if (!memcmp(type, "trak", 4) || !memcmp(type, "mdia", 4) || !memcmp(type, "minf", 4) || !memcmp(type, "stbl", 4)) {
+            VibeShiftChunkOffsets(bytes, at + 8, at + size, shift);
+        }
+        else if (!memcmp(type, "stco", 4)) {
+            for (uint32_t i = 0, count = OSReadBigInt32(bytes, at + 12); i < count && at + 20 + 4 * i <= end; i++) {
+                OSWriteBigInt32(bytes, at + 16 + 4 * i, OSReadBigInt32(bytes, at + 16 + 4 * i) - shift);
+            }
+        }
+        else if (!memcmp(type, "co64", 4)) {
+            for (uint32_t i = 0, count = OSReadBigInt32(bytes, at + 12); i < count && at + 24 + 8 * i <= end; i++) {
+                OSWriteBigInt64(bytes, at + 16 + 8 * i, OSReadBigInt64(bytes, at + 16 + 8 * i) - shift);
+            }
+        }
+        at += size;
+    }
+}
+
+// An M4A with its moov first rewritten with it last, after the mdat, as
+// ffmpeg writes by default; nil when it was not first.
+static NSData *VibeMoovLast(NSData *m4a) {
+    const uint8_t *bytes = m4a.bytes;
+    NSRange moov = {NSNotFound, 0};
+    NSMutableData *rest = [NSMutableData data];
+    for (NSUInteger at = 0; at + 8 <= m4a.length;) {
+        uint32_t size = OSReadBigInt32(bytes, at);
+        if (size < 8 || at + size > m4a.length) {
+            return nil;
+        }
+        if (!memcmp(bytes + at + 4, "moov", 4)) {
+            moov = NSMakeRange(at, size);
+        }
+        else if (!memcmp(bytes + at + 4, "mdat", 4) && moov.location == NSNotFound) {
+            return nil;
+        }
+        else {
+            [rest appendBytes:bytes + at length:size];
+        }
+        at += size;
+    }
+    if (moov.location == NSNotFound) {
+        return nil;
+    }
+    NSMutableData *moved = [[m4a subdataWithRange:moov] mutableCopy];
+    VibeShiftChunkOffsets(moved.mutableBytes, 8, moved.length, (uint32_t)moov.length);
+    [rest appendData:moved];
+    return rest;
+}
+
+// A FLAC whose STREAMINFO counts no samples: a length unknown, as a streamed
+// encode leaves it.
+static NSData *VibeFLACWithUnknownTotal(NSData *flac) {
+    NSMutableData *bytes = [flac mutableCopy];
+    uint8_t *b = bytes.mutableBytes;
+    if (bytes.length < 42 || memcmp(b, "fLaC", 4) != 0 || (b[4] & 0x7F) != 0) {
+        return nil;
+    }
+    b[21] &= 0xF0;
+    memset(b + 22, 0, 4);
+    return bytes;
+}
+
+// The spike's tail-reading opens, by the decoder each reaches, and a WAV,
+// whose open reads its head alone.
+- (NSDictionary<NSURL *, NSString *> *)tailFixtures {
+    NSMutableDictionary<NSURL *, NSString *> *fixtures = [NSMutableDictionary dictionary];
+    NSError *error = nil;
+    void (^add)(NSString *, NSData *, NSString *) = ^(NSString *name, NSData *bytes, NSString *decoder) {
+        NSURL *url = [self sourceNamed:name];
+        XCTAssertTrue([bytes writeToURL:url atomically:YES], @"%@", name);
+        fixtures[url] = decoder;
+    };
+    add(@"id3v1.mp3", VibeMP3WithInfoFrame(400, YES), @"dr_mp3");
+    AudioStreamBasicDescription alac = {.mSampleRate = 44100, .mFormatID = kAudioFormatAppleLossless,
+                                        .mFormatFlags = kAppleLosslessFormatFlag_16BitSourceData,
+                                        .mFramesPerPacket = 4096, .mChannelsPerFrame = 2};
+    NSURL *moovFirst = VibeWriteEncoded([self sourceNamed:@"moov-first.m4a"], kAudioFileM4AType, alac, &error);
+    NSData *moovLast = moovFirst ? VibeMoovLast([NSData dataWithContentsOfURL:moovFirst]) : nil;
+    XCTAssertNotNil(moovLast, @"%@", error);
+    if (moovLast) {
+        add(@"moov-last.m4a", moovLast, @"apple");
+    }
+    AudioStreamBasicDescription flac = {.mSampleRate = 44100, .mFormatID = kAudioFormatFLAC,
+                                        .mFormatFlags = kAppleLosslessFormatFlag_16BitSourceData, .mChannelsPerFrame = 2};
+    NSURL *known = VibeWriteEncoded([self sourceNamed:@"known.flac"], kAudioFileFLACType, flac, &error);
+    NSData *unknown = known ? VibeFLACWithUnknownTotal([NSData dataWithContentsOfURL:known]) : nil;
+    XCTAssertNotNil(unknown, @"%@", error);
+    if (unknown) {
+        add(@"unknown-total.flac", unknown, @"dr_flac");
+    }
+    add(@"head-only.wav", [NSData dataWithContentsOfURL:VibeWriteWAV([self sourceNamed:@"head.wav"],
+            VibeNoiseSamples(88200, 2), 44100, 2, 16, 88200 * 4)], @"dr_wav");
+    for (NSString *name in @[@"tone-cbr.mp3", @"tone-vbr.mp3"]) {
+        NSURL *asset = VibeAssetFixture(name);
+        if (asset) {
+            add(name, [NSData dataWithContentsOfURL:asset], @"dr_mp3");
+        }
+    }
+    return fixtures;
+}
+
+// With the tail window, every open the spike saw read past its head — an MP3
+// (its ID3v1 check), an M4A with its moov last, a FLAC with no length — opens
+// on its head and the window, never waiting for the download; its first
+// second decodes with the download still short of the end; the whole decode
+// is the whole file's; and the download reaching the window drops it. The
+// WAV's open never asks the window.
+- (void)testATailReadingOpenOpensOnItsHeadAndTheWindow {
+    const uint64_t head = 64 * 1024, window = 80 * 1024;
+    NSDictionary<NSURL *, NSString *> *fixtures = [self tailFixtures];
+    for (NSURL *source in fixtures) {
+        NSString *name = source.lastPathComponent;
+        VibeGrowingFile *file = [self stream:source prefix:head window:window];
+        XCTAssertGreaterThan(file.windowOffset, head, @"%@: bytes between the head and the window", name);
+        XCTAssertEqual(file.availability.windowLength, window, @"%@", name);
+        __block AudioFileHandle *opened = nil;
+        __block NSError *error = nil;
+        NSUInteger waits = [self drive:file step:0 reader:^{
+            NSError *openError = nil;
+            opened = [[AudioFileHandle alloc] initForReading:file.url error:&openError];
+            error = openError;
+        }];
+        AudioFileHandle *handle = opened;
+        XCTAssertNotNil(handle, @"%@: %@", name, error);
+        XCTAssertEqual(waits, 0u, @"%@ waited to open", name);
+        XCTAssertEqualObjects(handle.decoderName, fixtures[source], @"%@", name);
+        if ([name hasSuffix:@"wav"]) {
+            XCTAssertLessThan(file.availability.furthestOffsetAsked, file.windowOffset, @"%@ read its tail", name);
+        }
+        else {
+            XCTAssertGreaterThanOrEqual(file.availability.furthestOffsetAsked, file.windowOffset,
+                                        @"%@: the open read the window", name);
+        }
+        if (!handle) {
+            continue;
+        }
+        XCTAssertEqual(handle.length, [self openWhole:source].length, @"%@", name);
+
+        __block NSData *first = nil;
+        __block NSError *readError = nil;
+        [self drive:file step:4096 reader:^{
+            NSError *failure = nil;
+            first = VibeDecode(handle, 4096, 44100, &failure);
+            readError = failure;
+        }];
+        XCTAssertNotNil(first, @"%@: %@", name, readError);
+        XCTAssertLessThan(file.written, (uint64_t)file.bytes.length, @"%@: a second decoded before the download ended", name);
+        [self assertPCM:first equals:[self referenceOf:source from:0 frames:44100]
+                context:[name stringByAppendingString:@", first second"]];
+
+        __block NSData *rest = nil;
+        [self drive:file step:7919 reader:^{
+            NSError *failure = nil;
+            rest = VibeDecode(handle, 4096, INT64_MAX, &failure);
+            readError = failure;
+        }];
+        XCTAssertNotNil(rest, @"%@: %@", name, readError);
+        XCTAssertEqual(file.availability.windowLength, 0u, @"%@: the download reached the window and dropped it", name);
+        NSMutableData *whole = [first mutableCopy];
+        [whole appendData:rest ?: NSData.data];
+        [self assertPCM:whole equals:[self referenceOf:source from:0 frames:INT64_MAX] context:name];
+    }
+}
+
 #pragma mark - Failure
 
 // A failed transfer is a read failure with its error, never a clean end, and
@@ -532,7 +681,7 @@ enum { VibeFetchRunning = 0, VibeFetchCompleted, VibeFetchFailed, VibeFetchCance
     NSDictionary<NSURL *, NSString *> *fixtures = [self fixtures];
     for (NSURL *source in fixtures) {
         NSString *name = source.lastPathComponent;
-        VibeGrowingFile *file = [self stream:source prefix:100 readyTail:[name hasSuffix:@"mp3"] ? 128 : 0];
+        VibeGrowingFile *file = [self stream:source prefix:100 window:[name hasSuffix:@"mp3"] ? 128 : 0];
         __block AudioFileHandle *handle = nil;
         __block BOOL failed = NO;
         __block NSError *error = nil;
@@ -583,7 +732,7 @@ enum { VibeFetchRunning = 0, VibeFetchCompleted, VibeFetchFailed, VibeFetchCance
         NSString *name = source.lastPathComponent;
         // An MP3's open reads its last bytes, which only a tail window
         // serves before the download reaches them.
-        VibeGrowingFile *file = [self stream:source prefix:100 readyTail:[name hasSuffix:@"mp3"] ? 128 : 0];
+        VibeGrowingFile *file = [self stream:source prefix:100 window:[name hasSuffix:@"mp3"] ? 128 : 0];
         __block AudioFileHandle *opened = nil;
         [self drive:file step:1000 reader:^{
             opened = [[AudioFileHandle alloc] initForReading:file.url error:NULL];
