@@ -149,12 +149,26 @@ static inline NSString *VibeNormalizedThemeMode(NSString *_Nullable identifier) 
             : SETTINGS_VALUE_THEME_MODE_DUAL;
 }
 
-static inline NSString *VibeNormalizedWindowBackgroundStyle(NSString *_Nullable identifier) {
+static inline NSString *VibeNormalizedPlaylistBackgroundStyle(NSString *_Nullable identifier) {
     if ([identifier isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID] ||
         [identifier isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR]) {
         return identifier;
     }
     return SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS;
+}
+
+// The playlist's choices plus frosted, which only the window has: the
+// window's color under its glass panes.
+static inline NSString *VibeNormalizedWindowBackgroundStyle(NSString *_Nullable identifier) {
+    return [identifier isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_FROSTED]
+            ? identifier : VibeNormalizedPlaylistBackgroundStyle(identifier);
+}
+
+// Frosted and solid both lay the theme's color over the backdrop; solid also
+// drops the glass panes over it.
+static inline BOOL VibeWindowBackgroundTakesColor(NSString *_Nullable style) {
+    return [style isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_FROSTED] ||
+           [style isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
 }
 
 static inline NSString *VibeNormalizedKeyNotation(NSString *_Nullable identifier) {

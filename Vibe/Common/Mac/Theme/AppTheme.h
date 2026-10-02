@@ -29,6 +29,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 // pane so the window's Clear backdrop is the whole look. On the playlist,
 // solid and clear both remove the behind-window blur.
 #define SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS              @"glass"
+#define SETTINGS_VALUE_WINDOW_BACKGROUND_FROSTED            @"frosted"
 #define SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID              @"solid"
 #define SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR              @"clear"
 
@@ -229,7 +230,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 @property (nonatomic) double waveformBarWidth;              // multiplier of the style's designed thickness
 @property (nonatomic, copy) NSString *windowTint;           // mono/artwork/custom
 @property (nonatomic, copy) NSString *playlistTint;         // mono/artwork/custom; snaps to mono, the factory playlist wash
-@property (nonatomic, copy) NSString *windowBackgroundStyle; // glass/solid/clear
+@property (nonatomic, copy) NSString *windowBackgroundStyle; // glass/frosted/solid/clear
 @property (nonatomic, copy) NSString *playlistBackgroundStyle; // glass/solid/clear
 // The slider's radius and whether the window draws it; off draws
 // kVibeThemeCornerRadiusDefault. A record naming a radius but not the switch

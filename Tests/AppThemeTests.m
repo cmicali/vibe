@@ -300,6 +300,7 @@
         @"windowTint": @"plaid",
         @"playlistTint": @"plaid",
         @"windowBackgroundStyle": @"translucent",
+        // The window's alone: the playlist has no panes to keep.
         @"playlistBackgroundStyle": @"frosted",
         @"keyNotation": @"solfege",
     }];
@@ -316,6 +317,18 @@
     theme.playlistBackgroundStyle = @"clear";
     XCTAssertEqualObjects(theme.dictionaryRepresentation,
                           (@{@"windowBackgroundStyle": @"clear", @"playlistBackgroundStyle": @"clear"}));
+    theme.windowBackgroundStyle = @"frosted";
+    XCTAssertEqualObjects(theme.windowBackgroundStyle, @"frosted");
+}
+
+// Frosted is solid's color with the glass panes kept over it, so both take
+// the color pair and only they do.
+- (void)testFrostedAndSolidTakeTheBackgroundColor {
+    for (NSString *style in @[@"glass", @"frosted", @"solid", @"clear"]) {
+        BOOL colored = [style isEqualToString:@"frosted"] || [style isEqualToString:@"solid"];
+        XCTAssertEqual(VibeWindowBackgroundTakesColor(VibeNormalizedWindowBackgroundStyle(style)), colored, @"%@", style);
+    }
+    XCTAssertEqualObjects(VibeNormalizedPlaylistBackgroundStyle(@"frosted"), @"glass");
 }
 
 - (void)testPlaylistTintLadderKeepsItsOwnDefault {

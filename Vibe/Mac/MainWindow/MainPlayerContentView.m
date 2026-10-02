@@ -581,7 +581,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 
 // Hidden under clear rather than restyled Clear: a second Clear pane over the
 // backdrop compounds into a visibly lighter band. Under solid the cover is the
-// background, and a glass panel over it would put the glass back.
+// whole background; frosted is the same cover with this panel kept over it.
 - (void)applyWindowBackgroundStyle {
     NSString *style = AppSettings.sharedInstance.currentTheme.windowBackgroundStyle;
     _backgroundGlassView.hidden = [style isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR] ||
@@ -995,7 +995,8 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *
     // Solid: no blur, the theme's color. Glass: the unthemed lift (a themed
     // color over glass is the tint wash above). Clear: neither. The frost
     // blurs what is behind the WINDOW, so in a solid window it would punch
-    // through the cover: there the glass is the window's own background.
+    // through the cover: there the glass is the window's own background. A
+    // frosted window keeps it, as it keeps the header's panel.
     BOOL solidWindow = [theme.windowBackgroundStyle isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
     _playlistFrostView.hidden = solid || clear || solidWindow;
     NSColor *background = solid
