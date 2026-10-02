@@ -269,7 +269,7 @@
     // processing side touches it, and its filters must see the blocks in
     // stream order.
     std::unique_ptr<AudioWaveformBandSplit> bandSplit = waveform->hasBands()
-            ? std::make_unique<AudioWaveformBandSplit>(file.processingFormat.sampleRate, kReadBlockFrames)
+            ? std::make_unique<AudioWaveformBandSplit>(file.processingFormat.sampleRate)
             : nullptr;
     AudioWaveformBandSplit *bands = bandSplit.get();
 
@@ -335,7 +335,6 @@
             uint64_t procStart = VibeLoadClockNow();
             const float *mono = AudioWaveformMonoMix(buffer.floatChannelData[0], scratch,
                                                      numFrames, numChannels);
-            if (bands) bands->process(mono, numFrames);
             procNanos.chunk += VibeLoadClockNow() - procStart;
 
             procStart = VibeLoadClockNow();
@@ -354,7 +353,7 @@
                 NSUInteger take = (NSUInteger)MIN((AVAudioFramePosition)(numFrames - offset),
                                                   chunkEnd - pos);
                 currentChunk.mergeFromMonoBuffer(mono + offset, take);
-                if (bands) bands->addSumSquares(offset, take, currentBandSums.data());
+                if (bands) bands->addSumSquares(mono + offset, take, currentBandSums.data());
                 currentChunkHasFrames = YES;
                 offset += take;
                 if (framesProcessed + (AVAudioFramePosition)offset >= chunkEnd) {

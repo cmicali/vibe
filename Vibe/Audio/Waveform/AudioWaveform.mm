@@ -158,46 +158,57 @@ static void AudioWaveformButterworthSection(double cutoffHz, double sampleRate, 
     section[4] = (1 - alpha) / a0;
 }
 
-AudioWaveformBandSplit::AudioWaveformBandSplit(double sampleRate, NSUInteger maxFrames) {
-    double low[5], mid[10], high[5];
-    AudioWaveformButterworthSection(kAudioWaveformLowCrossoverHz, sampleRate, false, low);
-    AudioWaveformButterworthSection(kAudioWaveformLowCrossoverHz, sampleRate, true, mid);
-    AudioWaveformButterworthSection(kAudioWaveformHighCrossoverHz, sampleRate, false, mid + 5);
-    AudioWaveformButterworthSection(kAudioWaveformHighCrossoverHz, sampleRate, true, high);
-    const double *coefficients[kAudioWaveformBandCount] = {low, mid, high};
-    const vDSP_Length sections[kAudioWaveformBandCount] = {1, 2, 1};
-    for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
-        setups[b] = vDSP_biquad_CreateSetup(coefficients[b], sections[b]);
-        delays[b].assign(2 * sections[b] + 2, 0.0f);
-        outputs[b].assign(maxFrames, 0.0f);
+AudioWaveformBandSplit::AudioWaveformBandSplit(double sampleRate) {
+    double sections[4][5];
+    AudioWaveformButterworthSection(kAudioWaveformLowCrossoverHz, sampleRate, false, sections[0]);
+    AudioWaveformButterworthSection(kAudioWaveformLowCrossoverHz, sampleRate, true, sections[1]);
+    AudioWaveformButterworthSection(kAudioWaveformHighCrossoverHz, sampleRate, false, sections[2]);
+    AudioWaveformButterworthSection(kAudioWaveformHighCrossoverHz, sampleRate, true, sections[3]);
+    for (int lane = 0; lane < 4; lane++) {
+        b0[lane] = sections[lane][0];
+        b1[lane] = sections[lane][1];
+        b2[lane] = sections[lane][2];
+        a1[lane] = -sections[lane][3];
+        a2[lane] = -sections[lane][4];
     }
 }
 
-AudioWaveformBandSplit::~AudioWaveformBandSplit() {
-    for (vDSP_biquad_Setup setup : setups) {
-        if (setup) vDSP_biquad_DestroySetup(setup);
+// The four sections run side by side, so a sample costs one section's
+// latency: mid's lowpass takes its highpass's output from two samples back,
+// which leaves no lane waiting on another within a sample, and direct form I
+// leaves one FMA on each recurrence. vDSP_biquad runs a setup's sections one
+// after another, at 2.6x the cost. The mid band lags the others by two
+// samples, a shift no chunk can see. Double,
+// since a 300 Hz pole at 352.8 kHz sits close enough to the unit circle that
+// float's rounding shows in the energies.
+void AudioWaveformBandSplit::addSumSquares(const float* mono, NSUInteger numFrames, float* sums) {
+    // Locals, so the stores through sums cannot alias the state.
+    simd_double4 x1 = this->x1, x2 = this->x2, y1 = this->y1, y2 = this->y2;
+    simd_double4 squares = 0;
+    for (NSUInteger i = 0; i < numFrames; i++) {
+        double x = mono[i];
+        simd_double4 in = {x, x, y2[1], x};
+        simd_double4 y = a1 * y1 + (b0 * in + b1 * x1 + b2 * x2 + a2 * y2);
+        squares += y * y;
+        x2 = x1;
+        x1 = in;
+        y2 = y1;
+        y1 = y;
     }
-}
-
-void AudioWaveformBandSplit::process(const float* mono, NSUInteger numFrames) {
-    for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
-        // A failed setup leaves its band silent rather than unfiltered.
-        if (!setups[b] || numFrames == 0 || numFrames > outputs[b].size()) continue;
-        vDSP_biquad(setups[b], delays[b].data(), mono, 1, outputs[b].data(), 1, numFrames);
-        // A corrupt file's NaN or Inf stays in the filter's state forever:
-        // reset it, so the band loses this block rather than the rest of the
-        // file.
-        if (!std::isfinite(outputs[b][numFrames - 1])) {
-            std::fill(delays[b].begin(), delays[b].end(), 0.0f);
+    // A corrupt file's NaN or Inf stays in a section's state forever: reset
+    // it, so the band loses this slice rather than the rest of the file.
+    for (int lane = 0; lane < 4; lane++) {
+        if (!std::isfinite(x1[lane] + x2[lane] + y1[lane] + y2[lane])) {
+            x1[lane] = x2[lane] = y1[lane] = y2[lane] = 0;
         }
     }
-}
-
-void AudioWaveformBandSplit::addSumSquares(NSUInteger offset, NSUInteger numFrames, float* sums) const {
-    for (NSUInteger b = 0; numFrames > 0 && b < kAudioWaveformBandCount; b++) {
-        float meanSquare;
-        vDSP_measqv(outputs[b].data() + offset, 1, &meanSquare, numFrames);
-        if (std::isfinite(meanSquare)) sums[b] += meanSquare * (float)numFrames;
+    this->x1 = x1;
+    this->x2 = x2;
+    this->y1 = y1;
+    this->y2 = y2;
+    const int bandLanes[kAudioWaveformBandCount] = {0, 2, 3};
+    for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+        if (std::isfinite(squares[bandLanes[b]])) sums[b] += (float)squares[bandLanes[b]];
     }
 }
 

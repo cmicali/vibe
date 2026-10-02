@@ -96,14 +96,13 @@ static void VibeAddThreeBandPaths(CGMutablePathRef *paths, CGMutablePathRef outl
         CGFloat half[kAudioWaveformBandCount];
         CGFloat tallest = VibeThreeBandHalves(samples + i * kAudioWaveformBandCount, vscale, minimumHeight, half);
         CGFloat x = pitch * ((CGFloat)i + 0.5);
+        CGFloat lowMid = MIN(half[0], half[1]);
+        const CGFloat heights[8] = {tallest, half[0], half[1], lowMid, half[2], MIN(half[0], half[2]),
+                                    MIN(half[1], half[2]), MIN(lowMid, half[2])};
         for (NSUInteger mask = 0; mask < 8; mask++) {
-            CGFloat lowest = tallest;
-            for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
-                if (mask & (1 << b)) lowest = MIN(lowest, half[b]);
-            }
             CGPoint *polygon = points->data() + mask * stride;
-            polygon[1 + i] = CGPointMake(x, midY + lowest);
-            polygon[stride - 2 - i] = CGPointMake(x, midY - lowest);
+            polygon[1 + i] = CGPointMake(x, midY + heights[mask]);
+            polygon[stride - 2 - i] = CGPointMake(x, midY - heights[mask]);
         }
     }
     for (NSUInteger mask = 0; mask < 8; mask++) {
@@ -121,16 +120,16 @@ static void VibeAddThreeBandPaths(CGMutablePathRef *paths, CGMutablePathRef outl
     }
 }
 
-// The theme's gradient is Detailed's ramp over the same band: full at the
-// top, kBottomAlpha of it at the bottom.
+// A side's mask stops at its level: Detailed's ramp over the same band, full
+// at the top and kBottomAlpha of it at the bottom, or flat.
 static const CGFloat kBottomAlpha = 0.45;
 
-static NSArray *VibeThreeBandFadeColors(void) {
-    return @[(id)[VibeColor whiteColor].CGColor, (id)[VibeColor colorWithWhite:1 alpha:kBottomAlpha].CGColor];
+static NSArray *VibeThreeBandSideColors(CGFloat level, BOOL flat) {
+    return @[(id)[VibeColor colorWithWhite:1 alpha:level].CGColor,
+             (id)[VibeColor colorWithWhite:1 alpha:flat ? level : level * kBottomAlpha].CGColor];
 }
 
-static CALayer *VibeNewPinnedLayer(CGFloat scale) {
-    CALayer *layer = [CALayer layer];
+static id VibePinned(CALayer *layer, CGFloat scale) {
     layer.anchorPoint = CGPointZero;
     layer.actions = @{@"bounds": [NSNull null], @"position": [NSNull null], @"hidden": [NSNull null]};
     layer.contentsScale = scale;
@@ -139,16 +138,16 @@ static CALayer *VibeNewPinnedLayer(CGFloat scale) {
 
 @implementation ThreeBandWaveformRenderer {
     CALayer *_container;
-    // Holds both sides, masked by the fade unless the theme is flat.
-    CALayer *_bandsHost;
-    CAGradientLayer *_fadeMask;
-    // Dimmed as a group: its layers overlap, and dimming each would let the
-    // outer rings show through the inner ones.
-    CALayer *_unplayedStack;
-    // masksToBounds; its width is the playhead.
-    CALayer *_playedClip;
-    CAShapeLayer *_unplayedBands[kLayerCount];
-    CAShapeLayer *_playedBands[kLayerCount];
+    // The seven band layers, drawn once, under one mask that gives each side
+    // its level. A dimmed copy of the stack for the unplayed side would hand
+    // every rebuild's paths to fourteen layers, each of which copies the path
+    // it is handed; and the mask dims the composited stack, so the outer
+    // rings never show through the inner ones.
+    CALayer *_bands;
+    CAShapeLayer *_bandLayers[kLayerCount];
+    CALayer *_sides;
+    CAGradientLayer *_playedSide;
+    CAGradientLayer *_unplayedSide;
     // Masked to the outline, so the lit slice is the waveform's own column;
     // hidden, and so never composited nor its outline built, until hovered.
     CALayer *_hoverHost;
@@ -187,46 +186,31 @@ static CALayer *VibeNewPinnedLayer(CGFloat scale) {
 
 - (void)setupLayers {
     CGFloat scale = self.parentLayer.contentsScale;
-    _container = VibeNewPinnedLayer(scale);
+    _container = VibePinned([CALayer layer], scale);
     [self.parentLayer addSublayer:_container];
 
-    _bandsHost = VibeNewPinnedLayer(scale);
-    [_container addSublayer:_bandsHost];
-    _fadeMask = [CAGradientLayer layer];
-    _fadeMask.anchorPoint = CGPointZero;
-    _fadeMask.contentsScale = scale;
-    _fadeMask.colors = VibeThreeBandFadeColors();
-    _fadeMask.startPoint = CGPointMake(0.5, (1 + kVibeBarAmplitudeOfHalfHeight) / 2);
-    _fadeMask.endPoint = CGPointMake(0.5, (1 - kVibeBarAmplitudeOfHalfHeight) / 2);
-
-    _unplayedStack = VibeNewPinnedLayer(scale);
-    _unplayedStack.opacity = kUnplayedOpacity;
-    _unplayedStack.allowsGroupOpacity = YES;
-    [_bandsHost addSublayer:_unplayedStack];
-
-    _playedClip = VibeNewPinnedLayer(scale);
-    _playedClip.masksToBounds = YES;
-    [_bandsHost addSublayer:_playedClip];
-
+    _bands = VibePinned([CALayer layer], scale);
+    [_container addSublayer:_bands];
     for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
-        _unplayedBands[layer] = [CAShapeLayer layer];
-        _playedBands[layer] = [CAShapeLayer layer];
-        for (CAShapeLayer *band in @[_unplayedBands[layer], _playedBands[layer]]) {
-            band.anchorPoint = CGPointZero;
-            band.contentsScale = scale;
-        }
-        [_unplayedStack addSublayer:_unplayedBands[layer]];
-        [_playedClip addSublayer:_playedBands[layer]];
+        _bandLayers[layer] = VibePinned([CAShapeLayer layer], scale);
+        [_bands addSublayer:_bandLayers[layer]];
     }
+    _sides = VibePinned([CALayer layer], scale);
+    _playedSide = VibePinned([CAGradientLayer layer], scale);
+    _unplayedSide = VibePinned([CAGradientLayer layer], scale);
+    for (CAGradientLayer *side in @[_playedSide, _unplayedSide]) {
+        side.startPoint = CGPointMake(0.5, (1 + kVibeBarAmplitudeOfHalfHeight) / 2);
+        side.endPoint = CGPointMake(0.5, (1 - kVibeBarAmplitudeOfHalfHeight) / 2);
+        [_sides addSublayer:side];
+    }
+    _bands.mask = _sides;
 
-    _hoverHost = VibeNewPinnedLayer(scale);
+    _hoverHost = VibePinned([CALayer layer], scale);
     _hoverHost.hidden = YES;
-    _hoverMask = [CAShapeLayer layer];
-    _hoverMask.anchorPoint = CGPointZero;
-    _hoverMask.contentsScale = scale;
+    _hoverMask = VibePinned([CAShapeLayer layer], scale);
     _hoverMask.fillColor = [VibeColor whiteColor].CGColor;
     _hoverHost.mask = _hoverMask;
-    _hoverColumn = VibeNewPinnedLayer(scale);
+    _hoverColumn = VibePinned([CALayer layer], scale);
     _hoverColumn.actions = @{@"bounds": [NSNull null], @"position": [NSNull null],
                              @"backgroundColor": [NSNull null]};
     [_hoverHost addSublayer:_hoverColumn];
@@ -240,10 +224,10 @@ static CALayer *VibeNewPinnedLayer(CGFloat scale) {
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
-        _unplayedBands[layer].fillColor = VibeThreeBandColor(layer, isDark);
-        _playedBands[layer].fillColor = VibeThreeBandColor(layer, isDark);
+        _bandLayers[layer].fillColor = VibeThreeBandColor(layer, isDark);
     }
-    _bandsHost.mask = self.theme.flatFill ? nil : _fadeMask;
+    _playedSide.colors = VibeThreeBandSideColors(1, self.theme.flatFill);
+    _unplayedSide.colors = VibeThreeBandSideColors(kUnplayedOpacity, self.theme.flatFill);
     [CATransaction commit];
     _hoverColumn.backgroundColor = self.theme.hoverColor.CGColor;
 }
@@ -289,9 +273,9 @@ static CALayer *VibeNewPinnedLayer(CGFloat scale) {
 
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
     CGRect b = self.parentLayer.bounds;
-    _playedClip.bounds = CGRectMake(0, 0, clampRange(b.size.width * progress, 0, b.size.width),
-                                    b.size.height);
-    _playedClip.position = CGPointZero;
+    CGFloat played = clampRange(b.size.width * progress, 0, b.size.width);
+    _playedSide.frame = CGRectMake(0, 0, played, b.size.height);
+    _unplayedSide.frame = CGRectMake(played, 0, b.size.width - played, b.size.height);
 }
 
 - (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
@@ -300,12 +284,11 @@ static CALayer *VibeNewPinnedLayer(CGFloat scale) {
     // resize.
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    for (CALayer *layer in @[_container, _bandsHost, _fadeMask, _unplayedStack, _hoverHost, _hoverMask]) {
+    for (CALayer *layer in @[_container, _bands, _sides, _hoverHost, _hoverMask]) {
         layer.frame = local;
     }
     for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
-        _unplayedBands[layer].frame = local;
-        _playedBands[layer].frame = local;
+        _bandLayers[layer].frame = local;
     }
     [CATransaction commit];
     [self updateProgress:progress waveform:waveform];
@@ -353,8 +336,7 @@ static CALayer *VibeNewPinnedLayer(CGFloat scale) {
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
-        _unplayedBands[layer].path = paths[layer];
-        _playedBands[layer].path = paths[layer];
+        _bandLayers[layer].path = paths[layer];
         CGPathRelease(paths[layer]);
     }
     if (outline) {
@@ -401,10 +383,10 @@ static CALayer *VibeNewPinnedLayer(CGFloat scale) {
         CGPathRelease(paths[layer]);
     }
     if (!self.theme.flatFill) {
-        // The fade mask's band and stops, so the bake matches the live layers.
+        // The played side's mask, so the bake matches the live layers.
         CGContextSetBlendMode(ctx, kCGBlendModeDestinationIn);
         CGGradientRef fade = CGGradientCreateWithColors(CGBitmapContextGetColorSpace(ctx),
-                                                        (__bridge CFArrayRef)VibeThreeBandFadeColors(), NULL);
+                                                        (__bridge CFArrayRef)VibeThreeBandSideColors(1, NO), NULL);
         CGContextDrawLinearGradient(ctx, fade, CGPointMake(0, size.height * (1 + kVibeBarAmplitudeOfHalfHeight) / 2),
                                     CGPointMake(0, size.height * (1 - kVibeBarAmplitudeOfHalfHeight) / 2),
                                     kCGGradientDrawsBeforeStartLocation | kCGGradientDrawsAfterEndLocation);

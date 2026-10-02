@@ -4,6 +4,7 @@
 //
 
 #include <Accelerate/Accelerate.h>
+#include <simd/simd.h>
 #include <cmath>
 #include <vector>
 
@@ -41,25 +42,21 @@ static const NSUInteger kAudioWaveformBandCount = 3;
 static const double kAudioWaveformLowCrossoverHz = 300;
 static const double kAudioWaveformHighCrossoverHz = 2500;
 
-// The streaming band split: each decode block is filtered once, and the
-// chunker sums each chunk's slice of it as it slices the mono block. The
-// filters' state carries across blocks, so the split does not see block edges.
+// The streaming band split: the chunker hands it each chunk's slice of the
+// mono stream, in order, and it filters the slice and sums each band's
+// squares. The filters' state carries across calls, so the split sees neither
+// block nor chunk edges.
 struct AudioWaveformBandSplit {
-    AudioWaveformBandSplit(double sampleRate, NSUInteger maxFrames);
-    ~AudioWaveformBandSplit();
-    AudioWaveformBandSplit(const AudioWaveformBandSplit&) = delete;
-    AudioWaveformBandSplit& operator=(const AudioWaveformBandSplit&) = delete;
+    explicit AudioWaveformBandSplit(double sampleRate);
 
-    // At most maxFrames.
-    void process(const float* mono, NSUInteger numFrames);
-    // Adds each band's sum of squares over the processed block's frames
-    // [offset, offset + numFrames) to sums, low to high.
-    void addSumSquares(NSUInteger offset, NSUInteger numFrames, float* sums) const;
+    // Adds each band's sum of squares over the frames to sums, low to high.
+    void addSumSquares(const float* mono, NSUInteger numFrames, float* sums);
 
 private:
-    vDSP_biquad_Setup setups[kAudioWaveformBandCount];
-    std::vector<float> delays[kAudioWaveformBandCount];
-    std::vector<float> outputs[kAudioWaveformBandCount];
+    // One lane per 2nd-order section: low, mid's highpass, mid's lowpass,
+    // high. Direct form I, with the feedback coefficients negated.
+    simd_double4 b0, b1, b2, a1, a2;
+    simd_double4 x1 = 0, x2 = 0, y1 = 0, y2 = 0;
 };
 
 struct AudioWaveformCacheChunk {

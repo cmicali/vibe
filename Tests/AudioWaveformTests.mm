@@ -438,13 +438,17 @@ static uint32_t VibeRGBAt(CGImageRef image, size_t row, size_t column) {
     return VibeARGBAt(image, row, column) & 0xffffff;
 }
 
-// The band layers' host, which the fade masks: container, then bands host.
+// The band layers' host, which the sides' mask covers.
 static CALayer *VibeThreeBandHost(AudioWaveformRenderer *renderer) {
     return renderer.parentLayer.sublayers.firstObject.sublayers.firstObject;
 }
 
-static NSArray<CAShapeLayer *> *VibeThreeBandUnplayedLayers(AudioWaveformRenderer *renderer) {
-    return (NSArray<CAShapeLayer *> *)VibeThreeBandHost(renderer).sublayers.firstObject.sublayers;
+static NSArray<CAShapeLayer *> *VibeThreeBandLayers(AudioWaveformRenderer *renderer) {
+    return (NSArray<CAShapeLayer *> *)VibeThreeBandHost(renderer).sublayers;
+}
+
+static CGFloat VibeAlphaOf(id color) {
+    return CGColorGetAlpha((__bridge CGColorRef)color);
 }
 
 static NSUInteger VibeSubpathCount(CGPathRef path) {
@@ -456,7 +460,7 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
 }
 
 // Each layer's drawn height for VibeThreeBandTestWaveform (0 where it draws
-// nothing), read off the unplayed stack.
+// nothing).
 - (std::vector<CGFloat>)threeBandLayerHeightsForBands:(std::array<float, 3>)bands
                                             normalize:(BOOL)normalize
                                              waveform:(BOOL)hasWaveform {
@@ -466,7 +470,7 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     CALayer *host = renderer.parentLayer;
     [renderer updateWaveform:host.bounds progress:0.5 waveform:hasWaveform ? &waveform : nullptr];
     [renderer settleMorphImmediately];
-    NSArray<CAShapeLayer *> *stack = VibeThreeBandUnplayedLayers(renderer);
+    NSArray<CAShapeLayer *> *stack = VibeThreeBandLayers(renderer);
     XCTAssertEqual(stack.count, kThreeBandLayers);
     std::vector<CGFloat> heights;
     for (CAShapeLayer *layer in stack) {
@@ -545,7 +549,7 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
     [renderer updateWaveform:renderer.parentLayer.bounds progress:0.5 waveform:&waveform];
     [renderer settleMorphImmediately];
-    for (CAShapeLayer *layer in VibeThreeBandUnplayedLayers(renderer)) {
+    for (CAShapeLayer *layer in VibeThreeBandLayers(renderer)) {
         XCTAssertEqual(VibeSubpathCount(layer.path), 1u);
     }
 }
@@ -600,8 +604,14 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
         theme.flatFill = flatFill;
         renderer.theme = theme;
         [renderer updateColors:YES];
-        CAGradientLayer *mask = (CAGradientLayer *)VibeThreeBandHost(renderer).mask;
-        XCTAssertEqual(mask == nil, flatFill);
+        NSArray<CAGradientLayer *> *sides = (NSArray<CAGradientLayer *> *)VibeThreeBandHost(renderer).mask.sublayers;
+        XCTAssertEqual(sides.count, 2u);
+        for (CAGradientLayer *side in sides) {
+            CGFloat top = VibeAlphaOf(side.colors.firstObject), bottom = VibeAlphaOf(side.colors.lastObject);
+            XCTAssertEqualWithAccuracy(bottom / top, flatFill ? 1 : 0.45, 1e-6);
+        }
+        XCTAssertEqualWithAccuracy(VibeAlphaOf(sides[1].colors.firstObject) / VibeAlphaOf(sides[0].colors.firstObject),
+                                   renderer.unplayedOverPlayedOpacity, 1e-6, @"the unplayed side's level");
         CGImageRef image = [renderer newEnvelopeImageForSize:size scale:1
                                                      samples:[renderer envelopeSamplesForWaveform:&waveform]];
         uint32_t upperAlpha = VibeARGBAt(image, upper, 256) >> 24;
@@ -610,12 +620,23 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
             XCTAssertEqual(upperAlpha, 255u);
             XCTAssertEqual(lowerAlpha, 255u);
         } else {
-            XCTAssertEqual(mask.colors.count, 2u);
             XCTAssertGreaterThan(upperAlpha, lowerAlpha + 40);
             XCTAssertGreaterThan(lowerAlpha, (uint32_t)(255 * 0.45));
         }
         CGImageRelease(image);
     }
+}
+
+// The playhead splits the mask over one set of band layers.
+- (void)testThreeBandProgressSplitsTheSides {
+    AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
+    CGFloat width = renderer.parentLayer.bounds.size.width;
+    [renderer updateProgress:0.25 waveform:nullptr];
+    NSArray<CALayer *> *sides = VibeThreeBandHost(renderer).mask.sublayers;
+    XCTAssertEqual(CGRectGetMaxX(sides[0].frame), width * 0.25);
+    XCTAssertEqual(CGRectGetMinX(sides[1].frame), width * 0.25);
+    XCTAssertEqual(CGRectGetMaxX(sides[1].frame), width);
+    XCTAssertEqual(VibeThreeBandLayers(renderer).count, kThreeBandLayers);
 }
 
 // The hover slice's outline is the tallest band, built only while it shows.
