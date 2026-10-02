@@ -45,7 +45,9 @@ extern NSNotificationName const VibeSearchFoldersDidChangeNotification;
 
 - (void)removeFolderAtIndex:(NSUInteger)index;
 
-- (NSString *)displayNameForFolderAtIndex:(NSUInteger)index;
+// The one name a folder is shown under, wherever it is named: the two roots
+// with no name of their own on disk read "On My iPhone" and "Dropbox".
++ (NSString *)displayNameForFolderURL:(NSURL *)url;
 
 @end
 

@@ -21,6 +21,8 @@ static NSString *const kKeychainService = @"com.commonwealthrecordings.Vibe.drop
 static NSString *const kAppKeyInfoKey = @"VibeDropboxAppKey";
 // list_folder's own maximum page.
 static const NSInteger kListPageLimit = 2000;
+NSNotificationName const VibeDropboxDownloadsDidChangeNotification = @"VibeDropboxDownloadsDidChangeNotification";
+
 // Downloads kept before the oldest go back to placeholders: an album or two
 // hundred, which a phone can spare and a re-download rarely has to replace.
 static const long long kDownloadBudgetBytes = 10LL * 1000 * 1000 * 1000;
@@ -683,6 +685,10 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
     LogInfo(@"Dropbox: downloaded %@ in %.1fs", url.lastPathComponent, CFAbsoluteTimeGetCurrent() - start);
     dispatch_async(_diskQueue, ^{
         [self enforceDownloadBudgetKeeping:url];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [NSNotificationCenter.defaultCenter postNotificationName:VibeDropboxDownloadsDidChangeNotification
+                                                              object:self];
+        });
     });
     return YES;
 }

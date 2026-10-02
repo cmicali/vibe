@@ -21,6 +21,10 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// A fetch landed, with whatever the budget then evicted. Posted on main with
+// the mirror as its object.
+extern NSNotificationName const VibeDropboxDownloadsDidChangeNotification;
+
 @interface DropboxMirror : NSObject
 
 - (instancetype)init NS_UNAVAILABLE;

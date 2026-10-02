@@ -89,7 +89,7 @@ static const NSUInteger kMaximumRecentItems = 50;
 }
 
 - (NSString *)folderDisplayName {
-    return _folderURL ? [[NSFileManager defaultManager] displayNameAtPath:_folderURL.path] : nil;
+    return _folderURL ? [SearchFolderStore displayNameForFolderURL:_folderURL] : nil;
 }
 
 - (NSArray<NSURL *> *)searchRoots {

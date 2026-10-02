@@ -401,6 +401,12 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
         }
         else {
             LogWarn(@"Dropbox: could not reach a search hit: %@", error.localizedDescription);
+            // Silence would read as a tap that missed.
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:VibeNotLocalized(@"Dropbox")
+                                                                           message:STR_SETTINGS_DROPBOX_CONNECT_FAILED
+                                                                    preferredStyle:UIAlertControllerStyleAlert];
+            [alert addAction:[UIAlertAction actionWithTitle:STR_BUTTON_OK style:UIAlertActionStyleDefault handler:nil]];
+            [self presentViewController:alert animated:YES completion:nil];
         }
     }];
 }
@@ -579,7 +585,14 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
         [_playback selectTrackAtIndex:_matches[(NSUInteger)indexPath.row].unsignedIntegerValue];
         return;
     }
-    [self openHit:[self hitAtIndexPath:indexPath] inFolder:NO];
+    // A folder hit opens in the Files tab, as a folder does in the browser:
+    // playing it would land nothing when its songs are in subfolders.
+    id hit = [self hitAtIndexPath:indexPath];
+    if ([hit isKindOfClass:NSDictionary.class] && VibeDropboxEntryKindOf(hit) == VibeDropboxEntryKindFolder) {
+        [self showFolderOfHit:hit];
+        return;
+    }
+    [self openHit:hit inFolder:NO];
 }
 
 // A FileSearchHit or a Dropbox entry.

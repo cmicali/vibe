@@ -143,7 +143,7 @@ static NSDictionary *VibeSearchScopeDictionary(RootViewController *controller) {
     NSMutableArray<NSDictionary *> *folders = [NSMutableArray array];
     NSArray<NSURL *> *urls = store.folderURLs;
     for (NSUInteger i = 0; i < urls.count; i++) {
-        [folders addObject:@{@"name": [store displayNameForFolderAtIndex:i],
+        [folders addObject:@{@"name": [SearchFolderStore displayNameForFolderURL:urls[i]],
                              @"path": urls[i].path ?: @""}];
     }
     return @{@"roots": roots, @"folders": folders};

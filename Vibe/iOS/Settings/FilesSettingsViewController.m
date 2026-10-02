@@ -86,6 +86,11 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
                                            selector:@selector(dropboxAccountDidChange:)
                                                name:VibeDropboxAccountDidChangeNotification
                                              object:DropboxMirror.shared.client];
+    // A song playing behind this screen downloads while the size is shown.
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(measureDownloads)
+                                               name:VibeDropboxDownloadsDidChangeNotification
+                                             object:DropboxMirror.shared];
 }
 
 - (void)dealloc {

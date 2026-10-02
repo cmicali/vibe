@@ -100,6 +100,8 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
 
     // Which picker is up: a location grant, or a one-off pick.
     BOOL _pickingLocation;
+    // A row swipe sets isEditing too; only the Edit button's is multi-select.
+    BOOL _swipingRow;
     UIBarButtonItem *_playItem;
     UIBarButtonItem *_addSelectedItem;
     UIBarButtonItem *_sortItem;
@@ -137,7 +139,7 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
                                                  object:SearchFolderStore.shared];
     }
     else {
-        self.navigationItem.title = [self titleForDirectory];
+        self.navigationItem.title = [SearchFolderStore displayNameForFolderURL:_directoryURL];
         self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeNever;
         self.tableView.allowsMultipleSelectionDuringEditing = YES;
         _playItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:
@@ -188,16 +190,6 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
     if (_dropboxPath && CFAbsoluteTimeGetCurrent() - _listedAt > kRelistInterval) {
         [self refreshFromDropbox];
     }
-}
-
-- (NSString *)titleForDirectory {
-    if ([_dropboxPath isEqualToString:@""]) {
-        return VibeNotLocalized(@"Dropbox");
-    }
-    if ([_directoryURL.URLByStandardizingPath isEqual:SearchFolderStore.containerDocumentsURL.URLByStandardizingPath]) {
-        return [NSString stringWithFormat:STR_BROWSER_ON_DEVICE, UIDevice.currentDevice.localizedModel];
-    }
-    return [NSFileManager.defaultManager displayNameAtPath:_directoryURL.path] ?: _directoryURL.lastPathComponent;
 }
 
 // The account went or came, or a location was granted or removed. A pushed
@@ -321,7 +313,7 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
     if (self.isRoot) {
         return;
     }
-    if (self.tableView.isEditing) {
+    if (self.tableView.isEditing && !_swipingRow) {
         _addSelectedItem.enabled = self.tableView.indexPathsForSelectedRows.count > 0;
         self.navigationItem.rightBarButtonItems = @[self.editButtonItem, _addSelectedItem];
         return;
@@ -366,6 +358,15 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
 
 - (void)setEditing:(BOOL)editing animated:(BOOL)animated {
     [super setEditing:editing animated:animated];
+    [self refreshBarItems];
+}
+
+- (void)tableView:(UITableView *)tableView willBeginEditingRowAtIndexPath:(NSIndexPath *)indexPath {
+    _swipingRow = YES;
+}
+
+- (void)tableView:(UITableView *)tableView didEndEditingRowAtIndexPath:(NSIndexPath *)indexPath {
+    _swipingRow = NO;
     [self refreshBarItems];
 }
 
@@ -544,7 +545,7 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
         NSUInteger count = SearchFolderStore.shared.folderURLs.count;
         NSUInteger row = (NSUInteger)indexPath.row;
         if (row < count) {
-            content.text = [SearchFolderStore.shared displayNameForFolderAtIndex:row];
+            content.text = [SearchFolderStore displayNameForFolderURL:SearchFolderStore.shared.folderURLs[row]];
             content.image = [UIImage systemImageNamed:@"folder"];
         }
         else {
@@ -566,7 +567,7 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
             }
             break;
         case VibeBrowserSourceDevice:
-            content.text = [NSString stringWithFormat:STR_BROWSER_ON_DEVICE, UIDevice.currentDevice.localizedModel];
+            content.text = [SearchFolderStore displayNameForFolderURL:SearchFolderStore.containerDocumentsURL];
             content.image = [UIImage systemImageNamed:
                     UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad ? @"ipad" : @"iphone"];
             break;
@@ -842,7 +843,8 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
     NSString *path = item[@"path"];
     UIListContentConfiguration *content = [UIListContentConfiguration subtitleCellConfiguration];
     content.text = path.lastPathComponent;
-    content.secondaryText = path.stringByDeletingLastPathComponent.lastPathComponent;
+    content.secondaryText = [SearchFolderStore displayNameForFolderURL:
+            [NSURL fileURLWithPath:path.stringByDeletingLastPathComponent isDirectory:YES]];
     content.secondaryTextProperties.color = UIColor.secondaryLabelColor;
     // Search's hit row: one line each, the glyph capped.
     content.textProperties.numberOfLines = 1;
