@@ -15,9 +15,10 @@ NS_ASSUME_NONNULL_BEGIN
 // access token is fetched on first use, as after a relaunch.
 - (void)adoptRefreshToken:(NSString *)refreshToken accountID:(NSString *)accountID;
 
-// Rebuilds both sessions over `configuration`, finishing what is in flight on
-// the old ones: how the debug channel puts a fake Dropbox under the client.
-- (void)useSessionConfiguration:(NSURLSessionConfiguration *)configuration;
+// Rebuilds both sessions over `configuration` — nil for the one the client
+// was made with — finishing what is in flight on the old ones: how the debug
+// channel puts a fake Dropbox under the client and takes it away again.
+- (void)useSessionConfiguration:(nullable NSURLSessionConfiguration *)configuration;
 
 @end
 

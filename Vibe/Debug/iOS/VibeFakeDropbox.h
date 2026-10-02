@@ -11,9 +11,7 @@
 //  exactly the class of bug a scripted tree reproduces.
 //
 
-#import <TargetConditionals.h>
-
-#if DEBUG && !TARGET_OS_OSX
+#if DEBUG
 
 #import <Foundation/Foundation.h>
 
@@ -24,12 +22,12 @@ NS_ASSUME_NONNULL_BEGIN
 @interface VibeFakeDropbox : NSObject
 
 // `directory` is the account's root: its folders are Dropbox folders, its
-// files Dropbox files, ids are paths. The client's sessions are rebuilt over
-// the fake and the account is linked as a completed sign-in would be. A full
-// download takes about transferSeconds, delivered in pieces so a loading bar
-// has something to show; ranged reads answer at once.
+// files Dropbox files, ids are paths. Indexed once here, so a request is a
+// lookup. The client's sessions are rebuilt over the fake and the account is
+// linked as a completed sign-in would be. A whole download takes about
+// transferSeconds, delivered in pieces so a loading bar has something to
+// show; ranged reads answer at once.
 + (void)installWithDirectory:(NSURL *)directory
-                 accountName:(NSString *)accountName
              transferSeconds:(NSTimeInterval)transferSeconds
                       client:(DropboxClient *)client;
 

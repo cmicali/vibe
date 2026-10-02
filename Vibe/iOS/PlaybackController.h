@@ -31,8 +31,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The whole row set changed and the cursor is final.
 - (void)playbackDidReplacePlaylist:(PlaybackController *)playback;
-// Empty when an Add landed nothing: every Add ends in one of these.
 - (void)playback:(PlaybackController *)playback didAppendTracksAtIndexes:(NSIndexSet *)indexes;
+// Every Add ends here, after any append it made: landed is NO when it found
+// nothing, or nothing new. The playlist's own events say what changed; this
+// says the request is over.
+- (void)playback:(PlaybackController *)playback didSettleAddLanding:(BOOL)landed;
 - (void)playback:(PlaybackController *)playback didReplaceTrackAtIndex:(NSUInteger)index;
 - (void)playback:(PlaybackController *)playback
         didChangeCurrentIndexFromIndex:(NSUInteger)previousIndex;

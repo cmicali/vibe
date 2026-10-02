@@ -90,12 +90,8 @@ static NSString *const kTabSearch = @"search";
     return _miniPlayer;
 }
 
-- (CGFloat)backdropScale {
-    return _backdropSnapshot ? _backdropSnapshot.transform.a : 1;
-}
-
-- (CGFloat)cardOffset {
-    return _player.view.transform.ty;
+- (UIView *)backdropSnapshot {
+    return _backdropSnapshot;
 }
 
 - (LibraryViewController *)library {
@@ -729,10 +725,10 @@ static NSString *const kTabSearch = @"search";
     }
 }
 
-// Every Add ends here, empty when it landed nothing; the oldest lift is its.
-- (void)playback:(PlaybackController *)playback didAppendTracksAtIndexes:(NSIndexSet *)indexes {
+// Every Add ends here; the oldest lift is its.
+- (void)playback:(PlaybackController *)playback didSettleAddLanding:(BOOL)landed {
     if (_liftedRowBatches.count > 0) {
-        [self settleLiftedRows:_liftedRowBatches.firstObject landed:indexes.count > 0];
+        [self settleLiftedRows:_liftedRowBatches.firstObject landed:landed];
     }
 }
 
@@ -741,9 +737,9 @@ static NSString *const kTabSearch = @"search";
 // An Add in the Files tab changes nothing on its own screen, so its rows say
 // what happened: they lift when asked for, fly into the Playlist tab when the
 // tracks land, and set back down when nothing did (all already there, or a
-// folder with no songs directly inside). Every Add ends in an append event,
-// empty for nothing, so there is no timer: a lift that outlives its Add is a
-// bug, and check_consistency reports one (liftedRowAges).
+// folder with no songs directly inside). Every Add ends in a settle event,
+// so there is no timer: a lift that outlives its Add is a bug, and
+// check_consistency reports one (liftedRowTimes).
 static const NSTimeInterval kRowLiftDuration = 0.25;
 static const NSTimeInterval kRowFlightDuration = 0.7;
 static const NSTimeInterval kRowFlightStagger = 0.07;
@@ -781,13 +777,8 @@ static const CGFloat kLandedRowScale = 0.1;
     }
 }
 
-- (NSArray<NSNumber *> *)liftedRowAges {
-    NSMutableArray<NSNumber *> *ages = [NSMutableArray array];
-    CFTimeInterval now = CACurrentMediaTime();
-    for (NSNumber *liftedAt in _liftedRowBatchTimes) {
-        [ages addObject:@(now - liftedAt.doubleValue)];
-    }
-    return ages;
+- (NSArray<NSNumber *> *)liftedRowTimes {
+    return [_liftedRowBatchTimes copy] ?: @[];
 }
 
 - (void)settleLiftedRows:(NSArray<UIView *> *)rows landed:(BOOL)landed {
@@ -885,9 +876,14 @@ static const CGFloat kLandedRowScale = 0.1;
     [self expandPlayerAnimated:YES];
 }
 
-// Only the Playlist tab's empty state says a pick found no audio.
+// Only the Playlist tab's empty state says a pick found no audio. An open
+// supersedes every Add in flight, so their lifted rows settle here as they
+// do on a replace that landed.
 - (void)playbackDidOpenEmptyFolder:(PlaybackController *)playback {
     [self bringPlaylistTabForward];
+    for (NSArray<UIView *> *rows in [_liftedRowBatches copy]) {
+        [self settleLiftedRows:rows landed:NO];
+    }
 }
 
 - (void)bringPlaylistTabForward {

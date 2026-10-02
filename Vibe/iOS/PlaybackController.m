@@ -876,20 +876,22 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
             [fresh addObject:row];
         }
     }
-    if (fresh.count == 0) {
-        // The playlist is untouched, so it posts nothing; the Add still
-        // settles for the rows lifted for it.
-        [self playlist:_playlist didAppendTracksAtIndexes:[NSIndexSet indexSet]];
-        return;
+    if (fresh.count > 0) {
+        [_playlist appendTracks:fresh];
+        // No cancelScan: that belongs to a replacement.
+        [self scheduleDeferredMetadataLoad];
+        [self updateMetadataNeighborhood];
+        // A playing last row may now have a successor.
+        [self prefetchSuccessor];
+        // hasNext may have flipped, and the timer is off while parked or paused.
+        [self notifyDidTick];
     }
-    [_playlist appendTracks:fresh];
-    // No cancelScan: that belongs to a replacement.
-    [self scheduleDeferredMetadataLoad];
-    [self updateMetadataNeighborhood];
-    // A playing last row may now have a successor.
-    [self prefetchSuccessor];
-    // hasNext may have flipped, and the timer is off while parked or paused.
-    [self notifyDidTick];
+    // After the append's own events: the request is over either way.
+    for (id<PlaybackObserver> observer in [self observerSnapshot]) {
+        if ([observer respondsToSelector:@selector(playback:didSettleAddLanding:)]) {
+            [observer playback:self didSettleAddLanding:fresh.count > 0];
+        }
+    }
 }
 
 - (void)folderSessionDidOpenEmptyFolder:(FolderSession *)session {

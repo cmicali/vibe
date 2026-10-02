@@ -27,8 +27,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // An Add landed: append rows (never empty, in order); the base is unchanged.
 // May carry rows the playlist already holds.
-// Empty for an Add that found nothing, or nothing new: the playlist is
-// untouched, but the asker is told.
+// Empty for an Add that found nothing: the playlist is untouched, but the
+// asker is told.
 - (void)folderSession:(FolderSession *)session didAppendTracks:(NSArray<AudioTrack *> *)rows;
 
 // The picked location held no audio files.

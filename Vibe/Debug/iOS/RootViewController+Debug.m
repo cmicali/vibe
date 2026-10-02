@@ -30,8 +30,17 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
 #import "AudioFX.h"
 #import "Playlist.h"
 
-// The layout probe's series: samples taken on a display link between
-// sample_layout_anchors and dump_layout_anchors.
+// A display link on the main run loop for `seconds` (0: until replaced),
+// riding whatever rate the app's own work earns: the probes measure, they
+// must not ask.
+static CADisplayLink *VibeDebugDisplayLink(id target, SEL selector) {
+    CADisplayLink *link = [CADisplayLink displayLinkWithTarget:target selector:selector];
+    [link addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
+    return link;
+}
+
+// The layout probe's series: one sample per display-link frame between
+// sample_layout_anchors and its end, read by dump_layout_samples.
 static NSMutableArray<NSDictionary *> *sLayoutSamples;
 static CADisplayLink *sLayoutSampler;
 static CFTimeInterval sLayoutSamplingEndsAt;
@@ -40,23 +49,14 @@ static NSArray<NSNumber *> *VibeRectArray(CGRect rect) {
     return @[@(rect.origin.x), @(rect.origin.y), @(rect.size.width), @(rect.size.height)];
 }
 
-// The first label under `view` reading `text`, depth first.
-static UILabel *VibeLabelWithText(UIView *view, NSString *text) {
-    if ([view isKindOfClass:UILabel.class] && [((UILabel *)view).text isEqualToString:text]) {
-        return (UILabel *)view;
-    }
-    for (UIView *subview in view.subviews) {
-        UILabel *label = VibeLabelWithText(subview, text);
-        if (label) {
-            return label;
-        }
-    }
-    return nil;
+static NSArray<NSNumber *> *VibeInsetsArray(UIEdgeInsets insets) {
+    return @[@(insets.top), @(insets.left), @(insets.bottom), @(insets.right)];
 }
 
-// The frame-rate probe: a display link asking for the display's full rate,
-// counting what it is granted and how often a frame ran long. The answer to
-// "is this 60 or 120, and does it hitch" that the simulator cannot give.
+// The frame-rate probe: a display link counting the frames the app is
+// granted and how often one ran long. The answer to "is this 60 or 120, and
+// does it hitch" that the simulator cannot give. Class-level: it needs no
+// root, and a phone starts it from a launch flag before there is one.
 static CADisplayLink *sFrameProbe;
 static CFTimeInterval sFrameProbeStartedAt;
 static CFTimeInterval sFrameProbeLastAt;
@@ -64,25 +64,26 @@ static CFTimeInterval sFrameProbeEndsAt;
 static CFTimeInterval sFrameProbeWorstInterval;
 static NSUInteger sFrameProbeFrames;
 static NSUInteger sFrameProbeHitches;
-static BOOL sFrameProbeLogs;
 
-@implementation RootViewController (Debug)
-
-- (void)debugBeginFrameProbeForSeconds:(NSTimeInterval)seconds logging:(BOOL)logging {
-    [sFrameProbe invalidate];
-    sFrameProbeStartedAt = CACurrentMediaTime();
+static void VibeFrameProbeResetWindow(CFTimeInterval now) {
+    sFrameProbeStartedAt = now;
     sFrameProbeLastAt = 0;
-    sFrameProbeEndsAt = seconds > 0 ? sFrameProbeStartedAt + seconds : 0;
     sFrameProbeWorstInterval = 0;
     sFrameProbeFrames = 0;
     sFrameProbeHitches = 0;
-    sFrameProbeLogs = logging;
-    sFrameProbe = [CADisplayLink displayLinkWithTarget:self selector:@selector(debugProbeFrame:)];
-    sFrameProbe.preferredFrameRateRange = CAFrameRateRangeMake(60, 120, 120);
-    [sFrameProbe addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
 }
 
-- (void)debugProbeFrame:(CADisplayLink *)link {
+@implementation RootViewController (Debug)
+
++ (void)debugBeginFrameProbeForSeconds:(NSTimeInterval)seconds {
+    [sFrameProbe invalidate];
+    CFTimeInterval now = CACurrentMediaTime();
+    VibeFrameProbeResetWindow(now);
+    sFrameProbeEndsAt = seconds > 0 ? now + seconds : 0;
+    sFrameProbe = VibeDebugDisplayLink(self, @selector(debugProbeFrame:));
+}
+
++ (void)debugProbeFrame:(CADisplayLink *)link {
     CFTimeInterval now = link.timestamp;
     if (sFrameProbeLastAt > 0) {
         CFTimeInterval interval = now - sFrameProbeLastAt;
@@ -94,52 +95,50 @@ static BOOL sFrameProbeLogs;
     }
     sFrameProbeLastAt = now;
     sFrameProbeFrames++;
-    // The launch flag's continuous probe logs a window every five seconds.
-    if (sFrameProbeLogs && now - sFrameProbeStartedAt >= 5) {
+    // The continuous probe — the launch flag's — logs a window every five
+    // seconds, which --log-stderr relays off a phone.
+    if (sFrameProbeEndsAt == 0 && now - sFrameProbeStartedAt >= 5) {
         NSDictionary *report = [self debugFrameProbeReport];
         LogInfo(@"Frame probe: %@ Hz over %@ s, %@ hitches, worst %@ ms",
                 report[@"averageHz"], report[@"seconds"], report[@"hitches"], report[@"worstIntervalMs"]);
-        sFrameProbeStartedAt = now;
-        sFrameProbeFrames = 0;
-        sFrameProbeHitches = 0;
-        sFrameProbeWorstInterval = 0;
+        VibeFrameProbeResetWindow(now);
     }
-    if (sFrameProbeEndsAt > 0 && now >= sFrameProbeEndsAt) {
+    else if (sFrameProbeEndsAt > 0 && now >= sFrameProbeEndsAt) {
         [link invalidate];
         sFrameProbe = nil;
     }
 }
 
-- (NSDictionary *)debugFrameProbeReport {
++ (NSDictionary *)debugFrameProbeReport {
     CFTimeInterval seconds = (sFrameProbeLastAt ?: CACurrentMediaTime()) - sFrameProbeStartedAt;
     double hz = seconds > 0 && sFrameProbeFrames > 1 ? (sFrameProbeFrames - 1) / seconds : 0;
-    return @{@"sampling": @(sFrameProbe != nil),
-             @"frames": @(sFrameProbeFrames),
+    // 120 only when the app may draw at it: an iPhone caps an app at 60
+    // without CADisableMinimumFrameDurationOnPhone.
+    UIScreen *screen = nil;
+    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+        if ([scene isKindOfClass:UIWindowScene.class]) {
+            screen = ((UIWindowScene *)scene).screen;
+            break;
+        }
+    }
+    return @{@"frames": @(sFrameProbeFrames),
              @"seconds": @(round(seconds * 100) / 100),
              @"averageHz": @(round(hz * 10) / 10),
              @"hitches": @(sFrameProbeHitches),
              @"worstIntervalMs": @(round(sFrameProbeWorstInterval * 10000) / 10),
-             // 120 only when the app may draw at it: an iPhone caps an app
-             // at 60 without CADisableMinimumFrameDurationOnPhone.
-             @"maximumHz": @(self.view.window.screen.maximumFramesPerSecond)};
+             @"maximumHz": @(screen ? screen.maximumFramesPerSecond : 0)};
 }
 
-// Where the selected tab's chrome and first row sit in the window, read from
-// the LIVE views: under a moving card they must not move at all, since what
-// scales is a snapshot. Window coordinates, so a shift of any kind shows.
+// Where the selected tab's chrome and first row sit in the window, with the
+// insets the layout is laid out against, read from the LIVE views: under a
+// moving card none of them may move, since what scales is a snapshot.
 - (NSDictionary *)debugLayoutAnchors {
     NSMutableDictionary *anchors = [NSMutableDictionary dictionary];
-    UIViewController *selected = self.tabs.selectedViewController;
-    UINavigationController *navigation = [selected isKindOfClass:UINavigationController.class]
-            ? (UINavigationController *)selected : selected.navigationController;
-    UIViewController *top = navigation.topViewController ?: selected;
+    UINavigationController *navigation = (UINavigationController *)self.tabs.selectedViewController;
+    UIViewController *top = navigation.topViewController;
     UINavigationBar *bar = navigation.navigationBar;
     if (bar.window) {
         anchors[@"navigationBar"] = VibeRectArray([bar convertRect:bar.bounds toView:nil]);
-        UILabel *title = VibeLabelWithText(bar, top.navigationItem.title ?: @"");
-        if (title) {
-            anchors[@"title"] = VibeRectArray([title convertRect:title.bounds toView:nil]);
-        }
     }
     UITableView *table = [top isKindOfClass:UITableViewController.class]
             ? ((UITableViewController *)top).tableView : nil;
@@ -147,6 +146,8 @@ static BOOL sFrameProbeLogs;
     if (firstRow) {
         anchors[@"firstRow"] = VibeRectArray([firstRow convertRect:firstRow.bounds toView:nil]);
         anchors[@"contentOffsetY"] = @(table.contentOffset.y);
+        // The large title's collapse shows here before anywhere else.
+        anchors[@"adjustedContentInset"] = VibeInsetsArray(table.adjustedContentInset);
     }
     UITabBar *tabBar = self.tabs.tabBar;
     if (tabBar.window) {
@@ -156,20 +157,20 @@ static BOOL sFrameProbeLogs;
     if (strip.window) {
         anchors[@"strip"] = VibeRectArray([strip convertRect:strip.bounds toView:nil]);
     }
+    anchors[@"tabsSafeAreaInsets"] = VibeInsetsArray(self.tabs.view.safeAreaInsets);
+    anchors[@"topSafeAreaInsets"] = VibeInsetsArray(top.view.safeAreaInsets);
     anchors[@"tabsHidden"] = @(self.tabs.view.hidden);
-    anchors[@"backdropScale"] = @(self.backdropScale);
-    anchors[@"cardOffset"] = @(self.cardOffset);
+    anchors[@"backdropScale"] = @(self.backdropSnapshot ? self.backdropSnapshot.transform.a : 1);
+    anchors[@"cardOffset"] = @(self.player.view.transform.ty);
     anchors[@"time"] = @(CACurrentMediaTime());
     return anchors;
 }
 
-- (void)debugBeginLayoutSamplingForSeconds:(NSTimeInterval)seconds hertz:(NSInteger)hertz {
+- (void)debugBeginLayoutSamplingForSeconds:(NSTimeInterval)seconds {
     [sLayoutSampler invalidate];
     sLayoutSamples = [NSMutableArray array];
     sLayoutSamplingEndsAt = CACurrentMediaTime() + seconds;
-    sLayoutSampler = [CADisplayLink displayLinkWithTarget:self selector:@selector(debugSampleLayout:)];
-    sLayoutSampler.preferredFrameRateRange = CAFrameRateRangeMake((float)hertz, (float)hertz, (float)hertz);
-    [sLayoutSampler addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
+    sLayoutSampler = VibeDebugDisplayLink(self, @selector(debugSampleLayout:));
 }
 
 - (void)debugSampleLayout:(CADisplayLink *)link {
@@ -181,8 +182,7 @@ static BOOL sFrameProbeLogs;
 }
 
 - (NSDictionary *)debugLayoutSamples {
-    return @{@"sampling": @(sLayoutSampler != nil),
-             @"samples": [sLayoutSamples copy] ?: @[]};
+    return @{@"samples": [sLayoutSamples copy] ?: @[]};
 }
 
 - (NSDictionary *)debugStateDictionary {
@@ -441,21 +441,25 @@ static BOOL sFrameProbeLogs;
     return self.playback.screenState == VibePlayerScreenStateLoading;
 }
 
-// No pitch control on iOS; the same constant Now Playing publishes.
-// Every Add ends in an append event, empty for nothing; rows lifted for one
-// and still up long after are an Add that never came back.
+// Every Add ends in a settle event; rows lifted for one and still up long
+// after are an Add that never came back. The bound is past one Dropbox
+// listing wait (FolderSession's kDropboxListingTimeout), the slowest thing
+// an Add legitimately waits on.
 - (NSUInteger)debugCheckPlatform:(NSMutableArray<NSDictionary *> *)violations {
     static const NSTimeInterval kUnsettledLiftSeconds = 30;
-    for (NSNumber *age in self.liftedRowAges) {
-        if (age.doubleValue > kUnsettledLiftSeconds) {
+    CFTimeInterval now = CACurrentMediaTime();
+    for (NSNumber *liftedAt in self.liftedRowTimes) {
+        CFTimeInterval age = now - liftedAt.doubleValue;
+        if (age > kUnsettledLiftSeconds) {
             [violations addObject:@{@"rule": @"lifted-rows-settle",
                                     @"detail": [NSString stringWithFormat:
-                                            @"rows lifted for an Add %.0fs ago were never settled", age.doubleValue]}];
+                                            @"rows lifted for an Add %.0fs ago were never settled", age]}];
         }
     }
     return 1;
 }
 
+// No pitch control on iOS; the same constant Now Playing publishes.
 - (double)debugPlaybackRate {
     return 1.0;
 }

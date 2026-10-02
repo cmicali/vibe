@@ -80,6 +80,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 @implementation DropboxClient {
     NSString *_appKey;
     NSString *_keychainService;
+    NSURLSessionConfiguration *_configuration;
     // Streamed downloads, through the delegate below.
     NSURLSession *_downloadSession;
     // Everything answered whole — calls, tokens, ranged reads — on its own
@@ -116,15 +117,17 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     if (self) {
         _appKey = [appKey copy];
         _keychainService = [keychainService copy];
+        _configuration = configuration;
         _lock = OS_UNFAIR_LOCK_INIT;
         _downloads = [NSMutableDictionary dictionary];
-        [self useSessionConfiguration:configuration];
+        [self useSessionConfiguration:nil];
         [self loadAccount];
     }
     return self;
 }
 
 - (void)useSessionConfiguration:(NSURLSessionConfiguration *)configuration {
+    configuration = configuration ?: _configuration;
     [_downloadSession finishTasksAndInvalidate];
     [_callSession finishTasksAndInvalidate];
     NSOperationQueue *delegateQueue = [[NSOperationQueue alloc] init];
