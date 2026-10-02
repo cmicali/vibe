@@ -1406,7 +1406,7 @@ def collect_themes(channel):
         walk(payload.get("menu", []))
     # The submenu fills only when opened, so dump_menu can miss it; the
     # built-ins guarantee something to apply.
-    for built_in in ("vibe", "cupertino", "field", "glassy", "snake",
+    for built_in in ("vibe", "cupertino", "field", "glassy", "record_bin", "snake",
                      "sonic_cirrus", "tangerine", "technical"):
         if built_in not in ids:
             ids.append(built_in)
