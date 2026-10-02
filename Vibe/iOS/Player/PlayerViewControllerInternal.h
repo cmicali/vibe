@@ -90,10 +90,6 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
     // display rate. NSIntegerMin: not scrubbing.
     NSInteger               _scrubLabelSecond;
 
-    // Shows shuffle and repeat over the setting hiding them: cleared on
-    // presentation and track change, latched by any mode on (Player/AGENTS.md).
-    BOOL                    _shuffleRepeatRevealed;
-
     // Shared by every page. The user's REQUEST, which is what persists; each
     // view applies its own floor (WaveformScrubberView.visibleFraction).
     CGFloat                 _waveformZoom;

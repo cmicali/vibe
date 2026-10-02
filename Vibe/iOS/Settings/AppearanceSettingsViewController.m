@@ -247,9 +247,7 @@ static NSString *const kValueCellIdentifier  = @"value";
 - (void)shuffleRepeatToggled:(UISwitch *)toggle {
     VibeSetShowsShuffleRepeat(toggle.isOn);
     if (!toggle.isOn) {
-        AppSettings *settings = AppSettings.sharedInstance;
-        settings.shuffleEnabled = NO;
-        settings.repeatMode = VibeRepeatModeOff;
+        // Hidden is off: the model clears both modes as it applies them.
         [_playback applyTrackTransitionSettings];
     }
     VibeNotifyDisplaySettingsChanged();
