@@ -23,8 +23,11 @@ import argparse
 import pathlib
 import random
 import shutil
-import subprocess
 import sys
+
+ROOT = pathlib.Path(__file__).resolve().parents[4]
+sys.path.insert(0, str(ROOT / "scripts/bench"))
+import bench  # noqa: E402  its ffmpeg(): bounded, and whole or not at all
 
 ARTISTS = ["Adriatique", "Ame", "Chaos in the CBD", "DJ Seinfeld", "Delano Smith",
            "Four Tet", "Impérieux", "Kerri Chandler", "Theo Parrish", "Yonef",
@@ -37,9 +40,8 @@ TITLES = ["Rollox", "Basic Track", "Sirena Deep", "the one", "Free To Explore",
 
 
 def main():
-    here = pathlib.Path(__file__).resolve().parents[4]
     parser = argparse.ArgumentParser()
-    parser.add_argument("--out", default=str(here / "build/stress-corpus"))
+    parser.add_argument("--out", default=str(ROOT / "build/stress-corpus"))
     parser.add_argument("--folders", type=int, default=12)
     parser.add_argument("--per-folder", type=int, default=40)
     parser.add_argument("--seed", type=int, default=7)
@@ -50,7 +52,7 @@ def main():
     if not shutil.which("ffmpeg"):
         sys.exit("ffmpeg not found — brew install ffmpeg")
 
-    src_dir = here / "Assets/test_audio_files"
+    src_dir = ROOT / "Assets/test_audio_files"
     # Both tag parsers: MP4 metadata and ID3v2 share no code path in TagLib.
     with_art = [src_dir / n for n in
                 ("tone-art-red.m4a", "tone-art-blue.m4a", "tone-art-green.mp3")]
@@ -78,12 +80,9 @@ def main():
             dest = folder / f"{artist} - {title} ({d + 1:02d}-{i:02d}){src.suffix}"
             # -c copy keeps the audio and, on these containers, the attached
             # cover; only the tags change.
-            subprocess.run(
-                ["ffmpeg", "-nostdin", "-loglevel", "error", "-y", "-i", str(src),
-                 "-c", "copy", "-metadata", f"title={title}",
-                 "-metadata", f"artist={artist}",
-                 "-metadata", f"album=2025-{d + 1:02d}", str(dest)],
-                check=True)
+            bench.ffmpeg("-i", str(src), "-c", "copy", "-metadata", f"title={title}",
+                         "-metadata", f"artist={artist}",
+                         "-metadata", f"album=2025-{d + 1:02d}", str(dest))
             made += 1
             art_count += 0 if artless else 1
 

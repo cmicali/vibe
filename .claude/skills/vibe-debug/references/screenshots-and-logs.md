@@ -26,11 +26,11 @@ Eyeballing near-identical grays is unreliable; assert numerically with the probe
 
 ```bash
 make install-ios CONFIG=Debug          # signed build onto the one paired phone; DEVICE=<name or identifier> with several
-xcrun devicectl device process launch --device <identifier> --console --terminate-existing \
+xcrun devicectl device process launch --timeout 3600 --device <identifier> --console --terminate-existing \
     com.commonwealthrecordings.Vibe --log-stderr > build/device.log 2>&1   # run it in the background and read the file
 ```
 
-`<identifier>` is devicectl's own (`xcrun devicectl list devices`), not the hardware UDID. A reinstall ends the console session, so relaunch after each one. The audio session's lines to read a pass by:
+`<identifier>` is devicectl's own (`xcrun devicectl list devices`), not the hardware UDID. A reinstall ends the console session, so relaunch after each one. `--timeout` (seconds) ends one left in the background, which would otherwise outlive the session that started it; size it to a round and relaunch after it the same way. The audio session's lines to read a pass by:
 
 ```bash
 grep -E "AudioSession|AudioOutputUnit|idle stop|Scene:|no verdict" build/device.log

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Generate the standard test audio into Assets/test_audio_files/ (gitignored).
-# Existing files are kept unless --force. Stock-Mac tools only (python3,
+# Existing files are kept unless --force. Stock-Mac tools only (python3, perl,
 # afconvert, swift), except the MP3s, which need lame or ffmpeg and are skipped
 # without one.
 #
@@ -38,6 +38,36 @@
 #                                green cover — the ID3 path, which shares no
 #                                parser with the MP4 art above
 set -euo pipefail
+
+# ffmpeg_out <output> <ffmpeg arguments...>: ffmpeg into <output>, whole or not
+# at all (it writes a hidden name beside it and renames it only on success, so
+# no [ -s ] check takes a partial file), within FFMPEG_LIMIT seconds, 100 times
+# the slowest encode here.
+# TRAP: ffmpeg's native vorbis encoder, the only one Homebrew's build has, never
+# exits once almost no audio reaches it (a FLAC seeked near or past its end):
+# one spun 35 hours writing 1.5 GB, ignoring -t and SIGTERM. So a window cut
+# from a real file clamps -ss to ffprobe's duration, and the limit is perl's
+# alarm (macOS has no timeout(1)), which survives the exec and so ends ffmpeg
+# even after this script has gone.
+FFMPEG_LIMIT=60
+ffmpeg_out() {
+    local out="$1" partial status=0
+    shift
+    partial="$(dirname "$out")/.partial.$(basename "$out")"
+    perl -e 'alarm shift; exec @ARGV or die "$ARGV[0]: $!\n"' "$FFMPEG_LIMIT" \
+        ffmpeg -nostdin -loglevel error -y "$@" "$partial" || status=$?
+    if [ "$status" -eq 0 ]; then
+        mv -f "$partial" "$out"
+        return
+    fi
+    rm -f "$partial"
+    if [ "$status" -eq 142 ]; then
+        echo "error: ffmpeg did not finish $out in ${FFMPEG_LIMIT}s and was killed" >&2
+    else
+        echo "error: ffmpeg failed (exit $status) making $out" >&2
+    fi
+    return "$status"
+}
 
 # BlackHole loopback drivers patched with test fault controls, built under
 # build/ (default build/blackhole-drivers) into an installer package; never
@@ -465,7 +495,7 @@ AUDIO_PY
     [ -s "$render_dir/alias.adts" ] || cp "$render_dir/lossy.aac" "$render_dir/alias.adts"
     if command -v ffmpeg >/dev/null; then
         # encode <name> <source> <ffmpeg output options...>: made once, into the render directory.
-        encode() { local name="$1" source="$2"; shift 2; [ -s "$render_dir/$name" ] || ffmpeg -nostdin -loglevel error -y -i "$source" "$@" "$render_dir/$name"; }
+        encode() { local name="$1" source="$2"; shift 2; [ -s "$render_dir/$name" ] || ffmpeg_out "$render_dir/$name" -i "$source" "$@"; }
         encode cbr.mp3 "$render_source" -c:a libmp3lame -b:a 192k
         encode vbr.mp3 "$render_source" -c:a libmp3lame -q:a 2
         encode lossy.mp2 "$render_source" -c:a mp2 -b:a 192k
@@ -479,7 +509,7 @@ AUDIO_PY
         # MPEG-2 at 8 kbps: frames of a few bytes of payload, whose reservoir reaches back past MPEG-1's seek preroll.
         encode lsf-8k.mp3 "$render_source" -ar 24000 -c:a libmp3lame -b:a 8k
         # FFmpeg's float decode of the generated 8 kHz mixed-block stream: the reference testDrMP3DecodesMixedBlocksAt8kHzAsFFmpegDoes reads.
-        [ -s "$render_dir/mixed-8k.f32" ] || ffmpeg -nostdin -loglevel error -y -c:a mp3float -i "$render_dir/mixed-8k.mp3" -f f32le "$render_dir/mixed-8k.f32"
+        [ -s "$render_dir/mixed-8k.f32" ] || ffmpeg_out "$render_dir/mixed-8k.f32" -c:a mp3float -i "$render_dir/mixed-8k.mp3" -f f32le
         encode lossy.qta "$render_source" -c:a aac -f mov
         # The WAV ADPCMs, which afconvert cannot write.
         encode wav-ima-adpcm.wav "$render_source" -c:a adpcm_ima_wav
@@ -755,8 +785,8 @@ gen_mp3() {
     case "$MP3ENC:$3" in
         lame:cbr)   lame --quiet -b 192 "$2" "$1" ;;
         lame:vbr)   lame --quiet -V 2   "$2" "$1" ;;
-        ffmpeg:cbr) ffmpeg -y -loglevel error -i "$2" -codec:a libmp3lame -b:a 192k "$1" ;;
-        ffmpeg:vbr) ffmpeg -y -loglevel error -i "$2" -codec:a libmp3lame -q:a 2    "$1" ;;
+        ffmpeg:cbr) ffmpeg_out "$1" -i "$2" -codec:a libmp3lame -b:a 192k ;;
+        ffmpeg:vbr) ffmpeg_out "$1" -i "$2" -codec:a libmp3lame -q:a 2    ;;
     esac
 }
 
@@ -791,10 +821,10 @@ gen_art_mp3() {
         ffmpeg)
             # Without attached_pic the image is a video stream some parsers
             # read as a second track, not embedded art.
-            ffmpeg -y -loglevel error -i "$src" -i "$OUT/.art.png" \
+            ffmpeg_out "$dst" -i "$src" -i "$OUT/.art.png" \
                    -map 0:a -map 1:v -codec:a libmp3lame -b:a 192k -codec:v copy \
                    -id3v2_version 3 -disposition:v attached_pic \
-                   -metadata title="$title" -metadata artist="$artist" "$dst"
+                   -metadata title="$title" -metadata artist="$artist"
             ;;
     esac
     set_apic_front_cover "$dst"

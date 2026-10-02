@@ -138,7 +138,7 @@ NSString *VibeBenchComponentsFile(NSString *name) {
     for (NSString *folder in @[@"play", @"extra"]) {
         NSString *dir = [sCorpus stringByAppendingPathComponent:folder];
         for (NSString *entry in [manager contentsOfDirectoryAtPath:dir error:nil]) {
-            if ([entry.stringByDeletingPathExtension isEqualToString:name] && ![entry containsString:@".tmp."]) {
+            if ([entry.stringByDeletingPathExtension isEqualToString:name]) {
                 return [dir stringByAppendingPathComponent:entry];
             }
         }

@@ -97,8 +97,30 @@ PITCH_CASES = [('flac-24-192', 8), ('mp3-320', -8)]
 LIBRARY_ALBUMS, LIBRARY_TRACKS, LIBRARY_SECONDS = 30, 20, 30
 
 
-def ffmpeg(*args):
-    subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', *args], check=True)
+def ffmpeg(*args, limit=60):
+    """ffmpeg into the last argument, whole or not at all: it writes a hidden
+    name beside it and renames it only on success, so no exists() check or
+    corpus_hash() takes a partial file. `limit` is seconds of wall clock.
+
+    TRAP: ffmpeg's native `vorbis` encoder, the only one Homebrew's build has,
+    never exits once almost no audio reaches it (a FLAC seeked near or past its
+    end): one spun 35 hours writing 1.5 GB, ignoring -t and SIGTERM. So a window
+    cut from a real file clamps -ss to ffprobe's duration, and the limit is an
+    alarm inside ffmpeg, which survives the exec. Not timeout=: it cannot end
+    an orphan whose parent died first, and it polls, adding up to 30 ms to
+    every call."""
+    out = Path(args[-1])
+    partial = out.with_name('.partial.' + out.name)
+    try:
+        subprocess.run(['ffmpeg', '-nostdin', '-hide_banner', '-loglevel', 'error', '-y', *args[:-1], str(partial)],
+                       check=True, preexec_fn=lambda: signal.alarm(limit))
+        partial.rename(out)
+    except subprocess.CalledProcessError as error:
+        if error.returncode == -signal.SIGALRM:
+            raise RuntimeError(f'ffmpeg: {out} not done in {limit} s, killed') from None
+        raise
+    finally:
+        partial.unlink(missing_ok=True)
 
 
 def resolve(ref):
@@ -157,15 +179,15 @@ def make_corpus():
         if out.exists():
             continue
         print(f'corpus: {out.name}', flush=True)
-        tmp = out.with_suffix('.tmp.' + spec['ext'])
         inputs, art_input = play_source(spec['rate'], spec['seconds'], spec['channels'])
         maps = ['-map', '[a]']
         if spec['art']:
             inputs += ['-i', str(art)]
             maps += ['-map', f'{art_input}:v', '-c:v', 'copy', '-disposition:v', 'attached_pic']
         tags = ['-metadata', f'title=Bench {name}', '-metadata', 'artist=Vibe Bench', '-metadata', 'album=Corpus']
-        ffmpeg(*inputs, *maps, '-ar', str(spec['rate']), '-ac', str(spec['channels']), *spec['codec'], *tags, str(tmp))
-        tmp.rename(out)
+        # The slowest, an hour of MP3, takes 40 s on an M4 Max.
+        ffmpeg(*inputs, *maps, '-ar', str(spec['rate']), '-ac', str(spec['channels']), *spec['codec'], *tags, str(out),
+               limit=60 + spec['seconds'] // 6)
     if not (library / '.complete').exists():
         shutil.rmtree(library, ignore_errors=True)
         formats = [('mp3', ['-c:a', 'libmp3lame', '-q:a', '2']), ('flac', ['-c:a', 'flac', '-sample_fmt', 's16']),
