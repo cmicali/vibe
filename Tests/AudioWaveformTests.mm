@@ -417,7 +417,7 @@
 static const NSUInteger kThreeBandLayers = 7;
 
 // 1,024 identical chunks with these band mean squares, under a broadband RMS
-// of 0.1, below Normalize's ceiling, so it raises levels 3.5x.
+// of 0.1.
 static AudioWaveform VibeThreeBandTestWaveform(std::array<float, 3> bands) {
     std::vector<AudioWaveformCacheChunk> chunks(1024);
     std::vector<float> bandSums;
@@ -541,6 +541,62 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     for (NSUInteger layer : {0, 3, 6}) {
         XCTAssertGreaterThan(normalized[layer], plain[layer], @"layer %lu", layer);
     }
+}
+
+// Under Normalize, the tallest band against its share reaches full height,
+// whichever band it is; a band already past full stays where it was.
+- (void)testThreeBandNormalizeFillsTheTallestBand {
+    CGFloat full = 2 * VibeBarVScale(80);
+    std::vector<CGFloat> lowLed = [self threeBandLayerHeightsForBands:{0.001f, 0.0001f, 0.00001f}
+                                                            normalize:YES waveform:YES];
+    XCTAssertEqualWithAccuracy(lowLed[0], full, 0.01);
+    std::vector<CGFloat> highLed = [self threeBandLayerHeightsForBands:{0.00001f, 0.00001f, 0.001f}
+                                                             normalize:YES waveform:YES];
+    XCTAssertEqualWithAccuracy(highLed[2], full, 0.01);
+    std::array<float, 3> loud = {1, 0.01f, 0.0001f};
+    XCTAssertTrue([self threeBandLayerHeightsForBands:loud normalize:YES waveform:YES] ==
+                  [self threeBandLayerHeightsForBands:loud normalize:NO waveform:YES]);
+}
+
+// A bar a point, up to the waveform's chunks.
+- (void)testThreeBandBarsFollowTheDrawnWidth {
+    AudioWaveform waveform = VibeThreeBandTestWaveform({1, 0.01f, 0.0001f});
+    for (std::array<CGFloat, 2> widthAndBars : {std::array<CGFloat, 2>{512, 512}, {3000, 3000}, {20000, 8192}}) {
+        AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
+        renderer.parentLayer.bounds = CGRectMake(0, 0, widthAndBars[0], 80);
+        NSData *samples = [renderer envelopeSamplesForWaveform:&waveform];
+        XCTAssertEqual(samples.length / (kAudioWaveformBandCount * sizeof(float)), (NSUInteger)widthAndBars[1]);
+    }
+}
+
+// Zoomed in, the bars resolve a kick every eight chunks, which the 1/1024
+// floor would average into one steady column.
+- (void)testThreeBandZoomResolvesKicksTheFloorAverages {
+    std::vector<AudioWaveformCacheChunk> chunks(8192);
+    std::vector<float> bandSums;
+    for (NSUInteger i = 0; i < chunks.size(); i++) {
+        chunks[i].set(-0.1f, 0.1f, 0.01f, 1);
+        float low = i % 8 < 2 ? 0.04f : 0.0001f;
+        bandSums.insert(bandSums.end(), {low, 0.0001f, 0.00001f});
+    }
+    AudioWaveform waveform(chunks.size(), chunks.data(), bandSums.data());
+    auto lowLevels = [&](CGFloat width) {
+        AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
+        renderer.parentLayer.bounds = CGRectMake(0, 0, width, 80);
+        NSData *samples = [renderer envelopeSamplesForWaveform:&waveform];
+        const float *levels = (const float *)samples.bytes;
+        std::vector<float> low;
+        for (NSUInteger i = 0; i < samples.length / (kAudioWaveformBandCount * sizeof(float)); i++) {
+            low.push_back(levels[i * kAudioWaveformBandCount]);
+        }
+        return low;
+    };
+    std::vector<float> overview = lowLevels(1024);
+    XCTAssertEqualWithAccuracy(*std::max_element(overview.begin(), overview.end()),
+                               *std::min_element(overview.begin(), overview.end()), 1e-6);
+    std::vector<float> zoomed = lowLevels(8192);
+    XCTAssertGreaterThan(zoomed[0], 3 * zoomed[4]);
+    XCTAssertEqualWithAccuracy(zoomed[0], zoomed[8], 1e-6);
 }
 
 // Each layer is one outline through the bars, never a shape per bar.

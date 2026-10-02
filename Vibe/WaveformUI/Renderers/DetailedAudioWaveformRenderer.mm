@@ -98,15 +98,15 @@ static CGPathRef VibeNewWigglePath(CGSize size, const float *samples, NSUInteger
     return STR_WAVEFORM_STYLE_DETAILED;
 }
 
-// The cap bounds the mask path against huge widths (the scrubber's zoomed
-// virtual width) at data resolution: the waveform holds 8,192 chunks.
-static const NSUInteger kDetailedMaxBars = 8192;
+// The cap (kVibeWaveformMaxBars) bounds the mask path against the scrubber's
+// zoomed virtual width.
+static const CGFloat kDetailedBarPitch = 0.5;
 
 - (NSUInteger)numBarsForWidth:(CGFloat)width {
     if (_wiggle && self.samplingWidth > 0) width = self.samplingWidth;
     NSUInteger count = (NSUInteger)llround(clampMin(width, 1) * (_wiggle ? self.barDensity : 1)
-                                           / (_wiggle ? kWigglePitch : kVibeBarPitch));
-    return clampRange(count, (NSUInteger)2, _wiggle ? kWiggleMaxLoops : kDetailedMaxBars);
+                                           / (_wiggle ? kWigglePitch : kDetailedBarPitch));
+    return clampRange(count, (NSUInteger)2, _wiggle ? kWiggleMaxLoops : kVibeWaveformMaxBars);
 }
 
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count {

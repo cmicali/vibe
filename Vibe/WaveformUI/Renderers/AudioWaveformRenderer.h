@@ -63,17 +63,26 @@ static inline AudioWaveformCacheChunk VibeWaveformEnergyColumnForBar(AudioWavefo
 }
 
 // Normalize only raises levels: its reference cannot exceed the fixed one.
+// Silence keeps the fixed reference to avoid division by zero.
+static inline float VibeWaveformNormalizedFullScaleRMS(float loudest) {
+    return loudest > 0 ? fminf(loudest, kVibeWaveformFullScaleRMS) : kVibeWaveformFullScaleRMS;
+}
+
 // Match the drawn energy windows, including the finer styles' 1/1024 floor.
-// Silence and empty waveforms keep the fixed reference to avoid division by zero.
-// A streaming load keeps it too: its loudest column is only the loudest SO
-// FAR, and a reference that rises per delivery shrinks bars already drawn.
+// Empty waveforms keep the fixed reference. A streaming load keeps it too:
+// its loudest column is only the loudest SO FAR, and a reference that rises
+// per delivery shrinks bars already drawn.
 static inline float VibeWaveformFullScaleRMSForWaveform(AudioWaveform * _Nullable waveform,
                                                         BOOL normalize,
                                                         NSUInteger count) {
     float loudest = (normalize && waveform && waveform->isComplete())
             ? sqrtf(waveform->getMaxMeanSquare(MIN(count, kVibeWaveformEnergyColumns))) : 0;
-    return loudest > 0 ? fminf(loudest, kVibeWaveformFullScaleRMS) : kVibeWaveformFullScaleRMS;
+    return VibeWaveformNormalizedFullScaleRMS(loudest);
 }
+
+// The waveform's resolution: a bar finer than a chunk only repeats its
+// neighbor. Caps the styles whose count follows the scrubber's zoomed width.
+static const NSUInteger kVibeWaveformMaxBars = 8192;
 
 // Pixel-snapped, since half-lit edge pixels blur the crispest thing in the
 // waveform. Bounds-relative; x may overshoot either edge.
@@ -100,9 +109,6 @@ static inline CGRect VibeBarSeekHitBand(CGRect bounds) {
     CGFloat topY = round(midY + vscale);
     return CGRectMake(bounds.origin.x, bottomY, bounds.size.width, topY - bottomY);
 }
-
-// Both styles' bar pitch.
-static const CGFloat kVibeBarPitch = 0.5;
 
 // Both styles' gradient: a ramp down the band, the resting level at the top
 // and this share of it at the bottom. The live layer and the bake aim it
