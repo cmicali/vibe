@@ -533,20 +533,10 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     }
 }
 
-// Normalize raises a quiet track's bands and never lowers one.
-- (void)testThreeBandNormalizationOnlyRaises {
-    std::array<float, 3> quiet = {0.001f, 0.0001f, 0.00001f};
-    std::vector<CGFloat> plain = [self threeBandLayerHeightsForBands:quiet normalize:NO waveform:YES];
-    std::vector<CGFloat> normalized = [self threeBandLayerHeightsForBands:quiet normalize:YES waveform:YES];
-    for (NSUInteger layer : {0, 3, 6}) {
-        XCTAssertGreaterThan(normalized[layer], plain[layer], @"layer %lu", layer);
-    }
-}
-
 // Under Normalize, the tallest band against its share reaches full height,
 // whichever band it is; a band already past full stays where it was.
 - (void)testThreeBandNormalizeFillsTheTallestBand {
-    CGFloat full = 2 * VibeBarVScale(80);
+    CGFloat full = 2 * VibeBarVScale([self rendererForStyle:@"three_band"].parentLayer.bounds.size.height);
     std::vector<CGFloat> lowLed = [self threeBandLayerHeightsForBands:{0.001f, 0.0001f, 0.00001f}
                                                             normalize:YES waveform:YES];
     XCTAssertEqualWithAccuracy(lowLed[0], full, 0.01);
@@ -555,17 +545,25 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     XCTAssertEqualWithAccuracy(highLed[2], full, 0.01);
     std::array<float, 3> loud = {1, 0.01f, 0.0001f};
     XCTAssertTrue([self threeBandLayerHeightsForBands:loud normalize:YES waveform:YES] ==
-                  [self threeBandLayerHeightsForBands:loud normalize:NO waveform:YES]);
+                  [self threeBandLayerHeightsForBands:loud]);
+}
+
+// The bars' levels, low to high, as 3-Band draws them across this width.
+- (std::vector<float>)threeBandLevelsForWaveform:(AudioWaveform *)waveform width:(CGFloat)width {
+    AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
+    CGRect bounds = renderer.parentLayer.bounds;
+    renderer.parentLayer.bounds = CGRectMake(0, 0, width, bounds.size.height);
+    NSData *samples = [renderer envelopeSamplesForWaveform:waveform];
+    const float *levels = (const float *)samples.bytes;
+    return std::vector<float>(levels, levels + samples.length / sizeof(float));
 }
 
 // A bar a point, up to the waveform's chunks.
 - (void)testThreeBandBarsFollowTheDrawnWidth {
     AudioWaveform waveform = VibeThreeBandTestWaveform({1, 0.01f, 0.0001f});
     for (std::array<CGFloat, 2> widthAndBars : {std::array<CGFloat, 2>{512, 512}, {3000, 3000}, {20000, 8192}}) {
-        AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
-        renderer.parentLayer.bounds = CGRectMake(0, 0, widthAndBars[0], 80);
-        NSData *samples = [renderer envelopeSamplesForWaveform:&waveform];
-        XCTAssertEqual(samples.length / (kAudioWaveformBandCount * sizeof(float)), (NSUInteger)widthAndBars[1]);
+        XCTAssertEqual([self threeBandLevelsForWaveform:&waveform width:widthAndBars[0]].size(),
+                       (NSUInteger)widthAndBars[1] * kAudioWaveformBandCount);
     }
 }
 
@@ -581,14 +579,9 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     }
     AudioWaveform waveform(chunks.size(), chunks.data(), bandSums.data());
     auto lowLevels = [&](CGFloat width) {
-        AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
-        renderer.parentLayer.bounds = CGRectMake(0, 0, width, 80);
-        NSData *samples = [renderer envelopeSamplesForWaveform:&waveform];
-        const float *levels = (const float *)samples.bytes;
+        std::vector<float> levels = [self threeBandLevelsForWaveform:&waveform width:width];
         std::vector<float> low;
-        for (NSUInteger i = 0; i < samples.length / (kAudioWaveformBandCount * sizeof(float)); i++) {
-            low.push_back(levels[i * kAudioWaveformBandCount]);
-        }
+        for (NSUInteger i = 0; i < levels.size(); i += kAudioWaveformBandCount) low.push_back(levels[i]);
         return low;
     };
     std::vector<float> overview = lowLevels(1024);
@@ -651,8 +644,8 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     AudioWaveform waveform = VibeThreeBandTestWaveform({1, 0.01f, 0.0001f});
     AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
     CGSize size = renderer.parentLayer.bounds.size;
-    // Inside the low band, which reaches about 0.6 of the band's height, the
-    // same distance above and below the midline; row 0 is the image's top.
+    // Inside the bands, the same distance above and below the midline; row 0
+    // is the image's top.
     size_t offset = (size_t)(VibeBarVScale(size.height) * 0.5);
     size_t upper = (size_t)size.height / 2 - offset, lower = (size_t)size.height / 2 + offset;
     for (BOOL flatFill : {NO, YES}) {

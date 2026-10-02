@@ -219,13 +219,7 @@ static const CGFloat kDetailedBarPitch = 0.5;
 // The color's resting alpha at the top, kVibeBarGradientBottomAlpha of it at
 // the bottom; one shape for both sides and both appearances.
 - (NSArray<VibeColor *> *)gradientColorsForColor:(VibeColor *)color isDark:(BOOL)isDark {
-    if (self.theme.flatFill) {
-        return @[color, color];
-    }
-    return @[
-            color,
-            VibeColorWithScaledAlpha(color, kVibeBarGradientBottomAlpha),
-    ];
+    return VibeBarRampColors(color, self.theme.flatFill);
 }
 
 - (void)setHoverHighlightX:(CGFloat)x {

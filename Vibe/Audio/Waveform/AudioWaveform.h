@@ -47,7 +47,7 @@ struct AudioWaveformBandSplit {
 
 private:
     // One lane per 2nd-order section: low, mid's highpass, mid's lowpass,
-    // high. Direct form I, with the feedback coefficients negated.
+    // high. Direct form I.
     simd_double4 b0, b1, b2, a1, a2;
     simd_double4 x1 = 0, x2 = 0, y1 = 0, y2 = 0;
 };
@@ -129,6 +129,8 @@ public:
     // square, as getMeanSquare — which the renderers' Normalize draws at
     // full height. 0 for an empty or silent waveform.
     float getMaxMeanSquare(NSUInteger columns);
+    // Each band's loudest column at this resolution, low to high.
+    void getMaxBandMeanSquares(NSUInteger columns, float* maxima);
     // The loader's own verdict, carried on the data: a decode it accepts can
     // end a chunk or two short, so the chunks cannot answer this. A fresh
     // waveform is a load still streaming, and a snapshot copies the answer;

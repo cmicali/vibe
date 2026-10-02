@@ -10,25 +10,12 @@
 #include <vector>
 #include <cmath>
 
-// One bar a point, up to the waveform's chunks: the energy windows follow the
-// drawn width rather than every bar style's 1/1024 floor. At a window's width
-// a point is about that floor; zoomed in, the scrubber's bars get short enough
-// to draw each kick, where floored ones a beat long alias against the beat
-// into a slow swell (a 6:02 track's 0.35 s columns against 134 BPM's 0.45 s).
-static const CGFloat kBarPitch = 1;
-
-// Each band's full height as a share of the broadband reference. Over dance
-// masters, at the energy floor's resolution, the lows carry nearly all of a
-// column's energy, the mids sit about 12 dB under them and the highs about
-// 17 dB: one reference drew a hi-hat as a sliver, and equal heights swamped
-// the strip in the all-bands core. These draw a median column's bands at
-// about 0.76, 0.41 and 0.23, and put the outer edge where Detailed draws: a
-// median of 0.78 against its 0.81, at full height in 19% of columns against
-// its 22%. Shares half again as high read a quarter flatter than every other
-// style.
+// Each band's full height as a share of the broadband reference: dance
+// masters' measured balance, the mids and highs well under the lows, with the
+// outer edge at Detailed's height (Renderers/AGENTS.md has the measurements).
 static const float kBandShareOfFullScale[kAudioWaveformBandCount] = {1.0f, 0.48f, 0.48f};
 
-// Mono's ratio of unplayed to played level.
+// The unplayed side's level against the played.
 static const float kUnplayedOpacity = 0.5f;
 
 // Painter's order — singles, pairs, all three — so at every height the layer
@@ -126,10 +113,13 @@ static void VibeAddThreeBandPaths(CGMutablePathRef *paths, CGMutablePathRef outl
     }
 }
 
-// A side's mask stops at its level: Detailed's ramp, or flat.
+// A side's mask stops at its level, in the bar styles' ramp.
 static NSArray *VibeThreeBandSideColors(CGFloat level, BOOL flat) {
-    return @[(id)[VibeColor colorWithWhite:1 alpha:level].CGColor,
-             (id)[VibeColor colorWithWhite:1 alpha:flat ? level : level * kVibeBarGradientBottomAlpha].CGColor];
+    NSMutableArray *stops = [NSMutableArray array];
+    for (VibeColor *color in VibeBarRampColors([VibeColor colorWithWhite:1 alpha:level], flat)) {
+        [stops addObject:(id)color.CGColor];
+    }
+    return stops;
 }
 
 static id VibePinned(CALayer *layer, CGFloat scale) {
@@ -215,7 +205,7 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     [_container addSublayer:_hoverHost];
 }
 
-// The palette follows only the appearance; the theme gives the fade, or none,
+// The palette follows only the appearance; the theme gives the ramp, or none,
 // and the hover slice, an affordance rather than a band.
 - (void)updateColors:(BOOL)isDark {
     [super updateColors:isDark];
@@ -230,8 +220,11 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     [CATransaction commit];
 }
 
+// A bar a point, up to the waveform's chunks: the energy windows follow the
+// drawn width rather than every bar style's 1/1024 floor, so a zoom resolves
+// each kick where floored bars a beat long alias against it into a swell.
 - (NSUInteger)barCountForWidth:(CGFloat)width {
-    NSUInteger count = (NSUInteger)llround(clampMin(width, 1) / kBarPitch);
+    NSUInteger count = (NSUInteger)llround(clampMin(width, 1));
     return clampRange(count, (NSUInteger)2, kVibeWaveformMaxBars);
 }
 
@@ -301,8 +294,7 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 
 // Each bar's levels are its own window's (barCountForWidth:). The mean
 // squares land in out first, so Normalize reads them where the bars are its
-// columns rather than merging the chunks again. Normalize and Gain apply to
-// all three bands alike.
+// columns. Normalize and Gain apply to all three bands alike.
 - (void)fillBandLevels:(float *)out count:(NSUInteger)count waveform:(AudioWaveform *)waveform {
     for (NSUInteger i = 0; i < count; i++) {
         waveform->getBandMeanSquares(i, count, &out[i * kAudioWaveformBandCount]);
@@ -317,27 +309,27 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 
 // Normalize's reference is the loudest band against its share, so the tallest
 // band at the track's loudest column draws at full height: the full mix's
-// reference left every band short of it. Measured at the columns every
-// style's Normalize measures, so the scale holds through a zoom.
+// reference left every band short of it. It keeps
+// VibeWaveformFullScaleRMSForWaveform's rules — the whole track, the 1,024
+// columns, the fixed ceiling — but is its own so that within the columns it
+// reads the mean squares the fill just merged: measuring them through the
+// waveform again cost a fifth of every resize frame's instructions.
 - (float)bandFullScaleRMSForWaveform:(AudioWaveform *)waveform count:(NSUInteger)count
                          meanSquares:(const float *)drawn {
     if (!self.normalizesLevels || !waveform->isComplete()) {
         return kVibeWaveformFullScaleRMS;
     }
-    float loudest = 0;
-    auto fold = [&](const float *meanSquares) {
-        for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
-            loudest = fmaxf(loudest, sqrtf(meanSquares[b]) / kBandShareOfFullScale[b]);
-        }
-    };
+    float maxima[kAudioWaveformBandCount] = {};
     if (count <= kVibeWaveformEnergyColumns) {
-        for (NSUInteger i = 0; i < count; i++) fold(&drawn[i * kAudioWaveformBandCount]);
-    } else {
-        for (NSUInteger i = 0; i < kVibeWaveformEnergyColumns; i++) {
-            float meanSquares[kAudioWaveformBandCount];
-            waveform->getBandMeanSquares(i, kVibeWaveformEnergyColumns, meanSquares);
-            fold(meanSquares);
+        for (NSUInteger i = 0; i < count * kAudioWaveformBandCount; i++) {
+            maxima[i % kAudioWaveformBandCount] = fmaxf(maxima[i % kAudioWaveformBandCount], drawn[i]);
         }
+    } else {
+        waveform->getMaxBandMeanSquares(kVibeWaveformEnergyColumns, maxima);
+    }
+    float loudest = 0;
+    for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+        loudest = fmaxf(loudest, sqrtf(maxima[b]) / kBandShareOfFullScale[b]);
     }
     return VibeWaveformNormalizedFullScaleRMS(loudest);
 }

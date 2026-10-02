@@ -390,7 +390,7 @@ static void VibeBenchComponentsRegisterRenderers(void) {
 
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
     // 3-Band through the same live resize as Detailed's: seven painter's
-    // layers, played and unplayed, from up to 1,024 bars.
+    // layers under the sides' mask, a bar a point.
     auto threeBand = std::make_shared<VibeBenchComponentsUIRenderer>();
     VibeBenchComponentsAdd("ui-waveform", "three-band-resize", "frame", [threeBand]() -> double {
         threeBand->parent = [CALayer layer];

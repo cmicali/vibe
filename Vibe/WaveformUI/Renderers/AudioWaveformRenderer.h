@@ -10,6 +10,7 @@
 #import "AudioWaveform.h"
 #import "WaveformTheme.h"
 #import "WaveformLevelMath.h"
+#import "PlatformColor.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -51,8 +52,9 @@ static inline NSUInteger VibeWaveformEnergyColumnIndexForBar(NSUInteger i, NSUIn
             ? i * kVibeWaveformEnergyColumns / count : i;
 }
 
-// Every bar-level consumer maps through this, never its own chunk's energy,
-// so bars finer than the column cannot re-peg to sub-beat RMS.
+// Every bar-level consumer but 3-Band, whose level is its only shape, maps
+// through this, never its own chunk's energy, so bars finer than the column
+// cannot re-peg to sub-beat RMS.
 static inline AudioWaveformCacheChunk VibeWaveformEnergyColumnForBar(AudioWaveform *waveform,
                                                                      NSUInteger i,
                                                                      NSUInteger count) {
@@ -114,6 +116,9 @@ static inline CGRect VibeBarSeekHitBand(CGRect bounds) {
 // and this share of it at the bottom. The live layer and the bake aim it
 // here, so the two stay pixel-identical.
 static const CGFloat kVibeBarGradientBottomAlpha = 0.45;
+static inline NSArray<VibeColor *> *VibeBarRampColors(VibeColor *color, BOOL flat) {
+    return @[color, flat ? color : VibeColorWithScaledAlpha(color, kVibeBarGradientBottomAlpha)];
+}
 static inline void VibeAimBarGradient(CAGradientLayer *gradient) {
     // y = 1 is the top.
     gradient.startPoint = CGPointMake(0.5, (1 + kVibeBarAmplitudeOfHalfHeight) / 2);
@@ -129,8 +134,8 @@ static inline void VibeFillBarGradient(CGContextRef ctx, CGSize size, NSArray *s
     CGGradientRelease(gradient);
 }
 
-// A bar is sub-point wide in both, so the hover column spans a few: a lit
-// slice, not a blob. Pixel-snapped at use.
+// A few pixels over Detailed's sub-point bars and 3-Band's point-wide ones: a
+// lit slice, not a blob. Pixel-snapped at use.
 static const CGFloat kVibeHoverHighlightWidth = 1.5;
 
 // The envelope bake's bitmap, in the format the iOS scrubber installs: sRGB,

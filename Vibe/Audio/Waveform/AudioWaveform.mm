@@ -123,6 +123,17 @@ void AudioWaveform::getBandMeanSquares(NSUInteger index, NSUInteger size, float*
     }
 }
 
+void AudioWaveform::getMaxBandMeanSquares(NSUInteger columns, float* maxima) {
+    std::fill(maxima, maxima + kAudioWaveformBandCount, 0.0f);
+    for (NSUInteger i = 0; i < columns; i++) {
+        float meanSquares[kAudioWaveformBandCount];
+        getBandMeanSquares(i, columns, meanSquares);
+        for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+            maxima[b] = std::max(maxima[b], meanSquares[b]);
+        }
+    }
+}
+
 void AudioWaveform::setBandMeanSquares(const float* meanSquares) {
     if (!bandSums) {
         bandSums = static_cast<float*>(calloc(numChunks, kBandBytes));
@@ -150,8 +161,8 @@ void AudioWaveform::copyChunk(NSUInteger from, NSUInteger to) {
 static const double kAudioWaveformLowCrossoverHz = 300;
 static const double kAudioWaveformHighCrossoverHz = 2500;
 
-// The RBJ cookbook's 2nd-order Butterworth (Q = 1/√2), as vDSP_biquad wants a
-// section: b0, b1, b2, a1, a2, normalized by a0.
+// The RBJ cookbook's 2nd-order Butterworth (Q = 1/√2), normalized by a0: b0,
+// b1, b2, then the feedback negated, as direct form I adds it.
 static void AudioWaveformButterworthSection(double cutoffHz, double sampleRate, bool highpass,
                                             double *section) {
     double w = 2 * M_PI * cutoffHz / sampleRate;
@@ -162,8 +173,8 @@ static void AudioWaveformButterworthSection(double cutoffHz, double sampleRate, 
     section[0] = edge / a0;
     section[1] = (highpass ? -2 : 2) * edge / a0;
     section[2] = edge / a0;
-    section[3] = -2 * cosw / a0;
-    section[4] = (1 - alpha) / a0;
+    section[3] = 2 * cosw / a0;
+    section[4] = -(1 - alpha) / a0;
 }
 
 AudioWaveformBandSplit::AudioWaveformBandSplit(double sampleRate) {
@@ -176,8 +187,8 @@ AudioWaveformBandSplit::AudioWaveformBandSplit(double sampleRate) {
         b0[lane] = sections[lane][0];
         b1[lane] = sections[lane][1];
         b2[lane] = sections[lane][2];
-        a1[lane] = -sections[lane][3];
-        a2[lane] = -sections[lane][4];
+        a1[lane] = sections[lane][3];
+        a2[lane] = sections[lane][4];
     }
 }
 
