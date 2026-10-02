@@ -59,12 +59,12 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 // YES too.
 + (BOOL)isDatalessFile:(NSURL *)url;
 
-// Under the remote backend's root (iOS: the Dropbox mirror, installed through
-// CloudFileMaterializer's setRemoteRoot:fetch:read:), a regular file its
-// owner may not read is a placeholder for a remote file: its stat — size,
-// mtime, the cache key — is the remote file's, and any direct open fails
-// instead of reading zeros. Anywhere else, and on the mac, which installs no
-// root, an unreadable file is merely unreadable.
+// Under the remote backend's root (iOS: the Dropbox mirror, installed
+// through CloudFileMaterializer's setRemoteRoot:fetch:read:availability:), a
+// regular file its owner may not read is a placeholder for a remote file: its
+// stat — size, mtime, the cache key — is the remote file's, and any direct
+// open fails instead of reading zeros. Anywhere else, and on the mac, which
+// installs no root, an unreadable file is merely unreadable.
 + (void)setRemotePlaceholderRoot:(nullable NSURL *)root;
 + (BOOL)isRemotePlaceholderFile:(NSURL *)url;
 

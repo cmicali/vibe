@@ -42,17 +42,71 @@ typedef BOOL (^CloudFileRemoteFetch)(NSURL *url,
 typedef NSData *_Nullable (^CloudFileRemoteRead)(NSURL *url, uint64_t offset, uint64_t length,
                                                  NSError *__autoreleasing _Nullable *_Nullable error);
 
+typedef NS_ENUM(NSInteger, CloudFileAvailabilityWait) {
+    CloudFileAvailabilityReady,
+    CloudFileAvailabilityFailed,       // the transfer failed: every wait answers its error
+    CloudFileAvailabilityInterrupted,  // the waiter's own interrupt: neither the end nor a failure
+};
+
+// How much of a remote file is readable while its transfer writes it into a
+// part file from byte 0, the final size known before the first byte. The
+// writer writes before it notes, and finishes once; a reader opens the part
+// and waits for the bytes it is about to read. Worker threads only: a wait
+// blocks, and nothing here is reachable from the render.
+@interface CloudFileAvailability : NSObject
+
+- (instancetype)initWithPartURL:(NSURL *)partURL size:(uint64_t)size NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
+
+@property (nonatomic, readonly) NSURL *partURL;
+@property (nonatomic, readonly) uint64_t size;
+
+// [0, bytes) is on disk. A count below one already noted is ignored.
+- (void)noteWrittenBytes:(uint64_t)bytes;
+// Once: nil is complete, after which every range is ready; an error fails
+// every wait, since nothing already read can be trusted.
+- (void)finishWithError:(nullable NSError *)error;
+
+// Blocks until [offset, offset + length) is on disk, the transfer finished,
+// or `interrupted` answers YES; it is asked each time the wait would block,
+// under the lock wakeWaiters takes. A range is clipped to the size, and one
+// at or past it is the end, never a wait. A range already readable is Ready
+// even when interrupted: an interrupt ends waits, not reads. The one range
+// question, so a later source of bytes changes what answers it, not who asks.
+- (CloudFileAvailabilityWait)waitForBytesAt:(uint64_t)offset
+                                     length:(uint64_t)length
+                                interrupted:(BOOL (NS_NOESCAPE ^_Nullable)(void))interrupted
+                                      error:(NSError *__autoreleasing _Nullable *_Nullable)error;
+// Any thread: every wait asks its `interrupted` again. Call it after making
+// one answer YES.
+- (void)wakeWaiters;
+
+@end
+
+// The same backend's streaming lookup: the availability of a file whose
+// transfer is writing it now, nil when none is, and then the file is whole.
+// It may answer nil only once that availability has finished, since a reader
+// that looked it up earlier may be waiting on it.
+typedef CloudFileAvailability *_Nullable (^CloudFileRemoteAvailability)(NSURL *url);
+
 @interface CloudFileMaterializer : NSObject
 
-// The remote backend, once at launch before anything opens a file: all three
-// or none. The root scopes NSURLUtil's remote placeholder rule, so while a
-// file is a remote placeholder both blocks are there to serve it.
+// The remote backend, once at launch before anything opens a file: root,
+// fetch and read all or none, availability only with them, nil while the
+// backend streams nothing. The root scopes NSURLUtil's remote placeholder
+// rule, so while a file is a remote placeholder the blocks are there to serve it.
 + (void)setRemoteRoot:(nullable NSURL *)root
                 fetch:(nullable CloudFileRemoteFetch)fetch
-                 read:(nullable CloudFileRemoteRead)read;
+                 read:(nullable CloudFileRemoteRead)read
+         availability:(nullable CloudFileRemoteAvailability)availability;
 
 // AudioTrackMetadata's parse reads a remote placeholder through it.
 @property (class, nonatomic, readonly, copy, nullable) CloudFileRemoteRead remoteRead;
+
+// AudioFileHandle opens a file being streamed through it; nil, and nothing
+// asked, when no backend streams.
++ (nullable CloudFileAvailability *)availabilityForURL:(NSURL *)url;
 
 // The caller's role in the debug transfer trace; set once at creation.
 @property (nonatomic, copy, nullable) NSString *label;

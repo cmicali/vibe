@@ -37,6 +37,14 @@
 //  of another container is offered it: WAVE (BWF among them), W64, RF64,
 //  AIFF and AIFF-C, as the parser names them.
 //
+//  A file a remote transfer is still writing from byte 0
+//  (CloudFileMaterializer's availabilityForURL:) is read from its part file
+//  at its final size, and a read past the bytes written waits for them. A
+//  wait ends in one of three ways: the bytes arrived; the transfer failed, a
+//  read failure with its error; or it was interrupted, which is neither the
+//  end nor a failure. Waits happen only on the reading thread, never the
+//  render's.
+//
 
 #import <AVFAudio/AVFAudio.h>
 #import <AudioToolbox/AudioToolbox.h>
@@ -48,8 +56,15 @@ NS_ASSUME_NONNULL_BEGIN
 // Opens CoreAudio's parser alone, with no decoder: the one open every reader
 // of CoreAudio's verdict on a file shares, the reading inits included, so it
 // refuses what playback refuses (FLAC in Ogg). Only `url` and `parser` answer.
+// `interrupted`, held only while the open runs, is asked whenever one of its
+// waits for a streaming file's bytes would block, and YES fails the open with
+// an interruption. A caller ends a blocked open from another thread by making
+// it answer YES, then waking the file's waiters
+// ([[CloudFileMaterializer availabilityForURL:url] wakeWaiters]).
 - (nullable instancetype)initParserForReading:(NSURL *)url
+                                  interrupted:(nullable BOOL (^)(void))interrupted
                                         error:(NSError * _Nullable __autoreleasing * _Nullable)error NS_DESIGNATED_INITIALIZER;
+- (nullable instancetype)initParserForReading:(NSURL *)url error:(NSError * _Nullable __autoreleasing * _Nullable)error;
 
 // Opens for reading, decoding to float32 non-interleaved at the file's rate,
 // channels and layout — AVAudioFile's standard processing format.
@@ -59,6 +74,11 @@ NS_ASSUME_NONNULL_BEGIN
 // layout, interleaved or not.
 - (nullable instancetype)initForReading:(NSURL *)url
                             interleaved:(BOOL)interleaved
+                                  error:(NSError * _Nullable __autoreleasing * _Nullable)error;
+// The same, interruptible as initParserForReading:interrupted:error: is.
+- (nullable instancetype)initForReading:(NSURL *)url
+                            interleaved:(BOOL)interleaved
+                            interrupted:(nullable BOOL (^)(void))interrupted
                                   error:(NSError * _Nullable __autoreleasing * _Nullable)error;
 // Creates `url` (replacing any file there) as a `fileType` container holding
 // `fileFormat` — PCM, or a codec with its rate, channels and, for FLAC, the
@@ -100,12 +120,23 @@ NS_ASSUME_NONNULL_BEGIN
 // cursor into `buffer`, whose format must be processingFormat, and sets its
 // frameLength. Fewer frames than asked means the file ended: the read loops
 // until the count is met or the decoder produces nothing. YES with zero frames
-// is the end; NO is a decode or I/O failure with `error` set.
+// is the end; NO is a decode or I/O failure with `error` set, or an
+// interruption (+isInterruption:).
 - (BOOL)readIntoBuffer:(AVAudioPCMBuffer *)buffer
             frameCount:(AVAudioFrameCount)frameCount
                  error:(NSError * _Nullable __autoreleasing * _Nullable)error;
 // readIntoBuffer:frameCount:error: for the buffer's whole capacity.
 - (BOOL)readIntoBuffer:(AVAudioPCMBuffer *)buffer error:(NSError * _Nullable __autoreleasing * _Nullable)error;
+
+// A streaming handle's waits, from any thread: interruptReads ends every wait
+// for bytes in flight and to come, though not a read the bytes on disk serve.
+// The read or seek it ends answers NO with an interruption, the cursor is
+// undefined, and reads answer the same until a seek after allowReads, which
+// is called once that operation has returned. A whole file never waits.
+- (void)interruptReads;
+- (void)allowReads;
+// YES for the error an interrupted read, seek or open answers.
++ (BOOL)isInterruption:(nullable NSError *)error;
 
 // Writing only: appends the buffer's frameLength frames, whose format must be
 // processingFormat, and advances length by them.

@@ -257,7 +257,7 @@ static NSDictionary *FolderEntry(NSString *folder, NSString *name) {
 }
 
 - (void)tearDown {
-    [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil];
+    [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
     [self installHandler:nil];
     // Let the adopt's posted notification land before the root goes.
     [self spinMainQueue];
@@ -575,7 +575,7 @@ static struct stat StatOf(NSURL *url) {
         return [mirror fetchPlaceholderAtURL:url onCancel:onCancel error:error];
     } read:^NSData *(NSURL *url, uint64_t offset, uint64_t length, NSError **error) {
         return [mirror readPlaceholderAtURL:url offset:offset length:length error:error];
-    }];
+    } availability:nil];
 }
 
 - (void)testMaterializingAPlaceholderDownloadsItsBytesInPlace {

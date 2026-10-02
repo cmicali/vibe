@@ -171,8 +171,8 @@ private:
 
 // The stream a parse reads: the file, or its remote bytes by range when it
 // is a remote placeholder. A read is installed exactly while a placeholder
-// root is (setRemoteRoot:fetch:read:), so the mac, which installs none, pays
-// no stat, and only a placeholder pays the root test.
+// root is (setRemoteRoot:fetch:read:availability:), so the mac, which
+// installs none, pays no stat, and only a placeholder pays the root test.
 static std::unique_ptr<TagLib::IOStream> VibeOpenTagStream(const char *path) {
     CloudFileRemoteRead read = CloudFileMaterializer.remoteRead;
     struct stat st;

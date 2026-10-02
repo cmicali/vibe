@@ -27,7 +27,7 @@
         return [DropboxMirror.shared fetchPlaceholderAtURL:url onCancel:onCancel error:error];
     } read:^NSData *(NSURL *url, uint64_t offset, uint64_t length, NSError **error) {
         return [DropboxMirror.shared readPlaceholderAtURL:url offset:offset length:length error:error];
-    }];
+    } availability:nil];
 #if DEBUG
     VibeiOSInstallDebugCommandHook();
 #endif

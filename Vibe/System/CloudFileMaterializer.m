@@ -12,10 +12,11 @@
 #include <errno.h>
 #include <os/lock.h>
 
-// The remote backend, installed together (setRemoteRoot:fetch:read:).
+// The remote backend, installed together (setRemoteRoot:fetch:read:availability:).
 static os_unfair_lock sRemoteLock = OS_UNFAIR_LOCK_INIT;
 static CloudFileRemoteFetch sRemoteFetch;
 static CloudFileRemoteRead sRemoteRead;
+static CloudFileRemoteAvailability sRemoteAvailability;
 
 static CloudFileRemoteFetch VibeRemoteFetch(void) {
     os_unfair_lock_lock(&sRemoteLock);
@@ -45,6 +46,82 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
     os_unfair_lock_unlock(&sFakeLock);
 }
 #endif
+
+@implementation CloudFileAvailability {
+    NSCondition *_condition;
+    uint64_t _written;
+    BOOL _complete;
+    NSError *_failure;
+}
+
+- (instancetype)initWithPartURL:(NSURL *)partURL size:(uint64_t)size {
+    self = [super init];
+    if (self) {
+        _partURL = partURL;
+        _size = size;
+        _condition = [[NSCondition alloc] init];
+    }
+    return self;
+}
+
+- (void)noteWrittenBytes:(uint64_t)bytes {
+    [_condition lock];
+    if (bytes > _written) {
+        _written = MIN(bytes, _size);
+        [_condition broadcast];
+    }
+    [_condition unlock];
+}
+
+- (void)finishWithError:(NSError *)error {
+    [_condition lock];
+    if (!_complete && !_failure) {
+        _complete = error == nil;
+        _failure = error;
+        [_condition broadcast];
+    }
+    [_condition unlock];
+}
+
+- (CloudFileAvailabilityWait)waitForBytesAt:(uint64_t)offset
+                                     length:(uint64_t)length
+                                interrupted:(BOOL (NS_NOESCAPE ^)(void))interrupted
+                                      error:(NSError *__autoreleasing *)error {
+    BOOL end = offset >= _size || length == 0;
+    uint64_t last = end ? 0 : offset + MIN(length, _size - offset);
+    CloudFileAvailabilityWait result;
+    NSError *failure = nil;
+    [_condition lock];
+    for (;;) {
+        if (_failure) {
+            failure = _failure;
+            result = CloudFileAvailabilityFailed;
+            break;
+        }
+        if (end || _complete || last <= _written) {
+            result = CloudFileAvailabilityReady;
+            break;
+        }
+        if (interrupted && interrupted()) {
+            result = CloudFileAvailabilityInterrupted;
+            break;
+        }
+        [_condition wait];
+    }
+    [_condition unlock];
+    if (failure && error) {
+        *error = failure;
+    }
+    return result;
+}
+
+- (void)wakeWaiters {
+    [_condition lock];
+    [_condition broadcast];
+    [_condition unlock];
+}
+
+@end
 
 @interface CloudFileMaterializationToken ()
 @property (nonatomic, getter=isCancelled) BOOL cancelled;
@@ -118,13 +195,22 @@ static NSError *VibeMaterializationCancelledError(void) {
     return [NSError errorWithDomain:NSCocoaErrorDomain code:NSUserCancelledError userInfo:nil];
 }
 
-+ (void)setRemoteRoot:(NSURL *)root fetch:(CloudFileRemoteFetch)fetch read:(CloudFileRemoteRead)read {
-    NSParameterAssert((root == nil) == (fetch == nil) && (fetch == nil) == (read == nil));
++ (void)setRemoteRoot:(NSURL *)root fetch:(CloudFileRemoteFetch)fetch read:(CloudFileRemoteRead)read
+         availability:(CloudFileRemoteAvailability)availability {
+    NSParameterAssert((root == nil) == (fetch == nil) && (fetch == nil) == (read == nil) && (root || !availability));
     os_unfair_lock_lock(&sRemoteLock);
     sRemoteFetch = [fetch copy];
     sRemoteRead = [read copy];
+    sRemoteAvailability = [availability copy];
     os_unfair_lock_unlock(&sRemoteLock);
     [NSURLUtil setRemotePlaceholderRoot:root];
+}
+
++ (CloudFileAvailability *)availabilityForURL:(NSURL *)url {
+    os_unfair_lock_lock(&sRemoteLock);
+    CloudFileRemoteAvailability availability = sRemoteAvailability;
+    os_unfair_lock_unlock(&sRemoteLock);
+    return availability ? availability(url) : nil;
 }
 
 + (CloudFileRemoteRead)remoteRead {

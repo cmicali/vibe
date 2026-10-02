@@ -7,6 +7,7 @@
 //
 
 #import <XCTest/XCTest.h>
+#include <stdatomic.h>
 
 #import "CloudFileMaterializer.h"
 #import "CloudFileMaterializer+Debug.h"
@@ -214,6 +215,123 @@
                                         @"acquire:metadata-scan",
                                         @"release:metadata-scan",
                                         @"finish:metadata-scan"]));
+}
+
+#pragma mark - Availability
+
+// Runs a wait on a worker, signalling the semaphore when it returns.
+- (dispatch_semaphore_t)wait:(CloudFileAvailability *)availability at:(uint64_t)offset length:(uint64_t)length
+                 interrupted:(BOOL (^)(void))interrupted result:(CloudFileAvailabilityWait *)result
+                       error:(NSError *__strong *)error {
+    dispatch_semaphore_t returned = dispatch_semaphore_create(0);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSError *waitError = nil;
+        *result = [availability waitForBytesAt:offset length:length interrupted:interrupted error:&waitError];
+        if (error) {
+            *error = waitError;
+        }
+        dispatch_semaphore_signal(returned);
+    });
+    return returned;
+}
+
+- (void)assertStillWaiting:(dispatch_semaphore_t)returned {
+    XCTAssertNotEqual(dispatch_semaphore_wait(returned, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC / 10)), 0);
+}
+
+- (void)awaitReturn:(dispatch_semaphore_t)returned {
+    XCTAssertEqual(dispatch_semaphore_wait(returned, dispatch_time(DISPATCH_TIME_NOW,
+            (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))), 0);
+}
+
+// AIFF and some WAVs read at exactly the size: the end, never a wait.
+- (void)testAvailabilityAnswersARangeAtOrPastTheSizeAtOnce {
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
+    XCTAssertEqual([availability waitForBytesAt:100 length:4 interrupted:nil error:NULL], CloudFileAvailabilityReady);
+    XCTAssertEqual([availability waitForBytesAt:500 length:1 interrupted:nil error:NULL], CloudFileAvailabilityReady);
+    XCTAssertEqual([availability waitForBytesAt:10 length:0 interrupted:nil error:NULL], CloudFileAvailabilityReady);
+}
+
+// A range is clipped to the size, so one running past it waits only for the
+// last byte; notes only move forward.
+- (void)testAvailabilityWaitsForTheRangeClippedToTheSize {
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
+    [availability noteWrittenBytes:60];
+    [availability noteWrittenBytes:20];
+    XCTAssertEqual([availability waitForBytesAt:0 length:60 interrupted:nil error:NULL], CloudFileAvailabilityReady);
+    CloudFileAvailabilityWait result = CloudFileAvailabilityFailed;
+    dispatch_semaphore_t returned = [self wait:availability at:90 length:50 interrupted:nil result:&result error:NULL];
+    [availability noteWrittenBytes:99];
+    [self assertStillWaiting:returned];
+    [availability noteWrittenBytes:100];
+    [self awaitReturn:returned];
+    XCTAssertEqual(result, CloudFileAvailabilityReady);
+}
+
+- (void)testAvailabilityCompleteReadiesEveryRangeAndFinishesOnce {
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
+    CloudFileAvailabilityWait result = CloudFileAvailabilityFailed;
+    dispatch_semaphore_t returned = [self wait:availability at:0 length:100 interrupted:nil result:&result error:NULL];
+    [availability finishWithError:nil];
+    [availability finishWithError:[NSError errorWithDomain:@"late" code:1 userInfo:nil]];
+    [self awaitReturn:returned];
+    XCTAssertEqual(result, CloudFileAvailabilityReady);
+    XCTAssertEqual([availability waitForBytesAt:50 length:50 interrupted:nil error:NULL], CloudFileAvailabilityReady);
+}
+
+// A failed transfer fails every wait, a blocked one with its error, and
+// bytes already written too: nothing read from it can be trusted.
+- (void)testAvailabilityFailureFailsEveryWaitWithItsError {
+    NSError *failure = [NSError errorWithDomain:@"com.vibe.test-transfer" code:3 userInfo:nil];
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
+    [availability noteWrittenBytes:50];
+    CloudFileAvailabilityWait result = CloudFileAvailabilityReady;
+    NSError *error = nil;
+    dispatch_semaphore_t returned = [self wait:availability at:60 length:10 interrupted:nil result:&result error:&error];
+    [availability finishWithError:failure];
+    [self awaitReturn:returned];
+    XCTAssertEqual(result, CloudFileAvailabilityFailed);
+    XCTAssertEqualObjects(error, failure);
+    error = nil;
+    XCTAssertEqual([availability waitForBytesAt:0 length:10 interrupted:nil error:&error], CloudFileAvailabilityFailed);
+    XCTAssertEqualObjects(error, failure);
+}
+
+// An interrupt ends a wait that would block, from another thread, and never
+// a range already readable.
+- (void)testAvailabilityInterruptEndsOnlyAWaitThatBlocks {
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
+    [availability noteWrittenBytes:10];
+    __block _Atomic bool interrupted = false;
+    BOOL (^isInterrupted)(void) = ^BOOL{
+        return atomic_load(&interrupted);
+    };
+    CloudFileAvailabilityWait result = CloudFileAvailabilityReady;
+    dispatch_semaphore_t returned = [self wait:availability at:20 length:10 interrupted:isInterrupted result:&result error:NULL];
+    [self assertStillWaiting:returned];
+    atomic_store(&interrupted, true);
+    [availability wakeWaiters];
+    [self awaitReturn:returned];
+    XCTAssertEqual(result, CloudFileAvailabilityInterrupted);
+    XCTAssertEqual([availability waitForBytesAt:0 length:10 interrupted:isInterrupted error:NULL], CloudFileAvailabilityReady);
+}
+
+// The streaming lookup is asked only while a backend installs one.
+- (void)testTheStreamingLookupAnswersOnlyWhileInstalled {
+    NSURL *url = [NSURL fileURLWithPath:@"/remote/track.flac"];
+    XCTAssertNil([CloudFileMaterializer availabilityForURL:url]);
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/remote/.part"] size:1];
+    [CloudFileMaterializer setRemoteRoot:[NSURL fileURLWithPath:@"/remote"] fetch:^BOOL(NSURL *candidate, void (^onCancel)(dispatch_block_t), NSError **error) {
+        return NO;
+    } read:^NSData *(NSURL *candidate, uint64_t offset, uint64_t length, NSError **error) {
+        return nil;
+    } availability:^CloudFileAvailability *(NSURL *candidate) {
+        return [candidate isEqual:url] ? availability : nil;
+    }];
+    XCTAssertEqual([CloudFileMaterializer availabilityForURL:url], availability);
+    XCTAssertNil([CloudFileMaterializer availabilityForURL:[NSURL fileURLWithPath:@"/remote/other.flac"]]);
+    [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
+    XCTAssertNil([CloudFileMaterializer availabilityForURL:url]);
 }
 
 @end

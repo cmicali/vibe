@@ -135,7 +135,7 @@ Head-only formats and MP3 are served by phase 1 only if an MP3's 4-byte ID3v1 ch
 - **"The open the user is waiting on outranks every background read"** must hold while a stream is readable but incomplete. The hold stays raised for as long as a playback or prefetch handle reads from a running transfer.
 - **"The handle-open ceiling"** is derived from one player with two open sources and lanes that end before a handle opens. Both halves change, so the derivation and its tests are redone (`Audio/Loading/AGENTS.md`).
 - **A new guarantee: a wait for bytes happens only on decode, loader, and open workers, never on the render thread or main, and every such wait can be interrupted.** It replaces the "Ready means the whole file" assumption rather than adding to the total.
-- **New types: aim for none.** The wait is a block on `CloudFileMaterializer`; the bytes written live with the transfer; the block cache is `VibeRangedStream`'s, moved.
+- **New types: one.** `CloudFileAvailability` (`Vibe/System/`) is the wait: a byte count and a condition, shared code so the handle and its tests never see Dropbox. Everything else lands in the classes that own the concern; the tail window's block cache is `VibeRangedStream`'s, moved.
 - **Two roads, permanently.** The full download remains for providers and for declined files, so every change must keep it working, and the tests run both.
 
 ## Testing
