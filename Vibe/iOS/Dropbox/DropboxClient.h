@@ -5,7 +5,8 @@
 //  The Dropbox account and the HTTP calls made as it: PKCE sign-in, the
 //  refresh token in the Keychain, the access token in memory, and a JSON call
 //  and a download that refresh an expired token and retry a throttled request
-//  on their own. Knows nothing of files on disk; DropboxMirror does.
+//  on their own, the download resuming a dropped connection too. Knows nothing
+//  of files on disk; DropboxMirror does.
 //
 //  Thread-safe. Completions run on an arbitrary queue unless stated.
 //
@@ -25,6 +26,9 @@ typedef NS_ERROR_ENUM(VibeDropboxErrorDomain, VibeDropboxError) {
     // A call Dropbox answered with an error; the summary is the description.
     VibeDropboxErrorAPI,
     VibeDropboxErrorCancelled,
+    // A download's resend answered another version (rev) than its first
+    // response: the bytes written cannot be trusted, and are deleted.
+    VibeDropboxErrorFileChanged,
 };
 
 // The one spelling of a Dropbox error, the client's and the mirror's.
@@ -67,8 +71,11 @@ extern NSNotificationName const VibeDropboxAccountDidChangeNotification;
           completion:(void (^)(NSDictionary *_Nullable result, NSError *_Nullable error))completion;
 
 // files/download, streamed into destination as the bytes arrive, so its
-// size on disk is the transfer's progress. The completion carries the file's
-// metadata (the Dropbox-API-Result header); on failure destination is gone.
+// size on disk is the transfer's progress. Made once, at the first response:
+// a resend (a refreshed token, a throttle, a dropped connection) continues it
+// with a Range header rather than starting over, and only for the same rev.
+// The completion carries the first response's metadata (the
+// Dropbox-API-Result header); on failure destination is gone.
 // The returned block cancels, any thread, at any point: before the request
 // starts it never starts.
 - (dispatch_block_t)downloadPath:(NSString *)path

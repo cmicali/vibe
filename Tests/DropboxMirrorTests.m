@@ -4,7 +4,8 @@
 //  The real client and mirror over a stubbed HTTP boundary (an NSURLProtocol
 //  in the session's configuration) and a per-test temp root: listing
 //  reconciliation, the placeholder-to-bytes fetch through
-//  CloudFileMaterializer, its cancellation, the token refresh and the unlink.
+//  CloudFileMaterializer, its cancellation, a download resumed in place, the
+//  token refresh and the unlink.
 //
 
 #import <XCTest/XCTest.h>
@@ -23,13 +24,17 @@
 
 // A response: status, headers, body; or hang until the task is cancelled; or
 // answer only once `gate` is signalled, without holding the loader thread,
-// so other requests are answered meanwhile.
+// so other requests are answered meanwhile. A failure ends the load after
+// the body, a dropped connection, once failWhen answers YES; with status 0 it
+// comes before any response.
 typedef struct {
     NSInteger status;
     NSDictionary<NSString *, NSString *> *_Nullable headers;
     NSData *_Nullable body;
     BOOL hang;
     dispatch_semaphore_t _Nullable gate;
+    NSError *_Nullable failure;
+    BOOL (^_Nullable failWhen)(void);
 } DropboxStubResponse;
 
 typedef DropboxStubResponse (^DropboxStubHandler)(NSURLRequest *request, NSDictionary *_Nullable json);
@@ -107,6 +112,10 @@ static NSData *DropboxStubBody(NSURLRequest *request) {
 }
 
 - (void)deliver:(DropboxStubResponse)response {
+    if (response.status == 0 && response.failure) {
+        [self.client URLProtocol:self didFailWithError:response.failure];
+        return;
+    }
     NSHTTPURLResponse *http = [[NSHTTPURLResponse alloc] initWithURL:self.request.URL
                                                           statusCode:response.status
                                                          HTTPVersion:@"HTTP/1.1"
@@ -115,7 +124,34 @@ static NSData *DropboxStubBody(NSURLRequest *request) {
     if (response.body) {
         [self.client URLProtocol:self didLoadData:response.body];
     }
+    if (response.failure) {
+        // TRAP: a failure reported straight after the body overtakes it, and
+        // the delegate never sees those bytes, so it waits until the client
+        // has written them, then goes on the thread that started the load.
+        NSThread *thread = NSThread.currentThread;
+        // The loading thread's run loop may next turn in either mode.
+        NSMutableArray<NSString *> *modes = [NSMutableArray arrayWithObject:NSDefaultRunLoopMode];
+        NSString *mode = NSRunLoop.currentRunLoop.currentMode;
+        if (mode && ![mode isEqualToString:NSDefaultRunLoopMode]) {
+            [modes addObject:mode];
+        }
+        BOOL (^ready)(void) = response.failWhen;
+        NSError *failure = response.failure;
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_GATE_TIMEOUT];
+            while (ready && !ready() && deadline.timeIntervalSinceNow > 0) {
+                usleep(1000);
+            }
+            [self performSelector:@selector(failLoading:) onThread:thread withObject:failure
+                    waitUntilDone:NO modes:modes];
+        });
+        return;
+    }
     [self.client URLProtocolDidFinishLoading:self];
+}
+
+- (void)failLoading:(NSError *)failure {
+    [self.client URLProtocol:self didFailWithError:failure];
 }
 
 - (void)stopLoading {
@@ -127,6 +163,44 @@ static NSData *DropboxStubBody(NSURLRequest *request) {
 
 static NSString *const kStamp = @"2020-01-02T03:04:05Z";
 static const time_t kStampSeconds = 1577934245;
+static NSString *const kRev = @"015c0ffee";
+
+// files/download as Dropbox answers it: the whole file, or 206 from a Range's
+// first byte, with the version's metadata either way.
+static DropboxStubResponse DownloadAnswer(NSURLRequest *request, NSData *bytes, NSDictionary *metadata) {
+    NSString *result = [[NSString alloc] initWithData:[NSJSONSerialization dataWithJSONObject:metadata
+                                                                                      options:0 error:NULL]
+                                             encoding:NSUTF8StringEncoding];
+    // TRAP: with no Content-Type the session sniffs the first 512 bytes
+    // before it hands the delegate a response, so a shorter body cut off by
+    // a failure never reaches it. Dropbox names its type.
+    NSDictionary *headers = @{@"Dropbox-API-Result": result, @"Content-Type": @"application/octet-stream"};
+    NSString *range = [request valueForHTTPHeaderField:@"Range"];
+    if (!range) {
+        return (DropboxStubResponse){200, headers, bytes, NO};
+    }
+    unsigned long long first = 0, last = ULLONG_MAX;
+    sscanf(range.UTF8String, "bytes=%llu-%llu", &first, &last);
+    last = MIN(last, (unsigned long long)bytes.length - 1);
+    NSData *slice = [bytes subdataWithRange:NSMakeRange((NSUInteger)first, (NSUInteger)(last - first + 1))];
+    return (DropboxStubResponse){206, headers, slice, NO};
+}
+
+// The answer to `request` cut off after `delivered` bytes by a dropped
+// connection, once `part` holds them.
+static DropboxStubResponse Dropped(DropboxStubResponse answer, NSURLRequest *request, NSUInteger delivered,
+                                   NSURL *part) {
+    unsigned long long first = 0;
+    sscanf([request valueForHTTPHeaderField:@"Range"].UTF8String ?: "", "bytes=%llu-", &first);
+    off_t written = (off_t)(first + delivered);
+    answer.body = [answer.body subdataWithRange:NSMakeRange(0, delivered)];
+    answer.failure = [NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorNetworkConnectionLost userInfo:nil];
+    answer.failWhen = ^BOOL {
+        struct stat st;
+        return stat(part.fileSystemRepresentation, &st) == 0 && st.st_size >= written;
+    };
+    return answer;
+}
 
 static NSDictionary *FileEntry(NSString *folder, NSString *name, long long size, NSString *modified) {
     NSString *path = [folder stringByAppendingPathComponent:name];
@@ -250,19 +324,7 @@ static NSDictionary *FolderEntry(NSString *folder, NSString *name) {
         if (!bytes) {
             return DropboxStubJSON(409, @{@"error_summary": @"path/not_found/"});
         }
-        NSString *range = [request valueForHTTPHeaderField:@"Range"];
-        if (range) {
-            unsigned long long first = 0, last = 0;
-            sscanf(range.UTF8String, "bytes=%llu-%llu", &first, &last);
-            last = MIN(last, (unsigned long long)bytes.length - 1);
-            NSData *slice = [bytes subdataWithRange:NSMakeRange((NSUInteger)first, (NSUInteger)(last - first + 1))];
-            return (DropboxStubResponse){206, @{}, slice, NO};
-        }
-        NSDictionary *metadata = @{@"server_modified": kStamp, @"size": @(bytes.length)};
-        NSString *result = [[NSString alloc] initWithData:[NSJSONSerialization dataWithJSONObject:metadata
-                                                                                          options:0 error:NULL]
-                                                 encoding:NSUTF8StringEncoding];
-        return (DropboxStubResponse){200, @{@"Dropbox-API-Result": result}, bytes, NO};
+        return DownloadAnswer(request, bytes, @{@"server_modified": kStamp, @"size": @(bytes.length), @"rev": kRev});
     }
     return DropboxStubJSON(400, @{@"error_summary": @"unexpected"});
 }
@@ -691,6 +753,248 @@ static struct stat StatOf(NSURL *url) {
     XCTAssertEqual(failure.code, NSUserCancelledError);
     XCTAssertEqual(StatOf(track).st_mode & 0777, 0);
     XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[NSURLUtil remotePlaceholderPartURL:track].path]);
+}
+
+#pragma mark Resumed downloads
+
+// A resend can follow only a response that ended early, since Dropbox's
+// status comes before any byte: a throttle or an expired token "mid-way" is
+// the answer to the resume after a dropped connection.
+
+static NSData *PatternBytes(NSUInteger length) {
+    NSMutableData *data = [NSMutableData dataWithLength:length];
+    uint8_t *bytes = data.mutableBytes;
+    for (NSUInteger i = 0; i < length; i++) {
+        bytes[i] = (uint8_t)(i * 7 + i / 251);
+    }
+    return data;
+}
+
+// Inside the account's directory: the adopt's account change prunes
+// everything else under the root, and lands whenever the main queue turns.
+- (NSURL *)partURL {
+    NSURL *account = _mirror.accountURL;
+    [NSFileManager.defaultManager createDirectoryAtURL:account withIntermediateDirectories:YES
+                                            attributes:nil error:NULL];
+    return [account URLByAppendingPathComponent:@"song.flac.part"];
+}
+
+// Files/download's answers by request, counted from 0; the rest as default.
+- (void)scriptDownloads:(DropboxStubResponse (^)(NSInteger index, NSURLRequest *request))script {
+    __block NSInteger downloads = 0;
+    [self installHandler:^DropboxStubResponse(NSURLRequest *request, NSDictionary *json) {
+        if (![request.URL.path isEqualToString:@"/2/files/download"]) {
+            return [self defaultResponseFor:request json:json];
+        }
+        NSInteger index;
+        @synchronized (self) {
+            index = downloads++;
+        }
+        return script(index, request);
+    }];
+}
+
+- (DropboxStubResponse)answer:(NSURLRequest *)request {
+    return [self defaultResponseFor:request json:nil];
+}
+
+- (NSError *)downloadSong:(NSDictionary **)metadata {
+    XCTestExpectation *done = [self expectationWithDescription:@"download"];
+    __block NSError *failure = nil;
+    __block NSDictionary *result = nil;
+    [_client downloadPath:@"/song.flac" toURL:[self partURL] completion:^(NSDictionary *answer, NSError *error) {
+        result = answer;
+        failure = error;
+        [done fulfill];
+    }];
+    [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
+    if (metadata) *metadata = result;
+    return failure;
+}
+
+- (void)waitForDownloadRequests:(NSUInteger)count {
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
+    while ([self requestsToPath:@"/2/files/download"].count < count && deadline.timeIntervalSinceNow > 0) {
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+    }
+    XCTAssertEqual([self requestsToPath:@"/2/files/download"].count, count);
+}
+
+- (void)testAThrottledResumeAppendsToTheSameFile {
+    NSData *bytes = PatternBytes(4000);
+    _contents[@"/song.flac"] = bytes;
+    NSURL *part = [self partURL];
+    NSMutableArray<NSNumber *> *inodes = [NSMutableArray array];
+    [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
+        if (index == 0) {
+            return Dropped([self answer:request], request, 1600, [self partURL]);
+        }
+        @synchronized (inodes) {
+            [inodes addObject:@(StatOf(part).st_ino)];
+        }
+        if (index == 1) {
+            return DropboxStubJSON(429, @{@"error_summary": @"too_many_requests/"});
+        }
+        // Marked, to show the completion reports the first response's.
+        return DownloadAnswer(request, bytes, @{@"rev": kRev, @"server_modified": @"2021-01-01T00:00:00Z"});
+    }];
+
+    NSDictionary *metadata = nil;
+    XCTAssertNil([self downloadSong:&metadata]);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:part], bytes);
+    XCTAssertEqualObjects(metadata[@"server_modified"], kStamp);
+    NSArray<NSURLRequest *> *requests = [self requestsToPath:@"/2/files/download"];
+    XCTAssertEqual(requests.count, 3u);
+    XCTAssertNil([requests[0] valueForHTTPHeaderField:@"Range"]);
+    XCTAssertEqualObjects([requests[1] valueForHTTPHeaderField:@"Range"], @"bytes=1600-");
+    XCTAssertEqualObjects([requests[2] valueForHTTPHeaderField:@"Range"], @"bytes=1600-");
+    ino_t inode = StatOf(part).st_ino;
+    XCTAssertNotEqual(inode, 0u);
+    XCTAssertEqualObjects(inodes, (@[@(inode), @(inode)]), @"a resend never makes a new file");
+}
+
+- (void)testAnExpiredTokenMidDownloadRefreshesAndResumes {
+    NSData *bytes = PatternBytes(4000);
+    _contents[@"/song.flac"] = bytes;
+    [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
+        if (index == 0) {
+            return Dropped([self answer:request], request, 1200, [self partURL]);
+        }
+        if ([[request valueForHTTPHeaderField:@"Authorization"] isEqualToString:@"Bearer A1"]) {
+            return DropboxStubJSON(401, @{@"error_summary": @"expired_access_token/",
+                                          @"error": @{@".tag": @"expired_access_token"}});
+        }
+        return [self answer:request];
+    }];
+
+    XCTAssertNil([self downloadSong:NULL]);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:[self partURL]], bytes);
+    XCTAssertEqual([self requestsToPath:@"/oauth2/token"].count, 2u);
+    NSURLRequest *resumed = [self requestsToPath:@"/2/files/download"].lastObject;
+    XCTAssertEqualObjects([resumed valueForHTTPHeaderField:@"Authorization"], @"Bearer A2");
+    XCTAssertEqualObjects([resumed valueForHTTPHeaderField:@"Range"], @"bytes=1200-");
+    XCTAssertTrue(_client.isLinked);
+}
+
+// Three drops in a row, past the bound of two, still finish: each brought
+// bytes, and only drops with nothing between them count.
+- (void)testDroppedConnectionsThatMakeProgressResumeUntilDone {
+    NSData *bytes = PatternBytes(4000);
+    _contents[@"/song.flac"] = bytes;
+    [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
+        return index < 3 ? Dropped([self answer:request], request, 1000, [self partURL]) : [self answer:request];
+    }];
+
+    XCTAssertNil([self downloadSong:NULL]);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:[self partURL]], bytes);
+    NSArray<NSURLRequest *> *requests = [self requestsToPath:@"/2/files/download"];
+    XCTAssertEqual(requests.count, 4u);
+    XCTAssertEqualObjects([requests[3] valueForHTTPHeaderField:@"Range"], @"bytes=3000-");
+}
+
+- (void)testDropsWithNoProgressPastTheBoundFailAndDeleteThePart {
+    _contents[@"/song.flac"] = PatternBytes(4000);
+    [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
+        if (index == 0) {
+            return Dropped([self answer:request], request, 1000, [self partURL]);
+        }
+        DropboxStubResponse unreachable = {0};
+        unreachable.failure = [NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorNotConnectedToInternet
+                                              userInfo:nil];
+        return unreachable;
+    }];
+
+    NSError *error = [self downloadSong:NULL];
+    XCTAssertEqualObjects(error.domain, NSURLErrorDomain);
+    XCTAssertEqual(error.code, NSURLErrorNotConnectedToInternet);
+    XCTAssertEqual([self requestsToPath:@"/2/files/download"].count, 3u, @"the first, then two resumes");
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[self partURL].path]);
+}
+
+- (void)testAResumeAnsweringAnotherRevisionFailsAndDeletesThePart {
+    NSData *bytes = PatternBytes(4000);
+    _contents[@"/song.flac"] = bytes;
+    [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
+        if (index == 0) {
+            return Dropped([self answer:request], request, 1600, [self partURL]);
+        }
+        return DownloadAnswer(request, bytes, @{@"rev": @"0200beef", @"server_modified": kStamp});
+    }];
+
+    NSError *error = [self downloadSong:NULL];
+    XCTAssertEqualObjects(error.domain, VibeDropboxErrorDomain);
+    XCTAssertEqual(error.code, VibeDropboxErrorFileChanged);
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[self partURL].path]);
+}
+
+// With no rev on the first answer nothing can prove a resume is the same
+// version: whole in one piece it installs, cut off it fails.
+- (void)testAFirstAnswerWithoutARevisionDownloadsWholeButNeverResumes {
+    NSData *bytes = PatternBytes(4000);
+    _contents[@"/song.flac"] = bytes;
+    __block BOOL drop = NO;
+    [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
+        DropboxStubResponse answer = DownloadAnswer(request, bytes, @{@"server_modified": kStamp});
+        return drop && index == 1 ? Dropped(answer, request, 1600, [self partURL]) : answer;
+    }];
+    XCTAssertNil([self downloadSong:NULL]);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:[self partURL]], bytes);
+
+    [NSFileManager.defaultManager removeItemAtURL:[self partURL] error:NULL];
+    drop = YES;
+    NSError *error = [self downloadSong:NULL];
+    XCTAssertEqual(error.code, VibeDropboxErrorFileChanged);
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[self partURL].path]);
+}
+
+// A server ignoring the Range answers 200 with the whole file: what was
+// already written is skipped, never appended a second time.
+- (void)testAWholeFileAnswerToAResumeSkipsWhatWasWritten {
+    NSData *bytes = PatternBytes(4000);
+    _contents[@"/song.flac"] = bytes;
+    [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
+        if (index == 0) {
+            return Dropped([self answer:request], request, 1600, [self partURL]);
+        }
+        NSMutableURLRequest *unranged = [request mutableCopy];
+        [unranged setValue:nil forHTTPHeaderField:@"Range"];
+        return [self answer:unranged];
+    }];
+
+    XCTAssertNil([self downloadSong:NULL]);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:[self partURL]], bytes);
+    XCTAssertEqualObjects([[self requestsToPath:@"/2/files/download"].lastObject valueForHTTPHeaderField:@"Range"],
+                          @"bytes=1600-");
+}
+
+- (void)testCancellingDuringAResumeDeletesThePartAndCompletesOnce {
+    _contents[@"/song.flac"] = PatternBytes(4000);
+    [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
+        if (index == 0) {
+            return Dropped([self answer:request], request, 1600, [self partURL]);
+        }
+        return (DropboxStubResponse){0, nil, nil, YES};
+    }];
+    XCTestExpectation *done = [self expectationWithDescription:@"download"];
+    __block NSInteger completions = 0;
+    __block NSError *failure = nil;
+    dispatch_block_t cancel = [_client downloadPath:@"/song.flac" toURL:[self partURL]
+                                         completion:^(NSDictionary *metadata, NSError *error) {
+        @synchronized (self) {
+            completions++;
+        }
+        failure = error;
+        [done fulfill];
+    }];
+    [self waitForDownloadRequests:2];
+    XCTAssertTrue([NSFileManager.defaultManager fileExistsAtPath:[self partURL].path]);
+    cancel();
+
+    [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertEqual(completions, 1);
+    XCTAssertEqualObjects(failure.domain, VibeDropboxErrorDomain);
+    XCTAssertEqual(failure.code, VibeDropboxErrorCancelled);
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[self partURL].path]);
 }
 
 #pragma mark The account

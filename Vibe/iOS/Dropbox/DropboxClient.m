@@ -16,6 +16,13 @@ NSNotificationName const VibeDropboxAccountDidChangeNotification =
 
 // A throttled or briefly unavailable call is tried this many times in all.
 static const NSInteger kMaximumAttempts = 4;
+// A download whose connection dropped after its file was made resumes this
+// many times in a row with no byte arriving between: one outlasts a handoff
+// between networks, a second a flap, and past that the link is down and the
+// open should fail rather than hold its materialization lane. A byte that
+// arrives resets the count, so a long download over a poor link finishes.
+static const NSInteger kMaximumNetworkRetries = 2;
+static const NSTimeInterval kNetworkRetryDelay = 1;
 // An access token this close to its expiry is refreshed instead of used.
 static const NSTimeInterval kAccessTokenMargin = 60;
 // A Keychain still locked is asked again no sooner than this.
@@ -41,13 +48,33 @@ static NSError *VibeCancelledError(void) {
     return VibeDropboxMakeError(VibeDropboxErrorCancelled, @"cancelled");
 }
 
+// A link that dropped or stalled, which a resend may outlast; anything else
+// (TLS, a malformed response) would only fail again.
+static BOOL VibeIsConnectionError(NSError *error) {
+    if (![error.domain isEqualToString:NSURLErrorDomain]) {
+        return NO;
+    }
+    switch (error.code) {
+        case NSURLErrorTimedOut:
+        case NSURLErrorNetworkConnectionLost:
+        case NSURLErrorNotConnectedToInternet:
+        case NSURLErrorCannotConnectToHost:
+        case NSURLErrorCannotFindHost:
+        case NSURLErrorDNSLookupFailed:
+            return YES;
+        default:
+            return NO;
+    }
+}
+
 typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accountGeneration,
                                        NSError *_Nullable error);
 
 #pragma mark - Transfer state
 
-// A download or a ranged read in flight. The cancel flag and the task are
-// under the client's lock; the rest is the delegate queue's, per attempt.
+// A download or a ranged read in flight. The cancel flag, the task and
+// bytesWritten are under the client's lock; the rest belongs to whichever
+// step runs, and attempts never overlap.
 @interface DropboxTransfer : NSObject
 @property (nonatomic, copy) NSString *path;
 @property (nonatomic) NSInteger attempts;
@@ -59,14 +86,21 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 @property (nonatomic) uint64_t accountGeneration;
 // The download's metadata, or the read's bytes; finishTransfer: calls it once.
 @property (nonatomic, copy, nullable) void (^completion)(id _Nullable, NSError *_Nullable);
-// A download's only.
+// A download's only. The file, made at the first accepted response, and
+// that response's metadata span every attempt; bytesWritten is the resume
+// offset. The rest is per response.
 @property (nonatomic, copy, nullable) NSURL *destination;
-@property (nonatomic) NSInteger status;
-@property (nonatomic, nullable) NSDictionary *metadata;
 @property (nonatomic, nullable) NSFileHandle *file;
+@property (nonatomic, nullable) NSDictionary *metadata;
+@property (nonatomic) uint64_t bytesWritten;
+@property (nonatomic) NSInteger networkRetries;
+@property (nonatomic) NSInteger status;
+// A whole-file answer to a ranged resend: the bytes already written, skipped.
+@property (nonatomic) uint64_t skip;
 @property (nonatomic, nullable) NSMutableData *errorData;
 @property (nonatomic, copy, nullable) NSString *retryAfter;
-@property (nonatomic, nullable) NSError *writeError;
+// The transfer's own reason to stop: a disk write, or a changed version.
+@property (nonatomic, nullable) NSError *failure;
 @end
 
 @implementation DropboxTransfer
@@ -682,10 +716,15 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     if (!first) {
         return;
     }
+    NSError *closeError = nil;
+    if (transfer.file && ![transfer.file closeAndReturnError:&closeError] && !error) {
+        error = closeError;
+    }
+    transfer.file = nil;
     if (error && transfer.destination) {
         [NSFileManager.defaultManager removeItemAtURL:transfer.destination error:NULL];
     }
-    transfer.completion(result, error);
+    transfer.completion(error ? nil : result, error);
 }
 
 // The transfer's task, unless a cancel came first. Under the lock, so a
@@ -791,8 +830,17 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
             [self finishTransfer:download result:nil error:tokenError];
             return;
         }
-        NSURLSessionDataTask *task = [self->_downloadSession dataTaskWithRequest:
-                [self downloadRequestForPath:download.path token:token]];
+        NSMutableURLRequest *request = [self downloadRequestForPath:download.path token:token];
+        os_unfair_lock_lock(&self->_lock);
+        uint64_t offset = download.bytesWritten;
+        os_unfair_lock_unlock(&self->_lock);
+        // A resend continues the file, never starts it over: a reader may
+        // hold it open, and a new file would leave it waiting on one that
+        // never grows.
+        if (offset > 0) {
+            [request setValue:[NSString stringWithFormat:@"bytes=%llu-", offset] forHTTPHeaderField:@"Range"];
+        }
+        NSURLSessionDataTask *task = [self->_downloadSession dataTaskWithRequest:request];
         download.accessToken = token;
         download.accountGeneration = generation;
         if (![self adoptTask:task forTransfer:download]) {
@@ -814,7 +862,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 }
 
 // The delegate queue is serial, so a download's response, data and
-// completion callbacks never overlap.
+// completion callbacks never overlap, and it alone writes the file.
 - (void)URLSession:(NSURLSession *)session
           dataTask:(NSURLSessionDataTask *)dataTask
 didReceiveResponse:(NSURLResponse *)response
@@ -826,29 +874,50 @@ didReceiveResponse:(NSURLResponse *)response
     }
     NSHTTPURLResponse *http = (NSHTTPURLResponse *)response;
     download.status = http.statusCode;
-    download.metadata = nil;
     download.errorData = nil;
-    download.writeError = nil;
-    [download.file closeFile];
-    download.file = nil;
-    if (http.statusCode != 200) {
+    download.skip = 0;
+    // A ranged resend answers 206 from where the file stopped, or 200 with the
+    // whole file from a server ignoring the range. A request with no range,
+    // the first or one before any byte was written, takes only 200.
+    uint64_t offset = download.bytesWritten;
+    if (http.statusCode != 200 && !(http.statusCode == 206 && offset > 0)) {
         download.errorData = [NSMutableData data];
         download.retryAfter = [http valueForHTTPHeaderField:@"Retry-After"];
         completionHandler(NSURLSessionResponseAllow);
         return;
     }
     NSString *result = [http valueForHTTPHeaderField:@"Dropbox-API-Result"];
-    download.metadata = VibeJSONObject([result dataUsingEncoding:NSUTF8StringEncoding]);
+    NSDictionary *metadata = VibeJSONObject([result dataUsingEncoding:NSUTF8StringEncoding]);
+    if (download.file) {
+        // TRAP: a download by id answers whatever version is current, so a
+        // resend after a re-upload would splice two versions into one file.
+        // Every response must name the first one's rev; with none to compare,
+        // nothing proves the bytes match, and the transfer fails the same way.
+        NSString *pinned = download.metadata[@"rev"];
+        if (![pinned isKindOfClass:NSString.class] || ![metadata[@"rev"] isEqual:pinned]) {
+            LogWarn(@"Dropbox: %@ changed during its download (rev %@, now %@)",
+                    download.path, pinned, metadata[@"rev"]);
+            download.failure = VibeDropboxMakeError(VibeDropboxErrorFileChanged,
+                                                    @"the file changed on Dropbox during its download");
+            completionHandler(NSURLSessionResponseCancel);
+            return;
+        }
+        download.skip = http.statusCode == 200 ? offset : 0;
+        completionHandler(NSURLSessionResponseAllow);
+        return;
+    }
+    // Made once per transfer, at its first accepted response.
+    download.metadata = metadata;
     NSFileManager *files = NSFileManager.defaultManager;
     [files removeItemAtURL:download.destination error:NULL];
     if (![files createFileAtPath:download.destination.path contents:nil attributes:nil]) {
-        download.writeError = [NSError errorWithDomain:NSPOSIXErrorDomain code:errno userInfo:nil];
+        download.failure = [NSError errorWithDomain:NSPOSIXErrorDomain code:errno userInfo:nil];
         completionHandler(NSURLSessionResponseCancel);
         return;
     }
     NSError *error = nil;
     download.file = [NSFileHandle fileHandleForWritingToURL:download.destination error:&error];
-    download.writeError = error;
+    download.failure = error;
     completionHandler(download.file ? NSURLSessionResponseAllow : NSURLSessionResponseCancel);
 }
 
@@ -860,16 +929,27 @@ didReceiveResponse:(NSURLResponse *)response
         [download.errorData appendData:data];
         return;
     }
-    if (!download.file) {
+    if (!download.file || download.failure) {
         return;
+    }
+    if (download.skip > 0) {
+        NSUInteger skipped = (NSUInteger)MIN((uint64_t)data.length, download.skip);
+        download.skip -= skipped;
+        data = [data subdataWithRange:NSMakeRange(skipped, data.length - skipped)];
+        if (data.length == 0) {
+            return;
+        }
     }
     NSError *error = nil;
     if (![download.file writeData:data error:&error]) {
-        download.writeError = error;
-        [download.file closeFile];
-        download.file = nil;
+        download.failure = error;
         [dataTask cancel];
+        return;
     }
+    download.networkRetries = 0;
+    os_unfair_lock_lock(&_lock);
+    download.bytesWritten += data.length;
+    os_unfair_lock_unlock(&_lock);
 }
 
 - (void)URLSession:(NSURLSession *)session
@@ -883,21 +963,29 @@ didCompleteWithError:(NSError *)error {
     if (!download) {
         return;
     }
-    NSError *closeError = nil;
-    if (download.file && ![download.file closeAndReturnError:&closeError]) {
-        download.writeError = download.writeError ?: closeError;
-    }
-    download.file = nil;
-
     if (cancelled) {
         [self finishTransfer:download result:nil error:VibeCancelledError()];
         return;
     }
-    if (download.writeError || error) {
-        [self finishTransfer:download result:nil error:download.writeError ?: error];
+    if (download.failure) {
+        [self finishTransfer:download result:nil error:download.failure];
         return;
     }
-    if (download.status == 200) {
+    if (error) {
+        if (download.file && download.networkRetries < kMaximumNetworkRetries && VibeIsConnectionError(error)) {
+            download.networkRetries++;
+            LogInfo(@"Dropbox: resuming %@ at byte %llu: %@", download.path, download.bytesWritten,
+                    error.localizedDescription);
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kNetworkRetryDelay * NSEC_PER_SEC)),
+                           dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+                [self startDownload:download];
+            });
+            return;
+        }
+        [self finishTransfer:download result:nil error:error];
+        return;
+    }
+    if (!download.errorData) {
         [self finishTransfer:download result:download.metadata ?: @{} error:nil];
         return;
     }
