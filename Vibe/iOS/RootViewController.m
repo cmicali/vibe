@@ -39,6 +39,9 @@ static NSString *const kTabSearch = @"search";
 @implementation RootViewController {
     PlaybackController   *_playback;
     UITabBarController   *_tabs;
+    // What scales under a moving card: a snapshot of the tabs, never the tabs
+    // themselves (applyBackdropProgress:). Present only while the card moves.
+    UIView               *_backdropSnapshot;
     BrowserViewController *_filesController;
     FavoritesViewController *_favorites;
     LibraryViewController *_library;
@@ -201,7 +204,6 @@ static NSString *const kTabSearch = @"search";
     [self addChildViewController:_tabs];
     _tabs.view.frame = self.view.bounds;
     _tabs.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    _tabs.view.layer.cornerCurve = kCACornerCurveContinuous;
     [self.view addSubview:_tabs.view];
     [_tabs didMoveToParentViewController:self];
     [self syncTabSurfaces];
@@ -479,7 +481,6 @@ static NSString *const kTabSearch = @"search";
                  completion:(void (^)(void))completion {
     [self interruptCardAnimationPreservingVisualState];
     _cardAnimating = YES;
-    [self updateBackdropVisibility];
     if (!animated) {
         changes();
         _cardAnimating = NO;
@@ -487,6 +488,8 @@ static NSString *const kTabSearch = @"search";
         completion();
         return;
     }
+    // Before the changes: the tabs come back under it first.
+    [self beginBackdropSnapshot];
     UIViewPropertyAnimator *animator = [[UIViewPropertyAnimator alloc]
             initWithDuration:0.45 dampingRatio:0.86 animations:changes];
     _cardAnimator = animator;
@@ -497,7 +500,7 @@ static NSString *const kTabSearch = @"search";
         }
         self->_cardAnimator = nil;
         self->_cardAnimating = NO;
-        [self updateBackdropVisibility];
+        [self endBackdropSnapshot];
         completion();
     }];
     [animator startAnimation];
@@ -520,7 +523,7 @@ static NSString *const kTabSearch = @"search";
     CGFloat height = MAX(1, self.view.bounds.size.height);
     [self applyBackdropProgress:visibleTransform.ty / height];
     _cardAnimating = NO;
-    [self updateBackdropVisibility];
+    // The snapshot stays: the intent that interrupted is about to animate.
     [self finishPlayerAppearanceTransition];
 }
 
@@ -533,10 +536,11 @@ static NSString *const kTabSearch = @"search";
 }
 
 // A card at rest covers the tabs, so they are hidden: visible, their scaled,
-// corner-masked subtree costs offscreen passes on every rotation frame. That
-// nothing shows through rests on kBackdropScale insetting the tabs well
-// inside the card's cut corners; at a scale of 1 the corners would show them.
-// The animation and the drag both reveal them while `_expanded` is YES.
+// corner-masked subtree costs offscreen passes on every rotation frame. While
+// the card moves a snapshot stands in for them, and they are shown under it:
+// the tab bar and the strip come back with an appearance of their own, which
+// then plays out under the snapshot and the card rather than after the card
+// has landed.
 - (void)updateBackdropVisibility {
     BOOL hidden = _expanded && !_cardAnimating && !_interactiveDrag;
     if (_tabs.view.hidden != hidden) {
@@ -545,22 +549,45 @@ static NSString *const kTabSearch = @"search";
     [self syncTabSurfaces];
 }
 
+// TRAP: what scales under the card is a SNAPSHOT of the tabs, never the tabs
+// view. Scaling the view itself, by its transform or by a sublayer transform
+// above it, moved its edges away from the screen's, and UIKit took away the
+// safe-area insets and the edge layout margins as it did: the navigation
+// bar, the large title, the rows and the tab bar re-laid out and the screen
+// jumped under the card on every expand and dismiss. A snapshot has no
+// layout to lose. Taken as the card starts moving and dropped once it rests;
+// the tabs are hidden meanwhile, so nothing draws twice.
+- (void)beginBackdropSnapshot {
+    if (_backdropSnapshot) {
+        return;
+    }
+    // A hidden view snapshots nothing: shown first, and a view that was
+    // hidden is captured after the next screen update.
+    BOOL wasHidden = _tabs.view.hidden;
+    [self updateBackdropVisibility];
+    UIView *snapshot = [_tabs.view snapshotViewAfterScreenUpdates:wasHidden];
+    if (!snapshot) {
+        return;
+    }
+    snapshot.frame = _tabs.view.frame;
+    snapshot.layer.cornerCurve = kCACornerCurveContinuous;
+    [self.view insertSubview:snapshot aboveSubview:_tabs.view];
+    _backdropSnapshot = snapshot;
+}
+
+- (void)endBackdropSnapshot {
+    [_backdropSnapshot removeFromSuperview];
+    _backdropSnapshot = nil;
+    [self updateBackdropVisibility];
+}
+
 // 0 is the card fully up, 1 fully away.
 - (void)applyBackdropProgress:(CGFloat)progress {
     CGFloat t = MAX(0, MIN(1, progress));
     CGFloat scale = kBackdropScale + (1 - kBackdropScale) * t;
-    _tabs.view.transform = CGAffineTransformMakeScale(scale, scale);
-    _tabs.view.layer.cornerRadius = kBackdropCornerRadius * (1 - t);
-    _tabs.view.layer.masksToBounds = t < 1;
-    // TRAP: the safe area follows the transformed frame. Scaled about its
-    // center, the tabs view's top edge drops below the status bar and its
-    // bottom rises above the home indicator, UIKit takes the system insets
-    // away, and the navigation bar, the large title and the tab bar re-lay
-    // out: the screen under the card jumped. The insets are given back as
-    // additional ones, so the layout holds still and only scales.
-    CGFloat inset = CGRectGetHeight(self.view.bounds) * (1 - scale) / 2;
-    UIEdgeInsets safe = self.view.safeAreaInsets;
-    _tabs.additionalSafeAreaInsets = UIEdgeInsetsMake(MIN(safe.top, inset), 0, MIN(safe.bottom, inset), 0);
+    _backdropSnapshot.transform = CGAffineTransformMakeScale(scale, scale);
+    _backdropSnapshot.layer.cornerRadius = kBackdropCornerRadius * (1 - t);
+    _backdropSnapshot.layer.masksToBounds = t < 1;
 }
 
 #pragma mark - The interactive minimize
@@ -580,9 +607,8 @@ static NSString *const kTabSearch = @"search";
             [self interruptCardAnimationPreservingVisualState];
             // Fall through.
         case UIGestureRecognizerStateChanged:
-            // The tabs must be back before the first frame of travel.
             _interactiveDrag = YES;
-            [self updateBackdropVisibility];
+            [self beginBackdropSnapshot];
             _player.view.transform = CGAffineTransformMakeTranslation(0, translation);
             [self applyBackdropProgress:translation / height];
             break;
