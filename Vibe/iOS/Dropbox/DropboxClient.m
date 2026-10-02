@@ -18,6 +18,8 @@ NSNotificationName const VibeDropboxAccountDidChangeNotification =
 static const NSInteger kMaximumAttempts = 4;
 // An access token this close to its expiry is refreshed instead of used.
 static const NSTimeInterval kAccessTokenMargin = 60;
+// A Keychain still locked is asked again no sooner than this.
+static const NSTimeInterval kAccountLoadRetryInterval = 5;
 
 static NSDictionary *_Nullable VibeJSONObject(NSData *_Nullable data) {
     if (data.length == 0) {
@@ -96,8 +98,10 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     // belongs to the previous account can neither restore nor unlink it.
     uint64_t _accountGeneration;
     // The Keychain answered "locked" (a launch before first unlock): the
-    // account is read again at the next use rather than taken as absent.
+    // account is read again at the next use rather than taken as absent, at
+    // most once per kAccountLoadRetryInterval, since every accessor asks.
     BOOL _accountLoadDeferred;
+    CFAbsoluteTime _accountLoadRetryAt;
     NSMutableDictionary<NSNumber *, DropboxTransfer *> *_downloads;
 
     // Main thread: the sign-in in progress.
@@ -123,7 +127,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
                                                          delegate:self
                                                     delegateQueue:delegateQueue];
         _callSession = [NSURLSession sessionWithConfiguration:configuration];
-        [self loadAccountPostingChange:NO];
+        [self loadAccount];
     }
     return self;
 }
@@ -154,11 +158,15 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 }
 
 - (void)retryDeferredAccountLoad {
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
     os_unfair_lock_lock(&_lock);
-    BOOL deferred = _accountLoadDeferred;
+    BOOL due = _accountLoadDeferred && now >= _accountLoadRetryAt;
+    if (due) {
+        _accountLoadRetryAt = now + kAccountLoadRetryInterval;
+    }
     os_unfair_lock_unlock(&_lock);
-    if (deferred) {
-        [self loadAccountPostingChange:YES];
+    if (due) {
+        [self loadAccount];
     }
 }
 
@@ -186,7 +194,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 
 // TRAP: before the device's first unlock the item reads as locked, not
 // absent; taken as absent, the whole session would run signed out.
-- (void)loadAccountPostingChange:(BOOL)post {
+- (void)loadAccount {
     if (!_keychainService) {
         return;
     }
@@ -205,15 +213,16 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     // A sign-in made meanwhile is newer than what the Keychain held.
     BOOL adopt = found && !_refreshToken;
     if (adopt) {
-        _refreshToken = refresh;
-        _accountIDValue = [account[@"account_id"] isKindOfClass:NSString.class] ? account[@"account_id"] : nil;
+        [self replaceAccountLockedWithRefreshToken:refresh accessToken:nil expiresIn:0
+                                         accountID:account[@"account_id"]];
         _accountNameValue = [account[@"name"] isKindOfClass:NSString.class] ? account[@"name"] : nil;
     }
     os_unfair_lock_unlock(&_lock);
     if (status != errSecSuccess && status != errSecItemNotFound && !(wasDeferred && stillDeferred)) {
         LogWarn(@"Dropbox: keychain read failed: %d", (int)status);
     }
-    if (adopt && post) {
+    // At launch nothing is listening yet; a deferred read lands mid-session.
+    if (adopt && wasDeferred) {
         LogInfo(@"Dropbox: account read once the device unlocked");
         [self postAccountDidChange];
     }
@@ -697,10 +706,9 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
             if (http.statusCode == 206 || http.statusCode == 200) {
                 NSData *bytes = data ?: [NSData data];
                 if (http.statusCode == 200) {
-                    bytes = bytes.length > offset
-                            ? [bytes subdataWithRange:NSMakeRange((NSUInteger)offset,
-                                    (NSUInteger)MIN((uint64_t)bytes.length - offset, length))]
-                            : [NSData data];
+                    NSUInteger start = (NSUInteger)MIN((uint64_t)bytes.length, offset);
+                    bytes = [bytes subdataWithRange:NSMakeRange(start,
+                            (NSUInteger)MIN((uint64_t)(bytes.length - start), length))];
                 }
                 completion(bytes, nil);
                 return;

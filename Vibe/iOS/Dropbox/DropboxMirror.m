@@ -108,7 +108,10 @@ static NSError *VibePOSIXError(void) {
 // Keyed by the comparable spelling: a write through /var and a read through
 // /private/var are one directory.
 - (NSDictionary *)indexOfDirectory:(NSURL *)directory {
-    NSString *key = VibeComparablePath(directory.path);
+    return [self indexOfDirectory:directory key:VibeComparablePath(directory.path)];
+}
+
+- (NSDictionary *)indexOfDirectory:(NSURL *)directory key:(NSString *)key {
     id cached = [_indexes objectForKey:key];
     if (cached) {
         return cached == NSNull.null ? nil : cached;
@@ -129,16 +132,17 @@ static NSError *VibePOSIXError(void) {
 
 // Unchanged indexes are not rewritten: every visit relists its folder.
 - (void)writeIndex:(NSDictionary *)index ofDirectory:(NSURL *)directory {
-    if ([[self indexOfDirectory:directory] isEqualToDictionary:index]) {
+    NSString *key = VibeComparablePath(directory.path);
+    if ([[self indexOfDirectory:directory key:key] isEqualToDictionary:index]) {
         return;
     }
     NSData *data = [NSJSONSerialization dataWithJSONObject:index options:0 error:NULL];
     if (setxattr(directory.fileSystemRepresentation, kIndexAttribute, data.bytes, data.length, 0, XATTR_NOFOLLOW) != 0) {
         LogWarn(@"Dropbox: could not index %@: %s", directory.lastPathComponent, strerror(errno));
-        [_indexes removeObjectForKey:VibeComparablePath(directory.path)];
+        [_indexes removeObjectForKey:key];
         return;
     }
-    [_indexes setObject:index forKey:VibeComparablePath(directory.path)];
+    [_indexes setObject:index forKey:key];
 }
 
 #pragma mark - Account

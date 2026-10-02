@@ -22,9 +22,16 @@
 #include <unistd.h>
 
 // The remote backend's root as a comparable path ending in "/", set at
-// launch. Read only for a file whose mode already says placeholder.
+// launch. Nil (the mac) means no file is a placeholder.
 static os_unfair_lock sRemoteRootLock = OS_UNFAIR_LOCK_INIT;
 static NSString *sRemoteRootPrefix;
+
+static NSString *VibeRemoteRootPrefix(void) {
+    os_unfair_lock_lock(&sRemoteRootLock);
+    NSString *prefix = sRemoteRootPrefix;
+    os_unfair_lock_unlock(&sRemoteRootLock);
+    return prefix;
+}
 
 NSString *VibeComparablePath(NSString *path) {
     NSString *standard = path.stringByStandardizingPath;
@@ -34,11 +41,9 @@ NSString *VibeComparablePath(NSString *path) {
     return standard;
 }
 
-static BOOL VibeIsUnderRemoteRoot(NSURL *url) {
-    os_unfair_lock_lock(&sRemoteRootLock);
-    NSString *prefix = sRemoteRootPrefix;
-    os_unfair_lock_unlock(&sRemoteRootLock);
-    return prefix && [VibeComparablePath(url.path) hasPrefix:prefix];
+BOOL VibePathIsUnderRemotePlaceholderRoot(NSString *path) {
+    NSString *prefix = VibeRemoteRootPrefix();
+    return prefix && [VibeComparablePath(path) hasPrefix:prefix];
 }
 
 // Installed at launch, read from the expansion workers: every access locks.
@@ -123,10 +128,19 @@ static VibeBulkOpenDirectoriesHandler BulkOpenDirectoriesHandler(void) {
     os_unfair_lock_unlock(&sRemoteRootLock);
 }
 
+// The root first: with none installed, as on the mac, no stat is paid.
 + (BOOL)isRemotePlaceholderFile:(NSURL *)url {
+    if (!VibeRemoteRootPrefix()) {
+        return NO;
+    }
     struct stat st;
     return stat(url.fileSystemRepresentation, &st) == 0 && VibeFileModeIsRemotePlaceholder(st.st_mode)
-            && VibeIsUnderRemoteRoot(url);
+            && VibePathIsUnderRemotePlaceholderRoot(url.path);
+}
+
++ (BOOL)readsRemotePlaceholderByRange:(NSURL *)url {
+    return [NSURLUtil isRemotePlaceholderFile:url]
+            && [PlayableExtensions.tagParsed containsObject:url.pathExtension.lowercaseString];
 }
 
 NSString *const VibeRemotePlaceholderPartSuffix = @".vibe-download";
@@ -170,7 +184,7 @@ NSString *const VibeRemotePlaceholderPartSuffix = @".vibe-download";
         return NO;
     }
     BOOL dataless = (st.st_flags & SF_DATALESS) != 0
-            || (VibeFileModeIsRemotePlaceholder(st.st_mode) && VibeIsUnderRemoteRoot(url));
+            || (VibeFileModeIsRemotePlaceholder(st.st_mode) && VibePathIsUnderRemotePlaceholderRoot(url.path));
 #if DEBUG
     if (atomic_load_explicit(&sDatalessDiagEnabled, memory_order_relaxed)) {
         VibeRecordDatalessStat(url, dataless, st.st_flags, NO);

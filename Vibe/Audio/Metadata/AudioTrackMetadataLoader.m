@@ -18,7 +18,6 @@
 #import "MetadataRetryRules.h"
 #import "MetadataParseCoordinator.h"
 #import "NSURLUtil.h"
-#import "PlayableExtensions.h"
 
 #include <os/lock.h>
 
@@ -800,8 +799,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         // The foreground hold above still applied: it is a network read. A
         // format TagLib cannot parse is materialized as any cloud file is:
         // CoreAudio's facts need the whole file.
-        if ([NSURLUtil isRemotePlaceholderFile:entry.url]
-                && [PlayableExtensions.tagParsed containsObject:entry.url.pathExtension.lowercaseString]) {
+        if ([NSURLUtil readsRemotePlaceholderByRange:entry.url]) {
             [strongSelf completeMaterializationForEntry:entry
                                                priority:priority
                                                   token:nil

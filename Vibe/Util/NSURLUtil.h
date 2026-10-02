@@ -20,6 +20,9 @@ extern NSString *const VibeRemotePlaceholderPartSuffix;
 // that one API adds to /var and another drops.
 NSString *VibeComparablePath(NSString *path);
 
+// Under the remote backend's root; no disk, and NO with no root installed. For a caller that has already stat'ed the file.
+FOUNDATION_EXPORT BOOL VibePathIsUnderRemotePlaceholderRoot(NSString *path);
+
 // The remote placeholder's mode: see setRemotePlaceholderRoot:.
 static inline BOOL VibeFileModeIsRemotePlaceholder(mode_t mode) {
     return S_ISREG(mode) && (mode & S_IRUSR) == 0;
@@ -64,6 +67,11 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 // root, an unreadable file is merely unreadable.
 + (void)setRemotePlaceholderRoot:(nullable NSURL *)root;
 + (BOOL)isRemotePlaceholderFile:(NSURL *)url;
+
+// A remote placeholder whose tags and art TagLib reads by range
+// (PlayableExtensions.tagParsed); any other needs its whole file. The tag
+// scan and the art loader both decide by it.
++ (BOOL)readsRemotePlaceholderByRange:(NSURL *)url;
 
 // Where a remote placeholder's bytes stream in until they replace it: a
 // hidden sibling, so no listing shows it, whose size is the transfer's
