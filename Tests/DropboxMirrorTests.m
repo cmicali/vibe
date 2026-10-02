@@ -18,8 +18,11 @@
 #include <sys/time.h>
 
 #import "AudioFileHandle.h"
+#import "AudioFileMaterializationCoordinator.h"
+#import "AudioFileOpenRules.h"
 #import "AudioFixtures.h"
 #import "CloudFileMaterializer.h"
+#import "CloudTransferRegistry.h"
 #import "DropboxClientInternal.h"
 #import "DropboxMirror.h"
 #import "NSURLUtil.h"
@@ -322,7 +325,7 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
     }
 }
 
-@interface DropboxMirrorTests : XCTestCase
+@interface DropboxMirrorTests : XCTestCase <CloudTransferRegistryObserver>
 @end
 
 @implementation DropboxMirrorTests {
@@ -345,6 +348,11 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
     NSURL *_streamTrack;
     BOOL _fetched;
     NSError *_fetchError;
+    // The row's loading bar: the open, and the movements observed.
+    AudioFileMaterializationCoordinator *_coordinator;
+    AudioFileOpenToken *_openToken;
+    AudioFileHandle *_delivered;
+    NSMutableArray<NSURL *> *_moves;
 }
 
 - (void)setUp {
@@ -1625,6 +1633,109 @@ static NSData *PatternBytes(NSUInteger length) {
     XCTAssertEqual([self mostNoted], (uint64_t)bytes.length);
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:track], bytes);
     [self assertFinishedOnce:availability error:nil];
+}
+
+#pragma mark The row's loading bar
+
+// Spins main, which carries the registry's edges and fractions.
+- (BOOL)eventually:(BOOL (^)(void))condition {
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
+    while (!condition()) {
+        if (deadline.timeIntervalSinceNow <= 0) {
+            return NO;
+        }
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+    }
+    return YES;
+}
+
+- (void)cloudTransferRegistryDidChange:(CloudTransferRegistry *)registry {
+}
+
+- (void)cloudTransferRegistry:(CloudTransferRegistry *)registry didMoveTransferForURL:(NSURL *)url {
+    @synchronized (self) {
+        [_moves addObject:url];
+    }
+}
+
+// A playback open of a mirrored track through the real coordinator, the
+// download held back a chunk at a time; the listing says `listedBytes`, the
+// download answers `bytes`.
+- (NSURL *)openRowTrack:(NSData *)bytes listed:(long long)listedBytes chunk:(NSUInteger)chunk {
+    NSURL *track = [self streamingTrack:bytes name:@"row.wav" chunk:chunk];
+    _listings[@"/music"] = @[FileEntry(@"/Music", @"row.wav", listedBytes, kStamp)];
+    [self refresh:@"/Music"];
+    _coordinator = [[AudioFileMaterializationCoordinator alloc] init];
+    _openToken = [_coordinator openURL:track purpose:VibeAudioFileOpenPurposePlayback
+                      completionQueue:dispatch_get_main_queue()
+                           completion:^(AudioFileHandle *file, NSError *error, NSTimeInterval elapsed) {
+        self->_delivered = file;
+    }];
+    return track;
+}
+
+- (NSData *)rowWAV:(NSUInteger)length {
+    NSURL *wav = VibeWriteWAV([_root URLByAppendingPathComponent:@"source.wav"], [NSMutableData dataWithLength:length],
+                              44100, 2, 16, (uint32_t)length);
+    NSData *bytes = [NSData dataWithContentsOfURL:wav];
+    [NSFileManager.defaultManager removeItemAtURL:wav error:NULL];
+    return bytes;
+}
+
+// The row's fraction is the transfer's written bytes over its size, within a
+// whole percent and a poll.
+- (BOOL)row:(NSURL *)track showsWritten:(uint64_t)written of:(uint64_t)size {
+    float wanted = (float)written / (float)size;
+    return [self eventually:^BOOL {
+        return fabsf([CloudTransferRegistry.sharedRegistry progressForURL:track] - wanted) <= 0.011f;
+    }];
+}
+
+// The row a stream plays from keeps following its transfer once the player
+// has started on it, from the begin, through readable, to the end, and the
+// transfer's movement reaches an observer under the row's own path.
+- (void)testAStreamsRowFollowsItsTransferFromBeginToEnd {
+    const NSUInteger chunk = 64 * 1024;
+    NSData *bytes = [self rowWAV:16 * chunk];
+    CloudTransferRegistry *registry = CloudTransferRegistry.sharedRegistry;
+    _moves = [NSMutableArray array];
+    [registry addObserver:self];
+    NSURL *track = [self openRowTrack:bytes listed:(long long)bytes.length chunk:chunk];
+
+    XCTAssertTrue([self eventually:^BOOL { return [registry isTransferringURL:track]; }], @"begin, before any byte");
+    XCTAssertEqual([registry progressForURL:track], -1);
+    [self releaseChunks:2];
+    XCTAssertTrue([self row:track showsWritten:2 * chunk of:bytes.length], @"%.3f", [registry progressForURL:track]);
+    [self releaseChunks:6];
+    XCTAssertTrue([self eventually:^BOOL { return self->_delivered != nil; }], @"readable: the player starts on it");
+    XCTAssertTrue([registry isTransferringURL:track], @"and the transfer runs on");
+    [self releaseChunks:6];
+    XCTAssertTrue([self row:track showsWritten:14 * chunk of:bytes.length],
+                  @"the row froze at %.3f after the start", [registry progressForURL:track]);
+    @synchronized (self) {
+        XCTAssertGreaterThan(_moves.count, 0u);
+        XCTAssertEqualObjects(VibeStandardizedAudioOpenPath(_moves.firstObject), VibeStandardizedAudioOpenPath(track));
+    }
+
+    [self releaseChunks:100];
+    XCTAssertTrue([self eventually:^BOOL { return ![registry isTransferringURL:track]; }], @"end on complete");
+    XCTAssertEqual([registry progressForURL:track], -1);
+    [registry removeObserver:self];
+}
+
+// A file re-uploaded since its listing downloads at its new size; the row
+// counts against that, never the placeholder's.
+- (void)testARowCountsAgainstTheSizeBeingDownloaded {
+    const NSUInteger chunk = 64 * 1024;
+    NSData *bytes = [self rowWAV:16 * chunk];
+    NSURL *track = [self openRowTrack:bytes listed:8 * chunk chunk:chunk];
+    CloudTransferRegistry *registry = CloudTransferRegistry.sharedRegistry;
+    XCTAssertTrue([self eventually:^BOOL { return [registry isTransferringURL:track]; }]);
+    [self releaseChunks:4];
+    XCTAssertTrue([self row:track showsWritten:4 * chunk of:bytes.length],
+                  @"%.3f against the listed size", [registry progressForURL:track]);
+    [self releaseChunks:100];
+    XCTAssertTrue([self eventually:^BOOL { return ![registry isTransferringURL:track]; }]);
 }
 
 #pragma mark The account

@@ -140,7 +140,7 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
                                            selector:@selector(playlistClipBoundsDidChange:)
                                                name:NSViewBoundsDidChangeNotification
                                              object:clipView];
-    CloudTransferRegistry.sharedRegistry.observer = self;
+    [CloudTransferRegistry.sharedRegistry addObserver:self];
 }
 
 - (instancetype)initWithAudioPlayer:(AudioPlayer *)audioPlayer {

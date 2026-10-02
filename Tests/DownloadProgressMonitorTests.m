@@ -48,8 +48,7 @@
         __block NSUInteger movements = 0;
         NSMutableArray<NSNumber *> *fractions = [NSMutableArray array];
         NSURL *url = [self URLWithName:@"movement.mp3"];
-        self.monitor = [DownloadProgressMonitor monitorReplacing:nil
-                forURL:url currentURL:^NSURL *{ return url; }
+        self.monitor = [DownloadProgressMonitor monitorForURL:url
                 movement:^{ movements++; }
                 handler:^(float fraction) { [fractions addObject:@(fraction)]; }];
 
@@ -66,8 +65,7 @@
         __block NSUInteger movements = 0;
         NSMutableArray<NSNumber *> *fractions = [NSMutableArray array];
         NSURL *url = [self URLWithName:@"invalid.mp3"];
-        self.monitor = [DownloadProgressMonitor monitorReplacing:nil
-                forURL:url currentURL:^NSURL *{ return url; }
+        self.monitor = [DownloadProgressMonitor monitorForURL:url
                 movement:^{ movements++; }
                 handler:^(float fraction) { [fractions addObject:@(fraction)]; }];
 
@@ -84,45 +82,11 @@
     }];
 }
 
-- (void)testReplacementCancelsOldMonitorAndCurrentURLDropsStaleDeliveries {
-    [self onMain:^{
-        NSURL *firstURL = [self URLWithName:@"first.mp3"];
-        NSURL *secondURL = [self URLWithName:@"second.mp3"];
-        __block NSURL *currentURL = firstURL;
-        __block NSUInteger firstMovements = 0;
-        __block NSUInteger firstDeliveries = 0;
-        DownloadProgressMonitor *first = [DownloadProgressMonitor monitorReplacing:nil
-                forURL:firstURL currentURL:^NSURL *{ return currentURL; }
-                movement:^{ firstMovements++; }
-                handler:^(float fraction) { firstDeliveries++; }];
-        [first reportFraction:0.2f];
-
-        currentURL = secondURL;
-        __block NSUInteger secondMovements = 0;
-        __block NSUInteger secondDeliveries = 0;
-        self.monitor = [DownloadProgressMonitor monitorReplacing:first
-                forURL:secondURL currentURL:^NSURL *{ return currentURL; }
-                movement:^{ secondMovements++; }
-                handler:^(float fraction) { secondDeliveries++; }];
-        [first reportFraction:0.5f];
-        [self.monitor reportFraction:0.2f];
-
-        currentURL = firstURL;
-        [self.monitor reportFraction:0.4f];
-
-        XCTAssertEqual(firstMovements, 1u);
-        XCTAssertEqual(firstDeliveries, 1u);
-        XCTAssertEqual(secondMovements, 1u);
-        XCTAssertEqual(secondDeliveries, 1u);
-    }];
-}
-
 - (void)testFinalFractionBypassesWholePercentGateAndOvershootIsClamped {
     [self onMain:^{
         NSMutableArray<NSNumber *> *fractions = [NSMutableArray array];
         NSURL *url = [self URLWithName:@"complete.mp3"];
-        self.monitor = [DownloadProgressMonitor monitorReplacing:nil
-                forURL:url currentURL:^NSURL *{ return url; }
+        self.monitor = [DownloadProgressMonitor monitorForURL:url
                 movement:nil
                 handler:^(float fraction) { [fractions addObject:@(fraction)]; }];
 
@@ -134,8 +98,7 @@
         [self.monitor reportFraction:1.5f];
         XCTAssertEqualObjects(fractions, (@[@0.995f, @1.0f]));
 
-        self.monitor = [DownloadProgressMonitor monitorReplacing:nil
-                forURL:url currentURL:^NSURL *{ return url; }
+        self.monitor = [DownloadProgressMonitor monitorForURL:url
                 movement:nil
                 handler:^(float fraction) { [fractions addObject:@(fraction)]; }];
         [self.monitor reportFraction:1.5f];

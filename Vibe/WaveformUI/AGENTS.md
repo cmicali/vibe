@@ -20,7 +20,7 @@ Root `AGENTS.md` carries the guarantee — the theme beats the style's palette, 
 
 The control is `Controls/LoadingIndicator`, and its traps are `Controls/AGENTS.md`'s. **Each view owns only *when* it shows and *how wide*** — the mac view hands it the whole width (`Mac/AGENTS.md`), the iOS scrubber the span its content occupies (`iOS/AGENTS.md`).
 
-**The fill eases to each reported fraction over roughly the previous gap, and never runs past what was reported.** `DownloadProgressMonitor` (`System/`) samples about once a second, the provider's ceiling: snapping would stutter, and running ahead would hide a stall. `set_loading` on the debug channel drives both modes without a download.
+**The fill eases to each reported fraction over roughly the previous gap, and never runs past what was reported.** The fraction is `CloudTransferRegistry`'s, which its monitor (`System/`) samples about once a second, the provider's ceiling: snapping would stutter, and running ahead would hide a stall. `set_loading` on the debug channel drives both modes without a download.
 
 ## Accessibility
 

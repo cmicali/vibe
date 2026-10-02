@@ -15,10 +15,9 @@
 #import "AppSettings.h"
 #import "AppStats.h"
 #import "AudioErrorRules.h"
+#import "AudioFileOpenRules.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
-#import "CloudTransferRegistry.h"
-#import "DownloadProgressMonitor.h"
 #import "PlaybackDeliveryRules.h"
 #import "UIUpdateTimer.h"
 
@@ -44,31 +43,13 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         return;
     }
     [self notifyDidBeginLoading];
-    // The monitor is built here, not at play:, so a fast local play never
-    // builds one it cancels moments later.
-    if (!_downloadMonitor
-            || _downloadMonitorOpenRequestIdentifier != openRequestIdentifier) {
-        __weak PlaybackController *weakSelf = self;
-        [CloudTransferRegistry.sharedRegistry beginExternalProgressForURL:track.url];
-        _downloadMonitor = [DownloadProgressMonitor
-                monitorReplacing:_downloadMonitor
-                          forURL:track.url
-                      currentURL:^NSURL *{
-            PlaybackController *self = weakSelf;
-            return self ? self->_playlist.currentTrack.url : nil;
-        }                movement:^{
-            PlaybackController *self = weakSelf;
-            if (self) {
-                [self->_player
-                        noteOpenProgressForOpenRequestIdentifier:openRequestIdentifier];
-            }
-        }                handler:^(float fraction) {
-            [weakSelf notifyDidUpdateLoadingProgress:fraction];
-            [CloudTransferRegistry.sharedRegistry noteProgress:fraction
-                                                        forURL:track.url];
-        }];
-        _downloadMonitorOpenRequestIdentifier = openRequestIdentifier;
+    if (_loadingOpenRequestIdentifier != openRequestIdentifier) {
+        _loadingURL = track.url;
+        _loadingOpenRequestIdentifier = openRequestIdentifier;
+        _loadingProgress = -1;
     }
+    // The transfer may be well under way by the slow-open threshold.
+    [self cloudTransferRegistryDidChange:CloudTransferRegistry.sharedRegistry];
     [self publishNowPlaying];
 }
 
@@ -88,6 +69,26 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     }
     [self notifyDidChangePlayState];
     [self publishNowPlaying];
+}
+
+#pragma mark - CloudTransferRegistryObserver: the loading open's transfer
+
+- (void)cloudTransferRegistryDidChange:(CloudTransferRegistry *)registry {
+    if (!_loadingURL || ![_playlist.currentTrack.url isEqual:_loadingURL]) {
+        return;
+    }
+    float fraction = [registry progressForURL:_loadingURL];
+    if (fraction > _loadingProgress) {
+        _loadingProgress = fraction;
+        [self notifyDidUpdateLoadingProgress:fraction];
+    }
+}
+
+// By open identifier, so an older open's transfer cannot extend this one.
+- (void)cloudTransferRegistry:(CloudTransferRegistry *)registry didMoveTransferForURL:(NSURL *)url {
+    if (_loadingURL && [VibeStandardizedAudioOpenPath(url) isEqualToString:VibeStandardizedAudioOpenPath(_loadingURL)]) {
+        [_player noteOpenProgressForOpenRequestIdentifier:_loadingOpenRequestIdentifier];
+    }
 }
 
 // A pause toggled mid-open decides whether the load lands playing or parked.
@@ -111,7 +112,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // Includes the parked seek that OPENED this file, which gets no
     // didFinishSeeking:.
     _seekInFlight = NO;
-    [self teardownDownloadMonitor];
+    [self endLoadingProgress];
     // Before the repaint and the metadata kicks, so a quick second Next finds
     // the successor parked.
     [_player prefetchTrack:self.successorPrefetchTrack];
@@ -247,7 +248,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     _errorText = VibeStatusForPlayError(error);
     _seekInFlight = NO;
     _trackStartPending = NO;
-    [self teardownDownloadMonitor];
+    [self endLoadingProgress];
     [self startPendingMetadataLoad];
     [self notifyDidFailCurrentTrack];
     if (current) {

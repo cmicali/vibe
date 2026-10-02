@@ -13,12 +13,28 @@
 @interface VibeTestTransferMonitor : NSObject <VibeCloudTransferMonitor>
 @property (nonatomic, strong) NSURL *url;
 @property (nonatomic, copy) void (^handler)(float fraction);
+@property (nonatomic, copy) void (^movement)(void);
 @property (nonatomic) NSUInteger cancelCount;
 @end
 
 @implementation VibeTestTransferMonitor
 - (void)cancel {
     self.cancelCount++;
+}
+@end
+
+// A second observer, as each shell's player model is beside its row list.
+@interface VibeTestTransferObserver : NSObject <CloudTransferRegistryObserver>
+@property (nonatomic) NSUInteger changes;
+@property (nonatomic, strong) NSMutableArray<NSURL *> *moves;
+@end
+
+@implementation VibeTestTransferObserver
+- (void)cloudTransferRegistryDidChange:(CloudTransferRegistry *)registry {
+    self.changes++;
+}
+- (void)cloudTransferRegistry:(CloudTransferRegistry *)registry didMoveTransferForURL:(NSURL *)url {
+    [self.moves addObject:url];
 }
 @end
 
@@ -36,14 +52,15 @@
     _monitors = [NSMutableArray array];
     NSMutableArray<VibeTestTransferMonitor *> *monitors = _monitors;
     _registry = [[CloudTransferRegistry alloc] initWithMonitorFactory:
-            ^id<VibeCloudTransferMonitor>(NSURL *url, void (^handler)(float)) {
+            ^id<VibeCloudTransferMonitor>(NSURL *url, void (^handler)(float), void (^movement)(void)) {
         VibeTestTransferMonitor *monitor = [[VibeTestTransferMonitor alloc] init];
         monitor.url = url;
         monitor.handler = handler;
+        monitor.movement = movement;
         [monitors addObject:monitor];
         return monitor;
     }];
-    _registry.observer = self;
+    [_registry addObserver:self];
     _observerCallbacks = 0;
 }
 
@@ -94,8 +111,7 @@
     NSURL *indeterminate = [self urlForName:@"snapshot-indeterminate.wav"];
     [self beginForURL:moving];
     [self beginForURL:indeterminate];
-    [_registry beginExternalProgressForURL:moving];
-    [_registry noteProgress:0.4f forURL:moving];
+    _monitors.firstObject.handler(0.4f);
 
     NSDictionary<NSString *, NSNumber *> *snapshot = [_registry transferSnapshot];
     XCTAssertEqualObjects(snapshot, (@{
@@ -115,65 +131,11 @@
     [self beginForURL:url];
     _monitors.firstObject.handler(0);
     XCTAssertEqual([_registry progressForURL:url], -1, @"zero is not progress");
-    [_registry beginExternalProgressForURL:url];
-    [_registry noteProgress:0 forURL:url];
-    XCTAssertEqual([_registry progressForURL:url], -1);
-    [_registry noteProgress:0.3f forURL:url];
+    _monitors.firstObject.handler(0.3f);
     XCTAssertEqualWithAccuracy([_registry progressForURL:url], 0.3f, 0.0001);
-    [_registry noteProgress:0 forURL:url];
+    _monitors.firstObject.handler(0);
     XCTAssertEqualWithAccuracy([_registry progressForURL:url], 0.3f, 0.0001,
             @"a late zero must not blank a fill already shown");
-}
-
-// The playback claim begins at once; the shell declares at the slow-open
-// threshold, with no fraction yet to show for it.
-- (void)testADeclarationCancelsTheRegistrysMonitor {
-    NSURL *url = [self urlForName:@"shell-fed.wav"];
-    [self beginForURL:url];
-    VibeTestTransferMonitor *minted = _monitors.firstObject;
-    [_registry beginExternalProgressForURL:url];
-    XCTAssertEqual(minted.cancelCount, 1u,
-            @"the shell's monitor owns the path; the registry's would be a second subscription");
-    XCTAssertEqual([_registry progressForURL:url], -1);
-    [_registry noteProgress:0.25f forURL:url];
-    XCTAssertEqualWithAccuracy([_registry progressForURL:url], 0.25f, 0.0001);
-    // A late sample from the cancelled monitor must not overwrite the shell's.
-    minted.handler(0.9f);
-    XCTAssertEqualWithAccuracy([_registry progressForURL:url], 0.25f, 0.0001);
-}
-
-// A claim queued behind lane capacity begins after the shell declared.
-- (void)testABeginUnderADeclarationBuildsNoMonitor {
-    NSURL *url = [self urlForName:@"declared-first.wav"];
-    [_registry beginExternalProgressForURL:url];
-    [self beginForURL:url];
-    XCTAssertEqual(_monitors.count, 0u);
-    XCTAssertTrue([_registry isTransferringURL:url]);
-    [_registry noteProgress:0.5f forURL:url];
-    XCTAssertEqualWithAccuracy([_registry progressForURL:url], 0.5f, 0.0001);
-}
-
-- (void)testAReadmittedRunUnderADeclarationBuildsNoMonitor {
-    NSURL *url = [self urlForName:@"readmitted-declared.wav"];
-    [self beginForURL:url];
-    [_registry beginExternalProgressForURL:url];
-    [self endForURL:url];
-    [self beginForURL:url];
-    XCTAssertEqual(_monitors.count, 1u,
-            @"the declaration outlives the entry; a re-begin must not watch the file again");
-}
-
-- (void)testAReleasedDeclarationLetsTheRegistryWatchAgain {
-    NSURL *url = [self urlForName:@"released.wav"];
-    [_registry beginExternalProgressForURL:url];
-    [_registry endExternalProgress];
-    [self beginForURL:url];
-    XCTAssertEqual(_monitors.count, 1u);
-    [_registry noteProgress:0.5f forURL:url];
-    XCTAssertEqual([_registry progressForURL:url], -1,
-            @"an undeclared caller feeds nothing");
-    _monitors.firstObject.handler(0.2f);
-    XCTAssertEqualWithAccuracy([_registry progressForURL:url], 0.2f, 0.0001);
 }
 
 - (void)testEndCancelsTheMonitorSoNothingOutlivesItsTransfer {
@@ -204,11 +166,54 @@
     NSURL *second = [self urlForName:@"two.wav"];
     [self beginForURL:first];
     [self beginForURL:second];
-    [_registry beginExternalProgressForURL:first];
-    [_registry noteProgress:0.5f forURL:first];
+    _monitors.firstObject.handler(0.5f);
     [self drainMainQueue];
     XCTAssertEqual(_observerCallbacks, 1u,
             @"three changes on one turn deliver one callback");
+    _monitors.firstObject.handler(0.5f);
+    [self drainMainQueue];
+    XCTAssertEqual(_observerCallbacks, 1u, @"a fraction already shown changes nothing");
+    [self endForURL:second];
+    [self drainMainQueue];
+    XCTAssertEqual(_observerCallbacks, 2u, @"one per transition, on its own turn");
+}
+
+// The row list and the player model both hear every change; a removed or
+// released observer hears nothing.
+- (void)testEveryObserverHearsEachCoalescedChange {
+    VibeTestTransferObserver *model = [[VibeTestTransferObserver alloc] init];
+    VibeTestTransferObserver *removed = [[VibeTestTransferObserver alloc] init];
+    [_registry addObserver:model];
+    [_registry addObserver:removed];
+    [_registry removeObserver:removed];
+    @autoreleasepool {
+        VibeTestTransferObserver *released = [[VibeTestTransferObserver alloc] init];
+        [_registry addObserver:released];
+    }
+    [self beginForURL:[self urlForName:@"observed.wav"]];
+    _monitors.firstObject.handler(0.2f);
+    [self drainMainQueue];
+    XCTAssertEqual(_observerCallbacks, 1u);
+    XCTAssertEqual(model.changes, 1u);
+    XCTAssertEqual(removed.changes, 0u);
+}
+
+// The open deadline's feed: every raw movement, uncoalesced and on the call,
+// with the transfer's URL; none once the transfer ended.
+- (void)testMovementReachesObserversUncoalescedUntilTheTransferEnds {
+    VibeTestTransferObserver *model = [[VibeTestTransferObserver alloc] init];
+    model.moves = [NSMutableArray array];
+    [_registry addObserver:model];
+    NSURL *url = [self urlForName:@"moving.wav"];
+    [self beginForURL:url];
+    VibeTestTransferMonitor *monitor = _monitors.firstObject;
+    monitor.movement();
+    monitor.movement();
+    XCTAssertEqualObjects(model.moves, (@[url, url]), @"each movement, on the call");
+    XCTAssertEqual([_registry progressForURL:url], -1, @"movement is not a fraction");
+    [self endForURL:url];
+    monitor.movement();
+    XCTAssertEqual(model.moves.count, 2u, @"a movement queued past the end is dropped");
 }
 
 @end

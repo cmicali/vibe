@@ -69,7 +69,8 @@ typedef NS_ENUM(NSInteger, CloudFileAvailabilityWait) {
 
 // [0, bytes) is on disk. A count below one already noted is ignored.
 - (void)noteWrittenBytes:(uint64_t)bytes;
-// The count noted last, for a reader telling a stalled transfer from a slow one.
+// The count noted so far: the transfer's progress (DownloadProgressMonitor),
+// and what tells a reader a stalled transfer from a slow one.
 @property (nonatomic, readonly) uint64_t writtenBytes;
 // Once: nil is complete, after which every range is ready; an error fails
 // every wait, since nothing already read can be trusted.

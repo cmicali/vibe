@@ -15,7 +15,6 @@
 #import "Playlist.h"
 
 @class AudioPlayer;
-@class DownloadProgressMonitor;
 @class NowPlayingController;
 @class UIUpdateTimer;
 @class WidgetPublisher;
@@ -46,9 +45,11 @@ NS_ASSUME_NONNULL_BEGIN
     BOOL                    _parked;
     NSString                *_errorText;
 
-    // Non-nil only while an open of a materializing file is in flight.
-    DownloadProgressMonitor *_downloadMonitor;
-    uint64_t                 _downloadMonitorOpenRequestIdentifier;
+    // The slow open the card shows loading, from didBeginLoading: to its
+    // settlement; its progress is CloudTransferRegistry's (+PlayerEvents).
+    NSURL                   *_loadingURL;
+    uint64_t                 _loadingOpenRequestIdentifier;
+    float                    _loadingProgress;
 
     // Owns all widget state, so this header carries none of it.
     WidgetPublisher         *_widgetPublisher;
@@ -96,9 +97,8 @@ NS_ASSUME_NONNULL_BEGIN
 // caller notifies.
 - (void)openParkedTrack:(AudioTrack *)track atPosition:(NSTimeInterval)position;
 
-// The one teardown for the monitor, its open identifier and the registry's
-// declaration, so none outlives the others.
-- (void)teardownDownloadMonitor;
+// Ends the loading open's progress: its URL, identifier and fraction together.
+- (void)endLoadingProgress;
 
 #pragma mark - The deferred metadata sweep
 

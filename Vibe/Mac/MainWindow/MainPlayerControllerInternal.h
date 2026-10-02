@@ -17,7 +17,6 @@
 @class ArtworkDisplayController;
 @class AudioTrack;
 @class AudioWaveformView;
-@class DownloadProgressMonitor;
 @class MainPlayerContentView;
 @class NowPlayingController;
 @class PlaylistTableView;
@@ -30,11 +29,12 @@ NS_ASSUME_NONNULL_BEGIN
 // declared on the category that implements it.
 @interface MainPlayerController () <FileDropDelegate, PitchControlPanelDelegate, EqualizerLevelSource> {
     UIUpdateTimer*              _uiTimer;
-    // Live only while the loading shimmer is up.
-    DownloadProgressMonitor*    _downloadMonitor;
-    // The open this monitor observes. A same-row replay keeps it; a later
-    // open of the same URL does not.
-    uint64_t                     _downloadMonitorOpenRequestIdentifier;
+    // The slow open the shimmer is up for, from didBeginLoading: to its
+    // settlement; its progress is CloudTransferRegistry's (+PlayerEvents).
+    // A same-row replay keeps the identifier; a later open of the URL does not.
+    NSURL*                      _loadingURL;
+    uint64_t                     _loadingOpenRequestIdentifier;
+    float                        _loadingProgress;
     // From didStartPlaying:: the live duration reads 0 while Loading. Zeroed
     // on Close, a play error and the end-of-track park.
     NSTimeInterval              _currentTrackDuration;
@@ -120,11 +120,10 @@ NS_ASSUME_NONNULL_BEGIN
 // output and material window/row visibility.
 - (void)syncEqualizerActivity;
 
-#pragma mark - The download monitor
+#pragma mark - The loading open
 
-// The one teardown for the monitor, its open identifier and the registry's
-// declaration, so none outlives the others.
-- (void)teardownDownloadMonitor;
+// Ends the loading open's progress: its URL, identifier and fraction together.
+- (void)endLoadingProgress;
 
 #pragma mark - The successor prefetch
 

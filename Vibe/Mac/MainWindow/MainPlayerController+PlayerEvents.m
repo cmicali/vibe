@@ -17,12 +17,11 @@
 #import "ArtworkDisplayController.h"
 #import "AudioDevice.h"
 #import "AudioErrorRules.h"
+#import "AudioFileOpenRules.h"
 #import "AudioDeviceManager.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
-#import "CloudTransferRegistry.h"
-#import "DownloadProgressMonitor.h"
 #import "AudioFileConverter.h"
 #import "PlaylistController.h"
 #import "PlaybackDeliveryRules.h"
@@ -59,26 +58,35 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // the indicator, nor builds a monitor it would cancel moments later.
     [self updateUI];
     [self.trackDisplay showWaveformLoadingIndicator];
-    if (!_downloadMonitor
-            || _downloadMonitorOpenRequestIdentifier != openRequestIdentifier) {
-        __weak MainPlayerController *weakSelf = self;
-        [CloudTransferRegistry.sharedRegistry beginExternalProgressForURL:track.url];
-        _downloadMonitor = [DownloadProgressMonitor
-                monitorReplacing:_downloadMonitor
-                          forURL:track.url
-                      currentURL:^NSURL *{ return [weakSelf.playlistController currentTrack].url; }
-                        movement:^{
-            [weakSelf.audioPlayer
-                    noteOpenProgressForOpenRequestIdentifier:openRequestIdentifier];
-        }                handler:^(float fraction) {
-            [weakSelf.trackDisplay setWaveformLoadingProgress:fraction];
-            [CloudTransferRegistry.sharedRegistry noteProgress:fraction
-                                                        forURL:track.url];
-        }];
-        _downloadMonitorOpenRequestIdentifier = openRequestIdentifier;
+    if (_loadingOpenRequestIdentifier != openRequestIdentifier) {
+        _loadingURL = track.url;
+        _loadingOpenRequestIdentifier = openRequestIdentifier;
+        _loadingProgress = -1;
     }
+    // The transfer may be well under way by the slow-open threshold.
+    [self cloudTransferRegistryDidChange:CloudTransferRegistry.sharedRegistry];
     // After updateUI: the previous track's art must not outlive the shimmer.
     [_artworkController showPlaceholderForSlowLoad];
+}
+
+#pragma mark - CloudTransferRegistryObserver: the loading open's transfer
+
+- (void)cloudTransferRegistryDidChange:(CloudTransferRegistry *)registry {
+    if (!_loadingURL || ![[self.playlistController currentTrack].url isEqual:_loadingURL]) {
+        return;
+    }
+    float fraction = [registry progressForURL:_loadingURL];
+    if (fraction > _loadingProgress) {
+        _loadingProgress = fraction;
+        [self.trackDisplay setWaveformLoadingProgress:fraction];
+    }
+}
+
+// By open identifier, so an older open's transfer cannot extend this one.
+- (void)cloudTransferRegistry:(CloudTransferRegistry *)registry didMoveTransferForURL:(NSURL *)url {
+    if (_loadingURL && [VibeStandardizedAudioOpenPath(url) isEqualToString:VibeStandardizedAudioOpenPath(_loadingURL)]) {
+        [self.audioPlayer noteOpenProgressForOpenRequestIdentifier:_loadingOpenRequestIdentifier];
+    }
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
@@ -109,7 +117,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
     [_artworkController trackDidStartPlaying:track];
     [self clearErrorMask];
-    [self teardownDownloadMonitor];
+    [self endLoadingProgress];
     [self.trackDisplay hideWaveformLoadingIndicator];
     // A cue row reopens as its sheet, which names it.
     [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:track.cueSheetURL ?: track.url];
@@ -234,7 +242,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [self startPendingMetadataLoad];
     [self pauseUIUpdateTimer];
     _currentTrackDuration = 0;
-    [self teardownDownloadMonitor];
+    [self endLoadingProgress];
     [self.trackDisplay hideWaveformLoadingIndicator];
     // Inline, no auto-skip: a sheet on this borderless window breaks key
     // status and the bare keys. The mask stops late deliveries repopulating

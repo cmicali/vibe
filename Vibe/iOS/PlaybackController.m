@@ -21,7 +21,6 @@
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataCache.h"
 #import "CloudTransferRegistry.h"
-#import "DownloadProgressMonitor.h"
 #import "DropboxMirror.h"
 #import "FavoritesStore.h"
 #import "PlayerDisplaySettings.h"
@@ -80,6 +79,7 @@ static const NSUInteger kUIUpdateHz = 3;
                                                selector:@selector(dropboxAccountDidChange:)
                                                    name:VibeDropboxAccountDidChangeNotification
                                                  object:DropboxMirror.shared.client];
+        [CloudTransferRegistry.sharedRegistry addObserver:self];
     }
     return self;
 }
@@ -393,7 +393,7 @@ static const NSUInteger kUIUpdateHz = 3;
 // guards drop any callback already in flight.
 - (void)clearPlaylist {
     [_player stop];
-    [self teardownDownloadMonitor];
+    [self endLoadingProgress];
     // TRAP: the session goes BEFORE the model. Clearing the model fires
     // playlistDidReplaceAllTracks:, which rebuilds the chrome; cleared after,
     // the session still answers folderURL and the bar keeps the old title and
@@ -655,11 +655,10 @@ static const NSUInteger kUIUpdateHz = 3;
     [_player play:track atPosition:position startPaused:YES];
 }
 
-- (void)teardownDownloadMonitor {
-    [_downloadMonitor cancel];
-    _downloadMonitor = nil;
-    _downloadMonitorOpenRequestIdentifier = 0;
-    [CloudTransferRegistry.sharedRegistry endExternalProgress];
+- (void)endLoadingProgress {
+    _loadingURL = nil;
+    _loadingOpenRequestIdentifier = 0;
+    _loadingProgress = -1;
 }
 
 #pragma mark - The deferred metadata sweep

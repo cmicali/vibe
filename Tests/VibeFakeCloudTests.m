@@ -74,8 +74,7 @@
     __block float first = NAN;
     __block DownloadProgressMonitor *monitor = nil;
     [self onMain:^{
-        monitor = [DownloadProgressMonitor monitorReplacing:nil forURL:url
-                currentURL:^NSURL *{ return url; }
+        monitor = [DownloadProgressMonitor monitorForURL:url
                 movement:nil
                 handler:^(float fraction) {
             if (isnan(first)) {
