@@ -4,7 +4,7 @@
 //
 
 #import <Foundation/Foundation.h>
-// VibeWaveformAnalysisProvider, stamped onto every loader this cache creates.
+// VibeWaveformAnalysis, stamped onto every loader this cache creates.
 #import "AudioWaveformLoader.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -18,14 +18,19 @@ NS_ASSUME_NONNULL_BEGIN
 @class AudioTrack;
 @protocol AudioWaveformCacheDelegate;
 
+typedef VibeWaveformAnalysis (^VibeWaveformAnalysisProvider)(void);
+
 @interface AudioWaveformCache : NSObject
 
 @property (nullable, weak) id <AudioWaveformCacheDelegate> delegate;
 
-// Whether a decode should also run the tempo and key analyzers. Stamped onto
-// every loader this cache creates, and asked once per load, so a settings
-// change lands on the next decode. The owner installs it: macOS reads the two
-// analysis settings, the iOS card reads analyzeBPM and never asks for the key.
+// What a decode should compute beyond the waveform. A provider rather than a
+// value because it is asked once per request, on the main thread, so a
+// settings change lands on the next request with nobody republishing it; and
+// that answer is the request's loader's, so the lookup and the decode agree on
+// the bands. Unset is none of it. A cached entry without the bands misses for
+// a request asking for them, so an owner that comes to want them asks for its
+// track again (AGENTS.md).
 @property (nullable, copy) VibeWaveformAnalysisProvider analysisProvider;
 
 // The PINCache store name, derived from the entry format version; see the

@@ -13,26 +13,22 @@ NS_ASSUME_NONNULL_BEGIN
 @class CodableAudioWaveform;
 @protocol AudioWaveformLoaderDelegate;
 
-// Which analyzers the decode pass should run, since both ride it. A provider
-// rather than a stored pair because it is asked once per load, so a settings
-// change applies to the next decode with nobody republishing it; and this
-// layer must not reach into a settings singleton it cannot be tested without.
-//
-// UNSET MEANS NEITHER RUNS: what the tests get. The mac's provider reads both
-// settings; the iOS card's reads analyzeBPM and answers NO for the key.
+// What the decode pass computes beyond the waveform, since all of it rides
+// one pass. Zero is none of it, which is what the tests get.
 typedef struct {
     BOOL bpm;
     BOOL key;
+    // The three bands' energies, which only 3-Band reads: four filters a
+    // sample, so a decode skips them unless asked.
+    BOOL bands;
 } VibeWaveformAnalysis;
-
-typedef VibeWaveformAnalysis (^VibeWaveformAnalysisProvider)(void);
 
 @interface AudioWaveformLoader : NSObject
 
 @property (nullable, weak) id <AudioWaveformLoaderDelegate> delegate;
 
-// Asked once per load:, on whatever queue the decode runs on.
-@property (nullable, copy) VibeWaveformAnalysisProvider analysisProvider;
+// Set before load:, like the window below.
+@property (atomic) VibeWaveformAnalysis analysis;
 
 - (instancetype)initWithDelegate:(id <AudioWaveformLoaderDelegate>)delegate;
 

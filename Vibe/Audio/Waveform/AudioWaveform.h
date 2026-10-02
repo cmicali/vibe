@@ -5,6 +5,7 @@
 
 #include <Accelerate/Accelerate.h>
 #include <cmath>
+#include <vector>
 
 // The interleaved-to-mono downmix shared by the waveform chunker and the BPM
 // analyzer: one mix per decode buffer rather than one per consumer. For mono
@@ -31,6 +32,36 @@ static inline const float* AudioWaveformMonoMix(const float* buffer, float* scra
     return scratch;
 }
 
+// Low, mid and high, split from the mono mix by 2nd-order Butterworth
+// crossovers at the handovers cdj3k-mods measured off a CDJ-3000's 3-band
+// display: wide ones, at 280 Hz low and mid still answer almost equally, which
+// is a shallow crossover's shape. Mid is the low crossover's highpass into the
+// high one's lowpass.
+static const NSUInteger kAudioWaveformBandCount = 3;
+static const double kAudioWaveformLowCrossoverHz = 300;
+static const double kAudioWaveformHighCrossoverHz = 2500;
+
+// The streaming band split: each decode block is filtered once, and the
+// chunker sums each chunk's slice of it as it slices the mono block. The
+// filters' state carries across blocks, so the split does not see block edges.
+struct AudioWaveformBandSplit {
+    AudioWaveformBandSplit(double sampleRate, NSUInteger maxFrames);
+    ~AudioWaveformBandSplit();
+    AudioWaveformBandSplit(const AudioWaveformBandSplit&) = delete;
+    AudioWaveformBandSplit& operator=(const AudioWaveformBandSplit&) = delete;
+
+    // At most maxFrames.
+    void process(const float* mono, NSUInteger numFrames);
+    // Adds each band's sum of squares over the processed block's frames
+    // [offset, offset + numFrames) to sums, low to high.
+    void addSumSquares(NSUInteger offset, NSUInteger numFrames, float* sums) const;
+
+private:
+    vDSP_biquad_Setup setups[kAudioWaveformBandCount];
+    std::vector<float> delays[kAudioWaveformBandCount];
+    std::vector<float> outputs[kAudioWaveformBandCount];
+};
+
 struct AudioWaveformCacheChunk {
 
     inline AudioWaveformCacheChunk() noexcept { set(0, 0); }
@@ -44,6 +75,7 @@ struct AudioWaveformCacheChunk {
     // Mean of the squared samples across every frame merged in — sqrt of it is
     // the chunk's RMS. 0 for an empty chunk.
     inline float getMeanSquare() const noexcept { return values[3] > 0 ? values[2] / values[3] : 0; }
+    inline float getFrameCount() const noexcept { return values[3]; }
     inline void set(float min, float max) noexcept { set(min, max, 0, 0); }
     inline void set(float min, float max, float sumSquares, float frameCount) noexcept {
         values[0] = min; values[1] = max; values[2] = sumSquares; values[3] = frameCount;
@@ -86,14 +118,23 @@ private:
 
 class AudioWaveform {
 public:
-    AudioWaveform();
-    AudioWaveform(NSUInteger numChunks, const void* chunks);
+    // The bands are 3-Band's alone, so only a decode asked for them holds them
+    // (VibeWaveformAnalysis.bands).
+    explicit AudioWaveform(bool withBands = false);
+    // bandSums, numChunks * kAudioWaveformBandCount of them, or null for a
+    // waveform without bands.
+    AudioWaveform(NSUInteger numChunks, const void* chunks, const void* bandSums = nullptr);
     AudioWaveform(const AudioWaveform& other);
     // Deleted: it would shallow-copy the raw chunks pointer and double free.
     AudioWaveform& operator=(const AudioWaveform&) = delete;
     ~AudioWaveform();
 
     AudioWaveformCacheChunk getChunkAtIndex(NSUInteger index, NSUInteger size);
+    // The bands' mean squares, low to high, over the column getChunkAtIndex
+    // combines; zeros without bands. Apart from the chunks, so a style that
+    // reads no band merges none.
+    void getBandMeanSquares(NSUInteger index, NSUInteger size, float* meanSquares);
+    inline bool hasBands() const noexcept { return bandSums != nullptr; }
     // The loudest of the track's energy columns at this resolution — its mean
     // square, as getMeanSquare — which the renderers' Normalize draws at
     // full height. 0 for an empty or silent waveform.
@@ -107,14 +148,33 @@ public:
     inline void setChunkAtIndex(AudioWaveformCacheChunk chunk, NSUInteger index) {
         if (index < numChunks) { chunks[index] = chunk; }
     }
+    // A no-op without bands.
+    inline void setBandSumSquaresAtIndex(const float* sums, NSUInteger index) {
+        if (bandSums && index < numChunks) { memcpy(&bandSums[index * kAudioWaveformBandCount], sums, kBandBytes); }
+    }
+    // The chunk and its bands.
+    void copyChunk(NSUInteger from, NSUInteger to);
+    // Each chunk's mean squares, numChunks * kAudioWaveformBandCount of them,
+    // as the archive keeps them: the sums are the means times the chunks'
+    // frames. Gives a waveform without bands its bands.
+    void setBandMeanSquares(const float* meanSquares);
 
     inline NSUInteger getNumChunks() { return this->numChunks; }
     inline const void* getBytes() { return (const void *)&chunks[0]; }
     inline NSUInteger getNumBytes() { return this->numChunks * sizeof(AudioWaveformCacheChunk); }
+    // 0 without bands.
+    inline NSUInteger getNumBandBytes() { return bandSums ? this->numChunks * kBandBytes : 0; }
 
 private:
+    static const size_t kBandBytes = kAudioWaveformBandCount * sizeof(float);
+    // The chunks [start, start + count) column index of size combines.
+    void getColumnRange(NSUInteger index, NSUInteger size, NSUInteger* start, NSUInteger* count);
+    void allocate(NSUInteger count, bool withBands);
+
     NSUInteger numChunks;
     AudioWaveformCacheChunk* chunks;
+    // kAudioWaveformBandCount sums of squares per chunk, or null.
+    float* bandSums;
     bool complete;
 };
 

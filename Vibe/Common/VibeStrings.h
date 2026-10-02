@@ -184,6 +184,7 @@ static inline NSString *VibeAppName(void) {
 #define STR_WAVEFORM_STYLE_OVERSAMPLING_X2 NSLS(@"waveform.style.oversampling_x2", @"Oversampling Detailed x2", @"Waveform style name: detailed rendering at 2x oversampling. Keep the 'x2'.")
 #define STR_WAVEFORM_STYLE_OVERSAMPLING_X4 NSLS(@"waveform.style.oversampling_x4", @"Oversampling Detailed x4", @"Waveform style name: detailed rendering at 4x oversampling. Keep the 'x4'.")
 #define STR_WAVEFORM_STYLE_OVERSAMPLING_X8 NSLS(@"waveform.style.oversampling_x8", @"Oversampling Detailed x8", @"Waveform style name: detailed rendering at 8x oversampling. Keep the 'x8'.")
+#define STR_WAVEFORM_STYLE_THREE_BAND      NSLS(@"waveform.style.three_band",      @"3-Band",                   @"Waveform style name: the DJ-player style that draws the low, mid and high frequency bands in their own colors. Keep the digit 3; translate 'Band' as the word for a frequency band.")
 
 #pragma mark - Themes
 

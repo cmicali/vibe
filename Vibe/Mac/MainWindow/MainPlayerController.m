@@ -52,6 +52,7 @@
 #import "UIUpdateMath.h"
 #import "TrackCommands.h"
 #import "OpenRequestCoordinator.h"
+#import "WaveformRendererRegistry.h"
 #import "VibeStrings.h"
 
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
@@ -173,11 +174,17 @@
 }
 
 - (void)wireCollaboratorHandlers {
-    // Asked once per decode, so a settings change lands on the next load.
+    // Asked once per request, so a settings change lands on the next load.
     // The iOS card installs its own, tempo only.
     self.waveformCache.analysisProvider = ^VibeWaveformAnalysis{
-        return (VibeWaveformAnalysis){AppSettings.sharedInstance.analyzeBPM, AppSettings.sharedInstance.analyzeKey};
+        AppSettings *settings = AppSettings.sharedInstance;
+        return (VibeWaveformAnalysis){
+            .bpm = settings.analyzeBPM,
+            .key = settings.analyzeKey,
+            .bands = [WaveformRendererRegistry readsBandsForIdentifier:settings.currentTheme.waveformStyle],
+        };
     };
+    _waveformBandsWanted = self.waveformCache.analysisProvider().bands;
 
     // A track change mid-conversion stops the sweep at the next report.
     __weak MainPlayerController *weakControllerForConvert = self;

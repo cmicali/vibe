@@ -313,11 +313,13 @@ static const CGFloat kWidgetWaveformScale = 3;
                                                 customPlayed:played
                                               customUnplayed:unplayed];
     // The RESOLVED palette, not the inputs, so a cover arriving under a theme
-    // that ignores it bakes nothing.
+    // that ignores it bakes nothing. The waveform, not its track: the
+    // signature clears on a track change, and a new waveform for the same
+    // track, the bands' decode, must bake.
     NSString *signature = [NSString stringWithFormat:@"%@|%@|%@|%p",
                            style, VibeHexStringFromColor(theme.playedColor) ?: @"",
                            VibeHexStringFromColor(theme.unplayedColor) ?: @"",
-                           (void *)_waveformTrack];
+                           (void *)waveform];
     if (VibeNowPlayingStringsEqual(signature, _bakedSignature)) {
         return;
     }

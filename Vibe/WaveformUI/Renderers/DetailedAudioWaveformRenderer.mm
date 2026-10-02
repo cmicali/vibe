@@ -12,18 +12,6 @@
 #include <vector>
 #include <cmath>
 
-// The one normalized-to-pixels scale, shared by the seek band, the morph's
-// frame-skip heuristic, the mask and the gradient band: they disagree silently
-// if any site re-derives it.
-static const CGFloat kBarAmplitudeOfHalfHeight = 0.75;
-static inline CGFloat VibeBarVScale(CGFloat height) {
-    return (height / 2) * kBarAmplitudeOfHalfHeight;
-}
-
-// A bar is sub-point wide here, so the column spans a few: a lit slice, not a
-// blob. Pixel-snapped at use.
-static const CGFloat kHoverHighlightWidth = 1.5;
-
 static const CGFloat kWiggleStrokeWidth = 1.5;
 static const CGFloat kWigglePitch = 8;
 static const NSUInteger kWiggleMaxLoops = 1024;
@@ -127,11 +115,7 @@ static const NSUInteger kDetailedMaxBars = 8192;
 }
 
 - (CGRect)seekHitBandForBounds:(CGRect)bounds {
-    CGFloat midY = bounds.size.height / 2;
-    CGFloat vscale = VibeBarVScale(bounds.size.height);
-    CGFloat bottomY = round(midY - vscale);
-    CGFloat topY = round(midY + vscale);
-    return CGRectMake(bounds.origin.x, bottomY, bounds.size.width, topY - bottomY);
+    return VibeBarSeekHitBand(bounds);
 }
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
@@ -210,8 +194,8 @@ static const NSUInteger kDetailedMaxBars = 8192;
 - (void)configureGradient:(CAGradientLayer *)gradient {
     // Top to bottom (y=1 is the top), pinned to the bars' band rather than the
     // full view so the whole ramp lands across the visible bars.
-    gradient.startPoint = CGPointMake(0.5, (1 + kBarAmplitudeOfHalfHeight) / 2);
-    gradient.endPoint = CGPointMake(0.5, (1 - kBarAmplitudeOfHalfHeight) / 2);
+    gradient.startPoint = CGPointMake(0.5, (1 + kVibeBarAmplitudeOfHalfHeight) / 2);
+    gradient.endPoint = CGPointMake(0.5, (1 - kVibeBarAmplitudeOfHalfHeight) / 2);
 }
 
 - (void)dealloc {
@@ -282,7 +266,7 @@ static const NSUInteger kDetailedMaxBars = 8192;
         CGFloat right = ceil(((index + 1) * pitch + stroke) * scale) / scale;
         return CGRectMake(left, 0, right - left, bounds.size.height);
     }
-    return VibeSnappedColumnRect(x, kHoverHighlightWidth,
+    return VibeSnappedColumnRect(x, kVibeHoverHighlightWidth,
                                  bounds.size.width, bounds.size.height, scale);
 }
 
@@ -438,7 +422,13 @@ static const NSUInteger kDetailedMaxBars = 8192;
                                    stops:[self gradientCGColorsForColor:self.theme.playedColor]];
 }
 
+// One hue: the played bitmap dimmed. Two: the unplayed side's own bake, at
+// its resting alphas, doubling the cell's bytes past WaveformZoomMath's
+// budget — a deliberate trade.
 - (CGImageRef)newUnplayedEnvelopeImageForSize:(CGSize)size scale:(CGFloat)scale samples:(NSData *)samples {
+    if (self.theme.unplayedSharesPlayedHue) {
+        return NULL;
+    }
     return [self newEnvelopeImageForSize:size scale:scale samples:samples
                                    stops:[self gradientCGColorsForColor:self.theme.unplayedColor]];
 }
@@ -446,19 +436,10 @@ static const NSUInteger kDetailedMaxBars = 8192;
 - (CGImageRef)newEnvelopeImageForSize:(CGSize)size scale:(CGFloat)scale samples:(NSData *)samples
                                 stops:(NSArray *)stops {
     NSUInteger count = samples.length / (2 * sizeof(float));
-    size_t pixelWidth = (size_t)llround(size.width * scale);
-    size_t pixelHeight = (size_t)llround(size.height * scale);
-    if (count == 0 || pixelWidth == 0 || pixelHeight == 0) {
-        return NULL;
-    }
-    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-    CGContextRef ctx = CGBitmapContextCreate(NULL, pixelWidth, pixelHeight, 8, 0, space,
-            kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
+    CGContextRef ctx = count ? VibeNewEnvelopeBitmapContext(size, scale) : NULL;
     if (!ctx) {
-        CGColorSpaceRelease(space);
         return NULL;
     }
-    CGContextScaleCTM(ctx, scale, scale);
 
     if (_wiggle) {
         CGPathRef path = VibeNewWigglePath(size, (const float *)samples.bytes, count, _wiggleCentered, self.barWidthScale);
@@ -480,16 +461,16 @@ static const NSUInteger kDetailedMaxBars = 8192;
 
     // configureGradient:'s band, and the live layers' stops: the two must stay
     // pixel-identical. Basic re-aims its gradient, so it cannot bake.
-    CGGradientRef gradient = CGGradientCreateWithColors(space, (__bridge CFArrayRef)stops, NULL);
-    CGFloat topY = size.height * (1 + kBarAmplitudeOfHalfHeight) / 2;
-    CGFloat bottomY = size.height * (1 - kBarAmplitudeOfHalfHeight) / 2;
+    CGGradientRef gradient = CGGradientCreateWithColors(CGBitmapContextGetColorSpace(ctx),
+                                                        (__bridge CFArrayRef)stops, NULL);
+    CGFloat topY = size.height * (1 + kVibeBarAmplitudeOfHalfHeight) / 2;
+    CGFloat bottomY = size.height * (1 - kVibeBarAmplitudeOfHalfHeight) / 2;
     CGContextDrawLinearGradient(ctx, gradient, CGPointMake(0, topY), CGPointMake(0, bottomY),
             kCGGradientDrawsBeforeStartLocation | kCGGradientDrawsAfterEndLocation);
     CGGradientRelease(gradient);
 
     CGImageRef image = CGBitmapContextCreateImage(ctx);
     CGContextRelease(ctx);
-    CGColorSpaceRelease(space);
     return image;
 }
 

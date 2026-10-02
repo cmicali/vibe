@@ -40,20 +40,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (CGFloat)playedClipWidthForProgress:(CGFloat)progress width:(CGFloat)width;
 - (CGRect)hoverColumnRectForX:(CGFloat)x bounds:(CGRect)bounds scale:(CGFloat)scale;
 
-// The iOS scrubber's settled fast path: the whole envelope as one bitmap, so
-// scrolling translates a texture instead of re-compositing the masked tree.
-// While unplayedSharesPlayedHue the unplayed side is the played bitmap at
-// unplayedOverPlayedOpacity; otherwise it bakes its own. Extract samples on
-// main; the bakes touch no layer state and may run on any queue.
-- (NSData *)envelopeSamplesForWaveform:(AudioWaveform *)waveform;
-- (nullable CGImageRef)newEnvelopeImageForSize:(CGSize)size
-                                         scale:(CGFloat)scale
-                                       samples:(NSData *)samples CF_RETURNS_RETAINED;
-- (nullable CGImageRef)newUnplayedEnvelopeImageForSize:(CGSize)size
-                                                 scale:(CGFloat)scale
-                                               samples:(NSData *)samples CF_RETURNS_RETAINED;
-- (CGFloat)unplayedOverPlayedOpacity;
-
 @end
 
 NS_ASSUME_NONNULL_END

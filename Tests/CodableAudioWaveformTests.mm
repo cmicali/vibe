@@ -66,6 +66,19 @@ static NSData *ValidChunkBytes(void) {
                           length:kEncodedChunkCount * sizeof(AudioWaveformCacheChunk)];
 }
 
+// ArchiveWithKeys plus a "bands" payload.
+static NSData *ArchiveWithBands(NSData *bandBytes) {
+    NSKeyedArchiver *archiver = [[NSKeyedArchiver alloc] initRequiringSecureCoding:NO];
+    NSData *chunks = ValidChunkBytes();
+    [archiver encodeInt:kCodableAudioWaveformVersion forKey:@"version"];
+    [archiver encodeObject:@(kEncodedChunkCount) forKey:@"numChunks"];
+    [archiver encodeBytes:(const uint8_t *)chunks.bytes length:chunks.length forKey:@"chunks"];
+    [archiver encodeBytes:(const uint8_t *)bandBytes.bytes length:bandBytes.length forKey:@"bands"];
+    [archiver encodeFloat:120 forKey:@"bpm"];
+    [archiver finishEncoding];
+    return archiver.encodedData;
+}
+
 #pragma mark - Round trip
 
 - (void)testValidArchiveDecodes {
@@ -79,12 +92,14 @@ static NSData *ValidChunkBytes(void) {
                                0.5f, 1e-6);
 }
 
-- (void)testEncodeThenDecodePreservesChunksAndBPM {
+- (void)testEncodeThenDecodePreservesChunksBandsAndBPM {
     CodableAudioWaveform *original =
-            [[CodableAudioWaveform alloc] initWithWaveform:new AudioWaveform()];
+            [[CodableAudioWaveform alloc] initWithWaveform:new AudioWaveform(true)];
     AudioWaveformCacheChunk marker;
     marker.set(-0.75f, 0.5f, 1.2f, 3.0f);
     original.waveform->setChunkAtIndex(marker, 7);
+    const float bands[kAudioWaveformBandCount] = {0.9f, 0.3f, 0.06f};
+    original.waveform->setBandSumSquaresAtIndex(bands, 7);
     original.bpm = 174.0f;
     original.key = 21; // Am
 
@@ -108,6 +123,78 @@ static NSData *ValidChunkBytes(void) {
     XCTAssertEqual(decoded.waveform->getChunkAtIndex(7, count).getMax(), 0.5f);
     XCTAssertEqualWithAccuracy(decoded.waveform->getChunkAtIndex(7, count).getMeanSquare(),
                                1.2f / 3.0f, 1e-6);
+    float meanSquares[kAudioWaveformBandCount];
+    decoded.waveform->getBandMeanSquares(7, count, meanSquares);
+    for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+        // float16's 11 significant bits.
+        XCTAssertEqualWithAccuracy(meanSquares[b], bands[b] / 3.0f, bands[b] / 3.0f / 1024, @"band %lu", b);
+    }
+}
+
+// A long chunk's sum is past float16's 65,504; the archive keeps the mean.
+- (void)testALongChunksBandsSurviveTheArchive {
+    CodableAudioWaveform *original =
+            [[CodableAudioWaveform alloc] initWithWaveform:new AudioWaveform(true)];
+    AudioWaveformCacheChunk chunk;
+    chunk.set(-0.9f, 0.9f, 300000, 1000000);
+    const float bands[kAudioWaveformBandCount] = {290000, 30000, 9000};
+    original.waveform->setChunkAtIndex(chunk, 0);
+    original.waveform->setBandSumSquaresAtIndex(bands, 0);
+
+    NSData *data = [NSKeyedArchiver archivedDataWithRootObject:original requiringSecureCoding:NO error:nil];
+    NSKeyedUnarchiver *unarchiver = [[NSKeyedUnarchiver alloc] initForReadingFromData:data error:nil];
+    unarchiver.requiresSecureCoding = NO;
+    CodableAudioWaveform *decoded = [unarchiver decodeObjectForKey:NSKeyedArchiveRootObjectKey];
+    [unarchiver finishDecoding];
+
+    XCTAssertTrue(decoded.waveform->hasBands());
+    float meanSquares[kAudioWaveformBandCount];
+    decoded.waveform->getBandMeanSquares(0, kEncodedChunkCount, meanSquares);
+    for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+        float expected = bands[b] / 1000000;
+        XCTAssertEqualWithAccuracy(meanSquares[b], expected, expected / 1024, @"band %lu", b);
+    }
+}
+
+#pragma mark - Bands
+
+// An entry from before the bands, or from a decode not asked for them, is a
+// waveform without them.
+- (void)testAnEntryWithoutBandsDecodesWithoutThem {
+    CodableAudioWaveform *decoded = DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion,
+                                                                  @(kEncodedChunkCount), ValidChunkBytes(), 120));
+    XCTAssertNotNil(decoded);
+    XCTAssertFalse(decoded.waveform->hasBands());
+}
+
+// Every band's mean square, as the float16 bits given.
+static NSData *HalfBandBytes(uint16_t half) {
+    std::vector<uint16_t> bands(kEncodedChunkCount * kAudioWaveformBandCount, half);
+    return [NSData dataWithBytes:bands.data() length:bands.size() * sizeof(uint16_t)];
+}
+
+- (void)testWholeBandsDecode {
+    CodableAudioWaveform *decoded = DecodeArchive(ArchiveWithBands(HalfBandBytes(0x3400)));
+    XCTAssertNotNil(decoded);
+    XCTAssertTrue(decoded.waveform->hasBands());
+}
+
+// Bad bands are not a reason to throw away good waveform data: the entry
+// keeps its chunks, and the next request for the bands decodes them again.
+// Short, NaN, negative, and float32 sums, the width they once had.
+- (void)testBadBandsDegradeToNone {
+    NSData *whole = HalfBandBytes(0x3400);
+    NSMutableData *poisoned = [whole mutableCopy];
+    ((uint16_t *)poisoned.mutableBytes)[whole.length / sizeof(uint16_t) - 1] = 0x7E00;
+    std::vector<float> wide(kEncodedChunkCount * kAudioWaveformBandCount, 0.25f);
+    for (NSData *bad in @[[whole subdataWithRange:NSMakeRange(0, whole.length - 2)], poisoned,
+                          HalfBandBytes(0xB400),
+                          [NSData dataWithBytes:wide.data() length:wide.size() * sizeof(float)]]) {
+        CodableAudioWaveform *decoded = DecodeArchive(ArchiveWithBands(bad));
+        XCTAssertNotNil(decoded);
+        XCTAssertFalse(decoded.waveform->hasBands());
+        XCTAssertEqualWithAccuracy(decoded.waveform->getChunkAtIndex(500, kEncodedChunkCount).getMax(), 0.5f, 1e-6);
+    }
 }
 
 #pragma mark - Rejection branches
@@ -160,7 +247,7 @@ static NSData *ValidChunkBytes(void) {
 }
 
 - (void)testNonFiniteSampleIsCaughtAtEitherEndOfThePayload {
-    NSUInteger floatCount = kEncodedChunkCount * 2;
+    NSUInteger floatCount = kEncodedChunkCount * sizeof(AudioWaveformCacheChunk) / sizeof(float);
     for (NSUInteger index : {(NSUInteger)0, floatCount - 1}) {
         NSMutableData *bytes = [ValidChunkBytes() mutableCopy];
         ((float *)bytes.mutableBytes)[index] = NAN;

@@ -5,41 +5,46 @@
 
 #import "AudioWaveform.h"
 
+#include <algorithm>
+
 #define NUM_CHUNKS     (4096*2)
 
-AudioWaveform::AudioWaveform() {
-    numChunks = NUM_CHUNKS;
-    complete = false;
-    this->chunks = static_cast<AudioWaveformCacheChunk*>(calloc(this->numChunks, sizeof(AudioWaveformCacheChunk)));
+void AudioWaveform::allocate(NSUInteger count, bool withBands) {
+    this->chunks = static_cast<AudioWaveformCacheChunk*>(calloc(count, sizeof(AudioWaveformCacheChunk)));
+    this->bandSums = withBands && this->chunks
+            ? static_cast<float*>(calloc(count, kBandBytes)) : nullptr;
     // A NULL allocation would make setChunkAtIndex dereference NULL, whereas a
-    // zero count turns every access into a safe no-op.
-    if (!this->chunks) { this->numChunks = 0; }
+    // zero count turns every access into a safe no-op. Bands that would not
+    // allocate leave a waveform without them.
+    this->numChunks = this->chunks ? count : 0;
 }
 
-AudioWaveform::AudioWaveform(NSUInteger numChunks, const void* chunks) {
-    this->numChunks = numChunks;
+AudioWaveform::AudioWaveform(bool withBands) {
+    allocate(NUM_CHUNKS, withBands);
+    complete = false;
+}
+
+AudioWaveform::AudioWaveform(NSUInteger numChunks, const void* chunks, const void* bandSums) {
+    allocate(numChunks, bandSums != nullptr);
     this->complete = true;
-    this->chunks = static_cast<AudioWaveformCacheChunk*>(calloc(this->numChunks, sizeof(AudioWaveformCacheChunk)));
     if (this->chunks && chunks) {
         memcpy(this->chunks, chunks, this->getNumBytes());
+        if (this->bandSums) {
+            memcpy(this->bandSums, bandSums, this->getNumBandBytes());
+        }
     } else {
         this->numChunks = 0;
     }
 }
 
-AudioWaveform::AudioWaveform(const AudioWaveform& other) {
-    this->numChunks = other.numChunks;
+AudioWaveform::AudioWaveform(const AudioWaveform& other)
+        : AudioWaveform(other.numChunks, other.chunks, other.bandSums) {
     this->complete = other.complete;
-    this->chunks = static_cast<AudioWaveformCacheChunk*>(calloc(this->numChunks, sizeof(AudioWaveformCacheChunk)));
-    if (this->chunks && other.chunks) {
-        memcpy(this->chunks, other.chunks, this->getNumBytes());
-    } else {
-        this->numChunks = 0;
-    }
 }
 
 AudioWaveform::~AudioWaveform() {
     free(this->chunks);
+    free(this->bandSums);
 }
 
 float AudioWaveform::getMaxMeanSquare(NSUInteger columns) {
@@ -53,6 +58,18 @@ float AudioWaveform::getMaxMeanSquare(NSUInteger columns) {
     return loudest;
 }
 
+// Column i combines [start(i), start(i+1)), so consecutive columns tile the
+// source exactly. A floored fixed width skips a source chunk on most steps of
+// a fractional ratio, which makes transient peaks vanish at some view widths.
+// In bounds by construction: end = numChunks*(index+1)/size and index < size,
+// so start + count <= numChunks; a column finer than a chunk repeats it.
+void AudioWaveform::getColumnRange(NSUInteger index, NSUInteger size, NSUInteger* start, NSUInteger* count) {
+    NSUInteger startIndex = numChunks * index / size;
+    NSUInteger endIndex = numChunks * (index + 1) / size;
+    *start = startIndex;
+    *count = endIndex > startIndex ? endIndex - startIndex : 1;
+}
+
 AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInteger size)  {
     AudioWaveformCacheChunk result;
     // A failed calloc leaves chunks NULL and numChunks 0; see the
@@ -60,18 +77,11 @@ AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInte
     if (chunks == nullptr || numChunks == 0) return result;
     if (index >= size) return result;
     if (size == numChunks) { return chunks[index]; }
-    // Column i combines [start(i), start(i+1)), so consecutive columns tile
-    // the source exactly. A floored fixed width skips a source chunk on most
-    // steps of a fractional ratio, which makes transient peaks vanish at some
-    // view widths.
-    NSUInteger startIndex = numChunks * index / size;
-    NSUInteger endIndex = numChunks * (index + 1) / size;
-    NSUInteger numChunksToCombine = endIndex > startIndex ? endIndex - startIndex : 1;
+    NSUInteger startIndex, numChunksToCombine;
+    getColumnRange(index, size, &startIndex, &numChunksToCombine);
     if (numChunksToCombine == 1) {
         return chunks[startIndex];
     }
-    // In bounds by construction: endIndex = numChunks*(index+1)/size and
-    // index < size, so startIndex + numChunksToCombine = endIndex <= numChunks.
     if (numChunksToCombine < 16) {
         // vDSP setup overhead dominates for tiny strided ranges, so use a
         // plain loop.
@@ -94,8 +104,166 @@ AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInte
     return result;
 }
 
+void AudioWaveform::getBandMeanSquares(NSUInteger index, NSUInteger size, float* meanSquares) {
+    std::fill(meanSquares, meanSquares + kAudioWaveformBandCount, 0.0f);
+    if (bandSums == nullptr || numChunks == 0 || index >= size) return;
+    NSUInteger start, count;
+    getColumnRange(index, size, &start, &count);
+    float frames = 0;
+    float sums[kAudioWaveformBandCount] = {};
+    for (NSUInteger i = start; i < start + count; i++) {
+        frames += chunks[i].getFrameCount();
+        for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+            sums[b] += bandSums[i * kAudioWaveformBandCount + b];
+        }
+    }
+    for (NSUInteger b = 0; frames > 0 && b < kAudioWaveformBandCount; b++) {
+        meanSquares[b] = sums[b] / frames;
+    }
+}
+
+void AudioWaveform::setBandMeanSquares(const float* meanSquares) {
+    if (!bandSums) {
+        bandSums = static_cast<float*>(calloc(numChunks, kBandBytes));
+    }
+    for (NSUInteger i = 0; bandSums && i < numChunks; i++) {
+        float frames = chunks[i].getFrameCount();
+        for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+            bandSums[i * kAudioWaveformBandCount + b] = meanSquares[i * kAudioWaveformBandCount + b] * frames;
+        }
+    }
+}
+
+void AudioWaveform::copyChunk(NSUInteger from, NSUInteger to) {
+    if (from >= numChunks || to >= numChunks) return;
+    chunks[to] = chunks[from];
+    if (bandSums) {
+        memmove(&bandSums[to * kAudioWaveformBandCount], &bandSums[from * kAudioWaveformBandCount], kBandBytes);
+    }
+}
+
+// The RBJ cookbook's 2nd-order Butterworth (Q = 1/√2), as vDSP_biquad wants a
+// section: b0, b1, b2, a1, a2, normalized by a0.
+static void AudioWaveformButterworthSection(double cutoffHz, double sampleRate, bool highpass,
+                                            double *section) {
+    double w = 2 * M_PI * cutoffHz / sampleRate;
+    double cosw = cos(w);
+    double alpha = sin(w) / (2 * M_SQRT1_2);
+    double a0 = 1 + alpha;
+    double edge = highpass ? (1 + cosw) / 2 : (1 - cosw) / 2;
+    section[0] = edge / a0;
+    section[1] = (highpass ? -2 : 2) * edge / a0;
+    section[2] = edge / a0;
+    section[3] = -2 * cosw / a0;
+    section[4] = (1 - alpha) / a0;
+}
+
+AudioWaveformBandSplit::AudioWaveformBandSplit(double sampleRate, NSUInteger maxFrames) {
+    double low[5], mid[10], high[5];
+    AudioWaveformButterworthSection(kAudioWaveformLowCrossoverHz, sampleRate, false, low);
+    AudioWaveformButterworthSection(kAudioWaveformLowCrossoverHz, sampleRate, true, mid);
+    AudioWaveformButterworthSection(kAudioWaveformHighCrossoverHz, sampleRate, false, mid + 5);
+    AudioWaveformButterworthSection(kAudioWaveformHighCrossoverHz, sampleRate, true, high);
+    const double *coefficients[kAudioWaveformBandCount] = {low, mid, high};
+    const vDSP_Length sections[kAudioWaveformBandCount] = {1, 2, 1};
+    for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+        setups[b] = vDSP_biquad_CreateSetup(coefficients[b], sections[b]);
+        delays[b].assign(2 * sections[b] + 2, 0.0f);
+        outputs[b].assign(maxFrames, 0.0f);
+    }
+}
+
+AudioWaveformBandSplit::~AudioWaveformBandSplit() {
+    for (vDSP_biquad_Setup setup : setups) {
+        if (setup) vDSP_biquad_DestroySetup(setup);
+    }
+}
+
+void AudioWaveformBandSplit::process(const float* mono, NSUInteger numFrames) {
+    for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+        // A failed setup leaves its band silent rather than unfiltered.
+        if (!setups[b] || numFrames == 0 || numFrames > outputs[b].size()) continue;
+        vDSP_biquad(setups[b], delays[b].data(), mono, 1, outputs[b].data(), 1, numFrames);
+        // A corrupt file's NaN or Inf stays in the filter's state forever:
+        // reset it, so the band loses this block rather than the rest of the
+        // file.
+        if (!std::isfinite(outputs[b][numFrames - 1])) {
+            std::fill(delays[b].begin(), delays[b].end(), 0.0f);
+        }
+    }
+}
+
+void AudioWaveformBandSplit::addSumSquares(NSUInteger offset, NSUInteger numFrames, float* sums) const {
+    for (NSUInteger b = 0; numFrames > 0 && b < kAudioWaveformBandCount; b++) {
+        float meanSquare;
+        vDSP_measqv(outputs[b].data() + offset, 1, &meanSquare, numFrames);
+        if (std::isfinite(meanSquare)) sums[b] += meanSquare * (float)numFrames;
+    }
+}
+
 // See the declaration in AudioWaveform.h.
 const int kCodableAudioWaveformVersion = 5;
+
+// The archive has no checksum, so a bit-rotted entry can decode non-finite
+// floats, which would poison the renderers' geometry on every play until the
+// entry ages out.
+// TRAP: decodeBytesForKey: returns an unaligned pointer into the unarchiver's
+// buffer, so reading it through a float pointer is UB and lets the vectorizer
+// emit alignment-faulting loads. memcpy each value into an aligned local.
+static BOOL VibeArchivedFloatsAreFinite(const void *data, NSUInteger length) {
+    const char *bytes = (const char *)data;
+    for (NSUInteger i = 0; i < length / sizeof(float); i++) {
+        float value;
+        memcpy(&value, bytes + i * sizeof(float), sizeof(value));
+        if (!std::isfinite(value)) {
+            return NO;
+        }
+    }
+    return YES;
+}
+
+// The bands are archived as each chunk's mean squares in float16, half the
+// bytes of the float32 sums held in memory. Means, not sums: a long chunk's
+// sum — a two-hour mix at 192 kHz puts some 170,000 frames in one — overflows
+// float16's 65,504, the finite check refuses it, and that file decodes again
+// on every play.
+static void VibeArchiveBands(NSCoder *coder, AudioWaveform *waveform) {
+    NSUInteger numChunks = waveform->getNumChunks();
+    vImagePixelCount count = numChunks * kAudioWaveformBandCount;
+    std::vector<float> meanSquares(count);
+    for (NSUInteger i = 0; i < numChunks; i++) {
+        waveform->getBandMeanSquares(i, numChunks, &meanSquares[i * kAudioWaveformBandCount]);
+    }
+    std::vector<uint16_t> halves(count);
+    vImage_Buffer from = {meanSquares.data(), 1, count, count * sizeof(float)};
+    vImage_Buffer to = {halves.data(), 1, count, count * sizeof(uint16_t)};
+    vImageConvert_PlanarFtoPlanar16F(&from, &to, kvImageNoFlags);
+    [coder encodeBytes:(const uint8_t *)halves.data() length:count * sizeof(uint16_t) forKey:@"bands"];
+}
+
+// Whole bands only: bad ones degrade to none rather than reject the waveform,
+// since the next request for them decodes them again.
+static void VibeRestoreArchivedBands(NSCoder *coder, AudioWaveform *waveform) {
+    vImagePixelCount count = waveform->getNumChunks() * kAudioWaveformBandCount;
+    NSUInteger length;
+    const void *bytes = [coder decodeBytesForKey:@"bands" returnedLength:&length];
+    if (!bytes || count == 0 || length != count * sizeof(uint16_t)) {
+        return;
+    }
+    // The unaligned pointer again (see VibeArchivedFloatsAreFinite).
+    std::vector<uint16_t> halves(count);
+    memcpy(halves.data(), bytes, length);
+    std::vector<float> meanSquares(count);
+    vImage_Buffer from = {halves.data(), 1, count, count * sizeof(uint16_t)};
+    vImage_Buffer to = {meanSquares.data(), 1, count, count * sizeof(float)};
+    vImageConvert_Planar16FtoPlanarF(&from, &to, kvImageNoFlags);
+    for (float meanSquare : meanSquares) {
+        if (!std::isfinite(meanSquare) || meanSquare < 0) {
+            return;
+        }
+    }
+    waveform->setBandMeanSquares(meanSquares.data());
+}
 
 @implementation CodableAudioWaveform
 
@@ -103,6 +271,9 @@ const int kCodableAudioWaveformVersion = 5;
     [coder encodeInt:kCodableAudioWaveformVersion forKey:@"version"];
     [coder encodeObject:@(self.waveform->getNumChunks()) forKey:@"numChunks"];
     [coder encodeBytes:(const uint8_t*)self.waveform->getBytes() length:self.waveform->getNumBytes() forKey:@"chunks"];
+    if (self.waveform->hasBands()) {
+        VibeArchiveBands(coder, self.waveform);
+    }
     [coder encodeFloat:self.bpm forKey:@"bpm"];
     // As an object, not encodeInteger: an absent integer decodes as 0, which
     // as a key means C major, whereas an absent object is unambiguously nil.
@@ -134,23 +305,11 @@ const int kCodableAudioWaveformVersion = 5;
         if (!data || numChunks != NUM_CHUNKS || length != numChunks * sizeof(AudioWaveformCacheChunk)) {
             return nil;
         }
-        // The archive has no checksum, so a bit-rotted entry can decode
-        // non-finite floats, which would poison the renderers' geometry on
-        // every play until the entry ages out.
-        // TRAP: decodeBytesForKey: returns an unaligned pointer into the
-        // unarchiver's buffer, so reading it through a float pointer is UB and
-        // lets the vectorizer emit alignment-faulting loads. memcpy each value
-        // into an aligned local.
-        const char *bytes = (const char *)data;
-        NSUInteger numValues = length / sizeof(float);
-        for (NSUInteger i = 0; i < numValues; i++) {
-            float value;
-            memcpy(&value, bytes + i * sizeof(float), sizeof(value));
-            if (!std::isfinite(value)) {
-                return nil;
-            }
+        if (!VibeArchivedFloatsAreFinite(data, length)) {
+            return nil;
         }
         self.waveform = new AudioWaveform(numChunks, data);
+        VibeRestoreArchivedBands(coder, self.waveform);
         float bpm = [coder decodeFloatForKey:@"bpm"];
         self.bpm = std::isfinite(bpm) && bpm > 0 ? bpm : 0;
         // Like bpm, a bad key degrades to "unknown" rather than rejecting the

@@ -85,6 +85,45 @@ static inline CGRect VibeSnappedColumnRect(CGFloat x, CGFloat columnWidth,
     return CGRectMake(left, 0, width, height);
 }
 
+// The Detailed family's band, which 3-Band shares: bars reach this share of
+// half the height either side of the midline. The one normalized-to-pixels
+// scale, shared by the seek band, the morph's frame-skip heuristic, the masks
+// and the gradient band: they disagree silently if any site re-derives it.
+static const CGFloat kVibeBarAmplitudeOfHalfHeight = 0.75;
+static inline CGFloat VibeBarVScale(CGFloat height) {
+    return (height / 2) * kVibeBarAmplitudeOfHalfHeight;
+}
+static inline CGRect VibeBarSeekHitBand(CGRect bounds) {
+    CGFloat midY = bounds.size.height / 2;
+    CGFloat vscale = VibeBarVScale(bounds.size.height);
+    CGFloat bottomY = round(midY - vscale);
+    CGFloat topY = round(midY + vscale);
+    return CGRectMake(bounds.origin.x, bottomY, bounds.size.width, topY - bottomY);
+}
+
+// A bar is sub-point wide in both, so the hover column spans a few: a lit
+// slice, not a blob. Pixel-snapped at use.
+static const CGFloat kVibeHoverHighlightWidth = 1.5;
+
+// The envelope bake's bitmap, in the format the iOS scrubber installs: sRGB,
+// premultiplied alpha first in host order, scaled to points. NULL when empty.
+static inline CGContextRef _Nullable VibeNewEnvelopeBitmapContext(CGSize size, CGFloat scale) CF_RETURNS_RETAINED;
+static inline CGContextRef _Nullable VibeNewEnvelopeBitmapContext(CGSize size, CGFloat scale) {
+    size_t pixelWidth = (size_t)llround(size.width * scale);
+    size_t pixelHeight = (size_t)llround(size.height * scale);
+    if (pixelWidth == 0 || pixelHeight == 0) {
+        return NULL;
+    }
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    CGContextRef ctx = CGBitmapContextCreate(NULL, pixelWidth, pixelHeight, 8, 0, space,
+            kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
+    CGColorSpaceRelease(space);
+    if (ctx) {
+        CGContextScaleCTM(ctx, scale, scale);
+    }
+    return ctx;
+}
+
 // Both views own their layer trees, so a display change re-stamps them here,
 // masks and all.
 static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat scale) {
@@ -147,6 +186,10 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 // Localized, user-visible name. Display only.
 + (NSString *)displayName;
 
+// Whether the style draws the bands, which a waveform holds only when its
+// decode was asked for them. NO here.
++ (BOOL)readsBands;
+
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark;
 
 - (void)updateColors:(BOOL)isDark;
@@ -178,6 +221,21 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 // that changes its gradient aim or played-fill quantization must answer for
 // itself — why Basic answers NO despite subclassing Detailed.
 @property (readonly) BOOL supportsEnvelopeBake;
+
+// The bake, for a style that supports it: the iOS scrubber's settled fast
+// path draws the whole envelope as one bitmap, so scrolling translates a
+// texture instead of re-compositing the live tree. Extract samples on main;
+// the bakes touch no layer state and may run on any queue.
+- (NSData *)envelopeSamplesForWaveform:(AudioWaveform *)waveform;
+- (nullable CGImageRef)newEnvelopeImageForSize:(CGSize)size
+                                         scale:(CGFloat)scale
+                                       samples:(NSData *)samples CF_RETURNS_RETAINED;
+// NULL when the unplayed side is the played bitmap at
+// unplayedOverPlayedOpacity, which halves the bake's bytes.
+- (nullable CGImageRef)newUnplayedEnvelopeImageForSize:(CGSize)size
+                                                 scale:(CGFloat)scale
+                                               samples:(NSData *)samples CF_RETURNS_RETAINED;
+- (CGFloat)unplayedOverPlayedOpacity;
 
 @end
 

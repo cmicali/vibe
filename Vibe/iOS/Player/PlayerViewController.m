@@ -19,6 +19,7 @@
 #import "Formatters.h"
 #import "VibeStrings.h"
 #import "VibeWeakProxy.h"
+#import "WaveformRendererRegistry.h"
 #import "WaveformScrubberView.h"
 
 // Bounded because AVKit's end edge is not guaranteed.
@@ -57,6 +58,9 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
 @implementation PlayerViewController {
     // The model's 3 Hz tick is too coarse for a moving waveform.
     CADisplayLink           *_scrollLink;
+    // The waveform provider's bands answer as of the last settings change, so
+    // only the change into a style reading them asks for the pages again.
+    BOOL                     _waveformBandsWanted;
 
     UIView                  *_grabberView;
     UIButton                *_grabberTarget;
@@ -93,11 +97,19 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
         [_waveformCache invalidateWithCompletion:nil];
         [NSUserDefaults.standardUserDefaults setBool:YES forKey:kWaveformTempoBackfillKey];
     }
-    // Asked once per decode, so Settings > Playback lands on the next load
-    // with nothing to republish. Tempo only: key detection is macOS-only.
+    // Asked once per request, so Settings > Playback lands on the next load
+    // with nothing to republish. No key: key detection is macOS-only. The
+    // bands for the card's style or the widget's, which bakes from the
+    // card's waveform; a nil widget style is the card's.
     _waveformCache.analysisProvider = ^VibeWaveformAnalysis{
-        return (VibeWaveformAnalysis){AppSettings.sharedInstance.analyzeBPM, NO};
+        AppSettings *settings = AppSettings.sharedInstance;
+        return (VibeWaveformAnalysis){
+            .bpm = settings.analyzeBPM,
+            .bands = [WaveformRendererRegistry readsBandsForIdentifier:settings.waveformStyle]
+                  || [WaveformRendererRegistry readsBandsForIdentifier:settings.widgetWaveformStyle],
+        };
     };
+    _waveformBandsWanted = _waveformCache.analysisProvider().bands;
     _waveformCoordinator = [[PageWaveformCoordinator alloc] initWithCache:_waveformCache delegate:self];
     _artHeldPages = [NSMutableIndexSet indexSet];
     _pagerHoldViews = [NSHashTable weakObjectsHashTable];
@@ -119,6 +131,14 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
 // All settings at once, visible pages only: a pooled cell is configured from
 // scratch on its way back.
 - (void)displaySettingsDidChange {
+    // The pages in hand were likely decoded without the bands: forgotten,
+    // each is asked for again as it comes up.
+    BOOL bandsWanted = _waveformCache.analysisProvider().bands;
+    if (bandsWanted && !_waveformBandsWanted) {
+        [_waveformCoordinator reset];
+        [self requestWaveformForIndex:_playlist.currentIndex];
+    }
+    _waveformBandsWanted = bandsWanted;
     for (TrackPageCell *cell in _pagesView.visibleCells) {
         NSIndexPath *path = [_pagesView indexPathForCell:cell];
         if (path) {

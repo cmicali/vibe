@@ -6,7 +6,6 @@
 #import "WaveformScrubberView.h"
 #import "AudioWaveform.h"
 #import "AudioWaveformRenderer.h"
-#import "DetailedAudioWaveformRenderer.h"
 #import "WaveformRendererRegistry.h"
 #import "LoadingIndicator.h"
 #import "WaveformZoomMath.h"
@@ -617,7 +616,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
         return;
     }
     _lastBakeAt = CACurrentMediaTime();
-    DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)_renderer;
+    AudioWaveformRenderer *renderer = _renderer;
     CGFloat scale = [self displayScale];
     // Past the texture ceiling a layer renders BLANK: a layout wide enough that
     // even the resting zoom overflows (the zoom floor keeps a pinch out) bakes
@@ -632,9 +631,6 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     VibeSignpostBegin(waveform_samples);
     NSData *samples = [renderer envelopeSamplesForWaveform:self.waveform.waveform];
     VibeSignpostEnd(waveform_samples);
-    // A two-hue theme bakes the unplayed side too, doubling the cell's bytes
-    // past WaveformZoomMath's budget: a deliberate trade.
-    BOOL separateUnplayed = !renderer.theme.unplayedSharesPlayedHue;
     NSUInteger epoch = _bakeEpoch;
     _bakeInFlight = YES;
     _bakeWanted = NO;
@@ -642,8 +638,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         VibeSignpostBegin(waveform_bake);
         CGImageRef image = [renderer newEnvelopeImageForSize:size scale:scale samples:samples];
-        CGImageRef unplayedImage = separateUnplayed
-                ? [renderer newUnplayedEnvelopeImageForSize:size scale:scale samples:samples] : NULL;
+        CGImageRef unplayedImage = [renderer newUnplayedEnvelopeImageForSize:size scale:scale samples:samples];
         VibeSignpostEnd(waveform_bake);
         dispatch_async(dispatch_get_main_queue(), ^{
             WaveformScrubberView *strongSelf = weakSelf;
@@ -673,10 +668,9 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
         return;
     }
     VibeSignpostBegin(waveform_install);
-    // One hue: the played bitmap dimmed. Two hues: the unplayed side's own
-    // bake, already at its resting alphas.
-    CGFloat unplayedOpacity = unplayedImage ? 1
-            : [(DetailedAudioWaveformRenderer *)_renderer unplayedOverPlayedOpacity];
+    // No unplayed bake: the played bitmap dimmed. Otherwise the unplayed
+    // side's own, already at its resting alphas.
+    CGFloat unplayedOpacity = unplayedImage ? 1 : [_renderer unplayedOverPlayedOpacity];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     // TRAP: a bake may still be standing — a non-eased delivery and the

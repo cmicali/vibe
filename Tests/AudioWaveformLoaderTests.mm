@@ -239,23 +239,30 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
 // From quietFrom seconds on, the samples are ±0.25: a window's chunks can be
 // told from the rest of the file's by their energy alone.
 - (NSString *)writeWAVNamed:(NSString *)name seconds:(double)seconds quietFrom:(double)quietFrom {
+    const AVAudioFrameCount quiet = (AVAudioFrameCount)(44100.0 * quietFrom);
+    // Alternating sign every sample, so that *every* chunk — each covering
+    // about ten frames — carries both a negative min and a positive max
+    // whatever the chunk boundaries land on.
+    return [self writeWAVNamed:name seconds:seconds sample:^float(AVAudioFrameCount i) {
+        float level = i < quiet ? 0.5f : 0.25f;
+        return (i % 2 == 0) ? -level : level;
+    }];
+}
+
+// 44.1 kHz stereo float, both channels sample(i).
+- (NSString *)writeWAVNamed:(NSString *)name seconds:(double)seconds
+                     sample:(float (^)(AVAudioFrameCount i))sample {
     NSURL *url = [_tempDirectory URLByAppendingPathComponent:name];
     AVAudioFormat *format = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32
                                                              sampleRate:44100
                                                                channels:2
                                                             interleaved:NO];
-
     const AVAudioFrameCount total = (AVAudioFrameCount)(44100.0 * seconds);
     AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format
                                                              frameCapacity:total];
     buffer.frameLength = total;
-    // Alternating sign every sample, so that *every* chunk — each covering
-    // about ten frames — carries both a negative min and a positive max
-    // whatever the chunk boundaries land on.
-    const AVAudioFrameCount quiet = (AVAudioFrameCount)(44100.0 * quietFrom);
     for (AVAudioFrameCount i = 0; i < total; i++) {
-        float level = i < quiet ? 0.5f : 0.25f;
-        float v = (i % 2 == 0) ? -level : level;
+        float v = sample(i);
         buffer.floatChannelData[0][i] = v;
         buffer.floatChannelData[1][i] = v;
     }
@@ -372,6 +379,37 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
         }
     }
     XCTAssertEqual(wrongEnergy, (NSUInteger)0, @"every chunk of the window is the ±0.25 second");
+}
+
+// A second each of 80 Hz, 1 kHz and 8 kHz: each lands in its own band at
+// about the tone's power, at least 10 dB over the other two.
+- (void)testEachToneLandsInItsOwnBand {
+    static const double tones[] = {80, 1000, 8000};
+    NSString *path = [self writeWAVNamed:@"tones.wav" seconds:3 sample:^float(AVAudioFrameCount i) {
+        return 0.5f * (float)sin(2 * M_PI * tones[i / 44100] * i / 44100.0);
+    }];
+
+    // Unasked, a decode skips the split altogether.
+    XCTAssertFalse([_loader load:path].waveform->hasBands());
+
+    AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] init];
+    loader.analysis = (VibeWaveformAnalysis){.bands = YES};
+    CodableAudioWaveform *result = [loader load:path];
+    XCTAssertNotNil(result);
+    XCTAssertTrue(result.waveform->hasBands());
+    for (NSUInteger tone = 0; tone < 3; tone++) {
+        // Each second's latter half, past the filters' settling.
+        float meanSquares[kAudioWaveformBandCount];
+        result.waveform->getBandMeanSquares(tone * 2 + 1, 6, meanSquares);
+        float own = meanSquares[tone];
+        XCTAssertEqualWithAccuracy(own, 0.125f, 0.03f, @"%g Hz", tones[tone]);
+        for (NSUInteger band = 0; band < kAudioWaveformBandCount; band++) {
+            if (band != tone) {
+                XCTAssertGreaterThan(own, 10 * meanSquares[band],
+                                     @"%g Hz leaks into band %lu", tones[tone], band);
+            }
+        }
+    }
 }
 
 - (void)testFullLoadOfAVeryShortFileSpansTheStrip {

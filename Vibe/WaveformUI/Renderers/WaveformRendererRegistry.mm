@@ -10,6 +10,7 @@
 #import "BasicAudioWaveformRenderer.h"
 #import "CupertinoWaveformRenderer.h"
 #import "OversamplingDetailedAudioWaveformRenderer.h"
+#import "ThreeBandWaveformRenderer.h"
 #import "VibeStrings.h"
 
 static NSString *const kWiggleMCIdentifier = @"wiggle";
@@ -17,21 +18,30 @@ static NSString *const kWiggleIdentifier = @"wiggle_centered";
 static NSString *const kCupertinoBasicIdentifier = @"cupertino_basic";
 
 // Fine transients, so the Detailed family's sampling differences survive a
-// thumbnail.
+// thumbnail. The bands keep a mix's measured balance — lows near the whole,
+// mids ~12 dB and highs ~17 dB under — each drifting on its own, so 3-Band's
+// thumbnail shows every ring.
 static AudioWaveform *VibePreviewWaveform(void) {
     static AudioWaveform *waveform;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        waveform = new AudioWaveform;
+        waveform = new AudioWaveform(true);
         NSUInteger chunks = waveform->getNumChunks();
         for (NSUInteger i = 0; i < chunks; i++) {
             float x = (float)i / (float)chunks;
             float envelope = 0.08f + 0.48f * powf(fabsf(sinf(x * 23)), 2)
                     + 0.16f * fabsf(sinf(x * 109));
             float level = envelope * (0.25f + 0.75f * fabsf(sinf(i * 0.73f) * sinf(i * 0.19f)));
+            float meanSquare = level * level * 0.5f;
             AudioWaveformCacheChunk chunk;
-            chunk.set(-level * (0.6f + 0.4f * fabsf(sinf(x * 17))), level, level * level * 0.5f, 1);
+            chunk.set(-level * (0.6f + 0.4f * fabsf(sinf(x * 17))), level, meanSquare, 1);
             waveform->setChunkAtIndex(chunk, i);
+            float bands[kAudioWaveformBandCount] = {
+                meanSquare * (0.2f + 0.8f * powf(fabsf(sinf(x * 31)), 2)),
+                meanSquare * 0.06f * (0.2f + 0.8f * fabsf(sinf(x * 13 + 1))),
+                meanSquare * 0.02f * (0.1f + 0.9f * fabsf(sinf(i * 0.37f))),
+            };
+            waveform->setBandSumSquaresAtIndex(bands, i);
         }
         waveform->markComplete();
     });
@@ -52,7 +62,8 @@ static AudioWaveform *VibePreviewWaveform(void) {
                                  DetailedAudioWaveformRenderer.class,
                                  x2OversamplingDetailedAudioWaveformRenderer.class,
                                  x4OversamplingDetailedAudioWaveformRenderer.class,
-                                 x8OversamplingDetailedAudioWaveformRenderer.class]) {
+                                 x8OversamplingDetailedAudioWaveformRenderer.class,
+                                 ThreeBandWaveformRenderer.class]) {
             // A nil key raises; in Release an unoverridden subclass costs one
             // style, not the registry.
             NSString *identifier = [renderer styleIdentifier];
@@ -86,6 +97,10 @@ static AudioWaveform *VibePreviewWaveform(void) {
 
 + (BOOL)supportsLevelsForIdentifier:(NSString *)identifier {
     return ![identifier isEqualToString:kCupertinoBasicIdentifier];
+}
+
++ (BOOL)readsBandsForIdentifier:(NSString *)identifier {
+    return identifier && [[self renderersByIdentifier][identifier] readsBands];
 }
 
 // Hosts the REAL renderer in a detached layer, so the Settings preview and the

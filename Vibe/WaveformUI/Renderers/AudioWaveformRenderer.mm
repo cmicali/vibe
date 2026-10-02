@@ -93,6 +93,10 @@
     return NSStringFromClass(self);
 }
 
++ (BOOL)readsBands {
+    return NO;
+}
+
 - (void)updateColors:(BOOL)isDark {
     self.isDark = isDark;
 }
@@ -124,6 +128,23 @@
 
 - (BOOL)supportsEnvelopeBake {
     return NO;
+}
+
+// Reached only through supportsEnvelopeBake, which answers NO here.
+- (NSData *)envelopeSamplesForWaveform:(AudioWaveform *)waveform {
+    return [NSData data];
+}
+
+- (CGImageRef)newEnvelopeImageForSize:(CGSize)size scale:(CGFloat)scale samples:(NSData *)samples {
+    return NULL;
+}
+
+- (CGImageRef)newUnplayedEnvelopeImageForSize:(CGSize)size scale:(CGFloat)scale samples:(NSData *)samples {
+    return NULL;
+}
+
+- (CGFloat)unplayedOverPlayedOpacity {
+    return 1;
 }
 
 @end

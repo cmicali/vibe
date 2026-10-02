@@ -23,8 +23,10 @@
 #define VIBE_BENCH_COMPONENTS_FILE_HANDLE_COMMON_FORMAT 0 // its interleaved init took a common format
 #define VIBE_BENCH_COMPONENTS_AVF_WAVEFORM_LOADER 0       // the loader was the AVFAudioWaveformLoader subclass
 #define VIBE_BENCH_COMPONENTS_ANALYSIS_PROVIDER 1         // the loader asks a provider (1.10 on); settings before
+#define VIBE_BENCH_COMPONENTS_ANALYSIS_VALUE 1            // the loader takes the provider's answer as a value
 #define VIBE_BENCH_COMPONENTS_METADATA_DISPLAY_ART 1      // metadataWithURL:displayArtData:
 #define VIBE_BENCH_COMPONENTS_LEVELS_SUMMARIZE 1          // the meter summarizes apart from consuming (1.14 on)
+#define VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS 1            // a waveform can hold the three bands' energies
 #endif
 
 #include <functional>

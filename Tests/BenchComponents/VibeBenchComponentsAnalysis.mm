@@ -16,6 +16,7 @@
 #import "AudioKeyAnalyzer.h"
 
 #include <algorithm>
+#include <memory>
 
 // MARK: - Benchmarks: the waveform pass and analysis
 
@@ -57,32 +58,53 @@ static void VibeBenchComponentsRegisterWaveform(void) {
             [analyzer finish];
         });
         // The loader's processing side without the analyzers: the downmix
-        // and the chunk merge over the waveform's chunks.
-        VibeBenchComponentsAdd("chunker", n, "audio s", VibeBenchComponentsPCMPrepare(name), [name]() {
-            VibeBenchComponentsPCM *pcm = VibeBenchComponentsDecoded(name);
-            AudioWaveform waveform;
-            NSUInteger chunks = waveform.getNumChunks();
-            std::vector<float> scratch(65536);
-            NSUInteger chunkIndex = 0;
-            NSUInteger chunkEnd = pcm->frames / chunks;
-            AudioWaveformCacheChunk current;
-            for (NSUInteger at = 0; at < pcm->frames; at += 65536) {
-                NSUInteger numFrames = MIN((NSUInteger)65536, pcm->frames - at);
-                const float *mono = AudioWaveformMonoMix(pcm->interleaved.data() + at * pcm->channels, scratch.data(),
-                                                         numFrames, pcm->channels);
-                NSUInteger offset = 0;
-                while (offset < numFrames && chunkIndex < chunks) {
-                    NSUInteger take = MIN(numFrames - offset, chunkEnd - (at + offset));
-                    current.mergeFromMonoBuffer(mono + offset, take);
-                    offset += take;
-                    if (at + offset >= chunkEnd) {
-                        waveform.setChunkAtIndex(current, chunkIndex++);
-                        current = AudioWaveformCacheChunk();
-                        chunkEnd = pcm->frames * (chunkIndex + 1) / chunks;
+        // and the chunk merge over the waveform's chunks, then the same with
+        // the band split 3-Band asks for.
+        for (int bands = 0; bands <= VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS; bands++) {
+            VibeBenchComponentsAdd(bands ? "chunker+bands" : "chunker", n, "audio s",
+                                   VibeBenchComponentsPCMPrepare(name), [name, bands]() {
+                VibeBenchComponentsPCM *pcm = VibeBenchComponentsDecoded(name);
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
+                AudioWaveform waveform(bands);
+                std::unique_ptr<AudioWaveformBandSplit> split =
+                        bands ? std::make_unique<AudioWaveformBandSplit>(pcm->rate, 65536) : nullptr;
+                float bandSums[kAudioWaveformBandCount] = {};
+#else
+                AudioWaveform waveform;
+#endif
+                NSUInteger chunks = waveform.getNumChunks();
+                std::vector<float> scratch(65536);
+                NSUInteger chunkIndex = 0;
+                NSUInteger chunkEnd = pcm->frames / chunks;
+                AudioWaveformCacheChunk current;
+                for (NSUInteger at = 0; at < pcm->frames; at += 65536) {
+                    NSUInteger numFrames = MIN((NSUInteger)65536, pcm->frames - at);
+                    const float *mono = AudioWaveformMonoMix(pcm->interleaved.data() + at * pcm->channels,
+                                                             scratch.data(), numFrames, pcm->channels);
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
+                    if (split) split->process(mono, numFrames);
+#endif
+                    NSUInteger offset = 0;
+                    while (offset < numFrames && chunkIndex < chunks) {
+                        NSUInteger take = MIN(numFrames - offset, chunkEnd - (at + offset));
+                        current.mergeFromMonoBuffer(mono + offset, take);
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
+                        if (split) split->addSumSquares(offset, take, bandSums);
+#endif
+                        offset += take;
+                        if (at + offset >= chunkEnd) {
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
+                            waveform.setBandSumSquaresAtIndex(bandSums, chunkIndex);
+                            std::fill(bandSums, bandSums + kAudioWaveformBandCount, 0.0f);
+#endif
+                            waveform.setChunkAtIndex(current, chunkIndex++);
+                            current = AudioWaveformCacheChunk();
+                            chunkEnd = pcm->frames * (chunkIndex + 1) / chunks;
+                        }
                     }
                 }
-            }
-        });
+            });
+        }
     }
 }
 
