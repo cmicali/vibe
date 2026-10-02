@@ -19,11 +19,6 @@ static const NSInteger kMaximumAttempts = 4;
 // An access token this close to its expiry is refreshed instead of used.
 static const NSTimeInterval kAccessTokenMargin = 60;
 
-static NSError *VibeDropboxMakeError(VibeDropboxError code, NSString *description) {
-    return [NSError errorWithDomain:VibeDropboxErrorDomain code:code
-                           userInfo:@{NSLocalizedDescriptionKey: description}];
-}
-
 static NSDictionary *_Nullable VibeJSONObject(NSData *_Nullable data) {
     if (data.length == 0) {
         return nil;
@@ -40,24 +35,29 @@ static NSData *VibeRandomBytes(size_t count) {
     return data;
 }
 
+static NSError *VibeCancelledError(void) {
+    return VibeDropboxMakeError(VibeDropboxErrorCancelled, @"cancelled");
+}
+
 typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accountGeneration,
                                        NSError *_Nullable error);
 
-#pragma mark - Download state
+#pragma mark - Transfer state
 
-@interface DropboxDownload : NSObject
+// A download or a ranged read in flight. The cancel flag and the task are
+// under the client's lock; the rest is the delegate queue's, per attempt.
+@interface DropboxTransfer : NSObject
 @property (nonatomic, copy) NSString *path;
-@property (nonatomic, copy) NSURL *destination;
-@property (nonatomic, copy) void (^completion)(NSDictionary *_Nullable, NSError *_Nullable);
 @property (nonatomic) NSInteger attempts;
 @property (nonatomic) BOOL refreshed;
-// Under the client's lock.
 @property (nonatomic) BOOL cancelled;
 @property (nonatomic) BOOL finished;
 @property (nonatomic, nullable) NSURLSessionDataTask *task;
 @property (nonatomic, copy, nullable) NSString *accessToken;
 @property (nonatomic) uint64_t accountGeneration;
-// The delegate queue's, per attempt: the response, then the body.
+// A download's only.
+@property (nonatomic, copy, nullable) NSURL *destination;
+@property (nonatomic, copy, nullable) void (^completion)(NSDictionary *_Nullable, NSError *_Nullable);
 @property (nonatomic) NSInteger status;
 @property (nonatomic, nullable) NSDictionary *metadata;
 @property (nonatomic, nullable) NSFileHandle *file;
@@ -66,17 +66,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 @property (nonatomic, nullable) NSError *writeError;
 @end
 
-@implementation DropboxDownload
-@end
-
-// A ranged read in flight: the task to cancel, and whether a cancel came
-// before there was one. Under the client's lock.
-@interface DropboxRead : NSObject
-@property (nonatomic) BOOL cancelled;
-@property (nonatomic, nullable) NSURLSessionDataTask *task;
-@end
-
-@implementation DropboxRead
+@implementation DropboxTransfer
 @end
 
 #pragma mark - Client
@@ -88,7 +78,11 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 @implementation DropboxClient {
     NSString *_appKey;
     NSString *_keychainService;
-    NSURLSession *_session;
+    // Streamed downloads, through the delegate below.
+    NSURLSession *_downloadSession;
+    // Everything answered whole — calls, tokens, ranged reads — on its own
+    // queue, so a tag read never waits behind a download's disk writes.
+    NSURLSession *_callSession;
 
     os_unfair_lock _lock;
     NSString *_refreshToken;
@@ -101,7 +95,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     // Bumped by every sign-in and sign-out, so a refresh or a 401 that
     // belongs to the previous account can neither restore nor unlink it.
     uint64_t _accountGeneration;
-    NSMutableDictionary<NSNumber *, DropboxDownload *> *_downloads;
+    NSMutableDictionary<NSNumber *, DropboxTransfer *> *_downloads;
 
     // Main thread: the sign-in in progress.
     ASWebAuthenticationSession *_webSession;
@@ -122,9 +116,10 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
         delegateQueue.name = @"com.commonwealthrecordings.Vibe.dropbox";
         // TRAP: a delegate session retains its delegate until invalidated.
         // The client lives as long as the app, so this is never broken.
-        _session = [NSURLSession sessionWithConfiguration:configuration
-                                                 delegate:self
-                                            delegateQueue:delegateQueue];
+        _downloadSession = [NSURLSession sessionWithConfiguration:configuration
+                                                         delegate:self
+                                                    delegateQueue:delegateQueue];
+        _callSession = [NSURLSession sessionWithConfiguration:configuration];
         [self loadAccount];
     }
     return self;
@@ -151,6 +146,20 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     NSString *value = _accountNameValue;
     os_unfair_lock_unlock(&_lock);
     return value;
+}
+
+// The one writer of the account: a sign-in, an adopt, a sign-out (all nil)
+// and an unlink. Under the lock; moves the generation.
+- (void)replaceAccountLockedWithRefreshToken:(NSString *)refresh
+                                 accessToken:(NSString *)access
+                                   expiresIn:(NSTimeInterval)expiresIn
+                                   accountID:(NSString *)accountID {
+    _accountGeneration++;
+    _refreshToken = [refresh copy];
+    _accessToken = [access copy];
+    _accessTokenExpiry = access ? CFAbsoluteTimeGetCurrent() + expiresIn : 0;
+    _accountIDValue = [accountID isKindOfClass:NSString.class] ? [accountID copy] : nil;
+    _accountNameValue = nil;
 }
 
 - (NSDictionary *)keychainQuery {
@@ -228,11 +237,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     os_unfair_lock_lock(&_lock);
     BOOL current = generation == _accountGeneration && _refreshToken != nil;
     if (current) {
-        _refreshToken = nil;
-        _accessToken = nil;
-        _accountIDValue = nil;
-        _accountNameValue = nil;
-        _accountGeneration++;
+        [self replaceAccountLockedWithRefreshToken:nil accessToken:nil expiresIn:0 accountID:nil];
     }
     os_unfair_lock_unlock(&_lock);
     if (!current) {
@@ -245,20 +250,10 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 
 - (void)adoptRefreshToken:(NSString *)refreshToken accountID:(NSString *)accountID {
     os_unfair_lock_lock(&_lock);
-    _accountGeneration++;
-    _refreshToken = [refreshToken copy];
-    _accessToken = nil;
-    _accountIDValue = [accountID copy];
-    _accountNameValue = nil;
+    [self replaceAccountLockedWithRefreshToken:refreshToken accessToken:nil expiresIn:0 accountID:accountID];
     os_unfair_lock_unlock(&_lock);
     [self saveRefreshToken:refreshToken accountID:accountID name:nil];
     [self postAccountDidChange];
-}
-
-- (void)expireAccessToken {
-    os_unfair_lock_lock(&_lock);
-    _accessTokenExpiry = 0;
-    os_unfair_lock_unlock(&_lock);
 }
 
 #pragma mark - Sign-in
@@ -295,11 +290,11 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
             return;
         }
         if (!callbackURL) {
+            // Closing the sheet is the user's answer, not a failure to report.
             BOOL cancelled = [error.domain isEqualToString:ASWebAuthenticationSessionErrorDomain]
                     && error.code == ASWebAuthenticationSessionErrorCodeCanceledLogin;
-            finish(cancelled ? VibeDropboxMakeError(VibeDropboxErrorCancelled, @"sign-in cancelled")
-                             : VibeDropboxMakeError(VibeDropboxErrorSignInFailed,
-                                                error.localizedDescription ?: @"sign-in failed"));
+            finish(cancelled ? nil : VibeDropboxMakeError(VibeDropboxErrorSignInFailed,
+                                                          error.localizedDescription ?: @"sign-in failed"));
             return;
         }
         NSString *reason = nil;
@@ -331,19 +326,15 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     [self postTokenForm:fields completion:^(NSDictionary *body, NSInteger status, NSError *error) {
         NSString *refresh = body[@"refresh_token"];
         NSString *access = body[@"access_token"];
-        NSString *accountID = body[@"account_id"];
         if (error || ![refresh isKindOfClass:NSString.class] || ![access isKindOfClass:NSString.class]) {
             completion(error ?: VibeDropboxMakeError(VibeDropboxErrorSignInFailed,
-                                                 VibeDropboxErrorSummary(status, body)));
+                                                     VibeDropboxErrorSummary(status, body)));
             return;
         }
         os_unfair_lock_lock(&self->_lock);
-        self->_accountGeneration++;
-        self->_refreshToken = refresh;
-        self->_accessToken = access;
-        self->_accessTokenExpiry = CFAbsoluteTimeGetCurrent() + [body[@"expires_in"] doubleValue];
-        self->_accountIDValue = [accountID isKindOfClass:NSString.class] ? accountID : nil;
-        self->_accountNameValue = nil;
+        [self replaceAccountLockedWithRefreshToken:refresh accessToken:access
+                                         expiresIn:[body[@"expires_in"] doubleValue]
+                                         accountID:body[@"account_id"]];
         os_unfair_lock_unlock(&self->_lock);
         [self saveRefreshToken:refresh accountID:self.accountID name:nil];
         [self postAccountDidChange];
@@ -388,11 +379,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     os_unfair_lock_lock(&_lock);
     NSString *refresh = _refreshToken;
     NSString *access = _accessToken;
-    _refreshToken = nil;
-    _accessToken = nil;
-    _accountIDValue = nil;
-    _accountNameValue = nil;
-    _accountGeneration++;
+    [self replaceAccountLockedWithRefreshToken:nil accessToken:nil expiresIn:0 accountID:nil];
     os_unfair_lock_unlock(&_lock);
     if (!refresh) {
         return;
@@ -403,17 +390,14 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     // Revoking needs a live access token; a stale one is refreshed first so
     // the grant really ends on Dropbox's side, not only here.
     void (^revoke)(NSString *) = ^(NSString *token) {
-        NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:
-                [NSURL URLWithString:[VIBE_DROPBOX_API_BASE stringByAppendingString:@"auth/token/revoke"]]];
-        request.HTTPMethod = @"POST";
-        [request setValue:[@"Bearer " stringByAppendingString:token] forHTTPHeaderField:@"Authorization"];
-        [[self->_session dataTaskWithRequest:request] resume];
+        NSURL *url = [NSURL URLWithString:[VIBE_DROPBOX_API_BASE stringByAppendingString:@"auth/token/revoke"]];
+        [[self->_callSession dataTaskWithRequest:[self requestForURL:url token:token]] resume];
     };
     if (access) {
         revoke(access);
         return;
     }
-    [self postTokenForm:@{@"grant_type": @"refresh_token", @"refresh_token": refresh, @"client_id": _appKey}
+    [self postTokenForm:[self refreshFormForToken:refresh]
              completion:^(NSDictionary *body, NSInteger status, NSError *error) {
         NSString *token = body[@"access_token"];
         if ([token isKindOfClass:NSString.class]) {
@@ -422,7 +406,71 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     }];
 }
 
+#pragma mark - Requests
+
+- (NSMutableURLRequest *)requestForURL:(NSURL *)url token:(NSString *)token {
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+    request.HTTPMethod = @"POST";
+    [request setValue:[@"Bearer " stringByAppendingString:token] forHTTPHeaderField:@"Authorization"];
+    return request;
+}
+
+- (NSMutableURLRequest *)downloadRequestForPath:(NSString *)path token:(NSString *)token {
+    NSURL *url = [NSURL URLWithString:[VIBE_DROPBOX_CONTENT_BASE stringByAppendingString:@"files/download"]];
+    NSMutableURLRequest *request = [self requestForURL:url token:token];
+    [request setValue:VibeDropboxAPIArgHeader(@{@"path": path}) forHTTPHeaderField:@"Dropbox-API-Arg"];
+    return request;
+}
+
+// One ladder for every call Dropbox refused: an expired access token
+// refreshes once and resends, any other 401 unlinks, a throttle waits and
+// resends, and the rest fail with Dropbox's own words. Exactly one of resend
+// and fail runs.
+- (void)handleFailureStatus:(NSInteger)status
+                       data:(NSData *)data
+                 retryAfter:(NSString *)retryAfter
+                      token:(NSString *)token
+                 generation:(uint64_t)generation
+                  refreshed:(BOOL)refreshed
+                    attempt:(NSInteger)attempt
+                     resend:(void (^)(BOOL refreshed, NSInteger attempt))resend
+                       fail:(void (^)(NSError *error))fail {
+    NSDictionary *body = VibeJSONObject(data);
+    if (VibeDropboxIsExpiredAccessToken(status, body) && !refreshed) {
+        [self discardAccessToken:token];
+        resend(YES, attempt);
+        return;
+    }
+    NSString *summary = VibeDropboxErrorSummary(status, body);
+    // A 400 is Dropbox refusing the call's shape, and it says why in plain
+    // text, not JSON.
+    if (!body && data.length > 0) {
+        NSString *text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+        summary = [NSString stringWithFormat:@"%@: %@", summary,
+                   text.length > 300 ? [text substringToIndex:300] : text];
+    }
+    if (status == 401) {
+        [self unlinkAccountGeneration:generation reason:summary];
+        fail(VibeDropboxMakeError(VibeDropboxErrorNotLinked, summary));
+        return;
+    }
+    NSTimeInterval delay = VibeDropboxRetryDelay(status, retryAfter);
+    if (delay >= 0 && attempt < kMaximumAttempts) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)),
+                       dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+            resend(refreshed, attempt + 1);
+        });
+        return;
+    }
+    LogWarn(@"Dropbox: call failed: %@", summary);
+    fail(VibeDropboxMakeError(VibeDropboxErrorAPI, summary));
+}
+
 #pragma mark - Access token
+
+- (NSDictionary<NSString *, NSString *> *)refreshFormForToken:(NSString *)refresh {
+    return @{@"grant_type": @"refresh_token", @"refresh_token": refresh, @"client_id": _appKey};
+}
 
 - (void)postTokenForm:(NSDictionary<NSString *, NSString *> *)fields
            completion:(void (^)(NSDictionary *_Nullable body, NSInteger status, NSError *_Nullable error))completion {
@@ -430,8 +478,8 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     request.HTTPMethod = @"POST";
     [request setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
     request.HTTPBody = VibeDropboxFormBody(fields);
-    [[_session dataTaskWithRequest:request
-                 completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+    [[_callSession dataTaskWithRequest:request
+                     completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         NSInteger status = [response isKindOfClass:NSHTTPURLResponse.class]
                 ? ((NSHTTPURLResponse *)response).statusCode : 0;
         completion(VibeJSONObject(data), status, error);
@@ -464,8 +512,8 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     if (!owner) {
         return;
     }
-    NSDictionary *fields = @{@"grant_type": @"refresh_token", @"refresh_token": refresh, @"client_id": _appKey};
-    [self postTokenForm:fields completion:^(NSDictionary *body, NSInteger status, NSError *error) {
+    [self postTokenForm:[self refreshFormForToken:refresh]
+             completion:^(NSDictionary *body, NSInteger status, NSError *error) {
         NSString *token = body[@"access_token"];
         BOOL granted = !error && [token isKindOfClass:NSString.class];
         os_unfair_lock_lock(&self->_lock);
@@ -524,59 +572,65 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
             completion(nil, tokenError);
             return;
         }
-        NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:
-                [NSURL URLWithString:[VIBE_DROPBOX_API_BASE stringByAppendingString:endpoint]]];
-        request.HTTPMethod = @"POST";
-        [request setValue:[@"Bearer " stringByAppendingString:token] forHTTPHeaderField:@"Authorization"];
+        NSMutableURLRequest *request = [self requestForURL:
+                [NSURL URLWithString:[VIBE_DROPBOX_API_BASE stringByAppendingString:endpoint]] token:token];
         [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
         // An endpoint without arguments takes the JSON null, not an empty body.
         request.HTTPBody = arguments
                 ? [NSJSONSerialization dataWithJSONObject:arguments options:0 error:NULL]
                 : [@"null" dataUsingEncoding:NSUTF8StringEncoding];
-        [[self->_session dataTaskWithRequest:request
-                           completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        [[self->_callSession dataTaskWithRequest:request
+                               completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
             if (error) {
                 completion(nil, error);
                 return;
             }
             NSHTTPURLResponse *http = (NSHTTPURLResponse *)response;
-            NSDictionary *body = VibeJSONObject(data);
             if (http.statusCode == 200) {
-                completion(body ?: @{}, nil);
+                completion(VibeJSONObject(data) ?: @{}, nil);
                 return;
             }
-            if (VibeDropboxIsExpiredAccessToken(http.statusCode, body) && !refreshed) {
-                [self discardAccessToken:token];
-                [self callEndpoint:endpoint arguments:arguments attempt:attempt refreshed:YES completion:completion];
-                return;
-            }
-            if (http.statusCode == 401) {
-                [self unlinkAccountGeneration:generation reason:VibeDropboxErrorSummary(http.statusCode, body)];
-                completion(nil, VibeDropboxMakeError(VibeDropboxErrorNotLinked, VibeDropboxErrorSummary(http.statusCode, body)));
-                return;
-            }
-            NSTimeInterval delay = VibeDropboxRetryDelay(http.statusCode,
-                                                         [http valueForHTTPHeaderField:@"Retry-After"]);
-            if (delay >= 0 && attempt < kMaximumAttempts) {
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)),
-                               dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-                    [self callEndpoint:endpoint arguments:arguments attempt:attempt + 1
-                             refreshed:refreshed completion:completion];
-                });
-                return;
-            }
-            NSString *summary = VibeDropboxErrorSummary(http.statusCode, body);
-            // A 400 is Dropbox refusing the call's shape, and it says why in
-            // plain text, not JSON.
-            if (!body && data.length > 0) {
-                NSString *text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-                summary = [NSString stringWithFormat:@"%@: %@", summary,
-                           text.length > 300 ? [text substringToIndex:300] : text];
-            }
-            LogWarn(@"Dropbox: %@ failed: %@", endpoint, summary);
-            completion(nil, VibeDropboxMakeError(VibeDropboxErrorAPI, summary));
+            [self handleFailureStatus:http.statusCode data:data
+                           retryAfter:[http valueForHTTPHeaderField:@"Retry-After"]
+                                token:token generation:generation refreshed:refreshed attempt:attempt
+                               resend:^(BOOL nowRefreshed, NSInteger nextAttempt) {
+                [self callEndpoint:endpoint arguments:arguments attempt:nextAttempt
+                         refreshed:nowRefreshed completion:completion];
+            } fail:^(NSError *failure) {
+                completion(nil, failure);
+            }];
         }] resume];
     }];
+}
+
+#pragma mark - Transfers
+
+// Any thread. With no task yet, whichever step runs next sees the flag.
+- (void)cancelTransfer:(DropboxTransfer *)transfer {
+    os_unfair_lock_lock(&_lock);
+    transfer.cancelled = YES;
+    NSURLSessionDataTask *task = transfer.task;
+    os_unfair_lock_unlock(&_lock);
+    [task cancel];
+}
+
+// The transfer's task, unless a cancel came first. Under the lock, so a
+// cancel either finds the task or is seen here.
+- (BOOL)adoptTask:(NSURLSessionDataTask *)task forTransfer:(DropboxTransfer *)transfer {
+    os_unfair_lock_lock(&_lock);
+    BOOL cancelled = transfer.cancelled;
+    if (!cancelled) {
+        transfer.task = task;
+    }
+    os_unfair_lock_unlock(&_lock);
+    return !cancelled;
+}
+
+- (dispatch_block_t)cancelBlockForTransfer:(DropboxTransfer *)transfer {
+    __weak DropboxClient *weakSelf = self;
+    return ^{
+        [weakSelf cancelTransfer:transfer];
+    };
 }
 
 #pragma mark - Ranged read
@@ -585,47 +639,31 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
                       offset:(uint64_t)offset
                       length:(uint64_t)length
                   completion:(void (^)(NSData *, NSError *))completion {
-    DropboxRead *read = [[DropboxRead alloc] init];
-    [self readPath:path offset:offset length:length attempt:1 refreshed:NO state:read completion:completion];
-    __weak DropboxClient *weakSelf = self;
-    return ^{
-        DropboxClient *strongSelf = weakSelf;
-        if (!strongSelf) {
-            return;
-        }
-        os_unfair_lock_lock(&strongSelf->_lock);
-        read.cancelled = YES;
-        NSURLSessionDataTask *task = read.task;
-        os_unfair_lock_unlock(&strongSelf->_lock);
-        [task cancel];
-    };
+    DropboxTransfer *read = [[DropboxTransfer alloc] init];
+    read.path = path;
+    read.attempts = 1;
+    [self startRead:read offset:offset length:length completion:completion];
+    return [self cancelBlockForTransfer:read];
 }
 
-- (void)readPath:(NSString *)path
-          offset:(uint64_t)offset
-          length:(uint64_t)length
-         attempt:(NSInteger)attempt
-       refreshed:(BOOL)refreshed
-           state:(DropboxRead *)read
-      completion:(void (^)(NSData *, NSError *))completion {
+- (void)startRead:(DropboxTransfer *)read
+           offset:(uint64_t)offset
+           length:(uint64_t)length
+       completion:(void (^)(NSData *, NSError *))completion {
     [self withAccessToken:^(NSString *token, uint64_t generation, NSError *tokenError) {
         if (tokenError) {
             completion(nil, tokenError);
             return;
         }
-        NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:
-                [NSURL URLWithString:[VIBE_DROPBOX_CONTENT_BASE stringByAppendingString:@"files/download"]]];
-        request.HTTPMethod = @"POST";
-        [request setValue:[@"Bearer " stringByAppendingString:token] forHTTPHeaderField:@"Authorization"];
-        [request setValue:VibeDropboxAPIArgHeader(@{@"path": path}) forHTTPHeaderField:@"Dropbox-API-Arg"];
+        NSMutableURLRequest *request = [self downloadRequestForPath:read.path token:token];
         [request setValue:[NSString stringWithFormat:@"bytes=%llu-%llu", offset, offset + length - 1]
        forHTTPHeaderField:@"Range"];
-        NSURLSessionDataTask *task = [self->_session dataTaskWithRequest:request
-                                                       completionHandler:^(NSData *data, NSURLResponse *response,
-                                                                           NSError *error) {
+        NSURLSessionDataTask *task = [self->_callSession dataTaskWithRequest:request
+                                                           completionHandler:^(NSData *data, NSURLResponse *response,
+                                                                               NSError *error) {
             if (error) {
                 completion(nil, [error.domain isEqualToString:NSURLErrorDomain] && error.code == NSURLErrorCancelled
-                        ? VibeDropboxMakeError(VibeDropboxErrorCancelled, @"read cancelled") : error);
+                        ? VibeCancelledError() : error);
                 return;
             }
             NSHTTPURLResponse *http = (NSHTTPURLResponse *)response;
@@ -639,39 +677,19 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
                 completion(bytes, nil);
                 return;
             }
-            NSDictionary *body = VibeJSONObject(data);
-            if (VibeDropboxIsExpiredAccessToken(http.statusCode, body) && !refreshed) {
-                [self discardAccessToken:token];
-                [self readPath:path offset:offset length:length attempt:attempt refreshed:YES
-                         state:read completion:completion];
-                return;
-            }
-            if (http.statusCode == 401) {
-                [self unlinkAccountGeneration:generation reason:VibeDropboxErrorSummary(http.statusCode, body)];
-                completion(nil, VibeDropboxMakeError(VibeDropboxErrorNotLinked,
-                                                     VibeDropboxErrorSummary(http.statusCode, body)));
-                return;
-            }
-            NSTimeInterval delay = VibeDropboxRetryDelay(http.statusCode,
-                                                         [http valueForHTTPHeaderField:@"Retry-After"]);
-            if (delay >= 0 && attempt < kMaximumAttempts) {
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)),
-                               dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-                    [self readPath:path offset:offset length:length attempt:attempt + 1 refreshed:refreshed
-                             state:read completion:completion];
-                });
-                return;
-            }
-            completion(nil, VibeDropboxMakeError(VibeDropboxErrorAPI, VibeDropboxErrorSummary(http.statusCode, body)));
+            [self handleFailureStatus:http.statusCode data:data
+                           retryAfter:[http valueForHTTPHeaderField:@"Retry-After"]
+                                token:token generation:generation refreshed:read.refreshed attempt:read.attempts
+                               resend:^(BOOL nowRefreshed, NSInteger nextAttempt) {
+                read.refreshed = nowRefreshed;
+                read.attempts = nextAttempt;
+                [self startRead:read offset:offset length:length completion:completion];
+            } fail:^(NSError *failure) {
+                completion(nil, failure);
+            }];
         }];
-        os_unfair_lock_lock(&self->_lock);
-        BOOL cancelled = read.cancelled;
-        if (!cancelled) {
-            read.task = task;
-        }
-        os_unfair_lock_unlock(&self->_lock);
-        if (cancelled) {
-            completion(nil, VibeDropboxMakeError(VibeDropboxErrorCancelled, @"read cancelled"));
+        if (![self adoptTask:task forTransfer:read]) {
+            completion(nil, VibeCancelledError());
             return;
         }
         [task resume];
@@ -683,29 +701,17 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 - (dispatch_block_t)downloadPath:(NSString *)path
                            toURL:(NSURL *)destination
                       completion:(void (^)(NSDictionary *, NSError *))completion {
-    DropboxDownload *download = [[DropboxDownload alloc] init];
+    DropboxTransfer *download = [[DropboxTransfer alloc] init];
     download.path = path;
     download.destination = destination;
     download.completion = completion;
     download.attempts = 1;
     [self startDownload:download];
-    __weak DropboxClient *weakSelf = self;
-    return ^{
-        [weakSelf cancelDownload:download];
-    };
-}
-
-- (void)cancelDownload:(DropboxDownload *)download {
-    os_unfair_lock_lock(&_lock);
-    download.cancelled = YES;
-    NSURLSessionDataTask *task = download.task;
-    os_unfair_lock_unlock(&_lock);
-    // With no task yet, whichever step runs next sees the flag and finishes.
-    [task cancel];
+    return [self cancelBlockForTransfer:download];
 }
 
 // Exactly once per download, whichever path gets here first.
-- (void)finishDownload:(DropboxDownload *)download metadata:(NSDictionary *)metadata error:(NSError *)error {
+- (void)finishDownload:(DropboxTransfer *)download metadata:(NSDictionary *)metadata error:(NSError *)error {
     os_unfair_lock_lock(&_lock);
     BOOL first = !download.finished;
     download.finished = YES;
@@ -719,42 +725,30 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     download.completion(metadata, error);
 }
 
-- (void)startDownload:(DropboxDownload *)download {
+- (void)startDownload:(DropboxTransfer *)download {
     [self withAccessToken:^(NSString *token, uint64_t generation, NSError *tokenError) {
         if (tokenError) {
             [self finishDownload:download metadata:nil error:tokenError];
             return;
         }
-        NSString *argument = VibeDropboxAPIArgHeader(@{@"path": download.path});
-        NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:
-                [NSURL URLWithString:[VIBE_DROPBOX_CONTENT_BASE stringByAppendingString:@"files/download"]]];
-        request.HTTPMethod = @"POST";
-        [request setValue:[@"Bearer " stringByAppendingString:token] forHTTPHeaderField:@"Authorization"];
-        [request setValue:argument forHTTPHeaderField:@"Dropbox-API-Arg"];
-
-        os_unfair_lock_lock(&self->_lock);
-        BOOL cancelled = download.cancelled;
-        NSURLSessionDataTask *task = nil;
-        if (!cancelled) {
-            task = [self->_session dataTaskWithRequest:request];
-            download.task = task;
-            download.accessToken = token;
-            download.accountGeneration = generation;
-            self->_downloads[@(task.taskIdentifier)] = download;
-        }
-        os_unfair_lock_unlock(&self->_lock);
-        if (cancelled) {
-            [self finishDownload:download metadata:nil
-                           error:VibeDropboxMakeError(VibeDropboxErrorCancelled, @"download cancelled")];
+        NSURLSessionDataTask *task = [self->_downloadSession dataTaskWithRequest:
+                [self downloadRequestForPath:download.path token:token]];
+        download.accessToken = token;
+        download.accountGeneration = generation;
+        if (![self adoptTask:task forTransfer:download]) {
+            [self finishDownload:download metadata:nil error:VibeCancelledError()];
             return;
         }
+        os_unfair_lock_lock(&self->_lock);
+        self->_downloads[@(task.taskIdentifier)] = download;
+        os_unfair_lock_unlock(&self->_lock);
         [task resume];
     }];
 }
 
-- (DropboxDownload *)downloadForTask:(NSURLSessionTask *)task {
+- (DropboxTransfer *)downloadForTask:(NSURLSessionTask *)task {
     os_unfair_lock_lock(&_lock);
-    DropboxDownload *download = _downloads[@(task.taskIdentifier)];
+    DropboxTransfer *download = _downloads[@(task.taskIdentifier)];
     os_unfair_lock_unlock(&_lock);
     return download;
 }
@@ -765,7 +759,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
           dataTask:(NSURLSessionDataTask *)dataTask
 didReceiveResponse:(NSURLResponse *)response
  completionHandler:(void (^)(NSURLSessionResponseDisposition))completionHandler {
-    DropboxDownload *download = [self downloadForTask:dataTask];
+    DropboxTransfer *download = [self downloadForTask:dataTask];
     if (!download) {
         completionHandler(NSURLSessionResponseAllow);
         return;
@@ -801,7 +795,7 @@ didReceiveResponse:(NSURLResponse *)response
 - (void)URLSession:(NSURLSession *)session
           dataTask:(NSURLSessionDataTask *)dataTask
     didReceiveData:(NSData *)data {
-    DropboxDownload *download = [self downloadForTask:dataTask];
+    DropboxTransfer *download = [self downloadForTask:dataTask];
     if (download.errorData) {
         [download.errorData appendData:data];
         return;
@@ -822,7 +816,7 @@ didReceiveResponse:(NSURLResponse *)response
               task:(NSURLSessionTask *)task
 didCompleteWithError:(NSError *)error {
     os_unfair_lock_lock(&_lock);
-    DropboxDownload *download = _downloads[@(task.taskIdentifier)];
+    DropboxTransfer *download = _downloads[@(task.taskIdentifier)];
     [_downloads removeObjectForKey:@(task.taskIdentifier)];
     BOOL cancelled = download.cancelled;
     os_unfair_lock_unlock(&_lock);
@@ -836,51 +830,27 @@ didCompleteWithError:(NSError *)error {
     download.file = nil;
 
     if (cancelled) {
-        [self finishDownload:download metadata:nil
-                       error:VibeDropboxMakeError(VibeDropboxErrorCancelled, @"download cancelled")];
+        [self finishDownload:download metadata:nil error:VibeCancelledError()];
         return;
     }
-    if (download.writeError) {
-        [self finishDownload:download metadata:nil error:download.writeError];
+    if (download.writeError || error) {
+        [self finishDownload:download metadata:nil error:download.writeError ?: error];
         return;
     }
-    if (error) {
-        [self finishDownload:download metadata:nil error:error];
-        return;
-    }
-    NSInteger status = download.status;
-    NSDictionary *errorBody = VibeJSONObject(download.errorData);
-    if (status == 200) {
+    if (download.status == 200) {
         [self finishDownload:download metadata:download.metadata ?: @{} error:nil];
         return;
     }
-    if (VibeDropboxIsExpiredAccessToken(status, errorBody) && !download.refreshed) {
-        download.refreshed = YES;
-        [self discardAccessToken:download.accessToken];
+    [self handleFailureStatus:download.status data:download.errorData retryAfter:download.retryAfter
+                        token:download.accessToken generation:download.accountGeneration
+                    refreshed:download.refreshed attempt:download.attempts
+                       resend:^(BOOL nowRefreshed, NSInteger nextAttempt) {
+        download.refreshed = nowRefreshed;
+        download.attempts = nextAttempt;
         [self startDownload:download];
-        return;
-    }
-    if (status == 401) {
-        [self unlinkAccountGeneration:download.accountGeneration
-                               reason:VibeDropboxErrorSummary(status, errorBody)];
-        [self finishDownload:download metadata:nil
-                       error:VibeDropboxMakeError(VibeDropboxErrorNotLinked,
-                                              VibeDropboxErrorSummary(status, errorBody))];
-        return;
-    }
-    NSTimeInterval delay = VibeDropboxRetryDelay(status, download.retryAfter);
-    if (delay >= 0 && download.attempts < kMaximumAttempts) {
-        download.attempts++;
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)),
-                       dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-            [self startDownload:download];
-        });
-        return;
-    }
-    NSString *summary = VibeDropboxErrorSummary(status, errorBody);
-    LogWarn(@"Dropbox: download failed: %@", summary);
-    [self finishDownload:download metadata:nil error:VibeDropboxMakeError(VibeDropboxErrorAPI, summary)];
+    } fail:^(NSError *failure) {
+        [self finishDownload:download metadata:nil error:failure];
+    }];
 }
-
 
 @end

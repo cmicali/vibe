@@ -50,13 +50,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Lists the Dropbox folder and makes its directory here match: placeholders
 // for new or changed audio, CUE sheets downloaded, departed entries removed.
-// Completion on main with the folder's local URL.
+// Completion on main with the folder's local URL. A directory already here
+// is relisted by its dropboxPathForURL:.
 - (void)refreshDropboxFolder:(NSString *)path
                   completion:(void (^)(NSURL *_Nullable folderURL, NSError *_Nullable error))completion;
-
-// The same, for a directory already in the mirror.
-- (void)refreshFolderAtURL:(NSURL *)folderURL
-                completion:(void (^)(NSError *_Nullable error))completion;
 
 // files/search_v2 over the whole account: folders and playable files, as
 // entries. Completion on main.

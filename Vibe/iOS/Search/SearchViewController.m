@@ -8,6 +8,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "DropboxMirror.h"
+#import "DropboxRules.h"
 #import "FileSearchIndex.h"
 #import "FileSearchRules.h"
 #import "PlaybackController.h"
@@ -186,10 +187,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     [_fileIndex cancelPendingHitRequests];
     // A search cut off here asks again on return; an answer in hand stays.
     if (_dropboxSearching) {
-        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(runDropboxSearch) object:nil];
-        _dropboxSearchGeneration++;
-        _dropboxSearching = NO;
-        _dropboxQuery = nil;
+        [self resetDropboxSearch];
     }
 }
 
@@ -231,6 +229,14 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 // The playlist half lands on this turn; the files half matches off main, later
 // batches superseding it. Neither waits on the other or on a provider.
 - (void)filterWithQuery:(NSString *)query {
+    [self matchPlaylistForQuery:query];
+    _fileHits = @[];
+    [self updateDropboxForQuery:query];
+    [self.tableView reloadData];
+    [self requestFileHitsForQuery:query];
+}
+
+- (void)matchPlaylistForQuery:(NSString *)query {
     _matchesStale = NO;
     NSArray<AudioTrack *> *tracks = _playlist.tracks;
     NSMutableArray<NSNumber *> *matches = [NSMutableArray arrayWithCapacity:tracks.count];
@@ -240,10 +246,6 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
         }
     }
     _matches = matches;
-    _fileHits = @[];
-    [self updateDropboxForQuery:query];
-    [self.tableView reloadData];
-    [self requestFileHitsForQuery:query];
 }
 
 #pragma mark - Dropbox
@@ -253,17 +255,10 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 }
 
 // Only a new query asks Dropbox. The same one — a re-filter for a playlist
-// change, which an opened folder's metadata stream drives several times a
-// second — re-applies the exclusion to the answer in hand; asking again there
-// blanked the section and re-sent the query on every delivery.
+// change or a reappearance — re-applies the exclusion to the answer in hand.
 - (void)updateDropboxForQuery:(NSString *)query {
     if (![self searchesDropbox] || ![self isMateriallyVisible]) {
-        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(runDropboxSearch) object:nil];
-        _dropboxSearchGeneration++;
-        _dropboxSearching = NO;
-        _dropboxQuery = nil;
-        _dropboxEntries = @[];
-        _dropboxHits = @[];
+        [self resetDropboxSearch];
         return;
     }
     if ([query isEqualToString:_dropboxQuery]) {
@@ -272,13 +267,20 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     }
     // Every keystroke restarts the pause and moves the generation, so an
     // answer to a query already typed past is dropped on arrival.
-    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(runDropboxSearch) object:nil];
-    _dropboxSearchGeneration++;
+    [self resetDropboxSearch];
     _dropboxQuery = [query copy];
-    _dropboxEntries = @[];
-    _dropboxHits = @[];
     _dropboxSearching = YES;
     [self performSelector:@selector(runDropboxSearch) withObject:nil afterDelay:kDropboxSearchDelay];
+}
+
+// No pending or in-flight answer and none in hand; the next query asks.
+- (void)resetDropboxSearch {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(runDropboxSearch) object:nil];
+    _dropboxSearchGeneration++;
+    _dropboxSearching = NO;
+    _dropboxQuery = nil;
+    _dropboxEntries = @[];
+    _dropboxHits = @[];
 }
 
 - (NSArray<NSDictionary *> *)dropboxEntriesNotInPlaylist:(NSArray<NSDictionary *> *)entries {
@@ -374,11 +376,9 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
         if (path) {
             [paths addObject:path];
         }
-        if ([mirror containsURL:track.url]) {
-            NSString *dropboxPath = [mirror dropboxPathForURL:track.url].lowercaseString;
-            if (dropboxPath) {
-                [dropboxPaths addObject:dropboxPath];
-            }
+        NSString *dropboxPath = [mirror dropboxPathForURL:track.url].lowercaseString;
+        if (dropboxPath) {
+            [dropboxPaths addObject:dropboxPath];
         }
     }
     _playlistPaths = paths;
@@ -460,49 +460,44 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     return cell;
 }
 
-// No tags (each would be a download): filename over folder, a glyph, no art.
-- (UITableViewCell *)fileCellForTableView:(UITableView *)tableView row:(NSUInteger)row {
-    static NSString *const identifier = @"file";
+// A file or Dropbox hit: no tags (each would be a download), the name over
+// its folder, a glyph, no art.
+- (UITableViewCell *)hitCellForTableView:(UITableView *)tableView
+                                    name:(NSString *)name
+                                  folder:(NSString *)folder
+                                   glyph:(NSString *)glyph {
+    static NSString *const identifier = @"hit";
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:identifier];
     if (!cell) {
         cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle
                                       reuseIdentifier:identifier];
     }
-    FileSearchHit *hit = _fileHits[row];
     UIListContentConfiguration *content = cell.defaultContentConfiguration;
-    content.image = [UIImage systemImageNamed:@"music.note"];
+    content.image = [UIImage systemImageNamed:glyph];
     content.imageProperties.maximumSize = CGSizeMake(40, 40);
     content.imageProperties.tintColor = UIColor.secondaryLabelColor;
-    content.text = hit.fileName;
-    content.secondaryText = hit.folderName;
+    content.text = name;
+    content.secondaryText = folder;
     content.textProperties.numberOfLines = 1;
     content.secondaryTextProperties.numberOfLines = 1;
     cell.contentConfiguration = content;
     return cell;
 }
 
-// A Dropbox hit is drawn as a file hit is: name over its folder.
+- (UITableViewCell *)fileCellForTableView:(UITableView *)tableView row:(NSUInteger)row {
+    FileSearchHit *hit = _fileHits[row];
+    return [self hitCellForTableView:tableView name:hit.fileName folder:hit.folderName glyph:@"music.note"];
+}
+
 - (UITableViewCell *)dropboxCellForTableView:(UITableView *)tableView row:(NSUInteger)row {
-    static NSString *const identifier = @"dropbox";
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:identifier];
-    if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle
-                                      reuseIdentifier:identifier];
-    }
     NSDictionary *entry = _dropboxHits[row];
     NSString *display = entry[@"path_display"] ?: entry[@"path_lower"];
-    BOOL folder = [entry[@".tag"] isEqualToString:@"folder"];
-    UIListContentConfiguration *content = cell.defaultContentConfiguration;
-    content.image = [UIImage systemImageNamed:folder ? @"folder" : @"music.note"];
-    content.imageProperties.maximumSize = CGSizeMake(40, 40);
-    content.imageProperties.tintColor = UIColor.secondaryLabelColor;
-    content.text = entry[@"name"];
     NSString *parent = display.stringByDeletingLastPathComponent.lastPathComponent;
-    content.secondaryText = [parent isEqualToString:@"/"] ? VibeNotLocalized(@"Dropbox") : parent;
-    content.textProperties.numberOfLines = 1;
-    content.secondaryTextProperties.numberOfLines = 1;
-    cell.contentConfiguration = content;
-    return cell;
+    BOOL folder = VibeDropboxEntryKindOf(entry) == VibeDropboxEntryKindFolder;
+    return [self hitCellForTableView:tableView
+                                name:entry[@"name"]
+                              folder:[parent isEqualToString:@"/"] ? VibeNotLocalized(@"Dropbox") : parent
+                               glyph:folder ? @"folder" : @"music.note"];
 }
 
 // A playlist row selects and stays; a file row is an OPEN, like any other.
@@ -585,10 +580,15 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
                afterDelay:kRefilterCoalesceInterval];
 }
 
+// A metadata delivery changes what the playlist's rows say, nothing else:
+// the files and Dropbox halves keep their answers, which a full re-filter
+// blanked and re-asked for on every delivery of a scan.
 - (void)refilterIfStale {
     _refilterScheduled = NO;
     if (_matchesStale && [self isMateriallyVisible]) {
-        [self filterWithQuery:[self currentQuery]];
+        [self matchPlaylistForQuery:[self currentQuery]];
+        [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:VibeSearchSectionPlaylist]
+                      withRowAnimation:UITableViewRowAnimationNone];
     }
 }
 

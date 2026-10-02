@@ -42,13 +42,16 @@ static NSString *const kItemCellIdentifier = @"item";
     NSURL *_directoryURL;
     BOOL _appending;
 
-    // A directory's rows, sorted as the Files app sorts names.
+    // A directory's rows, sorted as the Files app sorts names, and which of
+    // the files are Dropbox placeholders — found with the listing, off main.
     NSArray<NSURL *> *_folders;
     NSArray<NSURL *> *_files;
+    NSSet<NSURL *> *_placeholders;
     // Stamped on each disk listing, so a slow one cannot overwrite a newer.
     uint64_t _listingGeneration;
-    // Inside the Dropbox mirror: listed from disk at once, then refreshed.
-    BOOL _dropbox;
+    // The Dropbox folder this directory mirrors ("" for the root), nil
+    // outside the mirror: listed from disk at once, then refreshed.
+    NSString *_dropboxPath;
     BOOL _refreshing;
     NSError *_refreshError;
 
@@ -68,7 +71,8 @@ static NSString *const kItemCellIdentifier = @"item";
         _appending = appending;
         _folders = @[];
         _files = @[];
-        _dropbox = directoryURL && [DropboxMirror.shared dropboxPathForURL:directoryURL] != nil;
+        _placeholders = [NSSet set];
+        _dropboxPath = directoryURL ? [DropboxMirror.shared dropboxPathForURL:directoryURL] : nil;
     }
     return self;
 }
@@ -104,9 +108,9 @@ static NSString *const kItemCellIdentifier = @"item";
                                                            action:@selector(addSelected)];
         _addSelectedItem.accessibilityLabel = STR_MENU_CONTEXT_ADD_TO_PLAYLIST;
         [self refreshBarItems];
-        if (_dropbox) {
+        if (_dropboxPath) {
             UIRefreshControl *refresh = [[UIRefreshControl alloc] init];
-            [refresh addTarget:self action:@selector(pullToRefresh) forControlEvents:UIControlEventValueChanged];
+            [refresh addTarget:self action:@selector(refreshFromDropbox) forControlEvents:UIControlEventValueChanged];
             self.refreshControl = refresh;
         }
     }
@@ -134,14 +138,13 @@ static NSString *const kItemCellIdentifier = @"item";
         return;
     }
     [self reloadFromDisk];
-    if (_dropbox) {
+    if (_dropboxPath) {
         [self refreshFromDropbox];
     }
 }
 
 - (NSString *)titleForDirectory {
-    DropboxMirror *mirror = DropboxMirror.shared;
-    if ([[mirror dropboxPathForURL:_directoryURL] isEqualToString:@""]) {
+    if ([_dropboxPath isEqualToString:@""]) {
         return VibeNotLocalized(@"Dropbox");
     }
     if ([_directoryURL.URLByStandardizingPath isEqual:SearchFolderStore.containerDocumentsURL.URLByStandardizingPath]) {
@@ -158,7 +161,7 @@ static NSString *const kItemCellIdentifier = @"item";
         [self.tableView reloadData];
         return;
     }
-    if (_dropbox && !DropboxMirror.shared.client.isLinked) {
+    if (_dropboxPath && !DropboxMirror.shared.client.isLinked) {
         [self.navigationController popToRootViewControllerAnimated:NO];
     }
 }
@@ -180,6 +183,7 @@ static NSString *const kItemCellIdentifier = @"item";
                                    error:NULL] ?: @[];
         NSMutableArray<NSURL *> *folders = [NSMutableArray array];
         NSMutableArray<NSURL *> *files = [NSMutableArray array];
+        NSMutableSet<NSURL *> *placeholders = [NSMutableSet set];
         for (NSURL *url in contents) {
             NSNumber *isDirectory = nil;
             [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
@@ -188,6 +192,9 @@ static NSString *const kItemCellIdentifier = @"item";
             }
             else if ([playable containsObject:url.pathExtension.lowercaseString]) {
                 [files addObject:url];
+                if ([NSURLUtil isRemotePlaceholderFile:url]) {
+                    [placeholders addObject:url];
+                }
             }
         }
         NSComparator byName = ^NSComparisonResult(NSURL *a, NSURL *b) {
@@ -202,6 +209,7 @@ static NSString *const kItemCellIdentifier = @"item";
             }
             strongSelf->_folders = folders;
             strongSelf->_files = files;
+            strongSelf->_placeholders = placeholders;
             if (!strongSelf.tableView.isEditing) {
                 [strongSelf.tableView reloadData];
             }
@@ -218,7 +226,7 @@ static NSString *const kItemCellIdentifier = @"item";
     _refreshing = YES;
     [self refreshEmptyState];
     __weak BrowserViewController *weakSelf = self;
-    [DropboxMirror.shared refreshFolderAtURL:_directoryURL completion:^(NSError *error) {
+    [DropboxMirror.shared refreshDropboxFolder:_dropboxPath completion:^(NSURL *folderURL, NSError *error) {
         BrowserViewController *strongSelf = weakSelf;
         if (!strongSelf) {
             return;
@@ -232,16 +240,6 @@ static NSString *const kItemCellIdentifier = @"item";
         }
         [strongSelf reloadFromDisk];
     }];
-}
-
-- (void)pullToRefresh {
-    if (_dropbox) {
-        [self refreshFromDropbox];
-    }
-    else {
-        [self.refreshControl endRefreshing];
-        [self reloadFromDisk];
-    }
 }
 
 - (BOOL)isEmpty {
@@ -258,7 +256,7 @@ static NSString *const kItemCellIdentifier = @"item";
         return;
     }
     UIContentUnavailableConfiguration *empty = [UIContentUnavailableConfiguration emptyConfiguration];
-    if (_dropbox && _refreshError) {
+    if (_refreshError) {
         empty.image = [UIImage systemImageNamed:@"wifi.exclamationmark"];
         empty.text = STR_BROWSER_DROPBOX_UNAVAILABLE;
     }
@@ -419,7 +417,7 @@ static NSString *const kItemCellIdentifier = @"item";
     else {
         content.image = [UIImage systemImageNamed:@"music.note"];
         // Not downloaded yet: the cloud says a tap waits on the network.
-        if (_dropbox && url && [NSURLUtil isRemotePlaceholderFile:url]) {
+        if ([_placeholders containsObject:url]) {
             UIImageView *cloud = [[UIImageView alloc] initWithImage:
                     [UIImage systemImageNamed:@"icloud.and.arrow.down"]];
             cloud.tintColor = UIColor.tertiaryLabelColor;
@@ -523,8 +521,7 @@ static NSString *const kItemCellIdentifier = @"item";
             }
             else {
                 [mirror.client signInWithPresentationAnchor:self.view.window completion:^(NSError *error) {
-                    if (error && !([error.domain isEqualToString:VibeDropboxErrorDomain]
-                                   && error.code == VibeDropboxErrorCancelled)) {
+                    if (error) {
                         LogWarn(@"Dropbox: sign-in failed: %@", error.localizedDescription);
                         [self showAlertWithTitle:VibeNotLocalized(@"Dropbox")
                                          message:STR_SETTINGS_DROPBOX_CONNECT_FAILED];

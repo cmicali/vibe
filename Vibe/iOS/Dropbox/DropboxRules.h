@@ -13,6 +13,8 @@
 #import <Foundation/Foundation.h>
 #import <CommonCrypto/CommonDigest.h>
 
+#import "PlaylistFile.h"
+
 #include <sys/types.h>
 #include <time.h>
 
@@ -126,11 +128,15 @@ static inline NSString *_Nullable VibeDropboxAPIArgHeader(NSDictionary *argument
         return nil;
     }
     NSString *text = [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding];
-    NSMutableString *ascii = [NSMutableString stringWithCapacity:text.length];
+    // The usual argument, an id:, is ASCII already.
+    if ([text canBeConvertedToEncoding:NSASCIIStringEncoding]) {
+        return text;
+    }
+    NSMutableString *ascii = [NSMutableString stringWithCapacity:text.length + 16];
     for (NSUInteger i = 0; i < text.length; i++) {
         unichar c = [text characterAtIndex:i];
         if (c < 0x80) {
-            [ascii appendFormat:@"%C", c];
+            [ascii appendString:[NSString stringWithCharacters:&c length:1]];
         }
         else {
             [ascii appendFormat:@"\\u%04x", c];
@@ -213,7 +219,7 @@ static inline BOOL VibeDropboxNameIsMirrored(NSString *name, NSSet<NSString *> *
         return NO;
     }
     NSString *extension = name.pathExtension.lowercaseString;
-    return [extension isEqualToString:@"cue"] || [playableExtensions containsObject:extension];
+    return [PlaylistFile isCueExtension:extension] || [playableExtensions containsObject:extension];
 }
 
 // files/search_v2's answer as entries (the shape list_folder gives), kept
@@ -239,7 +245,7 @@ static inline NSArray<NSDictionary *> *VibeDropboxSearchEntries(NSDictionary *_N
         if (kind == VibeDropboxEntryKindFolder
                 || (kind == VibeDropboxEntryKindFile && [name isKindOfClass:NSString.class]
                     && VibeDropboxNameIsMirrored(name, playableExtensions)
-                    && ![name.pathExtension.lowercaseString isEqualToString:@"cue"])) {
+                    && ![PlaylistFile isCueExtension:name.pathExtension])) {
             [entries addObject:entry];
         }
     }
@@ -252,25 +258,30 @@ static inline NSString *VibeDropboxParentPath(NSString *path) {
     return [parent isEqualToString:@"/"] ? @"" : parent;
 }
 
-// Dropbox paths are case-insensitive and only the LAST component of a
-// path_display is guaranteed its real case, so a component is matched
-// against what is already on disk before a new one is made: two spellings of
-// one Dropbox folder must land in one local directory.
-static inline NSString *VibeDropboxLocalName(NSString *component, NSArray<NSString *> *existing) {
-    for (NSString *name in existing) {
-        if ([name compare:component options:NSCaseInsensitiveSearch] == NSOrderedSame) {
-            return name;
-        }
-    }
-    return component;
-}
-
 // TRAP: a file URL's path comes back decomposed (NFD: "e" plus a combining
 // accent) whatever was written, while Dropbox keeps the name as uploaded,
 // usually composed. A name read back from disk is never sent as a Dropbox
 // path; the directory index holds what Dropbox said, keyed by this form.
 static inline NSString *VibeDropboxIndexKey(NSString *name) {
     return name.precomposedStringWithCanonicalMapping.lowercaseString;
+}
+
+// A directory's names by VibeDropboxIndexKey, built once per listing.
+static inline NSDictionary<NSString *, NSString *> *VibeDropboxNameIndex(NSArray<NSString *> *names) {
+    NSMutableDictionary<NSString *, NSString *> *index = [NSMutableDictionary dictionaryWithCapacity:names.count];
+    for (NSString *name in names) {
+        index[VibeDropboxIndexKey(name)] = name;
+    }
+    return index;
+}
+
+// Dropbox paths are case-insensitive and only the LAST component of a
+// path_display is guaranteed its real case, so a component is matched
+// against what is already on disk before a new one is made: two spellings of
+// one Dropbox folder must land in one local directory.
+static inline NSString *VibeDropboxLocalName(NSString *component,
+                                             NSDictionary<NSString *, NSString *> *nameIndex) {
+    return nameIndex[VibeDropboxIndexKey(component)] ?: component;
 }
 
 static inline NSArray<NSString *> *VibeDropboxPathComponents(NSString *path) {

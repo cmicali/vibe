@@ -15,9 +15,6 @@ NS_ASSUME_NONNULL_BEGIN
 // access token is fetched on first use, as after a relaunch.
 - (void)adoptRefreshToken:(NSString *)refreshToken accountID:(NSString *)accountID;
 
-// Ages the access token out, so the next call refreshes it.
-- (void)expireAccessToken;
-
 @end
 
 NS_ASSUME_NONNULL_END

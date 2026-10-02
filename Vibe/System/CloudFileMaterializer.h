@@ -44,13 +44,13 @@ typedef NSData *_Nullable (^CloudFileRemoteRead)(NSURL *url, uint64_t offset, ui
 
 @interface CloudFileMaterializer : NSObject
 
-// Once at launch, before anything opens a file; also turns NSURLUtil's
-// remote placeholder rule on, so the two cannot disagree.
-+ (void)setRemoteFetch:(nullable CloudFileRemoteFetch)fetch;
+// The remote backend, once at launch before anything opens a file: both or
+// neither. It also turns NSURLUtil's remote placeholder rule on, so while a
+// file is a remote placeholder both blocks are there to serve it.
++ (void)setRemoteFetch:(nullable CloudFileRemoteFetch)fetch read:(nullable CloudFileRemoteRead)read;
 
-// Installed beside the fetch; nil (the mac) means a placeholder's tags wait
-// for its bytes. AudioTrackMetadata's parse reads through it.
-@property (class, nonatomic, copy, nullable) CloudFileRemoteRead remoteRead;
+// AudioTrackMetadata's parse reads a remote placeholder through it.
+@property (class, nonatomic, readonly, copy, nullable) CloudFileRemoteRead remoteRead;
 
 // The caller's role in the debug transfer trace; set once at creation.
 @property (nonatomic, copy, nullable) NSString *label;

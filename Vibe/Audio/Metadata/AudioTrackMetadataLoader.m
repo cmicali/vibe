@@ -6,7 +6,6 @@
 #import "AudioTrackMetadataLoaderInternal.h"
 #import "AudioTrackMetadataCacheInternal.h"
 #import "AudioFileMaterializationCoordinator.h"
-#import "CloudFileMaterializer.h"
 #import "AudioLoadingConfiguration.h"
 #import "PINCache.h"
 #import "AudioTrack.h"
@@ -798,7 +797,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         // whole file for a few hundred KB of tags. Ready at once, with no
         // token — the slot holds none yet, so the completion's match passes.
         // The foreground hold above still applied: it is a network read.
-        if (CloudFileMaterializer.remoteRead && [NSURLUtil isRemotePlaceholderFile:entry.url]) {
+        if ([NSURLUtil isRemotePlaceholderFile:entry.url]) {
             [strongSelf completeMaterializationForEntry:entry
                                                priority:priority
                                                   token:nil

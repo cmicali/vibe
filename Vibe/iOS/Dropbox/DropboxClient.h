@@ -27,6 +27,12 @@ typedef NS_ERROR_ENUM(VibeDropboxErrorDomain, VibeDropboxError) {
     VibeDropboxErrorCancelled,
 };
 
+// The one spelling of a Dropbox error, the client's and the mirror's.
+static inline NSError *VibeDropboxMakeError(VibeDropboxError code, NSString *description) {
+    return [NSError errorWithDomain:VibeDropboxErrorDomain code:code
+                           userInfo:@{NSLocalizedDescriptionKey: description}];
+}
+
 // Posted on main when the account is linked, unlinked or renamed.
 extern NSNotificationName const VibeDropboxAccountDidChangeNotification;
 
@@ -46,7 +52,8 @@ extern NSNotificationName const VibeDropboxAccountDidChangeNotification;
 @property (nonatomic, readonly, copy, nullable) NSString *accountName;
 
 // Main thread; completion on main. Presents Dropbox's sign-in page over the
-// anchor, exchanges the code and reads the account.
+// anchor, exchanges the code and reads the account. Closing the sheet
+// completes with no error: it is the user's answer, not a failure to report.
 - (void)signInWithPresentationAnchor:(ASPresentationAnchor)anchor
                           completion:(void (^)(NSError *_Nullable error))completion;
 

@@ -12,8 +12,10 @@
 #include <unistd.h>
 
 #import "DropboxRules.h"
+#import "FileSearchRules.h"
 #import "NSURLUtil.h"
 #import "PlayableExtensions.h"
+#import "PlaylistFile.h"
 
 static NSString *const kKeychainService = @"com.commonwealthrecordings.Vibe.dropbox";
 static NSString *const kAppKeyInfoKey = @"VibeDropboxAppKey";
@@ -35,27 +37,6 @@ static const NSTimeInterval kStalePartSeconds = 24 * 60 * 60;
 // attributes are as unreadable as its bytes.
 static const char *const kIndexAttribute = "com.commonwealthrecordings.vibe.dropbox";
 
-static NSDictionary *VibeReadIndex(NSURL *directory) {
-    const char *path = directory.fileSystemRepresentation;
-    ssize_t size = getxattr(path, kIndexAttribute, NULL, 0, 0, XATTR_NOFOLLOW);
-    if (size <= 0) {
-        return nil;
-    }
-    NSMutableData *data = [NSMutableData dataWithLength:(NSUInteger)size];
-    if (getxattr(path, kIndexAttribute, data.mutableBytes, (size_t)size, 0, XATTR_NOFOLLOW) != size) {
-        return nil;
-    }
-    id index = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
-    return [index isKindOfClass:NSDictionary.class] ? index : nil;
-}
-
-static void VibeWriteIndex(NSURL *directory, NSDictionary *index) {
-    NSData *data = [NSJSONSerialization dataWithJSONObject:index options:0 error:NULL];
-    if (setxattr(directory.fileSystemRepresentation, kIndexAttribute, data.bytes, data.length, 0, XATTR_NOFOLLOW) != 0) {
-        LogWarn(@"Dropbox: could not index %@: %s", directory.lastPathComponent, strerror(errno));
-    }
-}
-
 // The comparable spelling of a path: standardized, and without the /private
 // that one API adds to /var and another drops.
 static NSString *VibeComparablePath(NSString *path) {
@@ -64,11 +45,6 @@ static NSString *VibeComparablePath(NSString *path) {
         return [standard substringFromIndex:@"/private".length];
     }
     return standard;
-}
-
-static NSError *VibeMirrorError(NSString *description) {
-    return [NSError errorWithDomain:VibeDropboxErrorDomain code:VibeDropboxErrorNotLinked
-                           userInfo:@{NSLocalizedDescriptionKey: description}];
 }
 
 static NSError *VibePOSIXError(void) {
@@ -81,6 +57,11 @@ static NSError *VibePOSIXError(void) {
     // Serial: every change to the mirror's directories, so two refreshes of
     // one folder cannot interleave their reconciles.
     dispatch_queue_t _diskQueue;
+    // Parsed directory indexes by path, NSNull for "none"; a ranged read asks
+    // for one per block. Every write replaces its entry.
+    NSCache<NSString *, id> *_indexes;
+    // The disk queue's: the root exists and is kept out of backups.
+    BOOL _rootPrepared;
 }
 
 + (DropboxMirror *)shared {
@@ -116,20 +97,57 @@ static NSError *VibePOSIXError(void) {
         _client = client;
         _rootURL = [rootURL copy];
         _downloadBudget = downloadBudget;
+        _indexes = [[NSCache alloc] init];
         _diskQueue = dispatch_queue_create("com.commonwealthrecordings.Vibe.dropbox-mirror",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
-        [NSNotificationCenter.defaultCenter addObserver:self
-                                               selector:@selector(accountDidChange:)
-                                                   name:VibeDropboxAccountDidChangeNotification
-                                                 object:client];
         // Not pruned here: before first unlock the Keychain reads as no
         // account, and that must not cost the user their downloads.
+        [NSNotificationCenter.defaultCenter addObserver:self
+                                               selector:@selector(pruneOtherAccounts:)
+                                                   name:VibeDropboxAccountDidChangeNotification
+                                                 object:client];
     }
     return self;
 }
 
 - (void)dealloc {
     [NSNotificationCenter.defaultCenter removeObserver:self];
+}
+
+#pragma mark - The index
+
+- (NSDictionary *)indexOfDirectory:(NSURL *)directory {
+    NSString *key = directory.path;
+    id cached = [_indexes objectForKey:key];
+    if (cached) {
+        return cached == NSNull.null ? nil : cached;
+    }
+    NSDictionary *index = nil;
+    const char *path = directory.fileSystemRepresentation;
+    ssize_t size = getxattr(path, kIndexAttribute, NULL, 0, 0, XATTR_NOFOLLOW);
+    if (size > 0) {
+        NSMutableData *data = [NSMutableData dataWithLength:(NSUInteger)size];
+        if (getxattr(path, kIndexAttribute, data.mutableBytes, (size_t)size, 0, XATTR_NOFOLLOW) == size) {
+            id parsed = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
+            index = [parsed isKindOfClass:NSDictionary.class] ? parsed : nil;
+        }
+    }
+    [_indexes setObject:index ?: NSNull.null forKey:key];
+    return index;
+}
+
+// Unchanged indexes are not rewritten: every visit relists its folder.
+- (void)writeIndex:(NSDictionary *)index ofDirectory:(NSURL *)directory {
+    if ([[self indexOfDirectory:directory] isEqualToDictionary:index]) {
+        return;
+    }
+    NSData *data = [NSJSONSerialization dataWithJSONObject:index options:0 error:NULL];
+    if (setxattr(directory.fileSystemRepresentation, kIndexAttribute, data.bytes, data.length, 0, XATTR_NOFOLLOW) != 0) {
+        LogWarn(@"Dropbox: could not index %@: %s", directory.lastPathComponent, strerror(errno));
+        [_indexes removeObjectForKey:directory.path];
+        return;
+    }
+    [_indexes setObject:index forKey:directory.path];
 }
 
 #pragma mark - Account
@@ -145,14 +163,10 @@ static NSError *VibePOSIXError(void) {
     return [_rootURL URLByAppendingPathComponent:name isDirectory:YES];
 }
 
-- (void)accountDidChange:(NSNotification *)notification {
-    [self pruneOtherAccounts];
-}
-
 // A signed-out or replaced account's files go: they are a cache of an
 // account the app no longer reaches, and its downloads are disk the user
 // cannot see or free otherwise.
-- (void)pruneOtherAccounts {
+- (void)pruneOtherAccounts:(NSNotification *)notification {
     NSString *keep = self.accountURL.lastPathComponent;
     NSURL *root = _rootURL;
     dispatch_async(_diskQueue, ^{
@@ -162,69 +176,75 @@ static NSError *VibePOSIXError(void) {
                 [files removeItemAtURL:[root URLByAppendingPathComponent:name] error:NULL];
             }
         }
+        [self->_indexes removeAllObjects];
     });
 }
 
 - (BOOL)containsURL:(NSURL *)url {
-    if (!url.isFileURL) {
-        return NO;
-    }
-    NSString *root = [VibeComparablePath(_rootURL.path) stringByAppendingString:@"/"];
-    return [VibeComparablePath(url.path) hasPrefix:root];
+    return url.isFileURL && VibeSearchRootCoversPath(VibeComparablePath(_rootURL.path),
+                                                     VibeComparablePath(url.path));
 }
 
-- (NSString *)dropboxPathForURL:(NSURL *)url {
+// The path below the account, derived from local names and composed again
+// (see VibeDropboxIndexKey); nil outside the account's mirror.
+- (NSString *)derivedDropboxPathForURL:(NSURL *)url {
     NSURL *account = self.accountURL;
     if (!account || !url.isFileURL) {
         return nil;
     }
     NSString *base = VibeComparablePath(account.path);
     NSString *path = VibeComparablePath(url.path);
-    if ([path isEqualToString:base]) {
-        return @"";
-    }
-    NSString *prefix = [base stringByAppendingString:@"/"];
-    if (![path hasPrefix:prefix]) {
+    if (!VibeSearchRootCoversPath(base, path)) {
         return nil;
-    }
-    // A listed directory knows its exact Dropbox path; anything else is
-    // derived from local names, composed again (see VibeDropboxIndexKey).
-    NSString *indexed = VibeReadIndex(url)[@"path"];
-    if ([indexed isKindOfClass:NSString.class]) {
-        return indexed;
     }
     return [path substringFromIndex:base.length].precomposedStringWithCanonicalMapping;
 }
 
+- (NSString *)dropboxPathForURL:(NSURL *)url {
+    NSString *derived = [self derivedDropboxPathForURL:url];
+    if (derived.length == 0) {
+        return derived;
+    }
+    // A listed directory knows its exact Dropbox path.
+    NSString *indexed = [self indexOfDirectory:url][@"path"];
+    return [indexed isKindOfClass:NSString.class] ? indexed : derived;
+}
+
 // What files/download is asked for: the Dropbox id the folder's listing
-// recorded, which no spelling or later rename can miss.
+// recorded, which no spelling or later rename can miss; nil outside the
+// account's mirror.
 - (NSString *)downloadArgumentForURL:(NSURL *)url {
-    NSDictionary *files = VibeReadIndex(url.URLByDeletingLastPathComponent)[@"files"];
+    NSString *derived = [self derivedDropboxPathForURL:url];
+    if (derived.length == 0) {
+        return nil;
+    }
+    NSDictionary *files = [self indexOfDirectory:url.URLByDeletingLastPathComponent][@"files"];
     NSString *identifier = [files isKindOfClass:NSDictionary.class]
             ? files[VibeDropboxIndexKey(url.lastPathComponent)] : nil;
-    return [identifier isKindOfClass:NSString.class] ? identifier : [self dropboxPathForURL:url];
+    return [identifier isKindOfClass:NSString.class] ? identifier : derived;
 }
 
 #pragma mark - Disk (the disk queue)
 
-// Each component matched case-insensitively against what is there; with
-// `create`, missing directories are made (a file in the way is replaced).
-- (NSURL *)directoryForDropboxPath:(NSString *)path account:(NSURL *)account create:(BOOL)create {
+// Each component matched case-insensitively against what is there; missing
+// directories are made (a file in the way is replaced).
+- (NSURL *)directoryForDropboxPath:(NSString *)path account:(NSURL *)account {
     NSFileManager *files = NSFileManager.defaultManager;
-    if (create) {
+    if (!_rootPrepared) {
         [files createDirectoryAtURL:_rootURL withIntermediateDirectories:YES attributes:nil error:NULL];
         // The mirror is a cache of Dropbox: never in a backup.
         [_rootURL setResourceValue:@YES forKey:NSURLIsExcludedFromBackupKey error:NULL];
-        [files createDirectoryAtURL:account withIntermediateDirectories:YES attributes:nil error:NULL];
+        _rootPrepared = YES;
     }
+    [self ensureDirectoryAtURL:account];
     NSURL *directory = account;
+    // TRAP: listed, not probed: on a case-insensitive volume an lstat of
+    // another spelling succeeds, and the URL would carry that spelling.
     for (NSString *component in VibeDropboxPathComponents(path)) {
         NSArray<NSString *> *existing = [files contentsOfDirectoryAtPath:directory.path error:NULL] ?: @[];
-        directory = [directory URLByAppendingPathComponent:VibeDropboxLocalName(component, existing)
-                                               isDirectory:YES];
-        if (create) {
-            [self ensureDirectoryAtURL:directory];
-        }
+        directory = [directory URLByAppendingPathComponent:
+                VibeDropboxLocalName(component, VibeDropboxNameIndex(existing)) isDirectory:YES];
+        [self ensureDirectoryAtURL:directory];
     }
     return directory;
 }
@@ -287,40 +307,30 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
     return YES;
 }
 
-// Blocks the calling thread on the download; the disk queue for a sidecar,
-// a materialization worker for a track.
-- (BOOL)downloadDropboxPath:(NSString *)path
-                      toURL:(NSURL *)url
-                   onCancel:(nullable void (^)(dispatch_block_t))onCancel
-                      error:(NSError **)error {
+// The download into url's part file, then the install; completion on the
+// client's queue. Returns the cancel.
+- (dispatch_block_t)downloadDropboxPath:(NSString *)path
+                                  toURL:(NSURL *)url
+                             completion:(void (^)(NSError *_Nullable error))completion {
     NSURL *part = [NSURLUtil remotePlaceholderPartURL:url];
-    dispatch_semaphore_t done = dispatch_semaphore_create(0);
-    __block NSDictionary *metadata = nil;
-    __block NSError *failure = nil;
-    dispatch_block_t cancel = [_client downloadPath:path toURL:part
-                                         completion:^(NSDictionary *result, NSError *downloadError) {
-        metadata = result;
-        failure = downloadError;
-        dispatch_semaphore_signal(done);
+    return [_client downloadPath:path toURL:part completion:^(NSDictionary *metadata, NSError *error) {
+        NSError *installError = nil;
+        if (!error && !VibeInstallPart(part, url, metadata, &installError)) {
+            error = installError;
+        }
+        completion(error);
     }];
-    if (onCancel) {
-        onCancel(cancel);
-    }
-    // The client always completes: its request timeout bounds a stall.
-    dispatch_semaphore_wait(done, DISPATCH_TIME_FOREVER);
-    if (failure) {
-        if (error) *error = failure;
-        return NO;
-    }
-    return VibeInstallPart(part, url, metadata, error);
 }
 
-- (void)reconcileDirectory:(NSURL *)directory
-                      path:(NSString *)folderPath
-               withEntries:(NSArray<NSDictionary *> *)entries {
+// Answers the CUE sheets to fetch: they are read while the folder opens, so
+// they come down with the listing; tracks wait for their open.
+- (NSArray<NSDictionary *> *)reconcileDirectory:(NSURL *)directory
+                                           path:(NSString *)folderPath
+                                    withEntries:(NSArray<NSDictionary *> *)entries {
     NSFileManager *files = NSFileManager.defaultManager;
     NSMutableDictionary<NSString *, NSString *> *identifiers = [NSMutableDictionary dictionary];
     NSArray<NSString *> *existing = [files contentsOfDirectoryAtPath:directory.path error:NULL] ?: @[];
+    NSDictionary<NSString *, NSString *> *existingNames = VibeDropboxNameIndex(existing);
     NSSet<NSString *> *playable = PlayableExtensions.lookup;
     NSMutableSet<NSString *> *kept = [NSMutableSet set];
     NSMutableArray<NSDictionary *> *sidecars = [NSMutableArray array];
@@ -337,24 +347,23 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
             identifier = entry[@"path_lower"];
         }
         if (kind == VibeDropboxEntryKindFolder) {
-            NSString *local = VibeDropboxLocalName(name, existing);
+            NSString *local = VibeDropboxLocalName(name, existingNames);
             [kept addObject:local];
             NSURL *child = [directory URLByAppendingPathComponent:local isDirectory:YES];
             [self ensureDirectoryAtURL:child];
             NSString *childPath = entry[@"path_lower"];
             if ([childPath isKindOfClass:NSString.class]) {
-                NSMutableDictionary *index = [VibeReadIndex(child) mutableCopy] ?: [NSMutableDictionary dictionary];
-                if (![index[@"path"] isEqual:childPath]) {
-                    index[@"path"] = childPath;
-                    VibeWriteIndex(child, index);
-                }
+                NSMutableDictionary *index = [[self indexOfDirectory:child] mutableCopy]
+                        ?: [NSMutableDictionary dictionary];
+                index[@"path"] = childPath;
+                [self writeIndex:index ofDirectory:child];
             }
             continue;
         }
         if (kind != VibeDropboxEntryKindFile || !VibeDropboxNameIsMirrored(name, playable)) {
             continue;
         }
-        NSString *local = VibeDropboxLocalName(name, existing);
+        NSString *local = VibeDropboxLocalName(name, existingNames);
         [kept addObject:local];
         if ([identifier isKindOfClass:NSString.class]) {
             identifiers[VibeDropboxIndexKey(local)] = identifier;
@@ -367,9 +376,7 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
                 && VibeDropboxLocalMatchesEntry(st.st_size, st.st_mtimespec.tv_sec, size, modified)) {
             continue;
         }
-        // A sheet is read while the folder is listed, so it is fetched now;
-        // a track waits for its open.
-        if ([name.pathExtension.lowercaseString isEqualToString:@"cue"]) {
+        if ([PlaylistFile isCueExtension:name.pathExtension]) {
             if ([identifier isKindOfClass:NSString.class]) {
                 [sidecars addObject:@{@"path": identifier, @"url": url}];
             }
@@ -383,7 +390,7 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
         }
     }
 
-    VibeWriteIndex(directory, @{@"path": folderPath, @"files": identifiers});
+    [self writeIndex:@{@"path": folderPath, @"files": identifiers} ofDirectory:directory];
 
     NSDate *staleBefore = [NSDate dateWithTimeIntervalSinceNow:-kStalePartSeconds];
     for (NSString *name in existing) {
@@ -391,7 +398,8 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
         if ([name hasPrefix:@"."]) {
             NSDate *modified = nil;
             [url getResourceValue:&modified forKey:NSURLContentModificationDateKey error:NULL];
-            if ([name hasSuffix:@".vibe-download"] && [modified compare:staleBefore] == NSOrderedAscending) {
+            if ([name hasSuffix:VibeRemotePlaceholderPartSuffix]
+                    && [modified compare:staleBefore] == NSOrderedAscending) {
                 [files removeItemAtURL:url error:NULL];
             }
             continue;
@@ -400,17 +408,10 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
             [files removeItemAtURL:url error:NULL];
         }
     }
-
-    for (NSDictionary *sidecar in sidecars) {
-        NSError *error = nil;
-        if (![self downloadDropboxPath:sidecar[@"path"] toURL:sidecar[@"url"] onCancel:nil error:&error]) {
-            LogWarn(@"Dropbox: could not fetch %@: %@",
-                    [sidecar[@"url"] lastPathComponent], error.localizedDescription);
-        }
-    }
     LogInfo(@"Dropbox: reconciled %@: %lu entries, %lu new placeholders, %lu sidecars",
             directory.lastPathComponent, (unsigned long)entries.count,
             (unsigned long)placeholders, (unsigned long)sidecars.count);
+    return sidecars;
 }
 
 #pragma mark - Listing
@@ -451,42 +452,44 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
                   completion:(void (^)(NSURL *, NSError *))completion {
     NSURL *account = self.accountURL;
     if (!account) {
-        completion(nil, VibeMirrorError(@"no Dropbox account"));
+        completion(nil, VibeDropboxMakeError(VibeDropboxErrorNotLinked, @"no Dropbox account"));
         return;
     }
+    void (^finish)(NSURL *, NSError *) = ^(NSURL *directory, NSError *error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            completion(directory, error);
+        });
+    };
     [self listFolder:path cursor:nil entries:[NSMutableArray array]
           completion:^(NSArray<NSDictionary *> *entries, NSError *error) {
         if (error) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                completion(nil, error);
-            });
+            finish(nil, error);
             return;
         }
         dispatch_async(self->_diskQueue, ^{
             // Signed out while listing: write nothing into a pruned tree.
             if (![self.accountURL isEqual:account]) {
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    completion(nil, VibeMirrorError(@"Dropbox account changed"));
-                });
+                finish(nil, VibeDropboxMakeError(VibeDropboxErrorNotLinked, @"Dropbox account changed"));
                 return;
             }
-            NSURL *directory = [self directoryForDropboxPath:path account:account create:YES];
-            [self reconcileDirectory:directory path:path withEntries:entries];
-            dispatch_async(dispatch_get_main_queue(), ^{
+            NSURL *directory = [self directoryForDropboxPath:path account:account];
+            NSArray<NSDictionary *> *sidecars = [self reconcileDirectory:directory path:path withEntries:entries];
+            // Side by side and off the disk queue, which other refreshes need.
+            dispatch_group_t fetched = dispatch_group_create();
+            for (NSDictionary *sidecar in sidecars) {
+                dispatch_group_enter(fetched);
+                [self downloadDropboxPath:sidecar[@"path"] toURL:sidecar[@"url"] completion:^(NSError *fetchError) {
+                    if (fetchError) {
+                        LogWarn(@"Dropbox: could not fetch %@: %@",
+                                [sidecar[@"url"] lastPathComponent], fetchError.localizedDescription);
+                    }
+                    dispatch_group_leave(fetched);
+                }];
+            }
+            dispatch_group_notify(fetched, dispatch_get_main_queue(), ^{
                 completion(directory, nil);
             });
         });
-    }];
-}
-
-- (void)refreshFolderAtURL:(NSURL *)folderURL completion:(void (^)(NSError *))completion {
-    NSString *path = [self dropboxPathForURL:folderURL];
-    if (!path) {
-        completion(VibeMirrorError(@"not a Dropbox folder"));
-        return;
-    }
-    [self refreshDropboxFolder:path completion:^(NSURL *directory, NSError *error) {
-        completion(error);
     }];
 }
 
@@ -516,14 +519,14 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
               completion:(void (^)(NSURL *, NSError *))completion {
     NSString *path = entry[@"path_lower"];
     if (![path isKindOfClass:NSString.class]) {
-        completion(nil, VibeMirrorError(@"entry without a path"));
+        completion(nil, VibeDropboxMakeError(VibeDropboxErrorAPI, @"entry without a path"));
         return;
     }
     if (VibeDropboxEntryKindOf(entry) == VibeDropboxEntryKindFolder) {
         [self refreshDropboxFolder:path completion:completion];
         return;
     }
-    NSString *name = entry[@"name"];
+    NSString *name = [entry[@"name"] isKindOfClass:NSString.class] ? entry[@"name"] : path.lastPathComponent;
     [self refreshDropboxFolder:VibeDropboxParentPath(path) completion:^(NSURL *folderURL, NSError *error) {
         if (!folderURL) {
             completion(nil, error);
@@ -531,8 +534,7 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
         }
         NSArray<NSString *> *existing = [NSFileManager.defaultManager
                 contentsOfDirectoryAtPath:folderURL.path error:NULL] ?: @[];
-        NSString *local = VibeDropboxLocalName([name isKindOfClass:NSString.class] ? name : path.lastPathComponent,
-                                               existing);
+        NSString *local = VibeDropboxLocalName(name, VibeDropboxNameIndex(existing));
         completion([folderURL URLByAppendingPathComponent:local isDirectory:NO], nil);
     }];
 }
@@ -552,7 +554,7 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
         struct stat st;
         if (lstat(url.fileSystemRepresentation, &st) != 0 || !S_ISREG(st.st_mode)
                 || VibeFileModeIsRemotePlaceholder(st.st_mode)
-                || [url.pathExtension.lowercaseString isEqualToString:@"cue"]) {
+                || [PlaylistFile isCueExtension:url.pathExtension]) {
             continue;
         }
         [downloads addObject:@{@"url": url, @"size": @(st.st_size), @"modified": @(st.st_mtimespec.tv_sec),
@@ -628,9 +630,9 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
                           offset:(uint64_t)offset
                           length:(uint64_t)length
                            error:(NSError **)error {
-    NSString *path = [self dropboxPathForURL:url] ? [self downloadArgumentForURL:url] : nil;
-    if (path.length == 0 || length == 0) {
-        if (error) *error = VibeMirrorError(@"not in the Dropbox mirror");
+    NSString *path = [self downloadArgumentForURL:url];
+    if (!path || length == 0) {
+        if (error) *error = VibeDropboxMakeError(VibeDropboxErrorNotLinked, @"not in the Dropbox mirror");
         return nil;
     }
     dispatch_semaphore_t done = dispatch_semaphore_create(0);
@@ -661,21 +663,29 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
 - (BOOL)fetchPlaceholderAtURL:(NSURL *)url
                      onCancel:(void (^)(dispatch_block_t))onCancel
                         error:(NSError **)error {
-    NSString *path = [self dropboxPathForURL:url] ? [self downloadArgumentForURL:url] : nil;
-    if (path.length == 0) {
-        if (error) *error = VibeMirrorError(@"not in the Dropbox mirror");
+    NSString *path = [self downloadArgumentForURL:url];
+    if (!path) {
+        if (error) *error = VibeDropboxMakeError(VibeDropboxErrorNotLinked, @"not in the Dropbox mirror");
         return NO;
     }
     CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
-    BOOL fetched = [self downloadDropboxPath:path toURL:url onCancel:onCancel error:error];
-    if (fetched) {
-        LogInfo(@"Dropbox: downloaded %@ in %.1fs", url.lastPathComponent,
-                CFAbsoluteTimeGetCurrent() - start);
-        dispatch_async(_diskQueue, ^{
-            [self enforceDownloadBudgetKeeping:url];
-        });
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    __block NSError *failure = nil;
+    onCancel([self downloadDropboxPath:path toURL:url completion:^(NSError *downloadError) {
+        failure = downloadError;
+        dispatch_semaphore_signal(done);
+    }]);
+    // The client always completes: its request timeout bounds a stall.
+    dispatch_semaphore_wait(done, DISPATCH_TIME_FOREVER);
+    if (failure) {
+        if (error) *error = failure;
+        return NO;
     }
-    return fetched;
+    LogInfo(@"Dropbox: downloaded %@ in %.1fs", url.lastPathComponent, CFAbsoluteTimeGetCurrent() - start);
+    dispatch_async(_diskQueue, ^{
+        [self enforceDownloadBudgetKeeping:url];
+    });
+    return YES;
 }
 
 @end

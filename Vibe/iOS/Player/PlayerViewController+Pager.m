@@ -19,6 +19,7 @@
 #import "PageWaveformCoordinator.h"
 #import "TrackPageCell.h"
 #import "WaveformScrubberView.h"
+#import "NSURLUtil.h"
 
 // At one, a quick second swipe outruns the fetch (a file read and a decode)
 // and lands on the placeholder; two gives a whole extra commit of lead.
@@ -59,8 +60,14 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     [self updatePlayButton];
 }
 
+// A track not on disk yet is not asked for: its decode would fail at once
+// (a Dropbox placeholder) or hold a decode slot through the download (a
+// provider's), and playbackDidFinishLoading: asks again once the open lands.
 - (void)requestWaveformForIndex:(NSUInteger)index {
     AudioTrack *track = [_playlist trackAtIndex:index];
+    if (!track || [NSURLUtil isDatalessFile:track.url]) {
+        return;
+    }
     [_waveformCoordinator requestIndex:index track:track];
     // TRAP: a page whose waveform is complete starts no load and DELIVERS
     // NOTHING, and a track change clears the widget's strip, so returning to a

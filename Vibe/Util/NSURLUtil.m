@@ -111,8 +111,10 @@ static VibeBulkOpenDirectoriesHandler BulkOpenDirectoriesHandler(void) {
     return stat(url.fileSystemRepresentation, &st) == 0 && VibeFileModeIsRemotePlaceholder(st.st_mode);
 }
 
+NSString *const VibeRemotePlaceholderPartSuffix = @".vibe-download";
+
 + (NSURL *)remotePlaceholderPartURL:(NSURL *)url {
-    NSString *name = [NSString stringWithFormat:@".%@.vibe-download", url.lastPathComponent];
+    NSString *name = [NSString stringWithFormat:@".%@%@", url.lastPathComponent, VibeRemotePlaceholderPartSuffix];
     return [url.URLByDeletingLastPathComponent URLByAppendingPathComponent:name isDirectory:NO];
 }
 

@@ -447,12 +447,13 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     }
     // The app's own trees need no grant, so a file picked in one always
     // reaches its folder: Documents, and the Dropbox mirror.
-    NSURL *documents = SearchFolderStore.containerDocumentsURL;
-    NSURL *dropbox = DropboxMirror.shared.accountURL;
-    for (NSURL *own in @[documents ?: NSNull.null, dropbox ?: NSNull.null]) {
-        if ([own isKindOfClass:NSURL.class]) {
-            [coveringRootPaths addObject:own.URLByStandardizingPath.path ?: @""];
-        }
+    NSString *documents = SearchFolderStore.containerDocumentsURL.URLByStandardizingPath.path;
+    NSString *dropbox = DropboxMirror.shared.accountURL.URLByStandardizingPath.path;
+    if (documents) {
+        [coveringRootPaths addObject:documents];
+    }
+    if (dropbox) {
+        [coveringRootPaths addObject:dropbox];
     }
     NSMutableArray<NSURL *> *holds = [NSMutableArray array];
     NSMutableArray<SearchFolderGrant *> *grants = [NSMutableArray array];

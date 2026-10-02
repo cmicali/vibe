@@ -159,7 +159,7 @@ static NSDictionary *FolderEntry(NSString *folder, NSString *name) {
 }
 
 - (void)tearDown {
-    [CloudFileMaterializer setRemoteFetch:nil];
+    [CloudFileMaterializer setRemoteFetch:nil read:nil];
     [self installHandler:nil];
     // Let the adopt's posted notification land before the root goes.
     [self spinMainQueue];
@@ -405,6 +405,8 @@ static struct stat StatOf(NSURL *url) {
     DropboxMirror *mirror = _mirror;
     [CloudFileMaterializer setRemoteFetch:^BOOL(NSURL *url, void (^onCancel)(dispatch_block_t), NSError **error) {
         return [mirror fetchPlaceholderAtURL:url onCancel:onCancel error:error];
+    } read:^NSData *(NSURL *url, uint64_t offset, uint64_t length, NSError **error) {
+        return [mirror readPlaceholderAtURL:url offset:offset length:length error:error];
     }];
 }
 
@@ -445,12 +447,10 @@ static struct stat StatOf(NSURL *url) {
     XCTAssertNotNil(cafe);
     XCTAssertEqualObjects([_mirror dropboxPathForURL:cafe], @"/music/café");
 
-    XCTestExpectation *done = [self expectationWithDescription:@"relist"];
-    [_mirror refreshFolderAtURL:cafe completion:^(NSError *error) {
-        XCTAssertNil(error);
-        [done fulfill];
-    }];
-    [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
+    // The browser's relist: the folder's recorded path, back into the same
+    // directory.
+    NSURL *relisted = [self refresh:[_mirror dropboxPathForURL:cafe]];
+    XCTAssertEqualObjects(relisted.path, cafe.path);
     XCTAssertEqual(StatOf([cafe URLByAppendingPathComponent:@"a.flac"]).st_size, 1);
 }
 

@@ -129,9 +129,11 @@
 
 // One Dropbox folder, two spellings, one directory (DropboxRules.h).
 - (void)testAComponentLandsOnTheExistingSpelling {
-    XCTAssertEqualObjects(VibeDropboxLocalName(@"music", @[@"Podcasts", @"Music"]), @"Music");
-    XCTAssertEqualObjects(VibeDropboxLocalName(@"CAFÉ", @[@"café"]), @"café");
-    XCTAssertEqualObjects(VibeDropboxLocalName(@"New", @[@"Music"]), @"New");
+    XCTAssertEqualObjects(VibeDropboxLocalName(@"music", VibeDropboxNameIndex(@[@"Podcasts", @"Music"])), @"Music");
+    XCTAssertEqualObjects(VibeDropboxLocalName(@"CAFÉ", VibeDropboxNameIndex(@[@"café"])), @"café");
+    // A decomposed name read back from disk still finds the composed one.
+    XCTAssertEqualObjects(VibeDropboxLocalName(@"Cafe\u0301", VibeDropboxNameIndex(@[@"Café"])), @"Café");
+    XCTAssertEqualObjects(VibeDropboxLocalName(@"New", VibeDropboxNameIndex(@[@"Music"])), @"New");
 }
 
 - (void)testPathComponentsDropEmptySegments {

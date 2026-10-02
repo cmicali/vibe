@@ -196,9 +196,7 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
     [DropboxMirror.shared.client signInWithPresentationAnchor:self.view.window
                                                    completion:^(NSError *error) {
         FilesSettingsViewController *strongSelf = weakSelf;
-        if (!strongSelf || !error
-                || ([error.domain isEqualToString:VibeDropboxErrorDomain]
-                    && error.code == VibeDropboxErrorCancelled)) {
+        if (!strongSelf || !error) {
             return;
         }
         LogWarn(@"Dropbox: sign-in failed: %@", error.localizedDescription);

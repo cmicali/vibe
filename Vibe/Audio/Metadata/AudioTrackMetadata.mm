@@ -125,6 +125,9 @@ public:
 
 private:
     static constexpr TagLib::offset_t kBlockSize = 64 * 1024;
+    // The head is fetched this deep at once: a tag with its art usually fits
+    // (measured 230–360 KB a file), which saves the second round trip.
+    static constexpr TagLib::offset_t kHeadBlocks = 6;
 
     // One request from the first missing block to the last, so a tag read
     // in one readBlock is one round trip.
@@ -135,6 +138,9 @@ private:
         while (last >= first && _blocks.count(last)) last--;
         if (first > last) {
             return;
+        }
+        if (first == 0) {
+            last = MAX(last, MIN(kHeadBlocks, (_length + kBlockSize - 1) / kBlockSize) - 1);
         }
         TagLib::offset_t from = first * kBlockSize;
         TagLib::offset_t to = MIN((last + 1) * kBlockSize, _length);
@@ -164,13 +170,15 @@ private:
 };
 
 // The stream a parse reads: the file, or its remote bytes by range when it
-// is a remote placeholder and a backend can read one.
+// is a remote placeholder. A read is installed exactly while the placeholder
+// rule is on (setRemoteFetch:read:), so the mode is the whole test, and the
+// mac, which installs none, pays no stat.
 static std::unique_ptr<TagLib::IOStream> VibeOpenTagStream(const char *path) {
-    NSURL *url = [NSURL fileURLWithPath:@(path)];
     CloudFileRemoteRead read = CloudFileMaterializer.remoteRead;
     struct stat st;
-    if (read && [NSURLUtil isRemotePlaceholderFile:url] && stat(path, &st) == 0) {
-        return std::make_unique<VibeRangedStream>(url, read, (TagLib::offset_t)st.st_size);
+    if (read && stat(path, &st) == 0 && VibeFileModeIsRemotePlaceholder(st.st_mode)) {
+        return std::make_unique<VibeRangedStream>([NSURL fileURLWithPath:@(path)], read,
+                                                  (TagLib::offset_t)st.st_size);
     }
     return std::make_unique<TagLib::FileStream>(path, true);
 }
