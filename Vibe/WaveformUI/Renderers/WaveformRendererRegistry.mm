@@ -16,6 +16,7 @@
 static NSString *const kWiggleMCIdentifier = @"wiggle";
 static NSString *const kWiggleIdentifier = @"wiggle_centered";
 static NSString *const kCupertinoBasicIdentifier = @"cupertino_basic";
+static NSString *const kThreeBandSmoothIdentifier = @"three_band_smooth";
 
 // Fine transients, so the Detailed family's sampling differences survive a
 // thumbnail. The bands keep a mix's measured balance — lows near the whole,
@@ -76,6 +77,7 @@ static AudioWaveform *VibePreviewWaveform(void) {
         }
         registry[kWiggleMCIdentifier] = DetailedAudioWaveformRenderer.class;
         registry[kWiggleIdentifier] = DetailedAudioWaveformRenderer.class;
+        registry[kThreeBandSmoothIdentifier] = ThreeBandWaveformRenderer.class;
         renderers = registry;
     });
     return renderers;
@@ -181,12 +183,16 @@ static AudioWaveform *VibePreviewWaveform(void) {
     if (centered || [identifier isEqualToString:kWiggleMCIdentifier]) {
         return [[renderer alloc] initWithLayer:layer bounds:bounds isDark:isDark wiggle:YES centered:centered];
     }
+    if ([identifier isEqualToString:kThreeBandSmoothIdentifier]) {
+        return [[ThreeBandWaveformRenderer alloc] initWithLayer:layer bounds:bounds isDark:isDark smooth:YES];
+    }
     return [[renderer alloc] initWithLayer:layer bounds:bounds isDark:isDark];
 }
 
 + (NSString *)displayNameForIdentifier:(NSString *)identifier {
     if ([identifier isEqualToString:kWiggleMCIdentifier]) return STR_WAVEFORM_STYLE_WIGGLE;
     if ([identifier isEqualToString:kWiggleIdentifier]) return STR_WAVEFORM_STYLE_WIGGLE_CENTERED;
+    if ([identifier isEqualToString:kThreeBandSmoothIdentifier]) return STR_WAVEFORM_STYLE_THREE_BAND_SMOOTH;
     return [[self renderersByIdentifier][identifier] displayName] ?: identifier;
 }
 

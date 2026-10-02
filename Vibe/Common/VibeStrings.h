@@ -174,17 +174,18 @@ static inline NSString *VibeAppName(void) {
 
 #pragma mark - Waveform styles
 
-#define STR_WAVEFORM_STYLE_BASIC           NSLS(@"waveform.style.basic",           @"Basic",                    @"Waveform style name: the simplest bar rendering.")
-#define STR_WAVEFORM_STYLE_WIGGLE          NSLS(@"waveform.style.wiggle",          @"Wiggle MC",                @"Waveform style name: rounded loops on a bottom baseline. Keep the name Wiggle MC in every language.")
-#define STR_WAVEFORM_STYLE_WIGGLE_CENTERED NSLS(@"waveform.style.wiggle_centered", @"Wiggle",                   @"Waveform style name: a continuous rounded line centered vertically around the midline. Keep the name Wiggle in every language.")
-#define STR_WAVEFORM_STYLE_CUPERTINO       NSLS(@"waveform.style.cupertino",       @"Cupertino",                @"Waveform style name: thin bars mirrored about the midline, in the Apple Podcasts style. The city's name — transliterate rather than translate it.")
-#define STR_WAVEFORM_STYLE_CUPERTINO_BASIC NSLS(@"waveform.style.cupertino_basic", @"Cupertino Basic",          @"Waveform style name: a rounded progress pill in the Apple Music style, the plainer of the two Cupertino styles. Transliterate the city's name; render 'Basic' the way the 'Basic' style's name is rendered, so the two read as a pair.")
-#define STR_WAVEFORM_STYLE_DETAILED        NSLS(@"waveform.style.detailed",        @"Detailed",                 @"Waveform style name: a higher-resolution bar rendering.")
-#define STR_WAVEFORM_STYLE_SONIC_CIRRUS    NSLS(@"waveform.style.sonic_cirrus",    @"Sonic Cirrus",             @"Waveform style name: a cloud-like rendering. An invented proper name — transliterate rather than translate it literally.")
-#define STR_WAVEFORM_STYLE_OVERSAMPLING_X2 NSLS(@"waveform.style.oversampling_x2", @"Oversampling Detailed x2", @"Waveform style name: detailed rendering at 2x oversampling. Keep the 'x2'.")
-#define STR_WAVEFORM_STYLE_OVERSAMPLING_X4 NSLS(@"waveform.style.oversampling_x4", @"Oversampling Detailed x4", @"Waveform style name: detailed rendering at 4x oversampling. Keep the 'x4'.")
-#define STR_WAVEFORM_STYLE_OVERSAMPLING_X8 NSLS(@"waveform.style.oversampling_x8", @"Oversampling Detailed x8", @"Waveform style name: detailed rendering at 8x oversampling. Keep the 'x8'.")
-#define STR_WAVEFORM_STYLE_THREE_BAND      NSLS(@"waveform.style.three_band",      @"3-Band",                   @"Waveform style name: the DJ-player style that draws the low, mid and high frequency bands in their own colors. Keep the digit 3; translate 'Band' as the word for a frequency band.")
+#define STR_WAVEFORM_STYLE_BASIC             NSLS(@"waveform.style.basic",             @"Basic",                    @"Waveform style name: the simplest bar rendering.")
+#define STR_WAVEFORM_STYLE_WIGGLE            NSLS(@"waveform.style.wiggle",            @"Wiggle MC",                @"Waveform style name: rounded loops on a bottom baseline. Keep the name Wiggle MC in every language.")
+#define STR_WAVEFORM_STYLE_WIGGLE_CENTERED   NSLS(@"waveform.style.wiggle_centered",   @"Wiggle",                   @"Waveform style name: a continuous rounded line centered vertically around the midline. Keep the name Wiggle in every language.")
+#define STR_WAVEFORM_STYLE_CUPERTINO         NSLS(@"waveform.style.cupertino",         @"Cupertino",                @"Waveform style name: thin bars mirrored about the midline, in the Apple Podcasts style. The city's name — transliterate rather than translate it.")
+#define STR_WAVEFORM_STYLE_CUPERTINO_BASIC   NSLS(@"waveform.style.cupertino_basic",   @"Cupertino Basic",          @"Waveform style name: a rounded progress pill in the Apple Music style, the plainer of the two Cupertino styles. Transliterate the city's name; render 'Basic' the way the 'Basic' style's name is rendered, so the two read as a pair.")
+#define STR_WAVEFORM_STYLE_DETAILED          NSLS(@"waveform.style.detailed",          @"Detailed",                 @"Waveform style name: a higher-resolution bar rendering.")
+#define STR_WAVEFORM_STYLE_SONIC_CIRRUS      NSLS(@"waveform.style.sonic_cirrus",      @"Sonic Cirrus",             @"Waveform style name: a cloud-like rendering. An invented proper name — transliterate rather than translate it literally.")
+#define STR_WAVEFORM_STYLE_OVERSAMPLING_X2   NSLS(@"waveform.style.oversampling_x2",   @"Oversampling Detailed x2", @"Waveform style name: detailed rendering at 2x oversampling. Keep the 'x2'.")
+#define STR_WAVEFORM_STYLE_OVERSAMPLING_X4   NSLS(@"waveform.style.oversampling_x4",   @"Oversampling Detailed x4", @"Waveform style name: detailed rendering at 4x oversampling. Keep the 'x4'.")
+#define STR_WAVEFORM_STYLE_OVERSAMPLING_X8   NSLS(@"waveform.style.oversampling_x8",   @"Oversampling Detailed x8", @"Waveform style name: detailed rendering at 8x oversampling. Keep the 'x8'.")
+#define STR_WAVEFORM_STYLE_THREE_BAND        NSLS(@"waveform.style.three_band",        @"3-Band",                   @"Waveform style name: the DJ-player style that draws the low, mid and high frequency bands in their own colors. Keep the digit 3; translate 'Band' as the word for a frequency band.")
+#define STR_WAVEFORM_STYLE_THREE_BAND_SMOOTH NSLS(@"waveform.style.three_band_smooth", @"3-Band Smooth",            @"Waveform style name: the 3-Band style drawn as smooth, antialiased outlines instead of columns. Keep the digit 3; translate as the 3-Band name plus the word for smooth.")
 
 #pragma mark - Themes
 

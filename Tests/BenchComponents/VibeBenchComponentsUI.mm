@@ -390,30 +390,43 @@ static void VibeBenchComponentsRegisterRenderers(void) {
 
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
     // 3-Band through the same live resize as Detailed's: seven painter's
-    // layers, played and unplayed, from up to 1,024 bars.
-    auto threeBand = std::make_shared<VibeBenchComponentsUIRenderer>();
-    VibeBenchComponentsAdd("ui-waveform", "three-band-resize", "frame", [threeBand]() -> double {
-        threeBand->parent = [CALayer layer];
-        threeBand->parent.contentsScale = 2;
-        CGRect bounds = CGRectMake(0, 0, 800, 60);
-        threeBand->parent.bounds = bounds;
-        threeBand->waveform = VibeBenchComponentsUIWaveform(13);
-        threeBand->renderer = [[ThreeBandWaveformRenderer alloc] initWithLayer:threeBand->parent bounds:bounds
-                                                                        isDark:YES];
-        threeBand->renderer.normalizesLevels = YES;
-        NSMutableData *envelopes = [NSMutableData data];
-        for (CGFloat width : {300.0, 801.0, 1600.0, 3000.0, 801.0}) {
-            threeBand->parent.bounds = CGRectMake(0, 0, width, 60);
-            [threeBand->renderer updateWaveform:threeBand->parent.bounds progress:0.4
-                                       waveform:threeBand->waveform.get()];
-            [envelopes appendData:[threeBand->renderer envelopeSamplesForWaveform:threeBand->waveform.get()]];
-            [threeBand->renderer settleMorphImmediately];
-        }
-        VibeBenchComponentsUIDump(@"ui-waveform-three-band-resize.raw", envelopes);
-        return 60;
-    }, [threeBand]() {
-        VibeBenchComponentsUILiveResize(threeBand.get());
-    });
+    // layers, played and unplayed, from up to 1,024 bars. Smooth draws each
+    // layer as one outline where 3-Band draws a rect per ring.
+    auto addThreeBand = [](const char *variant, NSString *dump, BOOL smooth) {
+        auto threeBand = std::make_shared<VibeBenchComponentsUIRenderer>();
+        VibeBenchComponentsAdd("ui-waveform", variant, "frame", [threeBand, dump, smooth]() -> double {
+            threeBand->parent = [CALayer layer];
+            threeBand->parent.contentsScale = 2;
+            CGRect bounds = CGRectMake(0, 0, 800, 60);
+            threeBand->parent.bounds = bounds;
+            threeBand->waveform = VibeBenchComponentsUIWaveform(13);
+#if VIBE_BENCH_COMPONENTS_THREE_BAND_SMOOTH
+            threeBand->renderer = [[ThreeBandWaveformRenderer alloc] initWithLayer:threeBand->parent bounds:bounds
+                                                                            isDark:YES smooth:smooth];
+#else
+            (void)smooth;
+            threeBand->renderer = [[ThreeBandWaveformRenderer alloc] initWithLayer:threeBand->parent bounds:bounds
+                                                                            isDark:YES];
+#endif
+            threeBand->renderer.normalizesLevels = YES;
+            NSMutableData *envelopes = [NSMutableData data];
+            for (CGFloat width : {300.0, 801.0, 1600.0, 3000.0, 801.0}) {
+                threeBand->parent.bounds = CGRectMake(0, 0, width, 60);
+                [threeBand->renderer updateWaveform:threeBand->parent.bounds progress:0.4
+                                           waveform:threeBand->waveform.get()];
+                [envelopes appendData:[threeBand->renderer envelopeSamplesForWaveform:threeBand->waveform.get()]];
+                [threeBand->renderer settleMorphImmediately];
+            }
+            VibeBenchComponentsUIDump(dump, envelopes);
+            return 60;
+        }, [threeBand]() {
+            VibeBenchComponentsUILiveResize(threeBand.get());
+        });
+    };
+    addThreeBand("three-band-resize", @"ui-waveform-three-band-resize.raw", NO);
+#if VIBE_BENCH_COMPONENTS_THREE_BAND_SMOOTH
+    addThreeBand("three-band-smooth-resize", @"ui-waveform-three-band-smooth-resize.raw", YES);
+#endif
 #endif
 }
 

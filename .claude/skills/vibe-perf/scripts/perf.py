@@ -82,7 +82,7 @@ def features(src):
     def find(name):
         return next((src / 'Vibe').rglob(name), None)
     handle, loader, levels = find('AudioFileHandle.h'), find('AudioWaveformLoader.h'), find('AudioLevelAnalyzer.h')
-    waveform = find('AudioWaveform.h')
+    waveform, three_band = find('AudioWaveform.h'), find('ThreeBandWaveformRenderer.h')
     metadata = list((src / 'Vibe').rglob('AudioTrackMetadata*.h'))
     flags = {
         'VIBE_BENCH_COMPONENTS_FILE_HANDLE': handle is not None,
@@ -94,6 +94,7 @@ def features(src):
         'VIBE_BENCH_COMPONENTS_METADATA_DISPLAY_ART': any('displayArtData' in h.read_text() for h in metadata),
         'VIBE_BENCH_COMPONENTS_LEVELS_SUMMARIZE': levels is not None and 'VibeAudioLevelAnalyzerSummarize' in levels.read_text(),
         'VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS': waveform is not None and 'AudioWaveformBandSplit' in waveform.read_text(),
+        'VIBE_BENCH_COMPONENTS_THREE_BAND_SMOOTH': three_band is not None and 'smooth:(BOOL)smooth' in three_band.read_text(),
     }
     lines = ['// Written by perf.py from this checkout\'s sources; see VibeBenchComponents.h.']
     lines += [f'#define {name} {int(value)}' for name, value in flags.items()]
