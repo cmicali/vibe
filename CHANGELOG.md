@@ -1,11 +1,11 @@
 # v1.15 (unreleased)
 
-* Added shuffle, repeat, and repeat all
+* Added shuffle, repeat all, and repeat one
 * Added CUE sheet (file and embedded) playback
 * Added Ogg Opus, Ogg Vorbis (mac only), CAF, W64, M4B, M4R, and ADTS playback
-* Added the 3-Band waveform style and Record Bin theme (mac only) that uses it 
+* Added the 3-Band waveform style and Record Bin theme (mac only) that uses it
 * Improved FLAC decoding: seeking is now near-instant even for long files, less CPU and memory, and better compatibility
-* Improved WAV and AIFF decoding: 1.4x-3.2x times faster, better compatibility
+* Improved WAV and AIFF decoding: 1.4x–3.2x faster, better compatibility
 * Improved playback performance: 20–30% less CPU and 15–25% less energy
 * Improved scan performance: tags and artwork 2x faster, library scans use 20% less CPU
 * Improved load performance: metadata cache at launch, large M3U playlists, and editing very large playlists
