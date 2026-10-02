@@ -25,6 +25,10 @@
 // Lossless paths still require exact samples; AAC stays below -126 dBFS.
 static const float kVibeAACDecodeTolerance = 4 * FLT_EPSILON;
 
+// A stream's first fetch: running until the test completes or fails it, or
+// the coordinator cancels it.
+typedef NS_ENUM(int, VibeStreamOutcome) { VibeStreamRunning, VibeStreamCompleted, VibeStreamFailed, VibeStreamCancelled };
+
 // Interleaved float PCM keeps the oracle independent of the render's buffers.
 static NSMutableData *PCM(AVAudioPCMBuffer *buffer) {
     NSMutableData *data = [NSMutableData data];
@@ -141,6 +145,15 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     NSUInteger _nextPrefetch;
     void (^_outputModesProvider)(NSString *, BOOL *, BOOL *);
     BOOL _priorAppleMPEGDecoder; // a test's choice is undone at tearDown
+    // The remote file streamingCopyOf: stands up: its bytes, its first
+    // fetch's part file and availability, and that fetch's fate.
+    NSData *_streamBytes;
+    NSURL *_streamURL;
+    CloudFileAvailability *_stream;
+    dispatch_semaphore_t _streamVerdict;
+    _Atomic int _streamOutcome;
+    _Atomic NSUInteger _streamFetches, _streamCancels;
+    NSError *_streamFailure;
 }
 @end
 
@@ -160,6 +173,10 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     }
     [_player debugHoldRenderInside:NO]; // a failed hold test must not leave a render blocked
     [_player debugShutdown]; _player = nil;
+    if (_streamURL) {
+        [self finishStream:VibeStreamCancelled]; // a failed test must not strand the fetch
+        [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
+    }
     AudioFileHandle.appleMPEGDecoder = _priorAppleMPEGDecoder;
     [NSFileManager.defaultManager removeItemAtURL:_temporary error:NULL];
     [super tearDown];
@@ -390,6 +407,10 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
 // the frame-driven pump, the pump's inline fill starved so only they fill.
 // The bus is made by the first play, so `play` runs with the init still forced.
 - (void)playOnTheDecodePool:(void (^)(void))play {
+    [self playOnTheDecodePoolBitPerfect:YES play:play];
+}
+
+- (void)playOnTheDecodePoolBitPerfect:(BOOL)bitPerfect play:(void (^)(void))play {
     Method initializer = class_getInstanceMethod(AudioVoiceBus.class, @selector(initWithFormat:queue:inlineDecoding:));
     __block IMP originalInit;
     IMP asyncInit = imp_implementationWithBlock(^id(id receiver, AVAudioFormat *format, dispatch_queue_t queue, BOOL inlineDecoding) {
@@ -397,13 +418,128 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     });
     originalInit = method_setImplementation(initializer, asyncInit);
     @try {
-        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:bitPerfect automatic:NO];
         [_player debugStarveDecoder:YES];
         play();
     } @finally {
         method_setImplementation(initializer, originalInit);
         imp_removeBlock(asyncInit);
     }
+}
+
+#pragma mark - A file still downloading
+
+// A copy of `source` behind a remote placeholder named `name`, whose first
+// fetch streams it: `prefix` bytes in its part file, reported readable, the
+// rest written as the test says (streamTo:), then completed or failed
+// (finishStream:) or cancelled by the coordinator once nothing reads it. A
+// later fetch, a replay's, installs the whole file at once. Opens need the
+// decode pool: a read waiting for bytes would hold the inline fill's thread.
+- (NSURL *)streamingCopyOf:(NSURL *)source prefix:(NSUInteger)prefix name:(NSString *)name {
+    if (_streamURL) {
+        [self finishStream:VibeStreamCancelled];
+    }
+    _streamBytes = [NSData dataWithContentsOfURL:source];
+    _streamURL = [_temporary URLByAppendingPathComponent:name];
+    XCTAssertTrue([NSFileManager.defaultManager createFileAtPath:_streamURL.path contents:nil
+                                                      attributes:@{NSFilePosixPermissions: @0}]);
+    NSURL *part = [NSURLUtil remotePlaceholderPartURL:_streamURL];
+    XCTAssertTrue([[_streamBytes subdataWithRange:NSMakeRange(0, prefix)] writeToURL:part atomically:NO]);
+    _stream = [[CloudFileAvailability alloc] initWithPartURL:part size:_streamBytes.length];
+    [_stream noteWrittenBytes:prefix];
+    _streamVerdict = dispatch_semaphore_create(0);
+    atomic_store(&_streamOutcome, VibeStreamRunning);
+    atomic_store(&_streamFetches, 0);
+    atomic_store(&_streamCancels, 0);
+    dispatch_semaphore_t verdict = _streamVerdict;
+    NSData *bytes = _streamBytes;
+    NSURL *url = _streamURL;
+    __weak AudioPlayerRenderTests *weakSelf = self;
+    [CloudFileMaterializer setRemoteRoot:_temporary fetch:^BOOL(NSURL *fetched, dispatch_block_t onReadable,
+                                                                 void (^onCancel)(dispatch_block_t), NSError **error) {
+        AudioPlayerRenderTests *test = weakSelf;
+        if (!test || atomic_fetch_add(&test->_streamFetches, 1) > 0) {
+            NSURL *staging = [url URLByAppendingPathExtension:@"whole"];
+            return [bytes writeToURL:staging atomically:NO]
+                    && rename(staging.fileSystemRepresentation, url.fileSystemRepresentation) == 0;
+        }
+        onCancel(^{
+            AudioPlayerRenderTests *cancelling = weakSelf;
+            if ([cancelling finishStream:VibeStreamCancelled]) {
+                atomic_fetch_add(&cancelling->_streamCancels, 1);
+            }
+        });
+        onReadable();
+        dispatch_semaphore_wait(verdict, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC)));
+        dispatch_semaphore_signal(verdict); // a fetch after the verdict answers at once
+        int outcome = atomic_load(&test->_streamOutcome);
+        if (outcome == VibeStreamCompleted) {
+            return YES;
+        }
+        if (error) {
+            *error = outcome == VibeStreamFailed ? test->_streamFailure
+                                                 : [NSError errorWithDomain:NSCocoaErrorDomain code:NSUserCancelledError userInfo:nil];
+        }
+        return NO;
+    } read:^NSData *(NSURL *read, uint64_t offset, uint64_t length, NSError **error) {
+        return nil;
+    } availability:^CloudFileAvailability *(NSURL *candidate) {
+        AudioPlayerRenderTests *test = weakSelf;
+        return test && [candidate.path isEqualToString:url.path] && atomic_load(&test->_streamOutcome) == VibeStreamRunning
+                ? test->_stream : nil;
+    }];
+    return _streamURL;
+}
+
+- (void)streamTo:(NSUInteger)end {
+    NSUInteger written = (NSUInteger)_stream.writtenBytes;
+    NSFileHandle *part = [NSFileHandle fileHandleForWritingToURL:_stream.partURL error:NULL];
+    [part seekToEndOfFile];
+    [part writeData:[_streamBytes subdataWithRange:NSMakeRange(written, MIN(end, _streamBytes.length) - written)]];
+    [part closeFile];
+    [_stream noteWrittenBytes:end];
+}
+
+// The first fetch's verdict, once, in the mirror's order: the rest written,
+// the rename and the finish; or the part deleted and its readers failed.
+- (BOOL)finishStream:(VibeStreamOutcome)outcome {
+    int running = VibeStreamRunning;
+    if (!_stream || !atomic_compare_exchange_strong(&_streamOutcome, &running, outcome)) {
+        return NO;
+    }
+    if (outcome == VibeStreamCompleted) {
+        [self streamTo:_streamBytes.length];
+        rename(_stream.partURL.fileSystemRepresentation, _streamURL.fileSystemRepresentation);
+        [_stream finishWithError:nil];
+    }
+    else {
+        [NSFileManager.defaultManager removeItemAtURL:_stream.partURL error:NULL];
+        [_stream finishWithError:outcome == VibeStreamFailed ? _streamFailure
+                : [NSError errorWithDomain:NSCocoaErrorDomain code:NSUserCancelledError userInfo:nil]];
+    }
+    dispatch_semaphore_signal(_streamVerdict);
+    return YES;
+}
+
+- (VibeVoiceSnapshot)currentVoiceSnapshot {
+    __block VibeVoiceSnapshot snapshot;
+    [_player runSyncOnQueue:^{
+        AudioVoiceBus *bus = [self->_player valueForKey:@"voiceBus"];
+        snapshot = [bus snapshotOfVoice:[[self->_player valueForKey:@"voice"] unsignedLongLongValue]];
+    }];
+    return snapshot;
+}
+
+// A block at a time until the condition holds, against the hang guard. Each
+// block drains, so a decision taken there is in place at the next check, and
+// the pause lets the decode pool and main run between them.
+- (BOOL)renderUntil:(BOOL (^)(void))condition {
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
+    while (!condition() && deadline.timeIntervalSinceNow > 0) {
+        [self render:_blockSize];
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.001]];
+    }
+    return condition();
 }
 
 - (void)record:(NSString *)event track:(AudioTrack *)track {
@@ -429,6 +565,9 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     if (_chain && _nextPrefetch<_chain.count) [p prefetchTrack:_chain[_nextPrefetch]];
 }
 - (void)audioPlayer:(AudioPlayer *)p didBeginLoading:(AudioTrack *)t openRequestIdentifier:(uint64_t)i { [self record:@"loading" track:t]; }
+- (void)audioPlayer:(AudioPlayer *)p didChangeBuffering:(BOOL)buffering forTrack:(AudioTrack *)t {
+    [self record:buffering ? @"buffering" : @"buffered" track:t];
+}
 - (void)audioPlayer:(AudioPlayer *)p didChangeLoadingPaused:(BOOL)paused forTrack:(AudioTrack *)t {}
 - (void)audioPlayer:(AudioPlayer *)player outputModesForDeviceUID:(NSString *)uid
   bitPerfectOutput:(BOOL *)bitPerfect exclusiveOutput:(BOOL *)exclusive {
@@ -1904,6 +2043,204 @@ static NSData *UniqueNoise(NSUInteger frames, uint32_t seed) {
     } @finally {
         dispatch_semaphore_signal(cancelled); // a failed run must not strand the fetch
         [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
+    }
+}
+
+// The frames of `pcm` with every all-zero frame dropped: what a capture with
+// holds in it plays, once its silences are taken out.
+static NSData *AudibleFrames(NSData *pcm, NSUInteger channels) {
+    NSMutableData *audible = [NSMutableData data];
+    const float *p = pcm.bytes;
+    for (NSUInteger f = 0; f < pcm.length / sizeof(float) / channels; f++) {
+        BOOL silent = YES;
+        for (NSUInteger c = 0; c < channels; c++) silent &= p[f * channels + c] == 0;
+        if (!silent) [audible appendBytes:p + f * channels length:channels * sizeof(float)];
+    }
+    return audible;
+}
+
+// A 48 kHz 24-bit stereo noise file behind a stream with `seconds` of it
+// downloaded: the ordinary pipeline on the decode pool, Declick off, so every
+// edge is a cut and the capture is the file's own samples.
+- (NSURL *)playStreamOf:(NSString *)fixture seconds:(double)seconds {
+    NSURL *source = [self fixture:fixture];
+    AVAudioPCMBuffer *decoded = [self read:source];
+    NSUInteger frameBytes = decoded.format.channelCount * 3;
+    NSUInteger header = [NSData dataWithContentsOfURL:source].length - decoded.frameLength * frameBytes;
+    XCTAssertEqual(header, 44u);
+    NSURL *url = [self streamingCopyOf:source prefix:header + (NSUInteger)(seconds * 48000) * frameBytes name:@"streaming.wav"];
+    [self playOnTheDecodePoolBitPerfect:NO play:^{
+        self->_player.declick = NO;
+        [self play:url paused:NO position:0];
+    }];
+    // Rendering from a ring the pool has filled to the download's edge.
+    [self settleUntil:^BOOL { return [self currentVoiceSnapshot].waitingForBytes; }];
+    return url;
+}
+
+// A download behind the audio: the voice holds silent in place, still Playing,
+// for as long as the bytes take, the output running past its idle stop, and
+// plays on once at the frame it stopped at. The whole capture, silences taken
+// out, is the file: nothing skipped, nothing repeated, no underrun.
+- (void)testAStreamHoldsWhileItsDownloadIsBehindAndResumesOnceExactly {
+    [self playStreamOf:@"noise-48000-24-2.wav" seconds:0.6];
+    NSData *reference = PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
+    [_capture setLength:0];
+    for (int stall = 0; stall < 2; stall++) {
+        XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }], @"hold %d", stall);
+        XCTAssertEqual([_player.debugRenderCounts[@"underrunFrames"] unsignedIntegerValue], 0u, @"held before the ring ran dry");
+        NSTimeInterval held = _player.position;
+        NSUInteger before = _capture.length / 8;
+        [self render:stall == 0 ? 48000 * 7 : 9600]; // past the 6 s idle stop the first time
+        XCTAssertEqual(_player.position, held, @"the hold keeps its place");
+        XCTAssertEqual(RMS(_capture, 2, 0, NSMakeRange(before, _capture.length / 8 - before)), 0);
+        XCTAssertTrue(_player.isPlaying);
+        XCTAssertTrue(_player.isBuffering);
+        XCTAssertFalse(_player.outputAudioActive, @"a held voice is not output");
+        XCTAssertFalse(_player.outputIdle, @"a hold keeps the output running");
+        XCTAssertEqual([self count:@"finish"], 0u);
+        if (stall == 0) {
+            [self streamTo:44 + 67200 * 6];
+        }
+        else {
+            XCTAssertTrue([self finishStream:VibeStreamCompleted]);
+        }
+        XCTAssertTrue([self renderUntil:^BOOL { return !self->_player.isBuffering; }], @"release %d", stall);
+    }
+    XCTAssertTrue([self renderUntil:^BOOL { return [self count:@"finish"] == 1; }]);
+    [self settleUntil:^BOOL { return [self count:@"buffered"] == 2; }];
+    XCTAssertEqual([self count:@"buffering"], 2u, @"one hold, and one resume, per stall");
+    XCTAssertEqual([self count:@"idle"], 0u);
+    XCTAssertNil(_playError);
+    NSDictionary *comparison = ComparePCM(AudibleFrames(reference, 2), AudibleFrames(_capture, 2), 2, 0, 0);
+    XCTAssertTrue([comparison[@"pass"] boolValue], @"%@", comparison);
+}
+
+// A seek while the decode waits at the download's edge: the waiting read is
+// interrupted, the new voice takes the file at once and plays from the target.
+- (void)testASeekWhileParkedAtTheEdgeLandsAndPlaysOn {
+    [self playStreamOf:@"noise-48000-24-2.wav" seconds:0.6];
+    NSData *reference = PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
+    [_player seekToPosition:0.2];
+    [self settleUntil:^BOOL { return [self count:@"seek"] == 1; }];
+    XCTAssertFalse(_player.isBuffering);
+    // Its first read waits behind no one: the old voice's turn has returned.
+    // A read waits for all it asks, so the pool stops a chunk short of the
+    // edge: four chunks, of which less than the grace may play before a hold.
+    [self settleUntil:^BOOL { return [self currentVoiceSnapshot].written >= 16384; }];
+    [_capture setLength:0];
+    [self render:3200];
+    XCTAssertFalse(_player.isBuffering);
+    [self assertReference:[reference subdataWithRange:NSMakeRange(9600 * 8, 3200 * 8)] capture:_capture skip:0 tolerance:0];
+    XCTAssertNil(_playError);
+    XCTAssertTrue([self finishStream:VibeStreamCompleted]);
+}
+
+// A stop, then a skip, each while a decode waits at its download's edge: no
+// hang, the waiting read interrupted, the handle let go, and the coordinator
+// cancels the transfer nobody reads. The stop's voice is resampled, so its
+// read waits inside the converter's pull.
+- (void)testAStopOrASkipWhileParkedAtTheEdgeLetsTheStreamGo {
+    NSURL *url = [self streamingCopyOf:[self fixture:@"noise-44100-16-2.wav"] prefix:44 + 26460 * 4 name:@"stopped.wav"];
+    CloudFileAvailability *stream = _stream;
+    [self playOnTheDecodePoolBitPerfect:NO play:^{
+        self->_player.declick = NO;
+        [self play:url paused:NO position:0];
+    }];
+    XCTAssertNotNil(_player.debugCurrentConversion, @"resampled");
+    [self settleUntil:^BOOL { return [self currentVoiceSnapshot].waitingForBytes; }];
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
+    [_player stop];
+    XCTAssertTrue([self renderUntil:^BOOL {
+        return atomic_load(&self->_streamCancels) == 1 && stream.readerCount == 0;
+    }], @"cancels %lu, readers %lu", (unsigned long)atomic_load(&_streamCancels), (unsigned long)stream.readerCount);
+    XCTAssertTrue(_player.isStopped);
+    XCTAssertFalse(_player.isBuffering);
+
+    NSURL *skipped = [self streamingCopyOf:[self fixture:@"noise-48000-24-2.wav"] prefix:44 + 28800 * 6 name:@"skipped.wav"];
+    stream = _stream;
+    [self play:skipped paused:NO position:0];
+    [self settleUntil:^BOOL { return [self currentVoiceSnapshot].waitingForBytes; }];
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
+    NSURL *local = [self fixture:@"noise-48000-16-2.wav"];
+    [self play:local paused:NO position:0];
+    [_capture setLength:0];
+    XCTAssertTrue([self renderUntil:^BOOL {
+        return atomic_load(&self->_streamCancels) == 1 && stream.readerCount == 0;
+    }], @"cancels %lu, readers %lu", (unsigned long)atomic_load(&_streamCancels), (unsigned long)stream.readerCount);
+    [self render:4800];
+    XCTAssertEqual([self assertExactExcerptsOf:@[PCM([self read:local])] inCapture:_capture rampFrames:0 ramped:NULL], 1u,
+                   @"the next track plays its own samples, from its start");
+    XCTAssertEqual([self count:@"finish"], 0u);
+    XCTAssertNil(_playError);
+}
+
+// The transfer failing under a hold is a read failure: the voice plays what it
+// buffered and ends through the failure path, never as a clean track end.
+- (void)testAStreamWhoseTransferFailsEndsInAnErrorNotATrackEnd {
+    [self playStreamOf:@"noise-48000-24-2.wav" seconds:0.6];
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
+    _streamFailure = [NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorNetworkConnectionLost userInfo:nil];
+    XCTAssertTrue([self finishStream:VibeStreamFailed]);
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_playError != nil; }]);
+    XCTAssertEqual(_playError.code, VibeAudioErrorEngineStartFailed, @"%@", _playError);
+    NSError *underlying = _playError.userInfo[NSUnderlyingErrorKey];
+    XCTAssertEqualObjects(underlying.domain, NSURLErrorDomain);
+    XCTAssertEqual(underlying.code, NSURLErrorNetworkConnectionLost);
+    XCTAssertTrue(_player.isStopped);
+    XCTAssertFalse(_player.isBuffering);
+    XCTAssertEqual([self count:@"finish"], 0u);
+}
+
+// A hold the download makes no progress under for the deadline pauses in
+// place with the stall's error: never a track end, Paused where it stopped,
+// the stream let go and cancelled. Play then replays from there through the
+// ordinary path, which fetches afresh.
+- (void)testAStallPausesInPlaceAndPlayReplaysFromThere {
+    NSURL *source = [self fixture:@"noise-48000-24-2.wav"];
+    NSData *reference = PCM([self read:source]);
+    NSURL *url = [self streamingCopyOf:source prefix:44 + 28800 * 6 name:@"stalled.wav"];
+    CloudFileAvailability *stream = _stream;
+    [self playOnTheDecodePoolBitPerfect:NO play:^{
+        self->_player.declick = NO;
+        VibeAudioLoadingConfigurationValues values = VibeAudioLoadingProductionConfigurationValues();
+        values.openTimeouts = VibeAudioOpenTimeoutConfigurationMake(0.5, 0.5);
+        [self->_player applyLoadingConfiguration:[[AudioLoadingConfiguration alloc] initWithValues:values error:NULL]];
+        [self play:url paused:NO position:0];
+    }];
+    [self settleUntil:^BOOL { return [self currentVoiceSnapshot].waitingForBytes; }];
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
+    NSTimeInterval held = _player.position;
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_playError != nil; }]);
+    XCTAssertEqual(_playError.code, VibeAudioErrorConnectionLost, @"%@", _playError);
+    XCTAssertTrue(_player.isPaused);
+    XCTAssertFalse(_player.isBuffering);
+    XCTAssertEqual(_player.position, held, @"paused where it stopped");
+    XCTAssertGreaterThan(_player.duration, 1.9);
+    XCTAssertEqual([self count:@"finish"], 0u);
+    [self settleUntil:^BOOL { return [self count:@"pause"] == 1; }];
+    XCTAssertTrue([self renderUntil:^BOOL {
+        return atomic_load(&self->_streamCancels) == 1 && stream.readerCount == 0;
+    }], @"cancels %lu, readers %lu", (unsigned long)atomic_load(&_streamCancels), (unsigned long)stream.readerCount);
+
+    _playError = nil;
+    [_player playPause];
+    [self settleUntil:^BOOL { return [self count:@"start"] == 2 || self->_playError; }];
+    XCTAssertNil(_playError);
+    XCTAssertEqual(atomic_load(&_streamFetches), 2u, @"the replay fetched afresh");
+    XCTAssertTrue(_player.isPlaying);
+    [self settleUntil:^BOOL { return [self currentVoiceSnapshot].written >= 16384; }];
+    [_capture setLength:0];
+    [self render:4800];
+    // Within a frame of the held one: the replay's start truncates the seconds.
+    NSUInteger expected = (NSUInteger)llround(held * 48000), found = NSNotFound;
+    for (NSUInteger start = expected - 2; start <= expected + 2 && found == NSNotFound; start++) {
+        if (memcmp(_capture.bytes, (const float *)reference.bytes + start * 2, 32 * 8) == 0) found = start;
+    }
+    XCTAssertNotEqual(found, (NSUInteger)NSNotFound, @"the replay starts where the stall held");
+    if (found != NSNotFound) {
+        [self assertReference:[reference subdataWithRange:NSMakeRange(found * 8, 4800 * 8)] capture:_capture skip:0 tolerance:0];
     }
 }
 

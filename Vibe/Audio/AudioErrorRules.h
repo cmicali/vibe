@@ -42,6 +42,7 @@ static inline NSString *VibeStatusForPlayError(NSError *error) {
             case VibeAudioErrorEngineStartFailed:  return STR_ERROR_ENGINE_START_FAILED;
             case VibeAudioErrorDeviceUnavailable:  return STR_ERROR_DEVICE_UNAVAILABLE;
             case VibeAudioErrorDeviceInUse:        return STR_ERROR_DEVICE_IN_USE;
+            case VibeAudioErrorConnectionLost:     return STR_ERROR_CONNECTION_LOST;
             case VibeAudioErrorNotPlaying:         break;
         }
     }

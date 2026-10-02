@@ -23,6 +23,7 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
     VibeAudioErrorNotPlaying,
     VibeAudioErrorFileOpenTimedOut,
     VibeAudioErrorDeviceInUse, // another process holds the device exclusively (macOS hog mode)
+    VibeAudioErrorConnectionLost, // a streaming track's download stalled: paused in place, play replays it
 };
 
 NS_ASSUME_NONNULL_END

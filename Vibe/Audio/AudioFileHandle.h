@@ -138,6 +138,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)allowReads;
 // YES for the error an interrupted read, seek or open answers.
 + (BOOL)isInterruption:(nullable NSError *)error;
+// Any thread, lock-free: YES while a read is blocked waiting for a streaming
+// file's bytes, never for bytes on disk.
+@property (atomic, readonly) BOOL waitingForBytes;
+// How much of a streaming file its transfer has written so far; the size of
+// a whole file. Any thread.
+@property (nonatomic, readonly) uint64_t bytesWritten;
 
 // Writing only: appends the buffer's frameLength frames, whose format must be
 // processingFormat, and advances length by them.

@@ -22,7 +22,7 @@ static NSError *VibeErr(NSString *domain, NSInteger code) {
     XCTAssertFalse(VibePlayErrorIsBenign(VibeErr(NSPOSIXErrorDomain, VibeAudioErrorNotPlaying)));
     for (NSNumber *code in @[@(VibeAudioErrorFileOpenFailed), @(VibeAudioErrorFileOpenTimedOut),
                              @(VibeAudioErrorEngineStartFailed), @(VibeAudioErrorDeviceUnavailable),
-                             @(VibeAudioErrorDeviceInUse), @9999]) {
+                             @(VibeAudioErrorDeviceInUse), @(VibeAudioErrorConnectionLost), @9999]) {
         XCTAssertFalse(VibePlayErrorIsBenign(VibeErr(kVibeAudioErrorDomain, code.integerValue)));
     }
 }
@@ -49,7 +49,8 @@ static NSError *VibeErr(NSString *domain, NSInteger code) {
                                    @(VibeAudioErrorFileOpenFailed),
                                    @(VibeAudioErrorEngineStartFailed),
                                    @(VibeAudioErrorDeviceUnavailable),
-                                   @(VibeAudioErrorDeviceInUse)];
+                                   @(VibeAudioErrorDeviceInUse),
+                                   @(VibeAudioErrorConnectionLost)];
     NSMutableSet<NSString *> *lines = [NSMutableSet set];
     for (NSNumber *code in codes) {
         NSString *line = VibeStatusForPlayError(VibeErr(kVibeAudioErrorDomain, code.integerValue));

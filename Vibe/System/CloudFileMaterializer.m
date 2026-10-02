@@ -75,6 +75,13 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
     [_condition unlock];
 }
 
+- (uint64_t)writtenBytes {
+    [_condition lock];
+    uint64_t written = _written;
+    [_condition unlock];
+    return written;
+}
+
 - (void)finishWithError:(NSError *)error {
     [_condition lock];
     if (!_complete && !_failure) {

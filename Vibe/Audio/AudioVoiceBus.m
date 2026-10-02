@@ -462,6 +462,7 @@ VIBE_REALTIME_END
     AVAudioFramePosition cursor;
     BOOL positioned;
     VibeStreamState stream;
+    BOOL readInterrupted;            // the decoder's: this turn's read or seek ended as an interruption
     AudioFileHandle *successorFile;
     AudioFileHandle *waitingSuccessor; // accepted, not yet the decoder's: the start is pending, or another queue reads it
     // The window the successor — waiting or queued — is read over, carried
@@ -604,6 +605,10 @@ static void VibeDisposeConverter(AudioVoiceRecord *record) {
 
 - (VibeVoiceMix *)mix {
     return _mix;
+}
+
+- (uint32_t)ringFrames {
+    return _mix->capacity;
 }
 
 - (dispatch_queue_t)decodeQueueAtIndex:(NSUInteger)index {
@@ -832,6 +837,22 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     if (file) *file = failure ? _records[slot]->file : nil;
     os_unfair_lock_unlock(&_tableLock);
     return failure;
+}
+
+// A read or seek interrupted because the voice's reads were stopped: its turn
+// ends, the stream neither drained nor failed, since the voice is being torn
+// down or its file handed on. Interrupted with its reads still allowed, it
+// was stopped by nobody here, and fails as any read error does.
+- (BOOL)readWasInterrupted:(NSError *)error forSlot:(NSUInteger)slot {
+    if (![AudioFileHandle isInterruption:error]
+            || atomic_load_explicit(&_mix->slots[slot].readsAllowed, memory_order_seq_cst)) {
+        return NO;
+    }
+    AudioVoiceRecord *record = _records[slot];
+    record->readInterrupted = YES;
+    LogInfo(@"AudioVoiceBus: voice %llu's read of %@ was interrupted at its stream's edge",
+            record->identifier, record->file.url.lastPathComponent);
+    return YES;
 }
 
 - (void)endFailedSlot:(NSUInteger)slot frames:(uint32_t)frames written:(uint64_t)written {
@@ -1070,8 +1091,26 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
     NSUInteger slot = [self ownedSlotForIdentifier:voice];
     if (slot != NSNotFound) {
         _records[slot]->readsWithheld = NO; // stopped stays stopped, whatever its file's standing
-        atomic_store_explicit(&_mix->slots[slot].readsAllowed, 0, memory_order_release);
+        [self stopReadsOfSlot:slot];
     }
+}
+
+// Stops the slot's reads for good, and when this is what stopped them, wakes
+// a read of its file or successor waiting at a streaming file's edge, which
+// returns as an interruption. TRAP: only then. A voice whose reads were
+// already stopped may have handed its file to a newer voice, whose reads an
+// interrupt would refuse until that voice seeks again. Every call is on the
+// player queue, before any newer voice on the file starts.
+- (void)stopReadsOfSlot:(NSUInteger)slot {
+    if (!atomic_exchange_explicit(&_mix->slots[slot].readsAllowed, 0, memory_order_seq_cst)) {
+        return;
+    }
+    os_unfair_lock_lock(&_tableLock);
+    AudioFileHandle *file = _records[slot]->file;
+    AudioFileHandle *successor = _records[slot]->successorFile;
+    os_unfair_lock_unlock(&_tableLock);
+    [file interruptReads];
+    [successor interruptReads];
 }
 
 // Each serial queue reports after its in-flight read and the group reports
@@ -1263,6 +1302,7 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
     if (slot == NSNotFound) {
         return;
     }
+    [self stopReadsOfSlot:slot]; // an armed voice's first read may be waiting
     VibeVoiceSlot *s = &_mix->slots[slot];
     int32_t armed = VibeVoiceStateArmed;
     if (atomic_compare_exchange_strong_explicit(&s->state, &armed, VibeVoiceStateDead,
@@ -1288,6 +1328,11 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
     os_unfair_lock_lock(&_tableLock);
     NSUInteger slot = [self slotForIdentifier:voice];
     BOOL pending = slot == NSNotFound && [self pendingRecordForIdentifier:voice] != nil;
+    if (slot != NSNotFound) {
+        // Under the lock the decoder moves a record's file pair under.
+        snapshot.waitingForBytes = _records[slot]->file.waitingForBytes;
+        snapshot.decoding = atomic_load_explicit(&_records[slot]->fillScheduled, memory_order_acquire) != 0;
+    }
     os_unfair_lock_unlock(&_tableLock);
     if (slot == NSNotFound) {
         // A pending voice is armed; an unknown or cancelled identity is gone.
@@ -1423,6 +1468,7 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
         }
         if (!record->endedReported) {
             record->endedReported = YES;
+            [self stopReadsOfSlot:slot]; // a crossfade's end, or the stream's, with a turn still waiting
             handler(identifier, VibeVoiceEventEnded);
         }
         uint64_t died = atomic_load_explicit(&s->diedAtRender, memory_order_acquire);
@@ -1633,6 +1679,9 @@ static AVAudioFrameCount VibeFramesBeforeEnd(AudioVoiceRecord *record, AVAudioFr
 static uint32_t VibeConverterSupplyInput(void *userData, uint32_t maxFrames, const float **channels) {
     VibeConverterFeed *input = userData;
     AudioVoiceRecord *record = input->record;
+    if (record->readInterrupted) {
+        return 0; // the fill asked again after an interruption
+    }
     AVAudioPCMBuffer *readBuffer = record->readBuffer;
     readBuffer.frameLength = 0;
     NSError *readError = nil;
@@ -1645,6 +1694,9 @@ static uint32_t VibeConverterSupplyInput(void *userData, uint32_t maxFrames, con
         uint64_t started = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID);
 #endif
         if (readable > 0 && ![record->file readIntoBuffer:readBuffer frameCount:readable error:&readError]) {
+            if ([input->bus readWasInterrupted:readError forSlot:input->slot]) {
+                return 0; // not dry: the turn ends
+            }
             [input->bus recordFailure:readError forSlot:input->slot];
         }
 #if DEBUG
@@ -1704,6 +1756,9 @@ static uint32_t VibeConverterSupplyInput(void *userData, uint32_t maxFrames, con
         into.frameLength = 0;
         AVAudioFrameCount asked = VibeFramesBeforeEnd(record, kDecodeChunkFrames);
         BOOL read = asked == 0 || [record->file readIntoBuffer:into frameCount:asked error:&error];
+        if (!read && [self readWasInterrupted:error forSlot:slot]) {
+            return 0;
+        }
         if (!read) {
             [self recordFailure:error forSlot:slot];
             *final = YES;
@@ -1767,8 +1822,24 @@ static uint32_t VibeConverterSupplyInput(void *userData, uint32_t maxFrames, con
         return NO;
     }
     if (!record->positioned && !record->failure) {
+        // TRAP: reads are allowed again here and nowhere else, at this voice's
+        // first seek of its file, on its own decode queue. The voice that read
+        // the file before was stopped and interrupted on the player queue
+        // before this one started, and a turn of it still in flight made this
+        // voice share its serial queue, so that turn has returned and no other
+        // read is inside the file. A stop of this voice landing between the
+        // allow and the seek is caught by the re-check, which interrupts again.
+        [record->file allowReads];
+        if (!atomic_load_explicit(&s->readsAllowed, memory_order_seq_cst)) {
+            [record->file interruptReads];
+            return NO;
+        }
         NSError *error = nil;
         if (![record->file seekToFrame:record->startFrame error:&error]) {
+            if ([self readWasInterrupted:error forSlot:slot]) {
+                record->readInterrupted = NO;
+                return NO;
+            }
             record->stream = VibeStreamFlushing;
             [self recordFailure:error forSlot:slot];
         }
@@ -1800,6 +1871,10 @@ static uint32_t VibeConverterSupplyInput(void *userData, uint32_t maxFrames, con
     }
     BOOL final = NO;
     uint32_t frames = [self produceChunkForSlot:slot final:&final];
+    if (record->readInterrupted) {
+        record->readInterrupted = NO;
+        return NO; // nothing written: the voice is torn down or its file handed on
+    }
     if (record->failure && (record->stream != VibeStreamFlushing || final)) {
         // Keep produced output; discard unproduced converter tail after an error.
         [self endFailedSlot:slot frames:frames written:written];

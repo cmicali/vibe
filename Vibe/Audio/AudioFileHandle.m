@@ -114,6 +114,7 @@ typedef NS_ENUM(uint8_t, VibeWaitFault) {
     // them. Set by the open and fixed from then on; nil for a whole file.
     CloudFileAvailability *_availability;
     _Atomic bool _readsInterrupted;
+    _Atomic bool _waitingForBytes;
     BOOL (^_openInterrupted)(void); // the open's caller's, while it runs
     // Latched by the wait that answered no, so each decoder sees one clean
     // end of data, never bytes after a gap, and its read or seek reports why.
@@ -149,13 +150,21 @@ static BOOL VibeHandleAwait(AudioFileHandle *handle, SInt64 position, SInt64 cou
         return NO;
     }
     _Atomic bool *interrupted = &handle->_readsInterrupted;
+    _Atomic bool *waiting = &handle->_waitingForBytes;
     BOOL (^openInterrupted)(void) = handle->_openInterrupted;
     NSError *error = nil;
+    // Asked only when the wait is about to block, so the flag is up for a
+    // wait and never for bytes already on disk.
     CloudFileAvailabilityWait wait = [handle->_availability waitForBytesAt:(uint64_t)MAX(0, position)
                                                                     length:(uint64_t)MAX(0, count)
                                                                interrupted:^BOOL{
-        return atomic_load(interrupted) || (openInterrupted && openInterrupted());
+        if (atomic_load(interrupted) || (openInterrupted && openInterrupted())) {
+            return YES;
+        }
+        atomic_store(waiting, true);
+        return NO;
     } error:&error];
+    atomic_store(waiting, false);
     if (wait == CloudFileAvailabilityReady) {
         return YES;
     }
@@ -399,6 +408,14 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 
 - (void)allowReads {
     atomic_store(&_readsInterrupted, false);
+}
+
+- (BOOL)waitingForBytes {
+    return atomic_load(&_waitingForBytes);
+}
+
+- (uint64_t)bytesWritten {
+    return _availability ? _availability.writtenBytes : (uint64_t)MAX(0, _size);
 }
 
 - (instancetype)initParserForReading:(NSURL *)url interrupted:(BOOL (^)(void))interrupted error:(NSError **)error {

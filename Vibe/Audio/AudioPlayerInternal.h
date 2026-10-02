@@ -81,6 +81,7 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
     uint64_t                _promotedBaseFrames; // bus frames the voice consumed before its current file began
     BOOL                    _gaplessArmedForUI;
     BOOL                    _outputAudioActive;
+    BOOL                    _buffering;         // the current voice held for its stream's bytes (updateBufferingOnQueue)
     BOOL                    _outputIdle;
     float                   _pitch;             // percent; see the trap below
     // Minted on main by every explicit play; only ever increments.
@@ -309,6 +310,8 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
 - (void)sendDelegateError:(NSError *)error forSubmittedPlay:(uint64_t)submittedPlayIdentifier;
 
 - (void)handleVoiceEventOnQueue:(VibeVoiceEvent)event voice:(VibeVoiceID)voice;
+// The buffering hold's decision, after every drain.
+- (void)updateBufferingOnQueue;
 @end
 
 NS_ASSUME_NONNULL_END

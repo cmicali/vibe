@@ -72,6 +72,24 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [self publishNowPlaying];
 }
 
+// A stream holding for its download draws as a slow open does, and Now
+// Playing's clock stops with it (publishNowPlaying).
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+    didChangeBuffering:(BOOL)buffering
+              forTrack:(AudioTrack *)track {
+    if (![_playlist isCurrentTrack:track]) {
+        return;
+    }
+    if (buffering) {
+        [self notifyDidBeginLoading];
+    }
+    else {
+        [self notifyDidFinishLoading];
+    }
+    [self notifyDidChangePlayState];
+    [self publishNowPlaying];
+}
+
 // A pause toggled mid-open decides whether the load lands playing or parked.
 // No audio has started, so only the glyph and the lock screen change.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer

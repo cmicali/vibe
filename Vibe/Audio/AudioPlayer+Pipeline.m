@@ -1288,6 +1288,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     [bus drainWithOutputRunning:[self renderingOnQueue] handler:^(VibeVoiceID voice, VibeVoiceEvent event) {
         [self handleVoiceEventOnQueue:event voice:voice];
     }];
+    [self updateBufferingOnQueue];
     [self noteDrainOnQueue];
     [self updateDrainTimerOnQueue];
 }
