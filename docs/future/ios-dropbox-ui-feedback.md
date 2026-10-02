@@ -74,7 +74,7 @@ All four are fixed in the working tree and were re-verified in the simulator.
 | # | Sev | Finding | Outcome |
 | --- | --- | --- | --- |
 | E1 | high | Browser rows are bare filenames: no size, duration, artist, or art, and no mark on the playing track. A tap on a 70-minute mix downloads it with no warning. | **Done.** The file's size, and a speaker on the playing file. No tags or art. |
-| E2 | med | Everything in Dropbox is listed, including folders with no music, and a long folder has no way to jump or filter. | **Done.** A filter field, tucked away until the list is pulled down. |
+| E2 | med | Everything in Dropbox is listed, including folders with no music, and a long folder has no way to jump or filter. | **Done.** A filter field in folders of a dozen rows or more, always shown: one that hid on scroll made the folder jump under the now-playing card. |
 | E3 | med | Video `.mp4` files are listed and played as songs with a music note. | **Kept as is.** |
 | E4 | low | Long names wrap without limit in the browser (one took four lines) while Search and Recents cap at one. | **Done.** |
 | E5 | low | Local file hits in Search are in walk order. | **Done.** |

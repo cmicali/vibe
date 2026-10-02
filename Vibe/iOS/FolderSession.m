@@ -26,6 +26,9 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 // Every file and folder opened or added, newest first: path, bookmark, folder.
 static NSString *const kRecentItemsKey = @"VibeiOSRecentItems";
 static const NSUInteger kMaximumRecentItems = 50;
+// An open waits this long for Dropbox to list a folder before reading what
+// the disk has.
+static const NSTimeInterval kDropboxListingTimeout = 20;
 
 @interface FolderSession ()
 @end
@@ -178,6 +181,26 @@ static const NSUInteger kMaximumRecentItems = 50;
         return;
     }
     [self beginOpenURLs:urls appending:YES expandsFile:NO];
+}
+
+// Work queue. A Dropbox folder is listed from Dropbox before it is read: the
+// mirror holds only what something has listed, so a folder played or added
+// from its parent's listing, never browsed into, was empty on disk and the
+// open landed nothing. Bounded, so an open offline still reads the disk.
+- (void)listFromDropboxIfMirrored:(NSURL *)url {
+    NSString *dropboxPath = [DropboxMirror.shared dropboxPathForURL:url];
+    if (!dropboxPath) {
+        return;
+    }
+    dispatch_semaphore_t listed = dispatch_semaphore_create(0);
+    [DropboxMirror.shared refreshDropboxFolder:dropboxPath completion:^(NSURL *folderURL, NSError *error) {
+        if (error) {
+            LogWarn(@"FolderSession: could not list %@ from Dropbox: %@", url.lastPathComponent,
+                    error.localizedDescription);
+        }
+        dispatch_semaphore_signal(listed);
+    }];
+    dispatch_semaphore_wait(listed, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kDropboxListingTimeout * NSEC_PER_SEC)));
 }
 
 - (void)openURL:(NSURL *)url inFolder:(BOOL)inFolder {
@@ -679,6 +702,7 @@ static const NSUInteger kMaximumRecentItems = 50;
                 }
             }
             if (listable) {
+                [self listFromDropboxIfMirrored:parent];
                 if ([self appendFresh:[NSURLUtil rowsInDirectory:parent sortedBy:sort]
                                    to:tracks
                                  seen:seenKeys] > 0) {
@@ -701,6 +725,9 @@ static const NSUInteger kMaximumRecentItems = 50;
 
         // A URL that added nothing is not persisted: that prunes a redundant
         // addition.
+        if (isDir) {
+            [self listFromDropboxIfMirrored:url];
+        }
         NSArray<AudioTrack *> *produced = isDir ? [NSURLUtil rowsInDirectory:url sortedBy:sort]
                                                 : [NSURLUtil rowsForFile:url];
         if ([self appendFresh:produced to:tracks seen:seenKeys] == 0) {

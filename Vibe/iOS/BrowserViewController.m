@@ -60,6 +60,9 @@ static const NSUInteger kMaximumLiftedRows = 6;
 // one playlist. Whole folders are taken, so the count can run a little over.
 static const NSUInteger kMaximumSubfolderTracks = 2000;
 static const NSUInteger kMaximumSubfolders = 500;
+// A listing at least this long gets the filter field; a short one is read
+// at a glance and the field would only cost its height.
+static const NSUInteger kFilterThreshold = 12;
 // How long Open Folder keeps the file it came from highlighted.
 static const NSTimeInterval kHighlightInterval = 1.2;
 
@@ -141,6 +144,7 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
     UIBarButtonItem *_doneItem;
     UIBarButtonItem *_selectAllItem;
     UIBarButtonItem *_closeItem;
+    UISearchController *_filter;
 }
 
 - (instancetype)initWithPlayback:(PlaybackController *)playback
@@ -232,14 +236,18 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
                                                           style:UIBarButtonItemStylePlain
                                                          target:self
                                                          action:@selector(selectAllRows)];
-        // The filter field narrows this listing by name; tucked away until
-        // the list is pulled down.
-        UISearchController *filter = [[UISearchController alloc] initWithSearchResultsController:nil];
-        filter.searchResultsUpdater = self;
-        filter.obscuresBackgroundDuringPresentation = NO;
-        filter.searchBar.placeholder = STR_BROWSER_FILTER;
-        self.navigationItem.searchController = filter;
-        self.navigationItem.hidesSearchBarWhenScrolling = YES;
+        // The filter field narrows this listing by name, installed once the
+        // listing is long enough to need one (showFilterIfNeeded).
+        _filter = [[UISearchController alloc] initWithSearchResultsController:nil];
+        _filter.searchResultsUpdater = self;
+        _filter.obscuresBackgroundDuringPresentation = NO;
+        _filter.searchBar.placeholder = STR_BROWSER_FILTER;
+        // TRAP: always shown, never hidden on scroll. A search bar that
+        // collapses re-lays the bar out on the appearance callbacks the card's
+        // expand and dismiss forward by hand, and the folder jumped under the
+        // card. Stacked: iOS 26's integrated placement would put it in the
+        // bottom toolbar, where the tab bar and the strip are.
+        self.navigationItem.hidesSearchBarWhenScrolling = NO;
         self.navigationItem.preferredSearchBarPlacement = UINavigationItemSearchBarPlacementStacked;
         [self refreshBarItems];
         UIRefreshControl *refresh = [[UIRefreshControl alloc] init];
@@ -338,6 +346,7 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
             strongSelf->_allFiles = files;
             strongSelf->_placeholders = placeholders;
             strongSelf->_fileSizes = sizes;
+            [strongSelf showFilterIfNeeded];
             if (!strongSelf->_refreshing) {
                 [strongSelf.refreshControl endRefreshing];
             }
@@ -386,6 +395,14 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
 }
 
 #pragma mark - The filter field
+
+// Installed, never removed: a folder that shrinks below the threshold keeps
+// a field the user may be typing in.
+- (void)showFilterIfNeeded {
+    if (!self.navigationItem.searchController && _allFolders.count + _allFiles.count >= kFilterThreshold) {
+        self.navigationItem.searchController = _filter;
+    }
+}
 
 - (NSString *)filterText {
     return self.navigationItem.searchController.searchBar.text ?: @"";
