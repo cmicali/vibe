@@ -5,11 +5,18 @@
 
 #import <Foundation/Foundation.h>
 
+#include <sys/stat.h>
+
 #import "FolderOpenSort.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
 @class AudioTrack;
+
+// The remote placeholder's mode: see setRemotePlaceholdersEnabled:.
+static inline BOOL VibeFileModeIsRemotePlaceholder(mode_t mode) {
+    return S_ISREG(mode) && (mode & S_IRUSR) == 0;
+}
 
 // Asks the user to grant the folder a playlist file's entries live in, and
 // answers whether they did. Runs on an expansion worker and must block until
@@ -38,8 +45,22 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 // YES for a cloud placeholder whose data is not local. Reading one blocks
 // until the provider materializes it, so every background reader asks first.
 // One stat of SF_DATALESS, ~2us and materializing nothing; NO when the stat
-// fails, since unknown is not dataless.
+// fails, since unknown is not dataless. A remote placeholder (below) answers
+// YES too.
 + (BOOL)isDatalessFile:(NSURL *)url;
+
+// While a remote backend is installed (iOS: the Dropbox mirror, through
+// CloudFileMaterializer's setRemoteFetch:), a regular file its owner may not
+// read is a placeholder for a remote file: its stat — size, mtime, the cache
+// key — is the remote file's, and any direct open fails instead of reading
+// zeros. Off, as on the mac, an unreadable file is merely unreadable.
++ (void)setRemotePlaceholdersEnabled:(BOOL)enabled;
++ (BOOL)isRemotePlaceholderFile:(NSURL *)url;
+
+// Where a remote placeholder's bytes stream in until they replace it: a
+// hidden sibling, so no listing shows it, whose size is the transfer's
+// progress (DownloadProgressMonitor's poll reads it).
++ (NSURL *)remotePlaceholderPartURL:(NSURL *)url;
 
 // Expands folders and top-level playlist files to rows and filters to playable
 // extensions, on a four-wide queue; callers order overlapping results

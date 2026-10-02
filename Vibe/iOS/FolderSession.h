@@ -53,11 +53,7 @@ NS_ASSUME_NONNULL_BEGIN
 // persistent roots, never these.
 @property (nonatomic, readonly) NSArray<NSURL *> *searchRoots;
 
-// Multi-selection, always an Add; an Add onto a never-landed playlist is an
-// Open.
-- (void)presentPickerFromViewController:(UIViewController *)presenter;
-
-// URLs from outside the picker, in pick order. openInPlace NO means an inbox
+// URLs in pick order. openInPlace NO means an inbox
 // copy: no scope, never bookmarked, one track whatever it sits beside.
 - (void)openURLs:(NSArray<NSURL *> *)urls openInPlace:(BOOL)openInPlace;
 

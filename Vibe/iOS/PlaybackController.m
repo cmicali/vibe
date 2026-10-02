@@ -22,6 +22,7 @@
 #import "AudioTrackMetadataCache.h"
 #import "CloudTransferRegistry.h"
 #import "DownloadProgressMonitor.h"
+#import "DropboxMirror.h"
 #import "FavoritesStore.h"
 #import "PlayerDisplaySettings.h"
 #import "PlaybackDeliveryRules.h"
@@ -75,8 +76,29 @@ static const NSUInteger kUIUpdateHz = 3;
                                                selector:@selector(thumbnailDidLoad:)
                                                    name:AudioTrackMetadataThumbnailDidLoadNotification
                                                  object:nil];
+        [NSNotificationCenter.defaultCenter addObserver:self
+                                               selector:@selector(dropboxAccountDidChange:)
+                                                   name:VibeDropboxAccountDidChangeNotification
+                                                 object:DropboxMirror.shared.client];
     }
     return self;
+}
+
+// Signed out, or revoked on dropbox.com: the mirror is being deleted and its
+// placeholders can no longer download, so a playlist reaching into it goes
+// whole, as Clear Playlist does — never a row edit (AGENTS.md).
+- (void)dropboxAccountDidChange:(NSNotification *)notification {
+    DropboxMirror *mirror = DropboxMirror.shared;
+    if (mirror.client.isLinked) {
+        return;
+    }
+    for (AudioTrack *track in _playlist.tracks) {
+        if ([mirror containsURL:track.url]) {
+            LogInfo(@"Dropbox: account gone, clearing a playlist in its mirror");
+            [self clearPlaylist];
+            return;
+        }
+    }
 }
 
 - (void)dealloc {
@@ -667,10 +689,6 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 
 #pragma mark - Opening
 
-- (void)presentPickerFromViewController:(UIViewController *)presenter {
-    [_folderSession presentPickerFromViewController:presenter];
-}
-
 // One URL: a share can mix in-place URLs with inbox copies, which open
 // differently. Filename order is deterministic, unlike anyObject, and a covering
 // grant pulls the siblings in anyway.
@@ -716,10 +734,18 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 
 // The only composition of the search scope: transient roots, then persistent
 // ones. FileSearchIndex prunes the nesting.
+// Never a Dropbox folder: the search screen's Dropbox section asks Dropbox,
+// and a walk of the mirror would offer the same file twice from the folders
+// already browsed.
 - (NSArray<NSURL *> *)searchRoots {
-    return [[_folderSession.searchRoots
+    NSArray<NSURL *> *roots = [[_folderSession.searchRoots
             arrayByAddingObjectsFromArray:SearchFolderStore.shared.searchRoots]
             arrayByAddingObjectsFromArray:FavoritesStore.shared.searchRoots];
+    DropboxMirror *mirror = DropboxMirror.shared;
+    return [roots filteredArrayUsingPredicate:
+            [NSPredicate predicateWithBlock:^BOOL(NSURL *root, NSDictionary *bindings) {
+        return ![mirror containsURL:root];
+    }]];
 }
 
 - (void)openSearchResultURL:(NSURL *)url {

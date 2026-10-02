@@ -179,10 +179,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - Opening
 
-// The document picker: multi-selection, appending. The Playlist tab's plus is
-// the one caller.
-- (void)presentPickerFromViewController:(UIViewController *)presenter;
-
 // "Open in Vibe" from Files or the share sheet.
 - (void)handleOpenURLContexts:(NSSet<UIOpenURLContext *> *)contexts;
 

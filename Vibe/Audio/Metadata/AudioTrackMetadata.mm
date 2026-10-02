@@ -8,6 +8,8 @@
 #import "AudioFileHandle.h"
 #import "AudioTrack.h"
 #import "AudioTrackArtworkInternal.h"
+#import "CloudFileMaterializer.h"
+#import "NSURLUtil.h"
 #import "PlatformImage.h"
 #import "NSString+CPPStrings.h"
 #import "MusicalKey.h"
@@ -19,7 +21,11 @@
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #include <exception>
+#include <map>
 #include <memory>
+#include <stdexcept>
+#include <string>
+#include <sys/stat.h>
 #include <tfilestream.h>
 #include <tpropertymap.h>
 #include <mpegfile.h>
@@ -58,6 +64,117 @@ public:
 
 #endif
 
+// A remote placeholder read by range (CloudFileMaterializer.remoteRead): the
+// parse fetches only what TagLib reads — the head's tags, a frame header, a
+// trailer — so a folder's tags cost kilobytes per file, not the files.
+// Fetched in aligned blocks, one request per run of missing blocks, cached for
+// the stream's life. TRAP: a failed fetch THROWS, and loadFromURL:'s barrier
+// turns that into a failed parse; returning short would let TagLib build a
+// tag from bytes that were never read.
+class VibeRangedStream : public TagLib::IOStream {
+public:
+    VibeRangedStream(NSURL *url, CloudFileRemoteRead read, TagLib::offset_t length)
+        : _url(url), _read(read), _length(length), _name(url.path.UTF8String ?: "") {}
+
+    ~VibeRangedStream() override {
+        if (_requests > 0) {
+            LogInfo(@"Remote tag read %@: %u requests, %llu KB",
+                    _url.lastPathComponent, _requests, _bytesFetched / 1024);
+        }
+    }
+
+    TagLib::FileName name() const override { return _name.c_str(); }
+
+    TagLib::ByteVector readBlock(size_t length) override {
+        if (_position >= _length || length == 0) {
+            return TagLib::ByteVector();
+        }
+        length = (size_t)MIN((TagLib::offset_t)length, _length - _position);
+        fetchRange(_position, length);
+        TagLib::ByteVector result;
+        result.resize((unsigned int)length);
+        TagLib::offset_t at = _position;
+        size_t filled = 0;
+        while (filled < length) {
+            TagLib::offset_t block = at / kBlockSize;
+            const TagLib::ByteVector &bytes = _blocks.at(block);
+            size_t within = (size_t)(at - block * kBlockSize);
+            size_t take = MIN(length - filled, (size_t)bytes.size() - within);
+            ::memcpy(result.data() + filled, bytes.data() + within, take);
+            filled += take;
+            at += take;
+        }
+        _position += length;
+        return result;
+    }
+
+    void writeBlock(const TagLib::ByteVector &) override {}
+    void insert(const TagLib::ByteVector &, TagLib::offset_t, size_t) override {}
+    void removeBlock(TagLib::offset_t, size_t) override {}
+    bool readOnly() const override { return true; }
+    bool isOpen() const override { return true; }
+
+    void seek(TagLib::offset_t offset, Position p) override {
+        TagLib::offset_t base = p == Beginning ? 0 : (p == Current ? _position : _length);
+        _position = MAX((TagLib::offset_t)0, base + offset);
+    }
+
+    TagLib::offset_t tell() const override { return _position; }
+    TagLib::offset_t length() override { return _length; }
+    void truncate(TagLib::offset_t) override {}
+
+private:
+    static constexpr TagLib::offset_t kBlockSize = 64 * 1024;
+
+    // One request from the first missing block to the last, so a tag read
+    // in one readBlock is one round trip.
+    void fetchRange(TagLib::offset_t start, size_t length) {
+        TagLib::offset_t first = start / kBlockSize;
+        TagLib::offset_t last = (start + (TagLib::offset_t)length - 1) / kBlockSize;
+        while (first <= last && _blocks.count(first)) first++;
+        while (last >= first && _blocks.count(last)) last--;
+        if (first > last) {
+            return;
+        }
+        TagLib::offset_t from = first * kBlockSize;
+        TagLib::offset_t to = MIN((last + 1) * kBlockSize, _length);
+        NSError *error = nil;
+        NSData *data = _read(_url, (uint64_t)from, (uint64_t)(to - from), &error);
+        _requests++;
+        if (!data || (TagLib::offset_t)data.length < to - from) {
+            throw std::runtime_error(std::string("remote read failed: ")
+                    + (error.localizedDescription.UTF8String ?: "short read"));
+        }
+        _bytesFetched += data.length;
+        for (TagLib::offset_t block = first; block <= last; block++) {
+            TagLib::offset_t at = block * kBlockSize - from;
+            TagLib::offset_t size = MIN(kBlockSize, to - block * kBlockSize);
+            _blocks[block] = TagLib::ByteVector((const char *)data.bytes + at, (unsigned int)size);
+        }
+    }
+
+    NSURL *_url;
+    CloudFileRemoteRead _read;
+    TagLib::offset_t _length;
+    std::string _name;
+    TagLib::offset_t _position = 0;
+    std::map<TagLib::offset_t, TagLib::ByteVector> _blocks;
+    unsigned _requests = 0;
+    uint64_t _bytesFetched = 0;
+};
+
+// The stream a parse reads: the file, or its remote bytes by range when it
+// is a remote placeholder and a backend can read one.
+static std::unique_ptr<TagLib::IOStream> VibeOpenTagStream(const char *path) {
+    NSURL *url = [NSURL fileURLWithPath:@(path)];
+    CloudFileRemoteRead read = CloudFileMaterializer.remoteRead;
+    struct stat st;
+    if (read && [NSURLUtil isRemotePlaceholderFile:url] && stat(path, &st) == 0) {
+        return std::make_unique<VibeRangedStream>(url, read, (TagLib::offset_t)st.st_size);
+    }
+    return std::make_unique<TagLib::FileStream>(path, true);
+}
+
 // Replaces TagLib::FileRef, whose detection links every parser in the
 // library. Same order: extension, isValid(), then magic bytes. Without
 // readProperties no audio properties are parsed, which the art read never
@@ -65,7 +182,7 @@ public:
 class TagLibAudioFile {
 public:
     explicit TagLibAudioFile(const char *path, bool readProperties = true)
-        : _stream(std::make_unique<TagLib::FileStream>(path, true)) {
+        : _stream(VibeOpenTagStream(path)) {
         warmUpSharedFactories();
         if (!_stream->isOpen()) {
             return;
@@ -151,7 +268,7 @@ private:
         return nullptr;
     }
 
-    std::unique_ptr<TagLib::FileStream> _stream; // declared first: must outlive _file
+    std::unique_ptr<TagLib::IOStream> _stream; // declared first: must outlive _file
     std::unique_ptr<TagLib::File> _file;
 };
 

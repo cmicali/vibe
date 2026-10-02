@@ -640,10 +640,16 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 // Not hideLoadingIndicator: the waveform decode may still be streaming. The
 // download fill is cleared here because showWaveform: leaves it alone (a
 // cached waveform can arrive mid-download).
+//
+// Asked again because a remote placeholder (the Dropbox mirror) refuses the
+// decode outright until its bytes land, where a provider's placeholder blocked
+// it into a download: the request made on the cursor's move failed, and only
+// this one sees the file local. A page still loading or complete ignores it.
 - (void)playbackDidFinishLoading:(PlaybackController *)playback {
     TrackPageCell *cell = [self cellAtIndex:playback.currentIndex];
     [cell.waveformView setLoadingProgress:-1];
     [self hydrateWaveformInCell:cell atIndex:playback.currentIndex];
+    [self requestWaveformForIndex:playback.currentIndex];
 }
 
 - (void)playbackDidFailCurrentTrack:(PlaybackController *)playback {

@@ -9,7 +9,19 @@
 #import "CloudFileMaterializer+Debug.h"
 #endif
 
+#include <errno.h>
 #include <os/lock.h>
+
+static os_unfair_lock sRemoteFetchLock = OS_UNFAIR_LOCK_INIT;
+static CloudFileRemoteFetch sRemoteFetch;
+static CloudFileRemoteRead sRemoteRead;
+
+static CloudFileRemoteFetch VibeRemoteFetch(void) {
+    os_unfair_lock_lock(&sRemoteFetchLock);
+    CloudFileRemoteFetch fetch = sRemoteFetch;
+    os_unfair_lock_unlock(&sRemoteFetchLock);
+    return fetch;
+}
 
 #if DEBUG
 // TRAP: written by the debug channel on main, read on download workers. An
@@ -51,6 +63,7 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
     CloudFileMaterializationToken *_token;
     // What -cancel, callable from any thread, reaches.
     NSFileCoordinator *_coordinator;
+    dispatch_block_t _remoteCancel;
 #if DEBUG
     // The fake transfer's waiter, signalled by -cancel.
     dispatch_semaphore_t _fakeWait;
@@ -74,6 +87,8 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
     oldToken.cancelled = YES;
     NSFileCoordinator *oldCoordinator = _coordinator;
     _coordinator = nil;
+    dispatch_block_t oldRemoteCancel = _remoteCancel;
+    _remoteCancel = nil;
 #if DEBUG
     dispatch_semaphore_t oldFakeWait = _fakeWait;
     _fakeWait = nil;
@@ -82,6 +97,9 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
     os_unfair_lock_unlock(&_lock);
 
     [oldCoordinator cancel];
+    if (oldRemoteCancel) {
+        oldRemoteCancel();
+    }
 #if DEBUG
     if (oldFakeWait) {
         dispatch_semaphore_signal(oldFakeWait);
@@ -92,6 +110,26 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
 
 static NSError *VibeMaterializationCancelledError(void) {
     return [NSError errorWithDomain:NSCocoaErrorDomain code:NSUserCancelledError userInfo:nil];
+}
+
++ (void)setRemoteRead:(CloudFileRemoteRead)read {
+    os_unfair_lock_lock(&sRemoteFetchLock);
+    sRemoteRead = [read copy];
+    os_unfair_lock_unlock(&sRemoteFetchLock);
+}
+
++ (CloudFileRemoteRead)remoteRead {
+    os_unfair_lock_lock(&sRemoteFetchLock);
+    CloudFileRemoteRead read = sRemoteRead;
+    os_unfair_lock_unlock(&sRemoteFetchLock);
+    return read;
+}
+
++ (void)setRemoteFetch:(CloudFileRemoteFetch)fetch {
+    os_unfair_lock_lock(&sRemoteFetchLock);
+    sRemoteFetch = [fetch copy];
+    os_unfair_lock_unlock(&sRemoteFetchLock);
+    [NSURLUtil setRemotePlaceholdersEnabled:fetch != nil];
 }
 
 // A cancel that wins this lock fails the call; a later one finds no work.
@@ -222,6 +260,10 @@ static NSError *VibeMaterializationCancelledError(void) {
         return current;
     }
 
+    if ([NSURLUtil isRemotePlaceholderFile:url]) {
+        return [self fetchRemoteURL:url token:token error:error];
+    }
+
     // Fresh per download: cancelling poisons a coordinator for good.
     NSFileCoordinator *coordinator = [[NSFileCoordinator alloc] initWithFilePresenter:nil];
     os_unfair_lock_lock(&_lock);
@@ -266,18 +308,70 @@ static NSError *VibeMaterializationCancelledError(void) {
     return materialized;
 }
 
+- (BOOL)fetchRemoteURL:(NSURL *)url
+                 token:(CloudFileMaterializationToken *)token
+                 error:(NSError *__autoreleasing *)error {
+    CloudFileRemoteFetch fetch = VibeRemoteFetch();
+    os_unfair_lock_lock(&_lock);
+    BOOL current = (_token == token && !token.isCancelled);
+    os_unfair_lock_unlock(&_lock);
+    if (!current || !fetch) {
+        if (error) {
+            *error = current ? [NSError errorWithDomain:NSPOSIXErrorDomain code:EACCES userInfo:nil]
+                             : VibeMaterializationCancelledError();
+        }
+        return NO;
+    }
+
+    __weak CloudFileMaterializer *weakSelf = self;
+    NSError *fetchError = nil;
+    BOOL fetched = fetch(url, ^(dispatch_block_t cancel) {
+        CloudFileMaterializer *strongSelf = weakSelf;
+        BOOL live = NO;
+        if (strongSelf) {
+            os_unfair_lock_lock(&strongSelf->_lock);
+            live = (strongSelf->_token == token && !token.isCancelled);
+            if (live) {
+                strongSelf->_remoteCancel = [cancel copy];
+            }
+            os_unfair_lock_unlock(&strongSelf->_lock);
+        }
+        if (!live) {
+            cancel();
+        }
+    }, &fetchError);
+
+    os_unfair_lock_lock(&_lock);
+    BOOL cancelled = token.isCancelled;
+    if (_token == token) {
+        _token = nil;
+        _remoteCancel = nil;
+    }
+    os_unfair_lock_unlock(&_lock);
+
+    if (!fetched && error) {
+        *error = cancelled ? VibeMaterializationCancelledError() : fetchError;
+    }
+    return fetched && !cancelled;
+}
+
 - (void)cancel {
     os_unfair_lock_lock(&_lock);
     _token.cancelled = YES;
     _token = nil;
     NSFileCoordinator *coordinator = _coordinator;
     _coordinator = nil;
+    dispatch_block_t remoteCancel = _remoteCancel;
+    _remoteCancel = nil;
 #if DEBUG
     dispatch_semaphore_t fakeWait = _fakeWait;
     _fakeWait = nil;
 #endif
     os_unfair_lock_unlock(&_lock);
     [coordinator cancel];
+    if (remoteCancel) {
+        remoteCancel();
+    }
 #if DEBUG
     if (fakeWait) {
         dispatch_semaphore_signal(fakeWait);

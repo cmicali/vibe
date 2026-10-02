@@ -12,6 +12,10 @@
 #import "DebugWireFormat.h"
 #import "DebugCommandDispatch.h"
 #import "DebugCommonVerbs.h"
+#import "AudioTrack.h"
+#import "DropboxMirror.h"
+#import "NSURLUtil.h"
+#import "Playlist.h"
 #import "FavoritesStore.h"
 #import "AppSettings.h"
 #import "PlaybackController.h"
@@ -230,6 +234,28 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // plain bookmark, and the next launch restores it unless it no
             // longer resolves. A test removes what it added; dump_search after
             // a relaunch shows whether it came back.
+            // The Dropbox account and its mirror. The sign-in is Dropbox's own
+            // web sheet, which neither the channel nor the driver can fill;
+            // a human signs in, and this reads the result.
+            VibeDebugCmd(@"dump_dropbox", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                DropboxMirror *mirror = DropboxMirror.shared;
+                NSMutableDictionary *reply = [NSMutableDictionary dictionary];
+                reply[@"linked"] = @(mirror.client.isLinked);
+                reply[@"accountID"] = mirror.client.accountID ?: NSNull.null;
+                reply[@"accountName"] = mirror.client.accountName ?: NSNull.null;
+                reply[@"accountPath"] = mirror.accountURL.path ?: NSNull.null;
+                NSMutableArray *playlistInMirror = [NSMutableArray array];
+                for (AudioTrack *track in controller.playback.playlist.tracks) {
+                    if ([mirror containsURL:track.url]) {
+                        [playlistInMirror addObject:@{
+                            @"dropboxPath": [mirror dropboxPathForURL:track.url] ?: NSNull.null,
+                            @"placeholder": @([NSURLUtil isRemotePlaceholderFile:track.url]),
+                        }];
+                    }
+                }
+                reply[@"playlistTracks"] = playlistInMirror;
+                return VibeJSONString(reply);
+            }),
             VibeDebugCmd(@"dump_search", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 return VibeJSONString(VibeSearchScopeDictionary(controller));
             }),

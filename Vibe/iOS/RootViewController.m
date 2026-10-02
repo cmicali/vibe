@@ -8,7 +8,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "FavoritesViewController.h"
-#import "FilesViewController.h"
+#import "BrowserViewController.h"
 #import "LibraryViewController.h"
 #import "MiniPlayerView.h"
 #import "PlaybackController.h"
@@ -27,10 +27,6 @@ static const CGFloat kBackdropCornerRadius = 38;
 static const CGFloat kDismissTravelFraction = 0.25;
 static const CGFloat kDismissFlickVelocity = 900;
 
-// UIKit's 8pt gap between floating capsules plus the ~12.7pt the browser's bar
-// draws past its own safe-area bottom. See applyFilesBottomInset.
-static const CGFloat kFilesBarClearance = 21;
-
 static NSString *const kTabPlaylist = @"playlist";
 static NSString *const kTabFavorites = @"favorites";
 static NSString *const kTabFiles = @"files";
@@ -43,7 +39,7 @@ static NSString *const kTabSearch = @"search";
 @implementation RootViewController {
     PlaybackController   *_playback;
     UITabBarController   *_tabs;
-    FilesViewController  *_filesController;
+    BrowserViewController *_filesController;
     FavoritesViewController *_favorites;
     LibraryViewController *_library;
     SearchViewController *_searchController;
@@ -158,7 +154,6 @@ static NSString *const kTabSearch = @"search";
         return [[UINavigationController alloc] initWithRootViewController:starred];
     }];
 
-    // No navigation controller: the browser brings its own bar.
     UITab *files = [[UITab alloc] initWithTitle:STR_TAB_FILES
                                           image:[UIImage systemImageNamed:@"folder"]
                                      identifier:kTabFiles
@@ -167,11 +162,11 @@ static NSString *const kTabSearch = @"search";
         if (!root) {
             return nil;
         }
-        FilesViewController *browser =
-                [[FilesViewController alloc] initWithPlayback:root->_playback];
+        BrowserViewController *browser = [[BrowserViewController alloc] initWithPlayback:root->_playback
+                                                                            directoryURL:nil
+                                                                               appending:NO];
         root->_filesController = browser;
-        [root applyFilesBottomInset];
-        return browser;
+        return [[UINavigationController alloc] initWithRootViewController:browser];
     }];
 
     UISearchTab *search = [[UISearchTab alloc] initWithViewControllerProvider:
@@ -340,30 +335,6 @@ static NSString *const kTabSearch = @"search";
             ? [[UITabAccessory alloc] initWithContentView:_miniPlayer]
             : nil;
     [_tabs setBottomAccessory:accessory animated:!UIAccessibilityIsReduceMotionEnabled()];
-}
-
-// The browser draws its own bottom bar as a floating capsule against its safe
-// area, which ends at the top of our lowest capsule, so the two collide.
-//
-// TRAP: do NOT add the accessory's height. The tab-child safe area already
-// spans the strip; adding it leaves a strip-high dead band. One constant lands
-// the same gap with the strip up or down.
-//
-// TRAP: the browser's bar overhangs its safe area by ~12.7pt (iOS 26.5), so
-// the 8pt gap alone leaves the capsules touching. Re-measure after an iOS
-// update: dump_view_tree anchors, and a screenshot column scan must show a
-// break between the browser's bar and the capsule below.
-- (void)applyFilesBottomInset {
-    UIViewController *files = _filesController;
-    if (!files) {
-        return;   // Files not built yet
-    }
-    UIEdgeInsets insets = files.additionalSafeAreaInsets;
-    if (fabs(insets.bottom - kFilesBarClearance) < 0.5) {
-        return;
-    }
-    insets.bottom = kFilesBarClearance;
-    files.additionalSafeAreaInsets = insets;
 }
 
 #pragma mark - Expanding and minimizing

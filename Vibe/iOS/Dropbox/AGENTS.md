@@ -1,0 +1,37 @@
+# Dropbox (iOS)
+
+Dropbox through its HTTP API, not its Files provider: the provider lists a folder only once Dropbox has, so search and browsing came back empty or stalled. No SDK — six endpoints over `NSURLSession`, all Objective-C. The shell is `../AGENTS.md`; the materialization backend it plugs into is `System/AGENTS.md`'s remote fetch.
+
+| File | Owns |
+| --- | --- |
+| `DropboxClient` | the account: PKCE sign-in in `ASWebAuthenticationSession`, the refresh token in the Keychain, the access token in memory, the JSON call and the streamed download, each refreshing an expired token once and retrying a throttled request |
+| `DropboxMirror` | the account as local files: listing reconciliation, placeholders, the fetch, search, the download budget |
+| `DropboxRules.h` | the decisions with no network or disk: PKCE, the wire encodings, entry reading, the version check, the index key. Tested |
+
+Both classes are Foundation-only and compiled into the macOS `VibeTests`, which drive them over a stubbed `NSURLProtocol` and a temp root (`DropboxMirrorTests`).
+
+## The account
+
+**The app key is `VibeDropboxAppKey` in the generated Info.plist** (`project.yml`), and it is not a secret: PKCE needs none, and the `db-<key>://2/token` redirect is a scheme Dropbox grants every app without registration, so neither the App Console nor Info.plist names it. Scopes: `account_info.read files.metadata.read files.content.read`. The account must be a **Full Dropbox** app; an App folder one sees nothing.
+
+**The refresh token is one Keychain item, `AfterFirstUnlockThisDeviceOnly`**: a refresh must work under the lock screen while background playback downloads the next track, and a restored backup on another phone signs in again. Before first unlock the item reads as no account — which is why nothing is deleted at launch, only on a real account change.
+
+**TRAP: the default simulator build cannot reach the Keychain.** It is unsigned, so every `SecItem` call answers `-34018` (`errSecMissingEntitlement`): the sign-in works for the session, the refresh token is never saved, and the next launch is signed out. Build with `VIBE_SIGN_SIM=1` to test anything across a relaunch (the vibe-debug skill). A device build is always signed.
+
+**A scope the app lacks answers 400 with plain text, not JSON**, naming the scope; the client logs that body, and a sign-in logs the scopes it was granted. A scope enabled in the App Console reaches only grants made after it — sign in again.
+
+**One refresh is in flight at a time** — the refresh claim: every caller arriving during it is a waiter on that one. `_accountGeneration` moves on every sign-in and sign-out, so a refresh or a 401 that belongs to the previous account can neither restore nor unlink the current one. A 401 `expired_access_token` refreshes once and retries; any other 401, and a refresh answered 400 (`invalid_grant`: revoked on dropbox.com), unlinks. Unlinking posts `VibeDropboxAccountDidChangeNotification`, on which the mirror prunes every other account's directory and `PlaybackController` clears a playlist reaching into the mirror — whole, as Clear Playlist does, never a row edit.
+
+## The mirror
+
+`Library/Application Support/Dropbox/<account id>/`, excluded from backup and outside Documents, so the Files app never shows it. **Lazy: a Dropbox folder exists here only once something listed it** — the browser on every visit, a search hit's parent before it opens. There is no full sync and no index of the account; search is Dropbox's.
+
+- **A placeholder is a sparse file of the remote size and `server_modified` with no permissions** (`NSURLUtil`'s remote placeholder): the real stat, and a direct open fails rather than reading zeros. It is written whole and renamed into place, as are downloaded bytes, so no reader ever sees one half made. **Size plus mtime is the version**: Dropbox moves `server_modified` on every upload, and downloaded bytes take the mtime from their own response's `Dropbox-API-Result`, so the next listing sees them as current. A version that differs goes back to a placeholder; a departed entry is deleted.
+- **Only playable audio and `.cue` sheets are mirrored**, and a sheet is downloaded during the listing, since `rowsForWalk:` reads it while the folder opens.
+- **TRAP: a name read back from disk is never sent as a Dropbox path.** A file URL's path comes back decomposed (NFD) whatever was written, while Dropbox keeps names as uploaded, usually composed, so a derived path misses every accented file. Each directory carries an xattr index — its own Dropbox path and each file's Dropbox `id`, keyed by `VibeDropboxIndexKey` — on the directory, because a placeholder's attributes are as unreadable as its bytes. A download goes by `id:…`, which also survives a rename; a relisting goes by the directory's recorded path.
+- **TRAP: only the last component of a `path_display` is guaranteed its case**, so a component is matched case-insensitively against what is on disk (`VibeDropboxLocalName`) before one is made: two spellings of one folder land in one directory.
+- **The fetch streams into a hidden part file** (`NSURLUtil remotePlaceholderPartURL:`), whose size the progress poll reads, so a Dropbox row's loading bar is a real percentage — what the provider never gave on iOS.
+- **Tags are read by range, never by download** (`readPlaceholderAtURL:…`, installed as `CloudFileMaterializer.remoteRead`): the metadata scan parses a placeholder through TagLib reading `files/download` with a `Range` header, about three requests and 230–360 KB per file with its artwork, measured on a 954-track folder. A read past 30 s is given up and the parse fails, to be retried by a later scan. Only playing, and the prefetch of what plays next, downloads a whole file.
+- **Past a 10 GB download budget the oldest downloads go back to placeholders**, oldest first by download time, never the file just fetched. Size and mtime are kept, so the cached tags and waveform still match when it comes back. A player still reading an evicted file keeps its open descriptor. Settings › Files' Remove Downloads does the same to all of them.
+
+Opens are the shell's ordinary roads: a mirror directory is an app-container URL with no security scope, which `FolderSession` treats as a root every open covers, so a file opened alone becomes its folder with it selected, bookmarks persist, and a relaunch restores from the placeholders offline. `dump_dropbox` reads the account and which playlist tracks are placeholders; the sign-in itself is Dropbox's web sheet, which only a human fills.

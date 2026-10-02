@@ -66,6 +66,8 @@ Its sole production caller is `AudioFileMaterializationCoordinator` in `Vibe/Aud
 
 `Vibe/Debug/VibeFakeCloud` drives it with a fake transfer provider, so the cloud paths can be exercised without a real provider.
 
+**A second backend: the remote fetch.** A shell that keeps its own placeholders installs one block at launch, `setRemoteFetch:` (iOS: the Dropbox mirror, `iOS/Dropbox/AGENTS.md`), which also turns on `NSURLUtil`'s remote placeholder rule, so the dataless verdict and the backend that answers it cannot disagree. `materializeURL:` sends a remote placeholder there instead of to `NSFileCoordinator`; the block blocks the worker until the bytes have replaced the placeholder, and hands back a cancel block through `onCancel` that `-cancel` runs from any thread (at once, if the cancel came first). **Unlike the provider path, this cancel stops the transfer**, not just the wait. Everything above it — the claim, the lanes, the foreground hold, the loading bar — is unchanged, because it keys off the dataless verdict alone. **Its companion, `remoteRead`, reads a placeholder's bytes by range** for the tag parse (`Audio/Metadata/AGENTS.md`), so opening a folder costs its tags, not its files. The mac installs nothing, and there an unreadable file is merely unreadable.
+
 ## Why the monitor and the materializer are not merged
 
 They look like one thing and are opposites in the two ways that matter: the monitor **observes and must never trigger** a download and is main-thread only, while the materializer **causes** one, can abort it, and must never run on main. Merging them would put "never triggers" and "triggers" behind one name. The overlap that is real — *is this file here yet* — already lives in one place, `NSURLUtil.isDatalessFile:`.

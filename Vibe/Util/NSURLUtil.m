@@ -15,12 +15,14 @@
 
 #include <errno.h>
 #include <limits.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#if DEBUG
-#include <stdatomic.h>
-#endif
+
+// Set once at launch, before anything is read; an atomic only so the stat
+// path pays one relaxed load.
+static _Atomic(BOOL) sRemotePlaceholdersEnabled;
 
 // Installed at launch, read from the expansion workers: every access locks.
 static VibePlaylistFolderGrantHandler sPlaylistFolderGrantHandler;
@@ -97,6 +99,23 @@ static VibeBulkOpenDirectoriesHandler BulkOpenDirectoriesHandler(void) {
     }
 }
 
++ (void)setRemotePlaceholdersEnabled:(BOOL)enabled {
+    atomic_store_explicit(&sRemotePlaceholdersEnabled, enabled, memory_order_relaxed);
+}
+
++ (BOOL)isRemotePlaceholderFile:(NSURL *)url {
+    if (!atomic_load_explicit(&sRemotePlaceholdersEnabled, memory_order_relaxed)) {
+        return NO;
+    }
+    struct stat st;
+    return stat(url.fileSystemRepresentation, &st) == 0 && VibeFileModeIsRemotePlaceholder(st.st_mode);
+}
+
++ (NSURL *)remotePlaceholderPartURL:(NSURL *)url {
+    NSString *name = [NSString stringWithFormat:@".%@.vibe-download", url.lastPathComponent];
+    return [url.URLByDeletingLastPathComponent URLByAppendingPathComponent:name isDirectory:NO];
+}
+
 #if DEBUG
 + (void)setDatalessProbe:(VibeDatalessProbe)probe {
     @synchronized (self) {
@@ -130,7 +149,9 @@ static VibeBulkOpenDirectoriesHandler BulkOpenDirectoriesHandler(void) {
 #endif
         return NO;
     }
-    BOOL dataless = (st.st_flags & SF_DATALESS) != 0;
+    BOOL dataless = (st.st_flags & SF_DATALESS) != 0
+            || (atomic_load_explicit(&sRemotePlaceholdersEnabled, memory_order_relaxed)
+                && VibeFileModeIsRemotePlaceholder(st.st_mode));
 #if DEBUG
     if (atomic_load_explicit(&sDatalessDiagEnabled, memory_order_relaxed)) {
         VibeRecordDatalessStat(url, dataless, st.st_flags, NO);

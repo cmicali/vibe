@@ -7,12 +7,11 @@
 #import "AppSettings.h"
 #import "AppStats.h"
 #import "AudioTrack.h"
-#import "DocumentTypes.h"
+#import "DropboxMirror.h"
 #import "FavoritesStore.h"
 #import "FileSearchRules.h"
 #import "NSURLUtil.h"
 #import "SearchFolderStoreInternal.h"
-#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <stdatomic.h>
 
 // iOS app-layer state, so not AppSettings.
@@ -25,7 +24,7 @@ static NSString *const kLastTrackPathKey = @"VibeiOSLastTrackFileName";
 // head-of-line every other bookmark.
 static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 
-@interface FolderSession () <UIDocumentPickerDelegate>
+@interface FolderSession ()
 @end
 
 @implementation FolderSession {
@@ -123,24 +122,6 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         }
     }
     return nil;
-}
-
-#pragma mark - Picker
-
-- (void)presentPickerFromViewController:(UIViewController *)presenter {
-    NSArray<UTType *> *types = [@[UTTypeFolder] arrayByAddingObjectsFromArray:DocumentTypes.declaredFileTypes];
-    UIDocumentPickerViewController *picker =
-        [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:types asCopy:NO];
-    // The app's only multi-select road: the browser's stays off
-    // (FilesViewController).
-    picker.allowsMultipleSelection = YES;
-    picker.delegate = self;
-    [presenter presentViewController:picker animated:YES completion:nil];
-}
-
-- (void)documentPicker:(UIDocumentPickerViewController *)controller
-        didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
-    [self addURLs:urls];
 }
 
 #pragma mark - External opens
@@ -463,6 +444,15 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     NSMutableArray<NSString *> *coveringRootPaths = [NSMutableArray array];
     for (NSURL *folder in self.searchRoots) {
         [coveringRootPaths addObject:folder.URLByStandardizingPath.path ?: @""];
+    }
+    // The app's own trees need no grant, so a file picked in one always
+    // reaches its folder: Documents, and the Dropbox mirror.
+    NSURL *documents = SearchFolderStore.containerDocumentsURL;
+    NSURL *dropbox = DropboxMirror.shared.accountURL;
+    for (NSURL *own in @[documents ?: NSNull.null, dropbox ?: NSNull.null]) {
+        if ([own isKindOfClass:NSURL.class]) {
+            [coveringRootPaths addObject:own.URLByStandardizingPath.path ?: @""];
+        }
     }
     NSMutableArray<NSURL *> *holds = [NSMutableArray array];
     NSMutableArray<SearchFolderGrant *> *grants = [NSMutableArray array];

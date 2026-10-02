@@ -4,6 +4,7 @@
 //
 
 #import "DownloadProgressSourceAdaptersInternal.h"
+#import "NSURLUtil.h"
 
 #include <errno.h>
 #include <sys/stat.h>
@@ -72,6 +73,14 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
         BOOL dataless = (st.st_flags & SF_DATALESS) != 0;
         long long logical = (long long)st.st_size;
         long long allocated = (long long)st.st_blocks * 512;
+        // A remote placeholder holds no blocks until its bytes replace it in
+        // one rename; until then they stream into its part file.
+        if (VibeFileModeIsRemotePlaceholder(st.st_mode)) {
+            struct stat part;
+            dataless = YES;
+            allocated = stat([NSURLUtil remotePlaceholderPartURL:url].fileSystemRepresentation, &part) == 0
+                    ? (long long)part.st_size : 0;
+        }
         if (firstTick) {
             firstTick = NO;
             LogInfo(@"Download progress: first poll %@ — size=%lld allocated=%lld dataless=%d flags=0x%x status=%@",

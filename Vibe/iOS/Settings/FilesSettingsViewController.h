@@ -2,9 +2,10 @@
 //  FilesSettingsViewController.h
 //  Vibe (iOS)
 //
-//  Settings > Files: the folder-open order (AppSettings.folderOpenSort, which
-//  governs the NEXT open, so a write notifies nobody) and the folders the app
-//  may SEARCH (SearchFolderStore, which owns the grants and its notification).
+//  Settings > Files: the Dropbox account (connect, and disconnect, which
+//  forgets its downloads) and the folder-open order (AppSettings.folderOpenSort,
+//  which governs the NEXT open, so a write notifies nobody). The folders the
+//  app may read are the Files tab's Locations.
 //
 
 #import <UIKit/UIKit.h>

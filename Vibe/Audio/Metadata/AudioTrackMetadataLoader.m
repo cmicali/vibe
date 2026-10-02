@@ -6,6 +6,7 @@
 #import "AudioTrackMetadataLoaderInternal.h"
 #import "AudioTrackMetadataCacheInternal.h"
 #import "AudioFileMaterializationCoordinator.h"
+#import "CloudFileMaterializer.h"
 #import "AudioLoadingConfiguration.h"
 #import "PINCache.h"
 #import "AudioTrack.h"
@@ -792,6 +793,20 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         if (!shouldSubmit) {
             return;
         }
+        // A remote placeholder's tags are read by range (AudioTrackMetadata's
+        // VibeRangedStream), so it takes no claim: one would download the
+        // whole file for a few hundred KB of tags. Ready at once, with no
+        // token — the slot holds none yet, so the completion's match passes.
+        // The foreground hold above still applied: it is a network read.
+        if (CloudFileMaterializer.remoteRead && [NSURLUtil isRemotePlaceholderFile:entry.url]) {
+            [strongSelf completeMaterializationForEntry:entry
+                                               priority:priority
+                                                  token:nil
+                                                 result:VibeAudioFileMaterializationResultReady
+                                                  error:nil
+                                                elapsed:0];
+            return;
+        }
         LogInfo(@"Metadata %@ materializing %@ (%lu pending behind it)",
                 priority ? @"priority" : @"scan",
                 entry.url.lastPathComponent, (unsigned long)stillPending);
@@ -863,11 +878,15 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     AudioFileMaterializationRequestToken *slotToken =
             priority ? _priorityMaterializationToken : _scanMaterializationToken;
     if (slotToken != token) {
-        [_liveMaterializationTokens removeObject:token];
+        if (token) {
+            [_liveMaterializationTokens removeObject:token];
+        }
         os_unfair_lock_unlock(&_materializationLock);
         return;
     }
-    [_liveMaterializationTokens removeObject:token];
+    if (token) {
+        [_liveMaterializationTokens removeObject:token];
+    }
     if (priority) {
         _priorityMaterializationToken = nil;
         _priorityMaterializationInFlight = NO;

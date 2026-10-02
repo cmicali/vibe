@@ -28,7 +28,7 @@ The playable extension set is `Common/PlayableExtensions`, not this file: the wa
 
 **TRAP: the emptiness test is `st_size`, never `st_blocks` or `NSURLFileAllocatedSizeKey`**: a dataless cloud file has its true size but zero allocated blocks, so an allocation test would reject every cloud track. `stat()` never materializes the file.
 
-**TRAP: `isDatalessFile:` is `SF_DATALESS` alone, never an `NSURL` resource value** — NSURL memoizes those per instance, so a placeholder would read "not downloaded" for its `AudioTrack`'s whole life.
+**TRAP: `isDatalessFile:` is `SF_DATALESS` alone, never an `NSURL` resource value** — NSURL memoizes those per instance, so a placeholder would read "not downloaded" for its `AudioTrack`'s whole life. The one other verdict is the **remote placeholder**, on only while a remote backend is installed (`CloudFileMaterializer setRemoteFetch:`): a regular file its owner may not read (`VibeFileModeIsRemotePlaceholder`) stands for a remote file of its size and mtime. Its stat is real, so listing, sorting and the cache key treat it as the file, and any direct open fails rather than reading zeros — the waveform loader and TagLib open without asking. `remotePlaceholderPartURL:` names the hidden sibling its bytes stream into, which the progress poll reads.
 
 ## Categories
 
