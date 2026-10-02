@@ -22,6 +22,11 @@ NS_ASSUME_NONNULL_BEGIN
                          bundle:(nullable NSBundle *)bundle NS_UNAVAILABLE;
 - (nullable instancetype)initWithCoder:(NSCoder *)coder NS_UNAVAILABLE;
 
+// Shows a directory in the Files tab, which this screen knows nothing about:
+// where a Dropbox favorite with no song directly inside goes instead of
+// opening as an empty playlist.
+@property (nonatomic, copy, nullable) void (^showDirectoryHandler)(NSURL *directory);
+
 @end
 
 NS_ASSUME_NONNULL_END

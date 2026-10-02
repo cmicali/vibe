@@ -153,6 +153,9 @@ static NSString *const kTabSearch = @"search";
         FavoritesViewController *starred =
                 [[FavoritesViewController alloc] initWithPlayback:root->_playback];
         root->_favorites = starred;
+        starred.showDirectoryHandler = ^(NSURL *directory) {
+            [weakSelf showDirectoryInFiles:directory highlighting:nil];
+        };
         return [[UINavigationController alloc] initWithRootViewController:starred];
     }];
 

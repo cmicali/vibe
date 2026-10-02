@@ -6,8 +6,11 @@
 #import "FavoritesViewController.h"
 
 #import "BrowserViewController.h"
+#import "DropboxMirror.h"
 #import "FavoritesStore.h"
 #import "PlaybackController.h"
+#import "PlayableExtensions.h"
+#import "PlaylistFile.h"
 #import "VibeStrings.h"
 
 static NSString *const kFavoriteCellIdentifier = @"favorite";
@@ -205,13 +208,47 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
         [_playback addURLs:@[folderURL] token:token];
     }
     else {
-        PlaybackController *playback = _playback;
-        [BrowserViewController confirmReplacingPlaylistOf:playback from:self replace:^{
-            [playback openURLs:@[folderURL] openInPlace:YES];
-        } add:^{
-            [playback addURLs:@[folderURL]];
+        // A Dropbox folder of folders has nothing to play: it opens in the
+        // Files tab, where its subfolders are, not as an empty playlist.
+        NSString *dropboxPath = [DropboxMirror.shared dropboxPathForURL:folderURL];
+        void (^showDirectory)(NSURL *) = _showDirectoryHandler;
+        if (!dropboxPath || !showDirectory) {
+            [self playFolderURL:folderURL];
+            return;
+        }
+        __weak FavoritesViewController *weakSelf = self;
+        // Listed first: the mirror holds only what something has listed, so
+        // a folder never browsed is empty on disk whatever Dropbox holds. A
+        // failed listing falls back on what the disk has.
+        [DropboxMirror.shared refreshDropboxFolder:dropboxPath completion:^(NSURL *listedURL, NSError *error) {
+            NSArray<NSString *> *names = [NSFileManager.defaultManager
+                    contentsOfDirectoryAtPath:folderURL.path error:NULL] ?: @[];
+            BOOL hasSongs = NO;
+            for (NSString *name in names) {
+                NSString *extension = name.pathExtension.lowercaseString;
+                if ([PlayableExtensions.lookup containsObject:extension]
+                        || [PlaylistFile isCueExtension:extension]) {
+                    hasSongs = YES;
+                    break;
+                }
+            }
+            if (hasSongs) {
+                [weakSelf playFolderURL:folderURL];
+            }
+            else {
+                showDirectory(folderURL);
+            }
         }];
     }
+}
+
+- (void)playFolderURL:(NSURL *)folderURL {
+    PlaybackController *playback = _playback;
+    [BrowserViewController confirmReplacingPlaylistOf:playback from:self replace:^{
+        [playback openURLs:@[folderURL] openInPlace:YES];
+    } add:^{
+        [playback addURLs:@[folderURL]];
+    }];
 }
 
 // The row stays: a signed-out provider or an unmounted volume is temporary.
