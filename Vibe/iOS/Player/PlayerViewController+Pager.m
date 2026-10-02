@@ -286,6 +286,8 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
 }
 
 - (void)applyPlayOrderToVisiblePages {
+    _shuffleRepeatRevealed = _shuffleRepeatRevealed
+            || _playlist.shuffleEnabled || _playlist.repeatMode != VibeRepeatModeOff;
     for (TrackPageCell *cell in _pagesView.visibleCells) {
         NSIndexPath *path = [_pagesView indexPathForCell:cell];
         if (path) {

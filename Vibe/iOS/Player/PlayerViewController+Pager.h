@@ -35,7 +35,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Next's enablement and the shuffle and repeat buttons, their visibility
 // included: the part of configurePage:atIndex: a track change, a mode change
-// or a presentation moves. The second reaches live pages only.
+// or a presentation moves. The visible-pages form also latches
+// _shuffleRepeatRevealed on any mode that is on.
 - (void)applyPlayOrderToCell:(TrackPageCell *)cell atIndex:(NSUInteger)index;
 - (void)applyPlayOrderToVisiblePages;
 

@@ -90,11 +90,8 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
     // display rate. NSIntegerMin: not scrubbing.
     NSInteger               _scrubLabelSecond;
 
-    // Shows the shuffle and repeat buttons over Settings > Appearance hiding
-    // them, so a mode set from CarPlay or Siri is never on unseen. Set to
-    // "a mode is on" on presentation and on a track change; a mode change
-    // only sets it, so turning the last mode off leaves the buttons up until
-    // one of those two.
+    // Shows shuffle and repeat over the setting hiding them: cleared on
+    // presentation and track change, latched by any mode on (Player/AGENTS.md).
     BOOL                    _shuffleRepeatRevealed;
 
     // Shared by every page. The user's REQUEST, which is what persists; each
