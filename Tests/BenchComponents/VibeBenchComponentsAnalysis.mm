@@ -22,15 +22,20 @@
 
 static void VibeBenchComponentsRegisterWaveform(void) {
     // The whole cold waveform pass, as the cache runs it: open, pipelined
-    // decode, downmix, chunks, with and without both analyzers riding along.
+    // decode, downmix, chunks, with and without both analyzers riding along,
+    // and with the band split 3-Band asks for.
+    const char *passes[] = {"waveform", "waveform+bpm+key", "waveform+bands"};
     for (NSString *name in @[@"mp3-320", @"flac-16-44", @"flac-24-192", @"aac-256", @"wav-24-96"]) {
-        for (int analysis = 0; analysis < 2; analysis++) {
+        for (int analysis = 0; analysis < 2 + (VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS && VIBE_BENCH_COMPONENTS_ANALYSIS_VALUE); analysis++) {
             auto file = std::make_shared<VibeBenchComponentsFileState>();
-            VibeBenchComponentsAdd(analysis ? "waveform+bpm+key" : "waveform", name.UTF8String, "audio s", [name, file]() -> double {
+            VibeBenchComponentsAdd(passes[analysis], name.UTF8String, "audio s", [name, file]() -> double {
                 file->path = VibeBenchComponentsFile(name);
                 return VibeBenchComponentsAudioSeconds(file->path);
             }, [file, analysis]() {
-                AudioWaveformLoader *loader = VibeBenchComponentsWaveformLoader(analysis);
+                AudioWaveformLoader *loader = VibeBenchComponentsWaveformLoader(analysis == 1);
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS && VIBE_BENCH_COMPONENTS_ANALYSIS_VALUE
+                if (analysis == 2) loader.analysis = (VibeWaveformAnalysis){.bands = YES};
+#endif
                 CodableAudioWaveform *result = [loader load:file->path];
                 (void)result;
             });
@@ -66,8 +71,13 @@ static void VibeBenchComponentsRegisterWaveform(void) {
                 VibeBenchComponentsPCM *pcm = VibeBenchComponentsDecoded(name);
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
                 AudioWaveform waveform(bands);
+#if VIBE_BENCH_COMPONENTS_BAND_SPLIT_SLICES
+                std::unique_ptr<AudioWaveformBandSplit> split =
+                        bands ? std::make_unique<AudioWaveformBandSplit>(pcm->rate) : nullptr;
+#else
                 std::unique_ptr<AudioWaveformBandSplit> split =
                         bands ? std::make_unique<AudioWaveformBandSplit>(pcm->rate, 65536) : nullptr;
+#endif
                 float bandSums[kAudioWaveformBandCount] = {};
 #else
                 AudioWaveform waveform;
@@ -81,14 +91,16 @@ static void VibeBenchComponentsRegisterWaveform(void) {
                     NSUInteger numFrames = MIN((NSUInteger)65536, pcm->frames - at);
                     const float *mono = AudioWaveformMonoMix(pcm->interleaved.data() + at * pcm->channels,
                                                              scratch.data(), numFrames, pcm->channels);
-#if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS && !VIBE_BENCH_COMPONENTS_BAND_SPLIT_SLICES
                     if (split) split->process(mono, numFrames);
 #endif
                     NSUInteger offset = 0;
                     while (offset < numFrames && chunkIndex < chunks) {
                         NSUInteger take = MIN(numFrames - offset, chunkEnd - (at + offset));
                         current.mergeFromMonoBuffer(mono + offset, take);
-#if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
+#if VIBE_BENCH_COMPONENTS_BAND_SPLIT_SLICES
+                        if (split) split->addSumSquares(mono + offset, take, bandSums);
+#elif VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
                         if (split) split->addSumSquares(offset, take, bandSums);
 #endif
                         offset += take;

@@ -94,6 +94,7 @@ def features(src):
         'VIBE_BENCH_COMPONENTS_METADATA_DISPLAY_ART': any('displayArtData' in h.read_text() for h in metadata),
         'VIBE_BENCH_COMPONENTS_LEVELS_SUMMARIZE': levels is not None and 'VibeAudioLevelAnalyzerSummarize' in levels.read_text(),
         'VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS': waveform is not None and 'AudioWaveformBandSplit' in waveform.read_text(),
+        'VIBE_BENCH_COMPONENTS_BAND_SPLIT_SLICES': waveform is not None and 'addSumSquares(const float*' in waveform.read_text(),
     }
     lines = ['// Written by perf.py from this checkout\'s sources; see VibeBenchComponents.h.']
     lines += [f'#define {name} {int(value)}' for name, value in flags.items()]
