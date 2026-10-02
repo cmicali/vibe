@@ -36,13 +36,14 @@ NS_ASSUME_NONNULL_BEGIN
 // is pushed alone. A file in it is scrolled to and selected for a moment.
 - (void)showDirectory:(NSURL *)directory highlighting:(nullable NSURL *)file;
 
-// Asks before a pick replaces a playlist the user added to by hand, offering
-// to add the pick instead; any other playlist is replaced at once. Every
-// screen whose tap replaces the playlist comes through here.
+// Opens urls as the playlist — one through openFileURL:inFolder:, several
+// through openURLs:openInPlace: — asking first when the playlist was built by
+// hand, with Add Instead as the other answer. Every screen whose tap replaces
+// the playlist comes through here.
 + (void)confirmReplacingPlaylistOf:(PlaybackController *)playback
                               from:(UIViewController *)presenter
-                           replace:(dispatch_block_t)replace
-                               add:(nullable dispatch_block_t)add;
+                       openingURLs:(NSArray<NSURL *> *)urls
+                          inFolder:(BOOL)inFolder;
 
 // On the root: handed snapshots of the rows an Add was asked for, framed in
 // window coordinates, before the Add is requested. The shell animates them
@@ -50,5 +51,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, nullable) void (^addedRowsHandler)(NSArray<UIView *> *rows);
 
 @end
+
+// The pieces the other screens' rows and alerts share with the browser's.
+void VibePresentAlert(UIViewController *presenter, NSString *title, NSString *message);
+UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handler)(void));
+// Two lines, cut in the middle, secondary line in the secondary color.
+void VibeApplyFileNameStyle(UIListContentConfiguration *content);
+// The accessory of a row whose file is not downloaded.
+UIView *VibeNotDownloadedMark(void);
 
 NS_ASSUME_NONNULL_END

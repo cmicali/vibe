@@ -649,6 +649,34 @@ static NSMutableArray<NSURL *> *VibeListedAudioURLs(NSURL *dir, VibeFolderOpenSo
     return [self rowsForWalk:results];
 }
 
++ (void)listDirectory:(NSURL *)dir
+             sortedBy:(VibeFolderOpenSort)sort
+              folders:(NSArray<NSURL *> **)folders
+                audio:(NSArray<NSURL *> **)audio {
+    NSMutableArray<NSURL *> *files = VibeListedAudioURLs(dir, sort) ?: [NSMutableArray array];
+    NSMutableArray<NSURL *> *subfolders = [NSMutableArray array];
+    if (folders) {
+        NSArray<NSURL *> *contents = [NSFileManager.defaultManager
+                contentsOfDirectoryAtURL:dir
+              includingPropertiesForKeys:VibeListingKeys(sort)
+                                 options:NSDirectoryEnumerationSkipsHiddenFiles
+                                   error:NULL] ?: @[];
+        for (NSURL *url in contents) {
+            NSNumber *isDirectory = nil;
+            [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
+            if (isDirectory.boolValue) {
+                [subfolders addObject:url];
+            }
+        }
+        VibeSortAudioURLs(subfolders, sort, NO);
+        *folders = subfolders;
+    }
+    VibeSortAudioURLs(files, sort, NO);
+    if (audio) {
+        *audio = files;
+    }
+}
+
 + (NSArray<NSURLResourceKey> *)listingKeysForSort:(VibeFolderOpenSort)sort {
     return VibeListingKeys(sort);
 }

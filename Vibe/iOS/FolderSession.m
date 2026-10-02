@@ -183,13 +183,16 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     [self beginOpenURLs:urls appending:YES expandsFile:NO];
 }
 
-// Work queue. A Dropbox folder is listed from Dropbox before it is read: the
-// mirror holds only what something has listed, so a folder played or added
-// from its parent's listing, never browsed into, was empty on disk and the
-// open landed nothing. Bounded, so an open offline still reads the disk.
+// Work queue. A Dropbox folder nothing has listed yet is listed from Dropbox
+// before it is read: the mirror holds only what something has listed, so a
+// folder played or added from its parent's listing, never browsed into, was
+// empty on disk and the open landed nothing. One already listed is read as it
+// is — the browser relists it when shown — so a restore never waits on the
+// network. Bounded, so an open offline still reads the disk.
 - (void)listFromDropboxIfMirrored:(NSURL *)url {
-    NSString *dropboxPath = [DropboxMirror.shared dropboxPathForURL:url];
-    if (!dropboxPath) {
+    DropboxMirror *mirror = DropboxMirror.shared;
+    NSString *dropboxPath = [mirror dropboxPathForURL:url];
+    if (!dropboxPath || [mirror hasListedDirectory:url]) {
         return;
     }
     dispatch_semaphore_t listed = dispatch_semaphore_create(0);
@@ -840,6 +843,8 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             }
             run_on_main_thread({
                 // On main: the name asks the Dropbox mirror and UIDevice.
+                // Recorded, not derived at draw time: the path can outlive
+                // the app container it names.
                 for (NSMutableDictionary *item in recents) {
                     NSString *parent = [item[@"path"] stringByDeletingLastPathComponent];
                     item[@"location"] = [SearchFolderStore displayNameForFolderURL:
@@ -937,7 +942,8 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     _searchGrants = [ownedGrants mutableCopy];
     _folderURL = folderURL;
     _addedFolderURLs = [addedFolders mutableCopy];
-    _hasAdditions = restored && addedFolders.count > 0;
+    // A restore of persisted additions; a multi-folder open is not an Add.
+    _hasAdditions = restored && additionBookmarks.count > 0;
     _landedOpenIntentGeneration = openIntentGeneration;
     _additionsPersisted = baseBookmark != nil;
     if (baseBookmark) {

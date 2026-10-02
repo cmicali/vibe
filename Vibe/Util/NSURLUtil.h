@@ -108,6 +108,14 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 // directory shown elsewhere lists in the order it opens in.
 + (NSArray<NSURLResourceKey> *)listingKeysForSort:(VibeFolderOpenSort)sort;
 + (void)sortURLs:(NSMutableArray<NSURL *> *)urls by:(VibeFolderOpenSort)sort;
+
+// The folder's subfolders and the audio files and sheets rowsInDirectory:
+// would make rows of, each sorted by `sort`, hidden entries skipped. What a
+// browser draws, so a folder plays as it is shown. Synchronous.
++ (void)listDirectory:(NSURL *)dir
+             sortedBy:(VibeFolderOpenSort)sort
+              folders:(NSArray<NSURL *> *_Nonnull *_Nullable)folders
+                audio:(NSArray<NSURL *> *_Nonnull *_Nullable)audio;
 @end
 
 NS_ASSUME_NONNULL_END

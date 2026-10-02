@@ -6,6 +6,7 @@
 #import "FilesSettingsViewController.h"
 
 #import "AppSettings.h"
+#import "BrowserViewController.h"
 #import "SettingsRules.h"
 #import "DropboxMirror.h"
 #import "VibeStrings.h"
@@ -36,13 +37,11 @@ static NSString *const kChoiceCellIdentifier = @"choice";
 static NSString *const kActionCellIdentifier = @"action";
 static NSString *const kAccountCellIdentifier = @"account";
 
-// The linked account's rows, top to bottom. Remove Downloads is there only
-// while something is downloaded (rowAtIndex:).
+// The linked account's rows (dropboxRows).
 typedef NS_ENUM(NSInteger, VibeDropboxRow) {
     VibeDropboxRowAccount = 0,
     VibeDropboxRowRemoveDownloads,
     VibeDropboxRowDisconnect,
-    VibeDropboxRowCount,
 };
 
 @implementation FilesSettingsViewController {
@@ -73,11 +72,15 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
         if (!strongSelf || !DropboxMirror.shared.client.isLinked) {
             return;
         }
-        strongSelf->_downloadBytes = bytes;
-        // The section: the row comes and goes with the downloads.
-        [strongSelf.tableView reloadSections:[NSIndexSet indexSetWithIndex:VibeFilesSectionDropbox]
-                            withRowAnimation:UITableViewRowAnimationNone];
+        [strongSelf showDownloadBytes:bytes];
     }];
+}
+
+// The section: the row comes and goes with the downloads.
+- (void)showDownloadBytes:(long long)bytes {
+    _downloadBytes = bytes;
+    [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:VibeFilesSectionDropbox]
+                  withRowAnimation:UITableViewRowAnimationNone];
 }
 
 - (void)viewDidLoad {
@@ -89,13 +92,18 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
                                              object:DropboxMirror.shared.client];
     // A song playing behind this screen downloads while the size is shown.
     [NSNotificationCenter.defaultCenter addObserver:self
-                                           selector:@selector(measureDownloads)
+                                           selector:@selector(downloadsDidChange:)
                                                name:VibeDropboxDownloadsDidChangeNotification
                                              object:DropboxMirror.shared];
 }
 
 - (void)dealloc {
     [NSNotificationCenter.defaultCenter removeObserver:self];
+}
+
+// The mirror counted the downloads for its budget; no second walk.
+- (void)downloadsDidChange:(NSNotification *)notification {
+    [self showDownloadBytes:[notification.userInfo[VibeDropboxDownloadsBytesKey] longLongValue]];
 }
 
 - (void)dropboxAccountDidChange:(NSNotification *)notification {
@@ -112,20 +120,24 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    if ((VibeFilesSection)section != VibeFilesSectionDropbox) {
-        return VibeFolderSortRowCount;
-    }
-    if (!DropboxMirror.shared.client.isLinked) {
-        return 1;
-    }
-    return _downloadBytes > 0 ? VibeDropboxRowCount : VibeDropboxRowCount - 1;
+    return (VibeFilesSection)section == VibeFilesSectionDropbox
+            ? (NSInteger)[self dropboxRows].count : VibeFolderSortRowCount;
 }
 
-// Which of the linked rows a table row is: with nothing downloaded, Disconnect
-// moves up into Remove Downloads' place.
+// The Dropbox section's rows, top to bottom: Connect alone while unlinked;
+// linked, the account, Remove Downloads while there is something to remove,
+// and Disconnect.
+- (NSArray<NSNumber *> *)dropboxRows {
+    if (!DropboxMirror.shared.client.isLinked) {
+        return @[@(VibeDropboxRowAccount)];
+    }
+    return _downloadBytes > 0
+            ? @[@(VibeDropboxRowAccount), @(VibeDropboxRowRemoveDownloads), @(VibeDropboxRowDisconnect)]
+            : @[@(VibeDropboxRowAccount), @(VibeDropboxRowDisconnect)];
+}
+
 - (VibeDropboxRow)dropboxRowAtIndex:(NSInteger)index {
-    return index == VibeDropboxRowRemoveDownloads && _downloadBytes <= 0
-            ? VibeDropboxRowDisconnect : (VibeDropboxRow)index;
+    return (VibeDropboxRow)[self dropboxRows][(NSUInteger)index].integerValue;
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
@@ -208,14 +220,7 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
             return;
         }
         LogWarn(@"Dropbox: sign-in failed: %@", error.localizedDescription);
-        UIAlertController *alert =
-                [UIAlertController alertControllerWithTitle:VibeNotLocalized(@"Dropbox")
-                                                    message:STR_SETTINGS_DROPBOX_CONNECT_FAILED
-                                             preferredStyle:UIAlertControllerStyleAlert];
-        [alert addAction:[UIAlertAction actionWithTitle:STR_BUTTON_OK
-                                                  style:UIAlertActionStyleDefault
-                                                handler:nil]];
-        [strongSelf presentViewController:alert animated:YES completion:nil];
+        VibePresentAlert(strongSelf, VibeNotLocalized(@"Dropbox"), STR_SETTINGS_DROPBOX_CONNECT_FAILED);
     }];
 }
 

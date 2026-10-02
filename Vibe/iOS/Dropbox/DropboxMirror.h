@@ -22,8 +22,10 @@
 NS_ASSUME_NONNULL_BEGIN
 
 // A fetch landed, with whatever the budget then evicted. Posted on main with
-// the mirror as its object.
+// the mirror as its object and the downloads' total bytes, already counted,
+// under VibeDropboxDownloadsBytesKey.
 extern NSNotificationName const VibeDropboxDownloadsDidChangeNotification;
+extern NSString *const VibeDropboxDownloadsBytesKey;
 
 @interface DropboxMirror : NSObject
 
@@ -54,6 +56,10 @@ extern NSNotificationName const VibeDropboxDownloadsDidChangeNotification;
 // The Dropbox path ("" for the root, else "/Music/Album") a mirror URL stands
 // for; nil outside the linked account's mirror.
 - (nullable NSString *)dropboxPathForURL:(NSURL *)url;
+
+// Whether anything has listed this mirror directory: one never listed is
+// empty on disk whatever Dropbox holds.
+- (BOOL)hasListedDirectory:(NSURL *)url;
 
 // Lists the Dropbox folder and makes its directory here match: placeholders
 // for new or changed audio, CUE sheets downloaded, departed entries removed.

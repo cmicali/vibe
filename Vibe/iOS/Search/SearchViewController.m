@@ -62,6 +62,9 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     BOOL                _dropboxSearching;
     // The answer to _dropboxQuery was an error, not an empty list.
     BOOL                _dropboxFailed;
+    // Of the answer's files, those the mirror holds bytes for, by path_lower;
+    // counted once per answer and per download, not per cell.
+    NSSet<NSString *>   *_dropboxDownloaded;
     // A files match is out and unanswered; no "No Results" until it lands.
     BOOL                _fileHitsPending;
     // The scope bar: one section, or VibeSearchSectionCount for All. A half
@@ -86,6 +89,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
         _playlistPaths = [NSSet set];
         _dropboxEntries = @[];
         _dropboxHits = @[];
+        _dropboxDownloaded = [NSSet set];
         _playlistDropboxPaths = [NSSet set];
         _fileIndex = [[FileSearchIndex alloc] init];
         _fileIndex.delegate = self;
@@ -111,6 +115,10 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
                                            selector:@selector(dropboxAccountDidChange:)
                                                name:VibeDropboxAccountDidChangeNotification
                                              object:DropboxMirror.shared.client];
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(dropboxDownloadsDidChange:)
+                                               name:VibeDropboxDownloadsDidChangeNotification
+                                             object:DropboxMirror.shared];
     self.navigationItem.searchController = _searchController;
     self.navigationItem.hidesSearchBarWhenScrolling = NO;
     // Nothing else dismisses the keyboard, which covers the list. Not
@@ -371,6 +379,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     _dropboxQuery = nil;
     _dropboxEntries = @[];
     _dropboxHits = @[];
+    _dropboxDownloaded = [NSSet set];
 }
 
 - (NSArray<NSDictionary *> *)dropboxEntriesNotInPlaylist:(NSArray<NSDictionary *> *)entries {
@@ -402,7 +411,47 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
         strongSelf->_dropboxEntries = entries ?: @[];
         strongSelf->_dropboxHits = [strongSelf dropboxEntriesNotInPlaylist:strongSelf->_dropboxEntries];
         [strongSelf reloadDropboxSection];
+        [strongSelf countDownloadedDropboxEntries];
     }];
+}
+
+// Off main, a stat per file hit; the section redraws when it lands. A path
+// the mirror spells another way reads as not downloaded, which errs safe.
+- (void)countDownloadedDropboxEntries {
+    NSArray<NSDictionary *> *entries = _dropboxEntries;
+    NSURL *account = DropboxMirror.shared.accountURL;
+    uint64_t generation = _dropboxSearchGeneration;
+    __weak SearchViewController *weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSMutableSet<NSString *> *downloaded = [NSMutableSet set];
+        for (NSDictionary *entry in entries) {
+            NSString *display = entry[@"path_display"];
+            NSString *lower = entry[@"path_lower"];
+            if (!account || ![display isKindOfClass:NSString.class] || ![lower isKindOfClass:NSString.class]
+                    || VibeDropboxEntryKindOf(entry) == VibeDropboxEntryKindFolder) {
+                continue;
+            }
+            NSURL *local = [account URLByAppendingPathComponent:display];
+            if ([NSFileManager.defaultManager fileExistsAtPath:local.path]
+                    && ![NSURLUtil isRemotePlaceholderFile:local]) {
+                [downloaded addObject:lower];
+            }
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            SearchViewController *strongSelf = weakSelf;
+            if (!strongSelf || generation != strongSelf->_dropboxSearchGeneration) {
+                return;
+            }
+            strongSelf->_dropboxDownloaded = downloaded;
+            [strongSelf reloadDropboxSection];
+        });
+    });
+}
+
+- (void)dropboxDownloadsDidChange:(NSNotification *)notification {
+    if (_dropboxEntries.count > 0) {
+        [self countDownloadedDropboxEntries];
+    }
 }
 
 - (void)reloadDropboxSection {
@@ -428,11 +477,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
         else {
             LogWarn(@"Dropbox: could not reach a search hit: %@", error.localizedDescription);
             // Silence would read as a tap that missed.
-            UIAlertController *alert = [UIAlertController alertControllerWithTitle:VibeNotLocalized(@"Dropbox")
-                                                                           message:STR_SETTINGS_DROPBOX_CONNECT_FAILED
-                                                                    preferredStyle:UIAlertControllerStyleAlert];
-            [alert addAction:[UIAlertAction actionWithTitle:STR_BUTTON_OK style:UIAlertActionStyleDefault handler:nil]];
-            [self presentViewController:alert animated:YES completion:nil];
+            VibePresentAlert(self, VibeNotLocalized(@"Dropbox"), STR_SETTINGS_DROPBOX_CONNECT_FAILED);
         }
     }];
 }
@@ -614,17 +659,9 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     content.imageProperties.tintColor = UIColor.secondaryLabelColor;
     content.text = name;
     content.secondaryText = folder;
-    content.textProperties.numberOfLines = 2;
-    content.textProperties.lineBreakMode = NSLineBreakByTruncatingMiddle;
-    content.secondaryTextProperties.numberOfLines = 1;
+    VibeApplyFileNameStyle(content);
     cell.contentConfiguration = content;
-    // The browser's mark: a tap waits on the network.
-    UIImageView *mark = nil;
-    if (notDownloaded) {
-        mark = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"arrow.down.circle"]];
-        mark.tintColor = UIColor.secondaryLabelColor;
-    }
-    cell.accessoryView = mark;
+    cell.accessoryView = notDownloaded ? VibeNotDownloadedMark() : nil;
     return cell;
 }
 
@@ -639,17 +676,11 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     NSString *display = entry[@"path_display"] ?: entry[@"path_lower"];
     NSString *parent = display.stringByDeletingLastPathComponent.lastPathComponent;
     BOOL folder = VibeDropboxEntryKindOf(entry) == VibeDropboxEntryKindFolder;
-    // Downloaded only if the mirror already holds its bytes; a path the
-    // mirror spells another way reads as not downloaded, which errs safe.
-    NSURL *account = DropboxMirror.shared.accountURL;
-    NSURL *local = account && display ? [account URLByAppendingPathComponent:display] : nil;
-    BOOL downloaded = local && [NSFileManager.defaultManager fileExistsAtPath:local.path]
-            && ![NSURLUtil isRemotePlaceholderFile:local];
     return [self hitCellForTableView:tableView
                                 name:entry[@"name"]
                               folder:[parent isEqualToString:@"/"] ? VibeNotLocalized(@"Dropbox") : parent
                                glyph:folder ? @"folder" : @"music.note"
-                       notDownloaded:!folder && !downloaded];
+                       notDownloaded:!folder && ![_dropboxDownloaded containsObject:entry[@"path_lower"]]];
 }
 
 // A playlist row selects and stays; a file row plays that file alone, and a
@@ -686,11 +717,8 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
         if (!strongSelf) {
             return;
         }
-        [BrowserViewController confirmReplacingPlaylistOf:playback from:strongSelf replace:^{
-            [playback openFileURL:url inFolder:inFolder];
-        } add:^{
-            [playback addURLs:@[url]];
-        }];
+        [BrowserViewController confirmReplacingPlaylistOf:playback from:strongSelf
+                                              openingURLs:@[url] inFolder:inFolder];
     }];
 }
 
@@ -730,27 +758,22 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     BOOL folder = [hit isKindOfClass:NSDictionary.class]
             && VibeDropboxEntryKindOf(hit) == VibeDropboxEntryKindFolder;
     __weak SearchViewController *weakSelf = self;
-    UIAction *(^action)(NSString *, NSString *, void (^)(void)) = ^(NSString *title, NSString *symbol,
-                                                                    void (^handler)(void)) {
-        return [UIAction actionWithTitle:title image:[UIImage systemImageNamed:symbol] identifier:nil
-                                 handler:^(UIAction *a) { handler(); }];
-    };
     return [UIContextMenuConfiguration configurationWithIdentifier:nil
                                                    previewProvider:nil
                                                     actionProvider:^UIMenu *(NSArray<UIMenuElement *> *suggested) {
         NSMutableArray<UIMenuElement *> *items = [NSMutableArray array];
-        [items addObject:action(STR_MENU_CONTEXT_PLAY, @"play.fill", ^{
+        [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY, @"play.fill", ^{
             [weakSelf openHit:hit inFolder:NO];
         })];
         if (!folder) {
-            [items addObject:action(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"play.square.stack", ^{
+            [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"play.square.stack", ^{
                 [weakSelf openHit:hit inFolder:YES];
             })];
         }
-        [items addObject:action(STR_MENU_CONTEXT_ADD_TO_PLAYLIST, @"text.badge.plus", ^{
+        [items addObject:VibeMenuAction(STR_MENU_CONTEXT_ADD_TO_PLAYLIST, @"text.badge.plus", ^{
             [weakSelf addHit:hit];
         })];
-        [items addObject:action(STR_MENU_CONTEXT_OPEN_FOLDER, @"folder", ^{
+        [items addObject:VibeMenuAction(STR_MENU_CONTEXT_OPEN_FOLDER, @"folder", ^{
             [weakSelf showFolderOfHit:hit];
         })];
         return [UIMenu menuWithChildren:items];

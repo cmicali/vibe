@@ -55,8 +55,10 @@ static NSString *const kTabSearch = @"search";
     BOOL                 _cardAnimating;
     BOOL                 _interactiveDrag;
     UIViewPropertyAnimator *_cardAnimator;
-    // Rows of Adds asked for and not yet settled, oldest first.
+    // Rows of Adds asked for and not yet settled, oldest first, and when
+    // each was lifted.
     NSMutableArray<NSArray<UIView *> *> *_liftedRowBatches;
+    NSMutableArray<NSNumber *> *_liftedRowBatchTimes;
     BOOL                   _playerAppearanceTransitionActive;
     NSArray<UIViewController *> *_parentAppearanceChildren;
     BOOL                   _rootPresentationVisible;
@@ -484,7 +486,8 @@ static NSString *const kTabSearch = @"search";
     if (!animated) {
         changes();
         _cardAnimating = NO;
-        [self updateBackdropVisibility];
+        // A drag may have left a snapshot up.
+        [self endBackdropSnapshot];
         completion();
         return;
     }
@@ -535,11 +538,11 @@ static NSString *const kTabSearch = @"search";
     [_player endAppearanceTransition];
 }
 
-// A card at rest covers the tabs, so they are hidden: visible, their scaled,
-// corner-masked subtree costs offscreen passes on every rotation frame. While
-// the card moves a snapshot stands in for them, and they are shown under it:
-// the tab bar and the strip come back with an appearance of their own, which
-// then plays out under the snapshot and the card rather than after the card
+// A card at rest covers the tabs, so they are hidden: shown, the glass tab
+// bar keeps sampling for nothing. While the card moves a snapshot stands in
+// for them and they are shown under it, drawn twice for those frames on
+// purpose: the tab bar and the strip come back with an appearance of their
+// own, which then plays out under the snapshot rather than after the card
 // has landed.
 - (void)updateBackdropVisibility {
     BOOL hidden = _expanded && !_cardAnimating && !_interactiveDrag;
@@ -555,8 +558,7 @@ static NSString *const kTabSearch = @"search";
 // safe-area insets and the edge layout margins as it did: the navigation
 // bar, the large title, the rows and the tab bar re-laid out and the screen
 // jumped under the card on every expand and dismiss. A snapshot has no
-// layout to lose. Taken as the card starts moving and dropped once it rests;
-// the tabs are hidden meanwhile, so nothing draws twice.
+// layout to lose. Taken as the card starts moving and dropped once it rests.
 - (void)beginBackdropSnapshot {
     if (_backdropSnapshot) {
         return;
@@ -571,6 +573,7 @@ static NSString *const kTabSearch = @"search";
     }
     snapshot.frame = _tabs.view.frame;
     snapshot.layer.cornerCurve = kCACornerCurveContinuous;
+    snapshot.layer.masksToBounds = YES;
     [self.view insertSubview:snapshot aboveSubview:_tabs.view];
     _backdropSnapshot = snapshot;
 }
@@ -587,7 +590,6 @@ static NSString *const kTabSearch = @"search";
     CGFloat scale = kBackdropScale + (1 - kBackdropScale) * t;
     _backdropSnapshot.transform = CGAffineTransformMakeScale(scale, scale);
     _backdropSnapshot.layer.cornerRadius = kBackdropCornerRadius * (1 - t);
-    _backdropSnapshot.layer.masksToBounds = t < 1;
 }
 
 #pragma mark - The interactive minimize
@@ -729,7 +731,6 @@ static const NSTimeInterval kRowFlightDuration = 0.7;
 static const NSTimeInterval kRowFlightStagger = 0.07;
 static const CGFloat kLiftedRowScale = 1.03;
 static const CGFloat kLandedRowScale = 0.1;
-static NSString *const kRowLiftedAtKey = @"vibeLiftedAt";
 
 - (void)liftAddedRows:(NSArray<UIView *> *)rows {
     if (rows.count == 0) {
@@ -737,8 +738,10 @@ static NSString *const kRowLiftedAtKey = @"vibeLiftedAt";
     }
     if (!_liftedRowBatches) {
         _liftedRowBatches = [NSMutableArray array];
+        _liftedRowBatchTimes = [NSMutableArray array];
     }
     [_liftedRowBatches addObject:rows];
+    [_liftedRowBatchTimes addObject:@(CACurrentMediaTime())];
     for (UIView *row in rows) {
         row.frame = [self.view convertRect:row.frame fromView:nil];
         row.userInteractionEnabled = NO;
@@ -748,7 +751,6 @@ static NSString *const kRowLiftedAtKey = @"vibeLiftedAt";
         // Without a path the shadow is re-derived from the snapshot's pixels
         // on every frame of the flight.
         row.layer.shadowPath = [UIBezierPath bezierPathWithRect:row.bounds].CGPath;
-        [row.layer setValue:@(CACurrentMediaTime()) forKey:kRowLiftedAtKey];
         [self.view addSubview:row];
     }
     if (!UIAccessibilityIsReduceMotionEnabled()) {
@@ -771,7 +773,9 @@ static NSString *const kRowLiftedAtKey = @"vibeLiftedAt";
     if (index == NSNotFound) {
         return;   // already settled
     }
+    CFTimeInterval liftedAt = _liftedRowBatchTimes[index].doubleValue;
     [_liftedRowBatches removeObjectAtIndex:index];
+    [_liftedRowBatchTimes removeObjectAtIndex:index];
     CGPoint target = CGPointZero;
     if (!landed || UIAccessibilityIsReduceMotionEnabled() || ![self getPlaylistTabCenter:&target]) {
         [UIView animateWithDuration:0.2 animations:^{
@@ -789,7 +793,6 @@ static NSString *const kRowLiftedAtKey = @"vibeLiftedAt";
     }
     // A local Add lands within a frame or two: the flight waits out the lift,
     // or it would cut the lift short and start with a jump.
-    CFTimeInterval liftedAt = [[rows.firstObject.layer valueForKey:kRowLiftedAtKey] doubleValue];
     NSTimeInterval wait = MAX(0, liftedAt + kRowLiftDuration - CACurrentMediaTime());
     // A UIKit animation, not a CAAnimation added to the layer. An
     // iPhone caps an app's own CAAnimations at 60 Hz unless its Info.plist
@@ -830,28 +833,26 @@ static NSString *const kRowLiftedAtKey = @"vibeLiftedAt";
 
 // The Playlist tab's item, in this view. UITab has no view of its own, so the
 // bar's is found by the label it draws; a bar that is not on screen (the
-// iPad's is elsewhere) answers NO and the rows fade where they are.
+// iPad's is elsewhere), or one drawn without that label, answers NO and the
+// rows fade where they are.
 - (BOOL)getPlaylistTabCenter:(CGPoint *)center {
     UITabBar *bar = _tabs.tabBar;
-    if (!bar.window || bar.hidden || CGRectIsEmpty(bar.bounds)) {
+    NSString *title = [_tabs tabForIdentifier:kTabPlaylist].title;
+    if (!bar.window || bar.hidden || CGRectIsEmpty(bar.bounds) || title.length == 0) {
         return NO;
     }
-    NSString *title = [_tabs tabForIdentifier:kTabPlaylist].title;
-    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:bar];
+    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithArray:bar.subviews];
     while (queue.count > 0) {
         UIView *view = queue.firstObject;
         [queue removeObjectAtIndex:0];
-        if (view != bar && title.length > 0 && [view.accessibilityLabel isEqualToString:title]) {
+        if ([view.accessibilityLabel isEqualToString:title]) {
             *center = [self.view convertPoint:CGPointMake(CGRectGetMidX(view.bounds), CGRectGetMidY(view.bounds))
                                      fromView:view];
             return YES;
         }
         [queue addObjectsFromArray:view.subviews];
     }
-    // The first of three tabs in the capsule.
-    CGRect frame = [self.view convertRect:bar.bounds fromView:bar];
-    *center = CGPointMake(CGRectGetMinX(frame) + CGRectGetWidth(frame) / 6, CGRectGetMidY(frame));
-    return YES;
+    return NO;
 }
 
 // The only place the card presents by itself. The Playlist tab comes forward

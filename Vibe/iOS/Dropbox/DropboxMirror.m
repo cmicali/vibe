@@ -22,6 +22,7 @@ static NSString *const kAppKeyInfoKey = @"VibeDropboxAppKey";
 // list_folder's own maximum page.
 static const NSInteger kListPageLimit = 2000;
 NSNotificationName const VibeDropboxDownloadsDidChangeNotification = @"VibeDropboxDownloadsDidChangeNotification";
+NSString *const VibeDropboxDownloadsBytesKey = @"bytes";
 
 // Downloads kept before the oldest go back to placeholders: an album or two
 // hundred, which a phone can spare and a re-download rarely has to replace.
@@ -111,6 +112,10 @@ static NSError *VibePOSIXError(void) {
 // /private/var are one directory.
 - (NSDictionary *)indexOfDirectory:(NSURL *)directory {
     return [self indexOfDirectory:directory key:VibeComparablePath(directory.path)];
+}
+
+- (BOOL)hasListedDirectory:(NSURL *)url {
+    return [self indexOfDirectory:url] != nil;
 }
 
 - (NSDictionary *)indexOfDirectory:(NSURL *)directory key:(NSString *)key {
@@ -575,10 +580,11 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
 }
 
 // Oldest first, never the one just fetched: it is about to be opened.
-- (void)enforceDownloadBudgetKeeping:(NSURL *)keep {
+// Answers what the downloads take afterwards.
+- (long long)enforceDownloadBudgetKeeping:(NSURL *)keep {
     NSURL *account = self.accountURL;
     if (!account) {
-        return;
+        return 0;
     }
     NSArray<NSDictionary *> *downloads = [self downloadsUnder:account];
     long long total = 0;
@@ -598,6 +604,7 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
             LogInfo(@"Dropbox: over budget, %@ back to a placeholder", [download[@"url"] lastPathComponent]);
         }
     }
+    return total;
 }
 
 - (void)measureDownloadsWithCompletion:(void (^)(long long))completion {
@@ -684,10 +691,11 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
     }
     LogInfo(@"Dropbox: downloaded %@ in %.1fs", url.lastPathComponent, CFAbsoluteTimeGetCurrent() - start);
     dispatch_async(_diskQueue, ^{
-        [self enforceDownloadBudgetKeeping:url];
+        long long total = [self enforceDownloadBudgetKeeping:url];
         dispatch_async(dispatch_get_main_queue(), ^{
             [NSNotificationCenter.defaultCenter postNotificationName:VibeDropboxDownloadsDidChangeNotification
-                                                              object:self];
+                                                              object:self
+                                                            userInfo:@{VibeDropboxDownloadsBytesKey: @(total)}];
         });
     });
     return YES;

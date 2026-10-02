@@ -14,7 +14,6 @@
 #import "FavoritesStore.h"
 #import "FileSearchRules.h"
 #import "NSURLUtil.h"
-#import "PlayableExtensions.h"
 #import "PlaybackController.h"
 #import "PlaylistFile.h"
 #import "SearchFolderStore.h"
@@ -77,7 +76,7 @@ static const NSTimeInterval kHighlightInterval = 1.2;
 - (instancetype)initWithPlayback:(PlaybackController *)playback appending:(BOOL)appending;
 @end
 
-static void VibePresentAlert(UIViewController *presenter, NSString *title, NSString *message) {
+void VibePresentAlert(UIViewController *presenter, NSString *title, NSString *message) {
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:title
                                                                    message:message
                                                             preferredStyle:UIAlertControllerStyleAlert];
@@ -85,7 +84,7 @@ static void VibePresentAlert(UIViewController *presenter, NSString *title, NSStr
     [presenter presentViewController:alert animated:YES completion:nil];
 }
 
-static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handler)(void)) {
+UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handler)(void)) {
     return [UIAction actionWithTitle:title
                                image:[UIImage systemImageNamed:symbol]
                           identifier:nil
@@ -96,11 +95,18 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
 
 // A file or folder name: two lines, cut in the middle, so the ends that tell
 // two long names apart both show.
-static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
+void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
     content.textProperties.numberOfLines = 2;
     content.textProperties.lineBreakMode = NSLineBreakByTruncatingMiddle;
     content.secondaryTextProperties.numberOfLines = 1;
     content.secondaryTextProperties.color = UIColor.secondaryLabelColor;
+}
+
+// The mark on a row whose file is not downloaded: a tap waits on the network.
+UIView *VibeNotDownloadedMark(void) {
+    UIImageView *mark = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"arrow.down.circle"]];
+    mark.tintColor = UIColor.secondaryLabelColor;
+    return mark;
 }
 
 @implementation BrowserViewController {
@@ -114,7 +120,12 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
     NSArray<NSURL *> *_allFolders;
     NSArray<NSURL *> *_allFiles;
     NSSet<NSURL *> *_placeholders;
-    NSDictionary<NSURL *, NSNumber *> *_fileSizes;
+    NSDictionary<NSURL *, NSString *> *_fileSizes;
+    // The directory's standardized path, so a row's is one append away.
+    NSString *_standardizedPath;
+    NSString *_title;
+    // The playing file's standardized path, for the row that carries the mark.
+    NSString *_playingPath;
     // The rows drawn: the listing narrowed by the filter field.
     NSArray<NSURL *> *_folders;
     NSArray<NSURL *> *_files;
@@ -162,6 +173,9 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
         _placeholders = [NSSet set];
         _fileSizes = @{};
         _dropboxPath = directoryURL ? [DropboxMirror.shared dropboxPathForURL:directoryURL] : nil;
+        _standardizedPath = directoryURL.URLByStandardizingPath.path;
+        _title = directoryURL ? [SearchFolderStore displayNameForFolderURL:directoryURL] : nil;
+        _playingPath = playback.currentTrack.url.URLByStandardizingPath.path;
     }
     return self;
 }
@@ -170,13 +184,8 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
     return _directoryURL == nil;
 }
 
-- (NSString *)directoryTitle {
-    return [SearchFolderStore displayNameForFolderURL:_directoryURL];
-}
-
 - (void)viewDidLoad {
     [super viewDidLoad];
-    BOOL sheetRoot = _appending && self.navigationController.viewControllers.firstObject == self;
     if (_appending) {
         _closeItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemClose
                                                                    target:self
@@ -192,28 +201,27 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
                                                selector:@selector(sourcesDidChange:)
                                                    name:VibeSearchFoldersDidChangeNotification
                                                  object:SearchFolderStore.shared];
-        if (sheetRoot) {
+        if (_appending && self.navigationController.viewControllers.firstObject == self) {
             self.navigationItem.leftBarButtonItem = _closeItem;
         }
     }
     else {
-        self.navigationItem.title = [self directoryTitle];
+        self.navigationItem.title = _title;
         self.navigationItem.prompt = _appending ? STR_MENU_CONTEXT_ADD_TO_PLAYLIST : nil;
         self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeNever;
         self.tableView.allowsMultipleSelectionDuringEditing = YES;
-        _playItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:
-                                                                    _appending ? @"text.badge.plus" : @"play.fill"]
-                                                     style:UIBarButtonItemStylePlain
-                                                    target:self
-                                                    action:@selector(openDirectory)];
-        _playItem.accessibilityLabel = _appending ? STR_MENU_CONTEXT_ADD_TO_PLAYLIST : STR_MENU_CONTEXT_PLAY;
         // A tap is this folder alone, never its subfolders: the root of a
         // library would be one playlist. The long press takes them, capped.
+        // The tap's action is set by refreshBarItems, which knows whether
+        // there is anything directly inside to play.
         __weak BrowserViewController *weakPlaySelf = self;
-        _playItem.menu = [UIMenu menuWithChildren:@[VibeMenuAction(
+        _playItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:
+                                                                    _appending ? @"text.badge.plus" : @"play.fill"]
+                                                      menu:[UIMenu menuWithChildren:@[VibeMenuAction(
                 _appending ? STR_BROWSER_ADD_SUBFOLDERS : STR_BROWSER_PLAY_SUBFOLDERS, @"square.stack.3d.up", ^{
             [weakPlaySelf openDirectoryWithSubfolders];
-        })]];
+        })]]];
+        _playItem.accessibilityLabel = _appending ? STR_MENU_CONTEXT_ADD_TO_PLAYLIST : STR_MENU_CONTEXT_PLAY;
         _addSelectedItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"text.badge.plus"]
                                                             style:UIBarButtonItemStylePlain
                                                            target:self
@@ -297,46 +305,29 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
 - (void)reloadFromDisk {
     uint64_t generation = ++_listingGeneration;
     NSURL *directory = _directoryURL;
-    NSSet<NSString *> *playable = PlayableExtensions.lookup;
     VibeFolderOpenSort sort = AppSettings.sharedInstance.folderOpenSort;
     __weak BrowserViewController *weakSelf = self;
     // Off main: a granted location can be a provider's folder, whose listing
     // is IPC that can take seconds.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        NSArray<NSURLResourceKey> *keys = [[NSURLUtil listingKeysForSort:sort]
-                arrayByAddingObject:NSURLFileSizeKey];
-        NSArray<NSURL *> *contents = [NSFileManager.defaultManager
-                contentsOfDirectoryAtURL:directory
-              includingPropertiesForKeys:keys
-                                 options:NSDirectoryEnumerationSkipsHiddenFiles
-                                   error:NULL] ?: @[];
-        NSMutableArray<NSURL *> *folders = [NSMutableArray array];
-        NSMutableArray<NSURL *> *files = [NSMutableArray array];
+        NSArray<NSURL *> *folders = @[];
+        NSArray<NSURL *> *files = @[];
+        [NSURLUtil listDirectory:directory sortedBy:sort folders:&folders audio:&files];
         NSMutableSet<NSURL *> *placeholders = [NSMutableSet set];
-        NSMutableDictionary<NSURL *, NSNumber *> *sizes = [NSMutableDictionary dictionary];
-        for (NSURL *url in contents) {
-            NSNumber *isDirectory = nil;
-            [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
-            if (isDirectory.boolValue) {
-                [folders addObject:url];
+        NSMutableDictionary<NSURL *, NSString *> *sizes = [NSMutableDictionary dictionary];
+        for (NSURL *url in files) {
+            if ([NSURLUtil isRemotePlaceholderFile:url]) {
+                [placeholders addObject:url];
             }
-            else if ([playable containsObject:url.pathExtension.lowercaseString]
-                    || [PlaylistFile isCueExtension:url.pathExtension.lowercaseString]) {
-                [files addObject:url];
-                if ([NSURLUtil isRemotePlaceholderFile:url]) {
-                    [placeholders addObject:url];
-                }
-                // A placeholder carries the remote size, so this is what a
-                // tap would download.
-                NSNumber *size = nil;
-                [url getResourceValue:&size forKey:NSURLFileSizeKey error:NULL];
-                if (size) {
-                    sizes[url] = size;
-                }
+            // A placeholder carries the remote size, so this is what a tap
+            // would download. Formatted here, not per cell.
+            NSNumber *size = nil;
+            [url getResourceValue:&size forKey:NSURLFileSizeKey error:NULL];
+            if (size != nil && ![PlaylistFile isCueExtension:url.pathExtension.lowercaseString]) {
+                sizes[url] = [NSByteCountFormatter stringFromByteCount:size.longLongValue
+                                                            countStyle:NSByteCountFormatterCountStyleFile];
             }
         }
-        [NSURLUtil sortURLs:folders by:sort];
-        [NSURLUtil sortURLs:files by:sort];
         dispatch_async(dispatch_get_main_queue(), ^{
             BrowserViewController *strongSelf = weakSelf;
             if (!strongSelf || generation != strongSelf->_listingGeneration) {
@@ -405,7 +396,7 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
 }
 
 - (NSString *)filterText {
-    return self.navigationItem.searchController.searchBar.text ?: @"";
+    return _filter.searchBar.text ?: @"";
 }
 
 - (void)updateSearchResultsForSearchController:(UISearchController *)searchController {
@@ -484,11 +475,10 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
         self.navigationItem.hidesBackButton = YES;
         return;
     }
-    self.navigationItem.title = [self directoryTitle];
+    self.navigationItem.title = _title;
     self.navigationItem.leftBarButtonItem = nil;
     self.navigationItem.hidesBackButton = NO;
     // Absent, not disabled, with nothing to act on: the Playlist tab's rule.
-    // A folder's listing is flat, so one holding only folders plays nothing.
     NSMutableArray<UIBarButtonItem *> *items = [NSMutableArray array];
     // The add sheet is modal and needs its way out at every level.
     if (_closeItem) {
@@ -496,18 +486,16 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
     }
     if (!self.isEmpty) {
         [items addObject:_selectItem];
-    }
-    // With no song directly inside, the tap has nothing to play and the
-    // button is its menu alone.
-    if (!self.isEmpty) {
+        // With no song directly inside, the tap has nothing to play and the
+        // button is its menu alone.
         _playItem.target = _allFiles.count > 0 ? self : nil;
         _playItem.action = _allFiles.count > 0 ? @selector(openDirectory) : NULL;
         [items addObject:_playItem];
-    }
-    // Not in the add sheet: with Close the bar has no room, and the order is
-    // a setting the Files tab changes.
-    if (!self.isEmpty && !_appending) {
-        [items addObject:_sortItem];
+        // Not in the add sheet: with Close the bar has no room, and the
+        // order is a setting the Files tab changes.
+        if (!_appending) {
+            [items addObject:_sortItem];
+        }
     }
     self.navigationItem.rightBarButtonItems = items;
 }
@@ -576,8 +564,19 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
 
 + (void)confirmReplacingPlaylistOf:(PlaybackController *)playback
                               from:(UIViewController *)presenter
-                           replace:(dispatch_block_t)replace
-                               add:(dispatch_block_t)add {
+                       openingURLs:(NSArray<NSURL *> *)urls
+                          inFolder:(BOOL)inFolder {
+    if (urls.count == 0) {
+        return;
+    }
+    dispatch_block_t replace = ^{
+        if (urls.count == 1) {
+            [playback openFileURL:urls.firstObject inFolder:inFolder];
+        }
+        else {
+            [playback openURLs:urls openInPlace:YES];
+        }
+    };
     if (!playback.playlistHasAdditions) {
         replace();
         return;
@@ -588,11 +587,9 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
     [alert addAction:[UIAlertAction actionWithTitle:STR_PLAYLIST_REPLACE_CONFIRM
                                               style:UIAlertActionStyleDestructive
                                             handler:^(UIAlertAction *action) { replace(); }]];
-    if (add) {
-        [alert addAction:[UIAlertAction actionWithTitle:STR_PLAYLIST_REPLACE_ADD
-                                                  style:UIAlertActionStyleDefault
-                                                handler:^(UIAlertAction *action) { add(); }]];
-    }
+    [alert addAction:[UIAlertAction actionWithTitle:STR_PLAYLIST_REPLACE_ADD
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(UIAlertAction *action) { [playback addURLs:urls]; }]];
     [alert addAction:[UIAlertAction actionWithTitle:STR_BUTTON_CANCEL style:UIAlertActionStyleCancel handler:nil]];
     [presenter presentViewController:alert animated:YES completion:nil];
 }
@@ -608,24 +605,18 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
     }
 }
 
-// A replace: a file alone, a file with its folder, or a folder. In the add
-// sheet nothing replaces; the same pick is added.
-- (void)playURL:(NSURL *)url inFolder:(BOOL)inFolder {
+// A replace — a file alone, a file with its folder, a folder, or a pick of
+// several — unless this is the add sheet, where the same pick is added.
+- (void)openURLs:(NSArray<NSURL *> *)urls inFolder:(BOOL)inFolder {
     if (_appending) {
-        [self addURLs:@[url]];
+        [self addURLs:urls];
         return;
     }
-    PlaybackController *playback = _playback;
-    __weak BrowserViewController *weakSelf = self;
-    [BrowserViewController confirmReplacingPlaylistOf:playback from:self replace:^{
-        [playback openFileURL:url inFolder:inFolder];
-    } add:^{
-        [weakSelf addURLs:@[url]];
-    }];
+    [BrowserViewController confirmReplacingPlaylistOf:_playback from:self openingURLs:urls inFolder:inFolder];
 }
 
 - (void)openDirectory {
-    [self playURL:_directoryURL inFolder:NO];
+    [self openURLs:@[_directoryURL] inFolder:NO];
 }
 
 // This folder and the folders inside it, depth first in the listing's order,
@@ -648,27 +639,18 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
         }
         strongSelf->_walkingSubfolders = NO;
         if (folders.count == 0) {
-            VibePresentAlert(strongSelf, [strongSelf directoryTitle], STR_ERROR_FOLDER_EMPTY);
+            VibePresentAlert(strongSelf, strongSelf->_title, STR_ERROR_FOLDER_EMPTY);
             return;
         }
         void (^open)(void) = ^{
-            if (strongSelf->_appending) {
-                [strongSelf addURLs:folders];
-                return;
-            }
-            PlaybackController *playback = strongSelf->_playback;
-            [BrowserViewController confirmReplacingPlaylistOf:playback from:strongSelf replace:^{
-                [playback openURLs:folders openInPlace:YES];
-            } add:^{
-                [playback addURLs:folders];
-            }];
+            [strongSelf openURLs:folders inFolder:NO];
         };
         if (!capped) {
             open();
             return;
         }
         UIAlertController *alert = [UIAlertController
-                alertControllerWithTitle:[strongSelf directoryTitle]
+                alertControllerWithTitle:strongSelf->_title
                                  message:[NSString stringWithFormat:STR_BROWSER_SUBFOLDERS_CAPPED,
                                                   (unsigned long)kMaximumSubfolderTracks]
                           preferredStyle:UIAlertControllerStyleAlert];
@@ -692,29 +674,14 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
     }
     NSURL *directory = pending.firstObject;
     [pending removeObjectAtIndex:0];
-    NSSet<NSString *> *playable = PlayableExtensions.lookup;
     VibeFolderOpenSort sort = AppSettings.sharedInstance.folderOpenSort;
     __weak BrowserViewController *weakSelf = self;
     dispatch_block_t list = ^{
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-            NSArray<NSURL *> *contents = [NSFileManager.defaultManager
-                    contentsOfDirectoryAtURL:directory
-                  includingPropertiesForKeys:[NSURLUtil listingKeysForSort:sort]
-                                     options:NSDirectoryEnumerationSkipsHiddenFiles
-                                       error:NULL] ?: @[];
-            NSMutableArray<NSURL *> *subfolders = [NSMutableArray array];
-            NSUInteger songs = 0;
-            for (NSURL *url in contents) {
-                NSNumber *isDirectory = nil;
-                [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
-                if (isDirectory.boolValue) {
-                    [subfolders addObject:url];
-                }
-                else if ([playable containsObject:url.pathExtension.lowercaseString]) {
-                    songs++;
-                }
-            }
-            [NSURLUtil sortURLs:subfolders by:sort];
+            NSArray<NSURL *> *subfolders = @[];
+            NSArray<NSURL *> *audio = @[];
+            [NSURLUtil listDirectory:directory sortedBy:sort folders:&subfolders audio:&audio];
+            NSUInteger songs = audio.count;
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (songs > 0) {
                     [found addObject:directory];
@@ -727,6 +694,8 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
             });
         });
     };
+    // The open that follows reads a listed folder as it is, so each is
+    // listed once.
     NSString *dropboxPath = [DropboxMirror.shared dropboxPathForURL:directory];
     if (dropboxPath) {
         [DropboxMirror.shared refreshDropboxFolder:dropboxPath completion:^(NSURL *folderURL, NSError *error) {
@@ -741,22 +710,22 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
 // The rows of an Add, lifted for the shell to carry into the Playlist tab.
 // Not in the add sheet, which closes onto the playlist itself.
 - (void)liftRowsAtIndexPaths:(NSArray<NSIndexPath *> *)indexPaths {
-    BrowserViewController *root = (BrowserViewController *)self.navigationController.viewControllers.firstObject;
-    void (^handler)(NSArray<UIView *> *) = [root isKindOfClass:BrowserViewController.class]
-            ? root.addedRowsHandler : nil;
-    if (!handler || _appending) {
+    if (!_addedRowsHandler) {
         return;
     }
     NSMutableArray<UIView *> *rows = [NSMutableArray array];
     for (NSIndexPath *indexPath in indexPaths) {
+        if (rows.count == kMaximumLiftedRows) {
+            break;
+        }
         UITableViewCell *cell = [self.tableView cellForRowAtIndexPath:indexPath];
-        UIView *row = rows.count < kMaximumLiftedRows ? [cell snapshotViewAfterScreenUpdates:NO] : nil;
+        UIView *row = [cell snapshotViewAfterScreenUpdates:NO];
         if (row) {
             row.frame = [cell convertRect:cell.bounds toView:nil];
             [rows addObject:row];
         }
     }
-    handler(rows);
+    _addedRowsHandler(rows);
 }
 
 - (void)addSelected {
@@ -780,7 +749,11 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
 }
 
 - (BrowserViewController *)browserForDirectory:(NSURL *)url {
-    return [[BrowserViewController alloc] initWithPlayback:_playback directoryURL:url appending:_appending];
+    BrowserViewController *browser = [[BrowserViewController alloc] initWithPlayback:_playback
+                                                                        directoryURL:url
+                                                                           appending:_appending];
+    browser.addedRowsHandler = _addedRowsHandler;
+    return browser;
 }
 
 - (void)pushDirectory:(NSURL *)url {
@@ -856,6 +829,7 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
 
 // The playing file's row carries the mark.
 - (void)playbackDidMoveToCurrentTrack:(PlaybackController *)playback animated:(BOOL)animated {
+    _playingPath = playback.currentTrack.url.URLByStandardizingPath.path;
     if (self.viewIfLoaded.window && ![self isSelecting]) {
         [self.tableView reloadData];
     }
@@ -871,7 +845,8 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
     }
     NSMutableArray<NSNumber *> *rows = [NSMutableArray array];
     // First, so a location's row is its index in the store.
-    for (NSUInteger i = 0; i < SearchFolderStore.shared.folderURLs.count; i++) {
+    NSUInteger locations = SearchFolderStore.shared.folderURLs.count;
+    for (NSUInteger i = 0; i < locations; i++) {
         [rows addObject:@(VibeBrowserRootRowLocation)];
     }
     if (!linked) {
@@ -944,8 +919,9 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
     }
     else {
         BOOL sheet = [PlaylistFile isCueExtension:url.pathExtension.lowercaseString];
-        BOOL playing = [_playback.currentTrack.url.URLByStandardizingPath.path
-                isEqualToString:url.URLByStandardizingPath.path];
+        BOOL playing = _playingPath
+                && [[_standardizedPath stringByAppendingPathComponent:url.lastPathComponent]
+                        isEqualToString:_playingPath];
         if (playing) {
             content.image = [UIImage systemImageNamed:@"speaker.wave.2.fill"];
             content.imageProperties.tintColor = self.view.tintColor;
@@ -954,17 +930,9 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
             content.image = [UIImage systemImageNamed:sheet ? @"music.note.list" : @"music.note"];
         }
         // From the stat alone: what the file takes, or would download.
-        NSNumber *size = _fileSizes[url];
-        if (size && !sheet) {
-            content.secondaryText = [NSByteCountFormatter stringFromByteCount:size.longLongValue
-                                                                   countStyle:NSByteCountFormatterCountStyleFile];
-        }
-        // Not downloaded yet: a tap waits on the network.
+        content.secondaryText = _fileSizes[url];
         if ([_placeholders containsObject:url]) {
-            UIImageView *mark = [[UIImageView alloc] initWithImage:
-                    [UIImage systemImageNamed:@"arrow.down.circle"]];
-            mark.tintColor = UIColor.secondaryLabelColor;
-            cell.accessoryView = mark;
+            cell.accessoryView = VibeNotDownloadedMark();
         }
     }
     cell.contentConfiguration = content;
@@ -1046,7 +1014,7 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
         [self pushDirectory:url];
     }
     else {
-        [self playURL:url inFolder:NO];
+        [self openURLs:@[url] inFolder:NO];
     }
 }
 
@@ -1190,11 +1158,11 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
         NSMutableArray<UIMenuElement *> *items = [NSMutableArray array];
         if (!appendingSheet) {
             [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY, @"play.fill", ^{
-                [weakSelf playURL:url inFolder:NO];
+                [weakSelf openURLs:@[url] inFolder:NO];
             })];
             if (!folder) {
                 [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"play.square.stack", ^{
-                    [weakSelf playURL:url inFolder:YES];
+                    [weakSelf openURLs:@[url] inFolder:YES];
                 })];
             }
         }
@@ -1232,16 +1200,8 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
 - (void)documentPicker:(UIDocumentPickerViewController *)controller
         didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     if (!_pickingLocation) {
-        if (_appending) {
-            [self addURLs:urls];
-            return;
-        }
-        PlaybackController *playback = _playback;
-        [BrowserViewController confirmReplacingPlaylistOf:playback from:self replace:^{
-            [playback openURLs:urls openInPlace:YES];
-        } add:^{
-            [playback addURLs:urls];
-        }];
+        // One picked file expands to its folder, as it always has.
+        [self openURLs:urls inFolder:YES];
         return;
     }
     NSURL *url = urls.firstObject;
@@ -1341,8 +1301,7 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
     content.text = path.lastPathComponent;
     // The folder's name as recorded with the item: the path can outlive the
     // container it names, and then says nothing a user would recognize.
-    content.secondaryText = item[@"location"] ?: [SearchFolderStore displayNameForFolderURL:
-            [NSURL fileURLWithPath:path.stringByDeletingLastPathComponent isDirectory:YES]];
+    content.secondaryText = item[@"location"];
     VibeApplyFileNameStyle(content);
     content.imageProperties.maximumSize = CGSizeMake(40, 40);
     content.imageProperties.tintColor = UIColor.secondaryLabelColor;
@@ -1413,11 +1372,8 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
             if (!strongSelf) {
                 return;
             }
-            [BrowserViewController confirmReplacingPlaylistOf:playback from:strongSelf replace:^{
-                [playback openFileURL:url inFolder:inFolder];
-            } add:^{
-                [playback addURLs:@[url]];
-            }];
+            [BrowserViewController confirmReplacingPlaylistOf:playback from:strongSelf
+                                                  openingURLs:@[url] inFolder:inFolder];
         }
     }];
     if (_appending) {

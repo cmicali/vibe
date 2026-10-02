@@ -5,12 +5,12 @@
 
 #import "FavoritesViewController.h"
 
+#import "AppSettings.h"
 #import "BrowserViewController.h"
 #import "DropboxMirror.h"
 #import "FavoritesStore.h"
 #import "PlaybackController.h"
-#import "PlayableExtensions.h"
-#import "PlaylistFile.h"
+#import "NSURLUtil.h"
 #import "VibeStrings.h"
 
 static NSString *const kFavoriteCellIdentifier = @"favorite";
@@ -143,25 +143,16 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
     return [UIContextMenuConfiguration configurationWithIdentifier:nil
                                                    previewProvider:nil
                                                     actionProvider:^UIMenu *(NSArray<UIMenuElement *> *suggested) {
-        UIAction *play = [UIAction actionWithTitle:STR_MENU_CONTEXT_PLAY
-                                             image:[UIImage systemImageNamed:@"play.fill"]
-                                        identifier:nil
-                                           handler:^(UIAction *action) {
+        UIAction *play = VibeMenuAction(STR_MENU_CONTEXT_PLAY, @"play.fill", ^{
             [weakSelf openFavorite:favorite appending:NO];
-        }];
-        UIAction *add = [UIAction actionWithTitle:STR_MENU_CONTEXT_ADD_TO_PLAYLIST
-                                            image:[UIImage systemImageNamed:@"text.badge.plus"]
-                                       identifier:nil
-                                          handler:^(UIAction *action) {
+        });
+        UIAction *add = VibeMenuAction(STR_MENU_CONTEXT_ADD_TO_PLAYLIST, @"text.badge.plus", ^{
             [weakSelf openFavorite:favorite appending:YES];
-        }];
-        UIAction *remove = [UIAction actionWithTitle:STR_MENU_CONTEXT_REMOVE_FAVORITE
-                                               image:[UIImage systemImageNamed:@"star.slash"]
-                                          identifier:nil
-                                             handler:^(UIAction *action) {
+        });
+        UIAction *remove = VibeMenuAction(STR_MENU_CONTEXT_REMOVE_FAVORITE, @"star.slash", ^{
             // By path, not row: the list can move while the menu is up.
             [FavoritesStore.shared removeFolderURL:[NSURL fileURLWithPath:favorite.path]];
-        }];
+        });
         remove.attributes = UIMenuElementAttributesDestructive;
         UIMenu *destructive = [UIMenu menuWithTitle:@""
                                               image:nil
@@ -219,48 +210,33 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
         __weak FavoritesViewController *weakSelf = self;
         // Listed first: the mirror holds only what something has listed, so
         // a folder never browsed is empty on disk whatever Dropbox holds. A
-        // failed listing falls back on what the disk has.
+        // failed listing falls back on what the disk has; the open that
+        // follows reads the listed folder as it is.
+        VibeFolderOpenSort sort = AppSettings.sharedInstance.folderOpenSort;
         [DropboxMirror.shared refreshDropboxFolder:dropboxPath completion:^(NSURL *listedURL, NSError *error) {
-            NSArray<NSString *> *names = [NSFileManager.defaultManager
-                    contentsOfDirectoryAtPath:folderURL.path error:NULL] ?: @[];
-            BOOL hasSongs = NO;
-            for (NSString *name in names) {
-                NSString *extension = name.pathExtension.lowercaseString;
-                if ([PlayableExtensions.lookup containsObject:extension]
-                        || [PlaylistFile isCueExtension:extension]) {
-                    hasSongs = YES;
-                    break;
-                }
-            }
-            if (hasSongs) {
-                [weakSelf playFolderURL:folderURL];
-            }
-            else {
-                showDirectory(folderURL);
-            }
+            dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+                NSArray<NSURL *> *audio = @[];
+                [NSURLUtil listDirectory:folderURL sortedBy:sort folders:NULL audio:&audio];
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (audio.count > 0) {
+                        [weakSelf playFolderURL:folderURL];
+                    }
+                    else {
+                        showDirectory(folderURL);
+                    }
+                });
+            });
         }];
     }
 }
 
 - (void)playFolderURL:(NSURL *)folderURL {
-    PlaybackController *playback = _playback;
-    [BrowserViewController confirmReplacingPlaylistOf:playback from:self replace:^{
-        [playback openURLs:@[folderURL] openInPlace:YES];
-    } add:^{
-        [playback addURLs:@[folderURL]];
-    }];
+    [BrowserViewController confirmReplacingPlaylistOf:_playback from:self openingURLs:@[folderURL] inFolder:NO];
 }
 
 // The row stays: a signed-out provider or an unmounted volume is temporary.
 - (void)showUnavailableAlertForFavorite:(FavoriteFolder *)favorite {
-    UIAlertController *alert =
-            [UIAlertController alertControllerWithTitle:favorite.name
-                                                message:STR_ERROR_FAVORITE_UNAVAILABLE
-                                         preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:STR_BUTTON_OK
-                                              style:UIAlertActionStyleDefault
-                                            handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
+    VibePresentAlert(self, favorite.name, STR_ERROR_FAVORITE_UNAVAILABLE);
 }
 
 @end
