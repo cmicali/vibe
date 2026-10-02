@@ -34,6 +34,10 @@ static NSString *const kSourceCellIdentifier = @"source";
 static NSString *const kActionCellIdentifier = @"action";
 static NSString *const kItemCellIdentifier = @"item";
 
+// Going back to a folder relists it only this long after its last listing;
+// pull to refresh always does.
+static const CFTimeInterval kRelistInterval = 60;
+
 @interface BrowserViewController () <UIDocumentPickerDelegate>
 @end
 
@@ -54,6 +58,9 @@ static NSString *const kItemCellIdentifier = @"item";
     NSString *_dropboxPath;
     BOOL _refreshing;
     NSError *_refreshError;
+    // When this screen last listed its folder from Dropbox; a reappearance
+    // within kRelistInterval shows the disk alone.
+    CFAbsoluteTime _listedAt;
 
     // Which picker is up: a location grant, or a one-off pick.
     BOOL _pickingLocation;
@@ -138,7 +145,7 @@ static NSString *const kItemCellIdentifier = @"item";
         return;
     }
     [self reloadFromDisk];
-    if (_dropboxPath) {
+    if (_dropboxPath && CFAbsoluteTimeGetCurrent() - _listedAt > kRelistInterval) {
         [self refreshFromDropbox];
     }
 }
@@ -233,6 +240,8 @@ static NSString *const kItemCellIdentifier = @"item";
         }
         strongSelf->_refreshing = NO;
         strongSelf->_refreshError = error;
+        // A failed listing is tried again on the next appearance.
+        strongSelf->_listedAt = error ? 0 : CFAbsoluteTimeGetCurrent();
         [strongSelf.refreshControl endRefreshing];
         if (error) {
             LogWarn(@"Dropbox: could not list %@: %@", strongSelf->_directoryURL.lastPathComponent,
