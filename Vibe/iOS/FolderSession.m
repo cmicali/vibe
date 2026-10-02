@@ -910,7 +910,7 @@ static const NSUInteger kMaximumRecentItems = 50;
     _searchGrants = [ownedGrants mutableCopy];
     _folderURL = folderURL;
     _addedFolderURLs = [addedFolders mutableCopy];
-    _hasAdditions = addedFolders.count > 0;
+    _hasAdditions = restored && addedFolders.count > 0;
     _landedOpenIntentGeneration = openIntentGeneration;
     _additionsPersisted = baseBookmark != nil;
     if (baseBookmark) {

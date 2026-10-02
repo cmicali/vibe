@@ -209,9 +209,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (uint64_t)addRequestToken;
 - (void)addURLs:(NSArray<NSURL *> *)urls token:(uint64_t)token;
 
-// YES once an Add has landed on the playlist now loaded, or it was opened
-// from more than one place: replacing it loses work a reopen does not bring
-// back.
+// YES once an Add has landed on the playlist now loaded, or it was restored
+// with additions: replacing it loses work a reopen does not bring back.
 @property (nonatomic, readonly) BOOL playlistHasAdditions;
 
 // Nil for a single-file playlist and before anything was opened.

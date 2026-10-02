@@ -10,7 +10,7 @@ A usability audit of the UI that PR 132 introduced (the Files tab's browser, Rec
 
 ## Status
 
-Sections A and most of B through F are done; each row's last column says what was built. Still open: **B2** and **C4** (what Play and Add do with a folder whose songs are in subfolders), **B3**, and whether the card's download line (**B7**) is legible enough. **C3** is done and may be reverted. The new and reworded strings are English only.
+Sections A and most of B through F are done; each row's last column says what was built. Still open: the rest of **B2** (an Add of a folder whose songs are in subfolders), **B3**, and whether the card's download line (**B7**) is legible enough. **C3** is done and may be reverted. The new and reworded strings are English only.
 
 ## A. Bugs (fixed)
 
@@ -33,7 +33,7 @@ All four are fixed in the working tree and were re-verified in the simulator.
 | # | Sev | Finding | Outcome |
 | --- | --- | --- | --- |
 | B1 | high | Add to Playlist gives no confirmation in the Files tab. A full swipe on a folder added four tracks and nothing on screen changed. The context menu and multi-select Add are the same. | **Done.** The added rows lift, then fly into the Playlist tab when the tracks land, with a light haptic; when nothing lands they set back down. No badge. Recents and Search adds do not animate yet, and on iPad the rows fade in place. |
-| B2 | high | Adding or playing a folder that holds only subfolders does nothing, silently. Selecting "Albums" (subfolders only) plus one file added only the file. | **Open**, with C4. The rows of an Add that lands nothing now set back down instead of flying, which is the only signal so far. |
+| B2 | high | Adding or playing a folder that holds only subfolders does nothing, silently. Selecting "Albums" (subfolders only) plus one file added only the file. | **Partly done.** The play button no longer vanishes in a folder of folders, and Play with Subfolders reaches the songs. A swipe, long-press, or multi-select Add of such a folder still adds nothing; its rows set back down instead of flying. |
 | B3 | med | Adding something already in the playlist is skipped silently, and rows carry no mark for what is already there. | **Kept open.** |
 | B4 | high | Search with no results is a blank screen. In the Dropbox scope the "Searching Dropbox…" header just disappears. | **Done.** The system's No Results state, once every half in scope has answered with nothing. |
 | B5 | med | A Dropbox search failure looks the same as no results; the error is only logged. | **Done.** A failed Dropbox search heads its section "Couldn't reach Dropbox." instead of vanishing. |
@@ -48,7 +48,7 @@ All four are fixed in the working tree and were re-verified in the simulator.
 | C1 | high | The same tap means different things by screen. A file in the browser plays its whole folder; in Recents or Search it plays alone. A folder in the browser navigates; in Recents it plays. | **Done, with the rule flipped as decided:** a file tap plays that file alone and a folder tap opens it, in the browser, Search, and Recents. The long press has Play in Folder. |
 | C2 | high | The add sheet is titled "Files" and looks identical to the Files tab, but every tap appends and dismisses. | **Done.** The sheet's root is titled Add to Playlist and every pushed level carries it as a prompt. |
 | C3 | high | Tapping a file replaces a hand-built playlist with no warning. With Add now a first-class action, that loses real work. | **Done, and may be reverted.** A replace asks first (Replace, Add Instead, Cancel) once an Add has landed on the playlist; it is one method, `+confirmReplacingPlaylistOf:from:replace:add:`, and four call sites. |
-| C4 | med | The bar's Play button plays only the files directly in the folder. In a folder of three albums and one loose file it plays one track, and it vanishes in folder-only directories so the bar shifts between levels. | **Open: needs a decision.** Play still plays the files directly in the folder. Recursing risks pulling in a huge library; a bounded recursion (a track cap) is the candidate. |
+| C4 | med | The bar's Play button plays only the files directly in the folder. In a folder of three albums and one loose file it plays one track, and it vanishes in folder-only directories so the bar shifts between levels. | **Done, as decided.** A tap plays the folder alone and never recurses. A long press offers Play with Subfolders (Add with Subfolders in the sheet), capped at about 2,000 songs or 500 folders, with an alert when it stops early. In a folder with no song directly inside, the button is that menu alone. |
 | C5 | med | The Sort menu looks like a view option for this folder but writes the global "When opening a folder" setting. | **Done.** The menu is titled "Sort All Folders By" and stays in the Files tab's bar. |
 | C6 | med | The scope bar reads All, Files, Dropbox, Playlist; the result sections read Playlist, Files, Dropbox. The chosen scope also persists, so a later search can look empty. | **Done.** The scope bar is All, Playlist, Local, Dropbox, and an appearance with an empty field resets it to All. |
 | C7 | low | Open Folder lands on the folder with nothing selected. | **Done.** The file is scrolled to and selected for a moment. |

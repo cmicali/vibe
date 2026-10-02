@@ -56,6 +56,10 @@ static NSString *const kItemCellIdentifier = @"item";
 static const CFTimeInterval kRelistInterval = 60;
 // A larger selection lifts its first rows only: the rest would be a blur.
 static const NSUInteger kMaximumLiftedRows = 6;
+// Play with Subfolders stops here: a library's root would otherwise become
+// one playlist. Whole folders are taken, so the count can run a little over.
+static const NSUInteger kMaximumSubfolderTracks = 2000;
+static const NSUInteger kMaximumSubfolders = 500;
 // How long Open Folder keeps the file it came from highlighted.
 static const NSTimeInterval kHighlightInterval = 1.2;
 
@@ -128,6 +132,8 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
     BOOL _pickingLocation;
     // A row swipe sets isEditing too; only the Select button's is multi-select.
     BOOL _swipingRow;
+    // A subfolder walk is out; a second ask waits for it.
+    BOOL _walkingSubfolders;
     UIBarButtonItem *_playItem;
     UIBarButtonItem *_addSelectedItem;
     UIBarButtonItem *_sortItem;
@@ -197,6 +203,13 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
                                                     target:self
                                                     action:@selector(openDirectory)];
         _playItem.accessibilityLabel = _appending ? STR_MENU_CONTEXT_ADD_TO_PLAYLIST : STR_MENU_CONTEXT_PLAY;
+        // A tap is this folder alone, never its subfolders: the root of a
+        // library would be one playlist. The long press takes them, capped.
+        __weak BrowserViewController *weakPlaySelf = self;
+        _playItem.menu = [UIMenu menuWithChildren:@[VibeMenuAction(
+                _appending ? STR_BROWSER_ADD_SUBFOLDERS : STR_BROWSER_PLAY_SUBFOLDERS, @"square.stack.3d.up", ^{
+            [weakPlaySelf openDirectoryWithSubfolders];
+        })]];
         _addSelectedItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"text.badge.plus"]
                                                             style:UIBarButtonItemStylePlain
                                                            target:self
@@ -467,7 +480,11 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
     if (!self.isEmpty) {
         [items addObject:_selectItem];
     }
-    if (_allFiles.count > 0) {
+    // With no song directly inside, the tap has nothing to play and the
+    // button is its menu alone.
+    if (!self.isEmpty) {
+        _playItem.target = _allFiles.count > 0 ? self : nil;
+        _playItem.action = _allFiles.count > 0 ? @selector(openDirectory) : NULL;
         [items addObject:_playItem];
     }
     // Not in the add sheet: with Close the bar has no room, and the order is
@@ -592,6 +609,116 @@ static void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
 
 - (void)openDirectory {
     [self playURL:_directoryURL inFolder:NO];
+}
+
+// This folder and the folders inside it, depth first in the listing's order,
+// as one open: the first folder with songs is the base and the rest are
+// additions, each listed flat as any folder is.
+- (void)openDirectoryWithSubfolders {
+    if (_walkingSubfolders) {
+        return;
+    }
+    _walkingSubfolders = YES;
+    __weak BrowserViewController *weakSelf = self;
+    [self walkSubfolders:[NSMutableArray arrayWithObject:_directoryURL]
+                   found:[NSMutableArray array]
+                  tracks:0
+                 visited:0
+              completion:^(NSArray<NSURL *> *folders, BOOL capped) {
+        BrowserViewController *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return;
+        }
+        strongSelf->_walkingSubfolders = NO;
+        if (folders.count == 0) {
+            VibePresentAlert(strongSelf, [strongSelf directoryTitle], STR_ERROR_FOLDER_EMPTY);
+            return;
+        }
+        void (^open)(void) = ^{
+            if (strongSelf->_appending) {
+                [strongSelf addURLs:folders];
+                return;
+            }
+            PlaybackController *playback = strongSelf->_playback;
+            [BrowserViewController confirmReplacingPlaylistOf:playback from:strongSelf replace:^{
+                [playback openURLs:folders openInPlace:YES];
+            } add:^{
+                [playback addURLs:folders];
+            }];
+        };
+        if (!capped) {
+            open();
+            return;
+        }
+        UIAlertController *alert = [UIAlertController
+                alertControllerWithTitle:[strongSelf directoryTitle]
+                                 message:[NSString stringWithFormat:STR_BROWSER_SUBFOLDERS_CAPPED,
+                                                  (unsigned long)kMaximumSubfolderTracks]
+                          preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:STR_BUTTON_OK style:UIAlertActionStyleDefault
+                                                handler:^(UIAlertAction *action) { open(); }]];
+        [strongSelf presentViewController:alert animated:YES completion:nil];
+    }];
+}
+
+// One folder per turn. A Dropbox folder is listed from Dropbox first: the
+// mirror holds only what something has listed, so one never browsed is empty
+// on disk. Completion on main; capped means folders were left unvisited.
+- (void)walkSubfolders:(NSMutableArray<NSURL *> *)pending
+                 found:(NSMutableArray<NSURL *> *)found
+                tracks:(NSUInteger)tracks
+               visited:(NSUInteger)visited
+            completion:(void (^)(NSArray<NSURL *> *folders, BOOL capped))completion {
+    if (pending.count == 0 || tracks >= kMaximumSubfolderTracks || visited >= kMaximumSubfolders) {
+        completion(found, pending.count > 0);
+        return;
+    }
+    NSURL *directory = pending.firstObject;
+    [pending removeObjectAtIndex:0];
+    NSSet<NSString *> *playable = PlayableExtensions.lookup;
+    VibeFolderOpenSort sort = AppSettings.sharedInstance.folderOpenSort;
+    __weak BrowserViewController *weakSelf = self;
+    dispatch_block_t list = ^{
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            NSArray<NSURL *> *contents = [NSFileManager.defaultManager
+                    contentsOfDirectoryAtURL:directory
+                  includingPropertiesForKeys:[NSURLUtil listingKeysForSort:sort]
+                                     options:NSDirectoryEnumerationSkipsHiddenFiles
+                                       error:NULL] ?: @[];
+            NSMutableArray<NSURL *> *subfolders = [NSMutableArray array];
+            NSUInteger songs = 0;
+            for (NSURL *url in contents) {
+                NSNumber *isDirectory = nil;
+                [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
+                if (isDirectory.boolValue) {
+                    [subfolders addObject:url];
+                }
+                else if ([playable containsObject:url.pathExtension.lowercaseString]) {
+                    songs++;
+                }
+            }
+            [NSURLUtil sortURLs:subfolders by:sort];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (songs > 0) {
+                    [found addObject:directory];
+                }
+                // Ahead of its siblings: depth first.
+                [pending insertObjects:subfolders
+                             atIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, subfolders.count)]];
+                [weakSelf walkSubfolders:pending found:found tracks:tracks + songs visited:visited + 1
+                              completion:completion];
+            });
+        });
+    };
+    NSString *dropboxPath = [DropboxMirror.shared dropboxPathForURL:directory];
+    if (dropboxPath) {
+        [DropboxMirror.shared refreshDropboxFolder:dropboxPath completion:^(NSURL *folderURL, NSError *error) {
+            list();
+        }];
+    }
+    else {
+        list();
+    }
 }
 
 // The rows of an Add, lifted for the shell to carry into the Playlist tab.

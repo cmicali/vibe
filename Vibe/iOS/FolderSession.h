@@ -44,8 +44,8 @@ NS_ASSUME_NONNULL_BEGIN
 // Nil whenever folderURL is.
 @property (nonatomic, readonly, nullable) NSString *folderDisplayName;
 
-// An Add has landed on the playlist now loaded, or its open brought in more
-// than its base: the playlist is no longer something one reopen rebuilds.
+// An Add has landed on the playlist now loaded, or it was restored with
+// additions: the playlist is no longer something one reopen rebuilds.
 @property (nonatomic, readonly) BOOL hasAdditions;
 
 // The BASE folder: the Playlist tab's title, the star, the bookmark. Nil for a

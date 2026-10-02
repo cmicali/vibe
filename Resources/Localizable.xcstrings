@@ -3163,6 +3163,18 @@
       },
       "extractionState": "manual"
     },
+    "browser.add_subfolders": {
+      "comment": "iOS add-to-playlist sheet: the item under a long press on a folder's add button. Adds every song in the folder and in the folders inside it to the playlist, where a plain tap adds only the songs directly in the folder.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add with Subfolders"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "browser.dropbox_unavailable": {
       "comment": "iOS Files tab: shown in place of a Dropbox folder's contents when they could not be loaded, for example while offline. Pulling the list down retries. Dropbox is a product name: keep it untranslated. Uses a curly apostrophe (’).",
       "localizations": {
@@ -3230,6 +3242,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Browse Files…"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "browser.play_subfolders": {
+      "comment": "iOS Files tab: the item under a long press on a folder's play button. Plays every song in the folder and in the folders inside it, where a plain tap plays only the songs directly in the folder.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play with Subfolders"
           }
         }
       },
@@ -3338,6 +3362,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sort All Folders By"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "browser.subfolders_capped": {
+      "comment": "iOS Files tab: alert message after Play with Subfolders or Add with Subfolders stopped early because the folder holds more songs than one playlist takes. %lu is the limit, a round number such as 2,000.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only about the first %lu songs were included. Open a subfolder to play the rest."
           }
         }
       },
