@@ -23,6 +23,7 @@
 #import "CloudTransferRegistry.h"
 #import "DownloadProgressMonitor.h"
 #import "FavoritesStore.h"
+#import "PlayerDisplaySettings.h"
 #import "PlaybackDeliveryRules.h"
 #import "SettingsRules.h"
 #import "SearchFolderStore.h"
@@ -468,12 +469,22 @@ static const NSUInteger kUIUpdateHz = 3;
     [self publishNowPlaying];
 }
 
-// The model and the system's controls, which show the same modes.
+// The model and the system's controls, which show the same modes. With the
+// card's buttons hidden, CarPlay's are too and both modes are off, whoever
+// asked: a request that still arrives is written back as off here, and a mode
+// saved before the buttons were hidden is cleared at launch.
 - (void)pushTransportModes {
     AppSettings *settings = AppSettings.sharedInstance;
+    BOOL shown = VibeShowsShuffleRepeat();
+    if (!shown) {
+        settings.shuffleEnabled = NO;
+        settings.repeatMode = VibeRepeatModeOff;
+    }
     _playlist.repeatMode = settings.repeatMode;
     _playlist.shuffleEnabled = settings.shuffleEnabled;
-    [_nowPlaying updateShuffleEnabled:settings.shuffleEnabled repeatMode:settings.repeatMode];
+    [_nowPlaying updateShuffleEnabled:settings.shuffleEnabled
+                           repeatMode:settings.repeatMode
+                            available:shown];
 }
 
 - (void)toggleShuffle {

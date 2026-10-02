@@ -33,10 +33,8 @@ NS_ASSUME_NONNULL_BEGIN
 // Live cells only; willDisplayCell: covers the rest.
 - (void)refreshPageAtIndex:(NSUInteger)index;
 
-// Next's enablement and the shuffle and repeat buttons, their visibility
-// included: the part of configurePage:atIndex: a track change, a mode change
-// or a presentation moves. The visible-pages form also latches
-// _shuffleRepeatRevealed on any mode that is on.
+// Next's enablement and the shuffle and repeat buttons: the part of
+// configurePage:atIndex: a track change or a mode change moves.
 - (void)applyPlayOrderToCell:(TrackPageCell *)cell atIndex:(NSUInteger)index;
 - (void)applyPlayOrderToVisiblePages;
 

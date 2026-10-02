@@ -178,6 +178,7 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     // The pad follows the setting, which the Playback screen's write carries
     // here through the display notification.
     [cell setFXPadShown:AppSettings.sharedInstance.audioFXEnabled];
+    [cell setShuffleRepeatShown:VibeShowsShuffleRepeat()];
 }
 
 // The mac's second info line: the tempo — the tag, or the analysis the
@@ -282,12 +283,9 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
             : (index + 1 < _playlist.count || _playlist.repeatMode == VibeRepeatModeAll);
     [cell setNextEnabled:nextEnabled];
     [cell setShuffleEnabled:_playlist.shuffleEnabled repeatMode:_playlist.repeatMode];
-    [cell setShuffleRepeatShown:VibeShowsShuffleRepeat() || _shuffleRepeatRevealed];
 }
 
 - (void)applyPlayOrderToVisiblePages {
-    _shuffleRepeatRevealed = _shuffleRepeatRevealed
-            || _playlist.shuffleEnabled || _playlist.repeatMode != VibeRepeatModeOff;
     for (TrackPageCell *cell in _pagesView.visibleCells) {
         NSIndexPath *path = [_pagesView indexPathForCell:cell];
         if (path) {

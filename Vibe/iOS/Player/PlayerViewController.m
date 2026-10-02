@@ -361,8 +361,6 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     _presented = presented;
     [self updateScrollLinkState];
     if (presented) {
-        _shuffleRepeatRevealed = NO;
-        [self applyPlayOrderToVisiblePages];
         // Minimized, the card took no ticks.
         [self updateOutputRoute];
         [self updatePlaybackUI];
@@ -608,7 +606,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
             [(FXPadView *)view cancelInteraction];
         }
     }
-    _shuffleRepeatRevealed = NO;
+    // Only the current page reads Next from the play order.
     [self applyPlayOrderToVisiblePages];
 }
 

@@ -246,12 +246,9 @@ static NSString *const kValueCellIdentifier  = @"value";
 
 - (void)shuffleRepeatToggled:(UISwitch *)toggle {
     VibeSetShowsShuffleRepeat(toggle.isOn);
-    if (!toggle.isOn) {
-        AppSettings *settings = AppSettings.sharedInstance;
-        settings.shuffleEnabled = NO;
-        settings.repeatMode = VibeRepeatModeOff;
-        [_playback applyTrackTransitionSettings];
-    }
+    // Either way: hidden clears both modes and CarPlay's buttons, shown
+    // brings the buttons back.
+    [_playback applyTrackTransitionSettings];
     VibeNotifyDisplaySettingsChanged();
 }
 
