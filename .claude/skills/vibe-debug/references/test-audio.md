@@ -23,6 +23,8 @@ Use the generated files in `Assets/test_audio_files/` (gitignored) rather than s
 
 **The MP3s are the one part of the corpus that needs a non-stock tool** — `lame` or `ffmpeg`, either works — and the generator skips them with a note when neither is installed, so a machine without one has a corpus missing the app's headline format. `afconvert` cannot stand in: `afconvert -hf` advertises `'MPG3'` with data_formats `'.mp3'`, but encoding fails with `ExtAudioFileSetProperty ('cfmt') failed ('fmt?')` because macOS ships an MP3 decoder and no encoder. Don't spend a round on its flags.
 
+**Every ffmpeg call is bounded and writes its output whole or not at all**: the generator's `ffmpeg_out`, and `scripts/bench/bench.py`'s `ffmpeg()`, which the perf and cloud corpora share. A new script calls one of them. TRAP: ffmpeg's native `vorbis` encoder never exits once almost no audio reaches it (a FLAC seeked to near or past its end), so a window cut from a real file clamps `-ss` to `ffprobe`'s duration. The code comment has the detail.
+
 The short files end after eight seconds. Pause early, or use `tone-long.wav`, when a test needs playback still running at capture time.
 
 **Simulating a slow cloud file open.** The Loading state, the shimmer, the load-timeout error and anything else gated on `didBeginLoading:` need an open that blocks, which no local file provides. `set_fake_cloud` is the way — the same injected provider the stress harness runs on, so it needs no network, no account and no provider anywhere in reach:

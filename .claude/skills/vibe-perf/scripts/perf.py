@@ -69,9 +69,7 @@ def corpus():
         out = EXTRA / name
         if not out.exists():
             print(f'corpus: {name}', flush=True)
-            tmp = out.with_name('tmp.' + name)
-            bench.ffmpeg('-i', str(source), '-map', '0:a', *codec, str(tmp))
-            tmp.rename(out)
+            bench.ffmpeg('-i', str(source), '-map', '0:a', *codec, str(out))
     return bench.corpus_hash(extra=True)
 
 

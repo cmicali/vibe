@@ -20,7 +20,7 @@ V="$APP/Contents/MacOS/Vibe"      # the binary is its own CLI client (same sandb
 "$V" --debug-cmd dump_state                                     # {player, currentTrack, playlist, ui, window, settings}
 "$V" --debug-cmd check_consistency                              # the app's own rules against live state; re-check after a settle
 "$V" --debug-cmd dump_screenshot - > shot.png                   # always the `-` form: a path reply is inside the container, and reading it trips TCC
-/usr/bin/log stream --level debug --predicate 'subsystem == "com.commonwealthrecordings.Vibe"'   # info/debug are never persisted; full path, zsh has a `log` builtin
+/usr/bin/log stream --timeout 30m --level debug --predicate 'subsystem == "com.commonwealthrecordings.Vibe"'   # info/debug are never persisted; full path, zsh has a `log` builtin
 ```
 
 Run the opt-in bit-perfect acceptance matrix with `make test-bit-perfect`; setup, coverage and evidence are in `references/test-audio.md`. Live acceptance is excluded from regular tests and CI. Both `test-bit-perfect` and the hardware-free `test-audio` run the same comparator self-tests. `make build-test-blackhole` builds its required multichannel/failure driver fixtures; installation requires macOS administrator authentication.
@@ -135,7 +135,7 @@ The global-input helper `input.swift` requires `--isolated-desktop`, which asser
 
 ## Logs
 
-Stream, never `log show` — the one-liner above. A real phone offers no unified-log stream at all, so debug builds take `--log-stderr`, which mirrors every `Log*` line to stderr for `devicectl` to relay (commands: `references/screenshots-and-logs.md`). TRAP: the `--console` session owns the process — when its tunnel drops, which it does, the app dies with it and the error names RemoteXPC, not Vibe. Relaunch without `--console` if you only need the app up. Which build produced a log: `references/build-provenance.md`.
+Stream, never `log show` — the one-liner above. TRAP: a stream never ends by itself, so every one takes `--timeout` (`-T <num>[m|h|d]`); one left in the background outlives the session, and an orphan kept `diagnosticd` busy for 34 hours. A real phone offers no unified-log stream at all, so debug builds take `--log-stderr`, which mirrors every `Log*` line to stderr for `devicectl` to relay (commands: `references/screenshots-and-logs.md`). TRAP: the `--console` session owns the process — when its tunnel drops, which it does, the app dies with it and the error names RemoteXPC, not Vibe. Relaunch without `--console` if you only need the app up. Which build produced a log: `references/build-provenance.md`.
 
 ## iOS: the simulator loop
 
