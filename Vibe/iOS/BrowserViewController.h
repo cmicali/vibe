@@ -36,6 +36,11 @@ NS_ASSUME_NONNULL_BEGIN
 // is pushed alone.
 - (void)showDirectory:(NSURL *)directory;
 
+// On the root: handed snapshots of the rows an Add was asked for, framed in
+// window coordinates, before the Add is requested. The shell animates them
+// into the Playlist tab when the tracks land; this screen knows no tabs.
+@property (nonatomic, copy, nullable) void (^addedRowsHandler)(NSArray<UIView *> *rows);
+
 @end
 
 NS_ASSUME_NONNULL_END

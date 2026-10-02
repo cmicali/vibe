@@ -48,6 +48,8 @@ static NSString *const kItemCellIdentifier = @"item";
 // Going back to a folder relists it only this long after its last listing;
 // pull to refresh always does.
 static const CFTimeInterval kRelistInterval = 60;
+// A larger selection lifts its first rows only: the rest would be a blur.
+static const NSUInteger kMaximumLiftedRows = 6;
 
 @interface BrowserViewController () <UIDocumentPickerDelegate>
 @end
@@ -399,11 +401,33 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
     [self openURLs:@[_directoryURL] appending:_appending];
 }
 
+// The rows of an Add, lifted for the shell to carry into the Playlist tab.
+// Not in the add sheet, which closes onto the playlist itself.
+- (void)liftRowsAtIndexPaths:(NSArray<NSIndexPath *> *)indexPaths {
+    BrowserViewController *root = (BrowserViewController *)self.navigationController.viewControllers.firstObject;
+    void (^handler)(NSArray<UIView *> *) = [root isKindOfClass:BrowserViewController.class]
+            ? root.addedRowsHandler : nil;
+    if (!handler || _appending) {
+        return;
+    }
+    NSMutableArray<UIView *> *rows = [NSMutableArray array];
+    for (NSIndexPath *indexPath in indexPaths) {
+        UITableViewCell *cell = [self.tableView cellForRowAtIndexPath:indexPath];
+        UIView *row = rows.count < kMaximumLiftedRows ? [cell snapshotViewAfterScreenUpdates:NO] : nil;
+        if (row) {
+            row.frame = [cell convertRect:cell.bounds toView:nil];
+            [rows addObject:row];
+        }
+    }
+    handler(rows);
+}
+
 - (void)addSelected {
     NSMutableArray<NSURL *> *urls = [NSMutableArray array];
     // In row order, which is the order a reader of the list expects.
     NSArray<NSIndexPath *> *selected = [self.tableView.indexPathsForSelectedRows
             sortedArrayUsingSelector:@selector(compare:)];
+    [self liftRowsAtIndexPaths:selected];
     for (NSIndexPath *indexPath in selected) {
         NSURL *url = [self itemAtIndexPath:indexPath];
         if (url) {
@@ -697,6 +721,7 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
             contextualActionWithStyle:UIContextualActionStyleNormal
                                 title:STR_MENU_CONTEXT_ADD_TO_PLAYLIST
                               handler:^(UIContextualAction *action, UIView *source, void (^completion)(BOOL)) {
+        [weakSelf liftRowsAtIndexPaths:@[indexPath]];
         [weakSelf openURLs:@[url] appending:YES];
         completion(YES);
     }];
@@ -727,6 +752,7 @@ static UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handle
             })];
         }
         [items addObject:VibeMenuAction(STR_MENU_CONTEXT_ADD_TO_PLAYLIST, @"text.badge.plus", ^{
+            [weakSelf liftRowsAtIndexPaths:@[indexPath]];
             [weakSelf openURLs:@[url] appending:YES];
         })];
         if (folder && !appendingSheet && ![FavoritesStore.shared containsFolderURL:url]) {
