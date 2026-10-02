@@ -6,6 +6,7 @@
 #import "FilesSettingsViewController.h"
 
 #import "AppSettings.h"
+#import "SettingsRules.h"
 #import "DropboxMirror.h"
 #import "VibeStrings.h"
 
@@ -28,14 +29,6 @@ static VibeFolderOpenSort FolderSortForRow(NSInteger row) {
         case VibeFolderSortRowNewestFirst: return VibeFolderOpenSortNewestFirst;
         case VibeFolderSortRowAsReceived:  return VibeFolderOpenSortAsReceived;
         default:                           return VibeFolderOpenSortName;
-    }
-}
-
-static NSString *FolderSortDisplayNameForRow(NSInteger row) {
-    switch ((VibeFolderSortRow)row) {
-        case VibeFolderSortRowNewestFirst: return STR_SETTINGS_FOLDER_SORT_NEWEST_FIRST;
-        case VibeFolderSortRowAsReceived:  return STR_SETTINGS_FOLDER_SORT_AS_RECEIVED;
-        default:                           return STR_SETTINGS_FOLDER_SORT_NAME;
     }
 }
 
@@ -139,7 +132,7 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
                                       reuseIdentifier:kChoiceCellIdentifier];
     }
     UIListContentConfiguration *content = [UIListContentConfiguration cellConfiguration];
-    content.text = FolderSortDisplayNameForRow(indexPath.row);
+    content.text = VibeFolderOpenSortDisplayName(FolderSortForRow(indexPath.row));
     cell.contentConfiguration = content;
     cell.accessoryType = FolderSortForRow(indexPath.row) == AppSettings.sharedInstance.folderOpenSort
             ? UITableViewCellAccessoryCheckmark : UITableViewCellAccessoryNone;

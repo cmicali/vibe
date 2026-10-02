@@ -27,6 +27,10 @@ NS_ASSUME_NONNULL_BEGIN
 // file filtering is cancelled; revealed, one current pass runs.
 @property (nonatomic, getter=isMaterialSurfaceVisible) BOOL materialSurfaceVisible;
 
+// Open Folder: shows a directory in the Files tab, which this screen knows
+// nothing about.
+@property (nonatomic, copy, nullable) void (^showDirectoryHandler)(NSURL *directory);
+
 @end
 
 NS_ASSUME_NONNULL_END

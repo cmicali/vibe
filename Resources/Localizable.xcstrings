@@ -3211,6 +3211,42 @@
       },
       "extractionState": "manual"
     },
+    "browser.recents": {
+      "comment": "iOS Files tab: the row, and the title of the screen it opens, listing every file and folder the user recently played or added, newest first. Same word as the Files app's own Recents.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recents"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "browser.recents_empty": {
+      "comment": "iOS Files tab: shown in place of the Recents list before the user has played or added anything.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Files and folders you play appear here."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "browser.sort": {
+      "comment": "iOS Files tab: accessibility label of the button in a folder's bar that opens the menu choosing how the folder's contents are ordered (by name, by date modified, or unsorted). The same order is the one the folder plays in.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sort"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "button.cancel": {
       "comment": "iOS: the button that dismisses a confirmation alert without doing anything. Use the wording the system uses for this button in this language.",
       "localizations": {
@@ -5264,6 +5300,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "無法打開列出的檔案"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "error.recent.unavailable": {
+      "comment": "iOS: alert message shown when tapping a Recents row whose file or folder could not be found. The alert’s title is the item’s name. Uses a curly apostrophe (’).",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This item can’t be opened right now. It may have been moved or deleted, or its cloud service may be signed out."
           }
         }
       },
@@ -10849,8 +10897,20 @@
       },
       "extractionState": "manual"
     },
+    "menu.context.open_folder": {
+      "comment": "iOS: long-press menu item on a search result or a Recents row. Shows the folder in the Files tab — the folder holding a file, or the folder itself — without playing anything.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Folder"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "menu.context.play": {
-      "comment": "iOS: long-press menu item on a Favorites row. Opens the starred folder as the playlist and starts playing it, replacing whatever was queued — the same as tapping the row.",
+      "comment": "iOS: long-press menu item on a Favorites row, where it opens the starred folder as the playlist and starts playing it, and on a file in the search results, where it plays that one file alone. Either way it replaces whatever was queued — the same as tapping the row.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -11030,6 +11090,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "播放"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "menu.context.play_in_folder": {
+      "comment": "iOS: long-press menu item on a file in the search results. Opens the folder holding the file as the playlist and starts playing from that file, replacing whatever was queued. Its neighbour 'Play' plays the file alone.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play in Folder"
           }
         }
       },
@@ -23695,8 +23767,20 @@
       },
       "extractionState": "manual"
     },
+    "search.scope.all": {
+      "comment": "iOS: the first button of the scope bar above the search results; shows matches from every place searched — files, Dropbox and the playlist — rather than one of them.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "search.section.files": {
-      "comment": "iOS: header of the search results section listing matching audio files found elsewhere in the user's files, which are not in the playlist yet.",
+      "comment": "iOS: header of the search results section listing matching audio files found elsewhere in the user's files, which are not in the playlist yet, and the scope-bar button above the results that shows only that section.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -23882,7 +23966,7 @@
       "extractionState": "manual"
     },
     "search.section.playlist": {
-      "comment": "iOS: header of the search results section listing matches among the tracks queued to play.",
+      "comment": "iOS: header of the search results section listing matches among the tracks queued to play, and the scope-bar button above the results that shows only that section.",
       "localizations": {
         "bg": {
           "stringUnit": {

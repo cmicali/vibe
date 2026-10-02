@@ -748,8 +748,16 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     }]];
 }
 
-- (void)openSearchResultURL:(NSURL *)url {
-    [_folderSession openFileFromSearchRoots:url];
+- (void)openFileURL:(NSURL *)url inFolder:(BOOL)inFolder {
+    [_folderSession openFileFromSearchRoots:url inFolder:inFolder];
+}
+
+- (NSArray<NSDictionary *> *)recentItems {
+    return _folderSession.recentItems;
+}
+
+- (void)resolveRecentItem:(NSDictionary *)item completion:(void (^)(NSURL *))completion {
+    [_folderSession resolveRecentItem:item completion:completion];
 }
 
 - (void)restorePersistedSession {
@@ -787,10 +795,12 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     // after it, under shuffle it would be a pick (replaceAllWithTracks:'s trap).
     NSUInteger start = NSNotFound;
     if (selectedURL) {
-        // A file pick that expanded to its directory plays the picked file.
+        // A file pick that expanded to its directory plays the picked file;
+        // a picked sheet, its first track.
         NSString *selectedPath = selectedURL.URLByStandardizingPath.path;
         for (NSUInteger i = 0; i < rows.count; i++) {
-            if ([rows[i].url.URLByStandardizingPath.path isEqualToString:selectedPath]) {
+            if ([rows[i].url.URLByStandardizingPath.path isEqualToString:selectedPath]
+                    || [rows[i].cueSheetURL.URLByStandardizingPath.path isEqualToString:selectedPath]) {
                 start = i;
                 break;
             }

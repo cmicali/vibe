@@ -23,6 +23,9 @@ static NSString *const kLastTrackPathKey = @"VibeiOSLastTrackFileName";
 // SearchFolderStore's bound, for its reason: one stalled provider must not
 // head-of-line every other bookmark.
 static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
+// Every file and folder opened or added, newest first: path, bookmark, folder.
+static NSString *const kRecentItemsKey = @"VibeiOSRecentItems";
+static const NSUInteger kMaximumRecentItems = 50;
 
 @interface FolderSession ()
 @end
@@ -147,7 +150,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         });
         return;
     }
-    [self beginOpenURLs:urls appending:NO fromSearchRoots:NO];
+    [self beginOpenURLs:urls appending:NO fromSearchRoots:NO expandsFile:YES];
 }
 
 - (uint64_t)addRequestToken {
@@ -174,11 +177,11 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         LogInfo(@"FolderSession: dropping an Add superseded while its URL resolved");
         return;
     }
-    [self beginOpenURLs:urls appending:YES fromSearchRoots:NO];
+    [self beginOpenURLs:urls appending:YES fromSearchRoots:NO expandsFile:NO];
 }
 
-- (void)openFileFromSearchRoots:(NSURL *)url {
-    [self beginOpenURLs:@[url] appending:NO fromSearchRoots:YES];
+- (void)openFileFromSearchRoots:(NSURL *)url inFolder:(BOOL)inFolder {
+    [self beginOpenURLs:@[url] appending:NO fromSearchRoots:YES expandsFile:inFolder];
 }
 
 - (void)clearSession {
@@ -201,6 +204,46 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     [NSUserDefaults.standardUserDefaults removeObjectForKey:kFolderBookmarkKey];
     [NSUserDefaults.standardUserDefaults removeObjectForKey:kAdditionBookmarksKey];
     [NSUserDefaults.standardUserDefaults removeObjectForKey:kLastTrackPathKey];
+}
+
+#pragma mark - Recents
+
+- (NSArray<NSDictionary *> *)recentItems {
+    return [NSUserDefaults.standardUserDefaults arrayForKey:kRecentItemsKey] ?: @[];
+}
+
+// Main thread. A path already listed moves to the top; picked together, the
+// first picked lands on top.
+- (void)recordRecentItems:(NSArray<NSDictionary *> *)items {
+    NSMutableArray<NSDictionary *> *recents = [NSMutableArray arrayWithArray:items];
+    NSMutableSet<NSString *> *paths = [NSMutableSet set];
+    for (NSDictionary *item in items) {
+        [paths addObject:item[@"path"]];
+    }
+    for (NSDictionary *item in self.recentItems) {
+        NSString *path = [item isKindOfClass:NSDictionary.class] ? item[@"path"] : nil;
+        if ([path isKindOfClass:NSString.class] && ![paths containsObject:path]) {
+            [recents addObject:item];
+        }
+    }
+    NSUInteger kept = MIN(recents.count, kMaximumRecentItems);
+    [NSUserDefaults.standardUserDefaults setObject:[recents subarrayWithRange:NSMakeRange(0, kept)]
+                                            forKey:kRecentItemsKey];
+}
+
+- (void)resolveRecentItem:(NSDictionary *)item completion:(void (^)(NSURL *))completion {
+    dispatch_async(_workQueue, ^{
+        NSData *bookmark = item[@"bookmark"];
+        NSURL *url = [bookmark isKindOfClass:NSData.class] ? [self resolveBookmark:bookmark error:NULL] : nil;
+        NSString *path = item[@"path"];
+        if (!url && [path isKindOfClass:NSString.class]
+                && [NSFileManager.defaultManager fileExistsAtPath:path]) {
+            url = [NSURL fileURLWithPath:path isDirectory:[item[@"folder"] boolValue]];
+        }
+        run_on_main_thread({
+            completion(url);
+        });
+    });
 }
 
 #pragma mark - Persistence
@@ -248,7 +291,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
             });
             return;
         }
-        [self openURLsOnWorkQueue:urls appending:NO restored:YES fromSearchRoots:NO
+        [self openURLsOnWorkQueue:urls appending:NO restored:YES fromSearchRoots:NO expandsFile:YES
                          sortedBy:sort coveringRootPaths:@[] holds:@[] grants:@[]
              openIntentGeneration:openIntentGeneration];
     });
@@ -403,9 +446,12 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 // fromSearchRoots: a search hit, whose parent a root in hand already covers.
 // It is listed unconditionally and leaves the persisted bookmark alone:
 // re-pointing it at a subfolder would shrink next launch's searchable root.
+// expandsFile: one file opened alone becomes its directory with it selected,
+// where a root covers that; NO keeps it a one-track playlist.
 - (void)beginOpenURLs:(NSArray<NSURL *> *)urls
             appending:(BOOL)appending
-      fromSearchRoots:(BOOL)fromSearchRoots {
+      fromSearchRoots:(BOOL)fromSearchRoots
+          expandsFile:(BOOL)expandsFile {
     if (urls.count == 0) {
         return;
     }
@@ -423,11 +469,12 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
             // Weak: the waiter is stored on self.
             __weak FolderSession *weakSelf = self;
             [_addWaiters addObject:^{
-                [weakSelf beginOpenURLs:parked appending:YES fromSearchRoots:fromSearchRoots];
+                [weakSelf beginOpenURLs:parked appending:YES fromSearchRoots:fromSearchRoots expandsFile:NO];
             }];
             return;
         }
         appending = NO;
+        expandsFile = YES;
         promoting = YES;
         _promotedOpenInFlight = YES;
     }
@@ -491,7 +538,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     }
     dispatch_async(appending ? _appendQueue : _workQueue, ^{
         [self openURLsOnWorkQueue:urls appending:appending restored:NO
-                  fromSearchRoots:fromSearchRoots sortedBy:sort
+                  fromSearchRoots:fromSearchRoots expandsFile:expandsFile sortedBy:sort
                 coveringRootPaths:coveringRootPaths holds:holds grants:grants
              openIntentGeneration:openIntentGeneration];
     });
@@ -518,6 +565,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
                   appending:(BOOL)appending
                    restored:(BOOL)restored
             fromSearchRoots:(BOOL)fromSearchRoots
+                expandsFile:(BOOL)expandsFile
                    sortedBy:(VibeFolderOpenSort)sort
           coveringRootPaths:(NSArray<NSString *> *)coveringRootPaths
                       holds:(NSArray<NSURL *> *)holds
@@ -541,7 +589,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     NSMutableArray<NSURL *> *contributors = [NSMutableArray array];
     NSURL *folderURL = nil;
     NSURL *selectedURL = nil;
-    BOOL expands = !appending && urls.count == 1;
+    BOOL expands = expandsFile && urls.count == 1;
     // Resolved lazily and at most once: a resolve is provider IPC, and a
     // folder open never needs it.
     __block BOOL persistedBaseResolved = NO;
@@ -690,16 +738,36 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
                                                error:NULL];
             persistedBaseIsFolder = isDirectory.boolValue;
         }
+        // Each mint is provider IPC, so the recents reuse these.
+        NSMutableDictionary<NSURL *, NSData *> *minted = [NSMutableDictionary dictionary];
         if (base && !fromSearchRoots && (!openedNoFolder || !persistedBaseIsFolder)) {
             baseBookmark = [self bookmarkForURL:base];
+            minted[base] = baseBookmark;
         }
         if (appending || baseBookmark) {
             for (NSURL *contributor in contributors) {
                 NSData *bookmark = contributor == base ? nil : [self bookmarkForURL:contributor];
                 if (bookmark) {
                     [additionBookmarks addObject:bookmark];
+                    minted[contributor] = bookmark;
                 }
             }
+        }
+        if (!restored) {
+            // The picked URLs that produced tracks; a file that expanded is
+            // still the file, and only a lone file expands.
+            NSArray<NSURL *> *opened = selectedURL ? @[selectedURL] : contributors;
+            NSMutableArray<NSDictionary *> *recents = [NSMutableArray arrayWithCapacity:opened.count];
+            for (NSURL *url in opened) {
+                NSMutableDictionary *item = [NSMutableDictionary dictionary];
+                item[@"path"] = url.URLByStandardizingPath.path ?: url.path;
+                item[@"bookmark"] = minted[url] ?: [self bookmarkForURL:url];
+                item[@"folder"] = @(url == folderURL || [addedFolders containsObject:url]);
+                [recents addObject:item];
+            }
+            run_on_main_thread({
+                [self recordRecentItems:recents];
+            });
         }
     }
 

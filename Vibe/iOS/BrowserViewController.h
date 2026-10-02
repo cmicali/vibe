@@ -31,6 +31,11 @@ NS_ASSUME_NONNULL_BEGIN
                          bundle:(nullable NSBundle *)bundle NS_UNAVAILABLE;
 - (nullable instancetype)initWithCoder:(NSCoder *)coder NS_UNAVAILABLE;
 
+// On the root: makes its stack the path to `directory`, one screen per folder
+// from the source covering it, so Back walks up; a directory no source covers
+// is pushed alone.
+- (void)showDirectory:(NSURL *)directory;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -68,10 +68,19 @@ NS_ASSUME_NONNULL_BEGIN
 - (uint64_t)addRequestToken;
 - (void)addURLs:(NSArray<NSURL *> *)urls token:(uint64_t)token;
 
-// Opens the hit's own directory with it selected. The covering grant is
-// retained for this playlist even if its Settings row goes; the session
-// bookmark is left alone.
-- (void)openFileFromSearchRoots:(NSURL *)url;
+// A search hit, played alone or, inFolder, as its own directory with it
+// selected. The covering grant is retained for this playlist even if its
+// Settings row goes; the session bookmark is left alone.
+- (void)openFileFromSearchRoots:(NSURL *)url inFolder:(BOOL)inFolder;
+
+// Every file and folder opened or added, newest first, at most 50, each
+// {path, bookmark (absent when the mint failed), folder}. Persisted; a restore
+// records nothing, and clearSession keeps them.
+@property (nonatomic, readonly) NSArray<NSDictionary *> *recentItems;
+
+// The recent's URL from its bookmark, else its path while something is there.
+// Off main; completion on main, nil when neither reaches it.
+- (void)resolveRecentItem:(NSDictionary *)item completion:(void (^)(NSURL *_Nullable url))completion;
 
 // Back to never-opened: every scope released, and the persisted bookmarks and
 // remembered track REMOVED, so the next launch restores nothing. Supersedes

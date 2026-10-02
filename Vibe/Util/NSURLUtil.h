@@ -94,15 +94,20 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 // Common/PlayableExtensions' set.
 + (NSSet<NSString *> *)supportedExtensions;
 
-// One file as its rows: a large local FLAC's embedded cue sheet, else the file
-// whole. Every expansion mints a file's rows here, so a sheet inside a file
-// applies wherever the file is opened.
+// One file as its rows: a CUE sheet's tracks, a large local FLAC's embedded
+// cue sheet, else the file whole. Every expansion mints a file's rows here,
+// so a sheet inside a file applies wherever the file is opened.
 + (NSArray<AudioTrack *> *)rowsForFile:(NSURL *)url;
 
 // The folder's non-empty audio files as rows, non-recursive, hidden entries
 // skipped; a CUE sheet among them stands in for its files, as in a walk.
 // Synchronous. sort is a parameter because this layer may not read a setting.
 + (NSArray<AudioTrack *> *)rowsInDirectory:(NSURL *)dir sortedBy:(VibeFolderOpenSort)sort;
+
+// The walk's own order and the keys a listing must prefetch for it, so a
+// directory shown elsewhere lists in the order it opens in.
++ (NSArray<NSURLResourceKey> *)listingKeysForSort:(VibeFolderOpenSort)sort;
++ (void)sortURLs:(NSMutableArray<NSURL *> *)urls by:(VibeFolderOpenSort)sort;
 @end
 
 NS_ASSUME_NONNULL_END

@@ -35,7 +35,8 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     VibeSearchSectionCount
 };
 
-@interface SearchViewController () <UISearchResultsUpdating, PlaybackObserver, FileSearchIndexDelegate>
+@interface SearchViewController () <UISearchResultsUpdating, UISearchBarDelegate, PlaybackObserver,
+                                    FileSearchIndexDelegate>
 @end
 
 @implementation SearchViewController {
@@ -57,6 +58,10 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     // Stamped on each query sent; only the newest answer lands.
     uint64_t            _dropboxSearchGeneration;
     BOOL                _dropboxSearching;
+    // The scope bar: one section, or VibeSearchSectionCount for All. A half
+    // outside it shows nothing; Dropbox keeps the answer it has, so a scope
+    // switched away and back asks nothing again.
+    VibeSearchSection   _scope;
     // The playlist's tracks as lowercase Dropbox paths, for the exclusion.
     NSSet<NSString *>   *_playlistDropboxPaths;
     BOOL                _matchesStale;
@@ -79,6 +84,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
         _fileIndex = [[FileSearchIndex alloc] init];
         _fileIndex.delegate = self;
         _materialSurfaceVisible = YES;
+        _scope = VibeSearchSectionCount;
     }
     return self;
 }
@@ -90,6 +96,15 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     _searchController.searchResultsUpdater = self;
     _searchController.obscuresBackgroundDuringPresentation = NO;
     _searchController.searchBar.placeholder = STR_LABEL_SEARCH;
+    _searchController.searchBar.delegate = self;
+    // Always up, not only while the field is active: the field is in the tab bar.
+    _searchController.scopeBarActivation = UISearchControllerScopeBarActivationManual;
+    _searchController.searchBar.showsScopeBar = YES;
+    [self refreshScopeButtons];
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(dropboxAccountDidChange:)
+                                               name:VibeDropboxAccountDidChangeNotification
+                                             object:DropboxMirror.shared.client];
     self.navigationItem.searchController = _searchController;
     self.navigationItem.hidesSearchBarWhenScrolling = NO;
     // Nothing else dismisses the keyboard, which covers the list. Not
@@ -238,6 +253,10 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 
 - (void)matchPlaylistForQuery:(NSString *)query {
     _matchesStale = NO;
+    if (![self scopeIncludes:VibeSearchSectionPlaylist]) {
+        _matches = @[];
+        return;
+    }
     NSArray<AudioTrack *> *tracks = _playlist.tracks;
     NSMutableArray<NSNumber *> *matches = [NSMutableArray arrayWithCapacity:tracks.count];
     for (NSUInteger i = 0; i < tracks.count; i++) {
@@ -246,6 +265,50 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
         }
     }
     _matches = matches;
+}
+
+#pragma mark - Scope
+
+- (BOOL)scopeIncludes:(VibeSearchSection)section {
+    return _scope == VibeSearchSectionCount || _scope == section;
+}
+
+// The buttons in order: All, Files, Dropbox while linked, Playlist.
+- (NSArray<NSNumber *> *)scopeSections {
+    return DropboxMirror.shared.client.isLinked
+            ? @[@(VibeSearchSectionCount), @(VibeSearchSectionFiles), @(VibeSearchSectionDropbox), @(VibeSearchSectionPlaylist)]
+            : @[@(VibeSearchSectionCount), @(VibeSearchSectionFiles), @(VibeSearchSectionPlaylist)];
+}
+
+// A Dropbox scope that lost its account falls back to All.
+- (void)refreshScopeButtons {
+    NSArray<NSNumber *> *sections = [self scopeSections];
+    NSMutableArray<NSString *> *titles = [NSMutableArray arrayWithCapacity:sections.count];
+    for (NSNumber *section in sections) {
+        switch ((VibeSearchSection)section.integerValue) {
+            case VibeSearchSectionFiles:    [titles addObject:STR_SEARCH_SECTION_FILES]; break;
+            case VibeSearchSectionDropbox:  [titles addObject:VibeNotLocalized(@"Dropbox")]; break;
+            case VibeSearchSectionPlaylist: [titles addObject:STR_SEARCH_SECTION_PLAYLIST]; break;
+            case VibeSearchSectionCount:    [titles addObject:STR_SEARCH_SCOPE_ALL]; break;
+        }
+    }
+    if (![sections containsObject:@(_scope)]) {
+        _scope = VibeSearchSectionCount;
+    }
+    _searchController.searchBar.scopeButtonTitles = titles;
+    _searchController.searchBar.selectedScopeButtonIndex = (NSInteger)[sections indexOfObject:@(_scope)];
+}
+
+- (void)searchBar:(UISearchBar *)searchBar selectedScopeButtonIndexDidChange:(NSInteger)selectedScope {
+    _scope = (VibeSearchSection)[self scopeSections][(NSUInteger)selectedScope].integerValue;
+    [self filterWithQuery:[self currentQuery]];
+}
+
+- (void)dropboxAccountDidChange:(NSNotification *)notification {
+    [self refreshScopeButtons];
+    if ([self isMateriallyVisible]) {
+        [self filterWithQuery:[self currentQuery]];
+    }
 }
 
 #pragma mark - Dropbox
@@ -259,6 +322,9 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 - (void)updateDropboxForQuery:(NSString *)query {
     if (![self searchesDropbox] || ![self isMateriallyVisible]) {
         [self resetDropboxSearch];
+        return;
+    }
+    if (![self scopeIncludes:VibeSearchSectionDropbox]) {
         return;
     }
     if ([query isEqualToString:_dropboxQuery]) {
@@ -321,23 +387,26 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     }
 }
 
-// A hit is opened from the mirror: its folder is listed first, so the file
-// it names exists, and then it opens as any file does — its folder becomes
-// the playlist with it selected.
-- (void)openDropboxHit:(NSDictionary *)entry {
-    PlaybackController *playback = _playback;
-    [DropboxMirror.shared localURLForEntry:entry completion:^(NSURL *url, NSError *error) {
+// A hit's local URL, and whether it is a folder. A Dropbox hit's folder is
+// listed into the mirror first, so the file it names exists.
+- (void)resolveHit:(id)hit completion:(void (^)(NSURL *url, BOOL folder))completion {
+    if ([hit isKindOfClass:FileSearchHit.class]) {
+        completion(((FileSearchHit *)hit).url, NO);
+        return;
+    }
+    BOOL folder = VibeDropboxEntryKindOf(hit) == VibeDropboxEntryKindFolder;
+    [DropboxMirror.shared localURLForEntry:hit completion:^(NSURL *url, NSError *error) {
         if (url) {
-            [playback openURLs:@[url] openInPlace:YES];
+            completion(url, folder);
         }
         else {
-            LogWarn(@"Dropbox: could not open a search hit: %@", error.localizedDescription);
+            LogWarn(@"Dropbox: could not reach a search hit: %@", error.localizedDescription);
         }
     }];
 }
 
 - (void)requestFileHitsForQuery:(NSString *)query {
-    if (![self isMateriallyVisible] || query.length == 0) {
+    if (![self isMateriallyVisible] || query.length == 0 || ![self scopeIncludes:VibeSearchSectionFiles]) {
         [_fileIndex cancelPendingHitRequests];
         return;
     }
@@ -393,7 +462,8 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 
 // An empty section draws no header, except while the walk runs.
 - (BOOL)showsFilesSection {
-    return [self currentQuery].length > 0 && (_fileHits.count > 0 || _fileIndex.isBuilding);
+    return [self currentQuery].length > 0 && [self scopeIncludes:VibeSearchSectionFiles]
+            && (_fileHits.count > 0 || _fileIndex.isBuilding);
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
@@ -401,13 +471,14 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
         return (NSInteger)_matches.count;
     }
     if (section == VibeSearchSectionDropbox) {
-        return [self searchesDropbox] ? (NSInteger)_dropboxHits.count : 0;
+        return [self showsDropboxSection] ? (NSInteger)_dropboxHits.count : 0;
     }
     return [self showsFilesSection] ? (NSInteger)_fileHits.count : 0;
 }
 
 - (BOOL)showsDropboxSection {
-    return [self searchesDropbox] && (_dropboxHits.count > 0 || _dropboxSearching);
+    return [self searchesDropbox] && [self scopeIncludes:VibeSearchSectionDropbox]
+            && (_dropboxHits.count > 0 || _dropboxSearching);
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
@@ -500,20 +571,91 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
                                glyph:folder ? @"folder" : @"music.note"];
 }
 
-// A playlist row selects and stays; a file row is an OPEN, like any other.
+// A playlist row selects and stays; a file row plays that file alone, and a
+// Dropbox folder opens as the playlist.
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    if (indexPath.section == VibeSearchSectionPlaylist) {
+        [_playback selectTrackAtIndex:_matches[(NSUInteger)indexPath.row].unsignedIntegerValue];
+        return;
+    }
+    [self openHit:[self hitAtIndexPath:indexPath] inFolder:NO];
+}
+
+// A FileSearchHit or a Dropbox entry.
+- (id)hitAtIndexPath:(NSIndexPath *)indexPath {
+    return indexPath.section == VibeSearchSectionFiles ? _fileHits[(NSUInteger)indexPath.row]
+                                                       : _dropboxHits[(NSUInteger)indexPath.row];
+}
+
+// A Dropbox hit in its folder, or a Dropbox folder, opens as a pick does,
+// which persists the mirror folder for the next launch.
+- (void)openHit:(id)hit inFolder:(BOOL)inFolder {
     // Resigns the field but keeps the query.
     [_searchController.searchBar resignFirstResponder];
-    if (indexPath.section == VibeSearchSectionFiles) {
-        [_playback openSearchResultURL:_fileHits[(NSUInteger)indexPath.row].url];
+    BOOL dropbox = ![hit isKindOfClass:FileSearchHit.class];
+    PlaybackController *playback = _playback;
+    [self resolveHit:hit completion:^(NSURL *url, BOOL folder) {
+        if (dropbox && (folder || inFolder)) {
+            [playback openURLs:@[url] openInPlace:YES];
+        }
+        else {
+            [playback openFileURL:url inFolder:inFolder];
+        }
+    }];
+}
+
+- (void)showFolderOfHit:(id)hit {
+    void (^handler)(NSURL *) = _showDirectoryHandler;
+    if (!handler) {
         return;
     }
-    if (indexPath.section == VibeSearchSectionDropbox) {
-        [self openDropboxHit:_dropboxHits[(NSUInteger)indexPath.row]];
-        return;
+    [_searchController.searchBar resignFirstResponder];
+    [self resolveHit:hit completion:^(NSURL *url, BOOL folder) {
+        handler(folder ? url : url.URLByDeletingLastPathComponent);
+    }];
+}
+
+// A file hit's long press: Play, as a tap does, Play in Folder, its whole
+// directory with it selected, or Open Folder, that directory in the Files
+// tab. A folder hit has only the last. The hit, not the row, is captured: a
+// late answer can reload the section while the menu is up.
+- (UIContextMenuConfiguration *)tableView:(UITableView *)tableView
+        contextMenuConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath
+                                            point:(CGPoint)point {
+    if (indexPath.section == VibeSearchSectionPlaylist) {
+        return nil;
     }
-    [_playback selectTrackAtIndex:_matches[(NSUInteger)indexPath.row].unsignedIntegerValue];
+    id hit = [self hitAtIndexPath:indexPath];
+    BOOL folder = [hit isKindOfClass:NSDictionary.class]
+            && VibeDropboxEntryKindOf(hit) == VibeDropboxEntryKindFolder;
+    __weak SearchViewController *weakSelf = self;
+    return [UIContextMenuConfiguration configurationWithIdentifier:nil
+                                                   previewProvider:nil
+                                                    actionProvider:^UIMenu *(NSArray<UIMenuElement *> *suggested) {
+        UIAction *openFolder = [UIAction actionWithTitle:STR_MENU_CONTEXT_OPEN_FOLDER
+                                                   image:[UIImage systemImageNamed:@"folder"]
+                                              identifier:nil
+                                                 handler:^(UIAction *action) {
+            [weakSelf showFolderOfHit:hit];
+        }];
+        if (folder) {
+            return [UIMenu menuWithChildren:@[openFolder]];
+        }
+        UIAction *play = [UIAction actionWithTitle:STR_MENU_CONTEXT_PLAY
+                                             image:[UIImage systemImageNamed:@"play.fill"]
+                                        identifier:nil
+                                           handler:^(UIAction *action) {
+            [weakSelf openHit:hit inFolder:NO];
+        }];
+        UIAction *playInFolder = [UIAction actionWithTitle:STR_MENU_CONTEXT_PLAY_IN_FOLDER
+                                                     image:[UIImage systemImageNamed:@"folder"]
+                                                identifier:nil
+                                                   handler:^(UIAction *action) {
+            [weakSelf openHit:hit inFolder:YES];
+        }];
+        return [UIMenu menuWithChildren:@[play, playInFolder, openFolder]];
+    }];
 }
 
 #pragma mark - FileSearchIndexDelegate
