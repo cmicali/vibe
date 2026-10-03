@@ -119,16 +119,16 @@ public:
     // reads no band merges none.
     void getBandMeanSquares(NSUInteger index, NSUInteger size, float* meanSquares);
     inline bool hasBands() const noexcept { return bandSums != nullptr; }
-    // Every one of size bars' mean squares at once, each over a window three
-    // bars wide that fades toward its edges: the full mix's into meanSquares,
-    // size of them, and the bands', low to high per bar, into
+    // Every one of size bars' mean squares at once: the full mix's into
+    // meanSquares, size of them, and the bands', low to high per bar, into
     // bandMeanSquares; either may be null, and the bands are zeros without
-    // bands. What a bar's level is drawn from. A column's hard edges
-    // (getChunkAtIndex) take a kick whole or not at all, so bars about a beat
-    // long beat against the kicks, and the pattern runs along the waveform as
-    // a resize moves the edges; under this window a kick crosses from one bar
-    // to the next gradually and the levels hold still.
-    void getSmoothedMeanSquares(NSUInteger size, float* meanSquares, float* bandMeanSquares);
+    // bands. What a bar's level is drawn from. At reach 0 a bar's window is
+    // the bar itself. At reach 1 it is the loudest bar-long window within half
+    // a bar of its own, so a kick counts whole in the bar it falls in wherever
+    // the bar's edges are: with hard edges a kick is taken whole, split or
+    // missed as a resize moves them, and bars about a beat long ripple with
+    // every point of width. Between, the two are blended.
+    void getBarMeanSquares(NSUInteger size, float reach, float* meanSquares, float* bandMeanSquares);
     // The loader's own verdict, carried on the data: a decode it accepts can
     // end a chunk or two short, so the chunks cannot answer this. A fresh
     // waveform is a load still streaming, and a snapshot copies the answer;

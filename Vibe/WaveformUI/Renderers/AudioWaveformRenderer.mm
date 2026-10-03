@@ -71,8 +71,10 @@
 }
 
 - (std::vector<float>)energyColumnLevelsForBarCount:(NSUInteger)count waveform:(AudioWaveform *)waveform {
+    // The reach is gone by the floor's 1,024 columns, which no resize moves.
     std::vector<float> levels(MIN(count, kVibeWaveformEnergyColumns));
-    waveform->getSmoothedMeanSquares(levels.size(), levels.data(), NULL);
+    float reach = VibeWaveformWindowReach(levels.size(), kVibeWaveformEnergyColumns / 2);
+    waveform->getBarMeanSquares(levels.size(), reach, levels.data(), NULL);
     float fullScaleRMS = VibeWaveformFullScaleRMSForColumns(waveform, self.normalizesLevels,
                                                             levels.data(), levels.size());
     float gainDB = self.gainDB;

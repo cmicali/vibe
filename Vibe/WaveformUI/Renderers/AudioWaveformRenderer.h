@@ -55,6 +55,16 @@ static inline NSUInteger VibeWaveformEnergyColumnIndexForBar(NSUInteger i, NSUIn
             ? i * kVibeWaveformEnergyColumns / count : i;
 }
 
+// How far a bar's window may slide to take a hit whole
+// (AudioWaveform.getBarMeanSquares): all the way up to fullCount bars, fading
+// to nothing at twice that. Bars about a beat long need it, or their levels
+// ripple as a resize moves their edges; bars short enough to draw each hit do
+// not, and it would fatten every hit by a bar.
+static inline float VibeWaveformWindowReach(NSUInteger count, NSUInteger fullCount) {
+    float reach = 2 - (float)count / (float)fullCount;
+    return fminf(fmaxf(reach, 0), 1);
+}
+
 // Normalize only raises levels: its reference cannot exceed the fixed one.
 // Silence keeps the fixed reference to avoid division by zero.
 static inline float VibeWaveformNormalizedFullScaleRMS(float loudest) {
@@ -62,7 +72,7 @@ static inline float VibeWaveformNormalizedFullScaleRMS(float loudest) {
 }
 
 // Normalize's reference is the loudest of the energy columns the bars draw,
-// read from the mean squares the fill just smoothed. Empty waveforms keep the
+// read from the mean squares the fill just took. Empty waveforms keep the
 // fixed reference. A streaming load keeps it too: its loudest column is only
 // the loudest SO FAR, and a reference that rises per delivery shrinks bars
 // already drawn.
