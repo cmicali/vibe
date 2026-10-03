@@ -659,9 +659,15 @@ static NSString *const kTabSearch = @"search";
 
 #pragma mark - Tabs
 
+// Settings rides the Playlist tab's stack: leaving the tab pops it, so
+// coming back shows the playlist, not the screen left open.
 - (void)tabBarController:(UITabBarController *)tabBarController
             didSelectTab:(UITab *)selectedTab
              previousTab:(UITab *)previousTab {
+    if (selectedTab != previousTab && [previousTab.identifier isEqualToString:kTabPlaylist]
+            && [previousTab.viewController isKindOfClass:UINavigationController.class]) {
+        [(UINavigationController *)previousTab.viewController popToRootViewControllerAnimated:NO];
+    }
     [self syncTabSurfaces];
 }
 
@@ -870,8 +876,13 @@ static const CGFloat kLandedRowScale = 0.1;
 
 // The only place the card presents by itself. The Playlist tab comes forward
 // so minimizing lands on what was opened — except over Search, whose tab owns
-// the selection while its field is up.
+// the selection while its field is up. A single file played alone — one
+// track, no folder — plays where it was picked, under the strip: the user is
+// working in the browser, and a one-row playlist is nothing to look at.
 - (void)playbackDidOpenNewFolder:(PlaybackController *)playback {
+    if (playback.playlist.count == 1 && !playback.folderURL) {
+        return;
+    }
     [self bringPlaylistTabForward];
     [self expandPlayerAnimated:YES];
 }
