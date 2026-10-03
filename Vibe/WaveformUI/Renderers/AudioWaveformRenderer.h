@@ -12,6 +12,8 @@
 #import "WaveformLevelMath.h"
 #import "PlatformColor.h"
 
+#include <vector>
+
 NS_ASSUME_NONNULL_BEGIN
 
 // The backing scale before a real answer exists (no window yet, contentsScale
@@ -45,23 +47,20 @@ static inline NSInteger VibeBlockBoundaryForProgress(CGFloat progress, NSInteger
 // min/max shape keeps per-bar resolution.
 static const NSUInteger kVibeWaveformEnergyColumns = 1024;
 
-// Split from the accessor below so a renderer caching per column keys on this
-// index rather than re-deriving it.
+// The energy column bar i of count draws, of MIN(count,
+// kVibeWaveformEnergyColumns): its own until the bars are finer than the
+// floor.
 static inline NSUInteger VibeWaveformEnergyColumnIndexForBar(NSUInteger i, NSUInteger count) {
     return count > kVibeWaveformEnergyColumns
             ? i * kVibeWaveformEnergyColumns / count : i;
 }
 
-// Every bar-level consumer but 3-Band, whose level is its only shape, maps
-// through this, never its own chunk's energy, so bars finer than the column
-// cannot re-peg to sub-beat RMS.
-static inline AudioWaveformCacheChunk VibeWaveformEnergyColumnForBar(AudioWaveform *waveform,
-                                                                     NSUInteger i,
-                                                                     NSUInteger count) {
-    return count > kVibeWaveformEnergyColumns
-            ? waveform->getChunkAtIndex(VibeWaveformEnergyColumnIndexForBar(i, count),
-                                        kVibeWaveformEnergyColumns)
-            : waveform->getChunkAtIndex(i, count);
+// How much of AudioWaveform.getBarMeanSquares's reach count bars take: all of
+// it up to fullCount, fading to none at twice that. Bars about a beat long
+// need it, or their levels ripple as a resize moves their edges; bars short
+// enough to draw each hit do not, and it would fatten every hit by a bar.
+static inline float VibeWaveformWindowReach(NSUInteger count, NSUInteger fullCount) {
+    return clampRange(2 - (float)count / (float)fullCount, 0, 1);
 }
 
 // Normalize only raises levels: its reference cannot exceed the fixed one.
@@ -70,15 +69,17 @@ static inline float VibeWaveformNormalizedFullScaleRMS(float loudest) {
     return loudest > 0 ? fminf(loudest, kVibeWaveformFullScaleRMS) : kVibeWaveformFullScaleRMS;
 }
 
-// Match the drawn energy windows, including the finer styles' 1/1024 floor.
-// Empty waveforms keep the fixed reference. A streaming load keeps it too:
-// its loudest column is only the loudest SO FAR, and a reference that rises
-// per delivery shrinks bars already drawn.
-static inline float VibeWaveformFullScaleRMSForWaveform(AudioWaveform * _Nullable waveform,
-                                                        BOOL normalize,
-                                                        NSUInteger count) {
-    float loudest = (normalize && waveform && waveform->isComplete())
-            ? sqrtf(waveform->getMaxMeanSquare(MIN(count, kVibeWaveformEnergyColumns))) : 0;
+// Normalize's reference is the loudest of the energy columns the bars draw,
+// read from the mean squares the fill just took. A streaming load keeps the
+// fixed reference: its loudest column is only the loudest SO FAR, and a
+// reference that rises per delivery shrinks bars already drawn.
+static inline float VibeWaveformFullScaleRMSForColumns(AudioWaveform *waveform, BOOL normalize,
+                                                       const float *meanSquares, NSUInteger columns) {
+    float loudest = 0;
+    if (normalize && waveform->isComplete()) {
+        vDSP_maxv(meanSquares, 1, &loudest, columns);
+        loudest = sqrtf(fmaxf(loudest, 0));
+    }
     return VibeWaveformNormalizedFullScaleRMS(loudest);
 }
 
@@ -209,6 +210,11 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 // Basic, Cupertino and Sonic Cirrus share a 4pt pitch and a 1,024-bar cap.
 - (NSUInteger)blockBarCountForWidth:(CGFloat)width;
 - (CGFloat)scaledBarWidth:(CGFloat)width pitch:(CGFloat)pitch;
+
+// The energy columns' levels for count bars, Normalize and Gain applied: the
+// one sampling every bar style but 3-Band draws its levels from. Bar i draws
+// column VibeWaveformEnergyColumnIndexForBar(i, count).
+- (std::vector<float>)energyColumnLevelsForBarCount:(NSUInteger)count waveform:(AudioWaveform *)waveform;
 
 // One energy level per bar. Stride permits interleaved envelopes without a
 // temporary sample buffer; the caller supplies their sign and symmetry.

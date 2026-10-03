@@ -306,6 +306,16 @@ struct VibeBenchComponentsUIRenderer {
     std::shared_ptr<AudioWaveform> waveform;
 };
 
+// A 2x host layer of this width and the waveform a benchmark draws; answers
+// the layer's bounds.
+static CGRect VibeBenchComponentsUIHost(VibeBenchComponentsUIRenderer *state, CGFloat width, uint32_t seed) {
+    state->parent = [CALayer layer];
+    state->parent.contentsScale = 2;
+    state->parent.bounds = CGRectMake(0, 0, width, 60);
+    state->waveform = VibeBenchComponentsUIWaveform(seed);
+    return state->parent.bounds;
+}
+
 // Sixty frames of a live resize, 700 to 936pt.
 static void VibeBenchComponentsUILiveResize(VibeBenchComponentsUIRenderer *state) {
     for (int i = 0; i < 60; i++) {
@@ -322,11 +332,7 @@ static void VibeBenchComponentsRegisterRenderers(void) {
     // same-geometry rebuild, ten times — thirty rebuilds over 2,048 layers.
     auto cirrus = std::make_shared<VibeBenchComponentsUIRenderer>();
     VibeBenchComponentsAdd("ui-waveform", "sonic-cirrus-rebuild", "rebuild", [cirrus]() -> double {
-        cirrus->parent = [CALayer layer];
-        cirrus->parent.contentsScale = 2;
-        CGRect bounds = CGRectMake(0, 0, 4096, 60);
-        cirrus->parent.bounds = bounds;
-        cirrus->waveform = VibeBenchComponentsUIWaveform(7);
+        CGRect bounds = VibeBenchComponentsUIHost(cirrus.get(), 4096, 7);
         cirrus->renderer = [[SonicCirrusWaveformRenderer alloc] initWithLayer:cirrus->parent bounds:bounds isDark:YES];
         [cirrus->renderer updateWaveform:bounds progress:0 waveform:cirrus->waveform.get()];
         [cirrus->renderer settleMorphImmediately];
@@ -358,11 +364,7 @@ static void VibeBenchComponentsRegisterRenderers(void) {
     // count, so a refill and a rebuild. Sixty frames.
     auto detailed = std::make_shared<VibeBenchComponentsUIRenderer>();
     VibeBenchComponentsAdd("ui-waveform", "detailed-resize", "frame", [detailed]() -> double {
-        detailed->parent = [CALayer layer];
-        detailed->parent.contentsScale = 2;
-        CGRect bounds = CGRectMake(0, 0, 800, 60);
-        detailed->parent.bounds = bounds;
-        detailed->waveform = VibeBenchComponentsUIWaveform(11);
+        CGRect bounds = VibeBenchComponentsUIHost(detailed.get(), 800, 11);
         detailed->renderer = [[DetailedAudioWaveformRenderer alloc] initWithLayer:detailed->parent bounds:bounds
                                                                            isDark:YES wiggle:NO centered:NO];
         detailed->renderer.normalizesLevels = YES;
@@ -388,16 +390,40 @@ static void VibeBenchComponentsRegisterRenderers(void) {
         VibeBenchComponentsUILiveResize(detailed.get());
     });
 
+    // The same resize with Normalize off, as the app ships: the refill
+    // measures no reference, so the bars' level windows are all of it.
+    auto plain = std::make_shared<VibeBenchComponentsUIRenderer>();
+    VibeBenchComponentsAdd("ui-waveform", "detailed-plain-resize", "frame", [plain]() -> double {
+        CGRect bounds = VibeBenchComponentsUIHost(plain.get(), 800, 11);
+        plain->renderer = [[DetailedAudioWaveformRenderer alloc] initWithLayer:plain->parent bounds:bounds
+                                                                        isDark:YES wiggle:NO centered:NO];
+        [plain->renderer updateWaveform:bounds progress:0 waveform:plain->waveform.get()];
+        [plain->renderer settleMorphImmediately];
+        return 60;
+    }, [plain]() {
+        VibeBenchComponentsUILiveResize(plain.get());
+    });
+
+    // Sonic Cirrus through it: a block style, a bar every four points, each
+    // bar's level its own window's and its layers added as the width grows.
+    auto blocks = std::make_shared<VibeBenchComponentsUIRenderer>();
+    VibeBenchComponentsAdd("ui-waveform", "sonic-cirrus-resize", "frame", [blocks]() -> double {
+        CGRect bounds = VibeBenchComponentsUIHost(blocks.get(), 800, 17);
+        blocks->renderer = [[SonicCirrusWaveformRenderer alloc] initWithLayer:blocks->parent bounds:bounds isDark:YES];
+        blocks->renderer.normalizesLevels = YES;
+        [blocks->renderer updateWaveform:bounds progress:0 waveform:blocks->waveform.get()];
+        [blocks->renderer settleMorphImmediately];
+        return 60;
+    }, [blocks]() {
+        VibeBenchComponentsUILiveResize(blocks.get());
+    });
+
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
     // 3-Band through the same live resize as Detailed's: seven painter's
     // layers under the sides' mask, a bar a point.
     auto threeBand = std::make_shared<VibeBenchComponentsUIRenderer>();
     VibeBenchComponentsAdd("ui-waveform", "three-band-resize", "frame", [threeBand]() -> double {
-        threeBand->parent = [CALayer layer];
-        threeBand->parent.contentsScale = 2;
-        CGRect bounds = CGRectMake(0, 0, 800, 60);
-        threeBand->parent.bounds = bounds;
-        threeBand->waveform = VibeBenchComponentsUIWaveform(13);
+        CGRect bounds = VibeBenchComponentsUIHost(threeBand.get(), 800, 13);
         threeBand->renderer = [[ThreeBandWaveformRenderer alloc] initWithLayer:threeBand->parent bounds:bounds
                                                                         isDark:YES];
         threeBand->renderer.normalizesLevels = YES;

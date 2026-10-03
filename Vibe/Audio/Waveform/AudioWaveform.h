@@ -70,12 +70,6 @@ struct AudioWaveformCacheChunk {
     inline void set(float min, float max, float sumSquares, float frameCount) noexcept {
         values[0] = min; values[1] = max; values[2] = sumSquares; values[3] = frameCount;
     }
-    inline void merge(AudioWaveformCacheChunk* chunk) noexcept {
-        if (chunk->values[0] < values[0]) values[0] = chunk->values[0];
-        if (chunk->values[1] > values[1]) values[1] = chunk->values[1];
-        values[2] += chunk->values[2];
-        values[3] += chunk->values[3];
-    }
 
     inline void mergeFromMonoBuffer(const float* mono, NSUInteger numFrames) {
         if (numFrames == 0) return;
@@ -120,17 +114,23 @@ public:
     ~AudioWaveform();
 
     AudioWaveformCacheChunk getChunkAtIndex(NSUInteger index, NSUInteger size);
-    // The bands' mean squares, low to high, over the column getChunkAtIndex
-    // combines; zeros without bands. Apart from the chunks, so a style that
-    // reads no band merges none.
-    void getBandMeanSquares(NSUInteger index, NSUInteger size, float* meanSquares);
+    // A chunk's bands' mean squares, low to high, as the archive keeps them;
+    // zeros without bands.
+    void getBandMeanSquares(NSUInteger index, float* meanSquares);
     inline bool hasBands() const noexcept { return bandSums != nullptr; }
-    // The loudest of the track's energy columns at this resolution — its mean
-    // square, as getMeanSquare — which the renderers' Normalize draws at
-    // full height. 0 for an empty or silent waveform.
-    float getMaxMeanSquare(NSUInteger columns);
-    // Each band's loudest column at this resolution, low to high.
-    void getMaxBandMeanSquares(NSUInteger columns, float* maxima);
+    // Every one of size bars' mean squares at once, which is what a bar's
+    // level is drawn from: the full mix's into meanSquares, size of them, and
+    // the bands', low to high per bar, into bandMeanSquares; either may be
+    // null, and the bands are zeros without bands. At reach 0 a bar's window
+    // is the bar itself, its edges anywhere in a chunk. At reach 1 it is the
+    // loudest bar-long window within half a bar of its own, each band its
+    // own, so a kick counts whole in the bar it falls in wherever the bar's
+    // edges are: with hard edges a kick is taken whole, split or missed as a
+    // resize moves them, and bars about a beat long ripple with every point
+    // of width. Between, the two are blended. A window past the track's
+    // edge, or past the end of a load still streaming, is the mean of the
+    // frames it does cover.
+    void getBarMeanSquares(NSUInteger size, float reach, float* meanSquares, float* bandMeanSquares);
     // The loader's own verdict, carried on the data: a decode it accepts can
     // end a chunk or two short, so the chunks cannot answer this. A fresh
     // waveform is a load still streaming, and a snapshot copies the answer;

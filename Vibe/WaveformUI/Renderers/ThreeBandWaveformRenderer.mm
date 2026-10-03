@@ -292,44 +292,53 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     }];
 }
 
-// Each bar's levels are its own window's (barCountForWidth:). The mean
-// squares land in out first, so Normalize reads them where the bars are its
-// columns. Normalize and Gain apply to all three bands alike.
+// A bar's window slides to take a hit whole up to this many bars, and not at
+// all from twice as many, where a bar is two chunks or fewer and draws each
+// kick as it is.
+static const NSUInteger kFullReachBars = kVibeWaveformMaxBars / 4;
+
+// Each bar's levels are its own window's (barCountForWidth:), held still
+// through a resize by its reach. The mean squares land in out first, so
+// Normalize reads them where the bars are its columns. Normalize and Gain
+// apply to all three bands alike.
 - (void)fillBandLevels:(float *)out count:(NSUInteger)count waveform:(AudioWaveform *)waveform {
-    for (NSUInteger i = 0; i < count; i++) {
-        waveform->getBandMeanSquares(i, count, &out[i * kAudioWaveformBandCount]);
-    }
+    waveform->getBarMeanSquares(count, VibeWaveformWindowReach(count, kFullReachBars), NULL, out);
     float fullScaleRMS = [self bandFullScaleRMSForWaveform:waveform count:count meanSquares:out];
     float gainDB = self.gainDB;
-    for (NSUInteger i = 0; i < count * kAudioWaveformBandCount; i++) {
-        out[i] = VibeWaveformBarLevel(out[i], fullScaleRMS * kBandShareOfFullScale[i % kAudioWaveformBandCount],
-                                      gainDB);
+    for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+        float bandFullScaleRMS = fullScaleRMS * kBandShareOfFullScale[b];
+        for (float *level = out + b; level < out + count * kAudioWaveformBandCount; level += kAudioWaveformBandCount) {
+            *level = VibeWaveformBarLevel(*level, bandFullScaleRMS, gainDB);
+        }
     }
 }
 
 // Normalize's reference is the loudest band against its share, so the tallest
 // band at the track's loudest column draws at full height: the full mix's
 // reference left every band short of it. It keeps
-// VibeWaveformFullScaleRMSForWaveform's rules — the whole track, the 1,024
+// VibeWaveformFullScaleRMSForColumns's rules — the whole track, the 1,024
 // columns, the fixed ceiling — but is its own so that within the columns it
-// reads the mean squares the fill just merged: measuring them through the
-// waveform again cost a fifth of every resize frame's instructions.
+// reads the mean squares the fill just took: measuring them through the
+// waveform again cost a fifth of every resize frame's instructions. Past the
+// columns it measures 1,024 of them the same way, so the reference does not
+// step as a resize crosses 1,024 bars.
 - (float)bandFullScaleRMSForWaveform:(AudioWaveform *)waveform count:(NSUInteger)count
                          meanSquares:(const float *)drawn {
     if (!self.normalizesLevels || !waveform->isComplete()) {
         return kVibeWaveformFullScaleRMS;
     }
-    float maxima[kAudioWaveformBandCount] = {};
-    if (count <= kVibeWaveformEnergyColumns) {
-        for (NSUInteger i = 0; i < count * kAudioWaveformBandCount; i++) {
-            maxima[i % kAudioWaveformBandCount] = fmaxf(maxima[i % kAudioWaveformBandCount], drawn[i]);
-        }
-    } else {
-        waveform->getMaxBandMeanSquares(kVibeWaveformEnergyColumns, maxima);
+    std::vector<float> columns;
+    if (count > kVibeWaveformEnergyColumns) {
+        count = kVibeWaveformEnergyColumns;
+        columns.resize(count * kAudioWaveformBandCount);
+        waveform->getBarMeanSquares(count, VibeWaveformWindowReach(count, kFullReachBars), NULL, columns.data());
+        drawn = columns.data();
     }
     float loudest = 0;
     for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
-        loudest = fmaxf(loudest, sqrtf(maxima[b]) / kBandShareOfFullScale[b]);
+        float maximum = 0;
+        vDSP_maxv(drawn + b, kAudioWaveformBandCount, &maximum, count);
+        loudest = fmaxf(loudest, sqrtf(maximum) / kBandShareOfFullScale[b]);
     }
     return VibeWaveformNormalizedFullScaleRMS(loudest);
 }
