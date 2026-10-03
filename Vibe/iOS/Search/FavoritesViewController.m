@@ -176,7 +176,7 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
     // The token is taken HERE, before the resolve: an Add outliving a replace
     // would append to the new playlist, and a replace landing after a newer
     // open would take its place (the session and the replace funnel drop them).
-    uint64_t token = [_playback addRequestToken];
+    uint64_t token = appending ? [_playback addRequestToken] : [_playback replaceRequestToken];
     __weak FavoritesViewController *weakSelf = self;
     [FavoritesStore.shared resolveFavorite:favorite completion:^(NSURL *folderURL) {
         [weakSelf finishOpeningFavorite:favorite folderURL:folderURL
@@ -224,7 +224,7 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
                 }
                 // Not a replace, so the funnel does not judge it: the same
                 // rule, another open asked for meanwhile wins.
-                else if (strongSelf && [strongSelf->_playback addRequestToken] == token) {
+                else if (strongSelf && [strongSelf->_playback isCurrentReplaceRequest:token]) {
                     showDirectory(folderURL);
                 }
             });

@@ -40,7 +40,7 @@ NS_ASSUME_NONNULL_BEGIN
 // through openURLs:openInPlace: — asking first when the playlist was built by
 // hand, with Add Instead as the other answer. Every screen whose tap replaces
 // the playlist comes through here. `token` is PlaybackController's
-// addRequestToken, taken when the user asked: a caller with asynchronous
+// replaceRequestToken, taken when the user asked: a caller with asynchronous
 // work first (a bookmark to resolve, a Dropbox folder to list) is dropped
 // here when another open was asked for meanwhile, or an older tap landing
 // late would replace what the user chose last.

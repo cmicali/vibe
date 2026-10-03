@@ -767,7 +767,7 @@ static UIImage *VibeFileTileImage(BOOL sheet) {
                        openingURLs:(NSArray<NSURL *> *)urls
                           inFolder:(BOOL)inFolder
                              token:(uint64_t)token {
-    if (urls.count == 0 || [playback addRequestToken] != token) {
+    if (urls.count == 0 || ![playback isCurrentReplaceRequest:token]) {
         return;
     }
     dispatch_block_t replace = ^{
@@ -809,7 +809,7 @@ static UIImage *VibeFileTileImage(BOOL sheet) {
 // A replace — a file alone, a file with its folder, a folder, or a pick of
 // several — unless this is the add sheet, where the same pick is added.
 - (void)openURLs:(NSArray<NSURL *> *)urls inFolder:(BOOL)inFolder {
-    [self openURLs:urls inFolder:inFolder token:[_playback addRequestToken]];
+    [self openURLs:urls inFolder:inFolder token:[_playback replaceRequestToken]];
 }
 
 // For the subfolder walk, whose Dropbox listings come between the tap and
@@ -835,7 +835,7 @@ static UIImage *VibeFileTileImage(BOOL sheet) {
         return;
     }
     _walkingSubfolders = YES;
-    uint64_t token = [_playback addRequestToken];
+    uint64_t token = [_playback replaceRequestToken];
     __weak BrowserViewController *weakSelf = self;
     [self walkSubfolders:[NSMutableArray arrayWithObject:_directoryURL]
                    found:[NSMutableArray array]
@@ -1587,7 +1587,7 @@ static UIImage *VibeFileTileImage(BOOL sheet) {
 // makes while it runs supersedes an Add (FolderSession) and a replace alike.
 - (void)openItem:(NSDictionary *)item appending:(BOOL)appending inFolder:(BOOL)inFolder {
     PlaybackController *playback = _playback;
-    uint64_t token = [playback addRequestToken];
+    uint64_t token = appending ? [playback addRequestToken] : [playback replaceRequestToken];
     NSString *name = [item[@"path"] lastPathComponent];
     __weak RecentsViewController *weakSelf = self;
     [playback resolveRecentItem:item completion:^(NSURL *url) {
