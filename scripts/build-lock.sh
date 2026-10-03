@@ -31,10 +31,16 @@ vibe_build_lock_acquire() {
     local deadline=$(( $(date +%s) + timeout ))
     local unaccounted=0
     local owner=""
+    local announced=""
 
     mkdir -p "$(dirname "$VIBE_BUILD_LOCK_DIR")"
     until mkdir "$VIBE_BUILD_LOCK_DIR" 2>/dev/null; do
         owner="$(cat "$VIBE_BUILD_LOCK_DIR/pid" 2>/dev/null || true)"
+        # Said once: a silent wait of up to the timeout reads as a hang.
+        if [ -z "$announced" ]; then
+            echo "waiting for the build lock held by pid ${owner:-?}: $VIBE_BUILD_LOCK_DIR" >&2
+            announced=1
+        fi
         if [ -n "$owner" ]; then
             unaccounted=0
             # A named holder that is gone left the lock behind: break it now.

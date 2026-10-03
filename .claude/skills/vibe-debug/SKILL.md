@@ -13,6 +13,8 @@ APP=build/DerivedData/Build/Products/Debug/Vibe.app
 V="$APP/Contents/MacOS/Vibe"      # the binary is its own CLI client (same sandbox and container)
 ```
 
+**Every script here returns when its work is done.** Nothing one leaves running — the touch driver, a direct-exec'd app — holds the caller's stdout or stderr, so `| tail`, `| jq` and `$(…)` are safe on all of them. One that does not return is a bug in that script: fix it with the pattern in `drive-ios.sh`'s TRAP (one backgrounded simple command, all three streams redirected), never by piping or redirecting around it.
+
 ## macOS: launch, drive, inspect
 
 ```bash
@@ -42,7 +44,7 @@ Which run proves what:
 
 **Launching by hand.**
 
-- Off the hardware too: `open -a "$APP" <files> --args --no-audio-hw --silent`, `--args` last since everything after it is argv. Direct exec takes argv natively: `"$V" --no-audio-hw --silent &`.
+- Off the hardware too: `open -a "$APP" <files> --args --no-audio-hw --silent`, `--args` last since everything after it is argv. Direct exec takes argv natively: `"$V" --no-audio-hw --silent >/dev/null 2>&1 </dev/null &`, redirected so the app holds no pipe of yours.
 - **Feed files with `open -a "$APP" <file>`.** The sandbox denies raw argv paths (no Launch Services grant), so `"$V" <file>` fails. `--debug-cmd open <path>` grants nothing either: container paths or paths already granted this session only. The same denial reaches `file_cache`, `file_drag_drop`, and a `script <file>` argument.
 - TRAP: **check which binary answers before trusting any observation.** With Vibe running from Xcode, Launch Services routes `open -a` to that instance and you test a stale build with no error: `ps -o pid,command -p $(pgrep -x Vibe)`. If it is not your build, stop the Xcode session or direct-exec a second instance (cannot open files, dies with the shell). With **two instances the channel is racy** — either may consume a command file — so quit one first.
 - TRAP: **never `pkill` an instance Xcode is debugging.** The debugger traps SIGTERM and *stops* the process: it keeps its pid, answers nothing, and every later `--debug-cmd` burns its full timeout as a fake hang. `launch.sh` handles this (its header is the authority); by hand, `--debug-cmd quit` first — also the only exit that runs `applicationWillTerminate:` — and a leading `T` in `ps -o stat=` means stopped: continue it in Xcode (⌘.).

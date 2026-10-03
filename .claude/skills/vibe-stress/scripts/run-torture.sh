@@ -61,8 +61,14 @@ case "${VIBE_AUDIBLE:-}" in
 esac
 [ "${VIBE_NOW_PLAYING:-0}" != "1" ] && AUDIO_FLAGS+=(--no-now-playing)
 echo "  audio: ${AUDIO_FLAGS[*]:-real hardware, audible}"
+# TRAP: the app outlives this script and torture.py, so it must hold none of
+# the caller's stdin, stdout or stderr, or `make torture | tail` never returns.
+# Its output, a sanitizer report included, goes to APP_LOG.
+APP_LOG="$(cd "$(dirname "$0")/../../../.." && pwd)/build/stress/torture-app.log"
+mkdir -p "$(dirname "$APP_LOG")"
+echo "  app output: $APP_LOG"
 # bash 3.2 + set -u dies on an empty array expansion (audible with Now Playing).
-"$V" ${AUDIO_FLAGS[@]+"${AUDIO_FLAGS[@]}"} &
+"$V" ${AUDIO_FLAGS[@]+"${AUDIO_FLAGS[@]}"} > "$APP_LOG" 2>&1 < /dev/null &
 ready=""
 for _ in $(seq 1 25); do
     sleep 1
