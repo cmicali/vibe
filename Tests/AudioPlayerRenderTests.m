@@ -2376,6 +2376,16 @@ static NSData *MP3Frames(NSData *mp3) {
     return source;
 }
 
+// The hold at the download's edge, which these streams put a tail window
+// short of the end, past half of the file's `frames`. TRAP: not any hold.
+// streamTo: lands a stream's bytes at once, and on a slow machine the first
+// drain can still find the decoder waiting at the prefix's edge, not yet
+// woken, with little buffered: a hold of one drain at the prefix, well under
+// half of every file here.
+- (BOOL)heldPastHalfOf:(NSUInteger)frames {
+    return _player.isBuffering && [self currentVoiceSnapshot].consumed * 2 >= frames;
+}
+
 // The stream streamEstimated: made, played from its start on the decode pool.
 - (void)playTheEstimatedStream {
     [self playOnTheDecodePoolBitPerfect:NO play:^{
@@ -2488,9 +2498,6 @@ static NSData *MP3Frames(NSData *mp3) {
     NSDictionary<NSString *, NSData *> *streams = @{@"dense.mp3": dense, @"constant-head.mp3": [self constantHeadMP3], @"sparse.mp3": sparse};
     for (NSString *name in @[@"dense.mp3", @"constant-head.mp3", @"sparse.mp3"]) {
         BOOL denseHead = [name isEqual:@"dense.mp3"], shortEstimate = ![name isEqual:@"sparse.mp3"];
-        // TRAP: the reference before the play: decoded while the voice is
-        // live, a slow machine let the decoder meet the prefix's edge before
-        // streamTo: landed, and the hold awaited below was that one.
         NSURL *source = [self streamEstimated:streams[name] prefix:24576 name:name];
         double exact = (double)[self open:source decoder:@"dr_mp3"].length / 48000;
         NSData *reference = PCM([self read:source]);
@@ -2506,8 +2513,9 @@ static NSData *MP3Frames(NSData *mp3) {
             NSTimeInterval position = self->_player.position;
             monotonic = monotonic && position >= clock;
             clock = position;
-            return self->_player.isBuffering;
-        }], @"%@ played to the download's edge", name);
+            return [self heldPastHalfOf:reference.length / 8];
+        }], @"%@ played to the download's edge: consumed %llu of %lu", name,
+            [self currentVoiceSnapshot].consumed, (unsigned long)(reference.length / 8));
         XCTAssertTrue(monotonic, @"%@: the clock never ran back", name);
         NSUInteger from = 0;
         if (shortEstimate) {
@@ -2550,7 +2558,7 @@ static NSData *MP3Frames(NSData *mp3) {
     NSData *bytes = [self constantHeadMP3];
     NSURL *source = [self streamEstimated:bytes prefix:24576 name:@"stalled.mp3"];
     CloudFileAvailability *stream = _stream;
-    NSData *reference = PCM([self read:source]); // before the play, as above
+    NSData *reference = PCM([self read:source]);
     [self playOnTheDecodePoolBitPerfect:NO play:^{
         self->_player.declick = NO;
         [self shortenTheOpenDeadline];
@@ -2559,7 +2567,11 @@ static NSData *MP3Frames(NSData *mp3) {
     _blockSize = 4096;
     double estimate = _player.duration;
     [self streamTo:_streamBytes.length * 9 / 10];
-    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
+    // The hold at the 90% edge, past the estimate: not a drain's transient at
+    // the prefix (heldPastHalfOf:).
+    XCTAssertTrue([self renderUntil:^BOOL {
+        return self->_player.isBuffering && [self currentVoiceSnapshot].consumed > (estimate + 1) * 48000;
+    }]);
     double heard = [self currentVoiceSnapshot].consumed / 48000.0;
     XCTAssertGreaterThan(heard, estimate + 1, @"held past the estimate");
     NSTimeInterval held = [self stallTheStream];
