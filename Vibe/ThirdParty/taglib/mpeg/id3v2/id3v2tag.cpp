@@ -56,6 +56,7 @@ namespace
 
   constexpr long MinPaddingSize = 1024;
   constexpr long MaxPaddingSize = 1024 * 1024;
+  constexpr unsigned int MAX_ID3V2_FRAME_COUNT = 50000;
 
   /*!
    * Downgrade ID3v2.4 text \a encoding to value supported by ID3v2.3.
@@ -834,6 +835,7 @@ void ID3v2::Tag::parse(const ByteVector &origData)
 
   unsigned int frameDataPosition = 0;
   unsigned int frameDataLength = data.size();
+  unsigned int frameCount = 0;
 
   // check for extended header
 
@@ -871,6 +873,11 @@ void ID3v2::Tag::parse(const ByteVector &origData)
       break;
     }
 
+    if(frameCount++ >= MAX_ID3V2_FRAME_COUNT) {
+      debug("ID3v2::Tag::parse() -- Maximum frame count exceeded");
+      break;
+    }
+
     const ByteVector origData = data.mid(frameDataPosition);
     const Header *tagHeader = &d->header;
     unsigned int headerVersion = tagHeader->majorVersion();
@@ -878,13 +885,6 @@ void ID3v2::Tag::parse(const ByteVector &origData)
 
     if(!frame)
       return;
-
-    // Checks to make sure that frame parsed correctly.
-
-    if(frame->size() <= 0) {
-      delete frame;
-      return;
-    }
 
     if(frame->header()->version() == headerVersion) {
       frameDataPosition += frame->size() + frame->headerSize();
@@ -895,7 +895,14 @@ void ID3v2::Tag::parse(const ByteVector &origData)
       Frame::Header origHeader(origData, headerVersion);
       frameDataPosition += origHeader.frameSize() + origHeader.size();
     }
-    addFrame(frame);
+
+    if(frame->size() > 0) {
+      addFrame(frame);
+    } else {
+      // A frame with size 0 is invalid, drop it. "A frame must be at least 1
+      // byte big" (id3v2.4.0-structure.txt - 4, id3v2.3.0.txt - 3.3).
+      delete frame;
+    }
   }
 
   d->factory->rebuildAggregateFrames(this);

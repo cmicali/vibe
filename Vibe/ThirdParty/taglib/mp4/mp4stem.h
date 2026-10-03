@@ -1,7 +1,7 @@
-/***************************************************************************
-    copyright            : (C) 2016 by Tsuda Kageyu
-    email                : tsuda.kageyu@gmail.com
- ***************************************************************************/
+/**************************************************************************
+    copyright            : (C) 2026 by Antoine Colombier
+    email                : antoine@mixxx.org
+ **************************************************************************/
 
 /***************************************************************************
  *   This library is free software; you can redistribute it and/or modify  *
@@ -23,37 +23,56 @@
  *   http://www.mozilla.org/MPL/                                           *
  ***************************************************************************/
 
-#ifndef TAGLIB_TZLIB_H
-#define TAGLIB_TZLIB_H
+#ifndef TAGLIB_MP4STEM_H
+#define TAGLIB_MP4STEM_H
 
 #include "tbytevector.h"
+#include "taglib_export.h"
 
-// THIS FILE IS NOT A PART OF THE TAGLIB API
+namespace TagLib::MP4 {
+  //! STEM
+  class StemPrivate
+  {
+  public:
+    ByteVector data;
+  };
 
-#ifndef DO_NOT_DOCUMENT  // tell Doxygen not to document this header
+  class TAGLIB_EXPORT Stem
+  {
+  public:
+    Stem();
+    explicit Stem(const ByteVector &data);
+    ~Stem();
 
-namespace TagLib {
+    Stem(const Stem &item);
 
-  namespace zlib {
+    /*!
+     * Copies the contents of \a item into this Stem.
+     */
+    Stem &operator=(const Stem &item);
 
-     /*!
-      * Returns whether or not zlib is installed and ready to use.
-      */
-     bool TAGLIB_EXPORT isAvailable();
+    /*!
+     * Exchanges the content of the Stem with the content of \a item.
+     */
+    void swap(Stem &item) noexcept;
 
-     /*!
-      * Decompress \a data by zlib.
-      */
-     ByteVector decompress(const ByteVector &data);
+    //! The Stem data
+    ByteVector data() const;
 
-     /*!
-      * Decompress \a data by zlib, at most \a maxLength bytes.
-      */
-     ByteVector decompress(const ByteVector &data, unsigned int maxLength);
+    /*!
+     * Returns \c true if the Stem and \a other contain the same data.
+     */
+    bool operator==(const Stem &other) const;
 
-  }  // namespace zlib
-}  // namespace TagLib
+    /*!
+     * Returns \c true if the Stem and \a other have different data.
+     */
+    bool operator!=(const Stem &other) const;
 
-#endif
+  private:
+    TAGLIB_MSVC_SUPPRESS_WARNING_NEEDS_TO_HAVE_DLL_INTERFACE
+    std::shared_ptr<StemPrivate> d;
+  };
+} // namespace TagLib::MP4
 
 #endif

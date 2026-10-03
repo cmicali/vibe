@@ -1,7 +1,7 @@
-/***************************************************************************
-    copyright            : (C) 2016 by Tsuda Kageyu
-    email                : tsuda.kageyu@gmail.com
- ***************************************************************************/
+/**************************************************************************
+    copyright            : (C) 2026 by Antoine Colombier
+    email                : antoine@mixxx.org
+ **************************************************************************/
 
 /***************************************************************************
  *   This library is free software; you can redistribute it and/or modify  *
@@ -23,37 +23,42 @@
  *   http://www.mozilla.org/MPL/                                           *
  ***************************************************************************/
 
-#ifndef TAGLIB_TZLIB_H
-#define TAGLIB_TZLIB_H
+#include "mp4stem.h"
 
-#include "tbytevector.h"
+using namespace TagLib;
 
-// THIS FILE IS NOT A PART OF THE TAGLIB API
+MP4::Stem::Stem(const ByteVector &data) :
+  d(std::make_shared<StemPrivate>())
+{
+  d->data = data;
+}
 
-#ifndef DO_NOT_DOCUMENT  // tell Doxygen not to document this header
+MP4::Stem::Stem() = default;
+MP4::Stem::Stem(const Stem &) = default;
+MP4::Stem &MP4::Stem::operator=(const Stem &) = default;
 
-namespace TagLib {
+void
+MP4::Stem::swap(Stem &item) noexcept
+{
+  using std::swap;
 
-  namespace zlib {
+  swap(d, item.d);
+}
 
-     /*!
-      * Returns whether or not zlib is installed and ready to use.
-      */
-     bool TAGLIB_EXPORT isAvailable();
+MP4::Stem::~Stem() = default;
 
-     /*!
-      * Decompress \a data by zlib.
-      */
-     ByteVector decompress(const ByteVector &data);
+ByteVector
+MP4::Stem::data() const
+{
+  return d->data;
+}
 
-     /*!
-      * Decompress \a data by zlib, at most \a maxLength bytes.
-      */
-     ByteVector decompress(const ByteVector &data, unsigned int maxLength);
+bool MP4::Stem::operator==(const Stem &other) const
+{
+  return data() == other.data();
+}
 
-  }  // namespace zlib
-}  // namespace TagLib
-
-#endif
-
-#endif
+bool MP4::Stem::operator!=(const Stem &other) const
+{
+  return !(*this == other);
+}

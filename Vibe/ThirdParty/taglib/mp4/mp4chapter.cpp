@@ -1,7 +1,6 @@
-/***************************************************************************
-    copyright            : (C) 2016 by Tsuda Kageyu
-    email                : tsuda.kageyu@gmail.com
- ***************************************************************************/
+/**************************************************************************
+    copyright            : (C) 2026 by Ryan Francesconi
+ **************************************************************************/
 
 /***************************************************************************
  *   This library is free software; you can redistribute it and/or modify  *
@@ -23,37 +22,68 @@
  *   http://www.mozilla.org/MPL/                                           *
  ***************************************************************************/
 
-#ifndef TAGLIB_TZLIB_H
-#define TAGLIB_TZLIB_H
+#include "mp4chapter.h"
+#include "tstring.h"
 
-#include "tbytevector.h"
+using namespace TagLib;
 
-// THIS FILE IS NOT A PART OF THE TAGLIB API
+class MP4::Chapter::ChapterPrivate
+{
+public:
+  ChapterPrivate() = default;
+  ~ChapterPrivate() = default;
+  String title;
+  long long startTime {0};
+};
 
-#ifndef DO_NOT_DOCUMENT  // tell Doxygen not to document this header
+MP4::Chapter::Chapter(const String &title, long long startTime) :
+  d(std::make_unique<ChapterPrivate>())
+{
+  d->title = title;
+  d->startTime = startTime;
+}
 
-namespace TagLib {
+MP4::Chapter::Chapter(const Chapter &other) :
+  d(std::make_unique<ChapterPrivate>(*other.d))
+{
+}
 
-  namespace zlib {
+MP4::Chapter::Chapter(Chapter &&other) noexcept = default;
 
-     /*!
-      * Returns whether or not zlib is installed and ready to use.
-      */
-     bool TAGLIB_EXPORT isAvailable();
+MP4::Chapter::~Chapter() = default;
 
-     /*!
-      * Decompress \a data by zlib.
-      */
-     ByteVector decompress(const ByteVector &data);
+MP4::Chapter &MP4::Chapter::operator=(const Chapter &other)
+{
+  Chapter(other).swap(*this);
+  return *this;
+}
 
-     /*!
-      * Decompress \a data by zlib, at most \a maxLength bytes.
-      */
-     ByteVector decompress(const ByteVector &data, unsigned int maxLength);
+MP4::Chapter &MP4::Chapter::operator=(
+  Chapter &&other) noexcept = default;
 
-  }  // namespace zlib
-}  // namespace TagLib
+bool MP4::Chapter::operator==(const Chapter &other) const
+{
+  return title() == other.title() && startTime() == other.startTime();
+}
 
-#endif
+bool MP4::Chapter::operator!=(const Chapter &other) const
+{
+  return !(*this == other);
+}
 
-#endif
+void MP4::Chapter::swap(Chapter &other) noexcept
+{
+  using std::swap;
+
+  swap(d, other.d);
+}
+
+const String &MP4::Chapter::title() const
+{
+  return d->title;
+}
+
+long long MP4::Chapter::startTime() const
+{
+  return d->startTime;
+}

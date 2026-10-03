@@ -49,6 +49,7 @@ namespace
   constexpr long MaxPaddingLegnth = 1024 * 1024;
 
   constexpr char LastBlockFlag = '\x80';
+  constexpr unsigned int MAX_FLAC_METADATA_BLOCK_COUNT = 50000;
 }  // namespace
 
 class FLAC::File::FilePrivate
@@ -70,11 +71,15 @@ public:
 
   std::unique_ptr<Properties> properties;
   ByteVector xiphCommentData;
+  String iXMLData;
+  ByteVector bextData;
   List<FLAC::MetadataBlock *> blocks;
 
   offset_t flacStart { 0 };
   offset_t streamStart { 0 };
   bool scanned { false };
+  bool hasiXML { false };
+  bool hasBEXT { false };
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -241,6 +246,60 @@ bool FLAC::File::save()
 
   d->xiphCommentData = xiphComment()->render(false);
 
+  // Drop any APPLICATION blocks we recognize as iXML or bext from the block
+  // list.  Recognized blocks were normally extracted to d->iXMLData /
+  // d->bextData during scan() and never added here, but this also catches
+  // entries inserted after scan() (defensive).
+  for(auto it = d->blocks.begin(); it != d->blocks.end();) {
+    if((*it)->code() == MetadataBlock::Application) {
+      const ByteVector blockData = (*it)->render();
+      if(blockData.size() >= 4) {
+        const ByteVector appId = blockData.mid(0, 4);
+        ByteVector innerId;
+        if(appId == "riff" && blockData.size() >= 12)
+          innerId = blockData.mid(4, 4);
+        else if(appId == "iXML" || appId == "bext")
+          innerId = appId;
+
+        if(innerId == "iXML" || innerId == "bext") {
+          delete *it;
+          it = d->blocks.erase(it);
+          continue;
+        }
+      }
+    }
+    ++it;
+  }
+
+  // Append fresh APPLICATION/"riff" blocks for iXML and bext if non-empty.
+  // Per FLAC foreign-metadata convention the payload is a RIFF chunk:
+  // <4 byte FOURCC><4 byte LE size><data>.
+  if(!d->iXMLData.isEmpty()) {
+    const ByteVector xml = d->iXMLData.data(String::UTF8);
+    ByteVector payload;
+    payload.append("riff");
+    payload.append("iXML");
+    payload.append(ByteVector::fromUInt(xml.size(), false));
+    payload.append(xml);
+    d->blocks.append(new UnknownMetadataBlock(MetadataBlock::Application, payload));
+    d->hasiXML = true;
+  }
+  else {
+    d->hasiXML = false;
+  }
+  if(!d->bextData.isEmpty()) {
+    ByteVector payload;
+    payload.append("riff");
+    payload.append("bext");
+    payload.append(ByteVector::fromUInt(d->bextData.size(), false));
+    payload.append(d->bextData);
+    d->blocks.append(new UnknownMetadataBlock(MetadataBlock::Application, payload));
+    d->hasBEXT = true;
+  }
+  else {
+    d->hasBEXT = false;
+  }
+
   // Replace metadata blocks
 
   MetadataBlock *commentBlock =
@@ -274,7 +333,7 @@ bool FLAC::File::save()
       it = d->blocks.erase(it);
       continue;
     }
-    blockHeader[0] = (*it)->code();
+    blockHeader[0] = static_cast<char>((*it)->code());
     data.append(blockHeader);
     data.append(blockData);
     ++it;
@@ -433,6 +492,26 @@ void FLAC::File::removePictures()
   }
 }
 
+String FLAC::File::iXMLData() const
+{
+  return d->iXMLData;
+}
+
+void FLAC::File::setiXMLData(const String &data)
+{
+  d->iXMLData = data;
+}
+
+ByteVector FLAC::File::BEXTData() const
+{
+  return d->bextData;
+}
+
+void FLAC::File::setBEXTData(const ByteVector &data)
+{
+  d->bextData = data;
+}
+
 void FLAC::File::strip(int tags)
 {
   if(tags & ID3v1)
@@ -460,6 +539,16 @@ bool FLAC::File::hasID3v1Tag() const
 bool FLAC::File::hasID3v2Tag() const
 {
   return d->ID3v2Location >= 0;
+}
+
+bool FLAC::File::hasiXMLData() const
+{
+  return d->hasiXML;
+}
+
+bool FLAC::File::hasBEXTData() const
+{
+  return d->hasBEXT;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -539,7 +628,14 @@ void FLAC::File::scan()
   nextBlockOffset += 4;
   d->flacStart = nextBlockOffset;
 
+  unsigned int blockCount = 0;
   while(true) {
+
+    if(blockCount++ >= MAX_FLAC_METADATA_BLOCK_COUNT) {
+      debug("FLAC::File::scan() -- Maximum metadata block count exceeded");
+      setValid(false);
+      return;
+    }
 
     seek(nextBlockOffset);
     const ByteVector header = readBlock(4);
@@ -612,6 +708,53 @@ void FLAC::File::scan()
     }
     else if(blockType == MetadataBlock::Padding) {
       // Skip all padding blocks.
+    }
+    else if(blockType == MetadataBlock::Application && data.size() >= 4) {
+      // APPLICATION block (RFC 9639 § 8.4):
+      //   <4 bytes>  big-endian application ID (ASCII FOURCC in practice)
+      //   <n bytes>  application-defined data
+      //
+      // We recognize two conventions for carrying RIFF iXML / bext metadata:
+      //   1. App ID "riff" — IANA-registered FLAC foreign-metadata wrapper.
+      //      Payload is a RIFF chunk: <4 byte FOURCC><4 byte LE size><data>.
+      //   2. App ID "iXML" or "bext" — direct, used by some third-party tools
+      //      (e.g. Sequoia). Payload is the chunk data verbatim.
+      //
+      // Other application IDs (and "riff" wrapping FOURCCs we don't recognize)
+      // fall through to UnknownMetadataBlock so they round-trip unchanged.
+      const ByteVector appId = data.mid(0, 4);
+      ByteVector innerId;
+      ByteVector innerData;
+
+      if(appId == "riff" && data.size() >= 12) {
+        innerId = data.mid(4, 4);
+        const unsigned int innerSize = data.toUInt(8U, false);
+        innerData = data.mid(12, innerSize);
+      }
+      else if(appId == "iXML" || appId == "bext") {
+        innerId = appId;
+        innerData = data.mid(4);
+      }
+
+      if(innerId == "iXML") {
+        if(!d->hasiXML) {
+          d->hasiXML = true;
+          d->iXMLData = String(innerData, String::UTF8);
+        }
+        else
+          debug("FLAC::File::scan() -- multiple iXML blocks found, discarding");
+      }
+      else if(innerId == "bext") {
+        if(!d->hasBEXT) {
+          d->hasBEXT = true;
+          d->bextData = innerData;
+        }
+        else
+          debug("FLAC::File::scan() -- multiple BEXT blocks found, discarding");
+      }
+      else {
+        block = new UnknownMetadataBlock(blockType, data);
+      }
     }
     else {
       block = new UnknownMetadataBlock(blockType, data);
