@@ -629,17 +629,14 @@ static NSMutableArray<NSURL *> *VibeListedAudioURLs(NSURL *dir, VibeFolderOpenSo
     NSMutableArray<NSURL*> *results = [[NSMutableArray alloc] init];
     for (NSURL *url in contents) {
         NSString *extension = url.pathExtension.lowercaseString;
-        BOOL listed = [supported containsObject:extension] || [PlaylistFile isCueExtension:extension];
-        if (!listed && !subfolders) {
-            continue;
-        }
+        // The key is one of the listing's (VibeListingKeys): no I/O per entry.
         NSNumber *isDirectory = nil;
         [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
         if (isDirectory.boolValue) {
             [subfolders addObject:url];
             continue;
         }
-        if (!listed) {
+        if (![supported containsObject:extension] && ![PlaylistFile isCueExtension:extension]) {
             continue;
         }
         NSNumber *isLink = nil;

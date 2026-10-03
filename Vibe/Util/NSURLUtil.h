@@ -104,7 +104,6 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 // Synchronous. sort is a parameter because this layer may not read a setting.
 + (NSArray<AudioTrack *> *)rowsInDirectory:(NSURL *)dir sortedBy:(VibeFolderOpenSort)sort;
 
-
 // The folder's subfolders and the audio files and sheets rowsInDirectory:
 // would make rows of, each sorted by `sort`, hidden entries skipped. What a
 // browser draws, so a folder plays as it is shown. Synchronous.

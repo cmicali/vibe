@@ -173,10 +173,9 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
 
 // The one opening path for the tap and every row action.
 - (void)openFavorite:(FavoriteFolder *)favorite appending:(BOOL)appending {
-    // The token is taken HERE, before the resolve, or an Add outliving a
-    // replace appends to the new playlist. A replace compares it too: its
-    // resolve and its Dropbox listing take seconds, and an older tap landing
-    // after a newer open would replace what the user chose last.
+    // The token is taken HERE, before the resolve: an Add outliving a replace
+    // would append to the new playlist, and a replace landing after a newer
+    // open would take its place (the session and the replace funnel drop them).
     uint64_t token = [_playback addRequestToken];
     __weak FavoritesViewController *weakSelf = self;
     [FavoritesStore.shared resolveFavorite:favorite completion:^(NSURL *folderURL) {
@@ -198,48 +197,44 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
     }
     if (appending) {
         [_playback addURLs:@[folderURL] token:token];
+        return;
     }
-    else if ([_playback addRequestToken] != token) {
-        return;   // another open was asked for meanwhile
+    // A Dropbox folder of folders has nothing to play: it opens in the Files
+    // tab, where its subfolders are, not as an empty playlist.
+    NSString *dropboxPath = [DropboxMirror.shared dropboxPathForURL:folderURL];
+    void (^showDirectory)(NSURL *) = _showDirectoryHandler;
+    if (!dropboxPath || !showDirectory) {
+        [self playFolderURL:folderURL token:token];
+        return;
     }
-    else {
-        // A Dropbox folder of folders has nothing to play: it opens in the
-        // Files tab, where its subfolders are, not as an empty playlist.
-        NSString *dropboxPath = [DropboxMirror.shared dropboxPathForURL:folderURL];
-        void (^showDirectory)(NSURL *) = _showDirectoryHandler;
-        if (!dropboxPath || !showDirectory) {
-            [self playFolderURL:folderURL];
-            return;
-        }
-        __weak FavoritesViewController *weakSelf = self;
-        // Listed first: the mirror holds only what something has listed, so
-        // a folder never browsed is empty on disk whatever Dropbox holds. A
-        // failed listing falls back on what the disk has; the open that
-        // follows reads the listed folder as it is.
-        VibeFolderOpenSort sort = AppSettings.sharedInstance.folderOpenSort;
-        [DropboxMirror.shared refreshDropboxFolder:dropboxPath completion:^(NSURL *listedURL, NSError *error) {
-            dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-                NSArray<NSURL *> *audio = @[];
-                [NSURLUtil listDirectory:folderURL sortedBy:sort folders:NULL audio:&audio];
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    FavoritesViewController *strongSelf = weakSelf;
-                    if (!strongSelf || [strongSelf->_playback addRequestToken] != token) {
-                        return;
-                    }
-                    if (audio.count > 0) {
-                        [strongSelf playFolderURL:folderURL];
-                    }
-                    else {
-                        showDirectory(folderURL);
-                    }
-                });
+    __weak FavoritesViewController *weakSelf = self;
+    // Listed first: the mirror holds only what something has listed, so a
+    // folder never browsed is empty on disk whatever Dropbox holds. A failed
+    // listing falls back on what the disk has; the open that follows reads
+    // the listed folder as it is.
+    VibeFolderOpenSort sort = AppSettings.sharedInstance.folderOpenSort;
+    [DropboxMirror.shared refreshDropboxFolder:dropboxPath completion:^(NSURL *listedURL, NSError *error) {
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            NSArray<NSURL *> *audio = @[];
+            [NSURLUtil listDirectory:folderURL sortedBy:sort folders:NULL audio:&audio];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                FavoritesViewController *strongSelf = weakSelf;
+                if (audio.count > 0) {
+                    [strongSelf playFolderURL:folderURL token:token];
+                }
+                // Not a replace, so the funnel does not judge it: the same
+                // rule, another open asked for meanwhile wins.
+                else if (strongSelf && [strongSelf->_playback addRequestToken] == token) {
+                    showDirectory(folderURL);
+                }
             });
-        }];
-    }
+        });
+    }];
 }
 
-- (void)playFolderURL:(NSURL *)folderURL {
-    [BrowserViewController confirmReplacingPlaylistOf:_playback from:self openingURLs:@[folderURL] inFolder:NO];
+- (void)playFolderURL:(NSURL *)folderURL token:(uint64_t)token {
+    [BrowserViewController confirmReplacingPlaylistOf:_playback from:self openingURLs:@[folderURL] inFolder:NO
+                                                token:token];
 }
 
 // The row stays: a signed-out provider or an unmounted volume is temporary.

@@ -428,7 +428,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     os_unfair_lock_lock(&_lock);
     NSString *refresh = _refreshToken;
     // An expired one is refused and the grant would outlive the sign-out.
-    NSString *access = _accessTokenExpiry - kAccessTokenMargin > CFAbsoluteTimeGetCurrent() ? _accessToken : nil;
+    NSString *access = [self hasFreshAccessTokenLocked] ? _accessToken : nil;
     [self replaceAccountLockedWithRefreshToken:nil accessToken:nil expiresIn:0 accountID:nil];
     os_unfair_lock_unlock(&_lock);
     if (!refresh) {
@@ -536,6 +536,10 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     }] resume];
 }
 
+- (BOOL)hasFreshAccessTokenLocked {
+    return _accessToken && _accessTokenExpiry - kAccessTokenMargin > CFAbsoluteTimeGetCurrent();
+}
+
 // Single-flight: every caller arriving during a refresh waits on that one.
 - (void)withAccessToken:(VibeDropboxTokenWaiter)waiter {
     [self retryDeferredAccountLoad];
@@ -545,7 +549,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
         waiter(nil, 0, VibeDropboxMakeError(VibeDropboxErrorNotLinked, @"no Dropbox account"));
         return;
     }
-    if (_accessToken && _accessTokenExpiry - kAccessTokenMargin > CFAbsoluteTimeGetCurrent()) {
+    if ([self hasFreshAccessTokenLocked]) {
         NSString *token = _accessToken;
         uint64_t generation = _accountGeneration;
         os_unfair_lock_unlock(&_lock);
@@ -690,11 +694,19 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 
 // The transfer's task, unless a cancel came first. Under the lock, so a
 // cancel either finds the task or is seen here.
+//
+// TRAP: a download enters the delegate's table under the SAME lock. Written
+// after the adopt, a cancel between the two cancelled a task whose
+// completion found no transfer, and the download never finished: its caller
+// waited on it for good, holding its materialization lane.
 - (BOOL)adoptTask:(NSURLSessionDataTask *)task forTransfer:(DropboxTransfer *)transfer {
     os_unfair_lock_lock(&_lock);
     BOOL cancelled = transfer.cancelled;
     if (!cancelled) {
         transfer.task = task;
+        if (transfer.destination) {
+            _downloads[@(task.taskIdentifier)] = transfer;
+        }
     }
     os_unfair_lock_unlock(&_lock);
     return !cancelled;
@@ -795,18 +807,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
                 [self downloadRequestForPath:download.path token:token]];
         download.accessToken = token;
         download.accountGeneration = generation;
-        // TRAP: adopted and registered under ONE lock. With the table written
-        // after the adopt, a cancel between the two cancelled a task whose
-        // completion found no transfer, and the download never finished: its
-        // caller waited on it for good, holding its materialization lane.
-        os_unfair_lock_lock(&self->_lock);
-        BOOL cancelled = download.cancelled;
-        if (!cancelled) {
-            download.task = task;
-            self->_downloads[@(task.taskIdentifier)] = download;
-        }
-        os_unfair_lock_unlock(&self->_lock);
-        if (cancelled) {
+        if (![self adoptTask:task forTransfer:download]) {
             [self finishTransfer:download result:nil error:VibeCancelledError()];
             return;
         }

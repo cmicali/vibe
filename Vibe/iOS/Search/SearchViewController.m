@@ -274,13 +274,10 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 // "No Results" once every half in scope has answered with nothing. A half
 // still asking, or a Dropbox failure, which says so itself, is not that.
 - (void)refreshEmptyState {
-    // Only the halves in scope: the others keep the answers they had, which
-    // the table does not draw. The playlist's matches are already the scope's.
-    BOOL filesEmpty = ![self scopeIncludes:VibeSearchSectionFiles]
-            || (_fileHits.count == 0 && !_fileHitsPending && !_fileIndex.isBuilding);
-    BOOL dropboxEmpty = ![self scopeIncludes:VibeSearchSectionDropbox]
-            || (_dropboxHits.count == 0 && !_dropboxSearching && !_dropboxFailed);
-    BOOL settledEmpty = [self currentQuery].length > 0 && _matches.count == 0 && filesEmpty && dropboxEmpty;
+    // By the predicates the table draws its sections with, so a half out of
+    // scope, whose answer is kept but not drawn, cannot hold No Results off.
+    BOOL settledEmpty = [self currentQuery].length > 0 && _matches.count == 0 && !_fileHitsPending
+            && ![self showsFilesSection] && ![self showsDropboxSection];
     self.contentUnavailableConfiguration = settledEmpty
             ? [UIContentUnavailableConfiguration searchConfiguration] : nil;
 }
@@ -724,11 +721,11 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     __weak SearchViewController *weakSelf = self;
     [self resolveHit:hit completion:^(NSURL *url, BOOL folder) {
         SearchViewController *strongSelf = weakSelf;
-        if (!strongSelf || [playback addRequestToken] != token) {
+        if (!strongSelf) {
             return;
         }
         [BrowserViewController confirmReplacingPlaylistOf:playback from:strongSelf
-                                              openingURLs:@[url] inFolder:inFolder];
+                                              openingURLs:@[url] inFolder:inFolder token:token];
     }];
 }
 

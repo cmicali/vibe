@@ -211,7 +211,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)addURLs:(NSArray<NSURL *> *)urls;
 
 // For a caller with asynchronous work before it has a URL: take the token when
-// the USER asks, so an Add a replace has since superseded is dropped.
+// the USER asks, so a request an open has since superseded is dropped — an
+// Add by addURLs:token:, a replace by the browser's confirmReplacing… funnel.
 - (uint64_t)addRequestToken;
 - (void)addURLs:(NSArray<NSURL *> *)urls token:(uint64_t)token;
 

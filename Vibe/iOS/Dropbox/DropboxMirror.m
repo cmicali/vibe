@@ -93,6 +93,7 @@ static NSError *VibePOSIXError(void) {
         _rootURL = [rootURL copy];
         _downloadBudget = downloadBudget;
         _indexes = [[NSCache alloc] init];
+        _sidecarWaiters = [NSMutableDictionary dictionary];
         _diskQueue = dispatch_queue_create("com.commonwealthrecordings.Vibe.dropbox-mirror",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
         // Not pruned here: before first unlock the Keychain reads as no
@@ -342,7 +343,6 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
     NSMutableSet<NSString *> *kept = [NSMutableSet set];
     NSMutableArray<NSDictionary *> *sidecars = [NSMutableArray array];
     NSUInteger placeholders = 0;
-    BOOL departedDirectory = NO;
 
     for (NSDictionary *entry in entries) {
         NSString *name = entry[@"name"];
@@ -413,19 +413,16 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
             continue;
         }
         if (![kept containsObject:name]) {
-            NSNumber *isDirectory = nil;
-            [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
-            departedDirectory = departedDirectory || isDirectory.boolValue;
+            // TRAP: a departed directory takes its cached index with it, and
+            // its descendants'. Kept, a folder that comes back on Dropbox is
+            // made empty here, its unchanged index skips the xattr write, and
+            // it reads as listed: Play on its row opened nothing. The cache
+            // cannot name a subtree, so it goes whole — for a departed file
+            // too, which is rare enough not to tell apart — and refills from
+            // the xattrs.
             [files removeItemAtURL:url error:NULL];
+            [_indexes removeAllObjects];
         }
-    }
-    // TRAP: a departed directory takes its cached index with it, and its
-    // descendants'. Kept, a folder that comes back on Dropbox is made empty
-    // here, its unchanged index skips the xattr write, and it reads as
-    // listed: Play on its row opened nothing. The cache cannot name a
-    // subtree, so it goes whole and refills from the xattrs.
-    if (departedDirectory) {
-        [_indexes removeAllObjects];
     }
     LogInfo(@"Dropbox: reconciled %@: %lu entries, %lu new placeholders, %lu sidecars",
             directory.lastPathComponent, (unsigned long)entries.count,
@@ -511,9 +508,6 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
                 if (waiters) {
                     [waiters addObject:leave];
                     continue;
-                }
-                if (!self->_sidecarWaiters) {
-                    self->_sidecarWaiters = [NSMutableDictionary dictionary];
                 }
                 self->_sidecarWaiters[key] = [NSMutableArray arrayWithObject:leave];
                 [self downloadDropboxPath:sidecar[@"path"] toURL:sidecar[@"url"] completion:^(NSError *fetchError) {
