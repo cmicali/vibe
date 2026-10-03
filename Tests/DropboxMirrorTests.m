@@ -851,6 +851,7 @@ static struct stat StatOf(NSURL *url) {
     XCTestExpectation *download = [self expectationWithDescription:@"download"];
     dispatch_block_t cancelDownload = [_client downloadPath:@"/Music/a.flac"
                                                       toURL:[_root URLByAppendingPathComponent:@"a.part"]
+                                                   progress:nil
                                                  completion:^(NSDictionary *metadata, NSError *error) {
         XCTAssertNil(metadata);
         XCTAssertEqual(error.code, VibeDropboxErrorCancelled);
