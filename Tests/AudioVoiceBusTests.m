@@ -1002,8 +1002,10 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     [self makeBusAtRate:kRate channels:2 inlineDecoding:NO];
     NSURL *url = [self writePCM:[self noiseFrames:2000 channels:2 seed:81] rate:kRate channels:2 name:@"ended.wav"];
     VibeVoiceID voice = [self startFile:[self open:url] gain:1 ramp:[self unity] paused:NO];
+    dispatch_queue_t decoder = [_bus decodeQueueAtIndex:0];
     XCTAssertTrue([self waitUntil:^BOOL { return [self->_bus snapshotOfVoice:voice].endOfStream != UINT64_MAX; }]);
     XCTAssertEqual([_bus snapshotOfVoice:voice].endOfStream, 2000u);
+    dispatch_sync(decoder, ^{}); // its last turn is over: the successor's own turn is not swallowed by it
     [_bus debugHoldRender:YES];
     dispatch_group_t stuck = dispatch_group_create();
     dispatch_group_async(stuck, dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
@@ -1040,6 +1042,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     VibeVoiceID voice = [self startFile:[self open:url] gain:1 ramp:[self unity] paused:NO];
     dispatch_queue_t decoder = [_bus decodeQueueAtIndex:0];
     XCTAssertTrue([self waitUntil:^BOOL { return [self->_bus snapshotOfVoice:voice].endOfStream != UINT64_MAX; }]);
+    dispatch_sync(decoder, ^{});
     [_bus debugHoldRender:YES];
     dispatch_group_t stuck = dispatch_group_create();
     dispatch_group_async(stuck, dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
