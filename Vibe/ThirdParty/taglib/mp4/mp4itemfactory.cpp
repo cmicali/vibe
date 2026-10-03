@@ -25,10 +25,12 @@
 
 #include "mp4itemfactory.h"
 
+#include <mutex>
 #include <utility>
 
 #include "tbytevector.h"
 #include "tdebug.h"
+#include "tutils.h"
 
 #include "id3v1genres.h"
 
@@ -39,6 +41,40 @@ namespace {
 
 constexpr char freeFormPrefix[] = "----:com.apple.iTunes:";
 
+/*!
+ * Returns the atom data type denoted by \a flags, the type field of an
+ * iTunes metadata atom, or TypeUndefined if it cannot be represented.
+ *
+ * The field is 32 bits wide and comes from the file, while the range of the
+ * enumeration is 0..255, so it cannot simply be cast.
+ */
+MP4::AtomDataType atomDataTypeFromFlags(int flags)
+{
+  if(flags >= MP4::TypeImplicit && flags <= MP4::TypeUndefined)
+    return static_cast<MP4::AtomDataType>(flags);
+
+  return MP4::TypeUndefined;
+}
+
+MP4::CoverArt::Format detectImageFormat(const ByteVector &payload)
+{
+  const unsigned int size = payload.size();
+  if(size >= 2 &&
+     static_cast<unsigned char>(payload[0]) == 0xff &&
+     static_cast<unsigned char>(payload[1]) == 0xd8)
+    return MP4::CoverArt::JPEG;
+  if(size >= 8 && payload.startsWith("\x89PNG\x0d\x0a\x1a\x0a"))
+    return MP4::CoverArt::PNG;
+  if(size >= 6 && payload.startsWith("GIF8"))
+    return MP4::CoverArt::GIF;
+  if(size >= 14 &&
+     static_cast<unsigned char>(payload[0]) == 'B' &&
+     static_cast<unsigned char>(payload[1]) == 'M' &&
+     payload.toUInt(6, false) == 0)
+    return MP4::CoverArt::BMP;
+  return MP4::CoverArt::Unknown;
+}
+
 }  // namespace
 
 class ItemFactory::ItemFactoryPrivate
@@ -47,6 +83,8 @@ public:
   NameHandlerMap handlerTypeForName;
   Map<ByteVector, String> propertyKeyForName;
   Map<String, ByteVector> nameForPropertyKey;
+  mutable std::once_flag handlerMapOnce;
+  mutable std::once_flag propertyMapsOnce;
 };
 
 ItemFactory ItemFactory::factory;
@@ -87,6 +125,8 @@ std::pair<String, Item> ItemFactory::parseItem(
     return parseGnre(atom, data);
   case ItemHandlerType::Covr:
     return parseCovr(atom, data);
+  case ItemHandlerType::Stem:
+    return parseStem(atom, data);
   case ItemHandlerType::TextImplicit:
     return parseText(atom, data, -1);
   case ItemHandlerType::Text:
@@ -128,6 +168,8 @@ ByteVector ItemFactory::renderItem(
     return renderInt(name, item);
   case ItemHandlerType::Covr:
     return renderCovr(name, item);
+  case ItemHandlerType::Stem:
+    return renderStem(name, item);
   case ItemHandlerType::TextImplicit:
     return renderText(name, item, TypeImplicit);
   case ItemHandlerType::Text:
@@ -165,7 +207,7 @@ std::pair<ByteVector, Item> ItemFactory::itemFromProperty(
     case ItemHandlerType::UInt:
       return {name, Item(static_cast<unsigned int>(values.front().toInt()))};
     case ItemHandlerType::LongLong:
-      return {name, Item(static_cast<long long>(values.front().toInt()))};
+      return {name, Item(values.front().toLongLong())};
     case ItemHandlerType::Byte:
       return {name, Item(static_cast<unsigned char>(values.front().toInt()))};
     case ItemHandlerType::Bool:
@@ -175,8 +217,8 @@ std::pair<ByteVector, Item> ItemFactory::itemFromProperty(
     case ItemHandlerType::TextImplicit:
     case ItemHandlerType::Text:
       return {name, values};
-
     case ItemHandlerType::Covr:
+    case ItemHandlerType::Stem:
       debug("MP4: Invalid item \"" + name + "\" for property");
       break;
     case ItemHandlerType::Unknown:
@@ -222,6 +264,7 @@ std::pair<String, StringList> ItemFactory::itemToProperty(
       return {key, item.toStringList()};
 
     case ItemHandlerType::Covr:
+    case ItemHandlerType::Stem:
       debug("MP4: Invalid item \"" + itemName + "\" for property");
       break;
     case ItemHandlerType::Unknown:
@@ -234,9 +277,11 @@ std::pair<String, StringList> ItemFactory::itemToProperty(
 
 String ItemFactory::propertyKeyForName(const ByteVector &name) const
 {
-  if(d->propertyKeyForName.isEmpty()) {
+  std::call_once(d->propertyMapsOnce, [this] {
     d->propertyKeyForName = namePropertyMap();
-  }
+    for(const auto &[k, t] : std::as_const(d->propertyKeyForName))
+      d->nameForPropertyKey[t] = k;
+  });
   String key = d->propertyKeyForName.value(name);
   if(key.isEmpty() && name.startsWith(freeFormPrefix)) {
     key = name.mid(std::size(freeFormPrefix) - 1);
@@ -246,14 +291,11 @@ String ItemFactory::propertyKeyForName(const ByteVector &name) const
 
 ByteVector ItemFactory::nameForPropertyKey(const String &key) const
 {
-  if(d->nameForPropertyKey.isEmpty()) {
-    if(d->propertyKeyForName.isEmpty()) {
-      d->propertyKeyForName = namePropertyMap();
-    }
-    for(const auto &[k, t] : std::as_const(d->propertyKeyForName)) {
+  std::call_once(d->propertyMapsOnce, [this] {
+    d->propertyKeyForName = namePropertyMap();
+    for(const auto &[k, t] : std::as_const(d->propertyKeyForName))
       d->nameForPropertyKey[t] = k;
-    }
-  }
+  });
   ByteVector name = d->nameForPropertyKey.value(key);
   if(name.isEmpty() && !key.isEmpty()) {
     const auto &firstChar = key[0];
@@ -292,7 +334,7 @@ ItemFactory::NameHandlerMap ItemFactory::nameHandlerMap() const
     {"rate", ItemHandlerType::TextOrInt},
     {"tvsn", ItemHandlerType::UInt},
     {"tves", ItemHandlerType::UInt},
-    {"cnID", ItemHandlerType::UInt},
+    {"cnID", ItemHandlerType::LongLong},
     {"sfID", ItemHandlerType::UInt},
     {"atID", ItemHandlerType::UInt},
     {"geID", ItemHandlerType::UInt},
@@ -303,6 +345,7 @@ ItemFactory::NameHandlerMap ItemFactory::nameHandlerMap() const
     {"akID", ItemHandlerType::Byte},
     {"gnre", ItemHandlerType::Gnre},
     {"covr", ItemHandlerType::Covr},
+    {"stem", ItemHandlerType::Stem},
     {"purl", ItemHandlerType::TextImplicit},
     {"egid", ItemHandlerType::TextImplicit},
   };
@@ -311,9 +354,9 @@ ItemFactory::NameHandlerMap ItemFactory::nameHandlerMap() const
 ItemFactory::ItemHandlerType ItemFactory::handlerTypeForName(
   const ByteVector &name) const
 {
-  if(d->handlerTypeForName.isEmpty()) {
+  std::call_once(d->handlerMapOnce, [this] {
     d->handlerTypeForName = nameHandlerMap();
-  }
+  });
   auto type = d->handlerTypeForName.value(name, ItemHandlerType::Unknown);
   if (type == ItemHandlerType::Unknown && name.size() == 4) {
     type = ItemHandlerType::Text;
@@ -400,7 +443,7 @@ Map<ByteVector, String> ItemFactory::namePropertyMap() const
 }
 
 MP4::AtomDataList ItemFactory::parseData2(
-  const MP4::Atom *atom, const ByteVector &data, int expectedFlags,
+  const MP4::Atom *, const ByteVector &data, int expectedFlags,
   bool freeForm)
 {
   AtomDataList result;
@@ -424,7 +467,7 @@ MP4::AtomDataList ItemFactory::parseData2(
         debug("MP4: Unexpected atom \"" + name + "\", expecting \"name\"");
         return result;
       }
-      result.append(AtomData(static_cast<AtomDataType>(flags),
+      result.append(AtomData(atomDataTypeFromFlags(flags),
                     data.mid(pos + 12, length - 12)));
     }
     else {
@@ -433,7 +476,7 @@ MP4::AtomDataList ItemFactory::parseData2(
         return result;
       }
       if(expectedFlags == -1 || flags == expectedFlags) {
-        result.append(AtomData(static_cast<AtomDataType>(flags),
+        result.append(AtomData(atomDataTypeFromFlags(flags),
                       data.mid(pos + 16, length - 16)));
       }
     }
@@ -617,13 +660,21 @@ std::pair<String, Item> ItemFactory::parseCovr(
       debug("MP4: Unexpected atom \"" + name + "\", expecting \"data\"");
       break;
     }
+    const ByteVector payload = data.mid(pos + 16, length - 16);
     if(flags == TypeJPEG || flags == TypePNG || flags == TypeBMP ||
        flags == TypeGIF || flags == TypeImplicit) {
-      value.append(MP4::CoverArt(static_cast<MP4::CoverArt::Format>(flags),
-                                 data.mid(pos + 16, length - 16)));
+      value.append(MP4::CoverArt(static_cast<MP4::CoverArt::Format>(flags), payload));
     }
     else {
-      debug("MP4: Unknown covr format " + String::number(flags));
+      // The flags field holds an unexpected type written by several buggy encoders/taggers
+      // (e.g. files where flags == TypeUTF8 == 1 but the payload is a JPEG image).
+      // Because 'covr' is semantically an image-only atom, try to recover the
+      // real format by sniffing the payload's magic bytes rather than silently
+      // discarding the artwork.
+      const auto format = detectImageFormat(payload);
+      debug(Utils::formatString(
+        "MP4: Replacing unexpected covr flags %d by detected format %d", flags, format));
+      value.append(MP4::CoverArt(format, payload));
     }
     pos += length;
   }
@@ -631,6 +682,12 @@ std::pair<String, Item> ItemFactory::parseCovr(
     atom->name(),
     !value.isEmpty() ? Item(value) : Item()
   };
+}
+
+std::pair<String, Item> ItemFactory::parseStem(
+  const MP4::Atom *atom, const ByteVector &data)
+{
+  return {atom->name(), Item(Stem(data))};
 }
 
 
@@ -663,7 +720,7 @@ ByteVector ItemFactory::renderInt(
   const ByteVector &name, const MP4::Item &item)
 {
   ByteVectorList data;
-  data.append(ByteVector::fromShort(item.toInt()));
+  data.append(ByteVector::fromShort(static_cast<short>(item.toInt())));
   return renderData(name, TypeInteger, data);
 }
 
@@ -703,8 +760,8 @@ ByteVector ItemFactory::renderIntPair(
 {
   ByteVectorList data;
   data.append(ByteVector(2, '\0') +
-              ByteVector::fromShort(item.toIntPair().first) +
-              ByteVector::fromShort(item.toIntPair().second) +
+              ByteVector::fromShort(static_cast<short>(item.toIntPair().first)) +
+              ByteVector::fromShort(static_cast<short>(item.toIntPair().second)) +
               ByteVector(2, '\0'));
   return renderData(name, TypeImplicit, data);
 }
@@ -714,8 +771,8 @@ ByteVector ItemFactory::renderIntPairNoTrailing(
 {
   ByteVectorList data;
   data.append(ByteVector(2, '\0') +
-              ByteVector::fromShort(item.toIntPair().first) +
-              ByteVector::fromShort(item.toIntPair().second));
+              ByteVector::fromShort(static_cast<short>(item.toIntPair().first)) +
+              ByteVector::fromShort(static_cast<short>(item.toIntPair().second)));
   return renderData(name, TypeImplicit, data);
 }
 
@@ -739,6 +796,13 @@ ByteVector ItemFactory::renderCovr(
     data.append(renderAtom("data", ByteVector::fromUInt(value.format()) +
                                    ByteVector(4, '\0') + value.data()));
   }
+  return renderAtom(name, data);
+}
+
+ByteVector ItemFactory::renderStem(
+  const ByteVector &name, const MP4::Item &item)
+{
+  auto data = item.toStem().data();
   return renderAtom(name, data);
 }
 

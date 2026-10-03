@@ -174,7 +174,9 @@ targets:
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       # Vendored code is not restyled, so the analyzer skips it: its findings
       # would never be fixed, and it is a third of the files analyzed. The
-      # -Xclang pair only takes effect under the analyzer.
+      # -Xclang pair only takes effect under the analyzer. For the same reason
+      # its doc comments are not checked as HTML: TagLib 2.3's
+      # textidentificationframe.h closes a list it no longer opens.
       - path: Vibe/ThirdParty
         excludes:
           - "**/.DS_Store"
@@ -192,6 +194,7 @@ targets:
         compilerFlags: &third-party-flags
           - "-Xclang"
           - "-analyzer-disable-all-checks"
+          - "-Wno-documentation-html"
       - path: Vibe/ThirdParty/PINCache/PINDiskCache.m
         compilerFlags: &pin-disk-cache-flags
           - "-fobjc-arc-exceptions"

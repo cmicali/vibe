@@ -31,7 +31,6 @@
 #include <mpegfile.h>
 #include <mpegproperties.h>
 #include <mp4file.h>
-#include <mp4itemfactory.h>
 #include <mp4properties.h>
 #include <flacfile.h>
 #include <id3v2tag.h>
@@ -192,7 +191,6 @@ class TagLibAudioFile {
 public:
     explicit TagLibAudioFile(const char *path, bool readProperties = true)
         : _stream(VibeOpenTagStream(path)) {
-        warmUpSharedFactories();
         if (!_stream->isOpen()) {
             return;
         }
@@ -210,18 +208,6 @@ public:
     TagLib::Tag *tag() const { return _file ? _file->tag() : nullptr; }
 
 private:
-    // MP4::ItemFactory builds its lookup maps lazily and unsynchronized, so
-    // concurrent cold M4A parses race (a use-after-free). Build them once
-    // before any parse. App-side so a TagLib re-copy cannot drop it.
-    static void warmUpSharedFactories() {
-        static dispatch_once_t once;
-        dispatch_once(&once, ^{
-            auto *factory = TagLib::MP4::ItemFactory::instance();
-            factory->itemToProperty("\251nam", TagLib::MP4::Item());
-            factory->nameForPropertyKey("TITLE");
-        });
-    }
-
     // TRAP: FLAC::File takes a stream with "fLaC" anywhere near its start,
     // which FLAC in Ogg carries in its first page. Playback refuses that
     // file at the parser open (AudioFileHandle.m), so it must never parse as
@@ -258,10 +244,9 @@ private:
         return nullptr;
     }
 
-    // FileRef::detectByContent's order.
+    // FileRef::detectByContent's order. MPEG is last: its sniff takes frame
+    // sync bytes inside other formats for MP3.
     static std::unique_ptr<TagLib::File> openByContent(TagLib::IOStream *stream, bool readProperties) {
-        if (TagLib::MPEG::File::isSupported(stream))
-            return std::make_unique<TagLib::MPEG::File>(stream, readProperties);
         if (TagLib::Ogg::Vorbis::File::isSupported(stream))
             return std::make_unique<TagLib::Ogg::Vorbis::File>(stream, readProperties);
         if (!isOgg(stream) && TagLib::FLAC::File::isSupported(stream))
@@ -274,6 +259,8 @@ private:
             return std::make_unique<TagLib::RIFF::AIFF::File>(stream, readProperties);
         if (TagLib::RIFF::WAV::File::isSupported(stream))
             return std::make_unique<TagLib::RIFF::WAV::File>(stream, readProperties);
+        if (TagLib::MPEG::File::isSupported(stream))
+            return std::make_unique<TagLib::MPEG::File>(stream, readProperties);
         return nullptr;
     }
 

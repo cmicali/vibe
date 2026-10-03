@@ -28,6 +28,7 @@
 #include <array>
 #include <utility>
 
+#include "tutils.h"
 #include "tdebug.h"
 #include "tzlib.h"
 #include "id3v2synchdata.h"
@@ -55,6 +56,23 @@ using namespace ID3v2;
 
 namespace
 {
+  constexpr unsigned int MAX_EMBEDDED_FRAME_DEPTH = 64;
+  thread_local unsigned int embeddedFrameDepth = 0;
+
+  class EmbeddedFrameDepth
+  {
+  public:
+    EmbeddedFrameDepth()
+    {
+      ++embeddedFrameDepth;
+    }
+
+    ~EmbeddedFrameDepth()
+    {
+      --embeddedFrameDepth;
+    }
+  };
+
   void updateGenre(TextIdentificationFrame *frame)
   {
     StringList fields = frame->fieldList();
@@ -121,9 +139,11 @@ std::pair<Frame::Header *, bool> FrameFactory::prepareFrameHeader(
 
   // A quick sanity check -- make sure that the frameID is 4 uppercase Latin1
   // characters.  Also make sure that there is data in the frame.
+  // A frame size of zero is invalid, but tolerated here to later only drop the
+  // frame but not the whole tag.
 
   if(frameID.size() != (version < 3U ? 3U : 4U) ||
-     header->frameSize() <= static_cast<unsigned int>(header->dataLengthIndicator() ? 4 : 0) ||
+     header->frameSize() < static_cast<unsigned int>(header->dataLengthIndicator() ? 4 : 0) ||
      header->frameSize() > data.size())
   {
     delete header;
@@ -131,7 +151,7 @@ std::pair<Frame::Header *, bool> FrameFactory::prepareFrameHeader(
   }
 
 #ifndef NO_ITUNES_HACKS
-  if(version == 3 && frameID[3] == '\0') {
+  if(version == 3 && (frameID[3] == '\0' || frameID[3] == ' ')) {
     // iTunes v2.3 tags store v2.2 frames - convert now
     frameID = frameID.mid(0, 3);
     header->setFrameID(frameID);
@@ -186,6 +206,18 @@ Frame *FrameFactory::createFrame(const ByteVector &origData,
     return header ? new UnknownFrame(data, header) : nullptr;
   }
   return createFrame(data, header, tagHeader);
+}
+
+Frame *FrameFactory::createEmbeddedFrame(const ByteVector &origData,
+                                         const Header *tagHeader)
+{
+  if(embeddedFrameDepth >= MAX_EMBEDDED_FRAME_DEPTH) {
+    debug("ID3v2: Maximum embedded frame nesting depth exceeded");
+    return nullptr;
+  }
+
+  EmbeddedFrameDepth depth;
+  return FrameFactory::instance()->createFrame(origData, tagHeader);
 }
 
 Frame *FrameFactory::createFrame(const ByteVector &data, Frame::Header *header,
@@ -342,16 +374,60 @@ void FrameFactory::rebuildAggregateFrames(ID3v2::Tag *tag) const
        tdat &&
        tdat->data().size() >= 5)
     {
-      String date(tdat->data().mid(1), static_cast<String::Type>(tdat->data()[0]));
+      String date(tdat->data().mid(1), Utils::textEncodingFromByte(tdat->data()[0]));
       if(date.length() == 4) {
         tdrc->setText(tdrc->toString() + '-' + date.substr(2, 2) + '-' + date.substr(0, 2));
         if(tag->frameList("TIME").size() == 1) {
           auto timeframe = dynamic_cast<UnknownFrame *>(tag->frameList("TIME").front());
           if(timeframe && timeframe->data().size() >= 5) {
-            String time(timeframe->data().mid(1), static_cast<String::Type>(timeframe->data()[0]));
+            String time(timeframe->data().mid(1), Utils::textEncodingFromByte(timeframe->data()[0]));
             if(time.length() == 4) {
               tdrc->setText(tdrc->toString() + 'T' + time.substr(0, 2) + ':' + time.substr(2, 2));
             }
+          }
+        }
+      }
+    }
+  }
+  if(tag->header()->majorVersion() < 4 &&
+     tag->frameList("TIPL").size() == 1 &&
+     tag->frameList("TMCL").size() == 0)
+  {
+    // FrameFactory::updateFrame() has mapped IPLS (ID3v2.3)/ IPL (ID3v2.2)
+    // to TIPL (ID3v2.4). However, the musicians should be rather in TMCL.
+    // Move all involvement/involvee pairs which are not supported by the
+    // TIPL property map interface to a TMCL frame.
+    if(auto tipl =
+           dynamic_cast<TextIdentificationFrame *>(tag->frameList("TIPL").front())) {
+      if(StringList tiplValues = tipl->toStringList(); tiplValues.size() % 2 == 0) {
+        static const StringList tiplKeys = [] {
+          StringList keys;
+          for(const auto &kv : TextIdentificationFrame::involvedPeopleMap()) {
+            keys.append(kv.second);
+          }
+          return keys;
+        }();
+        StringList tmclValues;
+        for(auto it = tiplValues.begin(); it != tiplValues.end();) {
+          const String involvement = *it;
+          if(!tiplKeys.contains(involvement.upper())) {
+            tmclValues.append(involvement);
+            it = tiplValues.erase(it);
+            tmclValues.append(*it);
+            it = tiplValues.erase(it);
+          } else {
+            ++it;
+            ++it;
+          }
+        }
+        if(!tmclValues.isEmpty()) {
+          auto tmcl = new TextIdentificationFrame("TMCL");
+          tmcl->setText(tmclValues);
+          tag->addFrame(tmcl);
+          if(!tiplValues.isEmpty()) {
+            tipl->setText(tiplValues);
+          } else {
+            tag->removeFrame(tipl);
           }
         }
       }

@@ -1,6 +1,5 @@
 /**************************************************************************
-    copyright            : (C) 2007 by Lukáš Lalinský
-    email                : lalinsky@gmail.com
+    copyright            : (C) 2026 by Ryan Francesconi
  **************************************************************************/
 
 /***************************************************************************
@@ -23,90 +22,87 @@
  *   http://www.mozilla.org/MPL/                                           *
  ***************************************************************************/
 
-#ifndef TAGLIB_MP4PROPERTIES_H
-#define TAGLIB_MP4PROPERTIES_H
+#ifndef TAGLIB_MP4CHAPTER_H
+#define TAGLIB_MP4CHAPTER_H
 
+#include <memory>
 #include "taglib_export.h"
-#include "tstring.h"
-#include "audioproperties.h"
+#include "tlist.h"
 
 namespace TagLib {
+  class String;
   namespace MP4 {
-    class Atoms;
-    class File;
 
-    //! An implementation of MP4 audio properties
-    class TAGLIB_EXPORT Properties : public AudioProperties
-    {
+    /*!
+     * A single Nero-style chapter marker.
+     */
+    class TAGLIB_EXPORT Chapter {
     public:
-      enum Codec {
-        Unknown = 0,
-        AAC,
-        ALAC,
-        AC3,
-        EAC3,
-        FLAC,
-        DTS,
-        Opus
-      };
-
-      Properties(File *file, const Atoms *atoms, ReadStyle style = Average);
-      ~Properties() override;
-
-      Properties(const Properties &) = delete;
-      Properties &operator=(const Properties &) = delete;
+      /*!
+       * Construct a chapter.
+       */
+      Chapter(const String &title, long long startTime);
 
       /*!
-       * Returns the length of the file in milliseconds.
-       *
-       * \see lengthInSeconds()
+       * Construct a chapter as a copy of \a other.
        */
-      int lengthInMilliseconds() const override;
+      Chapter(const Chapter &other);
 
       /*!
-       * Returns the average bit rate of the file in kb/s.
+       * Construct a chapter moving from \a other.
        */
-      int bitrate() const override;
+      Chapter(Chapter &&other) noexcept;
 
       /*!
-       * Returns the sample rate in Hz.
+       * Destroys this chapter.
        */
-      int sampleRate() const override;
+      ~Chapter();
 
       /*!
-       * Returns the number of audio channels.
+       * Copies the contents of \a other into this object.
        */
-      int channels() const override;
+      Chapter &operator=(const Chapter &other);
 
       /*!
-       * Returns the number of bits per audio sample.
+       * Moves the contents of \a other into this object.
        */
-      virtual int bitsPerSample() const;
+      Chapter &operator=(Chapter &&other) noexcept;
 
       /*!
-       * Returns whether or not the file is encrypted.
+       * Returns \c true if the chapter and \a other contain the same data.
        */
-      bool isEncrypted() const;
+      bool operator==(const Chapter &other) const;
 
       /*!
-       * Returns the codec used in the file.
+       * Returns \c true if the chapter and \a other differ in data.
        */
-      Codec codec() const;
+      bool operator!=(const Chapter &other) const;
 
       /*!
-       * Returns the four character code identifying the codec, as found in the
-       * sample description atom (e.g. "mp4a", "alac", "ec-3").  This is useful
-       * for codecs which are not represented by a value of the Codec enum.
+       * Exchanges the content of the object with the content of \a other.
        */
-      String codecId() const;
+      void swap(Chapter &other) noexcept;
+
+      /*!
+       * Returns the title representing the chapter.
+       */
+      const String &title() const;
+
+      /*!
+       * Returns the start time in milliseconds.
+       */
+      long long startTime() const;
 
     private:
-      void read(File *file, const Atoms *atoms);
-
-      class PropertiesPrivate;
+      class ChapterPrivate;
       TAGLIB_MSVC_SUPPRESS_WARNING_NEEDS_TO_HAVE_DLL_INTERFACE
-      std::unique_ptr<PropertiesPrivate> d;
+      std::unique_ptr<ChapterPrivate> d;
     };
+
+    //! List of chapters.
+    using ChapterList = List<Chapter>;
+
   }  // namespace MP4
 }  // namespace TagLib
+
 #endif
