@@ -28,6 +28,8 @@ static const NSTimeInterval kMaxSessionSeconds = 4 * 60 * 60;
 
 @implementation VibeiOSDriverTests {
     XCUIApplication *_app;
+    XCUIApplication *_player;
+    BOOL             _attached;
     NSString        *_dir;
 }
 
@@ -94,14 +96,23 @@ static void DisableQuiescenceWaits(void) {
 // Foregrounds the app if something else is, relaunching a dead one with the
 // same audio-silencing argv launch-ios.sh uses, so a self-heal never plays
 // through the mac's speakers.
+// TRAP: XCTest snapshots only a process it launched or activated. Against
+// the one launch-ios.sh started, every query retries for 60 s and then
+// RELAUNCHES the app itself — playlist gone, and without the silencing
+// flags. So the player is activated, which attaches without a relaunch, on
+// the first gesture and after every relaunch (`attach`, which launch-ios.sh
+// sends).
 - (void)ensureForeground {
     XCUIApplicationState state = _app.state;
     if (state == XCUIApplicationStateNotRunning) {
         _app.launchArguments = @[@"--no-audio-hw", @"--silent"];
         [_app launch];
     }
-    else if (state != XCUIApplicationStateRunningForeground) {
+    else if (state != XCUIApplicationStateRunningForeground || (_app == _player && !_attached)) {
         [_app activate];
+    }
+    if (_app == _player) {
+        _attached = YES;
     }
 }
 
@@ -124,6 +135,15 @@ static void DisableQuiescenceWaits(void) {
         }
     }
 
+    if ([verb isEqualToString:@"attach"]) {
+        _attached = NO;
+        [self ensureForeground];
+        return JSONString(@{@"ok": @YES});
+    }
+    if (_app == _player && ([verb isEqualToString:@"tree"] || [verb isEqualToString:@"tap_label"]
+                            || [verb isEqualToString:@"type"])) {
+        [self ensureForeground];
+    }
     if ([verb isEqualToString:@"tree"]) {
         return JSONString(@{@"tree": _app.debugDescription});
     }
@@ -245,7 +265,7 @@ static void DisableQuiescenceWaits(void) {
             @"unknown command '%@'. Commands: tap <x> <y>, double_tap <x> <y>, "
             @"press <x> <y> <seconds>, drag <x1> <y1> <x2> <y2> [seconds], "
             @"pinch <scale> <velocity>, type <text>, tap_label <label>, tree, "
-            @"rotate portrait|left|right, home, springboard <gesture> [args], quit", verb]});
+            @"rotate portrait|left|right, home, attach, springboard <gesture> [args], quit", verb]});
 }
 
 // Returns YES when the command asked the session to end.
@@ -291,6 +311,7 @@ static void DisableQuiescenceWaits(void) {
         return;
     }
     _app = [[XCUIApplication alloc] initWithBundleIdentifier:kAppBundleID];
+    _player = _app;
     DisableQuiescenceWaits();
 
     NSFileManager *fm = NSFileManager.defaultManager;

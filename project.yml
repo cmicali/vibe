@@ -677,6 +677,18 @@ targets:
       - path: Vibe/Audio/Analysis/AudioKeyAnalyzer.mm
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
       - path: Vibe/Audio/Waveform/AudioWaveformLoader.mm
+      - path: Vibe/Audio/Waveform/AudioWaveformCache.mm   # over a store of the test's own (initWithRootPath:)
+      - path: Vibe/Audio/PINCache+VibeAudioCache.m
+      - path: Vibe/ThirdParty/PINCache/PINCache.m
+        compilerFlags: *third-party-flags
+      - path: Vibe/ThirdParty/PINCache/PINMemoryCache.m
+        compilerFlags: *third-party-flags
+      - path: Vibe/ThirdParty/PINCache/PINDiskCache.m
+        compilerFlags: *pin-disk-cache-flags
+      - path: Vibe/ThirdParty/PINOperation/PINOperationGroup.m
+        compilerFlags: *third-party-flags
+      - path: Vibe/ThirdParty/PINOperation/PINOperationQueue.m
+        compilerFlags: *third-party-flags
       - path: Vibe/Debug/AudioLoadTiming.m
       - path: Vibe/Debug/AudioLoadingConfiguration+Debug.m
       - path: Vibe/Debug/DebugWireFormat.m

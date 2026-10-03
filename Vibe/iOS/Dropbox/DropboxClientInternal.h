@@ -9,6 +9,13 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// Whether a download that ended with `error` keeps its file for the next
+// download to continue: one the link ended (a cancel, a lost connection)
+// does; one its own answer ended (another version, a disk write, a refused
+// call) would only fail again from the same bytes. The mirror's stale sweep
+// takes a kept part after a day.
+BOOL VibeDropboxKeepsPart(NSError *_Nullable error);
+
 @interface DropboxClient ()
 
 // Links the account as a completed sign-in would, without the web sheet; the
@@ -22,6 +29,10 @@ NS_ASSUME_NONNULL_BEGIN
 // was made with — finishing what is in flight on the old ones: how the debug
 // channel puts a fake Dropbox under the client and takes it away again.
 - (void)useSessionConfiguration:(nullable NSURLSessionConfiguration *)configuration;
+
+// Multiplies every retry's wait, a resume's and a throttle's; 1 unless a test
+// scripting drops and 429s shortens them, which would each wait real seconds.
+@property (nonatomic) double retryDelayScale;
 
 @end
 

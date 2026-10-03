@@ -112,20 +112,31 @@ done
 LANGS="$("$ROOT/scripts/catalog-languages.sh")"
 [ -n "$LANGS" ] || { echo "appstore-validate-copy: catalog-languages.sh returned no languages" >&2; exit 1; }
 
+# A language per background job: each caption measure is a process that
+# mostly waits, and there are a dozen per language, so one after another they
+# were most of the check. A job's FAIL is its own, so it reports by status.
+PIDS=()
 while read -r l; do
-    for plat in macos ios; do
-        DIR="$ROOT/Assets/app-store/copy/$l/$plat"
-        [ -d "$DIR" ] || { err "$l/$plat: missing $DIR"; continue; }
-        check_text "$l/$plat" "$DIR"
-        ids="$(shot_ids "$plat")"
-        if [ -f "$DIR/screenshots.json" ]; then
-            # Unquoted on purpose: ids is a space-separated list.
-            # shellcheck disable=SC2086
-            check_captions "$l/$plat" "$l" "$plat" "$DIR/screenshots.json" $ids
-        else
-            err "$l/$plat: missing $DIR/screenshots.json"
-        fi
-    done
+    (
+        for plat in macos ios; do
+            DIR="$ROOT/Assets/app-store/copy/$l/$plat"
+            [ -d "$DIR" ] || { err "$l/$plat: missing $DIR"; continue; }
+            check_text "$l/$plat" "$DIR"
+            ids="$(shot_ids "$plat")"
+            if [ -f "$DIR/screenshots.json" ]; then
+                # Unquoted on purpose: ids is a space-separated list.
+                # shellcheck disable=SC2086
+                check_captions "$l/$plat" "$l" "$plat" "$DIR/screenshots.json" $ids
+            else
+                err "$l/$plat: missing $DIR/screenshots.json"
+            fi
+        done
+        exit "$FAIL"
+    ) &
+    PIDS+=($!)
 done <<< "$LANGS"
+for pid in "${PIDS[@]}"; do
+    wait "$pid" || FAIL=1
+done
 
 [ "$FAIL" = 0 ] && echo "appstore-validate-copy: OK" || exit 1

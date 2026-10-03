@@ -14,6 +14,7 @@
 #import <CommonCrypto/CommonDigest.h>
 
 #import "PlaylistFile.h"
+#import "SettingsRules.h"
 
 #include <sys/types.h>
 #include <time.h>
@@ -172,6 +173,25 @@ static inline NSTimeInterval VibeDropboxRetryDelay(NSInteger status, NSString *_
     return MIN(seconds, 10.0);
 }
 
+// A link that dropped or stalled, which a resend may outlast; anything else
+// (TLS, a malformed response) would only fail again.
+static inline BOOL VibeDropboxIsConnectionError(NSError *error) {
+    if (![error.domain isEqualToString:NSURLErrorDomain]) {
+        return NO;
+    }
+    switch (error.code) {
+        case NSURLErrorTimedOut:
+        case NSURLErrorNetworkConnectionLost:
+        case NSURLErrorNotConnectedToInternet:
+        case NSURLErrorCannotConnectToHost:
+        case NSURLErrorCannotFindHost:
+        case NSURLErrorDNSLookupFailed:
+            return YES;
+        default:
+            return NO;
+    }
+}
+
 // The one line an API failure leaves in the log and the error.
 static inline NSString *VibeDropboxErrorSummary(NSInteger status, NSDictionary *_Nullable body) {
     NSString *summary = body[@"error_summary"];
@@ -196,6 +216,18 @@ static inline VibeDropboxEntryKind VibeDropboxEntryKindOf(NSDictionary *entry) {
     if ([tag isEqualToString:@"folder"]) return VibeDropboxEntryKindFolder;
     if ([tag isEqualToString:@"deleted"]) return VibeDropboxEntryKindDeleted;
     return VibeDropboxEntryKindUnknown;
+}
+
+// A file's size in its metadata, -1 when it names none.
+static inline int64_t VibeDropboxSizeOf(NSDictionary *_Nullable metadata) {
+    id size = metadata[@"size"];
+    return [size isKindOfClass:NSNumber.class] && [size longLongValue] >= 0 ? [size longLongValue] : -1;
+}
+
+// The version a file's metadata names, nil when it names none.
+static inline NSString *_Nullable VibeDropboxRevOf(NSDictionary *_Nullable metadata) {
+    id rev = metadata[@"rev"];
+    return [rev isKindOfClass:NSString.class] ? rev : nil;
 }
 
 // Dropbox's timestamps are UTC to the second ("2015-05-12T15:50:38Z"); -1 for
@@ -301,6 +333,30 @@ static inline NSArray<NSString *> *VibeDropboxPathComponents(NSString *path) {
 static inline BOOL VibeDropboxLocalMatchesEntry(off_t localSize, time_t localModified,
                                                 long long entrySize, time_t entryModified) {
     return entryModified >= 0 && localSize == (off_t)entrySize && localModified == entryModified;
+}
+
+#pragma mark - Downloads
+
+// The sizes the downloads may reach before the oldest go back to
+// placeholders, the choices offered, smallest first. 10 GB, an album or two
+// hundred, which a phone can spare, is the default.
+static const NSInteger kVibeDropboxDownloadBudgets[] = {
+    1000L * 1000 * 1000, 2000L * 1000 * 1000, 5000L * 1000 * 1000,
+    10000L * 1000 * 1000, 20000L * 1000 * 1000, 50000L * 1000 * 1000,
+};
+static const size_t kVibeDropboxDownloadBudgetCount = sizeof(kVibeDropboxDownloadBudgets) / sizeof(kVibeDropboxDownloadBudgets[0]);
+static const size_t kVibeDropboxDefaultDownloadBudgetIndex = 3;
+
+// A saved budget's place among the choices: absent (0), the default's; off
+// the list, the nearest's (VibeNearestPreset).
+static inline size_t VibeDropboxDownloadBudgetIndex(NSInteger saved) {
+    NSInteger budget = saved > 0 ? VibeNearestPreset(saved, kVibeDropboxDownloadBudgets, kVibeDropboxDownloadBudgetCount)
+                                 : kVibeDropboxDownloadBudgets[kVibeDropboxDefaultDownloadBudgetIndex];
+    size_t index = 0;
+    while (kVibeDropboxDownloadBudgets[index] != budget) {
+        index++;
+    }
+    return index;
 }
 
 NS_ASSUME_NONNULL_END

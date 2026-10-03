@@ -185,6 +185,53 @@ static inline NSURL *VibeWriteSowtAIFF(NSURL *url, NSData *samples, double rate,
     return [aiff writeToURL:url atomically:YES] ? url : nil;
 }
 
+// MPEG-1 Layer III, 320 kbps, 44.1 kHz, stereo: a LAME Info frame counting
+// `frames` silent frames after it, which, as for every MP3 with one, makes
+// CoreAudio's open read the file's head and then its last bytes; with an
+// ID3v1 tag after them when asked.
+static inline NSData *VibeMP3WithInfoFrame(uint32_t frames, BOOL id3v1) {
+    const uint8_t header[4] = {0xFF, 0xFB, 0xE0, 0x00};
+    NSMutableData *bytes = [NSMutableData data];
+    for (uint32_t i = 0; i <= frames; i++) {
+        NSMutableData *frame = [NSMutableData dataWithLength:1044];
+        uint8_t *out = (uint8_t *)frame.mutableBytes;
+        memcpy(out, header, sizeof(header));
+        if (i == 0) {
+            const uint32_t fields[3] = {CFSwapInt32HostToBig(3), CFSwapInt32HostToBig(frames + 1),
+                                        CFSwapInt32HostToBig((frames + 1) * 1044)};
+            memcpy(out + 36, "Info", 4);
+            memcpy(out + 40, fields, sizeof(fields));
+        }
+        [bytes appendData:frame];
+    }
+    if (id3v1) {
+        NSMutableData *tag = [NSMutableData dataWithLength:128];
+        memcpy(tag.mutableBytes, "TAGVibe", 7);
+        ((uint8_t *)tag.mutableBytes)[127] = 255; // no genre
+        [bytes appendData:tag];
+    }
+    return bytes;
+}
+
+// MPEG-1 Layer III, stereo, at 44.1 or 48 kHz: `frames` silent frames and no
+// VBR header, frame i at the bit rate index `index(i)` names (1 is 32 kbps,
+// 9 is 128, 14 is 320), so a stream whose length CoreAudio counts only by
+// reading every frame header, and whose rate varies as `index` says.
+static inline NSData *VibeMP3WithoutVBRHeader(uint32_t frames, uint32_t rate, uint8_t (^index)(uint32_t frame)) {
+    static const uint32_t kbps[15] = {0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320};
+    NSMutableData *bytes = [NSMutableData data];
+    for (uint32_t i = 0; i < frames; i++) {
+        uint8_t bitrate = index(i);
+        NSMutableData *frame = [NSMutableData dataWithLength:144 * kbps[bitrate] * 1000 / rate];
+        uint8_t *out = (uint8_t *)frame.mutableBytes;
+        out[0] = 0xFF;
+        out[1] = 0xFB;
+        out[2] = (uint8_t)(bitrate << 4 | (rate == 48000 ? 1 : 0) << 2);
+        [bytes appendData:frame];
+    }
+    return bytes;
+}
+
 // Writes `buffer` as the container its name says — WAV, AIFC for .aif, W64
 // for .w64, CAF for .caf — in the buffer's own sample format, interleaved,
 // with its channel layout.

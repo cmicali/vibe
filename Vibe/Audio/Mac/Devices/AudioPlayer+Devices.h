@@ -108,6 +108,10 @@ NS_ASSUME_NONNULL_BEGIN
 // tests: binds the hosted unit, which moves on its own only off a device that
 // vanished. Stopped only.
 - (BOOL)setOutputUnitDevice:(AudioDeviceID)deviceID;
+// System Output's one coalesced delayed bind, for a default the snapshot does
+// not name yet. A timer boundary: the render test that leaves the default
+// unnamed replaces it, or a slow run meets the retry in its replay.
+- (void)scheduleSystemOutputBindRetryOnQueue;
 // Brings the pipeline to the bound device's nominal rate, so the unit never
 // resamples; an unreadable rate keeps the current one. Reads whether another
 // process holds the device in the same bounded read. After every bind.

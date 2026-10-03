@@ -59,12 +59,12 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 // YES too.
 + (BOOL)isDatalessFile:(NSURL *)url;
 
-// Under the remote backend's root (iOS: the Dropbox mirror, installed through
-// CloudFileMaterializer's setRemoteRoot:fetch:read:), a regular file its
-// owner may not read is a placeholder for a remote file: its stat — size,
-// mtime, the cache key — is the remote file's, and any direct open fails
-// instead of reading zeros. Anywhere else, and on the mac, which installs no
-// root, an unreadable file is merely unreadable.
+// Under the remote backend's root (iOS: the Dropbox mirror, installed
+// through CloudFileMaterializer's setRemoteRoot:fetch:read:availability:), a
+// regular file its owner may not read is a placeholder for a remote file: its
+// stat — size, mtime, the cache key — is the remote file's, and any direct
+// open fails instead of reading zeros. Anywhere else, and on the mac, which
+// installs no root, an unreadable file is merely unreadable.
 + (void)setRemotePlaceholderRoot:(nullable NSURL *)root;
 + (BOOL)isRemotePlaceholderFile:(NSURL *)url;
 
@@ -74,8 +74,7 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 + (BOOL)readsRemotePlaceholderByRange:(NSURL *)url;
 
 // Where a remote placeholder's bytes stream in until they replace it: a
-// hidden sibling, so no listing shows it, whose size is the transfer's
-// progress (DownloadProgressMonitor's poll reads it). Its name ends in
+// hidden sibling, so no listing shows it. Its name ends in
 // VibeRemotePlaceholderPartSuffix.
 + (NSURL *)remotePlaceholderPartURL:(NSURL *)url;
 

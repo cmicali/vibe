@@ -14,10 +14,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)cancel;
 @end
 
-// Delivers fractions to handler on main until cancelled. nil leaves the
-// transfer indeterminate.
+// Delivers fractions to handler and raw movement to movement, on main, until
+// cancelled. nil leaves the transfer indeterminate.
 typedef id<VibeCloudTransferMonitor> _Nullable (^VibeCloudTransferMonitorFactory)(
-        NSURL *url, void (^handler)(float fraction));
+        NSURL *url, void (^handler)(float fraction), void (^movement)(void));
 
 @interface CloudTransferRegistry (Internal)
 

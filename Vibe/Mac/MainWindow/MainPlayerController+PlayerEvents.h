@@ -2,7 +2,8 @@
 //  MainPlayerController+PlayerEvents.h
 //  Vibe
 //
-//  Every AudioPlayerDelegate callback, and nothing else. Two rules:
+//  Every AudioPlayerDelegate callback, and the registry's progress for the
+//  open they report loading. Two rules:
 //
 //  1. **Every callback can be stale**, so each handler matches the delivered
 //     track against the playlist's current one before acting.
@@ -12,10 +13,11 @@
 
 #import "MainPlayerController.h"
 #import "AudioPlayer.h"
+#import "CloudTransferRegistry.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface MainPlayerController (PlayerEvents) <AudioPlayerDelegate>
+@interface MainPlayerController (PlayerEvents) <AudioPlayerDelegate, CloudTransferRegistryObserver>
 @end
 
 NS_ASSUME_NONNULL_END

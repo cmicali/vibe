@@ -226,4 +226,17 @@
                           @"/mirror/Album/.01 Song.flac.vibe-download");
 }
 
+// A saved budget is one of the choices: absent, 10 GB; off the list, the
+// nearest.
+- (void)testASavedDownloadBudgetIsOneOfTheChoices {
+    XCTAssertEqual(kVibeDropboxDownloadBudgets[VibeDropboxDownloadBudgetIndex(0)], 10000L * 1000 * 1000);
+    for (size_t i = 0; i < kVibeDropboxDownloadBudgetCount; i++) {
+        XCTAssertEqual(VibeDropboxDownloadBudgetIndex(kVibeDropboxDownloadBudgets[i]), i);
+        XCTAssertTrue(i == 0 || kVibeDropboxDownloadBudgets[i] > kVibeDropboxDownloadBudgets[i - 1], @"smallest first");
+    }
+    XCTAssertEqual(kVibeDropboxDownloadBudgets[VibeDropboxDownloadBudgetIndex(3000L * 1000 * 1000)], 2000L * 1000 * 1000);
+    XCTAssertEqual(kVibeDropboxDownloadBudgets[VibeDropboxDownloadBudgetIndex(NSIntegerMax)], 50000L * 1000 * 1000);
+    XCTAssertEqual(kVibeDropboxDownloadBudgets[VibeDropboxDownloadBudgetIndex(-1)], 10000L * 1000 * 1000);
+}
+
 @end

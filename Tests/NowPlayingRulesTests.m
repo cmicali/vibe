@@ -126,6 +126,27 @@ static BOOL Dirty(double publishedRate, BOOL wasPlaying, NSTimeInterval position
     XCTAssertEqualObjects(self.availability.lastObject, (@[@YES, @NO]));
 }
 
+// A buffering hold is Playing at rate 0: the lock screen's clock holds at the
+// position, the held ticks republish nothing, and the release republishes the
+// real rate from where the audio resumes.
+- (void)testABufferingHoldPublishesRateZeroUntilItsRelease {
+    AudioTrack *track = [AudioTrack withURL:[NSURL fileURLWithPath:@"/tests/streaming.flac"]];
+    [self publish:track state:NowPlayingPlaybackStatePlaying position:30 rate:1];
+    self.now += 2;
+    [self publish:track state:NowPlayingPlaybackStatePlaying position:32 rate:0];
+    XCTAssertEqual(self.publications.count, 2u);
+    XCTAssertEqualObjects(self.publishedInfo[MPNowPlayingInfoPropertyPlaybackRate], @0);
+    XCTAssertEqualObjects(self.publishedInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime], @32);
+    XCTAssertEqual([self.publications.lastObject[@"state"] integerValue], NowPlayingPlaybackStatePlaying);
+    self.now += 5;
+    [self publish:track state:NowPlayingPlaybackStatePlaying position:32 rate:0];
+    XCTAssertEqual(self.publications.count, 2u, @"a held clock is not dirty");
+    [self publish:track state:NowPlayingPlaybackStatePlaying position:32 rate:1];
+    XCTAssertEqual(self.publications.count, 3u);
+    XCTAssertEqualObjects(self.publishedInfo[MPNowPlayingInfoPropertyPlaybackRate], @1);
+    XCTAssertEqualObjects(self.publishedInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime], @32);
+}
+
 - (void)testCommandOnlyChangeDoesNotRepublishAndNewURLDoes {
     AudioTrack *track = [AudioTrack withURL:[NSURL fileURLWithPath:@"/tests/a.wav"]];
     [self publish:track state:NowPlayingPlaybackStatePlaying position:-10 rate:1];

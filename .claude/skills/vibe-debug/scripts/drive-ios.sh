@@ -24,6 +24,8 @@
 #                               #   window, so a tap on a key hits the app behind
 #   drive-ios.sh rotate left    # portrait|left|right
 #   drive-ios.sh home
+#   drive-ios.sh attach         # re-attach after the app was relaunched
+#                               #   outside the driver; launch-ios.sh sends it
 #   drive-ios.sh springboard tap 201 640  # Home-screen widgets and gallery
 #   drive-ios.sh springboard tree         # accessibility hierarchy
 #   drive-ios.sh springboard tap_label "Add Widget"
@@ -142,8 +144,8 @@ status)
     # Rename into place: a command read mid-write is deleted unexecuted.
     jq -cn --arg id "$ID" '{id: $id, args: $ARGS.positional}' --args -- "$@" > "$CMD.part"
     mv "$CMD.part" "$CMD"
-    # A slow drag takes seconds, the first gesture after a start or relaunch
-    # pays the accessibility attach (up to ~60s), a self-heal a full launch.
+    # A slow drag takes seconds, a self-heal a full launch, and a gesture
+    # against an app relaunched without `attach` a minute (the driver's TRAP).
     TIMEOUT="${VIBE_DEBUG_TIMEOUT:-90}"
     DEADLINE=$(( $(date +%s) + TIMEOUT ))
     while [ ! -f "$RESPONSE" ]; do

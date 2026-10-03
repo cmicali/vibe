@@ -54,13 +54,20 @@
     return idle;
 }
 
+- (BOOL)isBuffering {
+    os_unfair_lock_lock(&_stateLock);
+    BOOL buffering = _buffering;
+    os_unfair_lock_unlock(&_stateLock);
+    return buffering;
+}
+
+// A stall's park keeps the rate and window with no file.
 - (NSTimeInterval)duration {
     os_unfair_lock_lock(&_stateLock);
     double sampleRate = _fileSampleRate;
     NSUInteger length = _window.length;
-    BOOL loaded = _file != nil;
     os_unfair_lock_unlock(&_stateLock);
-    if (!loaded || sampleRate <= 0) {
+    if (sampleRate <= 0) {
         return 0;
     }
     return (NSTimeInterval)length / sampleRate;
@@ -79,7 +86,7 @@
 // Where in the window the voice began plus what it has rendered since, less
 // the frames of a file it was promoted out of. Bus and file frames agree in
 // seconds at any bus rate, and under the pitch fader this advances with the
-// audio.
+// audio. A stall's park, Paused with no voice or file, holds where it stopped.
 - (NSTimeInterval)position {
     os_unfair_lock_lock(&_stateLock);
     VibePlayerState state = _state;
@@ -92,6 +99,10 @@
     uint64_t baseFrames = _promotedBaseFrames;
     AudioVoiceBus *bus = _voiceBus; // retained here, since the queue may drop it
     os_unfair_lock_unlock(&_stateLock);
+    NSTimeInterval duration = fileSampleRate > 0 ? (NSTimeInterval)windowLength / fileSampleRate : 0;
+    if (!loaded && !voice && fileSampleRate > 0 && state == VibePlayerStatePaused) {
+        return clampRange(startSeconds, 0, duration);
+    }
     if (!loaded || !voice || fileSampleRate <= 0 || busSampleRate <= 0
             || state == VibePlayerStateStopped || state == VibePlayerStateLoading) {
         return 0;
@@ -99,7 +110,6 @@
     VibeVoiceSnapshot snapshot = [bus snapshotOfVoice:voice];
     uint64_t consumed = snapshot.state == VibeVoiceStateNone ? 0 : snapshot.consumed;
     NSTimeInterval rendered = consumed > baseFrames ? (NSTimeInterval)(consumed - baseFrames) / busSampleRate : 0;
-    NSTimeInterval duration = (NSTimeInterval)windowLength / fileSampleRate;
     return clampRange(startSeconds + rendered, 0, duration);
 }
 

@@ -120,7 +120,7 @@ static const CGFloat kArtTextGap = 14;
     [self.tableView registerClass:LibraryTrackCell.class forCellReuseIdentifier:kTrackCellIdentifier];
 
     [_playback addObserver:self];
-    CloudTransferRegistry.sharedRegistry.observer = self;
+    [CloudTransferRegistry.sharedRegistry addObserver:self];
     [NSNotificationCenter.defaultCenter addObserver:self
                                            selector:@selector(thumbnailDidLoad:)
                                                name:AudioTrackMetadataThumbnailDidLoadNotification

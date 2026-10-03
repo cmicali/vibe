@@ -113,9 +113,14 @@ static inline BOOL VibePCMFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
 // the successor began (UINT64_MAX until it has), `endOfStream` the stream's
 // length once known. The stamp is the audio thread's timestamp for the first
 // frame consumed after a start or resume; hostTime is valid only on hardware.
+// `waitingForBytes` is its decoder blocked at a streaming file's edge
+// (AudioFileHandle.waitingForBytes), `decoding` a decode turn queued or
+// running for it.
 typedef struct {
     VibeVoiceState state;
     BOOL paused;
+    BOOL waitingForBytes;
+    BOOL decoding;
     VibeVoiceEnd ended;
     uint64_t consumed;
     uint64_t written;
@@ -145,6 +150,8 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 
 @property (nonatomic, readonly) AVAudioFormat *format;
 @property (nonatomic, readonly) BOOL inlineDecoding;
+// Frames each voice's ring holds: at least a second at the bus rate.
+@property (nonatomic, readonly) uint32_t ringFrames;
 // What VibeVoiceBusRender reads; valid for the bus's life.
 - (VibeVoiceMix *)mix;
 // Called on the player queue when a voice goes live or fails before its
@@ -154,10 +161,10 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 
 // Starts rendering `file` from `frame` (file frames) at `gain`, with `ramp`
 // pending — or paused, which carries no ramp: the first ramp set later is the
-// resume. The stream ends at `endFrame`, exclusive, as it would at the file's
-// own end; 0, or a frame at or past the file's length, is the file's own end,
-// read to where the stream really ends. The file is read in its processing
-// format. A decode failure ends the voice through VibeVoiceEndFailed; read
+// resume. The stream ends at `endFrame`, exclusive, or where the file really
+// ends, whichever comes first; 0 is the file's own end. Never derived from the
+// length, which a lossy or streaming file only estimates. The file is read in
+// its processing format. A decode failure ends the voice through VibeVoiceEndFailed; read
 // errorOfVoice:failedFile: inside the ended handler. Allocation always returns
 // an id: a full pool cuts its oldest retiring voice, and a start that still
 // finds no slot is pending until the drain frees one. Returns the voice's id.
@@ -173,6 +180,10 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 
 // The voice reads no more of its file, so the file may be handed to another
 // voice. For a declick-length retire; a crossfade-length retire keeps reading.
+// A read of its file or successor waiting at a streaming file's edge ends as
+// an interruption, so its turn returns at once (AudioFileHandle's
+// interruptReads); so does a kill's, and a dead voice's at the drain that
+// reports it. The next voice's first seek of the file allows reads again.
 - (void)stopReadingForVoice:(VibeVoiceID)voice;
 
 // Ends the bus's reading for good: every voice reads no more, and

@@ -10,12 +10,15 @@
 #endif
 
 #include <errno.h>
+#include <fcntl.h>
 #include <os/lock.h>
+#include <unistd.h>
 
-// The remote backend, installed together (setRemoteRoot:fetch:read:).
+// The remote backend, installed together (setRemoteRoot:fetch:read:availability:).
 static os_unfair_lock sRemoteLock = OS_UNFAIR_LOCK_INIT;
 static CloudFileRemoteFetch sRemoteFetch;
 static CloudFileRemoteRead sRemoteRead;
+static CloudFileRemoteAvailability sRemoteAvailability;
 
 static CloudFileRemoteFetch VibeRemoteFetch(void) {
     os_unfair_lock_lock(&sRemoteLock);
@@ -45,6 +48,230 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
     os_unfair_lock_unlock(&sFakeLock);
 }
 #endif
+
+@implementation CloudFileAvailability {
+    NSCondition *_condition;
+    uint64_t _written;
+    BOOL _complete;
+    NSError *_failure;
+    NSUInteger _readers;
+    dispatch_block_t _onLastReaderGone;
+    // While held, _written < _windowOffset: no range is on disk and in the
+    // window at once, so a read never mixes the two.
+    NSData *_window;
+    uint64_t _windowOffset;
+}
+
+- (instancetype)initWithPartURL:(NSURL *)partURL size:(uint64_t)size {
+    self = [super init];
+    if (self) {
+        _partURL = partURL;
+        _size = size;
+        _condition = [[NSCondition alloc] init];
+    }
+    return self;
+}
+
+- (void)noteWrittenBytes:(uint64_t)bytes {
+    [_condition lock];
+    if (bytes > _written) {
+        _written = MIN(bytes, _size);
+        // TRAP: dropped under the lock a reader copies under, so a wait the
+        // window answered has copied before the window can go. A range in it
+        // past the download's edge waits for the disk from here.
+        if (_window && _written >= _windowOffset) {
+            _window = nil;
+        }
+        [_condition broadcast];
+    }
+    [_condition unlock];
+}
+
+- (uint64_t)writtenBytes {
+    [_condition lock];
+    uint64_t written = _written;
+    [_condition unlock];
+    return written;
+}
+
+- (void)finishWithError:(NSError *)error {
+    [_condition lock];
+    if (!_complete && !_failure) {
+        _complete = error == nil;
+        _failure = error;
+        _window = nil;
+        [_condition broadcast];
+    }
+    [_condition unlock];
+}
+
+- (void)installWindow:(NSData *)bytes atOffset:(uint64_t)offset {
+    [_condition lock];
+    if (!_complete && !_failure && !_window && bytes.length > 0 && offset > _written && offset < _size
+            && bytes.length <= _size - offset) {
+        // A contiguous copy of its own: a response's bytes can be dispatch
+        // data in pieces, which reading them through .bytes would flatten
+        // into a second buffer held beside the first.
+        NSMutableData *window = [NSMutableData dataWithLength:bytes.length];
+        [bytes getBytes:window.mutableBytes length:bytes.length];
+        _window = window;
+        _windowOffset = offset;
+        [_condition broadcast];
+    }
+    [_condition unlock];
+}
+
+- (uint64_t)windowLength {
+    [_condition lock];
+    uint64_t length = _window.length;
+    [_condition unlock];
+    return length;
+}
+
+- (CloudFileAvailabilityWait)waitForBytesAt:(uint64_t)offset
+                                     length:(uint64_t)length
+                                 windowInto:(void *)buffer
+                                   capacity:(uint64_t)capacity
+                                     copied:(uint64_t *)copied
+                                interrupted:(BOOL (NS_NOESCAPE ^)(void))interrupted
+                                   deadline:(NSDate *)deadline
+                                      error:(NSError *__autoreleasing *)error {
+    BOOL end = offset >= _size || length == 0;
+    uint64_t last = end ? 0 : offset + MIN(length, _size - offset);
+    uint64_t fromWindow = 0;
+    CloudFileAvailabilityWait result;
+    NSError *failure = nil;
+    [_condition lock];
+    for (;;) {
+        if (_failure) {
+            failure = _failure;
+            result = CloudFileAvailabilityFailed;
+            break;
+        }
+        if (end || _complete || last <= _written) {
+            result = CloudFileAvailabilityReady;
+            break;
+        }
+        uint64_t windowEnd = _windowOffset + _window.length;
+        if (_window && offset >= _windowOffset && last <= windowEnd) {
+            if (buffer) {
+                fromWindow = MIN(capacity, windowEnd - offset);
+                memcpy(buffer, (const uint8_t *)_window.bytes + (offset - _windowOffset), (size_t)fromWindow);
+            }
+            result = CloudFileAvailabilityReady;
+            break;
+        }
+        if (interrupted && interrupted()) {
+            result = CloudFileAvailabilityInterrupted;
+            break;
+        }
+        if (!deadline) {
+            [_condition wait];
+        }
+        else if (![_condition waitUntilDate:deadline]) {
+            result = CloudFileAvailabilityInterrupted;
+            break;
+        }
+    }
+    [_condition unlock];
+    if (copied) {
+        *copied = fromWindow;
+    }
+    if (failure && error) {
+        *error = failure;
+    }
+    return result;
+}
+
+- (NSData *)readyBytesAt:(uint64_t)offset length:(uint64_t)length {
+    if (offset >= _size || length == 0) {
+        return nil;
+    }
+    length = MIN(length, _size - offset);
+    uint64_t onDisk = 0;
+    [_condition lock];
+    if (_complete || _failure) {
+        [_condition unlock];
+        return nil;
+    }
+    uint64_t windowEnd = _windowOffset + _window.length;
+    if (_window && offset >= _windowOffset && offset < windowEnd) {
+        NSData *copy = [_window subdataWithRange:NSMakeRange((NSUInteger)(offset - _windowOffset),
+                                                             (NSUInteger)MIN(length, windowEnd - offset))];
+        [_condition unlock];
+        return copy;
+    }
+    if (offset < _written) {
+        onDisk = MIN(length, _written - offset);
+    }
+    [_condition unlock];
+    int fd = onDisk > 0 ? open(_partURL.fileSystemRepresentation, O_RDONLY | O_CLOEXEC) : -1;
+    if (fd < 0) {
+        return nil;
+    }
+    NSMutableData *bytes = [NSMutableData dataWithLength:(NSUInteger)onDisk];
+    uint64_t got = 0;
+    while (got < onDisk) {
+        ssize_t count = pread(fd, (uint8_t *)bytes.mutableBytes + got, (size_t)(onDisk - got), (off_t)(offset + got));
+        if (count < 0 && errno == EINTR) {
+            continue;
+        }
+        if (count <= 0) {
+            break;
+        }
+        got += (uint64_t)count;
+    }
+    close(fd);
+    bytes.length = (NSUInteger)got;
+    return got > 0 ? bytes : nil;
+}
+
+- (void)wakeWaiters {
+    [_condition lock];
+    [_condition broadcast];
+    [_condition unlock];
+}
+
+- (void)addReader {
+    [_condition lock];
+    _readers++;
+    [_condition unlock];
+}
+
+- (void)removeReader {
+    [_condition lock];
+    dispatch_block_t gone = nil;
+    if (_readers > 0 && --_readers == 0) {
+        gone = _onLastReaderGone;
+    }
+    [_condition unlock];
+    if (gone) {
+        gone();
+    }
+}
+
+- (NSUInteger)readerCount {
+    [_condition lock];
+    NSUInteger readers = _readers;
+    [_condition unlock];
+    return readers;
+}
+
+- (dispatch_block_t)onLastReaderGone {
+    [_condition lock];
+    dispatch_block_t gone = _onLastReaderGone;
+    [_condition unlock];
+    return gone;
+}
+
+- (void)setOnLastReaderGone:(dispatch_block_t)onLastReaderGone {
+    dispatch_block_t copied = [onLastReaderGone copy];
+    [_condition lock];
+    _onLastReaderGone = copied;
+    [_condition unlock];
+}
+
+@end
 
 @interface CloudFileMaterializationToken ()
 @property (nonatomic, getter=isCancelled) BOOL cancelled;
@@ -118,13 +345,22 @@ static NSError *VibeMaterializationCancelledError(void) {
     return [NSError errorWithDomain:NSCocoaErrorDomain code:NSUserCancelledError userInfo:nil];
 }
 
-+ (void)setRemoteRoot:(NSURL *)root fetch:(CloudFileRemoteFetch)fetch read:(CloudFileRemoteRead)read {
-    NSParameterAssert((root == nil) == (fetch == nil) && (fetch == nil) == (read == nil));
++ (void)setRemoteRoot:(NSURL *)root fetch:(CloudFileRemoteFetch)fetch read:(CloudFileRemoteRead)read
+         availability:(CloudFileRemoteAvailability)availability {
+    NSParameterAssert((root == nil) == (fetch == nil) && (fetch == nil) == (read == nil) && (root || !availability));
     os_unfair_lock_lock(&sRemoteLock);
     sRemoteFetch = [fetch copy];
     sRemoteRead = [read copy];
+    sRemoteAvailability = [availability copy];
     os_unfair_lock_unlock(&sRemoteLock);
     [NSURLUtil setRemotePlaceholderRoot:root];
+}
+
++ (CloudFileAvailability *)availabilityForURL:(NSURL *)url {
+    os_unfair_lock_lock(&sRemoteLock);
+    CloudFileRemoteAvailability availability = sRemoteAvailability;
+    os_unfair_lock_unlock(&sRemoteLock);
+    return availability ? availability(url) : nil;
 }
 
 + (CloudFileRemoteRead)remoteRead {
@@ -197,6 +433,7 @@ static NSError *VibeMaterializationCancelledError(void) {
 
 - (BOOL)materializeURL:(NSURL *)url
                  token:(CloudFileMaterializationToken *)token
+            onReadable:(dispatch_block_t)onReadable
                  error:(NSError *__autoreleasing *)error {
 #if DEBUG
     // Asked ahead of the placeholder probe; the provider answers 0 for a path
@@ -252,7 +489,7 @@ static NSError *VibeMaterializationCancelledError(void) {
     }
 
     if ([NSURLUtil isRemotePlaceholderFile:url]) {
-        return [self fetchRemoteURL:url token:token error:error];
+        return [self fetchRemoteURL:url token:token onReadable:onReadable error:error];
     }
 
     // Fresh per download: cancelling poisons a coordinator for good.
@@ -286,6 +523,7 @@ static NSError *VibeMaterializationCancelledError(void) {
 
 - (BOOL)fetchRemoteURL:(NSURL *)url
                  token:(CloudFileMaterializationToken *)token
+            onReadable:(dispatch_block_t)onReadable
                  error:(NSError *__autoreleasing *)error {
     CloudFileRemoteFetch fetch = VibeRemoteFetch();
     os_unfair_lock_lock(&_lock);
@@ -301,7 +539,7 @@ static NSError *VibeMaterializationCancelledError(void) {
 
     __weak CloudFileMaterializer *weakSelf = self;
     NSError *fetchError = nil;
-    BOOL fetched = fetch(url, ^(dispatch_block_t cancel) {
+    BOOL fetched = fetch(url, onReadable, ^(dispatch_block_t cancel) {
         if (![weakSelf installCancelTransfer:cancel token:token]) {
             cancel();
         }

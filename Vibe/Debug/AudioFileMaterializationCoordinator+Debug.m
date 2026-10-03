@@ -37,6 +37,7 @@ static BOOL VibeHangInstalled;
         @"interactivePending": @(snapshot.interactivePendingCount),
         @"backgroundPending": @(snapshot.backgroundPendingCount),
         @"foregroundTransferActive": @(snapshot.foregroundTransferActive),
+        @"readableClaims": @(snapshot.readableClaimCount),
         @"handleRuns": @(snapshot.handleRunCount),
         @"datalessProbesInFlight": @(snapshot.datalessProbesInFlight),
         // AudioFileHandle calls the OS still owes an answer for. Nonzero at
@@ -67,7 +68,7 @@ static BOOL VibeHangInstalled;
     // Chained, never restated: a wrapper that reimplemented the production open
     // would drift from it.
     VibeAudioFileOpener real = coordinator.fileOpener;
-    coordinator.fileOpener = ^AudioFileHandle *(NSURL *url, NSError **error) {
+    coordinator.fileOpener = ^AudioFileHandle *(NSURL *url, BOOL (^interrupted)(void), NSError **error) {
         NSCondition *inner = VibeHungOpenGate();
         [inner lock];
         if (VibeHangBasename && [url.lastPathComponent isEqualToString:VibeHangBasename]) {
@@ -79,7 +80,7 @@ static BOOL VibeHangInstalled;
             VibeHungOpens--;
         }
         [inner unlock];
-        return real(url, error);
+        return real(url, interrupted, error);
     };
 }
 

@@ -47,6 +47,11 @@ NS_ASSUME_NONNULL_BEGIN
 // For dump_state; nothing in the app asks.
 - (NSUInteger)numChannels;
 
+// The buffering holds since launch, for dump_state: holds begun, releases
+// (each a resume), stalls (Connection lost), and heldSeconds, the current
+// hold's age while buffering, else the last hold's length.
+- (NSDictionary<NSString *, NSNumber *> *)debugBufferingRecord;
+
 // Whether a render pump stands in for the output unit. Under --no-audio-hw it
 // attaches during the async init, so the argv flag alone does not prove it.
 // Written once, before any voice; read lock-free.

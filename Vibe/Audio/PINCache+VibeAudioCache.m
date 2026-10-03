@@ -16,8 +16,8 @@ static const NSTimeInterval kAudioCacheAgeLimit = 6 * (30 * (24 * 60 * 60)); // 
 
 @implementation PINCache (VibeAudioCache)
 
-+ (PINCache *)audioCacheWithName:(NSString *)name {
-    PINCache *cache = [[PINCache alloc] initWithName:name];
++ (PINCache *)audioCacheWithName:(NSString *)name rootPath:(NSString *)rootPath {
+    PINCache *cache = rootPath ? [[PINCache alloc] initWithName:name rootPath:rootPath] : [[PINCache alloc] initWithName:name];
     cache.diskCache.byteLimit = kAudioCacheByteLimit;
     cache.diskCache.ageLimit = kAudioCacheAgeLimit;
     return cache;
