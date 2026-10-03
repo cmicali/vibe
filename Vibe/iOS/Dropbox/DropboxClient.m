@@ -7,6 +7,8 @@
 
 #import <Security/Security.h>
 #include <os/lock.h>
+#include <sys/stat.h>
+#include <sys/xattr.h>
 
 #import "DropboxRules.h"
 
@@ -48,6 +50,25 @@ static NSError *VibeCancelledError(void) {
     return VibeDropboxMakeError(VibeDropboxErrorCancelled, @"cancelled");
 }
 
+// The rev a download's file holds bytes of, on the file itself, so the next
+// download of that destination continues it (startDownload:).
+static const char *const kVibeDropboxRevAttribute = "com.commonwealthrecordings.Vibe.rev";
+
+static NSString *_Nullable VibeDropboxRevOfFile(NSURL *url) {
+    char rev[64] = {0};
+    ssize_t length = getxattr(url.fileSystemRepresentation, kVibeDropboxRevAttribute, rev, sizeof(rev) - 1, 0, 0);
+    return length > 0 ? [[NSString alloc] initWithBytes:rev length:(NSUInteger)length encoding:NSUTF8StringEncoding] : nil;
+}
+
+// A transfer the link ended keeps its file for the next download to continue;
+// one its own answer ended (another version, a disk write, a refused call)
+// would only fail again from the same bytes. The mirror's stale sweep takes
+// a kept part after a day.
+static BOOL VibeDropboxKeepsPart(NSError *error) {
+    return ([error.domain isEqualToString:VibeDropboxErrorDomain] && error.code == VibeDropboxErrorCancelled)
+            || VibeDropboxIsConnectionError(error);
+}
+
 // The metadata a content response carries in its Dropbox-API-Result header.
 static NSDictionary *_Nullable VibeDropboxAPIResult(NSHTTPURLResponse *http) {
     return VibeJSONObject([[http valueForHTTPHeaderField:@"Dropbox-API-Result"] dataUsingEncoding:NSUTF8StringEncoding]);
@@ -86,6 +107,10 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 @property (nonatomic) NSInteger status;
 // A whole-file answer to a ranged resend: the bytes already written, skipped.
 @property (nonatomic) uint64_t skip;
+// The rev of the bytes a kept destination held at the start, continued from
+// (bytesWritten) until the first answer names it; another rev starts over.
+@property (nonatomic, copy, nullable) NSString *resumeRev;
+@property (nonatomic) BOOL restart;
 @property (nonatomic, nullable) NSMutableData *errorData;
 @property (nonatomic, copy, nullable) NSString *retryAfter;
 // The transfer's own reason to stop: a disk write, or a changed version.
@@ -741,7 +766,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
         error = closeError;
     }
     transfer.file = nil;
-    if (error && transfer.destination) {
+    if (error && transfer.destination && !VibeDropboxKeepsPart(error)) {
         [NSFileManager.defaultManager removeItemAtURL:transfer.destination error:NULL];
     }
     transfer.completion(error ? nil : result, error);
@@ -847,6 +872,15 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     download.progress = progress;
     download.completion = completion;
     download.attempts = 1;
+    // A destination holding bytes of a version, kept by a transfer the link
+    // ended, is continued from its last byte; one with no rev is replaced.
+    struct stat kept;
+    NSString *rev = stat(destination.fileSystemRepresentation, &kept) == 0 && kept.st_size > 0
+            ? VibeDropboxRevOfFile(destination) : nil;
+    if (rev) {
+        download.resumeRev = rev;
+        download.bytesWritten = (uint64_t)kept.st_size;
+    }
     [self startDownload:download];
     return [self cancelBlockForTransfer:download];
 }
@@ -932,23 +966,46 @@ didReceiveResponse:(NSURLResponse *)response
         completionHandler(NSURLSessionResponseAllow);
         return;
     }
-    // Made once per transfer, at its first accepted response.
+    // Made once per transfer, at its first accepted response; or the kept
+    // destination continued, when this answer is its version's. Another
+    // version's bytes from the resume offset are no use: the transfer starts
+    // over, whole, from the completion (restart).
     download.metadata = metadata;
     download.size = VibeDropboxSizeOf(metadata);
+    NSString *rev = VibeDropboxRevOf(metadata);
     NSFileManager *files = NSFileManager.defaultManager;
-    [files removeItemAtURL:download.destination error:NULL];
-    if (![files createFileAtPath:download.destination.path contents:nil attributes:nil]) {
-        download.failure = [NSError errorWithDomain:NSPOSIXErrorDomain code:errno userInfo:nil];
-        completionHandler(NSURLSessionResponseCancel);
-        return;
+    if (download.resumeRev) {
+        if (!rev || ![rev isEqualToString:download.resumeRev]) {
+            LogInfo(@"Dropbox: %@ is another version than its kept part's (rev %@, now %@); downloading it whole",
+                    download.path, download.resumeRev, rev);
+            download.restart = YES;
+            completionHandler(NSURLSessionResponseCancel);
+            return;
+        }
+        download.skip = http.statusCode == 200 ? offset : 0;
+    }
+    else {
+        [files removeItemAtURL:download.destination error:NULL];
+        if (![files createFileAtPath:download.destination.path contents:nil attributes:nil]) {
+            download.failure = [NSError errorWithDomain:NSPOSIXErrorDomain code:errno userInfo:nil];
+            completionHandler(NSURLSessionResponseCancel);
+            return;
+        }
+        if (rev) {
+            setxattr(download.destination.fileSystemRepresentation, kVibeDropboxRevAttribute,
+                     rev.UTF8String, strlen(rev.UTF8String), 0, 0);
+        }
     }
     NSError *error = nil;
     download.file = [NSFileHandle fileHandleForWritingToURL:download.destination error:&error];
     download.failure = error;
-    if (download.file && download.progress) {
-        download.progress(0, download.size, VibeDropboxRevOf(download.metadata));
+    if (download.file && download.resumeRev && ![download.file seekToEndReturningOffset:NULL error:&error]) {
+        download.failure = error;
     }
-    completionHandler(download.file ? NSURLSessionResponseAllow : NSURLSessionResponseCancel);
+    if (download.file && !download.failure && download.progress) {
+        download.progress(offset, download.size, rev);
+    }
+    completionHandler(download.file && !download.failure ? NSURLSessionResponseAllow : NSURLSessionResponseCancel);
 }
 
 - (void)URLSession:(NSURLSession *)session
@@ -999,6 +1056,17 @@ didCompleteWithError:(NSError *)error {
     }
     if (cancelled) {
         [self finishTransfer:download result:nil error:VibeCancelledError()];
+        return;
+    }
+    if (download.restart) {
+        download.restart = NO;
+        download.resumeRev = nil;
+        download.metadata = nil;
+        [NSFileManager.defaultManager removeItemAtURL:download.destination error:NULL];
+        os_unfair_lock_lock(&_lock);
+        download.bytesWritten = 0;
+        os_unfair_lock_unlock(&_lock);
+        [self startDownload:download];
         return;
     }
     if (download.failure) {

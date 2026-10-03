@@ -493,6 +493,10 @@ scenario_stall() {
     dbg play_pause >/dev/null
     wait_for 20 ".state == \"playing\" and .pos > $(printf '%s' "$stalled" | jq .pos) + 1" || true
     local resumed="$SNAP"
+    # The replay's download continues the kept part: a resume by Range from
+    # where the stall left it, the same rev, never the whole file again.
+    local replay; replay="$(printf '%s' "$SNAP" | jq -c --arg f0 "$F0" '
+        [.log[] | select(.file == $f0 and (.kind == "whole" or .kind == "resume"))] | {count: length, last: (.[-1] | {kind, range, rev}), first: (.[0] | {rev})}')"
     fixture 20 long.wav short.wav
     dbg fake_dropbox_fault stall after=3M file=$F0 >/dev/null
     open_folder "$FOLDER"
@@ -502,14 +506,16 @@ scenario_stall() {
     wait_for 15 ".buf == false and .br.releases > $(printf '%s' "$held2" | jq .br.releases)" || true
     local released="$SNAP"
     dbg set_audio_loading defaults >/dev/null
-    local m; m="$(jq -cn --argjson h "$held" --argjson s "$stalled" --argjson r "$resumed" --argjson h2 "$held2" --argjson x "$released" '
+    local m; m="$(jq -cn --argjson h "$held" --argjson s "$stalled" --argjson r "$resumed" --argjson h2 "$held2" --argjson x "$released" --argjson p "$replay" '
         {heldAt: $h.pos, heldBuffering: $h.buf, stalledAfterHoldSeconds: ($s.t - $h.t), stalledState: $s.state, stalledAt: $s.pos, stalledError: $s.err,
          stalls: ($s.br.stalls - $h.br.stalls), resumedState: $r.state, resumedTo: $r.pos, heldAgain: $h2.buf,
+         replayRequests: $p.count, replayKind: $p.last.kind, replayRange: $p.last.range, replaySameRev: ($p.last.rev == $p.first.rev),
          releasedBuffering: $x.buf, releases: $x.br.releases, finalError: $x.err}')"
     record "$m"
     check "buffering before the stall" '.heldBuffering' "$m"
     check "Connection lost, paused in place" '.stalledState == "paused" and .stalls == 1 and .stalledError == "Connection lost" and (.stalledAt - .heldAt | fabs) < 0.5' "$m"
     check "resume plays on" '.resumedState == "playing" and .resumedTo > .stalledAt' "$m"
+    check "the replay continued the kept part by Range, same rev" '.replayRequests == 2 and .replayKind == "resume" and (.replayRange | test("^bytes=[1-9][0-9]*-$")) and .replaySameRev' "$m"
     check "a stall lifted in time releases" '.heldAgain and .releasedBuffering == false' "$m"
 }
 

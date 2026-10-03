@@ -903,8 +903,10 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
         // TRAP: finished after the install and before the lookup forgets it.
         // A reader whose part open missed the rename waits for the finish,
         // then opens url; one looking it up next opens url, the whole file.
-        // A failure has deleted the part already, which that same wait turns
-        // into the failure, never a missing file.
+        // A failure's part is deleted, or kept for the next fetch to continue
+        // when the link ended the transfer (DropboxClient); either way that
+        // same wait turns into the failure, never a missing file or a short
+        // read.
         [stream finishWithError:downloadError];
         [self->_streamsCondition lock];
         if (stream && self->_streams[key] == stream) {

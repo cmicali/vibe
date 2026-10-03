@@ -448,6 +448,12 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
     os_unfair_lock_unlock(&sStubLock);
 }
 
+- (void)clearRequests {
+    os_unfair_lock_lock(&sStubLock);
+    [sStubRequests removeAllObjects];
+    os_unfair_lock_unlock(&sStubLock);
+}
+
 - (NSArray<NSURLRequest *> *)requestsToPath:(NSString *)path {
     os_unfair_lock_lock(&sStubLock);
     NSArray<NSURLRequest *> *requests = [sStubRequests copy];
@@ -1093,7 +1099,11 @@ static BOOL IsClosedRange(NSURLRequest *request) {
     XCTAssertEqualObjects([requests[3] valueForHTTPHeaderField:@"Range"], @"bytes=3000-");
 }
 
-- (void)testDropsWithNoProgressPastTheBoundFailAndDeleteThePart {
+// A transfer the link ended — dropped past the resume bound, or cancelled —
+// keeps its part for the next download of that file, which continues it from
+// its last byte (below); one its own answer ended, another version or a disk
+// write, deletes it, and the stale sweep takes a kept one after a day.
+- (void)testDropsWithNoProgressPastTheBoundFailAndKeepThePart {
     _contents[@"/song.flac"] = PatternBytes(4000);
     [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
         if (index == 0) {
@@ -1109,7 +1119,7 @@ static BOOL IsClosedRange(NSURLRequest *request) {
     XCTAssertEqualObjects(error.domain, NSURLErrorDomain);
     XCTAssertEqual(error.code, NSURLErrorNotConnectedToInternet);
     XCTAssertEqual([self requestsToPath:@"/2/files/download"].count, 3u, @"the first, then two resumes");
-    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[self partURL].path]);
+    XCTAssertEqual(StatOf([self partURL]).st_size, 1000, @"kept for the next download");
 }
 
 - (void)testAResumeAnsweringAnotherRevisionFailsAndDeletesThePart {
@@ -1168,7 +1178,7 @@ static BOOL IsClosedRange(NSURLRequest *request) {
                           @"bytes=1600-");
 }
 
-- (void)testCancellingDuringAResumeDeletesThePartAndCompletesOnce {
+- (void)testCancellingDuringAResumeKeepsThePartAndCompletesOnce {
     _contents[@"/song.flac"] = PatternBytes(4000);
     [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
         if (index == 0) {
@@ -1195,7 +1205,65 @@ static BOOL IsClosedRange(NSURLRequest *request) {
     XCTAssertEqual(completions, 1);
     XCTAssertEqualObjects(failure.domain, VibeDropboxErrorDomain);
     XCTAssertEqual(failure.code, VibeDropboxErrorCancelled);
-    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[self partURL].path]);
+    XCTAssertEqual(StatOf([self partURL]).st_size, 1600, @"kept for the next download");
+}
+
+// A download that finds its destination holding bytes of a version continues
+// from them: the request asks for the rest, and the file ends whole.
+- (void)testTheNextDownloadContinuesAKeptPart {
+    NSData *bytes = PatternBytes(4000);
+    _contents[@"/song.flac"] = bytes;
+    [self cancelADownloadAfter:1600];
+    [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
+        return [self answer:request];
+    }];
+
+    XCTAssertNil([self downloadSong:NULL]);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:[self partURL]], bytes);
+    NSArray<NSURLRequest *> *requests = [self requestsToPath:@"/2/files/download"];
+    XCTAssertEqual(requests.count, 1u);
+    XCTAssertEqualObjects([requests[0] valueForHTTPHeaderField:@"Range"], @"bytes=1600-");
+}
+
+// A kept part of a version no longer current cannot be continued: the answer
+// to the resume names another rev, so the download starts over, whole.
+- (void)testAKeptPartOfAnotherVersionIsStartedOver {
+    _contents[@"/song.flac"] = PatternBytes(4000);
+    [self cancelADownloadAfter:1600];
+    NSData *newer = PatternBytes(4400);
+    [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
+        return DownloadAnswer(request, newer, @{@"rev": @"0200beef", @"server_modified": kStamp});
+    }];
+
+    NSDictionary *metadata = nil;
+    XCTAssertNil([self downloadSong:&metadata]);
+    XCTAssertEqualObjects(metadata[@"rev"], @"0200beef");
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:[self partURL]], newer);
+    NSArray<NSURLRequest *> *requests = [self requestsToPath:@"/2/files/download"];
+    XCTAssertEqual(requests.count, 2u, @"the resume, then the whole file");
+    XCTAssertEqualObjects([requests[0] valueForHTTPHeaderField:@"Range"], @"bytes=1600-");
+    XCTAssertNil([requests[1] valueForHTTPHeaderField:@"Range"]);
+}
+
+// A download of song.flac cancelled once its part holds `written` bytes,
+// leaving the part; the request log is cleared for what follows.
+- (void)cancelADownloadAfter:(NSUInteger)written {
+    [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
+        if (index == 0) {
+            return Dropped([self answer:request], request, written, [self partURL]);
+        }
+        return (DropboxStubResponse){0, nil, nil, YES};
+    }];
+    XCTestExpectation *done = [self expectationWithDescription:@"cancelled"];
+    dispatch_block_t cancel = [_client downloadPath:@"/song.flac" toURL:[self partURL] progress:nil
+                                         completion:^(NSDictionary *metadata, NSError *error) {
+        [done fulfill];
+    }];
+    [self waitForDownloadRequests:2];
+    cancel();
+    [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertEqual(StatOf([self partURL]).st_size, (off_t)written);
+    [self clearRequests];
 }
 
 // A dropped connection after the last byte is the whole file: a resend
@@ -1386,7 +1454,10 @@ static BOOL IsClosedRange(NSURLRequest *request) {
     NSDictionary *finish = finishes.firstObject;
     XCTAssertEqual(finish[@"availability"], availability);
     XCTAssertEqualObjects(finish[@"error"], error ?: NSNull.null);
-    XCTAssertEqualObjects(finish[@"partExists"], @NO);
+    // Installed, or deleted; kept only when the link ended the transfer.
+    BOOL kept = ([error.domain isEqualToString:VibeDropboxErrorDomain] && error.code == VibeDropboxErrorCancelled)
+            || VibeDropboxIsConnectionError(error);
+    XCTAssertEqualObjects(finish[@"partExists"], @(kept));
     XCTAssertEqualObjects(finish[@"installed"], @(error == nil));
     XCTAssertEqualObjects(finish[@"registered"], @YES, @"the lookup let go before the finish");
     XCTAssertNil([_mirror availabilityForURL:_streamTrack]);
