@@ -876,14 +876,13 @@ static const CGFloat kLandedRowScale = 0.1;
 
 // The only place the card presents by itself. The Playlist tab comes forward
 // so minimizing lands on what was opened — except over Search, whose tab owns
-// the selection while its field is up. A single file played alone — one
-// track, no folder — plays where it was picked, under the strip: the user is
-// working in the browser, and a one-row playlist is nothing to look at.
+// the selection while its field is up, and except a single file played
+// alone — one track, no folder — whose tab stays where it was picked, so
+// minimizing lands back in the browser rather than on a one-row playlist.
 - (void)playbackDidOpenNewFolder:(PlaybackController *)playback {
-    if (playback.playlist.count == 1 && !playback.folderURL) {
-        return;
+    if (playback.playlist.count > 1 || playback.folderURL) {
+        [self bringPlaylistTabForward];
     }
-    [self bringPlaylistTabForward];
     [self expandPlayerAnimated:YES];
 }
 
