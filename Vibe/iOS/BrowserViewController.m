@@ -9,6 +9,8 @@
 
 #import "AppSettings.h"
 #import "AudioTrack.h"
+#import "AudioTrackMetadata.h"
+#import "AudioTrackMetadataCache.h"
 #import "DocumentTypes.h"
 #import "DropboxMirror.h"
 #import "FavoritesStore.h"
@@ -67,7 +69,8 @@ static const NSUInteger kFilterThreshold = 12;
 // How long Open Folder keeps the file it came from highlighted.
 static const NSTimeInterval kHighlightInterval = 1.2;
 
-@interface BrowserViewController () <UIDocumentPickerDelegate, UISearchResultsUpdating, PlaybackObserver>
+@interface BrowserViewController () <UIDocumentPickerDelegate, UISearchResultsUpdating, PlaybackObserver,
+        AudioTrackMetadataCacheDelegate>
 @end
 
 // Every file and folder played or added, newest first (FolderSession). A file
@@ -111,6 +114,45 @@ UIView *VibeNotDownloadedMark(void) {
     return mark;
 }
 
+const CGFloat VibeFileTileSide = 40;
+const CGFloat VibeFileTileCornerRadius = 8;
+
+// Drawn once per symbol, in both appearances: an image asset holding the
+// light and the dark tile follows the trait collection by itself, which a
+// single rendered image would not.
+UIImage *VibeFileTileImage(NSString *symbol) {
+    static NSMutableDictionary<NSString *, UIImage *> *tiles;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        tiles = [NSMutableDictionary dictionary];
+    });
+    UIImage *tile = tiles[symbol];
+    if (tile) {
+        return tile;
+    }
+    CGRect bounds = CGRectMake(0, 0, VibeFileTileSide, VibeFileTileSide);
+    UIImage *(^draw)(UIUserInterfaceStyle) = ^UIImage *(UIUserInterfaceStyle style) {
+        UITraitCollection *traits = [UITraitCollection traitCollectionWithUserInterfaceStyle:style];
+        UIImageSymbolConfiguration *configuration =
+                [UIImageSymbolConfiguration configurationWithPointSize:17 weight:UIImageSymbolWeightMedium];
+        UIImage *glyph = [[UIImage systemImageNamed:symbol withConfiguration:configuration]
+                imageWithTintColor:[UIColor.secondaryLabelColor resolvedColorWithTraitCollection:traits]
+                     renderingMode:UIImageRenderingModeAlwaysOriginal];
+        UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:bounds.size];
+        return [renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
+            [[UIColor.secondarySystemFillColor resolvedColorWithTraitCollection:traits] setFill];
+            [[UIBezierPath bezierPathWithRoundedRect:bounds cornerRadius:VibeFileTileCornerRadius] fill];
+            [glyph drawAtPoint:CGPointMake(CGRectGetMidX(bounds) - glyph.size.width / 2,
+                                           CGRectGetMidY(bounds) - glyph.size.height / 2)];
+        }];
+    };
+    tile = draw(UIUserInterfaceStyleLight);
+    [tile.imageAsset registerImage:draw(UIUserInterfaceStyleDark)
+               withTraitCollection:[UITraitCollection traitCollectionWithUserInterfaceStyle:UIUserInterfaceStyleDark]];
+    tiles[symbol] = tile;
+    return tile;
+}
+
 @implementation BrowserViewController {
     PlaybackController *_playback;
     NSURL *_directoryURL;
@@ -147,6 +189,13 @@ UIView *VibeNotDownloadedMark(void) {
     // Recents): this screen holds its scope, and the subfolders pushed above
     // it read under it. The session's hold may be gone with the playlist.
     BOOL _holdsScope;
+
+    // Album art for the listing's files already on the device, through the
+    // app's own metadata sweep: a track per local file, by URL, and whether
+    // a sweep over them is out.
+    AudioTrackMetadataCache *_artCache;
+    NSDictionary<NSURL *, AudioTrack *> *_artTracks;
+    BOOL _artScanActive;
 
     // Which picker is up: a location grant, or a one-off pick.
     BOOL _pickingLocation;
@@ -192,6 +241,14 @@ UIView *VibeNotDownloadedMark(void) {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(artThumbnailDidLoad:)
+                                               name:AudioTrackMetadataThumbnailDidLoadNotification
+                                             object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(dropboxDownloadsDidChange:)
+                                               name:VibeDropboxDownloadsDidChangeNotification
+                                             object:nil];
     if (_appending) {
         _closeItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemClose
                                                                    target:self
@@ -277,6 +334,7 @@ UIView *VibeNotDownloadedMark(void) {
 
 - (void)dealloc {
     [NSNotificationCenter.defaultCenter removeObserver:self];
+    [_artCache cancelScan];
     if (_holdsScope) {
         [_directoryURL stopAccessingSecurityScopedResource];
     }
@@ -291,6 +349,118 @@ UIView *VibeNotDownloadedMark(void) {
     [self reloadFromDisk];
     if (_dropboxPath && CFAbsoluteTimeGetCurrent() - _listedAt > kRelistInterval) {
         [self refreshFromDropbox];
+    }
+}
+
+- (void)viewDidDisappear:(BOOL)animated {
+    [super viewDidDisappear:animated];
+    // One sweep at a time down a stack of folders; the return restarts it.
+    [_artCache cancelScan];
+    _artScanActive = NO;
+}
+
+// A download landed, or the downloads were removed: the mark and the art
+// follow the file, so a mirrored folder on screen reads its listing again.
+- (void)dropboxDownloadsDidChange:(NSNotification *)notification {
+    if (_dropboxPath && self.viewIfLoaded.window) {
+        [self reloadFromDisk];
+    }
+}
+
+#pragma mark - Album art
+
+// TRAP: only files whose bytes are on the device are asked. The sweep reads
+// a cache miss's tags from the file, which for a Dropbox placeholder is
+// ranged requests and for a provider's dataless file a download: browsing a
+// folder costs nothing a row does not say. A file seen before answers from
+// the metadata cache without being read at all.
+- (void)loadArtForFiles:(NSArray<NSURL *> *)local {
+    NSMutableDictionary<NSURL *, AudioTrack *> *tracks = [NSMutableDictionary dictionaryWithCapacity:local.count];
+    NSMutableArray<AudioTrack *> *pending = [NSMutableArray array];
+    BOOL fresh = NO;
+    for (NSURL *url in local) {
+        AudioTrack *track = _artTracks[url];
+        if (!track) {
+            track = [AudioTrack withURL:url];
+            fresh = YES;
+        }
+        tracks[url] = track;
+        if (!track.metadata) {
+            [pending addObject:track];
+        }
+    }
+    _artTracks = tracks;
+    // A relist that found nothing new leaves a running sweep alone: asking
+    // again would restart it.
+    if (pending.count == 0 || (_artScanActive && !fresh)) {
+        return;
+    }
+    if (!_artCache) {
+        _artCache = [[AudioTrackMetadataCache alloc] init];
+        _artCache.delegate = self;
+    }
+    _artScanActive = YES;
+    [_artCache loadMetadata:pending];
+    [self rankArtByVisibleRows];
+}
+
+- (AudioTrack *)artTrackAtIndexPath:(NSIndexPath *)indexPath {
+    if (self.isRoot || indexPath.section != VibeBrowserSectionFiles
+            || (NSUInteger)indexPath.row >= _files.count) {
+        return nil;
+    }
+    return _artTracks[_files[(NSUInteger)indexPath.row]];
+}
+
+// The sweep reads the rows on screen first.
+- (void)rankArtByVisibleRows {
+    if (!_artScanActive) {
+        return;
+    }
+    NSMutableArray<AudioTrack *> *visible = [NSMutableArray array];
+    for (NSIndexPath *indexPath in self.tableView.indexPathsForVisibleRows) {
+        AudioTrack *track = [self artTrackAtIndexPath:indexPath];
+        if (track) {
+            [visible addObject:track];
+        }
+    }
+    [_artCache setNeighborhoodTracks:visible];
+}
+
+- (void)redrawVisibleRowsWhoseTrack:(BOOL (^)(AudioTrack *track))matches {
+    NSMutableArray<NSIndexPath *> *rows = [NSMutableArray array];
+    for (NSIndexPath *indexPath in self.tableView.indexPathsForVisibleRows) {
+        AudioTrack *track = [self artTrackAtIndexPath:indexPath];
+        if (track && matches(track)) {
+            [rows addObject:indexPath];
+        }
+    }
+    if (rows.count > 0) {
+        [self.tableView reconfigureRowsAtIndexPaths:rows];
+    }
+}
+
+// The tags landed; the row's next draw asks for the thumbnail, whose pixels
+// arrive by the notification below.
+- (void)didLoadMetadata:(AudioTrack *)track {
+    [self redrawVisibleRowsWhoseTrack:^BOOL(AudioTrack *shown) {
+        return shown == track;
+    }];
+}
+
+- (void)artThumbnailDidLoad:(NSNotification *)notification {
+    [self redrawVisibleRowsWhoseTrack:^BOOL(AudioTrack *shown) {
+        return shown.metadata == notification.object;
+    }];
+}
+
+- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView {
+    [self rankArtByVisibleRows];
+}
+
+- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate {
+    if (!decelerate) {
+        [self rankArtByVisibleRows];
     }
 }
 
@@ -324,9 +494,15 @@ UIView *VibeNotDownloadedMark(void) {
         [NSURLUtil listDirectory:directory sortedBy:sort folders:&folders audio:&files];
         NSMutableSet<NSURL *> *placeholders = [NSMutableSet set];
         NSMutableDictionary<NSURL *, NSString *> *sizes = [NSMutableDictionary dictionary];
+        // The audio whose bytes are here: what art may be read from.
+        NSMutableArray<NSURL *> *local = [NSMutableArray array];
         for (NSURL *url in files) {
             if ([NSURLUtil isRemotePlaceholderFile:url]) {
                 [placeholders addObject:url];
+            }
+            else if (![PlaylistFile isCueExtension:url.pathExtension.lowercaseString]
+                    && ![NSURLUtil isDatalessFile:url]) {
+                [local addObject:url];
             }
             // A placeholder carries the remote size, so this is what a tap
             // would download. Formatted here, not per cell.
@@ -346,6 +522,7 @@ UIView *VibeNotDownloadedMark(void) {
             strongSelf->_allFiles = files;
             strongSelf->_placeholders = placeholders;
             strongSelf->_fileSizes = sizes;
+            [strongSelf loadArtForFiles:local];
             [strongSelf showFilterIfNeeded];
             if (!strongSelf->_refreshing) {
                 [strongSelf.refreshControl endRefreshing];
@@ -927,6 +1104,10 @@ UIView *VibeNotDownloadedMark(void) {
     content.text = url.lastPathComponent;
     VibeApplyFileNameStyle(content);
     content.imageProperties.tintColor = UIColor.secondaryLabelColor;
+    // Art and the tiles are one size, and every row reserves it, so the
+    // names line up down a listing of folders, files and the playing row.
+    content.imageProperties.reservedLayoutSize = CGSizeMake(VibeFileTileSide, VibeFileTileSide);
+    content.imageProperties.maximumSize = CGSizeMake(VibeFileTileSide, VibeFileTileSide);
     if (indexPath.section == VibeBrowserSectionFolders) {
         content.image = [UIImage systemImageNamed:@"folder"];
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
@@ -941,7 +1122,10 @@ UIView *VibeNotDownloadedMark(void) {
             content.imageProperties.tintColor = self.view.tintColor;
         }
         else {
-            content.image = [UIImage systemImageNamed:sheet ? @"music.note.list" : @"music.note"];
+            // Its art when the file is here and has some; else the tile.
+            content.image = [_artTracks[url] cachedThumbnail]
+                    ?: VibeFileTileImage(sheet ? @"music.note.list" : @"waveform");
+            content.imageProperties.cornerRadius = VibeFileTileCornerRadius;
         }
         // From the stat alone: what the file takes, or would download.
         content.secondaryText = _fileSizes[url];
@@ -1322,7 +1506,14 @@ UIView *VibeNotDownloadedMark(void) {
     VibeApplyFileNameStyle(content);
     content.imageProperties.maximumSize = CGSizeMake(40, 40);
     content.imageProperties.tintColor = UIColor.secondaryLabelColor;
-    content.image = [UIImage systemImageNamed:[item[@"folder"] boolValue] ? @"folder" : @"music.note"];
+    content.imageProperties.reservedLayoutSize = CGSizeMake(VibeFileTileSide, VibeFileTileSide);
+    if ([item[@"folder"] boolValue]) {
+        content.image = [UIImage systemImageNamed:@"folder"];
+    }
+    else {
+        BOOL sheet = [PlaylistFile isCueExtension:[item[@"path"] pathExtension].lowercaseString];
+        content.image = VibeFileTileImage(sheet ? @"music.note.list" : @"waveform");
+    }
     cell.contentConfiguration = content;
     return cell;
 }

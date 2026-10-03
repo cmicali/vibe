@@ -59,5 +59,11 @@ UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handler)(void
 void VibeApplyFileNameStyle(UIListContentConfiguration *content);
 // The accessory of a row whose file is not downloaded.
 UIView *VibeNotDownloadedMark(void);
+// A file row's icon where it has no art to draw: a rounded tile holding a
+// symbol, `waveform` for audio and `music.note.list` for a CUE sheet. The
+// side is also the size art is drawn at and what every such row reserves.
+extern const CGFloat VibeFileTileSide;
+extern const CGFloat VibeFileTileCornerRadius;
+UIImage *VibeFileTileImage(NSString *symbol);
 
 NS_ASSUME_NONNULL_END
