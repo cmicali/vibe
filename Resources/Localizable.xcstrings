@@ -3223,6 +3223,18 @@
       },
       "extractionState": "manual"
     },
+    "browser.locations_footer": {
+      "comment": "iOS Files tab: explanation under the Locations list. On My iPhone and Dropbox are always available; this list is for any other folder the user gives the app permission to read. iCloud Drive is an Apple product name.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add a folder from iCloud Drive, a drive, or another app to browse and search it here."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "browser.on_device": {
       "comment": "iOS Files tab: the row opening the app's own folder on the device, the one the Files app shows under this same name. %@ is the device's model name as iOS gives it (iPhone, iPad). Use the wording Apple's Files app uses for this location in this language.",
       "localizations": {
@@ -85628,192 +85640,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "該檔案夾已位於你加入的檔案夾中，因此已在搜尋範圍內。"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.search_folders.footer": {
-      "comment": "iOS Files tab: explanation under the Locations list. On My iPhone and Dropbox are always available; this list is for any other folder the user gives the app permission to read. iCloud Drive is an Apple product name.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Търсене в отворената папка и във всички папки, които добавите тук, включително подпапките им. %@ не може да търси във вашите файлове, докато не му дадете папка."
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Prohledat otevřenou složku a všechny složky, které sem přidáte, včetně jejich podsložek. %@ nemůže vaše soubory prohledávat, dokud mu nedáte složku."
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Søg i den åbne mappe og alle mapper, du tilføjer her, inklusive deres undermapper. %@ kan ikke søge i dine filer, før du giver den en mappe."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Den geöffneten Ordner und alle Ordner, die du hier hinzufügst, samt Unterordnern durchsuchen. %@ kann deine Dateien erst durchsuchen, wenn du einen Ordner angibst."
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Αναζήτηση στον ανοιχτό φάκελο και σε όσους φακέλους προσθέσετε εδώ, μαζί με τους υποφακέλους τους. Το %@ δεν μπορεί να αναζητήσει στα αρχεία σας μέχρι να του δώσετε έναν φάκελο."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add a folder from iCloud Drive, a drive, or another app to browse and search it here."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Buscar en la carpeta que tienes abierta y en las carpetas que añadas aquí, incluidas sus subcarpetas. %@ no puede buscar en tus archivos hasta que le des una carpeta."
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Hae avoinna olevasta kansiosta ja kaikista tähän lisäämistäsi kansioista alikansioineen. %@ ei voi etsiä tiedostoistasi ennen kuin annat sille kansion."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Rechercher dans le dossier ouvert et dans les dossiers que vous ajoutez ici, sous-dossiers compris. %@ ne peut pas rechercher dans vos fichiers tant que vous ne lui avez pas donné de dossier."
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Pretraži otvorenu mapu i sve mape koje ovdje dodate, uključujući njihove podmape. %@ ne može pretraživati vaše datoteke dok mu ne date mapu."
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Keress az éppen megnyitott mappában és minden itt hozzáadott mappában, az almappáikkal együtt. A %@ addig nem tud a fájljaid között keresni, amíg nem adsz meg neki egy mappát."
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Cari di folder yang sedang Anda buka dan folder yang Anda tambahkan di sini, termasuk subfoldernya. %@ tidak dapat mencari file Anda sampai Anda memberinya folder."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Cercare nella cartella aperta e nelle cartelle che aggiungi qui, sottocartelle comprese. %@ non può cercare nei tuoi file finché non gli dai una cartella."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "開いているフォルダと、ここに追加したフォルダ（サブフォルダを含む）を検索する。フォルダを指定するまで、%@はファイルを検索できません。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "열려 있는 폴더와 여기에 추가한 폴더(하위 폴더 포함) 검색하기. 폴더를 지정하기 전에는 %@는 파일을 검색할 수 없습니다."
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Søk i den åpne mappen og alle mapper du legger til her, inkludert undermappene deres. %@ kan ikke søke i filene dine før du gir den en mappe."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Zoeken in de geopende map en in de mappen die je hier toevoegt, inclusief hun submappen. %@ kan pas in je bestanden zoeken als je een map opgeeft."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Przeszukuj otwarty folder i wszystkie foldery dodane tutaj, łącznie z ich podfolderami. %@ nie może przeszukiwać plików, dopóki nie wskażesz folderu."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Buscar na pasta aberta e nas pastas que você adicionar aqui, incluindo suas subpastas. O %@ não pode buscar nos seus arquivos até você indicar uma pasta."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Pesquisar na pasta aberta e nas pastas que adicionar aqui, incluindo as respetivas subpastas. O %@ não pode pesquisar nos seus ficheiros até indicar uma pasta."
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Căutați în dosarul deschis și în dosarele pe care le adăugați aici, inclusiv în subdosarele lor. %@ nu poate căuta în fișierele dvs. până nu îi dați un dosar."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Искать в открытой папке и в папках, которые вы добавите здесь, включая их вложенные папки. %@ не может искать в ваших файлах, пока вы не укажете папку."
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Prehľadať otvorený priečinok a všetky priečinky, ktoré sem pridáte, vrátane ich podpriečinkov. %@ nemôže vaše súbory prehľadávať, kým mu nedáte priečinok."
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Sök i den öppna mappen och alla mappar du lägger till här, inklusive deras undermappar. %@ kan inte söka i dina filer förrän du ger den en mapp."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "ค้นหาในโฟลเดอร์ที่เปิดอยู่และโฟลเดอร์ที่คุณเพิ่มที่นี่ รวมถึงโฟลเดอร์ย่อย %@ ไม่สามารถค้นหาไฟล์ของคุณได้จนกว่าคุณจะให้โฟลเดอร์"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Açık olan klasörde ve buraya eklediğiniz klasörlerde, alt klasörleri dahil, ara. Siz bir klasör verene kadar %@ dosyalarınızda arama yapamaz."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Шукати у відкритій папці та в папках, які ви додасте тут, включно з їхніми вкладеними папками. %@ не може шукати у ваших файлах, доки ви не вкажете папку."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Tìm trong thư mục bạn đang mở và các thư mục bạn thêm ở đây, bao gồm cả thư mục con của chúng. %@ không thể tìm trong tệp của bạn cho đến khi bạn cấp cho nó một thư mục."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "搜索你打开的文件夹以及在此添加的文件夹，包括其子文件夹。在你提供文件夹之前，%@ 无法搜索你的文件。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "搜尋你開啟的檔案夾以及在此加入的檔案夾，包括其子檔案夾。在你提供檔案夾之前，%@ 無法搜尋你的檔案。"
           }
         }
       },

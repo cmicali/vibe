@@ -178,6 +178,23 @@ if [ "${1:-}" = "--check" ]; then
         echo "error: VibeWidget/Localizable.xcstrings is out of date — run: make strings" >&2
         exit 1
     fi
+    # A translation whose format specifiers differ from the English draws a
+    # literal %@, or crashes on a type it was not given. Rewording a default
+    # keeps its key and its translations, so a reword that adds or drops a
+    # specifier, or moves the string to another surface, needs a NEW key.
+    MISMATCHED=$(jq -r '
+        def specs: [scan("%(?:[0-9]+\\$)?(?:@|l{0,2}[dui]|[sf]|\\.[0-9]+f)") | sub("[0-9]+\\$"; "")] | sort;
+        .strings | to_entries[]
+        | .key as $k | (.value.localizations // {}) as $l
+        | (($l.en.stringUnit.value // "") | specs) as $en
+        | [$l | to_entries[] | select(.key != "en")
+              | select(((.value.stringUnit.value // "") | specs) != $en) | .key]
+        | select(length > 0) | "  \($k): \(join(" "))"' "$CATALOG")
+    if [ -n "$MISMATCHED" ]; then
+        echo "error: translations whose format specifiers differ from the English (give the reworded string a new key):" >&2
+        echo "$MISMATCHED" >&2
+        exit 1
+    fi
     echo "🔊 string catalogs are in sync"
 else
     unshield "$CATALOG"

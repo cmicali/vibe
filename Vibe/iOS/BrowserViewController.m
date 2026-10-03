@@ -897,7 +897,7 @@ UIView *VibeNotDownloadedMark(void) {
 
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
     if (self.isRoot) {
-        return section == VibeBrowserRootSectionLocations ? STR_SETTINGS_SEARCH_FOLDERS_FOOTER : nil;
+        return section == VibeBrowserRootSectionLocations ? STR_BROWSER_LOCATIONS_FOOTER : nil;
     }
     // A relist that failed over rows already here: they may be out of date.
     if (section == VibeBrowserSectionFiles && _refreshError && !self.isEmpty) {
