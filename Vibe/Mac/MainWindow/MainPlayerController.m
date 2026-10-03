@@ -630,6 +630,7 @@
 // shows.
 - (void)endLoadingProgress {
     _loadingURL = nil;
+    _loadingPath = nil;
     _loadingOpenRequestIdentifier = 0;
     _loadingProgress = -1;
 }

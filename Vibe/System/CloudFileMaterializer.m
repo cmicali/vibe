@@ -134,6 +134,7 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
                                    capacity:(uint64_t)capacity
                                      copied:(uint64_t *)copied
                                 interrupted:(BOOL (NS_NOESCAPE ^)(void))interrupted
+                                   deadline:(NSDate *)deadline
                                       error:(NSError *__autoreleasing *)error {
     BOOL end = offset >= _size || length == 0;
     uint64_t last = end ? 0 : offset + MIN(length, _size - offset);
@@ -152,9 +153,11 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
             break;
         }
         uint64_t windowEnd = _windowOffset + _window.length;
-        if (buffer && _window && offset >= _windowOffset && last <= windowEnd) {
-            fromWindow = MIN(capacity, windowEnd - offset);
-            memcpy(buffer, (const uint8_t *)_window.bytes + (offset - _windowOffset), (size_t)fromWindow);
+        if (_window && offset >= _windowOffset && last <= windowEnd) {
+            if (buffer) {
+                fromWindow = MIN(capacity, windowEnd - offset);
+                memcpy(buffer, (const uint8_t *)_window.bytes + (offset - _windowOffset), (size_t)fromWindow);
+            }
             result = CloudFileAvailabilityReady;
             break;
         }
@@ -162,7 +165,13 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
             result = CloudFileAvailabilityInterrupted;
             break;
         }
-        [_condition wait];
+        if (!deadline) {
+            [_condition wait];
+        }
+        else if (![_condition waitUntilDate:deadline]) {
+            result = CloudFileAvailabilityInterrupted;
+            break;
+        }
     }
     [_condition unlock];
     if (copied) {

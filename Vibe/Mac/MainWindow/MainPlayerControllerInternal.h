@@ -32,7 +32,9 @@ NS_ASSUME_NONNULL_BEGIN
     // The slow open the shimmer is up for, from didBeginLoading: to its
     // settlement; its progress is CloudTransferRegistry's (+PlayerEvents).
     // A same-row replay keeps the identifier; a later open of the URL does not.
+    // The path is the URL standardized once, the key its transfer moves by.
     NSURL*                      _loadingURL;
+    NSString*                   _loadingPath;
     uint64_t                     _loadingOpenRequestIdentifier;
     float                        _loadingProgress;
     // From didStartPlaying:: the live duration reads 0 while Loading. Zeroed

@@ -102,6 +102,7 @@
                                    capacity:(uint64_t)capacity
                                      copied:(uint64_t *)copied
                                 interrupted:(BOOL (NS_NOESCAPE ^)(void))interrupted
+                                   deadline:(NSDate *)deadline
                                       error:(NSError *__autoreleasing *)error {
     uint64_t end = offset >= self.size || length == 0 ? 0 : offset + MIN(length, self.size - offset);
     if (!_finished && end > self.writtenBytes) {
@@ -109,7 +110,7 @@
         dispatch_semaphore_signal(_event);
     }
     return [super waitForBytesAt:offset length:length windowInto:buffer capacity:capacity copied:copied
-                     interrupted:interrupted error:error];
+                     interrupted:interrupted deadline:deadline error:error];
 }
 @end
 

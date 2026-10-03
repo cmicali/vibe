@@ -381,7 +381,7 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
     AudioFileMaterializationCoordinator *_coordinator;
     AudioFileOpenToken *_openToken;
     AudioFileHandle *_delivered;
-    NSMutableArray<NSURL *> *_moves;
+    NSMutableArray<NSString *> *_moves;
 }
 
 - (void)setUp {
@@ -1355,7 +1355,7 @@ static BOOL IsClosedRange(NSURLRequest *request) {
                 dispatch_semaphore_signal(blocked);
             }
             return NO;
-        } error:&waitError];
+        } deadline:nil error:&waitError];
         if (error) {
             *error = waitError;
         }
@@ -1640,7 +1640,8 @@ static BOOL IsClosedRange(NSURLRequest *request) {
 }
 
 // A resume continues the transfer, so it continues its availability: one
-// object from the first byte to the last, a reader across the gap included.
+// object from the first byte to the last, a reader across the gap included
+// (short of the tail window, which would answer it from memory).
 - (void)testAResumedFetchKeepsItsAvailability {
     NSData *bytes = PatternBytes(1024 * 1024);
     NSURL *track = [self streamingTrack:bytes name:@"resumed.flac" chunk:0];
@@ -1661,7 +1662,7 @@ static BOOL IsClosedRange(NSURLRequest *request) {
     CloudFileAvailability *availability = [self awaitAvailability];
     dispatch_semaphore_t blocked = dispatch_semaphore_create(0);
     CloudFileAvailabilityWait waited = CloudFileAvailabilityFailed;
-    dispatch_semaphore_t returned = [self read:availability at:900 * 1024 length:1000
+    dispatch_semaphore_t returned = [self read:availability at:700 * 1024 length:1000
                                        blocked:blocked result:&waited error:NULL];
     [self await:blocked];
     dispatch_semaphore_signal(resume);
@@ -1855,7 +1856,7 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
                     dispatch_semaphore_signal(blocked);
                 }
                 return NO;
-            } error:NULL];
+            } deadline:nil error:NULL];
             copied = got;
             dispatch_semaphore_signal(returned);
         });
@@ -1972,7 +1973,7 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
             uint8_t probe[16];
             uint64_t copied = 0;
             XCTAssertEqual([availability waitForBytesAt:bytes.length - 16 length:16 windowInto:probe capacity:16
-                                                 copied:&copied interrupted:^BOOL { return YES; } error:NULL],
+                                                 copied:&copied interrupted:^BOOL { return YES; } deadline:nil error:NULL],
                            CloudFileAvailabilityReady, @"%@", label);
             XCTAssertEqual(memcmp(probe, (const uint8_t *)bytes.bytes + bytes.length - 16, 16), 0, @"%@", label);
         }
@@ -2057,9 +2058,9 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
 - (void)cloudTransferRegistryDidChange:(CloudTransferRegistry *)registry {
 }
 
-- (void)cloudTransferRegistry:(CloudTransferRegistry *)registry didMoveTransferForURL:(NSURL *)url {
+- (void)cloudTransferRegistry:(CloudTransferRegistry *)registry didMoveTransferForPath:(NSString *)path {
     @synchronized (self) {
-        [_moves addObject:url];
+        [_moves addObject:path];
     }
 }
 
@@ -2119,7 +2120,7 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
                   @"the row froze at %.3f after the start", [registry progressForURL:track]);
     @synchronized (self) {
         XCTAssertGreaterThan(_moves.count, 0u);
-        XCTAssertEqualObjects(VibeStandardizedAudioOpenPath(_moves.firstObject), VibeStandardizedAudioOpenPath(track));
+        XCTAssertEqualObjects(_moves.firstObject, VibeStandardizedAudioOpenPath(track));
     }
 
     [self releaseChunks:100];

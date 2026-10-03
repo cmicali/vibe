@@ -220,34 +220,6 @@
     XCTAssertEqual(errno, EACCES);
 }
 
-// What each format's open reads at the end, with room (DropboxRules.h): a
-// small window for every head-and-trailer format, unknown ones too; an MP4's
-// moov scaled with the file between its floor and its cap; none for a file no
-// bigger than twice its window.
-- (void)testTheTailWindowIsSizedPerFormat {
-    const uint64_t KB = 1024, MB = 1024 * KB;
-    for (NSString *extension in @[@"mp3", @"MP3", @"flac", @"wav", @"aiff", @"aif", @"w64", @"caf", @"ogg", @"xyz", @""]) {
-        XCTAssertEqual(VibeDropboxTailWindowBytes(extension, 300 * MB), 128 * KB, @"%@", extension);
-        XCTAssertEqual(VibeDropboxTailWindowBytes(extension, 256 * KB + 1), 128 * KB, @"%@", extension);
-        XCTAssertEqual(VibeDropboxTailWindowBytes(extension, 256 * KB), 0u, @"%@: at twice the window", extension);
-    }
-    XCTAssertEqual(VibeDropboxTailWindowBytes(@"mp3", 0), 0u);
-    for (NSString *extension in @[@"m4a", @"M4A", @"m4b", @"m4r", @"mp4", @"qta"]) {
-        // 6 minutes of 256 kbps AAC, its moov ~60 KB: the floor.
-        XCTAssertEqual(VibeDropboxTailWindowBytes(extension, 11 * MB), 512 * KB, @"%@", extension);
-        // A 32nd of the file between the two.
-        XCTAssertEqual(VibeDropboxTailWindowBytes(extension, 32 * MB), 1 * MB, @"%@", extension);
-        // An hour of 128 kbps (57 MB, moov 608 KB) and a two-hour mix (moov
-        // ~1.2 MB) both fit under the cap, 1.5 MB, reached from 48 MB.
-        XCTAssertGreaterThan(VibeDropboxTailWindowBytes(extension, 57 * MB), 2 * 608 * KB, @"%@", extension);
-        XCTAssertGreaterThan(VibeDropboxTailWindowBytes(extension, 115 * MB), 120 * 10 * KB, @"%@", extension);
-        XCTAssertEqual(VibeDropboxTailWindowBytes(extension, 48 * MB), 1536 * KB, @"%@", extension);
-        XCTAssertEqual(VibeDropboxTailWindowBytes(extension, 300 * MB), 1536 * KB, @"%@", extension);
-        XCTAssertEqual(VibeDropboxTailWindowBytes(extension, 1 * MB + 1), 512 * KB, @"%@", extension);
-        XCTAssertEqual(VibeDropboxTailWindowBytes(extension, 1 * MB), 0u, @"%@: at twice the floor", extension);
-    }
-}
-
 - (void)testThePartFileIsAHiddenSibling {
     NSURL *url = [NSURL fileURLWithPath:@"/mirror/Album/01 Song.flac"];
     XCTAssertEqualObjects([NSURLUtil remotePlaceholderPartURL:url].path,

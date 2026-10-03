@@ -52,16 +52,6 @@ static const SInt64 kVibeMPEGPacketsUncounted = INT64_MAX;
 // than kVibeMPEGEstimateFrames whole frames is no guess at all.
 enum { kVibeMPEGEstimateBytes = 1024 * 1024, kVibeMPEGEstimateFrames = 16 };
 
-// kbit/s by a frame header's bitrate index: MPEG-1's layers I, II and III,
-// then MPEG-2 and 2.5's layer I and layers II and III.
-static const uint16_t kVibeMPEGBitrates[5][15] = {
-    {0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448},
-    {0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384},
-    {0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320},
-    {0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256},
-    {0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160},
-};
-
 // Small reads go through one block: the parser's under kVibeReadBlock, filling
 // all of it — Apple's Ogg reader asks for about 200 bytes at a time on Opus,
 // 18,000 reads for three minutes — and dr_flac's 4 KB ones, filling a quarter:
@@ -76,12 +66,15 @@ static const AudioFileTypeID kVibeOggFileType = 'Oggf';
 // The status of an interrupted read, seek or open (+isInterruption:).
 static const OSStatus kVibeReadInterrupted = 'intr';
 
-// Why a streaming handle's wait for bytes answered no.
-typedef NS_ENUM(uint8_t, VibeWaitFault) {
-    VibeWaitFaultNone,
-    VibeWaitFaultFailed,      // the transfer's; stays
-    VibeWaitFaultInterrupted, // until the next seek
-};
+// An ID3v2 tag's whole length from the file's first 10 bytes: the syncsafe
+// size in bytes 6-9 excludes the header and a footer. 0 for no tag.
+static uint32_t VibeID3v2TagBytes(const uint8_t header[10]) {
+    if (memcmp(header, "ID3", 3) != 0) {
+        return 0;
+    }
+    return 10 + (header[5] & 0x10 ? 10 : 0)
+            + ((header[6] & 0x7F) << 21 | (header[7] & 0x7F) << 14 | (header[8] & 0x7F) << 7 | (header[9] & 0x7F));
+}
 
 @implementation AudioFileHandle {
     // What the parser's callbacks read, and dr_flac's and dr_wav's: valid from open until
@@ -143,8 +136,8 @@ typedef NS_ENUM(uint8_t, VibeWaitFault) {
     _Atomic bool _waitingForBytes;
     BOOL (^_openInterrupted)(void); // the open's caller's, while it runs
     // Latched by the wait that answered no, so each decoder sees one clean
-    // end of data, never bytes after a gap, and its read or seek reports why.
-    VibeWaitFault _waitFault;
+    // end of data, never bytes after a gap, and its read or seek reports why:
+    // the transfer's error, for good, or an interruption, until the next seek.
     NSError *_waitError;
 }
 
@@ -176,53 +169,90 @@ typedef NS_ENUM(uint8_t, VibeWaitFault) {
     return _mpegChoiceApplies && _openedUnderApple != atomic_load(&sAppleMPEGDecoder);
 }
 
+static NSError *VibeHandleError(OSStatus status, NSString *description) {
+    return [NSError errorWithDomain:NSOSStatusErrorDomain code:status
+                           userInfo:@{NSLocalizedDescriptionKey: description}];
+}
+
 // A streaming handle's wait for the bytes a read asked for, before it reads
 // them. Once one answers no, every wait does until a seek clears an
 // interruption; a failure stays. With a buffer, bytes the tail window holds
 // past the download's edge are copied into it, up to `capacity`, their count
 // in *copied; 0 means they are on disk.
 static BOOL VibeHandleAwait(AudioFileHandle *handle, SInt64 position, SInt64 count,
-                            void *window, UInt32 capacity, UInt32 *copied) {
-    if (handle->_waitFault != VibeWaitFaultNone) {
+                            void *window, uint64_t capacity, uint64_t *copied) {
+    if (handle->_waitError) {
         return NO;
     }
     _Atomic bool *interrupted = &handle->_readsInterrupted;
     _Atomic bool *waiting = &handle->_waitingForBytes;
     BOOL (^openInterrupted)(void) = handle->_openInterrupted;
     NSError *error = nil;
-    uint64_t fromWindow = 0;
     // Asked only when the wait is about to block, so the flag is up for a
     // wait and never for bytes already readable.
     CloudFileAvailabilityWait wait = [handle->_availability waitForBytesAt:(uint64_t)MAX(0, position)
                                                                     length:(uint64_t)MAX(0, count)
                                                                 windowInto:window
                                                                   capacity:capacity
-                                                                    copied:&fromWindow
+                                                                    copied:copied
                                                                interrupted:^BOOL{
         if (atomic_load(interrupted) || (openInterrupted && openInterrupted())) {
             return YES;
         }
         atomic_store(waiting, true);
         return NO;
-    } error:&error];
+    } deadline:nil error:&error];
     atomic_store(waiting, false);
-    if (copied) {
-        *copied = (UInt32)fromWindow;
-    }
     if (wait == CloudFileAvailabilityReady) {
         return YES;
     }
-    handle->_waitFault = wait == CloudFileAvailabilityFailed ? VibeWaitFaultFailed : VibeWaitFaultInterrupted;
-    handle->_waitError = error;
+    handle->_waitError = wait == CloudFileAvailabilityFailed && error ? error
+            : VibeHandleError(kVibeReadInterrupted, [NSString stringWithFormat:@"Reading %@ was interrupted",
+                                                                               handle.url.lastPathComponent]);
     return NO;
 }
 
+// YES once the whole file is readable: the transfer complete, or every byte
+// written. Waiting, it waits as a read does and latches what ends the wait;
+// otherwise it never waits and latches nothing.
+static BOOL VibeHandleAwaitWhole(AudioFileHandle *handle, BOOL wait) {
+    uint64_t size = handle->_availability.size;
+    if (wait) {
+        return VibeHandleAwait(handle, 0, (SInt64)size, NULL, 0, NULL);
+    }
+    return [handle->_availability waitForBytesAt:0 length:size windowInto:NULL capacity:0 copied:NULL
+                                     interrupted:^BOOL { return YES; } deadline:nil error:NULL] == CloudFileAvailabilityReady;
+}
+
+// The `requested` bytes at `position` a read asked for, once there, and as
+// many more as are, up to `capacity`, from one source: the tail window when it
+// holds them past the download's edge, else the disk, where the part file
+// ends at the bytes written (appended to, never extended, so a read comes up
+// short there rather than reading zeros). -1 for a wait that answered no,
+// latched on the handle, or a failed pread.
+static ssize_t VibeHandleFetch(AudioFileHandle *handle, SInt64 position, SInt64 requested, void *buffer, size_t capacity) {
+    uint64_t fromWindow = 0;
+    if (handle->_availability && !VibeHandleAwait(handle, position, requested, buffer, capacity, &fromWindow)) {
+        return -1;
+    }
+    if (fromWindow) {
+        return (ssize_t)fromWindow;
+    }
+    ssize_t got;
+    do {
+        got = pread(handle->_descriptor, buffer, capacity, position);
+    } while (got < 0 && errno == EINTR);
+    return got;
+}
+
+// The status of a fetch that answered -1: a lost wait is no I/O error.
+static OSStatus VibeHandleFetchFailure(AudioFileHandle *handle) {
+    return handle->_waitError ? kAudioFileUnspecifiedError : kAudioFilePositionError;
+}
+
 // A read inside the block, filling it from `position` first when the read is
-// not all in it already. A streaming fill waits for the bytes asked for, not
-// the block, and takes whatever more is there, from one source: the disk,
-// where the part file ends at the bytes written (appended to, never extended,
-// so a fill comes up short there rather than reading zeros), or the tail
-// window.
+// not all in it already: a streaming fill waits for the bytes asked for, not
+// the block, and takes whatever more is there.
 static OSStatus VibeHandleReadBlock(AudioFileHandle *handle, SInt64 position, UInt32 requestCount, UInt32 fill,
                                     void *buffer, UInt32 *actualCount) {
     if (!handle->_readBlock && !(handle->_readBlock = malloc(kVibeReadBlock))) {
@@ -231,22 +261,11 @@ static OSStatus VibeHandleReadBlock(AudioFileHandle *handle, SInt64 position, UI
     }
     if (position < handle->_readBlockStart
             || position + requestCount > handle->_readBlockStart + handle->_readBlockLength) {
-        UInt32 fromWindow = 0;
-        if (handle->_availability
-                && !VibeHandleAwait(handle, position, requestCount, handle->_readBlock, fill, &fromWindow)) {
-            *actualCount = 0;
-            return kAudioFileUnspecifiedError;
-        }
-        ssize_t filled = fromWindow;
-        if (!fromWindow) {
-            do {
-                filled = pread(handle->_descriptor, handle->_readBlock, fill, position);
-            } while (filled < 0 && errno == EINTR);
-        }
+        ssize_t filled = VibeHandleFetch(handle, position, requestCount, handle->_readBlock, fill);
         if (filled < 0) {
             handle->_readBlockLength = 0;
             *actualCount = 0;
-            return kAudioFilePositionError;
+            return VibeHandleFetchFailure(handle);
         }
         handle->_readBlockStart = position;
         handle->_readBlockLength = (UInt32)filled;
@@ -265,15 +284,10 @@ static OSStatus VibeHandleRead(void *clientData, SInt64 position, UInt32 request
     if (requestCount < kVibeReadBlock && position >= 0) {
         return VibeHandleReadBlock(handle, position, requestCount, kVibeReadBlock, buffer, actualCount);
     }
-    UInt32 fromWindow = 0;
-    if (handle->_availability && !VibeHandleAwait(handle, position, requestCount, buffer, requestCount, &fromWindow)) {
-        *actualCount = 0;
-        return kAudioFileUnspecifiedError;
-    }
-    ssize_t got = fromWindow ? fromWindow : pread(handle->_descriptor, buffer, requestCount, position);
+    ssize_t got = VibeHandleFetch(handle, position, requestCount, buffer, requestCount);
     if (got < 0) {
         *actualCount = 0;
-        return kAudioFilePositionError;
+        return VibeHandleFetchFailure(handle);
     }
     *actualCount = (UInt32)got;
     return (got == 0 && requestCount > 0) ? kAudioFileEndOfFileError : noErr;
@@ -300,31 +314,15 @@ static size_t VibeStreamRead(void *user, void *buffer, size_t count) {
         handle->_streamCursor += got;
         return got;
     }
-    UInt32 fromWindow = 0;
-    if (handle->_availability && !VibeHandleAwait(handle, handle->_streamCursor, (SInt64)count, buffer,
-                                                  (UInt32)MIN(count, (size_t)UINT32_MAX), &fromWindow)) {
-        return 0;
-    }
-    if (fromWindow) {
-        handle->_streamCursor += fromWindow;
-        return fromWindow;
-    }
-    size_t filled = 0;
-    while (filled < count) {
-        ssize_t got = pread(handle->_descriptor, (uint8_t *)buffer + filled, count - filled, handle->_streamCursor);
-        if (got < 0 && errno == EINTR) {
-            continue;
-        }
-        if (got < 0) {
+    ssize_t got = VibeHandleFetch(handle, handle->_streamCursor, (SInt64)count, buffer, count);
+    if (got < 0) {
+        if (!handle->_waitError) {
             handle->_streamReadFailed = YES;
         }
-        if (got <= 0) {
-            break;
-        }
-        filled += (size_t)got;
-        handle->_streamCursor += got;
+        return 0;
     }
-    return filled;
+    handle->_streamCursor += got;
+    return (size_t)got;
 }
 
 // A position past the end is refused: nothing is there to read, and a damaged
@@ -396,11 +394,6 @@ static UInt32 VibeLayoutSize(const AudioChannelLayout *layout) {
                     + layout->mNumberChannelDescriptions * sizeof(AudioChannelDescription));
 }
 
-static NSError *VibeHandleError(OSStatus status, NSString *description) {
-    return [NSError errorWithDomain:NSOSStatusErrorDomain code:status
-                           userInfo:@{NSLocalizedDescriptionKey: description}];
-}
-
 // A layout the file states, or none: CoreAudio answers a layout with no tag,
 // no bitmap and no descriptions for a WAV that carries none.
 static AVAudioChannelLayout *VibeFileChannelLayout(ExtAudioFileRef reader) {
@@ -423,13 +416,12 @@ static AVAudioChannelLayout *VibeFileChannelLayout(ExtAudioFileRef reader) {
 // A refusal names both statuses and how the file starts, so a report says why
 // without the file itself.
 static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFileTypeID hint, OSStatus hinted, OSStatus sniffed) {
-    unsigned char head[16] = {0};
+    uint8_t head[16] = {0};
     ssize_t got = pread(descriptor, head, sizeof(head), 0);
+    uint32_t tag = got >= 10 ? VibeID3v2TagBytes(head) : 0;
     NSString *start;
-    if (got >= 10 && head[0] == 'I' && head[1] == 'D' && head[2] == '3') {
-        // ID3v2: a syncsafe size in bytes 6-9, excluding the 10-byte header.
-        uint32_t tag = ((head[6] & 0x7f) << 21) | ((head[7] & 0x7f) << 14) | ((head[8] & 0x7f) << 7) | (head[9] & 0x7f);
-        start = [NSString stringWithFormat:@"an ID3v2.%u tag of %u bytes", head[3], tag + 10];
+    if (tag) {
+        start = [NSString stringWithFormat:@"an ID3v2.%u tag of %u bytes", head[3], tag];
     } else {
         NSMutableString *hex = [NSMutableString string];
         for (ssize_t i = 0; i < got; i++) {
@@ -505,7 +497,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     if (_descriptor < 0 && _availability && errno == ENOENT) {
         // TRAP: the transfer can finish and rename its part over url between
         // the lookup and the open. Once it has finished, url is the whole file.
-        if (!VibeHandleAwait(self, 0, (SInt64)_availability.size, NULL, 0, NULL)) {
+        if (!VibeHandleAwaitWhole(self, YES)) {
             return [self failWithError:error status:noErr description:@""];
         }
         _availability = nil;
@@ -554,7 +546,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     }
     if (status != noErr) {
 #if VIBE_VERBOSE_LOGGING
-        if (_descriptor >= 0 && !_waitFault) {
+        if (_descriptor >= 0 && !_waitError) {
             VibeLogOpenRefusal(url, _descriptor, _size, hint, hinted, status);
         }
 #endif
@@ -585,6 +577,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     if (!self) {
         return nil;
     }
+    // Again: the parser's open let it go, and the decoders' opens read too.
     _openInterrupted = interrupted;
     NSString *name = url.lastPathComponent;
     OSStatus status = ExtAudioFileWrapAudioFileID(_parser, false, &_codec);
@@ -703,28 +696,6 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     return status;
 }
 
-// A frame header's bit rate in kbit/s and length in bytes when it heads a
-// frame of this stream; NO for no sync, a reserved field, another version,
-// layer or rate, and free format (index 0), whose length only the next
-// frame's sync tells, so a free-format stream is counted at open.
-static BOOL VibeMPEGFrame(const uint8_t *header, AudioStreamBasicDescription description, UInt32 *kbps, UInt32 *bytes) {
-    static const UInt32 rates[3] = {44100, 48000, 32000};
-    UInt32 version = (header[1] >> 3) & 3, index = header[2] >> 4, rateIndex = (header[2] >> 2) & 3;
-    UInt32 layer = description.mFormatID == kAudioFormatMPEGLayer1 ? 0 : description.mFormatID == kAudioFormatMPEGLayer2 ? 1 : 2;
-    if (header[0] != 0xFF || (header[1] & 0xE0) != 0xE0 || version == 1 || ((header[1] >> 1) & 3) != 3 - layer
-            || index == 0 || index == 15 || rateIndex == 3) {
-        return NO;
-    }
-    UInt32 rate = rates[rateIndex] >> (version == 3 ? 0 : version == 2 ? 1 : 2); // MPEG-1, 2, 2.5
-    if (rate != description.mSampleRate) {
-        return NO;
-    }
-    *kbps = kVibeMPEGBitrates[version == 3 ? layer : layer == 0 ? 3 : 4][index];
-    UInt32 bits = *kbps * 1000, padding = (header[2] >> 1) & 1;
-    *bytes = layer == 0 ? (12 * bits / rate + padding) * 4 : (layer == 2 && version != 3 ? 72 : 144) * bits / rate + padding;
-    return YES;
-}
-
 // TRAP: an MP3 with no Xing, Info or VBRI frame states no packet count, and
 // CoreAudio's parser finds one by reading every frame header to the end:
 // ExtAudioFile's length, the packet count and the maximum packet size each
@@ -736,7 +707,8 @@ static BOOL VibeMPEGFrame(const uint8_t *header, AudioStreamBasicDescription des
 // rate, the whole file's count; any other, VBR, the packets they hold at the
 // walked frames' average size, a guess, *estimated, whose waveform would be
 // filed under it (awaitExactLength:). 0 for the whole count: a VBR header,
-// which states it, or a head that does not walk.
+// which states it, or a head that does not walk. dr_mp3's parser walks it,
+// synthesizing nothing.
 static SInt64 VibeUncountedMPEGPackets(AudioFileHandle *handle, AudioStreamBasicDescription description, BOOL *estimated) {
     SInt64 offset = 0;
     UInt64 bytes = 0;
@@ -750,9 +722,8 @@ static SInt64 VibeUncountedMPEGPackets(AudioFileHandle *handle, AudioStreamBasic
     // between it and the first audio frame, or is that frame.
     uint8_t tag[10] = {0};
     SInt64 start = 0;
-    if (VibeHandleRead((__bridge void *)handle, 0, sizeof(tag), tag, &got) == noErr && got == sizeof(tag)
-            && !memcmp(tag, "ID3", 3)) {
-        start = 10 + (tag[5] & 0x10 ? 10 : 0) + ((tag[6] & 0x7F) << 21 | (tag[7] & 0x7F) << 14 | (tag[8] & 0x7F) << 7 | (tag[9] & 0x7F));
+    if (VibeHandleRead((__bridge void *)handle, 0, sizeof(tag), tag, &got) == noErr && got == sizeof(tag)) {
+        start = VibeID3v2TagBytes(tag);
     }
     const SInt64 span = 48; // a header, a CRC, side information and a header's tag
     SInt64 onDisk = MIN(handle->_size, (SInt64)handle->_availability.writtenBytes);
@@ -761,16 +732,29 @@ static SInt64 VibeUncountedMPEGPackets(AudioFileHandle *handle, AudioStreamBasic
     }
     UInt32 length = (UInt32)(offset - start + MIN(onDisk - offset, (SInt64)kVibeMPEGEstimateBytes));
     uint8_t *region = malloc(length);
-    UInt32 header = (UInt32)(offset - start + span), frames = 0, walked = 0, first = 0, kbps = 0, size = 0;
+    UInt32 header = (UInt32)(offset - start + span), frames = 0, walked = 0, first = 0;
     BOOL constant = YES;
     if (region && VibeHandleRead((__bridge void *)handle, start, length, region, &got) == noErr && got == length
             && !memmem(region, header, "Xing", 4) && !memmem(region, header, "Info", 4) && !memmem(region, header, "VBRI", 4)) {
         const uint8_t *head = region + (offset - start);
         UInt32 available = length - (UInt32)(offset - start);
-        while (walked + 4 <= available && VibeMPEGFrame(head + walked, description, &kbps, &size) && walked + size <= available) {
-            first = frames++ ? first : kbps;
-            constant = constant && kbps == first;
-            walked += size;
+        int layer = description.mFormatID == kAudioFormatMPEGLayer1 ? 1 : description.mFormatID == kAudioFormatMPEGLayer2 ? 2 : 3;
+        drmp3dec parser;
+        drmp3dec_init(&parser);
+        for (;;) {
+            drmp3dec_frame_info info = {0};
+            drmp3dec_decode_frame(&parser, head + walked, (int)(available - walked), NULL, &info);
+            // A whole frame of this stream exactly here, its header the one
+            // parsed (the parser skips what is not a frame, and forgets its
+            // header on a damaged one); free format, no bit rate, is counted
+            // at open. A frame layer III's reservoir cannot decode still counts.
+            if (info.frame_bytes <= 0 || memcmp(parser.header, head + walked, sizeof(parser.header)) != 0
+                    || info.layer != layer || info.sample_rate != description.mSampleRate || info.bitrate_kbps == 0) {
+                break;
+            }
+            first = frames++ ? first : (UInt32)info.bitrate_kbps;
+            constant = constant && (UInt32)info.bitrate_kbps == first;
+            walked += (UInt32)info.frame_bytes;
         }
     }
     free(region);
@@ -854,13 +838,6 @@ static SInt64 VibeUncountedMPEGPackets(AudioFileHandle *handle, AudioStreamBasic
             packets, estimated ? @"estimated" : @"constant-rate", packets > 0 ? 100.0 * (_mpegEstimate - packets) / packets : 0.0);
 }
 
-// YES once the whole file is readable: the transfer complete, or every byte
-// written. Never blocks.
-static BOOL VibeHandleDownloaded(AudioFileHandle *handle) {
-    return [handle->_availability waitForBytesAt:0 length:(uint64_t)handle->_size windowInto:NULL capacity:0 copied:NULL
-                                     interrupted:^BOOL { return YES; } error:NULL] == CloudFileAvailabilityReady;
-}
-
 // The parser reads every frame header it has not yet read, the rest of the
 // file, which takes a long mix tens of milliseconds from disk and a stream
 // the rest of its download, so only an estimate pays it, and only once it is
@@ -879,7 +856,7 @@ static BOOL VibeHandleDownloaded(AudioFileHandle *handle) {
     if (!atomic_load(&_lengthEstimated)) {
         return YES;
     }
-    if (!VibeHandleAwait(self, 0, _size, NULL, 0, NULL)) {
+    if (!VibeHandleAwaitWhole(self, YES)) {
         return [self reportWaitFault:error];
     }
     [self countMPEGPacketsOnDisk];
@@ -965,7 +942,7 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
 // through the descriptor itself, so ExtAudioFile is disposed without decoding
 // and the parser closed.
 - (BOOL)adoptStreamDecoderWithChannels:(UInt32)channels rate:(UInt32)rate length:(UInt64)length {
-    if (_streamReadFailed || _waitFault || length == 0 || channels != _processingFormat.channelCount
+    if (_streamReadFailed || _waitError || length == 0 || channels != _processingFormat.channelCount
             || rate != _processingFormat.sampleRate) {
         return NO;
     }
@@ -989,7 +966,7 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
     if (error) {
         // A wait that answered no says why better than what CoreAudio made of
         // the reads it lost.
-        *error = _waitFault ? [self waitFaultError] : VibeHandleError(status, description);
+        *error = _waitError ?: VibeHandleError(status, description);
     }
     // dealloc releases the descriptor and whatever parser was left.
     return nil;
@@ -999,15 +976,7 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
 // decoders made of the reads it lost.
 - (instancetype)openedWithError:(NSError **)error {
     _openInterrupted = nil;
-    return _waitFault ? [self failWithError:error status:noErr description:@""] : self;
-}
-
-// The transfer's own error, or an interruption.
-- (NSError *)waitFaultError {
-    if (_waitFault == VibeWaitFaultFailed && _waitError) {
-        return _waitError;
-    }
-    return VibeHandleError(kVibeReadInterrupted, [NSString stringWithFormat:@"Reading %@ was interrupted", _url.lastPathComponent]);
+    return _waitError ? [self failWithError:error status:noErr description:@""] : self;
 }
 
 - (void)closeParser {
@@ -1056,8 +1025,7 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
 }
 
 - (BOOL)seekToFrame:(AVAudioFramePosition)frame error:(NSError **)error {
-    if (_waitFault == VibeWaitFaultInterrupted) {
-        _waitFault = VibeWaitFaultNone;
+    if ([AudioFileHandle isInterruption:_waitError]) {
         _waitError = nil;
         if (_flac) {
             // TRAP: dr_flac skips a seek to the frame it believes it is at,
@@ -1127,7 +1095,7 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
     } else {
         status = !_codec || _writing ? kAudio_ParamError : ExtAudioFileSeek(_codec, MAX(0, frame));
     }
-    if (status != noErr && !_waitFault && error) {
+    if (status != noErr && !_waitError && error) {
         *error = VibeHandleError(status, [NSString stringWithFormat:@"Seeking %@ failed (%d)", _url.lastPathComponent, (int)status]);
     }
     return [self reportWaitFault:error] && status == noErr;
@@ -1135,10 +1103,10 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
 
 // NO, with its error, when a wait answered no during the operation.
 - (BOOL)reportWaitFault:(NSError **)error {
-    if (_waitFault && error) {
-        *error = [self waitFaultError];
+    if (_waitError && error) {
+        *error = _waitError;
     }
-    return !_waitFault;
+    return !_waitError;
 }
 
 #pragma mark - Writing
@@ -1200,7 +1168,7 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
         buffer.frameLength = 0;
         return NO;
     }
-    if (_waitFault) {
+    if (_waitError) {
         // Refused until a seek, since a lost read may have left the decoder
         // anywhere, and for good after a failure.
         buffer.frameLength = 0;
@@ -1227,11 +1195,10 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
             list->mBuffers[b].mDataByteSize = frames * _bytesPerFrame;
         }
         OSStatus status = ExtAudioFileRead(_codec, &frames, list);
-        if (status != noErr || _waitFault) {
+        if (status != noErr || _waitError) {
             buffer.frameLength = total;
             if (error) {
-                *error = _waitFault ? [self waitFaultError]
-                                    : VibeHandleError(status, [NSString stringWithFormat:@"Reading %@ failed (%d)", _url.lastPathComponent, (int)status]);
+                *error = _waitError ?: VibeHandleError(status, [NSString stringWithFormat:@"Reading %@ failed (%d)", _url.lastPathComponent, (int)status]);
             }
             return NO;
         }
@@ -1245,7 +1212,7 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
 }
 
 - (BOOL)readMPEGIntoBuffer:(AVAudioPCMBuffer *)buffer frameCount:(AVAudioFrameCount)wanted error:(NSError **)error {
-    if (atomic_load_explicit(&_lengthEstimated, memory_order_relaxed) && VibeHandleDownloaded(self)) {
+    if (atomic_load_explicit(&_lengthEstimated, memory_order_relaxed) && VibeHandleAwaitWhole(self, NO)) {
         // TRAP: here, on the one thread that reads the handle, since the
         // parser is not thread-safe: the bus's decode queue, or a waveform's.
         [self countMPEGPacketsOnDisk];
@@ -1299,7 +1266,7 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
         got = _flac ? drflac_read_pcm_frames_f32(_flac, frames, planes[0]) : drwav_read_pcm_frames_f32(_wav, frames, planes[0]);
     }
     buffer.frameLength = (AVAudioFrameCount)got;
-    if (_streamReadFailed && !_waitFault) {
+    if (_streamReadFailed && !_waitError) {
         if (error) {
             *error = VibeHandleError(kAudioFilePositionError, [NSString stringWithFormat:@"Reading %@ failed", _url.lastPathComponent]);
         }
@@ -1318,7 +1285,7 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
         UInt32 bytes = _mpegReadCapacity;
         UInt32 count = kVibeMPEGReadPackets;
         OSStatus status = AudioFileReadPacketData(_parser, false, &bytes, _mpegReadPackets, _mpegNextPacket, &count, _mpegRead);
-        if (_waitFault) {
+        if (_waitError) {
             // Before the count, which a lost read would shorten for good.
             return [self reportWaitFault:error];
         }

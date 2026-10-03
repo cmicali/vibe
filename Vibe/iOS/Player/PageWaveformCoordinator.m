@@ -14,7 +14,9 @@
     AudioWaveformCache *_cache;
     __weak id<PageWaveformCoordinatorDelegate> _delegate;
     NSMutableDictionary<NSNumber *, CodableAudioWaveform *> *_snapshots;
-    NSMutableIndexSet *_completePages;
+    // Each snapshot's delivered fraction, kept and dropped with it, but
+    // dropped alone by a failure.
+    NSMutableDictionary<NSNumber *, NSNumber *> *_percentLoaded;
     // Deliveries are matched on this, not on the cancel being observed: the
     // target's sourceKey, since cue rows of one file each have a waveform.
     NSString *_targetKey;
@@ -33,7 +35,7 @@
         _delegate = delegate;
         _targetIndex = NSNotFound;
         _snapshots = [NSMutableDictionary dictionary];
-        _completePages = [NSMutableIndexSet indexSet];
+        _percentLoaded = [NSMutableDictionary dictionary];
         _heldUpdates = [NSMutableIndexSet indexSet];
         _heldFailures = [NSMutableIndexSet indexSet];
     }
@@ -75,10 +77,9 @@
     _targetIndex = index;
     _targetKey = track.sourceKey;
     [_cache cancelLoad];
-    if ([_completePages containsIndex:index] && _snapshots[@(index)]) {
+    if ([self isCompleteAtIndex:index] && _snapshots[@(index)]) {
         return;
     }
-    [_completePages removeIndex:index];
     [_cache loadWaveformForTrack:track];
 }
 
@@ -89,7 +90,7 @@
         if (page != _targetIndex
                 && (page > index + kKeepRadius || index > page + kKeepRadius)) {
             [_snapshots removeObjectForKey:key];
-            [_completePages removeIndex:page];
+            [_percentLoaded removeObjectForKey:key];
         }
     }
 }
@@ -98,7 +99,7 @@
     _targetIndex = NSNotFound;
     _targetKey = nil;
     [_snapshots removeAllObjects];
-    [_completePages removeAllIndexes];
+    [_percentLoaded removeAllObjects];
     [_heldUpdates removeAllIndexes];
     [_heldFailures removeAllIndexes];
 }
@@ -108,7 +109,11 @@
 }
 
 - (BOOL)isCompleteAtIndex:(NSUInteger)index {
-    return [_completePages containsIndex:index];
+    return [self percentLoadedAtIndex:index] >= 1.0f;
+}
+
+- (float)percentLoadedAtIndex:(NSUInteger)index {
+    return _percentLoaded[@(index)].floatValue;
 }
 
 #pragma mark - AudioWaveformCacheDelegate
@@ -120,9 +125,7 @@
         return;
     }
     _snapshots[@(_targetIndex)] = waveform;
-    if (percentLoaded >= 1.0f) {
-        [_completePages addIndex:_targetIndex];
-    }
+    _percentLoaded[@(_targetIndex)] = @(percentLoaded);
     if (_held) {
         [_heldUpdates addIndex:_targetIndex];
         return;
@@ -137,7 +140,7 @@
     NSUInteger failedIndex = _targetIndex;
     _targetIndex = NSNotFound;
     _targetKey = nil;
-    [_completePages removeIndex:failedIndex];
+    [_percentLoaded removeObjectForKey:@(failedIndex)];
     if (_held) {
         [_heldFailures addIndex:failedIndex];
         return;

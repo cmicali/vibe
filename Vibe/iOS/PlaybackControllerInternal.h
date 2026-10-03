@@ -47,7 +47,9 @@ NS_ASSUME_NONNULL_BEGIN
 
     // The slow open the card shows loading, from didBeginLoading: to its
     // settlement; its progress is CloudTransferRegistry's (+PlayerEvents).
+    // The path is the URL standardized once, the key its transfer moves by.
     NSURL                   *_loadingURL;
+    NSString                *_loadingPath;
     uint64_t                 _loadingOpenRequestIdentifier;
     float                    _loadingProgress;
 

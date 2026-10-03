@@ -17,9 +17,9 @@
 //  MP3 with no VBR header: taken from its bit rate when constant, exact for a
 //  well-formed file, or estimated from its head's frames when not
 //  (lengthIsEstimated), and settled by its decode (AudioFileHandle.m).
-//  Writing advances length. Cursor,
-//  read, write and close operations belong to one consumer at a time (the
-//  bus's decoder after a voice starts, AudioVoiceBus.h).
+//  Writing advances length. Cursor, read, write and close operations belong
+//  to one consumer at a time (the bus's decoder after a voice starts,
+//  AudioVoiceBus.h).
 //
 //  An MPEG file (MP1, MP2, MP3) is decoded by dr_mp3 instead of ExtAudioFile
 //  unless Apple's is chosen, since Apple's MPEG decoder's only output is

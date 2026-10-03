@@ -3,8 +3,8 @@
 //  Vibe (iOS)
 //
 //  The Dropbox decisions that need no network and no disk: the PKCE pieces,
-//  the wire encodings, how an entry reads, when a mirror file is a
-//  placeholder, and a stream's tail window. Header-only and Foundation-only so the macOS suite tests it.
+//  the wire encodings, how an entry reads, and when a mirror file is a
+//  placeholder. Header-only and Foundation-only so the macOS suite tests it.
 //
 
 #ifndef DropboxRules_h
@@ -172,6 +172,25 @@ static inline NSTimeInterval VibeDropboxRetryDelay(NSInteger status, NSString *_
     return MIN(seconds, 10.0);
 }
 
+// A link that dropped or stalled, which a resend may outlast; anything else
+// (TLS, a malformed response) would only fail again.
+static inline BOOL VibeDropboxIsConnectionError(NSError *error) {
+    if (![error.domain isEqualToString:NSURLErrorDomain]) {
+        return NO;
+    }
+    switch (error.code) {
+        case NSURLErrorTimedOut:
+        case NSURLErrorNetworkConnectionLost:
+        case NSURLErrorNotConnectedToInternet:
+        case NSURLErrorCannotConnectToHost:
+        case NSURLErrorCannotFindHost:
+        case NSURLErrorDNSLookupFailed:
+            return YES;
+        default:
+            return NO;
+    }
+}
+
 // The one line an API failure leaves in the log and the error.
 static inline NSString *VibeDropboxErrorSummary(NSInteger status, NSDictionary *_Nullable body) {
     NSString *summary = body[@"error_summary"];
@@ -196,6 +215,18 @@ static inline VibeDropboxEntryKind VibeDropboxEntryKindOf(NSDictionary *entry) {
     if ([tag isEqualToString:@"folder"]) return VibeDropboxEntryKindFolder;
     if ([tag isEqualToString:@"deleted"]) return VibeDropboxEntryKindDeleted;
     return VibeDropboxEntryKindUnknown;
+}
+
+// A file's size in its metadata, -1 when it names none.
+static inline int64_t VibeDropboxSizeOf(NSDictionary *_Nullable metadata) {
+    id size = metadata[@"size"];
+    return [size isKindOfClass:NSNumber.class] && [size longLongValue] >= 0 ? [size longLongValue] : -1;
+}
+
+// The version a file's metadata names, nil when it names none.
+static inline NSString *_Nullable VibeDropboxRevOf(NSDictionary *_Nullable metadata) {
+    id rev = metadata[@"rev"];
+    return [rev isKindOfClass:NSString.class] ? rev : nil;
 }
 
 // Dropbox's timestamps are UTC to the second ("2015-05-12T15:50:38Z"); -1 for
@@ -301,27 +332,6 @@ static inline NSArray<NSString *> *VibeDropboxPathComponents(NSString *path) {
 static inline BOOL VibeDropboxLocalMatchesEntry(off_t localSize, time_t localModified,
                                                 long long entrySize, time_t entryModified) {
     return entryModified >= 0 && localSize == (off_t)entrySize && localModified == entryModified;
-}
-
-#pragma mark - Streaming
-
-// The tail a stream reads ahead (DropboxMirror's tail read), 0 for none.
-// Every open that reads past its head reads one region at the end (measured,
-// docs/future/dropbox-streaming.md): an MP3's ID3v1 check 4–128 bytes, an APE
-// footer a few KB more, a WAV or AIFF with its fmt last 24 bytes, a FLAC with
-// no length 64 KB, so 128 KB is twice the largest. An MP4's is its moov, which
-// grows with the length: 4 bytes per 1024-sample AAC frame, ~10 KB a minute
-// (61 KB at 6 minutes, 608 KB at 60) against 960 KB a minute of 128 kbps
-// audio, so a 32nd of the file holds the index of any AAC at 43 kbps or more.
-// The cap is a two-hour mix's 1.2 MB with a quarter's headroom; a longer
-// index-last M4A waits for its download. The floor leaves a short track's
-// moov room for the cover it carries. A file no bigger than twice its window
-// takes none: the download sharing the link reaches the tail as soon.
-static inline uint64_t VibeDropboxTailWindowBytes(NSString *extension, uint64_t size) {
-    static const uint64_t kSmall = 128 * 1024, kMP4Floor = 512 * 1024, kMP4Cap = 1536 * 1024;
-    BOOL mp4 = [@[@"m4a", @"m4b", @"m4r", @"mp4", @"qta"] containsObject:extension.lowercaseString];
-    uint64_t window = mp4 ? MIN(kMP4Cap, MAX(kMP4Floor, size / 32)) : kSmall;
-    return size > 2 * window ? window : 0;
 }
 
 NS_ASSUME_NONNULL_END

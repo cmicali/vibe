@@ -10,8 +10,10 @@
 #import <os/lock.h>
 #import <sys/stat.h>
 
+#import "AudioFileOpenRules.h"
 #import "DropboxClientInternal.h"
 #import "DropboxRules.h"
+#import "NSURL+Hash.h"
 
 static NSString *const kFakeAccountID = @"dbid:fake";
 static NSString *const kFakeAccountName = @"Fake Dropbox";
@@ -67,13 +69,9 @@ static void VibeFakeDropboxIssueRev(VibeFakeDropboxItem *item) {
 }
 
 // A file changed on disk since its rev was issued is a new version, as a
-// re-upload is. Under sLock; stat, since NSURL caches resource values.
+// re-upload is: its cacheKey moved. Under sLock.
 static NSString *VibeFakeDropboxRefreshRev(VibeFakeDropboxItem *item) {
-    struct stat info;
-    NSString *stamp = stat(item.url.fileSystemRepresentation, &info) == 0
-            ? [NSString stringWithFormat:@"%lld-%ld.%09ld", (long long)info.st_size,
-               (long)info.st_mtimespec.tv_sec, info.st_mtimespec.tv_nsec]
-            : @"";
+    NSString *stamp = [item.url cacheKey] ?: @"";
     if (!item.rev || ![stamp isEqualToString:item.revStamp]) {
         item.revStamp = stamp;
         VibeFakeDropboxIssueRev(item);
@@ -127,12 +125,11 @@ static NSDictionary *VibeFakeDropboxEntry(VibeFakeDropboxItem *item, NSString *r
             rev = VibeFakeDropboxRefreshRev(item);
             os_unfair_lock_unlock(&sLock);
         }
-        NSNumber *size = nil;
-        NSDate *modified = nil;
-        [item.url removeAllCachedResourceValues];
-        [item.url getResourceValue:&size forKey:NSURLFileSizeKey error:NULL];
-        [item.url getResourceValue:&modified forKey:NSURLContentModificationDateKey error:NULL];
-        entry[@"size"] = size ?: @0;
+        // One stat, since NSURL caches resource values.
+        struct stat info;
+        BOOL stated = stat(item.url.fileSystemRepresentation, &info) == 0;
+        NSDate *modified = stated ? [NSDate dateWithTimeIntervalSince1970:info.st_mtimespec.tv_sec] : nil;
+        entry[@"size"] = @(stated ? info.st_size : 0);
         // Dropbox's form, UTC to the second: what VibeDropboxParseTimestamp reads.
         entry[@"server_modified"] = [NSISO8601DateFormatter stringFromDate:modified ?: NSDate.date
                                                                   timeZone:[NSTimeZone timeZoneForSecondsFromGMT:0]
@@ -302,7 +299,7 @@ static NSData *VibeFakeDropboxBody(NSURLRequest *request) {
 // kinds by their Range: none is a whole download and an open one
 // (`bytes=N-`) the client's resend, both paced off this thread, each piece
 // read as it is sent; a closed one is a tag read, or the tail window when it
-// is the file's last VibeDropboxTailWindowBytes, answered at once. The
+// is the file's last VibeAudioFileTailWindowBytes, answered at once. The
 // request-time faults land here, the delivery-time ones in deliverPieceOf:.
 - (void)serveDownloadFrom:(NSDictionary<NSString *, VibeFakeDropboxItem *> *)items {
     NSString *argument = [self.request valueForHTTPHeaderField:@"Dropbox-API-Arg"];
@@ -327,7 +324,7 @@ static NSData *VibeFakeDropboxBody(NSURLRequest *request) {
     // spanning exactly the file's window up to its last byte.
     struct stat info;
     uint64_t size = item && !item.folder && stat(item.url.fileSystemRepresentation, &info) == 0 ? (uint64_t)info.st_size : 0;
-    uint64_t window = VibeDropboxTailWindowBytes(name.pathExtension ?: @"", size);
+    uint64_t window = VibeAudioFileTailWindowBytes(name.pathExtension ?: @"", size);
     BOOL tail = closed && window > 0 && last == size - 1 && last - first + 1 == window;
     NSString *kind = !range ? @"whole" : !closed ? @"resume" : tail ? @"tail" : @"ranged";
     NSString *rev = byRev ? [path substringFromIndex:4] : item && !item.folder ? VibeFakeDropboxRefreshRev(item) : nil;

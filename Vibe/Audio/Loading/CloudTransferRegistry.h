@@ -32,9 +32,9 @@ NS_ASSUME_NONNULL_BEGIN
 @optional
 // A transfer moved: any finite, strictly positive raw increase, uncoalesced,
 // for the player's open deadline (noteOpenProgressForOpenRequestIdentifier:),
-// never for painting. url is the transfer's own spelling: match it by
+// never for painting. path is the transfer's key, its
 // VibeStandardizedAudioOpenPath.
-- (void)cloudTransferRegistry:(CloudTransferRegistry *)registry didMoveTransferForURL:(NSURL *)url;
+- (void)cloudTransferRegistry:(CloudTransferRegistry *)registry didMoveTransferForPath:(NSString *)path;
 @end
 
 @interface CloudTransferRegistry : NSObject

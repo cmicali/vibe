@@ -23,8 +23,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // `directory` is the account's root: its folders are Dropbox folders, its
 // files Dropbox files, ids are paths, and each file has a rev, named in every
-// answer's Dropbox-API-Result and readable as a `rev:` path, that moves when the file's size or mtime does, as a
-// re-upload's would. Indexed once here, so a request is a lookup. The client's
+// answer's Dropbox-API-Result and readable as a `rev:` path, that moves when
+// the file's size or mtime does, as a re-upload's would. Indexed once here, so
+// a request is a lookup. The client's
 // sessions are rebuilt over the fake and the account is linked as a completed
 // sign-in would be; installing again over an installed fake swaps the tree
 // and clears the faults and the log, leaving the sessions alone. A download
@@ -51,7 +52,7 @@ NS_ASSUME_NONNULL_BEGIN
 //   throttle    once: a download answers 429 with Retry-After `seconds`
 //   expired-token once: a download answers 401 expired_access_token
 //   tail-fail   the tail read (the closed range of the file's last
-//               VibeDropboxTailWindowBytes) answers 500 (persistent)
+//               VibeAudioFileTailWindowBytes) answers 500 (persistent)
 //   slow-tail   the tail read answers after `seconds` (persistent)
 //   slow-tags   any other ranged read — the tag parse's — answers after
 //               `seconds` (persistent)

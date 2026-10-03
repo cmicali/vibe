@@ -48,35 +48,9 @@ static NSError *VibeCancelledError(void) {
     return VibeDropboxMakeError(VibeDropboxErrorCancelled, @"cancelled");
 }
 
-// A file's size in its metadata, -1 when it names none.
-static int64_t VibeMetadataSize(NSDictionary *_Nullable metadata) {
-    id size = metadata[@"size"];
-    return [size isKindOfClass:NSNumber.class] && [size longLongValue] >= 0 ? [size longLongValue] : -1;
-}
-
-// The version a file's metadata names, nil when it names none.
-static NSString *_Nullable VibeMetadataRev(NSDictionary *_Nullable metadata) {
-    id rev = metadata[@"rev"];
-    return [rev isKindOfClass:NSString.class] ? rev : nil;
-}
-
-// A link that dropped or stalled, which a resend may outlast; anything else
-// (TLS, a malformed response) would only fail again.
-static BOOL VibeIsConnectionError(NSError *error) {
-    if (![error.domain isEqualToString:NSURLErrorDomain]) {
-        return NO;
-    }
-    switch (error.code) {
-        case NSURLErrorTimedOut:
-        case NSURLErrorNetworkConnectionLost:
-        case NSURLErrorNotConnectedToInternet:
-        case NSURLErrorCannotConnectToHost:
-        case NSURLErrorCannotFindHost:
-        case NSURLErrorDNSLookupFailed:
-            return YES;
-        default:
-            return NO;
-    }
+// The metadata a content response carries in its Dropbox-API-Result header.
+static NSDictionary *_Nullable VibeDropboxAPIResult(NSHTTPURLResponse *http) {
+    return VibeJSONObject([[http valueForHTTPHeaderField:@"Dropbox-API-Result"] dataUsingEncoding:NSUTF8StringEncoding]);
 }
 
 typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accountGeneration,
@@ -727,9 +701,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
         // A download naming no file: refused at once, and what it buys is the
         // connection to the content host, one per session, since a session's
         // connections are its own (the download on one, its tail on the other).
-        NSURL *url = [NSURL URLWithString:[VIBE_DROPBOX_CONTENT_BASE stringByAppendingString:@"files/download"]];
-        NSMutableURLRequest *request = [self requestForURL:url token:token];
-        [request setValue:VibeDropboxAPIArgHeader(@{@"path": @""}) forHTTPHeaderField:@"Dropbox-API-Arg"];
+        NSMutableURLRequest *request = [self downloadRequestForPath:@"" token:token];
         [[self->_downloadSession dataTaskWithRequest:request] resume];
         [[self->_callSession dataTaskWithRequest:request] resume];
     }];
@@ -833,8 +805,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
             // 200 is a server ignoring the range: the whole file, so cut it,
             // and a range past its end is nothing, never bytes from its start.
             if (http.statusCode == 206 || http.statusCode == 200) {
-                read.metadata = VibeJSONObject([[http valueForHTTPHeaderField:@"Dropbox-API-Result"]
-                                                   dataUsingEncoding:NSUTF8StringEncoding]);
+                read.metadata = VibeDropboxAPIResult(http);
                 NSData *bytes = data ?: [NSData data];
                 if (http.statusCode == 200) {
                     NSUInteger start = (NSUInteger)MIN((uint64_t)bytes.length, offset);
@@ -941,17 +912,16 @@ didReceiveResponse:(NSURLResponse *)response
         completionHandler(NSURLSessionResponseAllow);
         return;
     }
-    NSString *result = [http valueForHTTPHeaderField:@"Dropbox-API-Result"];
-    NSDictionary *metadata = VibeJSONObject([result dataUsingEncoding:NSUTF8StringEncoding]);
+    NSDictionary *metadata = VibeDropboxAPIResult(http);
     if (download.file) {
         // TRAP: a download by id answers whatever version is current, so a
         // resend after a re-upload would splice two versions into one file.
         // Every response must name the first one's rev; with none to compare,
         // nothing proves the bytes match, and the transfer fails the same way.
-        NSString *pinned = VibeMetadataRev(download.metadata);
-        if (!pinned || ![metadata[@"rev"] isEqual:pinned]) {
-            LogWarn(@"Dropbox: %@ changed during its download (rev %@, now %@)",
-                    download.path, pinned, metadata[@"rev"]);
+        NSString *pinned = VibeDropboxRevOf(download.metadata);
+        NSString *rev = VibeDropboxRevOf(metadata);
+        if (!pinned || ![rev isEqualToString:pinned]) {
+            LogWarn(@"Dropbox: %@ changed during its download (rev %@, now %@)", download.path, pinned, rev);
             download.failure = VibeDropboxMakeError(VibeDropboxErrorFileChanged,
                                                     @"the file changed on Dropbox during its download");
             completionHandler(NSURLSessionResponseCancel);
@@ -963,7 +933,7 @@ didReceiveResponse:(NSURLResponse *)response
     }
     // Made once per transfer, at its first accepted response.
     download.metadata = metadata;
-    download.size = VibeMetadataSize(metadata);
+    download.size = VibeDropboxSizeOf(metadata);
     NSFileManager *files = NSFileManager.defaultManager;
     [files removeItemAtURL:download.destination error:NULL];
     if (![files createFileAtPath:download.destination.path contents:nil attributes:nil]) {
@@ -975,7 +945,7 @@ didReceiveResponse:(NSURLResponse *)response
     download.file = [NSFileHandle fileHandleForWritingToURL:download.destination error:&error];
     download.failure = error;
     if (download.file && download.progress) {
-        download.progress(0, download.size, VibeMetadataRev(download.metadata));
+        download.progress(0, download.size, VibeDropboxRevOf(download.metadata));
     }
     completionHandler(download.file ? NSURLSessionResponseAllow : NSURLSessionResponseCancel);
 }
@@ -1011,7 +981,7 @@ didReceiveResponse:(NSURLResponse *)response
     os_unfair_lock_unlock(&_lock);
     // After the write: a reader told of these bytes finds them on disk.
     if (download.progress) {
-        download.progress(written, download.size, VibeMetadataRev(download.metadata));
+        download.progress(written, download.size, VibeDropboxRevOf(download.metadata));
     }
 }
 
@@ -1036,11 +1006,11 @@ didCompleteWithError:(NSError *)error {
     }
     // Every byte is here: a resend would ask for bytes=<size>-, which 416s.
     BOOL whole = download.file && download.size >= 0 && download.bytesWritten == (uint64_t)download.size;
-    if (error && whole && !download.errorData && VibeIsConnectionError(error)) {
+    if (error && whole && !download.errorData && VibeDropboxIsConnectionError(error)) {
         error = nil;
     }
     if (error) {
-        if (download.file && download.networkRetries < kMaximumNetworkRetries && VibeIsConnectionError(error)) {
+        if (download.file && download.networkRetries < kMaximumNetworkRetries && VibeDropboxIsConnectionError(error)) {
             download.networkRetries++;
             LogInfo(@"Dropbox: resuming %@ at byte %llu: %@", download.path, download.bytesWritten,
                     error.localizedDescription);

@@ -133,9 +133,7 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
         dispatch_async(_loaderQueue, ^{
             // No memory cache (PINCache+VibeAudioCache): the view retains the
             // one live waveform, and a replay re-reads from disk in a few ms.
-            self->_waveformCache = rootPath
-                    ? [[PINCache alloc] initWithName:AudioWaveformCache.cacheName rootPath:rootPath]
-                    : [PINCache audioCacheWithName:AudioWaveformCache.cacheName];
+            self->_waveformCache = [PINCache audioCacheWithName:AudioWaveformCache.cacheName rootPath:rootPath];
         });
     }
     return self;
@@ -555,19 +553,6 @@ awaitPersist:(BOOL)awaitPersist
 }
 
 #if DEBUG
-
-+ (double)debugFilledFractionOfWaveform:(CodableAudioWaveform *)codable {
-    AudioWaveform *waveform = codable.waveform;
-    NSUInteger count = waveform ? waveform->getNumChunks() : 0;
-    const AudioWaveformCacheChunk *chunks = count ? (const AudioWaveformCacheChunk *)waveform->getBytes() : NULL;
-    NSUInteger filled = 0;
-    for (NSUInteger index = 0; index < count; index++) {
-        if (chunks[index].getMax() != chunks[index].getMin() || chunks[index].getMeanSquare() > 0) {
-            filled = index + 1;
-        }
-    }
-    return count ? (double)filled / count : 0;
-}
 
 #pragma mark - Debug: per-file cache control
 

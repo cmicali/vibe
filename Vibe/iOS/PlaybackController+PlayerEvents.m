@@ -45,6 +45,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [self notifyDidBeginLoading];
     if (_loadingOpenRequestIdentifier != openRequestIdentifier) {
         _loadingURL = track.url;
+        _loadingPath = VibeStandardizedAudioOpenPath(track.url);
         _loadingOpenRequestIdentifier = openRequestIdentifier;
         _loadingProgress = -1;
     }
@@ -94,8 +95,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 }
 
 // By open identifier, so an older open's transfer cannot extend this one.
-- (void)cloudTransferRegistry:(CloudTransferRegistry *)registry didMoveTransferForURL:(NSURL *)url {
-    if (_loadingURL && [VibeStandardizedAudioOpenPath(url) isEqualToString:VibeStandardizedAudioOpenPath(_loadingURL)]) {
+- (void)cloudTransferRegistry:(CloudTransferRegistry *)registry didMoveTransferForPath:(NSString *)path {
+    if ([path isEqualToString:_loadingPath]) {
         [_player noteOpenProgressForOpenRequestIdentifier:_loadingOpenRequestIdentifier];
     }
 }

@@ -26,15 +26,15 @@
 // A second observer, as each shell's player model is beside its row list.
 @interface VibeTestTransferObserver : NSObject <CloudTransferRegistryObserver>
 @property (nonatomic) NSUInteger changes;
-@property (nonatomic, strong) NSMutableArray<NSURL *> *moves;
+@property (nonatomic, strong) NSMutableArray<NSString *> *moves;
 @end
 
 @implementation VibeTestTransferObserver
 - (void)cloudTransferRegistryDidChange:(CloudTransferRegistry *)registry {
     self.changes++;
 }
-- (void)cloudTransferRegistry:(CloudTransferRegistry *)registry didMoveTransferForURL:(NSURL *)url {
-    [self.moves addObject:url];
+- (void)cloudTransferRegistry:(CloudTransferRegistry *)registry didMoveTransferForPath:(NSString *)path {
+    [self.moves addObject:path];
 }
 @end
 
@@ -199,7 +199,7 @@
 }
 
 // The open deadline's feed: every raw movement, uncoalesced and on the call,
-// with the transfer's URL; none once the transfer ended.
+// with the transfer's path; none once the transfer ended.
 - (void)testMovementReachesObserversUncoalescedUntilTheTransferEnds {
     VibeTestTransferObserver *model = [[VibeTestTransferObserver alloc] init];
     model.moves = [NSMutableArray array];
@@ -209,7 +209,8 @@
     VibeTestTransferMonitor *monitor = _monitors.firstObject;
     monitor.movement();
     monitor.movement();
-    XCTAssertEqualObjects(model.moves, (@[url, url]), @"each movement, on the call");
+    NSString *path = VibeStandardizedAudioOpenPath(url);
+    XCTAssertEqualObjects(model.moves, (@[path, path]), @"each movement, on the call");
     XCTAssertEqual([_registry progressForURL:url], -1, @"movement is not a fraction");
     [self endForURL:url];
     monitor.movement();

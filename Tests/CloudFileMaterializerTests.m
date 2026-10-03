@@ -232,7 +232,7 @@
     dispatch_semaphore_t returned = dispatch_semaphore_create(0);
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSError *waitError = nil;
-        *result = [availability waitForBytesAt:offset length:length windowInto:NULL capacity:0 copied:NULL interrupted:interrupted error:&waitError];
+        *result = [availability waitForBytesAt:offset length:length windowInto:NULL capacity:0 copied:NULL interrupted:interrupted deadline:nil error:&waitError];
         if (error) {
             *error = waitError;
         }
@@ -253,9 +253,9 @@
 // AIFF and some WAVs read at exactly the size: the end, never a wait.
 - (void)testAvailabilityAnswersARangeAtOrPastTheSizeAtOnce {
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
-    XCTAssertEqual([availability waitForBytesAt:100 length:4 windowInto:NULL capacity:0 copied:NULL interrupted:nil error:NULL], CloudFileAvailabilityReady);
-    XCTAssertEqual([availability waitForBytesAt:500 length:1 windowInto:NULL capacity:0 copied:NULL interrupted:nil error:NULL], CloudFileAvailabilityReady);
-    XCTAssertEqual([availability waitForBytesAt:10 length:0 windowInto:NULL capacity:0 copied:NULL interrupted:nil error:NULL], CloudFileAvailabilityReady);
+    XCTAssertEqual([availability waitForBytesAt:100 length:4 windowInto:NULL capacity:0 copied:NULL interrupted:nil deadline:nil error:NULL], CloudFileAvailabilityReady);
+    XCTAssertEqual([availability waitForBytesAt:500 length:1 windowInto:NULL capacity:0 copied:NULL interrupted:nil deadline:nil error:NULL], CloudFileAvailabilityReady);
+    XCTAssertEqual([availability waitForBytesAt:10 length:0 windowInto:NULL capacity:0 copied:NULL interrupted:nil deadline:nil error:NULL], CloudFileAvailabilityReady);
 }
 
 // A range is clipped to the size, so one running past it waits only for the
@@ -264,7 +264,7 @@
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
     [availability noteWrittenBytes:60];
     [availability noteWrittenBytes:20];
-    XCTAssertEqual([availability waitForBytesAt:0 length:60 windowInto:NULL capacity:0 copied:NULL interrupted:nil error:NULL], CloudFileAvailabilityReady);
+    XCTAssertEqual([availability waitForBytesAt:0 length:60 windowInto:NULL capacity:0 copied:NULL interrupted:nil deadline:nil error:NULL], CloudFileAvailabilityReady);
     CloudFileAvailabilityWait result = CloudFileAvailabilityFailed;
     dispatch_semaphore_t returned = [self wait:availability at:90 length:50 interrupted:nil result:&result error:NULL];
     [availability noteWrittenBytes:99];
@@ -282,7 +282,7 @@
     [availability finishWithError:[NSError errorWithDomain:@"late" code:1 userInfo:nil]];
     [self awaitReturn:returned];
     XCTAssertEqual(result, CloudFileAvailabilityReady);
-    XCTAssertEqual([availability waitForBytesAt:50 length:50 windowInto:NULL capacity:0 copied:NULL interrupted:nil error:NULL], CloudFileAvailabilityReady);
+    XCTAssertEqual([availability waitForBytesAt:50 length:50 windowInto:NULL capacity:0 copied:NULL interrupted:nil deadline:nil error:NULL], CloudFileAvailabilityReady);
 }
 
 // A failed transfer fails every wait, a blocked one with its error, and
@@ -299,7 +299,7 @@
     XCTAssertEqual(result, CloudFileAvailabilityFailed);
     XCTAssertEqualObjects(error, failure);
     error = nil;
-    XCTAssertEqual([availability waitForBytesAt:0 length:10 windowInto:NULL capacity:0 copied:NULL interrupted:nil error:&error], CloudFileAvailabilityFailed);
+    XCTAssertEqual([availability waitForBytesAt:0 length:10 windowInto:NULL capacity:0 copied:NULL interrupted:nil deadline:nil error:&error], CloudFileAvailabilityFailed);
     XCTAssertEqualObjects(error, failure);
 }
 
@@ -319,7 +319,7 @@
     [availability wakeWaiters];
     [self awaitReturn:returned];
     XCTAssertEqual(result, CloudFileAvailabilityInterrupted);
-    XCTAssertEqual([availability waitForBytesAt:0 length:10 windowInto:NULL capacity:0 copied:NULL interrupted:isInterrupted error:NULL], CloudFileAvailabilityReady);
+    XCTAssertEqual([availability waitForBytesAt:0 length:10 windowInto:NULL capacity:0 copied:NULL interrupted:isInterrupted deadline:nil error:NULL], CloudFileAvailabilityReady);
 }
 
 #pragma mark - The tail window
@@ -336,12 +336,13 @@ static NSData *WindowPattern(NSUInteger length) {
 static CloudFileAvailabilityWait Probe(CloudFileAvailability *availability, uint64_t offset, uint64_t length,
                                        uint8_t *_Nullable buffer, uint64_t capacity, uint64_t *copied) {
     return [availability waitForBytesAt:offset length:length windowInto:buffer capacity:capacity copied:copied
-                            interrupted:^BOOL { return YES; } error:NULL];
+                            interrupted:^BOOL { return YES; } deadline:nil error:NULL];
 }
 
 // A range wholly inside the window is ready past the download's edge and
-// copied out of it, as much as the capacity takes; without a buffer, or
-// straddling the window's start, it waits for the disk.
+// copied out of it, as much as the capacity takes, or, without a buffer,
+// ready with nothing copied; straddling the window's start, it waits for the
+// disk. A deadline ends a wait as an interrupt does.
 - (void)testAvailabilityServesARangeInsideTheWindowFromMemory {
     NSData *file = WindowPattern(100);
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
@@ -360,8 +361,12 @@ static CloudFileAvailabilityWait Probe(CloudFileAvailability *availability, uint
     XCTAssertEqual(copied, 5u, @"clipped to the size");
     XCTAssertEqual(memcmp(buffer, (const uint8_t *)file.bytes + 95, 5), 0);
 
-    XCTAssertEqual(Probe(availability, 70, 10, NULL, 0, &copied), CloudFileAvailabilityInterrupted,
-                   @"a reader of the disk alone waits");
+    XCTAssertEqual(Probe(availability, 70, 10, NULL, 0, &copied), CloudFileAvailabilityReady,
+                   @"held, for readyBytesAt: to hand over");
+    XCTAssertEqual(copied, 0u);
+    XCTAssertEqual([availability waitForBytesAt:55 length:10 windowInto:NULL capacity:0 copied:NULL interrupted:nil
+                                       deadline:[NSDate dateWithTimeIntervalSinceNow:0.05] error:NULL],
+                   CloudFileAvailabilityInterrupted, @"the deadline ends the wait");
     XCTAssertEqual(Probe(availability, 55, 10, buffer, 64, &copied), CloudFileAvailabilityInterrupted,
                    @"a range straddling the window's start waits for the disk");
     XCTAssertEqual(Probe(availability, 0, 10, buffer, 64, &copied), CloudFileAvailabilityReady);
@@ -405,7 +410,7 @@ static CloudFileAvailabilityWait Probe(CloudFileAvailability *availability, uint
     dispatch_semaphore_t returned = dispatch_semaphore_create(0);
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         uint64_t got = 0;
-        result = [availability waitForBytesAt:96 length:4 windowInto:buffer capacity:64 copied:&got interrupted:nil error:NULL];
+        result = [availability waitForBytesAt:96 length:4 windowInto:buffer capacity:64 copied:&got interrupted:nil deadline:nil error:NULL];
         copied = got;
         dispatch_semaphore_signal(returned);
     });
@@ -425,7 +430,7 @@ static CloudFileAvailabilityWait Probe(CloudFileAvailability *availability, uint
     NSError *error = nil;
     uint8_t probe[8];
     XCTAssertEqual([availability waitForBytesAt:96 length:4 windowInto:probe capacity:8 copied:NULL
-                                    interrupted:nil error:&error], CloudFileAvailabilityFailed);
+                                    interrupted:nil deadline:nil error:&error], CloudFileAvailabilityFailed);
     XCTAssertEqualObjects(error, failure);
     [availability installWindow:[file subdataWithRange:NSMakeRange(50, 50)] atOffset:50];
     XCTAssertEqual(availability.windowLength, 0u, @"nothing is installed once finished");

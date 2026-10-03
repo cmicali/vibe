@@ -11,6 +11,7 @@
 #include <sys/xattr.h>
 #include <unistd.h>
 
+#import "AudioFileOpenRules.h"
 #import "CloudFileMaterializer.h"
 #import "DropboxRules.h"
 #import "FileSearchRules.h"
@@ -707,23 +708,10 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
     if (!stream) {
         return nil;
     }
-    uint64_t window = VibeDropboxTailWindowBytes(url.pathExtension, stream.size);
+    uint64_t window = VibeAudioFileTailWindowBytes(url.pathExtension, stream.size);
     if (offset + length <= kStreamedTagHeadBytes || (window > 0 && offset >= stream.size - window)) {
-        // A stream stalled before its first byte broadcasts nothing to end the wait.
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kStreamedTagWaitSeconds * NSEC_PER_SEC)),
-                       dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-            [stream wakeWaiters];
-        });
-        NSMutableData *copy = [NSMutableData dataWithLength:(NSUInteger)length];
-        uint64_t copied = 0;
-        CloudFileAvailabilityWait waited = [stream waitForBytesAt:offset length:length windowInto:copy.mutableBytes
-                                                         capacity:length copied:&copied interrupted:^BOOL {
-            return deadline.timeIntervalSinceNow <= 0;
-        } error:NULL];
-        if (waited == CloudFileAvailabilityReady && copied > 0) {
-            copy.length = (NSUInteger)copied;
-            return copy;
-        }
+        [stream waitForBytesAt:offset length:length windowInto:NULL capacity:0 copied:NULL interrupted:nil
+                      deadline:deadline error:NULL];
     }
     return [stream readyBytesAt:offset length:length];
 }
@@ -783,8 +771,7 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
     return [_client readPath:path offset:size - window length:window
                   completion:^(NSData *data, NSDictionary *metadata, NSError *error) {
         if (data.length == window) {
-            id rev = metadata[@"rev"];
-            landed(data, [rev isKindOfClass:NSString.class] ? rev : nil);
+            landed(data, VibeDropboxRevOf(metadata));
             return;
         }
         if (!([error.domain isEqualToString:VibeDropboxErrorDomain] && error.code == VibeDropboxErrorCancelled)) {
@@ -856,7 +843,7 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
     // Under _streamsCondition: what each side knew when the other landed.
     struct stat listing;
     uint64_t listed = stat(url.fileSystemRepresentation, &listing) == 0 ? (uint64_t)listing.st_size : 0;
-    uint64_t window = VibeDropboxTailWindowBytes(url.pathExtension, listed);
+    uint64_t window = VibeAudioFileTailWindowBytes(url.pathExtension, listed);
     __block BOOL headKnown = NO;
     __block NSString *headRev = nil;
     __block NSData *tailBytes = nil;

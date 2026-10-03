@@ -145,13 +145,11 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
 @property (nonatomic, strong, nullable) AudioWorkToken *probeToken;
 @property (nonatomic) BOOL yieldIfDatalessAfterProbe;
 @property (nonatomic, strong, nullable) id<AudioFileMaterializationOperation> operation;
-// Running and readable: the transfer goes on, its playback and prefetch
-// waiters were served, and its handles read the part file through
-// `availability` until the run settles.
-@property (nonatomic) BOOL readable;
+// Set while Running and readable: the transfer goes on, its playback and
+// prefetch waiters were served, and its handles read the part file through
+// it until the run settles. Its holders are the opens it dispatched and the
+// handles they returned.
 @property (nonatomic, strong, nullable) CloudFileAvailability *availability;
-// Handle opens dispatched while readable and not yet returned.
-@property (nonatomic) NSUInteger streamOpens;
 @end
 
 @implementation VibeAudioFileMaterializationClaim
@@ -191,18 +189,8 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
     return self;
 }
 
-// A download can install another version than its placeholder stood for (a
-// file re-uploaded since its folder was listed), so every track's memoized
-// key is retired when the file's own key moved: its waveform and metadata
-// must not be filed under, or served from, the old version's entries.
 - (BOOL)runOnReadable:(dispatch_block_t)onReadable error:(NSError *__autoreleasing *)error {
-    NSString *placeholderKey = [_url cacheKey];
-    BOOL ready = [_materializer materializeURL:_url token:_token onReadable:onReadable error:error];
-    if (ready && placeholderKey && ![placeholderKey isEqualToString:[_url cacheKey]]) {
-        LogInfo(@"%@ downloaded as another version than its placeholder's; re-keying", _url.lastPathComponent);
-        [AudioTrack invalidateMemoizedCacheKeys];
-    }
-    return ready;
+    return [_materializer materializeURL:_url token:_token onReadable:onReadable error:error];
 }
 
 - (void)cancel {
@@ -574,14 +562,16 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
 // A readable stream's open in flight or handle alive: its playback and
 // prefetch waiters were served, but what they opened still reads the transfer.
 - (BOOL)streamIsReadForClaim:(VibeAudioFileMaterializationClaim *)claim {
-    return claim.readable && (claim.streamOpens > 0 || claim.availability.readerCount > 0);
+    return claim.availability.readerCount > 0;
 }
 
 // A playback or prefetch waiter, or a stream one of their handles reads.
 - (BOOL)claimServesForeground:(VibeAudioFileMaterializationClaim *)claim {
-    for (VibeAudioFileMaterializationWaiter *waiter in claim.waiters.objectEnumerator) {
-        if (!VibeMaterializationRoleIsMetadata(waiter.role)) {
-            return YES;
+    if (claim.waiters.count) {
+        for (VibeAudioFileMaterializationWaiter *waiter in claim.waiters.objectEnumerator) {
+            if (!VibeMaterializationRoleIsMetadata(waiter.role)) {
+                return YES;
+            }
         }
     }
     return [self streamIsReadForClaim:claim];
@@ -815,7 +805,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
                     && claim.effectiveRole != oldRole) {
                 [self readmitPendingClaim:claim];
             }
-            if (claim.readable && !VibeMaterializationRoleIsMetadata(role)) {
+            if (claim.availability && !VibeMaterializationRoleIsMetadata(role)) {
                 // Next turn: a handle run sets its token after this returns,
                 // and the installed waiter holds the stream until then.
                 uint64_t runGeneration = claim.runGeneration;
@@ -955,6 +945,22 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     return YES;
 }
 
+// A download can install another version than its placeholder stood for (a
+// file re-uploaded since its folder was listed), so every track's memoized
+// key is retired when the file's own key moved: its waveform and metadata
+// must not be filed under, or served from, the old version's entries. Only a
+// dataless file downloads, so only its key is taken, each a stat and a hash.
+static BOOL VibeRunMaterialization(id<AudioFileMaterializationOperation> operation, NSURL *url, BOOL dataless,
+                                   dispatch_block_t onReadable, NSError *__autoreleasing *error) {
+    NSString *placeholderKey = dataless ? [url cacheKey] : nil;
+    BOOL ready = [operation runOnReadable:onReadable error:error];
+    if (ready && placeholderKey && ![placeholderKey isEqualToString:[url cacheKey]]) {
+        LogInfo(@"%@ downloaded as another version than its placeholder's; re-keying", url.lastPathComponent);
+        [AudioTrack invalidateMemoizedCacheKeys];
+    }
+    return ready;
+}
+
 - (void)startClaim:(VibeAudioFileMaterializationClaim *)claim
         classificationFresh:(BOOL)classificationFresh {
     BOOL refreshBeforeStart = claim.dataless && !classificationFresh;
@@ -996,11 +1002,11 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
             });
         }
     };
+    NSURL *url = claim.url;
     if (refreshBeforeStart) {
         claim.state = VibeMaterializationClaimStateRefreshing;
         VibeAudioFileMaterializationDatalessProbe probe = _datalessProbe;
         VibeDatalessProbeActivity *activity = _datalessProbeActivity;
-        NSURL *url = claim.url;
         [activity beginAttempt];
         dispatch_async(workerQueue, ^{
             BOOL dataless = probe(url);
@@ -1020,7 +1026,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
                 return;
             }
             NSError *error = nil;
-            BOOL ready = [operation runOnReadable:onReadable error:&error];
+            BOOL ready = VibeRunMaterialization(operation, url, dataless, onReadable, &error);
             AudioFileMaterializationCoordinator *completionSelf = weakSelf;
             if (completionSelf) {
                 dispatch_async(completionSelf->_stateQueue, ^{
@@ -1036,9 +1042,10 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     if (claim.dataless) {
         [self publishTransferBeginForClaim:claim];
     }
+    BOOL dataless = claim.dataless;
     dispatch_async(workerQueue, ^{
         NSError *error = nil;
-        BOOL ready = [operation runOnReadable:onReadable error:&error];
+        BOOL ready = VibeRunMaterialization(operation, url, dataless, onReadable, &error);
         AudioFileMaterializationCoordinator *strongSelf = weakSelf;
         if (!strongSelf) {
             return;
@@ -1072,8 +1079,6 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     claim.operation = nil;
     claim.availability.onLastReaderGone = nil;
     claim.availability = nil;
-    claim.readable = NO;
-    claim.streamOpens = 0;
     if (ready) {
         claim.dataless = NO;
     }
@@ -1148,7 +1153,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
 // its registry entry, and its playback and prefetch waiters are served now.
 - (void)claimBecameReadable:(VibeAudioFileMaterializationClaim *)claim
               runGeneration:(uint64_t)runGeneration {
-    if (![self claim:claim isRunningGeneration:runGeneration] || claim.readable) {
+    if (![self claim:claim isRunningGeneration:runGeneration] || claim.availability) {
         return;
     }
     // Nil only once the transfer has finished, and its completion is coming.
@@ -1156,7 +1161,6 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     if (!availability) {
         return;
     }
-    claim.readable = YES;
     claim.availability = availability;
     __weak AudioFileMaterializationCoordinator *weakSelf = self;
     __weak VibeAudioFileMaterializationClaim *weakClaim = claim;
@@ -1164,7 +1168,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
         AudioFileMaterializationCoordinator *strongSelf = weakSelf;
         if (strongSelf) {
             dispatch_async(strongSelf->_stateQueue, ^{
-                [strongSelf streamReleasedForClaim:weakClaim runGeneration:runGeneration openReturned:NO];
+                [strongSelf streamReleasedForClaim:weakClaim runGeneration:runGeneration];
             });
         }
     };
@@ -1173,10 +1177,10 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
 
 // Each playback and prefetch waiter leaves as a Ready would settle it. A
 // handle run's open is dispatched in this turn, never through its token, so
-// streamOpens holds the stream from the waiter's leaving onward.
+// the open holds the stream from the waiter's leaving onward.
 - (void)serveReadableClaim:(VibeAudioFileMaterializationClaim *)claim
              runGeneration:(uint64_t)runGeneration {
-    if (![self claim:claim isRunningGeneration:runGeneration] || !claim.readable) {
+    if (![self claim:claim isRunningGeneration:runGeneration] || !claim.availability) {
         return;
     }
     NSTimeInterval now = _clock();
@@ -1219,14 +1223,11 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     [claim.operation cancel];
 }
 
+// The availability's last holder left (onLastReaderGone).
 - (void)streamReleasedForClaim:(VibeAudioFileMaterializationClaim *)claim
-                 runGeneration:(uint64_t)runGeneration
-                  openReturned:(BOOL)openReturned {
-    if (![self claim:claim isRunningGeneration:runGeneration] || !claim.readable) {
+                 runGeneration:(uint64_t)runGeneration {
+    if (![self claim:claim isRunningGeneration:runGeneration] || !claim.availability) {
         return;
-    }
-    if (openReturned && claim.streamOpens > 0) {
-        claim.streamOpens--;
     }
     [self cancelRunIfAbandoned:claim];
     // The hold may have dropped with it.
@@ -1582,14 +1583,10 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
 #endif
     // Snapshotted on the state queue: the debug channel swaps the opener.
     VibeAudioFileOpener opener = _fileOpener;
-    // Counted until the open returns, so the stream is not abandoned before
+    // A holder until the open returns, so the stream is not abandoned before
     // the handle that will hold it exists.
-    VibeAudioFileMaterializationClaim *stream = _claims[run.path];
-    if (!stream.readable) {
-        stream = nil;
-    }
-    uint64_t streamGeneration = stream.runGeneration;
-    stream.streamOpens++;
+    CloudFileAvailability *stream = _claims[run.path].availability;
+    [stream addReader];
     run.openInterrupted = NO;
     BOOL (^interrupted)(void) = ^BOOL{
         return run.openInterrupted;
@@ -1602,17 +1599,18 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
         }
         NSError *error = nil;
         AudioFileHandle *file = opener(run.url, interrupted, &error);
-        // Before the open's count lets the stream go below.
+        // Before the open's hold lets the stream go below.
         [file holdStream];
         dispatch_async(strongSelf->_stateQueue, ^{
 #if DEBUG
             atomic_fetch_add(&strongSelf->_handleOpensCompleted, 1);
 #endif
-            // First: a rebound run's restart installs its waiter, which
-            // holds the stream before the open's count lets it go.
+            // TRAP: first, so a rebound run's restart installs its waiter,
+            // which holds the stream, before the open's hold lets it go: the
+            // last holder's release reaches this queue behind this turn.
             [strongSelf finishHandleRun:run runGeneration:runGeneration
                                    file:file error:error];
-            [strongSelf streamReleasedForClaim:stream runGeneration:streamGeneration openReturned:YES];
+            [stream removeReader];
         });
     });
 }
@@ -1661,7 +1659,7 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
         snapshot.waiterCount = 0;
         for (VibeAudioFileMaterializationClaim *claim in self->_claims.objectEnumerator) {
             snapshot.waiterCount += claim.waiters.count;
-            snapshot.readableClaimCount += claim.readable;
+            snapshot.readableClaimCount += claim.availability != nil;
         }
         snapshot.interactiveRunningCount = self->_interactiveRunningCount;
         snapshot.backgroundRunningCount = self->_backgroundRunningCount;

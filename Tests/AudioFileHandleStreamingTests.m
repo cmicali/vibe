@@ -49,6 +49,7 @@
                                    capacity:(uint64_t)capacity
                                      copied:(uint64_t *)copied
                                 interrupted:(BOOL (NS_NOESCAPE ^)(void))interrupted
+                                   deadline:(NSDate *)deadline
                                       error:(NSError *__autoreleasing *)error {
     uint64_t end = offset >= self.size || length == 0 ? 0 : offset + MIN(length, self.size - offset);
     os_unfair_lock_lock(&_lock);
@@ -67,7 +68,7 @@
             willBlock(end);
         }
         return NO;
-    } error:error];
+    } deadline:deadline error:error];
 }
 
 @end

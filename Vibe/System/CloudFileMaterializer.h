@@ -84,22 +84,24 @@ typedef NS_ENUM(NSInteger, CloudFileAvailabilityWait) {
 // The bytes the window holds now; 0 when none is.
 @property (nonatomic, readonly) uint64_t windowLength;
 
-// Blocks until [offset, offset + length) is on disk, the transfer finished,
-// or `interrupted` answers YES; it is asked each time the wait would block,
-// under the lock wakeWaiters takes. A range is clipped to the size, and one
-// at or past it is the end, never a wait. A range already readable is Ready
-// even when interrupted: an interrupt ends waits, not reads. With a buffer,
-// a range not on disk but wholly inside the window is Ready too, and up to
-// `capacity` bytes from offset are copied out of the window into it, their
-// count in *copied (0: read the disk); a range straddling the window's start
-// waits for the disk. The one range question, so a source of bytes changes
-// what answers it, not who asks.
+// Blocks until [offset, offset + length) is held, the transfer finished,
+// `interrupted` answers YES, or `deadline` passes (Interrupted for both);
+// `interrupted` is asked each time the wait would block, under the lock
+// wakeWaiters takes. A range is clipped to the size, and one at or past it is
+// the end, never a wait. A range already readable is Ready even when
+// interrupted: an interrupt ends waits, not reads. A range not on disk but
+// wholly inside the window is Ready too, and with a buffer up to `capacity`
+// bytes from offset are copied out of the window into it, their count in
+// *copied (0: read the disk); without one, readyBytesAt: hands them over. A
+// range straddling the window's start waits for the disk. The one range
+// question, so a source of bytes changes what answers it, not who asks.
 - (CloudFileAvailabilityWait)waitForBytesAt:(uint64_t)offset
                                      length:(uint64_t)length
                                  windowInto:(void *_Nullable)buffer
                                    capacity:(uint64_t)capacity
                                      copied:(uint64_t *_Nullable)copied
                                 interrupted:(BOOL (NS_NOESCAPE ^_Nullable)(void))interrupted
+                                   deadline:(nullable NSDate *)deadline
                                       error:(NSError *__autoreleasing _Nullable *_Nullable)error;
 // Never waits: the longest prefix of [offset, offset + length) readable now,
 // copied out of the window, or read from the part file below the bytes
@@ -111,8 +113,9 @@ typedef NS_ENUM(NSInteger, CloudFileAvailabilityWait) {
 // one answer YES.
 - (void)wakeWaiters;
 
-// A reader is an AudioFileHandle open on the part file, counted from its open
-// to its dealloc, so whoever runs the transfer can tell when nobody reads it.
+// A holder: a reader, an AudioFileHandle open on the part file, counted from
+// its open to its dealloc, or an open about to become one, so whoever runs the
+// transfer can tell when nobody still wants it.
 - (void)addReader;
 - (void)removeReader;
 @property (nonatomic, readonly) NSUInteger readerCount;

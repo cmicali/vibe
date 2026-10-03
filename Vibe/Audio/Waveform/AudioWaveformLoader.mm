@@ -237,10 +237,10 @@
     }
     // file.length is exact for every CoreAudio format, an estimate made so at
     // the open, so no prescan is needed. Chunk i covers frames
-    // [i*T/N, (i+1)*T/N), every frame is scanned, and a normal file always fills exactly numChunks chunks at
-    // their final positions, so nothing moves when the load completes. Only a
-    // file with fewer frames than chunks decodes short and is stretched
-    // afterwards.
+    // [i*T/N, (i+1)*T/N), every frame is scanned, and a normal file always
+    // fills exactly numChunks chunks at their final positions, so nothing
+    // moves when the load completes. Only a file with fewer frames than chunks
+    // decodes short and is stretched afterwards.
     pass->effectiveChunks = pass->totalFrames < (AVAudioFramePosition)numChunks
             ? (NSUInteger)pass->totalFrames
             : numChunks;

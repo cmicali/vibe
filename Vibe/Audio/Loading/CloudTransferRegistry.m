@@ -161,13 +161,12 @@
 }
 
 - (void)monitorReportedMovementForPath:(NSString *)path {
-    NSURL *url = _entries[path].url;
-    if (!url) {
+    if (!_entries[path]) {
         return;
     }
     for (id<CloudTransferRegistryObserver> observer in _observers.allObjects) {
-        if ([observer respondsToSelector:@selector(cloudTransferRegistry:didMoveTransferForURL:)]) {
-            [observer cloudTransferRegistry:self didMoveTransferForURL:url];
+        if ([observer respondsToSelector:@selector(cloudTransferRegistry:didMoveTransferForPath:)]) {
+            [observer cloudTransferRegistry:self didMoveTransferForPath:path];
         }
     }
 }
