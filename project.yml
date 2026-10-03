@@ -323,7 +323,8 @@ targets:
               - "com.apple.quicktime-audio"
               - "com.apple.protected-mpeg-4-audio-b"
               - "org.xiph.ogg-audio"
-          - CFBundleTypeName: "CUE Sheet"
+          - &cue-sheet-document-type
+            CFBundleTypeName: "CUE Sheet"
             CFBundleTypeRole: "Viewer"
             LSHandlerRank: "Alternate"
             LSItemContentTypes:
@@ -340,8 +341,8 @@ targets:
             LSItemContentTypes:
               - "org.xiph.flac"
 
-        # macOS has no system UTI for cue sheets (they read as dyn.*).
-        UTExportedTypeDeclarations:
+        # Neither system has a UTI for cue sheets (they read as dyn.*).
+        UTExportedTypeDeclarations: &cue-sheet-export
           - UTTypeIdentifier: "com.commonwealthrecordings.cue-sheet"
             UTTypeDescription: "CUE Sheet"
             UTTypeConformsTo:
@@ -514,15 +515,17 @@ targets:
         # PKCE, which needs none, and the redirect it pairs with is the
         # db-<key> scheme Dropbox grants every app without registration.
         VibeDropboxAppKey: n3d3xw7piaqy2fz
-        # Same key and UTIs as the mac target's "Audio Files" entry, so
+        # The mac target's "Audio Files" and "CUE Sheet" entries, so
         # InfoPlist.xcstrings localizes both. No Folder claim (Launch Services
-        # folder handling is a mac concept) and no related-item FLAC entry
-        # (Convert is not compiled on iOS).
+        # folder handling is a mac concept), no M3U (iOS reads none) and no
+        # related-item FLAC entry (Convert is not compiled on iOS).
         CFBundleDocumentTypes:
           - CFBundleTypeName: "Audio Files"
             CFBundleTypeRole: "Viewer"
             LSHandlerRank: "Default"
             LSItemContentTypes: *audio-content-types
+          - *cue-sheet-document-type
+        UTExportedTypeDeclarations: *cue-sheet-export
         UTImportedTypeDeclarations: *ogg-audio-import
     settings:
       groups: [vibe-version, vibe-header-paths]

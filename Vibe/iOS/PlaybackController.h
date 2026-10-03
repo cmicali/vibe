@@ -80,6 +80,11 @@ NS_ASSUME_NONNULL_BEGIN
 // one — read playlist.count before presenting an empty state — and every
 // Add in flight was superseded.
 - (void)playbackDidOpenEmptyFolder:(PlaybackController *)playback;
+// Sent after an open or Add of a CUE sheet settled empty because the sheet's
+// folder is denied; openSheetURL:inGrantedFolder:appending: takes the folder.
+- (void)playback:(PlaybackController *)playback
+        needsFolderOfSheetAtURL:(NSURL *)sheetURL
+                      appending:(BOOL)appending;
 // A relaunch restore came to nothing, or there was nothing to restore.
 - (void)playbackHasNothingToRestore:(PlaybackController *)playback;
 
@@ -199,6 +204,10 @@ NS_ASSUME_NONNULL_BEGIN
 // UIOpenURLContext.options: YES means the real files, so their scopes and the
 // expand-to-directory apply.
 - (void)openURLs:(NSArray<NSURL *> *)urls openInPlace:(BOOL)openInPlace;
+
+// The sheet playback:needsFolderOfSheetAtURL:appending: named, with the folder
+// the user picked for it (FolderSession's).
+- (void)openSheetURL:(NSURL *)sheetURL inGrantedFolder:(NSURL *)folderURL appending:(BOOL)appending;
 
 // Unloads everything, the twin of the mac's File > Close: the player, the
 // session with its scopes and persisted bookmarks (the next launch restores

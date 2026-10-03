@@ -98,6 +98,11 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 // so a sheet inside a file applies wherever the file is opened.
 + (NSArray<AudioTrack *> *)rowsForFile:(NSURL *)url;
 
+// YES when the sandbox, not absence, keeps url from being read: the one case
+// a grant would fix. A sheet's rowsForFile: is empty when it is the sheet's
+// folder that is denied.
++ (BOOL)isReadDenied:(NSURL *)url;
+
 // The folder's non-empty audio files as rows, non-recursive, hidden entries
 // skipped; a CUE sheet among them stands in for its files, as in a walk.
 // Synchronous. sort is a parameter because this layer may not read a setting.

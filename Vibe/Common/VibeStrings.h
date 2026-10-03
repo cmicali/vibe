@@ -588,8 +588,8 @@ static inline NSString *VibeAppName(void) {
 
 #pragma mark - Playlist files (CUE, M3U)
 
-#define STR_PLAYLIST_GRANT_MESSAGE NSLS(@"playlist.grant.message", @"%1$@ needs permission to read the audio files listed in “%2$@”. Select the folder that contains them.", @"Message atop the folder-picker panel shown when a playlist file's (CUE, M3U) audio files are not readable under the sandbox. %1$@ is the app name, %2$@ the playlist file's name.")
-#define STR_PLAYLIST_GRANT_BUTTON  NSLS(@"playlist.grant.button",  @"Grant Access", @"Confirm button of the folder-picker panel that grants access to a playlist file's folder.")
+#define STR_PLAYLIST_GRANT_MESSAGE NSLS(@"playlist.grant.message", @"%1$@ needs permission to read the audio files listed in “%2$@”. Select the folder that contains them.", @"Message shown when a playlist file's (CUE, M3U) audio files are not readable under the sandbox: atop the folder-picker panel on the Mac, in an alert before the folder picker on iPhone and iPad. %1$@ is the app name, %2$@ the playlist file's name.")
+#define STR_PLAYLIST_GRANT_BUTTON  NSLS(@"playlist.grant.button",  @"Grant Access", @"Confirm button that grants access to a playlist file's folder: of the folder-picker panel on the Mac, of the alert that opens the folder picker on iPhone and iPad.")
 #define STR_PLAYLIST_SAVE_DEFAULT_NAME NSLS(@"playlist.save.default_name", @"Playlist", @"Default file name, without extension, that the save panel offers when the playlist's tracks share no folder to name it after. It becomes a file name, so it must not contain a slash.")
 
 #pragma mark - iOS

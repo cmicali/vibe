@@ -488,6 +488,10 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
     return (errno == EPERM || errno == EACCES) ? VibeReadAccessDenied : VibeReadAccessMissing;
 }
 
++ (BOOL)isReadDenied:(NSURL *)url {
+    return ReadAccessForURL(url) == VibeReadAccessDenied;
+}
+
 // The files a sheet may name, by PlaylistFile's key, from one listing.
 static NSDictionary<NSString *, NSArray<NSURL *> *> *VibeKnownFiles(NSArray<NSURL *> *urls) {
     NSMutableDictionary<NSString *, NSMutableArray<NSURL *> *> *knownFiles =

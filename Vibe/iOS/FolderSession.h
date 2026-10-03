@@ -37,6 +37,13 @@ NS_ASSUME_NONNULL_BEGIN
 // A restore that restorePersistedFolder returned YES for came to nothing.
 - (void)folderSessionRestoreDidFail:(FolderSession *)session;
 
+// After an open or Add settled empty because a picked CUE sheet's folder is
+// denied: a sheet's grant reaches the sheet alone, never the audio beside it.
+// openSheetURL:inGrantedFolder:appending: takes the folder the user grants.
+- (void)folderSession:(FolderSession *)session
+        needsFolderOfSheetAtURL:(NSURL *)sheetURL
+                      appending:(BOOL)appending;
+
 @end
 
 @interface FolderSession : NSObject
@@ -79,6 +86,12 @@ NS_ASSUME_NONNULL_BEGIN
 // retained for this playlist even if its Settings row goes. Whether the open
 // becomes the session bookmark is decided here, never by the caller.
 - (void)openURL:(NSURL *)url inFolder:(BOOL)inFolder;
+
+// The sheet needsFolderOfSheetAtURL: named, again, with the folder just
+// picked held for the playlist like a starred folder's root: an open expands
+// to the sheet's directory, an Add appends the sheet's rows. A folder that
+// does not cover the sheet finds nothing and asks again.
+- (void)openSheetURL:(NSURL *)sheetURL inGrantedFolder:(NSURL *)folderURL appending:(BOOL)appending;
 
 // Every file and folder opened or added, newest first, at most 50, each
 // {path, bookmark (absent when the mint failed), folder}. Persisted; a restore
