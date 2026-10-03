@@ -16,10 +16,8 @@
 static const CGFloat kWaveformDragHysteresis = 4;
 
 // How often a streaming load's partial waveform lands: it delivers ~10 times a
-// second. The iOS scrubber's pace, so a load fills in alike on both. The first
-// partial waits for its load to complete as long as the scrubber's does.
+// second. The iOS scrubber's pace, so a load fills in alike on both.
 static const NSTimeInterval kPartialWaveformInterval = 0.4;
-static const NSTimeInterval kFirstPartialDelay = 0.5;
 
 @implementation AudioWaveformView {
     NSString                    *_styleIdentifier;
@@ -37,10 +35,8 @@ static const NSTimeInterval kFirstPartialDelay = 0.5;
     BOOL                        _isDragSeeking;
     // The theme's playhead line; hidden until a theme asks for it.
     CALayer*                    _playheadLine;
-    // The streaming pace: when this load first delivered and a partial last
-    // landed, and which pending one may land (a reset or a newer delivery
-    // supersedes it).
-    CFTimeInterval              _firstDeliveryAt;
+    // The streaming pace: when a partial last landed, and which pending one
+    // may land (a reset or a newer delivery supersedes it).
     CFTimeInterval              _partialLandedAt;
     NSUInteger                  _partialGeneration;
 }
@@ -362,8 +358,6 @@ static const NSTimeInterval kFirstPartialDelay = 0.5;
 // Callers hide their overlays and redraw themselves.
 - (void)resetWaveformContentState {
     _partialGeneration++;
-    _firstDeliveryAt = 0;
-    _partialLandedAt = 0;
     [self hideHoverIndicator];
     _didClickInside = NO;
     _isDragSeeking = NO;
@@ -382,25 +376,24 @@ static const NSTimeInterval kFirstPartialDelay = 0.5;
     [self drawWaveform];
 }
 
-// The iOS scrubber's model, in the live tree: a waveform eases up from the
-// midline once, at its final heights if its load completes within
-// kFirstPartialDelay; a slower load's partials land settled at a steady pace —
-// eased one by one they kept the whole load repainting the full mask on every
-// frame — and the complete one eases to its normalized heights.
+// The iOS scrubber's pace, in the live tree: a load's first waveform eases up
+// from the midline, later partials land settled at a steady pace — eased one by
+// one they kept the whole load repainting the full mask on every frame — and
+// the complete one eases to its normalized heights.
+//
+// TRAP: the first waveform lands at once, never held for its load to complete
+// as the scrubber's is. Every track change starts a load here, so holding it
+// left the outgoing track's bars collapsing into an empty strip for half a
+// second after every skip, where they had morphed straight into the new ones.
 - (void)showWaveform:(CodableAudioWaveform *)waveform {
     NSUInteger generation = ++_partialGeneration;
-    CFTimeInterval now = CACurrentMediaTime();
-    if (_firstDeliveryAt == 0) {
-        _firstDeliveryAt = now;
-    }
-    if (waveform.waveform->isComplete()) {
+    if (!_waveform || waveform.waveform->isComplete()) {
         _waveform = waveform;
+        _partialLandedAt = CACurrentMediaTime();
         [self drawWaveform];
         return;
     }
-    NSTimeInterval wait = _waveform
-            ? MAX(0, _partialLandedAt + kPartialWaveformInterval - now)
-            : MAX(0, _firstDeliveryAt + kFirstPartialDelay - now);
+    NSTimeInterval wait = MAX(0, _partialLandedAt + kPartialWaveformInterval - CACurrentMediaTime());
     __weak AudioWaveformView *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
@@ -408,13 +401,10 @@ static const NSTimeInterval kFirstPartialDelay = 0.5;
         if (!strongSelf || generation != strongSelf->_partialGeneration) {
             return;
         }
-        BOOL arrival = !strongSelf->_waveform;
         strongSelf->_waveform = waveform;
         strongSelf->_partialLandedAt = CACurrentMediaTime();
         [strongSelf drawWaveform];
-        if (!arrival) {
-            [strongSelf->_currentWaveformRenderer settleMorphImmediately];
-        }
+        [strongSelf->_currentWaveformRenderer settleMorphImmediately];
     });
 }
 
