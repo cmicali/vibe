@@ -3,8 +3,8 @@
 //  Vibe (iOS)
 //
 //  Between AudioWaveformCache, which runs ONE load at a time, and the pager:
-//  which page that load targets, the latest snapshot per page, and which pages
-//  are complete. The cancel before a retarget is NOT the race guard — a decode
+//  which page that load targets, and the latest snapshot per page with the
+//  fraction loaded it was delivered with, 1 for a complete page. The cancel before a retarget is NOT the race guard — a decode
 //  can outlive it — so deliveries are matched on the URL they were loaded for.
 //
 
@@ -76,6 +76,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Until a prune or reset.
 - (BOOL)isCompleteAtIndex:(NSUInteger)index;
+// The latest snapshot's fraction loaded; 0 with none.
+- (float)percentLoadedAtIndex:(NSUInteger)index;
 
 @end
 

@@ -3775,6 +3775,192 @@
       },
       "extractionState": "manual"
     },
+    "error.connection_lost": {
+      "comment": "Inline playback error: a track playing while it downloads (from Dropbox) stopped receiving data for too long, so playback paused where it was. Pressing play tries again.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Връзката е прекъсната"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Připojení bylo ztraceno"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forbindelsen blev afbrudt"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbindung verloren"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Η σύνδεση χάθηκε"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection lost"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conexión perdida"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yhteys katkesi"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connexion perdue"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Veza je prekinuta"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Megszakadt a kapcsolat"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Koneksi terputus"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connessione persa"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接続が切断されました"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "연결이 끊어짐"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forbindelsen ble brutt"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbinding verbroken"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Utracono połączenie"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conexão perdida"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ligação perdida"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conexiune pierdută"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Соединение потеряно"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pripojenie sa stratilo"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anslutningen bröts"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "การเชื่อมต่อขาดหาย"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bağlantı kesildi"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зʼєднання втрачено"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mất kết nối"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接已中断"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連線已中斷"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "error.device_in_use": {
       "comment": "Inline playback error: another app has taken exclusive use of the audio output device, so playback paused.",
       "localizations": {
@@ -69614,12 +69800,36 @@
       "extractionState": "manual"
     },
     "settings.dropbox.footer": {
-      "comment": "iOS settings screen, Files: explanation under the Dropbox account rows. %@ is the app name. Dropbox is a product name: keep it untranslated; 'the Files app' is Apple's Files app, named as iOS names it in this language. 10 GB is a fixed limit: write the unit as this language writes gigabytes.",
+      "comment": "iOS settings screen, Files: explanation under the Connect to Dropbox row, before an account is signed in. %@ is the app name. Dropbox is a product name: keep it untranslated.",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Browse and search your Dropbox in %@ directly, without the Files app. Songs download when you play them, and the oldest are removed when they take more than 10 GB."
+            "value": "Browse and search your Dropbox in %@."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.dropbox.footer.linked": {
+      "comment": "iOS settings screen, Files: explanation under the signed-in Dropbox account's rows. 'The maximum size' is the Maximum Size row just above it.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Songs download when you play them. The oldest are removed when downloads reach the maximum size."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.dropbox.maximum_size": {
+      "comment": "iOS settings screen, Files: row under the signed-in Dropbox account choosing how much space songs downloaded from Dropbox may take before the oldest are removed; the chosen size, such as 10 GB, is shown beside it. Also the title of the screen listing the sizes.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximum Size"
           }
         }
       },

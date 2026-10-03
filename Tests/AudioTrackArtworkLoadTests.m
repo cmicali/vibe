@@ -26,7 +26,7 @@
     return self;
 }
 
-- (BOOL)runWithError:(NSError **)error {
+- (BOOL)runOnReadable:(dispatch_block_t)onReadable error:(NSError **)error {
     return _run(error);
 }
 

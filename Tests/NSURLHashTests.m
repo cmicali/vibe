@@ -136,4 +136,25 @@
     XCTAssertNotNil(track.cacheKey, @"a later call must retry rather than stay nil");
 }
 
+// A download that installed another version than its placeholder's: the memo
+// holds the old version's key until it is retired, then answers the file's.
+- (void)testAReplacedFileAnswersItsNewKeyOnceTheMemosAreRetired {
+    NSURL *file = [self writeFileNamed:@"a.mp3" contents:@"version one"];
+    AudioTrack *track = [AudioTrack withURL:file];
+    AudioTrack *row = [AudioTrack withURL:file];
+    NSString *old = track.cacheKey;
+    XCTAssertEqualObjects(row.cacheKey, old);
+
+    [self writeFileNamed:@"a.mp3" contents:@"version two, re-uploaded"];
+    NSString *installed = file.cacheKey;
+    XCTAssertNotEqualObjects(installed, old);
+    XCTAssertEqualObjects(track.cacheKey, old, @"memoized until retired");
+
+    [AudioTrack invalidateMemoizedCacheKeys];
+    XCTAssertEqualObjects(track.cacheKey, installed);
+    XCTAssertEqualObjects(row.cacheKey, installed, @"every track, not one");
+    [NSFileManager.defaultManager removeItemAtURL:file error:NULL];
+    XCTAssertEqualObjects(track.cacheKey, installed, @"and memoized again");
+}
+
 @end

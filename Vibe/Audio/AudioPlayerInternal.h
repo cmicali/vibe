@@ -81,6 +81,12 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
     uint64_t                _promotedBaseFrames; // bus frames the voice consumed before its current file began
     BOOL                    _gaplessArmedForUI;
     BOOL                    _outputAudioActive;
+    BOOL                    _buffering;         // the current voice held for its stream's bytes (updateBufferingOnQueue)
+    // The stall's park: Paused with no voice and no file, the window and rate
+    // kept, which resume replays and a seek holds for it. Set only by
+    // publishPausedWithoutVoiceOnQueueAtSeconds:, cleared by every other
+    // publication.
+    BOOL                    _stalled;
     BOOL                    _outputIdle;
     float                   _pitch;             // percent; see the trap below
     // Minted on main by every explicit play; only ever increments.
@@ -90,6 +96,9 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
     // The play that owns the current voice. A promote keeps it; a newer play,
     // stop or failure clears it.
     uint64_t                _activeSubmittedPlayIdentifier;
+    // The published window came from an estimated length, which the drain
+    // grows and, once settled, republishes (republishEstimatedWindowOnQueue).
+    BOOL                    _windowEstimated;
     PlaybackRequestCoordinator *_pendingRequest;
     // Voices fading out; each leaves when the drain reports it ended.
     NSMutableArray<NSNumber *> *_retiringVoices;
@@ -271,9 +280,10 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
 // the declick; a retire at the declick length stops the voice's reads, so
 // its file may be handed on. Retired voices are tracked until they end.
 - (VibeVoiceRamp)rampOnQueueToGain:(float)gain milliseconds:(uint64_t)milliseconds action:(VibeVoiceAction)action;
-// `frame` is a file frame inside `window`, where the voice's stream ends.
-- (VibeVoiceID)startVoiceOnQueueForFile:(AudioFileHandle *)file window:(NSRange)window
-                                atFrame:(AVAudioFramePosition)frame
+// `frame` and `endFrame` are file frames; the stream ends at `endFrame`, 0 for
+// the file's own end (AudioTrack endFrameInFile:).
+- (VibeVoiceID)startVoiceOnQueueForFile:(AudioFileHandle *)file atFrame:(AVAudioFramePosition)frame
+                               endFrame:(AVAudioFramePosition)endFrame
                        fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused;
 - (void)retireVoiceOnQueue:(VibeVoiceID)voice milliseconds:(uint64_t)milliseconds;
 - (void)cutRetiringVoicesToDeclickOnQueue;
@@ -309,6 +319,12 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
 - (void)sendDelegateError:(NSError *)error forSubmittedPlay:(uint64_t)submittedPlayIdentifier;
 
 - (void)handleVoiceEventOnQueue:(VibeVoiceEvent)event voice:(VibeVoiceID)voice;
+// The buffering hold's decision, after every drain.
+- (void)updateBufferingOnQueue;
+// An estimated length's window, grown as the length grows and republished
+// once, with the duration, when it settles: at every drain, a seek, a stall
+// and a voice's end.
+- (void)republishEstimatedWindowOnQueue;
 @end
 
 NS_ASSUME_NONNULL_END

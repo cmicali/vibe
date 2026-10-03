@@ -386,6 +386,22 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     }
 }
 
+// An end frame past where the stream really ends is that end: the bus reads
+// to the file's end and stops, as for 0, never consulting the length, which
+// a lossy or streaming file only estimates.
+- (void)testAnEndFramePastTheStreamsEndReadsToItsEnd {
+    NSData *source = [self noiseFrames:20000 channels:2 seed:137];
+    NSURL *url = [self writePCM:source rate:kRate channels:2 name:@"short-of-its-end.wav"];
+    [self makeBusAtRate:kRate channels:2];
+    VibeVoiceID voice = [_bus startVoiceWithFile:[self open:url] atFrame:3000 endFrame:30000 gain:1
+                                            ramp:[self unity] paused:NO];
+    NSData *capture = [self renderUntilEnded:voice blockSize:1024 limit:100000];
+    XCTAssertEqual([self endedSnapshot:voice].endOfStream, 17000u);
+    XCTAssertEqual([self endedSnapshot:voice].ended, VibeVoiceEndOfStream);
+    [self assertCapture:[capture subdataWithRange:NSMakeRange(0, 17000 * 8)]
+           equalsSource:[source subdataWithRange:NSMakeRange(3000 * 8, 17000 * 8)]];
+}
+
 // The next window of one file continues it sample for sample: two handles on
 // one file, the successor seeking to where the voice stopped reading.
 - (void)testWindowsOfOneFileContinueExactlyAtEveryBlockSize {

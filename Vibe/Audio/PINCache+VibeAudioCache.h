@@ -19,8 +19,8 @@ NS_ASSUME_NONNULL_BEGIN
 // and write diskCache directly, because on macOS PINMemoryCache never evicts —
 // costLimit needs per-entry costs, disk hits repopulate at cost 0, and its
 // memory-pressure hooks are iOS-only — so it would pin every entry ever loaded
-// for the app's lifetime.
-+ (PINCache *)audioCacheWithName:(NSString *)name;
+// for the app's lifetime. Under rootPath, nil for the user's caches.
++ (PINCache *)audioCacheWithName:(NSString *)name rootPath:(nullable NSString *)rootPath;
 
 // Entry count and total bytes on disk. The enumeration blocks, so call it on
 // the store's own serial queue; the completion is dispatched to the main thread.

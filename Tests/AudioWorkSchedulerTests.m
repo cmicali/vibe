@@ -21,8 +21,10 @@
             pendingGrace:grace];
 }
 
+// A parked item the test settles itself is held under VIBE_TEST_GATE_TIMEOUT:
+// a shorter grace expires it first whenever the test's own thread stalls.
 - (void)testPendingCancellationRemovesWorkBeforeDispatch {
-    AudioWorkScheduler *scheduler = [self schedulerWithPendingCount:1 grace:5];
+    AudioWorkScheduler *scheduler = [self schedulerWithPendingCount:1 grace:VIBE_TEST_GATE_TIMEOUT];
     dispatch_semaphore_t releaseRunning = dispatch_semaphore_create(0);
     XCTestExpectation *runningStarted = [self expectationWithDescription:@"running started"];
     [scheduler submitWork:^{
@@ -56,7 +58,7 @@
 }
 
 - (void)testARejectedStormNeverWaitsBehindTheBlockedWorker {
-    AudioWorkScheduler *scheduler = [self schedulerWithPendingCount:1 grace:5];
+    AudioWorkScheduler *scheduler = [self schedulerWithPendingCount:1 grace:VIBE_TEST_GATE_TIMEOUT];
     dispatch_semaphore_t releaseRunning = dispatch_semaphore_create(0);
     XCTestExpectation *runningStarted = [self expectationWithDescription:@"running started"];
     [scheduler submitWork:^{
@@ -98,24 +100,28 @@
 // An inline refusal would re-enter a caller submitting from a serial queue
 // with its own failure block.
 - (void)testEveryRejectionIsDeliveredOnTheFailureQueue {
-    // A grace far above the gap to the over-bound submit: expired first, the
-    // parked item would free its slot and that submit would park, not fail.
-    AudioWorkScheduler *scheduler = [self schedulerWithPendingCount:1 grace:0.5];
+    // One scheduler per rejection, each behind a blocked worker. The refusing
+    // one has no pending slot: behind a parked item, a stall past its grace
+    // would free the slot, and the over-bound submit would park, not fail.
+    AudioWorkScheduler *expiring = [self schedulerWithPendingCount:1 grace:0.05];
+    AudioWorkScheduler *refusing = [self schedulerWithPendingCount:0 grace:0];
     dispatch_queue_t failureQueue = dispatch_queue_create("com.vibe.tests.failure",
                                                           DISPATCH_QUEUE_SERIAL);
     dispatch_semaphore_t releaseRunning = dispatch_semaphore_create(0);
-    XCTestExpectation *runningStarted = [self expectationWithDescription:@"running started"];
-    [scheduler submitWork:^{
-        [runningStarted fulfill];
-        dispatch_semaphore_wait(releaseRunning, DISPATCH_TIME_FOREVER);
-    } failureQueue:failureQueue admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
-        XCTFail(@"running work was rejected");
-    }];
-    [self waitForExpectations:@[runningStarted] timeout:VIBE_TEST_HANG_TIMEOUT];
+    for (AudioWorkScheduler *scheduler in @[expiring, refusing]) {
+        XCTestExpectation *runningStarted = [self expectationWithDescription:@"running started"];
+        [scheduler submitWork:^{
+            [runningStarted fulfill];
+            dispatch_semaphore_wait(releaseRunning, DISPATCH_TIME_FOREVER);
+        } failureQueue:failureQueue admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
+            XCTFail(@"running work was rejected");
+        }];
+        [self waitForExpectations:@[runningStarted] timeout:VIBE_TEST_HANG_TIMEOUT];
+    }
 
     // The parked one expires; the one past the bound is refused immediately.
     XCTestExpectation *expiredOnQueue = [self expectationWithDescription:@"expiry on failureQueue"];
-    [scheduler submitWork:^{
+    [expiring submitWork:^{
         XCTFail(@"expired work ran");
     } failureQueue:failureQueue admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
         XCTAssertEqual(failure, VibeAudioWorkAdmissionFailureWaitExpired);
@@ -130,7 +136,7 @@
     XCTestExpectation *refusedOnQueue = [self expectationWithDescription:@"refusal on failureQueue"];
     dispatch_sync(failureQueue, ^{
         submitting = YES;
-        [scheduler submitWork:^{
+        [refusing submitWork:^{
             XCTFail(@"work beyond the pending bound ran");
         } failureQueue:failureQueue admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
             XCTAssertEqual(failure, VibeAudioWorkAdmissionFailurePendingLimit);
@@ -143,6 +149,7 @@
 
     [self waitForExpectations:@[refusedOnQueue, expiredOnQueue] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertFalse(rejectedInline, @"the refusal must not run before submitWork: returns");
+    dispatch_semaphore_signal(releaseRunning);
     dispatch_semaphore_signal(releaseRunning);
 }
 
@@ -215,11 +222,17 @@
         }];
         [self waitForExpectations:@[ran] timeout:VIBE_TEST_HANG_TIMEOUT];
     }
+    // The worker's block holds the last reference until it returns, so the
+    // release is polled for.
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
+    while (weakScheduler && deadline.timeIntervalSinceNow > 0) {
+        usleep(1000);
+    }
+    XCTAssertNil(weakScheduler, @"the scheduler must not outlive its last reference");
     // Past the grace, so a surviving timer would have fired into a freed object.
     XCTestExpectation *outlivedItsGrace = [self expectationWithDescription:@"quiet"];
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
-        XCTAssertNil(weakScheduler, @"the scheduler must not outlive its last reference");
         [outlivedItsGrace fulfill];
     });
     [self waitForExpectations:@[outlivedItsGrace] timeout:VIBE_TEST_HANG_TIMEOUT];

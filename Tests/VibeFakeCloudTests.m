@@ -31,7 +31,7 @@
     XCTestExpectation *finished = [self expectationWithDescription:name];
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
         NSError *error = nil;
-        BOOL ready = [materializer materializeURL:url token:token error:&error];
+        BOOL ready = [materializer materializeURL:url token:token onReadable:nil error:&error];
         completion(ready, error);
         [finished fulfill];
     });
@@ -74,8 +74,7 @@
     __block float first = NAN;
     __block DownloadProgressMonitor *monitor = nil;
     [self onMain:^{
-        monitor = [DownloadProgressMonitor monitorReplacing:nil forURL:url
-                currentURL:^NSURL *{ return url; }
+        monitor = [DownloadProgressMonitor monitorForURL:url
                 movement:nil
                 handler:^(float fraction) {
             if (isnan(first)) {
@@ -131,6 +130,7 @@
     NSError *error = nil;
     XCTAssertTrue([materializer materializeURL:url
                                          token:[materializer prepareMaterialization]
+                                    onReadable:nil
                                          error:&error]);
     XCTAssertNil(error);
 
@@ -205,6 +205,7 @@
         NSError *error = nil;
         XCTAssertTrue([materializer materializeURL:url
                                              token:[materializer prepareMaterialization]
+                                        onReadable:nil
                                              error:&error]);
         XCTAssertNil(error);
     }
@@ -225,6 +226,7 @@
     XCTAssertTrue([afterClear materializeURL:
             [NSURL fileURLWithPath:@"/fake/after-clear.wav"]
                                           token:[afterClear prepareMaterialization]
+                                     onReadable:nil
                                           error:&error]);
     XCTAssertNil(error);
     NSArray<NSDictionary *> *afterClearEvents = [VibeFakeCloud traceEvents];
@@ -306,14 +308,14 @@
 
     CloudFileMaterializer *first = [CloudFileMaterializer new];
     NSError *error = nil;
-    XCTAssertTrue([first materializeURL:url token:[first prepareMaterialization] error:&error]);
+    XCTAssertTrue([first materializeURL:url token:[first prepareMaterialization] onReadable:nil error:&error]);
     XCTAssertNil(error);
     XCTAssertFalse([NSURLUtil isDatalessFile:url]);
     NSUInteger traceAfterFirst = [VibeFakeCloud traceEvents].count;
 
     CloudFileMaterializer *localReplay = [CloudFileMaterializer new];
     XCTAssertTrue([localReplay materializeURL:url
-                                       token:[localReplay prepareMaterialization] error:&error]);
+                                       token:[localReplay prepareMaterialization] onReadable:nil error:&error]);
     XCTAssertEqual([VibeFakeCloud traceEvents].count, traceAfterFirst,
                    @"an ordinary completed path is not downloaded again");
 
@@ -321,7 +323,7 @@
     XCTAssertTrue([NSURLUtil isDatalessFile:url]);
     CloudFileMaterializer *stickyReplay = [CloudFileMaterializer new];
     XCTAssertTrue([stickyReplay materializeURL:url
-                                        token:[stickyReplay prepareMaterialization] error:&error]);
+                                        token:[stickyReplay prepareMaterialization] onReadable:nil error:&error]);
     XCTAssertTrue([NSURLUtil isDatalessFile:url]);
     XCTAssertEqual([VibeFakeCloud traceEvents].count, traceAfterFirst + 3);
     XCTAssertEqual([[VibeFakeCloud statistics][@"completed"] unsignedIntegerValue],
@@ -340,6 +342,7 @@
     XCTAssertFalse([materializer materializeURL:
             [NSURL fileURLWithPath:@"/fake/provider-failure.wav"]
                                          token:[materializer prepareMaterialization]
+                                    onReadable:nil
                                          error:&error]);
     XCTAssertEqualObjects(error.domain, @"com.vibe.fake-cloud");
     XCTAssertEqual(error.code, 1);

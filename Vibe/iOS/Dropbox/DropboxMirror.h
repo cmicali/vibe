@@ -19,14 +19,21 @@
 
 #import "DropboxClient.h"
 
+@class CloudFileAvailability;
+
 NS_ASSUME_NONNULL_BEGIN
 
-// A fetch landed, with whatever the budget then evicted. Posted on main with
-// the mirror as its object and the downloads' total bytes, already counted,
-// under VibeDropboxDownloadsBytesKey. Posted when a fetch lands, when Remove
-// Downloads settles, and when a relist discards downloaded bytes.
+// A fetch landed, or the budget changed, with whatever the budget then
+// evicted. Posted on main with the mirror as its object and the downloads'
+// total bytes, already counted, under VibeDropboxDownloadsBytesKey. Posted when
+// a fetch lands, when the budget changes, when Remove Downloads settles, and
+// when a relist discards downloaded bytes.
 extern NSNotificationName const VibeDropboxDownloadsDidChangeNotification;
 extern NSString *const VibeDropboxDownloadsBytesKey;
+// The saved download budget, an iOS-owned key: the shared mirror starts from
+// it (VibeDropboxDownloadBudgetIndex), and Settings writes it, then sets
+// downloadBudget.
+extern NSString *const VibeDropboxDownloadBudgetKey;
 
 @interface DropboxMirror : NSObject
 
@@ -44,6 +51,10 @@ extern NSString *const VibeDropboxDownloadsBytesKey;
                 downloadBudget:(long long)downloadBudget NS_DESIGNATED_INITIALIZER;
 
 @property (nonatomic, readonly) DropboxClient *client;
+
+// Main thread; applied, not saved. A smaller one sends the oldest downloads
+// back to placeholders at once, posting the new total.
+@property (nonatomic) long long downloadBudget;
 
 // Every account's mirror lives under it; the remote placeholder root.
 @property (nonatomic, readonly) NSURL *rootURL;
@@ -89,10 +100,18 @@ extern NSString *const VibeDropboxDownloadsBytesKey;
 - (void)removeDownloadsWithCompletion:(dispatch_block_t)completion;
 
 // CloudFileMaterializer's remote fetch: blocks until url's bytes have
-// replaced its placeholder. Background threads only.
+// replaced its placeholder, the part file they stream into readable through
+// availabilityForURL: meanwhile. onReadable as CloudFileRemoteFetch says, on
+// the client's delivery queue. Background threads only.
 - (BOOL)fetchPlaceholderAtURL:(NSURL *)url
+                   onReadable:(nullable dispatch_block_t)onReadable
                      onCancel:(void (^)(dispatch_block_t cancel))onCancel
                         error:(NSError *__autoreleasing _Nullable *_Nullable)error;
+
+// CloudFileMaterializer's streaming lookup: the availability of url's fetch
+// from its first response until it has finished, after the install or the
+// failure; nil otherwise, and for a response naming no size. Any thread.
+- (nullable CloudFileAvailability *)availabilityForURL:(NSURL *)url;
 
 // CloudFileMaterializer's remote read: bytes of the file a placeholder stands
 // for, by range, blocking, for a tag parse. Background threads only.

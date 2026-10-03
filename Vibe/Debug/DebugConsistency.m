@@ -245,8 +245,9 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
                 @"cloud lane held with the player stopped and no open in flight");
     }
 
-    // A stranded handle open starves the sweep too: an AudioFileHandle call
-    // cannot be cancelled, so it holds admission capacity for good. With the
+    // A stranded handle open starves the sweep too: a whole-file
+    // AudioFileHandle call cannot be cancelled, so it holds admission capacity
+    // for good. With the
     // player stopped and nothing loading, a nonzero count is work that will
     // never finish; an open superseded moments ago is still returning, which
     // the re-check filters.

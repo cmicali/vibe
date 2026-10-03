@@ -60,26 +60,12 @@ static VibeFakeDownloadProgress VibeFakeProgressHook(void) {
     return self;
 }
 
-+ (instancetype)monitorReplacing:(DownloadProgressMonitor *)existing
-                          forURL:(NSURL *)url
-                      currentURL:(NSURL *_Nullable (^)(void))currentURL
-                        movement:(void (^)(void))movement
-                         handler:(void (^)(float fraction))handler {
-    [existing cancel];
++ (instancetype)monitorForURL:(NSURL *)url
+                     movement:(void (^)(void))movement
+                      handler:(void (^)(float fraction))handler {
     DownloadProgressMonitor *monitor = [[DownloadProgressMonitor alloc] initWithURL:url];
-    NSURL *wanted = [url copy];
-    if (movement) {
-        monitor->_movementHandler = ^{
-            if ([currentURL() isEqual:wanted]) {
-                movement();
-            }
-        };
-    }
-    [monitor startWithHandler:^(float fraction) {
-        if ([currentURL() isEqual:wanted]) {
-            handler(fraction);
-        }
-    }];
+    monitor->_movementHandler = [movement copy];
+    [monitor startWithHandler:handler];
     return monitor;
 }
 

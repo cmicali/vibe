@@ -73,7 +73,7 @@ static XCTestExpectation *sReachedTarget;
     timer.windowVisible = YES;
     XCTAssertEqual([self ticksOver:0.3], (NSUInteger)0, @"not wanted");
     timer.wanted = YES;
-    XCTAssertTrue([self reachedTicks:3 within:5.0], @"both gates open, so it runs");
+    XCTAssertTrue([self reachedTicks:3 within:VIBE_TEST_HANG_TIMEOUT], @"both gates open, so it runs");
     timer.windowVisible = NO;
     XCTAssertEqual([self ticksOver:0.3], (NSUInteger)0, @"occluded stops it entirely");
 }

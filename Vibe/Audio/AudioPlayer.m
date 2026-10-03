@@ -64,6 +64,10 @@ static const NSTimeInterval kSlowOpenIndicatorDelaySeconds = 0.5;
 static const NSTimeInterval kSlowOpenLogThresholdSeconds = 0.25;
 // Default pitch fader range in percent: ±8%, matching a stock SL-1200.
 static const float kDefaultMaxPitchPercent = 8.0f;
+// A streaming voice whose decode waits at the download's edge is held once
+// less than this is buffered: the hold's fade still has frames to fade, and a
+// link that trickles in many short waits holds as surely as one that stops.
+static const NSTimeInterval kBufferingGraceSeconds = 0.25;
 
 // Marks _queue, so runSyncOnQueue: can tell it is already on this player's.
 static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
@@ -76,13 +80,32 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // replaced an audibly playing track, the declick minimum otherwise.
     uint64_t                _incomingFadeMilliseconds;
 
-    // ---- The pending open: its token and abandon deadline, in monotonic
-    // uptime. A same-row replay keeps the open identifier and its snapshot.
+    // ---- The pending open: its token and identifier. A same-row replay
+    // keeps the open identifier and its deadline's snapshot.
     AudioFileOpenToken      *_playOpenToken;
     uint64_t                _playOpenRequestId;
-    NSTimeInterval          _openSubmittedUptime;
-    NSTimeInterval          _openLastPositiveMovementUptime;
-    VibeAudioOpenTimeoutConfiguration _openTimeoutSnapshot;
+
+    // ---- The no-progress deadline (AudioFileOpenTimeoutMath.h), in monotonic
+    // uptime, of whichever phase armed it last: the playback open
+    // (submitOpenOnQueueForTrack:) or a buffering hold (updateBufferingOnQueue).
+    // Never both at once: an open is Loading and a hold Playing, and a play
+    // ends a hold before it submits its open.
+    NSTimeInterval          _deadlineArmedUptime;
+    NSTimeInterval          _deadlineMovedUptime;
+    VibeAudioOpenTimeoutConfiguration _deadlineTimeouts;
+
+    // ---- The buffering hold's transfer bytes, at the hold and at its last
+    // movement.
+    uint64_t                _bufferingStartBytes;
+    uint64_t                _bufferingBytes;
+#if DEBUG
+    // debugBufferingRecord's, under _stateLock: holds begun, how they ended.
+    NSUInteger              _debugBufferingHolds;
+    NSUInteger              _debugBufferingReleases;
+    NSUInteger              _debugBufferingStalls;
+    NSTimeInterval          _debugBufferingSinceUptime;
+    NSTimeInterval          _debugBufferingLastHeldSeconds;
+#endif
 }
 
 #pragma mark - Init
@@ -297,15 +320,25 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // media-reset receipt's admission is, so a play cannot be identified on
     // one side of the reset and run on the other.
     os_unfair_lock_lock(&_stateLock);
-    uint64_t submittedPlayIdentifier = ++_nextSubmittedPlayIdentifier;
-    _lastSubmittedPlayIdentifier = submittedPlayIdentifier;
-    _lastSubmittedPlayTrack = track;
-    uint64_t submittedAt = [self noteSubmittedPlay:submittedPlayIdentifier track:track position:position paused:startPaused];
+    uint64_t submittedAt = 0;
+    uint64_t submittedPlayIdentifier = [self mintSubmittedPlayLockedForTrack:track position:position paused:startPaused
+                                                                 submittedAt:&submittedAt];
     dispatch_async(_queue, ^{
         [self noteAdmittedPlay:submittedPlayIdentifier submittedAt:submittedAt];
         [self playOnQueue:track intent:intent declick:declick submittedPlayIdentifier:submittedPlayIdentifier];
     });
     os_unfair_lock_unlock(&_stateLock);
+}
+
+// Under _stateLock: the next submission's identifier, with the pre-Loading
+// handoff and the timeline's note, the same for every play however submitted.
+- (uint64_t)mintSubmittedPlayLockedForTrack:(AudioTrack *)track position:(NSTimeInterval)position
+                                     paused:(BOOL)paused submittedAt:(uint64_t *)submittedAt {
+    uint64_t submittedPlayIdentifier = ++_nextSubmittedPlayIdentifier;
+    _lastSubmittedPlayIdentifier = submittedPlayIdentifier;
+    _lastSubmittedPlayTrack = track;
+    *submittedAt = [self noteSubmittedPlay:submittedPlayIdentifier track:track position:position paused:paused];
+    return submittedPlayIdentifier;
 }
 
 // The phases' order is the correctness; each constraint is commented at its
@@ -390,7 +423,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 }
 
 - (void)retireCurrentVoiceOnQueueWithDeclick:(BOOL)declick {
-    BOOL replacingAudibleTrack = _voice != 0 && [self renderingOnQueue] && _state == VibePlayerStatePlaying;
+    // A voice held buffering is silent, so replacing it is no crossfade: the
+    // declick, which also ends its reads, and its stream, at once.
+    BOOL replacingAudibleTrack = _voice != 0 && [self renderingOnQueue] && _state == VibePlayerStatePlaying && !_buffering;
     // The mode can land before main holds the crossfade at the declick.
     declick |= [self bitPerfectOnQueue];
     _incomingFadeMilliseconds = VibeIncomingFadeMilliseconds(self.crossfadeMilliseconds, replacingAudibleTrack, declick);
@@ -403,9 +438,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 - (void)submitOpenOnQueueForTrack:(AudioTrack *)track openRequestId:(uint64_t)openId {
     NSURL *openURL = track.url;
     _playOpenRequestId = openId;
-    _openTimeoutSnapshot = _loadingConfiguration.openTimeouts;
-    _openSubmittedUptime = NSProcessInfo.processInfo.systemUptime;
-    _openLastPositiveMovementUptime = 0;
+    _deadlineTimeouts = _loadingConfiguration.openTimeouts;
+    _deadlineArmedUptime = NSProcessInfo.processInfo.systemUptime;
+    _deadlineMovedUptime = 0;
     __weak AudioPlayer *weakSelf = self;
     _playOpenToken = [[AudioFileMaterializationCoordinator sharedCoordinator]
             openURL:openURL purpose:VibeAudioFileOpenPurposePlayback completionQueue:_queue
@@ -425,7 +460,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
             [strongSelf finishPlayOnQueueWithFile:file error:error openRequestId:openId];
         }
     }];
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(_openTimeoutSnapshot.noProgressSeconds * NSEC_PER_SEC)), _queue, ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(_deadlineTimeouts.noProgressSeconds * NSEC_PER_SEC)), _queue, ^{
         [weakSelf fileOpenDeadlineDueForRequest:openId];
     });
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kSlowOpenIndicatorDelaySeconds * NSEC_PER_SEC)), _queue, ^{
@@ -457,7 +492,16 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // another row of the file. An empty window fails as an empty file does,
     // so a broken sheet cannot auto-advance through every row.
     double sampleRate = file.processingFormat.sampleRate;
-    NSRange window = file ? [track frameWindowInFile:file] : NSMakeRange(0, 0);
+    BOOL estimated = NO; // a settle after the window is taken is republished
+    NSRange window = file ? [track frameWindowInFile:file estimated:&estimated] : NSMakeRange(0, 0);
+    if (estimated && track.cueEnd == 0) {
+        // TRAP: an estimate is not the end, so a start past it — a stall's
+        // replay of audio heard past it — is not clamped back to it, which
+        // would play heard audio again: the window reaches the start, the
+        // voice's seek keeps the length ahead of it, and the drain grows the
+        // window from there.
+        window.length = MAX(window.length, (NSUInteger)(MAX(0, startIntent.position) * sampleRate) + 1);
+    }
     if (window.length == 0) {
         [self resetToStoppedStateOnQueue];
         [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorFileOpenFailed,
@@ -481,9 +525,10 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                forSubmittedPlay:request.submittedPlayIdentifier];
         return;
     }
+    _windowEstimated = estimated;
     AVAudioFramePosition startFrame = VibeClampedStartFrame(startIntent.position, sampleRate, window);
     NSTimeInterval startSeconds = VibeWindowSecondsAtFrame(startFrame, sampleRate, window);
-    VibeVoiceID voice = [self startVoiceOnQueueForFile:file window:window atFrame:startFrame
+    VibeVoiceID voice = [self startVoiceOnQueueForFile:file atFrame:startFrame endFrame:[track endFrameInFile:file]
                                       fadeMilliseconds:(_incomingFadeMilliseconds ?: kFadeDurationMilliseconds)
                                                 paused:startIntent.paused];
     if (startIntent.paused) {
@@ -538,8 +583,8 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         return; // The open landed in time, or a newer play superseded it.
     }
     NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
-    NSTimeInterval remaining = VibeAudioOpenDeadlineRemaining(now, _openSubmittedUptime,
-                                                              _openLastPositiveMovementUptime, _openTimeoutSnapshot);
+    NSTimeInterval remaining = VibeAudioOpenDeadlineRemaining(now, _deadlineArmedUptime, _deadlineMovedUptime,
+                                                              _deadlineTimeouts);
     if (remaining > 0) {
         __weak AudioPlayer *weakSelf = self;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(remaining * NSEC_PER_SEC)), _queue, ^{
@@ -555,7 +600,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // A worker already inside AudioFileHandle keeps its path claim until the
     // call returns, and a same-path retry joins it.
     AudioTrack *track = request.track;
-    BOOL madeProgress = _openLastPositiveMovementUptime > _openSubmittedUptime;
+    BOOL madeProgress = _deadlineMovedUptime > _deadlineArmedUptime;
     LogError(@"Timed out opening %@ (progress seen: %@)", track.url.path, madeProgress ? @"yes" : @"no");
     [self resetToStoppedStateOnQueue];
     NSError *timedOut = VibeAudioErrorForTrack(VibeAudioErrorFileOpenTimedOut,
@@ -573,7 +618,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                 || self->_playOpenRequestId != openRequestIdentifier) {
             return;
         }
-        self->_openLastPositiveMovementUptime = NSProcessInfo.processInfo.systemUptime;
+        self->_deadlineMovedUptime = NSProcessInfo.processInfo.systemUptime;
     });
 }
 
@@ -645,7 +690,11 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 // after any restart.
 - (void)pauseCurrentVoiceOnQueue {
     uint64_t milliseconds = [self renderingOnQueue] ? kFadeDurationMilliseconds : 0;
-    [_voiceBus setRamp:[self rampOnQueueToGain:0 milliseconds:milliseconds action:VibeVoiceActionPause] forVoice:_voice];
+    if (!_buffering) {
+        // A buffering hold is already this pause; a second ramp would un-pause
+        // it and consume its fade's frames in silence.
+        [_voiceBus setRamp:[self rampOnQueueToGain:0 milliseconds:milliseconds action:VibeVoiceActionPause] forVoice:_voice];
+    }
     [self cutRetiringVoicesToDeclickOnQueue];
     [self publishState:VibePlayerStatePaused voice:_voice file:_file window:_window startSeconds:_voiceStartSeconds baseFrames:_promotedBaseFrames];
     // Or the output holds the device for as long as the user stays paused.
@@ -659,6 +708,10 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 - (void)resumeOnQueue {
     if (_state == VibePlayerStateLoading) {
         [self applyEditedLoadingRequest:[_pendingRequest setPausedIfChanged:NO]];
+        return;
+    }
+    if (_stalled && self.currentTrack) {
+        [self replayStalledTrackOnQueue];
         return;
     }
     if (_state != VibePlayerStatePaused || !_voice) {
@@ -689,6 +742,29 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                   accepted:[self submittedPlayIsCurrent:owningSubmittedPlayIdentifier] deliveredAt:deliveredAt];
         [self.delegate audioPlayer:self didResumePlaying:track];
     });
+}
+
+// A stall's park: the stream's claim went with its last reader, so the
+// ordinary play path opens, and fetches, the track afresh from here. TRAP:
+// in this queue turn, under an identity minted only while the stalled play
+// is still the newest submitted. playTrack: would queue the replay behind a
+// stop or play submitted after the resume, and the replay would then undo
+// it; a play already submitted is queued behind this turn and replaces it.
+- (void)replayStalledTrackOnQueue {
+    AudioTrack *track = self.currentTrack;
+    NSTimeInterval position = self.position;
+    os_unfair_lock_lock(&_stateLock);
+    BOOL newest = _activeSubmittedPlayIdentifier != 0 && _activeSubmittedPlayIdentifier == _nextSubmittedPlayIdentifier;
+    uint64_t submittedAt = 0;
+    uint64_t submittedPlayIdentifier = newest ? [self mintSubmittedPlayLockedForTrack:track position:position paused:NO
+                                                                          submittedAt:&submittedAt] : 0;
+    os_unfair_lock_unlock(&_stateLock);
+    if (!newest) {
+        return;
+    }
+    [self noteAdmittedPlay:submittedPlayIdentifier submittedAt:submittedAt];
+    [self playOnQueue:track intent:VibePendingPlaybackIntentMake(position, NO) declick:YES
+            submittedPlayIdentifier:submittedPlayIdentifier];
 }
 
 - (BOOL)getPlaybackIntent:(VibePendingPlaybackIntent *)intent forTrack:(AudioTrack *)track {
@@ -753,6 +829,11 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
         [self notifySeekFinishedOnQueue:track reason:@"ignored: track changed" submittedPlay:owningSubmittedPlayIdentifier];
         return;
     }
+    if (_stalled) {
+        [self publishPausedWithoutVoiceOnQueueAtSeconds:MAX(0, MIN(position, self.duration))];
+        [self notifySeekFinishedOnQueue:track reason:@"held for the replay" submittedPlay:owningSubmittedPlayIdentifier];
+        return;
+    }
     if (!_voice || !_file) {
         [self notifySeekFinishedOnQueue:track reason:@"no playable voice" submittedPlay:owningSubmittedPlayIdentifier];
         return;
@@ -784,6 +865,180 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
         [self noteDelivery:@"didFinishSeeking" forPlay:play accepted:[self submittedPlayIsCurrent:play] deliveredAt:deliveredAt];
         [self.delegate audioPlayer:self didFinishSeeking:track];
     });
+}
+
+#pragma mark - Buffering
+
+// A streaming track whose download falls behind holds silent in place, still
+// Playing, and plays on once rather than in fragments. Held when its decode
+// waits at the download's edge with less than the grace buffered, through
+// the pause's fade and exact landing frame; released once half a ring is
+// buffered, the end is known, or the decoder has nothing left to wait for. A
+// hold the download makes no progress under for the open deadline's span
+// (AudioFileOpenTimeoutMath.h) pauses in place with an error, never a track
+// end. Read off the voice's snapshot at each drain, which runs while the
+// output runs voices; the render is untouched.
+- (void)updateBufferingOnQueue {
+    if (_state != VibePlayerStatePlaying || !_voice || ![self renderingOnQueue]) {
+        return;
+    }
+    VibeVoiceSnapshot snapshot = [_voiceBus snapshotOfVoice:_voice];
+    BOOL endKnown = snapshot.endOfStream != UINT64_MAX || snapshot.ended != VibeVoiceEndNone;
+    uint64_t buffered = snapshot.written > snapshot.consumed ? snapshot.written - snapshot.consumed : 0;
+    if (!_buffering) {
+        BOOL starving = snapshot.waitingForBytes && !endKnown
+                && buffered < (uint64_t)(kBufferingGraceSeconds * _busSampleRate);
+        BOOL live = snapshot.state == VibeVoiceStateLive;
+        if (starving && (live || snapshot.state == VibeVoiceStateArmed)) {
+            [self setBufferingOnQueue:YES outcome:nil];
+            _deadlineArmedUptime = NSProcessInfo.processInfo.systemUptime;
+            _deadlineMovedUptime = 0;
+            _deadlineTimeouts = _loadingConfiguration.openTimeouts;
+            _bufferingStartBytes = _bufferingBytes = [self bufferedStreamBytesOnQueue];
+            // One not yet heard is cut, so none of its file is consumed in silence.
+            [_voiceBus setRamp:[self rampOnQueueToGain:0 milliseconds:live ? kFadeDurationMilliseconds : 0
+                                                action:VibeVoiceActionPause] forVoice:_voice];
+        }
+        return;
+    }
+    if (endKnown || buffered >= _voiceBus.ringFrames / 2 || !(snapshot.waitingForBytes || snapshot.decoding)) {
+        [_voiceBus setRamp:[self rampOnQueueToGain:1 milliseconds:kFadeDurationMilliseconds action:VibeVoiceActionNone]
+                  forVoice:_voice];
+        [self armSignalProbeOnQueue:@"buffering released"];
+#if DEBUG
+        os_unfair_lock_lock(&_stateLock);
+        _debugBufferingReleases++;
+        os_unfair_lock_unlock(&_stateLock);
+#endif
+        [self setBufferingOnQueue:NO outcome:@"released"];
+        return;
+    }
+    uint64_t bytes = [self bufferedStreamBytesOnQueue];
+    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+    if (bytes > _bufferingBytes) {
+        _bufferingBytes = bytes;
+        _deadlineMovedUptime = now;
+    }
+    if (VibeAudioOpenDeadlineRemaining(now, _deadlineArmedUptime, _deadlineMovedUptime, _deadlineTimeouts) <= 0) {
+        [self stallOnQueue];
+    }
+}
+
+// What the current voice's transfers have written: its file's and a queued
+// successor's.
+- (uint64_t)bufferedStreamBytesOnQueue {
+    return _file.bytesWritten + _successorFile.bytesWritten;
+}
+
+// Published under _stateLock beside the tuple, with the output-liveness fold
+// (a held voice is not output), one log line per episode at its end, and the
+// delegate's edge for the current play.
+- (void)setBufferingOnQueue:(BOOL)buffering outcome:(NSString *)outcome {
+    if (_buffering == buffering) {
+        return;
+    }
+    os_unfair_lock_lock(&_stateLock);
+    _buffering = buffering;
+#if DEBUG
+    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+    if (buffering) {
+        _debugBufferingHolds++;
+        _debugBufferingSinceUptime = now;
+    }
+    else {
+        _debugBufferingLastHeldSeconds = now - _debugBufferingSinceUptime;
+    }
+#endif
+    os_unfair_lock_unlock(&_stateLock);
+    AudioTrack *track = self.currentTrack;
+    if (!buffering) {
+        uint64_t bytes = [self bufferedStreamBytesOnQueue];
+        LogInfo(@"Buffering: %@ held %.2f s, %@; %llu bytes arrived meanwhile", track.url.lastPathComponent,
+                NSProcessInfo.processInfo.systemUptime - _deadlineArmedUptime, outcome,
+                bytes > _bufferingStartBytes ? bytes - _bufferingStartBytes : 0);
+    }
+    [self refreshOutputAudioActiveOnQueue];
+    if (!track) {
+        return;
+    }
+    [self deliverOnMainForSubmittedPlay:_activeSubmittedPlayIdentifier named:@"didChangeBuffering" block:^{
+        id<AudioPlayerDelegate> delegate = self.delegate;
+        if ([delegate respondsToSelector:@selector(audioPlayer:didChangeBuffering:forTrack:)]) {
+            [delegate audioPlayer:self didChangeBuffering:buffering forTrack:track];
+        }
+    }];
+}
+
+// No bytes for the deadline's span: paused where it stopped, the voice and its
+// file let go, so the transfer's claim, its last reader gone, is cancelled,
+// and resumeOnQueue replays from here. Never didFinishPlaying: a stall is
+// not the end of the track.
+- (void)stallOnQueue {
+    AudioTrack *track = self.currentTrack;
+    uint64_t submittedPlay = _activeSubmittedPlayIdentifier;
+    [self republishEstimatedWindowOnQueue]; // so the position held is the one heard
+    NSTimeInterval seconds = self.position;
+#if DEBUG
+    os_unfair_lock_lock(&_stateLock);
+    _debugBufferingStalls++;
+    os_unfair_lock_unlock(&_stateLock);
+#endif
+    [self setBufferingOnQueue:NO outcome:@"stalled, no download progress"];
+    VibeVoiceID voice = [self unpublishVoiceOnQueue];
+    [self retireVoiceOnQueue:voice milliseconds:kFadeDurationMilliseconds];
+    [self cutRetiringVoicesToDeclickOnQueue];
+    if ([_prefetchedTrack.url isEqual:track.url]) {
+        [self clearPrefetchOnQueue]; // Repeat One's park, a second reader of the same stream
+    }
+    [self publishPausedWithoutVoiceOnQueueAtSeconds:seconds];
+    [self scheduleOutputIdleStopOnQueue];
+    // Matched as the error is: a play submitted meanwhile, the same row's
+    // included, must not receive the stalled one's pause.
+    [self deliverOnMainForSubmittedPlay:submittedPlay named:@"didPausePlaying" block:^{
+        [self.delegate audioPlayer:self didPausePlaying:track];
+    }];
+    [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorConnectionLost,
+            [NSString stringWithFormat:@"No data arrived for %@; paused at %.1f s", track.url.lastPathComponent, seconds],
+            nil, track.url)
+           forSubmittedPlay:submittedPlay];
+}
+
+#pragma mark - An estimated length
+
+// A file opened on an estimated length (a streaming MP3's with no VBR
+// header) has its window follow it. TRAP: while it is an estimate the window
+// grows with the length, which the handle keeps ahead of its cursor, and
+// never shrinks; one held at the estimate would hold the position there while
+// the audio plays on past it, and a stall would save that position, so its
+// replay would play heard audio again. Settled, in a decode turn, the window
+// is taken exactly, once, with the track's duration and the delegate. The
+// window alone is written: the origin is not moved, so the position does not
+// jump, only the total and its clamp.
+- (void)republishEstimatedWindowOnQueue {
+    AudioTrack *track = self.currentTrack;
+    if (!_windowEstimated || !_file || !track) {
+        return;
+    }
+    BOOL estimated = NO;
+    NSRange window = [track frameWindowInFile:_file estimated:&estimated];
+    BOOL settled = !estimated;
+    if (!settled && window.length <= _window.length) {
+        return;
+    }
+    _windowEstimated = !settled;
+    os_unfair_lock_lock(&_stateLock);
+    _window = window;
+    os_unfair_lock_unlock(&_stateLock);
+    if (!settled) {
+        return;
+    }
+    track.duration = self.duration;
+    [self deliverOnMainForSubmittedPlay:_activeSubmittedPlayIdentifier named:@"didSettleDuration" block:^{
+        id<AudioPlayerDelegate> delegate = self.delegate;
+        if ([delegate respondsToSelector:@selector(audioPlayer:didSettleDurationOfTrack:)]) {
+            [delegate audioPlayer:self didSettleDurationOfTrack:track];
+        }
+    }];
 }
 
 #pragma mark - Stop and finish
@@ -867,6 +1122,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 }
 
 - (void)currentVoiceEndedOnQueue:(VibeVoiceID)voice {
+    [self republishEstimatedWindowOnQueue]; // a long estimate settles at the end it reached
     VibeVoiceSnapshot snapshot = [_voiceBus snapshotOfVoice:voice];
     if (snapshot.ended == VibeVoiceEndFailed) {
         AudioFileHandle *failedFile = nil;
@@ -932,12 +1188,12 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     return VibeVoiceRampMake(gain, frames, VibeFadeCurveForMilliseconds(milliseconds), action);
 }
 
-- (VibeVoiceID)startVoiceOnQueueForFile:(AudioFileHandle *)file window:(NSRange)window
-                                atFrame:(AVAudioFramePosition)frame
+- (VibeVoiceID)startVoiceOnQueueForFile:(AudioFileHandle *)file atFrame:(AVAudioFramePosition)frame
+                               endFrame:(AVAudioFramePosition)endFrame
                        fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused {
     VibeVoiceRamp ramp = [self rampOnQueueToGain:1 milliseconds:milliseconds action:VibeVoiceActionNone];
     VibeVoiceID voice = [_voiceBus startVoiceWithFile:file atFrame:frame
-                                             endFrame:(AVAudioFramePosition)NSMaxRange(window)
+                                             endFrame:endFrame
                                                  gain:ramp.frames ? 0 : 1
                                                  ramp:ramp
                                                paused:paused];
@@ -953,12 +1209,14 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 // positions the cursor starts its next chunk 4096 frames late.
 - (void)revoiceOnQueueAtPosition:(NSTimeInterval)position {
     AudioFileHandle *file = _file;
+    [self republishEstimatedWindowOnQueue]; // a seek past the estimate the reads have passed lands
     NSRange window = _window;
     double sampleRate = file.processingFormat.sampleRate;
     AVAudioFramePosition startFrame = VibeClampedStartFrame(position, sampleRate, window);
     VibeVoiceID oldVoice = [self unpublishVoiceOnQueue];
     [self retireVoiceOnQueue:oldVoice milliseconds:kFadeDurationMilliseconds];
-    VibeVoiceID voice = [self startVoiceOnQueueForFile:file window:window atFrame:startFrame
+    VibeVoiceID voice = [self startVoiceOnQueueForFile:file atFrame:startFrame
+                                              endFrame:[self.currentTrack endFrameInFile:file]
                                       fadeMilliseconds:kFadeDurationMilliseconds
                                                 paused:_state == VibePlayerStatePaused];
     [self publishState:_state voice:voice file:file window:window
@@ -977,7 +1235,10 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     [_voiceBus unqueueSuccessorForVoice:voice];
     VibeVoiceSnapshot snapshot = [_voiceBus snapshotOfVoice:voice];
     if (snapshot.state != VibeVoiceStateArmed && snapshot.state != VibeVoiceStateLive) {
-        return; // already dead: its end is the drain's to report, or has been
+        // Already dead: its end is the drain's to report, or has been. Its
+        // reads still stop here, before a newer voice can take its file.
+        [_voiceBus stopReadingForVoice:voice];
+        return;
     }
     if (milliseconds <= kFadeDurationMilliseconds) {
         [_voiceBus stopReadingForVoice:voice];
@@ -1191,12 +1452,16 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 // One acquisition, so a getter never sees a torn tuple.
 - (void)publishState:(VibePlayerState)state voice:(VibeVoiceID)voice file:(AudioFileHandle *)file
               window:(NSRange)window startSeconds:(NSTimeInterval)startSeconds baseFrames:(uint64_t)baseFrames {
+    if (state != VibePlayerStatePlaying || voice != _voice) {
+        [self setBufferingOnQueue:NO outcome:state == VibePlayerStatePaused ? @"paused" : @"its voice replaced"];
+    }
     VibePlaybackRequest *request = state == VibePlayerStateLoading ? _pendingRequest.currentRequest : nil;
     double fileSampleRate = file.processingFormat.sampleRate;
     os_unfair_lock_lock(&_stateLock);
     _state = state;
     _voice = voice;
     _file = file;
+    _stalled = NO;
     _fileSampleRate = fileSampleRate;
     _window = window;
     _voiceStartSeconds = startSeconds;
@@ -1211,6 +1476,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 
 // Clears the voice and its successor; the caller retires the voice.
 - (VibeVoiceID)unpublishVoiceOnQueue {
+    [self setBufferingOnQueue:NO outcome:@"its voice retired"];
     os_unfair_lock_lock(&_stateLock);
     VibeVoiceID voice = _voice;
     _voice = 0;
@@ -1221,8 +1487,10 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 
 // State and voice in one acquisition, so they never disagree.
 - (VibeVoiceID)unpublishVoiceOnQueueEnteringTerminalState:(VibePlayerState)state {
+    [self setBufferingOnQueue:NO outcome:@"its voice retired"];
     os_unfair_lock_lock(&_stateLock);
     _state = state;
+    _stalled = NO;
     VibeVoiceID voice = _voice;
     _voice = 0;
     os_unfair_lock_unlock(&_stateLock);
@@ -1230,10 +1498,27 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     return voice;
 }
 
-// No FX tail is modeled: it would be a timer-shaped guess.
+// The stall's park: Paused at `seconds` with no voice and no file, so the
+// stream's last reader can go, the window and rate kept for the getters;
+// resumeOnQueue replays from it, and a seek moves it (_stalled).
+- (void)publishPausedWithoutVoiceOnQueueAtSeconds:(NSTimeInterval)seconds {
+    os_unfair_lock_lock(&_stateLock);
+    _state = VibePlayerStatePaused;
+    _voice = 0;
+    _file = nil;
+    _stalled = YES;
+    _voiceStartSeconds = seconds;
+    _promotedBaseFrames = 0;
+    os_unfair_lock_unlock(&_stateLock);
+    [self refreshOutputAudioActiveOnQueue];
+}
+
+
+// No FX tail is modeled: it would be a timer-shaped guess. A buffering hold is
+// not output either.
 - (void)refreshOutputAudioActiveOnQueue {
     BOOL active = [self renderingOnQueue]
-            && ((_state == VibePlayerStatePlaying && _voice != 0) || _retiringVoices.count > 0);
+            && ((_state == VibePlayerStatePlaying && _voice != 0 && !_buffering) || _retiringVoices.count > 0);
     os_unfair_lock_lock(&_stateLock);
     BOOL changed = _outputAudioActive != active;
     _outputAudioActive = active;
@@ -1355,6 +1640,19 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     __block AudioLoadingConfiguration *configuration;
     [self runSyncOnQueue:^{ configuration = self->_loadingConfiguration; }];
     return configuration;
+}
+
+- (NSDictionary<NSString *, NSNumber *> *)debugBufferingRecord {
+    os_unfair_lock_lock(&_stateLock);
+    NSDictionary *record = @{
+        @"holds": @(_debugBufferingHolds),
+        @"releases": @(_debugBufferingReleases),
+        @"stalls": @(_debugBufferingStalls),
+        @"heldSeconds": @(_buffering ? NSProcessInfo.processInfo.systemUptime - _debugBufferingSinceUptime
+                                     : _debugBufferingLastHeldSeconds),
+    };
+    os_unfair_lock_unlock(&_stateLock);
+    return record;
 }
 
 - (BOOL)manualRenderingActive {

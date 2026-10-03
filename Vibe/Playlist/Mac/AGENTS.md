@@ -20,7 +20,7 @@ The `NSTableView` half of `Vibe/Playlist/`: `PlaylistController` (data source an
 
 ## The number gutter
 
-**Three states, in precedence: loading, playing, number — set unconditionally by `configureNumberCell:row:track:isCurrentRow:` on every configure**, so a reused cell cannot carry a previous row's state; `levelSource` is reassigned every time so a reused view releases its old source before declaring demand. Loading is `CloudTransferRegistry.isTransferringURL:` (root `AGENTS.md`'s loading-bar guarantee), drawn by `LoadingIndicatorView` in the equalizer's slot. Loading outranks playing: during the open there is no output audio, so the equalizer would be collapsed dots.
+**Three states, in precedence: loading, playing, number — set unconditionally by `configureNumberCell:row:track:isCurrentRow:` on every configure**, so a reused cell cannot carry a previous row's state; `levelSource` is reassigned every time so a reused view releases its old source before declaring demand. Loading is `CloudTransferRegistry.isTransferringURL:` (root `AGENTS.md`'s loading-bar guarantee), one of the registry's observers beside `MainPlayerController`, drawn by `LoadingIndicatorView` in the equalizer's slot. Loading outranks playing: during the open there is no output audio, so the equalizer would be collapsed dots.
 
 **A registry change or a structural edit reconfigures the visible number cells in place (`reconfigureVisibleNumberCells`, `viewAtColumn:row:makeIfNecessary:NO`) — never `reloadData` and never a row reload**, which would rebuild the playing row's `EqualizerIndicatorView` out from under its demand balancing.
 

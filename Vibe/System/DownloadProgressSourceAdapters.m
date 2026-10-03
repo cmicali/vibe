@@ -4,6 +4,7 @@
 //
 
 #import "DownloadProgressSourceAdaptersInternal.h"
+#import "CloudFileMaterializer.h"
 #import "NSURLUtil.h"
 
 #include <errno.h>
@@ -74,12 +75,14 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
         long long logical = (long long)st.st_size;
         long long allocated = (long long)st.st_blocks * 512;
         // A remote placeholder holds no blocks until its bytes replace it in
-        // one rename; until then they stream into its part file.
+        // one rename. Until then its transfer's own count is exact, against
+        // the size being downloaded, which a re-upload since the listing
+        // makes differ from the placeholder's.
         if (VibeFileModeIsRemotePlaceholder(st.st_mode)) {
-            struct stat part;
+            CloudFileAvailability *stream = [CloudFileMaterializer availabilityForURL:url];
             dataless = YES;
-            allocated = stat([NSURLUtil remotePlaceholderPartURL:url].fileSystemRepresentation, &part) == 0
-                    ? (long long)part.st_size : 0;
+            logical = stream.size > 0 ? (long long)stream.size : logical;
+            allocated = (long long)stream.writtenBytes;
         }
         if (firstTick) {
             firstTick = NO;

@@ -47,7 +47,6 @@
 #import "MainPlayerController+PlayerEvents.h"
 #import "MainPlayerController+Delivery.h"
 #import "MainPlayerController+Window.h"
-#import "DownloadProgressMonitor.h"
 #import "UIUpdateTimer.h"
 #import "UIUpdateMath.h"
 #import "TrackCommands.h"
@@ -148,6 +147,7 @@
 
     self.fileConverter = [[AudioFileConverter alloc] init];
 
+    [CloudTransferRegistry.sharedRegistry addObserver:self];
     self.playlistController = [[PlaylistController alloc] initWithAudioPlayer:self.audioPlayer];
     self.playlistController.levelSource = self;
     self.playlistController.tableView = self.playlistTableView;
@@ -625,22 +625,21 @@
     _errorStatus = nil;
 }
 
-// One teardown for the pair: a monitor surviving its identifier — or the
-// reverse — lets didBeginLoading:'s identifier-reuse check keep a monitor for
-// an open it no longer observes, or rebuild one it already has. The
-// registry's declaration ends with them, or it outlives the monitor it names.
-- (void)teardownDownloadMonitor {
-    [_downloadMonitor cancel];
-    _downloadMonitor = nil;
-    _downloadMonitorOpenRequestIdentifier = 0;
-    [CloudTransferRegistry.sharedRegistry endExternalProgress];
+// One reset for the three: an identifier surviving its URL lets
+// didBeginLoading:'s same-open check keep a fraction for an open it no longer
+// shows.
+- (void)endLoadingProgress {
+    _loadingURL = nil;
+    _loadingPath = nil;
+    _loadingOpenRequestIdentifier = 0;
+    _loadingProgress = -1;
 }
 
 // stop sends no callback, so nothing auto-advances; didFinishPlaying:'s stale
 // guard drops one already in flight.
 - (IBAction)closeFile:(nullable id)sender {
     [OpenRequestCoordinator.sharedCoordinator invalidate];
-    [self teardownDownloadMonitor];
+    [self endLoadingProgress];
     [self.audioPlayer stop];
     [self.waveformCache cancelLoad];
     [self.playlistController clear];
@@ -814,7 +813,7 @@ static NSURL *VibeLastPlaylistURL(void) {
     // the removed open's settlement dies on submittedPlayIsCurrent:.
     [self clearErrorMask];
     // A fast local replacement never reaches didBeginLoading: to replace it.
-    [self teardownDownloadMonitor];
+    [self endLoadingProgress];
     BOOL startPaused = !continuesPlaying;
     if (startPaused) {
         // A slow parked open must not keep the UI tick running.

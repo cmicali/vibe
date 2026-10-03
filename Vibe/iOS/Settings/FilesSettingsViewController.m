@@ -9,6 +9,8 @@
 #import "BrowserViewController.h"
 #import "SettingsRules.h"
 #import "DropboxMirror.h"
+#import "DropboxRules.h"
+#import "SettingsChoiceViewController.h"
 #import "VibeStrings.h"
 
 typedef NS_ENUM(NSInteger, VibeFilesSection) {
@@ -36,11 +38,13 @@ static VibeFolderOpenSort FolderSortForRow(NSInteger row) {
 static NSString *const kChoiceCellIdentifier = @"choice";
 static NSString *const kActionCellIdentifier = @"action";
 static NSString *const kAccountCellIdentifier = @"account";
+static NSString *const kValueCellIdentifier = @"value";
 
 // The linked account's rows (dropboxRows).
 typedef NS_ENUM(NSInteger, VibeDropboxRow) {
     VibeDropboxRowAccount = 0,
     VibeDropboxRowRemoveDownloads,
+    VibeDropboxRowMaximumSize,
     VibeDropboxRowDisconnect,
 };
 
@@ -126,14 +130,15 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
 
 // The Dropbox section's rows, top to bottom: Connect alone while unlinked;
 // linked, the account, Remove Downloads while there is something to remove,
-// and Disconnect.
+// Maximum Size, and Disconnect.
 - (NSArray<NSNumber *> *)dropboxRows {
     if (!DropboxMirror.shared.client.isLinked) {
         return @[@(VibeDropboxRowAccount)];
     }
     return _downloadBytes > 0
-            ? @[@(VibeDropboxRowAccount), @(VibeDropboxRowRemoveDownloads), @(VibeDropboxRowDisconnect)]
-            : @[@(VibeDropboxRowAccount), @(VibeDropboxRowDisconnect)];
+            ? @[@(VibeDropboxRowAccount), @(VibeDropboxRowRemoveDownloads), @(VibeDropboxRowMaximumSize),
+                @(VibeDropboxRowDisconnect)]
+            : @[@(VibeDropboxRowAccount), @(VibeDropboxRowMaximumSize), @(VibeDropboxRowDisconnect)];
 }
 
 - (VibeDropboxRow)dropboxRowAtIndex:(NSInteger)index {
@@ -146,8 +151,11 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
-    return (VibeFilesSection)section == VibeFilesSectionDropbox
-            ? [NSString stringWithFormat:STR_SETTINGS_DROPBOX_FOOTER, VibeAppName()] : nil;
+    if ((VibeFilesSection)section != VibeFilesSectionDropbox) {
+        return nil;
+    }
+    return DropboxMirror.shared.client.isLinked ? STR_SETTINGS_DROPBOX_FOOTER_LINKED
+                                                : [NSString stringWithFormat:STR_SETTINGS_DROPBOX_FOOTER, VibeAppName()];
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView
@@ -172,6 +180,9 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
                                    indexPath:(NSIndexPath *)indexPath {
     DropboxClient *client = DropboxMirror.shared.client;
     BOOL accountRow = client.isLinked && indexPath.row == VibeDropboxRowAccount;
+    if (client.isLinked && [self dropboxRowAtIndex:indexPath.row] == VibeDropboxRowMaximumSize) {
+        return [self maximumSizeCellForTableView:tableView];
+    }
     NSString *identifier = accountRow ? kAccountCellIdentifier : kActionCellIdentifier;
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:identifier];
     if (!cell) {
@@ -209,7 +220,51 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
     return cell;
 }
 
+- (UITableViewCell *)maximumSizeCellForTableView:(UITableView *)tableView {
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kValueCellIdentifier];
+    if (!cell) {
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
+                                      reuseIdentifier:kValueCellIdentifier];
+        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+    }
+    UIListContentConfiguration *content = [UIListContentConfiguration valueCellConfiguration];
+    content.text = STR_SETTINGS_DROPBOX_MAXIMUM_SIZE;
+    content.secondaryText = [self budgetTitles][(NSUInteger)[self currentBudgetIndex]];
+    cell.contentConfiguration = content;
+    return cell;
+}
+
 #pragma mark - Dropbox
+
+// In kVibeDropboxDownloadBudgets order, so an index names the same size in
+// both; the formatter writes the unit as the language does.
+- (NSArray<NSString *> *)budgetTitles {
+    NSMutableArray<NSString *> *titles = [NSMutableArray array];
+    for (size_t i = 0; i < kVibeDropboxDownloadBudgetCount; i++) {
+        [titles addObject:[NSByteCountFormatter stringFromByteCount:kVibeDropboxDownloadBudgets[i]
+                                                         countStyle:NSByteCountFormatterCountStyleFile]];
+    }
+    return titles;
+}
+
+- (NSInteger)currentBudgetIndex {
+    return (NSInteger)VibeDropboxDownloadBudgetIndex((NSInteger)DropboxMirror.shared.downloadBudget);
+}
+
+// Saved, then applied: the mirror applies and never saves. The section
+// reloads on its own: a smaller size posts the new total
+// (downloadsDidChange:), and coming back re-measures.
+- (SettingsChoiceViewController *)maximumSizePicker {
+    return [[SettingsChoiceViewController alloc]
+            initWithTitle:STR_SETTINGS_DROPBOX_MAXIMUM_SIZE
+                  choices:[self budgetTitles]
+            selectedIndex:[self currentBudgetIndex]
+                 onSelect:^(NSInteger index) {
+        [NSUserDefaults.standardUserDefaults setInteger:kVibeDropboxDownloadBudgets[index]
+                                                 forKey:VibeDropboxDownloadBudgetKey];
+        DropboxMirror.shared.downloadBudget = kVibeDropboxDownloadBudgets[index];
+    }];
+}
 
 - (void)connectDropbox {
     __weak FilesSettingsViewController *weakSelf = self;
@@ -253,6 +308,9 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
             // No confirmation: nothing leaves Dropbox, and a song comes back
             // by playing it.
             [DropboxMirror.shared removeDownloadsWithCompletion:^{}];
+        }
+        else if ([self dropboxRowAtIndex:indexPath.row] == VibeDropboxRowMaximumSize) {
+            [self.navigationController pushViewController:[self maximumSizePicker] animated:YES];
         }
         else if ([self dropboxRowAtIndex:indexPath.row] == VibeDropboxRowDisconnect) {
             [self confirmDisconnectDropbox];

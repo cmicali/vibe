@@ -169,10 +169,16 @@ private:
     uint64_t _bytesFetched = 0;
 };
 
+// A parse never waits for a download: a streaming file's facts come once it
+// is on disk, as they did when a placeholder refused the open, so a worker is
+// never held for the rest of a transfer (Audio/AGENTS.md: every wait for a
+// stream's bytes can be interrupted). The handle fails at once instead.
+static BOOL (^const VibeNeverWaitsForAStream)(void) = ^BOOL { return YES; };
+
 // The stream a parse reads: the file, or its remote bytes by range when it
 // is a remote placeholder. A read is installed exactly while a placeholder
-// root is (setRemoteRoot:fetch:read:), so the mac, which installs none, pays
-// no stat, and only a placeholder pays the root test.
+// root is (setRemoteRoot:fetch:read:availability:), so the mac, which
+// installs none, pays no stat, and only a placeholder pays the root test.
 static std::unique_ptr<TagLib::IOStream> VibeOpenTagStream(const char *path) {
     CloudFileRemoteRead read = CloudFileMaterializer.remoteRead;
     struct stat st;
@@ -597,7 +603,8 @@ static NSData *VibeEncodedArtData(VibeImage *image) {
         // TagLib takes a FLAC's length from STREAMINFO alone, which may leave it
         // unknown (0); the handle's dr_flac finds it from the stream's last frames.
         if (self.duration == 0 && dynamic_cast<TagLib::FLAC::File *>(file)) {
-            AudioFileHandle *handle = [[AudioFileHandle alloc] initForReading:url error:NULL];
+            AudioFileHandle *handle = [[AudioFileHandle alloc] initForReading:url interleaved:NO
+                                                                   interrupted:VibeNeverWaitsForAStream error:NULL];
             if (handle.length > 0) {
                 self.duration = handle.length / handle.processingFormat.sampleRate;
             }
@@ -649,7 +656,8 @@ static NSString * _Nullable trimmedTagText(id _Nullable value) {
     // Playback's open, so both reach one verdict on the file. TRAP: the
     // handle closes the parser when released, which ARC may do right after
     // its last message unless its lifetime is pinned to the scope.
-    NS_VALID_UNTIL_END_OF_SCOPE AudioFileHandle *handle = [[AudioFileHandle alloc] initParserForReading:url error:NULL];
+    NS_VALID_UNTIL_END_OF_SCOPE AudioFileHandle *handle = [[AudioFileHandle alloc] initParserForReading:url
+                                                                                            interrupted:VibeNeverWaitsForAStream error:NULL];
     AudioFileID file = handle.parser;
     AudioStreamBasicDescription format = {0};
     UInt32 size = sizeof(format);

@@ -26,20 +26,17 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface DownloadProgressMonitor : NSObject
 
-// Cancels `existing` and observes url until cancelled or materialized,
-// delivering only while currentURL still answers url: a monitor outlives fast
-// track changes. Never triggers the download. Main thread only; every block
-// runs there.
+// Observes url until cancelled or materialized; CloudTransferRegistry runs
+// one per transfer, the only caller. Never triggers the download. Main thread
+// only; every block runs there.
 //
 // handler gets [0, 1] in whole-percent steps, a final 1.0 on completion, and
 // nothing after cancel. movement is the uncoalesced liveness feed for the
 // open's abandon deadline: any finite, strictly positive raw increase
-// (VibeDownloadProgressIsMovement). Nil when the caller only paints.
-+ (instancetype)monitorReplacing:(nullable DownloadProgressMonitor *)existing
-                          forURL:(NSURL *)url
-                      currentURL:(NSURL *_Nullable (^)(void))currentURL
-                        movement:(nullable void (^)(void))movement
-                         handler:(void (^)(float fraction))handler;
+// (VibeDownloadProgressIsMovement).
++ (instancetype)monitorForURL:(NSURL *)url
+                     movement:(nullable void (^)(void))movement
+                      handler:(void (^)(float fraction))handler;
 
 - (void)cancel;
 

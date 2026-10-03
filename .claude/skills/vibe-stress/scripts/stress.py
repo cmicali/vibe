@@ -481,9 +481,10 @@ EQUALIZER_MODES = ["balanced", "activity", "spectrum"]
 # set_audio_loading's three "safe" (non-diagnostic) keys, within
 # AudioLoadingConfiguration.m's validation bounds: an out-of-range value is a
 # `command` failure that ends the run on the harness's own bad argument.
+AUDIO_LOADING_KEYS_LOCAL_PARSES = [1, 2, 4, 8, 16]
 AUDIO_LOADING_KEYS = {
     "background": lambda rng: rng.choice([1, 1, 2, 3, 4]),
-    "local-parses": lambda rng: rng.choice([1, 2, 4, 8, 16]),
+    "local-parses": lambda rng: rng.choice(AUDIO_LOADING_KEYS_LOCAL_PARSES),
     "prefetch-depth": lambda rng: rng.choice([0, 1]),
 }
 
@@ -1182,6 +1183,11 @@ GROWTH_LIMITS = {
     # render.
     ("app", "renderRefusals"): (0, "render refusals"),
     **{("pending", key): (8, f"pending {key}") for key in PENDING_KEYS},
+    # One holder per parse worker mid-sweep, and the audio_loading op raises
+    # local-parses to 16 (AUDIO_LOADING_KEYS): a 220-row folder opened under
+    # that setting held 16 for three samples while the sweep progressed. A
+    # leak is unbounded, and the resting limit still requires zero.
+    ("pending", "metadataHolders"): (max(AUDIO_LOADING_KEYS_LOCAL_PARSES), "pending metadataHolders"),
 }
 
 # Resting limits, for samples taken right after a `quiesce` (no track, empty
