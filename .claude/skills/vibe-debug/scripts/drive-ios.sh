@@ -76,6 +76,9 @@ start)
     pkill -f "Devices/$UDID/.*VibeiOSDriver-Runner" 2>/dev/null || true
     mkdir -p "$TMP"
     rm -f "$TMP/$READY_NAME" "$TMP"/vibe-touch-*
+    # TRAP: without -collect-test-diagnostics never, xcodebuild's teardown
+    # after `stop` can run `simctl diagnose` for minutes, and this script,
+    # which holds the caller's pipe until xcodebuild is gone, hangs with it.
     # The build tree is shared by the checkout's sessions: hold the lock across
     # the generate, the build and the install (released when this script
     # exits), or xcodegen rewrites Vibe.xcodeproj under another session's
@@ -87,6 +90,7 @@ start)
     ( cd "$ROOT" && TEST_RUNNER_VIBE_DRIVER_DIR="$TMP" \
         nohup xcodebuild test -project Vibe.xcodeproj -scheme VibeiOSDriver \
             -destination "id=$UDID" -derivedDataPath build/DerivedData \
+            -collect-test-diagnostics never \
             "${SIGNING[@]}" > "$LOG" 2>&1 & echo $! > "$TMP/xcodebuild.pid" )
     BUILD_PID="$(cat "$TMP/xcodebuild.pid")"
     for _ in $(seq 1 240); do
