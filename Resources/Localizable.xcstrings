@@ -23342,7 +23342,7 @@
       "extractionState": "manual"
     },
     "playlist.grant.button": {
-      "comment": "Confirm button of the folder-picker panel that grants access to a playlist file's folder.",
+      "comment": "Confirm button that grants access to a playlist file's folder: of the folder-picker panel on the Mac, of the alert that opens the folder picker on iPhone and iPad.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -23528,7 +23528,7 @@
       "extractionState": "manual"
     },
     "playlist.grant.message": {
-      "comment": "Message atop the folder-picker panel shown when a playlist file's (CUE, M3U) audio files are not readable under the sandbox. %1$@ is the app name, %2$@ the playlist file's name.",
+      "comment": "Message shown when a playlist file's (CUE, M3U) audio files are not readable under the sandbox: atop the folder-picker panel on the Mac, in an alert before the folder picker on iPhone and iPad. %1$@ is the app name, %2$@ the playlist file's name.",
       "localizations": {
         "bg": {
           "stringUnit": {

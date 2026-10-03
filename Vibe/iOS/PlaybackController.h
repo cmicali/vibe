@@ -80,6 +80,10 @@ NS_ASSUME_NONNULL_BEGIN
 // one — read playlist.count before presenting an empty state — and every
 // Add in flight was superseded.
 - (void)playbackDidOpenEmptyFolder:(PlaybackController *)playback;
+// FolderSession's needsFolderOfSheetAtURL:, relayed.
+- (void)playback:(PlaybackController *)playback
+        needsFolderOfSheetAtURL:(NSURL *)sheetURL
+                      appending:(BOOL)appending;
 // A relaunch restore came to nothing, or there was nothing to restore.
 - (void)playbackHasNothingToRestore:(PlaybackController *)playback;
 
@@ -199,6 +203,9 @@ NS_ASSUME_NONNULL_BEGIN
 // UIOpenURLContext.options: YES means the real files, so their scopes and the
 // expand-to-directory apply.
 - (void)openURLs:(NSArray<NSURL *> *)urls openInPlace:(BOOL)openInPlace;
+
+// FolderSession's, for the folder picked after needsFolderOfSheetAtURL:.
+- (void)openSheetURL:(NSURL *)sheetURL inGrantedFolder:(NSURL *)folderURL appending:(BOOL)appending;
 
 // Unloads everything, the twin of the mac's File > Close: the player, the
 // session with its scopes and persisted bookmarks (the next launch restores

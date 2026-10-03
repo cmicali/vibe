@@ -11,6 +11,7 @@
 #import "FavoritesStore.h"
 #import "FileSearchRules.h"
 #import "NSURLUtil.h"
+#import "PlaylistFile.h"
 #import "SearchFolderStoreInternal.h"
 #import <stdatomic.h>
 
@@ -155,7 +156,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         });
         return;
     }
-    [self beginOpenURLs:urls appending:NO expandsFile:YES];
+    [self beginOpenURLs:urls appending:NO expandsFile:YES grantedFolder:nil];
 }
 
 - (uint64_t)addRequestToken {
@@ -182,7 +183,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         LogInfo(@"FolderSession: dropping an Add superseded while its URL resolved");
         return;
     }
-    [self beginOpenURLs:urls appending:YES expandsFile:NO];
+    [self beginOpenURLs:urls appending:YES expandsFile:NO grantedFolder:nil];
 }
 
 // Work queue. A Dropbox folder nothing has listed yet is listed from Dropbox
@@ -209,7 +210,11 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
 }
 
 - (void)openURL:(NSURL *)url inFolder:(BOOL)inFolder {
-    [self beginOpenURLs:@[url] appending:NO expandsFile:inFolder];
+    [self beginOpenURLs:@[url] appending:NO expandsFile:inFolder grantedFolder:nil];
+}
+
+- (void)openSheetURL:(NSURL *)sheetURL inGrantedFolder:(NSURL *)folderURL appending:(BOOL)appending {
+    [self beginOpenURLs:@[sheetURL] appending:appending expandsFile:!appending grantedFolder:folderURL];
 }
 
 - (void)clearSession {
@@ -516,10 +521,13 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
 // subfolder. Under a Location, a favorite or the app's own trees the grant
 // persists by itself, so the open is remembered like any other.
 // expandsFile: one file opened alone becomes its directory with it selected,
-// where a root covers that; NO keeps it a one-track playlist.
+// where a root covers that; NO keeps it a one-track playlist. grantedFolder:
+// a folder the user just granted for a sheet's audio, held like a starred
+// folder's root.
 - (void)beginOpenURLs:(NSArray<NSURL *> *)urls
             appending:(BOOL)appending
-          expandsFile:(BOOL)expandsFile {
+          expandsFile:(BOOL)expandsFile
+        grantedFolder:(NSURL *)grantedFolder {
     if (urls.count == 0) {
         return;
     }
@@ -537,7 +545,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             // Weak: the waiter is stored on self.
             __weak FolderSession *weakSelf = self;
             [_addWaiters addObject:^{
-                [weakSelf beginOpenURLs:parked appending:YES expandsFile:NO];
+                [weakSelf beginOpenURLs:parked appending:YES expandsFile:NO grantedFolder:grantedFolder];
             }];
             return;
         }
@@ -595,6 +603,10 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         NSURL *favoriteRoot = grant ? nil : [FavoritesStore.shared resolvedRootCoveringURL:url];
         if (!root) {
             root = favoriteRoot;
+        }
+        if (!root && grantedFolder
+                && VibeSearchRootCoversPath(grantedFolder.URLByStandardizingPath.path, path)) {
+            root = grantedFolder;
         }
         if (sessionRoot && !grant && !favoriteRoot
                 && ![sessionRoot.URLByStandardizingPath.path isEqualToString:path]) {
@@ -664,6 +676,9 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     NSMutableArray<NSURL *> *contributors = [NSMutableArray array];
     NSURL *folderURL = nil;
     NSURL *selectedURL = nil;
+    // The first picked sheet that found nothing because its folder is
+    // denied: reported once the empty open settles, so the user can grant it.
+    NSURL *deniedSheetURL = nil;
     BOOL expands = expandsFile && urls.count == 1;
     // Resolved lazily and at most once: a resolve is provider IPC, and a
     // folder open never needs it.
@@ -783,6 +798,11 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             if (started) {
                 [held stopAccessingSecurityScopedResource];
             }
+            if (!isDir && !restored && !deniedSheetURL && produced.count == 0
+                    && [PlaylistFile isCueExtension:url.pathExtension.lowercaseString]
+                    && [NSURLUtil isReadDenied:url.URLByDeletingLastPathComponent]) {
+                deniedSheetURL = url;
+            }
             continue;
         }
         if (started) {
@@ -810,11 +830,15 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         for (NSURL *owned in ownedScopes) {
             [owned stopAccessingSecurityScopedResource];
         }
-        // Still settles (finishOpenIntent:).
+        // Still settles (finishOpenIntent:), and only then asks.
         run_on_main_thread({
-            [self finishOpenIntent:openIntentGeneration appending:appending tracks:@[]
-                         folderURL:nil addedFolders:@[] selectedURL:nil restored:restored
-                       ownedScopes:@[] ownedGrants:@[] baseBookmark:nil additionBookmarks:@[]];
+            if ([self finishOpenIntent:openIntentGeneration appending:appending tracks:@[]
+                             folderURL:nil addedFolders:@[] selectedURL:nil restored:restored
+                           ownedScopes:@[] ownedGrants:@[] baseBookmark:nil additionBookmarks:@[]]
+                    && deniedSheetURL) {
+                [self.delegate folderSession:self needsFolderOfSheetAtURL:deniedSheetURL
+                                   appending:appending];
+            }
         });
         return;
     }
@@ -934,8 +958,9 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
 }
 
 // Main thread; the one place session state and bookmarks move. Every request
-// ends here, an empty one included; a stale one only releases its scopes.
-- (void)finishOpenIntent:(uint64_t)openIntentGeneration
+// ends here, an empty one included; a stale one only releases its scopes and
+// answers NO.
+- (BOOL)finishOpenIntent:(uint64_t)openIntentGeneration
                appending:(BOOL)appending
                   tracks:(NSArray<AudioTrack *> *)tracks
                folderURL:(NSURL *)folderURL
@@ -955,7 +980,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         for (NSURL *url in ownedScopes) {
             [url stopAccessingSecurityScopedResource];
         }
-        return;
+        return NO;
     }
     if (tracks.count == 0) {
         // TRAP: an empty open still SETTLES its generation: the playlist left
@@ -982,7 +1007,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         if (!appending) {
             [self releaseAddWaitersAfterSettle];
         }
-        return;
+        return YES;
     }
     // A restore is not a user open; counted, every cold start adds a folder.
     if (!restored) {
@@ -1004,7 +1029,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         [self persistAdditionBookmarks:additionBookmarks];
         _hasAdditions = YES;
         [self.delegate folderSession:self didAppendTracks:tracks];
-        return;
+        return YES;
     }
     // TRAP: acquire before release. The previous set is stopped only here,
     // after the successor is installed, so a failed or superseded pick never
@@ -1036,6 +1061,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
                      selectedURL:selectedURL restored:restored];
     // Last, so a replayed Add appends to this landing's playlist.
     [self releaseAddWaitersAfterSettle];
+    return YES;
 }
 
 // For any REPLACE settling, which also releases the waiters of a promoted open

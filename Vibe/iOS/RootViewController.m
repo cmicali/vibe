@@ -17,6 +17,7 @@
 #import "Playlist.h"
 #import "SearchViewController.h"
 #import "VibeStrings.h"
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 // Apple Music's proportions.
 static const CGFloat kCardCornerRadius = 14;
@@ -33,7 +34,7 @@ static NSString *const kTabFiles = @"files";
 static NSString *const kTabSearch = @"search";
 
 @interface RootViewController () <PlaybackObserver, MiniPlayerViewDelegate,
-        PlayerViewControllerDelegate, UITabBarControllerDelegate>
+        PlayerViewControllerDelegate, UITabBarControllerDelegate, UIDocumentPickerDelegate>
 @end
 
 @implementation RootViewController {
@@ -58,6 +59,8 @@ static NSString *const kTabSearch = @"search";
     // Rows of Adds asked for and not yet settled, oldest first, and when
     // each was lifted.
     NSMutableArray<NSArray<UIView *> *> *_liftedRowBatches;
+    // What the folder picker on screen does with the folder picked.
+    void (^_sheetFolderPicked)(NSURL *folder);
     NSMutableArray<NSNumber *> *_liftedRowBatchTimes;
     BOOL                   _playerAppearanceTransitionActive;
     NSArray<UIViewController *> *_parentAppearanceChildren;
@@ -896,6 +899,52 @@ static const CGFloat kLandedRowScale = 0.1;
     for (NSArray<UIView *> *rows in [_liftedRowBatches copy]) {
         [self settleLiftedRows:rows landed:NO];
     }
+}
+
+// Over whatever is up: "Open in Vibe" can arrive with the card presented.
+- (void)playback:(PlaybackController *)playback
+        needsFolderOfSheetAtURL:(NSURL *)sheetURL
+                      appending:(BOOL)appending {
+    UIViewController *presenter = self;
+    while (presenter.presentedViewController) {
+        presenter = presenter.presentedViewController;
+    }
+    NSString *message = [NSString stringWithFormat:STR_PLAYLIST_GRANT_MESSAGE, VibeAppName(),
+                         sheetURL.lastPathComponent];
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:nil
+                                                                   message:message
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:STR_BUTTON_CANCEL
+                                              style:UIAlertActionStyleCancel
+                                            handler:nil]];
+    UIAlertAction *grant = [UIAlertAction actionWithTitle:STR_PLAYLIST_GRANT_BUTTON
+                                                    style:UIAlertActionStyleDefault
+                                                  handler:^(UIAlertAction *action) {
+        UIDocumentPickerViewController *picker =
+                [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypeFolder] asCopy:NO];
+        picker.directoryURL = sheetURL.URLByDeletingLastPathComponent;
+        picker.delegate = self;
+        self->_sheetFolderPicked = ^(NSURL *folder) {
+            [playback openSheetURL:sheetURL inGrantedFolder:folder appending:appending];
+        };
+        [presenter presentViewController:picker animated:YES completion:nil];
+    }];
+    [alert addAction:grant];
+    alert.preferredAction = grant;
+    [presenter presentViewController:alert animated:YES completion:nil];
+}
+
+- (void)documentPicker:(UIDocumentPickerViewController *)controller
+        didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
+    void (^picked)(NSURL *) = _sheetFolderPicked;
+    _sheetFolderPicked = nil;
+    if (picked && urls.firstObject) {
+        picked(urls.firstObject);
+    }
+}
+
+- (void)documentPickerWasCancelled:(UIDocumentPickerViewController *)controller {
+    _sheetFolderPicked = nil;
 }
 
 - (void)bringPlaylistTabForward {

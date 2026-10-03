@@ -712,6 +712,13 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     [_folderSession openURLs:urls openInPlace:openInPlace];
 }
 
+- (void)openSheetURL:(NSURL *)sheetURL inGrantedFolder:(NSURL *)folderURL appending:(BOOL)appending {
+    if (!appending) {
+        _replaceRequestSerial++;
+    }
+    [_folderSession openSheetURL:sheetURL inGrantedFolder:folderURL appending:appending];
+}
+
 - (void)addURLs:(NSArray<NSURL *> *)urls {
     [_folderSession addURLs:urls];
 }
@@ -913,6 +920,16 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {
         if ([observer respondsToSelector:@selector(playbackDidOpenEmptyFolder:)]) {
             [observer playbackDidOpenEmptyFolder:self];
+        }
+    }
+}
+
+- (void)folderSession:(FolderSession *)session
+        needsFolderOfSheetAtURL:(NSURL *)sheetURL
+                      appending:(BOOL)appending {
+    for (id<PlaybackObserver> observer in [self observerSnapshot]) {
+        if ([observer respondsToSelector:@selector(playback:needsFolderOfSheetAtURL:appending:)]) {
+            [observer playback:self needsFolderOfSheetAtURL:sheetURL appending:appending];
         }
     }
 }
