@@ -89,6 +89,9 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     BOOL                    _bakeWanted;
     // For the rate limit; 0 bakes at once.
     CFTimeInterval          _lastBakeAt;
+    // The hidden live tree missed deliveries the bake covered; it is redrawn
+    // when the teardown shows it again.
+    BOOL                    _liveTreeStale;
     CGFloat                 _visibleFraction;
     UIPinchGestureRecognizer *_pinch;
     BOOL                    _isPinching;
@@ -327,8 +330,12 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     if (!_renderer || [[self themeSignature] isEqualToString:_themeSignature]) {
         return;
     }
-    // The bake carries the old palette. No morph to wait out, so no delay.
-    [self teardownBakedWaveform];
+    // The bake carries the old palette, but stays up until the recolored one
+    // lands: a teardown would show the live tree meanwhile, and an album-art
+    // color arrives just as a track starts, when a scrub is likeliest (see
+    // bakeNowForGesture). The epoch still drops a bake in flight. No morph to
+    // wait out, so no delay.
+    _bakeEpoch++;
     [self applyResolvedTheme];
     [self applyScrollAndProgress];
     [self scheduleEnvelopeBakeAfter:0];
@@ -351,6 +358,7 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
 }
 
 - (void)drawWaveform {
+    _liveTreeStale = NO;
     _renderer.samplingWidth = self.bounds.size.width / kVibeWaveformDefaultZoomFraction;
     [_renderer updateWaveform:[self virtualBounds] progress:[self playedProgress] waveform:self.waveform.waveform];
     [self applyScrollAndProgress];
@@ -392,10 +400,17 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     if (fabs(_scroll.contentOffset.x - x) < 0.01) {
         return;
     }
-    [CATransaction begin];
-    [CATransaction setDisableActions:YES];
-    _scroll.contentOffset = CGPointMake(x, 0);
-    [CATransaction commit];
+    [self setContentOffsetX:x];
+}
+
+// TRAP: an explicit CATransaction here is a top-level one on the display
+// link's tick, so every progress step committed the whole tree — layout
+// included — a second time in its frame. A scroll view's own layer animates
+// only inside an animation block, which this opts out of instead.
+- (void)setContentOffsetX:(CGFloat)x {
+    [UIView performWithoutAnimation:^{
+        self->_scroll.contentOffset = CGPointMake(x, 0);
+    }];
 }
 
 // TRAP: the park above declines while isScrubbing, and a cancelled scroll
@@ -408,10 +423,7 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     if (fabs(_scroll.contentOffset.x - x) < 0.01) {
         return;
     }
-    [CATransaction begin];
-    [CATransaction setDisableActions:YES];
-    _scroll.contentOffset = CGPointMake(x, 0);
-    [CATransaction commit];
+    [self setContentOffsetX:x];
 }
 
 // What the played side spans: under a playhead line the whole waveform, the
@@ -430,20 +442,21 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
         return;
     }
     CGFloat progress = [self playedProgress];
-    [CATransaction begin];
-    [CATransaction setDisableActions:YES];
     if (_bakedHost) {
+        // Its actions are off, so no transaction: see setContentOffsetX:.
         _bakedPlayed.bounds = CGRectMake(0, 0, progress * virtualWidth, _bakedHost.bounds.size.height);
         _bakedPlayed.contentsRect = CGRectMake(0, 0, progress, 1);
         VibeTallyCount(waveform_progress_baked);
     }
     else {
+        [CATransaction begin];
+        [CATransaction setDisableActions:YES];
         [_renderer updateProgress:progress waveform:self.waveform.waveform];
+        [CATransaction commit];
         // The branches cost alike here and not in the render server, so which
         // one a frame took is the measurement.
         VibeTallyCount(waveform_progress_live);
     }
-    [CATransaction commit];
 }
 
 // The play position IS the view's center, so the line never moves: it follows
@@ -538,6 +551,8 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 #pragma mark - Presentation states
 
 - (void)resetWaveformContentState {
+    // Its callers draw the reset state, so the outgoing track's is not drawn.
+    _liveTreeStale = NO;
     [self teardownBakedWaveform];
     // The new track's first bake must not wait on the old track's rate limit.
     _lastBakeAt = 0;
@@ -591,9 +606,16 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
         // bitmap is a fractionally stale picture of the same waveform; a
         // teardown per delivery (~10 a second) would unhide the live tree and
         // bump the epoch that discards the bake in flight, so a streaming load
-        // would never leave the live tree. The hidden live tree is still
-        // brought up to date for whatever unhides it next.
-        [self drawWaveformSettled];
+        // would never leave the live tree. Nor is the hidden live tree drawn:
+        // a streaming file delivers for its whole download, and each draw
+        // rebuilt and committed a mask of thousands of rects nobody sees. The
+        // teardown that shows it draws it.
+        if (_bakedHost) {
+            _liveTreeStale = YES;
+        }
+        else {
+            [self drawWaveformSettled];
+        }
         [self scheduleEnvelopeBakeAfter:[self throttledBakeDelay]];
     }
     VibeSignpostEnd(waveform_delivery);
@@ -633,6 +655,9 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     _bakedPlayed = nil;
     _rendererHost.hidden = NO;
     [CATransaction commit];
+    if (_liveTreeStale) {
+        [self drawWaveformSettled];
+    }
 }
 
 - (void)scheduleEnvelopeBakeAfter:(NSTimeInterval)delay {
@@ -741,6 +766,8 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     _bakedUnplayed.opacity = (float)unplayedOpacity;
     [_bakedHost addSublayer:_bakedUnplayed];
     _bakedPlayed = [CALayer layer];
+    _bakedPlayed.actions = @{@"bounds": NSNull.null, @"position": NSNull.null,
+                             @"contentsRect": NSNull.null};
     _bakedPlayed.anchorPoint = CGPointZero;
     _bakedPlayed.position = CGPointZero;
     _bakedPlayed.contents = (__bridge id)image;
@@ -876,6 +903,20 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     _seekPending = YES;
     [self beginScrubFeedback];
     _lastTickTime = 0;
+    [self bakeNowForGesture];
+}
+
+// TRAP: a gesture moves the content every frame, and on the live tree each
+// frame re-composites a multi-screen layer under a mask of thousands of rects
+// — a morph rebuilds that mask per frame on top. The render server falls
+// behind, and the time labels' per-frame redraws then wait on it in
+// CABackingStoreSynchronize: a scrub at a track's start ran at 30 Hz or less.
+// So a gesture lands the morph and bakes now rather than after the ease.
+- (void)bakeNowForGesture {
+    if (!_bakedHost && _renderer) {
+        [self drawWaveformSettled];
+        [self scheduleEnvelopeBakeAfter:0];
+    }
 }
 
 // Shared with the pinch's scrub, which starts past its slop.
@@ -1040,11 +1081,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
         _progressTracker = [self progressBucket];
     }
     [self.delegate waveformScrubberView:self didChangeScrubbing:YES];
-    // Without a bake a pinch frame is a full-width mask rebuild; bake now.
-    if (!_bakedHost && _renderer) {
-        [self drawWaveformSettled];
-        [self scheduleEnvelopeBakeAfter:0];
-    }
+    [self bakeNowForGesture];
 }
 
 - (void)endZoomGesture {
