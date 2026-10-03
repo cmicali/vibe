@@ -21,12 +21,15 @@
 
 #pragma mark - The stub
 
-// A response: status, headers, body; or hang until the task is cancelled.
+// A response: status, headers, body; or hang until the task is cancelled; or
+// answer only once `gate` is signalled, without holding the loader thread,
+// so other requests are answered meanwhile.
 typedef struct {
     NSInteger status;
     NSDictionary<NSString *, NSString *> *_Nullable headers;
     NSData *_Nullable body;
     BOOL hang;
+    dispatch_semaphore_t _Nullable gate;
 } DropboxStubResponse;
 
 typedef DropboxStubResponse (^DropboxStubHandler)(NSURLRequest *request, NSDictionary *_Nullable json);
@@ -43,7 +46,9 @@ static DropboxStubResponse DropboxStubJSON(NSInteger status, id object) {
 @interface DropboxStubProtocol : NSURLProtocol
 @end
 
-@implementation DropboxStubProtocol
+@implementation DropboxStubProtocol {
+    DropboxStubResponse _gated;
+}
 
 + (BOOL)canInitWithRequest:(NSURLRequest *)request {
     return YES;
@@ -83,6 +88,25 @@ static NSData *DropboxStubBody(NSURLRequest *request) {
     if (response.hang) {
         return;
     }
+    if (response.gate) {
+        // Delivered on this thread, the client's, once the gate opens.
+        _gated = response;
+        NSThread *loader = NSThread.currentThread;
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+            dispatch_semaphore_wait(response.gate, dispatch_time(DISPATCH_TIME_NOW,
+                    (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)));
+            [self performSelector:@selector(deliverGated) onThread:loader withObject:nil waitUntilDone:NO];
+        });
+        return;
+    }
+    [self deliver:response];
+}
+
+- (void)deliverGated {
+    [self deliver:_gated];
+}
+
+- (void)deliver:(DropboxStubResponse)response {
     NSHTTPURLResponse *http = [[NSHTTPURLResponse alloc] initWithURL:self.request.URL
                                                           statusCode:response.status
                                                          HTTPVersion:@"HTTP/1.1"
@@ -294,6 +318,54 @@ static struct stat StatOf(NSURL *url) {
     XCTAssertTrue([NSURLUtil isDatalessFile:[folder URLByAppendingPathComponent:@"01 Song.flac"]]);
     XCTAssertFalse([NSURLUtil isDatalessFile:[folder URLByAppendingPathComponent:@"Album.cue"]]);
     [NSURLUtil setRemotePlaceholderRoot:nil];
+}
+
+// Two refreshes of one folder share a sheet's part file, so they share one
+// download: a second would unlink the first's bytes mid-transfer and the
+// first to finish would install the other's half.
+- (void)testTwoRefreshesOfOneFolderFetchItsSheetOnce {
+    NSData *sheet = [@"FILE \"01 Song.flac\" WAVE\n" dataUsingEncoding:NSUTF8StringEncoding];
+    _listings[@"/music/album"] = @[
+        FileEntry(@"/Music/Album", @"01 Song.flac", 123456, kStamp),
+        FileEntry(@"/Music/Album", @"Album.cue", (long long)sheet.length, kStamp),
+    ];
+    _contents[@"/music/album/album.cue"] = sheet;
+    dispatch_semaphore_t gate = dispatch_semaphore_create(0);
+    [self installHandler:^DropboxStubResponse(NSURLRequest *request, NSDictionary *json) {
+        DropboxStubResponse response = [self defaultResponseFor:request json:json];
+        if ([request.URL.path isEqualToString:@"/2/files/download"]) {
+            response.gate = gate;
+        }
+        return response;
+    }];
+
+    XCTestExpectation *both = [self expectationWithDescription:@"both refreshes"];
+    both.expectedFulfillmentCount = 2;
+    __block NSURL *folder = nil;
+    void (^refreshed)(NSURL *, NSError *) = ^(NSURL *folderURL, NSError *error) {
+        XCTAssertNil(error);
+        folder = folderURL;
+        [both fulfill];
+    };
+    [_mirror refreshDropboxFolder:@"/Music/Album" completion:refreshed];
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
+    while ([self requestsToPath:@"/2/files/download"].count == 0 && deadline.timeIntervalSinceNow > 0) {
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+    }
+    // The first download is held; the second refresh lists and reconciles
+    // under it. The short wait is the negative check's: time for a second
+    // download to have been asked for, had one been coming.
+    [_mirror refreshDropboxFolder:@"/Music/Album" completion:refreshed];
+    while ([self requestsToPath:@"/2/files/list_folder"].count < 2 && deadline.timeIntervalSinceNow > 0) {
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+    }
+    [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.3]];
+    dispatch_semaphore_signal(gate);
+    dispatch_semaphore_signal(gate);
+    [self waitForExpectations:@[both] timeout:VIBE_TEST_HANG_TIMEOUT];
+
+    XCTAssertEqual([self requestsToPath:@"/2/files/download"].count, 1u);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:[folder URLByAppendingPathComponent:@"Album.cue"]], sheet);
 }
 
 - (void)testARefreshKeepsCurrentBytesRewritesChangedFilesAndDropsDeparted {

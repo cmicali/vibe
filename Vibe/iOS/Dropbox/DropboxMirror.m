@@ -54,6 +54,9 @@ static NSError *VibePOSIXError(void) {
     NSCache<NSString *, id> *_indexes;
     // The disk queue's: the root exists and is kept out of backups.
     BOOL _rootPrepared;
+    // The disk queue's: the sheets being fetched, by local path, each with
+    // the refreshes waiting on it. The claim on a sheet's download.
+    NSMutableDictionary<NSString *, NSMutableArray<dispatch_block_t> *> *_sidecarWaiters;
 }
 
 + (DropboxMirror *)shared {
@@ -479,15 +482,40 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
             NSURL *directory = [self directoryForDropboxPath:path account:account];
             NSArray<NSDictionary *> *sidecars = [self reconcileDirectory:directory path:path withEntries:entries];
             // Side by side and off the disk queue, which other refreshes need.
+            // TRAP: one download per sheet. Two refreshes of one folder both
+            // find it missing, and two downloads share its part file: the
+            // second's response unlinks the first's, and the first to finish
+            // renames the other's half-written bytes into place, where the
+            // folder's open reads them. A refresh that finds the sheet
+            // claimed waits on that download instead.
             dispatch_group_t fetched = dispatch_group_create();
             for (NSDictionary *sidecar in sidecars) {
                 dispatch_group_enter(fetched);
+                dispatch_block_t leave = ^{
+                    dispatch_group_leave(fetched);
+                };
+                NSString *key = [sidecar[@"url"] path];
+                NSMutableArray<dispatch_block_t> *waiters = self->_sidecarWaiters[key];
+                if (waiters) {
+                    [waiters addObject:leave];
+                    continue;
+                }
+                if (!self->_sidecarWaiters) {
+                    self->_sidecarWaiters = [NSMutableDictionary dictionary];
+                }
+                self->_sidecarWaiters[key] = [NSMutableArray arrayWithObject:leave];
                 [self downloadDropboxPath:sidecar[@"path"] toURL:sidecar[@"url"] completion:^(NSError *fetchError) {
                     if (fetchError) {
                         LogWarn(@"Dropbox: could not fetch %@: %@",
                                 [sidecar[@"url"] lastPathComponent], fetchError.localizedDescription);
                     }
-                    dispatch_group_leave(fetched);
+                    dispatch_async(self->_diskQueue, ^{
+                        NSArray<dispatch_block_t> *settled = self->_sidecarWaiters[key];
+                        [self->_sidecarWaiters removeObjectForKey:key];
+                        for (dispatch_block_t each in settled) {
+                            each();
+                        }
+                    });
                 }];
             }
             dispatch_group_notify(fetched, dispatch_get_main_queue(), ^{
