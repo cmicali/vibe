@@ -22,14 +22,16 @@
 
 typedef NS_ENUM(NSInteger, VibeBrowserRootSection) {
     VibeBrowserRootSectionSources = 0,
+    // Its own group: a place to go back to, not a place files live.
+    VibeBrowserRootSectionRecents,
     // Last: its footer needs the room a last section has.
     VibeBrowserRootSectionLocations,
     VibeBrowserRootSectionCount,
 };
 
-// What a row of the root is. Sources: the device, Dropbox once linked, and
-// Recents. Locations: the granted folders, then the rows that add one, with
-// Connect to Dropbox among them until an account is linked.
+// What a row of the root is. Sources: the device, and Dropbox once linked.
+// Recents, alone. Locations: the granted folders, then the rows that add one,
+// with Connect to Dropbox among them until an account is linked.
 typedef NS_ENUM(NSInteger, VibeBrowserRootRow) {
     VibeBrowserRootRowDevice = 0,
     VibeBrowserRootRowDropbox,
@@ -850,8 +852,10 @@ UIView *VibeNotDownloadedMark(void) {
 - (NSArray<NSNumber *> *)rootRowsInSection:(NSInteger)section {
     BOOL linked = DropboxMirror.shared.client.isLinked;
     if (section == VibeBrowserRootSectionSources) {
-        return linked ? @[@(VibeBrowserRootRowDevice), @(VibeBrowserRootRowDropbox), @(VibeBrowserRootRowRecents)]
-                      : @[@(VibeBrowserRootRowDevice), @(VibeBrowserRootRowRecents)];
+        return linked ? @[@(VibeBrowserRootRowDevice), @(VibeBrowserRootRowDropbox)] : @[@(VibeBrowserRootRowDevice)];
+    }
+    if (section == VibeBrowserRootSectionRecents) {
+        return @[@(VibeBrowserRootRowRecents)];
     }
     NSMutableArray<NSNumber *> *rows = [NSMutableArray array];
     // First, so a location's row is its index in the store.
@@ -952,6 +956,9 @@ UIView *VibeNotDownloadedMark(void) {
 - (UITableViewCell *)sourceCellAtIndexPath:(NSIndexPath *)indexPath {
     UIListContentConfiguration *content = [UIListContentConfiguration subtitleCellConfiguration];
     content.imageProperties.tintColor = UIColor.secondaryLabelColor;
+    // The Dropbox glyph is a 28pt asset, wider than a symbol's reservation,
+    // so every row reserves its width and the labels line up.
+    content.imageProperties.reservedLayoutSize = CGSizeMake(28, 28);
     BOOL action = NO;
     UIImage *dropboxGlyph = [UIImage imageNamed:@"dropbox-glyph"];
     switch ([self rootRowAtIndexPath:indexPath]) {
