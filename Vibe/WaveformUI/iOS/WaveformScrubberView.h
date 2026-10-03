@@ -106,6 +106,11 @@ NS_ASSUME_NONNULL_BEGIN
 // only one onto an empty view actually eases.
 - (void)showWaveform:(CodableAudioWaveform *)waveform animated:(BOOL)animated;
 
+// A gesture is moving this view: lands any morph and bakes at once, since a
+// moving live tree costs the render server its mask every frame. The view's
+// own scrub and pinch call it; the owner calls it for a page swipe.
+- (void)bakeNowForGesture;
+
 - (void)showLoadingIndicator;
 - (void)hideLoadingIndicator;
 // The fill can outlive the shimmer, over a disk-cached waveform that landed
