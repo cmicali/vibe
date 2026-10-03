@@ -59,9 +59,8 @@ static NSString *const kTabSearch = @"search";
     // Rows of Adds asked for and not yet settled, oldest first, and when
     // each was lifted.
     NSMutableArray<NSArray<UIView *> *> *_liftedRowBatches;
-    // The sheet whose folder the picker on screen is asked for.
-    NSURL                *_sheetAwaitingFolder;
-    BOOL                 _sheetAwaitingFolderAppends;
+    // What the folder picker on screen does with the folder picked.
+    void (^_sheetFolderPicked)(NSURL *folder);
     NSMutableArray<NSNumber *> *_liftedRowBatchTimes;
     BOOL                   _playerAppearanceTransitionActive;
     NSArray<UIViewController *> *_parentAppearanceChildren;
@@ -925,8 +924,9 @@ static const CGFloat kLandedRowScale = 0.1;
                 [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypeFolder] asCopy:NO];
         picker.directoryURL = sheetURL.URLByDeletingLastPathComponent;
         picker.delegate = self;
-        self->_sheetAwaitingFolder = sheetURL;
-        self->_sheetAwaitingFolderAppends = appending;
+        self->_sheetFolderPicked = ^(NSURL *folder) {
+            [playback openSheetURL:sheetURL inGrantedFolder:folder appending:appending];
+        };
         [presenter presentViewController:picker animated:YES completion:nil];
     }];
     [alert addAction:grant];
@@ -936,16 +936,15 @@ static const CGFloat kLandedRowScale = 0.1;
 
 - (void)documentPicker:(UIDocumentPickerViewController *)controller
         didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
-    NSURL *sheet = _sheetAwaitingFolder;
-    _sheetAwaitingFolder = nil;
-    if (sheet && urls.firstObject) {
-        [_playback openSheetURL:sheet inGrantedFolder:urls.firstObject
-                      appending:_sheetAwaitingFolderAppends];
+    void (^picked)(NSURL *) = _sheetFolderPicked;
+    _sheetFolderPicked = nil;
+    if (picked && urls.firstObject) {
+        picked(urls.firstObject);
     }
 }
 
 - (void)documentPickerWasCancelled:(UIDocumentPickerViewController *)controller {
-    _sheetAwaitingFolder = nil;
+    _sheetFolderPicked = nil;
 }
 
 - (void)bringPlaylistTabForward {
