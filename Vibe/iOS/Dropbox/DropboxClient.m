@@ -145,6 +145,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
         _configuration = configuration;
         _lock = OS_UNFAIR_LOCK_INIT;
         _downloads = [NSMutableDictionary dictionary];
+        _retryDelayScale = 1;
         [self useSessionConfiguration:nil];
         [self loadAccount];
     }
@@ -530,7 +531,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     }
     NSTimeInterval delay = VibeDropboxRetryDelay(status, retryAfter);
     if (delay >= 0 && attempt < kMaximumAttempts) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)),
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * self.retryDelayScale * NSEC_PER_SEC)),
                        dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
             resend(refreshed, attempt + 1);
         });
@@ -1014,7 +1015,8 @@ didCompleteWithError:(NSError *)error {
             download.networkRetries++;
             LogInfo(@"Dropbox: resuming %@ at byte %llu: %@", download.path, download.bytesWritten,
                     error.localizedDescription);
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kNetworkRetryDelay * NSEC_PER_SEC)),
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                                         (int64_t)(kNetworkRetryDelay * self.retryDelayScale * NSEC_PER_SEC)),
                            dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
                 [self startDownload:download];
             });

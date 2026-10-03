@@ -279,13 +279,41 @@ fi
 if [ "${1:-}" = "--render-tests" ]; then
     render_dir="${2:?usage: --render-tests <output-directory>}"
     mkdir -p "$render_dir"
+    # The ISO/IEC 11172-4 Layer III compliance stream and its reference decode
+    # (float32), from FFmpeg's FATE mirror. They are ISO's, so they are fetched
+    # rather than committed, pinned by hash, and skipped when unreachable.
+    (
+        if [ ! -s "$render_dir/iso-compl.f32" ] && command -v rsync >/dev/null; then
+            fate=rsync://fate-suite.ffmpeg.org/fate-suite/mp3-conformance
+            if rsync --contimeout=20 --timeout=60 -q "$fate/compl.bit" "$render_dir/iso-compl.mp3" \
+                    && rsync --contimeout=20 --timeout=60 -q "$fate/compl.f32" "$render_dir/iso-compl.f32" \
+                    && printf '%s  %s\n%s  %s\n' \
+                        3b93f3675821a5af4826abcff7097fa2e42efcc46154e02c992995f7e31dbc8e "$render_dir/iso-compl.mp3" \
+                        f17b6744a4c01ab08c56c2eea9857e203291183dd6a2626ee6971cc19dc75fe7 "$render_dir/iso-compl.f32" \
+                        | shasum -a 256 -c --quiet; then
+                :
+            else
+                rm -f "$render_dir/iso-compl.mp3" "$render_dir/iso-compl.f32"
+                echo "note: the ISO compliance stream could not be fetched; its test will skip" >&2
+            fi
+        fi
+    ) &
+    iso_fetch=$!
     python3 - "$render_dir" <<'AUDIO_PY'
 from pathlib import Path
-import math, struct, sys, json
+import math, struct, sys, json, multiprocessing
 out=Path(sys.argv[1])
-def wav(name, rate, bits, channels, kind='noise', seconds=2, floating=False, marker=False, leading=0):
+# Every WAV is seeded on its own, so they are written side by side once all
+# are listed: one after another, sample by sample, they took most of a minute
+# on CI. Fork, not spawn: this script is stdin, which a spawned child cannot
+# import.
+pending=[]
+def wav(name, *args, **kwargs):
+    if not (out/name).exists(): pending.append((name, args, kwargs))
+def write_pending(spec):
+    write_wav(spec[0], *spec[1], **spec[2])
+def write_wav(name, rate, bits, channels, kind='noise', seconds=2, floating=False, marker=False, leading=0):
     path=out/name
-    if path.exists(): return
     state=0x12345678
     data=bytearray()
     for n in range(int(rate*seconds)):
@@ -330,6 +358,8 @@ wav('float64-low-bits.wav',48000,64,2,floating=True)
 wav('integer32.wav',48000,32,2)
 # The source of a FLAC at a rate past Apple's codec's limit.
 wav('noise-705600-24-2.wav',705600,24,2,seconds=0.5)
+with multiprocessing.get_context('fork').Pool() as pool:
+    pool.map(write_pending, pending, chunksize=1)
 # Mixed blocks at 8 kHz (MPEG 2.5), which no encoder writes, so the spectrum is
 # coded directly: big_values 0 and all 576 lines count1 values of -1, 0 or 1
 # (count1 table B: four inverted value bits, a sign bit per nonzero value), so
@@ -536,23 +566,8 @@ AUDIO_PY
             encode "flac-32-$mode.flac" "$render_dir/integer32-low-bits.wav" -c:a flac -sample_fmt s32 -bits_per_raw_sample 32 -strict experimental -ch_mode "$mode"
         done
     fi
-    # The ISO/IEC 11172-4 Layer III compliance stream and its reference decode
-    # (float32), from FFmpeg's FATE mirror. They are ISO's, so they are fetched
-    # rather than committed, pinned by hash, and skipped when unreachable.
-    if [ ! -s "$render_dir/iso-compl.f32" ] && command -v rsync >/dev/null; then
-        fate=rsync://fate-suite.ffmpeg.org/fate-suite/mp3-conformance
-        if rsync --contimeout=20 --timeout=60 -q "$fate/compl.bit" "$render_dir/iso-compl.mp3" \
-                && rsync --contimeout=20 --timeout=60 -q "$fate/compl.f32" "$render_dir/iso-compl.f32" \
-                && printf '%s  %s\n%s  %s\n' \
-                    3b93f3675821a5af4826abcff7097fa2e42efcc46154e02c992995f7e31dbc8e "$render_dir/iso-compl.mp3" \
-                    f17b6744a4c01ab08c56c2eea9857e203291183dd6a2626ee6971cc19dc75fe7 "$render_dir/iso-compl.f32" \
-                    | shasum -a 256 -c --quiet; then
-            :
-        else
-            rm -f "$render_dir/iso-compl.mp3" "$render_dir/iso-compl.f32"
-            echo "note: the ISO compliance stream could not be fetched; its test will skip" >&2
-        fi
-    fi
+    # Fetched beside everything above, which never waits on the network.
+    wait "$iso_fetch"
     exit 0
 fi
 

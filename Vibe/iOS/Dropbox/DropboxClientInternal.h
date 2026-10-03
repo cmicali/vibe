@@ -23,6 +23,10 @@ NS_ASSUME_NONNULL_BEGIN
 // channel puts a fake Dropbox under the client and takes it away again.
 - (void)useSessionConfiguration:(nullable NSURLSessionConfiguration *)configuration;
 
+// Multiplies every retry's wait, a resume's and a throttle's; 1 unless a test
+// scripting drops and 429s shortens them, which would each wait real seconds.
+@property (nonatomic) double retryDelayScale;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -408,6 +408,7 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
     configuration.protocolClasses = @[DropboxStubProtocol.class];
     _client = [[DropboxClient alloc] initWithAppKey:@"testkey" keychainService:nil
                                       configuration:configuration];
+    _client.retryDelayScale = 0.01;
     _mirror = [[DropboxMirror alloc] initWithClient:_client rootURL:_root downloadBudget:8];
     [_client adoptRefreshToken:@"R1" accountID:@"dbid:test"];
 }
@@ -1809,7 +1810,8 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
     // Up to the window's start: dropped, the rest still downloading.
     [self releaseChunks:(NSUInteger)((windowOffset + chunk - 1) / chunk - kReadableBytes / chunk)];
     [self awaitNoted:windowOffset count:0];
-    XCTAssertEqual(availability.windowLength, 0u, @"the download reached the window");
+    // Polled: the observer sees a note before it lands, and the window goes as it lands.
+    XCTAssertTrue([self eventually:^BOOL { return availability.windowLength == 0; }], @"the download reached the window");
     XCTAssertLessThan([self mostNoted], (uint64_t)bytes.length);
     [self releaseChunks:bytes.length / chunk + 1];
 
