@@ -6,7 +6,7 @@ CONFIG ?= Release
 # it from. Under build/, so `make clean` takes it.
 RESULT_BUNDLE ?= build/TestResults.xcresult
 
-.PHONY: bench-components bench-components-releases bench-app bench-releases bench-report build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress torture release github-release deploy-web web-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
+.PHONY: bench-components bench-components-releases bench-app bench-app-compare bench-underrun bench-releases bench-report build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress torture release github-release deploy-web web-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
 
 # Install the dev-tool dependencies (xcodegen, jq, gh) from the Brewfile.
 setup:
@@ -156,6 +156,8 @@ torture:
 #   make bench-app [VERSIONS=]                  app benchmarks per release, page redrawn
 #   make bench-releases [VERSIONS=]             both per release, page redrawn
 #   make bench-report                           the page from results.json alone
+#   make bench-app-compare BASE=main [HEAD=]    the app benchmarks on two refs, page untouched
+#   make bench-underrun [REF=]                  underruns: steady, loaded, and stalled reads
 # VERSIONS: "1.16" is tag v1.16, "1.16=<ref>" any commit, "HEAD" (any ref) the
 # version its project.yml declares. A version with no v<version> tag yet is
 # charted as "<version> pre-release". Without VERSIONS, every version on the page.
@@ -173,6 +175,13 @@ bench-releases:
 
 bench-report:
 	python3 scripts/bench/bench.py report
+
+bench-app-compare:
+	@test -n "$(BASE)" || { echo 'usage: make bench-app-compare BASE=<ref> [HEAD=<ref>]'; exit 64; }
+	python3 scripts/bench/app_compare.py $(BASE) $(or $(HEAD),HEAD) $(ARGS)
+
+bench-underrun:
+	python3 scripts/bench/underrun.py $(or $(REF),HEAD)
 
 # The rm matters: BSD cp -R copies INTO an existing destination directory, so
 # without it a second install produces /Applications/Vibe.app/Vibe.app.
