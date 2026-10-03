@@ -374,10 +374,17 @@ static const NSUInteger kFullReachBars = kVibeWaveformMaxBars / 4;
 
 #pragma mark - Envelope bitmap
 
-// Its bands normalize against a reference of their own
-// (bandFullScaleRMSForWaveform:), which this does not reproduce.
+// Every band scales by its own reference (bandFullScaleRMSForWaveform:), read
+// at the floor's 1,024 columns.
 - (CGFloat)normalizationGainForWaveform:(AudioWaveform *)waveform {
-    return 0;
+    if (!self.normalizesLevels || !waveform || !waveform->isComplete()) {
+        return 1;
+    }
+    NSUInteger count = kVibeWaveformEnergyColumns;
+    std::vector<float> columns(count * kAudioWaveformBandCount);
+    waveform->getBarMeanSquares(count, VibeWaveformWindowReach(count, kFullReachBars), NULL, columns.data());
+    float reference = [self bandFullScaleRMSForWaveform:waveform count:count meanSquares:columns.data()];
+    return reference > 0 ? kVibeWaveformFullScaleRMS / reference : 1;
 }
 
 - (BOOL)supportsEnvelopeBake {
