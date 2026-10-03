@@ -50,8 +50,33 @@ static const NSTimeInterval kFirstPartialDelay = 0.5;
 // bars would jump taller — or crossfades, for a style that cannot say by how
 // much. Every other install is an instant swap.
 static const CFTimeInterval kArrivalGrowDuration = 0.3;
+// A streaming load's newly decoded stretch grows up from the midline; the
+// rest of the picture holds still. Under kLoadBakeMinInterval, so one reveal
+// ends before the next swap.
+static const CFTimeInterval kChunkGrowDuration = 0.3;
 static const CFTimeInterval kCompletionGrowDuration = 0.35;
 static const CFTimeInterval kCompletionFadeDuration = 0.3;
+
+// How far a decode has filled the waveform: chunks fill in order, and an
+// unfilled one has no frames.
+static CGFloat VibeDecodedFraction(AudioWaveform *waveform) {
+    NSUInteger count = waveform->getNumChunks();
+    if (waveform->isComplete() || count == 0) {
+        return 1;
+    }
+    const AudioWaveformCacheChunk *chunks = (const AudioWaveformCacheChunk *)waveform->getBytes();
+    NSUInteger low = 0, high = count;
+    while (low < high) {
+        NSUInteger mid = (low + high) / 2;
+        if (chunks[mid].getFrameCount() > 0) {
+            low = mid + 1;
+        }
+        else {
+            high = mid;
+        }
+    }
+    return (CGFloat)low / (CGFloat)count;
+}
 
 @interface WaveformScrubberView () <UIScrollViewDelegate, UIGestureRecognizerDelegate>
 @property (nonatomic, strong, nullable) CodableAudioWaveform *waveform;
@@ -92,6 +117,12 @@ static const CFTimeInterval kCompletionFadeDuration = 0.3;
     // a completing bake fades in over, gone when the fade ends.
     BOOL                    _bakedComplete;
     CALayer                 *_bakedOutgoing;
+    // How far the standing bitmap's decode reached, and the newest stretch
+    // growing in over it: the unplayed layer is cropped short of it meanwhile
+    // and the undecoded rest drawn by a tail of its own.
+    CGFloat                 _bakedDecodedFraction;
+    CALayer                 *_revealLayer;
+    CALayer                 *_revealTail;
     // The theme's playhead line, hidden until a theme asks for it: fixed at
     // center in self.layer, since it is the content that moves.
     CALayer                 *_playheadLine;
@@ -622,6 +653,9 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     _bakedHost = nil;
     _bakedUnplayed = nil;
     _bakedPlayed = nil;
+    _revealLayer = nil;
+    _revealTail = nil;
+    _bakedDecodedFraction = 0;
     [CATransaction commit];
 }
 
@@ -666,6 +700,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     CodableAudioWaveform *waveform = self.waveform;
     BOOL complete = waveform.waveform->isComplete();
     CGFloat normalizationGain = complete ? [renderer normalizationGainForWaveform:waveform.waveform] : 1;
+    CGFloat decodedFraction = VibeDecodedFraction(waveform.waveform);
     // The fast bake samples on main, like updateWaveform:'s; only the pixel
     // work leaves. A style without one is drawn whole through the registry,
     // as the widget draws it: once all played, once all unplayed.
@@ -704,7 +739,8 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
             if (strongSelf) {
                 strongSelf->_bakeInFlight = NO;
                 [strongSelf installEnvelopeImage:image unplayedImage:unplayedImage epoch:epoch
-                                        complete:complete normalizationGain:normalizationGain];
+                                        complete:complete normalizationGain:normalizationGain
+                                 decodedFraction:decodedFraction];
                 if (strongSelf->_bakeWanted) {
                     strongSelf->_bakeWanted = NO;
                     [strongSelf scheduleEnvelopeBakeAfter:[strongSelf throttledBakeDelay]];
@@ -731,12 +767,16 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 
 - (void)installEnvelopeImage:(CGImageRef)image unplayedImage:(nullable CGImageRef)unplayedImage
                        epoch:(NSUInteger)epoch complete:(BOOL)complete
-           normalizationGain:(CGFloat)normalizationGain {
+           normalizationGain:(CGFloat)normalizationGain
+             decodedFraction:(CGFloat)decodedFraction {
     if (!image || epoch != _bakeEpoch || !self.waveform) {
         return;
     }
     VibeSignpostBegin(waveform_install);
     BOOL arrival = !_bakedHost;
+    CGFloat revealFrom = _bakedDecodedFraction;
+    _revealLayer = nil;
+    _revealTail = nil;
     BOOL completes = _bakedHost && !_bakedComplete && complete;
     // A style that cannot name its gain crossfades over the partial instead.
     BOOL fades = completes && normalizationGain == 0;
@@ -796,6 +836,9 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
         grow.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
         [_bakedHost addAnimation:grow forKey:@"completionGrow"];
     }
+    else if (!completes && !_isPinching && decodedFraction > revealFrom) {
+        [self revealDecodedFrom:revealFrom to:decodedFraction];
+    }
     else if (_bakedOutgoing) {
         // Set before the animation, which it then waits for.
         CALayer *outgoing = _bakedOutgoing;
@@ -813,9 +856,67 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
         fade.duration = kCompletionFadeDuration;
         [_bakedHost addAnimation:fade forKey:@"completionFade"];
     }
+    _bakedDecodedFraction = decodedFraction;
     [CATransaction commit];
     [self applyScrollAndProgress];
     VibeSignpostEnd(waveform_install);
+}
+
+// Inside the install's transaction. The unplayed side is three pieces of one
+// image for the reveal's length — the old part, the new stretch growing from
+// the midline, and the undecoded tail — then one again: no mask, so no
+// offscreen pass, and the played layer is untouched, since what decodes is
+// almost always ahead of the playhead.
+//
+// TRAP: the tail must stay drawn. Cropping the unplayed layer at the old edge
+// alone hid the undecoded midline for the reveal, so it blinked off and on
+// at every swap of a slow load.
+- (void)revealDecodedFrom:(CGFloat)from to:(CGFloat)to {
+    CGRect bounds = _bakedHost.bounds;
+    CGFloat width = bounds.size.width;
+    CALayer *(^piece)(CGFloat, CGFloat) = ^CALayer *(CGFloat start, CGFloat end) {
+        CALayer *layer = [CALayer layer];
+        layer.contents = self->_bakedUnplayed.contents;
+        layer.opacity = self->_bakedUnplayed.opacity;
+        layer.anchorPoint = CGPointMake(0, 0.5);
+        layer.bounds = CGRectMake(0, 0, (end - start) * width, bounds.size.height);
+        layer.position = CGPointMake(start * width, bounds.size.height / 2);
+        layer.contentsRect = CGRectMake(start, 0, end - start, 1);
+        [self->_bakedHost insertSublayer:layer below:self->_bakedPlayed];
+        return layer;
+    };
+    _bakedUnplayed.frame = CGRectMake(0, 0, from * width, bounds.size.height);
+    _bakedUnplayed.contentsRect = CGRectMake(0, 0, from, 1);
+    _revealTail = to < 1 ? piece(to, 1) : nil;
+    CALayer *reveal = piece(from, to);
+    _revealLayer = reveal;
+    // Set before the animation, which it then waits for.
+    __weak WaveformScrubberView *weakSelf = self;
+    [CATransaction setCompletionBlock:^{
+        [weakSelf finishRevealOf:reveal];
+    }];
+    CABasicAnimation *grow = [CABasicAnimation animationWithKeyPath:@"transform.scale.y"];
+    grow.fromValue = @0;
+    grow.toValue = @1;
+    grow.duration = kChunkGrowDuration;
+    grow.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
+    [reveal addAnimation:grow forKey:@"chunkGrow"];
+}
+
+// A stale reveal is a no-op: a newer install or a reset replaced it.
+- (void)finishRevealOf:(CALayer *)reveal {
+    if (!reveal || reveal != _revealLayer) {
+        return;
+    }
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    [_revealLayer removeFromSuperlayer];
+    _revealLayer = nil;
+    [_revealTail removeFromSuperlayer];
+    _revealTail = nil;
+    _bakedUnplayed.frame = _bakedHost.bounds;
+    _bakedUnplayed.contentsRect = CGRectMake(0, 0, 1, 1);
+    [CATransaction commit];
 }
 
 - (void)showLoadingIndicator {
@@ -1142,6 +1243,8 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     _rendererHost.bounds = virtualBounds;
     // A pinch frame or a resize STRETCHES the bitmap (soft until the re-bake)
     // rather than blanking it: three property writes.
+    // A reveal's crop and stretch are in the old geometry: land it first.
+    [self finishRevealOf:_revealLayer];
     if (_bakedHost) {
         [self placeBakedLayer:_bakedHost];
     }
