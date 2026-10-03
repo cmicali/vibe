@@ -1561,11 +1561,11 @@ UIImage *VibeFileTileImage(NSString *symbol) {
     }];
 }
 
-// The resolve is provider IPC, so an Add takes its token first: a replace
-// the user makes while it runs supersedes it (FolderSession).
+// The resolve is provider IPC, so the token is taken first: an open the user
+// makes while it runs supersedes an Add (FolderSession) and a replace alike.
 - (void)openItem:(NSDictionary *)item appending:(BOOL)appending inFolder:(BOOL)inFolder {
     PlaybackController *playback = _playback;
-    uint64_t token = appending ? [playback addRequestToken] : 0;
+    uint64_t token = [playback addRequestToken];
     NSString *name = [item[@"path"] lastPathComponent];
     __weak RecentsViewController *weakSelf = self;
     [playback resolveRecentItem:item completion:^(NSURL *url) {
@@ -1577,7 +1577,7 @@ UIImage *VibeFileTileImage(NSString *symbol) {
         }
         else {
             RecentsViewController *strongSelf = weakSelf;
-            if (!strongSelf) {
+            if (!strongSelf || [playback addRequestToken] != token) {
                 return;
             }
             [BrowserViewController confirmReplacingPlaylistOf:playback from:strongSelf

@@ -719,10 +719,12 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     // Resigns the field but keeps the query.
     [_searchController.searchBar resignFirstResponder];
     PlaybackController *playback = _playback;
+    // A Dropbox hit's resolve lists a folder: an open asked for meanwhile wins.
+    uint64_t token = [playback addRequestToken];
     __weak SearchViewController *weakSelf = self;
     [self resolveHit:hit completion:^(NSURL *url, BOOL folder) {
         SearchViewController *strongSelf = weakSelf;
-        if (!strongSelf) {
+        if (!strongSelf || [playback addRequestToken] != token) {
             return;
         }
         [BrowserViewController confirmReplacingPlaylistOf:playback from:strongSelf

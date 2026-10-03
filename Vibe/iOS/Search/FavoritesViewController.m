@@ -174,9 +174,10 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
 // The one opening path for the tap and every row action.
 - (void)openFavorite:(FavoriteFolder *)favorite appending:(BOOL)appending {
     // The token is taken HERE, before the resolve, or an Add outliving a
-    // replace appends to the new playlist. A replace needs none: the newest
-    // replace is meant to win.
-    uint64_t token = appending ? [_playback addRequestToken] : 0;
+    // replace appends to the new playlist. A replace compares it too: its
+    // resolve and its Dropbox listing take seconds, and an older tap landing
+    // after a newer open would replace what the user chose last.
+    uint64_t token = [_playback addRequestToken];
     __weak FavoritesViewController *weakSelf = self;
     [FavoritesStore.shared resolveFavorite:favorite completion:^(NSURL *folderURL) {
         [weakSelf finishOpeningFavorite:favorite folderURL:folderURL
@@ -198,6 +199,9 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
     if (appending) {
         [_playback addURLs:@[folderURL] token:token];
     }
+    else if ([_playback addRequestToken] != token) {
+        return;   // another open was asked for meanwhile
+    }
     else {
         // A Dropbox folder of folders has nothing to play: it opens in the
         // Files tab, where its subfolders are, not as an empty playlist.
@@ -218,8 +222,12 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
                 NSArray<NSURL *> *audio = @[];
                 [NSURLUtil listDirectory:folderURL sortedBy:sort folders:NULL audio:&audio];
                 dispatch_async(dispatch_get_main_queue(), ^{
+                    FavoritesViewController *strongSelf = weakSelf;
+                    if (!strongSelf || [strongSelf->_playback addRequestToken] != token) {
+                        return;
+                    }
                     if (audio.count > 0) {
-                        [weakSelf playFolderURL:folderURL];
+                        [strongSelf playFolderURL:folderURL];
                     }
                     else {
                         showDirectory(folderURL);

@@ -104,10 +104,6 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 // Synchronous. sort is a parameter because this layer may not read a setting.
 + (NSArray<AudioTrack *> *)rowsInDirectory:(NSURL *)dir sortedBy:(VibeFolderOpenSort)sort;
 
-// The walk's own order and the keys a listing must prefetch for it, so a
-// directory shown elsewhere lists in the order it opens in.
-+ (NSArray<NSURLResourceKey> *)listingKeysForSort:(VibeFolderOpenSort)sort;
-+ (void)sortURLs:(NSMutableArray<NSURL *> *)urls by:(VibeFolderOpenSort)sort;
 
 // The folder's subfolders and the audio files and sheets rowsInDirectory:
 // would make rows of, each sorted by `sort`, hidden entries skipped. What a

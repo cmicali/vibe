@@ -396,6 +396,25 @@ static struct stat StatOf(NSURL *url) {
 
 // DropboxRules.h: a path_display's case is only good in its last
 // component, so another spelling must find the same directory.
+// A folder that leaves Dropbox and comes back is made empty here: it must
+// not still read as listed, or an open of it would skip the listing.
+- (void)testAFolderThatComesBackIsNotStillListed {
+    _listings[@"/a"] = @[FolderEntry(@"/A", @"X")];
+    _listings[@"/a/x"] = @[FileEntry(@"/A/X", @"a.flac", 5, kStamp)];
+    [self refresh:@"/A"];
+    NSURL *folder = [self refresh:@"/A/X"];
+    XCTAssertTrue([_mirror hasListedDirectory:folder]);
+
+    _listings[@"/a"] = @[];
+    [self refresh:@"/A"];
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:folder.path]);
+
+    _listings[@"/a"] = @[FolderEntry(@"/A", @"X")];
+    [self refresh:@"/A"];
+    XCTAssertTrue([NSFileManager.defaultManager fileExistsAtPath:folder.path]);
+    XCTAssertFalse([_mirror hasListedDirectory:folder]);
+}
+
 - (void)testAnotherSpellingOfAFolderLandsInTheSameDirectory {
     _listings[@"/music"] = @[FolderEntry(@"/Music", @"Album")];
     _listings[@"/music/album"] = @[FileEntry(@"/Music/Album", @"a.mp3", 1, kStamp)];

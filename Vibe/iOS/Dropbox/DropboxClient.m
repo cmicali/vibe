@@ -795,13 +795,21 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
                 [self downloadRequestForPath:download.path token:token]];
         download.accessToken = token;
         download.accountGeneration = generation;
-        if (![self adoptTask:task forTransfer:download]) {
+        // TRAP: adopted and registered under ONE lock. With the table written
+        // after the adopt, a cancel between the two cancelled a task whose
+        // completion found no transfer, and the download never finished: its
+        // caller waited on it for good, holding its materialization lane.
+        os_unfair_lock_lock(&self->_lock);
+        BOOL cancelled = download.cancelled;
+        if (!cancelled) {
+            download.task = task;
+            self->_downloads[@(task.taskIdentifier)] = download;
+        }
+        os_unfair_lock_unlock(&self->_lock);
+        if (cancelled) {
             [self finishTransfer:download result:nil error:VibeCancelledError()];
             return;
         }
-        os_unfair_lock_lock(&self->_lock);
-        self->_downloads[@(task.taskIdentifier)] = download;
-        os_unfair_lock_unlock(&self->_lock);
         [task resume];
     }];
 }
