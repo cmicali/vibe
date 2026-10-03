@@ -96,6 +96,14 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     uint64_t                _bufferingStartBytes;
     uint64_t                _bufferingBytes;
     VibeAudioOpenTimeoutConfiguration _bufferingTimeouts;
+#if DEBUG
+    // debugBufferingRecord's, under _stateLock: holds begun, how they ended.
+    NSUInteger              _debugBufferingHolds;
+    NSUInteger              _debugBufferingReleases;
+    NSUInteger              _debugBufferingStalls;
+    NSTimeInterval          _debugBufferingSinceUptime;
+    NSTimeInterval          _debugBufferingLastHeldSeconds;
+#endif
 }
 
 #pragma mark - Init
@@ -875,6 +883,18 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     }
     os_unfair_lock_lock(&_stateLock);
     _buffering = buffering;
+#if DEBUG
+    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+    if (buffering) {
+        _debugBufferingHolds++;
+        _debugBufferingSinceUptime = now;
+    }
+    else {
+        _debugBufferingLastHeldSeconds = now - _debugBufferingSinceUptime;
+        _debugBufferingReleases += [outcome isEqualToString:@"released"];
+        _debugBufferingStalls += [outcome hasPrefix:@"stalled"];
+    }
+#endif
     os_unfair_lock_unlock(&_stateLock);
     AudioTrack *track = self.currentTrack;
     if (!buffering) {
@@ -1518,6 +1538,19 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     __block AudioLoadingConfiguration *configuration;
     [self runSyncOnQueue:^{ configuration = self->_loadingConfiguration; }];
     return configuration;
+}
+
+- (NSDictionary<NSString *, NSNumber *> *)debugBufferingRecord {
+    os_unfair_lock_lock(&_stateLock);
+    NSDictionary *record = @{
+        @"holds": @(_debugBufferingHolds),
+        @"releases": @(_debugBufferingReleases),
+        @"stalls": @(_debugBufferingStalls),
+        @"heldSeconds": @(_buffering ? NSProcessInfo.processInfo.systemUptime - _debugBufferingSinceUptime
+                                     : _debugBufferingLastHeldSeconds),
+    };
+    os_unfair_lock_unlock(&_stateLock);
+    return record;
 }
 
 - (BOOL)manualRenderingActive {

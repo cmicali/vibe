@@ -1661,6 +1661,7 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
         snapshot.waiterCount = 0;
         for (VibeAudioFileMaterializationClaim *claim in self->_claims.objectEnumerator) {
             snapshot.waiterCount += claim.waiters.count;
+            snapshot.readableClaimCount += claim.readable;
         }
         snapshot.interactiveRunningCount = self->_interactiveRunningCount;
         snapshot.backgroundRunningCount = self->_backgroundRunningCount;

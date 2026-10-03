@@ -44,6 +44,8 @@ typedef struct {
     NSUInteger handleRunCount;
     uint64_t datalessProbesInFlight;
     BOOL foregroundTransferActive;
+    // Running claims a stream's handles were served from before completion.
+    NSUInteger readableClaimCount;
     // Cumulative, and zero outside debug builds: the gauges above cannot tell
     // idle from busy, which is what a silent stall looks like.
     // handleOpensStarted - handleOpensCompleted is the outstanding

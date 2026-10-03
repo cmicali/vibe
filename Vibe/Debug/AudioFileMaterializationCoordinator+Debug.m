@@ -37,6 +37,7 @@ static BOOL VibeHangInstalled;
         @"interactivePending": @(snapshot.interactivePendingCount),
         @"backgroundPending": @(snapshot.backgroundPendingCount),
         @"foregroundTransferActive": @(snapshot.foregroundTransferActive),
+        @"readableClaims": @(snapshot.readableClaimCount),
         @"handleRuns": @(snapshot.handleRunCount),
         @"datalessProbesInFlight": @(snapshot.datalessProbesInFlight),
         // AudioFileHandle calls the OS still owes an answer for. Nonzero at

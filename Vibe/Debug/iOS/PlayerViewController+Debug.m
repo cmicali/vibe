@@ -14,6 +14,8 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioWaveformCache.h"
+#import "AudioWaveformCache+Debug.h"
+#import "PageWaveformCoordinator.h"
 #import "FXPadView.h"
 #import "TrackPageCell.h"
 #import "WaveformScrubberView.h"
@@ -62,6 +64,7 @@
         AudioTrack *track = [_playlist trackAtIndex:index];
         AudioTrackMetadata *metadata = track.metadata;
         TrackPageCell *cell = [self cellAtIndex:index];
+        CodableAudioWaveform *snapshot = [_waveformCoordinator snapshotAtIndex:index];
         [pages addObject:@{
             @"index": @(index),
             @"title": track.displayTitle ?: @"",
@@ -73,6 +76,9 @@
             @"cellUp": @(cell != nil),
             // A page not current must rest at 0 (Player/AGENTS.md).
             @"waveformProgress": cell ? @(cell.waveformView.progress) : [NSNull null],
+            // The page's waveform data: null before any delivery.
+            @"waveformFilled": snapshot ? @([AudioWaveformCache debugFilledFractionOfWaveform:snapshot]) : NSNull.null,
+            @"waveformComplete": @([_waveformCoordinator isCompleteAtIndex:index]),
         }];
     }
     NSMutableArray<NSNumber *> *held = [NSMutableArray array];
@@ -81,6 +87,8 @@
     }];
     return @{
         @"currentIndex": @(_playlist.currentIndex),
+        @"waveformTarget": _waveformCoordinator.targetIndex == NSNotFound ? NSNull.null
+                                                                         : @(_waveformCoordinator.targetIndex),
         @"window": @{@"location": @(window.location), @"length": @(window.length)},
         @"held": held,
         @"pages": pages,

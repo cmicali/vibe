@@ -133,6 +133,7 @@ NSMutableDictionary *VibeDebugCommonStateDictionary(id<VibeDebugPlayerSurface> s
             @"numChannels": @(player.numChannels),
             @"gaplessArmed": @(player.isGaplessArmed),
             @"buffering": @(player.isBuffering),
+            @"bufferingRecord": player.debugBufferingRecord,
             @"crossfadeMilliseconds": @(player.crossfadeMilliseconds),
             @"declick": @(player.declick),
             @"silent": @([arguments containsObject:@"--silent"]),
