@@ -16,7 +16,7 @@ Loading and empty are mutually exclusive, and `prepareForWaveformLoad` clears bo
 
 `setProgress:` repaints only on **device-pixel crossings**, using the view's `devicePixelWidth`. That self-gating is what makes the window's scaled UI tick rate affordable — see `Mac/MainWindow/AGENTS.md` on `VibeUIUpdateHzForPlayhead`. `devicePixelWidth` is also an input to that rule, so a resize resyncs it.
 
-**Under a theme's playhead line the renderer is told 1 and the line carries the position** (`rendererProgress`, `layoutPlayheadLine`; the rule is `../AGENTS.md`'s). The line is one layer of the view's own, above the renderer's tree whatever style built it last, moved on the same pixel crossings and clamped inside the bounds so it shows at both ends of the track. It is hidden with nothing loaded, as hover and seek are off: every presentation reset re-lays it, since the progress write that follows repaints only on a crossing.
+**Under a theme's playhead line the renderer is told 1 and the line carries the position** (`playedProgress`, `layoutPlayheadLine`; the rule is `../AGENTS.md`'s). The line is one layer of the view's own, above the renderer's tree whatever style built it last, moved on the same pixel crossings and clamped inside the bounds so it shows at both ends of the track. It is hidden with nothing loaded, as hover and seek are off.
 
 ## Hover scrubbing
 

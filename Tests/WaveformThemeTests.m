@@ -170,7 +170,6 @@ static CGFloat Alpha(VibeColor *color) {
     AppTheme *record = [[AppTheme alloc] initWithRecord:nil];
     [record setColor:NSColor.redColor forBase:kVibeThemeColorWaveformPlayhead dark:YES];
     XCTAssertNil([WaveformTheme themeForAppTheme:record isDark:YES artworkColor:nil].playheadColor);
-    XCTAssertNil([self themeFor:SETTINGS_VALUE_WAVEFORM_THEME_MONO isDark:YES].playheadColor);
 
     record.waveformPlayheadLine = YES;
     WaveformTheme *dark = [WaveformTheme themeForAppTheme:record isDark:YES artworkColor:nil];

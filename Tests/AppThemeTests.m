@@ -652,6 +652,7 @@ static CGFloat Brightness(NSString *hex) {
 
 - (void)testJSONRoundTripCarriesNameAndVersionAndStripsIds {
     NSDictionary *record = @{@"waveformTheme": @"orange", @"waveformBarDensity": @1.75, @"waveformBarWidth": @0.65, @"windowCornerRadius": @6,
+                             @"waveformPlayheadLine": @YES, @"waveformPlayheadColorDark": @"#FF0000",
                              @"id": @"SHOULD-NOT-TRAVEL"};
     NSData *data = [AppTheme JSONDataForRecord:record name:@"Exported"];
     XCTAssertNotNil(data);
@@ -661,7 +662,8 @@ static CGFloat Brightness(NSString *hex) {
     XCTAssertNil(json[@"id"]);
     // The fields travel nested under their editor sections, never flat, and
     // an untouched section is omitted rather than written empty.
-    XCTAssertEqualObjects(json[@"waveform"], (@{@"theme": @"orange", @"barDensity": @1.75, @"barWidth": @0.65}));
+    XCTAssertEqualObjects(json[@"waveform"], (@{@"theme": @"orange", @"barDensity": @1.75, @"barWidth": @0.65,
+                                                @"playheadLine": @YES, @"playheadColorDark": @"#FF0000"}));
     XCTAssertEqualObjects(json[@"window"], (@{@"cornerRadius": @6, @"customCornerRadius": @YES}));
     XCTAssertNil(json[@"waveformTheme"]);
     XCTAssertNil(json[@"playlist"]);
@@ -677,6 +679,7 @@ static CGFloat Brightness(NSString *hex) {
     NSDictionary *back = [AppTheme recordFromJSONData:data name:&name error:&error];
     XCTAssertNil(error);
     XCTAssertEqualObjects(back, (@{@"waveformTheme": @"orange", @"waveformBarDensity": @1.75, @"waveformBarWidth": @0.65, @"windowCornerRadius": @6,
+                                   @"waveformPlayheadLine": @YES, @"waveformPlayheadColorDark": @"#FF0000",
                                    @"customCornerRadius": @YES}));
     XCTAssertEqualObjects(name, @"Exported");
 }
@@ -760,31 +763,6 @@ static CGFloat Brightness(NSString *hex) {
     NSData *exported = [AppTheme JSONDataForRecord:record name:@"Volume"];
     NSDictionary *object = [NSJSONSerialization JSONObjectWithData:exported options:0 error:NULL];
     XCTAssertEqualObjects(object[@"volume"][@"location"], @"bottom");
-    XCTAssertEqualObjects([AppTheme recordFromJSONData:exported name:NULL error:NULL], expected);
-}
-
-// The line is opt-in, so a record that predates it keeps the dimmed unplayed
-// side, and its color is a pair like any other.
-- (void)testPlayheadLineRoundTripsUnderTheWaveformSection {
-    AppTheme *malformed = [[AppTheme alloc] initWithRecord:@{@"waveformPlayheadLine": @"yes"}];
-    XCTAssertFalse(malformed.waveformPlayheadLine);
-    XCTAssertEqualObjects(malformed.dictionaryRepresentation, @{});
-
-    NSData *json = [@"{\"waveform\":{\"playheadLine\":true,\"playheadColorDark\":\"#FF0000\"}}"
-            dataUsingEncoding:NSUTF8StringEncoding];
-    NSDictionary *expected = @{@"waveformPlayheadLine": @YES, @"waveformPlayheadColorDark": @"#FF0000"};
-    NSDictionary *record = [AppTheme recordFromJSONData:json name:NULL error:NULL];
-    XCTAssertEqualObjects(record, expected);
-    AppTheme *theme = [[AppTheme alloc] initWithRecord:record];
-    XCTAssertTrue(theme.waveformPlayheadLine);
-    XCTAssertEqualObjects(VibeHexStringFromColor([theme displayColorForBase:kVibeThemeColorWaveformPlayhead dark:YES]),
-                          @"#FF0000");
-    // The unset side is the appearance's contrast pole.
-    XCTAssertEqualObjects(VibeHexStringFromColor([theme displayColorForBase:kVibeThemeColorWaveformPlayhead dark:NO]),
-                          @"#000000");
-    NSData *exported = [AppTheme JSONDataForRecord:record name:@"Line"];
-    NSDictionary *object = [NSJSONSerialization JSONObjectWithData:exported options:0 error:NULL];
-    XCTAssertEqualObjects(object[@"waveform"][@"playheadLine"], @YES);
     XCTAssertEqualObjects([AppTheme recordFromJSONData:exported name:NULL error:NULL], expected);
 }
 

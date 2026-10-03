@@ -59,7 +59,6 @@ static const CGFloat kBottomBarSpacing = 2;         // gap between the top basel
         [self updateColors:isDark];
 
         [self updateWaveform:bounds progress:0 waveform:nil];
-        [self updateProgress:0 waveform:nil];
     }
     return self;
 }
@@ -231,6 +230,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
 
     NSUInteger count = [self blockBarCountForWidth:bounds.size.width];
     [self reconcileBarCount:count];
+    [self updateProgress:progress waveform:waveform];
 
     // A resize moves the bar under the kept x.
     [self setHoverHighlightX:self.hoverHighlightX];

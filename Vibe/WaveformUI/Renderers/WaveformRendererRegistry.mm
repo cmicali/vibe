@@ -135,10 +135,7 @@ static AudioWaveform *VibePreviewWaveform(void) {
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     VibeColor *playhead = theme.playheadColor;
-    CGFloat played = playhead ? 1 : progress;
-    [renderer updateWaveform:bounds progress:played waveform:waveform];
-    // Sonic Cirrus paints its sides only here, as the views' own ticks do.
-    [renderer updateProgress:played waveform:waveform];
+    [renderer updateWaveform:bounds progress:playhead ? 1 : progress waveform:waveform];
     // No display link here to ease the bars to their targets.
     [renderer settleMorphImmediately];
     if (playhead) {

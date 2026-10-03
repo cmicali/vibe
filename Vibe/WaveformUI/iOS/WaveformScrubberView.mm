@@ -75,8 +75,8 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     CALayer                 *_bakedHost;
     CALayer                 *_bakedUnplayed;
     CALayer                 *_bakedPlayed;
-    // The theme's playhead line, made on first use: fixed at center in
-    // self.layer, since it is the content that moves.
+    // The theme's playhead line, hidden until a theme asks for it: fixed at
+    // center in self.layer, since it is the content that moves.
     CALayer                 *_playheadLine;
     // Two ways to be stale. Every schedule bumps the request, so only the
     // newest pending timer bakes. Only a teardown (the picture changing
@@ -134,6 +134,10 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     _rendererHost.bounds = [self virtualBounds];
     _rendererHost.position = CGPointZero;
     [_scroll.layer addSublayer:_rendererHost];
+
+    _playheadLine = [CALayer layer];
+    _playheadLine.hidden = YES;
+    [self.layer addSublayer:_playheadLine];
 
     UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self
                                                                           action:@selector(handleTap:)];
@@ -446,15 +450,11 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
 // only the theme, the layout and whether there is a waveform to mark.
 - (void)layoutPlayheadLine {
     VibeColor *color = self.waveform ? _renderer.theme.playheadColor : nil;
-    if (!color && !_playheadLine) {
+    if (!color && _playheadLine.hidden) {
         return;
     }
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    if (!_playheadLine) {
-        _playheadLine = [CALayer layer];
-        [self.layer addSublayer:_playheadLine];
-    }
     _playheadLine.hidden = !color;
     if (color) {
         CGRect bounds = self.bounds;
@@ -1068,6 +1068,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 - (void)layoutSubviews {
     [super layoutSubviews];
     [self applyVirtualGeometry];
+    [self layoutPlayheadLine];
 }
 
 // Layout and the zoom both call this: a zoom moves the virtual width with the
@@ -1102,7 +1103,6 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     }
     [CATransaction commit];
     [self applyScrollAndProgress];
-    [self layoutPlayheadLine];
     // The bucket is per pixel of the virtual width, which just moved; without
     // this every playback write during a pinch passes setProgress:'s gate.
     _progressTracker = [self progressBucket];
@@ -1137,6 +1137,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
         // The scale moves the zoom floor with the bounds unchanged, and no
         // layout pass follows.
         [self applyVirtualGeometry];
+        [self layoutPlayheadLine];
     }
     if (styleChanged) {
         // Re-resolved, not just recolored: the theme is per appearance.
