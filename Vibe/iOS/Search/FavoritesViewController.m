@@ -15,6 +15,9 @@
 
 static NSString *const kFavoriteCellIdentifier = @"favorite";
 
+@interface FavoritesViewController () <PlaybackObserver>
+@end
+
 @implementation FavoritesViewController {
     PlaybackController *_playback;
     NSArray<FavoriteFolder *> *_favorites;
@@ -25,6 +28,7 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
     if (self) {
         _playback = playback;
         _favorites = @[];
+        [playback addObserver:self];
     }
     return self;
 }
@@ -96,7 +100,7 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
     content.secondaryText = favorite.location.length > 0 ? favorite.location : nil;
     content.image = [UIImage systemImageNamed:@"folder"];
     content.imageProperties.tintColor = UIColor.secondaryLabelColor;
-    cell.contentConfiguration = content;
+    VibeApplyRowContent(cell, content, [self favoriteIsOpening:favorite]);
     return cell;
 }
 
@@ -168,7 +172,25 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
 // The row stays selected while the bookmark resolves, the only sign the tap
 // landed.
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
-    [self openFavorite:_favorites[(NSUInteger)indexPath.row] appending:NO];
+    FavoriteFolder *favorite = _favorites[(NSUInteger)indexPath.row];
+    // A second tap on the row still opening gives it up.
+    if ([self favoriteIsOpening:favorite]) {
+        [tableView deselectRowAtIndexPath:indexPath animated:YES];
+        [_playback cancelOpening];
+        return;
+    }
+    [self openFavorite:favorite appending:NO];
+}
+
+- (BOOL)favoriteIsOpening:(FavoriteFolder *)favorite {
+    return [VibeComparablePath(favorite.path) isEqualToString:_playback.openingPath];
+}
+
+- (void)playbackDidChangeOpening:(PlaybackController *)playback {
+    if (self.viewIfLoaded.window) {
+        [self.tableView reloadRowsAtIndexPaths:self.tableView.indexPathsForVisibleRows
+                              withRowAnimation:UITableViewRowAnimationNone];
+    }
 }
 
 // The one opening path for the tap and every row action.
@@ -176,7 +198,8 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
     // The token is taken HERE, before the resolve: an Add outliving a replace
     // would append to the new playlist, and a replace landing after a newer
     // open would take its place (the session and the replace funnel drop them).
-    uint64_t token = appending ? [_playback addRequestToken] : [_playback replaceRequestToken];
+    uint64_t token = appending ? [_playback addRequestToken]
+                               : [_playback replaceRequestTokenOpening:[NSURL fileURLWithPath:favorite.path]];
     __weak FavoritesViewController *weakSelf = self;
     [FavoritesStore.shared resolveFavorite:favorite completion:^(NSURL *folderURL) {
         [weakSelf finishOpeningFavorite:favorite folderURL:folderURL
@@ -192,6 +215,7 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
         [self.tableView deselectRowAtIndexPath:path animated:YES];
     }
     if (!folderURL) {
+        [_playback endOpeningForReplaceRequest:token];
         [self showUnavailableAlertForFavorite:favorite];
         return;
     }
@@ -225,6 +249,7 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
                 // Not a replace, so the funnel does not judge it: the same
                 // rule, another open asked for meanwhile wins.
                 else if (strongSelf && [strongSelf->_playback isCurrentReplaceRequest:token]) {
+                    [strongSelf->_playback endOpeningForReplaceRequest:token];
                     showDirectory(folderURL);
                 }
             });

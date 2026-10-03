@@ -34,6 +34,11 @@ NS_ASSUME_NONNULL_BEGIN
     // Main thread: moved by every replace a user asks for and every open, so
     // a replace behind asynchronous work answers to the newest request.
     uint64_t                 _replaceRequestSerial;
+    // The row openingPath names, the serial that asked for it, and the serial
+    // of the last replace handed to the session, the one whose settle ends it.
+    NSString                *_openingPath;
+    uint64_t                 _openingSerial;
+    uint64_t                 _submittedOpenSerial;
     UIUpdateTimer           *_updateTimer;
     NSInteger                _levelConsumers;
     // Foreground-active, from the scene delegate; NO until it says otherwise.

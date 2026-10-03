@@ -40,7 +40,7 @@ NS_ASSUME_NONNULL_BEGIN
 // through openURLs:openInPlace: — asking first when the playlist was built by
 // hand, with Add Instead as the other answer. Every screen whose tap replaces
 // the playlist comes through here. `token` is PlaybackController's
-// replaceRequestToken, taken when the user asked: a caller with asynchronous
+// replaceRequestTokenOpening:, taken when the user asked: a caller with asynchronous
 // work first (a bookmark to resolve, a Dropbox folder to list) is dropped
 // here when another open was asked for meanwhile, or an older tap landing
 // late would replace what the user chose last.
@@ -55,6 +55,11 @@ NS_ASSUME_NONNULL_BEGIN
 // into the Playlist tab when the tracks land; this screen knows no tabs.
 @property (nonatomic, copy, nullable) void (^addedRowsHandler)(NSArray<UIView *> *rows);
 
+// On the root, set by whoever shows the stack: whether it is materially
+// exposed — its tab selected, the card down, the scene foreground-active. The
+// playing row's equalizer runs only while this and its own screen are.
+@property (nonatomic) BOOL equalizerSurfaceVisible;
+
 @end
 
 // The pieces the other screens' rows and alerts share with the browser's.
@@ -64,5 +69,12 @@ UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handler)(void
 void VibeApplyFileNameStyle(UIListContentConfiguration *content);
 // The accessory of a row whose file is not downloaded.
 UIView *VibeNotDownloadedMark(void);
+// Installs content, with a spinner in the icon slot while the open the row
+// asked for runs. Every configuration of such a row goes through here, so a
+// reused cell loses the spinner.
+void VibeApplyRowContent(UITableViewCell *cell, UIListContentConfiguration *content, BOOL opening);
+// Inside the table's viewport and the window: window attachment alone also
+// counts the cells UIKit prepares beyond the screen.
+BOOL VibeRowIsInViewport(UITableViewCell *cell, UITableView *tableView);
 
 NS_ASSUME_NONNULL_END

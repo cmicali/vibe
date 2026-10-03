@@ -60,6 +60,8 @@ static const CGFloat kArtTextGap = 14;
     // card, which moves over this view without an appearance transition.
     BOOL               _viewPresentationVisible;
     BOOL               _equalizerSurfaceVisible;
+    // The add sheet's browser, which this screen's exposure exposes.
+    __weak BrowserViewController *_addSheet;
     // A hidden track change, parked at once on the next reveal.
     NSUInteger         _pendingScrollIndex;
     UIBarButtonItem    *_settingsItem;
@@ -184,6 +186,7 @@ static const CGFloat kArtTextGap = 14;
         return;
     }
     _equalizerSurfaceVisible = equalizerSurfaceVisible;
+    _addSheet.equalizerSurfaceVisible = equalizerSurfaceVisible;
     [self syncCurrentEqualizerActivity];
     [self applyPendingTrackScrollIfVisible];
 }
@@ -215,6 +218,8 @@ static const CGFloat kArtTextGap = 14;
     BrowserViewController *browser = [[BrowserViewController alloc] initWithPlayback:_playback
                                                                         directoryURL:nil
                                                                            appending:YES];
+    browser.equalizerSurfaceVisible = _equalizerSurfaceVisible;
+    _addSheet = browser;
     [self presentViewController:[[UINavigationController alloc] initWithRootViewController:browser]
                        animated:YES
                      completion:nil];
@@ -360,20 +365,8 @@ didEndDisplayingCell:(UITableViewCell *)cell
     [self syncCurrentEqualizerActivity];
 }
 
-// Window attachment includes the prepared-cell buffer; this asks whether the
-// row is actually inside the viewport and the window.
 - (BOOL)isCellMateriallyVisible:(LibraryTrackCell *)cell {
-    UIWindow *window = cell.window;
-    if (!window || !_equalizerSurfaceVisible || !_viewPresentationVisible) {
-        return NO;
-    }
-    CGRect rowInTable = [cell convertRect:cell.bounds toView:self.tableView];
-    CGRect visibleInTable = CGRectIntersection(rowInTable, self.tableView.bounds);
-    if (CGRectIsNull(visibleInTable) || CGRectIsEmpty(visibleInTable)) {
-        return NO;
-    }
-    CGRect visibleInWindow = [self.tableView convertRect:visibleInTable toView:window];
-    return !CGRectIsEmpty(CGRectIntersection(visibleInWindow, window.bounds));
+    return _equalizerSurfaceVisible && _viewPresentationVisible && VibeRowIsInViewport(cell, self.tableView);
 }
 
 - (void)syncEqualizerActivityForCell:(LibraryTrackCell *)cell {

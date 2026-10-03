@@ -86,6 +86,10 @@ NS_ASSUME_NONNULL_BEGIN
                       appending:(BOOL)appending;
 // A relaunch restore came to nothing, or there was nothing to restore.
 - (void)playbackHasNothingToRestore:(PlaybackController *)playback;
+// openingPath changed: a row's spinner comes or goes.
+- (void)playbackDidChangeOpening:(PlaybackController *)playback;
+// An open ran past kOpeningTimeout and was given up; path is the row it named.
+- (void)playback:(PlaybackController *)playback didGiveUpOpeningPath:(NSString *)path;
 
 @end
 
@@ -227,9 +231,23 @@ NS_ASSUME_NONNULL_BEGIN
 // still waiting, as an open or a clear does, so of two taps whose
 // resolves finish in either order only the later one opens. Not the Add
 // token: two taps before either resolved captured the same generation, and
-// the first to open dropped the one the user chose last. Main thread.
-- (uint64_t)replaceRequestToken;
+// the first to open dropped the one the user chose last. url is the row
+// asked for, which openingPath names from now on; nil for none. Main thread.
+- (uint64_t)replaceRequestTokenOpening:(nullable NSURL *)url;
 - (BOOL)isCurrentReplaceRequest:(uint64_t)token;
+
+// The comparable path (VibeComparablePath) of the row a replace the user
+// asked for is opening, until it lands, finds nothing, is superseded or is
+// given up; nil otherwise. The row draws a spinner. Main thread.
+@property (nonatomic, readonly, nullable) NSString *openingPath;
+
+// The user gave up: the open is dropped wherever it is, and the playlist
+// standing stays.
+- (void)cancelOpening;
+
+// A replace that ended before reaching the session — its resolve failed, or
+// the user chose otherwise — has nothing to settle it.
+- (void)endOpeningForReplaceRequest:(uint64_t)token;
 
 // YES once an Add has landed on the playlist now loaded, or it was restored
 // with additions: replacing it loses work a reopen does not bring back.
