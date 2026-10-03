@@ -71,6 +71,15 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [self publishNowPlaying];
 }
 
+// A stream opened on an estimated length counted it: the card's total and
+// the lock screen's take the player's duration, which the tick, stopped while
+// paused or backgrounded, would not otherwise republish.
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didSettleDurationOfTrack:(AudioTrack *)track {
+    if ([_playlist isCurrentTrack:track]) {
+        [self notifyDidTick];
+    }
+}
+
 #pragma mark - CloudTransferRegistryObserver: the loading open's transfer
 
 - (void)cloudTransferRegistryDidChange:(CloudTransferRegistry *)registry {

@@ -91,6 +91,9 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
     // The play that owns the current voice. A promote keeps it; a newer play,
     // stop or failure clears it.
     uint64_t                _activeSubmittedPlayIdentifier;
+    // The published window came from an estimated length, which the drain
+    // republishes once settled (republishSettledLengthOnQueue).
+    BOOL                    _windowEstimated;
     PlaybackRequestCoordinator *_pendingRequest;
     // Voices fading out; each leaves when the drain reports it ended.
     NSMutableArray<NSNumber *> *_retiringVoices;
@@ -312,6 +315,8 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
 - (void)handleVoiceEventOnQueue:(VibeVoiceEvent)event voice:(VibeVoiceID)voice;
 // The buffering hold's decision, after every drain.
 - (void)updateBufferingOnQueue;
+// A settled estimate's window and duration, before every drain's events.
+- (void)republishSettledLengthOnQueue;
 @end
 
 NS_ASSUME_NONNULL_END

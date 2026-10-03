@@ -266,6 +266,11 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier;
     didChangeBuffering:(BOOL)buffering
               forTrack:(AudioTrack *)track;
 
+// Main thread, once, when the current play's duration settles: a streaming
+// MP3 opened on an estimated length (AudioFileHandle.lengthIsEstimated) has
+// counted its frames. Only the total moved; the position did not.
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didSettleDurationOfTrack:(AudioTrack *)track;
+
 // Main thread, when outputIdle becomes YES: the idle stop has stopped the
 // output, any FX tail rung out. Read outputIdle before acting on it; a newer
 // start may already own the output.

@@ -52,7 +52,7 @@ Every requested read of `VibeHandleRead` and `VibeStreamRead` was logged through
 | WAV with `fmt ` after `data` | the head, plus 24 bytes at the end | one region |
 | Ogg Vorbis and Opus, ADTS AAC, MP3 with no Xing or Info frame | **the whole file, in order** | direct |
 
-The last row's MP3 is no longer the open's but the count's: CoreAudio answers the packet count, ExtAudioFile's length and the maximum packet size of an MP3 with no Xing, Info or VBRI frame by reading every frame header to the end, while the bit rate, the data offset and size, the packet table and the packet size bound read a few frames. On a device, eight of ten long DJ mixes opened only when their download completed for this reason. A streaming CBR one now opens uncounted, its length from its bit rate and settled at the stream's end (`Audio/AGENTS.md`); a VBR one with no header still waits.
+The last row's MP3 is no longer the open's but the count's: CoreAudio answers the packet count, ExtAudioFile's length and the maximum packet size of an MP3 with no Xing, Info or VBRI frame by reading every frame header to the end, while the bit rate, the data offset and size, the packet table and the packet size bound read a few frames. On a device, eight of ten long DJ mixes opened only when their download completed for this reason. Such a stream now opens uncounted on a count from its head's frames (`Audio/AGENTS.md`): a CBR one's from its bit rate, exact for a well-formed file, settled at the stream's end; a VBR one's an estimate from the frames' average size, settled at the first read once the download is complete, where the parser's count reads every frame header from disk. Measured on an M-class Mac with a 151 MB VBR file through the handle's 64 KB block cache, that count reads the file once, 2,447 fills: 36 ms warm, 140 ms from a cold APFS clone (without the block cache, 919,000 reads and 270 ms). The estimate's error is the head's: within 2% for an encode of steady material, but a quiet intro estimates long and a loud one short, so the decode reads past or short of it, and the player republishes the settled duration once. A device run's `MP3 stream:` lines say which files took the estimate, how far off it was, and how long the count took.
 
 What follows from it:
 
@@ -115,7 +115,7 @@ Write ranged bytes into the part file at their offsets and track which ranges ar
 
 ### Option D: Apple's push parser for MP3 and AAC
 
-`AudioFileStream` parses packets as bytes arrive and estimates duration from the bitrate, so an ADTS file and a VBR MP3 with no Xing frame, which read the whole file at open, would stream. A CBR MP3 with no Xing frame did not need it: the scan was our open asking for the count, and the file parser streams it once the count is taken from the bit rate and settled at the end (above). It is a second packet road beside the file parser, and it does nothing for Ogg. Hold it in reserve until those files prove common in a real library.
+`AudioFileStream` parses packets as bytes arrive and estimates duration from the bitrate, so an ADTS file, which reads the whole file at open, would stream. An MP3 with no Xing frame, CBR or VBR, did not need it: the scan was our open asking for the count, and the file parser streams it once the count is taken from the head's frames and settled later (above). It is a second packet road beside the file parser, and it does nothing for Ogg. Hold it in reserve until those files prove common in a real library.
 
 ### Option E: let AVFoundation stream (rejected)
 

@@ -11,7 +11,9 @@
 #import <AVFoundation/AVFoundation.h>
 
 #import "AudioWaveformLoaderInternal.h"
+#import "AudioFileHandle.h"
 #import "AudioFixtures.h"
+#import "AudioLoadTiming.h"
 #import "AudioTrack.h"
 #import "AudioWaveform.h"
 #import "AudioWaveformCache.h"
@@ -60,6 +62,7 @@
 // The cache's deliveries, on main.
 @interface WaveformCacheRecorder : NSObject <AudioWaveformCacheDelegate>
 @property (nonatomic) CodableAudioWaveform *complete;
+@property (nonatomic) NSUInteger progressions;
 @property (nonatomic) NSUInteger completions;
 @property (nonatomic) NSUInteger failures;
 @end
@@ -69,6 +72,9 @@
     if (percentLoaded >= 1) {
         _complete = waveform;
         _completions++;
+    }
+    else {
+        _progressions++;
     }
 }
 - (void)audioWaveformCache:(AudioWaveformCache *)cache didFailToLoadForTrack:(AudioTrack *)track {
@@ -80,6 +86,7 @@
 // fetch writes them; each wait about to block signals `event`.
 @interface WaveformStreamAvailability : CloudFileAvailability
 @property (nonatomic) dispatch_semaphore_t event;
+@property (atomic) uint64_t blockedEnd; // the end of the range the last wait about to block asked for
 @end
 
 @implementation WaveformStreamAvailability {
@@ -98,6 +105,7 @@
                                       error:(NSError *__autoreleasing *)error {
     uint64_t end = offset >= self.size || length == 0 ? 0 : offset + MIN(length, self.size - offset);
     if (!_finished && end > self.writtenBytes) {
+        self.blockedEnd = end;
         dispatch_semaphore_signal(_event);
     }
     return [super waitForBytesAt:offset length:length windowInto:buffer capacity:capacity copied:copied
@@ -780,6 +788,58 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
     XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 2 || recorder.failures > 0; }]);
     XCTAssertEqual(recorder.failures, 0u, @"a miss would have decoded the zeros and failed");
     XCTAssertEqual(MatchingChunks(recorder.complete, reference), count);
+}
+
+// A VBR MP3 with no VBR header streams on an estimated length, here under
+// half its true one, which would size the chunks wrong and file a fraction of
+// the file under its key: its waveform decodes nothing while the download
+// runs, then decodes the whole file once it is complete and counted, and
+// persists under the file's key. A well-formed CBR one, its length from its
+// bit rate exact, decodes as the bytes arrive.
+- (void)testAWaveformStartsOnlyOnAnExactLength {
+    NSDictionary<NSString *, uint8_t (^)(uint32_t)> *rates = @{
+        @"estimated.mp3": ^uint8_t(uint32_t frame) { return frame < 60 ? 13 + frame % 2 : 1 + frame % 2; },
+        @"constant.mp3": ^uint8_t(uint32_t frame) { return 9; },
+    };
+    for (NSString *name in rates) {
+        BOOL estimated = [name hasPrefix:@"estimated"];
+        NSURL *source = [_tempDirectory URLByAppendingPathComponent:[@"whole-" stringByAppendingString:name]];
+        NSData *bytes = VibeMP3WithoutVBRHeader(2000, 48000, rates[name]);
+        XCTAssertTrue([bytes writeToURL:source atomically:YES]);
+        AVAudioFramePosition length = [[AudioFileHandle alloc] initForReading:source error:NULL].length;
+        NSURL *url = [_tempDirectory URLByAppendingPathComponent:name];
+        WaveformStreamAvailability *stream = [self stream:source as:url prefix:64 * 1024];
+        NSUInteger window = 80 * 1024, at = bytes.length - window;
+        [stream installWindow:[bytes subdataWithRange:NSMakeRange(at, window)] atOffset:at];
+        WaveformCacheRecorder *recorder = [[WaveformCacheRecorder alloc] init];
+        AudioWaveformCache *cache = [self cacheWithRecorder:recorder];
+        [AudioLoadTiming reset];
+        [cache loadWaveformForTrack:[AudioTrack withURL:url]];
+        if (estimated) {
+            [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.3]];
+            [self write:stream from:source to:bytes.length - 4096];
+            [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.3]];
+            XCTAssertEqual(recorder.progressions + recorder.completions, 0u, @"nothing decoded on a guessed length");
+        }
+        else {
+            XCTAssertTrue([self eventually:^BOOL { return recorder.progressions > 0; }], @"decoding as the bytes arrive");
+        }
+        [self complete:stream from:source as:url];
+        XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 1; }], @"%@", name);
+        XCTAssertEqual(recorder.failures, 0u, @"%@", name);
+        XCTAssertEqualWithAccuracy([[AudioLoadTiming newestJSONForPath:url.path][@"audioSeconds"] doubleValue],
+                                   (double)length / 48000, 1e-9, @"%@: sized by the exact length", name);
+        if (!estimated) {
+            continue;
+        }
+        NSData *zeros = [NSMutableData dataWithLength:bytes.length];
+        XCTAssertTrue([zeros writeToURL:url atomically:NO]);
+        struct timeval times[2] = {{kStreamModified, 0}, {kStreamModified, 0}};
+        XCTAssertEqual(utimes(url.fileSystemRepresentation, times), 0);
+        [cache loadWaveformForTrack:[AudioTrack withURL:url]];
+        XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 2 || recorder.failures > 0; }]);
+        XCTAssertEqual(recorder.failures, 0u, @"persisted under the file's key: a miss would have failed on the zeros");
+    }
 }
 
 // A file replaced by another version under its URL: the memoized key keeps

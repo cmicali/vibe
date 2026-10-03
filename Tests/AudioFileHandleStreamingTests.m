@@ -616,6 +616,8 @@ static NSData *VibeWithoutVBRHeader(NSData *mp3) {
     add(@"head-only.wav", [NSData dataWithContentsOfURL:VibeWriteWAV([self sourceNamed:@"head.wav"],
             VibeNoiseSamples(88200, 2), 44100, 2, 16, 88200 * 4)], @"dr_wav");
     add(@"unheadered.mp3", VibeWithoutVBRHeader(VibeMP3WithInfoFrame(400, YES)), @"dr_mp3");
+    add(@"unheadered-vbr.mp3", VibeMP3WithoutVBRHeader(1200, 44100, ^uint8_t(uint32_t frame) { return (uint8_t)(9 + frame % 6); }),
+        @"dr_mp3");
     for (NSString *name in @[@"tone-cbr.mp3", @"tone-vbr.mp3"]) {
         NSURL *asset = VibeAssetFixture(name);
         if (asset) {
@@ -633,8 +635,8 @@ static NSData *VibeWithoutVBRHeader(NSData *mp3) {
 // second decodes with the download still short of the end; the whole decode
 // is the whole file's; and the download reaching the window drops it. The
 // WAV's open never asks the window. An MP3 with no VBR header opens on them
-// too, its length found from its bit rate, but for a VBR one, whose length
-// that would only guess.
+// too, on the length its bit rate gives, or, for a VBR one, on an estimate
+// that reading to its end settles.
 - (void)testATailReadingOpenOpensOnItsHeadAndTheWindow {
     const uint64_t head = 64 * 1024, window = 80 * 1024;
     NSDictionary<NSURL *, NSString *> *fixtures = [self tailFixtures];
@@ -653,13 +655,6 @@ static NSData *VibeWithoutVBRHeader(NSData *mp3) {
         AudioFileHandle *handle = opened;
         XCTAssertNotNil(handle, @"%@: %@", name, error);
         XCTAssertEqualObjects(handle.decoderName, fixtures[source], @"%@", name);
-        if ([name isEqualToString:@"unheadered-tone-vbr.mp3"]) {
-            // Its length would be a guess, so it is counted: the open reads
-            // every frame header, waiting for the download.
-            XCTAssertGreaterThan(waits, 0u, @"%@", name);
-            XCTAssertEqual(handle.length, [self openWhole:source].length, @"%@", name);
-            continue;
-        }
         XCTAssertEqual(waits, 0u, @"%@ waited to open", name);
         if ([name hasSuffix:@"wav"]) {
             XCTAssertLessThan(file.availability.furthestOffsetAsked, file.windowOffset, @"%@ read its tail", name);
@@ -671,7 +666,15 @@ static NSData *VibeWithoutVBRHeader(NSData *mp3) {
         if (!handle) {
             continue;
         }
-        XCTAssertEqual(handle.length, [self openWhole:source].length, @"%@", name);
+        AVAudioFramePosition length = [self openWhole:source].length;
+        BOOL variable = [name hasPrefix:@"unheadered-"] && [name containsString:@"vbr"];
+        XCTAssertEqual(handle.lengthIsEstimated, variable, @"%@", name);
+        if (variable) {
+            XCTAssertEqualWithAccuracy((double)handle.length, (double)length, length * 0.1, @"%@", name);
+        }
+        else {
+            XCTAssertEqual(handle.length, length, @"%@", name);
+        }
 
         __block NSData *first = nil;
         __block NSError *readError = nil;
@@ -696,6 +699,8 @@ static NSData *VibeWithoutVBRHeader(NSData *mp3) {
         NSMutableData *whole = [first mutableCopy];
         [whole appendData:rest ?: NSData.data];
         [self assertPCM:whole equals:[self referenceOf:source from:0 frames:INT64_MAX] context:name];
+        XCTAssertFalse(handle.lengthIsEstimated, @"%@", name);
+        XCTAssertEqual(handle.length, length, @"%@", name);
     }
 }
 
@@ -719,8 +724,86 @@ static NSData *VibeWithoutVBRHeader(NSData *mp3) {
         end = handle.framePosition;
     }];
     XCTAssertEqual(estimate, whole.length - 2 * 1152, @"the estimate is short");
+    XCTAssertFalse(handle.lengthIsEstimated, @"constant: its bit rate's count, not an estimate");
     XCTAssertEqual(end, whole.length, @"read to the stream's end");
     XCTAssertEqual(handle.length, whole.length, @"settled there");
+}
+
+// A VBR MP3 stream with no VBR header opens on its head and the tail window
+// without waiting, its length estimated from its head's frames, within 2% for
+// one whose rate varies evenly; a seek inside what has arrived lands exactly
+// while the length is still a guess; the first read once the download is
+// complete counts it from disk, with the decode parked early in the file; and
+// it then reads and seeks as the whole file.
+- (void)testAVBRMP3StreamOpensOnAnEstimateAndSettlesOnceDownloaded {
+    NSURL *source = [self sourceNamed:@"even.mp3"];
+    static const uint8_t cycle[5] = {9, 14, 11, 5, 13};
+    XCTAssertTrue([VibeMP3WithoutVBRHeader(2000, 44100, ^uint8_t(uint32_t frame) { return cycle[frame % 5]; })
+                   writeToURL:source atomically:YES]);
+    AudioFileHandle *whole = [self openWhole:source];
+    NSData *reference = [self referenceOf:source from:0 frames:INT64_MAX];
+    VibeGrowingFile *file = [self stream:source prefix:64 * 1024 window:80 * 1024];
+    __block AudioFileHandle *handle = nil;
+    __block NSData *early = nil;
+    NSUInteger waits = [self drive:file step:0 reader:^{
+        handle = [[AudioFileHandle alloc] initForReading:file.url error:NULL];
+        early = [handle seekToFrame:44100 error:NULL] ? VibeDecode(handle, 4096, 4096, NULL) : nil;
+    }];
+    XCTAssertEqual(waits, 0u, @"opened and read inside the head");
+    XCTAssertTrue(handle.lengthIsEstimated);
+    XCTAssertEqualWithAccuracy((double)handle.length, (double)whole.length, whole.length * 0.02);
+    [self assertPCM:early equals:[reference subdataWithRange:NSMakeRange(44100 * 8, 4096 * 8)] context:@"a seek before the settle"];
+    XCTAssertTrue(handle.lengthIsEstimated, @"no read counts while the download runs");
+
+    [file complete];
+    NSData *next = VibeDecode(handle, 4096, 4096, NULL);
+    [self assertPCM:next equals:[reference subdataWithRange:NSMakeRange((44100 + 4096) * 8, 4096 * 8)] context:@"after the settle"];
+    XCTAssertFalse(handle.lengthIsEstimated);
+    XCTAssertEqual(handle.length, whole.length);
+    AVAudioFramePosition at = whole.length - 3000;
+    XCTAssertTrue([handle seekToFrame:at error:NULL]);
+    [self assertPCM:VibeDecode(handle, 4096, INT64_MAX, NULL)
+             equals:[reference subdataWithRange:NSMakeRange((NSUInteger)at * 8, 3000 * 8)] context:@"a seek after the settle"];
+    XCTAssertTrue([handle seekToFrame:0 error:NULL]);
+    [self assertPCM:VibeDecode(handle, 4096, INT64_MAX, NULL) equals:reference context:@"the whole stream"];
+}
+
+// A VBR stream whose head is denser than the rest, so an estimate short of
+// its length, and one whose head is sparser, long of it, each read as the bus
+// reads, ending at a short read or a cursor at the length, while its download
+// proceeds: each reads to its stream's true end, past the short estimate and
+// short of the long one, its PCM the whole file's, and its length settles there.
+- (void)testAnEstimatedMP3StreamReadsToItsTrueEndShortOrLongOfTheEstimate {
+    NSDictionary<NSString *, uint8_t (^)(uint32_t)> *heads = @{
+        @"dense-head.mp3": ^uint8_t(uint32_t frame) { return frame < 60 ? 13 + frame % 2 : 1 + frame % 2; },
+        @"sparse-head.mp3": ^uint8_t(uint32_t frame) { return frame < 600 ? 1 + frame % 2 : 13 + frame % 2; },
+    };
+    for (NSString *name in heads) {
+        NSURL *source = [self sourceNamed:name];
+        XCTAssertTrue([VibeMP3WithoutVBRHeader(2000, 44100, heads[name]) writeToURL:source atomically:YES]);
+        AudioFileHandle *whole = [self openWhole:source];
+        VibeGrowingFile *file = [self stream:source prefix:64 * 1024 window:80 * 1024];
+        __block AudioFileHandle *handle = nil;
+        __block AVAudioFramePosition estimate = 0;
+        __block NSMutableData *pcm = [NSMutableData data];
+        [self drive:file step:7919 reader:^{
+            handle = [[AudioFileHandle alloc] initForReading:file.url error:NULL];
+            estimate = handle.length;
+            AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:handle.processingFormat frameCapacity:4096];
+            while ([handle readIntoBuffer:buffer error:NULL] && buffer.frameLength > 0) {
+                VibeAppendPCM(pcm, buffer);
+                if (buffer.frameLength < 4096 || handle.framePosition >= handle.length) {
+                    break;
+                }
+            }
+        }];
+        BOOL dense = [name hasPrefix:@"dense"];
+        XCTAssertTrue(dense ? estimate < whole.length / 2 : estimate > whole.length * 2, @"%@: %lld of %lld", name,
+                      estimate, whole.length);
+        [self assertPCM:pcm equals:[self referenceOf:source from:0 frames:INT64_MAX] context:name];
+        XCTAssertFalse(handle.lengthIsEstimated, @"%@", name);
+        XCTAssertEqual(handle.length, whole.length, @"%@ settled at its end", name);
+    }
 }
 
 #pragma mark - Failure

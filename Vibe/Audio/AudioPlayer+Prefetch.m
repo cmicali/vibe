@@ -95,7 +95,9 @@
     if ([_prefetchedFile isEqual:startedFile]) {
         [self clearPrefetchOnQueue];
     }
-    // At its window's start, where the bus began the successor.
+    // At its window's start, where the bus began the successor; a settle
+    // after the window is taken is republished.
+    _windowEstimated = startedFile.lengthIsEstimated;
     NSRange window = [startedTrack frameWindowInFile:startedFile];
     [self publishState:_state voice:_voice file:startedFile window:window startSeconds:0 baseFrames:snapshot.boundary];
     self.currentTrack = startedTrack;

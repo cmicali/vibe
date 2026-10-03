@@ -189,6 +189,16 @@
         // track changed meanwhile. Skip the decode setup entirely.
         return nil;
     }
+    // TRAP: a guessed length sizes every chunk wrong and files the result
+    // under the file's key, so a streaming VBR MP3's waits for its download
+    // to be counted, held to it as any read is (cancel interrupts it).
+    if (![file awaitExactLength:&error]) {
+        if (![AudioFileHandle isInterruption:error]) {
+            VibeLogAt(self.isDetached ? OS_LOG_TYPE_DEFAULT : OS_LOG_TYPE_ERROR,
+                      @"No exact length for %@: %@", filename, error);
+        }
+        return nil;
+    }
 
     NSRange window = VibeCueWindow(self.cueStart, self.cueEnd, file.processingFormat.sampleRate, file.length);
     pass->totalFrames = (AVAudioFramePosition)window.length;
@@ -225,9 +235,9 @@
         // divides by the chunk count, so bail out rather than SIGFPE.
         return nil;
     }
-    // file.length is exact for every CoreAudio format, so no prescan is
-    // needed. Chunk i covers frames [i*T/N, (i+1)*T/N), every frame is
-    // scanned, and a normal file always fills exactly numChunks chunks at
+    // file.length is exact for every CoreAudio format, an estimate made so at
+    // the open, so no prescan is needed. Chunk i covers frames
+    // [i*T/N, (i+1)*T/N), every frame is scanned, and a normal file always fills exactly numChunks chunks at
     // their final positions, so nothing moves when the load completes. Only a
     // file with fewer frames than chunks decodes short and is stretched
     // afterwards.

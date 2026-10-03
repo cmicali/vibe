@@ -478,6 +478,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // another row of the file. An empty window fails as an empty file does,
     // so a broken sheet cannot auto-advance through every row.
     double sampleRate = file.processingFormat.sampleRate;
+    BOOL estimated = file.lengthIsEstimated; // before the window, so a settle after it is republished
     NSRange window = file ? [track frameWindowInFile:file] : NSMakeRange(0, 0);
     if (window.length == 0) {
         [self resetToStoppedStateOnQueue];
@@ -502,6 +503,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                forSubmittedPlay:request.submittedPlayIdentifier];
         return;
     }
+    _windowEstimated = estimated;
     AVAudioFramePosition startFrame = VibeClampedStartFrame(startIntent.position, sampleRate, window);
     NSTimeInterval startSeconds = VibeWindowSecondsAtFrame(startFrame, sampleRate, window);
     VibeVoiceID voice = [self startVoiceOnQueueForFile:file window:window atFrame:startFrame
@@ -941,6 +943,31 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
            forSubmittedPlay:submittedPlay];
 }
 
+#pragma mark - A settled length
+
+// A file opened on an estimated length (a streaming VBR MP3's) settles it in
+// a decode turn; the window, the track's duration and the delegate follow it
+// once. The window alone is written: the origin is not moved, so the
+// position does not jump, only the total and its clamp.
+- (void)republishSettledLengthOnQueue {
+    AudioTrack *track = self.currentTrack;
+    if (!_windowEstimated || !_file || _file.lengthIsEstimated || !track) {
+        return;
+    }
+    _windowEstimated = NO;
+    NSRange window = [track frameWindowInFile:_file];
+    os_unfair_lock_lock(&_stateLock);
+    _window = window;
+    os_unfair_lock_unlock(&_stateLock);
+    track.duration = self.duration;
+    [self deliverOnMainForSubmittedPlay:_activeSubmittedPlayIdentifier named:@"didSettleDuration" block:^{
+        id<AudioPlayerDelegate> delegate = self.delegate;
+        if ([delegate respondsToSelector:@selector(audioPlayer:didSettleDurationOfTrack:)]) {
+            [delegate audioPlayer:self didSettleDurationOfTrack:track];
+        }
+    }];
+}
+
 #pragma mark - Stop and finish
 
 - (void)stop {
@@ -1022,6 +1049,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 }
 
 - (void)currentVoiceEndedOnQueue:(VibeVoiceID)voice {
+    [self republishSettledLengthOnQueue]; // a long estimate settles at the end it reached
     VibeVoiceSnapshot snapshot = [_voiceBus snapshotOfVoice:voice];
     if (snapshot.ended == VibeVoiceEndFailed) {
         AudioFileHandle *failedFile = nil;
@@ -1108,7 +1136,10 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 // positions the cursor starts its next chunk 4096 frames late.
 - (void)revoiceOnQueueAtPosition:(NSTimeInterval)position {
     AudioFileHandle *file = _file;
-    NSRange window = _window;
+    // TRAP: an estimate the reads have passed is kept ahead of them, so the
+    // window taken from it would end the new voice there, short of the
+    // stream's end; taken afresh it runs to the file's own end.
+    NSRange window = file.lengthIsEstimated && self.currentTrack ? [self.currentTrack frameWindowInFile:file] : _window;
     double sampleRate = file.processingFormat.sampleRate;
     AVAudioFramePosition startFrame = VibeClampedStartFrame(position, sampleRate, window);
     VibeVoiceID oldVoice = [self unpublishVoiceOnQueue];
@@ -1395,8 +1426,8 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 
 // The stall's park: Paused at `seconds` with no voice and no file, so the
 // stream's last reader can go, the window and rate kept for the getters.
-// The one writer besides the tuple's own and the two unpublish variants;
-// resumeOnQueue replays from it.
+// The one writer besides the tuple's own, the two unpublish variants and a
+// settled estimate's window; resumeOnQueue replays from it.
 - (void)publishPausedWithoutVoiceOnQueueAtSeconds:(NSTimeInterval)seconds {
     os_unfair_lock_lock(&_stateLock);
     _state = VibePlayerStatePaused;
