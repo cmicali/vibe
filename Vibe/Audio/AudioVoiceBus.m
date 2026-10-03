@@ -958,9 +958,13 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 // The record's end: 0 for the file's own, which a lossy file's length only
 // estimates, so reading to it is what ends a whole file where it really ends.
 // An end past a length that is itself an estimate (a streaming MP3's) is a
-// cue end, kept: the caller passes 0 for a window to the file's end.
+// cue end, kept: the caller passes 0 for a window to the file's end. TRAP:
+// the flag, then the length (AudioFileHandle's settle): the other order saw
+// a short estimate, then the flag cleared by a settle between the two reads,
+// and dropped the cue end, reading on into the next row.
 static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, AudioFileHandle *file) {
-    return endFrame > 0 && (endFrame < file.length || file.lengthIsEstimated) ? endFrame : 0;
+    BOOL estimated = file.lengthIsEstimated;
+    return endFrame > 0 && (estimated || endFrame < file.length) ? endFrame : 0;
 }
 
 - (VibeVoiceID)startVoiceWithFile:(AudioFileHandle *)file atFrame:(AVAudioFramePosition)frame

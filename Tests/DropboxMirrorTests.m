@@ -1245,6 +1245,33 @@ static BOOL IsClosedRange(NSURLRequest *request) {
     XCTAssertNil([requests[1] valueForHTTPHeaderField:@"Range"]);
 }
 
+// A kept part longer than the version now current asks for a range past
+// that version's end, which Dropbox answers 416: the download starts over,
+// whole, rather than failing the play.
+- (void)testAKeptPartLongerThanTheCurrentVersionIsStartedOver {
+    _contents[@"/song.flac"] = PatternBytes(4000);
+    [self cancelADownloadAfter:1600];
+    NSData *shorter = PatternBytes(1000);
+    [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
+        unsigned long long first = 0;
+        NSString *range = [request valueForHTTPHeaderField:@"Range"];
+        if (range && sscanf(range.UTF8String, "bytes=%llu-", &first) == 1 && first >= shorter.length) {
+            NSData *body = [@"{\"error_summary\": \"range not satisfiable\"}" dataUsingEncoding:NSUTF8StringEncoding];
+            return (DropboxStubResponse){416, @{@"Content-Type": @"application/json"}, body, NO};
+        }
+        return DownloadAnswer(request, shorter, @{@"rev": @"0200beef", @"server_modified": kStamp});
+    }];
+
+    NSDictionary *metadata = nil;
+    XCTAssertNil([self downloadSong:&metadata]);
+    XCTAssertEqualObjects(metadata[@"rev"], @"0200beef");
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:[self partURL]], shorter);
+    NSArray<NSURLRequest *> *requests = [self requestsToPath:@"/2/files/download"];
+    XCTAssertEqual(requests.count, 2u, @"the resume, then the whole file");
+    XCTAssertEqualObjects([requests[0] valueForHTTPHeaderField:@"Range"], @"bytes=1600-");
+    XCTAssertNil([requests[1] valueForHTTPHeaderField:@"Range"]);
+}
+
 // A download of song.flac cancelled once its part holds `written` bytes,
 // leaving the part; the request log is cleared for what follows.
 - (void)cancelADownloadAfter:(NSUInteger)written {

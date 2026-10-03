@@ -941,6 +941,14 @@ didReceiveResponse:(NSURLResponse *)response
     // whole file from a server ignoring the range. A request with no range,
     // the first or one before any byte was written, takes only 200.
     uint64_t offset = download.bytesWritten;
+    // A kept part longer than the version now current asks past its end:
+    // started over, whole, as another version's part is (restart).
+    if (http.statusCode == 416 && download.resumeRev && !download.file) {
+        LogInfo(@"Dropbox: %@ is shorter than its kept part's %llu bytes; downloading it whole", download.path, offset);
+        download.restart = YES;
+        completionHandler(NSURLSessionResponseCancel);
+        return;
+    }
     if (http.statusCode != 200 && !(http.statusCode == 206 && offset > 0)) {
         download.errorData = [NSMutableData data];
         download.retryAfter = [http valueForHTTPHeaderField:@"Retry-After"];
