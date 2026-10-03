@@ -4,6 +4,7 @@
 //
 
 #import "FolderAccessManagerInternal.h"
+#import "NSURLUtil.h"
 #import "FolderAccessManager+GrantPanel.h"
 #import "FolderAccessRules.h"
 #import "VibeStrings.h"
@@ -133,30 +134,6 @@ const NSInteger VibeFolderAccessRestoreConcurrencyLimit = 4;
         _activePathSnapshot = @[];
     }
     return self;
-}
-
-// /tmp, /var and /etc are symlinks into /private, and every path also exists
-// under the data volume's firmlink. String work alone: the standardizing APIs
-// touch the file system, and this runs on directories the app may not touch.
-static NSString *VibeAliasFreePath(NSString *path) {
-    static NSString *const kDataVolumePrefix = @"/System/Volumes/Data/";
-    // /private itself is real; only these roots are aliases.
-    static NSArray<NSString *> *privateRoots;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        privateRoots = @[@"/private/tmp", @"/private/var", @"/private/etc"];
-    });
-    if ([path hasPrefix:kDataVolumePrefix]) {
-        path = [path substringFromIndex:kDataVolumePrefix.length - 1];
-    }
-    for (NSString *privateRoot in privateRoots) {
-        if ([path isEqualToString:privateRoot] ||
-                [path hasPrefix:[privateRoot stringByAppendingString:@"/"]]) {
-            path = [path substringFromIndex:@"/private".length];
-            break;
-        }
-    }
-    return path;
 }
 
 static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {

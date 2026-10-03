@@ -4,6 +4,7 @@
 //
 
 #import "SearchFolderStore.h"
+#import "NSURLUtil.h"
 
 #import <UIKit/UIKit.h>
 
@@ -25,6 +26,9 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 
 @interface SearchFolderEntry : NSObject
 @property (nonatomic) NSURL *url;
+// Resolved off main with the bookmark, since asking the file system for a
+// provider folder's name can block; nil until then.
+@property (nonatomic, nullable) NSString *displayName;
 @property (nonatomic, nullable) NSData *bookmark;
 @property (nonatomic) BOOL scopeStarted;
 @property (nonatomic) NSUInteger ordinal;
@@ -171,15 +175,28 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     return roots;
 }
 
+// Spelling and stored names only, never the disk: asking a provider's folder
+// for its name is IPC that can block main.
 + (NSString *)displayNameForFolderURL:(NSURL *)url {
     // The account's mirror directory is named for its Dropbox account id.
     if ([[DropboxMirror.shared dropboxPathForURL:url] isEqualToString:@""]) {
         return VibeNotLocalized(@"Dropbox");
     }
-    if ([url.URLByStandardizingPath isEqual:SearchFolderStore.containerDocumentsURL.URLByStandardizingPath]) {
+    static NSString *documentsPath;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        documentsPath = VibeComparablePath(SearchFolderStore.containerDocumentsURL.path);
+    });
+    NSString *path = VibeComparablePath(url.path);
+    if ([path isEqualToString:documentsPath]) {
         return [NSString stringWithFormat:STR_BROWSER_ON_DEVICE, UIDevice.currentDevice.localizedModel];
     }
-    return [NSFileManager.defaultManager displayNameAtPath:url.path] ?: url.lastPathComponent;
+    for (SearchFolderEntry *folder in SearchFolderStore.shared->_folders) {
+        if ([VibeComparablePath(folder.url.path) isEqualToString:path]) {
+            return folder.displayName ?: url.lastPathComponent;
+        }
+    }
+    return url.lastPathComponent;
 }
 
 #pragma mark - Restoring
@@ -218,7 +235,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
                 BOOL rowsChanged = NO;
                 if (folder) {
                     folder.ordinal = ordinal;
-                    NSString *path = folder.url.URLByStandardizingPath.path;
+                    NSString *path = VibeComparablePath(folder.url.path);
                     if (VibeSearchPendingRestoreShouldBeSuppressed(
                             livePending.suppressedRootPaths.array,
                             [self persistentRootPaths], path)) {
@@ -254,8 +271,10 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
             continue;
         }
         for (id path in storedPaths) {
+            // Re-spelled: a stored path may carry the /private that the file
+            // system's standardizing keeps.
             if ([path isKindOfClass:NSString.class] && [path length] > 0) {
-                [paths addObject:path];
+                [paths addObject:VibeComparablePath(path)];
             }
         }
     }
@@ -281,6 +300,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     folder.url = url;
     // NO is not failure: the app's own container is not security-scoped.
     folder.scopeStarted = [url startAccessingSecurityScopedResource];
+    folder.displayName = [NSFileManager.defaultManager displayNameAtPath:url.path];
     folder.bookmark = stale ? ([self bookmarkForURL:url] ?: bookmark) : bookmark;
     return folder;
 }
@@ -315,12 +335,17 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 
     // Until the mint lands, the replaced entries remain the relaunch state.
     dispatch_async(_bookmarkQueue, ^{
+        NSString *name = [NSFileManager.defaultManager displayNameAtPath:url.path];
         NSData *bookmark = [self bookmarkForURL:url];
-        if (!bookmark) {
-            return;
-        }
         dispatch_async(dispatch_get_main_queue(), ^{
             if (![self entryIsLive:folder]) {
+                return;
+            }
+            if (name) {
+                folder.displayName = name;
+                [self notifyFoldersChanged];
+            }
+            if (!bookmark) {
                 return;
             }
             folder.bookmark = bookmark;
@@ -349,16 +374,16 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 // The one merge for additions and restores alike (FileSearchRules.h), inserting
 // by original order.
 - (BOOL)mergeEntry:(SearchFolderEntry *)candidate {
-    NSString *candidatePath = candidate.url.URLByStandardizingPath.path;
+    NSString *candidatePath = VibeComparablePath(candidate.url.path);
     NSURL *documents = [SearchFolderStore containerDocumentsURL];
     if (documents && VibeSearchRootCoversPath(
-            documents.URLByStandardizingPath.path, candidatePath)) {
+            VibeComparablePath(documents.path), candidatePath)) {
         [self retireScopeTree:candidate];
         return NO;
     }
     NSMutableArray<NSString *> *paths = [NSMutableArray arrayWithCapacity:_folders.count];
     for (SearchFolderEntry *folder in _folders) {
-        [paths addObject:folder.url.URLByStandardizingPath.path ?: @""];
+        [paths addObject:VibeComparablePath(folder.url.path) ?: @""];
     }
 
     NSUInteger coveringIndex = VibeSearchFolderCoveringRootIndex(paths, candidatePath);
@@ -403,7 +428,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 }
 
 - (void)suppressPendingRestorationsCoveredByURL:(NSURL *)url {
-    NSString *rootPath = url.URLByStandardizingPath.path;
+    NSString *rootPath = VibeComparablePath(url.path);
     if (rootPath.length == 0) {
         return;
     }
@@ -436,18 +461,18 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 // Never the transient FolderSession roots, which are gone at the next open.
 - (BOOL)isCoveredByAPersistentRoot:(NSURL *)url {
     return VibeSearchFolderCoveringRootIndex(
-            [self persistentRootPaths], url.URLByStandardizingPath.path) != NSNotFound;
+            [self persistentRootPaths], VibeComparablePath(url.path)) != NSNotFound;
 }
 
 - (NSArray<NSString *> *)persistentRootPaths {
     NSMutableArray<NSString *> *paths = [NSMutableArray arrayWithCapacity:_folders.count + 1];
     NSURL *documents = [SearchFolderStore containerDocumentsURL];
-    NSString *documentsPath = documents.URLByStandardizingPath.path;
+    NSString *documentsPath = VibeComparablePath(documents.path);
     if (documentsPath.length > 0) {
         [paths addObject:documentsPath];
     }
     for (SearchFolderEntry *folder in _folders) {
-        NSString *path = folder.url.URLByStandardizingPath.path;
+        NSString *path = VibeComparablePath(folder.url.path);
         if (path.length > 0) {
             [paths addObject:path];
         }
@@ -458,13 +483,14 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 #pragma mark - Session grants
 
 - (SearchFolderGrant *)grantCoveringURL:(NSURL *)url {
-    NSString *path = url.URLByStandardizingPath.path;
+    NSString *path = VibeComparablePath(url.path);
     SearchFolderEntry *best = nil;
+    NSUInteger bestLength = 0;
     for (SearchFolderEntry *folder in _folders) {
-        NSString *rootPath = folder.url.URLByStandardizingPath.path;
-        if (VibeSearchRootCoversPath(rootPath, path)
-                && (!best || rootPath.length > best.url.URLByStandardizingPath.path.length)) {
+        NSString *rootPath = VibeComparablePath(folder.url.path);
+        if (VibeSearchRootCoversPath(rootPath, path) && (!best || rootPath.length > bestLength)) {
             best = folder;
+            bestLength = rootPath.length;
         }
     }
     if (!best) {

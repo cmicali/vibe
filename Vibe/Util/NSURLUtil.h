@@ -16,9 +16,14 @@ NS_ASSUME_NONNULL_BEGIN
 // The end of every remote placeholder's part file name.
 extern NSString *const VibeRemotePlaceholderPartSuffix;
 
-// A path's spelling for comparison: standardized, and without the /private
-// that one API adds to /var and another drops.
-NSString *VibeComparablePath(NSString *path);
+// A path's spelling for comparison: standardized, and without the aliases
+// VibeAliasFreePath drops. Spelling alone, so safe on any thread for any path.
+NSString *_Nullable VibeComparablePath(NSString *_Nullable path);
+
+// /tmp, /var and /etc are symlinks into /private, and every path also exists
+// under the data volume's firmlink: the spelling with neither, from the string
+// alone.
+NSString *VibeAliasFreePath(NSString *path);
 
 // Under the remote backend's root; no disk, and NO with no root installed. For a caller that has already stat'ed the file.
 FOUNDATION_EXPORT BOOL VibePathIsUnderRemotePlaceholderRoot(NSString *path);
