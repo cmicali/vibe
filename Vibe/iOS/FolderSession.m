@@ -675,10 +675,51 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         }
         return persistedBase;
     };
+    // A recent FOLDER's bookmark is the grant for a one-off pick the browser
+    // reached again through Recents: the browser holds that root only while
+    // its screen is up, and the session's own hold went with the playlist,
+    // so an open inside it takes a hold of its own from the recent, as from
+    // the persisted base. Resolved at most once per recent: provider IPC.
+    NSMutableDictionary<NSString *, NSURL *> *recentRoots = [NSMutableDictionary dictionary];
+    NSURL *(^resolveRecentRootCovering)(NSString *) = ^NSURL *(NSString *coveredPath) {
+        for (NSDictionary *item in self.recentItems) {
+            NSString *recentPath = item[@"path"];
+            NSData *bookmark = item[@"bookmark"];
+            if (![item[@"folder"] boolValue] || ![recentPath isKindOfClass:NSString.class]
+                    || ![bookmark isKindOfClass:NSData.class]
+                    || !VibeSearchRootCoversPath(recentPath, coveredPath)) {
+                continue;
+            }
+            NSURL *root = recentRoots[recentPath];
+            if (!root) {
+                root = [self resolveBookmark:bookmark error:NULL];
+                recentRoots[recentPath] = root ?: (NSURL *)NSNull.null;
+            }
+            if ([root isKindOfClass:NSURL.class]
+                    && VibeSearchRootCoversPath(root.URLByStandardizingPath.path, coveredPath)) {
+                return root;
+            }
+        }
+        return nil;
+    };
 
     for (NSURL *url in urls) {
         // NO is not failure: the app's own container is not security-scoped.
         BOOL started = [url startAccessingSecurityScopedResource];
+        // What the start above holds — the URL, or the recent root covering
+        // a derived URL nothing else covers; the stop and the owned scope
+        // are its.
+        NSURL *held = url;
+        if (!started) {
+            NSString *path = url.URLByStandardizingPath.path;
+            if (VibeSearchFolderCoveringRootIndex(coveringRootPaths, path) == NSNotFound) {
+                NSURL *recentRoot = resolveRecentRootCovering(path);
+                if (recentRoot && [recentRoot startAccessingSecurityScopedResource]) {
+                    held = recentRoot;
+                    started = YES;
+                }
+            }
+        }
         NSNumber *isDirectory = nil;
         [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
         // The key is absent for a URL the provider has not resolved yet. An
@@ -697,8 +738,11 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             if (!listable) {
                 // A cold "Open in Vibe" arrives before any restore ran.
                 NSURL *candidate = resolvePersistedBase();
-                if (candidate && VibeSearchRootCoversPath(
-                        candidate.URLByStandardizingPath.path, parentPath)) {
+                if (!(candidate && VibeSearchRootCoversPath(
+                        candidate.URLByStandardizingPath.path, parentPath))) {
+                    candidate = resolveRecentRootCovering(parentPath);
+                }
+                if (candidate) {
                     bookmarkScopeStarted = [candidate startAccessingSecurityScopedResource];
                     bookmarkRoot = candidate;
                     listable = YES;
@@ -710,7 +754,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
                                    to:tracks
                                  seen:seenKeys] > 0) {
                     if (started) {
-                        [url stopAccessingSecurityScopedResource];   // the root covers it
+                        [held stopAccessingSecurityScopedResource];   // the root covers it
                     }
                     if (bookmarkScopeStarted) {
                         [ownedScopes addObject:bookmarkRoot];
@@ -735,12 +779,12 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
                                                 : [NSURLUtil rowsForFile:url];
         if ([self appendFresh:produced to:tracks seen:seenKeys] == 0) {
             if (started) {
-                [url stopAccessingSecurityScopedResource];
+                [held stopAccessingSecurityScopedResource];
             }
             continue;
         }
         if (started) {
-            [ownedScopes addObject:url];
+            [ownedScopes addObject:held];
         }
         [contributors addObject:url];
         if (isDir) {

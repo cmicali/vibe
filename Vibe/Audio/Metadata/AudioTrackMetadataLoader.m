@@ -796,9 +796,12 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         // VibeRangedStream), so it takes no claim: one would download the
         // whole file for a few hundred KB of tags. Ready at once, with no
         // token — the slot holds none yet, so the completion's match passes.
-        // The foreground hold above still applied: it is a network read. A
-        // format TagLib cannot parse is materialized as any cloud file is:
-        // CoreAudio's facts need the whole file.
+        // The foreground hold above covers the scan's picks only: a priority
+        // read — the tags of the track being downloaded and its neighbors' —
+        // goes out beside the foreground download, a few hundred KB each, so
+        // the header is not blank until the whole file lands. A format TagLib
+        // cannot parse is materialized as any cloud file is: CoreAudio's
+        // facts need the whole file.
         if ([NSURLUtil readsRemotePlaceholderByRange:entry.url]) {
             [strongSelf completeMaterializationForEntry:entry
                                                priority:priority

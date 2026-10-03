@@ -886,11 +886,14 @@ static const CGFloat kLandedRowScale = 0.1;
     [self expandPlayerAnimated:YES];
 }
 
-// Only the Playlist tab's empty state says a pick found no audio. An open
-// supersedes every Add in flight, so their lifted rows settle here as they
-// do on a replace that landed.
+// Only the Playlist tab's empty state says a pick found no audio, so the tab
+// comes forward only over an empty playlist. An open supersedes every Add in
+// flight whatever it found, so their lifted rows settle here as they do on
+// a replace that landed.
 - (void)playbackDidOpenEmptyFolder:(PlaybackController *)playback {
-    [self bringPlaylistTabForward];
+    if (playback.playlist.count == 0) {
+        [self bringPlaylistTabForward];
+    }
     for (NSArray<UIView *> *rows in [_liftedRowBatches copy]) {
         [self settleLiftedRows:rows landed:NO];
     }

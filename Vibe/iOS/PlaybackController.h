@@ -76,7 +76,9 @@ NS_ASSUME_NONNULL_BEGIN
 // A deliberate open landed and is playing; never sent for a relaunch restore.
 // The only event that presents the card.
 - (void)playbackDidOpenNewFolder:(PlaybackController *)playback;
-// The picked location held no audio files.
+// The picked location held no audio files. The playlist stands if it had
+// one — read playlist.count before presenting an empty state — and every
+// Add in flight was superseded.
 - (void)playbackDidOpenEmptyFolder:(PlaybackController *)playback;
 // A relaunch restore came to nothing, or there was nothing to restore.
 - (void)playbackHasNothingToRestore:(PlaybackController *)playback;

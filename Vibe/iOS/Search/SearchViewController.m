@@ -853,6 +853,8 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
         [self matchPlaylistForQuery:[self currentQuery]];
         [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:VibeSearchSectionPlaylist]
                       withRowAnimation:UITableViewRowAnimationNone];
+        // An artist's tags arriving can be the first match, or the last.
+        [self refreshEmptyState];
     }
 }
 

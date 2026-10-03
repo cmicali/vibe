@@ -894,11 +894,11 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     }
 }
 
+// A bad pick never wipes a good playlist, and the observers hear of it either
+// way: the open superseded every Add in flight, whose completions are dropped,
+// so the rows the shell lifted for them settle on this event or never.
 - (void)folderSessionDidOpenEmptyFolder:(FolderSession *)session {
     [self settleLaunchOpen];
-    if (_playlist.count > 0) {
-        return;   // a bad pick never wipes a good playlist
-    }
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {
         if ([observer respondsToSelector:@selector(playbackDidOpenEmptyFolder:)]) {
             [observer playbackDidOpenEmptyFolder:self];

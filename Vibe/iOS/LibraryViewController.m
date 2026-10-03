@@ -506,6 +506,9 @@ didEndDisplayingCell:(UITableViewCell *)cell
 }
 
 - (void)playbackDidOpenEmptyFolder:(PlaybackController *)playback {
+    if (playback.playlist.count > 0) {
+        return;   // the playlist stands, and says nothing of the pick
+    }
     _lastPickWasEmpty = YES;
     [self refreshChrome];
 }
