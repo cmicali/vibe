@@ -334,6 +334,29 @@ static inline BOOL VibeDropboxLocalMatchesEntry(off_t localSize, time_t localMod
     return entryModified >= 0 && localSize == (off_t)entrySize && localModified == entryModified;
 }
 
+#pragma mark - Downloads
+
+// The sizes the downloads may reach before the oldest go back to
+// placeholders, the choices offered, smallest first. 10 GB, an album or two
+// hundred, which a phone can spare, is the default.
+static const long long kVibeDropboxDownloadBudgets[] = {
+    1000LL * 1000 * 1000, 2000LL * 1000 * 1000, 5000LL * 1000 * 1000,
+    10000LL * 1000 * 1000, 20000LL * 1000 * 1000, 50000LL * 1000 * 1000,
+};
+static const size_t kVibeDropboxDownloadBudgetCount = sizeof(kVibeDropboxDownloadBudgets) / sizeof(kVibeDropboxDownloadBudgets[0]);
+static const long long kVibeDropboxDefaultDownloadBudget = 10000LL * 1000 * 1000;
+
+// A saved budget, as one of the choices: absent (0) or off the list, the
+// default.
+static inline long long VibeDropboxDownloadBudget(long long saved) {
+    for (size_t i = 0; i < kVibeDropboxDownloadBudgetCount; i++) {
+        if (kVibeDropboxDownloadBudgets[i] == saved) {
+            return saved;
+        }
+    }
+    return kVibeDropboxDefaultDownloadBudget;
+}
+
 NS_ASSUME_NONNULL_END
 
 #endif

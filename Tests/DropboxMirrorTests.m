@@ -854,6 +854,36 @@ static struct stat StatOf(NSURL *url) {
     XCTAssertEqualObjects([NSString stringWithContentsOfURL:two encoding:NSUTF8StringEncoding error:NULL], @"22222");
 }
 
+// A smaller budget applies at once, not at the next download: the oldest go
+// back to placeholders until the rest fit, and the new total is posted for
+// the settings screen. The mirror a test makes saves nothing.
+- (void)testASmallerBudgetSendsTheOldestBackAtOnceAndPostsTheTotal {
+    _listings[@"/music"] = @[FileEntry(@"/Music", @"one.flac", 3, kStamp),
+                             FileEntry(@"/Music", @"two.flac", 3, kStamp)];
+    _contents[@"/music/one.flac"] = [@"111" dataUsingEncoding:NSUTF8StringEncoding];
+    _contents[@"/music/two.flac"] = [@"222" dataUsingEncoding:NSUTF8StringEncoding];
+    NSURL *folder = [self refresh:@"/Music"];
+    NSURL *one = [folder URLByAppendingPathComponent:@"one.flac"];
+    NSURL *two = [folder URLByAppendingPathComponent:@"two.flac"];
+    [self installMirrorFetch];
+    XCTAssertTrue([self materialize:one]);
+    XCTAssertTrue([self materialize:two]);
+    XCTAssertEqual([self measuredDownloads], 6, @"both fit the 8-byte budget");
+
+    XCTestExpectation *posted = [self expectationForNotification:VibeDropboxDownloadsDidChangeNotification
+                                                          object:_mirror
+                                                         handler:^BOOL(NSNotification *notification) {
+        return [notification.userInfo[VibeDropboxDownloadsBytesKey] longLongValue] == 3;
+    }];
+    _mirror.downloadBudget = 4;
+    XCTAssertEqual(_mirror.downloadBudget, 4);
+    [self waitForExpectations:@[posted] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertEqual(StatOf(one).st_mode & 0777, 0, @"the oldest went back");
+    XCTAssertEqualObjects([NSString stringWithContentsOfURL:two encoding:NSUTF8StringEncoding error:NULL], @"222");
+    XCTAssertEqual([self measuredDownloads], 3);
+    XCTAssertNil([NSUserDefaults.standardUserDefaults objectForKey:@"VibeiOSDropboxDownloadBudget"]);
+}
+
 - (void)testRemovingDownloadsLeavesPlaceholdersAndSheets {
     NSData *sheet = [@"FILE \"one.flac\" WAVE\n" dataUsingEncoding:NSUTF8StringEncoding];
     _listings[@"/music"] = @[FileEntry(@"/Music", @"one.flac", 5, kStamp),

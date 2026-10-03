@@ -69428,12 +69428,36 @@
       "extractionState": "manual"
     },
     "settings.dropbox.footer": {
-      "comment": "iOS settings screen, Files: explanation under the Dropbox account rows. %@ is the app name. Dropbox is a product name: keep it untranslated; 'the Files app' is Apple's Files app, named as iOS names it in this language. 10 GB is a fixed limit: write the unit as this language writes gigabytes.",
+      "comment": "iOS settings screen, Files: explanation under the Connect to Dropbox row, before an account is signed in. %@ is the app name. Dropbox is a product name: keep it untranslated.",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Browse and search your Dropbox in %@ directly, without the Files app. Songs download when you play them, and the oldest are removed when they take more than 10 GB."
+            "value": "Browse and search your Dropbox in %@."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.dropbox.footer.linked": {
+      "comment": "iOS settings screen, Files: explanation under the signed-in Dropbox account's rows. 'The maximum size' is the Maximum Size row just above it.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Songs download when you play them. The oldest are removed when downloads reach the maximum size."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.dropbox.maximum_size": {
+      "comment": "iOS settings screen, Files: row under the signed-in Dropbox account choosing how much space songs downloaded from Dropbox may take before the oldest are removed; the chosen size, such as 10 GB, is shown beside it. Also the title of the screen listing the sizes.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximum Size"
           }
         }
       },

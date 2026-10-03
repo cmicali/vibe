@@ -23,9 +23,9 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// A fetch landed, with whatever the budget then evicted. Posted on main with
-// the mirror as its object and the downloads' total bytes, already counted,
-// under VibeDropboxDownloadsBytesKey.
+// A fetch landed, or the budget changed, with whatever the budget then
+// evicted. Posted on main with the mirror as its object and the downloads'
+// total bytes, already counted, under VibeDropboxDownloadsBytesKey.
 extern NSNotificationName const VibeDropboxDownloadsDidChangeNotification;
 extern NSString *const VibeDropboxDownloadsBytesKey;
 
@@ -45,6 +45,11 @@ extern NSString *const VibeDropboxDownloadsBytesKey;
                 downloadBudget:(long long)downloadBudget NS_DESIGNATED_INITIALIZER;
 
 @property (nonatomic, readonly) DropboxClient *client;
+
+// Main thread. The shared mirror's is saved (one of kVibeDropboxDownloadBudgets,
+// DropboxRules.h); a smaller one sends the oldest downloads back to
+// placeholders at once, posting the new total.
+@property (nonatomic) long long downloadBudget;
 
 // Every account's mirror lives under it; the remote placeholder root.
 @property (nonatomic, readonly) NSURL *rootURL;
