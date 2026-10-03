@@ -458,7 +458,10 @@
                 CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
                 if (now - lastProgressTime >= 0.1) {
                     lastProgressTime = now;
-                    float percentComplete = (float)chunksFilled / (float)effectiveChunks;
+                    // Short of 1 with every chunk filled: 1 is the completion's,
+                    // which AudioWaveformCache delivers, and a pass sized by an
+                    // estimate fills every chunk before its length is exact.
+                    float percentComplete = MIN((float)chunksFilled / (float)effectiveChunks, nextafterf(1, 0));
                     // Snapshot on this queue, the only writer, so that the
                     // main thread renders an immutable copy. Reading the live
                     // buffer would be a data race, because this queue keeps

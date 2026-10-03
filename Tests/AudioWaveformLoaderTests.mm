@@ -688,6 +688,7 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
     NSUInteger partial = 0;
     for (NSUInteger i = 0; i < recorder.snapshots.count; i++) {
         float fraction = recorder.fractions[i].floatValue;
+        XCTAssertLessThan(fraction, 1.0f, @"1 is the completion's, never a snapshot's");
         NSUInteger filled = (NSUInteger)lroundf(fraction * (float)count);
         if (filled >= count) {
             continue;
