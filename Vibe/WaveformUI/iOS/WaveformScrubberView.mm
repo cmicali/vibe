@@ -458,9 +458,13 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     _playheadLine.hidden = !color;
     if (color) {
         CGRect bounds = self.bounds;
+        // The band is in the flipped host's y-up space and the line is not,
+        // which an off-center band (Sonic Cirrus) shows.
+        CGRect band = [_renderer seekHitBandForBounds:bounds];
+        band.origin.y = bounds.size.height - CGRectGetMaxY(band);
         _playheadLine.backgroundColor = color.CGColor;
-        _playheadLine.frame = VibePlayheadLineRect(bounds.size.width / 2,
-                [_renderer seekHitBandForBounds:bounds], bounds.size.width, [self displayScale]);
+        _playheadLine.frame = VibePlayheadLineRect(bounds.size.width / 2, band,
+                bounds.size.width, [self displayScale]);
     }
     [CATransaction commit];
 }
