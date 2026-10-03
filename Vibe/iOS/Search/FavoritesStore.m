@@ -6,6 +6,7 @@
 #import "FavoritesStore.h"
 
 #import "FileSearchRules.h"
+#import "SearchFolderStore.h"
 
 NSNotificationName const VibeFavoritesDidChangeNotification =
         @"VibeFavoritesDidChangeNotification";
@@ -157,12 +158,11 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
     if (path.length == 0 || !bookmark || [self indexOfPath:path] != NSNotFound) {
         return;
     }
-    NSFileManager *files = NSFileManager.defaultManager;
-    NSString *name = [files displayNameAtPath:url.path] ?: url.lastPathComponent;
+    NSString *name = [SearchFolderStore displayNameForFolderURL:url];
     NSURL *parent = url.URLByStandardizingPath.URLByDeletingLastPathComponent;
     // Empty rather than "/": the row drops its second line.
     NSString *location = parent.path.length > 1
-            ? ([files displayNameAtPath:parent.path] ?: parent.lastPathComponent)
+            ? [SearchFolderStore displayNameForFolderURL:parent]
             : @"";
     FavoriteFolder *favorite = [[FavoriteFolder alloc] initWithName:name location:location
                                                                path:path bookmark:bookmark];

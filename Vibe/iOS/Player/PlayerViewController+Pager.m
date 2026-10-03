@@ -19,6 +19,7 @@
 #import "PageWaveformCoordinator.h"
 #import "TrackPageCell.h"
 #import "WaveformScrubberView.h"
+#import "NSURLUtil.h"
 
 // At one, a quick second swipe outruns the fetch (a file read and a decode)
 // and lands on the placeholder; two gives a whole extra commit of lead.
@@ -59,8 +60,16 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     [self updatePlayButton];
 }
 
+// A provider's dataless file is not asked for: its decode would hold a slot
+// through the download, and playbackDidFinishLoading: asks again once the
+// open lands. A remote placeholder is: its stat is the file's, so the cache
+// answers for an evicted track parked at relaunch, and a miss refuses the
+// open at once (the page keeps its indicator; didFailWaveformForIndex:).
 - (void)requestWaveformForIndex:(NSUInteger)index {
     AudioTrack *track = [_playlist trackAtIndex:index];
+    if (!track || ([NSURLUtil isDatalessFile:track.url] && ![NSURLUtil isRemotePlaceholderFile:track.url])) {
+        return;
+    }
     [_waveformCoordinator requestIndex:index track:track];
     // TRAP: a page whose waveform is complete starts no load and DELIVERS
     // NOTHING, and a track change clears the widget's strip, so returning to a

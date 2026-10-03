@@ -29,6 +29,9 @@ extern NSNotificationName const VibeSearchFoldersDidChangeNotification;
 // Settings' rows, in order; grows as launch restorations settle.
 @property (nonatomic, readonly) NSArray<NSURL *> *folderURLs;
 
+// The app's own Documents directory, readable with no grant.
+@property (class, nonatomic, readonly) NSURL *containerDocumentsURL;
+
 // folderURLs plus Documents, which needs no grant. Documents is here, among the
 // permanent roots, because addFolderURL: tests coverage against those alone.
 @property (nonatomic, readonly) NSArray<NSURL *> *searchRoots;
@@ -42,7 +45,9 @@ extern NSNotificationName const VibeSearchFoldersDidChangeNotification;
 
 - (void)removeFolderAtIndex:(NSUInteger)index;
 
-- (NSString *)displayNameForFolderAtIndex:(NSUInteger)index;
+// The one name a folder is shown under, wherever it is named: the two roots
+// with no name of their own on disk read "On My iPhone" and "Dropbox".
++ (NSString *)displayNameForFolderURL:(NSURL *)url;
 
 @end
 

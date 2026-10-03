@@ -60,6 +60,16 @@ static inline NSString *VibeFolderOpenSortIdentifier(VibeFolderOpenSort sort) {
     return SETTINGS_VALUE_FOLDER_OPEN_SORT_NAME;
 }
 
+// The label every chooser of the folder-open order shows for each choice.
+static inline NSString *VibeFolderOpenSortDisplayName(VibeFolderOpenSort sort) {
+    switch (sort) {
+        case VibeFolderOpenSortNewestFirst: return STR_SETTINGS_FOLDER_SORT_NEWEST_FIRST;
+        case VibeFolderOpenSortAsReceived:  return STR_SETTINGS_FOLDER_SORT_AS_RECEIVED;
+        case VibeFolderOpenSortName:        break;
+    }
+    return STR_SETTINGS_FOLDER_SORT_NAME;
+}
+
 static inline VibeRepeatMode VibeNormalizedRepeatMode(NSString *_Nullable identifier) {
     if ([identifier isEqualToString:SETTINGS_VALUE_REPEAT_MODE_ALL]) {
         return VibeRepeatModeAll;

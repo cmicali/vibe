@@ -640,10 +640,15 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 // Not hideLoadingIndicator: the waveform decode may still be streaming. The
 // download fill is cleared here because showWaveform: leaves it alone (a
 // cached waveform can arrive mid-download).
+//
+// The waveform request for a track that was not on disk when the cursor
+// moved: the cursor's request skipped it (requestWaveformForIndex:). A page
+// still loading or complete ignores this one.
 - (void)playbackDidFinishLoading:(PlaybackController *)playback {
     TrackPageCell *cell = [self cellAtIndex:playback.currentIndex];
     [cell.waveformView setLoadingProgress:-1];
     [self hydrateWaveformInCell:cell atIndex:playback.currentIndex];
+    [self requestWaveformForIndex:playback.currentIndex];
 }
 
 - (void)playbackDidFailCurrentTrack:(PlaybackController *)playback {

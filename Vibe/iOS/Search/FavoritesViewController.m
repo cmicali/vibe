@@ -5,8 +5,12 @@
 
 #import "FavoritesViewController.h"
 
+#import "AppSettings.h"
+#import "BrowserViewController.h"
+#import "DropboxMirror.h"
 #import "FavoritesStore.h"
 #import "PlaybackController.h"
+#import "NSURLUtil.h"
 #import "VibeStrings.h"
 
 static NSString *const kFavoriteCellIdentifier = @"favorite";
@@ -139,25 +143,16 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
     return [UIContextMenuConfiguration configurationWithIdentifier:nil
                                                    previewProvider:nil
                                                     actionProvider:^UIMenu *(NSArray<UIMenuElement *> *suggested) {
-        UIAction *play = [UIAction actionWithTitle:STR_MENU_CONTEXT_PLAY
-                                             image:[UIImage systemImageNamed:@"play.fill"]
-                                        identifier:nil
-                                           handler:^(UIAction *action) {
+        UIAction *play = VibeMenuAction(STR_MENU_CONTEXT_PLAY, @"play.fill", ^{
             [weakSelf openFavorite:favorite appending:NO];
-        }];
-        UIAction *add = [UIAction actionWithTitle:STR_MENU_CONTEXT_ADD_TO_PLAYLIST
-                                            image:[UIImage systemImageNamed:@"text.badge.plus"]
-                                       identifier:nil
-                                          handler:^(UIAction *action) {
+        });
+        UIAction *add = VibeMenuAction(STR_MENU_CONTEXT_ADD_TO_PLAYLIST, @"text.badge.plus", ^{
             [weakSelf openFavorite:favorite appending:YES];
-        }];
-        UIAction *remove = [UIAction actionWithTitle:STR_MENU_CONTEXT_REMOVE_FAVORITE
-                                               image:[UIImage systemImageNamed:@"star.slash"]
-                                          identifier:nil
-                                             handler:^(UIAction *action) {
+        });
+        UIAction *remove = VibeMenuAction(STR_MENU_CONTEXT_REMOVE_FAVORITE, @"star.slash", ^{
             // By path, not row: the list can move while the menu is up.
             [FavoritesStore.shared removeFolderURL:[NSURL fileURLWithPath:favorite.path]];
-        }];
+        });
         remove.attributes = UIMenuElementAttributesDestructive;
         UIMenu *destructive = [UIMenu menuWithTitle:@""
                                               image:nil
@@ -178,10 +173,10 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
 
 // The one opening path for the tap and every row action.
 - (void)openFavorite:(FavoriteFolder *)favorite appending:(BOOL)appending {
-    // The token is taken HERE, before the resolve, or an Add outliving a
-    // replace appends to the new playlist. A replace needs none: the newest
-    // replace is meant to win.
-    uint64_t token = appending ? [_playback addRequestToken] : 0;
+    // The token is taken HERE, before the resolve: an Add outliving a replace
+    // would append to the new playlist, and a replace landing after a newer
+    // open would take its place (the session and the replace funnel drop them).
+    uint64_t token = appending ? [_playback addRequestToken] : [_playback replaceRequestToken];
     __weak FavoritesViewController *weakSelf = self;
     [FavoritesStore.shared resolveFavorite:favorite completion:^(NSURL *folderURL) {
         [weakSelf finishOpeningFavorite:favorite folderURL:folderURL
@@ -202,22 +197,49 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
     }
     if (appending) {
         [_playback addURLs:@[folderURL] token:token];
+        return;
     }
-    else {
-        [_playback openURLs:@[folderURL] openInPlace:YES];
+    // A Dropbox folder of folders has nothing to play: it opens in the Files
+    // tab, where its subfolders are, not as an empty playlist.
+    NSString *dropboxPath = [DropboxMirror.shared dropboxPathForURL:folderURL];
+    void (^showDirectory)(NSURL *) = _showDirectoryHandler;
+    if (!dropboxPath || !showDirectory) {
+        [self playFolderURL:folderURL token:token];
+        return;
     }
+    __weak FavoritesViewController *weakSelf = self;
+    // Listed first: the mirror holds only what something has listed, so a
+    // folder never browsed is empty on disk whatever Dropbox holds. A failed
+    // listing falls back on what the disk has; the open that follows reads
+    // the listed folder as it is.
+    VibeFolderOpenSort sort = AppSettings.sharedInstance.folderOpenSort;
+    [DropboxMirror.shared refreshDropboxFolder:dropboxPath completion:^(NSURL *listedURL, NSError *error) {
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            NSArray<NSURL *> *audio = @[];
+            [NSURLUtil listDirectory:folderURL sortedBy:sort folders:NULL audio:&audio];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                FavoritesViewController *strongSelf = weakSelf;
+                if (audio.count > 0) {
+                    [strongSelf playFolderURL:folderURL token:token];
+                }
+                // Not a replace, so the funnel does not judge it: the same
+                // rule, another open asked for meanwhile wins.
+                else if (strongSelf && [strongSelf->_playback isCurrentReplaceRequest:token]) {
+                    showDirectory(folderURL);
+                }
+            });
+        });
+    }];
+}
+
+- (void)playFolderURL:(NSURL *)folderURL token:(uint64_t)token {
+    [BrowserViewController confirmReplacingPlaylistOf:_playback from:self openingURLs:@[folderURL] inFolder:NO
+                                                token:token];
 }
 
 // The row stays: a signed-out provider or an unmounted volume is temporary.
 - (void)showUnavailableAlertForFavorite:(FavoriteFolder *)favorite {
-    UIAlertController *alert =
-            [UIAlertController alertControllerWithTitle:favorite.name
-                                                message:STR_ERROR_FAVORITE_UNAVAILABLE
-                                         preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:STR_BUTTON_OK
-                                              style:UIAlertActionStyleDefault
-                                            handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
+    VibePresentAlert(self, favorite.name, STR_ERROR_FAVORITE_UNAVAILABLE);
 }
 
 @end

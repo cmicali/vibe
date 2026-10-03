@@ -27,6 +27,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // An Add landed: append rows (never empty, in order); the base is unchanged.
 // May carry rows the playlist already holds.
+// Empty for an Add that found nothing: the playlist is untouched, but the
+// asker is told.
 - (void)folderSession:(FolderSession *)session didAppendTracks:(NSArray<AudioTrack *> *)rows;
 
 // The picked location held no audio files.
@@ -44,6 +46,10 @@ NS_ASSUME_NONNULL_BEGIN
 // Nil whenever folderURL is.
 @property (nonatomic, readonly, nullable) NSString *folderDisplayName;
 
+// An Add has landed on the playlist now loaded, or it was restored with
+// additions: the playlist is no longer something one reopen rebuilds.
+@property (nonatomic, readonly) BOOL hasAdditions;
+
 // The BASE folder: the Playlist tab's title, the star, the bookmark. Nil for a
 // single-file base, which an appended folder never replaces.
 @property (nonatomic, readonly, nullable) NSURL *folderURL;
@@ -53,11 +59,7 @@ NS_ASSUME_NONNULL_BEGIN
 // persistent roots, never these.
 @property (nonatomic, readonly) NSArray<NSURL *> *searchRoots;
 
-// Multi-selection, always an Add; an Add onto a never-landed playlist is an
-// Open.
-- (void)presentPickerFromViewController:(UIViewController *)presenter;
-
-// URLs from outside the picker, in pick order. openInPlace NO means an inbox
+// URLs in pick order. openInPlace NO means an inbox
 // copy: no scope, never bookmarked, one track whatever it sits beside.
 - (void)openURLs:(NSArray<NSURL *> *)urls openInPlace:(BOOL)openInPlace;
 
@@ -72,10 +74,21 @@ NS_ASSUME_NONNULL_BEGIN
 - (uint64_t)addRequestToken;
 - (void)addURLs:(NSArray<NSURL *> *)urls token:(uint64_t)token;
 
-// Opens the hit's own directory with it selected. The covering grant is
-// retained for this playlist even if its Settings row goes; the session
-// bookmark is left alone.
-- (void)openFileFromSearchRoots:(NSURL *)url;
+// One URL: a folder opens; a file plays alone or, inFolder, as its own
+// directory with it selected where a root covers that. The covering grant is
+// retained for this playlist even if its Settings row goes. Whether the open
+// becomes the session bookmark is decided here, never by the caller.
+- (void)openURL:(NSURL *)url inFolder:(BOOL)inFolder;
+
+// Every file and folder opened or added, newest first, at most 50, each
+// {path, bookmark (absent when the mint failed), folder}. Persisted; a restore
+// records nothing, and clearSession keeps them.
+@property (nonatomic, readonly) NSArray<NSDictionary *> *recentItems;
+
+// The recent's URL from its bookmark, else its path while something is there.
+// Off main; completion on main, nil when neither reaches it.
+- (void)resolveRecentItem:(NSDictionary *)item completion:(void (^)(NSURL *_Nullable url))completion;
+- (void)clearRecentItems;
 
 // Back to never-opened: every scope released, and the persisted bookmarks and
 // remembered track REMOVED, so the next launch restores nothing. Supersedes

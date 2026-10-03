@@ -8,7 +8,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "FavoritesViewController.h"
-#import "FilesViewController.h"
+#import "BrowserViewController.h"
 #import "LibraryViewController.h"
 #import "MiniPlayerView.h"
 #import "PlaybackController.h"
@@ -27,10 +27,6 @@ static const CGFloat kBackdropCornerRadius = 38;
 static const CGFloat kDismissTravelFraction = 0.25;
 static const CGFloat kDismissFlickVelocity = 900;
 
-// UIKit's 8pt gap between floating capsules plus the ~12.7pt the browser's bar
-// draws past its own safe-area bottom. See applyFilesBottomInset.
-static const CGFloat kFilesBarClearance = 21;
-
 static NSString *const kTabPlaylist = @"playlist";
 static NSString *const kTabFavorites = @"favorites";
 static NSString *const kTabFiles = @"files";
@@ -43,7 +39,10 @@ static NSString *const kTabSearch = @"search";
 @implementation RootViewController {
     PlaybackController   *_playback;
     UITabBarController   *_tabs;
-    FilesViewController  *_filesController;
+    // What scales under a moving card: a snapshot of the tabs, never the tabs
+    // themselves (applyBackdropProgress:). Present only while the card moves.
+    UIView               *_backdropSnapshot;
+    BrowserViewController *_filesController;
     FavoritesViewController *_favorites;
     LibraryViewController *_library;
     SearchViewController *_searchController;
@@ -56,6 +55,10 @@ static NSString *const kTabSearch = @"search";
     BOOL                 _cardAnimating;
     BOOL                 _interactiveDrag;
     UIViewPropertyAnimator *_cardAnimator;
+    // Rows of Adds asked for and not yet settled, oldest first, and when
+    // each was lifted.
+    NSMutableArray<NSArray<UIView *> *> *_liftedRowBatches;
+    NSMutableArray<NSNumber *> *_liftedRowBatchTimes;
     BOOL                   _playerAppearanceTransitionActive;
     NSArray<UIViewController *> *_parentAppearanceChildren;
     BOOL                   _rootPresentationVisible;
@@ -77,6 +80,18 @@ static NSString *const kTabSearch = @"search";
 
 - (PlaybackController *)playback {
     return _playback;
+}
+
+- (UITabBarController *)tabs {
+    return _tabs;
+}
+
+- (UIView *)miniPlayerView {
+    return _miniPlayer;
+}
+
+- (UIView *)backdropSnapshot {
+    return _backdropSnapshot;
 }
 
 - (LibraryViewController *)library {
@@ -155,10 +170,12 @@ static NSString *const kTabSearch = @"search";
         FavoritesViewController *starred =
                 [[FavoritesViewController alloc] initWithPlayback:root->_playback];
         root->_favorites = starred;
+        starred.showDirectoryHandler = ^(NSURL *directory) {
+            [weakSelf showDirectoryInFiles:directory highlighting:nil];
+        };
         return [[UINavigationController alloc] initWithRootViewController:starred];
     }];
 
-    // No navigation controller: the browser brings its own bar.
     UITab *files = [[UITab alloc] initWithTitle:STR_TAB_FILES
                                           image:[UIImage systemImageNamed:@"folder"]
                                      identifier:kTabFiles
@@ -167,11 +184,14 @@ static NSString *const kTabSearch = @"search";
         if (!root) {
             return nil;
         }
-        FilesViewController *browser =
-                [[FilesViewController alloc] initWithPlayback:root->_playback];
+        BrowserViewController *browser = [[BrowserViewController alloc] initWithPlayback:root->_playback
+                                                                            directoryURL:nil
+                                                                               appending:NO];
         root->_filesController = browser;
-        [root applyFilesBottomInset];
-        return browser;
+        browser.addedRowsHandler = ^(NSArray<UIView *> *rows) {
+            [weakSelf liftAddedRows:rows];
+        };
+        return [[UINavigationController alloc] initWithRootViewController:browser];
     }];
 
     UISearchTab *search = [[UISearchTab alloc] initWithViewControllerProvider:
@@ -183,6 +203,9 @@ static NSString *const kTabSearch = @"search";
         SearchViewController *results =
                 [[SearchViewController alloc] initWithPlayback:root->_playback];
         root->_searchController = results;
+        results.showDirectoryHandler = ^(NSURL *directory, NSURL *file) {
+            [weakSelf showDirectoryInFiles:directory highlighting:file];
+        };
         [root syncTabSurfaces];
         return [[UINavigationController alloc] initWithRootViewController:results];
     }];
@@ -195,7 +218,6 @@ static NSString *const kTabSearch = @"search";
     [self addChildViewController:_tabs];
     _tabs.view.frame = self.view.bounds;
     _tabs.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    _tabs.view.layer.cornerCurve = kCACornerCurveContinuous;
     [self.view addSubview:_tabs.view];
     [_tabs didMoveToParentViewController:self];
     [self syncTabSurfaces];
@@ -325,9 +347,13 @@ static NSString *const kTabSearch = @"search";
 
 #pragma mark - The mini player
 
-// Never up while the card is.
+// TRAP: the strip stays installed under the card. Taking the accessory away
+// on expand shrinks every tab's bottom inset by the strip, a list scrolled
+// to its end is clamped up by that much under the snapshot, and putting it
+// back on dismiss moves nothing: one card cycle left the last row behind
+// the strip. The card hides the tabs, strip included, so it costs nothing.
 - (void)refreshMiniPlayer {
-    BOOL wanted = VibeMiniPlayerVisible(_playback.screenState) && !_expanded;
+    BOOL wanted = VibeMiniPlayerVisible(_playback.screenState);
     if (wanted) {
         [_miniPlayer renderTrack:_playback.displayedTrack];
         [_miniPlayer setPlaying:_playback.isPlaying];
@@ -340,30 +366,6 @@ static NSString *const kTabSearch = @"search";
             ? [[UITabAccessory alloc] initWithContentView:_miniPlayer]
             : nil;
     [_tabs setBottomAccessory:accessory animated:!UIAccessibilityIsReduceMotionEnabled()];
-}
-
-// The browser draws its own bottom bar as a floating capsule against its safe
-// area, which ends at the top of our lowest capsule, so the two collide.
-//
-// TRAP: do NOT add the accessory's height. The tab-child safe area already
-// spans the strip; adding it leaves a strip-high dead band. One constant lands
-// the same gap with the strip up or down.
-//
-// TRAP: the browser's bar overhangs its safe area by ~12.7pt (iOS 26.5), so
-// the 8pt gap alone leaves the capsules touching. Re-measure after an iOS
-// update: dump_view_tree anchors, and a screenshot column scan must show a
-// break between the browser's bar and the capsule below.
-- (void)applyFilesBottomInset {
-    UIViewController *files = _filesController;
-    if (!files) {
-        return;   // Files not built yet
-    }
-    UIEdgeInsets insets = files.additionalSafeAreaInsets;
-    if (fabs(insets.bottom - kFilesBarClearance) < 0.5) {
-        return;
-    }
-    insets.bottom = kFilesBarClearance;
-    files.additionalSafeAreaInsets = insets;
 }
 
 #pragma mark - Expanding and minimizing
@@ -453,7 +455,6 @@ static NSString *const kTabSearch = @"search";
     _player.view.hidden = NO;
     [self beginPlayerAppearanceTransition:YES animated:shouldAnimate];
     _player.presented = YES;
-    [self refreshMiniPlayer];
     [self animateCardAnimated:shouldAnimate changes:^{
         self->_player.view.transform = CGAffineTransformIdentity;
         [self applyBackdropProgress:0];
@@ -474,8 +475,6 @@ static NSString *const kTabSearch = @"search";
     uint64_t accessibilityGeneration = [self beginAccessibilityTransitionToExpanded:NO];
     [self beginPlayerAppearanceTransition:NO animated:shouldAnimate];
     _player.presented = NO;
-    // Before the animation, or the strip pops in after the card lands.
-    [self refreshMiniPlayer];
     [self animateCardAnimated:shouldAnimate changes:^{
         self->_player.view.transform = [self minimizedCardTransform];
         [self applyBackdropProgress:1];
@@ -497,14 +496,16 @@ static NSString *const kTabSearch = @"search";
                  completion:(void (^)(void))completion {
     [self interruptCardAnimationPreservingVisualState];
     _cardAnimating = YES;
-    [self updateBackdropVisibility];
     if (!animated) {
         changes();
         _cardAnimating = NO;
-        [self updateBackdropVisibility];
+        // A drag may have left a snapshot up.
+        [self endBackdropSnapshot];
         completion();
         return;
     }
+    // Before the changes: the tabs come back under it first.
+    [self beginBackdropSnapshot];
     UIViewPropertyAnimator *animator = [[UIViewPropertyAnimator alloc]
             initWithDuration:0.45 dampingRatio:0.86 animations:changes];
     _cardAnimator = animator;
@@ -515,7 +516,7 @@ static NSString *const kTabSearch = @"search";
         }
         self->_cardAnimator = nil;
         self->_cardAnimating = NO;
-        [self updateBackdropVisibility];
+        [self endBackdropSnapshot];
         completion();
     }];
     [animator startAnimation];
@@ -538,7 +539,7 @@ static NSString *const kTabSearch = @"search";
     CGFloat height = MAX(1, self.view.bounds.size.height);
     [self applyBackdropProgress:visibleTransform.ty / height];
     _cardAnimating = NO;
-    [self updateBackdropVisibility];
+    // The snapshot stays: the intent that interrupted is about to animate.
     [self finishPlayerAppearanceTransition];
 }
 
@@ -550,11 +551,11 @@ static NSString *const kTabSearch = @"search";
     [_player endAppearanceTransition];
 }
 
-// A card at rest covers the tabs, so they are hidden: visible, their scaled,
-// corner-masked subtree costs offscreen passes on every rotation frame. That
-// nothing shows through rests on kBackdropScale insetting the tabs well
-// inside the card's cut corners; at a scale of 1 the corners would show them.
-// The animation and the drag both reveal them while `_expanded` is YES.
+// A card at rest covers the tabs, so they are hidden: shown, the glass tab
+// bar keeps sampling for nothing. While the card moves a snapshot stands in
+// for them and they are shown under it, drawn twice for those frames on
+// purpose: the tab bar comes back with an appearance of its own, which then
+// plays out under the snapshot rather than after the card has landed.
 - (void)updateBackdropVisibility {
     BOOL hidden = _expanded && !_cardAnimating && !_interactiveDrag;
     if (_tabs.view.hidden != hidden) {
@@ -563,13 +564,44 @@ static NSString *const kTabSearch = @"search";
     [self syncTabSurfaces];
 }
 
+// TRAP: what scales under the card is a SNAPSHOT of the tabs, never the tabs
+// view. Scaling the view itself, by its transform or by a sublayer transform
+// above it, moved its edges away from the screen's, and UIKit took away the
+// safe-area insets and the edge layout margins as it did: the navigation
+// bar, the large title, the rows and the tab bar re-laid out and the screen
+// jumped under the card on every expand and dismiss. A snapshot has no
+// layout to lose. Taken as the card starts moving and dropped once it rests.
+- (void)beginBackdropSnapshot {
+    if (_backdropSnapshot) {
+        return;
+    }
+    // A hidden view snapshots nothing: shown first, and a view that was
+    // hidden is captured after the next screen update.
+    BOOL wasHidden = _tabs.view.hidden;
+    [self updateBackdropVisibility];
+    UIView *snapshot = [_tabs.view snapshotViewAfterScreenUpdates:wasHidden];
+    if (!snapshot) {
+        return;
+    }
+    snapshot.frame = _tabs.view.frame;
+    snapshot.layer.cornerCurve = kCACornerCurveContinuous;
+    snapshot.layer.masksToBounds = YES;
+    [self.view insertSubview:snapshot aboveSubview:_tabs.view];
+    _backdropSnapshot = snapshot;
+}
+
+- (void)endBackdropSnapshot {
+    [_backdropSnapshot removeFromSuperview];
+    _backdropSnapshot = nil;
+    [self updateBackdropVisibility];
+}
+
 // 0 is the card fully up, 1 fully away.
 - (void)applyBackdropProgress:(CGFloat)progress {
     CGFloat t = MAX(0, MIN(1, progress));
     CGFloat scale = kBackdropScale + (1 - kBackdropScale) * t;
-    _tabs.view.transform = CGAffineTransformMakeScale(scale, scale);
-    _tabs.view.layer.cornerRadius = kBackdropCornerRadius * (1 - t);
-    _tabs.view.layer.masksToBounds = t < 1;
+    _backdropSnapshot.transform = CGAffineTransformMakeScale(scale, scale);
+    _backdropSnapshot.layer.cornerRadius = kBackdropCornerRadius * (1 - t);
 }
 
 #pragma mark - The interactive minimize
@@ -589,9 +621,8 @@ static NSString *const kTabSearch = @"search";
             [self interruptCardAnimationPreservingVisualState];
             // Fall through.
         case UIGestureRecognizerStateChanged:
-            // The tabs must be back before the first frame of travel.
             _interactiveDrag = YES;
-            [self updateBackdropVisibility];
+            [self beginBackdropSnapshot];
             _player.view.transform = CGAffineTransformMakeTranslation(0, translation);
             [self applyBackdropProgress:translation / height];
             break;
@@ -628,9 +659,24 @@ static NSString *const kTabSearch = @"search";
 
 #pragma mark - Tabs
 
+// Settings rides the Playlist tab's stack: leaving the tab pops it, so
+// coming back shows the playlist, not the screen left open.
 - (void)tabBarController:(UITabBarController *)tabBarController
- didSelectViewController:(UIViewController *)viewController {
+            didSelectTab:(UITab *)selectedTab
+             previousTab:(UITab *)previousTab {
+    if (selectedTab != previousTab && [previousTab.identifier isEqualToString:kTabPlaylist]) {
+        [_library.navigationController popToRootViewControllerAnimated:NO];
+    }
     [self syncTabSurfaces];
+}
+
+// The stack is built before the tab shows, so the tab arrives on the folder
+// rather than on its old screen and then jumping.
+- (void)showDirectoryInFiles:(NSURL *)directory highlighting:(NSURL *)file {
+    // A tab's controller is built on first ask: one never visited has none yet.
+    (void)[_tabs tabForIdentifier:kTabFiles].viewController;
+    [_filesController showDirectory:directory highlighting:file];
+    [self setSelectedTabIdentifier:kTabFiles];
 }
 
 // UISearchTab's identifier is UIKit's, so it is matched by kind.
@@ -678,19 +724,178 @@ static NSString *const kTabSearch = @"search";
 
 - (void)playbackDidReplacePlaylist:(PlaybackController *)playback {
     [self refreshMiniPlayer];
+    // An Add onto nothing became an open: the card says so.
+    for (NSArray<UIView *> *rows in [_liftedRowBatches copy]) {
+        [self settleLiftedRows:rows landed:NO];
+    }
+}
+
+// Every Add ends here; the oldest lift is its.
+- (void)playback:(PlaybackController *)playback didSettleAddLanding:(BOOL)landed {
+    if (_liftedRowBatches.count > 0) {
+        [self settleLiftedRows:_liftedRowBatches.firstObject landed:landed];
+    }
+}
+
+#pragma mark - Added rows
+
+// An Add in the Files tab changes nothing on its own screen, so its rows say
+// what happened: they lift when asked for, fly into the Playlist tab when the
+// tracks land, and set back down when nothing did (all already there, or a
+// folder with no songs directly inside). Every Add ends in a settle event,
+// so there is no timer: a lift that outlives its Add is a bug, and
+// check_consistency reports one (liftedRowTimes).
+static const NSTimeInterval kRowLiftDuration = 0.25;
+static const NSTimeInterval kRowFlightDuration = 0.7;
+static const NSTimeInterval kRowFlightStagger = 0.07;
+static const CGFloat kLiftedRowScale = 1.03;
+static const CGFloat kLandedRowScale = 0.1;
+
+- (void)liftAddedRows:(NSArray<UIView *> *)rows {
+    if (rows.count == 0) {
+        return;
+    }
+    if (!_liftedRowBatches) {
+        _liftedRowBatches = [NSMutableArray array];
+        _liftedRowBatchTimes = [NSMutableArray array];
+    }
+    [_liftedRowBatches addObject:rows];
+    [_liftedRowBatchTimes addObject:@(CACurrentMediaTime())];
+    for (UIView *row in rows) {
+        row.frame = [self.view convertRect:row.frame fromView:nil];
+        row.userInteractionEnabled = NO;
+        row.layer.shadowOpacity = 0.25f;
+        row.layer.shadowRadius = 12;
+        row.layer.shadowOffset = CGSizeMake(0, 4);
+        // Without a path the shadow is re-derived from the snapshot's pixels
+        // on every frame of the flight.
+        row.layer.shadowPath = [UIBezierPath bezierPathWithRect:row.bounds].CGPath;
+        [self.view addSubview:row];
+    }
+    if (!UIAccessibilityIsReduceMotionEnabled()) {
+        [UIView animateWithDuration:kRowLiftDuration delay:0 usingSpringWithDamping:0.6 initialSpringVelocity:0
+                            options:UIViewAnimationOptionAllowUserInteraction animations:^{
+            for (UIView *row in rows) {
+                row.transform = CGAffineTransformMakeScale(kLiftedRowScale, kLiftedRowScale);
+            }
+        } completion:nil];
+    }
+}
+
+- (NSArray<NSNumber *> *)liftedRowTimes {
+    return [_liftedRowBatchTimes copy] ?: @[];
+}
+
+- (void)settleLiftedRows:(NSArray<UIView *> *)rows landed:(BOOL)landed {
+    NSUInteger index = [_liftedRowBatches indexOfObjectIdenticalTo:rows];
+    if (index == NSNotFound) {
+        return;   // already settled
+    }
+    CFTimeInterval liftedAt = _liftedRowBatchTimes[index].doubleValue;
+    [_liftedRowBatches removeObjectAtIndex:index];
+    [_liftedRowBatchTimes removeObjectAtIndex:index];
+    CGPoint target = CGPointZero;
+    if (!landed || UIAccessibilityIsReduceMotionEnabled() || ![self getPlaylistTabCenter:&target]) {
+        [UIView animateWithDuration:0.2 animations:^{
+            for (UIView *row in rows) {
+                row.transform = CGAffineTransformIdentity;
+                row.alpha = 0;
+            }
+        } completion:^(BOOL finished) {
+            [rows makeObjectsPerformSelector:@selector(removeFromSuperview)];
+        }];
+        if (landed) {
+            [[[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleLight] impactOccurred];
+        }
+        return;
+    }
+    // A local Add lands within a frame or two: the flight waits out the lift,
+    // or it would cut the lift short and start with a jump.
+    NSTimeInterval wait = MAX(0, liftedAt + kRowLiftDuration - CACurrentMediaTime());
+    // A UIKit animation, not a CAAnimation added to the layer. An
+    // iPhone caps an app's own CAAnimations at 60 Hz unless its Info.plist
+    // opts out, while UIKit's run at the display's rate, so on a 120 Hz
+    // phone the hand-built flight stuttered beside the swipe it followed.
+    UIViewKeyframeAnimationOptions options = UIViewKeyframeAnimationOptionCalculationModeCubic
+            | (UIViewKeyframeAnimationOptions)UIViewAnimationOptionCurveEaseInOut;
+    CGFloat midScale = (kLiftedRowScale + kLandedRowScale) / 2;
+    [rows enumerateObjectsUsingBlock:^(UIView *row, NSUInteger i, BOOL *stop) {
+        // Across, then down into the tab: the midpoint of the curve whose
+        // control point is the tab's column at the row's height.
+        CGPoint start = row.center;
+        CGPoint mid = CGPointMake(0.25 * start.x + 0.75 * target.x, 0.75 * start.y + 0.25 * target.y);
+        [UIView animateKeyframesWithDuration:kRowFlightDuration
+                                       delay:wait + (NSTimeInterval)i * kRowFlightStagger
+                                     options:options
+                                  animations:^{
+            [UIView addKeyframeWithRelativeStartTime:0 relativeDuration:0.5 animations:^{
+                row.center = mid;
+                row.transform = CGAffineTransformMakeScale(midScale, midScale);
+            }];
+            [UIView addKeyframeWithRelativeStartTime:0.5 relativeDuration:0.5 animations:^{
+                row.center = target;
+                row.transform = CGAffineTransformMakeScale(kLandedRowScale, kLandedRowScale);
+            }];
+            // Solid for most of the way, gone as it reaches the tab.
+            [UIView addKeyframeWithRelativeStartTime:0.7 relativeDuration:0.3 animations:^{
+                row.alpha = 0;
+            }];
+        } completion:^(BOOL finished) {
+            [row removeFromSuperview];
+            if (i == 0) {
+                [[[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleLight] impactOccurred];
+            }
+        }];
+    }];
+}
+
+// The Playlist tab's item, in this view. UITab has no view of its own, so the
+// bar's is found by the label it draws; a bar that is not on screen (the
+// iPad's is elsewhere), or one drawn without that label, answers NO and the
+// rows fade where they are.
+- (BOOL)getPlaylistTabCenter:(CGPoint *)center {
+    UITabBar *bar = _tabs.tabBar;
+    NSString *title = [_tabs tabForIdentifier:kTabPlaylist].title;
+    if (!bar.window || bar.hidden || CGRectIsEmpty(bar.bounds) || title.length == 0) {
+        return NO;
+    }
+    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithArray:bar.subviews];
+    while (queue.count > 0) {
+        UIView *view = queue.firstObject;
+        [queue removeObjectAtIndex:0];
+        if ([view.accessibilityLabel isEqualToString:title]) {
+            *center = [self.view convertPoint:CGPointMake(CGRectGetMidX(view.bounds), CGRectGetMidY(view.bounds))
+                                     fromView:view];
+            return YES;
+        }
+        [queue addObjectsFromArray:view.subviews];
+    }
+    return NO;
 }
 
 // The only place the card presents by itself. The Playlist tab comes forward
 // so minimizing lands on what was opened — except over Search, whose tab owns
-// the selection while its field is up.
+// the selection while its field is up, and except a single file played
+// alone — one track, no folder — whose tab stays where it was picked, so
+// minimizing lands back in the browser rather than on a one-row playlist.
 - (void)playbackDidOpenNewFolder:(PlaybackController *)playback {
-    [self bringPlaylistTabForward];
+    if (playback.playlist.count > 1 || playback.folderURL) {
+        [self bringPlaylistTabForward];
+    }
     [self expandPlayerAnimated:YES];
 }
 
-// Only the Playlist tab's empty state says a pick found no audio.
+// Only the Playlist tab's empty state says a pick found no audio, so the tab
+// comes forward only over an empty playlist. An open supersedes every Add in
+// flight whatever it found, so their lifted rows settle here as they do on
+// a replace that landed.
 - (void)playbackDidOpenEmptyFolder:(PlaybackController *)playback {
-    [self bringPlaylistTabForward];
+    if (playback.playlist.count == 0) {
+        [self bringPlaylistTabForward];
+    }
+    for (NSArray<UIView *> *rows in [_liftedRowBatches copy]) {
+        [self settleLiftedRows:rows landed:NO];
+    }
 }
 
 - (void)bringPlaylistTabForward {
