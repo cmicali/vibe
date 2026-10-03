@@ -45,10 +45,12 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.4;
 static const NSTimeInterval kFirstPartialDelay = 0.5;
 
 // A bitmap's entrance. The first onto an empty view grows from the midline;
-// a complete one crossfades over a partial one, since Normalize raises the
-// reference only for the whole track and the bars would jump taller. Every
-// other install is an instant swap.
+// a complete one over a partial one grows from the partial's heights to its
+// own, since Normalize raises the reference only for the whole track and the
+// bars would jump taller — or crossfades, for a style that cannot say by how
+// much. Every other install is an instant swap.
 static const CFTimeInterval kArrivalGrowDuration = 0.3;
+static const CFTimeInterval kCompletionGrowDuration = 0.35;
 static const CFTimeInterval kCompletionFadeDuration = 0.3;
 
 @interface WaveformScrubberView () <UIScrollViewDelegate, UIGestureRecognizerDelegate>
@@ -663,6 +665,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     }
     CodableAudioWaveform *waveform = self.waveform;
     BOOL complete = waveform.waveform->isComplete();
+    CGFloat normalizationGain = complete ? [renderer normalizationGainForWaveform:waveform.waveform] : 1;
     // The fast bake samples on main, like updateWaveform:'s; only the pixel
     // work leaves. A style without one is drawn whole through the registry,
     // as the widget draws it: once all played, once all unplayed.
@@ -700,8 +703,8 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
             WaveformScrubberView *strongSelf = weakSelf;
             if (strongSelf) {
                 strongSelf->_bakeInFlight = NO;
-                [strongSelf installEnvelopeImage:image unplayedImage:unplayedImage
-                                           epoch:epoch complete:complete];
+                [strongSelf installEnvelopeImage:image unplayedImage:unplayedImage epoch:epoch
+                                        complete:complete normalizationGain:normalizationGain];
                 if (strongSelf->_bakeWanted) {
                     strongSelf->_bakeWanted = NO;
                     [strongSelf scheduleEnvelopeBakeAfter:[strongSelf throttledBakeDelay]];
@@ -727,13 +730,16 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 }
 
 - (void)installEnvelopeImage:(CGImageRef)image unplayedImage:(nullable CGImageRef)unplayedImage
-                       epoch:(NSUInteger)epoch complete:(BOOL)complete {
+                       epoch:(NSUInteger)epoch complete:(BOOL)complete
+           normalizationGain:(CGFloat)normalizationGain {
     if (!image || epoch != _bakeEpoch || !self.waveform) {
         return;
     }
     VibeSignpostBegin(waveform_install);
     BOOL arrival = !_bakedHost;
     BOOL completes = _bakedHost && !_bakedComplete && complete;
+    // A style that cannot name its gain crossfades over the partial instead.
+    BOOL fades = completes && normalizationGain == 0;
     // No unplayed bake: the played bitmap dimmed. Otherwise the unplayed
     // side's own, already at its resting alphas.
     CGFloat unplayedOpacity = unplayedImage ? 1 : [_renderer unplayedOverPlayedOpacity];
@@ -743,8 +749,8 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     // for the life of the view. The one a completing bake fades over goes
     // when the fade ends.
     [_bakedOutgoing removeFromSuperlayer];
-    _bakedOutgoing = completes ? _bakedHost : nil;
-    if (!completes) {
+    _bakedOutgoing = fades ? _bakedHost : nil;
+    if (!fades) {
         [_bakedHost removeFromSuperlayer];
     }
     // No geometryFlipped here: the bake draws in CG's y-up space, whose top
@@ -765,6 +771,11 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     [_bakedHost addSublayer:_bakedPlayed];
     [self placeBakedLayer:_bakedHost];
     [_scroll.layer insertSublayer:_bakedHost above:_bakedOutgoing ?: _rendererHost];
+    // TRAP: crop the played side inside this transaction. Called from a block
+    // on main, it is top-level and commits at once, and a played layer left at
+    // zero width for that frame drew the whole track unplayed: on a slow load
+    // the played side blinked at every swap.
+    [self applyPlayedClip];
     _bakedComplete = complete;
     if (arrival) {
         // The picture ends the shimmer, not the data: until it lands the
@@ -776,6 +787,14 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
         grow.duration = kArrivalGrowDuration;
         grow.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
         [_bakedHost addAnimation:grow forKey:@"arrival"];
+    }
+    else if (completes && normalizationGain > 1.001) {
+        CABasicAnimation *grow = [CABasicAnimation animationWithKeyPath:@"transform.scale.y"];
+        grow.fromValue = @(1 / normalizationGain);
+        grow.toValue = @1;
+        grow.duration = kCompletionGrowDuration;
+        grow.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
+        [_bakedHost addAnimation:grow forKey:@"completionGrow"];
     }
     else if (_bakedOutgoing) {
         // Set before the animation, which it then waits for.

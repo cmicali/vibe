@@ -374,6 +374,12 @@ static const NSUInteger kFullReachBars = kVibeWaveformMaxBars / 4;
 
 #pragma mark - Envelope bitmap
 
+// Its bands normalize against a reference of their own
+// (bandFullScaleRMSForWaveform:), which this does not reproduce.
+- (CGFloat)normalizationGainForWaveform:(AudioWaveform *)waveform {
+    return 0;
+}
+
 - (BOOL)supportsEnvelopeBake {
     return YES;
 }
