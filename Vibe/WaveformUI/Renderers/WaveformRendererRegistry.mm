@@ -103,6 +103,11 @@ static AudioWaveform *VibePreviewWaveform(void) {
     return identifier && [[self renderersByIdentifier][identifier] readsBands];
 }
 
++ (BOOL)drawsPlayheadLineForIdentifier:(NSString *)identifier chosen:(NSNumber *)chosen {
+    return chosen != nil ? chosen.boolValue
+                         : [identifier isEqualToString:[ThreeBandWaveformRenderer styleIdentifier]];
+}
+
 // Hosts the REAL renderer in a detached layer, so the Settings preview and the
 // widget strip cannot drift from what the views draw.
 + (CGImageRef)newBakedImageForWaveform:(AudioWaveform *)waveform
@@ -129,9 +134,21 @@ static AudioWaveform *VibePreviewWaveform(void) {
     [renderer updateColors:dark];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    [renderer updateWaveform:bounds progress:progress waveform:waveform];
+    VibeColor *playhead = theme.playheadColor;
+    CGFloat played = playhead ? 1 : progress;
+    [renderer updateWaveform:bounds progress:played waveform:waveform];
+    // Sonic Cirrus paints its sides only here, as the views' own ticks do.
+    [renderer updateProgress:played waveform:waveform];
     // No display link here to ease the bars to their targets.
     [renderer settleMorphImmediately];
+    if (playhead) {
+        // The line the views draw, where they draw it.
+        CALayer *line = [CALayer layer];
+        line.backgroundColor = playhead.CGColor;
+        line.frame = VibePlayheadLineRect(progress * size.width, [renderer seekHitBandForBounds:bounds],
+                                          size.width, scale);
+        [layer addSublayer:line];
+    }
     [CATransaction commit];
     CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
     CGContextRef context = CGBitmapContextCreate(NULL, (size_t)llround(size.width * scale),

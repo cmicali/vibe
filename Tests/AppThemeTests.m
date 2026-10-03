@@ -77,6 +77,7 @@
     XCTAssertTrue(theme.showStatusIcons);
     XCTAssertTrue(theme.showTimeLabels);
     XCTAssertTrue(theme.waveformGradient);
+    XCTAssertFalse(theme.waveformPlayheadLine);
     XCTAssertEqual(theme.waveformBarDensity, 1);
     XCTAssertEqual(theme.waveformBarWidth, 1);
     XCTAssertTrue(theme.showPlaylistNumberColumn);
@@ -432,7 +433,7 @@
 - (void)testDisplayColorIsTheOverrideOrThePairsConstant {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
     NSArray<NSString *> *bases = @[kVibeThemeColorWaveformPlayed, kVibeThemeColorWaveformUnplayed,
-                                   kVibeThemeColorWindowTint, kVibeThemeColorPlaylistTint,
+                                   kVibeThemeColorWaveformPlayhead, kVibeThemeColorWindowTint, kVibeThemeColorPlaylistTint,
                                    kVibeThemeColorWindowBackground, kVibeThemeColorTitle,
                                    kVibeThemeColorArtist, kVibeThemeColorInfo, kVibeThemeColorTime,
                                    kVibeThemeColorPlaylistBackground, kVibeThemeColorPlaylistPlayingRow,
@@ -759,6 +760,31 @@ static CGFloat Brightness(NSString *hex) {
     NSData *exported = [AppTheme JSONDataForRecord:record name:@"Volume"];
     NSDictionary *object = [NSJSONSerialization JSONObjectWithData:exported options:0 error:NULL];
     XCTAssertEqualObjects(object[@"volume"][@"location"], @"bottom");
+    XCTAssertEqualObjects([AppTheme recordFromJSONData:exported name:NULL error:NULL], expected);
+}
+
+// The line is opt-in, so a record that predates it keeps the dimmed unplayed
+// side, and its color is a pair like any other.
+- (void)testPlayheadLineRoundTripsUnderTheWaveformSection {
+    AppTheme *malformed = [[AppTheme alloc] initWithRecord:@{@"waveformPlayheadLine": @"yes"}];
+    XCTAssertFalse(malformed.waveformPlayheadLine);
+    XCTAssertEqualObjects(malformed.dictionaryRepresentation, @{});
+
+    NSData *json = [@"{\"waveform\":{\"playheadLine\":true,\"playheadColorDark\":\"#FF0000\"}}"
+            dataUsingEncoding:NSUTF8StringEncoding];
+    NSDictionary *expected = @{@"waveformPlayheadLine": @YES, @"waveformPlayheadColorDark": @"#FF0000"};
+    NSDictionary *record = [AppTheme recordFromJSONData:json name:NULL error:NULL];
+    XCTAssertEqualObjects(record, expected);
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:record];
+    XCTAssertTrue(theme.waveformPlayheadLine);
+    XCTAssertEqualObjects(VibeHexStringFromColor([theme displayColorForBase:kVibeThemeColorWaveformPlayhead dark:YES]),
+                          @"#FF0000");
+    // The unset side is the appearance's contrast pole.
+    XCTAssertEqualObjects(VibeHexStringFromColor([theme displayColorForBase:kVibeThemeColorWaveformPlayhead dark:NO]),
+                          @"#000000");
+    NSData *exported = [AppTheme JSONDataForRecord:record name:@"Line"];
+    NSDictionary *object = [NSJSONSerialization JSONObjectWithData:exported options:0 error:NULL];
+    XCTAssertEqualObjects(object[@"waveform"][@"playheadLine"], @YES);
     XCTAssertEqualObjects([AppTheme recordFromJSONData:exported name:NULL error:NULL], expected);
 }
 

@@ -40,7 +40,9 @@ A finger already scrubbing must be able to start a zoom, and lifting back to one
 
 **Everything that scrolls is a sublayer of the scroll's layer, and everything that does not is a sublayer of the view's** — the loading indicator must not move with the content.
 
-The played/unplayed gradient boundary is the only playhead marker (no line), and it stays pinned at center **by construction** rather than by synchronization: the played clip spans content x `0..progress·virtualWidth`, the same space the scroll translates.
+The played/unplayed gradient boundary is the playhead marker, and it stays pinned at center **by construction** rather than by synchronization: the played clip spans content x `0..progress·virtualWidth`, the same space the scroll translates.
+
+**The playhead line replaces that boundary, and costs a frame nothing.** With a `playheadColor` on the resolved theme (`../AGENTS.md`: the user's switch, and until it is touched the style's default, the line for 3-Band alone) the played side spans the whole track (`playedProgress`), live tree and bake alike, and the line is one layer of the view's own at its center — a sublayer of `self.layer`, not the scroll's, since the play position is the center and it is the content that moves. So it is laid out by the theme, the layout and whether there is a waveform, never by progress, and it holds still through a bounce while the track's end pulls away from it. The choice is in `themeSignature`, so `syncWaveformTheme` applies a flip of the switch as it does a palette change.
 
 **The off-track space is empty, deliberately.** Hairline segments continuing the waveform's midline past the content's ends read as a stray line across the card near the start of a track, which is most of what the eye catches.
 

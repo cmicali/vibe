@@ -521,6 +521,11 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
 
     _waveformGradientSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectWaveformTheme
             write:^(AppTheme *theme, BOOL on) { theme.waveformGradient = on; }];
+    _waveformPlayheadSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectWaveformTheme
+            write:^(AppTheme *theme, BOOL on) { theme.waveformPlayheadLine = on; }];
+    _playheadColorsRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_PLAYHEAD_COLOR
+            control:[self darkLightPairForBase:kVibeThemeColorWaveformPlayhead
+                                        effect:VibeSettingsLiveEffectWaveformTheme]];
     _playlistNumberSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectPlaylistAppearance
             write:^(AppTheme *theme, BOOL on) { theme.showPlaylistNumberColumn = on; }];
     _playlistArtworkSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectPlaylistAppearance
@@ -711,6 +716,8 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
             _customDarkRow,
             _customLightRow,
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_GRADIENT control:_waveformGradientSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_PLAYHEAD_LINE control:_waveformPlayheadSwitch],
+            _playheadColorsRow,
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_MAIN control:titleFontCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_TITLE control:titleColors],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_ARTIST control:artistFontCluster],
@@ -815,6 +822,7 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     BOOL customTheme = [theme.waveformTheme isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
     _customDarkRow.hidden = !customTheme;
     _customLightRow.hidden = !customTheme || single;
+    _playheadColorsRow.hidden = !theme.waveformPlayheadLine;
     BOOL customTint = [theme.windowTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
     _windowTintDarkRow.hidden = !customTint;
     _windowTintLightRow.hidden = !customTint || single;
@@ -901,6 +909,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     [self refreshWaveformBarSizing];
     [self selectValue:theme.waveformTheme in:_waveformThemePopUp];
     _waveformGradientSwitch.state = StateForBOOL(theme.waveformGradient);
+    _waveformPlayheadSwitch.state = StateForBOOL(theme.waveformPlayheadLine);
     _playlistNumberSwitch.state = StateForBOOL(theme.showPlaylistNumberColumn);
     _playlistArtworkSwitch.state = StateForBOOL(theme.showPlaylistArtworkColumn);
     for (NSString *key in AppTheme.imageFieldKeys) {

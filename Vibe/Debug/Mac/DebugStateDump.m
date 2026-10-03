@@ -118,6 +118,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"windowAppearance": AppSettings.sharedInstance.windowAppearanceStyle.length
                     ? AppSettings.sharedInstance.windowAppearanceStyle : @"system",
             @"waveformTheme": theme.waveformTheme,
+            @"waveformPlayheadLine": @(theme.waveformPlayheadLine),
             @"waveformDragBehavior": AppSettings.sharedInstance.waveformDragBehavior,
             @"artworkDragAction": AppSettings.sharedInstance.artworkDragAction,
             @"outputDeviceName": AppSettings.sharedInstance.audioOutputDeviceName ?: @"",

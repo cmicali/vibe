@@ -97,6 +97,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 // The color pairs' base names: each record key less its Dark/Light suffix.
 FOUNDATION_EXPORT NSString *const kVibeThemeColorWaveformPlayed;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorWaveformUnplayed;
+// The line waveformPlayheadLine draws. Unset, white on dark and black on light.
+FOUNDATION_EXPORT NSString *const kVibeThemeColorWaveformPlayhead;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorWindowTint;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistTint;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorWindowBackground;
@@ -226,6 +228,9 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 @property (readonly, nonatomic) BOOL isSingleMode;
 @property (nonatomic, copy) NSString *waveformTheme;        // mono/orange/album_art/custom
 @property (nonatomic) BOOL waveformGradient;                // NO draws flat bars, no vertical ramp
+// YES draws the whole waveform as played under a line at the playhead; NO
+// (default) dims the unplayed side.
+@property (nonatomic) BOOL waveformPlayheadLine;
 @property (nonatomic) double waveformBarDensity;            // multiplier of the style's designed count
 @property (nonatomic) double waveformBarWidth;              // multiplier of the style's designed thickness
 @property (nonatomic, copy) NSString *windowTint;           // mono/artwork/custom

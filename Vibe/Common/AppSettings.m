@@ -114,6 +114,15 @@ const size_t kVibeCrossfadePresetCount =
     [self setHexColor:color forKey:
             isDark ? SETTING_WAVEFORM_CUSTOM_UNPLAYED_DARK : SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT];
 }
+
+- (NSNumber *)waveformPlayheadLine {
+    id stored = [[NSUserDefaults standardUserDefaults] objectForKey:SETTING_WAVEFORM_PLAYHEAD_LINE];
+    return [stored isKindOfClass:NSNumber.class] ? stored : nil;
+}
+
+- (void)setWaveformPlayheadLine:(BOOL)line {
+    [[NSUserDefaults standardUserDefaults] setBool:line forKey:SETTING_WAVEFORM_PLAYHEAD_LINE];
+}
 #endif  // !TARGET_OS_OSX
 
 

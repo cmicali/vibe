@@ -62,6 +62,12 @@ FOUNDATION_EXPORT const size_t kVibeCrossfadePresetCount;
 - (nullable VibeColor *)waveformCustomUnplayedColorForDark:(BOOL)isDark;
 - (void)setWaveformCustomUnplayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
 
+// Whether the playhead is a line over a waveform drawn wholly as played. nil
+// until the user chooses, and deliberately unregistered: the default is the
+// style's (WaveformRendererRegistry.drawsPlayheadLineForIdentifier:chosen:).
+- (nullable NSNumber *)waveformPlayheadLine;
+- (void)setWaveformPlayheadLine:(BOOL)line;
+
 #endif  // !TARGET_OS_OSX
 
 // Track transitions. The store never applies either: the mac writer requests

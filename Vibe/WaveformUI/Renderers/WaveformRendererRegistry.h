@@ -31,6 +31,11 @@ NS_ASSUME_NONNULL_BEGIN
 // AudioWaveformRenderer.readsBands, for a persisted style; NO for nil or an
 // unregistered one.
 + (BOOL)readsBandsForIdentifier:(nullable NSString *)identifier;
+// iOS, whose playhead line is a loose setting: the user's choice, and until
+// there is one the style's own default, the line for 3-Band alone. The mac's
+// is its theme's field, whatever the style.
++ (BOOL)drawsPlayheadLineForIdentifier:(nullable NSString *)identifier
+                                chosen:(nullable NSNumber *)chosen;
 // A static sample rendered by the actual style and current display settings.
 + (nullable CGImageRef)newPreviewForIdentifier:(NSString *)identifier dark:(BOOL)dark
                                         theme:(WaveformTheme *)theme barDensity:(CGFloat)barDensity

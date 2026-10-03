@@ -59,6 +59,8 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
         @"waveformStyle": AppSettings.sharedInstance.waveformStyle ?: @"",
         @"widgetWaveformStyle": AppSettings.sharedInstance.widgetWaveformStyle ?: (id)NSNull.null,
         @"waveformTheme": AppSettings.sharedInstance.waveformTheme,
+        // The stored choice; null draws the style's default.
+        @"waveformPlayheadLine": AppSettings.sharedInstance.waveformPlayheadLine ?: (id)NSNull.null,
         @"folderOpenSort": VibeFolderOpenSortIdentifier(AppSettings.sharedInstance.folderOpenSort),
         @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
         @"repeatMode": VibeRepeatModeIdentifier(AppSettings.sharedInstance.repeatMode),

@@ -87,6 +87,50 @@
             [self previewPixelsForStyle:@"basic" theme:orange barDensity:1 barWidth:1 normalize:NO gainDB:0]);
 }
 
+// iOS's rule: until the user chooses, only 3-Band draws the line.
+- (void)testPlayheadLineIsThreeBandsDefaultUntilChosen {
+    for (NSString *style in WaveformRendererRegistry.availableIdentifiers) {
+        XCTAssertEqual([WaveformRendererRegistry drawsPlayheadLineForIdentifier:style chosen:nil],
+                       [style isEqualToString:@"three_band"], @"%@", style);
+        XCTAssertTrue([WaveformRendererRegistry drawsPlayheadLineForIdentifier:style chosen:@YES], @"%@", style);
+        XCTAssertFalse([WaveformRendererRegistry drawsPlayheadLineForIdentifier:style chosen:@NO], @"%@", style);
+    }
+    XCTAssertFalse([WaveformRendererRegistry drawsPlayheadLineForIdentifier:nil chosen:nil]);
+}
+
+// The preview's playhead sits at 40% of its 720 pixels. Under a playhead color
+// the line spans the seek band there and nothing outside it, and the unplayed
+// side is no longer dimmed.
+- (void)testPreviewDrawsThePlayheadLineOverAWaveformPlayedThroughout {
+    WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
+    for (NSString *style in WaveformRendererRegistry.availableIdentifiers) {
+        theme.playheadColor = nil;
+        NSData *dimmed = [self previewPixelsForStyle:style theme:theme barDensity:1 barWidth:1 normalize:NO gainDB:0];
+        theme.playheadColor = [VibeColor colorWithRed:1 green:0 blue:0 alpha:1];
+        NSData *lined = [self previewPixelsForStyle:style theme:theme barDensity:1 barWidth:1 normalize:NO gainDB:0];
+        XCTAssertEqual(lined.length, dimmed.length);
+        const uint8_t *with = (const uint8_t *)lined.bytes;
+        const uint8_t *without = (const uint8_t *)dimmed.bytes;
+        size_t rowBytes = lined.length / 128;
+        const uint8_t *onLine = with + 64 * rowBytes + 288 * 4;
+        XCTAssertGreaterThan(onLine[0], 200, @"%@", style);
+        XCTAssertLessThan(onLine[1], 60, @"%@", style);
+        XCTAssertLessThan(onLine[2], 60, @"%@", style);
+        XCTAssertEqual(onLine[3], 255, @"%@", style);
+        // Above the band, where no style draws: the line stops with it.
+        XCTAssertEqual((with + 2 * rowBytes + 288 * 4)[3], 0, @"%@", style);
+        // The played side is untouched; the unplayed side differs somewhere.
+        BOOL unplayedDiffers = NO;
+        for (size_t row = 0; row < 128; row++) {
+            XCTAssertEqual(memcmp(with + row * rowBytes, without + row * rowBytes, 280 * 4), 0,
+                           @"%@ row %zu", style, row);
+            unplayedDiffers |= memcmp(with + row * rowBytes + 300 * 4, without + row * rowBytes + 300 * 4,
+                                      (720 - 300) * 4) != 0;
+        }
+        XCTAssertTrue(unplayedDiffers, @"%@", style);
+    }
+}
+
 - (void)testBarWidthChangesPreviewOnlyForSupportedStyles {
     WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
     for (NSString *style in WaveformRendererRegistry.availableIdentifiers) {

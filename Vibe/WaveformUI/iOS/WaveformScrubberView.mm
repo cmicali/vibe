@@ -75,6 +75,9 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     CALayer                 *_bakedHost;
     CALayer                 *_bakedUnplayed;
     CALayer                 *_bakedPlayed;
+    // The theme's playhead line, made on first use: fixed at center in
+    // self.layer, since it is the content that moves.
+    CALayer                 *_playheadLine;
     // Two ways to be stale. Every schedule bumps the request, so only the
     // newest pending timer bakes. Only a teardown (the picture changing
     // meaning) bumps the epoch, which a finished bake must match to install;
@@ -195,6 +198,7 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
 - (void)setWaveform:(CodableAudioWaveform *)waveform {
     _waveform = waveform;
     _scroll.scrollEnabled = (waveform != nil);
+    [self layoutPlayheadLine];
 }
 
 - (BOOL)isShowingBakedWaveform {
@@ -273,13 +277,25 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
         return;
     }
     AppSettings *settings = AppSettings.sharedInstance;
-    _renderer.theme = [WaveformTheme themeForIdentifier:settings.waveformTheme
-                                                 isDark:self.isDark
-                                           artworkColor:_artworkThemeColor
-                                           customPlayed:[settings waveformCustomPlayedColorForDark:self.isDark]
-                                         customUnplayed:[settings waveformCustomUnplayedColorForDark:self.isDark]];
-    [_renderer updateColors:self.isDark];
+    BOOL isDark = self.isDark;
+    WaveformTheme *theme = [WaveformTheme themeForIdentifier:settings.waveformTheme
+                                                      isDark:isDark
+                                                artworkColor:_artworkThemeColor
+                                                customPlayed:[settings waveformCustomPlayedColorForDark:isDark]
+                                              customUnplayed:[settings waveformCustomUnplayedColorForDark:isDark]];
+    // No well for it here: the appearance's contrast pole, the mac's default.
+    if ([self drawsPlayheadLine]) {
+        theme.playheadColor = isDark ? UIColor.whiteColor : UIColor.blackColor;
+    }
+    _renderer.theme = theme;
+    [_renderer updateColors:isDark];
+    [self layoutPlayheadLine];
     _themeSignature = [self themeSignature];
+}
+
+- (BOOL)drawsPlayheadLine {
+    return [WaveformRendererRegistry drawsPlayheadLineForIdentifier:_styleIdentifier
+                                                             chosen:AppSettings.sharedInstance.waveformPlayheadLine];
 }
 
 // Everything the resolution reads, in both appearances — including this page's
@@ -287,7 +303,8 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
 // and keeps the previous track's palette.
 - (NSString *)themeSignature {
     AppSettings *settings = AppSettings.sharedInstance;
-    return [NSString stringWithFormat:@"%@|%@|%@|%@|%@|%@", settings.waveformTheme,
+    return [NSString stringWithFormat:@"%@|%d|%@|%@|%@|%@|%@", settings.waveformTheme,
+            [self drawsPlayheadLine],
             VibeHexStringFromColor([settings waveformCustomPlayedColorForDark:YES]) ?: @"",
             VibeHexStringFromColor([settings waveformCustomUnplayedColorForDark:YES]) ?: @"",
             VibeHexStringFromColor([settings waveformCustomPlayedColorForDark:NO]) ?: @"",
@@ -331,7 +348,7 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
 
 - (void)drawWaveform {
     _renderer.samplingWidth = self.bounds.size.width / kVibeWaveformDefaultZoomFraction;
-    [_renderer updateWaveform:[self virtualBounds] progress:_progress waveform:self.waveform.waveform];
+    [_renderer updateWaveform:[self virtualBounds] progress:[self playedProgress] waveform:self.waveform.waveform];
     [self applyScrollAndProgress];
 }
 
@@ -393,16 +410,22 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     [CATransaction commit];
 }
 
-// The only playhead marker. In CONTENT space, so the scroll carries it to the
-// center and nothing here reads the offset.
+// What the played side spans: under a playhead line the whole waveform, the
+// line alone marking the position. Progress can leave the unit range at track
+// end or in a bounce, and an out-of-unit contentsRect smears the bake's edge
+// pixels.
+- (CGFloat)playedProgress {
+    return _renderer.theme.playheadColor ? 1 : MAX(0.0, MIN(1.0, _progress));
+}
+
+// The playhead marker unless the theme draws a line. In CONTENT space, so the
+// scroll carries it to the center and nothing here reads the offset.
 - (void)applyPlayedClip {
     CGFloat virtualWidth = [self virtualWidth];
     if (!_renderer || virtualWidth <= 0) {
         return;
     }
-    // Progress can leave the unit range at track end or in a bounce, and an
-    // out-of-unit contentsRect smears the bake's edge pixels.
-    CGFloat progress = MAX(0.0, MIN(1.0, _progress));
+    CGFloat progress = [self playedProgress];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     if (_bakedHost) {
@@ -415,6 +438,29 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
         // The branches cost alike here and not in the render server, so which
         // one a frame took is the measurement.
         VibeTallyCount(waveform_progress_live);
+    }
+    [CATransaction commit];
+}
+
+// The play position IS the view's center, so the line never moves: it follows
+// only the theme, the layout and whether there is a waveform to mark.
+- (void)layoutPlayheadLine {
+    VibeColor *color = self.waveform ? _renderer.theme.playheadColor : nil;
+    if (!color && !_playheadLine) {
+        return;
+    }
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    if (!_playheadLine) {
+        _playheadLine = [CALayer layer];
+        [self.layer addSublayer:_playheadLine];
+    }
+    _playheadLine.hidden = !color;
+    if (color) {
+        CGRect bounds = self.bounds;
+        _playheadLine.backgroundColor = color.CGColor;
+        _playheadLine.frame = VibePlayheadLineRect(bounds.size.width / 2,
+                [_renderer seekHitBandForBounds:bounds], bounds.size.width, [self displayScale]);
     }
     [CATransaction commit];
 }
@@ -1056,6 +1102,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     }
     [CATransaction commit];
     [self applyScrollAndProgress];
+    [self layoutPlayheadLine];
     // The bucket is per pixel of the virtual width, which just moved; without
     // this every playback write during a pinch passes setProgress:'s gate.
     _progressTracker = [self progressBucket];
