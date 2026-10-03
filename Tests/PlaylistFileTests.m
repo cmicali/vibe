@@ -74,6 +74,8 @@ static NSArray<NSString *> *CueRowSummaries(NSString *text) {
     XCTAssertTrue([PlaylistFile isPlaylistExtension:@"m3u"]);
     XCTAssertTrue([PlaylistFile isPlaylistExtension:@"m3u8"]);
     XCTAssertFalse([PlaylistFile isPlaylistExtension:@"mp3"]);
+    XCTAssertTrue([PlaylistFile isM3UExtension:@"m3u8"]);
+    XCTAssertFalse([PlaylistFile isM3UExtension:@"cue"]);
     XCTAssertFalse([PlaylistFile isPlaylistExtension:@""]);
 }
 

@@ -22,6 +22,9 @@ extern NSString *const kVibeLastPlaylistCurrentIndexKey;
 // YES for a (lowercased) CUE sheet's extension.
 + (BOOL)isCueExtension:(NSString *)extension;
 
+// YES for a (lowercased) M3U playlist's extension: m3u, m3u8.
++ (BOOL)isM3UExtension:(NSString *)extension;
+
 // Decodes playlist bytes to text: a UTF-16 BOM, then a BOM-less UTF-16
 // signature, then UTF-8, then Windows-1252 and Latin-1 for legacy writers, so
 // a non-empty file always decodes.

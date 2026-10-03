@@ -251,7 +251,7 @@ static inline BOOL VibeDropboxNameIsMirrored(NSString *name, NSSet<NSString *> *
         return NO;
     }
     NSString *extension = name.pathExtension.lowercaseString;
-    return [PlaylistFile isCueExtension:extension] || [playableExtensions containsObject:extension];
+    return [PlaylistFile isPlaylistExtension:extension] || [playableExtensions containsObject:extension];
 }
 
 // files/search_v2's answer as entries (the shape list_folder gives), kept

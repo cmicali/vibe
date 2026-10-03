@@ -93,8 +93,8 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 // Common/PlayableExtensions' set.
 + (NSSet<NSString *> *)supportedExtensions;
 
-// One file as its rows: a CUE sheet's tracks, a large local FLAC's embedded
-// cue sheet, else the file whole. Every expansion mints a file's rows here,
+// One file as its rows: a CUE sheet's tracks, an M3U's readable entries, a
+// large local FLAC's embedded cue sheet, else the file whole. Every expansion mints a file's rows here,
 // so a sheet inside a file applies wherever the file is opened.
 + (NSArray<AudioTrack *> *)rowsForFile:(NSURL *)url;
 
@@ -108,12 +108,14 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 // Synchronous. sort is a parameter because this layer may not read a setting.
 + (NSArray<AudioTrack *> *)rowsInDirectory:(NSURL *)dir sortedBy:(VibeFolderOpenSort)sort;
 
-// The folder's subfolders and the audio files and sheets rowsInDirectory:
-// would make rows of, each sorted by `sort`, hidden entries skipped. What a
-// browser draws, so a folder plays as it is shown. Synchronous.
+// The folder's subfolders, its M3U playlists, and the audio files and sheets
+// rowsInDirectory: would make rows of, each sorted by `sort`, hidden entries
+// skipped. What a browser draws, so a folder plays as it is shown; a playlist
+// is not part of that, as a subfolder is not. Synchronous.
 + (void)listDirectory:(NSURL *)dir
              sortedBy:(VibeFolderOpenSort)sort
               folders:(NSArray<NSURL *> *_Nonnull *_Nullable)folders
+            playlists:(NSArray<NSURL *> *_Nonnull *_Nullable)playlists
                 audio:(NSArray<NSURL *> *_Nonnull *_Nullable)audio;
 @end
 

@@ -588,16 +588,21 @@ static NSArray<AudioTrack *> *VibePlayableSheetRows(NSURL *sheet, NSSet<NSURL *>
 static const long long kVibeEmbeddedCueMinimumBytes = 100LL * 1024 * 1024;
 
 static NSMutableArray<NSURL *> *VibeListedAudioURLs(NSURL *dir, VibeFolderOpenSort sort,
-                                                  NSMutableArray<NSURL *> *subfolders);
+                                                  NSMutableArray<NSURL *> *subfolders,
+                                                  NSMutableArray<NSURL *> *playlists);
 
 + (NSArray<AudioTrack *> *)rowsForFile:(NSURL *)url {
     // A sheet alone resolves against its folder's listing, as a walk does,
     // and claims nothing from its siblings: picked, it is the user's choice.
     if ([PlaylistFile isCueExtension:url.pathExtension.lowercaseString]) {
         NSArray<NSURL *> *listed = VibeListedAudioURLs(url.URLByDeletingLastPathComponent,
-                                                       VibeFolderOpenSortAsReceived, nil) ?: @[];
+                                                       VibeFolderOpenSortAsReceived, nil, nil) ?: @[];
         return VibePlayableSheetRows(url, [NSSet setWithArray:listed], VibeKnownFiles(listed),
                                      [NSMutableDictionary dictionary]);
+    }
+    if ([PlaylistFile isM3UExtension:url.pathExtension.lowercaseString]) {
+        return [self expandFileList:@[url] sortedBy:VibeFolderOpenSortAsReceived folderCount:NULL
+               looseFileDirectories:nil expandedCount:NULL];
     }
     if ([url.pathExtension.lowercaseString isEqualToString:@"flac"]) {
         NSNumber *size = nil;
@@ -613,11 +618,13 @@ static NSMutableArray<NSURL *> *VibeListedAudioURLs(NSURL *dir, VibeFolderOpenSo
 }
 
 // The folder's nonempty audio files and sheets, listed with the keys `sort`
-// needs, unsorted; nil when the listing fails. `subfolders`, when given,
-// takes the directories of the same enumeration: a provider's listing is IPC,
-// and a browser screen asking twice paid for it twice.
+// needs, unsorted; nil when the listing fails. `subfolders` and `playlists`,
+// when given, take the directories and the nonempty M3U files of the same
+// enumeration: a provider's listing is IPC, and a browser screen asking twice
+// paid for it twice.
 static NSMutableArray<NSURL *> *VibeListedAudioURLs(NSURL *dir, VibeFolderOpenSort sort,
-                                                  NSMutableArray<NSURL *> *subfolders) {
+                                                  NSMutableArray<NSURL *> *subfolders,
+                                                  NSMutableArray<NSURL *> *playlists) {
     // Skipping hidden files drops AppleDouble sidecars.
     NSError *error = nil;
     NSArray<NSURL*> *contents = [[NSFileManager defaultManager]
@@ -640,21 +647,24 @@ static NSMutableArray<NSURL *> *VibeListedAudioURLs(NSURL *dir, VibeFolderOpenSo
             [subfolders addObject:url];
             continue;
         }
-        if (![supported containsObject:extension] && ![PlaylistFile isCueExtension:extension]) {
+        // An M3U is never a row of its folder: it would double what the
+        // folder plays.
+        BOOL m3u = playlists && [PlaylistFile isM3UExtension:extension];
+        if (![supported containsObject:extension] && ![PlaylistFile isCueExtension:extension] && !m3u) {
             continue;
         }
         NSNumber *isLink = nil;
         [url getResourceValue:&isLink forKey:NSURLIsSymbolicLinkKey error:NULL];
         BOOL dangling = NO;
         if (!VibeListedFileIsEmpty(url, isLink.boolValue, &dangling) && !dangling) {
-            [results addObject:url];
+            [m3u ? playlists : results addObject:url];
         }
     }
     return results;
 }
 
 + (NSArray<AudioTrack*>*) rowsInDirectory:(NSURL*)dir sortedBy:(VibeFolderOpenSort)sort {
-    NSMutableArray<NSURL *> *results = VibeListedAudioURLs(dir, sort, nil);
+    NSMutableArray<NSURL *> *results = VibeListedAudioURLs(dir, sort, nil, nil);
     if (!results) {
         return @[];
     }
@@ -665,12 +675,18 @@ static NSMutableArray<NSURL *> *VibeListedAudioURLs(NSURL *dir, VibeFolderOpenSo
 + (void)listDirectory:(NSURL *)dir
              sortedBy:(VibeFolderOpenSort)sort
               folders:(NSArray<NSURL *> **)folders
+            playlists:(NSArray<NSURL *> **)playlists
                 audio:(NSArray<NSURL *> **)audio {
     NSMutableArray<NSURL *> *subfolders = folders ? [NSMutableArray array] : nil;
-    NSMutableArray<NSURL *> *files = VibeListedAudioURLs(dir, sort, subfolders) ?: [NSMutableArray array];
+    NSMutableArray<NSURL *> *m3us = playlists ? [NSMutableArray array] : nil;
+    NSMutableArray<NSURL *> *files = VibeListedAudioURLs(dir, sort, subfolders, m3us) ?: [NSMutableArray array];
     if (folders) {
         VibeSortAudioURLs(subfolders, sort, NO);
         *folders = subfolders;
+    }
+    if (playlists) {
+        VibeSortAudioURLs(m3us, sort, NO);
+        *playlists = m3us;
     }
     VibeSortAudioURLs(files, sort, NO);
     if (audio) {

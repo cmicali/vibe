@@ -745,8 +745,10 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
 
         // A file grant reaches only the file, but a folder in hand may cover
         // it; then the file expands to its directory, selected. Otherwise it
-        // is a one-track playlist.
-        if (!isDir && expands) {
+        // is a one-track playlist. An M3U is its own entries, never a row of
+        // its folder.
+        BOOL m3u = !isDir && [PlaylistFile isM3UExtension:url.pathExtension.lowercaseString];
+        if (!isDir && expands && !m3u) {
             NSURL *parent = url.URLByDeletingLastPathComponent;
             NSString *parentPath = parent.URLByStandardizingPath.path;
             NSURL *bookmarkRoot = nil;
@@ -791,6 +793,17 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         // addition.
         if (isDir) {
             [self listFromDropboxIfMirrored:url];
+        }
+        else if (m3u && [DropboxMirror.shared dropboxPathForURL:url]) {
+            // Each folder the playlist names, as the mirror holds only what
+            // something has listed.
+            NSMutableOrderedSet<NSURL *> *entryFolders = [NSMutableOrderedSet orderedSet];
+            for (AudioTrack *row in [PlaylistFile rowsForPlaylistAtURL:url]) {
+                [entryFolders addObject:row.url.URLByDeletingLastPathComponent];
+            }
+            for (NSURL *folder in entryFolders) {
+                [self listFromDropboxIfMirrored:folder];
+            }
         }
         NSArray<AudioTrack *> *produced = isDir ? [NSURLUtil rowsInDirectory:url sortedBy:sort]
                                                 : [NSURLUtil rowsForFile:url];

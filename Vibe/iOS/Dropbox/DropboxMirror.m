@@ -412,7 +412,7 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
         if (present && VibeDropboxLocalMatchesEntry(st.st_size, st.st_mtimespec.tv_sec, size, modified)) {
             continue;
         }
-        if ([PlaylistFile isCueExtension:name.pathExtension]) {
+        if ([PlaylistFile isPlaylistExtension:name.pathExtension.lowercaseString]) {
             if ([identifier isKindOfClass:NSString.class]) {
                 [sidecars addObject:@{@"path": identifier, @"url": url}];
             }
@@ -454,7 +454,7 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
             struct stat st;
             if (lstat(url.fileSystemRepresentation, &st) == 0
                     && (S_ISDIR(st.st_mode) || (S_ISREG(st.st_mode) && !VibeFileModeIsRemotePlaceholder(st.st_mode)
-                                                && ![PlaylistFile isCueExtension:name.pathExtension]))) {
+                                                && ![PlaylistFile isPlaylistExtension:name.pathExtension.lowercaseString]))) {
                 *discarded = YES;   // a folder may hold downloads; not walked to find out
             }
             [files removeItemAtURL:url error:NULL];
@@ -645,7 +645,7 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
         struct stat st;
         if (lstat(url.fileSystemRepresentation, &st) != 0 || !S_ISREG(st.st_mode)
                 || VibeFileModeIsRemotePlaceholder(st.st_mode)
-                || [PlaylistFile isCueExtension:url.pathExtension]) {
+                || [PlaylistFile isPlaylistExtension:url.pathExtension.lowercaseString]) {
             continue;
         }
         [downloads addObject:@{@"url": url, @"size": @(st.st_size), @"modified": @(st.st_mtimespec.tv_sec),
