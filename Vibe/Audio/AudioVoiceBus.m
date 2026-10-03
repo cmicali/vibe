@@ -850,8 +850,15 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     }
     AudioVoiceRecord *record = _records[slot];
     record->readInterrupted = YES;
+    // TRAP: the identifier under the table lock: the drain clears it on the
+    // player queue (setIdentifier:forSlot:) while this turn is still on the
+    // decode queue. The file is safe bare: only a recycle on this queue
+    // clears it.
+    os_unfair_lock_lock(&_tableLock);
+    VibeVoiceID identifier = record->identifier;
+    os_unfair_lock_unlock(&_tableLock);
     LogInfo(@"AudioVoiceBus: voice %llu's read of %@ was interrupted at its stream's edge",
-            record->identifier, record->file.url.lastPathComponent);
+            identifier, record->file.url.lastPathComponent);
     return YES;
 }
 
