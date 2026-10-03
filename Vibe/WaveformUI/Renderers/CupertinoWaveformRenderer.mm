@@ -83,6 +83,11 @@ static const CGFloat kSeekBandHeight = 28;
     return @"cupertino_basic";
 }
 
+// The pill reads no levels.
+- (CGFloat)normalizationGainForWaveform:(AudioWaveform *)waveform {
+    return 1;
+}
+
 + (NSString *)displayName {
     return STR_WAVEFORM_STYLE_CUPERTINO_BASIC;
 }

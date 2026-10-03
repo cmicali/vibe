@@ -286,6 +286,12 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
                                                samples:(NSData *)samples CF_RETURNS_RETAINED;
 - (CGFloat)unplayedOverPlayedOpacity;
 
+// How much taller Normalize draws a complete waveform than the fixed
+// reference draws it while it streams: the whole picture scales by it, since a
+// level is linear in the reference below the clamp, which Normalize keeps
+// clear of. 1 where Normalize changes nothing.
+- (CGFloat)normalizationGainForWaveform:(AudioWaveform *)waveform;
+
 @end
 
 NS_ASSUME_NONNULL_END

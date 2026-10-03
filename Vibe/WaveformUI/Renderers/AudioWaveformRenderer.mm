@@ -158,4 +158,19 @@
     return 1;
 }
 
+// The energy columns' reference at the floor's 1,024, which every style but
+// 3-Band reads its levels through (energyColumnLevelsForBarCount:waveform:).
+- (CGFloat)normalizationGainForWaveform:(AudioWaveform *)waveform {
+    if (!self.normalizesLevels || !waveform || !waveform->isComplete()) {
+        return 1;
+    }
+    std::vector<float> meanSquares(kVibeWaveformEnergyColumns);
+    waveform->getBarMeanSquares(meanSquares.size(),
+                                VibeWaveformWindowReach(meanSquares.size(), kVibeWaveformEnergyColumns / 2),
+                                meanSquares.data(), NULL);
+    float reference = VibeWaveformFullScaleRMSForColumns(waveform, YES, meanSquares.data(),
+                                                         meanSquares.size());
+    return reference > 0 ? kVibeWaveformFullScaleRMS / reference : 1;
+}
+
 @end

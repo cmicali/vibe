@@ -15,6 +15,12 @@
 // A press that travels further than this is a drag, not a click.
 static const CGFloat kWaveformDragHysteresis = 4;
 
+// How often a streaming load's partial waveform lands: it delivers ~10 times a
+// second. The iOS scrubber's pace, so a load fills in alike on both. The first
+// partial waits for its load to complete as long as the scrubber's does.
+static const NSTimeInterval kPartialWaveformInterval = 0.4;
+static const NSTimeInterval kFirstPartialDelay = 0.5;
+
 @implementation AudioWaveformView {
     NSString                    *_styleIdentifier;
     CGFloat                     _progress;
@@ -31,6 +37,12 @@ static const CGFloat kWaveformDragHysteresis = 4;
     BOOL                        _isDragSeeking;
     // The theme's playhead line; hidden until a theme asks for it.
     CALayer*                    _playheadLine;
+    // The streaming pace: when this load first delivered and a partial last
+    // landed, and which pending one may land (a reset or a newer delivery
+    // supersedes it).
+    CFTimeInterval              _firstDeliveryAt;
+    CFTimeInterval              _partialLandedAt;
+    NSUInteger                  _partialGeneration;
 }
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
@@ -349,6 +361,9 @@ static const CGFloat kWaveformDragHysteresis = 4;
 // Every presentation reset's shared teardown, so the three cannot drift.
 // Callers hide their overlays and redraw themselves.
 - (void)resetWaveformContentState {
+    _partialGeneration++;
+    _firstDeliveryAt = 0;
+    _partialLandedAt = 0;
     [self hideHoverIndicator];
     _didClickInside = NO;
     _isDragSeeking = NO;
@@ -367,9 +382,40 @@ static const CGFloat kWaveformDragHysteresis = 4;
     [self drawWaveform];
 }
 
+// The iOS scrubber's model, in the live tree: a waveform eases up from the
+// midline once, at its final heights if its load completes within
+// kFirstPartialDelay; a slower load's partials land settled at a steady pace —
+// eased one by one they kept the whole load repainting the full mask on every
+// frame — and the complete one eases to its normalized heights.
 - (void)showWaveform:(CodableAudioWaveform *)waveform {
-    _waveform = waveform;
-    [self drawWaveform];
+    NSUInteger generation = ++_partialGeneration;
+    CFTimeInterval now = CACurrentMediaTime();
+    if (_firstDeliveryAt == 0) {
+        _firstDeliveryAt = now;
+    }
+    if (waveform.waveform->isComplete()) {
+        _waveform = waveform;
+        [self drawWaveform];
+        return;
+    }
+    NSTimeInterval wait = _waveform
+            ? MAX(0, _partialLandedAt + kPartialWaveformInterval - now)
+            : MAX(0, _firstDeliveryAt + kFirstPartialDelay - now);
+    __weak AudioWaveformView *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        AudioWaveformView *strongSelf = weakSelf;
+        if (!strongSelf || generation != strongSelf->_partialGeneration) {
+            return;
+        }
+        BOOL arrival = !strongSelf->_waveform;
+        strongSelf->_waveform = waveform;
+        strongSelf->_partialLandedAt = CACurrentMediaTime();
+        [strongSelf drawWaveform];
+        if (!arrival) {
+            [strongSelf->_currentWaveformRenderer settleMorphImmediately];
+        }
+    });
 }
 
 - (void)setFrameSize:(NSSize)newSize {

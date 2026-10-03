@@ -34,18 +34,48 @@ static const CFTimeInterval kScrubTickMinInterval = 1.0 / 28.0;
 // How far a pinch's fingers may wander before the gesture counts as a scrub.
 static const CGFloat kZoomScrubSlop = 12.0;
 
-// Past the morph's ~0.2s ease, so the swap to the bitmap lands on identical
-// pixels.
-static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
+// How often a streaming load re-bakes: it delivers ~10 times a second, and a
+// swap per delivery reads as flicker. Trailing, so the newest shape wins, and
+// steady, so the picture fills in at one pace whatever the decode's.
+static const NSTimeInterval kLoadBakeMinInterval = 0.4;
 
-// How often a settled delivery may re-bake: a streaming decode delivers ~10
-// times a second and three pager cells may be baking. Trailing, so the newest
-// shape always wins.
-static const NSTimeInterval kLoadBakeMinInterval = 0.25;
+// How long a partial waveform waits for its load to complete before it shows.
+// Most loads complete inside it and enter once, at their final heights; only
+// a slow one shows partials and then the completion's grow.
+static const NSTimeInterval kFirstPartialDelay = 0.5;
 
-// The completing bake's crossfade over a partial one: Normalize raises the
-// reference only for the whole track, so without it the bars jump taller.
-static const CFTimeInterval kCompletionFadeDuration = 0.3;
+// A bitmap's entrance. The first onto an empty view grows from the midline;
+// a complete one over a partial one grows from the partial's heights to its
+// own, since Normalize raises the reference only for the whole track and the
+// bars would jump taller. Every other install is an instant swap.
+static const CFTimeInterval kArrivalGrowDuration = 0.3;
+// A streaming load's newly decoded stretch grows up from the midline; the
+// rest of the picture holds still. Under kLoadBakeMinInterval, so one reveal
+// ends before the next swap. A steep ease in and out, so it reads as a snap
+// rather than a drift.
+static const CFTimeInterval kChunkGrowDuration = 0.2;
+static const CFTimeInterval kCompletionGrowDuration = 0.35;
+
+// How far a decode has filled the waveform: chunks fill in order, and an
+// unfilled one has no frames.
+static CGFloat VibeDecodedFraction(AudioWaveform *waveform) {
+    NSUInteger count = waveform->getNumChunks();
+    if (waveform->isComplete() || count == 0) {
+        return 1;
+    }
+    const AudioWaveformCacheChunk *chunks = (const AudioWaveformCacheChunk *)waveform->getBytes();
+    NSUInteger low = 0, high = count;
+    while (low < high) {
+        NSUInteger mid = (low + high) / 2;
+        if (chunks[mid].getFrameCount() > 0) {
+            low = mid + 1;
+        }
+        else {
+            high = mid;
+        }
+    }
+    return (CGFloat)low / (CGFloat)count;
+}
 
 @interface WaveformScrubberView () <UIScrollViewDelegate, UIGestureRecognizerDelegate>
 @property (nonatomic, strong, nullable) CodableAudioWaveform *waveform;
@@ -56,10 +86,13 @@ static const CFTimeInterval kCompletionFadeDuration = 0.3;
     // under the center. Everything that scrolls is a sublayer of ITS layer;
     // the loading indicator stays in self.layer.
     UIScrollView            *_scroll;
-    // geometryFlipped gives the shared renderers the mac's y-up space. Virtual
-    // size, at content origin.
+    // The renderer only samples for the bake and is never shown: its layers
+    // live here, hidden, at virtual size so its bar counts match the bitmap's.
     CALayer                 *_rendererHost;
     AudioWaveformRenderer   *_renderer;
+    // The palette a style without a fast bake is drawn in: the renderer's,
+    // minus the playhead line, which this view draws itself.
+    WaveformTheme           *_bakeTheme;
     NSString                *_styleIdentifier;
     NSString                *_themeSignature;
     CGFloat                 _progress;
@@ -74,22 +107,27 @@ static const CFTimeInterval kCompletionFadeDuration = 0.3;
     BOOL                    _seekPending;
     // Where the pending scrub began, so a pinch can tell a scrub from drift.
     CGFloat                 _scrubStartProgress;
-    // The settled fast path: unplayed full width, played on top cropped by
-    // contentsRect. Non-nil _bakedHost means _rendererHost is hidden.
+    // The one picture, anchored at the midline, which the arrival grows from.
+    // It is made of segments, each a stretch of the track drawn as the played
+    // image up to the playhead over the unplayed one: one for the whole track,
+    // three while a newly decoded stretch grows in (newSegmentFrom:to:).
     CALayer                 *_bakedHost;
-    CALayer                 *_bakedUnplayed;
-    CALayer                 *_bakedPlayed;
-    // Whether the standing bake drew a complete waveform, and the partial one
-    // a completing bake fades in over, gone when the fade ends.
+    id                      _bakedPlayedImage;
+    id                      _bakedUnplayedImage;
+    float                   _bakedUnplayedOpacity;
+    // Whether the standing bake drew a complete waveform.
     BOOL                    _bakedComplete;
-    CALayer                 *_bakedOutgoing;
+    // How far the standing bitmap's decode reached, and the segment of the
+    // newest stretch while it grows in.
+    CGFloat                 _bakedDecodedFraction;
+    CALayer                 *_revealLayer;
     // The theme's playhead line, hidden until a theme asks for it: fixed at
     // center in self.layer, since it is the content that moves.
     CALayer                 *_playheadLine;
     // Two ways to be stale. Every schedule bumps the request, so only the
-    // newest pending timer bakes. Only a teardown (the picture changing
-    // meaning) bumps the epoch, which a finished bake must match to install;
-    // a bake overtaken by a newer streaming delivery still lands.
+    // newest pending timer bakes. A change of meaning — a reset, a palette, a
+    // style, a scale — bumps the epoch, which a finished bake must match to
+    // install; a bake overtaken by a newer streaming delivery still lands.
     NSUInteger              _bakeRequest;
     NSUInteger              _bakeEpoch;
     // One bake at a time; a request during one is rescheduled on completion.
@@ -97,9 +135,8 @@ static const CFTimeInterval kCompletionFadeDuration = 0.3;
     BOOL                    _bakeWanted;
     // For the rate limit; 0 bakes at once.
     CFTimeInterval          _lastBakeAt;
-    // The hidden live tree missed deliveries the bake covered; it is redrawn
-    // when the teardown shows it again.
-    BOOL                    _liveTreeStale;
+    // When this load's first delivery came; 0 before it.
+    CFTimeInterval          _firstDeliveryAt;
     CGFloat                 _visibleFraction;
     UIPinchGestureRecognizer *_pinch;
     BOOL                    _isPinching;
@@ -144,6 +181,7 @@ static const CFTimeInterval kCompletionFadeDuration = 0.3;
     _rendererHost.anchorPoint = CGPointZero;
     _rendererHost.bounds = [self virtualBounds];
     _rendererHost.position = CGPointZero;
+    _rendererHost.hidden = YES;
     [_scroll.layer addSublayer:_rendererHost];
 
     _playheadLine = [CALayer layer];
@@ -293,16 +331,20 @@ static const CFTimeInterval kCompletionFadeDuration = 0.3;
     }
     AppSettings *settings = AppSettings.sharedInstance;
     BOOL isDark = self.isDark;
-    WaveformTheme *theme = [WaveformTheme themeForIdentifier:settings.waveformTheme
-                                                      isDark:isDark
-                                                artworkColor:_artworkThemeColor
-                                                customPlayed:[settings waveformCustomPlayedColorForDark:isDark]
-                                              customUnplayed:[settings waveformCustomUnplayedColorForDark:isDark]];
+    WaveformTheme *(^resolve)(void) = ^WaveformTheme *{
+        return [WaveformTheme themeForIdentifier:settings.waveformTheme
+                                          isDark:isDark
+                                    artworkColor:self->_artworkThemeColor
+                                    customPlayed:[settings waveformCustomPlayedColorForDark:isDark]
+                                  customUnplayed:[settings waveformCustomUnplayedColorForDark:isDark]];
+    };
+    WaveformTheme *theme = resolve();
     // No well for it here: the appearance's contrast pole, the mac's default.
     if ([self drawsPlayheadLine]) {
         theme.playheadColor = isDark ? UIColor.whiteColor : UIColor.blackColor;
     }
     _renderer.theme = theme;
+    _bakeTheme = resolve();
     [_renderer updateColors:isDark];
     [self layoutPlayheadLine];
     _themeSignature = [self themeSignature];
@@ -338,14 +380,9 @@ static const CFTimeInterval kCompletionFadeDuration = 0.3;
     if (!_renderer || [[self themeSignature] isEqualToString:_themeSignature]) {
         return;
     }
-    // The bake carries the old palette, but stays up until the recolored one
-    // lands: a teardown would show the live tree meanwhile, and an album-art
-    // color arrives just as a track starts, when a scrub is likeliest (see
-    // bakeNowForGesture). The epoch still drops a bake in flight. No morph to
-    // wait out, so no delay.
+    // The old palette stays up until the recolored bitmap lands.
     _bakeEpoch++;
     [self applyResolvedTheme];
-    [self applyScrollAndProgress];
     [self scheduleEnvelopeBakeAfter:0];
 }
 
@@ -356,27 +393,11 @@ static const CFTimeInterval kCompletionFadeDuration = 0.3;
     if (!_renderer || [style isEqualToString:_styleIdentifier]) {
         return;
     }
-    // Dropping the renderer removes its layers; the bake is the outgoing
-    // style's picture. The bars land settled, so re-bake on the next turn.
-    [self teardownBakedWaveform];
+    // The outgoing style's bitmap stays up until the new one lands.
+    _bakeEpoch++;
     _renderer = nil;
     [self installRendererIfNeeded];
-    [self drawWaveformSettled];
     [self scheduleEnvelopeBakeAfter:0];
-}
-
-- (void)drawWaveform {
-    _liveTreeStale = NO;
-    _renderer.samplingWidth = self.bounds.size.width / kVibeWaveformDefaultZoomFraction;
-    [_renderer updateWaveform:[self virtualBounds] progress:[self playedProgress] waveform:self.waveform.waveform];
-    [self applyScrollAndProgress];
-}
-
-// Landed rather than eased: a reset here is a recycled pager cell emptied
-// off-screen, and an ease nobody watches is charged to the swipe.
-- (void)drawWaveformSettled {
-    [self drawWaveform];
-    [_renderer settleMorphImmediately];
 }
 
 // progress 0 sits at -centerX, 1 at virtualWidth - centerX.
@@ -445,28 +466,23 @@ static const CFTimeInterval kCompletionFadeDuration = 0.3;
 // The playhead marker unless the theme draws a line. In CONTENT space, so the
 // scroll carries it to the center and nothing here reads the offset.
 - (void)applyPlayedClip {
-    CGFloat virtualWidth = [self virtualWidth];
-    if (!_renderer || virtualWidth <= 0) {
+    CGFloat width = _bakedHost.bounds.size.width;
+    if (width <= 0) {
         return;
     }
+    // Its actions are off, so no transaction: see setContentOffsetX:.
     CGFloat progress = [self playedProgress];
-    if (_bakedHost) {
-        // Its actions are off, so no transaction: see setContentOffsetX:.
-        _bakedPlayed.bounds = CGRectMake(0, 0, progress * virtualWidth, _bakedHost.bounds.size.height);
-        _bakedPlayed.contentsRect = CGRectMake(0, 0, progress, 1);
-        VibeTallyCount(waveform_progress_baked);
+    CGFloat height = _bakedHost.bounds.size.height;
+    for (CALayer *segment in _bakedHost.sublayers) {
+        CGFloat start = segment.position.x / width;
+        CGFloat end = start + segment.bounds.size.width / width;
+        CGFloat cut = MAX(start, MIN(end, progress));
+        CALayer *played = segment.sublayers.lastObject;
+        played.bounds = CGRectMake(0, 0, (cut - start) * width, height);
+        played.contentsRect = CGRectMake(start, 0, cut - start, 1);
     }
-    else {
-        [CATransaction begin];
-        [CATransaction setDisableActions:YES];
-        [_renderer updateProgress:progress waveform:self.waveform.waveform];
-        [CATransaction commit];
-        // The branches cost alike here and not in the render server, so which
-        // one a frame took is the measurement.
-        VibeTallyCount(waveform_progress_live);
-    }
+    VibeTallyCount(waveform_progress_baked);
 }
-
 // The play position IS the view's center, so the line never moves: it follows
 // only the theme, the layout and whether there is a waveform to mark.
 - (void)layoutPlayheadLine {
@@ -559,11 +575,10 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 #pragma mark - Presentation states
 
 - (void)resetWaveformContentState {
-    // Its callers draw the reset state, so the outgoing track's is not drawn.
-    _liveTreeStale = NO;
-    [self teardownBakedWaveform];
+    [self removeBakedWaveform];
     // The new track's first bake must not wait on the old track's rate limit.
     _lastBakeAt = 0;
+    _firstDeliveryAt = 0;
     // Stop a coast, then drop the waveform, which disables the scroll and
     // cancels any drag: a gesture must not straddle a track change.
     [_scroll setContentOffset:_scroll.contentOffset animated:NO];
@@ -584,48 +599,33 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     [self hideLoadingIndicator];
     [self resetWaveformContentState];
     [self installRendererIfNeeded];
-    [self drawWaveformSettled];
 }
 
+// Every delivery, partial or complete, cached or streaming, takes this one
+// road: nothing shows until its bitmap lands, which then makes the entrance
+// the view's state calls for (installEnvelopeImage:).
 - (void)showWaveform:(CodableAudioWaveform *)waveform {
-    [self showWaveform:waveform animated:YES];
-}
-
-- (void)showWaveform:(CodableAudioWaveform *)waveform animated:(BOOL)animated {
-    // Data ends the shimmer, not the open landing (the decode may still be
-    // streaming). The fill stays; see hideLoadingShimmer.
-    [self hideLoadingShimmer];
+    // A page brought back by a swipe is handed what it already shows.
+    if (waveform == self.waveform && _bakedHost && _bakedComplete) {
+        return;
+    }
     // Per-page cells can hydrate without prepareForWaveformLoad.
     [self installRendererIfNeeded];
     VibeSignpostBegin(waveform_delivery);
-    // Ease only from nothing: the delivery completing a STREAMING decode asks
-    // for an ease, but would only spring its trailing zeroed chunks up, at the
-    // cost of the bake and a run of full-view rebuilds.
-    BOOL ease = animated && self.waveform == nil;
     self.waveform = waveform;
-    if (ease) {
-        // The morph is a live-tree surface: the bake comes down so it shows.
-        [self teardownBakedWaveform];
-        [self drawWaveform];
-        [self scheduleEnvelopeBakeAfter:kEnvelopeBakeDelay];
+    CFTimeInterval now = CACurrentMediaTime();
+    if (_firstDeliveryAt == 0) {
+        _firstDeliveryAt = now;
     }
-    else {
-        // TRAP: do NOT tear the bake down here. With no ease to reveal, the
-        // bitmap is a fractionally stale picture of the same waveform; a
-        // teardown per delivery (~10 a second) would unhide the live tree and
-        // bump the epoch that discards the bake in flight, so a streaming load
-        // would never leave the live tree. Nor is the hidden live tree drawn:
-        // a streaming file delivers for its whole download, and each draw
-        // rebuilt and committed a mask of thousands of rects nobody sees. The
-        // teardown that shows it draws it.
-        if (_bakedHost) {
-            _liveTreeStale = YES;
-        }
-        else {
-            [self drawWaveformSettled];
-        }
-        [self scheduleEnvelopeBakeAfter:[self throttledBakeDelay]];
+    // The complete one as soon as it can be drawn; a first partial once its
+    // load has had kFirstPartialDelay to complete; later partials at a steady
+    // pace.
+    NSTimeInterval delay = 0;
+    if (!waveform.waveform->isComplete()) {
+        delay = _bakedHost ? [self throttledBakeDelay]
+                           : MAX(0, _firstDeliveryAt + kFirstPartialDelay - now);
     }
+    [self scheduleEnvelopeBakeAfter:delay];
     VibeSignpostEnd(waveform_delivery);
 }
 
@@ -638,42 +638,31 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     return kLoadBakeMinInterval - since;
 }
 
-#pragma mark - Settled bitmap fast path
+#pragma mark - The bitmap
 
-// The live tree's shape mask covers the whole virtual layer, and a masked
-// group re-composites offscreen on every scroll frame; once settled the
-// picture is one bitmap and a frame is texture translation. A reset, an eased
-// delivery, or a geometry or trait change tears the bake down; a non-eased
-// delivery leaves it standing (showWaveform:animated:).
+// TRAP: the picture is only ever this bitmap; never show the renderer's
+// live tree. It is a multi-screen layer under a mask of thousands of rects,
+// which the render server scan-converts on the CPU each frame it moves: a
+// scrub over it ran at 30 Hz or less on a phone.
 
-- (void)teardownBakedWaveform {
+- (void)removeBakedWaveform {
     _bakeEpoch++;
     _bakeRequest++;
     _bakeWanted = NO;
-    if (!_bakedHost) {
-        return;
-    }
-    // Actions disabled, or unhiding the live tree fades and blanks the
-    // waveform for a frame.
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    [_bakedOutgoing removeFromSuperlayer];
-    _bakedOutgoing = nil;
     [_bakedHost removeFromSuperlayer];
     _bakedHost = nil;
-    _bakedUnplayed = nil;
-    _bakedPlayed = nil;
-    _rendererHost.hidden = NO;
+    _bakedPlayedImage = nil;
+    _bakedUnplayedImage = nil;
+    _revealLayer = nil;
+    _bakedDecodedFraction = 0;
     [CATransaction commit];
-    if (_liveTreeStale) {
-        [self drawWaveformSettled];
-    }
 }
 
 - (void)scheduleEnvelopeBakeAfter:(NSTimeInterval)delay {
     _bakeRequest++;
-    // Not a kind-of test: Basic is a Detailed subclass that cannot bake.
-    if (!self.waveform || !_renderer.supportsEnvelopeBake) {
+    if (!self.waveform || !_renderer) {
         return;
     }
     NSUInteger request = _bakeRequest;
@@ -684,10 +673,10 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     });
 }
 
-// A streaming load schedules a bake per delivery. A finished bake installs
-// while the epoch holds, even if a newer delivery arrived, and a request
-// mid-bake waits rather than running beside it: discarding full-size pixel
-// work per delivery was a large share of the app's CPU.
+// A finished bake installs while the epoch holds, even if a newer delivery
+// arrived, and a request mid-bake waits rather than running beside it:
+// discarding full-size pixel work per delivery was a large share of the app's
+// CPU.
 - (void)bakeEnvelopeForRequest:(NSUInteger)request {
     if (request != _bakeRequest || !self.waveform) {
         return;
@@ -705,33 +694,54 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     CGFloat scale = [self displayScale];
     // Past the texture ceiling a layer renders BLANK: a layout wide enough that
     // even the resting zoom overflows (the zoom floor keeps a pinch out) bakes
-    // at reduced scale and stretches back; below 1x, stay on the live tree.
+    // at reduced scale and stretches back.
     if (size.width * scale > kVibeMaxBakeImagePixels) {
-        scale = kVibeMaxBakeImagePixels / size.width;
-        if (scale < 1) {
-            return;
-        }
+        scale = MAX(kVibeMaxBakeImagePixels / size.width, 0.25);
     }
-    // Samples on main, like updateWaveform:'s; only the pixel work leaves.
-    VibeSignpostBegin(waveform_samples);
-    NSData *samples = [renderer envelopeSamplesForWaveform:self.waveform.waveform];
-    VibeSignpostEnd(waveform_samples);
-    BOOL complete = self.waveform.waveform->isComplete();
+    CodableAudioWaveform *waveform = self.waveform;
+    BOOL complete = waveform.waveform->isComplete();
+    CGFloat normalizationGain = complete ? [renderer normalizationGainForWaveform:waveform.waveform] : 1;
+    CGFloat decodedFraction = VibeDecodedFraction(waveform.waveform);
+    // The fast bake samples on main, like updateWaveform:'s; only the pixel
+    // work leaves. A style without one is drawn whole through the registry,
+    // as the widget draws it: once all played, once all unplayed.
+    NSData *samples = nil;
+    NSString *style = _styleIdentifier;
+    WaveformTheme *theme = _bakeTheme;
+    BOOL dark = self.isDark;
+    if (renderer.supportsEnvelopeBake) {
+        renderer.samplingWidth = self.bounds.size.width / kVibeWaveformDefaultZoomFraction;
+        VibeSignpostBegin(waveform_samples);
+        samples = [renderer envelopeSamplesForWaveform:waveform.waveform];
+        VibeSignpostEnd(waveform_samples);
+    }
     NSUInteger epoch = _bakeEpoch;
     _bakeInFlight = YES;
     _bakeWanted = NO;
     __weak WaveformScrubberView *weakSelf = self;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         VibeSignpostBegin(waveform_bake);
-        CGImageRef image = [renderer newEnvelopeImageForSize:size scale:scale samples:samples];
-        CGImageRef unplayedImage = [renderer newUnplayedEnvelopeImageForSize:size scale:scale samples:samples];
+        CGImageRef image, unplayedImage;
+        if (samples) {
+            image = [renderer newEnvelopeImageForSize:size scale:scale samples:samples];
+            unplayedImage = [renderer newUnplayedEnvelopeImageForSize:size scale:scale samples:samples];
+        }
+        else {
+            image = [WaveformRendererRegistry newImageForCodableWaveform:waveform identifier:style
+                    pointSize:size scale:scale progress:1 dark:dark theme:theme
+                    barDensity:1 barWidth:1 normalize:YES gainDB:0];
+            unplayedImage = [WaveformRendererRegistry newImageForCodableWaveform:waveform identifier:style
+                    pointSize:size scale:scale progress:0 dark:dark theme:theme
+                    barDensity:1 barWidth:1 normalize:YES gainDB:0];
+        }
         VibeSignpostEnd(waveform_bake);
         dispatch_async(dispatch_get_main_queue(), ^{
             WaveformScrubberView *strongSelf = weakSelf;
             if (strongSelf) {
                 strongSelf->_bakeInFlight = NO;
-                [strongSelf installEnvelopeImage:image unplayedImage:unplayedImage size:size
-                                           epoch:epoch complete:complete];
+                [strongSelf installEnvelopeImage:image unplayedImage:unplayedImage epoch:epoch
+                                        complete:complete normalizationGain:normalizationGain
+                                 decodedFraction:decodedFraction];
                 if (strongSelf->_bakeWanted) {
                     strongSelf->_bakeWanted = NO;
                     [strongSelf scheduleEnvelopeBakeAfter:[strongSelf throttledBakeDelay]];
@@ -746,87 +756,201 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     });
 }
 
+// At the CURRENT geometry: a bitmap drawn for an older one is stretched to it
+// (resize gravity) until the re-bake the change asked for lands, so a resize,
+// a rotation or a pinch never blanks the strip.
+- (void)placeBakedLayer:(CALayer *)host {
+    CGFloat oldWidth = host.bounds.size.width;
+    CGRect bounds = [self virtualBounds];
+    host.bounds = bounds;
+    host.position = CGPointMake(0, bounds.size.height / 2);
+    for (CALayer *segment in host.sublayers) {
+        CGFloat start = oldWidth > 0 ? segment.position.x / oldWidth : 0;
+        CGFloat length = oldWidth > 0 ? segment.bounds.size.width / oldWidth : 1;
+        segment.bounds = CGRectMake(0, 0, length * bounds.size.width, bounds.size.height);
+        segment.position = CGPointMake(start * bounds.size.width, bounds.size.height / 2);
+        segment.sublayers.firstObject.frame = segment.bounds;
+    }
+}
+
+// [start, end) of the track, in the standing images. Anchored at the midline,
+// so a reveal grows it from there.
+- (CALayer *)newSegmentFrom:(CGFloat)start to:(CGFloat)end {
+    return [self newSegmentFrom:start to:end played:_bakedPlayedImage
+                       unplayed:_bakedUnplayedImage unplayedOpacity:_bakedUnplayedOpacity];
+}
+
+- (CALayer *)newSegmentFrom:(CGFloat)start to:(CGFloat)end played:(id)playedImage
+                   unplayed:(id)unplayedImage unplayedOpacity:(float)unplayedOpacity {
+    CGRect bounds = _bakedHost.bounds;
+    CALayer *segment = [CALayer layer];
+    segment.anchorPoint = CGPointMake(0, 0.5);
+    segment.bounds = CGRectMake(0, 0, (end - start) * bounds.size.width, bounds.size.height);
+    segment.position = CGPointMake(start * bounds.size.width, bounds.size.height / 2);
+    CALayer *unplayed = [CALayer layer];
+    unplayed.frame = segment.bounds;
+    unplayed.contents = unplayedImage;
+    unplayed.opacity = unplayedOpacity;
+    unplayed.contentsRect = CGRectMake(start, 0, end - start, 1);
+    [segment addSublayer:unplayed];
+    CALayer *played = [CALayer layer];
+    played.actions = @{@"bounds": NSNull.null, @"position": NSNull.null,
+                       @"contentsRect": NSNull.null};
+    played.anchorPoint = CGPointZero;
+    played.position = CGPointZero;
+    played.contents = playedImage;
+    [segment addSublayer:played];
+    [_bakedHost addSublayer:segment];
+    return segment;
+}
 - (void)installEnvelopeImage:(CGImageRef)image unplayedImage:(nullable CGImageRef)unplayedImage
-                        size:(CGSize)size epoch:(NSUInteger)epoch complete:(BOOL)complete {
-    CGSize currentSize = [self virtualBounds].size;
-    BOOL stretchForPinch = _isPinching && size.height == currentSize.height;
-    if (!image || epoch != _bakeEpoch || !self.waveform ||
-        (!CGSizeEqualToSize(size, currentSize) && !stretchForPinch)) {
+                       epoch:(NSUInteger)epoch complete:(BOOL)complete
+           normalizationGain:(CGFloat)normalizationGain
+             decodedFraction:(CGFloat)decodedFraction {
+    if (!image || epoch != _bakeEpoch || !self.waveform) {
         return;
     }
     VibeSignpostBegin(waveform_install);
-    // No unplayed bake: the played bitmap dimmed. Otherwise the unplayed
-    // side's own, already at its resting alphas.
-    CGFloat unplayedOpacity = unplayedImage ? 1 : [_renderer unplayedOverPlayedOpacity];
+    BOOL arrival = !_bakedHost;
+    CGFloat revealFrom = _bakedDecodedFraction;
+    _revealLayer = nil;
+    BOOL completes = _bakedHost && !_bakedComplete && complete;
+    BOOL reveals = !arrival && !_isPinching && decodedFraction > revealFrom;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    // TRAP: a bake may still be standing — a non-eased delivery and the
-    // pinch's stretch path both leave one up — and without this removal the
-    // old layer stays in the scroll's tree for the life of the view. The one
-    // a completing bake fades over goes when the fade ends.
-    [_bakedOutgoing removeFromSuperlayer];
-    _bakedOutgoing = nil;
-    if (_bakedHost && !_bakedComplete && complete && !stretchForPinch) {
-        _bakedOutgoing = _bakedHost;
+    // TRAP: drop the standing bitmap first, or it stays in the scroll's tree
+    // for the life of the view. Never fade one picture over another: the
+    // waveforms are translucent, so the pair drew brighter than either for the
+    // fade and the end of it dimmed in one frame.
+    [_bakedHost removeFromSuperlayer];
+    // The undecoded tail of a reveal is cut from the picture being replaced.
+    id previousPlayed = _bakedPlayedImage;
+    id previousUnplayed = _bakedUnplayedImage;
+    float previousOpacity = _bakedUnplayedOpacity;
+    _bakedPlayedImage = (__bridge id)image;
+    _bakedUnplayedImage = (__bridge id)(unplayedImage ?: image);
+    // No unplayed bake: the played bitmap dimmed. Otherwise the unplayed
+    // side's own, already at its resting alphas.
+    _bakedUnplayedOpacity = (float)(unplayedImage ? 1 : [_renderer unplayedOverPlayedOpacity]);
+    // No geometryFlipped here: the bake draws in CG's y-up space, whose top
+    // row lands at the layer's top.
+    _bakedHost = [CALayer layer];
+    _bakedHost.anchorPoint = CGPointMake(0, 0.5);
+    [self placeBakedLayer:_bakedHost];
+    if (reveals) {
+        [self revealDecodedFrom:revealFrom to:decodedFraction tailPlayed:previousPlayed
+                   tailUnplayed:previousUnplayed tailUnplayedOpacity:previousOpacity];
     }
     else {
-        [_bakedHost removeFromSuperlayer];
+        [self newSegmentFrom:0 to:1];
     }
-    // No geometryFlipped here: the bake draws in CG's y-up space, whose top
-    // row lands at the layer's top, matching what the flipped live tree shows.
-    _bakedHost = [CALayer layer];
-    _bakedHost.anchorPoint = CGPointZero;
-    _bakedHost.position = CGPointZero;      // content origin; the scroll moves it
-    CGSize installedSize = stretchForPinch ? currentSize : size;
-    _bakedHost.bounds = (CGRect){CGPointZero, installedSize};
-    _bakedUnplayed = [CALayer layer];
-    _bakedUnplayed.anchorPoint = CGPointZero;
-    _bakedUnplayed.frame = (CGRect){CGPointZero, installedSize};
-    _bakedUnplayed.contents = (__bridge id)(unplayedImage ?: image);
-    _bakedUnplayed.opacity = (float)unplayedOpacity;
-    [_bakedHost addSublayer:_bakedUnplayed];
-    _bakedPlayed = [CALayer layer];
-    _bakedPlayed.actions = @{@"bounds": NSNull.null, @"position": NSNull.null,
-                             @"contentsRect": NSNull.null};
-    _bakedPlayed.anchorPoint = CGPointZero;
-    _bakedPlayed.position = CGPointZero;
-    _bakedPlayed.contents = (__bridge id)image;
-    [_bakedHost addSublayer:_bakedPlayed];
-    [_scroll.layer insertSublayer:_bakedHost above:_bakedOutgoing ?: _rendererHost];
-    _rendererHost.hidden = YES;
+    [_scroll.layer insertSublayer:_bakedHost above:_rendererHost];
+    // TRAP: crop the played side inside this transaction. Called from a block
+    // on main, it is top-level and commits at once, and a played layer left at
+    // zero width for that frame drew the whole track unplayed: on a slow load
+    // the played side blinked at every swap.
+    [self applyPlayedClip];
     _bakedComplete = complete;
-    if (_bakedOutgoing) {
-        // Set before the animation, which it then waits for.
-        CALayer *outgoing = _bakedOutgoing;
-        __weak WaveformScrubberView *weakSelf = self;
-        [CATransaction setCompletionBlock:^{
-            WaveformScrubberView *strongSelf = weakSelf;
-            if (strongSelf && strongSelf->_bakedOutgoing == outgoing) {
-                [outgoing removeFromSuperlayer];
-                strongSelf->_bakedOutgoing = nil;
-            }
-        }];
-        CABasicAnimation *fade = [CABasicAnimation animationWithKeyPath:@"opacity"];
-        fade.fromValue = @0;
-        fade.toValue = @1;
-        fade.duration = kCompletionFadeDuration;
-        [_bakedHost addAnimation:fade forKey:@"completionFade"];
+    if (arrival) {
+        // The picture ends the shimmer, not the data: until it lands the
+        // strip would be empty. The fill stays; see hideLoadingShimmer.
+        [self hideLoadingShimmer];
+        CABasicAnimation *grow = [CABasicAnimation animationWithKeyPath:@"transform.scale.y"];
+        grow.fromValue = @0;
+        grow.toValue = @1;
+        grow.duration = kArrivalGrowDuration;
+        grow.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
+        [_bakedHost addAnimation:grow forKey:@"arrival"];
     }
+    else if (completes && normalizationGain > 1.001) {
+        // Over the last stretch's own reveal, which it carries up with it.
+        CABasicAnimation *grow = [CABasicAnimation animationWithKeyPath:@"transform.scale.y"];
+        grow.fromValue = @(1 / normalizationGain);
+        grow.toValue = @1;
+        grow.duration = kCompletionGrowDuration;
+        grow.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
+        [_bakedHost addAnimation:grow forKey:@"completionGrow"];
+    }
+    _bakedDecodedFraction = decodedFraction;
     [CATransaction commit];
     [self applyScrollAndProgress];
     VibeSignpostEnd(waveform_install);
 }
-
+// Inside the install's transaction: the picture as three segments for the
+// reveal's length — before the new stretch, the stretch growing up from the
+// midline, and the undecoded rest — then one again. No mask, so no offscreen
+// pass, and each segment crops its own played side, so the stretch grows the
+// same on either side of the playhead.
+//
+// TRAP: every stretch outside the new one must stay drawn. Cropping one layer
+// at the old edge hid the undecoded midline for each reveal, and it blinked at
+// every swap; growing only the unplayed side popped a stretch the playhead had
+// passed.
+- (void)revealDecodedFrom:(CGFloat)from to:(CGFloat)to tailPlayed:(id)tailPlayed
+                tailUnplayed:(id)tailUnplayed tailUnplayedOpacity:(float)tailUnplayedOpacity {
+    if (from > 0) {
+        [self newSegmentFrom:0 to:from];
+    }
+    // TRAP: everything past the old edge comes from the PREVIOUS picture,
+    // where it is all midline. A drawn bar is wider than a chunk and straddles
+    // the decoded edge, so in the new picture the edge bar's sliver lies past
+    // it: cut from there, it stood at full height while the stretch grew.
+    // Padding the stretch past its edges instead regrew bars already shown,
+    // and the stretch no longer fit where it belonged.
+    if (to < 1) {
+        [self newSegmentFrom:to to:1 played:tailPlayed unplayed:tailUnplayed
+             unplayedOpacity:tailUnplayedOpacity];
+    }
+    // TRAP: under the stretch, the previous picture only while the stretch is
+    // near a hairline, which smooth outlines (3-Band) do not draw at all, so
+    // the midline had a gap there. Left for the whole grow, its bright midline
+    // and the cliff at its old edge showed through the translucent stretch.
+    CALayer *underlay = [self newSegmentFrom:from to:to played:tailPlayed unplayed:tailUnplayed
+                             unplayedOpacity:tailUnplayedOpacity];
+    underlay.opacity = 0;
+    CABasicAnimation *fade = [CABasicAnimation animationWithKeyPath:@"opacity"];
+    fade.fromValue = @1;
+    fade.toValue = @0;
+    fade.duration = kChunkGrowDuration / 2;
+    fade.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseIn];
+    [underlay addAnimation:fade forKey:@"underlayFade"];
+    CALayer *reveal = [self newSegmentFrom:from to:to];
+    _revealLayer = reveal;
+    // Set before the animations, which it then waits for: the last stretch's
+    // and, at completion, the whole picture's.
+    __weak WaveformScrubberView *weakSelf = self;
+    [CATransaction setCompletionBlock:^{
+        [weakSelf finishRevealOf:reveal];
+    }];
+    // From a hairline, not from nothing: at zero the stretch left a gap in
+    // the midline it grows out of.
+    CABasicAnimation *grow = [CABasicAnimation animationWithKeyPath:@"transform.scale.y"];
+    grow.fromValue = @(MIN(1.0, 1 / MAX(1.0, _bakedHost.bounds.size.height * [self displayScale])));
+    grow.toValue = @1;
+    grow.duration = kChunkGrowDuration;
+    grow.timingFunction = [CAMediaTimingFunction functionWithControlPoints:0.7f :0.0f :0.3f :1.0f];
+    [reveal addAnimation:grow forKey:@"chunkGrow"];
+}
+// A stale reveal is a no-op: a newer install or a reset replaced it.
+- (void)finishRevealOf:(CALayer *)reveal {
+    if (!reveal || reveal != _revealLayer) {
+        return;
+    }
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    _revealLayer = nil;
+    for (CALayer *segment in [_bakedHost.sublayers copy]) {
+        [segment removeFromSuperlayer];
+    }
+    [self newSegmentFrom:0 to:1];
+    [self applyPlayedClip];
+    [CATransaction commit];
+}
 - (void)showLoadingIndicator {
     if (_loadingIndicator) {
         return;
     }
     [self resetWaveformContentState];
-    if (_renderer) {
-        // Settled: an eased collapse costs more full-view rebuilds than the
-        // whole streaming load that follows.
-        [self drawWaveformSettled];
-    }
     _loadingIndicator = [[LoadingIndicator alloc]
             initInLayer:self.layer
                   style:VibeLoadingIndicatorStyleWaveform
@@ -941,22 +1065,6 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     _seekPending = YES;
     [self beginScrubFeedback];
     _lastTickTime = 0;
-    [self bakeNowForGesture];
-}
-
-// TRAP: a gesture moves the content every frame, and on the live tree each
-// frame re-composites a multi-screen layer under a mask of thousands of rects
-// — a morph rebuilds that mask per frame on top, which the render server
-// scan-converts on the CPU each time. It falls behind, and the time labels'
-// per-frame redraws then wait on it in CABackingStoreSynchronize: a scrub at a
-// track's start ran at 30 Hz or less, and a page swiped while the settled
-// page's intro morph ran cost the render server most of a core. So a gesture
-// lands the morph and bakes now rather than after the ease.
-- (void)bakeNowForGesture {
-    if (!_bakedHost && _renderer) {
-        [self drawWaveformSettled];
-        [self scheduleEnvelopeBakeAfter:0];
-    }
 }
 
 // Shared with the pinch's scrub, which starts past its slop.
@@ -1121,7 +1229,6 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
         _progressTracker = [self progressBucket];
     }
     [self.delegate waveformScrubberView:self didChangeScrubbing:YES];
-    [self bakeNowForGesture];
 }
 
 - (void)endZoomGesture {
@@ -1130,12 +1237,8 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     // out of it that no seek follows.
     [_scroll setContentOffset:_scroll.contentOffset animated:NO];
     _isPinching = NO;
-    if (_renderer) {
-        // The live tree is at the gesture's starting geometry and the bitmap
-        // stretched and soft: resync both.
-        [self drawWaveformSettled];
-        [self scheduleEnvelopeBakeAfter:0];
-    }
+    // The bitmap is stretched and soft: re-bake at the zoom it landed on.
+    [self scheduleEnvelopeBakeAfter:0];
     [self parkContentOffsetAtProgress];
     // The whole gesture's end; endScrub declined all of this.
     [self commitScrubSeek];
@@ -1157,19 +1260,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 - (void)applyVirtualGeometry {
     VibeSignpostBegin(waveform_geometry);
     CGRect virtualBounds = [self virtualBounds];
-    CGSize previous = _rendererHost.bounds.size;
-    BOOL sizeChanged = !CGSizeEqualToSize(previous, virtualBounds.size);
-    // A pinch frame STRETCHES the bake (soft until the re-bake on release)
-    // rather than rebuilding a multi-screen mask; every other resize tears it
-    // down.
-    BOOL stretchBake = _isPinching && _bakedHost
-            && previous.height == virtualBounds.size.height;
-    // Early pinch frames can beat beginZoomGesture's bake; keep its epoch so it
-    // installs stretched.
-    BOOL awaitingPinchBake = _isPinching && !_bakedHost;
-    if (sizeChanged && !stretchBake && !awaitingPinchBake) {
-        [self teardownBakedWaveform];
-    }
+    BOOL sizeChanged = !CGSizeEqualToSize(_rendererHost.bounds.size, virtualBounds.size);
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     _scroll.frame = self.bounds;
@@ -1177,28 +1268,23 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     _scroll.contentInset = UIEdgeInsetsMake(0, centerX, 0, centerX);
     _scroll.contentSize = CGSizeMake(virtualBounds.size.width, self.bounds.size.height);
     _rendererHost.bounds = virtualBounds;
-    if (stretchBake) {
-        // Resize gravity scales it; the played crop follows virtualWidth.
-        _bakedHost.bounds = virtualBounds;
-        _bakedUnplayed.frame = virtualBounds;
+    // A pinch frame or a resize STRETCHES the bitmap (soft until the re-bake)
+    // rather than blanking it: three property writes.
+    // A reveal's crop and stretch are in the old geometry: land it first.
+    [self finishRevealOf:_revealLayer];
+    if (_bakedHost) {
+        [self placeBakedLayer:_bakedHost];
     }
     [CATransaction commit];
     [self applyScrollAndProgress];
     // The bucket is per pixel of the virtual width, which just moved; without
     // this every playback write during a pinch passes setProgress:'s gate.
     _progressTracker = [self progressBucket];
-    // A stretched bake hides the live tree, which endZoomGesture resyncs.
-    if (sizeChanged && _renderer && !stretchBake) {
-        // Even with no waveform, so a mid-collapse morph rebuilds at the new
-        // size. Settled and baked next turn: a resize has no new shape to ease
-        // into. traitsDidChange: schedules its own later bake, whose request
-        // is the one that bakes.
-        [self drawWaveformSettled];
+    if (sizeChanged) {
+        // A pinch re-bakes once, on release (endZoomGesture).
         if (!_isPinching) {
             [self scheduleEnvelopeBakeAfter:0];
         }
-    }
-    if (sizeChanged) {
         [self layoutLoadingLayer];
         // Tells a trace which layout passes actually moved the width.
         VibeSignpostCount(waveform_resize);
@@ -1209,9 +1295,11 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 - (void)traitsDidChange:(UITraitCollection *)previous {
     BOOL scaleChanged = previous.displayScale != self.traitCollection.displayScale;
     BOOL styleChanged = previous.userInterfaceStyle != self.traitCollection.userInterfaceStyle;
-    if (scaleChanged || styleChanged) {
-        [self teardownBakedWaveform];
+    if (!scaleChanged && !styleChanged) {
+        return;
     }
+    // The standing bitmap stays up until the redrawn one lands.
+    _bakeEpoch++;
     if (scaleChanged) {
         VibeApplyContentsScale(self.layer, [self displayScale]);
         [_renderer backingScaleDidChange];
@@ -1225,10 +1313,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
         [self applyResolvedTheme];
         [_loadingIndicator updateColorsForDark:self.isDark];
     }
-    if (scaleChanged || styleChanged) {
-        [self applyScrollAndProgress];
-        [self scheduleEnvelopeBakeAfter:kEnvelopeBakeDelay];
-    }
+    [self scheduleEnvelopeBakeAfter:0];
 }
 
 @end
