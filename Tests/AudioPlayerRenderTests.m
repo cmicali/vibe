@@ -3534,20 +3534,24 @@ static NSData *MP3Frames(NSData *mp3) {
     __block NSArray<AudioDevice *> *snapshot = nil;
     __block AudioDeviceManager *devices = nil;
     // Replace only the device I/O boundaries; the real rebuild and PCM path run.
+    // The bind retry is the one timer among them: two real seconds out, it
+    // reports an unpublished default again, into the replay of a run that slow.
     Method methods[] = {
         class_getClassMethod(AudioDeviceManager.class, @selector(sharedInstance)),
         class_getClassMethod(CoreAudioUtil.class, @selector(systemDefaultOutputDeviceID)),
         class_getClassMethod(CoreAudioUtil.class, @selector(readSystemDefaultOutputDeviceID:)),
         class_getInstanceMethod(AudioPlayer.class, @selector(setOutputUnitDevice:)),
+        class_getInstanceMethod(AudioPlayer.class, @selector(scheduleSystemOutputBindRetryOnQueue)),
     };
     IMP replacements[] = {
         imp_implementationWithBlock(^AudioDeviceManager *(id cls) { return devices; }),
         imp_implementationWithBlock(^AudioDeviceID(id cls) { return 1; }),
         imp_implementationWithBlock(^BOOL(id cls, AudioDeviceID *device) { *device = 1; return YES; }),
         imp_implementationWithBlock(^BOOL(id player, AudioDeviceID device) { return NO; }),
+        imp_implementationWithBlock(^(id player) {}),
     };
-    IMP originals[4];
-    for (NSUInteger i = 0; i < 4; i++) originals[i] = method_setImplementation(methods[i], replacements[i]);
+    IMP originals[5];
+    for (NSUInteger i = 0; i < 5; i++) originals[i] = method_setImplementation(methods[i], replacements[i]);
     @try {
         for (NSString *failure in @[@"concrete", @"system-refused", @"system-unpublished",
                                     @"system-undefaulted", @"system-missing"]) {
@@ -3624,7 +3628,7 @@ static NSData *MP3Frames(NSData *mp3) {
         }
     } @finally {
         [_player debugShutdown]; _player = nil;
-        for (NSUInteger i = 0; i < 4; i++) {
+        for (NSUInteger i = 0; i < 5; i++) {
             method_setImplementation(methods[i], originals[i]);
             imp_removeBlock(replacements[i]);
         }

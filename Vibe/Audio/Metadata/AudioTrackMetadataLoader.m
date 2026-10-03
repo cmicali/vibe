@@ -1126,6 +1126,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     BOOL inFlight;
     NSUInteger tokens;
     BOOL stageOneFinished;
+    BOOL gatedRepickPending;
     os_unfair_lock_lock(&_materializationLock);
     for (MetadataScanEntry *entry in _pendingMaterializations) {
         if (![self priorityMarkForEntryLocked:entry]) {
@@ -1140,12 +1141,14 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     inFlight = _scanMaterializationInFlight;
     tokens = _scanMaterializationToken != nil ? 1 : 0;
     stageOneFinished = _stageOneFinished;
+    gatedRepickPending = _gatedRepickPending;
     os_unfair_lock_unlock(&_materializationLock);
     return @{@"pending": pendingNames,
              @"delayed": delayedNames,
              @"inFlight": @(inFlight),
              @"liveTokens": @(tokens),
-             @"stageOneFinished": @(stageOneFinished)};
+             @"stageOneFinished": @(stageOneFinished),
+             @"gatedRepickPending": @(gatedRepickPending)};
 }
 
 - (void)debugSetBeforeScanPickValidation:(dispatch_block_t)block {

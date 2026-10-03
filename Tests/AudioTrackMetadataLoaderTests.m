@@ -2006,12 +2006,16 @@ materializationCoordinator:coordinator
             [self expectationWithDescription:@"scan stage one checked cache"];
     XCTestExpectation *parsed = [self expectationWithDescription:@"gated scan parsed"];
     NSObject *cacheLock = [[NSObject alloc] init];
-    __block BOOL reportedCacheCheck = NO;
+    // Both stamped on the loader's own threads, on the gated timer's clock, so
+    // a descheduled test thread moves neither: the gate arms after the cache
+    // check, and nothing but its tick, a second out, may reopen the scan.
+    __block uint64_t cacheCheckedAt = 0;
+    __block uint64_t scanStartedAt = 0;
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
             cacheReader:^AudioTrackMetadata *(AudioTrack *track) {
         @synchronized (cacheLock) {
-            if (!reportedCacheCheck) {
-                reportedCacheCheck = YES;
+            if (cacheCheckedAt == 0) {
+                cacheCheckedAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
                 [cacheChecked fulfill];
             }
         }
@@ -2020,19 +2024,22 @@ materializationCoordinator:coordinator
         [parsed fulfill];
         return VibeLoaderTestMetadataResult(YES, url.lastPathComponent);
     }];
+    controller.startObserver = ^(NSURL *url, VibeAudioFileMaterializationRole role) {
+        if (role == VibeAudioFileMaterializationRoleMetadataScan) {
+            scanStartedAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        }
+    };
     AudioFileMaterializationCoordinator *coordinator = _coordinators.lastObject;
     dispatch_queue_t completionQueue = dispatch_queue_create(
             "com.vibe.tests.metadata-real-gate", DISPATCH_QUEUE_SERIAL);
     XCTestExpectation *foregroundCompleted =
             [self expectationWithDescription:@"foreground completed"];
-    __block CFAbsoluteTime foregroundSettledAt = 0;
     __unused AudioFileMaterializationRequestToken *foregroundToken = [coordinator
             materializeURL:[self URLNamed:@"foreground-real-timer.wav"]
                       role:VibeAudioFileMaterializationRolePlayback
            completionQueue:completionQueue
                 completion:^(VibeAudioFileMaterializationResult result,
                              NSError *error, NSTimeInterval elapsed) {
-        foregroundSettledAt = CFAbsoluteTimeGetCurrent();
         [foregroundCompleted fulfill];
     }];
     [self waitForExpectations:@[controller.firstStartExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
@@ -2042,6 +2049,11 @@ materializationCoordinator:coordinator
     AudioTrack *track = [self trackNamed:@"real-timer-scan.wav"];
     [loader load:@[track]];
     [self waitForExpectations:@[cacheChecked] timeout:VIBE_TEST_HANG_TIMEOUT];
+    // Polled: a scan whose pick comes after the release was never gated, and
+    // starts at once.
+    [self waitForCondition:^BOOL{
+        return [[loader debugScanLaneState][@"gatedRepickPending"] boolValue];
+    } description:@"scan was not gated behind the foreground"];
     [self waitForDelay:0.1];
     XCTAssertEqual(controller.startedURLs.count, 1u,
             @"dataless scan entered while foreground was active");
@@ -2051,7 +2063,7 @@ materializationCoordinator:coordinator
     [self waitForExpectations:@[foregroundCompleted] timeout:VIBE_TEST_HANG_TIMEOUT];
     [self waitForExpectations:@[controller.allStartsExpectation, parsed] timeout:VIBE_TEST_HANG_TIMEOUT];
 
-    XCTAssertGreaterThanOrEqual(CFAbsoluteTimeGetCurrent() - foregroundSettledAt, 0.65,
+    XCTAssertGreaterThanOrEqual(scanStartedAt, cacheCheckedAt + NSEC_PER_SEC,
             @"scan reopened before the production gated timer fired");
     XCTAssertEqualObjects(controller.startedURLs, (@[
         [self URLNamed:@"foreground-real-timer.wav"], track.url

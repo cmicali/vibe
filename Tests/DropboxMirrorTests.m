@@ -112,8 +112,14 @@ static NSData *DropboxStubBody(NSURLRequest *request) {
     id json = body ? [NSJSONSerialization JSONObjectWithData:body options:NSJSONReadingFragmentsAllowed error:NULL] : nil;
     os_unfair_lock_lock(&sStubLock);
     DropboxStubHandler handler = sStubHandler;
-    [sStubRequests addObject:self.request];
+    if (handler) {
+        [sStubRequests addObject:self.request];
+    }
     os_unfair_lock_unlock(&sStubLock);
+    if (!handler) {
+        // Between tests: a request an ended test's client sent late is left unanswered.
+        return;
+    }
     DropboxStubResponse response = handler(self.request, [json isKindOfClass:NSDictionary.class] ? json : nil);
     if (response.hang) {
         return;
@@ -2019,6 +2025,8 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
     XCTAssertTrue([self await:returned]);
     XCTAssertEqualObjects(head, [bytes subdataWithRange:NSMakeRange(0, 6 * chunk)]);
     [self awaitNoted:18 * chunk count:0];
+    // Polled: the observer sees a note before it lands, and the reads below take what has.
+    XCTAssertTrue([self eventually:^BOOL { return availability.writtenBytes == 18 * chunk; }]);
 
     NSError *error = nil;
     XCTAssertEqualObjects([_mirror readPlaceholderAtURL:track offset:bytes.length - 128 length:128 error:&error],
