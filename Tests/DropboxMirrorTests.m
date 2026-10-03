@@ -623,6 +623,26 @@ static struct stat StatOf(NSURL *url) {
     XCTAssertEqualObjects([NSString stringWithContentsOfURL:two encoding:NSUTF8StringEncoding error:NULL], @"22222");
 }
 
+// A file changed on Dropbox after it was downloaded goes back to a
+// placeholder at the next listing, and the downloads' readers are told.
+- (void)testARelistThatDiscardsADownloadTellsItsReaders {
+    _listings[@"/music"] = @[FileEntry(@"/Music", @"one.flac", 5, kStamp)];
+    _contents[@"/music/one.flac"] = [@"11111" dataUsingEncoding:NSUTF8StringEncoding];
+    NSURL *folder = [self refresh:@"/Music"];
+    [self installMirrorFetch];
+    XCTAssertTrue([self materialize:[folder URLByAppendingPathComponent:@"one.flac"]]);
+
+    _listings[@"/music"] = @[FileEntry(@"/Music", @"one.flac", 6, @"2021-01-02T03:04:05Z")];
+    XCTestExpectation *told = [self expectationForNotification:VibeDropboxDownloadsDidChangeNotification
+                                                        object:_mirror
+                                                       handler:^BOOL(NSNotification *notification) {
+        return [notification.userInfo[VibeDropboxDownloadsBytesKey] longLongValue] == 0;
+    }];
+    [self refresh:@"/Music"];
+    [self waitForExpectations:@[told] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertEqual(StatOf([folder URLByAppendingPathComponent:@"one.flac"]).st_mode & 0777, 0);
+}
+
 - (void)testRemovingDownloadsLeavesPlaceholdersAndSheets {
     NSData *sheet = [@"FILE \"one.flac\" WAVE\n" dataUsingEncoding:NSUTF8StringEncoding];
     _listings[@"/music"] = @[FileEntry(@"/Music", @"one.flac", 5, kStamp),

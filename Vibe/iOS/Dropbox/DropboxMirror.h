@@ -23,8 +23,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // A fetch landed, with whatever the budget then evicted. Posted on main with
 // the mirror as its object and the downloads' total bytes, already counted,
-// under VibeDropboxDownloadsBytesKey. Posted when a fetch lands and when
-// Remove Downloads settles.
+// under VibeDropboxDownloadsBytesKey. Posted when a fetch lands, when Remove
+// Downloads settles, and when a relist discards downloaded bytes.
 extern NSNotificationName const VibeDropboxDownloadsDidChangeNotification;
 extern NSString *const VibeDropboxDownloadsBytesKey;
 
