@@ -222,8 +222,9 @@
 
 // The row's window of the file, on its length as it stands.
 - (NSRange)windowOfFile:(AudioFileHandle *)file {
-    BOOL estimated = file.lengthIsEstimated; // before the length, which a settle stores before clearing the flag
-    return VibeCueWindow(self.cueStart, self.cueEnd, file.processingFormat.sampleRate, file.length, estimated);
+    BOOL estimated = NO;
+    AVAudioFramePosition length = [file lengthEstimated:&estimated];
+    return VibeCueWindow(self.cueStart, self.cueEnd, file.processingFormat.sampleRate, length, estimated);
 }
 
 // The shape half of the pass, from the window, with the file's cursor at the

@@ -26,8 +26,7 @@ static const NSInteger kListPageLimit = 2000;
 NSNotificationName const VibeDropboxDownloadsDidChangeNotification = @"VibeDropboxDownloadsDidChangeNotification";
 NSString *const VibeDropboxDownloadsBytesKey = @"bytes";
 
-// The saved download budget (downloadBudget); an iOS-owned key.
-static NSString *const kDownloadBudgetKey = @"VibeiOSDropboxDownloadBudget";
+NSString *const VibeDropboxDownloadBudgetKey = @"VibeiOSDropboxDownloadBudget";
 // A ranged read slower than this is given up, so a stalled request cannot
 // hold a parse worker; the parse fails and a later scan retries it.
 static const NSTimeInterval kRangedReadTimeout = 30;
@@ -58,9 +57,6 @@ static NSError *VibePOSIXError(void) {
 @implementation DropboxMirror {
     // Written on main, read on the disk queue.
     long long _downloadBudget;
-    // Where downloadBudget is saved: the shared mirror's defaults; none for
-    // a test's.
-    NSUserDefaults *_settings;
     // Serial: every change to the mirror's directories, so two refreshes of
     // one folder cannot interleave their reconciles.
     dispatch_queue_t _diskQueue;
@@ -99,12 +95,11 @@ static NSError *VibePOSIXError(void) {
                                                      appropriateForURL:nil
                                                                 create:YES
                                                                  error:NULL];
-        NSUserDefaults *settings = NSUserDefaults.standardUserDefaults;
+        NSInteger saved = [NSUserDefaults.standardUserDefaults integerForKey:VibeDropboxDownloadBudgetKey];
         shared = [[DropboxMirror alloc] initWithClient:client
                                                rootURL:[support URLByAppendingPathComponent:@"Dropbox"
                                                                                 isDirectory:YES]
-                                        downloadBudget:VibeDropboxDownloadBudget([settings integerForKey:kDownloadBudgetKey])];
-        shared->_settings = settings;
+                                        downloadBudget:kVibeDropboxDownloadBudgets[VibeDropboxDownloadBudgetIndex(saved)]];
     });
     return shared;
 }
@@ -674,12 +669,11 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
     return __atomic_load_n(&_downloadBudget, __ATOMIC_RELAXED);
 }
 
-// Saved, then applied on the disk queue as a fetch's landing applies it: a
-// smaller budget sends the oldest back to placeholders at once, and the new
-// total is posted. A song playing from one keeps its open file.
+// Applied on the disk queue as a fetch's landing applies it: a smaller
+// budget sends the oldest back to placeholders at once, and the new total is
+// posted. A song playing from one keeps its open file.
 - (void)setDownloadBudget:(long long)downloadBudget {
     __atomic_store_n(&_downloadBudget, downloadBudget, __ATOMIC_RELAXED);
-    [_settings setObject:@(downloadBudget) forKey:kDownloadBudgetKey];
     dispatch_async(_diskQueue, ^{
         [self postDownloadsTotal:[self enforceDownloadBudgetKeeping:nil]];
     });

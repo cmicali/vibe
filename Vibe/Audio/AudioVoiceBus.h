@@ -161,10 +161,10 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 
 // Starts rendering `file` from `frame` (file frames) at `gain`, with `ramp`
 // pending — or paused, which carries no ramp: the first ramp set later is the
-// resume. The stream ends at `endFrame`, exclusive, as it would at the file's
-// own end; 0, or a frame at or past the file's length while that length is
-// exact, is the file's own end, read to where the stream really ends. The file is read in its processing
-// format. A decode failure ends the voice through VibeVoiceEndFailed; read
+// resume. The stream ends at `endFrame`, exclusive, or where the file really
+// ends, whichever comes first; 0 is the file's own end. Never derived from the
+// length, which a lossy or streaming file only estimates. The file is read in
+// its processing format. A decode failure ends the voice through VibeVoiceEndFailed; read
 // errorOfVoice:failedFile: inside the ended handler. Allocation always returns
 // an id: a full pool cuts its oldest retiring voice, and a start that still
 // finds no slot is pending until the drain frees one. Returns the voice's id.

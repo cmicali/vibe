@@ -320,15 +320,25 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // media-reset receipt's admission is, so a play cannot be identified on
     // one side of the reset and run on the other.
     os_unfair_lock_lock(&_stateLock);
-    uint64_t submittedPlayIdentifier = ++_nextSubmittedPlayIdentifier;
-    _lastSubmittedPlayIdentifier = submittedPlayIdentifier;
-    _lastSubmittedPlayTrack = track;
-    uint64_t submittedAt = [self noteSubmittedPlay:submittedPlayIdentifier track:track position:position paused:startPaused];
+    uint64_t submittedAt = 0;
+    uint64_t submittedPlayIdentifier = [self mintSubmittedPlayLockedForTrack:track position:position paused:startPaused
+                                                                 submittedAt:&submittedAt];
     dispatch_async(_queue, ^{
         [self noteAdmittedPlay:submittedPlayIdentifier submittedAt:submittedAt];
         [self playOnQueue:track intent:intent declick:declick submittedPlayIdentifier:submittedPlayIdentifier];
     });
     os_unfair_lock_unlock(&_stateLock);
+}
+
+// Under _stateLock: the next submission's identifier, with the pre-Loading
+// handoff and the timeline's note, the same for every play however submitted.
+- (uint64_t)mintSubmittedPlayLockedForTrack:(AudioTrack *)track position:(NSTimeInterval)position
+                                     paused:(BOOL)paused submittedAt:(uint64_t *)submittedAt {
+    uint64_t submittedPlayIdentifier = ++_nextSubmittedPlayIdentifier;
+    _lastSubmittedPlayIdentifier = submittedPlayIdentifier;
+    _lastSubmittedPlayTrack = track;
+    *submittedAt = [self noteSubmittedPlay:submittedPlayIdentifier track:track position:position paused:paused];
+    return submittedPlayIdentifier;
 }
 
 // The phases' order is the correctness; each constraint is commented at its
@@ -482,8 +492,8 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // another row of the file. An empty window fails as an empty file does,
     // so a broken sheet cannot auto-advance through every row.
     double sampleRate = file.processingFormat.sampleRate;
-    BOOL estimated = file.lengthIsEstimated; // before the window, so a settle after it is republished
-    NSRange window = file ? [track frameWindowInFile:file] : NSMakeRange(0, 0);
+    BOOL estimated = NO; // a settle after the window is taken is republished
+    NSRange window = file ? [track frameWindowInFile:file estimated:&estimated] : NSMakeRange(0, 0);
     if (estimated && track.cueEnd == 0) {
         // TRAP: an estimate is not the end, so a start past it — a stall's
         // replay of audio heard past it — is not clamped back to it, which
@@ -518,9 +528,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     _windowEstimated = estimated;
     AVAudioFramePosition startFrame = VibeClampedStartFrame(startIntent.position, sampleRate, window);
     NSTimeInterval startSeconds = VibeWindowSecondsAtFrame(startFrame, sampleRate, window);
-    VibeVoiceID voice = [self startVoiceOnQueueForTrack:track file:file window:window atFrame:startFrame
-                                       fadeMilliseconds:(_incomingFadeMilliseconds ?: kFadeDurationMilliseconds)
-                                                 paused:startIntent.paused];
+    VibeVoiceID voice = [self startVoiceOnQueueForFile:file atFrame:startFrame endFrame:[track endFrameInFile:file]
+                                      fadeMilliseconds:(_incomingFadeMilliseconds ?: kFadeDurationMilliseconds)
+                                                paused:startIntent.paused];
     if (startIntent.paused) {
         // Paused is idle: the output may still run from the replaced track.
         [self publishState:VibePlayerStatePaused voice:voice file:file window:window
@@ -700,7 +710,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         [self applyEditedLoadingRequest:[_pendingRequest setPausedIfChanged:NO]];
         return;
     }
-    if ([self pausedWithoutVoiceOnQueue] && self.currentTrack) {
+    if (_stalled && self.currentTrack) {
         [self replayStalledTrackOnQueue];
         return;
     }
@@ -745,8 +755,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     NSTimeInterval position = self.position;
     os_unfair_lock_lock(&_stateLock);
     BOOL newest = _activeSubmittedPlayIdentifier != 0 && _activeSubmittedPlayIdentifier == _nextSubmittedPlayIdentifier;
-    uint64_t submittedPlayIdentifier = newest ? ++_nextSubmittedPlayIdentifier : 0;
-    uint64_t submittedAt = newest ? [self noteSubmittedPlay:submittedPlayIdentifier track:track position:position paused:NO] : 0;
+    uint64_t submittedAt = 0;
+    uint64_t submittedPlayIdentifier = newest ? [self mintSubmittedPlayLockedForTrack:track position:position paused:NO
+                                                                          submittedAt:&submittedAt] : 0;
     os_unfair_lock_unlock(&_stateLock);
     if (!newest) {
         return;
@@ -818,7 +829,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
         [self notifySeekFinishedOnQueue:track reason:@"ignored: track changed" submittedPlay:owningSubmittedPlayIdentifier];
         return;
     }
-    if ([self pausedWithoutVoiceOnQueue]) {
+    if (_stalled) {
         [self publishPausedWithoutVoiceOnQueueAtSeconds:MAX(0, MIN(position, self.duration))];
         [self notifySeekFinishedOnQueue:track reason:@"held for the replay" submittedPlay:owningSubmittedPlayIdentifier];
         return;
@@ -1008,8 +1019,9 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     if (!_windowEstimated || !_file || !track) {
         return;
     }
-    BOOL settled = !_file.lengthIsEstimated; // before the window's length read (AudioFileHandle's settle)
-    NSRange window = [track frameWindowInFile:_file];
+    BOOL estimated = NO;
+    NSRange window = [track frameWindowInFile:_file estimated:&estimated];
+    BOOL settled = !estimated;
     if (!settled && window.length <= _window.length) {
         return;
     }
@@ -1176,12 +1188,12 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     return VibeVoiceRampMake(gain, frames, VibeFadeCurveForMilliseconds(milliseconds), action);
 }
 
-- (VibeVoiceID)startVoiceOnQueueForTrack:(AudioTrack *)track file:(AudioFileHandle *)file window:(NSRange)window
-                                 atFrame:(AVAudioFramePosition)frame
-                        fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused {
+- (VibeVoiceID)startVoiceOnQueueForFile:(AudioFileHandle *)file atFrame:(AVAudioFramePosition)frame
+                               endFrame:(AVAudioFramePosition)endFrame
+                       fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused {
     VibeVoiceRamp ramp = [self rampOnQueueToGain:1 milliseconds:milliseconds action:VibeVoiceActionNone];
     VibeVoiceID voice = [_voiceBus startVoiceWithFile:file atFrame:frame
-                                             endFrame:[track endFrameOfWindow:window]
+                                             endFrame:endFrame
                                                  gain:ramp.frames ? 0 : 1
                                                  ramp:ramp
                                                paused:paused];
@@ -1203,9 +1215,10 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     AVAudioFramePosition startFrame = VibeClampedStartFrame(position, sampleRate, window);
     VibeVoiceID oldVoice = [self unpublishVoiceOnQueue];
     [self retireVoiceOnQueue:oldVoice milliseconds:kFadeDurationMilliseconds];
-    VibeVoiceID voice = [self startVoiceOnQueueForTrack:self.currentTrack file:file window:window atFrame:startFrame
-                                       fadeMilliseconds:kFadeDurationMilliseconds
-                                                 paused:_state == VibePlayerStatePaused];
+    VibeVoiceID voice = [self startVoiceOnQueueForFile:file atFrame:startFrame
+                                              endFrame:[self.currentTrack endFrameInFile:file]
+                                      fadeMilliseconds:kFadeDurationMilliseconds
+                                                paused:_state == VibePlayerStatePaused];
     [self publishState:_state voice:voice file:file window:window
           startSeconds:VibeWindowSecondsAtFrame(startFrame, sampleRate, window) baseFrames:0];
 }
@@ -1500,9 +1513,6 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     [self refreshOutputAudioActiveOnQueue];
 }
 
-- (BOOL)pausedWithoutVoiceOnQueue {
-    return _stalled;
-}
 
 // No FX tail is modeled: it would be a timer-shaped guess. A buffering hold is
 // not output either.

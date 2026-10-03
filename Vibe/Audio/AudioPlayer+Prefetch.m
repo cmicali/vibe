@@ -57,10 +57,10 @@
         return;
     }
 #endif
-    NSRange window = [_prefetchedTrack frameWindowInFile:_prefetchedFile];
+    NSRange window = [_prefetchedTrack frameWindowInFile:_prefetchedFile estimated:NULL];
     if (window.length == 0
             || ![_voiceBus queueSuccessor:_prefetchedFile startFrame:(AVAudioFramePosition)window.location
-                                 endFrame:[_prefetchedTrack endFrameOfWindow:window] forVoice:_voice]) {
+                                 endFrame:[_prefetchedTrack endFrameInFile:_prefetchedFile] forVoice:_voice]) {
         return;
     }
     _successorTrack = _prefetchedTrack;
@@ -97,8 +97,9 @@
     }
     // At its window's start, where the bus began the successor; a settle
     // after the window is taken is republished.
-    _windowEstimated = startedFile.lengthIsEstimated;
-    NSRange window = [startedTrack frameWindowInFile:startedFile];
+    BOOL estimated = NO;
+    NSRange window = [startedTrack frameWindowInFile:startedFile estimated:&estimated];
+    _windowEstimated = estimated;
     [self publishState:_state voice:_voice file:startedFile window:window startSeconds:0 baseFrames:snapshot.boundary];
     self.currentTrack = startedTrack;
     startedTrack.duration = self.duration;

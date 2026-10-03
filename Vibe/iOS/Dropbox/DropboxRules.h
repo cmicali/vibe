@@ -14,6 +14,7 @@
 #import <CommonCrypto/CommonDigest.h>
 
 #import "PlaylistFile.h"
+#import "SettingsRules.h"
 
 #include <sys/types.h>
 #include <time.h>
@@ -339,22 +340,23 @@ static inline BOOL VibeDropboxLocalMatchesEntry(off_t localSize, time_t localMod
 // The sizes the downloads may reach before the oldest go back to
 // placeholders, the choices offered, smallest first. 10 GB, an album or two
 // hundred, which a phone can spare, is the default.
-static const long long kVibeDropboxDownloadBudgets[] = {
-    1000LL * 1000 * 1000, 2000LL * 1000 * 1000, 5000LL * 1000 * 1000,
-    10000LL * 1000 * 1000, 20000LL * 1000 * 1000, 50000LL * 1000 * 1000,
+static const NSInteger kVibeDropboxDownloadBudgets[] = {
+    1000L * 1000 * 1000, 2000L * 1000 * 1000, 5000L * 1000 * 1000,
+    10000L * 1000 * 1000, 20000L * 1000 * 1000, 50000L * 1000 * 1000,
 };
 static const size_t kVibeDropboxDownloadBudgetCount = sizeof(kVibeDropboxDownloadBudgets) / sizeof(kVibeDropboxDownloadBudgets[0]);
-static const long long kVibeDropboxDefaultDownloadBudget = 10000LL * 1000 * 1000;
+static const size_t kVibeDropboxDefaultDownloadBudgetIndex = 3;
 
-// A saved budget, as one of the choices: absent (0) or off the list, the
-// default.
-static inline long long VibeDropboxDownloadBudget(long long saved) {
-    for (size_t i = 0; i < kVibeDropboxDownloadBudgetCount; i++) {
-        if (kVibeDropboxDownloadBudgets[i] == saved) {
-            return saved;
-        }
+// A saved budget's place among the choices: absent (0), the default's; off
+// the list, the nearest's (VibeNearestPreset).
+static inline size_t VibeDropboxDownloadBudgetIndex(NSInteger saved) {
+    NSInteger budget = saved > 0 ? VibeNearestPreset(saved, kVibeDropboxDownloadBudgets, kVibeDropboxDownloadBudgetCount)
+                                 : kVibeDropboxDownloadBudgets[kVibeDropboxDefaultDownloadBudgetIndex];
+    size_t index = 0;
+    while (kVibeDropboxDownloadBudgets[index] != budget) {
+        index++;
     }
-    return kVibeDropboxDefaultDownloadBudget;
+    return index;
 }
 
 NS_ASSUME_NONNULL_END

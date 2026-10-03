@@ -123,6 +123,11 @@ NS_ASSUME_NONNULL_BEGIN
 // kept ahead of the cursor, a seek's included, so the reads run to the
 // stream's true end, short or long of it, and grows as they pass it.
 @property (nonatomic, readonly) BOOL lengthIsEstimated;
+// Any thread: length and lengthIsEstimated as one consistent pair, for a
+// reader that needs both. The flag is read first, so NO pairs with the settled
+// length; read the other way, a settle between the two showed a short
+// estimate as exact.
+- (AVAudioFramePosition)lengthEstimated:(BOOL *)estimated;
 // On the reading thread: an estimated length made exact, waiting for the
 // download to complete, interruptibly as any read does, then counting from
 // disk. YES once exact, at once for a length that is; NO for an interruption

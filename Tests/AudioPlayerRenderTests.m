@@ -2372,11 +2372,16 @@ static NSData *MP3Frames(NSData *mp3) {
 // file.
 - (NSURL *)playEstimatedStreamOf:(NSData *)bytes prefix:(NSUInteger)prefix name:(NSString *)name {
     NSURL *source = [self streamEstimated:bytes prefix:prefix name:name];
+    [self playTheEstimatedStream];
+    return source;
+}
+
+// The stream streamEstimated: made, played from its start on the decode pool.
+- (void)playTheEstimatedStream {
     [self playOnTheDecodePoolBitPerfect:NO play:^{
         self->_player.declick = NO;
         [self play:self->_streamURL paused:NO position:0];
     }];
-    return source;
 }
 
 // `bytes` streaming as playEstimatedStreamOf: does, not yet played. Answers
@@ -2387,15 +2392,6 @@ static NSData *MP3Frames(NSData *mp3) {
     [self streamingCopyOf:source prefix:prefix name:name];
     [self installTailWindow];
     return source;
-}
-
-// The hold at the download's edge, which these streams reach seconds in. TRAP:
-// the voice is live on its 24 KB prefix while the test decodes its reference,
-// so on a slow machine the decoder meets the prefix's edge as streamTo: lands
-// it, and the next drain reads that moment as a hold; a hold inside the first
-// second is that one, not the edge's.
-- (BOOL)heldPastThePrefix {
-    return _player.isBuffering && _player.position > 1;
 }
 
 // A headerless MP3 whose head is one rate and the rest another: 50 silent
@@ -2492,10 +2488,14 @@ static NSData *MP3Frames(NSData *mp3) {
     NSDictionary<NSString *, NSData *> *streams = @{@"dense.mp3": dense, @"constant-head.mp3": [self constantHeadMP3], @"sparse.mp3": sparse};
     for (NSString *name in @[@"dense.mp3", @"constant-head.mp3", @"sparse.mp3"]) {
         BOOL denseHead = [name isEqual:@"dense.mp3"], shortEstimate = ![name isEqual:@"sparse.mp3"];
-        NSURL *source = [self playEstimatedStreamOf:streams[name] prefix:24576 name:name];
-        _blockSize = 4096; // twenty seconds of audio inside the hang guard
+        // TRAP: the reference before the play: decoded while the voice is
+        // live, a slow machine let the decoder meet the prefix's edge before
+        // streamTo: landed, and the hold awaited below was that one.
+        NSURL *source = [self streamEstimated:streams[name] prefix:24576 name:name];
         double exact = (double)[self open:source decoder:@"dr_mp3"].length / 48000;
         NSData *reference = PCM([self read:source]);
+        [self playTheEstimatedStream];
+        _blockSize = 4096; // twenty seconds of audio inside the hang guard
         double estimate = _player.duration;
         XCTAssertTrue(((AudioFileHandle *)[_player valueForKey:@"file"]).lengthIsEstimated, @"%@", name);
         XCTAssertTrue(shortEstimate ? estimate < exact * 0.7 : estimate > exact * 1.5, @"%@: %g s of %g", name, estimate, exact);
@@ -2506,7 +2506,7 @@ static NSData *MP3Frames(NSData *mp3) {
             NSTimeInterval position = self->_player.position;
             monotonic = monotonic && position >= clock;
             clock = position;
-            return [self heldPastThePrefix];
+            return self->_player.isBuffering;
         }], @"%@ played to the download's edge", name);
         XCTAssertTrue(monotonic, @"%@: the clock never ran back", name);
         NSUInteger from = 0;
@@ -2550,16 +2550,16 @@ static NSData *MP3Frames(NSData *mp3) {
     NSData *bytes = [self constantHeadMP3];
     NSURL *source = [self streamEstimated:bytes prefix:24576 name:@"stalled.mp3"];
     CloudFileAvailability *stream = _stream;
+    NSData *reference = PCM([self read:source]); // before the play, as above
     [self playOnTheDecodePoolBitPerfect:NO play:^{
         self->_player.declick = NO;
         [self shortenTheOpenDeadline];
         [self play:self->_streamURL paused:NO position:0];
     }];
     _blockSize = 4096;
-    NSData *reference = PCM([self read:source]);
     double estimate = _player.duration;
     [self streamTo:_streamBytes.length * 9 / 10];
-    XCTAssertTrue([self renderUntil:^BOOL { return [self heldPastThePrefix]; }]);
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
     double heard = [self currentVoiceSnapshot].consumed / 48000.0;
     XCTAssertGreaterThan(heard, estimate + 1, @"held past the estimate");
     NSTimeInterval held = [self stallTheStream];
@@ -3559,8 +3559,9 @@ static NSData *MP3Frames(NSData *mp3) {
         imp_implementationWithBlock(^BOOL(id player, AudioDeviceID device) { return NO; }),
         imp_implementationWithBlock(^(id player) {}),
     };
-    IMP originals[5];
-    for (NSUInteger i = 0; i < 5; i++) originals[i] = method_setImplementation(methods[i], replacements[i]);
+    IMP originals[sizeof(methods) / sizeof(*methods)];
+    const NSUInteger swizzled = sizeof(methods) / sizeof(*methods);
+    for (NSUInteger i = 0; i < swizzled; i++) originals[i] = method_setImplementation(methods[i], replacements[i]);
     @try {
         for (NSString *failure in @[@"concrete", @"system-refused", @"system-unpublished",
                                     @"system-undefaulted", @"system-missing"]) {
@@ -3637,7 +3638,7 @@ static NSData *MP3Frames(NSData *mp3) {
         }
     } @finally {
         [_player debugShutdown]; _player = nil;
-        for (NSUInteger i = 0; i < 5; i++) {
+        for (NSUInteger i = 0; i < swizzled; i++) {
             method_setImplementation(methods[i], originals[i]);
             imp_removeBlock(replacements[i]);
         }

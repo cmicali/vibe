@@ -84,13 +84,17 @@ static _Atomic uint64_t sCacheKeyGeneration;
     return track;
 }
 
-- (NSRange)frameWindowInFile:(AudioFileHandle *)file {
-    BOOL estimated = file.lengthIsEstimated; // before the length, which a settle stores before clearing the flag
-    return VibeCueWindow(_cueStart, _cueEnd, file.processingFormat.sampleRate, file.length, estimated);
+- (NSRange)frameWindowInFile:(AudioFileHandle *)file estimated:(BOOL *)estimated {
+    BOOL guessed = NO;
+    AVAudioFramePosition length = [file lengthEstimated:&guessed];
+    if (estimated) {
+        *estimated = guessed;
+    }
+    return VibeCueWindow(_cueStart, _cueEnd, file.processingFormat.sampleRate, length, guessed);
 }
 
-- (int64_t)endFrameOfWindow:(NSRange)window {
-    return _cueEnd > 0 ? (int64_t)NSMaxRange(window) : 0;
+- (int64_t)endFrameInFile:(AudioFileHandle *)file {
+    return _cueEnd > 0 ? llround((double)_cueEnd * file.processingFormat.sampleRate / kVibeCDFramesPerSecond) : 0;
 }
 
 - (BOOL)isWindowed {

@@ -247,18 +247,12 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
     return titles;
 }
 
-// The mirror's budget is always one of the choices (VibeDropboxDownloadBudget).
 - (NSInteger)currentBudgetIndex {
-    long long budget = DropboxMirror.shared.downloadBudget;
-    for (size_t i = 0; i < kVibeDropboxDownloadBudgetCount; i++) {
-        if (kVibeDropboxDownloadBudgets[i] == budget) {
-            return (NSInteger)i;
-        }
-    }
-    return 0;
+    return (NSInteger)VibeDropboxDownloadBudgetIndex((NSInteger)DropboxMirror.shared.downloadBudget);
 }
 
-// The section reloads on its own: a smaller size posts the new total
+// Saved, then applied: the mirror applies and never saves. The section
+// reloads on its own: a smaller size posts the new total
 // (downloadsDidChange:), and coming back re-measures.
 - (SettingsChoiceViewController *)maximumSizePicker {
     return [[SettingsChoiceViewController alloc]
@@ -266,6 +260,8 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
                   choices:[self budgetTitles]
             selectedIndex:[self currentBudgetIndex]
                  onSelect:^(NSInteger index) {
+        [NSUserDefaults.standardUserDefaults setInteger:kVibeDropboxDownloadBudgets[index]
+                                                 forKey:VibeDropboxDownloadBudgetKey];
         DropboxMirror.shared.downloadBudget = kVibeDropboxDownloadBudgets[index];
     }];
 }

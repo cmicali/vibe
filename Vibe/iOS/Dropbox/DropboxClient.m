@@ -60,11 +60,7 @@ static NSString *_Nullable VibeDropboxRevOfFile(NSURL *url) {
     return length > 0 ? [[NSString alloc] initWithBytes:rev length:(NSUInteger)length encoding:NSUTF8StringEncoding] : nil;
 }
 
-// A transfer the link ended keeps its file for the next download to continue;
-// one its own answer ended (another version, a disk write, a refused call)
-// would only fail again from the same bytes. The mirror's stale sweep takes
-// a kept part after a day.
-static BOOL VibeDropboxKeepsPart(NSError *error) {
+BOOL VibeDropboxKeepsPart(NSError *error) {
     return ([error.domain isEqualToString:VibeDropboxErrorDomain] && error.code == VibeDropboxErrorCancelled)
             || VibeDropboxIsConnectionError(error);
 }
@@ -956,43 +952,38 @@ didReceiveResponse:(NSURLResponse *)response
         return;
     }
     NSDictionary *metadata = VibeDropboxAPIResult(http);
-    if (download.file) {
-        // TRAP: a download by id answers whatever version is current, so a
-        // resend after a re-upload would splice two versions into one file.
-        // Every response must name the first one's rev; with none to compare,
-        // nothing proves the bytes match, and the transfer fails the same way.
-        NSString *pinned = VibeDropboxRevOf(download.metadata);
-        NSString *rev = VibeDropboxRevOf(metadata);
-        if (!pinned || ![rev isEqualToString:pinned]) {
+    NSString *rev = VibeDropboxRevOf(metadata);
+    // TRAP: a download by id answers whatever version is current, so bytes
+    // continuing a file, a resend's or a kept part's, must be the version it
+    // holds, or two versions splice into one; with no rev to compare, nothing
+    // proves they match. A resend of another version fails the transfer; a
+    // kept part's starts it over, whole, from the completion (restart).
+    NSString *pinned = download.file ? VibeDropboxRevOf(download.metadata) : download.resumeRev;
+    if ((download.file || download.resumeRev) && ![rev isEqualToString:pinned]) {
+        if (download.file) {
             LogWarn(@"Dropbox: %@ changed during its download (rev %@, now %@)", download.path, pinned, rev);
             download.failure = VibeDropboxMakeError(VibeDropboxErrorFileChanged,
                                                     @"the file changed on Dropbox during its download");
-            completionHandler(NSURLSessionResponseCancel);
-            return;
         }
-        download.skip = http.statusCode == 200 ? offset : 0;
+        else {
+            LogInfo(@"Dropbox: %@ is another version than its kept part's (rev %@, now %@); downloading it whole",
+                    download.path, pinned, rev);
+            download.restart = YES;
+        }
+        completionHandler(NSURLSessionResponseCancel);
+        return;
+    }
+    download.skip = http.statusCode == 200 ? offset : 0;
+    if (download.file) {
         completionHandler(NSURLSessionResponseAllow);
         return;
     }
-    // Made once per transfer, at its first accepted response; or the kept
-    // destination continued, when this answer is its version's. Another
-    // version's bytes from the resume offset are no use: the transfer starts
-    // over, whole, from the completion (restart).
+    // Made once per transfer, at its first accepted response, unless it
+    // continues a kept part.
     download.metadata = metadata;
     download.size = VibeDropboxSizeOf(metadata);
-    NSString *rev = VibeDropboxRevOf(metadata);
-    NSFileManager *files = NSFileManager.defaultManager;
-    if (download.resumeRev) {
-        if (!rev || ![rev isEqualToString:download.resumeRev]) {
-            LogInfo(@"Dropbox: %@ is another version than its kept part's (rev %@, now %@); downloading it whole",
-                    download.path, download.resumeRev, rev);
-            download.restart = YES;
-            completionHandler(NSURLSessionResponseCancel);
-            return;
-        }
-        download.skip = http.statusCode == 200 ? offset : 0;
-    }
-    else {
+    if (!download.resumeRev) {
+        NSFileManager *files = NSFileManager.defaultManager;
         [files removeItemAtURL:download.destination error:NULL];
         if (![files createFileAtPath:download.destination.path contents:nil attributes:nil]) {
             download.failure = [NSError errorWithDomain:NSPOSIXErrorDomain code:errno userInfo:nil];

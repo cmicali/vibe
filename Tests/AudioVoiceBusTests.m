@@ -386,50 +386,20 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     }
 }
 
-// An end frame past a length that is an estimate is kept even when the
-// estimate settles while the start reads it (a streaming MP3's, settled by
-// its decode on another thread): read flag-then-length, a reader sees either
-// the estimate flagged or the settled length. Here the estimate is 5,000,
-// short of the 11,000 end, and settles right after the start's first read,
-// whichever getter that is; length-then-flag saw the short estimate
-// unflagged and read on to the file's end.
-- (void)testAnEndFrameSurvivesAnEstimateSettlingAsTheStartReadsIt {
+// An end frame past where the stream really ends is that end: the bus reads
+// to the file's end and stops, as for 0, never consulting the length, which
+// a lossy or streaming file only estimates.
+- (void)testAnEndFramePastTheStreamsEndReadsToItsEnd {
     NSData *source = [self noiseFrames:20000 channels:2 seed:137];
-    NSURL *url = [self writePCM:source rate:kRate channels:2 name:@"settling.wav"];
-    AudioFileHandle *file = [self open:url];
-    __block BOOL settled = NO;
-    Method lengthMethod = class_getInstanceMethod(AudioFileHandle.class, @selector(length));
-    Method estimatedMethod = class_getInstanceMethod(AudioFileHandle.class, @selector(lengthIsEstimated));
-    IMP length = method_getImplementation(lengthMethod), estimated = method_getImplementation(estimatedMethod);
-    method_setImplementation(lengthMethod, imp_implementationWithBlock(^AVAudioFramePosition(AudioFileHandle *handle) {
-        AVAudioFramePosition real = ((AVAudioFramePosition (*)(id, SEL))length)(handle, @selector(length));
-        if (handle != file || settled) {
-            return real;
-        }
-        settled = YES; // the decode's settle, landing right after this read
-        return 5000;
-    }));
-    method_setImplementation(estimatedMethod, imp_implementationWithBlock(^BOOL(AudioFileHandle *handle) {
-        if (handle != file) {
-            return ((BOOL (*)(id, SEL))estimated)(handle, @selector(lengthIsEstimated));
-        }
-        BOOL wasEstimated = !settled;
-        settled = YES;
-        return wasEstimated;
-    }));
-    @try {
-        [self makeBusAtRate:kRate channels:2];
-        VibeVoiceID voice = [_bus startVoiceWithFile:file atFrame:3000 endFrame:11000 gain:1
-                                                ramp:[self unity] paused:NO];
-        NSData *capture = [self renderUntilEnded:voice blockSize:1024 limit:100000];
-        XCTAssertEqual([self endedSnapshot:voice].endOfStream, 8000u, @"the cue end held");
-        [self assertCapture:[capture subdataWithRange:NSMakeRange(0, 8000 * 8)]
-               equalsSource:[source subdataWithRange:NSMakeRange(3000 * 8, 8000 * 8)]];
-        [self assertSilent:capture from:8000 * 2];
-    } @finally {
-        method_setImplementation(lengthMethod, length);
-        method_setImplementation(estimatedMethod, estimated);
-    }
+    NSURL *url = [self writePCM:source rate:kRate channels:2 name:@"short-of-its-end.wav"];
+    [self makeBusAtRate:kRate channels:2];
+    VibeVoiceID voice = [_bus startVoiceWithFile:[self open:url] atFrame:3000 endFrame:30000 gain:1
+                                            ramp:[self unity] paused:NO];
+    NSData *capture = [self renderUntilEnded:voice blockSize:1024 limit:100000];
+    XCTAssertEqual([self endedSnapshot:voice].endOfStream, 17000u);
+    XCTAssertEqual([self endedSnapshot:voice].ended, VibeVoiceEndOfStream);
+    [self assertCapture:[capture subdataWithRange:NSMakeRange(0, 17000 * 8)]
+           equalsSource:[source subdataWithRange:NSMakeRange(3000 * 8, 17000 * 8)]];
 }
 
 // The next window of one file continues it sample for sample: two handles on

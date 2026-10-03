@@ -280,11 +280,11 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
 // the declick; a retire at the declick length stops the voice's reads, so
 // its file may be handed on. Retired voices are tracked until they end.
 - (VibeVoiceRamp)rampOnQueueToGain:(float)gain milliseconds:(uint64_t)milliseconds action:(VibeVoiceAction)action;
-// `frame` is a file frame inside `window`, `track`'s window of `file`, where
-// the voice's stream ends (AudioTrack endFrameOfWindow:).
-- (VibeVoiceID)startVoiceOnQueueForTrack:(AudioTrack *)track file:(AudioFileHandle *)file window:(NSRange)window
-                                 atFrame:(AVAudioFramePosition)frame
-                        fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused;
+// `frame` and `endFrame` are file frames; the stream ends at `endFrame`, 0 for
+// the file's own end (AudioTrack endFrameInFile:).
+- (VibeVoiceID)startVoiceOnQueueForFile:(AudioFileHandle *)file atFrame:(AVAudioFramePosition)frame
+                               endFrame:(AVAudioFramePosition)endFrame
+                       fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused;
 - (void)retireVoiceOnQueue:(VibeVoiceID)voice milliseconds:(uint64_t)milliseconds;
 - (void)cutRetiringVoicesToDeclickOnQueue;
 // A new voice for the current file at `position`, the old one retiring beside
@@ -321,7 +321,9 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
 - (void)handleVoiceEventOnQueue:(VibeVoiceEvent)event voice:(VibeVoiceID)voice;
 // The buffering hold's decision, after every drain.
 - (void)updateBufferingOnQueue;
-// A settled estimate's window and duration, before every drain's events.
+// An estimated length's window, grown as the length grows and republished
+// once, with the duration, when it settles: at every drain, a seek, a stall
+// and a voice's end.
 - (void)republishEstimatedWindowOnQueue;
 @end
 

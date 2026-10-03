@@ -962,18 +962,6 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     return nil;
 }
 
-// The record's end: 0 for the file's own, which a lossy file's length only
-// estimates, so reading to it is what ends a whole file where it really ends.
-// An end past a length that is itself an estimate (a streaming MP3's) is a
-// cue end, kept: the caller passes 0 for a window to the file's end. TRAP:
-// the flag, then the length (AudioFileHandle's settle): the other order saw
-// a short estimate, then the flag cleared by a settle between the two reads,
-// and dropped the cue end, reading on into the next row.
-static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, AudioFileHandle *file) {
-    BOOL estimated = file.lengthIsEstimated;
-    return endFrame > 0 && (estimated || endFrame < file.length) ? endFrame : 0;
-}
-
 - (VibeVoiceID)startVoiceWithFile:(AudioFileHandle *)file atFrame:(AVAudioFramePosition)frame
                          endFrame:(AVAudioFramePosition)endFrame
                              gain:(float)gain
@@ -986,7 +974,7 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
     record->identifier = identifier;
     record->file = file;
     record->startFrame = frame;
-    record->endFrame = VibeOwnEndFrame(endFrame, file);
+    record->endFrame = MAX(0, endFrame);
     record->gain = gain;
     record->ramp = ramp;
     record->paused = paused;
@@ -1226,7 +1214,7 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
     if (pending) {
         pending->waitingSuccessor = file;
         pending->successorStartFrame = startFrame;
-        pending->successorEndFrame = VibeOwnEndFrame(endFrame, file);
+        pending->successorEndFrame = MAX(0, endFrame);
         return YES;
     }
     NSUInteger slot = [self ownedSlotForIdentifier:voice];
@@ -1240,7 +1228,7 @@ static AVAudioFramePosition VibeOwnEndFrame(AVAudioFramePosition endFrame, Audio
     os_unfair_lock_lock(&_tableLock);
     _records[slot]->waitingSuccessor = file;
     _records[slot]->successorStartFrame = startFrame;
-    _records[slot]->successorEndFrame = VibeOwnEndFrame(endFrame, file);
+    _records[slot]->successorEndFrame = MAX(0, endFrame);
     os_unfair_lock_unlock(&_tableLock);
     [self publishWaitingSuccessorForSlot:slot];
     return YES;

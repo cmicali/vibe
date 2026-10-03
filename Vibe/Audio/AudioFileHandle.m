@@ -167,6 +167,11 @@ static uint32_t VibeID3v2TagBytes(const uint8_t header[10]) {
     return atomic_load_explicit(&_lengthEstimated, memory_order_acquire);
 }
 
+- (AVAudioFramePosition)lengthEstimated:(BOOL *)estimated {
+    *estimated = self.lengthIsEstimated;
+    return self.length;
+}
+
 - (BOOL)decoderChoiceIsStale {
     return _mpegChoiceApplies && _openedUnderApple != atomic_load(&sAppleMPEGDecoder);
 }

@@ -54,7 +54,7 @@ mkdir -p "$OUT"
 VIBE_SIM_UDID="$("$DIR/sim-udid.sh")" || { echo "no simulator: run launch-ios.sh first" >&2; exit 1; }
 export VIBE_SIM_UDID
 for s in $SCENARIOS; do
-    case " $ALL stream-mp3-noxing " in *" $s "*) ;; *) echo "unknown scenario: $s (known: $ALL)" >&2; exit 64 ;; esac
+    case " $ALL " in *" $s "*) ;; *) echo "unknown scenario: $s (known: $ALL)" >&2; exit 64 ;; esac
 done
 # Once per run, not per command: the container lookup is most of a round trip.
 VIBE_APP_TMP="$(xcrun simctl get_app_container "$VIBE_SIM_UDID" com.commonwealthrecordings.Vibe data 2>/dev/null)/tmp"

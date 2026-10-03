@@ -9,6 +9,13 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// Whether a download that ended with `error` keeps its file for the next
+// download to continue: one the link ended (a cancel, a lost connection)
+// does; one its own answer ended (another version, a disk write, a refused
+// call) would only fail again from the same bytes. The mirror's stale sweep
+// takes a kept part after a day.
+BOOL VibeDropboxKeepsPart(NSError *_Nullable error);
+
 @interface DropboxClient ()
 
 // Links the account as a completed sign-in would, without the web sheet; the

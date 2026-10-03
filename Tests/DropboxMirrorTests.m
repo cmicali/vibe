@@ -250,7 +250,8 @@ static NSString *const kRev = @"015c0ffee";
 static const uint64_t kReadableBytes = 256 * 1024;
 
 // files/download as Dropbox answers it: the whole file, or 206 from a Range's
-// first byte, with the version's metadata either way.
+// first byte, with the version's metadata either way; 416 for a range that
+// starts at or past the file's end.
 static DropboxStubResponse DownloadAnswer(NSURLRequest *request, NSData *bytes, NSDictionary *metadata) {
     NSString *result = [[NSString alloc] initWithData:[NSJSONSerialization dataWithJSONObject:metadata
                                                                                       options:0 error:NULL]
@@ -265,6 +266,10 @@ static DropboxStubResponse DownloadAnswer(NSURLRequest *request, NSData *bytes, 
     }
     unsigned long long first = 0, last = ULLONG_MAX;
     sscanf(range.UTF8String, "bytes=%llu-%llu", &first, &last);
+    if (first >= bytes.length) {
+        NSData *body = [@"{\"error_summary\": \"range not satisfiable\"}" dataUsingEncoding:NSUTF8StringEncoding];
+        return (DropboxStubResponse){416, @{@"Content-Type": @"application/json"}, body, NO};
+    }
     last = MIN(last, (unsigned long long)bytes.length - 1);
     NSData *slice = [bytes subdataWithRange:NSMakeRange((NSUInteger)first, (NSUInteger)(last - first + 1))];
     return (DropboxStubResponse){206, headers, slice, NO};
@@ -856,7 +861,7 @@ static struct stat StatOf(NSURL *url) {
 
 // A smaller budget applies at once, not at the next download: the oldest go
 // back to placeholders until the rest fit, and the new total is posted for
-// the settings screen. The mirror a test makes saves nothing.
+// the settings screen.
 - (void)testASmallerBudgetSendsTheOldestBackAtOnceAndPostsTheTotal {
     _listings[@"/music"] = @[FileEntry(@"/Music", @"one.flac", 3, kStamp),
                              FileEntry(@"/Music", @"two.flac", 3, kStamp)];
@@ -881,7 +886,6 @@ static struct stat StatOf(NSURL *url) {
     XCTAssertEqual(StatOf(one).st_mode & 0777, 0, @"the oldest went back");
     XCTAssertEqualObjects([NSString stringWithContentsOfURL:two encoding:NSUTF8StringEncoding error:NULL], @"222");
     XCTAssertEqual([self measuredDownloads], 3);
-    XCTAssertNil([NSUserDefaults.standardUserDefaults objectForKey:@"VibeiOSDropboxDownloadBudget"]);
 }
 
 - (void)testRemovingDownloadsLeavesPlaceholdersAndSheets {
@@ -1283,12 +1287,6 @@ static BOOL IsClosedRange(NSURLRequest *request) {
     [self cancelADownloadAfter:1600];
     NSData *shorter = PatternBytes(1000);
     [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
-        unsigned long long first = 0;
-        NSString *range = [request valueForHTTPHeaderField:@"Range"];
-        if (range && sscanf(range.UTF8String, "bytes=%llu-", &first) == 1 && first >= shorter.length) {
-            NSData *body = [@"{\"error_summary\": \"range not satisfiable\"}" dataUsingEncoding:NSUTF8StringEncoding];
-            return (DropboxStubResponse){416, @{@"Content-Type": @"application/json"}, body, NO};
-        }
         return DownloadAnswer(request, shorter, @{@"rev": @"0200beef", @"server_modified": kStamp});
     }];
 
@@ -1512,9 +1510,7 @@ static BOOL IsClosedRange(NSURLRequest *request) {
     XCTAssertEqual(finish[@"availability"], availability);
     XCTAssertEqualObjects(finish[@"error"], error ?: NSNull.null);
     // Installed, or deleted; kept only when the link ended the transfer.
-    BOOL kept = ([error.domain isEqualToString:VibeDropboxErrorDomain] && error.code == VibeDropboxErrorCancelled)
-            || VibeDropboxIsConnectionError(error);
-    XCTAssertEqualObjects(finish[@"partExists"], @(kept));
+    XCTAssertEqualObjects(finish[@"partExists"], @(VibeDropboxKeepsPart(error)));
     XCTAssertEqualObjects(finish[@"installed"], @(error == nil));
     XCTAssertEqualObjects(finish[@"registered"], @YES, @"the lookup let go before the finish");
     XCTAssertNil([_mirror availabilityForURL:_streamTrack]);
