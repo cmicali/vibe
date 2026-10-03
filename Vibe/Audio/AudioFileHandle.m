@@ -161,8 +161,10 @@ static uint32_t VibeID3v2TagBytes(const uint8_t header[10]) {
     return __atomic_load_n(&_length, __ATOMIC_RELAXED);
 }
 
+// Acquire, pairing with the settle's release: a reader that sees NO then
+// reads the settled length.
 - (BOOL)lengthIsEstimated {
-    return atomic_load(&_lengthEstimated);
+    return atomic_load_explicit(&_lengthEstimated, memory_order_acquire);
 }
 
 - (BOOL)decoderChoiceIsStale {
@@ -703,13 +705,13 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 // and the packet size bound read a few frames at most), so a stream of one
 // opened only once downloaded. This is the count it opens on instead, from
 // the frames of its head on disk (kVibeMPEGEstimateBytes): every one at the
-// first's rate, so constant, gives the packets its audio bytes hold at that
-// rate, the whole file's count; any other, VBR, the packets they hold at the
-// walked frames' average size, a guess, *estimated, whose waveform would be
-// filed under it (awaitExactLength:). 0 for the whole count: a VBR header,
-// which states it, or a head that does not walk. dr_mp3's parser walks it,
+// first's rate gives the packets its audio bytes hold at that rate; any
+// other, the packets they hold at the walked frames' average size. Either is
+// an estimate: a head at one rate proves nothing of the rest, which can
+// change rate after an intro. 0 for the whole count: a VBR header, which
+// states it, or a head that does not walk. dr_mp3's parser walks it,
 // synthesizing nothing.
-static SInt64 VibeUncountedMPEGPackets(AudioFileHandle *handle, AudioStreamBasicDescription description, BOOL *estimated) {
+static SInt64 VibeUncountedMPEGPackets(AudioFileHandle *handle, AudioStreamBasicDescription description) {
     SInt64 offset = 0;
     UInt64 bytes = 0;
     UInt32 got = 0;
@@ -761,7 +763,6 @@ static SInt64 VibeUncountedMPEGPackets(AudioFileHandle *handle, AudioStreamBasic
     if (frames < kVibeMPEGEstimateFrames) {
         return 0;
     }
-    *estimated = !constant;
     if (!constant) {
         return (SInt64)((bytes * frames + walked / 2) / walked);
     }
@@ -775,7 +776,7 @@ static SInt64 VibeUncountedMPEGPackets(AudioFileHandle *handle, AudioStreamBasic
 // parser cannot serve its packets. ExtAudioFile answers the length, priming
 // and padding excluded, exactly as for its own decode, and is disposed without
 // decoding; the parser answers the priming and serves the packets. A stream
-// with no VBR header goes uncounted, its length meanwhile the count
+// with no VBR header goes uncounted, its length meanwhile the estimate
 // VibeUncountedMPEGPackets makes, which the decode keeps ahead of its cursor
 // and settles (settleMPEGPacketCount:).
 - (BOOL)openMPEGWithDescription:(AudioStreamBasicDescription)description {
@@ -788,15 +789,14 @@ static SInt64 VibeUncountedMPEGPackets(AudioFileHandle *handle, AudioStreamBasic
             || AudioFileGetProperty(_parser, kAudioFilePropertyPacketSizeUpperBound, &boundSize, &upperBound) != noErr) {
         return NO;
     }
-    BOOL estimated = NO;
-    SInt64 estimate = _availability ? VibeUncountedMPEGPackets(self, description, &estimated) : 0;
+    SInt64 estimate = _availability ? VibeUncountedMPEGPackets(self, description) : 0;
     if (estimate > 0) {
         packets = kVibeMPEGPacketsUncounted;
         length = estimate * description.mFramesPerPacket;
         _mpegEstimate = estimate;
-        atomic_store(&_lengthEstimated, estimated);
-        LogInfo(@"MP3 stream: %@ has no VBR header; opens on %lld packets, %@", _url.lastPathComponent, estimate,
-                estimated ? @"estimated from its head's frames" : @"its constant bit rate's count");
+        atomic_store(&_lengthEstimated, true);
+        LogInfo(@"MP3 stream: %@ has no VBR header; opens on %lld packets estimated from its head's frames",
+                _url.lastPathComponent, estimate);
     }
     else if (ExtAudioFileGetProperty(_codec, kExtAudioFileProperty_FileLengthFrames, &lengthSize, &length) != noErr
             || AudioFileGetProperty(_parser, kAudioFilePropertyAudioDataPacketCount, &packetsSize, &packets) != noErr) {
@@ -831,17 +831,20 @@ static SInt64 VibeUncountedMPEGPackets(AudioFileHandle *handle, AudioStreamBasic
 // frame header to find it, or counted from disk once the download is
 // complete. A failed count leaves the stream uncounted.
 - (void)settleMPEGPacketCount:(SInt64)packets when:(NSString *)when {
-    BOOL estimated = atomic_exchange(&_lengthEstimated, false);
     _mpegPacketCount = packets;
+    // TRAP: the length, then the flag, released: a reader on another thread
+    // that sees the flag clear (lengthIsEstimated, acquire) then reads the
+    // settled length. The other order let the player see NO, read the
+    // estimate, take it as final and never republish the true duration.
     __atomic_store_n(&_length, MAX(0, packets * _mpegFramesPerPacket - (_mpegSkip - _mpegDelay)), __ATOMIC_RELAXED);
-    LogInfo(@"MP3 stream: %@ settled %@ at %lld packets; its %@ count was %+.2f%% off", _url.lastPathComponent, when,
-            packets, estimated ? @"estimated" : @"constant-rate", packets > 0 ? 100.0 * (_mpegEstimate - packets) / packets : 0.0);
+    atomic_store_explicit(&_lengthEstimated, false, memory_order_release);
+    LogInfo(@"MP3 stream: %@ settled %@ at %lld packets; its estimate was %+.2f%% off", _url.lastPathComponent, when,
+            packets, packets > 0 ? 100.0 * (_mpegEstimate - packets) / packets : 0.0);
 }
 
 // The parser reads every frame header it has not yet read, the rest of the
 // file, which takes a long mix tens of milliseconds from disk and a stream
-// the rest of its download, so only an estimate pays it, and only once it is
-// downloaded.
+// the rest of its download, so it is paid only once downloaded.
 - (void)countMPEGPacketsOnDisk {
     uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     SInt64 packets = 0;
@@ -1052,7 +1055,13 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
     if (_mpeg) {
         // A fresh decoder a preroll before the target; the reads drop the
         // preroll's frames, as they drop the priming.
-        _mpegPosition = MIN(MAX(0, frame), _length);
+        // An uncounted stream's estimate is not the end: a seek past it is
+        // kept, its length raised ahead of the cursor as a read raises it.
+        BOOL uncounted = _mpegPacketCount == kVibeMPEGPacketsUncounted;
+        _mpegPosition = uncounted ? MAX(0, frame) : MIN(MAX(0, frame), _length);
+        if (uncounted && _mpegPosition >= _length) {
+            __atomic_store_n(&_length, _mpegPosition + 1, __ATOMIC_RELAXED);
+        }
         SInt64 packet = (_mpegPosition + _mpegSkip) / _mpegFramesPerPacket;
         _mpegNextPacket = MAX(0, packet - kVibeMPEGSeekPrerollPackets);
         memset(_mpeg, 0, sizeof(*_mpeg));

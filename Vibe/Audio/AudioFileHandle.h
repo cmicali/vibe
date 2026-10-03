@@ -14,8 +14,7 @@
 //  preflight precedes it.
 //
 //  Reading facts are immutable after init, but for the length of a streaming
-//  MP3 with no VBR header: taken from its bit rate when constant, exact for a
-//  well-formed file, or estimated from its head's frames when not
+//  MP3 with no VBR header: estimated from its head's frames
 //  (lengthIsEstimated), and settled by its decode (AudioFileHandle.m).
 //  Writing advances length. Cursor, read, write and close operations belong
 //  to one consumer at a time (the bus's decoder after a voice starts,
@@ -117,17 +116,18 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) AVAudioFormat *processingFormat;
 // Logical decoded frames, encoder priming and padding excluded.
 @property (nonatomic, readonly) AVAudioFramePosition length;
-// Any thread: YES while length is a guess, a streaming VBR MP3's with no VBR
-// header, until the decode settles it: at the first read once the download
-// is complete, or where the reads reach the stream's end, whichever is first;
-// or awaitExactLength: does. A guessed length is kept ahead of the cursor, so
-// the reads run to the stream's true end, short or long of it.
+// Any thread: YES while length is a guess, a streaming MP3's with no VBR
+// header, constant rate or not, until the decode settles it: at the first
+// read once the download is complete, or where the reads reach the stream's
+// end, whichever is first; or awaitExactLength: does. A guessed length is
+// kept ahead of the cursor, a seek's included, so the reads run to the
+// stream's true end, short or long of it, and grows as they pass it.
 @property (nonatomic, readonly) BOOL lengthIsEstimated;
 // On the reading thread: an estimated length made exact, waiting for the
 // download to complete, interruptibly as any read does, then counting from
 // disk. YES once exact, at once for a length that is; NO for an interruption
-// or the transfer's failure. A decode sized by a guess would size its chunks
-// wrong (the waveform loader's).
+// or the transfer's failure. What a decode sized by a guess (the waveform
+// loader's) checks before calling itself complete.
 - (BOOL)awaitExactLength:(NSError * _Nullable __autoreleasing * _Nullable)error;
 // Logical file frames. A refused seek leaves the cursor at the decoder's
 // reported position; callers must stop that operation rather than assume it moved.

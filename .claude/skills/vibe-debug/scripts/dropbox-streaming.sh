@@ -14,13 +14,10 @@
 #   run takes about as long as its longest share. -j 1 is this session's
 #   simulator alone.
 # Scenarios: stream-wav stream-flac stream-m4a stream-m4a-moovlast stream-mp3
-#   stream-adts small-mp3 seek seek-ahead-mp3 seek-ahead-flac
-#   seek-ahead-m4a skip quick-skip pause-replay gapless buffering
-#   pause-buffering scrub-buffering stall drop throttle expired-token
-#   rev-change tail-fail slow-tail latency sign-out reupload
-# Not in the default run: stream-mp3-noxing, an MP3 with no Xing/Info frame,
-#   which opens only once the whole download is in until the parser stops
-#   walking every frame to count packets: red until that is fixed.
+#   stream-mp3-noxing stream-adts small-mp3 seek seek-ahead-mp3
+#   seek-ahead-flac seek-ahead-m4a skip quick-skip pause-replay gapless
+#   buffering pause-buffering scrub-buffering stall drop throttle
+#   expired-token rev-change tail-fail slow-tail latency sign-out reupload
 # Needs: a Debug build up through launch-ios.sh; ffmpeg, lame, afconvert, jq;
 #   Assets/test_audio_files/tone-long.wav (generate-test-audio.sh), from which
 #   the six-minute fixtures are transcoded once into build/streaming-fixtures.
@@ -51,7 +48,7 @@ SUMMARY="${VIBE_STREAMING_SUMMARY:-summary.json}"
 # poll only crowds the log.
 POLL="${VIBE_STREAMING_POLL:-0.25}"
 # Longest first, so the simulators' shares end together.
-ALL="stall seek gapless seek-ahead-flac seek-ahead-mp3 seek-ahead-m4a buffering stream-wav stream-flac stream-m4a stream-m4a-moovlast stream-mp3 stream-adts drop reupload tail-fail pause-buffering scrub-buffering pause-replay slow-tail sign-out skip rev-change small-mp3 throttle latency quick-skip expired-token"
+ALL="stall seek gapless seek-ahead-flac seek-ahead-mp3 seek-ahead-m4a buffering stream-wav stream-flac stream-m4a stream-m4a-moovlast stream-mp3 stream-mp3-noxing stream-adts drop reupload tail-fail pause-buffering scrub-buffering pause-replay slow-tail sign-out skip rev-change small-mp3 throttle latency quick-skip expired-token"
 SCENARIOS="${*:-$ALL}"
 mkdir -p "$OUT"
 VIBE_SIM_UDID="$("$DIR/sim-udid.sh")" || { echo "no simulator: run launch-ios.sh first" >&2; exit 1; }
@@ -236,7 +233,6 @@ scenario_stream-flac() { stream long.flac 12 0; }
 scenario_stream-m4a() { stream long.m4a 12 1; }
 scenario_stream-m4a-moovlast() { stream moovlast.m4a 12 1; }
 scenario_stream-mp3() { stream long.mp3 12 1; }
-
 scenario_stream-mp3-noxing() { stream noxing.mp3 12 1; }
 
 # Opens over a transfer of `seconds` and reports when it started against when
@@ -435,10 +431,12 @@ scenario_buffering() {
 }
 
 # A user pause during a buffering hold, then play: the hold ends as an
-# ordinary pause and playback picks up where it was.
+# ordinary pause and playback picks up where it was. The download stops at
+# 1 MB and stays stopped until the pause has landed, so no release can race
+# the pause; it is resumed before the play.
 scenario_pause-buffering() {
     fixture 0 long.wav short.wav
-    dbg fake_dropbox_fault rate rate=100K file=$F0 >/dev/null
+    dbg fake_dropbox_fault stall after=1M file=$F0 >/dev/null
     open_folder "$FOLDER"
     wait_for 20 '.state == "playing" and .pos > 0.3' || true
     wait_for 30 '.buf' || true
@@ -449,6 +447,7 @@ scenario_pause-buffering() {
     sleep 3
     snap
     local still="$SNAP"
+    dbg fake_dropbox_fault resume >/dev/null
     dbg play_pause >/dev/null
     wait_for 15 ".state == \"playing\" and .pos > $(printf '%s' "$still" | jq .pos) + 0.5" || true
     local resumed="$SNAP"

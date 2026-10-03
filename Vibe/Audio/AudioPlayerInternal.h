@@ -92,7 +92,7 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
     // stop or failure clears it.
     uint64_t                _activeSubmittedPlayIdentifier;
     // The published window came from an estimated length, which the drain
-    // republishes once settled (republishSettledLengthOnQueue).
+    // grows and, once settled, republishes (republishEstimatedWindowOnQueue).
     BOOL                    _windowEstimated;
     PlaybackRequestCoordinator *_pendingRequest;
     // Voices fading out; each leaves when the drain reports it ended.
@@ -275,10 +275,11 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
 // the declick; a retire at the declick length stops the voice's reads, so
 // its file may be handed on. Retired voices are tracked until they end.
 - (VibeVoiceRamp)rampOnQueueToGain:(float)gain milliseconds:(uint64_t)milliseconds action:(VibeVoiceAction)action;
-// `frame` is a file frame inside `window`, where the voice's stream ends.
-- (VibeVoiceID)startVoiceOnQueueForFile:(AudioFileHandle *)file window:(NSRange)window
-                                atFrame:(AVAudioFramePosition)frame
-                       fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused;
+// `frame` is a file frame inside `window`, `track`'s window of `file`, where
+// the voice's stream ends (AudioTrack endFrameOfWindow:).
+- (VibeVoiceID)startVoiceOnQueueForTrack:(AudioTrack *)track file:(AudioFileHandle *)file window:(NSRange)window
+                                 atFrame:(AVAudioFramePosition)frame
+                        fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused;
 - (void)retireVoiceOnQueue:(VibeVoiceID)voice milliseconds:(uint64_t)milliseconds;
 - (void)cutRetiringVoicesToDeclickOnQueue;
 // A new voice for the current file at `position`, the old one retiring beside
@@ -316,7 +317,7 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
 // The buffering hold's decision, after every drain.
 - (void)updateBufferingOnQueue;
 // A settled estimate's window and duration, before every drain's events.
-- (void)republishSettledLengthOnQueue;
+- (void)republishEstimatedWindowOnQueue;
 @end
 
 NS_ASSUME_NONNULL_END

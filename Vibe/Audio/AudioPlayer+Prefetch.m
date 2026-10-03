@@ -60,7 +60,7 @@
     NSRange window = [_prefetchedTrack frameWindowInFile:_prefetchedFile];
     if (window.length == 0
             || ![_voiceBus queueSuccessor:_prefetchedFile startFrame:(AVAudioFramePosition)window.location
-                                 endFrame:(AVAudioFramePosition)NSMaxRange(window) forVoice:_voice]) {
+                                 endFrame:[_prefetchedTrack endFrameOfWindow:window] forVoice:_voice]) {
         return;
     }
     _successorTrack = _prefetchedTrack;

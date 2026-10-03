@@ -83,46 +83,74 @@
     if (!file) {
         return nil;
     }
-
+    BOOL sizedByEstimate = file.lengthIsEstimated;
     AudioWaveform *waveform = nullptr;
     NSUInteger numChunks = 0;
-    CodableAudioWaveform *result = [self makeWaveformForPass:&pass
-                                                    waveform:&waveform
-                                                   numChunks:&numChunks];
-    if (!result) {
-        return nil;
-    }
+    CodableAudioWaveform *result = nil;
+    AudioBPMAnalyzer *bpmAnalyzer = nil;
+    AudioKeyAnalyzer *keyAnalyzer = nil;
+    for (;;) {
+        result = [self makeWaveformForPass:&pass waveform:&waveform numChunks:&numChunks];
+        if (!result) {
+            return nil;
+        }
 
-    // Tempo and key detection ride the same decode pass: each analyzer
-    // consumes the buffer right after the waveform chunk does, so neither
-    // costs a second full-file read, which matters for cloud-backed files.
-    // With one off there is no analyzer, and the waveform caches with no BPM
-    // or key — a file scanned while off is not re-analyzed on re-enable until
-    // its cache entry goes. The explicit scan_bpm and scan_key debug paths run
-    // the analyzers directly and ignore this.
-    VibeWaveformAnalysis analysis = self.analysis;
-    AudioBPMAnalyzer *bpmAnalyzer = analysis.bpm
-            ? [[AudioBPMAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate]
-            : nil;
-    AudioKeyAnalyzer *keyAnalyzer = analysis.key
-            ? [[AudioKeyAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate]
-            : nil;
+        // Tempo and key detection ride the same decode pass: each analyzer
+        // consumes the buffer right after the waveform chunk does, so neither
+        // costs a second full-file read, which matters for cloud-backed files.
+        // With one off there is no analyzer, and the waveform caches with no
+        // BPM or key — a file scanned while off is not re-analyzed on
+        // re-enable until its cache entry goes. The explicit scan_bpm and
+        // scan_key debug paths run the analyzers directly and ignore this.
+        VibeWaveformAnalysis analysis = self.analysis;
+        bpmAnalyzer = analysis.bpm ? [[AudioBPMAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate] : nil;
+        keyAnalyzer = analysis.key ? [[AudioKeyAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate] : nil;
 
-    if (![self runDecodePass:&pass
-                        file:file
-                    filename:filename
-                    waveform:waveform
-                      result:result
-                 bpmAnalyzer:bpmAnalyzer
-                 keyAnalyzer:keyAnalyzer
-                       nanos:&nanos]) {
-        // Cancelled mid-decode, so the data really is partial. A cancel that
-        // lands after the loop has read every chunk falls through instead: the
-        // decode is complete and worth caching for the next play of this
-        // track. The cache's delivery site filters cancelled loads out of the
-        // UI, so discarding here would only lose that cache write. (The buffer
-        // allocation failing answers NO too — there is nothing to show.)
-        return nil;
+        if (![self runDecodePass:&pass
+                            file:file
+                        filename:filename
+                        waveform:waveform
+                          result:result
+                     bpmAnalyzer:bpmAnalyzer
+                     keyAnalyzer:keyAnalyzer
+                           nanos:&nanos]) {
+            // Cancelled mid-decode, so the data really is partial. A cancel
+            // that lands after the loop has read every chunk falls through
+            // instead: the decode is complete and worth caching for the next
+            // play of this track. The cache's delivery site filters cancelled
+            // loads out of the UI, so discarding here would only lose that
+            // cache write. (The buffer allocation failing answers NO too —
+            // there is nothing to show.)
+            return nil;
+        }
+        if (!sizedByEstimate || pass.readError) {
+            break;
+        }
+        // TRAP: a pass sized by an estimated length (a streaming MP3's with
+        // no VBR header) sized every chunk by it, and its result would be
+        // filed under the file's key, so it is complete only once the length
+        // is exact and is the one it was sized by — the common case, a head
+        // whose rate holds. Otherwise the file is decoded again, from disk,
+        // on the exact length.
+        NSError *error = nil;
+        if (![file awaitExactLength:&error]) {
+            if (![AudioFileHandle isInterruption:error]) {
+                VibeLogAt(self.isDetached ? OS_LOG_TYPE_DEFAULT : OS_LOG_TYPE_ERROR,
+                          @"No exact length for %@: %@", filename, error);
+            }
+            return nil;
+        }
+        sizedByEstimate = NO;
+        AVAudioFramePosition sized = pass.totalFrames;
+        if ((AVAudioFramePosition)[self windowOfFile:file].length == sized) {
+            break;
+        }
+        pass = {};
+        if (![self sizePass:&pass forFile:file filename:filename]) {
+            return nil;
+        }
+        LogInfo(@"Waveform for %@ was sized by an estimate of %lld frames, not %lld; decoding it again",
+                filename, sized, pass.totalFrames);
     }
 
     self.isComplete = [self isDecodeComplete:&pass filename:filename];
@@ -189,30 +217,33 @@
         // track changed meanwhile. Skip the decode setup entirely.
         return nil;
     }
-    // TRAP: a guessed length sizes every chunk wrong and files the result
-    // under the file's key, so a streaming VBR MP3's waits for its download
-    // to be counted, held to it as any read is (cancel interrupts it).
-    if (![file awaitExactLength:&error]) {
-        if (![AudioFileHandle isInterruption:error]) {
-            VibeLogAt(self.isDetached ? OS_LOG_TYPE_DEFAULT : OS_LOG_TYPE_ERROR,
-                      @"No exact length for %@: %@", filename, error);
-        }
-        return nil;
-    }
+    return [self sizePass:pass forFile:file filename:filename] ? file : nil;
+}
 
-    NSRange window = VibeCueWindow(self.cueStart, self.cueEnd, file.processingFormat.sampleRate, file.length);
+// The row's window of the file, on its length as it stands.
+- (NSRange)windowOfFile:(AudioFileHandle *)file {
+    BOOL estimated = file.lengthIsEstimated; // before the length, which a settle stores before clearing the flag
+    return VibeCueWindow(self.cueStart, self.cueEnd, file.processingFormat.sampleRate, file.length, estimated);
+}
+
+// The shape half of the pass, from the window, with the file's cursor at the
+// window's start. NO for no audio or a refused seek.
+- (BOOL)sizePass:(struct VibeWaveformDecodePass *)pass forFile:(AudioFileHandle *)file filename:(NSString *)filename {
+    NSRange window = [self windowOfFile:file];
     pass->totalFrames = (AVAudioFramePosition)window.length;
     pass->numChannels = file.processingFormat.channelCount;
     if (pass->totalFrames <= 0 || pass->numChannels == 0) {
         LogError(@"No audio in %@ (frames=%lld channels=%lu)",
                  filename, pass->totalFrames, (unsigned long)pass->numChannels);
-        return nil;
+        return NO;
     }
-    if (window.location > 0 && ![file seekToFrame:(AVAudioFramePosition)window.location error:&error]) {
+    NSError *error = nil;
+    if ((window.location > 0 || file.framePosition != 0)
+            && ![file seekToFrame:(AVAudioFramePosition)window.location error:&error]) {
         LogError(@"Seek to the window of %@ failed: %@", filename, error);
-        return nil;
+        return NO;
     }
-    return file;
+    return YES;
 }
 
 #pragma mark - Phase 2: size the chunk array
@@ -236,7 +267,8 @@
         return nil;
     }
     // file.length is exact for every CoreAudio format, an estimate made so at
-    // the open, so no prescan is needed. Chunk i covers frames
+    // the open, so no prescan is needed; a streaming MP3's own estimate is
+    // checked once its pass ends (load:). Chunk i covers frames
     // [i*T/N, (i+1)*T/N), every frame is scanned, and a normal file always
     // fills exactly numChunks chunks at their final positions, so nothing
     // moves when the load completes. Only a file with fewer frames than chunks

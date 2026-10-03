@@ -500,6 +500,12 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     [_stream noteWrittenBytes:end];
 }
 
+// The stream's last 8 KB, which an MP3's open reads (its ID3v1 check).
+- (void)installTailWindow {
+    NSUInteger window = 8192, at = _streamBytes.length - window;
+    [_stream installWindow:[_streamBytes subdataWithRange:NSMakeRange(at, window)] atOffset:at];
+}
+
 // The first fetch's verdict, once, in the mirror's order: the rest written,
 // the rename and the finish; or the part deleted and its readers failed.
 - (BOOL)finishStream:(VibeStreamOutcome)outcome {
@@ -802,11 +808,11 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     }
 }
 // An MP3 with no Xing, Info or VBRI frame opens while it streams, on its head
-// and the tail window: a CBR one on the length its bit rate gives, the whole
-// file's; a VBR one on an estimate from its head's frames, within 2% for this
+// and the tail window, on an estimate from its head's frames: a CBR one's the
+// length its bit rate gives, the whole file's; a VBR one's within 2% for this
 // encode. A seek inside what has arrived lands exactly while the download
-// runs; the first read once it is complete settles a VBR one's length; and
-// either then decodes and seeks exactly as the whole file.
+// runs; the first read once it is complete settles either length; and either
+// then decodes and seeks exactly as the whole file.
 - (void)testAnMP3WithoutAVBRHeaderOpensWhileItStreams {
     AudioFileHandle.appleMPEGDecoder = NO;
     for (NSString *name in @[@"cbr-noinfo.mp3", @"vbr-noxing.mp3"]) {
@@ -814,8 +820,7 @@ static const NSUInteger kLayer3DecoderDelay = 529;
         AudioFileHandle *whole = [self open:source decoder:@"dr_mp3"];
         NSData *continuous = [self readToEnd:whole];
         NSURL *url = [self streamingCopyOf:source prefix:24576 name:[@"streaming-" stringByAppendingString:name]];
-        NSUInteger window = 8192, at = _streamBytes.length - window;
-        [_stream installWindow:[_streamBytes subdataWithRange:NSMakeRange(at, window)] atOffset:at];
+        [self installTailWindow];
         __block AudioFileHandle *file = nil;
         dispatch_semaphore_t opened = dispatch_semaphore_create(0);
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
@@ -826,10 +831,10 @@ static const NSUInteger kLayer3DecoderDelay = 529;
                 (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))), 0, @"%@ opened while it streams", name);
         XCTAssertEqualObjects(file.decoderName, @"dr_mp3", @"%@", name);
         BOOL variable = [name hasPrefix:@"vbr"];
-        XCTAssertEqual(file.lengthIsEstimated, variable, @"%@", name);
+        XCTAssertTrue(file.lengthIsEstimated, @"%@", name);
         XCTAssertEqualWithAccuracy((double)file.length, (double)whole.length, variable ? whole.length * 0.02 : 0, @"%@", name);
         [self assertSeekOf:file to:4800 match:continuous name:[name stringByAppendingString:@", downloading"]];
-        XCTAssertEqual(file.lengthIsEstimated, variable, @"%@", name);
+        XCTAssertTrue(file.lengthIsEstimated, @"%@", name);
         XCTAssertTrue([self finishStream:VibeStreamCompleted]);
         [self assertSeeksOf:file match:continuous block:1152 name:name];
         XCTAssertFalse(file.lengthIsEstimated, @"%@", name);
@@ -2242,26 +2247,15 @@ static NSData *AudibleFrames(NSData *pcm, NSUInteger channels) {
 - (void)testAStallPausesInPlaceAndPlayReplaysFromThere {
     NSURL *source = [self fixture:@"noise-48000-24-2.wav"];
     NSData *reference = PCM([self read:source]);
-    NSURL *url = [self streamingCopyOf:source prefix:44 + 28800 * 6 name:@"stalled.wav"];
+    [self streamingCopyOf:source prefix:44 + 28800 * 6 name:@"stalled.wav"];
     CloudFileAvailability *stream = _stream;
     [self playOnTheDecodePoolBitPerfect:NO play:^{
         self->_player.declick = NO;
-        VibeAudioLoadingConfigurationValues values = VibeAudioLoadingProductionConfigurationValues();
-        values.openTimeouts = VibeAudioOpenTimeoutConfigurationMake(0.5, 0.5);
-        [self->_player applyLoadingConfiguration:[[AudioLoadingConfiguration alloc] initWithValues:values error:NULL]];
-        [self play:url paused:NO position:0];
+        [self shortenTheOpenDeadline];
+        [self play:self->_streamURL paused:NO position:0];
     }];
-    [self settleUntil:^BOOL { return [self currentVoiceSnapshot].waitingForBytes; }];
-    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
-    NSTimeInterval held = _player.position;
-    XCTAssertTrue([self renderUntil:^BOOL { return self->_playError != nil; }]);
-    XCTAssertEqual(_playError.code, VibeAudioErrorConnectionLost, @"%@", _playError);
-    XCTAssertTrue(_player.isPaused);
-    XCTAssertFalse(_player.isBuffering);
-    XCTAssertEqual(_player.position, held, @"paused where it stopped");
+    NSTimeInterval held = [self stallTheStream];
     XCTAssertGreaterThan(_player.duration, 1.9);
-    XCTAssertEqual([self count:@"finish"], 0u);
-    [self settleUntil:^BOOL { return [self count:@"pause"] == 1; }];
     XCTAssertTrue([self renderUntil:^BOOL {
         return atomic_load(&self->_streamCancels) == 1 && stream.readerCount == 0;
     }], @"cancels %lu, readers %lu", (unsigned long)atomic_load(&_streamCancels), (unsigned long)stream.readerCount);
@@ -2272,18 +2266,95 @@ static NSData *AudibleFrames(NSData *pcm, NSUInteger channels) {
     XCTAssertNil(_playError);
     XCTAssertEqual(atomic_load(&_streamFetches), 2u, @"the replay fetched afresh");
     XCTAssertTrue(_player.isPlaying);
+    [self assertTheReplayOf:reference startsAt:held];
+}
+
+// A half-second open deadline, which a hold snapshots as it begins.
+- (void)shortenTheOpenDeadline {
+    VibeAudioLoadingConfigurationValues values = VibeAudioLoadingProductionConfigurationValues();
+    values.openTimeouts = VibeAudioOpenTimeoutConfigurationMake(0.5, 0.5);
+    [_player applyLoadingConfiguration:[[AudioLoadingConfiguration alloc] initWithValues:values error:NULL]];
+}
+
+// The stream playing on the decode pool under the short deadline, rendered to
+// its hold, stalls: Paused in place with the stall's error, never a track
+// end. Answers the position held.
+- (NSTimeInterval)stallTheStream {
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
+    NSTimeInterval held = _player.position;
+    NSUInteger pauses = [self count:@"pause"];
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_playError != nil; }]);
+    XCTAssertEqual(_playError.code, VibeAudioErrorConnectionLost, @"%@", _playError);
+    XCTAssertTrue(_player.isPaused);
+    XCTAssertFalse(_player.isBuffering);
+    XCTAssertEqual(_player.position, held, @"paused where it stopped");
+    XCTAssertEqual([self count:@"finish"], 0u);
+    [self settleUntil:^BOOL { return [self count:@"pause"] == pauses + 1; }];
+    return held;
+}
+
+// The replay's first 4800 frames are the reference's from within a frame of
+// `held`: its start truncates the seconds.
+- (void)assertTheReplayOf:(NSData *)reference startsAt:(NSTimeInterval)held {
     [self settleUntil:^BOOL { return [self currentVoiceSnapshot].written >= 16384; }];
     [_capture setLength:0];
     [self render:4800];
-    // Within a frame of the held one: the replay's start truncates the seconds.
     NSUInteger expected = (NSUInteger)llround(held * 48000), found = NSNotFound;
     for (NSUInteger start = expected - 2; start <= expected + 2 && found == NSNotFound; start++) {
         if (memcmp(_capture.bytes, (const float *)reference.bytes + start * 2, 32 * 8) == 0) found = start;
     }
-    XCTAssertNotEqual(found, (NSUInteger)NSNotFound, @"the replay starts where the stall held");
+    XCTAssertNotEqual(found, (NSUInteger)NSNotFound, @"the replay starts where the stall held, %.3f s", held);
     if (found != NSNotFound) {
         [self assertReference:[reference subdataWithRange:NSMakeRange(found * 8, 4800 * 8)] capture:_capture skip:0 tolerance:0];
     }
+}
+
+// The resume that replays a stalled stream keeps its place among the
+// transport commands: a stop submitted right after it leaves the player
+// Stopped, with no voice, no replay and no second fetch; and a play of
+// another track submitted right after it is the one that plays.
+- (void)testAResumeThatReplaysAStallYieldsToALaterStopOrPlay {
+    NSURL *source = [self fixture:@"noise-48000-24-2.wav"];
+    [self streamingCopyOf:source prefix:44 + 28800 * 6 name:@"stalled.wav"];
+    [self playOnTheDecodePoolBitPerfect:NO play:^{
+        self->_player.declick = NO;
+        [self shortenTheOpenDeadline];
+        [self play:self->_streamURL paused:NO position:0];
+    }];
+    [self stallTheStream];
+    // Both submitted before the queue takes the resume.
+    [_player debugBlockQueueForSeconds:0.2];
+    [_player resume];
+    [_player stop];
+    [_player runSyncOnQueue:^{}];
+    [_player runSyncOnQueue:^{}];
+    [self render:4800];
+    [_player runSyncOnQueue:^{}];
+    XCTAssertTrue(_player.isStopped, @"the stop, submitted last, wins");
+    XCTAssertEqual([[_player valueForKey:@"voice"] unsignedLongLongValue], 0u);
+    XCTAssertEqual([self count:@"start"], 1u, @"no replay");
+    XCTAssertEqual(atomic_load(&_streamFetches), 1u, @"no second fetch");
+
+    [self streamingCopyOf:source prefix:44 + 28800 * 6 name:@"stalled-again.wav"];
+    _playError = nil;
+    [self play:_streamURL paused:NO position:0];
+    [self stallTheStream];
+    NSURL *local = [self fixture:@"noise-48000-16-2.wav"];
+    AudioTrack *other = [AudioTrack withURL:local];
+    NSUInteger starts = [self count:@"start"];
+    [_player debugBlockQueueForSeconds:0.2];
+    [_player resume];
+    [_player play:other atPosition:0 startPaused:NO];
+    [self settleUntil:^BOOL { return [self count:@"start"] > starts; }];
+    [_player runSyncOnQueue:^{}];
+    [_player runSyncOnQueue:^{}];
+    [self settleUntil:^BOOL { return [self currentVoiceSnapshot].written >= 16384; }];
+    [_capture setLength:0];
+    [self render:4800];
+    [_player runSyncOnQueue:^{}];
+    XCTAssertEqual(_player.currentTrack, other, @"the play, submitted last, wins");
+    XCTAssertEqual([self count:@"start"], starts + 1, @"no replay after it");
+    XCTAssertEqual([self assertExactExcerptsOf:@[PCM([self read:local])] inCapture:_capture rampFrames:0 ramped:NULL], 1u);
 }
 
 #pragma mark - An estimated length
@@ -2300,16 +2371,33 @@ static NSData *MP3Frames(NSData *mp3) {
 // tail window, played on the decode pool with Declick off. Answers the whole
 // file.
 - (NSURL *)playEstimatedStreamOf:(NSData *)bytes prefix:(NSUInteger)prefix name:(NSString *)name {
-    AudioFileHandle.appleMPEGDecoder = NO;
-    NSURL *source = [self writeBytes:bytes name:[@"whole-" stringByAppendingString:name]];
-    NSURL *url = [self streamingCopyOf:source prefix:prefix name:name];
-    NSUInteger window = 8192, at = _streamBytes.length - window;
-    [_stream installWindow:[_streamBytes subdataWithRange:NSMakeRange(at, window)] atOffset:at];
+    NSURL *source = [self streamEstimated:bytes prefix:prefix name:name];
     [self playOnTheDecodePoolBitPerfect:NO play:^{
         self->_player.declick = NO;
-        [self play:url paused:NO position:0];
+        [self play:self->_streamURL paused:NO position:0];
     }];
     return source;
+}
+
+// `bytes` streaming as playEstimatedStreamOf: does, not yet played. Answers
+// the whole file.
+- (NSURL *)streamEstimated:(NSData *)bytes prefix:(NSUInteger)prefix name:(NSString *)name {
+    AudioFileHandle.appleMPEGDecoder = NO;
+    NSURL *source = [self writeBytes:bytes name:[@"whole-" stringByAppendingString:name]];
+    [self streamingCopyOf:source prefix:prefix name:name];
+    [self installTailWindow];
+    return source;
+}
+
+// A headerless MP3 whose head is one rate and the rest another: 50 silent
+// 320 kbps frames, 1.2 s, then four runs of a 192 kbps encode. A stream
+// opening on less than its head walks only 320 kbps frames, whose rate's
+// count, 6.1 s, is over three seconds short of the file's 9.4.
+- (NSData *)constantHeadMP3 {
+    NSData *encoded = MP3Frames([NSData dataWithContentsOfURL:[self optionalFixture:@"cbr-noinfo.mp3"]]);
+    NSMutableData *bytes = [VibeMP3WithoutVBRHeader(50, 48000, ^uint8_t(uint32_t frame) { return 14; }) mutableCopy];
+    for (int i = 0; i < 4; i++) [bytes appendData:encoded];
+    return bytes;
 }
 
 - (NSDictionary *)settledEvent {
@@ -2375,13 +2463,15 @@ static NSData *MP3Frames(NSData *mp3) {
 }
 
 // A VBR stream whose head is denser than the rest, its duration estimated
-// short, and one whose head is sparser, estimated long, each real frames
-// either side of silent ones, played while they stream to just short of
-// their end: the first runs on past its estimate with no track end, and so
-// does a seek back inside it; the second does not end at its estimate; and
-// each, once its download completes, plays to its true end, every audible
-// frame the whole file's, its duration settled there once and the track
-// ending once.
+// short, one whose head is one rate and the rest another, estimated short on
+// that rate's count, and one whose head is sparser, estimated long, each real
+// frames either side of silent ones, played while they stream to just short
+// of their end: the first two run on past their estimate with no track end,
+// the clock following the audio past it, never held at it nor running back,
+// and so does a seek back inside the first's; the third does not end at its
+// estimate; and each, once its download completes, plays to its true end,
+// every audible frame the whole file's, its duration settled there once and
+// the track ending once.
 - (void)testAShortOrLongEstimatedStreamPlaysToItsTrueEnd {
     NSData *encoded = MP3Frames([NSData dataWithContentsOfURL:[self optionalFixture:@"vbr-noxing.mp3"]]);
     NSData *silent = VibeMP3WithoutVBRHeader(600, 48000, ^uint8_t(uint32_t frame) { return 1 + frame % 2; });
@@ -2390,20 +2480,34 @@ static NSData *MP3Frames(NSData *mp3) {
     [dense appendData:encoded];
     NSMutableData *sparse = [silent mutableCopy];
     for (int i = 0; i < 4; i++) [sparse appendData:encoded];
-    for (NSData *bytes in @[dense, sparse]) {
-        BOOL denseHead = bytes == dense;
-        NSString *name = denseHead ? @"dense.mp3" : @"sparse.mp3";
-        NSURL *source = [self playEstimatedStreamOf:bytes prefix:24576 name:name];
+    NSDictionary<NSString *, NSData *> *streams = @{@"dense.mp3": dense, @"constant-head.mp3": [self constantHeadMP3], @"sparse.mp3": sparse};
+    for (NSString *name in @[@"dense.mp3", @"constant-head.mp3", @"sparse.mp3"]) {
+        BOOL denseHead = [name isEqual:@"dense.mp3"], shortEstimate = ![name isEqual:@"sparse.mp3"];
+        NSURL *source = [self playEstimatedStreamOf:streams[name] prefix:24576 name:name];
         _blockSize = 4096; // twenty seconds of audio inside the hang guard
         double exact = (double)[self open:source decoder:@"dr_mp3"].length / 48000;
         NSData *reference = PCM([self read:source]);
         double estimate = _player.duration;
-        XCTAssertTrue(denseHead ? estimate < exact / 2 : estimate > exact * 1.5, @"%@: %g s of %g", name, estimate, exact);
+        XCTAssertTrue(((AudioFileHandle *)[_player valueForKey:@"file"]).lengthIsEstimated, @"%@", name);
+        XCTAssertTrue(shortEstimate ? estimate < exact * 0.7 : estimate > exact * 1.5, @"%@: %g s of %g", name, estimate, exact);
         [self streamTo:_streamBytes.length - 8192 - 1];
-        XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }], @"%@ played to the download's edge", name);
+        __block NSTimeInterval clock = 0;
+        __block BOOL monotonic = YES;
+        XCTAssertTrue([self renderUntil:^BOOL {
+            NSTimeInterval position = self->_player.position;
+            monotonic = monotonic && position >= clock;
+            clock = position;
+            return self->_player.isBuffering;
+        }], @"%@ played to the download's edge", name);
+        XCTAssertTrue(monotonic, @"%@: the clock never ran back", name);
         NSUInteger from = 0;
+        if (shortEstimate) {
+            [self render:4800];
+            uint64_t consumed = [self currentVoiceSnapshot].consumed;
+            XCTAssertGreaterThan(consumed, (uint64_t)(estimate * 48000), @"%@: past the estimate", name);
+            XCTAssertEqualWithAccuracy(_player.position, consumed / 48000.0, 1e-9, @"%@: the clock follows the audio past the estimate", name);
+        }
         if (denseHead) {
-            XCTAssertGreaterThan([self currentVoiceSnapshot].consumed, (uint64_t)(estimate * 48000), @"past the estimate");
             // A seek back inside the estimate: a voice taking its end from it
             // would end there, short of the stream's end.
             double target = floor(estimate) - 1;
@@ -2427,6 +2531,75 @@ static NSData *MP3Frames(NSData *mp3) {
         NSDictionary *comparison = ComparePCM(AudibleFrames(played, 2), AudibleFrames(_capture, 2), 2, 0, 0);
         XCTAssertTrue([comparison[@"pass"] boolValue], @"%@: %@", name, comparison);
     }
+}
+
+// A stall once the audio has passed a short estimate keeps the position
+// heard, not the estimate's end; and the replay, streaming afresh on an
+// estimate of its own just as short, starts there rather than at its
+// estimate, so nothing heard plays again.
+- (void)testAStallPastAShortEstimateReplaysFromThePositionHeard {
+    NSData *bytes = [self constantHeadMP3];
+    NSURL *source = [self streamEstimated:bytes prefix:24576 name:@"stalled.mp3"];
+    CloudFileAvailability *stream = _stream;
+    [self playOnTheDecodePoolBitPerfect:NO play:^{
+        self->_player.declick = NO;
+        [self shortenTheOpenDeadline];
+        [self play:self->_streamURL paused:NO position:0];
+    }];
+    _blockSize = 4096;
+    NSData *reference = PCM([self read:source]);
+    double estimate = _player.duration;
+    [self streamTo:_streamBytes.length * 9 / 10];
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
+    double heard = [self currentVoiceSnapshot].consumed / 48000.0;
+    XCTAssertGreaterThan(heard, estimate + 1, @"held past the estimate");
+    NSTimeInterval held = [self stallTheStream];
+    XCTAssertEqualWithAccuracy(held, heard, 1e-9, @"the stall keeps the position heard");
+    XCTAssertTrue([self renderUntil:^BOOL {
+        return atomic_load(&self->_streamCancels) == 1 && stream.readerCount == 0;
+    }], @"cancels %lu, readers %lu", (unsigned long)atomic_load(&_streamCancels), (unsigned long)stream.readerCount);
+
+    [self streamingCopyOf:source prefix:24576 name:@"stalled.mp3"];
+    [self installTailWindow];
+    _playError = nil;
+    [_player playPause];
+    [self settleUntil:^BOOL { return [self count:@"start"] == 2 || self->_playError; }];
+    XCTAssertNil(_playError);
+    XCTAssertTrue(((AudioFileHandle *)[_player valueForKey:@"file"]).lengthIsEstimated, @"the replay streams too");
+    XCTAssertGreaterThanOrEqual(_player.position, held - 1.0 / 48000);
+    [self streamTo:_streamBytes.length - 8192 - 1];
+    [self assertTheReplayOf:reference startsAt:held];
+    XCTAssertNil(_playError);
+}
+
+// A cue row of a headerless MP3 starting past the length its streaming head
+// gives — 6.4 to 8 s of a 9.4 s file opened on a 6.1 s estimate — is not
+// refused as empty: it plays from its start once the bytes arrive and on to
+// its own end, not into the next row, and its duration, the window's, settles
+// once the download completes.
+- (void)testACueRowPastAShortEstimatePlaysFromItsStart {
+    NSURL *source = [self streamEstimated:[self constantHeadMP3] prefix:24576 name:@"cue.mp3"];
+    NSData *reference = PCM([self read:source]);
+    AudioTrack *row = CueRow(_streamURL, 480, 600);
+    [self playOnTheDecodePoolBitPerfect:NO play:^{
+        self->_player.declick = NO;
+        [self->_player play:row atPosition:0 startPaused:NO];
+        [self settleUntil:^BOOL { return [self count:@"start"] == 1 || self->_playError; }];
+    }];
+    XCTAssertNil(_playError, @"a row past the estimate is not refused");
+    XCTAssertTrue(((AudioFileHandle *)[_player valueForKey:@"file"]).lengthIsEstimated);
+    XCTAssertEqualWithAccuracy(_player.duration, 1.6, 1e-9);
+    _blockSize = 4096;
+    XCTAssertTrue([self finishStream:VibeStreamCompleted]);
+    XCTAssertTrue([self renderUntil:^BOOL { return [self count:@"finish"] == 1 || self->_playError; }]);
+    [self render:4800];
+    XCTAssertNil(_playError);
+    XCTAssertEqual([self count:@"settled"], 1u, @"its duration settles once");
+    XCTAssertEqualWithAccuracy([[self settledEvent][@"duration"] doubleValue], 1.6, 1e-9);
+    XCTAssertEqual([self count:@"finish"], 1u);
+    NSData *window = [reference subdataWithRange:NSMakeRange(307200 * 8, 76800 * 8)];
+    NSDictionary *comparison = ComparePCM(AudibleFrames(window, 2), AudibleFrames(_capture, 2), 2, 0, 0);
+    XCTAssertTrue([comparison[@"pass"] boolValue], @"the row, from its start to its end: %@", comparison);
 }
 
 // Another row of the file an open is waiting on rebinds that open, and plays

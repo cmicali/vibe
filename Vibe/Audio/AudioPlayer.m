@@ -482,6 +482,14 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     double sampleRate = file.processingFormat.sampleRate;
     BOOL estimated = file.lengthIsEstimated; // before the window, so a settle after it is republished
     NSRange window = file ? [track frameWindowInFile:file] : NSMakeRange(0, 0);
+    if (estimated && track.cueEnd == 0) {
+        // TRAP: an estimate is not the end, so a start past it — a stall's
+        // replay of audio heard past it — is not clamped back to it, which
+        // would play heard audio again: the window reaches the start, the
+        // voice's seek keeps the length ahead of it, and the drain grows the
+        // window from there.
+        window.length = MAX(window.length, (NSUInteger)(MAX(0, startIntent.position) * sampleRate) + 1);
+    }
     if (window.length == 0) {
         [self resetToStoppedStateOnQueue];
         [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorFileOpenFailed,
@@ -508,9 +516,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     _windowEstimated = estimated;
     AVAudioFramePosition startFrame = VibeClampedStartFrame(startIntent.position, sampleRate, window);
     NSTimeInterval startSeconds = VibeWindowSecondsAtFrame(startFrame, sampleRate, window);
-    VibeVoiceID voice = [self startVoiceOnQueueForFile:file window:window atFrame:startFrame
-                                      fadeMilliseconds:(_incomingFadeMilliseconds ?: kFadeDurationMilliseconds)
-                                                paused:startIntent.paused];
+    VibeVoiceID voice = [self startVoiceOnQueueForTrack:track file:file window:window atFrame:startFrame
+                                       fadeMilliseconds:(_incomingFadeMilliseconds ?: kFadeDurationMilliseconds)
+                                                 paused:startIntent.paused];
     if (startIntent.paused) {
         // Paused is idle: the output may still run from the replaced track.
         [self publishState:VibePlayerStatePaused voice:voice file:file window:window
@@ -691,9 +699,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         return;
     }
     if ([self pausedWithoutVoiceOnQueue] && self.currentTrack) {
-        // A stall's park: the stream's claim went with its last reader, so the
-        // ordinary play path opens, and fetches, the track afresh from here.
-        [self playTrack:self.currentTrack atPosition:self.position startPaused:NO declick:YES];
+        [self replayStalledTrackOnQueue];
         return;
     }
     if (_state != VibePlayerStatePaused || !_voice) {
@@ -724,6 +730,28 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                   accepted:[self submittedPlayIsCurrent:owningSubmittedPlayIdentifier] deliveredAt:deliveredAt];
         [self.delegate audioPlayer:self didResumePlaying:track];
     });
+}
+
+// A stall's park: the stream's claim went with its last reader, so the
+// ordinary play path opens, and fetches, the track afresh from here. TRAP:
+// in this queue turn, under an identity minted only while the stalled play
+// is still the newest submitted. playTrack: would queue the replay behind a
+// stop or play submitted after the resume, and the replay would then undo
+// it; a play already submitted is queued behind this turn and replaces it.
+- (void)replayStalledTrackOnQueue {
+    AudioTrack *track = self.currentTrack;
+    NSTimeInterval position = self.position;
+    os_unfair_lock_lock(&_stateLock);
+    BOOL newest = _activeSubmittedPlayIdentifier != 0 && _activeSubmittedPlayIdentifier == _nextSubmittedPlayIdentifier;
+    uint64_t submittedPlayIdentifier = newest ? ++_nextSubmittedPlayIdentifier : 0;
+    uint64_t submittedAt = newest ? [self noteSubmittedPlay:submittedPlayIdentifier track:track position:position paused:NO] : 0;
+    os_unfair_lock_unlock(&_stateLock);
+    if (!newest) {
+        return;
+    }
+    [self noteAdmittedPlay:submittedPlayIdentifier submittedAt:submittedAt];
+    [self playOnQueue:track intent:VibePendingPlaybackIntentMake(position, NO) declick:YES
+            submittedPlayIdentifier:submittedPlayIdentifier];
 }
 
 - (BOOL)getPlaybackIntent:(VibePendingPlaybackIntent *)intent forTrack:(AudioTrack *)track {
@@ -935,6 +963,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 - (void)stallOnQueue {
     AudioTrack *track = self.currentTrack;
     uint64_t submittedPlay = _activeSubmittedPlayIdentifier;
+    [self republishEstimatedWindowOnQueue]; // so the position held is the one heard
     NSTimeInterval seconds = self.position;
 #if DEBUG
     os_unfair_lock_lock(&_stateLock);
@@ -959,25 +988,34 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
            forSubmittedPlay:submittedPlay];
 }
 
-#pragma mark - A settled length
+#pragma mark - An estimated length
 
-// A file opened on an estimated length (a streaming VBR MP3's) settles it in
-// a decode turn; the window, the track's duration and the delegate follow it
-// once. The window alone is written: the origin is not moved, so the
-// position does not jump, only the total and its clamp.
-- (void)republishSettledLengthOnQueue {
-    if (!_windowEstimated || !_file || _file.lengthIsEstimated) {
-        return;
-    }
+// A file opened on an estimated length (a streaming MP3's with no VBR
+// header) has its window follow it. TRAP: while it is an estimate the window
+// grows with the length, which the handle keeps ahead of its cursor, and
+// never shrinks; one held at the estimate would hold the position there while
+// the audio plays on past it, and a stall would save that position, so its
+// replay would play heard audio again. Settled, in a decode turn, the window
+// is taken exactly, once, with the track's duration and the delegate. The
+// window alone is written: the origin is not moved, so the position does not
+// jump, only the total and its clamp.
+- (void)republishEstimatedWindowOnQueue {
     AudioTrack *track = self.currentTrack;
-    if (!track) {
+    if (!_windowEstimated || !_file || !track) {
         return;
     }
-    _windowEstimated = NO;
+    BOOL settled = !_file.lengthIsEstimated; // before the window's length read (AudioFileHandle's settle)
     NSRange window = [track frameWindowInFile:_file];
+    if (!settled && window.length <= _window.length) {
+        return;
+    }
+    _windowEstimated = !settled;
     os_unfair_lock_lock(&_stateLock);
     _window = window;
     os_unfair_lock_unlock(&_stateLock);
+    if (!settled) {
+        return;
+    }
     track.duration = self.duration;
     [self deliverOnMainForSubmittedPlay:_activeSubmittedPlayIdentifier named:@"didSettleDuration" block:^{
         id<AudioPlayerDelegate> delegate = self.delegate;
@@ -1068,7 +1106,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 }
 
 - (void)currentVoiceEndedOnQueue:(VibeVoiceID)voice {
-    [self republishSettledLengthOnQueue]; // a long estimate settles at the end it reached
+    [self republishEstimatedWindowOnQueue]; // a long estimate settles at the end it reached
     VibeVoiceSnapshot snapshot = [_voiceBus snapshotOfVoice:voice];
     if (snapshot.ended == VibeVoiceEndFailed) {
         AudioFileHandle *failedFile = nil;
@@ -1134,12 +1172,12 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     return VibeVoiceRampMake(gain, frames, VibeFadeCurveForMilliseconds(milliseconds), action);
 }
 
-- (VibeVoiceID)startVoiceOnQueueForFile:(AudioFileHandle *)file window:(NSRange)window
-                                atFrame:(AVAudioFramePosition)frame
-                       fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused {
+- (VibeVoiceID)startVoiceOnQueueForTrack:(AudioTrack *)track file:(AudioFileHandle *)file window:(NSRange)window
+                                 atFrame:(AVAudioFramePosition)frame
+                        fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused {
     VibeVoiceRamp ramp = [self rampOnQueueToGain:1 milliseconds:milliseconds action:VibeVoiceActionNone];
     VibeVoiceID voice = [_voiceBus startVoiceWithFile:file atFrame:frame
-                                             endFrame:(AVAudioFramePosition)NSMaxRange(window)
+                                             endFrame:[track endFrameOfWindow:window]
                                                  gain:ramp.frames ? 0 : 1
                                                  ramp:ramp
                                                paused:paused];
@@ -1155,17 +1193,15 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 // positions the cursor starts its next chunk 4096 frames late.
 - (void)revoiceOnQueueAtPosition:(NSTimeInterval)position {
     AudioFileHandle *file = _file;
-    // TRAP: an estimate the reads have passed is kept ahead of them, so the
-    // window taken from it would end the new voice there, short of the
-    // stream's end; taken afresh it runs to the file's own end.
-    NSRange window = file.lengthIsEstimated && self.currentTrack ? [self.currentTrack frameWindowInFile:file] : _window;
+    [self republishEstimatedWindowOnQueue]; // a seek past the estimate the reads have passed lands
+    NSRange window = _window;
     double sampleRate = file.processingFormat.sampleRate;
     AVAudioFramePosition startFrame = VibeClampedStartFrame(position, sampleRate, window);
     VibeVoiceID oldVoice = [self unpublishVoiceOnQueue];
     [self retireVoiceOnQueue:oldVoice milliseconds:kFadeDurationMilliseconds];
-    VibeVoiceID voice = [self startVoiceOnQueueForFile:file window:window atFrame:startFrame
-                                      fadeMilliseconds:kFadeDurationMilliseconds
-                                                paused:_state == VibePlayerStatePaused];
+    VibeVoiceID voice = [self startVoiceOnQueueForTrack:self.currentTrack file:file window:window atFrame:startFrame
+                                       fadeMilliseconds:kFadeDurationMilliseconds
+                                                 paused:_state == VibePlayerStatePaused];
     [self publishState:_state voice:voice file:file window:window
           startSeconds:VibeWindowSecondsAtFrame(startFrame, sampleRate, window) baseFrames:0];
 }

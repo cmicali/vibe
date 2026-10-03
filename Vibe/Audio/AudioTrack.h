@@ -87,6 +87,10 @@ NS_ASSUME_NONNULL_BEGIN
 // The row's window in `file`'s frames (VibeCueWindow): the whole file for a
 // plain row, empty for a window the file does not reach.
 - (NSRange)frameWindowInFile:(AudioFileHandle *)file;
+// Where a voice of this row stops reading in that window: its end for a row
+// with a cue end, 0, the file's own end, for one running to it, which a
+// length that is only an estimate must never stand in for.
+- (int64_t)endFrameOfWindow:(NSRange)window;
 
 // A fresh row for this one's audio at another URL — Convert's swap: the
 // window, names, duration and analysis carry across. Minted rather than

@@ -791,19 +791,22 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
     XCTAssertEqual(MatchingChunks(recorder.complete, reference), count);
 }
 
-// A VBR MP3 with no VBR header streams on an estimated length, here under
-// half its true one, which would size the chunks wrong and file a fraction of
-// the file under its key: its waveform decodes nothing while the download
-// runs, then decodes the whole file once it is complete and counted, and
-// persists under the file's key. A well-formed CBR one, its length from its
-// bit rate exact, decodes as the bytes arrive.
-- (void)testAWaveformStartsOnlyOnAnExactLength {
+// A headerless MP3 streams on a length counted from its head: a VBR one's an
+// estimate from its frames, here under half its true length; one whose head
+// is one rate and the rest another, that rate's count, as short; a constant
+// one's, its rate's count, right. Each waveform decodes as the bytes arrive,
+// sized by that count, and is complete only once the length is exact and is
+// the count it was sized by: the constant one's first decode, the other two
+// decoded again from disk once the download completes, so the waveform
+// delivered and persisted is always sized by the exact length, under the
+// file's key.
+- (void)testAWaveformDecodesAsTheBytesArriveAndCompletesOnlyOnTheExactLength {
     NSDictionary<NSString *, uint8_t (^)(uint32_t)> *rates = @{
         @"estimated.mp3": ^uint8_t(uint32_t frame) { return frame < 60 ? 13 + frame % 2 : 1 + frame % 2; },
+        @"constant-head.mp3": ^uint8_t(uint32_t frame) { return frame < 200 ? 14 : 9; },
         @"constant.mp3": ^uint8_t(uint32_t frame) { return 9; },
     };
     for (NSString *name in rates) {
-        BOOL estimated = [name hasPrefix:@"estimated"];
         NSURL *source = [_tempDirectory URLByAppendingPathComponent:[@"whole-" stringByAppendingString:name]];
         NSData *bytes = VibeMP3WithoutVBRHeader(2000, 48000, rates[name]);
         XCTAssertTrue([bytes writeToURL:source atomically:YES]);
@@ -816,30 +819,20 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
         AudioWaveformCache *cache = [self cacheWithRecorder:recorder];
         [AudioLoadTiming reset];
         [cache loadWaveformForTrack:[AudioTrack withURL:url]];
-        if (estimated) {
-            [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.3]];
-            [self write:stream from:source to:bytes.length - 4096];
-            [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.3]];
-            XCTAssertEqual(recorder.progressions + recorder.completions, 0u, @"nothing decoded on a guessed length");
-        }
-        else {
-            XCTAssertTrue([self eventually:^BOOL { return recorder.progressions > 0; }], @"decoding as the bytes arrive");
-        }
+        XCTAssertTrue([self eventually:^BOOL { return recorder.progressions > 0; }], @"%@: decoding as the bytes arrive", name);
+        XCTAssertEqual(recorder.completions, 0u, @"%@: nothing complete before the length is exact", name);
         [self complete:stream from:source as:url];
         XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 1; }], @"%@", name);
         XCTAssertEqual(recorder.failures, 0u, @"%@", name);
         XCTAssertEqualWithAccuracy([[AudioLoadTiming newestJSONForPath:url.path][@"audioSeconds"] doubleValue],
                                    (double)length / 48000, 1e-9, @"%@: sized by the exact length", name);
-        if (!estimated) {
-            continue;
-        }
         NSData *zeros = [NSMutableData dataWithLength:bytes.length];
         XCTAssertTrue([zeros writeToURL:url atomically:NO]);
         struct timeval times[2] = {{kStreamModified, 0}, {kStreamModified, 0}};
         XCTAssertEqual(utimes(url.fileSystemRepresentation, times), 0);
         [cache loadWaveformForTrack:[AudioTrack withURL:url]];
         XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 2 || recorder.failures > 0; }]);
-        XCTAssertEqual(recorder.failures, 0u, @"persisted under the file's key: a miss would have failed on the zeros");
+        XCTAssertEqual(recorder.failures, 0u, @"%@: persisted under the file's key: a miss would have failed on the zeros", name);
     }
 }
 
