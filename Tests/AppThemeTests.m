@@ -514,6 +514,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     [theme setColor:VibeColorFromHexString(@"#FF000080") forBase:kVibeThemeColorTitle dark:YES];
     [theme setPlaylistColorEnabled:YES forBase:kVibeThemeColorPlaylistTitle];
     theme.showFileInfo = NO;
+    theme.waveformPlayheadLine = YES;
     theme.keyNotation = @"musical";
     theme.dockIcon = @"app_icon";
     [theme setImageReference:@"bundled:cupertino_dark.jpg" forKey:kVibeThemeImagePlayButtonDark];
@@ -525,6 +526,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
         XCTAssertEqualObjects(VibeHexStringFromColor([theme colorForBase:kVibeThemeColorTitle dark:YES]), @"#FF000080");
         XCTAssertTrue([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistTitle]);
         XCTAssertFalse(theme.showFileInfo);
+        XCTAssertTrue(theme.waveformPlayheadLine);
         XCTAssertEqualObjects(theme.keyNotation, @"musical");
         XCTAssertEqualObjects(theme.dockIcon, @"app_icon");
         XCTAssertEqualObjects([theme imageReferenceForKey:kVibeThemeImagePlayButtonDark],

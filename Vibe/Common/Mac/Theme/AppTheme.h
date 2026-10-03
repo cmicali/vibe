@@ -332,8 +332,9 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 #pragma mark Dice
 
 // The editor's dice. Settings rolls the appearance choices and fonts, never
-// colors, the column switches, the Info card, the Dock choice or images. The
-// styles are passed in because their registry is the renderer's.
+// colors, the playhead line, the column switches, the Info card, the Dock
+// choice or images. The styles are passed in because their registry is the
+// renderer's.
 - (void)randomizeSettingsWithWaveformStyles:(NSArray<NSString *> *)styles;
 
 // Resets every pair and paints one hue in one of five schemes, switching on

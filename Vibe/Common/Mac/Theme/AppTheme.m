@@ -1429,7 +1429,6 @@ static id RandomPick(NSArray *choices) {
     self.waveformTheme = RandomPick(@[SETTINGS_VALUE_WAVEFORM_THEME_MONO, SETTINGS_VALUE_WAVEFORM_THEME_ORANGE,
                                       SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART]);
     self.waveformGradient = RandomChance(50);
-    self.waveformPlayheadLine = RandomChance(50);
     self.buttonGradient = RandomPick(VibeButtonGradientModes());
     self.playlistButtonGlyph = RandomPick(VibePlaylistButtonGlyphs());
     NSArray<NSString *> *pair = RandomPick(VibePlayPauseGlyphPairs());
