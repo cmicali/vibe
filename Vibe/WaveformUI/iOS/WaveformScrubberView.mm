@@ -891,16 +891,29 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     if (from > 0) {
         [self newSegmentFrom:0 to:from];
     }
-    // TRAP: everything past the old edge, under the growing stretch too,
-    // comes from the PREVIOUS picture, where it is all midline. A drawn bar is
-    // wider than a chunk and straddles the decoded edge, so in the new picture
-    // the edge bar's sliver lies past it: cut from there, it stood at full
-    // height while the stretch grew. Padding the stretch past its edges
-    // instead regrew bars already shown, and the stretch no longer fit where
-    // it belonged. Under the stretch it keeps the midline while the stretch is
-    // still a hairline, which smooth outlines (3-Band) do not draw at all.
-    [self newSegmentFrom:from to:1 played:tailPlayed unplayed:tailUnplayed
-         unplayedOpacity:tailUnplayedOpacity];
+    // TRAP: everything past the old edge comes from the PREVIOUS picture,
+    // where it is all midline. A drawn bar is wider than a chunk and straddles
+    // the decoded edge, so in the new picture the edge bar's sliver lies past
+    // it: cut from there, it stood at full height while the stretch grew.
+    // Padding the stretch past its edges instead regrew bars already shown,
+    // and the stretch no longer fit where it belonged.
+    if (to < 1) {
+        [self newSegmentFrom:to to:1 played:tailPlayed unplayed:tailUnplayed
+             unplayedOpacity:tailUnplayedOpacity];
+    }
+    // TRAP: under the stretch, the previous picture only while the stretch is
+    // near a hairline, which smooth outlines (3-Band) do not draw at all, so
+    // the midline had a gap there. Left for the whole grow, its bright midline
+    // and the cliff at its old edge showed through the translucent stretch.
+    CALayer *underlay = [self newSegmentFrom:from to:to played:tailPlayed unplayed:tailUnplayed
+                             unplayedOpacity:tailUnplayedOpacity];
+    underlay.opacity = 0;
+    CABasicAnimation *fade = [CABasicAnimation animationWithKeyPath:@"opacity"];
+    fade.fromValue = @1;
+    fade.toValue = @0;
+    fade.duration = kChunkGrowDuration / 2;
+    fade.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseIn];
+    [underlay addAnimation:fade forKey:@"underlayFade"];
     CALayer *reveal = [self newSegmentFrom:from to:to];
     _revealLayer = reveal;
     // Set before the animations, which it then waits for: the last stretch's
