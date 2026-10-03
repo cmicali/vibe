@@ -882,7 +882,9 @@ static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
         NSNumber *scanned = scannedAccessByPath[path];
         VibeReadAccess access = scanned != nil ? (VibeReadAccess)scanned.integerValue : ReadAccessForURL(row.url);
         scannedAccessByPath[path] = @(access);
-        if (access == VibeReadAccessReadable) {
+        // A remote placeholder answers no readability probe, and plays: the
+        // player downloads it.
+        if (access == VibeReadAccessReadable || [self isRemotePlaceholderFile:row.url]) {
             [readable addObject:row];
         }
         else if (![skipped containsObject:path]) {
