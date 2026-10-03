@@ -55,12 +55,6 @@ static inline NSUInteger VibeWaveformEnergyColumnIndexForBar(NSUInteger i, NSUIn
             ? i * kVibeWaveformEnergyColumns / count : i;
 }
 
-// The same mapping from the column's side: the bar past the column's last.
-static inline NSUInteger VibeWaveformBarEndForEnergyColumn(NSUInteger column, NSUInteger count) {
-    NSUInteger columns = MIN(count, kVibeWaveformEnergyColumns);
-    return ((column + 1) * count + columns - 1) / columns;
-}
-
 // How much of AudioWaveform.getBarMeanSquares's reach count bars take: all of
 // it up to fullCount, fading to none at twice that. Bars about a beat long
 // need it, or their levels ripple as a resize moves their edges; bars short

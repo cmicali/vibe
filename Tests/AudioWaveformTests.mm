@@ -295,6 +295,31 @@ static float VibeTestFullScaleRMS(AudioWaveform *waveform, BOOL normalize, NSUIn
     }
 }
 
+// A bar straddling into the next column's transient widens only its own
+// reference: the bars beside it, which hold none of it, keep their height.
+- (void)testDetailedBarsBesideAStraddlingTransientKeepTheirHeight {
+    std::vector<AudioWaveformCacheChunk> chunks(8192);
+    for (auto &chunk : chunks) chunk.set(-0.1f, 0.1f, 0.01f, 1);
+    std::vector<AudioWaveformCacheChunk> steady = chunks;
+    chunks[816].set(-0.9f, 0.9f, 0.81f, 1);
+    AudioWaveform waveform(chunks.size(), chunks.data()), background(steady.size(), steady.data());
+    DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)[self rendererForStyle:@"detailed"];
+    for (CGFloat width : {930.0, 931.0, 1200.0}) {
+        NSUInteger count = [renderer numBarsForWidth:width];
+        std::vector<float> envelope(count * 2), plain(count * 2);
+        [renderer fillEnvelope:envelope.data() barCount:count waveform:&waveform];
+        [renderer fillEnvelope:plain.data() barCount:count waveform:&background];
+        for (NSUInteger i = 0; i < count; i++) {
+            NSUInteger column = VibeWaveformEnergyColumnIndexForBar(i, count);
+            BOOL touched = waveform.getChunkAtIndex(i, count).getMax() > 0.5f ||
+                    waveform.getChunkAtIndex(column, kVibeWaveformEnergyColumns).getMax() > 0.5f;
+            if (!touched) {
+                XCTAssertEqualWithAccuracy(envelope[i * 2 + 1], plain[i * 2 + 1], 1e-3, @"width %g bar %lu", width, i);
+            }
+        }
+    }
+}
+
 - (void)testLayerStylesOnlyGrowUnderNormalization {
     std::vector<AudioWaveformCacheChunk> chunks(1024);
     for (auto &chunk : chunks) chunk.set(-0.1f, 0.1f, 0.01f, 1);

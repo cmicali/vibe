@@ -305,33 +305,29 @@ static const CGFloat kDetailedBarPitch = 0.5;
         for (NSUInteger i = 0; i < count; i++) out[i * 2] = 0;
         return;
     }
-    // Each bar keeps its own min and max, scaled so the column's peak draws
-    // the column's level: DC-offset asymmetry and fine texture survive.
-    // TRAP: the peak is the energy column's own, widened by its bars'. Past
+    // Each bar keeps its own min and max, scaled so its energy column's peak
+    // draws the column's level: DC-offset asymmetry and fine texture survive.
+    // TRAP: the peak is the column's own, widened by the bar's alone. Past
     // 1,024 bars a column's bars need not cover its chunks, so their peaks
-    // alone can miss a transient its energy holds, and quiet bars beside it
-    // would be scaled up to the transient's level. The bars' widen it for one
-    // straddling into the next column, so no bar passes the envelope.
+    // can miss a transient its energy holds, and quiet bars beside it would
+    // be scaled up to the transient's level; widened by a neighbour's, a bar
+    // straddling into the next column's transient would dip every bar
+    // beside it.
     std::vector<float> levels = [self energyColumnLevelsForBarCount:count waveform:waveform];
-    NSUInteger columns = levels.size();
-    for (NSUInteger column = 0, bar = 0; column < columns; column++) {
-        NSUInteger end = VibeWaveformBarEndForEnergyColumn(column, count);
-        float extent = 0;
-        if (count > columns) {
-            AudioWaveformCacheChunk c = waveform->getChunkAtIndex(column, columns);
-            extent = fmaxf(fabsf(c.getMin()), fabsf(c.getMax()));
+    NSUInteger columns = levels.size(), lastColumn = NSNotFound;
+    float columnExtent = 0;
+    for (NSUInteger i = 0; i < count; i++) {
+        AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
+        NSUInteger column = VibeWaveformEnergyColumnIndexForBar(i, count);
+        if (column != lastColumn) {
+            AudioWaveformCacheChunk c = count > columns ? waveform->getChunkAtIndex(column, columns) : m;
+            columnExtent = fmaxf(fabsf(c.getMin()), fabsf(c.getMax()));
+            lastColumn = column;
         }
-        for (NSUInteger i = bar; i < end; i++) {
-            AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
-            out[i * 2] = m.getMin();
-            out[i * 2 + 1] = m.getMax();
-            extent = fmaxf(extent, fmaxf(fabsf(m.getMin()), fabsf(m.getMax())));
-        }
+        float extent = fmaxf(columnExtent, fmaxf(fabsf(m.getMin()), fabsf(m.getMax())));
         float scale = extent > 0 ? levels[column] / extent : 0;
-        for (; bar < end; bar++) {
-            out[bar * 2] *= scale;
-            out[bar * 2 + 1] *= scale;
-        }
+        out[i * 2] = m.getMin() * scale;
+        out[i * 2 + 1] = m.getMax() * scale;
     }
 }
 
