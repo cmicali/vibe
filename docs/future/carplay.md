@@ -54,7 +54,7 @@ CarPlay does not want a second engine; it wants a second *view* of the one that 
 
 ### 3. The library problem, which is the interesting one
 
-Vibe's model is *the picked folder is the playlist*, and the pick comes from the system document picker or `UIDocumentBrowserViewController`. **Neither exists in CarPlay, and no template browses Files.** In the car the app can only offer what it already holds: the current or restored `FolderSession` plus files reachable under `SearchFolderStore`'s persistent roots.
+Vibe's model is *the picked folder is the playlist*, and the pick comes from the app's own Files tab (Dropbox, the device, granted folders) or the system document picker. **Neither exists in CarPlay, and no template browses Files.** In the car the app can only offer what it already holds: the current or restored `FolderSession` plus files reachable under `SearchFolderStore`'s persistent roots.
 
 The persistent root list and its bounded, concurrent bookmark restoration already exist, as does `FileSearchIndex` over those roots. CarPlay therefore needs a presentation of that library, not a second recent-folders persistence model.
 

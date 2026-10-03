@@ -8,6 +8,7 @@
 #import "LibraryViewController.h"
 
 #import "AudioTrack.h"
+#import "BrowserViewController.h"
 #import "AudioTrackMetadata.h"
 #import "CloudTransferRegistry.h"
 #import "EqualizerIndicatorView.h"
@@ -209,8 +210,14 @@ static const CGFloat kArtTextGap = 14;
     }
 }
 
+// The Files tab's browser as a sheet in which every action appends.
 - (void)addTapped {
-    [_playback presentPickerFromViewController:self];
+    BrowserViewController *browser = [[BrowserViewController alloc] initWithPlayback:_playback
+                                                                        directoryURL:nil
+                                                                           appending:YES];
+    [self presentViewController:[[UINavigationController alloc] initWithRootViewController:browser]
+                       animated:YES
+                     completion:nil];
 }
 
 // The Files tab, not the modal picker: it carries our row actions and leaves
@@ -499,6 +506,9 @@ didEndDisplayingCell:(UITableViewCell *)cell
 }
 
 - (void)playbackDidOpenEmptyFolder:(PlaybackController *)playback {
+    if (playback.playlist.count > 0) {
+        return;   // the playlist stands, and says nothing of the pick
+    }
     _lastPickWasEmpty = YES;
     [self refreshChrome];
 }

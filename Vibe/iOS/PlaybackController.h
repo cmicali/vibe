@@ -32,6 +32,10 @@ NS_ASSUME_NONNULL_BEGIN
 // The whole row set changed and the cursor is final.
 - (void)playbackDidReplacePlaylist:(PlaybackController *)playback;
 - (void)playback:(PlaybackController *)playback didAppendTracksAtIndexes:(NSIndexSet *)indexes;
+// Every Add ends here, after any append it made: landed is NO when it found
+// nothing, or nothing new. The playlist's own events say what changed; this
+// says the request is over.
+- (void)playback:(PlaybackController *)playback didSettleAddLanding:(BOOL)landed;
 - (void)playback:(PlaybackController *)playback didReplaceTrackAtIndex:(NSUInteger)index;
 - (void)playback:(PlaybackController *)playback
         didChangeCurrentIndexFromIndex:(NSUInteger)previousIndex;
@@ -72,7 +76,9 @@ NS_ASSUME_NONNULL_BEGIN
 // A deliberate open landed and is playing; never sent for a relaunch restore.
 // The only event that presents the card.
 - (void)playbackDidOpenNewFolder:(PlaybackController *)playback;
-// The picked location held no audio files.
+// The picked location held no audio files. The playlist stands if it had
+// one — read playlist.count before presenting an empty state — and every
+// Add in flight was superseded.
 - (void)playbackDidOpenEmptyFolder:(PlaybackController *)playback;
 // A relaunch restore came to nothing, or there was nothing to restore.
 - (void)playbackHasNothingToRestore:(PlaybackController *)playback;
@@ -179,10 +185,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - Opening
 
-// The document picker: multi-selection, appending. The Playlist tab's plus is
-// the one caller.
-- (void)presentPickerFromViewController:(UIViewController *)presenter;
-
 // "Open in Vibe" from Files or the share sheet.
 - (void)handleOpenURLContexts:(NSSet<UIOpenURLContext *> *)contexts;
 
@@ -213,6 +215,19 @@ NS_ASSUME_NONNULL_BEGIN
 - (uint64_t)addRequestToken;
 - (void)addURLs:(NSArray<NSURL *> *)urls token:(uint64_t)token;
 
+// A replace's own identity, taken when the USER asks and judged by the
+// browser's confirmReplacing… funnel. Taking one supersedes every replace
+// still waiting, as an open or a clear does, so of two taps whose
+// resolves finish in either order only the later one opens. Not the Add
+// token: two taps before either resolved captured the same generation, and
+// the first to open dropped the one the user chose last. Main thread.
+- (uint64_t)replaceRequestToken;
+- (BOOL)isCurrentReplaceRequest:(uint64_t)token;
+
+// YES once an Add has landed on the playlist now loaded, or it was restored
+// with additions: replacing it loses work a reopen does not bring back.
+@property (nonatomic, readonly) BOOL playlistHasAdditions;
+
 // Nil for a single-file playlist and before anything was opened.
 @property (nonatomic, readonly, nullable) NSURL *folderURL;
 
@@ -230,8 +245,14 @@ NS_ASSUME_NONNULL_BEGIN
 // Documents, then resolved favorites. FileSearchIndex prunes nesting.
 @property (nonatomic, readonly) NSArray<NSURL *> *searchRoots;
 
-// Opens the hit's directory with it selected, like any other open.
-- (void)openSearchResultURL:(NSURL *)url;
+// A search hit or a recent (FolderSession openURL:inFolder:): a folder opens,
+// a file plays alone or, inFolder, its directory with it selected.
+- (void)openFileURL:(NSURL *)url inFolder:(BOOL)inFolder;
+
+// FolderSession's recents, newest first, and their resolve.
+@property (nonatomic, readonly) NSArray<NSDictionary *> *recentItems;
+- (void)resolveRecentItem:(NSDictionary *)item completion:(void (^)(NSURL *_Nullable url))completion;
+- (void)clearRecentItems;
 
 // The scene delegate calls exactly one of this and handleOpenURLContexts: at
 // launch. Nothing to restore, or a failed restore, sends

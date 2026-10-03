@@ -22,6 +22,7 @@
 #import "AudioTrackMetadataCache.h"
 #import "CloudTransferRegistry.h"
 #import "DownloadProgressMonitor.h"
+#import "DropboxMirror.h"
 #import "FavoritesStore.h"
 #import "PlayerDisplaySettings.h"
 #import "PlaybackDeliveryRules.h"
@@ -75,8 +76,29 @@ static const NSUInteger kUIUpdateHz = 3;
                                                selector:@selector(thumbnailDidLoad:)
                                                    name:AudioTrackMetadataThumbnailDidLoadNotification
                                                  object:nil];
+        [NSNotificationCenter.defaultCenter addObserver:self
+                                               selector:@selector(dropboxAccountDidChange:)
+                                                   name:VibeDropboxAccountDidChangeNotification
+                                                 object:DropboxMirror.shared.client];
     }
     return self;
+}
+
+// Signed out, or revoked on dropbox.com: the mirror is being deleted and its
+// placeholders can no longer download, so a playlist reaching into it goes
+// whole, as Clear Playlist does — never a row edit (AGENTS.md).
+- (void)dropboxAccountDidChange:(NSNotification *)notification {
+    DropboxMirror *mirror = DropboxMirror.shared;
+    if (mirror.client.isLinked) {
+        return;
+    }
+    for (AudioTrack *track in _playlist.tracks) {
+        if ([mirror containsURL:track.url]) {
+            LogInfo(@"Dropbox: account gone, clearing a playlist in its mirror");
+            [self clearPlaylist];
+            return;
+        }
+    }
 }
 
 - (void)dealloc {
@@ -303,6 +325,10 @@ static const NSUInteger kUIUpdateHz = 3;
     return _folderSession.folderDisplayName;
 }
 
+- (BOOL)playlistHasAdditions {
+    return _folderSession.hasAdditions;
+}
+
 #pragma mark - Display state
 
 - (VibePlayerScreenState)screenState {
@@ -366,6 +392,7 @@ static const NSUInteger kUIUpdateHz = 3;
 // track-end callback, so this method owns the reset; +PlayerEvents' stale-track
 // guards drop any callback already in flight.
 - (void)clearPlaylist {
+    _replaceRequestSerial++;
     [_player stop];
     [self teardownDownloadMonitor];
     // TRAP: the session goes BEFORE the model. Clearing the model fires
@@ -667,10 +694,6 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 
 #pragma mark - Opening
 
-- (void)presentPickerFromViewController:(UIViewController *)presenter {
-    [_folderSession presentPickerFromViewController:presenter];
-}
-
 // One URL: a share can mix in-place URLs with inbox copies, which open
 // differently. Filename order is deterministic, unlike anyObject, and a covering
 // grant pulls the siblings in anyway.
@@ -685,6 +708,7 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 }
 
 - (void)openURLs:(NSArray<NSURL *> *)urls openInPlace:(BOOL)openInPlace {
+    _replaceRequestSerial++;
     [_folderSession openURLs:urls openInPlace:openInPlace];
 }
 
@@ -694,6 +718,14 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 
 - (uint64_t)addRequestToken {
     return _folderSession.addRequestToken;
+}
+
+- (uint64_t)replaceRequestToken {
+    return ++_replaceRequestSerial;
+}
+
+- (BOOL)isCurrentReplaceRequest:(uint64_t)token {
+    return token == _replaceRequestSerial;
 }
 
 - (void)addURLs:(NSArray<NSURL *> *)urls token:(uint64_t)token {
@@ -716,14 +748,35 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 
 // The only composition of the search scope: transient roots, then persistent
 // ones. FileSearchIndex prunes the nesting.
+// Never a Dropbox folder: the search screen's Dropbox section asks Dropbox,
+// and a walk of the mirror would offer the same file twice from the folders
+// already browsed.
 - (NSArray<NSURL *> *)searchRoots {
-    return [[_folderSession.searchRoots
+    NSArray<NSURL *> *roots = [[_folderSession.searchRoots
             arrayByAddingObjectsFromArray:SearchFolderStore.shared.searchRoots]
             arrayByAddingObjectsFromArray:FavoritesStore.shared.searchRoots];
+    DropboxMirror *mirror = DropboxMirror.shared;
+    return [roots filteredArrayUsingPredicate:
+            [NSPredicate predicateWithBlock:^BOOL(NSURL *root, NSDictionary *bindings) {
+        return ![mirror containsURL:root];
+    }]];
 }
 
-- (void)openSearchResultURL:(NSURL *)url {
-    [_folderSession openFileFromSearchRoots:url];
+- (void)openFileURL:(NSURL *)url inFolder:(BOOL)inFolder {
+    _replaceRequestSerial++;
+    [_folderSession openURL:url inFolder:inFolder];
+}
+
+- (NSArray<NSDictionary *> *)recentItems {
+    return _folderSession.recentItems;
+}
+
+- (void)resolveRecentItem:(NSDictionary *)item completion:(void (^)(NSURL *))completion {
+    [_folderSession resolveRecentItem:item completion:completion];
+}
+
+- (void)clearRecentItems {
+    [_folderSession clearRecentItems];
 }
 
 - (void)restorePersistedSession {
@@ -761,10 +814,12 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     // after it, under shuffle it would be a pick (replaceAllWithTracks:'s trap).
     NSUInteger start = NSNotFound;
     if (selectedURL) {
-        // A file pick that expanded to its directory plays the picked file.
+        // A file pick that expanded to its directory plays the picked file;
+        // a picked sheet, its first track.
         NSString *selectedPath = selectedURL.URLByStandardizingPath.path;
         for (NSUInteger i = 0; i < rows.count; i++) {
-            if ([rows[i].url.URLByStandardizingPath.path isEqualToString:selectedPath]) {
+            if ([rows[i].url.URLByStandardizingPath.path isEqualToString:selectedPath]
+                    || [rows[i].cueSheetURL.URLByStandardizingPath.path isEqualToString:selectedPath]) {
                 start = i;
                 break;
             }
@@ -832,24 +887,29 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
             [fresh addObject:row];
         }
     }
-    if (fresh.count == 0) {
-        return;
+    if (fresh.count > 0) {
+        [_playlist appendTracks:fresh];
+        // No cancelScan: that belongs to a replacement.
+        [self scheduleDeferredMetadataLoad];
+        [self updateMetadataNeighborhood];
+        // A playing last row may now have a successor.
+        [self prefetchSuccessor];
+        // hasNext may have flipped, and the timer is off while parked or paused.
+        [self notifyDidTick];
     }
-    [_playlist appendTracks:fresh];
-    // No cancelScan: that belongs to a replacement.
-    [self scheduleDeferredMetadataLoad];
-    [self updateMetadataNeighborhood];
-    // A playing last row may now have a successor.
-    [self prefetchSuccessor];
-    // hasNext may have flipped, and the timer is off while parked or paused.
-    [self notifyDidTick];
+    // After the append's own events: the request is over either way.
+    for (id<PlaybackObserver> observer in [self observerSnapshot]) {
+        if ([observer respondsToSelector:@selector(playback:didSettleAddLanding:)]) {
+            [observer playback:self didSettleAddLanding:fresh.count > 0];
+        }
+    }
 }
 
+// A bad pick never wipes a good playlist, and the observers hear of it either
+// way: the open superseded every Add in flight, whose completions are dropped,
+// so the rows the shell lifted for them settle on this event or never.
 - (void)folderSessionDidOpenEmptyFolder:(FolderSession *)session {
     [self settleLaunchOpen];
-    if (_playlist.count > 0) {
-        return;   // a bad pick never wipes a good playlist
-    }
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {
         if ([observer respondsToSelector:@selector(playbackDidOpenEmptyFolder:)]) {
             [observer playbackDidOpenEmptyFolder:self];

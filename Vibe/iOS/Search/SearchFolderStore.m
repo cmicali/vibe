@@ -5,8 +5,12 @@
 
 #import "SearchFolderStore.h"
 
+#import <UIKit/UIKit.h>
+
+#import "DropboxMirror.h"
 #import "FileSearchRules.h"
 #import "SearchFolderStoreInternal.h"
+#import "VibeStrings.h"
 
 NSNotificationName const VibeSearchFoldersDidChangeNotification =
         @"VibeSearchFoldersDidChangeNotification";
@@ -167,11 +171,14 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     return roots;
 }
 
-- (NSString *)displayNameForFolderAtIndex:(NSUInteger)index {
-    if (index >= _folders.count) {
-        return @"";
++ (NSString *)displayNameForFolderURL:(NSURL *)url {
+    // The account's mirror directory is named for its Dropbox account id.
+    if ([[DropboxMirror.shared dropboxPathForURL:url] isEqualToString:@""]) {
+        return VibeNotLocalized(@"Dropbox");
     }
-    NSURL *url = _folders[index].url;
+    if ([url.URLByStandardizingPath isEqual:SearchFolderStore.containerDocumentsURL.URLByStandardizingPath]) {
+        return [NSString stringWithFormat:STR_BROWSER_ON_DEVICE, UIDevice.currentDevice.localizedModel];
+    }
     return [NSFileManager.defaultManager displayNameAtPath:url.path] ?: url.lastPathComponent;
 }
 

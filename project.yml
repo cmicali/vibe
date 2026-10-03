@@ -510,6 +510,10 @@ targets:
         # the only way to put anything in it. The app keeps no state there.
         LSSupportsOpeningDocumentsInPlace: true
         UIFileSharingEnabled: true
+        # The Dropbox app's key (DropboxMirror). Not a secret: the sign-in is
+        # PKCE, which needs none, and the redirect it pairs with is the
+        # db-<key> scheme Dropbox grants every app without registration.
+        VibeDropboxAppKey: n3d3xw7piaqy2fz
         # Same key and UTIs as the mac target's "Audio Files" entry, so
         # InfoPlist.xcstrings localizes both. No Folder claim (Launch Services
         # folder handling is a mac concept) and no related-item FLAC entry
@@ -559,9 +563,11 @@ targets:
       - sdk: AVKit.framework                # AVRoutePickerView (OutputRouteView)
       - sdk: Accelerate.framework
       - sdk: AudioToolbox.framework
+      - sdk: AuthenticationServices.framework  # the Dropbox sign-in sheet
       - sdk: ImageIO.framework
       - sdk: MediaPlayer.framework
       - sdk: QuartzCore.framework
+      - sdk: Security.framework             # the Dropbox refresh token's Keychain item
       - sdk: UniformTypeIdentifiers.framework
 
   # The home-screen widget. A SECOND PROCESS: no engine, no playlist, no audio
@@ -739,6 +745,8 @@ targets:
       - path: Vibe/Util/Categories/NSURL+FileIdentity.m
       - path: Vibe/iOS/Player/PageWaveformCoordinator.m
       - path: Vibe/iOS/Search/FileSearchIndex.m
+      - path: Vibe/iOS/Dropbox/DropboxClient.m
+      - path: Vibe/iOS/Dropbox/DropboxMirror.m
       - path: Vibe/Common/PlatformImage.m
       - path: Vibe/Common/PlatformColor.m
       - path: Vibe/Util/Mac/NSImage+Util.m
@@ -811,11 +819,14 @@ targets:
           # screen's state machine is testable here. The iOS sources compiled in
           # above are Foundation-only too.
           - "$(SRCROOT)/Vibe/iOS"
+          - "$(SRCROOT)/Vibe/iOS/Dropbox"
     dependencies:
       - sdk: MediaPlayer.framework
       - sdk: Accelerate.framework            # vDSP, throughout AudioWaveform
       - sdk: AppKit.framework                # AudioTrack album art (NSImage)
       - sdk: AVFoundation.framework          # AudioWaveformLoader reads (and its tests write) files
+      - sdk: AuthenticationServices.framework  # DropboxClient's sign-in, compiled in, never presented
+      - sdk: Security.framework              # DropboxClient's Keychain item, never written here
 
   # Production pipeline rendering, with no test host or output device.
   VibeAudioTests:

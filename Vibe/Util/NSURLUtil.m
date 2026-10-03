@@ -15,12 +15,36 @@
 
 #include <errno.h>
 #include <limits.h>
+#include <os/lock.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#if DEBUG
-#include <stdatomic.h>
-#endif
+
+// The remote backend's root as a comparable path ending in "/", set at
+// launch. Nil (the mac) means no file is a placeholder.
+static os_unfair_lock sRemoteRootLock = OS_UNFAIR_LOCK_INIT;
+static NSString *sRemoteRootPrefix;
+
+static NSString *VibeRemoteRootPrefix(void) {
+    os_unfair_lock_lock(&sRemoteRootLock);
+    NSString *prefix = sRemoteRootPrefix;
+    os_unfair_lock_unlock(&sRemoteRootLock);
+    return prefix;
+}
+
+NSString *VibeComparablePath(NSString *path) {
+    NSString *standard = path.stringByStandardizingPath;
+    if ([standard hasPrefix:@"/private/var/"]) {
+        return [standard substringFromIndex:@"/private".length];
+    }
+    return standard;
+}
+
+BOOL VibePathIsUnderRemotePlaceholderRoot(NSString *path) {
+    NSString *prefix = VibeRemoteRootPrefix();
+    return prefix && [VibeComparablePath(path) hasPrefix:prefix];
+}
 
 // Installed at launch, read from the expansion workers: every access locks.
 static VibePlaylistFolderGrantHandler sPlaylistFolderGrantHandler;
@@ -97,6 +121,35 @@ static VibeBulkOpenDirectoriesHandler BulkOpenDirectoriesHandler(void) {
     }
 }
 
++ (void)setRemotePlaceholderRoot:(NSURL *)root {
+    NSString *prefix = root ? [VibeComparablePath(root.path) stringByAppendingString:@"/"] : nil;
+    os_unfair_lock_lock(&sRemoteRootLock);
+    sRemoteRootPrefix = prefix;
+    os_unfair_lock_unlock(&sRemoteRootLock);
+}
+
+// The root first: with none installed, as on the mac, no stat is paid.
++ (BOOL)isRemotePlaceholderFile:(NSURL *)url {
+    if (!VibeRemoteRootPrefix()) {
+        return NO;
+    }
+    struct stat st;
+    return stat(url.fileSystemRepresentation, &st) == 0 && VibeFileModeIsRemotePlaceholder(st.st_mode)
+            && VibePathIsUnderRemotePlaceholderRoot(url.path);
+}
+
++ (BOOL)readsRemotePlaceholderByRange:(NSURL *)url {
+    return [NSURLUtil isRemotePlaceholderFile:url]
+            && [PlayableExtensions.tagParsed containsObject:url.pathExtension.lowercaseString];
+}
+
+NSString *const VibeRemotePlaceholderPartSuffix = @".vibe-download";
+
++ (NSURL *)remotePlaceholderPartURL:(NSURL *)url {
+    NSString *name = [NSString stringWithFormat:@".%@%@", url.lastPathComponent, VibeRemotePlaceholderPartSuffix];
+    return [url.URLByDeletingLastPathComponent URLByAppendingPathComponent:name isDirectory:NO];
+}
+
 #if DEBUG
 + (void)setDatalessProbe:(VibeDatalessProbe)probe {
     @synchronized (self) {
@@ -130,7 +183,8 @@ static VibeBulkOpenDirectoriesHandler BulkOpenDirectoriesHandler(void) {
 #endif
         return NO;
     }
-    BOOL dataless = (st.st_flags & SF_DATALESS) != 0;
+    BOOL dataless = (st.st_flags & SF_DATALESS) != 0
+            || (VibeFileModeIsRemotePlaceholder(st.st_mode) && VibePathIsUnderRemotePlaceholderRoot(url.path));
 #if DEBUG
     if (atomic_load_explicit(&sDatalessDiagEnabled, memory_order_relaxed)) {
         VibeRecordDatalessStat(url, dataless, st.st_flags, NO);
@@ -434,6 +488,45 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
     return (errno == EPERM || errno == EACCES) ? VibeReadAccessDenied : VibeReadAccessMissing;
 }
 
+// The files a sheet may name, by PlaylistFile's key, from one listing.
+static NSDictionary<NSString *, NSArray<NSURL *> *> *VibeKnownFiles(NSArray<NSURL *> *urls) {
+    NSMutableDictionary<NSString *, NSMutableArray<NSURL *> *> *knownFiles =
+            [NSMutableDictionary dictionaryWithCapacity:urls.count];
+    for (NSURL *url in urls) {
+        NSString *key = [PlaylistFile knownFileKeyForPath:url.path];
+        NSMutableArray<NSURL *> *matches = knownFiles[key];
+        if (!matches) {
+            knownFiles[key] = matches = [NSMutableArray array];
+        }
+        [matches addObject:url];
+    }
+    return knownFiles;
+}
+
+// A sheet's rows that name supported, nonempty files, listed or readable: a
+// listed placeholder counts though no readability probe passes it. playable
+// holds the verdict once per file, however many rows or sheets name it.
+static NSArray<AudioTrack *> *VibePlayableSheetRows(NSURL *sheet, NSSet<NSURL *> *listed,
+                                                   NSDictionary<NSString *, NSArray<NSURL *> *> *knownFiles,
+                                                   NSMutableDictionary<NSURL *, NSNumber *> *playable) {
+    NSSet<NSString *> *supported = PlayableExtensions.lookup;
+    NSMutableArray<AudioTrack *> *rows = [NSMutableArray array];
+    for (AudioTrack *row in [PlaylistFile cueRowsForSheetAtURL:sheet knownFiles:knownFiles]) {
+        NSNumber *verdict = playable[row.url];
+        if (verdict == nil) {
+            verdict = @([supported containsObject:row.url.pathExtension.lowercaseString]
+                        && !row.url.isEmptyOrDirectory
+                        && ([listed containsObject:row.url]
+                            || ReadAccessForURL(row.url) == VibeReadAccessReadable));
+            playable[row.url] = verdict;
+        }
+        if (verdict.boolValue) {
+            [rows addObject:row];
+        }
+    }
+    return rows;
+}
+
 // Each audio file its rows (rowsForFile:), and each sheet its rows in its
 // sorted place. A sheet resolves against the walk's own listing first and
 // claims its files, so none also appears whole or is opened for its own sheet,
@@ -455,38 +548,16 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
         return rows;
     }
     NSSet<NSURL *> *listed = [NSSet setWithArray:urls];
-    NSMutableDictionary<NSString *, NSMutableArray<NSURL *> *> *knownFiles =
-            [NSMutableDictionary dictionaryWithCapacity:urls.count];
-    for (NSURL *url in urls) {
-        NSString *key = [PlaylistFile knownFileKeyForPath:url.path];
-        NSMutableArray<NSURL *> *matches = knownFiles[key];
-        if (!matches) {
-            knownFiles[key] = matches = [NSMutableArray array];
-        }
-        [matches addObject:url];
-    }
+    NSDictionary<NSString *, NSArray<NSURL *> *> *knownFiles = VibeKnownFiles(urls);
     NSMutableDictionary<NSURL *, NSArray<AudioTrack *> *> *rowsBySheet = [NSMutableDictionary dictionary];
     // Each claimed file to the sheet that cut it.
     NSMutableDictionary<NSURL *, NSURL *> *claimed = [NSMutableDictionary dictionary];
-    // Once per file, however many rows a sheet cuts it into.
     NSMutableDictionary<NSURL *, NSNumber *> *playable = [NSMutableDictionary dictionary];
-    NSSet<NSString *> *supported = self.supportedExtensions;
     for (NSURL *sheet in sheets) {
         NSMutableArray<AudioTrack *> *rows = [NSMutableArray array];
-        for (AudioTrack *row in [PlaylistFile cueRowsForSheetAtURL:sheet knownFiles:knownFiles]) {
+        for (AudioTrack *row in VibePlayableSheetRows(sheet, listed, knownFiles, playable)) {
             NSURL *cutBy = claimed[row.url];
-            if (cutBy && cutBy != sheet) {
-                continue;
-            }
-            NSNumber *verdict = playable[row.url];
-            if (verdict == nil) {
-                verdict = @([supported containsObject:row.url.pathExtension.lowercaseString]
-                            && !row.url.isEmptyOrDirectory
-                            && ([listed containsObject:row.url]
-                                || ReadAccessForURL(row.url) == VibeReadAccessReadable));
-                playable[row.url] = verdict;
-            }
-            if (verdict.boolValue) {
+            if (!cutBy || cutBy == sheet) {
                 [rows addObject:row];
                 claimed[row.url] = sheet;
             }
@@ -512,7 +583,18 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
 // a walk's only content reads to a few files even on a network volume.
 static const long long kVibeEmbeddedCueMinimumBytes = 100LL * 1024 * 1024;
 
+static NSMutableArray<NSURL *> *VibeListedAudioURLs(NSURL *dir, VibeFolderOpenSort sort,
+                                                  NSMutableArray<NSURL *> *subfolders);
+
 + (NSArray<AudioTrack *> *)rowsForFile:(NSURL *)url {
+    // A sheet alone resolves against its folder's listing, as a walk does,
+    // and claims nothing from its siblings: picked, it is the user's choice.
+    if ([PlaylistFile isCueExtension:url.pathExtension.lowercaseString]) {
+        NSArray<NSURL *> *listed = VibeListedAudioURLs(url.URLByDeletingLastPathComponent,
+                                                       VibeFolderOpenSortAsReceived, nil) ?: @[];
+        return VibePlayableSheetRows(url, [NSSet setWithArray:listed], VibeKnownFiles(listed),
+                                     [NSMutableDictionary dictionary]);
+    }
     if ([url.pathExtension.lowercaseString isEqualToString:@"flac"]) {
         NSNumber *size = nil;
         [url getResourceValue:&size forKey:NSURLFileSizeKey error:NULL];
@@ -526,7 +608,12 @@ static const long long kVibeEmbeddedCueMinimumBytes = 100LL * 1024 * 1024;
     return @[[AudioTrack withURL:url]];
 }
 
-+ (NSArray<AudioTrack*>*) rowsInDirectory:(NSURL*)dir sortedBy:(VibeFolderOpenSort)sort {
+// The folder's nonempty audio files and sheets, listed with the keys `sort`
+// needs, unsorted; nil when the listing fails. `subfolders`, when given,
+// takes the directories of the same enumeration: a provider's listing is IPC,
+// and a browser screen asking twice paid for it twice.
+static NSMutableArray<NSURL *> *VibeListedAudioURLs(NSURL *dir, VibeFolderOpenSort sort,
+                                                  NSMutableArray<NSURL *> *subfolders) {
     // Skipping hidden files drops AppleDouble sidecars.
     NSError *error = nil;
     NSArray<NSURL*> *contents = [[NSFileManager defaultManager]
@@ -536,26 +623,55 @@ static const long long kVibeEmbeddedCueMinimumBytes = 100LL * 1024 * 1024;
                                error:&error];
     if (!contents) {
         LogWarn(@"Error listing %@: %@", dir, error);
-        return @[];
+        return nil;
     }
-    NSSet<NSString*> *supported = [self supportedExtensions];
+    NSSet<NSString*> *supported = PlayableExtensions.lookup;
     NSMutableArray<NSURL*> *results = [[NSMutableArray alloc] init];
     for (NSURL *url in contents) {
         NSString *extension = url.pathExtension.lowercaseString;
+        // The key is one of the listing's (VibeListingKeys): no I/O per entry.
+        NSNumber *isDirectory = nil;
+        [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
+        if (isDirectory.boolValue) {
+            [subfolders addObject:url];
+            continue;
+        }
         if (![supported containsObject:extension] && ![PlaylistFile isCueExtension:extension]) {
             continue;
         }
-        NSNumber *isDirectory = nil;
         NSNumber *isLink = nil;
-        [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
         [url getResourceValue:&isLink forKey:NSURLIsSymbolicLinkKey error:NULL];
         BOOL dangling = NO;
-        if (!isDirectory.boolValue && !VibeListedFileIsEmpty(url, isLink.boolValue, &dangling) && !dangling) {
+        if (!VibeListedFileIsEmpty(url, isLink.boolValue, &dangling) && !dangling) {
             [results addObject:url];
         }
     }
+    return results;
+}
+
++ (NSArray<AudioTrack*>*) rowsInDirectory:(NSURL*)dir sortedBy:(VibeFolderOpenSort)sort {
+    NSMutableArray<NSURL *> *results = VibeListedAudioURLs(dir, sort, nil);
+    if (!results) {
+        return @[];
+    }
     VibeSortAudioURLs(results, sort, NO);
     return [self rowsForWalk:results];
+}
+
++ (void)listDirectory:(NSURL *)dir
+             sortedBy:(VibeFolderOpenSort)sort
+              folders:(NSArray<NSURL *> **)folders
+                audio:(NSArray<NSURL *> **)audio {
+    NSMutableArray<NSURL *> *subfolders = folders ? [NSMutableArray array] : nil;
+    NSMutableArray<NSURL *> *files = VibeListedAudioURLs(dir, sort, subfolders) ?: [NSMutableArray array];
+    if (folders) {
+        VibeSortAudioURLs(subfolders, sort, NO);
+        *folders = subfolders;
+    }
+    VibeSortAudioURLs(files, sort, NO);
+    if (audio) {
+        *audio = files;
+    }
 }
 
 // Concurrent, so one dead mount cannot hold every later open; bounded, so a

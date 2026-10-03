@@ -12,6 +12,7 @@
 
 #import "AudioTrack.h"
 #import "Formatters.h"
+#import "NSURLUtil.h"
 #import "PlaybackController+NowPlaying.h"
 #import "Playlist.h"
 #import "TrackPageCell.h"
@@ -41,8 +42,14 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
     }
 }
 
+// A placeholder's refused open is not a failure to draw: its download will
+// land and the open asks again.
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
       didFailWaveformForIndex:(NSUInteger)index {
+    AudioTrack *track = [_playlist trackAtIndex:index];
+    if (track && [NSURLUtil isRemotePlaceholderFile:track.url]) {
+        return;
+    }
     [[self cellAtIndex:index].waveformView hideLoadingIndicator];
 }
 
