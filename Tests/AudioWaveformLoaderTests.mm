@@ -491,10 +491,11 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
     CodableAudioWaveform *result = [loader load:path];
     XCTAssertNotNil(result);
     XCTAssertTrue(result.waveform->hasBands());
+    // Six bars: each second's latter half is past the filters' settling.
+    float halves[6 * kAudioWaveformBandCount];
+    result.waveform->getBarMeanSquares(6, 0, nullptr, halves);
     for (NSUInteger tone = 0; tone < 3; tone++) {
-        // Each second's latter half, past the filters' settling.
-        float meanSquares[kAudioWaveformBandCount];
-        result.waveform->getBandMeanSquares(tone * 2 + 1, 6, meanSquares);
+        const float *meanSquares = &halves[(tone * 2 + 1) * kAudioWaveformBandCount];
         float own = meanSquares[tone];
         XCTAssertEqualWithAccuracy(own, 0.125f, 0.03f, @"%g Hz", tones[tone]);
         for (NSUInteger band = 0; band < kAudioWaveformBandCount; band++) {

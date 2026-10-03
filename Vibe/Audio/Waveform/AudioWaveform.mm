@@ -89,34 +89,16 @@ AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInte
     return result;
 }
 
-void AudioWaveform::getBandMeanSquares(NSUInteger index, NSUInteger size, float* meanSquares) {
-    std::fill(meanSquares, meanSquares + kAudioWaveformBandCount, 0.0f);
-    if (bandSums == nullptr || numChunks == 0 || index >= size) return;
-    NSUInteger start, count;
-    getColumnRange(index, size, &start, &count);
-    float frames = 0;
-    float sums[kAudioWaveformBandCount] = {};
-    for (NSUInteger i = start; i < start + count; i++) {
-        frames += chunks[i].getFrameCount();
-        for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
-            sums[b] += bandSums[i * kAudioWaveformBandCount + b];
-        }
-    }
-    for (NSUInteger b = 0; frames > 0 && b < kAudioWaveformBandCount; b++) {
-        meanSquares[b] = sums[b] / frames;
+void AudioWaveform::getBandMeanSquares(NSUInteger index, float* meanSquares) {
+    float frames = bandSums && index < numChunks ? chunks[index].getFrameCount() : 0;
+    for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+        meanSquares[b] = frames > 0 ? bandSums[index * kAudioWaveformBandCount + b] / frames : 0;
     }
 }
 
-// A bar's own window is the bar itself, its edges anywhere in a chunk and a
-// chunk it only partly covers counted by that part. With reach, the bar takes
-// instead the loudest of the bar-long windows a quarter bar apart up to half a
-// bar either side of its own, each band its own: wherever a kick falls against
-// the bars, one of those windows holds it whole, so its height does not
-// depend on where the edges are, and no hit is averaged away as a wider
-// window would. Reach scales between the two, so a caller can fade it out as
-// its bars get short enough to draw each hit. Sums and frames are windowed
-// alike, so a window past the track's edge, or past the end of a load still
-// streaming, is the mean of the frames it does cover.
+// Cells a quarter bar long, their edges exact in the chunks, and a bar-long
+// window at every cell: a bar's own, and the two either side that the reach
+// compares it with. Without reach a bar is one cell and its own window.
 void AudioWaveform::getBarMeanSquares(NSUInteger size, float reach, float* meanSquares, float* bandMeanSquares) {
     // Silence where there is nothing to read: no chunks, or the bands of a
     // waveform without them.
@@ -129,14 +111,13 @@ void AudioWaveform::getBarMeanSquares(NSUInteger size, float reach, float* meanS
     if (empty || !(meanSquares || wantsBands)) return;
 
     // One plane of cells per value — the frames, the mix's squares, the three
-    // bands' — a bar its own cell, or four with the half bar of nothing either
-    // side that the first and last bars' windows reach into.
+    // bands' — with the half bar of nothing either side that the first and
+    // last bars' windows reach into.
     enum { kFrames, kMix, kBands, kPlaneCount = kBands + kAudioWaveformBandCount };
-    static const NSUInteger kCellsPerBar = 4;
     bool slides = reach > 0;
-    NSUInteger cellsPerBar = slides ? kCellsPerBar : 1, padding = slides ? kCellsPerBar / 2 : 0;
+    NSUInteger cellsPerBar = slides ? 4 : 1, padding = cellsPerBar / 2;
     NSUInteger numCells = size * cellsPerBar, planeLength = numCells + 2 * padding;
-    NSUInteger numWindows = slides ? numCells + 1 : numCells;
+    NSUInteger numWindows = planeLength - cellsPerBar + 1;
     std::unique_ptr<float[]> scratch(new float[planeLength * kPlaneCount + numWindows * 2]);
     float* cell[kPlaneCount];
     for (NSUInteger plane = 0; plane < kPlaneCount; plane++) {
@@ -145,19 +126,22 @@ void AudioWaveform::getBarMeanSquares(NSUInteger size, float reach, float* meanS
         memset(padded + padding + numCells, 0, padding * sizeof(float));
         cell[plane] = padded + padding;
     }
+    float* perFrame = scratch.get() + planeLength * kPlaneCount;
+    float* windows = perFrame + numWindows;
 
     // An edge is chunk + part / numCells, stepped in integers so that every
     // cell's edges are exact.
     NSUInteger wholeStep = numChunks / numCells, partStep = numChunks % numCells;
     float partScale = 1.0f / (float)numCells;
     NSUInteger chunk = 0, part = 0;
+    float startShare = 0;
     for (NSUInteger j = 0; j < numCells; j++) {
         NSUInteger endChunk = chunk + wholeStep, endPart = part + partStep;
         if (endPart >= numCells) {
             endPart -= numCells;
             endChunk++;
         }
-        float startShare = (float)part * partScale, endShare = (float)endPart * partScale;
+        float endShare = (float)endPart * partScale;
         // The first chunk's share, the whole chunks between, then the last's:
         // none of it when the edge is the chunk's own, which past the last
         // chunk is not there to read.
@@ -189,48 +173,41 @@ void AudioWaveform::getBarMeanSquares(NSUInteger size, float reach, float* meanS
         }
         chunk = endChunk;
         part = endPart;
+        startShare = endShare;
     }
 
-    // Every window's sum, a quarter bar apart from half a bar before the first
-    // bar's own (the cells themselves without reach), then each bar's own
-    // window and the loudest of the five around it. One division a window,
-    // shared by the mix and the bands. A window no frame reaches divides
-    // nothing by the least float: silence.
-    float* perFrame = scratch.get() + planeLength * kPlaneCount;
-    float* windows = perFrame + numWindows;
-    const float least = FLT_MIN, one = 1;
-    auto windowSums = [&](NSUInteger plane, float* sums) {
+    // A window is four cells. One division a window, shared by the mix and
+    // the bands; a window no frame reaches divides nothing by the least
+    // float, which is silence.
+    auto sumWindows = [&](NSUInteger plane, float* sums) {
         const float* padded = cell[plane] - padding;
-        if (!slides) {
-            memcpy(sums, padded, numWindows * sizeof(float));
-            return;
-        }
         vDSP_vadd(padded, 1, padded + 1, 1, sums, 1, numWindows);
         vDSP_vadd(padded + 2, 1, sums, 1, sums, 1, numWindows);
         vDSP_vadd(padded + 3, 1, sums, 1, sums, 1, numWindows);
     };
-    auto barMeanSquares = [&](NSUInteger plane, float* out, NSUInteger stride) {
-        windowSums(plane, windows);
-        vDSP_vmul(windows, 1, perFrame, 1, windows, 1, numWindows);
+    auto fillBars = [&](NSUInteger plane, float* out, NSUInteger stride) {
         if (!slides) {
-            for (NSUInteger i = 0; i < size; i++) out[i * stride] = windows[i];
+            vDSP_vmul(cell[plane], 1, perFrame, 1, out, (vDSP_Stride)stride, size);
             return;
         }
+        sumWindows(plane, windows);
+        vDSP_vmul(windows, 1, perFrame, 1, windows, 1, numWindows);
         // The five around a bar start at its first cell's index, its own in
         // the middle.
         for (NSUInteger i = 0; i < size; i++) {
-            const float* around = windows + i * kCellsPerBar;
+            const float* around = windows + i * cellsPerBar;
             float own = around[2];
             float loudest = fmaxf(fmaxf(fmaxf(around[0], around[1]), fmaxf(around[3], around[4])), own);
             out[i * stride] = own + reach * (loudest - own);
         }
     };
-    windowSums(kFrames, perFrame);
-    vDSP_vthr(perFrame, 1, &least, perFrame, 1, numWindows);
+    const float least = FLT_MIN, one = 1;
+    if (slides) sumWindows(kFrames, perFrame);
+    vDSP_vthr(slides ? perFrame : cell[kFrames], 1, &least, perFrame, 1, numWindows);
     vDSP_svdiv(&one, perFrame, 1, perFrame, 1, numWindows);
-    if (meanSquares) barMeanSquares(kMix, meanSquares, 1);
+    if (meanSquares) fillBars(kMix, meanSquares, 1);
     for (NSUInteger b = 0; wantsBands && b < kAudioWaveformBandCount; b++) {
-        barMeanSquares(kBands + b, bandMeanSquares + b, kAudioWaveformBandCount);
+        fillBars(kBands + b, bandMeanSquares + b, kAudioWaveformBandCount);
     }
 }
 
@@ -362,7 +339,7 @@ static void VibeArchiveBands(NSCoder *coder, AudioWaveform *waveform) {
     vImagePixelCount count = numChunks * kAudioWaveformBandCount;
     std::vector<float> meanSquares(count);
     for (NSUInteger i = 0; i < numChunks; i++) {
-        waveform->getBandMeanSquares(i, numChunks, &meanSquares[i * kAudioWaveformBandCount]);
+        waveform->getBandMeanSquares(i, &meanSquares[i * kAudioWaveformBandCount]);
     }
     std::vector<uint16_t> halves(count);
     vImage_Buffer from = {meanSquares.data(), 1, count, count * sizeof(float)};

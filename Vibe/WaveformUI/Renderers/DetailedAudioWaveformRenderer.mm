@@ -311,9 +311,7 @@ static const CGFloat kDetailedBarPitch = 0.5;
     std::vector<float> levels = [self energyColumnLevelsForBarCount:count waveform:waveform];
     NSUInteger columns = levels.size();
     for (NSUInteger column = 0, bar = 0; column < columns; column++) {
-        // Past the column's last bar: VibeWaveformEnergyColumnIndexForBar,
-        // read from the column's side.
-        NSUInteger end = ((column + 1) * count + columns - 1) / columns;
+        NSUInteger end = VibeWaveformBarEndForEnergyColumn(column, count);
         float extent = 0;
         for (NSUInteger i = bar; i < end; i++) {
             AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);

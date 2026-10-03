@@ -124,7 +124,7 @@ static NSData *ArchiveWithBands(NSData *bandBytes) {
     XCTAssertEqualWithAccuracy(decoded.waveform->getChunkAtIndex(7, count).getMeanSquare(),
                                1.2f / 3.0f, 1e-6);
     float meanSquares[kAudioWaveformBandCount];
-    decoded.waveform->getBandMeanSquares(7, count, meanSquares);
+    decoded.waveform->getBandMeanSquares(7, meanSquares);
     for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
         // float16's 11 significant bits.
         XCTAssertEqualWithAccuracy(meanSquares[b], bands[b] / 3.0f, bands[b] / 3.0f / 1024, @"band %lu", b);
@@ -149,7 +149,7 @@ static NSData *ArchiveWithBands(NSData *bandBytes) {
 
     XCTAssertTrue(decoded.waveform->hasBands());
     float meanSquares[kAudioWaveformBandCount];
-    decoded.waveform->getBandMeanSquares(0, kEncodedChunkCount, meanSquares);
+    decoded.waveform->getBandMeanSquares(0, meanSquares);
     for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
         float expected = bands[b] / 1000000;
         XCTAssertEqualWithAccuracy(meanSquares[b], expected, expected / 1024, @"band %lu", b);

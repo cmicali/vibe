@@ -55,14 +55,18 @@ static inline NSUInteger VibeWaveformEnergyColumnIndexForBar(NSUInteger i, NSUIn
             ? i * kVibeWaveformEnergyColumns / count : i;
 }
 
-// How far a bar's window may slide to take a hit whole
-// (AudioWaveform.getBarMeanSquares): all the way up to fullCount bars, fading
-// to nothing at twice that. Bars about a beat long need it, or their levels
-// ripple as a resize moves their edges; bars short enough to draw each hit do
-// not, and it would fatten every hit by a bar.
+// The same mapping from the column's side: the bar past the column's last.
+static inline NSUInteger VibeWaveformBarEndForEnergyColumn(NSUInteger column, NSUInteger count) {
+    NSUInteger columns = MIN(count, kVibeWaveformEnergyColumns);
+    return ((column + 1) * count + columns - 1) / columns;
+}
+
+// How much of AudioWaveform.getBarMeanSquares's reach count bars take: all of
+// it up to fullCount, fading to none at twice that. Bars about a beat long
+// need it, or their levels ripple as a resize moves their edges; bars short
+// enough to draw each hit do not, and it would fatten every hit by a bar.
 static inline float VibeWaveformWindowReach(NSUInteger count, NSUInteger fullCount) {
-    float reach = 2 - (float)count / (float)fullCount;
-    return fminf(fmaxf(reach, 0), 1);
+    return clampRange(2 - (float)count / (float)fullCount, 0, 1);
 }
 
 // Normalize only raises levels: its reference cannot exceed the fixed one.
@@ -72,14 +76,13 @@ static inline float VibeWaveformNormalizedFullScaleRMS(float loudest) {
 }
 
 // Normalize's reference is the loudest of the energy columns the bars draw,
-// read from the mean squares the fill just took. Empty waveforms keep the
-// fixed reference. A streaming load keeps it too: its loudest column is only
-// the loudest SO FAR, and a reference that rises per delivery shrinks bars
-// already drawn.
-static inline float VibeWaveformFullScaleRMSForColumns(AudioWaveform * _Nullable waveform, BOOL normalize,
+// read from the mean squares the fill just took. A streaming load keeps the
+// fixed reference: its loudest column is only the loudest SO FAR, and a
+// reference that rises per delivery shrinks bars already drawn.
+static inline float VibeWaveformFullScaleRMSForColumns(AudioWaveform *waveform, BOOL normalize,
                                                        const float *meanSquares, NSUInteger columns) {
     float loudest = 0;
-    if (normalize && waveform && waveform->isComplete() && columns > 0) {
+    if (normalize && waveform->isComplete()) {
         vDSP_maxv(meanSquares, 1, &loudest, columns);
         loudest = sqrtf(fmaxf(loudest, 0));
     }

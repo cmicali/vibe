@@ -338,7 +338,7 @@ static const NSUInteger kFullReachBars = kVibeWaveformMaxBars / 4;
     for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
         float maximum = 0;
         vDSP_maxv(drawn + b, kAudioWaveformBandCount, &maximum, count);
-        loudest = fmaxf(loudest, sqrtf(fmaxf(maximum, 0)) / kBandShareOfFullScale[b]);
+        loudest = fmaxf(loudest, sqrtf(maximum) / kBandShareOfFullScale[b]);
     }
     return VibeWaveformNormalizedFullScaleRMS(loudest);
 }

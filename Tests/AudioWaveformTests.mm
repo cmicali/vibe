@@ -37,10 +37,7 @@
 // Normalize's reference as a fill reads it: off the energy columns it drew.
 static float VibeTestFullScaleRMS(AudioWaveform *waveform, BOOL normalize, NSUInteger columns) {
     std::vector<float> meanSquares(columns);
-    if (waveform) {
-        waveform->getBarMeanSquares(columns, VibeWaveformWindowReach(columns, kVibeWaveformEnergyColumns / 2),
-                                    meanSquares.data(), nullptr);
-    }
+    waveform->getBarMeanSquares(columns, 0, meanSquares.data(), nullptr);
     return VibeWaveformFullScaleRMSForColumns(waveform, normalize, meanSquares.data(), columns);
 }
 
@@ -223,7 +220,6 @@ static float VibeTestFullScaleRMS(AudioWaveform *waveform, BOOL normalize, NSUIn
 }
 
 - (void)testNormalizationOnlyRaisesLevelsAndKeepsSilenceFinite {
-    XCTAssertEqual(VibeTestFullScaleRMS(nullptr, YES, 1024), kVibeWaveformFullScaleRMS);
     for (float rms : {0.0f, 0.000001f, 0.035f, 0.35f, 0.7f, 1.0f}) {
         AudioWaveformCacheChunk chunk;
         chunk.set(-rms, rms, rms * rms, 1);
@@ -896,37 +892,11 @@ static AudioWaveform VibeRampWaveform(NSUInteger count) {
     delete w;
 }
 
-- (void)testSmallColumnsCombineTheirWholeRange {
-    // 64 → 8 columns: 8 chunks each.
+- (void)testColumnsCombineTheirWholeRange {
+    // Even columns of 8 and 16 chunks, and uneven ones of 12.8 and 21.3,
+    // against an independent scalar reduction.
     AudioWaveform *w = [self waveform];
-    AudioWaveformCacheChunk first = w->getChunkAtIndex(0, 8);
-    XCTAssertEqual(first.getMin(), -7.0f, @"column 0 covers chunks [0,8)");
-    XCTAssertEqual(first.getMax(), 7.0f);
-
-    AudioWaveformCacheChunk last = w->getChunkAtIndex(7, 8);
-    XCTAssertEqual(last.getMin(), -63.0f, @"column 7 covers chunks [56,64)");
-    XCTAssertEqual(last.getMax(), 63.0f);
-    delete w;
-}
-
-- (void)testLargeColumnsCombineTheirWholeRange {
-    // 64 → 4 columns: 16 chunks each.
-    AudioWaveform *w = [self waveform];
-    AudioWaveformCacheChunk first = w->getChunkAtIndex(0, 4);
-    XCTAssertEqual(first.getMin(), -15.0f, @"column 0 covers chunks [0,16)");
-    XCTAssertEqual(first.getMax(), 15.0f);
-
-    AudioWaveformCacheChunk last = w->getChunkAtIndex(3, 4);
-    XCTAssertEqual(last.getMin(), -63.0f, @"column 3 covers chunks [48,64)");
-    XCTAssertEqual(last.getMax(), 63.0f);
-    delete w;
-}
-
-- (void)testUnevenColumnsCombineTheirWholeRange {
-    // 64→5 (12.8 chunks/column) and 64→3 (21.3), against an independent
-    // scalar reduction.
-    AudioWaveform *w = [self waveform];
-    for (NSUInteger size : {(NSUInteger)5, (NSUInteger)3}) {
+    for (NSUInteger size : {(NSUInteger)8, (NSUInteger)4, (NSUInteger)5, (NSUInteger)3}) {
         for (NSUInteger i = 0; i < size; i++) {
             NSUInteger end = 64 * (i + 1) / size;
             AudioWaveformCacheChunk c = w->getChunkAtIndex(i, size);
@@ -937,41 +907,26 @@ static AudioWaveform VibeRampWaveform(NSUInteger count) {
     delete w;
 }
 
-- (void)testBandMeanSquaresAverageEachColumn {
-    // Chunk i holds i, 2i and 3i in its bands over one frame, so a column
-    // [start, end) reads the mean index times 1, 2 and 3, at the source's
-    // width and two that combine unevenly.
-    std::vector<AudioWaveformCacheChunk> source(64, AudioWaveformCacheChunk());
-    std::vector<float> bands;
+- (void)testBandMeanSquaresReadEachChunk {
+    AudioWaveform w = VibeRampWaveform(64);
+    float meanSquares[kAudioWaveformBandCount];
     for (NSUInteger i = 0; i < 64; i++) {
-        source[i].set(0, 0, 0, 1);
-        bands.insert(bands.end(), {(float)i, (float)i * 2, (float)i * 3});
-    }
-    AudioWaveform w(source.size(), source.data(), bands.data());
-    for (NSUInteger size : {(NSUInteger)64, (NSUInteger)5, (NSUInteger)3}) {
-        for (NSUInteger i = 0; i < size; i++) {
-            NSUInteger start = 64 * i / size, end = 64 * (i + 1) / size;
-            float meanIndex = (float)(start + end - 1) / 2;
-            float meanSquares[kAudioWaveformBandCount];
-            w.getBandMeanSquares(i, size, meanSquares);
-            for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
-                XCTAssertEqualWithAccuracy(meanSquares[b], meanIndex * (b + 1), 1e-4,
-                                           @"size %lu column %lu band %lu", size, i, b);
-            }
+        w.getBandMeanSquares(i, meanSquares);
+        for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+            XCTAssertEqual(meanSquares[b], (float)(i * (b + 1)), @"chunk %lu band %lu", i, b);
         }
     }
     AudioWaveform copy(w);
-    float meanSquares[kAudioWaveformBandCount];
-    copy.getBandMeanSquares(63, 64, meanSquares);
+    copy.getBandMeanSquares(63, meanSquares);
     XCTAssertEqual(meanSquares[2], 189, @"a copy carries the bands");
 
     // Without bands every read is silence and every write a no-op.
-    AudioWaveform plain(source.size(), source.data());
+    AudioWaveform plain(_source.size(), _source.data());
     XCTAssertFalse(plain.hasBands());
     const float sums[kAudioWaveformBandCount] = {1, 2, 3};
     plain.setBandSumSquaresAtIndex(sums, 0);
     plain.copyChunk(0, 1);
-    plain.getBandMeanSquares(0, 64, meanSquares);
+    plain.getBandMeanSquares(0, meanSquares);
     XCTAssertEqual(meanSquares[0] + meanSquares[1] + meanSquares[2], 0);
     XCTAssertFalse(AudioWaveform(plain).hasBands());
 }
@@ -1115,29 +1070,16 @@ static AudioWaveform VibeRampWaveform(NSUInteger count) {
     XCTAssertEqualWithAccuracy(c.getMeanSquare(), (0.25f * 2 + 1.0f) / 3.0f, 1e-6);
 }
 
-- (void)testAColumnWeighsEachChunksEnergyByItsFrames {
-    // Energy is a sum plus a frame count, not a stored mean, or a column of
+- (void)testABarWeighsEachChunksEnergyByItsFrames {
+    // Energy is a sum plus a frame count, not a stored mean, or a bar of
     // uneven chunks would count a short chunk as much as a long one.
     AudioWaveformCacheChunk chunks[3];
     chunks[0].set(0, 0, 4.0f, 2.0f);
     chunks[1].set(0, 0, 1.0f, 1.0f);
     chunks[2].set(0, 0, 10.0f, 5.0f);
-    XCTAssertEqualWithAccuracy(AudioWaveform(3, chunks).getChunkAtIndex(0, 1).getMeanSquare(), 15.0f / 8.0f, 1e-6);
-}
-
-- (void)testColumnsCombineEnergy {
-    // Chunk i carries meanSquare i over one frame, so a column's meanSquare is
-    // the mean of its chunk indexes.
-    std::vector<AudioWaveformCacheChunk> chunks(64, AudioWaveformCacheChunk());
-    for (NSUInteger i = 0; i < 64; i++) {
-        chunks[i].set(0, 0, (float)i, 1.0f);
-    }
-    AudioWaveform *w = new AudioWaveform(chunks.size(), chunks.data());
-    XCTAssertEqualWithAccuracy(w->getChunkAtIndex(0, 8).getMeanSquare(), 3.5f, 1e-6,
-                               @"column 0 covers chunks [0,8)");
-    XCTAssertEqualWithAccuracy(w->getChunkAtIndex(3, 4).getMeanSquare(), 55.5f, 1e-6,
-                               @"column 3 covers chunks [48,64)");
-    delete w;
+    float meanSquare = 0;
+    AudioWaveform(3, chunks).getBarMeanSquares(1, 0, &meanSquare, nullptr);
+    XCTAssertEqualWithAccuracy(meanSquare, 15.0f / 8.0f, 1e-6);
 }
 
 - (void)testEmptyMonoBufferLeavesTheChunkUntouched {
