@@ -13,7 +13,10 @@
 //  descriptor, in that order. A FAILED open leaks nothing, which is why no
 //  preflight precedes it.
 //
-//  Reading facts are immutable after init; writing advances length. Cursor,
+//  Reading facts are immutable after init, but for the length of a streaming
+//  CBR MP3 with no VBR header: an estimate from its bit rate, exact for a
+//  well-formed file, that its decode settles at the stream's end
+//  (AudioFileHandle.m). Writing advances length. Cursor,
 //  read, write and close operations belong to one consumer at a time (the
 //  bus's decoder after a voice starts, AudioVoiceBus.h).
 //

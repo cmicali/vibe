@@ -498,6 +498,9 @@ AUDIO_PY
         encode() { local name="$1" source="$2"; shift 2; [ -s "$render_dir/$name" ] || ffmpeg_out "$render_dir/$name" -i "$source" "$@"; }
         encode cbr.mp3 "$render_source" -c:a libmp3lame -b:a 192k
         encode vbr.mp3 "$render_source" -c:a libmp3lame -q:a 2
+        # No Xing or Info frame: CoreAudio counts the packets by reading every frame, which a stream must not wait for.
+        encode cbr-noinfo.mp3 "$render_source" -c:a libmp3lame -b:a 192k -write_xing 0
+        encode vbr-noxing.mp3 "$render_source" -c:a libmp3lame -q:a 2 -write_xing 0
         encode lossy.mp2 "$render_source" -c:a mp2 -b:a 192k
         # MPEG in a WAV: fixed-size packets with no descriptions. CoreAudio opens one only when every frame is one size, which 48 kHz CBR is.
         encode mp3-in.wav "$render_dir/cbr.mp3" -c:a copy -f wav

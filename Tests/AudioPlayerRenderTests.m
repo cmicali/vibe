@@ -797,6 +797,43 @@ static const NSUInteger kLayer3DecoderDelay = 529;
         XCTAssertLessThan(frames[0], decoded.frameLength);
     }
 }
+// A CBR MP3 with no Xing or Info frame opens while it streams, on its head and
+// the tail window, with the whole file's length, and once complete decodes and
+// seeks exactly as the whole file, its first seeks before its count is known.
+// A VBR one opens only once complete (VibeConstantRateMPEGPackets), and is then
+// the whole file too.
+- (void)testAnMP3WithoutAVBRHeaderOpensWhileItStreams {
+    AudioFileHandle.appleMPEGDecoder = NO;
+    for (NSString *name in @[@"cbr-noinfo.mp3", @"vbr-noxing.mp3"]) {
+        NSURL *source = [self optionalFixture:name];
+        AudioFileHandle *whole = [self open:source decoder:@"dr_mp3"];
+        NSData *continuous = [self readToEnd:whole];
+        NSURL *url = [self streamingCopyOf:source prefix:24576 name:[@"streaming-" stringByAppendingString:name]];
+        NSUInteger window = 8192, at = _streamBytes.length - window;
+        [_stream installWindow:[_streamBytes subdataWithRange:NSMakeRange(at, window)] atOffset:at];
+        __block AudioFileHandle *file = nil;
+        dispatch_semaphore_t opened = dispatch_semaphore_create(0);
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            file = [[AudioFileHandle alloc] initForReading:url error:NULL];
+            dispatch_semaphore_signal(opened);
+        });
+        BOOL constant = [name hasPrefix:@"cbr"];
+        BOOL early = dispatch_semaphore_wait(opened, dispatch_time(DISPATCH_TIME_NOW,
+                (int64_t)((constant ? VIBE_TEST_HANG_TIMEOUT : 0.5) * NSEC_PER_SEC))) == 0;
+        XCTAssertEqual(early, constant, @"%@ opened before its download ended", name);
+        XCTAssertTrue([self finishStream:VibeStreamCompleted]);
+        if (!early) {
+            XCTAssertEqual(dispatch_semaphore_wait(opened, dispatch_time(DISPATCH_TIME_NOW,
+                    (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))), 0, @"%@ opened", name);
+        }
+        XCTAssertEqualObjects(file.decoderName, @"dr_mp3", @"%@", name);
+        XCTAssertEqual(file.length, whole.length, @"%@", name);
+        [self assertSeeksOf:file match:continuous block:1152 name:name];
+        XCTAssertTrue([file seekToFrame:0 error:NULL]);
+        XCTAssertEqualObjects([self readToEnd:file], continuous, @"%@", name);
+        XCTAssertEqual(file.length, whole.length, @"%@", name);
+    }
+}
 // The byte offset of every packet CoreAudio's parser serves: for an MP3, each
 // audio frame, the LAME tag's frame not among them; for a FLAC, each frame.
 // Each is found by its bytes in the file, since macOS 26's MP3 parser answers

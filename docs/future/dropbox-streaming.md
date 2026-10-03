@@ -52,6 +52,8 @@ Every requested read of `VibeHandleRead` and `VibeStreamRead` was logged through
 | WAV with `fmt ` after `data` | the head, plus 24 bytes at the end | one region |
 | Ogg Vorbis and Opus, ADTS AAC, MP3 with no Xing or Info frame | **the whole file, in order** | direct |
 
+The last row's MP3 is no longer the open's but the count's: CoreAudio answers the packet count, ExtAudioFile's length and the maximum packet size of an MP3 with no Xing, Info or VBRI frame by reading every frame header to the end, while the bit rate, the data offset and size, the packet table and the packet size bound read a few frames. On a device, eight of ten long DJ mixes opened only when their download completed for this reason. A streaming CBR one now opens uncounted, its length from its bit rate and settled at the stream's end (`Audio/AGENTS.md`); a VBR one with no header still waits.
+
 What follows from it:
 
 - **Phase 1 needs no format gate.** A whole-file opener reads strictly in order, so under waiting reads its open simply returns when the download completes: today's behaviour, with no rule to write. A tail read waits the same way. Streaming a file it cannot help costs nothing and decides nothing.
@@ -113,7 +115,7 @@ Write ranged bytes into the part file at their offsets and track which ranges ar
 
 ### Option D: Apple's push parser for MP3 and AAC
 
-`AudioFileStream` parses packets as bytes arrive and estimates duration from the bitrate, so an MP3 without a Xing frame and an ADTS file, which the spike shows read the whole file at open, would stream. It is a second packet road beside the file parser, and it does nothing for Ogg. Hold it in reserve until those files prove common in a real library.
+`AudioFileStream` parses packets as bytes arrive and estimates duration from the bitrate, so an ADTS file and a VBR MP3 with no Xing frame, which read the whole file at open, would stream. A CBR MP3 with no Xing frame did not need it: the scan was our open asking for the count, and the file parser streams it once the count is taken from the bit rate and settled at the end (above). It is a second packet road beside the file parser, and it does nothing for Ogg. Hold it in reserve until those files prove common in a real library.
 
 ### Option E: let AVFoundation stream (rejected)
 

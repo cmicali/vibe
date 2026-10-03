@@ -42,6 +42,20 @@ static const float kVibeMPEGSampleBound = 4.0f;
 // per MP3 frame, which were a tenth of the whole decode's time.
 enum { kVibeMPEGReadPackets = 16 };
 
+// A stream's packet count until the parser reaches its end
+// (VibeConstantRateMPEGPackets).
+static const SInt64 kVibeMPEGPacketsUncounted = INT64_MAX;
+
+// kbit/s by a frame header's bitrate index: MPEG-1's layers I, II and III,
+// then MPEG-2 and 2.5's layer I and layers II and III.
+static const uint16_t kVibeMPEGBitrates[5][15] = {
+    {0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448},
+    {0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384},
+    {0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320},
+    {0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256},
+    {0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160},
+};
+
 // Small reads go through one block: the parser's under kVibeReadBlock, filling
 // all of it — Apple's Ogg reader asks for about 200 bytes at a time on Opus,
 // 18,000 reads for three minutes — and dr_flac's 4 KB ones, filling a quarter:
@@ -69,6 +83,9 @@ typedef NS_ENUM(uint8_t, VibeWaitFault) {
     // (below), whose parser reads through its own descriptor.
     int _descriptor;
     SInt64 _size;
+    // Written by the decode of a stream counting its MPEG packets as it
+    // goes, and read on any thread, hence the getter's atomic load.
+    AVAudioFramePosition _length;
     AudioFileID _parser;
     AudioFileTypeID _container; // the parser's kAudioFilePropertyFileFormat
     // The last block a small read filled: its bytes from _readBlockStart,
@@ -137,6 +154,10 @@ typedef NS_ENUM(uint8_t, VibeWaitFault) {
 
 - (AudioFileID)parser {
     return _parser;
+}
+
+- (AVAudioFramePosition)length {
+    return __atomic_load_n(&_length, __ATOMIC_RELAXED);
 }
 
 - (BOOL)decoderChoiceIsStale {
@@ -670,10 +691,67 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     return status;
 }
 
+// TRAP: an MP3 with no Xing, Info or VBRI frame states no packet count, and
+// CoreAudio's parser finds one by reading every frame header to the end:
+// ExtAudioFile's length, the packet count and the maximum packet size each
+// ask it (measured; the bit rate, the data offset and size, the packet table
+// and the packet size bound read a few frames at most), so a stream of one
+// opened only once downloaded. For a stream whose first audio frame is at the
+// rate CoreAudio averages over its first frames, so constant, this answers
+// the packets its audio bytes hold at that rate, the whole file's count; 0
+// for the whole count otherwise, since a VBR stream's length taken from its
+// first frames is a guess, and its waveform would be filed under it.
+static SInt64 VibeConstantRateMPEGPackets(AudioFileHandle *handle, AudioStreamBasicDescription description) {
+    SInt64 offset = 0;
+    UInt64 bytes = 0;
+    UInt32 rate = 0, got = 0;
+    UInt32 offsetSize = sizeof(offset), bytesSize = sizeof(bytes), rateSize = sizeof(rate);
+    if (AudioFileGetProperty(handle->_parser, kAudioFilePropertyDataOffset, &offsetSize, &offset) != noErr
+            || AudioFileGetProperty(handle->_parser, kAudioFilePropertyAudioDataByteCount, &bytesSize, &bytes) != noErr
+            || AudioFileGetProperty(handle->_parser, kAudioFilePropertyBitRate, &rateSize, &rate) != noErr || rate == 0) {
+        return 0;
+    }
+    // From the ID3v2 tag's end through the first audio frame's side
+    // information: a VBR header frame the parser skips lies between, or is
+    // that frame.
+    uint8_t tag[10] = {0};
+    SInt64 start = 0;
+    if (VibeHandleRead((__bridge void *)handle, 0, sizeof(tag), tag, &got) == noErr && got == sizeof(tag)
+            && !memcmp(tag, "ID3", 3)) {
+        start = 10 + (tag[5] & 0x10 ? 10 : 0) + ((tag[6] & 0x7F) << 21 | (tag[7] & 0x7F) << 14 | (tag[8] & 0x7F) << 7 | (tag[9] & 0x7F));
+    }
+    const SInt64 span = 48; // a header, a CRC, side information and a header's tag
+    if (start > offset || offset - start + span > kVibeReadBlock) {
+        return 0;
+    }
+    UInt32 length = (UInt32)(offset - start + span);
+    uint8_t *region = malloc(length);
+    BOOL read = region && VibeHandleRead((__bridge void *)handle, start, length, region, &got) == noErr && got == length;
+    uint8_t frame[3] = {0};
+    if (read && !memmem(region, length, "Xing", 4) && !memmem(region, length, "Info", 4) && !memmem(region, length, "VBRI", 4)) {
+        memcpy(frame, region + length - span, sizeof(frame));
+    }
+    free(region);
+    UInt32 version = (frame[1] >> 3) & 3, index = frame[2] >> 4;
+    UInt32 layer = description.mFormatID == kAudioFormatMPEGLayer1 ? 0 : description.mFormatID == kAudioFormatMPEGLayer2 ? 1 : 2;
+    BOOL synced = frame[0] == 0xFF && (frame[1] & 0xE0) == 0xE0 && version != 1 && index < 15;
+    UInt32 kbps = synced ? kVibeMPEGBitrates[version == 3 ? layer : layer == 0 ? 3 : 4][index] : 0;
+    if (kbps == 0 || kbps * 1000 != rate) {
+        return 0;
+    }
+    // The nearest count: a frame a fraction of a byte long is padded to the
+    // rate on average, and the bytes past the last whole frame are not one.
+    UInt64 scale = (UInt64)description.mFramesPerPacket * rate;
+    return (SInt64)((bytes * 8 * (UInt64)description.mSampleRate + scale / 2) / scale);
+}
+
 // Takes the file over for dr_mp3, or leaves it to ExtAudioFile when the
 // parser cannot serve its packets. ExtAudioFile answers the length, priming
 // and padding excluded, exactly as for its own decode, and is disposed without
-// decoding; the parser answers the priming and serves the packets.
+// decoding; the parser answers the priming and serves the packets. A stream
+// with no VBR header goes uncounted until the parser reaches its end, its
+// length meanwhile the estimate VibeConstantRateMPEGPackets makes, which the
+// decode keeps ahead of its cursor and settles there.
 - (BOOL)openMPEGWithDescription:(AudioStreamBasicDescription)description {
     SInt64 length = 0;
     UInt64 packets = 0;
@@ -681,9 +759,16 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     UInt32 lengthSize = sizeof(length), packetsSize = sizeof(packets), boundSize = sizeof(upperBound);
     if (description.mFramesPerPacket == 0 || description.mFramesPerPacket > DRMP3_MAX_PCM_FRAMES_PER_MP3_FRAME
             || description.mChannelsPerFrame > 2
-            || ExtAudioFileGetProperty(_codec, kExtAudioFileProperty_FileLengthFrames, &lengthSize, &length) != noErr
-            || AudioFileGetProperty(_parser, kAudioFilePropertyAudioDataPacketCount, &packetsSize, &packets) != noErr
             || AudioFileGetProperty(_parser, kAudioFilePropertyPacketSizeUpperBound, &boundSize, &upperBound) != noErr) {
+        return NO;
+    }
+    SInt64 estimate = _availability ? VibeConstantRateMPEGPackets(self, description) : 0;
+    if (estimate > 0) {
+        packets = kVibeMPEGPacketsUncounted;
+        length = estimate * description.mFramesPerPacket;
+    }
+    else if (ExtAudioFileGetProperty(_codec, kExtAudioFileProperty_FileLengthFrames, &lengthSize, &length) != noErr
+            || AudioFileGetProperty(_parser, kAudioFilePropertyAudioDataPacketCount, &packetsSize, &packets) != noErr) {
         return NO;
     }
     // An untagged file has no packet table, and no priming.
@@ -1067,7 +1152,7 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
     BOOL interleaved = _processingFormat.isInterleaved;
     float *const *planes = buffer.floatChannelData;
     AVAudioFrameCount total = 0;
-    while (total < wanted && _mpegPosition < _length) {
+    while (total < wanted && (_mpegPosition < _length || _mpegPacketCount == kVibeMPEGPacketsUncounted)) {
         if (_mpegPCMOffset == _mpegPCMFrames) {
             if (![self decodeNextMPEGPacket:error]) {
                 buffer.frameLength = total;
@@ -1078,7 +1163,8 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
             }
             continue;
         }
-        UInt32 frames = (UInt32)MIN((SInt64)MIN(_mpegPCMFrames - _mpegPCMOffset, wanted - total), _length - _mpegPosition);
+        SInt64 left = _mpegPacketCount == kVibeMPEGPacketsUncounted ? INT64_MAX : _length - _mpegPosition;
+        UInt32 frames = (UInt32)MIN((SInt64)MIN(_mpegPCMFrames - _mpegPCMOffset, wanted - total), left);
         const float *from = _mpegPCM + (size_t)_mpegPCMOffset * channels;
         if (interleaved || channels == 1) {
             memcpy(planes[0] + (size_t)total * channels, from, (size_t)frames * channels * sizeof(float));
@@ -1088,6 +1174,11 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
         _mpegPCMOffset += frames;
         _mpegPosition += frames;
         total += frames;
+    }
+    if (_mpegPacketCount == kVibeMPEGPacketsUncounted && _mpegPosition >= _length) {
+        // The bus ends a voice whose cursor reaches the length, and an
+        // estimate is not the end.
+        __atomic_store_n(&_length, _mpegPosition + 1, __ATOMIC_RELAXED);
     }
     buffer.frameLength = total;
     return YES;
@@ -1138,7 +1229,15 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
         _mpegReadFirst = _mpegNextPacket;
         _mpegReadCount = count; // fewer than asked at the file's end
         if (count == 0) {
-            _mpegPacketCount = _mpegNextPacket; // a truncated or damaged file declares more than it holds
+            SInt64 packets = _mpegNextPacket; // a truncated or damaged file declares more than it holds
+            if (_mpegPacketCount == kVibeMPEGPacketsUncounted) {
+                // Free now: the parser read every frame header to find the
+                // end. The length is then the frames decoded.
+                UInt32 size = sizeof(packets);
+                AudioFileGetProperty(_parser, kAudioFilePropertyAudioDataPacketCount, &size, &packets);
+                __atomic_store_n(&_length, MAX(0, packets * _mpegFramesPerPacket - (_mpegSkip - _mpegDelay)), __ATOMIC_RELAXED);
+            }
+            _mpegPacketCount = packets;
         }
     }
     // After the last packet the parser serves, the flush: the last decoded

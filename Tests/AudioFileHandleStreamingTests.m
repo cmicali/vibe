@@ -570,6 +570,21 @@ static NSData *VibeFLACWithUnknownTotal(NSData *flac) {
     return bytes;
 }
 
+// The MP3 with its Xing or Info tag blanked: that frame decodes as silence,
+// and nothing in the stream counts its packets.
+static NSData *VibeWithoutVBRHeader(NSData *mp3) {
+    NSMutableData *bytes = [mp3 mutableCopy];
+    for (NSString *tag in @[@"Xing", @"Info"]) {
+        NSRange found = [bytes rangeOfData:[tag dataUsingEncoding:NSASCIIStringEncoding] options:0
+                                     range:NSMakeRange(0, MIN(bytes.length, (NSUInteger)65536))];
+        if (found.location != NSNotFound) {
+            memset((uint8_t *)bytes.mutableBytes + found.location, 0, found.length);
+            return bytes;
+        }
+    }
+    return nil;
+}
+
 // The spike's tail-reading opens, by the decoder each reaches, and a WAV,
 // whose open reads its head alone.
 - (NSDictionary<NSURL *, NSString *> *)tailFixtures {
@@ -600,10 +615,13 @@ static NSData *VibeFLACWithUnknownTotal(NSData *flac) {
     }
     add(@"head-only.wav", [NSData dataWithContentsOfURL:VibeWriteWAV([self sourceNamed:@"head.wav"],
             VibeNoiseSamples(88200, 2), 44100, 2, 16, 88200 * 4)], @"dr_wav");
+    add(@"unheadered.mp3", VibeWithoutVBRHeader(VibeMP3WithInfoFrame(400, YES)), @"dr_mp3");
     for (NSString *name in @[@"tone-cbr.mp3", @"tone-vbr.mp3"]) {
         NSURL *asset = VibeAssetFixture(name);
         if (asset) {
             add(name, [NSData dataWithContentsOfURL:asset], @"dr_mp3");
+            add([@"unheadered-" stringByAppendingString:name],
+                VibeWithoutVBRHeader([NSData dataWithContentsOfURL:asset]), @"dr_mp3");
         }
     }
     return fixtures;
@@ -614,7 +632,9 @@ static NSData *VibeFLACWithUnknownTotal(NSData *flac) {
 // on its head and the window, never waiting for the download; its first
 // second decodes with the download still short of the end; the whole decode
 // is the whole file's; and the download reaching the window drops it. The
-// WAV's open never asks the window.
+// WAV's open never asks the window. An MP3 with no VBR header opens on them
+// too, its length found from its bit rate, but for a VBR one, whose length
+// that would only guess.
 - (void)testATailReadingOpenOpensOnItsHeadAndTheWindow {
     const uint64_t head = 64 * 1024, window = 80 * 1024;
     NSDictionary<NSURL *, NSString *> *fixtures = [self tailFixtures];
@@ -632,8 +652,15 @@ static NSData *VibeFLACWithUnknownTotal(NSData *flac) {
         }];
         AudioFileHandle *handle = opened;
         XCTAssertNotNil(handle, @"%@: %@", name, error);
-        XCTAssertEqual(waits, 0u, @"%@ waited to open", name);
         XCTAssertEqualObjects(handle.decoderName, fixtures[source], @"%@", name);
+        if ([name isEqualToString:@"unheadered-tone-vbr.mp3"]) {
+            // Its length would be a guess, so it is counted: the open reads
+            // every frame header, waiting for the download.
+            XCTAssertGreaterThan(waits, 0u, @"%@", name);
+            XCTAssertEqual(handle.length, [self openWhole:source].length, @"%@", name);
+            continue;
+        }
+        XCTAssertEqual(waits, 0u, @"%@ waited to open", name);
         if ([name hasSuffix:@"wav"]) {
             XCTAssertLessThan(file.availability.furthestOffsetAsked, file.windowOffset, @"%@ read its tail", name);
         }
@@ -670,6 +697,30 @@ static NSData *VibeFLACWithUnknownTotal(NSData *flac) {
         [whole appendData:rest ?: NSData.data];
         [self assertPCM:whole equals:[self referenceOf:source from:0 frames:INT64_MAX] context:name];
     }
+}
+
+// An MP3 stream with no VBR header, whose frames are a byte short of its
+// rate's, so its rate counts two packets fewer than it holds: read as the bus
+// reads, ending at a short read or a cursor at the length, it plays to the end
+// of its stream, not the estimate, and its length is then the whole file's.
+- (void)testAnUncountedMP3StreamPlaysPastAShortEstimateAndSettlesItsLength {
+    NSURL *source = [self sourceNamed:@"short-estimate.mp3"];
+    XCTAssertTrue([VibeWithoutVBRHeader(VibeMP3WithInfoFrame(2000, NO)) writeToURL:source atomically:YES]);
+    AudioFileHandle *whole = [self openWhole:source];
+    VibeGrowingFile *file = [self stream:source prefix:64 * 1024 window:80 * 1024];
+    __block AudioFileHandle *handle = nil;
+    __block AVAudioFramePosition estimate = 0, end = 0;
+    [self drive:file step:7919 reader:^{
+        handle = [[AudioFileHandle alloc] initForReading:file.url error:NULL];
+        estimate = handle.length;
+        AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:handle.processingFormat frameCapacity:4096];
+        while ([handle readIntoBuffer:buffer error:NULL] && buffer.frameLength == 4096 && handle.framePosition < handle.length) {
+        }
+        end = handle.framePosition;
+    }];
+    XCTAssertEqual(estimate, whole.length - 2 * 1152, @"the estimate is short");
+    XCTAssertEqual(end, whole.length, @"read to the stream's end");
+    XCTAssertEqual(handle.length, whole.length, @"settled there");
 }
 
 #pragma mark - Failure

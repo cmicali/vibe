@@ -47,6 +47,12 @@
 @end
 
 @implementation VibeLoaderTestMetadata
+// None: a parse of a file that exists has a cache key, and its cache write
+// asks after the art.
+- (id)artwork {
+    return nil;
+}
+
 - (id)copyWithZone:(NSZone *)zone {
     VibeLoaderTestMetadata *copy = [[[self class] allocWithZone:zone] init];
     copy.parsedOK = self.parsedOK;
@@ -749,6 +755,52 @@ materializationCoordinator:coordinator
         @(VibeAudioFileMaterializationRoleMetadataScan),
         @(VibeAudioFileMaterializationRoleMetadataScan),
     ]));
+}
+
+// The playing track's tags on a remote placeholder are read by range, so they
+// arrive while the playback open's transfer of that file runs, never at its
+// end: the priority record takes no claim to wait behind.
+- (void)testPriorityTagsOfARemotePlaceholderArriveWhileItsPlaybackTransferRuns {
+    XCTAssertTrue([NSFileManager.defaultManager createDirectoryAtURL:_testRootURL withIntermediateDirectories:YES
+                                                          attributes:nil error:NULL]);
+    AudioTrack *track = [self trackNamed:@"mix.mp3"];
+    XCTAssertTrue([NSFileManager.defaultManager createFileAtPath:track.url.path contents:nil
+                                                      attributes:@{NSFilePosixPermissions: @0}]);
+    [NSURLUtil setRemotePlaceholderRoot:_testRootURL];
+    [self addTeardownBlock:^{
+        [NSURLUtil setRemotePlaceholderRoot:nil];
+    }];
+    VibeMetadataLoaderOperationController *controller = [[VibeMetadataLoaderOperationController alloc] init];
+    controller.blocksUntilCancelled = YES;
+    controller.firstStartExpectation = [self expectationWithDescription:@"playback transfer started"];
+    controller.cancellationExpectation = [self expectationWithDescription:@"playback transfer cancelled"];
+    VibeMetadataLoaderDelegate *delegate = [[VibeMetadataLoaderDelegate alloc] init];
+    delegate.deliveryExpectation = [self expectationWithDescription:@"tags delivered"];
+    AudioTrackMetadataLoader *loader = [self loaderWithController:controller configuration:[self testConfiguration]
+                                                         delegate:delegate
+                                                      cacheReader:^AudioTrackMetadata *(AudioTrack *t) { return nil; }
+                                                       fileParser:^AudioTrackMetadata *(NSURL *url) {
+        return VibeLoaderTestMetadataResult(YES, url.lastPathComponent);
+    }];
+    AudioFileMaterializationCoordinator *coordinator = _coordinators.lastObject;
+    __block BOOL playbackSettled = NO;
+    AudioFileMaterializationRequestToken *playback = [coordinator materializeURL:track.url
+            role:VibeAudioFileMaterializationRolePlayback completionQueue:dispatch_get_main_queue()
+            completion:^(VibeAudioFileMaterializationResult result, NSError *error, NSTimeInterval elapsed) {
+        playbackSettled = YES;
+    }];
+    [self waitForExpectations:@[controller.firstStartExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
+
+    [loader prioritizeTrack:track];
+    [self waitForExpectations:@[delegate.deliveryExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertTrue(track.metadata.parsedOK);
+    XCTAssertFalse(playbackSettled, @"delivered before the transfer ended");
+    XCTAssertEqual([coordinator stateSnapshotForTesting].claimCount, 1u);
+    XCTAssertEqualObjects(controller.startedRoles, (@[@(VibeAudioFileMaterializationRolePlayback)]),
+            @"the tags joined no claim");
+
+    [playback cancel];
+    [self waitForExpectations:@[controller.cancellationExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
 }
 
 // The shell's row removal abandons the queued entry; its undo is the later
