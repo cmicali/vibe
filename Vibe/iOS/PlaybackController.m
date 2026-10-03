@@ -392,6 +392,7 @@ static const NSUInteger kUIUpdateHz = 3;
 // track-end callback, so this method owns the reset; +PlayerEvents' stale-track
 // guards drop any callback already in flight.
 - (void)clearPlaylist {
+    _replaceRequestSerial++;
     [_player stop];
     [self endLoadingProgress];
     // TRAP: the session goes BEFORE the model. Clearing the model fires
@@ -707,6 +708,7 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 }
 
 - (void)openURLs:(NSArray<NSURL *> *)urls openInPlace:(BOOL)openInPlace {
+    _replaceRequestSerial++;
     [_folderSession openURLs:urls openInPlace:openInPlace];
 }
 
@@ -716,6 +718,14 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 
 - (uint64_t)addRequestToken {
     return _folderSession.addRequestToken;
+}
+
+- (uint64_t)replaceRequestToken {
+    return ++_replaceRequestSerial;
+}
+
+- (BOOL)isCurrentReplaceRequest:(uint64_t)token {
+    return token == _replaceRequestSerial;
 }
 
 - (void)addURLs:(NSArray<NSURL *> *)urls token:(uint64_t)token {
@@ -753,6 +763,7 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 }
 
 - (void)openFileURL:(NSURL *)url inFolder:(BOOL)inFolder {
+    _replaceRequestSerial++;
     [_folderSession openURL:url inFolder:inFolder];
 }
 

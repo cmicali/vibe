@@ -39,11 +39,16 @@ NS_ASSUME_NONNULL_BEGIN
 // Opens urls as the playlist — one through openFileURL:inFolder:, several
 // through openURLs:openInPlace: — asking first when the playlist was built by
 // hand, with Add Instead as the other answer. Every screen whose tap replaces
-// the playlist comes through here.
+// the playlist comes through here. `token` is PlaybackController's
+// replaceRequestToken, taken when the user asked: a caller with asynchronous
+// work first (a bookmark to resolve, a Dropbox folder to list) is dropped
+// here when another open was asked for meanwhile, or an older tap landing
+// late would replace what the user chose last.
 + (void)confirmReplacingPlaylistOf:(PlaybackController *)playback
                               from:(UIViewController *)presenter
                        openingURLs:(NSArray<NSURL *> *)urls
-                          inFolder:(BOOL)inFolder;
+                          inFolder:(BOOL)inFolder
+                             token:(uint64_t)token;
 
 // On the root: handed snapshots of the rows an Add was asked for, framed in
 // window coordinates, before the Add is requested. The shell animates them
@@ -59,11 +64,5 @@ UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handler)(void
 void VibeApplyFileNameStyle(UIListContentConfiguration *content);
 // The accessory of a row whose file is not downloaded.
 UIView *VibeNotDownloadedMark(void);
-// A file row's icon where it has no art to draw: a rounded tile holding a
-// symbol, `waveform` for audio and `music.note.list` for a CUE sheet. The
-// side is also the size art is drawn at and what every such row reserves.
-extern const CGFloat VibeFileTileSide;
-extern const CGFloat VibeFileTileCornerRadius;
-UIImage *VibeFileTileImage(NSString *symbol);
 
 NS_ASSUME_NONNULL_END

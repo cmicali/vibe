@@ -31,6 +31,9 @@ NS_ASSUME_NONNULL_BEGIN
     NowPlayingController    *_nowPlaying;
     AudioSessionController  *_audioSession;
     FolderSession           *_folderSession;
+    // Main thread: moved by every replace a user asks for and every open, so
+    // a replace behind asynchronous work answers to the newest request.
+    uint64_t                 _replaceRequestSerial;
     UIUpdateTimer           *_updateTimer;
     NSInteger                _levelConsumers;
     // Foreground-active, from the scene delegate; NO until it says otherwise.

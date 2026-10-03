@@ -215,6 +215,15 @@ NS_ASSUME_NONNULL_BEGIN
 - (uint64_t)addRequestToken;
 - (void)addURLs:(NSArray<NSURL *> *)urls token:(uint64_t)token;
 
+// A replace's own identity, taken when the USER asks and judged by the
+// browser's confirmReplacing… funnel. Taking one supersedes every replace
+// still waiting, as an open or a clear does, so of two taps whose
+// resolves finish in either order only the later one opens. Not the Add
+// token: two taps before either resolved captured the same generation, and
+// the first to open dropped the one the user chose last. Main thread.
+- (uint64_t)replaceRequestToken;
+- (BOOL)isCurrentReplaceRequest:(uint64_t)token;
+
 // YES once an Add has landed on the playlist now loaded, or it was restored
 // with additions: replacing it loses work a reopen does not bring back.
 @property (nonatomic, readonly) BOOL playlistHasAdditions;

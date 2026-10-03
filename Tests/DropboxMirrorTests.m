@@ -130,7 +130,7 @@ static NSData *DropboxStubBody(NSURLRequest *request) {
         NSThread *loader = NSThread.currentThread;
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
             dispatch_semaphore_wait(response.gate, dispatch_time(DISPATCH_TIME_NOW,
-                    (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)));
+                    (int64_t)(VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC)));
             [self performSelector:@selector(deliverGated) onThread:loader withObject:nil waitUntilDone:NO];
         });
         return;
@@ -447,6 +447,15 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
     [self waitForExpectations:@[spun] timeout:VIBE_TEST_HANG_TIMEOUT];
 }
 
+// Until `count` requests have reached `path`, or the hang guard runs out;
+// the caller asserts the count it needs.
+- (void)waitForRequests:(NSUInteger)count toPath:(NSString *)path {
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
+    while ([self requestsToPath:path].count < count && deadline.timeIntervalSinceNow > 0) {
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+    }
+}
+
 - (void)installHandler:(DropboxStubHandler)handler {
     os_unfair_lock_lock(&sStubLock);
     sStubHandler = [handler copy];
@@ -590,17 +599,12 @@ static struct stat StatOf(NSURL *url) {
         [both fulfill];
     };
     [_mirror refreshDropboxFolder:@"/Music/Album" completion:refreshed];
-    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
-    while ([self requestsToPath:@"/2/files/download"].count == 0 && deadline.timeIntervalSinceNow > 0) {
-        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
-    }
+    [self waitForRequests:1 toPath:@"/2/files/download"];
     // The first download is held; the second refresh lists and reconciles
     // under it. The short wait is the negative check's: time for a second
     // download to have been asked for, had one been coming.
     [_mirror refreshDropboxFolder:@"/Music/Album" completion:refreshed];
-    while ([self requestsToPath:@"/2/files/list_folder"].count < 2 && deadline.timeIntervalSinceNow > 0) {
-        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
-    }
+    [self waitForRequests:2 toPath:@"/2/files/list_folder"];
     [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.3]];
     dispatch_semaphore_signal(gate);
     dispatch_semaphore_signal(gate);
@@ -638,6 +642,25 @@ static struct stat StatOf(NSURL *url) {
 
 // DropboxRules.h: a path_display's case is only good in its last
 // component, so another spelling must find the same directory.
+// A folder that leaves Dropbox and comes back is made empty here: it must
+// not still read as listed, or an open of it would skip the listing.
+- (void)testAFolderThatComesBackIsNotStillListed {
+    _listings[@"/a"] = @[FolderEntry(@"/A", @"X")];
+    _listings[@"/a/x"] = @[FileEntry(@"/A/X", @"a.flac", 5, kStamp)];
+    [self refresh:@"/A"];
+    NSURL *folder = [self refresh:@"/A/X"];
+    XCTAssertTrue([_mirror hasListedDirectory:folder]);
+
+    _listings[@"/a"] = @[];
+    [self refresh:@"/A"];
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:folder.path]);
+
+    _listings[@"/a"] = @[FolderEntry(@"/A", @"X")];
+    [self refresh:@"/A"];
+    XCTAssertTrue([NSFileManager.defaultManager fileExistsAtPath:folder.path]);
+    XCTAssertFalse([_mirror hasListedDirectory:folder]);
+}
+
 - (void)testAnotherSpellingOfAFolderLandsInTheSameDirectory {
     _listings[@"/music"] = @[FolderEntry(@"/Music", @"Album")];
     _listings[@"/music/album"] = @[FileEntry(@"/Music/Album", @"a.mp3", 1, kStamp)];
@@ -888,6 +911,26 @@ static struct stat StatOf(NSURL *url) {
     XCTAssertEqual([self measuredDownloads], 3);
 }
 
+// A file changed on Dropbox after it was downloaded goes back to a
+// placeholder at the next listing, and the downloads' readers are told.
+- (void)testARelistThatDiscardsADownloadTellsItsReaders {
+    _listings[@"/music"] = @[FileEntry(@"/Music", @"one.flac", 5, kStamp)];
+    _contents[@"/music/one.flac"] = [@"11111" dataUsingEncoding:NSUTF8StringEncoding];
+    NSURL *folder = [self refresh:@"/Music"];
+    [self installMirrorFetch];
+    XCTAssertTrue([self materialize:[folder URLByAppendingPathComponent:@"one.flac"]]);
+
+    _listings[@"/music"] = @[FileEntry(@"/Music", @"one.flac", 6, @"2021-01-02T03:04:05Z")];
+    XCTestExpectation *told = [self expectationForNotification:VibeDropboxDownloadsDidChangeNotification
+                                                        object:_mirror
+                                                       handler:^BOOL(NSNotification *notification) {
+        return [notification.userInfo[VibeDropboxDownloadsBytesKey] longLongValue] == 0;
+    }];
+    [self refresh:@"/Music"];
+    [self waitForExpectations:@[told] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertEqual(StatOf([folder URLByAppendingPathComponent:@"one.flac"]).st_mode & 0777, 0);
+}
+
 - (void)testRemovingDownloadsLeavesPlaceholdersAndSheets {
     NSData *sheet = [@"FILE \"one.flac\" WAVE\n" dataUsingEncoding:NSUTF8StringEncoding];
     _listings[@"/music"] = @[FileEntry(@"/Music", @"one.flac", 5, kStamp),
@@ -898,11 +941,19 @@ static struct stat StatOf(NSURL *url) {
     [self installMirrorFetch];
     XCTAssertTrue([self materialize:[folder URLByAppendingPathComponent:@"one.flac"]]);
 
+    // The readers of a row's downloaded state (Search, the browser,
+    // Settings) hear the removal, with nothing left counted. The fetch's own
+    // post may still be in flight, so the handler waits for the empty one.
+    XCTestExpectation *told = [self expectationForNotification:VibeDropboxDownloadsDidChangeNotification
+                                                        object:_mirror
+                                                       handler:^BOOL(NSNotification *notification) {
+        return [notification.userInfo[VibeDropboxDownloadsBytesKey] longLongValue] == 0;
+    }];
     XCTestExpectation *removed = [self expectationWithDescription:@"remove"];
     [_mirror removeDownloadsWithCompletion:^{
         [removed fulfill];
     }];
-    [self waitForExpectations:@[removed] timeout:VIBE_TEST_HANG_TIMEOUT];
+    [self waitForExpectations:@[told, removed] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual([self measuredDownloads], 0);
     XCTAssertEqual(StatOf([folder URLByAppendingPathComponent:@"one.flac"]).st_mode & 0777, 0);
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:[folder URLByAppendingPathComponent:@"one.cue"]], sheet);
@@ -933,10 +984,7 @@ static struct stat StatOf(NSURL *url) {
         XCTAssertEqual(error.code, VibeDropboxErrorCancelled);
         [download fulfill];
     }];
-    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
-    while ([self requestsToPath:@"/oauth2/token"].count == 0 && deadline.timeIntervalSinceNow > 0) {
-        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
-    }
+    [self waitForRequests:1 toPath:@"/oauth2/token"];
     XCTAssertEqual([self requestsToPath:@"/oauth2/token"].count, 1u);
     cancelRead();
     cancelDownload();
@@ -967,10 +1015,7 @@ static struct stat StatOf(NSURL *url) {
         [returned fulfill];
     });
 
-    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
-    while ([self requestsToPath:@"/2/files/download"].count == 0 && deadline.timeIntervalSinceNow > 0) {
-        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
-    }
+    [self waitForRequests:1 toPath:@"/2/files/download"];
     XCTAssertEqual([self requestsToPath:@"/2/files/download"].count, 1u);
     [materializer cancel];
 
@@ -2378,10 +2423,7 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
     XCTAssertNotNil([self refresh:@"/A"]);
     expiresAtOnce = NO;
     [_client signOut];
-    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
-    while ([self requestsToPath:@"/2/auth/token/revoke"].count == 0 && deadline.timeIntervalSinceNow > 0) {
-        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
-    }
+    [self waitForRequests:1 toPath:@"/2/auth/token/revoke"];
     NSArray<NSURLRequest *> *revokes = [self requestsToPath:@"/2/auth/token/revoke"];
     XCTAssertEqual(revokes.count, 1u);
     XCTAssertEqualObjects([revokes.firstObject valueForHTTPHeaderField:@"Authorization"], @"Bearer A2");
@@ -2395,18 +2437,16 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
     dispatch_semaphore_t gate = dispatch_semaphore_create(0);
     [self installHandler:^DropboxStubResponse(NSURLRequest *request, NSDictionary *json) {
         if ([request.URL.path isEqualToString:@"/2/users/get_current_account"]) {
-            dispatch_semaphore_wait(gate, dispatch_time(DISPATCH_TIME_NOW,
-                    (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)));
-            return DropboxStubJSON(200, @{@"account_id": @"dbid:test", @"name": @{@"display_name": @"First"}});
+            DropboxStubResponse response = DropboxStubJSON(200, @{@"account_id": @"dbid:test",
+                                                                  @"name": @{@"display_name": @"First"}});
+            response.gate = gate;
+            return response;
         }
         return [self defaultResponseFor:request json:json];
     }];
     XCTestExpectation *answered = [self expectationWithDescription:@"name"];
     [_client refreshAccountNameWithCompletion:^{ [answered fulfill]; }];
-    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
-    while ([self requestsToPath:@"/2/users/get_current_account"].count == 0 && deadline.timeIntervalSinceNow > 0) {
-        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
-    }
+    [self waitForRequests:1 toPath:@"/2/users/get_current_account"];
     XCTAssertEqual([self requestsToPath:@"/2/users/get_current_account"].count, 1u);
     [_client adoptRefreshToken:@"R2" accountID:@"dbid:second"];
     dispatch_semaphore_signal(gate);

@@ -160,6 +160,28 @@ if [ -n "$STRAY" ]; then
     exit 1
 fi
 
+# A translation whose format specifiers differ from the English draws a
+# literal %@, or crashes on a type it was not given. Rewording a default keeps
+# its key and its translations, so a reword that adds or drops a specifier, or
+# moves the string to another surface, needs a NEW key. Run on both paths: the
+# mismatch is made by `make strings`, whose author should hear of it there.
+check_specifiers() {
+    local mismatched
+    mismatched=$(jq -r '
+        def specs: [scan("%(?:[0-9]+\\$)?(?:@|l{0,2}[dui]|[sf]|\\.[0-9]+f)") | sub("[0-9]+\\$"; "")] | sort;
+        .strings | to_entries[]
+        | .key as $k | (.value.localizations // {}) as $l
+        | (($l.en.stringUnit.value // "") | specs) as $en
+        | [$l | to_entries[] | select(.key != "en")
+              | select(((.value.stringUnit.value // "") | specs) != $en) | .key]
+        | select(length > 0) | "  \($k): \(join(" "))"' "$1")
+    if [ -n "$mismatched" ]; then
+        echo "error: translations whose format specifiers differ from the English (give the reworded string a new key):" >&2
+        echo "$mismatched" >&2
+        exit 1
+    fi
+}
+
 if [ "${1:-}" = "--check" ]; then
     # The copy MUST keep the catalog's basename, which names its table: under
     # any other name sync sees an empty table and strips every key.
@@ -178,28 +200,13 @@ if [ "${1:-}" = "--check" ]; then
         echo "error: VibeWidget/Localizable.xcstrings is out of date — run: make strings" >&2
         exit 1
     fi
-    # A translation whose format specifiers differ from the English draws a
-    # literal %@, or crashes on a type it was not given. Rewording a default
-    # keeps its key and its translations, so a reword that adds or drops a
-    # specifier, or moves the string to another surface, needs a NEW key.
-    MISMATCHED=$(jq -r '
-        def specs: [scan("%(?:[0-9]+\\$)?(?:@|l{0,2}[dui]|[sf]|\\.[0-9]+f)") | sub("[0-9]+\\$"; "")] | sort;
-        .strings | to_entries[]
-        | .key as $k | (.value.localizations // {}) as $l
-        | (($l.en.stringUnit.value // "") | specs) as $en
-        | [$l | to_entries[] | select(.key != "en")
-              | select(((.value.stringUnit.value // "") | specs) != $en) | .key]
-        | select(length > 0) | "  \($k): \(join(" "))"' "$CATALOG")
-    if [ -n "$MISMATCHED" ]; then
-        echo "error: translations whose format specifiers differ from the English (give the reworded string a new key):" >&2
-        echo "$MISMATCHED" >&2
-        exit 1
-    fi
+    check_specifiers "$CATALOG"
     echo "🔊 string catalogs are in sync"
 else
     unshield "$CATALOG"
     xcrun xcstringstool sync "$CATALOG" --stringsdata "$WORK"/*.stringsdata
     normalize "$CATALOG"
     widget_subset "$CATALOG" "$WIDGET_CATALOG"
+    check_specifiers "$CATALOG"
     echo "🔊 $(jq '.strings | length' "$CATALOG") keys in Localizable.xcstrings, $(jq '.strings | length' "$WIDGET_CATALOG") of them in the widget's"
 fi

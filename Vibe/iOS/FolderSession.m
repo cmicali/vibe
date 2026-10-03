@@ -26,6 +26,8 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 // Every file and folder opened or added, newest first: path, bookmark, folder.
 static NSString *const kRecentItemsKey = @"VibeiOSRecentItems";
 static const NSUInteger kMaximumRecentItems = 50;
+// Past this many contributors an open is ONE recent, the folder they share.
+static const NSUInteger kMaximumRecentItemsPerOpen = 5;
 // An open waits this long for Dropbox to list a folder before reading what
 // the disk has.
 static const NSTimeInterval kDropboxListingTimeout = 20;
@@ -877,12 +879,36 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             // The picked URLs that produced tracks; a file that expanded is
             // still the file, and only a lone file expands.
             NSArray<NSURL *> *opened = selectedURL ? @[selectedURL] : contributors;
+            // Play with Subfolders, or a long multi-select: recorded each, a
+            // library of two hundred albums replaced the whole list in one
+            // tap. It is one entry — the folder they share, when a root in
+            // hand covers it, else the first of them.
+            NSURL *shared = nil;
+            if (opened.count > kMaximumRecentItemsPerOpen) {
+                NSArray<NSString *> *common = nil;
+                for (NSURL *url in opened) {
+                    BOOL isFolder = url == folderURL || [addedFolders containsObject:url];
+                    NSArray<NSString *> *components =
+                            (isFolder ? url : url.URLByDeletingLastPathComponent).URLByStandardizingPath.pathComponents;
+                    NSUInteger length = 0;
+                    while (common && length < common.count && length < components.count
+                            && [common[length] isEqualToString:components[length]]) {
+                        length++;
+                    }
+                    common = common ? [common subarrayWithRange:NSMakeRange(0, length)] : components;
+                }
+                NSString *sharedPath = [NSString pathWithComponents:common ?: @[]];
+                if (VibeSearchFolderCoveringRootIndex(coveringRootPaths, sharedPath) != NSNotFound) {
+                    shared = [NSURL fileURLWithPath:sharedPath isDirectory:YES];
+                }
+                opened = @[shared ?: opened.firstObject];
+            }
             NSMutableArray<NSMutableDictionary *> *recents = [NSMutableArray arrayWithCapacity:opened.count];
             for (NSURL *url in opened) {
                 NSMutableDictionary *item = [NSMutableDictionary dictionary];
                 item[@"path"] = url.URLByStandardizingPath.path ?: url.path;
                 item[@"bookmark"] = minted[url] ?: [self bookmarkForURL:url];
-                item[@"folder"] = @(url == folderURL || [addedFolders containsObject:url]);
+                item[@"folder"] = @(url == shared || url == folderURL || [addedFolders containsObject:url]);
                 [recents addObject:item];
             }
             run_on_main_thread({

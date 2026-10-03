@@ -143,6 +143,10 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     // Bumped by every sign-in and sign-out, so a refresh or a 401 that
     // belongs to the previous account can neither restore nor unlink it.
     uint64_t _accountGeneration;
+    // Orders every Keychain write: a save checks its account generation and
+    // writes inside it, and a delete waits for it. Not _lock, which no
+    // Keychain IPC may run under.
+    NSLock *_keychainLock;
     // The Keychain answered "locked" (a launch before first unlock): the
     // account is read again at the next use rather than taken as absent, at
     // most once per kAccountLoadRetryInterval, since every accessor asks.
@@ -165,6 +169,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
         _keychainService = [keychainService copy];
         _configuration = configuration;
         _lock = OS_UNFAIR_LOCK_INIT;
+        _keychainLock = [[NSLock alloc] init];
         _downloads = [NSMutableDictionary dictionary];
         _retryDelayScale = 1;
         [self useSessionConfiguration:nil];
@@ -284,9 +289,26 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     }
 }
 
-// Called with the lock NOT held; snapshot what to persist first.
-- (void)saveRefreshToken:(NSString *)refresh accountID:(NSString *)accountID name:(NSString *)name {
+// Called with the lock NOT held; snapshot what to persist first, with the
+// account generation it belongs to.
+//
+// TRAP: the generation is checked INSIDE the Keychain lock, and the write is
+// made there too. A save checked outside it, or not at all, could land after
+// a sign-out had deleted the item — SecItemDelete then SecItemAdd is two
+// calls — and the next launch read the signed-out account as linked.
+- (void)saveRefreshToken:(NSString *)refresh
+               accountID:(NSString *)accountID
+                    name:(NSString *)name
+              generation:(uint64_t)generation {
     if (!_keychainService) {
+        return;
+    }
+    [_keychainLock lock];
+    os_unfair_lock_lock(&_lock);
+    BOOL current = generation == _accountGeneration;
+    os_unfair_lock_unlock(&_lock);
+    if (!current) {
+        [_keychainLock unlock];
         return;
     }
     NSMutableDictionary *account = [NSMutableDictionary dictionary];
@@ -302,6 +324,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     // restored backup on another phone signs in again.
     item[(__bridge id)kSecAttrAccessible] = (__bridge id)kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly;
     OSStatus status = SecItemAdd((__bridge CFDictionaryRef)item, NULL);
+    [_keychainLock unlock];
     if (status != errSecSuccess) {
         LogError(@"Dropbox: keychain write failed: %d", (int)status);
     }
@@ -309,7 +332,9 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 
 - (void)deleteSavedAccount {
     if (_keychainService) {
+        [_keychainLock lock];
         SecItemDelete((__bridge CFDictionaryRef)[self keychainQuery]);
+        [_keychainLock unlock];
     }
 }
 
@@ -340,8 +365,9 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 - (void)adoptRefreshToken:(NSString *)refreshToken accountID:(NSString *)accountID {
     os_unfair_lock_lock(&_lock);
     [self replaceAccountLockedWithRefreshToken:refreshToken accessToken:nil expiresIn:0 accountID:accountID];
+    uint64_t generation = _accountGeneration;
     os_unfair_lock_unlock(&_lock);
-    [self saveRefreshToken:refreshToken accountID:accountID name:nil];
+    [self saveRefreshToken:refreshToken accountID:accountID name:nil generation:generation];
     [self postAccountDidChange];
 }
 
@@ -424,8 +450,10 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
         [self replaceAccountLockedWithRefreshToken:refresh accessToken:access
                                          expiresIn:[body[@"expires_in"] doubleValue]
                                          accountID:body[@"account_id"]];
+        uint64_t generation = self->_accountGeneration;
+        NSString *accountID = self->_accountIDValue;
         os_unfair_lock_unlock(&self->_lock);
-        [self saveRefreshToken:refresh accountID:self.accountID name:nil];
+        [self saveRefreshToken:refresh accountID:accountID name:nil generation:generation];
         [self postAccountDidChange];
         // What the grant carries; a scope missing here is the App Console's
         // Permissions tab, and every call that needs it answers 400.
@@ -462,7 +490,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
             NSString *savedID = self->_accountIDValue;
             os_unfair_lock_unlock(&self->_lock);
             if (refresh) {
-                [self saveRefreshToken:refresh accountID:savedID name:display];
+                [self saveRefreshToken:refresh accountID:savedID name:display generation:generation];
                 [self postAccountDidChange];
             }
         }
@@ -474,7 +502,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     os_unfair_lock_lock(&_lock);
     NSString *refresh = _refreshToken;
     // An expired one is refused and the grant would outlive the sign-out.
-    NSString *access = _accessTokenExpiry - kAccessTokenMargin > CFAbsoluteTimeGetCurrent() ? _accessToken : nil;
+    NSString *access = [self hasFreshAccessTokenLocked] ? _accessToken : nil;
     [self replaceAccountLockedWithRefreshToken:nil accessToken:nil expiresIn:0 accountID:nil];
     os_unfair_lock_unlock(&_lock);
     if (!refresh) {
@@ -582,6 +610,10 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     }] resume];
 }
 
+- (BOOL)hasFreshAccessTokenLocked {
+    return _accessToken && _accessTokenExpiry - kAccessTokenMargin > CFAbsoluteTimeGetCurrent();
+}
+
 // Single-flight: every caller arriving during a refresh waits on that one.
 - (void)withAccessToken:(VibeDropboxTokenWaiter)waiter {
     [self retryDeferredAccountLoad];
@@ -591,7 +623,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
         waiter(nil, 0, VibeDropboxMakeError(VibeDropboxErrorNotLinked, @"no Dropbox account"));
         return;
     }
-    if (_accessToken && _accessTokenExpiry - kAccessTokenMargin > CFAbsoluteTimeGetCurrent()) {
+    if ([self hasFreshAccessTokenLocked]) {
         NSString *token = _accessToken;
         uint64_t generation = _accountGeneration;
         os_unfair_lock_unlock(&_lock);
@@ -770,11 +802,19 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 
 // The transfer's task, unless a cancel came first. Under the lock, so a
 // cancel either finds the task or is seen here.
+//
+// TRAP: a download enters the delegate's table under the SAME lock. Written
+// after the adopt, a cancel between the two cancelled a task whose
+// completion found no transfer, and the download never finished: its caller
+// waited on it for good, holding its materialization lane.
 - (BOOL)adoptTask:(NSURLSessionDataTask *)task forTransfer:(DropboxTransfer *)transfer {
     os_unfair_lock_lock(&_lock);
     BOOL cancelled = transfer.cancelled;
     if (!cancelled) {
         transfer.task = task;
+        if (transfer.destination) {
+            _downloads[@(task.taskIdentifier)] = transfer;
+        }
     }
     os_unfair_lock_unlock(&_lock);
     return !cancelled;
@@ -904,9 +944,6 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
             [self finishTransfer:download result:nil error:VibeCancelledError()];
             return;
         }
-        os_unfair_lock_lock(&self->_lock);
-        self->_downloads[@(task.taskIdentifier)] = download;
-        os_unfair_lock_unlock(&self->_lock);
         [task resume];
     }];
 }

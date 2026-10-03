@@ -664,9 +664,8 @@ static NSString *const kTabSearch = @"search";
 - (void)tabBarController:(UITabBarController *)tabBarController
             didSelectTab:(UITab *)selectedTab
              previousTab:(UITab *)previousTab {
-    if (selectedTab != previousTab && [previousTab.identifier isEqualToString:kTabPlaylist]
-            && [previousTab.viewController isKindOfClass:UINavigationController.class]) {
-        [(UINavigationController *)previousTab.viewController popToRootViewControllerAnimated:NO];
+    if (selectedTab != previousTab && [previousTab.identifier isEqualToString:kTabPlaylist]) {
+        [_library.navigationController popToRootViewControllerAnimated:NO];
     }
     [self syncTabSurfaces];
 }

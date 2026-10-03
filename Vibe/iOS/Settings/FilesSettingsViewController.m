@@ -307,10 +307,7 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
         else if ([self dropboxRowAtIndex:indexPath.row] == VibeDropboxRowRemoveDownloads) {
             // No confirmation: nothing leaves Dropbox, and a song comes back
             // by playing it.
-            __weak FilesSettingsViewController *weakSelf = self;
-            [DropboxMirror.shared removeDownloadsWithCompletion:^{
-                [weakSelf measureDownloads];
-            }];
+            [DropboxMirror.shared removeDownloadsWithCompletion:^{}];
         }
         else if ([self dropboxRowAtIndex:indexPath.row] == VibeDropboxRowMaximumSize) {
             [self.navigationController pushViewController:[self maximumSizePicker] animated:YES];

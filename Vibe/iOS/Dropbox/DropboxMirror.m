@@ -116,6 +116,7 @@ static NSError *VibePOSIXError(void) {
         _streamsCondition = [[NSCondition alloc] init];
         _streams = [NSMutableDictionary dictionary];
         _fetching = [NSMutableSet set];
+        _sidecarWaiters = [NSMutableDictionary dictionary];
         _diskQueue = dispatch_queue_create("com.commonwealthrecordings.Vibe.dropbox-mirror",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
         // Not pruned here: before first unlock the Keychain reads as no
@@ -355,10 +356,13 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
 }
 
 // Answers the CUE sheets to fetch: they are read while the folder opens, so
-// they come down with the listing; tracks wait for their open.
+// they come down with the listing; tracks wait for their open. *discarded is
+// set when downloaded bytes went: a changed file back to a placeholder, or a
+// departed file or folder deleted.
 - (NSArray<NSDictionary *> *)reconcileDirectory:(NSURL *)directory
                                            path:(NSString *)folderPath
-                                    withEntries:(NSArray<NSDictionary *> *)entries {
+                                    withEntries:(NSArray<NSDictionary *> *)entries
+                                      discarded:(BOOL *)discarded {
     NSFileManager *files = NSFileManager.defaultManager;
     NSMutableDictionary<NSString *, NSString *> *identifiers = [NSMutableDictionary dictionary];
     NSArray<NSString *> *existing = [files contentsOfDirectoryAtPath:directory.path error:NULL] ?: @[];
@@ -404,8 +408,8 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
         long long size = [entry[@"size"] longLongValue];
         time_t modified = VibeDropboxParseTimestamp(entry[@"server_modified"]);
         struct stat st;
-        if (lstat(url.fileSystemRepresentation, &st) == 0 && S_ISREG(st.st_mode)
-                && VibeDropboxLocalMatchesEntry(st.st_size, st.st_mtimespec.tv_sec, size, modified)) {
+        BOOL present = lstat(url.fileSystemRepresentation, &st) == 0 && S_ISREG(st.st_mode);
+        if (present && VibeDropboxLocalMatchesEntry(st.st_size, st.st_mtimespec.tv_sec, size, modified)) {
             continue;
         }
         if ([PlaylistFile isCueExtension:name.pathExtension]) {
@@ -416,6 +420,7 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
         }
         if (VibeWritePlaceholder(url, size, modified)) {
             placeholders++;
+            *discarded = *discarded || (present && !VibeFileModeIsRemotePlaceholder(st.st_mode));
         }
         else {
             LogWarn(@"Dropbox: could not write placeholder %@: %s", local, strerror(errno));
@@ -439,7 +444,21 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
             continue;
         }
         if (![kept containsObject:name]) {
+            // TRAP: a departed directory takes its cached index with it, and
+            // its descendants'. Kept, a folder that comes back on Dropbox is
+            // made empty here, its unchanged index skips the xattr write, and
+            // it reads as listed: Play on its row opened nothing. The cache
+            // cannot name a subtree, so it goes whole — for a departed file
+            // too, which is rare enough not to tell apart — and refills from
+            // the xattrs.
+            struct stat st;
+            if (lstat(url.fileSystemRepresentation, &st) == 0
+                    && (S_ISDIR(st.st_mode) || (S_ISREG(st.st_mode) && !VibeFileModeIsRemotePlaceholder(st.st_mode)
+                                                && ![PlaylistFile isCueExtension:name.pathExtension]))) {
+                *discarded = YES;   // a folder may hold downloads; not walked to find out
+            }
             [files removeItemAtURL:url error:NULL];
+            [_indexes removeAllObjects];
         }
     }
     LogInfo(@"Dropbox: reconciled %@: %lu entries, %lu new placeholders, %lu sidecars",
@@ -507,7 +526,18 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
                 return;
             }
             NSURL *directory = [self directoryForDropboxPath:path account:account];
-            NSArray<NSDictionary *> *sidecars = [self reconcileDirectory:directory path:path withEntries:entries];
+            BOOL discarded = NO;
+            NSArray<NSDictionary *> *sidecars = [self reconcileDirectory:directory path:path withEntries:entries
+                                                               discarded:&discarded];
+            if (discarded) {
+                // Rare — a file changed or left Dropbox after it was
+                // downloaded — so the walk the total needs is paid here.
+                long long total = 0;
+                for (NSDictionary *download in [self downloadsUnder:account]) {
+                    total += [download[@"size"] longLongValue];
+                }
+                [self postDownloadsDidChangeWithTotal:total];
+            }
             // Side by side and off the disk queue, which other refreshes need.
             // TRAP: one download per sheet. Two refreshes of one folder both
             // find it missing, and two downloads share its part file: the
@@ -526,9 +556,6 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
                 if (waiters) {
                     [waiters addObject:leave];
                     continue;
-                }
-                if (!self->_sidecarWaiters) {
-                    self->_sidecarWaiters = [NSMutableDictionary dictionary];
                 }
                 self->_sidecarWaiters[key] = [NSMutableArray arrayWithObject:leave];
                 [self downloadDropboxPath:sidecar[@"path"] toURL:sidecar[@"url"] progress:nil
@@ -675,15 +702,7 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
 - (void)setDownloadBudget:(long long)downloadBudget {
     __atomic_store_n(&_downloadBudget, downloadBudget, __ATOMIC_RELAXED);
     dispatch_async(_diskQueue, ^{
-        [self postDownloadsTotal:[self enforceDownloadBudgetKeeping:nil]];
-    });
-}
-
-- (void)postDownloadsTotal:(long long)total {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [NSNotificationCenter.defaultCenter postNotificationName:VibeDropboxDownloadsDidChangeNotification
-                                                          object:self
-                                                        userInfo:@{VibeDropboxDownloadsBytesKey: @(total)}];
+        [self postDownloadsDidChangeWithTotal:[self enforceDownloadBudgetKeeping:nil]];
     });
 }
 
@@ -700,14 +719,32 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
     });
 }
 
+// Any thread; posted on main. Every reader of a row's downloaded state hears
+// it — Search's marks, a mirrored folder on screen, the size in Settings —
+// whichever way the bytes came or went.
+- (void)postDownloadsDidChangeWithTotal:(long long)total {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [NSNotificationCenter.defaultCenter postNotificationName:VibeDropboxDownloadsDidChangeNotification
+                                                          object:self
+                                                        userInfo:@{VibeDropboxDownloadsBytesKey: @(total)}];
+    });
+}
+
 - (void)removeDownloadsWithCompletion:(dispatch_block_t)completion {
     dispatch_async(_diskQueue, ^{
         NSURL *account = self.accountURL;
         NSUInteger removed = 0;
+        long long kept = 0;
         for (NSDictionary *download in account ? [self downloadsUnder:account] : @[]) {
-            removed += [self evictDownload:download] ? 1 : 0;
+            if ([self evictDownload:download]) {
+                removed++;
+            }
+            else {
+                kept += [download[@"size"] longLongValue];
+            }
         }
         LogInfo(@"Dropbox: removed %lu downloads", (unsigned long)removed);
+        [self postDownloadsDidChangeWithTotal:kept];
         dispatch_async(dispatch_get_main_queue(), completion);
     });
 }
@@ -947,7 +984,7 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
     }
     LogInfo(@"Dropbox: downloaded %@ in %.1fs", url.lastPathComponent, CFAbsoluteTimeGetCurrent() - start);
     dispatch_async(_diskQueue, ^{
-        [self postDownloadsTotal:[self enforceDownloadBudgetKeeping:url]];
+        [self postDownloadsDidChangeWithTotal:[self enforceDownloadBudgetKeeping:url]];
     });
     return YES;
 }
