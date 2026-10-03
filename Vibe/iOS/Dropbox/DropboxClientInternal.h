@@ -14,6 +14,9 @@ NS_ASSUME_NONNULL_BEGIN
 // Links the account as a completed sign-in would, without the web sheet; the
 // access token is fetched on first use, as after a relaunch.
 - (void)adoptRefreshToken:(NSString *)refreshToken accountID:(NSString *)accountID;
+// The sign-in's own follow-up, declared for the tests: asks Dropbox for the
+// account's name and ID and stamps them, if the account is still the one asked.
+- (void)refreshAccountNameWithCompletion:(dispatch_block_t)completion;
 
 // Rebuilds both sessions over `configuration` — nil for the one the client
 // was made with — finishing what is in flight on the old ones: how the debug

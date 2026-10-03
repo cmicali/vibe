@@ -274,9 +274,13 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 // "No Results" once every half in scope has answered with nothing. A half
 // still asking, or a Dropbox failure, which says so itself, is not that.
 - (void)refreshEmptyState {
-    BOOL settledEmpty = [self currentQuery].length > 0 && _matches.count == 0 && _fileHits.count == 0
-            && _dropboxHits.count == 0 && !_fileHitsPending && !_fileIndex.isBuilding
-            && !_dropboxSearching && !_dropboxFailed;
+    // Only the halves in scope: the others keep the answers they had, which
+    // the table does not draw. The playlist's matches are already the scope's.
+    BOOL filesEmpty = ![self scopeIncludes:VibeSearchSectionFiles]
+            || (_fileHits.count == 0 && !_fileHitsPending && !_fileIndex.isBuilding);
+    BOOL dropboxEmpty = ![self scopeIncludes:VibeSearchSectionDropbox]
+            || (_dropboxHits.count == 0 && !_dropboxSearching && !_dropboxFailed);
+    BOOL settledEmpty = [self currentQuery].length > 0 && _matches.count == 0 && filesEmpty && dropboxEmpty;
     self.contentUnavailableConfiguration = settledEmpty
             ? [UIContentUnavailableConfiguration searchConfiguration] : nil;
 }

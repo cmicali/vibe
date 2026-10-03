@@ -706,6 +706,32 @@ static struct stat StatOf(NSURL *url) {
     XCTAssertFalse(_client.isLinked);
 }
 
+// An account-name answer that outlives its account names nothing: stamped on
+// the next one, the mirror would follow the wrong ID and prune the right cache.
+- (void)testALateAccountNameAnswerDoesNotStampTheNextAccount {
+    dispatch_semaphore_t gate = dispatch_semaphore_create(0);
+    [self installHandler:^DropboxStubResponse(NSURLRequest *request, NSDictionary *json) {
+        if ([request.URL.path isEqualToString:@"/2/users/get_current_account"]) {
+            dispatch_semaphore_wait(gate, dispatch_time(DISPATCH_TIME_NOW,
+                    (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)));
+            return DropboxStubJSON(200, @{@"account_id": @"dbid:test", @"name": @{@"display_name": @"First"}});
+        }
+        return [self defaultResponseFor:request json:json];
+    }];
+    XCTestExpectation *answered = [self expectationWithDescription:@"name"];
+    [_client refreshAccountNameWithCompletion:^{ [answered fulfill]; }];
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
+    while ([self requestsToPath:@"/2/users/get_current_account"].count == 0 && deadline.timeIntervalSinceNow > 0) {
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+    }
+    XCTAssertEqual([self requestsToPath:@"/2/users/get_current_account"].count, 1u);
+    [_client adoptRefreshToken:@"R2" accountID:@"dbid:second"];
+    dispatch_semaphore_signal(gate);
+    [self waitForExpectations:@[answered] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertEqualObjects(_client.accountID, @"dbid:second");
+    XCTAssertNil(_client.accountName);
+}
+
 - (void)testARefusedRefreshTokenUnlinksTheAccount {
     [self installHandler:^DropboxStubResponse(NSURLRequest *request, NSDictionary *json) {
         if ([request.URL.path isEqualToString:@"/oauth2/token"]) {

@@ -393,6 +393,9 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 // The display name for Settings. A failure leaves it nil and the account
 // linked: the name is decoration.
 - (void)refreshAccountNameWithCompletion:(dispatch_block_t)completion {
+    os_unfair_lock_lock(&_lock);
+    uint64_t generation = _accountGeneration;
+    os_unfair_lock_unlock(&_lock);
     [self callEndpoint:@"users/get_current_account" arguments:nil
             completion:^(NSDictionary *result, NSError *error) {
         NSDictionary *name = result[@"name"];
@@ -400,7 +403,10 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
         NSString *accountID = result[@"account_id"];
         if ([display isKindOfClass:NSString.class]) {
             os_unfair_lock_lock(&self->_lock);
-            NSString *refresh = self->_refreshToken;
+            // Only the account it was asked for: an answer that outlived a
+            // sign-out and the next sign-in would stamp that account with
+            // this one's name and ID, and the mirror's directory is the ID.
+            NSString *refresh = generation == self->_accountGeneration ? self->_refreshToken : nil;
             if (refresh) {
                 self->_accountNameValue = display;
                 if ([accountID isKindOfClass:NSString.class]) {
