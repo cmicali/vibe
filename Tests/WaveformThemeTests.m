@@ -7,6 +7,7 @@
 #import <AppKit/AppKit.h>
 #import "WaveformTheme.h"
 #import "AppSettings.h"
+#import "AppTheme.h"
 
 static void GetRGB(VibeColor *color, CGFloat *r, CGFloat *g, CGFloat *b) {
     NSColor *converted = [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
@@ -160,6 +161,22 @@ static CGFloat Alpha(VibeColor *color) {
 - (void)testUnknownIdentifierResolvesAsMono {
     WaveformTheme *theme = [self themeFor:@"lava_lamp" isDark:YES];
     XCTAssertTrue(SameRGB(theme.playedColor, NSColor.whiteColor));
+}
+
+// The mac's mapping. Off is no line whatever the pair holds, so a theme that
+// never asked keeps the dimmed unplayed side; on is the pair's side, the
+// appearance's contrast pole while unset.
+- (void)testPlayheadColorFollowsTheThemesSwitchAndPair {
+    AppTheme *record = [[AppTheme alloc] initWithRecord:nil];
+    [record setColor:NSColor.redColor forBase:kVibeThemeColorWaveformPlayhead dark:YES];
+    XCTAssertNil([WaveformTheme themeForAppTheme:record isDark:YES artworkColor:nil].playheadColor);
+
+    record.waveformPlayheadLine = YES;
+    WaveformTheme *dark = [WaveformTheme themeForAppTheme:record isDark:YES artworkColor:nil];
+    XCTAssertTrue(SameRGB(dark.playheadColor, NSColor.redColor));
+    WaveformTheme *light = [WaveformTheme themeForAppTheme:record isDark:NO artworkColor:nil];
+    XCTAssertTrue(SameRGB(light.playheadColor, NSColor.blackColor));
+    XCTAssertEqualWithAccuracy(Alpha(light.playheadColor), 1.0, 0.001);
 }
 
 // Hover clears the played color's luminance by 0.25 toward the appearance's

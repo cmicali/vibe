@@ -26,6 +26,7 @@ static NSString *const kFieldWaveformStyle = @"waveformStyle";
 static NSString *const kFieldMode = @"mode";
 static NSString *const kFieldWaveformTheme = @"waveformTheme";
 static NSString *const kFieldWaveformGradient = @"waveformGradient";
+static NSString *const kFieldWaveformPlayheadLine = @"waveformPlayheadLine";
 static NSString *const kFieldWaveformBarDensity = @"waveformBarDensity";
 static NSString *const kFieldWaveformBarWidth = @"waveformBarWidth";
 static NSString *const kFieldWindowTint = @"windowTint";
@@ -82,6 +83,7 @@ NSString *const kVibeThemeImageNextButtonLight = @"nextButtonImageLight";
 
 NSString *const kVibeThemeColorWaveformPlayed = @"waveformPlayedColor";
 NSString *const kVibeThemeColorWaveformUnplayed = @"waveformUnplayedColor";
+NSString *const kVibeThemeColorWaveformPlayhead = @"waveformPlayheadColor";
 NSString *const kVibeThemeColorWindowTint = @"windowTintColor";
 NSString *const kVibeThemeColorPlaylistTint = @"playlistTintColor";
 NSString *const kVibeThemeColorWindowBackground = @"windowBackgroundColor";
@@ -379,6 +381,8 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
                               NumberField(kVibeThemeWaveformBarScaleMin, kVibeThemeWaveformBarScaleMax, NO))];
         AddColorPair(rows, kVibeThemeColorWaveformPlayed, waveform, @"playedColor");
         AddColorPair(rows, kVibeThemeColorWaveformUnplayed, waveform, @"unplayedColor");
+        [rows addObject:Field(kFieldWaveformPlayheadLine, waveform, @"playheadLine", @NO, BoolField())];
+        AddColorPair(rows, kVibeThemeColorWaveformPlayhead, waveform, @"playheadColor");
 
         [rows addObject:Field(kFieldPlaylistBackgroundStyle, playlist, @"backgroundStyle",
                               SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS,
@@ -571,6 +575,10 @@ static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
     if ([base isEqualToString:kVibeThemeColorWaveformPlayed]) {
         return isDark ? [NSColor colorWithRed:1 green:1 blue:1 alpha:0.75]
                       : [NSColor colorWithRed:0 green:0 blue:0 alpha:0.75];
+    }
+    if ([base isEqualToString:kVibeThemeColorWaveformPlayhead]) {
+        return isDark ? [NSColor colorWithRed:1 green:1 blue:1 alpha:1]
+                      : [NSColor colorWithRed:0 green:0 blue:0 alpha:1];
     }
     NSCAssert([base isEqualToString:kVibeThemeColorWaveformUnplayed], @"no color pair %@", base);
     return [NSColor colorWithRed:0.5 green:0.5 blue:0.5 alpha:0.75];
@@ -1206,6 +1214,9 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 
 - (BOOL)waveformGradient { return [self boolForKey:kFieldWaveformGradient]; }
 - (void)setWaveformGradient:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldWaveformGradient]; }
+
+- (BOOL)waveformPlayheadLine { return [self boolForKey:kFieldWaveformPlayheadLine]; }
+- (void)setWaveformPlayheadLine:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldWaveformPlayheadLine]; }
 
 - (double)waveformBarDensity { return [self floatForKey:kFieldWaveformBarDensity]; }
 - (void)setWaveformBarDensity:(double)v { [self storeSanitized:@(v) forKey:kFieldWaveformBarDensity]; }

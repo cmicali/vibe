@@ -30,6 +30,7 @@ typedef NS_ENUM(NSInteger, VibeWaveformRow) {
     VibeWaveformRowStyle = 0,
     VibeWaveformRowWidgetStyle,
     VibeWaveformRowTheme,
+    VibeWaveformRowPlayheadLine,
     VibeWaveformRowCount,
 };
 
@@ -122,6 +123,16 @@ static NSString *const kValueCellIdentifier  = @"value";
                                                                 on:VibeShowsShuffleRepeat()
                                                             target:self action:@selector(shuffleRepeatToggled:)];
     }
+    if (!nowPlaying && indexPath.row == VibeWaveformRowPlayheadLine) {
+        // The style's default until chosen, so it follows a style pick.
+        BOOL line = [WaveformRendererRegistry
+                drawsPlayheadLineForIdentifier:[self currentWaveformStyle]
+                                        chosen:AppSettings.sharedInstance.waveformPlayheadLine];
+        return [SettingsChoiceViewController switchCellInTableView:tableView
+                                                             title:STR_SETTINGS_WAVEFORM_PLAYHEAD_LINE
+                                                                on:line
+                                                            target:self action:@selector(playheadLineToggled:)];
+    }
 
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kValueCellIdentifier];
     if (!cell) {
@@ -159,7 +170,8 @@ static NSString *const kValueCellIdentifier  = @"value";
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     BOOL nowPlaying = indexPath.section == VibeAppearanceSectionNowPlaying;
-    if (nowPlaying && indexPath.row != VibeNowPlayingRowTimeDisplay) {
+    if (nowPlaying ? indexPath.row != VibeNowPlayingRowTimeDisplay
+                   : indexPath.row == VibeWaveformRowPlayheadLine) {
         return;     // the switch rows
     }
     UIViewController *next = nil;
@@ -241,6 +253,11 @@ static NSString *const kValueCellIdentifier  = @"value";
 
 - (void)fileInfoToggled:(UISwitch *)toggle {
     VibeSetShowsFileInfo(toggle.isOn);
+    VibeNotifyDisplaySettingsChanged();
+}
+
+- (void)playheadLineToggled:(UISwitch *)toggle {
+    AppSettings.sharedInstance.waveformPlayheadLine = toggle.isOn;
     VibeNotifyDisplaySettingsChanged();
 }
 

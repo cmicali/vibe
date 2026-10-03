@@ -45,6 +45,12 @@ NS_ASSUME_NONNULL_BEGIN
 // No vertical ramp: every stop is the side's color as-is. macOS only.
 @property (nonatomic) BOOL flatFill;
 
+// Non-nil, the playhead is a line in this color over a waveform drawn wholly
+// as played; nil, the played/unplayed boundary is the playhead. Each view
+// draws the line and hands its renderer a progress of 1, so no renderer
+// reads this.
+@property (nonatomic, strong, nullable) VibeColor *playheadColor;
+
 #if TARGET_OS_OSX
 // Every mac surface that draws a waveform maps the theme record through here,
 // so a new waveform field is mapped once.

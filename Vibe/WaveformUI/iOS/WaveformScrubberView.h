@@ -85,8 +85,8 @@ NS_ASSUME_NONNULL_BEGIN
 // owner fans it out, since a reused cell keeps its last renderer.
 - (void)syncWaveformStyle;
 
-// Likewise for the theme and custom colors; re-bakes, since the bitmap holds
-// the old palette.
+// Likewise for the theme, custom colors and the playhead line; re-bakes, since
+// the bitmap holds the old palette.
 - (void)syncWaveformTheme;
 
 // THIS page's dominant art color for album_art; nil resolves to Mono. Per view

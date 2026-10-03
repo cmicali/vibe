@@ -138,6 +138,16 @@ static inline void VibeFillBarGradient(CGContextRef ctx, CGSize size, NSArray *s
 // lit slice, not a blob. Pixel-snapped at use.
 static const CGFloat kVibeHoverHighlightWidth = 1.5;
 
+// The line a theme's playheadColor asks for: solid, the height of the seek
+// band, pixel-snapped like the hover slice. Each view draws its own, since
+// the mac's moves across the waveform and the scrubber's stays at center.
+static const CGFloat kVibePlayheadLineWidth = 2;
+static inline CGRect VibePlayheadLineRect(CGFloat x, CGRect band, CGFloat boundsWidth, CGFloat scale) {
+    CGRect line = VibeSnappedColumnRect(x, kVibePlayheadLineWidth, boundsWidth, band.size.height, scale);
+    line.origin.y = band.origin.y;
+    return line;
+}
+
 // The envelope bake's bitmap, in the format the iOS scrubber installs: sRGB,
 // premultiplied alpha first in host order, scaled to points. NULL when empty.
 static inline CGContextRef _Nullable VibeNewEnvelopeBitmapContext(CGSize size, CGFloat scale) CF_RETURNS_RETAINED;

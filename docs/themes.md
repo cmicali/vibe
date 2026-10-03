@@ -36,8 +36,8 @@ In **Settings > Appearance**:
 
 The editor is organized the way the player is: **App icon** (the app and
 Dock icons), **Window** (color modes, background, tint, corner radius),
-**Player display** (default artwork, the waveform's style, bars and colors,
-title and artist fonts and colors), **Playback buttons**, **Track
+**Player display** (default artwork, the waveform's style, bars, colors and
+playhead line, title and artist fonts and colors), **Playback buttons**, **Track
 information** (the file-info line, BPM and key), **Time display**, and
 **Playlist** (background, fonts, columns, row highlights).
 

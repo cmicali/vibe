@@ -82,6 +82,9 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
                                           customPlayed:[theme colorForBase:kVibeThemeColorWaveformPlayed dark:isDark]
                                         customUnplayed:[theme colorForBase:kVibeThemeColorWaveformUnplayed dark:isDark]];
     resolved.flatFill = !theme.waveformGradient;
+    if (theme.waveformPlayheadLine) {
+        resolved.playheadColor = [theme displayColorForBase:kVibeThemeColorWaveformPlayhead dark:isDark];
+    }
     return resolved;
 }
 #endif

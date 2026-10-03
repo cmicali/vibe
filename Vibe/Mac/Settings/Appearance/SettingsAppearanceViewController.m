@@ -369,7 +369,8 @@ static const double kWaveformGainDetentDB = 0.75;
     // No artwork, so album_art resolves to Mono's answer.
     WaveformTheme *palette = [WaveformTheme themeForAppTheme:theme isDark:dark artworkColor:nil];
     NSArray *key = @[style, @(dark), palette.playedColor, palette.unplayedColor,
-            @(palette.flatFill), @(theme.waveformBarDensity), @(theme.waveformBarWidth),
+            @(palette.flatFill), palette.playheadColor ?: NSNull.null,
+            @(theme.waveformBarDensity), @(theme.waveformBarWidth),
             @(settings.waveformNormalize), @(settings.waveformGainDB)];
     if ([_waveformPreviewKey isEqualToArray:key]) return;
     CGImageRef bitmap = [WaveformRendererRegistry newPreviewForIdentifier:style dark:dark theme:palette

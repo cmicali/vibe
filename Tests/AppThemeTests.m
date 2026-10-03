@@ -77,6 +77,7 @@
     XCTAssertTrue(theme.showStatusIcons);
     XCTAssertTrue(theme.showTimeLabels);
     XCTAssertTrue(theme.waveformGradient);
+    XCTAssertFalse(theme.waveformPlayheadLine);
     XCTAssertEqual(theme.waveformBarDensity, 1);
     XCTAssertEqual(theme.waveformBarWidth, 1);
     XCTAssertTrue(theme.showPlaylistNumberColumn);
@@ -432,7 +433,7 @@
 - (void)testDisplayColorIsTheOverrideOrThePairsConstant {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
     NSArray<NSString *> *bases = @[kVibeThemeColorWaveformPlayed, kVibeThemeColorWaveformUnplayed,
-                                   kVibeThemeColorWindowTint, kVibeThemeColorPlaylistTint,
+                                   kVibeThemeColorWaveformPlayhead, kVibeThemeColorWindowTint, kVibeThemeColorPlaylistTint,
                                    kVibeThemeColorWindowBackground, kVibeThemeColorTitle,
                                    kVibeThemeColorArtist, kVibeThemeColorInfo, kVibeThemeColorTime,
                                    kVibeThemeColorPlaylistBackground, kVibeThemeColorPlaylistPlayingRow,
@@ -513,6 +514,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     [theme setColor:VibeColorFromHexString(@"#FF000080") forBase:kVibeThemeColorTitle dark:YES];
     [theme setPlaylistColorEnabled:YES forBase:kVibeThemeColorPlaylistTitle];
     theme.showFileInfo = NO;
+    theme.waveformPlayheadLine = YES;
     theme.keyNotation = @"musical";
     theme.dockIcon = @"app_icon";
     [theme setImageReference:@"bundled:cupertino_dark.jpg" forKey:kVibeThemeImagePlayButtonDark];
@@ -524,6 +526,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
         XCTAssertEqualObjects(VibeHexStringFromColor([theme colorForBase:kVibeThemeColorTitle dark:YES]), @"#FF000080");
         XCTAssertTrue([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistTitle]);
         XCTAssertFalse(theme.showFileInfo);
+        XCTAssertTrue(theme.waveformPlayheadLine);
         XCTAssertEqualObjects(theme.keyNotation, @"musical");
         XCTAssertEqualObjects(theme.dockIcon, @"app_icon");
         XCTAssertEqualObjects([theme imageReferenceForKey:kVibeThemeImagePlayButtonDark],
@@ -651,6 +654,7 @@ static CGFloat Brightness(NSString *hex) {
 
 - (void)testJSONRoundTripCarriesNameAndVersionAndStripsIds {
     NSDictionary *record = @{@"waveformTheme": @"orange", @"waveformBarDensity": @1.75, @"waveformBarWidth": @0.65, @"windowCornerRadius": @6,
+                             @"waveformPlayheadLine": @YES, @"waveformPlayheadColorDark": @"#FF0000",
                              @"id": @"SHOULD-NOT-TRAVEL"};
     NSData *data = [AppTheme JSONDataForRecord:record name:@"Exported"];
     XCTAssertNotNil(data);
@@ -660,7 +664,8 @@ static CGFloat Brightness(NSString *hex) {
     XCTAssertNil(json[@"id"]);
     // The fields travel nested under their editor sections, never flat, and
     // an untouched section is omitted rather than written empty.
-    XCTAssertEqualObjects(json[@"waveform"], (@{@"theme": @"orange", @"barDensity": @1.75, @"barWidth": @0.65}));
+    XCTAssertEqualObjects(json[@"waveform"], (@{@"theme": @"orange", @"barDensity": @1.75, @"barWidth": @0.65,
+                                                @"playheadLine": @YES, @"playheadColorDark": @"#FF0000"}));
     XCTAssertEqualObjects(json[@"window"], (@{@"cornerRadius": @6, @"customCornerRadius": @YES}));
     XCTAssertNil(json[@"waveformTheme"]);
     XCTAssertNil(json[@"playlist"]);
@@ -676,6 +681,7 @@ static CGFloat Brightness(NSString *hex) {
     NSDictionary *back = [AppTheme recordFromJSONData:data name:&name error:&error];
     XCTAssertNil(error);
     XCTAssertEqualObjects(back, (@{@"waveformTheme": @"orange", @"waveformBarDensity": @1.75, @"waveformBarWidth": @0.65, @"windowCornerRadius": @6,
+                                   @"waveformPlayheadLine": @YES, @"waveformPlayheadColorDark": @"#FF0000",
                                    @"customCornerRadius": @YES}));
     XCTAssertEqualObjects(name, @"Exported");
 }

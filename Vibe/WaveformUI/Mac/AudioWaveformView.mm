@@ -29,6 +29,8 @@ static const CGFloat kWaveformDragHysteresis = 4;
     NSPoint                     _mouseDownPoint;
     NSPoint                     _windowOriginAtMouseDown;
     BOOL                        _isDragSeeking;
+    // The theme's playhead line; hidden until a theme asks for it.
+    CALayer*                    _playheadLine;
 }
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
@@ -53,6 +55,12 @@ static const CGFloat kWaveformDragHysteresis = 4;
     // layer-hosting.
     self.layer = [[CALayer alloc] init];
     self.wantsLayer = YES;
+
+    _playheadLine = [CALayer layer];
+    _playheadLine.hidden = YES;
+    // A style change adds its renderer's tree above every older sublayer.
+    _playheadLine.zPosition = 1;
+    [self.layer addSublayer:_playheadLine];
 
     _progress = 0;
     _progressTracker = 0;
@@ -114,7 +122,9 @@ static const CGFloat kWaveformDragHysteresis = 4;
 
 - (void)drawWaveform {
     VibeSignpostBegin(waveform_update);
-    [_currentWaveformRenderer updateWaveform:self.bounds progress:self.progress waveform:self.waveform.waveform];
+    [_currentWaveformRenderer updateWaveform:self.bounds progress:[self playedProgress]
+                                    waveform:self.waveform.waveform];
+    [self layoutPlayheadLine];
     VibeSignpostEnd(waveform_update);
 }
 
@@ -122,9 +132,35 @@ static const CGFloat kWaveformDragHysteresis = 4;
     VibeSignpostBegin(waveform_progress);
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    [_currentWaveformRenderer updateProgress:_progress waveform:self.waveform.waveform];
+    [_currentWaveformRenderer updateProgress:[self playedProgress] waveform:self.waveform.waveform];
     [CATransaction commit];
+    [self layoutPlayheadLine];
     VibeSignpostEnd(waveform_progress);
+}
+
+// Under a playhead line the renderer draws the whole waveform as played, and
+// the line alone carries the position.
+- (CGFloat)playedProgress {
+    return _currentWaveformRenderer.theme.playheadColor ? 1 : _progress;
+}
+
+// Hidden with nothing loaded, as hover and seek are.
+- (void)layoutPlayheadLine {
+    VibeColor *color = _waveform ? _currentWaveformRenderer.theme.playheadColor : nil;
+    if (!color && _playheadLine.hidden) {
+        return;
+    }
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    _playheadLine.hidden = !color;
+    if (color) {
+        CGRect bounds = self.bounds;
+        _playheadLine.backgroundColor = color.CGColor;
+        _playheadLine.frame = VibePlayheadLineRect(bounds.size.width * _progress,
+                [_currentWaveformRenderer seekHitBandForBounds:bounds], bounds.size.width,
+                VibeBackingScaleOrDefault(self.window.backingScaleFactor));
+    }
+    [CATransaction commit];
 }
 
 - (void)mouseDown:(NSEvent *)event {
@@ -361,6 +397,7 @@ static const CGFloat kWaveformDragHysteresis = 4;
     // Settled geometry is snapped to the old pixel grid and the same-size draw
     // skips the rebuild. After the re-stamp above, which the rebuild reads.
     [_currentWaveformRenderer backingScaleDidChange];
+    [self layoutPlayheadLine];
 }
 
 - (void)viewDidChangeEffectiveAppearance {

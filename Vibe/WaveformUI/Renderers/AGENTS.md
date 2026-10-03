@@ -4,7 +4,7 @@ The strategies both views draw through, the morph engine they share and the leve
 
 **Compare styles by identifier, never by class.** Variants share classes — Wiggle and Wiggle MC are `DetailedAudioWaveformRenderer`, the oversampling trio share a file, Cupertino subclasses Basic — and the resolved registry identifier is what persists. `wiggle` stays with Wiggle MC so saved selections keep their geometry.
 
-The registry's settings preview renders the actual style into a static bitmap with the caller's palette, density, width and levels. Its shared synthetic sample includes fine transients: a smooth envelope alone hides the Detailed family's sampling differences at thumbnail size. Preview rendering never changes the live renderer's geometry or sampling counts.
+The registry's settings preview renders the actual style into a static bitmap with the caller's palette, density, width and levels. Its shared synthetic sample includes fine transients: a smooth envelope alone hides the Detailed family's sampling differences at thumbnail size. Preview rendering never changes the live renderer's geometry or sampling counts. Under a theme's `playheadColor` the bake behind it draws what the views draw, the waveform wholly played and the line where the progress is (`../AGENTS.md`).
 
 ## Families
 
