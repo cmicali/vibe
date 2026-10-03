@@ -1448,6 +1448,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     _state = state;
     _voice = voice;
     _file = file;
+    _stalled = NO;
     _fileSampleRate = fileSampleRate;
     _window = window;
     _voiceStartSeconds = startSeconds;
@@ -1476,6 +1477,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     [self setBufferingOnQueue:NO outcome:@"its voice retired"];
     os_unfair_lock_lock(&_stateLock);
     _state = state;
+    _stalled = NO;
     VibeVoiceID voice = _voice;
     _voice = 0;
     os_unfair_lock_unlock(&_stateLock);
@@ -1484,14 +1486,14 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 }
 
 // The stall's park: Paused at `seconds` with no voice and no file, so the
-// stream's last reader can go, the window and rate kept for the getters.
-// The one writer besides the tuple's own, the two unpublish variants and a
-// settled estimate's window; resumeOnQueue replays from it.
+// stream's last reader can go, the window and rate kept for the getters;
+// resumeOnQueue replays from it, and a seek moves it (_stalled).
 - (void)publishPausedWithoutVoiceOnQueueAtSeconds:(NSTimeInterval)seconds {
     os_unfair_lock_lock(&_stateLock);
     _state = VibePlayerStatePaused;
     _voice = 0;
     _file = nil;
+    _stalled = YES;
     _voiceStartSeconds = seconds;
     _promotedBaseFrames = 0;
     os_unfair_lock_unlock(&_stateLock);
@@ -1499,7 +1501,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 }
 
 - (BOOL)pausedWithoutVoiceOnQueue {
-    return _state == VibePlayerStatePaused && !_voice && !_file && _fileSampleRate > 0;
+    return _stalled;
 }
 
 // No FX tail is modeled: it would be a timer-shaped guess. A buffering hold is

@@ -82,6 +82,11 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
     BOOL                    _gaplessArmedForUI;
     BOOL                    _outputAudioActive;
     BOOL                    _buffering;         // the current voice held for its stream's bytes (updateBufferingOnQueue)
+    // The stall's park: Paused with no voice and no file, the window and rate
+    // kept, which resume replays and a seek holds for it. Set only by
+    // publishPausedWithoutVoiceOnQueueAtSeconds:, cleared by every other
+    // publication.
+    BOOL                    _stalled;
     BOOL                    _outputIdle;
     float                   _pitch;             // percent; see the trap below
     // Minted on main by every explicit play; only ever increments.
