@@ -734,10 +734,13 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
         return nil;
     }
     uint64_t offset = stream.size - kTailWindowBytes;
+    CFAbsoluteTime asked = CFAbsoluteTimeGetCurrent();
     return [_client readPath:[@"rev:" stringByAppendingString:rev] offset:offset length:kTailWindowBytes
                   completion:^(NSData *data, NSError *error) {
         if (data.length == kTailWindowBytes) {
             [stream installWindow:data atOffset:offset];
+            LogInfo(@"Dropbox: tail window for %@ in %.2fs, %llu of %llu bytes downloaded by then", name,
+                    CFAbsoluteTimeGetCurrent() - asked, stream.writtenBytes, stream.size);
         }
         else if (!([error.domain isEqualToString:VibeDropboxErrorDomain] && error.code == VibeDropboxErrorCancelled)) {
             LogWarn(@"Dropbox: no tail window for %@ (%lu bytes): %@", name, (unsigned long)data.length,
@@ -789,6 +792,8 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
         [stream noteWrittenBytes:written];
         if (onReadable && !readable && written >= kStreamReadableBytes && written < stream.size) {
             readable = YES;
+            LogInfo(@"Dropbox: %@ readable at %llu of %llu bytes, %.2fs into the fetch", url.lastPathComponent,
+                    written, stream.size, CFAbsoluteTimeGetCurrent() - start);
             onReadable();
         }
     } completion:^(NSError *downloadError) {
