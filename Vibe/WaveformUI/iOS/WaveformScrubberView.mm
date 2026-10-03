@@ -39,6 +39,11 @@ static const CGFloat kZoomScrubSlop = 12.0;
 // steady, so the picture fills in at one pace whatever the decode's.
 static const NSTimeInterval kLoadBakeMinInterval = 0.4;
 
+// How long a partial waveform waits for its load to complete before it shows.
+// Most loads complete inside it and enter once, at their final heights; only
+// a slow one shows partials and then the completion's crossfade.
+static const NSTimeInterval kFirstPartialDelay = 0.5;
+
 // A bitmap's entrance. The first onto an empty view grows from the midline;
 // a complete one crossfades over a partial one, since Normalize raises the
 // reference only for the whole track and the bars would jump taller. Every
@@ -99,6 +104,8 @@ static const CFTimeInterval kCompletionFadeDuration = 0.3;
     BOOL                    _bakeWanted;
     // For the rate limit; 0 bakes at once.
     CFTimeInterval          _lastBakeAt;
+    // When this load's first delivery came; 0 before it.
+    CFTimeInterval          _firstDeliveryAt;
     CGFloat                 _visibleFraction;
     UIPinchGestureRecognizer *_pinch;
     BOOL                    _isPinching;
@@ -534,6 +541,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     [self removeBakedWaveform];
     // The new track's first bake must not wait on the old track's rate limit.
     _lastBakeAt = 0;
+    _firstDeliveryAt = 0;
     // Stop a coast, then drop the waveform, which disables the scroll and
     // cancels any drag: a gesture must not straddle a track change.
     [_scroll setContentOffset:_scroll.contentOffset animated:NO];
@@ -560,9 +568,6 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 // road: nothing shows until its bitmap lands, which then makes the entrance
 // the view's state calls for (installEnvelopeImage:).
 - (void)showWaveform:(CodableAudioWaveform *)waveform {
-    // Data ends the shimmer, not the open landing (the decode may still be
-    // streaming). The fill stays; see hideLoadingShimmer.
-    [self hideLoadingShimmer];
     // A page brought back by a swipe is handed what it already shows.
     if (waveform == self.waveform && _bakedHost && _bakedComplete) {
         return;
@@ -571,10 +576,19 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     [self installRendererIfNeeded];
     VibeSignpostBegin(waveform_delivery);
     self.waveform = waveform;
-    // The first bitmap and the complete one as soon as they can be drawn; a
-    // streaming load's partials at a steady pace in between.
-    BOOL prompt = !_bakedHost || waveform.waveform->isComplete();
-    [self scheduleEnvelopeBakeAfter:prompt ? 0 : [self throttledBakeDelay]];
+    CFTimeInterval now = CACurrentMediaTime();
+    if (_firstDeliveryAt == 0) {
+        _firstDeliveryAt = now;
+    }
+    // The complete one as soon as it can be drawn; a first partial once its
+    // load has had kFirstPartialDelay to complete; later partials at a steady
+    // pace.
+    NSTimeInterval delay = 0;
+    if (!waveform.waveform->isComplete()) {
+        delay = _bakedHost ? [self throttledBakeDelay]
+                           : MAX(0, _firstDeliveryAt + kFirstPartialDelay - now);
+    }
+    [self scheduleEnvelopeBakeAfter:delay];
     VibeSignpostEnd(waveform_delivery);
 }
 
@@ -753,6 +767,9 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     [_scroll.layer insertSublayer:_bakedHost above:_bakedOutgoing ?: _rendererHost];
     _bakedComplete = complete;
     if (arrival) {
+        // The picture ends the shimmer, not the data: until it lands the
+        // strip would be empty. The fill stays; see hideLoadingShimmer.
+        [self hideLoadingShimmer];
         CABasicAnimation *grow = [CABasicAnimation animationWithKeyPath:@"transform.scale.y"];
         grow.fromValue = @0;
         grow.toValue = @1;

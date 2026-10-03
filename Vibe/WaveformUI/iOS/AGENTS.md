@@ -50,7 +50,7 @@ The played/unplayed gradient boundary is the playhead marker, and it stays pinne
 
 **TRAP: keep the "did the span actually move" test in `syncLoadingTrackToProgress`.** It is the one relayout that can land mid-download, and a duration-0 relayout snaps an easing fill to its target; while the provider materializes the file progress is parked, so the test declines.
 
-**Waveform data arriving ends the sweep but not the fill** — a disk-cached waveform can land while the provider is still materializing the audio, so the fill riding over the drawn waveform is the only remaining sign of the download. That is `endSweepKeepingFill`, whose answer tells the caller whether anything is left to keep. This scrubber is its only caller; the mac view only ever hides the indicator whole.
+**The first bitmap landing ends the sweep but not the fill** (not the data arriving, or the strip would sit empty until it lands) — a disk-cached waveform can land while the provider is still materializing the audio, so the fill riding over the drawn waveform is the only remaining sign of the download. That is `endSweepKeepingFill`, whose answer tells the caller whether anything is left to keep. This scrubber is its only caller; the mac view only ever hides the indicator whole.
 
 The renderer tree hangs off a `geometryFlipped` sublayer giving the shared math the mac's y-up space. **Do not "fix" coordinates in shared renderer code for iOS.**
 
@@ -67,7 +67,7 @@ Theme is the same shape, with one difference: `syncWaveformTheme` compares again
 
 **Every delivery takes one road, `showWaveform:`, and the view picks the entrance from its own state** (`installEnvelopeImage:`), so a track looks the same whether it was cached, local, streaming or swiped onto:
 
-- **The first bitmap onto an empty view grows from the midline** (`kArrivalGrowDuration`, the layer anchored at its vertical center). Nothing shows before it — or the loading indicator, if one is up — which is one bake, about 0.1 s on a phone.
+- **The first bitmap onto an empty view grows from the midline** (`kArrivalGrowDuration`, the layer anchored at its vertical center), **once, at its final heights when it can**: a partial waits `kFirstPartialDelay` for its load to complete, and most loads do, so they enter without a crossfade after them. Before it lands the loading indicator stays up if one is, or the strip is empty — the wait plus one bake, about 0.1 s on a phone for a cached waveform.
 - **A streaming load swaps its partial bitmaps at a steady pace** (`kLoadBakeMinInterval`, trailing, so the newest shape wins), whatever the decode's own: it delivers about ten times a second, and a swap per delivery read as flicker. What has not decoded draws as the silence hairline, under the shimmer and fill as before.
 - **The complete bitmap crossfades over a partial one** (`kCompletionFadeDuration`, the old one kept as `_bakedOutgoing` until the fade ends): Normalize raises its reference only for the whole track (`Renderers/AGENTS.md`), so a plain swap made the bars jump taller as a load finished.
 - **Everything else swaps in place**: a re-bake after a resize, a zoom, a theme, a style or a scale change keeps the old bitmap up — stretched if the size moved — until the new one lands. Only a reset (a track change, a recycled page) removes it.
