@@ -347,9 +347,13 @@ static NSString *const kTabSearch = @"search";
 
 #pragma mark - The mini player
 
-// Never up while the card is.
+// TRAP: the strip stays installed under the card. Taking the accessory away
+// on expand shrinks every tab's bottom inset by the strip, a list scrolled
+// to its end is clamped up by that much under the snapshot, and putting it
+// back on dismiss moves nothing: one card cycle left the last row behind
+// the strip. The card hides the tabs, strip included, so it costs nothing.
 - (void)refreshMiniPlayer {
-    BOOL wanted = VibeMiniPlayerVisible(_playback.screenState) && !_expanded;
+    BOOL wanted = VibeMiniPlayerVisible(_playback.screenState);
     if (wanted) {
         [_miniPlayer renderTrack:_playback.displayedTrack];
         [_miniPlayer setPlaying:_playback.isPlaying];
@@ -451,7 +455,6 @@ static NSString *const kTabSearch = @"search";
     _player.view.hidden = NO;
     [self beginPlayerAppearanceTransition:YES animated:shouldAnimate];
     _player.presented = YES;
-    [self refreshMiniPlayer];
     [self animateCardAnimated:shouldAnimate changes:^{
         self->_player.view.transform = CGAffineTransformIdentity;
         [self applyBackdropProgress:0];
@@ -472,8 +475,6 @@ static NSString *const kTabSearch = @"search";
     uint64_t accessibilityGeneration = [self beginAccessibilityTransitionToExpanded:NO];
     [self beginPlayerAppearanceTransition:NO animated:shouldAnimate];
     _player.presented = NO;
-    // Before the animation, or the strip pops in after the card lands.
-    [self refreshMiniPlayer];
     [self animateCardAnimated:shouldAnimate changes:^{
         self->_player.view.transform = [self minimizedCardTransform];
         [self applyBackdropProgress:1];
@@ -553,9 +554,8 @@ static NSString *const kTabSearch = @"search";
 // A card at rest covers the tabs, so they are hidden: shown, the glass tab
 // bar keeps sampling for nothing. While the card moves a snapshot stands in
 // for them and they are shown under it, drawn twice for those frames on
-// purpose: the tab bar and the strip come back with an appearance of their
-// own, which then plays out under the snapshot rather than after the card
-// has landed.
+// purpose: the tab bar comes back with an appearance of its own, which then
+// plays out under the snapshot rather than after the card has landed.
 - (void)updateBackdropVisibility {
     BOOL hidden = _expanded && !_cardAnimating && !_interactiveDrag;
     if (_tabs.view.hidden != hidden) {
