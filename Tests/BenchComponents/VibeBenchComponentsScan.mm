@@ -46,6 +46,11 @@
 - (BOOL)runOnReadable:(dispatch_block_t)onReadable error:(NSError *__autoreleasing *)error {
     return YES;
 }
+// The protocol's shape before streaming; perf.py grafts this file onto older
+// refs, whose coordinator sends this selector.
+- (BOOL)runWithError:(NSError *__autoreleasing *)error {
+    return YES;
+}
 - (void)cancel {
 }
 @end
