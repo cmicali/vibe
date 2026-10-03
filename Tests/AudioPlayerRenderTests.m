@@ -2389,6 +2389,15 @@ static NSData *MP3Frames(NSData *mp3) {
     return source;
 }
 
+// The hold at the download's edge, which these streams reach seconds in. TRAP:
+// the voice is live on its 24 KB prefix while the test decodes its reference,
+// so on a slow machine the decoder meets the prefix's edge as streamTo: lands
+// it, and the next drain reads that moment as a hold; a hold inside the first
+// second is that one, not the edge's.
+- (BOOL)heldPastThePrefix {
+    return _player.isBuffering && _player.position > 1;
+}
+
 // A headerless MP3 whose head is one rate and the rest another: 50 silent
 // 320 kbps frames, 1.2 s, then four runs of a 192 kbps encode. A stream
 // opening on less than its head walks only 320 kbps frames, whose rate's
@@ -2497,7 +2506,7 @@ static NSData *MP3Frames(NSData *mp3) {
             NSTimeInterval position = self->_player.position;
             monotonic = monotonic && position >= clock;
             clock = position;
-            return self->_player.isBuffering;
+            return [self heldPastThePrefix];
         }], @"%@ played to the download's edge", name);
         XCTAssertTrue(monotonic, @"%@: the clock never ran back", name);
         NSUInteger from = 0;
@@ -2550,7 +2559,7 @@ static NSData *MP3Frames(NSData *mp3) {
     NSData *reference = PCM([self read:source]);
     double estimate = _player.duration;
     [self streamTo:_streamBytes.length * 9 / 10];
-    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
+    XCTAssertTrue([self renderUntil:^BOOL { return [self heldPastThePrefix]; }]);
     double heard = [self currentVoiceSnapshot].consumed / 48000.0;
     XCTAssertGreaterThan(heard, estimate + 1, @"held past the estimate");
     NSTimeInterval held = [self stallTheStream];
