@@ -339,8 +339,12 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     [self filterWithQuery:[self currentQuery]];
 }
 
+// The answer in hand is the previous account's, hidden or not: kept, the
+// same query on return would draw that account's files, and a tap would
+// resolve their paths against this one.
 - (void)dropboxAccountDidChange:(NSNotification *)notification {
     [self refreshScopeButtons];
+    [self resetDropboxSearch];
     if ([self isMateriallyVisible]) {
         [self filterWithQuery:[self currentQuery]];
     }
