@@ -300,7 +300,7 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             }),
             // One streaming road each (VibeFakeDropbox.h); file= scopes it to
             // a basename. Byte counts take K and M.
-            VibeDebugCmd(@"fake_dropbox_fault <stall|drop|rev-change|throttle|expired-token|tail-fail|slow-tail|slow-tags|rate|resume|clear> "
+            VibeDebugCmd(@"fake_dropbox_fault <stall|drop|rev-change|throttle|expired-token|tail-fail|slow-tail|slow-tags|rate|latency|resume|clear> "
                          @"[file=<basename>] [after=<bytes>] [seconds=<s>] [rate=<bytes/s>]", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 if (tokens.count < 2) {

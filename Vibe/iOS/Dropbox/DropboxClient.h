@@ -92,11 +92,19 @@ extern NSNotificationName const VibeDropboxAccountDidChangeNotification;
 
 // `length` bytes of files/download from `offset`, through a Range header:
 // how a tag parse reads a file it does not download. Fewer bytes come back
-// only at the file's end. The returned block cancels, as the download's does.
+// only at the file's end. metadata is the response's Dropbox-API-Result, nil
+// when it carries none. The returned block cancels, as the download's does.
 - (dispatch_block_t)readPath:(NSString *)path
                       offset:(uint64_t)offset
                       length:(uint64_t)length
-                  completion:(void (^)(NSData *_Nullable data, NSError *_Nullable error))completion;
+                  completion:(void (^)(NSData *_Nullable data, NSDictionary *_Nullable metadata,
+                                       NSError *_Nullable error))completion;
+
+// Once per launch, off main, and only with an account: refreshes the access
+// token and opens both sessions' connections to the content host, so the
+// first play pays neither the refresh nor the TLS handshakes. Later calls do
+// nothing.
+- (void)warmUp;
 
 @end
 

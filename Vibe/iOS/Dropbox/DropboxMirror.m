@@ -6,7 +6,6 @@
 #import "DropboxMirror.h"
 
 #include <fcntl.h>
-#include <os/lock.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/xattr.h>
@@ -40,15 +39,12 @@ static const NSTimeInterval kStalePartSeconds = 24 * 60 * 60;
 // An anti-stutter knob, not a correctness requirement: a reader past the
 // bytes written waits for them regardless.
 static const uint64_t kStreamReadableBytes = 256 * 1024;
-// A stream's tail window: every open that reads past the head reads one
-// region in the file's last 900 KB and nothing else out of order (measured:
-// an MP3's ID3v1 check on every open, a moov-last M4A's index, 608 KB at 60
-// minutes, a FLAC with no length's last 64 KB), so one ranged read of this
-// much at a stream's start lets them open from the head.
-static const uint64_t kTailWindowBytes = 2 * 1024 * 1024;
-// No window for a file at most this size: the download, sharing the link with
-// the tail read, reaches the tail about when the window would arrive.
-static const uint64_t kTailWindowMinimumFileBytes = 2 * kTailWindowBytes;
+// A tag read of a file streaming now waits this long for a range its stream
+// is about to hold, its first MB or its tail window, before asking Dropbox:
+// the current track's parse starts at the tap, beside the download, so its
+// bytes arrive about one first byte later either way (1–1.7 s measured).
+static const NSTimeInterval kStreamedTagWaitSeconds = 3;
+static const uint64_t kStreamedTagHeadBytes = 1024 * 1024;
 
 // On every mirror directory: {"path": its Dropbox path, "files": {index key:
 // Dropbox id}}. On the directory, not the files, because a placeholder's
@@ -73,9 +69,13 @@ static NSError *VibePOSIXError(void) {
     // the refreshes waiting on it. The claim on a sheet's download.
     NSMutableDictionary<NSString *, NSMutableArray<dispatch_block_t> *> *_sidecarWaiters;
     // Each fetch's availability while its transfer writes the part file, by
-    // the file's comparable path; removed only once finished.
-    os_unfair_lock _streamsLock;
+    // the file's comparable path; removed only once finished. _fetching holds
+    // the same keys from the fetch's start, before its first response makes
+    // the availability, to its end; both under the condition, broadcast at
+    // each of those three edges, which a tag read waits on.
+    NSCondition *_streamsCondition;
     NSMutableDictionary<NSString *, CloudFileAvailability *> *_streams;
+    NSMutableSet<NSString *> *_fetching;
 }
 
 + (DropboxMirror *)shared {
@@ -112,8 +112,9 @@ static NSError *VibePOSIXError(void) {
         _rootURL = [rootURL copy];
         _downloadBudget = downloadBudget;
         _indexes = [[NSCache alloc] init];
-        _streamsLock = OS_UNFAIR_LOCK_INIT;
+        _streamsCondition = [[NSCondition alloc] init];
         _streams = [NSMutableDictionary dictionary];
+        _fetching = [NSMutableSet set];
         _diskQueue = dispatch_queue_create("com.commonwealthrecordings.Vibe.dropbox-mirror",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
         // Not pruned here: before first unlock the Keychain reads as no
@@ -690,6 +691,43 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
 
 #pragma mark - Ranged reads
 
+// What a file streaming now holds of a range, from its part file or its tail
+// window, waiting up to kStreamedTagWaitSeconds for a range the stream is
+// about to hold, so a tag parse during a play asks Dropbox only for the rest:
+// the longest prefix held, nil for none.
+- (NSData *)streamedBytesOfURL:(NSURL *)url at:(uint64_t)offset length:(uint64_t)length {
+    NSString *key = VibeComparablePath(url.path);
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:kStreamedTagWaitSeconds];
+    [_streamsCondition lock];
+    CloudFileAvailability *stream = _streams[key];
+    while (!stream && [_fetching containsObject:key] && [_streamsCondition waitUntilDate:deadline]) {
+        stream = _streams[key];
+    }
+    [_streamsCondition unlock];
+    if (!stream) {
+        return nil;
+    }
+    uint64_t window = VibeDropboxTailWindowBytes(url.pathExtension, stream.size);
+    if (offset + length <= kStreamedTagHeadBytes || (window > 0 && offset >= stream.size - window)) {
+        // A stream stalled before its first byte broadcasts nothing to end the wait.
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kStreamedTagWaitSeconds * NSEC_PER_SEC)),
+                       dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+            [stream wakeWaiters];
+        });
+        NSMutableData *copy = [NSMutableData dataWithLength:(NSUInteger)length];
+        uint64_t copied = 0;
+        CloudFileAvailabilityWait waited = [stream waitForBytesAt:offset length:length windowInto:copy.mutableBytes
+                                                         capacity:length copied:&copied interrupted:^BOOL {
+            return deadline.timeIntervalSinceNow <= 0;
+        } error:NULL];
+        if (waited == CloudFileAvailabilityReady && copied > 0) {
+            copy.length = (NSUInteger)copied;
+            return copy;
+        }
+    }
+    return [stream readyBytesAt:offset length:length];
+}
+
 - (NSData *)readPlaceholderAtURL:(NSURL *)url
                           offset:(uint64_t)offset
                           length:(uint64_t)length
@@ -699,11 +737,15 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
         if (error) *error = VibeDropboxMakeError(VibeDropboxErrorNotLinked, @"not in the Dropbox mirror");
         return nil;
     }
+    NSData *held = [self streamedBytesOfURL:url at:offset length:length];
+    if (held.length == length) {
+        return held;
+    }
     dispatch_semaphore_t done = dispatch_semaphore_create(0);
     __block NSData *bytes = nil;
     __block NSError *failure = nil;
-    dispatch_block_t cancel = [_client readPath:path offset:offset length:length
-                                     completion:^(NSData *data, NSError *readError) {
+    dispatch_block_t cancel = [_client readPath:path offset:offset + held.length length:length - held.length
+                                     completion:^(NSData *data, NSDictionary *metadata, NSError *readError) {
         bytes = data;
         failure = readError;
         dispatch_semaphore_signal(done);
@@ -719,41 +761,68 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
     if (!bytes && error) {
         *error = failure;
     }
+    if (bytes && held.length > 0) {
+        NSMutableData *joined = [held mutableCopy];
+        [joined appendData:bytes];
+        bytes = joined;
+    }
     return bytes;
 }
 
 #pragma mark - Fetch
 
-// One ranged read of a stream's last kTailWindowBytes, of the version being
-// downloaded (`rev:`, never the id, which answers whatever is current), on
-// the call session, installed as the stream's window. Answers its cancel, or
-// nil when the file is too small or names no version. A failure is not the
+// One ranged read of a file's last `window` bytes, on the call session, so it
+// never queues behind a download's writes; `landed` gets the bytes and the
+// rev they are of, or nil and nil on a failure. A failure is not the
 // transfer's: the window stays absent, and reads there wait for the download.
-- (dispatch_block_t)readTailOf:(CloudFileAvailability *)stream rev:(NSString *)rev name:(NSString *)name {
-    if (stream.size <= kTailWindowMinimumFileBytes || rev.length == 0) {
-        return nil;
-    }
-    uint64_t offset = stream.size - kTailWindowBytes;
-    CFAbsoluteTime asked = CFAbsoluteTimeGetCurrent();
-    return [_client readPath:[@"rev:" stringByAppendingString:rev] offset:offset length:kTailWindowBytes
-                  completion:^(NSData *data, NSError *error) {
-        if (data.length == kTailWindowBytes) {
-            [stream installWindow:data atOffset:offset];
-            LogInfo(@"Dropbox: tail window for %@ in %.2fs, %llu of %llu bytes downloaded by then", name,
-                    CFAbsoluteTimeGetCurrent() - asked, stream.writtenBytes, stream.size);
+- (dispatch_block_t)readTailOfPath:(NSString *)path
+                              size:(uint64_t)size
+                            window:(uint64_t)window
+                              name:(NSString *)name
+                            landed:(void (^)(NSData *_Nullable bytes, NSString *_Nullable rev))landed {
+    return [_client readPath:path offset:size - window length:window
+                  completion:^(NSData *data, NSDictionary *metadata, NSError *error) {
+        if (data.length == window) {
+            id rev = metadata[@"rev"];
+            landed(data, [rev isKindOfClass:NSString.class] ? rev : nil);
+            return;
         }
-        else if (!([error.domain isEqualToString:VibeDropboxErrorDomain] && error.code == VibeDropboxErrorCancelled)) {
+        if (!([error.domain isEqualToString:VibeDropboxErrorDomain] && error.code == VibeDropboxErrorCancelled)) {
             LogWarn(@"Dropbox: no tail window for %@ (%lu bytes): %@", name, (unsigned long)data.length,
                     error.localizedDescription);
         }
+        landed(nil, nil);
     }];
+}
+
+// The tail read's bytes, once the download's first response is in too, by
+// the rule fetchPlaceholderAtURL: states. Nil bytes, a failure already logged, or no
+// stream (a response naming no size) install nothing.
+- (void)installTail:(NSData *)bytes
+                rev:(NSString *)rev
+               into:(CloudFileAvailability *)stream
+          pinnedRev:(NSString *)pinned
+         listedSize:(uint64_t)listed
+               name:(NSString *)name
+              since:(CFAbsoluteTime)start {
+    if (!bytes || !stream) {
+        return;
+    }
+    if (rev.length == 0 || ![rev isEqualToString:pinned] || stream.size != listed) {
+        LogWarn(@"Dropbox: dropped the tail window for %@: rev %@ of %llu bytes, the download's rev %@ of %llu",
+                name, rev, listed, pinned, stream.size);
+        return;
+    }
+    [stream installWindow:bytes atOffset:listed - bytes.length];
+    LogInfo(@"Dropbox: tail window for %@ at %.2fs into the fetch, %llu of %llu bytes downloaded by then", name,
+            CFAbsoluteTimeGetCurrent() - start, stream.writtenBytes, stream.size);
 }
 
 - (CloudFileAvailability *)availabilityForURL:(NSURL *)url {
     NSString *key = VibeComparablePath(url.path);
-    os_unfair_lock_lock(&_streamsLock);
+    [_streamsCondition lock];
     CloudFileAvailability *availability = _streams[key];
-    os_unfair_lock_unlock(&_streamsLock);
+    [_streamsCondition unlock];
     return availability;
 }
 
@@ -769,30 +838,73 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
     CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
     NSURL *part = [NSURLUtil remotePlaceholderPartURL:url];
     NSString *key = VibeComparablePath(url.path);
+    NSString *name = url.lastPathComponent;
     dispatch_semaphore_t done = dispatch_semaphore_create(0);
     __block NSError *failure = nil;
     // The client's delivery queue's, and the completion runs after its last
     // progress call. The size is the response's, not the placeholder's: a
     // file re-uploaded since its listing is downloaded as it is now.
     __block CloudFileAvailability *stream = nil;
-    __block dispatch_block_t cancelTail = nil;
     __block BOOL readable = NO;
+    // TRAP: the tail read starts beside the download, by the same id, so it
+    // lands about when the head does instead of a round trip after it; but a
+    // read by id answers whatever version is current when it is served. Its
+    // window is installed only by whichever of the two answers lands second,
+    // only when both name the same rev and the download's size is the
+    // listing's its offset came from; a missing rev on either side drops it.
+    // Installed unchecked, another version's tail would decode as this one's.
+    // Under _streamsCondition: what each side knew when the other landed.
+    struct stat listing;
+    uint64_t listed = stat(url.fileSystemRepresentation, &listing) == 0 ? (uint64_t)listing.st_size : 0;
+    uint64_t window = VibeDropboxTailWindowBytes(url.pathExtension, listed);
+    __block BOOL headKnown = NO;
+    __block NSString *headRev = nil;
+    __block NSData *tailBytes = nil;
+    __block NSString *tailRev = nil;
+    [_streamsCondition lock];
+    [_fetching addObject:key];
+    [_streamsCondition unlock];
+    dispatch_block_t cancelTail = window == 0 ? nil
+            : [self readTailOfPath:path size:listed window:window name:name landed:^(NSData *bytes, NSString *rev) {
+        [self->_streamsCondition lock];
+        BOOL settle = headKnown;
+        if (!settle) {
+            tailBytes = bytes;
+            tailRev = rev;
+        }
+        CloudFileAvailability *target = stream;
+        NSString *pinned = headRev;
+        [self->_streamsCondition unlock];
+        if (settle) {
+            [self installTail:bytes rev:rev into:target pinnedRev:pinned listedSize:listed name:name since:start];
+        }
+    }];
     onCancel([self downloadDropboxPath:path toURL:url progress:^(uint64_t written, int64_t size, NSString *rev) {
-        if (!stream) {
-            if (size < 0) {
-                // No size to read against: it downloads whole, as a provider's does.
-                return;
+        if (!headKnown) {
+            // No size to read against: it downloads whole, as a provider's does.
+            CloudFileAvailability *made = size < 0 ? nil
+                    : [[CloudFileAvailability alloc] initWithPartURL:part size:(uint64_t)size];
+            [self->_streamsCondition lock];
+            if (made) {
+                self->_streams[key] = made;
             }
-            stream = [[CloudFileAvailability alloc] initWithPartURL:part size:(uint64_t)size];
-            os_unfair_lock_lock(&self->_streamsLock);
-            self->_streams[key] = stream;
-            os_unfair_lock_unlock(&self->_streamsLock);
-            cancelTail = [self readTailOf:stream rev:rev name:url.lastPathComponent];
+            stream = made;
+            headKnown = YES;
+            headRev = rev;
+            [self->_streamsCondition broadcast];
+            NSData *bytes = tailBytes;
+            NSString *landedRev = tailRev;
+            tailBytes = nil;
+            [self->_streamsCondition unlock];
+            [self installTail:bytes rev:landedRev into:made pinnedRev:rev listedSize:listed name:name since:start];
+        }
+        if (!stream) {
+            return;
         }
         [stream noteWrittenBytes:written];
         if (onReadable && !readable && written >= kStreamReadableBytes && written < stream.size) {
             readable = YES;
-            LogInfo(@"Dropbox: %@ readable at %llu of %llu bytes, %.2fs into the fetch", url.lastPathComponent,
+            LogInfo(@"Dropbox: %@ readable at %llu of %llu bytes, %.2fs into the fetch", name,
                     written, stream.size, CFAbsoluteTimeGetCurrent() - start);
             onReadable();
         }
@@ -806,14 +918,14 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
         // then opens url; one looking it up next opens url, the whole file.
         // A failure has deleted the part already, which that same wait turns
         // into the failure, never a missing file.
-        if (stream) {
-            [stream finishWithError:downloadError];
-            os_unfair_lock_lock(&self->_streamsLock);
-            if (self->_streams[key] == stream) {
-                [self->_streams removeObjectForKey:key];
-            }
-            os_unfair_lock_unlock(&self->_streamsLock);
+        [stream finishWithError:downloadError];
+        [self->_streamsCondition lock];
+        if (stream && self->_streams[key] == stream) {
+            [self->_streams removeObjectForKey:key];
         }
+        [self->_fetching removeObject:key];
+        [self->_streamsCondition broadcast];
+        [self->_streamsCondition unlock];
         dispatch_semaphore_signal(done);
     }]);
     // The client always completes: its request timeout bounds a stall.

@@ -98,9 +98,10 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 @property (nonatomic) uint64_t accountGeneration;
 // The download's metadata, or the read's bytes; finishTransfer: calls it once.
 @property (nonatomic, copy, nullable) void (^completion)(id _Nullable, NSError *_Nullable);
-// A download's only. The file, made at the first accepted response, and
-// that response's metadata and size span every attempt; bytesWritten is the
-// resume offset. The rest is per response.
+// A ranged read's metadata is its answer's. A download's only: the file,
+// made at the first accepted response, and that response's metadata and size
+// span every attempt; bytesWritten is the resume offset. The rest is per
+// response.
 @property (nonatomic, copy, nullable) NSURL *destination;
 @property (nonatomic, copy, nullable) void (^progress)(uint64_t, int64_t, NSString *_Nullable);
 @property (nonatomic, nullable) NSFileHandle *file;
@@ -153,6 +154,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     BOOL _accountLoadDeferred;
     CFAbsoluteTime _accountLoadRetryAt;
     NSMutableDictionary<NSNumber *, DropboxTransfer *> *_downloads;
+    BOOL _warmedUp;
 
     // Main thread: the sign-in in progress.
     ASWebAuthenticationSession *_webSession;
@@ -702,6 +704,37 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     }];
 }
 
+#pragma mark - Warm-up
+
+- (void)warmUp {
+    // Unlinked before first unlock too: the Keychain reads as no account.
+    if (!self.isLinked) {
+        return;
+    }
+    os_unfair_lock_lock(&_lock);
+    BOOL first = !_warmedUp;
+    _warmedUp = YES;
+    os_unfair_lock_unlock(&_lock);
+    if (!first) {
+        return;
+    }
+    // The access token lives in memory, so a launch's first request refreshes
+    // it; this takes that round trip and its TLS handshake off the first play.
+    [self withAccessToken:^(NSString *token, uint64_t generation, NSError *error) {
+        if (!token) {
+            return;
+        }
+        // A download naming no file: refused at once, and what it buys is the
+        // connection to the content host, one per session, since a session's
+        // connections are its own (the download on one, its tail on the other).
+        NSURL *url = [NSURL URLWithString:[VIBE_DROPBOX_CONTENT_BASE stringByAppendingString:@"files/download"]];
+        NSMutableURLRequest *request = [self requestForURL:url token:token];
+        [request setValue:VibeDropboxAPIArgHeader(@{@"path": @""}) forHTTPHeaderField:@"Dropbox-API-Arg"];
+        [[self->_downloadSession dataTaskWithRequest:request] resume];
+        [[self->_callSession dataTaskWithRequest:request] resume];
+    }];
+}
+
 #pragma mark - Transfers
 
 // Any thread. A transfer with a task in flight completes through that task's
@@ -765,10 +798,14 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 - (dispatch_block_t)readPath:(NSString *)path
                       offset:(uint64_t)offset
                       length:(uint64_t)length
-                  completion:(void (^)(NSData *, NSError *))completion {
+                  completion:(void (^)(NSData *, NSDictionary *, NSError *))completion {
     DropboxTransfer *read = [[DropboxTransfer alloc] init];
     read.path = path;
-    read.completion = completion;
+    // Weak: the transfer holds this block, and finishTransfer: holds the transfer.
+    __weak DropboxTransfer *weakRead = read;
+    read.completion = ^(id data, NSError *error) {
+        completion(data, error ? nil : weakRead.metadata, error);
+    };
     read.attempts = 1;
     [self startRead:read offset:offset length:length];
     return [self cancelBlockForTransfer:read];
@@ -796,6 +833,8 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
             // 200 is a server ignoring the range: the whole file, so cut it,
             // and a range past its end is nothing, never bytes from its start.
             if (http.statusCode == 206 || http.statusCode == 200) {
+                read.metadata = VibeJSONObject([[http valueForHTTPHeaderField:@"Dropbox-API-Result"]
+                                                   dataUsingEncoding:NSUTF8StringEncoding]);
                 NSData *bytes = data ?: [NSData data];
                 if (http.statusCode == 200) {
                     NSUInteger start = (NSUInteger)MIN((uint64_t)bytes.length, offset);

@@ -22,8 +22,8 @@ NS_ASSUME_NONNULL_BEGIN
 @interface VibeFakeDropbox : NSObject
 
 // `directory` is the account's root: its folders are Dropbox folders, its
-// files Dropbox files, ids are paths, and each file has a rev that a `rev:`
-// path reads and that moves when the file's size or mtime does, as a
+// files Dropbox files, ids are paths, and each file has a rev, named in every
+// answer's Dropbox-API-Result and readable as a `rev:` path, that moves when the file's size or mtime does, as a
 // re-upload's would. Indexed once here, so a request is a lookup. The client's
 // sessions are rebuilt over the fake and the account is linked as a completed
 // sign-in would be; installing again over an installed fake swaps the tree
@@ -50,11 +50,15 @@ NS_ASSUME_NONNULL_BEGIN
 //               Dropbox-API-Result names another version
 //   throttle    once: a download answers 429 with Retry-After `seconds`
 //   expired-token once: a download answers 401 expired_access_token
-//   tail-fail   a `rev:` ranged read answers 500 (persistent)
-//   slow-tail   a `rev:` ranged read answers after `seconds` (persistent)
+//   tail-fail   the tail read (the closed range of the file's last
+//               VibeDropboxTailWindowBytes) answers 500 (persistent)
+//   slow-tail   the tail read answers after `seconds` (persistent)
 //   slow-tags   any other ranged read — the tag parse's — answers after
 //               `seconds` (persistent)
 //   rate        downloads are paced at `rate` bytes per second (persistent)
+//   latency     every files/download answers `seconds` late: a server's time
+//               to first byte, which the tail read pays beside the download's
+//               (persistent)
 + (BOOL)addFaultOfKind:(NSString *)kind
                   file:(nullable NSString *)file
                  after:(uint64_t)after

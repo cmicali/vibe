@@ -30,6 +30,11 @@
     } availability:^CloudFileAvailability *(NSURL *url) {
         return [DropboxMirror.shared availabilityForURL:url];
     }];
+    // Off main: the token refresh and the connections the first play would
+    // otherwise open, once, and nothing without an account.
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        [DropboxMirror.shared.client warmUp];
+    });
 #if DEBUG
     VibeiOSInstallDebugCommandHook();
 #endif

@@ -56,7 +56,7 @@ static NSUInteger sLogSequence;
 static dispatch_queue_t sDeliveryQueue;
 
 static NSArray<NSString *> *VibeFakeDropboxFaultKinds(void) {
-    return @[@"stall", @"drop", @"rev-change", @"throttle", @"expired-token", @"tail-fail", @"slow-tail", @"slow-tags", @"rate"];
+    return @[@"stall", @"drop", @"rev-change", @"throttle", @"expired-token", @"tail-fail", @"slow-tail", @"slow-tags", @"rate", @"latency"];
 }
 
 // Under sLock.
@@ -301,9 +301,9 @@ static NSData *VibeFakeDropboxBody(NSURLRequest *request) {
 // files/download: the path, id or rev from the Dropbox-API-Arg header. Four
 // kinds by their Range: none is a whole download and an open one
 // (`bytes=N-`) the client's resend, both paced off this thread, each piece
-// read as it is sent; a closed one is a tag read, or the tail window when
-// it asks by `rev:`, answered at once. The request-time faults land here,
-// the delivery-time ones in deliverPieceOf:.
+// read as it is sent; a closed one is a tag read, or the tail window when it
+// is the file's last VibeDropboxTailWindowBytes, answered at once. The
+// request-time faults land here, the delivery-time ones in deliverPieceOf:.
 - (void)serveDownloadFrom:(NSDictionary<NSString *, VibeFakeDropboxItem *> *)items {
     NSString *argument = [self.request valueForHTTPHeaderField:@"Dropbox-API-Arg"];
     NSDictionary *arg = argument
@@ -318,12 +318,18 @@ static NSData *VibeFakeDropboxBody(NSURLRequest *request) {
     }
     BOOL closed = range && ![range hasSuffix:@"-"];
     BOOL byRev = [path hasPrefix:@"rev:"];
-    NSString *kind = !range ? @"whole" : !closed ? @"resume" : byRev ? @"tail" : @"ranged";
     BOOL download = !closed;
 
     os_unfair_lock_lock(&sLock);
     VibeFakeDropboxItem *item = byRev ? sRevs[[path substringFromIndex:4]] : VibeFakeDropboxLookup(items, path);
     NSString *name = item.url.lastPathComponent;
+    // The tail read goes by id as a tag read does: it is the one closed range
+    // spanning exactly the file's window up to its last byte.
+    struct stat info;
+    uint64_t size = item && !item.folder && stat(item.url.fileSystemRepresentation, &info) == 0 ? (uint64_t)info.st_size : 0;
+    uint64_t window = VibeDropboxTailWindowBytes(name.pathExtension ?: @"", size);
+    BOOL tail = closed && window > 0 && last == size - 1 && last - first + 1 == window;
+    NSString *kind = !range ? @"whole" : !closed ? @"resume" : tail ? @"tail" : @"ranged";
     NSString *rev = byRev ? [path substringFromIndex:4] : item && !item.folder ? VibeFakeDropboxRefreshRev(item) : nil;
     sDownloadKinds[kind] = @(sDownloadKinds[kind].unsignedIntegerValue + 1);
     NSMutableDictionary *entry = [@{@"seq": @(++sLogSequence),
@@ -355,7 +361,7 @@ static NSData *VibeFakeDropboxBody(NSURLRequest *request) {
                                                  @"error": @{@".tag": @"expired_access_token"}});
         }
     }
-    else if (byRev) {
+    else if (tail) {
         if (VibeFakeDropboxFault(@"tail-fail", name)) {
             refusal = (VibeFakeDropboxResponse){500, @{@"Content-Type": @"text/plain"},
                                                 [@"Internal Server Error" dataUsingEncoding:NSUTF8StringEncoding]};
@@ -365,6 +371,8 @@ static NSData *VibeFakeDropboxBody(NSURLRequest *request) {
     else {
         delay = [VibeFakeDropboxFault(@"slow-tags", name)[@"seconds"] doubleValue];
     }
+    NSTimeInterval latency = [VibeFakeDropboxFault(@"latency", name)[@"seconds"] doubleValue];
+    delay += latency;
     NSTimeInterval transferSeconds = sTransferSeconds;
     os_unfair_lock_unlock(&sLock);
 
@@ -420,9 +428,14 @@ static NSData *VibeFakeDropboxBody(NSURLRequest *request) {
                                                               statusCode:status
                                                              HTTPVersion:@"HTTP/1.1"
                                                             headerFields:headers];
-    [self.client URLProtocol:self didReceiveResponse:response cacheStoragePolicy:NSURLCacheStorageNotAllowed];
     NSTimeInterval interval = transferSeconds > 0 && length > 0 ? transferSeconds * kPieceBytes / length : 0;
-    [self deliverPieceOf:file item:item at:first from:first size:length every:interval after:interval];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(latency * NSEC_PER_SEC)), sDeliveryQueue, ^{
+        if (self.cancelled) {
+            return;
+        }
+        [self.client URLProtocol:self didReceiveResponse:response cacheStoragePolicy:NSURLCacheStorageNotAllowed];
+        [self deliverPieceOf:file item:item at:first from:first size:length every:interval after:interval];
+    });
 }
 
 // One piece per step, so the bytes written — the progress the loading bar

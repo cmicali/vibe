@@ -10,7 +10,7 @@
 #   stream-adts small-mp3 seek seek-ahead-mp3 seek-ahead-flac
 #   seek-ahead-m4a skip quick-skip pause-replay gapless buffering
 #   pause-buffering scrub-buffering stall drop throttle expired-token
-#   rev-change tail-fail slow-tail sign-out reupload
+#   rev-change tail-fail slow-tail latency sign-out reupload
 # Not in the default run: stream-mp3-noxing, an MP3 with no Xing/Info frame,
 #   which opens only once the whole download is in until the parser stops
 #   walking every frame to count packets: red until that is fixed.
@@ -29,7 +29,7 @@ S="$DIR/debug-ios.sh"
 FIX="${VIBE_STREAMING_FIXTURES:-$ROOT/build/streaming-fixtures}"
 OUT="$ROOT/build/streaming-scenarios/$(date +%Y%m%d-%H%M%S)"
 if [ "${1:-}" = "-o" ]; then OUT="$2"; shift 2; fi
-ALL="stream-wav stream-flac stream-m4a stream-m4a-moovlast stream-mp3 stream-adts small-mp3 seek seek-ahead-mp3 seek-ahead-flac seek-ahead-m4a skip quick-skip pause-replay gapless buffering pause-buffering scrub-buffering stall drop throttle expired-token rev-change tail-fail slow-tail sign-out reupload"
+ALL="stream-wav stream-flac stream-m4a stream-m4a-moovlast stream-mp3 stream-adts small-mp3 seek seek-ahead-mp3 seek-ahead-flac seek-ahead-m4a skip quick-skip pause-replay gapless buffering pause-buffering scrub-buffering stall drop throttle expired-token rev-change tail-fail slow-tail latency sign-out reupload"
 SCENARIOS="${*:-$ALL}"
 mkdir -p "$OUT"
 VIBE_SIM_UDID="$("$DIR/sim-udid.sh")" || { echo "no simulator: run launch-ios.sh first" >&2; exit 1; }
@@ -55,7 +55,7 @@ make_fixture short.wav ffmpeg -loglevel error -y -i "$SOURCE" -t 20 "$FIX/source
 # No Xing/Info frame: CoreAudio walks every frame to count packets.
 make_fixture noxing.mp3 lame --quiet -b 320 -t "$FIX/source/long.wav" "$FIX/source/noxing.mp3"
 make_fixture adts.aac ffmpeg -loglevel error -y -i "$FIX/source/long.wav" -c:a aac -b:a 256k -f adts "$FIX/source/adts.aac"
-# Under the tail window's 4 MB floor: no window, so the open's ID3v1 check waits.
+# 3 MB, over the small window's 256 KB floor: it streams as a long one does.
 make_fixture small.mp3 sh -c "ffmpeg -loglevel error -y -i '$SOURCE' -t 75 -f wav - | lame --quiet -b 320 - '$FIX/source/small.mp3'"
 # A pair that sorts short first, for the gapless successor.
 make_fixture g1.wav cp -c "$FIX/source/short.wav" "$FIX/source/g1.wav"
@@ -145,6 +145,17 @@ record() {   # <jq object of measured numbers>
     echo "    $1"
 }
 
+# The tail window a file takes (DropboxRules.h's VibeDropboxTailWindowBytes).
+window_of() {   # <fixture file>
+    python3 - "$FIX/source/$1" <<'PY'
+import os, sys
+path = sys.argv[1]; size = os.path.getsize(path)
+mp4 = path.rsplit('.', 1)[-1].lower() in ('m4a', 'm4b', 'm4r', 'mp4', 'qta')
+window = min(1536 * 1024, max(512 * 1024, size // 32)) if mp4 else 128 * 1024
+print(window if size > 2 * window else 0)
+PY
+}
+
 # ---- Scenarios
 
 # Opens a long file over a transfer of `seconds`, then waits for the download
@@ -158,15 +169,18 @@ stream() {   # <file> <seconds> <expect-tail 0|1>
     wait_for $(( seconds + 20 )) '.tracks[0].ph == false' || true
     wait_for 5 '.rows == []' || true
     local all; all="$(polls)"
-    local m; m="$(printf '%s' "$all" | jq -c --argjson played "$played" --argjson seconds "$seconds" '
+    local window; window="$(window_of "$file")"
+    local m; m="$(printf '%s' "$all" | jq -c --argjson played "$played" --argjson seconds "$seconds" \
+        --argjson window "$window" --arg f0 "$F0" '
         ([.[] | .rows[] | select(.i == 0) | .p]) as $bar |
-        {startedAt: ($played.t - $played.pos), transferSeconds: $seconds,
+        {startedAt: ($played.t - $played.pos), transferSeconds: $seconds, window: $window,
+         tagRequests: ([last.log[] | select(.kind == "ranged" and .file == $f0)] | length),
          completeAt: ([.[] | select(.tracks[0].ph == false) | .t] | first),
          barSamples: ($bar | length), barMonotonic: ($bar | . == sort), barLast: ($bar | last),
          barSamplesAfterPlay: ([.[] | select(.t > $played.t) | .rows[] | select(.i == 0)] | length),
          placeholderWhileStreaming: ([.[] | select(.tracks[0].s != null) | .tracks[0].ph] | all),
          windowHeld: ([.[] | .tracks[0].s.windowBytes // 0] | max),
-         tailReads: (last.dl.tail // 0), wholeDownloads: (last.dl.whole // 0),
+         tailReads: ([last.log[] | select(.kind == "tail" and .file == $f0)] | length), wholeDownloads: (last.dl.whole // 0),
          filledAtHalf: ([.[] | select(.tracks[0].s != null and .tracks[0].s.writtenBytes * 2 >= .tracks[0].s.size)
                          | .wf.pages[0].f] | first),
          complete: (last.wf.pages[0].c), neighbourWaveform: ([.[] | .wf.pages[1].f | select(. != null)] | length),
@@ -180,8 +194,9 @@ stream() {   # <file> <seconds> <expect-tail 0|1>
     check "no waveform for the neighbouring page" '.neighbourWaveform == 0' "$m"
     check "no error" '.errors == []' "$m"
     if [ "$tail" = 1 ]; then
-        check "one tail read, its window held" '.tailReads == 1 and .windowHeld == 2097152' "$m"
+        check "one tail read, its format's window held" '.tailReads == 1 and .window > 0 and .windowHeld == .window' "$m"
     fi
+    check "the tag read took the stream's bytes: at most one request" '.tagRequests <= 1' "$m"
 }
 
 scenario_stream-wav() { stream long.wav 30 1; }
@@ -206,11 +221,11 @@ starts() {   # <file> <seconds>
     record "$m"
     check "plays, no error" '.errors == [] and .startedAt != null' "$m"
 }
-# Under the window's floor the download reaches the tail as soon as a tail
-# read would have: an MP3's open waits for its last 128 bytes, so the whole file.
+# A 3 MB MP3 takes the small window, so its open's ID3v1 check is answered
+# from it and the file streams.
 scenario_small-mp3() {
     starts small.mp3 30
-    check "no tail read; the open waits for the whole download" '.tailReads == 0 and .startedAt >= 25' "$(printf '%s' "$RESULTS" | jq -c '.["small-mp3"]')"
+    check "one tail read; it plays before a quarter of the transfer" '.tailReads == 1 and .startedAt < 7.5' "$(printf '%s' "$RESULTS" | jq -c '.["small-mp3"]')"
 }
 # ADTS reads the whole file in order at its open (the spike): no streaming.
 scenario_stream-adts() {
@@ -558,6 +573,26 @@ scenario_slow-tail() {
     record "$m"
     dbg fake_dropbox_fault clear >/dev/null
     check "the MP3 opened when the slow tail landed, not at the end" '.startedAt >= 5.5 and .startedAt < 20' "$m"
+    check "no error" '.errors == []' "$m"
+}
+
+# Every request answered 1.5 s late, as a server's first byte is: the tail
+# read, sent beside the download, lands with the head, so the MP3 opens one
+# first byte later than stream-mp3 does (~1.4 s there), not two.
+scenario_latency() {
+    fixture 30 long.mp3 short.wav
+    dbg fake_dropbox_fault latency seconds=1.5 >/dev/null
+    open_folder "$FOLDER"
+    wait_for 30 '.state == "playing" and .pos > 0.3' || true
+    local m; m="$(printf '%s' "$SNAP" | jq -c --arg f0 "$F0" '
+        ([.log[] | select(.file == $f0 and .kind == "whole")] | first) as $whole |
+        ([.log[] | select(.file == $f0 and .kind == "tail")] | first) as $tail |
+        {startedAt: (.t - .pos), tailAskedAfterDownload: (($tail.t // 99) - ($whole.t // 0)),
+         window: (.tracks[0].s.windowBytes // 0), errors: [.err | select(. != "")]}')"
+    record "$m"
+    dbg fake_dropbox_fault clear >/dev/null
+    check "the tail was asked with the download" '.tailAskedAfterDownload < 0.5' "$m"
+    check "the MP3 opened one first byte later than with none, not two" '.startedAt < 3.5' "$m"
     check "no error" '.errors == []' "$m"
 }
 

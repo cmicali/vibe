@@ -10,7 +10,9 @@
 #endif
 
 #include <errno.h>
+#include <fcntl.h>
 #include <os/lock.h>
+#include <unistd.h>
 
 // The remote backend, installed together (setRemoteRoot:fetch:read:availability:).
 static os_unfair_lock sRemoteLock = OS_UNFAIR_LOCK_INIT;
@@ -170,6 +172,49 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
         *error = failure;
     }
     return result;
+}
+
+- (NSData *)readyBytesAt:(uint64_t)offset length:(uint64_t)length {
+    if (offset >= _size || length == 0) {
+        return nil;
+    }
+    length = MIN(length, _size - offset);
+    uint64_t onDisk = 0;
+    [_condition lock];
+    if (_complete || _failure) {
+        [_condition unlock];
+        return nil;
+    }
+    uint64_t windowEnd = _windowOffset + _window.length;
+    if (_window && offset >= _windowOffset && offset < windowEnd) {
+        NSData *copy = [_window subdataWithRange:NSMakeRange((NSUInteger)(offset - _windowOffset),
+                                                             (NSUInteger)MIN(length, windowEnd - offset))];
+        [_condition unlock];
+        return copy;
+    }
+    if (offset < _written) {
+        onDisk = MIN(length, _written - offset);
+    }
+    [_condition unlock];
+    int fd = onDisk > 0 ? open(_partURL.fileSystemRepresentation, O_RDONLY | O_CLOEXEC) : -1;
+    if (fd < 0) {
+        return nil;
+    }
+    NSMutableData *bytes = [NSMutableData dataWithLength:(NSUInteger)onDisk];
+    uint64_t got = 0;
+    while (got < onDisk) {
+        ssize_t count = pread(fd, (uint8_t *)bytes.mutableBytes + got, (size_t)(onDisk - got), (off_t)(offset + got));
+        if (count < 0 && errno == EINTR) {
+            continue;
+        }
+        if (count <= 0) {
+            break;
+        }
+        got += (uint64_t)count;
+    }
+    close(fd);
+    bytes.length = (NSUInteger)got;
+    return got > 0 ? bytes : nil;
 }
 
 - (void)wakeWaiters {

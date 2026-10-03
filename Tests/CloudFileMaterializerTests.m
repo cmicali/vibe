@@ -431,6 +431,36 @@ static CloudFileAvailabilityWait Probe(CloudFileAvailability *availability, uint
     XCTAssertEqual(availability.windowLength, 0u, @"nothing is installed once finished");
 }
 
+// What a stream holds now, never waiting: the window's bytes from memory, the
+// part file's only below the bytes noted, so a write not yet noted (the
+// writer writes, then notes) is never read; nothing once finished.
+- (void)testAvailabilityHandsOverWhatItHoldsWithoutWaiting {
+    NSData *file = WindowPattern(1000);
+    NSURL *part = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:
+            [NSString stringWithFormat:@"CloudFileMaterializerTests-%@.part", NSUUID.UUID.UUIDString]]];
+    [self addTeardownBlock:^{
+        [NSFileManager.defaultManager removeItemAtURL:part error:NULL];
+    }];
+    // 600 bytes on disk, 400 of them noted: the rest is a write in progress.
+    XCTAssertTrue([[file subdataWithRange:NSMakeRange(0, 600)] writeToURL:part atomically:NO]);
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:part size:1000];
+    XCTAssertNil([availability readyBytesAt:0 length:10], @"nothing noted yet");
+    [availability noteWrittenBytes:400];
+    [availability installWindow:[file subdataWithRange:NSMakeRange(900, 100)] atOffset:900];
+
+    XCTAssertEqualObjects([availability readyBytesAt:100 length:200], [file subdataWithRange:NSMakeRange(100, 200)]);
+    XCTAssertEqualObjects([availability readyBytesAt:300 length:200], [file subdataWithRange:NSMakeRange(300, 100)],
+                          @"the noted prefix only, never the half-written block past it");
+    XCTAssertNil([availability readyBytesAt:450 length:10], @"written but not noted");
+    XCTAssertNil([availability readyBytesAt:850 length:100], @"neither noted nor inside the window");
+    XCTAssertEqualObjects([availability readyBytesAt:950 length:100], [file subdataWithRange:NSMakeRange(950, 50)],
+                          @"from the window, clipped to the size");
+    XCTAssertNil([availability readyBytesAt:1000 length:10]);
+
+    [availability finishWithError:nil];
+    XCTAssertNil([availability readyBytesAt:0 length:10], @"finished: the part is the file by now");
+}
+
 // The last reader leaving calls back each time, and nothing else does.
 - (void)testAvailabilityCallsBackWhenItsLastReaderGoes {
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];

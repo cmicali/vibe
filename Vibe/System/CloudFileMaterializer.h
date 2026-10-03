@@ -101,6 +101,12 @@ typedef NS_ENUM(NSInteger, CloudFileAvailabilityWait) {
                                      copied:(uint64_t *_Nullable)copied
                                 interrupted:(BOOL (NS_NOESCAPE ^_Nullable)(void))interrupted
                                       error:(NSError *__autoreleasing _Nullable *_Nullable)error;
+// Never waits: the longest prefix of [offset, offset + length) readable now,
+// copied out of the window, or read from the part file below the bytes
+// noted, so never a byte not yet written; nil when none, and once finished,
+// when the part is renamed or deleted. Any thread; the disk read is outside
+// the lock. A tag parse during a play reads what the stream holds this way.
+- (nullable NSData *)readyBytesAt:(uint64_t)offset length:(uint64_t)length;
 // Any thread: every wait asks its `interrupted` again. Call it after making
 // one answer YES.
 - (void)wakeWaiters;

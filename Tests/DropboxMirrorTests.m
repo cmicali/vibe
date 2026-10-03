@@ -25,6 +25,7 @@
 #import "CloudTransferRegistry.h"
 #import "DropboxClientInternal.h"
 #import "DropboxMirror.h"
+#import "DropboxRules.h"
 #import "NSURLUtil.h"
 
 #pragma mark - The stub
@@ -35,7 +36,8 @@
 // the body, a dropped connection, once failWhen answers YES; with status 0 it
 // comes before any response. With a chunk length the body goes out in
 // chunks, beforeChunk asked off the loading thread ahead of each, so a test
-// can hold the next one back.
+// can hold the next one back; beforeResponse, asked the same way, holds
+// the response itself.
 typedef struct {
     NSInteger status;
     NSDictionary<NSString *, NSString *> *_Nullable headers;
@@ -46,6 +48,7 @@ typedef struct {
     BOOL (^_Nullable failWhen)(void);
     NSUInteger chunk;
     void (^_Nullable beforeChunk)(NSUInteger index);
+    dispatch_block_t _Nullable beforeResponse;
 } DropboxStubResponse;
 
 typedef DropboxStubResponse (^DropboxStubHandler)(NSURLRequest *request, NSDictionary *_Nullable json);
@@ -134,6 +137,29 @@ static NSData *DropboxStubBody(NSURLRequest *request) {
 }
 
 - (void)deliver:(DropboxStubResponse)response {
+    if (response.beforeResponse) {
+        NSThread *thread = NSThread.currentThread;
+        NSArray<NSString *> *modes = DropboxStubModes();
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            response.beforeResponse();
+            dispatch_block_t respond = ^{
+                [self respond:response];
+            };
+            [self performSelector:@selector(runUnlessStopped:) onThread:thread withObject:respond
+                    waitUntilDone:NO modes:modes];
+        });
+        return;
+    }
+    [self respond:response];
+}
+
+- (void)runUnlessStopped:(dispatch_block_t)block {
+    if (!self.stopped) {
+        block();
+    }
+}
+
+- (void)respond:(DropboxStubResponse)response {
     if (response.status == 0 && response.failure) {
         [self.client URLProtocol:self didFailWithError:response.failure];
         return;
@@ -336,6 +362,9 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
     NSMutableDictionary<NSString *, NSArray *> *_listings;
     // Dropbox path → bytes the stub's files/download answers.
     NSMutableDictionary<NSString *, NSData *> *_contents;
+    // Under scriptDownloads:, what answers a closed range (a tail or a tag
+    // read beside the downloads); nil answers it as default.
+    DropboxStubResponse (^_rangeScript)(NSURLRequest *request);
     NSInteger _tokenRequests;
     // What the stub's files/search_v2 answers.
     NSArray<NSDictionary *> *_searchEntries;
@@ -843,7 +872,7 @@ static struct stat StatOf(NSURL *url) {
     }];
     XCTestExpectation *read = [self expectationWithDescription:@"read"];
     dispatch_block_t cancelRead = [_client readPath:@"/Music/a.flac" offset:0 length:8
-                                         completion:^(NSData *data, NSError *error) {
+                                         completion:^(NSData *data, NSDictionary *metadata, NSError *error) {
         XCTAssertNil(data);
         XCTAssertEqual(error.code, VibeDropboxErrorCancelled);
         [read fulfill];
@@ -930,12 +959,25 @@ static NSData *PatternBytes(NSUInteger length) {
     return [account URLByAppendingPathComponent:@"song.flac.part"];
 }
 
-// Files/download's answers by request, counted from 0; the rest as default.
+static BOOL IsClosedRange(NSURLRequest *request) {
+    NSString *range = [request valueForHTTPHeaderField:@"Range"];
+    return range && ![range hasSuffix:@"-"];
+}
+
+// Files/download's answers by request, counted from 0; the rest as default,
+// closed ranges through _rangeScript.
 - (void)scriptDownloads:(DropboxStubResponse (^)(NSInteger index, NSURLRequest *request))script {
     __block NSInteger downloads = 0;
     [self installHandler:^DropboxStubResponse(NSURLRequest *request, NSDictionary *json) {
         if (![request.URL.path isEqualToString:@"/2/files/download"]) {
             return [self defaultResponseFor:request json:json];
+        }
+        if (IsClosedRange(request)) {
+            DropboxStubResponse (^ranges)(NSURLRequest *);
+            @synchronized (self) {
+                ranges = self->_rangeScript;
+            }
+            return ranges ? ranges(request) : [self defaultResponseFor:request json:json];
         }
         NSInteger index;
         @synchronized (self) {
@@ -1206,8 +1248,8 @@ static NSData *PatternBytes(NSUInteger length) {
     }
 }
 
-// Each note with the part file's size as it was made, and each finish with
-// what the install and the lookup looked like then.
+// Each note with the part file's size and the window held as it was made,
+// and each finish with what the install and the lookup looked like then.
 - (void)recordAvailabilities {
     @synchronized (self) {
         _notes = [NSMutableArray array];
@@ -1221,8 +1263,11 @@ static NSData *PatternBytes(NSUInteger length) {
         }
         struct stat st = {0};
         stat(availability.partURL.fileSystemRepresentation, &st);
+        // Outside the test's lock: XCTest takes it to report a runtime issue,
+        // which can fire inside the availability's.
+        uint64_t window = availability.windowLength;
         @synchronized (test) {
-            [test->_notes addObject:@[availability, @(bytes), @(st.st_size)]];
+            [test->_notes addObject:@[availability, @(bytes), @(st.st_size), @(window)]];
         }
         dispatch_semaphore_signal(test->_noteSignal);
     }, ^(CloudFileAvailability *availability, NSError *error) {
@@ -1638,17 +1683,46 @@ static NSData *PatternBytes(NSUInteger length) {
 
 #pragma mark The tail window
 
-// DropboxMirror's kTailWindowBytes.
-static const uint64_t kWindowBytes = 2 * 1024 * 1024;
+// A small format's window (DropboxRules.h).
+static const uint64_t kWindowBytes = 128 * 1024;
 
-static BOOL IsTailRead(NSURLRequest *request) {
-    return [[request valueForHTTPHeaderField:@"Dropbox-API-Arg"] containsString:@"\"rev:"];
+// Every ranged read that completes calls this after its completion returns,
+// while it is set: when a tail read's answer has reached the mirror.
+static os_unfair_lock sReadLock = OS_UNFAIR_LOCK_INIT;
+static dispatch_block_t sReadObserver;
+static IMP sReadIMP;
+
+static dispatch_block_t ObservedReadPath(id client, SEL selector, NSString *path, uint64_t offset, uint64_t length,
+                                         void (^completion)(NSData *, NSDictionary *, NSError *)) {
+    void (^observed)(NSData *, NSDictionary *, NSError *) = ^(NSData *data, NSDictionary *metadata, NSError *error) {
+        completion(data, metadata, error);
+        os_unfair_lock_lock(&sReadLock);
+        dispatch_block_t observer = sReadObserver;
+        os_unfair_lock_unlock(&sReadLock);
+        if (observer) {
+            observer();
+        }
+    };
+    return ((dispatch_block_t (*)(id, SEL, NSString *, uint64_t, uint64_t, id))sReadIMP)(client, selector, path, offset,
+                                                                                         length, observed);
+}
+
+static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        sReadIMP = method_setImplementation(class_getInstanceMethod(DropboxClient.class,
+                                                                    @selector(readPath:offset:length:completion:)),
+                                            (IMP)ObservedReadPath);
+    });
+    os_unfair_lock_lock(&sReadLock);
+    sReadObserver = [observer copy];
+    os_unfair_lock_unlock(&sReadLock);
 }
 
 - (NSArray<NSURLRequest *> *)tailReads {
     return [[self requestsToPath:@"/2/files/download"] filteredArrayUsingPredicate:
             [NSPredicate predicateWithBlock:^BOOL(NSURLRequest *request, NSDictionary *bindings) {
-        return IsTailRead(request);
+        return IsClosedRange(request);
     }]];
 }
 
@@ -1658,35 +1732,25 @@ static BOOL IsTailRead(NSURLRequest *request) {
                   tail:(DropboxStubResponse (^_Nullable)(NSURLRequest *request))tail
               tailGate:(dispatch_semaphore_t)tailGate {
     NSURL *track = [self streamingTrack:bytes name:name chunk:chunk];
-    dispatch_semaphore_t gate = _chunkGate;
     NSDictionary *metadata = @{@"server_modified": kStamp, @"size": @(bytes.length), @"rev": kRev};
-    [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
-        if (IsTailRead(request)) {
-            if (tail) {
-                return tail(request);
-            }
+    @synchronized (self) {
+        _rangeScript = tail ?: ^DropboxStubResponse(NSURLRequest *request) {
             DropboxStubResponse answer = DownloadAnswer(request, bytes, metadata);
             answer.chunk = answer.body.length;
             answer.beforeChunk = ^(NSUInteger index) {
                 dispatch_semaphore_wait(tailGate, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC)));
             };
             return answer;
-        }
-        DropboxStubResponse answer = [self answer:request];
-        answer.chunk = chunk;
-        answer.beforeChunk = ^(NSUInteger chunkIndex) {
-            dispatch_semaphore_wait(gate, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC)));
         };
-        return answer;
-    }];
+    }
     return track;
 }
 
-// A stream past twice the window reads its last 2 MB once, by the version
-// being downloaded, as it starts; readable does not wait for it; the window
-// holds it, so an MP3, whose open reads its last bytes, opens on the part file
-// with only its head downloaded; the download reaching the window drops it;
-// and the decode is the whole file's.
+// A stream past twice the window reads its last 128 KB once, by id, as it
+// starts; readable does not wait for it; the window holds it, so an MP3,
+// whose open reads its last bytes, opens on the part file with only its head
+// downloaded; the download reaching the window drops it; and the decode is
+// the whole file's.
 - (void)testAStreamReadsItsTailOnceAndAnMP3OpensOnTheHeadAndTheWindow {
     NSData *bytes = VibeMP3WithInfoFrame(4200, YES);
     XCTAssertGreaterThan(bytes.length, 2 * kWindowBytes);
@@ -1713,7 +1777,7 @@ static BOOL IsTailRead(NSURLRequest *request) {
     uint64_t windowOffset = bytes.length - kWindowBytes;
     XCTAssertEqualObjects([tailRead valueForHTTPHeaderField:@"Range"],
                           ([NSString stringWithFormat:@"bytes=%llu-%llu", windowOffset, (uint64_t)bytes.length - 1]));
-    XCTAssertTrue([[tailRead valueForHTTPHeaderField:@"Dropbox-API-Arg"] containsString:kRev]);
+    XCTAssertTrue([[tailRead valueForHTTPHeaderField:@"Dropbox-API-Arg"] containsString:@"id:/music/long.mp3"]);
 
     // Readable at the mark, the tail read still held.
     [self releaseChunks:(NSUInteger)(kReadableBytes / chunk)];
@@ -1817,6 +1881,163 @@ static BOOL IsTailRead(NSURLRequest *request) {
         [sStubRequests removeAllObjects];
         os_unfair_lock_unlock(&sStubLock);
     }
+}
+
+// The tail read goes out beside the download, before its first response, and
+// whichever answer lands second installs the window, only when both name one
+// rev and the download's size is the listing's: a tail of another version, a
+// tail naming none, or an offset taken from a stale listing is dropped and
+// the transfer goes on whole.
+- (void)testTheTailIsReadBesideTheDownloadAndKeptOnlyForItsVersion {
+    typedef NS_ENUM(NSInteger, Case) { TailFirst, DownloadFirst, TailFirstOtherRev, DownloadFirstOtherRev, NoRev, StaleListing };
+    NSArray<NSString *> *names = @[@"tail first", @"download first", @"tail first, another rev",
+                                   @"download first, another rev", @"no rev on the tail", @"listed at another size"];
+    const NSUInteger chunk = 256 * 1024;
+    for (Case each = TailFirst; each <= StaleListing; each++) {
+        NSString *label = names[each];
+        BOOL tailFirst = each == TailFirst || each == TailFirstOtherRev || each == NoRev || each == StaleListing;
+        BOOL kept = each == TailFirst || each == DownloadFirst;
+        NSData *bytes = PatternBytes(4 * chunk + 1);
+        uint64_t listed = each == StaleListing ? bytes.length - 10 : bytes.length;
+        NSString *name = [NSString stringWithFormat:@"case%ld.flac", (long)each];
+        _chunkGate = dispatch_semaphore_create(0);
+        os_unfair_lock_lock(&sStubLock);
+        [sStubRequests removeAllObjects];
+        os_unfair_lock_unlock(&sStubLock);
+        NSURL *track = [self streamingTrack:bytes name:name chunk:chunk];
+        if (each == StaleListing) {
+            _listings[@"/music"] = @[FileEntry(@"/Music", name, (long long)listed, kStamp)];
+            [NSFileManager.defaultManager removeItemAtURL:track error:NULL];
+            [self refresh:@"/Music"];
+            XCTAssertEqual(StatOf(track).st_size, (off_t)listed);
+        }
+        dispatch_semaphore_t landed = dispatch_semaphore_create(0);
+        ObserveRangedReads(^{
+            dispatch_semaphore_signal(landed);
+        });
+        dispatch_semaphore_t tailGate = dispatch_semaphore_create(0);
+        NSDictionary *metadata = @{@"server_modified": kStamp, @"size": @(bytes.length),
+                                   @"rev": each == TailFirstOtherRev || each == DownloadFirstOtherRev ? @"0badc0de" : kRev};
+        @synchronized (self) {
+            _rangeScript = ^DropboxStubResponse(NSURLRequest *request) {
+                DropboxStubResponse answer = DownloadAnswer(request, bytes, metadata);
+                if (each == NoRev) {
+                    answer.headers = @{@"Content-Type": @"application/octet-stream"};
+                }
+                if (!tailFirst) {
+                    answer.chunk = answer.body.length;
+                    answer.beforeChunk = ^(NSUInteger index) {
+                        dispatch_semaphore_wait(tailGate, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC)));
+                    };
+                }
+                return answer;
+            };
+        }
+        // Tail first: the download's response waits until the tail's answer
+        // has reached the mirror.
+        dispatch_semaphore_t chunkGate = _chunkGate;
+        [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {
+            DropboxStubResponse answer = [self answer:request];
+            answer.chunk = chunk;
+            answer.beforeChunk = ^(NSUInteger chunkIndex) {
+                dispatch_semaphore_wait(chunkGate, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC)));
+            };
+            if (tailFirst) {
+                answer.beforeResponse = ^{
+                    dispatch_semaphore_wait(landed, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC)));
+                };
+            }
+            return answer;
+        }];
+        [self recordAvailabilities];
+        XCTestExpectation *fetched = [self fetch:track materializer:[CloudFileMaterializer new] onReadable:nil];
+        XCTAssertTrue([self eventually:^BOOL { return [self tailReads].count == 1; }], @"%@", label);
+        NSURLRequest *tailRead = [self tailReads].firstObject;
+        XCTAssertEqualObjects([tailRead valueForHTTPHeaderField:@"Range"],
+                              ([NSString stringWithFormat:@"bytes=%llu-%llu", listed - kWindowBytes, listed - 1]), @"%@", label);
+        XCTAssertTrue([[tailRead valueForHTTPHeaderField:@"Dropbox-API-Arg"] containsString:
+                       [@"id:/music/" stringByAppendingString:name]], @"%@: by the download's id", label);
+        CloudFileAvailability *availability = [self awaitAvailability];
+        uint64_t windowAtFirstNote = [[self notes].firstObject[3] unsignedLongLongValue];
+        if (tailFirst) {
+            XCTAssertEqual(windowAtFirstNote, kept ? kWindowBytes : 0u, @"%@: settled as the stream was made", label);
+        }
+        else {
+            XCTAssertEqual(windowAtFirstNote, 0u, @"%@", label);
+            dispatch_semaphore_signal(tailGate);
+            XCTAssertTrue([self await:landed], @"%@", label);
+        }
+        XCTAssertEqual(availability.windowLength, kept ? kWindowBytes : 0u, @"%@", label);
+        if (kept) {
+            uint8_t probe[16];
+            uint64_t copied = 0;
+            XCTAssertEqual([availability waitForBytesAt:bytes.length - 16 length:16 windowInto:probe capacity:16
+                                                 copied:&copied interrupted:^BOOL { return YES; } error:NULL],
+                           CloudFileAvailabilityReady, @"%@", label);
+            XCTAssertEqual(memcmp(probe, (const uint8_t *)bytes.bytes + bytes.length - 16, 16), 0, @"%@", label);
+        }
+        [self releaseChunks:5];
+        [self waitForExpectations:@[fetched] timeout:VIBE_TEST_HANG_TIMEOUT];
+        XCTAssertTrue(_fetched, @"%@: %@", label, _fetchError);
+        XCTAssertEqualObjects([NSData dataWithContentsOfURL:track], bytes, @"%@", label);
+        XCTAssertEqual([self tailReads].count, 1u, @"%@", label);
+        [self assertFinishedOnce:availability error:nil];
+        ObserveRangedReads(nil);
+        @synchronized (self) {
+            _rangeScript = nil;
+        }
+    }
+}
+
+// A tag parse of a file streaming now asks Dropbox for none of what the
+// stream is about to hold: a head read waits for the download, a trailer read
+// is the window's, and any other range takes what is on disk, asking only for
+// the rest.
+- (void)testATagReadDuringAStreamTakesWhatTheStreamHolds {
+    const NSUInteger chunk = 64 * 1024;
+    NSData *bytes = PatternBytes(2 * 1024 * 1024);
+    NSURL *track = [self streamingTrack:bytes name:@"tagged.flac" chunk:chunk];
+    [self recordAvailabilities];
+    XCTestExpectation *fetched = [self fetch:track materializer:[CloudFileMaterializer new] onReadable:nil];
+    CloudFileAvailability *availability = [self awaitAvailability];
+    XCTAssertTrue([self eventually:^BOOL { return availability.windowLength == kWindowBytes; }]);
+    XCTAssertEqual([self tailReads].count, 1u);
+
+    // The parse's first read, 384 KB from the head, waits for the download.
+    dispatch_semaphore_t returned = dispatch_semaphore_create(0);
+    __block NSData *head = nil;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        head = [self->_mirror readPlaceholderAtURL:track offset:0 length:6 * chunk error:NULL];
+        dispatch_semaphore_signal(returned);
+    });
+    XCTAssertNotEqual(dispatch_semaphore_wait(returned, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC / 5)), 0,
+                      @"waiting for the head");
+    [self releaseChunks:18];
+    XCTAssertTrue([self await:returned]);
+    XCTAssertEqualObjects(head, [bytes subdataWithRange:NSMakeRange(0, 6 * chunk)]);
+    [self awaitNoted:18 * chunk count:0];
+
+    NSError *error = nil;
+    XCTAssertEqualObjects([_mirror readPlaceholderAtURL:track offset:bytes.length - 128 length:128 error:&error],
+                          [bytes subdataWithRange:NSMakeRange(bytes.length - 128, 128)], @"%@", error);
+    XCTAssertEqual([self tailReads].count, 1u, @"head and trailer asked nothing of Dropbox");
+
+    // Past the first MB and the window: the part file's prefix, one request for the rest.
+    XCTAssertEqualObjects([_mirror readPlaceholderAtURL:track offset:17 * chunk length:2 * chunk error:&error],
+                          [bytes subdataWithRange:NSMakeRange(17 * chunk, 2 * chunk)], @"%@", error);
+    XCTAssertEqual([self tailReads].count, 2u);
+    XCTAssertEqualObjects([[self tailReads].lastObject valueForHTTPHeaderField:@"Range"],
+                          ([NSString stringWithFormat:@"bytes=%lu-%lu", (unsigned long)(18 * chunk),
+                            (unsigned long)(19 * chunk - 1)]));
+    // Nothing of it held: all by range.
+    XCTAssertEqualObjects([_mirror readPlaceholderAtURL:track offset:24 * chunk length:chunk error:&error],
+                          [bytes subdataWithRange:NSMakeRange(24 * chunk, chunk)], @"%@", error);
+    XCTAssertEqual([self tailReads].count, 3u);
+
+    [self releaseChunks:bytes.length / chunk];
+    [self waitForExpectations:@[fetched] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertTrue(_fetched, @"%@", _fetchError);
+    [self assertFinishedOnce:availability error:nil];
 }
 
 #pragma mark The row's loading bar
@@ -1942,6 +2163,32 @@ static BOOL IsTailRead(NSURLRequest *request) {
     XCTAssertEqual(listCalls, 2);
     XCTAssertEqual([self requestsToPath:@"/oauth2/token"].count, 2u);
     XCTAssertTrue(_client.isLinked);
+}
+
+// The launch's warm-up: with no account (before first unlock reads as none)
+// it asks nothing; with one, one refresh and one content-host request per
+// session, once, however often it is called.
+- (void)testTheWarmUpRunsOnceAndOnlyWithAnAccount {
+    NSURLSessionConfiguration *configuration = NSURLSessionConfiguration.ephemeralSessionConfiguration;
+    configuration.protocolClasses = @[DropboxStubProtocol.class];
+    DropboxClient *unlinked = [[DropboxClient alloc] initWithAppKey:@"testkey" keychainService:nil
+                                                      configuration:configuration];
+    [unlinked warmUp];
+    [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.2]];
+    XCTAssertEqual([self requestsToPath:@"/oauth2/token"].count, 0u);
+    XCTAssertEqual([self requestsToPath:@"/2/files/download"].count, 0u);
+
+    [_client warmUp];
+    XCTAssertTrue([self eventually:^BOOL { return [self requestsToPath:@"/2/files/download"].count == 2; }]);
+    XCTAssertEqual([self requestsToPath:@"/oauth2/token"].count, 1u);
+    for (NSURLRequest *request in [self requestsToPath:@"/2/files/download"]) {
+        XCTAssertEqualObjects(request.URL.host, @"content.dropboxapi.com");
+        XCTAssertEqualObjects([request valueForHTTPHeaderField:@"Authorization"], @"Bearer A1");
+    }
+    [_client warmUp];
+    [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.2]];
+    XCTAssertEqual([self requestsToPath:@"/2/files/download"].count, 2u, @"once a launch");
+    XCTAssertEqual([self requestsToPath:@"/oauth2/token"].count, 1u);
 }
 
 - (void)testConcurrentCallsShareOneRefresh {
