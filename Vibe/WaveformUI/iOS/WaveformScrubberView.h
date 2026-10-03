@@ -94,22 +94,12 @@ NS_ASSUME_NONNULL_BEGIN
 // palette.
 @property (nonatomic, strong, nullable) UIColor *artworkThemeColor;
 
-// The mac view's contract.
+// The mac view's contract. Every delivery, partial or complete, goes through
+// showWaveform:, and the view decides the entrance from its own state: the
+// first bitmap grows from the midline, the complete one crossfades over a
+// partial one, and a streaming load's partials swap at a steady pace.
 - (void)prepareForWaveformLoad;
 - (void)showWaveform:(CodableAudioWaveform *)waveform;
-
-// animated:NO lands the bars in one rebuild, keeps the bake up and
-// rate-limits the re-bake: for a page nobody is watching, whose ease would
-// only spend the scroll's frame budget, and for every PARTIAL streaming
-// delivery (~10 a second), which would otherwise keep the whole load on the
-// live tree. animated:YES is for the delivery that COMPLETES the waveform;
-// only one onto an empty view actually eases.
-- (void)showWaveform:(CodableAudioWaveform *)waveform animated:(BOOL)animated;
-
-// A gesture is moving this view: lands any morph and bakes at once, since a
-// moving live tree costs the render server its mask every frame. The view's
-// own scrub and pinch call it; the owner calls it for a page swipe.
-- (void)bakeNowForGesture;
 
 - (void)showLoadingIndicator;
 - (void)hideLoadingIndicator;

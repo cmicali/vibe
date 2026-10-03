@@ -26,15 +26,12 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
 
 #pragma mark - PageWaveformCoordinatorDelegate
 
-// Only the COMPLETING delivery eases in. A streaming decode delivers ~10 Hz,
-// and easing each keeps the morph retargeted and the bake pending for the
-// whole load. A disk-cached waveform arrives complete, so it still morphs.
 // The coordinator records completeness before it forwards, held or not.
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
            didUpdateWaveform:(CodableAudioWaveform *)waveform
                     forIndex:(NSUInteger)index {
     BOOL complete = [pipeline isCompleteAtIndex:index];
-    [[self cellAtIndex:index].waveformView showWaveform:waveform animated:complete];
+    [[self cellAtIndex:index].waveformView showWaveform:waveform];
     // Only a complete one: a widget bake is two renders and two file writes.
     if (complete) {
         [_playback offerWaveformToWidget:waveform
