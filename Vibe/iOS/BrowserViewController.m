@@ -13,6 +13,7 @@
 #import "AudioTrackMetadataCache.h"
 #import "DocumentTypes.h"
 #import "DropboxMirror.h"
+#import "EqualizerIndicatorView.h"
 #import "FavoritesStore.h"
 #import "FileSearchRules.h"
 #import "NSURLUtil.h"
@@ -77,7 +78,7 @@ static const NSTimeInterval kHighlightInterval = 1.2;
 // plays alone, as a search hit does; a folder opens in the browser. Its own
 // screen rather than a browser mode: it lists no directory, and every one of
 // the browser's directory branches would need a third arm.
-@interface RecentsViewController : UITableViewController
+@interface RecentsViewController : UITableViewController <PlaybackObserver>
 - (instancetype)initWithPlayback:(PlaybackController *)playback appending:(BOOL)appending;
 @end
 
@@ -112,6 +113,53 @@ UIView *VibeNotDownloadedMark(void) {
     UIImageView *mark = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"arrow.down.circle"]];
     mark.tintColor = UIColor.secondaryLabelColor;
     return mark;
+}
+
+void VibeApplyRowContent(UITableViewCell *cell, UIListContentConfiguration *content, BOOL opening) {
+    static const NSInteger kOpeningSpinnerTag = 0x6f70656e;
+    if (opening) {
+        // The slot keeps its place under the spinner: a clear image of its size.
+        CGSize size = content.imageProperties.reservedLayoutSize;
+        if (size.width <= 0 || size.height <= 0) {
+            size = content.image.size;
+        }
+        content.image = [[[UIGraphicsImageRenderer alloc] initWithSize:size]
+                imageWithActions:^(UIGraphicsImageRendererContext *context) {}];
+    }
+    cell.contentConfiguration = content;
+    UIView *spinner = [cell.contentView viewWithTag:kOpeningSpinnerTag];
+    UILayoutGuide *slot = [cell.contentView isKindOfClass:UIListContentView.class]
+            ? ((UIListContentView *)cell.contentView).imageLayoutGuide : nil;
+    if (!opening || !slot) {
+        [spinner removeFromSuperview];
+        return;
+    }
+    if (!spinner) {
+        UIActivityIndicatorView *indicator = [[UIActivityIndicatorView alloc]
+                initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
+        indicator.tag = kOpeningSpinnerTag;
+        indicator.translatesAutoresizingMaskIntoConstraints = NO;
+        [indicator startAnimating];
+        [cell.contentView addSubview:indicator];
+        [NSLayoutConstraint activateConstraints:@[
+            [indicator.centerXAnchor constraintEqualToAnchor:slot.centerXAnchor],
+            [indicator.centerYAnchor constraintEqualToAnchor:slot.centerYAnchor],
+        ]];
+    }
+}
+
+BOOL VibeRowIsInViewport(UITableViewCell *cell, UITableView *tableView) {
+    UIWindow *window = cell.window;
+    if (!window) {
+        return NO;
+    }
+    CGRect rowInTable = [cell convertRect:cell.bounds toView:tableView];
+    CGRect visibleInTable = CGRectIntersection(rowInTable, tableView.bounds);
+    if (CGRectIsNull(visibleInTable) || CGRectIsEmpty(visibleInTable)) {
+        return NO;
+    }
+    CGRect visibleInWindow = [tableView convertRect:visibleInTable toView:window];
+    return !CGRectIsEmpty(CGRectIntersection(visibleInWindow, window.bounds));
 }
 
 // Rows past each end of the screen whose art is asked for with the visible ones.
@@ -174,8 +222,12 @@ static UIImage *VibeFileTileImage(BOOL playlist) {
     // The directory's standardized path, so a row's is one append away.
     NSString *_standardizedPath;
     NSString *_title;
-    // The playing file's standardized path, for the row that carries the mark.
+    // The playing file's standardized path, for the row that carries the
+    // equalizer.
     NSString *_playingPath;
+    // Between viewWillAppear: and viewWillDisappear:, for the equalizer; the
+    // stack's exposure is the root's equalizerSurfaceVisible.
+    BOOL _viewPresentationVisible;
     // The rows drawn: the listing narrowed by the filter field.
     NSArray<NSURL *> *_folders;
     NSArray<NSURL *> *_files;
@@ -351,6 +403,8 @@ static UIImage *VibeFileTileImage(BOOL playlist) {
 
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
+    _viewPresentationVisible = YES;
+    [self syncEqualizer];
     if (self.isRoot) {
         [self.tableView reloadData];
         return;
@@ -361,8 +415,23 @@ static UIImage *VibeFileTileImage(BOOL playlist) {
     }
 }
 
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    [self syncEqualizer];
+}
+
+// At the start of a transition; a cancelled one comes back through
+// viewWillAppear:.
+- (void)viewWillDisappear:(BOOL)animated {
+    [super viewWillDisappear:animated];
+    _viewPresentationVisible = NO;
+    [self syncEqualizer];
+}
+
 - (void)viewDidDisappear:(BOOL)animated {
     [super viewDidDisappear:animated];
+    _viewPresentationVisible = NO;
+    [self syncEqualizer];
     // The stack's cache serves the screen on top: one gone from it stops
     // its own scan, and never the scan of the screen that replaced it.
     if (_artCache.delegate == self) {
@@ -797,8 +866,14 @@ static UIImage *VibeFileTileImage(BOOL playlist) {
                                             handler:^(UIAlertAction *action) { replace(); }]];
     [alert addAction:[UIAlertAction actionWithTitle:STR_PLAYLIST_REPLACE_ADD
                                               style:UIAlertActionStyleDefault
-                                            handler:^(UIAlertAction *action) { [playback addURLs:urls]; }]];
-    [alert addAction:[UIAlertAction actionWithTitle:STR_BUTTON_CANCEL style:UIAlertActionStyleCancel handler:nil]];
+                                            handler:^(UIAlertAction *action) {
+        [playback endOpeningForReplaceRequest:token];
+        [playback addURLs:urls];
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:STR_BUTTON_CANCEL style:UIAlertActionStyleCancel
+                                            handler:^(UIAlertAction *action) {
+        [playback endOpeningForReplaceRequest:token];
+    }]];
     [presenter presentViewController:alert animated:YES completion:nil];
 }
 
@@ -816,7 +891,12 @@ static UIImage *VibeFileTileImage(BOOL playlist) {
 // A replace — a file alone, a file with its folder, a folder, or a pick of
 // several — unless this is the add sheet, where the same pick is added.
 - (void)openURLs:(NSArray<NSURL *> *)urls inFolder:(BOOL)inFolder {
-    [self openURLs:urls inFolder:inFolder token:[_playback replaceRequestToken]];
+    if (_appending) {
+        [self addURLs:urls];
+        return;
+    }
+    NSURL *row = urls.count == 1 ? urls.firstObject : nil;
+    [self openURLs:urls inFolder:inFolder token:[_playback replaceRequestTokenOpening:row]];
 }
 
 // For the subfolder walk, whose Dropbox listings come between the tap and
@@ -842,7 +922,7 @@ static UIImage *VibeFileTileImage(BOOL playlist) {
         return;
     }
     _walkingSubfolders = YES;
-    uint64_t token = [_playback replaceRequestToken];
+    uint64_t token = [_playback replaceRequestTokenOpening:nil];
     __weak BrowserViewController *weakSelf = self;
     [self walkSubfolders:[NSMutableArray arrayWithObject:_directoryURL]
                    found:[NSMutableArray array]
@@ -1046,11 +1126,22 @@ static UIImage *VibeFileTileImage(BOOL playlist) {
 
 #pragma mark - PlaybackObserver
 
-// The playing file's row carries the mark.
+// The playing file's row carries the equalizer.
 - (void)playbackDidMoveToCurrentTrack:(PlaybackController *)playback animated:(BOOL)animated {
     _playingPath = VibeComparablePath(playback.currentTrack.url.path);
     if (self.viewIfLoaded.window && ![self isSelecting]) {
         [self.tableView reloadData];
+    }
+}
+
+- (void)playbackDidChangePlayState:(PlaybackController *)playback {
+    [self syncEqualizer];
+}
+
+- (void)playbackDidChangeOpening:(PlaybackController *)playback {
+    if (!self.isRoot && self.viewIfLoaded.window && ![self isSelecting]) {
+        [self.tableView reloadRowsAtIndexPaths:self.tableView.indexPathsForVisibleRows
+                              withRowAnimation:UITableViewRowAnimationNone];
     }
 }
 
@@ -1118,7 +1209,11 @@ static UIImage *VibeFileTileImage(BOOL playlist) {
     if (!cell) {
         cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:identifier];
     }
-    cell.accessoryView = nil;
+    // An item row keeps its equalizer through reuse and reconfiguration; it
+    // decides its own accessory (itemCellAtIndexPath:).
+    if (![cell.accessoryView isKindOfClass:EqualizerIndicatorView.class]) {
+        cell.accessoryView = nil;
+    }
     cell.accessoryType = UITableViewCellAccessoryNone;
     return cell;
 }
@@ -1138,32 +1233,95 @@ static UIImage *VibeFileTileImage(BOOL playlist) {
     // names line up down a listing of folders, files and the playing row.
     content.imageProperties.reservedLayoutSize = CGSizeMake(kFileTileSide, kFileTileSide);
     content.imageProperties.maximumSize = CGSizeMake(kFileTileSide, kFileTileSide);
+    NSString *path = [_standardizedPath stringByAppendingPathComponent:url.lastPathComponent];
+    EqualizerIndicatorView *equalizer = [cell.accessoryView isKindOfClass:EqualizerIndicatorView.class]
+            ? (EqualizerIndicatorView *)cell.accessoryView : nil;
+    UIView *accessory = nil;
     if (indexPath.section == VibeBrowserSectionFolders) {
         content.image = [UIImage systemImageNamed:@"folder"];
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
     }
     else {
+        // Its art when the file is here and has some; else the tile.
         BOOL playlist = [PlaylistFile isPlaylistExtension:url.pathExtension.lowercaseString];
-        BOOL playing = _playingPath
-                && [[_standardizedPath stringByAppendingPathComponent:url.lastPathComponent]
-                        isEqualToString:_playingPath];
-        if (playing) {
-            content.image = [UIImage systemImageNamed:@"speaker.wave.2.fill"];
-            content.imageProperties.tintColor = self.view.tintColor;
-        }
-        else {
-            // Its art when the file is here and has some; else the tile.
-            content.image = [_artTracks[url] cachedThumbnail] ?: VibeFileTileImage(playlist);
-            content.imageProperties.cornerRadius = kFileTileCornerRadius;
-        }
+        content.image = [_artTracks[url] cachedThumbnail] ?: VibeFileTileImage(playlist);
+        content.imageProperties.cornerRadius = kFileTileCornerRadius;
         // From the stat alone: what the file takes, or would download.
         content.secondaryText = _fileSizes[url];
-        if ([_placeholders containsObject:url]) {
-            cell.accessoryView = VibeNotDownloadedMark();
+        if (_playingPath && [path isEqualToString:_playingPath]) {
+            accessory = equalizer ?: [self makeEqualizer];
+        }
+        else if ([_placeholders containsObject:url]) {
+            accessory = VibeNotDownloadedMark();
         }
     }
-    cell.contentConfiguration = content;
+    if (equalizer && accessory != equalizer) {
+        equalizer.presentationVisible = NO;
+        equalizer.audioOutputActive = NO;
+    }
+    cell.accessoryView = accessory;
+    VibeApplyRowContent(cell, content, [path isEqualToString:_playback.openingPath]);
     return cell;
+}
+
+#pragma mark - The playing row's equalizer
+
+// The library row's marker, at the library's size; one per playing row.
+- (EqualizerIndicatorView *)makeEqualizer {
+    EqualizerIndicatorView *equalizer = [[EqualizerIndicatorView alloc] initWithFrame:CGRectMake(0, 0, 16, 14)];
+    equalizer.levelSource = _playback;
+    return equalizer;
+}
+
+- (void)setEqualizerSurfaceVisible:(BOOL)equalizerSurfaceVisible {
+    if (_equalizerSurfaceVisible == equalizerSurfaceVisible) {
+        return;
+    }
+    _equalizerSurfaceVisible = equalizerSurfaceVisible;
+    for (UIViewController *controller in self.navigationController.viewControllers) {
+        if ([controller isKindOfClass:BrowserViewController.class]) {
+            [(BrowserViewController *)controller syncEqualizer];
+        }
+    }
+}
+
+// Actual output plus material visibility, the root guarantee's two facts.
+- (void)syncEqualizer {
+    UIViewController *bottom = self.navigationController.viewControllers.firstObject;
+    BOOL surface = _viewPresentationVisible && [bottom isKindOfClass:BrowserViewController.class]
+            && ((BrowserViewController *)bottom).equalizerSurfaceVisible;
+    for (UITableViewCell *cell in self.tableView.visibleCells) {
+        if ([cell.accessoryView isKindOfClass:EqualizerIndicatorView.class]) {
+            EqualizerIndicatorView *equalizer = (EqualizerIndicatorView *)cell.accessoryView;
+            equalizer.audioOutputActive = _playback.audioOutputActive;
+            equalizer.presentationVisible = surface && VibeRowIsInViewport(cell, self.tableView);
+        }
+    }
+}
+
+- (void)tableView:(UITableView *)tableView
+  willDisplayCell:(UITableViewCell *)cell
+forRowAtIndexPath:(NSIndexPath *)indexPath {
+    [self syncEqualizer];
+}
+
+- (void)tableView:(UITableView *)tableView
+didEndDisplayingCell:(UITableViewCell *)cell
+ forRowAtIndexPath:(NSIndexPath *)indexPath {
+    if ([cell.accessoryView isKindOfClass:EqualizerIndicatorView.class]) {
+        EqualizerIndicatorView *equalizer = (EqualizerIndicatorView *)cell.accessoryView;
+        equalizer.presentationVisible = NO;
+        equalizer.audioOutputActive = NO;
+    }
+}
+
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView {
+    [self syncEqualizer];
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    [self syncEqualizer];
 }
 
 - (UITableViewCell *)sourceCellAtIndexPath:(NSIndexPath *)indexPath {
@@ -1242,6 +1400,11 @@ static UIImage *VibeFileTileImage(BOOL playlist) {
     }
     if (indexPath.section == VibeBrowserSectionFolders) {
         [self pushDirectory:url];
+    }
+    // A second tap on the row still opening gives it up.
+    else if ([[_standardizedPath stringByAppendingPathComponent:url.lastPathComponent]
+                     isEqualToString:_playback.openingPath]) {
+        [_playback cancelOpening];
     }
     else {
         [self openURLs:@[url] inFolder:NO];
@@ -1459,6 +1622,7 @@ static UIImage *VibeFileTileImage(BOOL playlist) {
         _playback = playback;
         _appending = appending;
         _items = @[];
+        [playback addObserver:self];
     }
     return self;
 }
@@ -1545,8 +1709,15 @@ static UIImage *VibeFileTileImage(BOOL playlist) {
         content.image = VibeFileTileImage(
                 [PlaylistFile isPlaylistExtension:[item[@"path"] pathExtension].lowercaseString]);
     }
-    cell.contentConfiguration = content;
+    VibeApplyRowContent(cell, content, [VibeComparablePath(path) isEqualToString:_playback.openingPath]);
     return cell;
+}
+
+- (void)playbackDidChangeOpening:(PlaybackController *)playback {
+    if (self.viewIfLoaded.window) {
+        [self.tableView reloadRowsAtIndexPaths:self.tableView.indexPathsForVisibleRows
+                              withRowAnimation:UITableViewRowAnimationNone];
+    }
 }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -1556,6 +1727,11 @@ static UIImage *VibeFileTileImage(BOOL playlist) {
     // press plays it.
     if ([item[@"folder"] boolValue]) {
         [self showFolderOfItem:item];
+        return;
+    }
+    // A second tap on the row still opening gives it up.
+    if ([VibeComparablePath(item[@"path"]) isEqualToString:_playback.openingPath]) {
+        [_playback cancelOpening];
         return;
     }
     [self openItem:item appending:_appending inFolder:NO];
@@ -1596,11 +1772,15 @@ static UIImage *VibeFileTileImage(BOOL playlist) {
 // makes while it runs supersedes an Add (FolderSession) and a replace alike.
 - (void)openItem:(NSDictionary *)item appending:(BOOL)appending inFolder:(BOOL)inFolder {
     PlaybackController *playback = _playback;
-    uint64_t token = appending ? [playback addRequestToken] : [playback replaceRequestToken];
+    uint64_t token = appending ? [playback addRequestToken]
+                               : [playback replaceRequestTokenOpening:[NSURL fileURLWithPath:item[@"path"]]];
     NSString *name = [item[@"path"] lastPathComponent];
     __weak RecentsViewController *weakSelf = self;
     [playback resolveRecentItem:item completion:^(NSURL *url) {
         if (!url) {
+            if (!appending) {
+                [playback endOpeningForReplaceRequest:token];
+            }
             [weakSelf showUnavailableAlertForName:name];
         }
         else if (appending) {

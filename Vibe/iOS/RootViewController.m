@@ -194,6 +194,7 @@ static NSString *const kTabSearch = @"search";
         browser.addedRowsHandler = ^(NSArray<UIView *> *rows) {
             [weakSelf liftAddedRows:rows];
         };
+        [root syncTabSurfaces];
         return [[UINavigationController alloc] initWithRootViewController:browser];
     }];
 
@@ -338,9 +339,11 @@ static NSString *const kTabSearch = @"search";
 // What no descendant can know: scene activity and whether the card leaves the
 // selected tab exposed.
 - (void)syncTabSurfaces {
-    BOOL playlistSelected = [_tabs.selectedTab.identifier isEqualToString:kTabPlaylist];
-    _library.equalizerSurfaceVisible = _sceneActive
-            && _rootPresentationVisible && !_tabs.view.hidden && playlistSelected;
+    BOOL tabsExposed = _sceneActive && _rootPresentationVisible && !_tabs.view.hidden;
+    _library.equalizerSurfaceVisible = tabsExposed
+            && [_tabs.selectedTab.identifier isEqualToString:kTabPlaylist];
+    _filesController.equalizerSurfaceVisible = tabsExposed
+            && [_tabs.selectedTab.identifier isEqualToString:kTabFiles];
     BOOL searchSelected = [_tabs.selectedTab isKindOfClass:UISearchTab.class];
     BOOL cardAtRestBelowTabs = !_expanded && !_cardAnimating && !_interactiveDrag;
     _searchController.materialSurfaceVisible = _sceneActive
@@ -901,14 +904,24 @@ static const CGFloat kLandedRowScale = 0.1;
     }
 }
 
-// Over whatever is up: "Open in Vibe" can arrive with the card presented.
-- (void)playback:(PlaybackController *)playback
-        needsFolderOfSheetAtURL:(NSURL *)sheetURL
-                      appending:(BOOL)appending {
+// Over whatever is up: the add sheet, or the card.
+- (UIViewController *)topmostPresenter {
     UIViewController *presenter = self;
     while (presenter.presentedViewController) {
         presenter = presenter.presentedViewController;
     }
+    return presenter;
+}
+
+- (void)playback:(PlaybackController *)playback didGiveUpOpeningPath:(NSString *)path {
+    VibePresentAlert([self topmostPresenter], path.lastPathComponent, STR_ERROR_OPEN_TOO_SLOW);
+}
+
+// "Open in Vibe" can arrive with the card presented.
+- (void)playback:(PlaybackController *)playback
+        needsFolderOfSheetAtURL:(NSURL *)sheetURL
+                      appending:(BOOL)appending {
+    UIViewController *presenter = [self topmostPresenter];
     NSString *message = [NSString stringWithFormat:STR_PLAYLIST_GRANT_MESSAGE, VibeAppName(),
                          sheetURL.lastPathComponent];
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:nil

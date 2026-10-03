@@ -240,6 +240,16 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     [NSUserDefaults.standardUserDefaults removeObjectForKey:kLastTrackPathKey];
 }
 
+- (void)cancelOpen {
+    uint64_t openIntentGeneration = [self beginOpenIntent];
+    // An empty open's settle, as finishOpenIntent: makes it: without the carry,
+    // every later Add is captured at a generation nothing landed.
+    if (_landedOpenIntentGeneration != 0) {
+        _landedOpenIntentGeneration = openIntentGeneration;
+    }
+    [self releaseAddWaitersAfterSettle];
+}
+
 #pragma mark - Recents
 
 - (NSArray<NSDictionary *> *)recentItems {

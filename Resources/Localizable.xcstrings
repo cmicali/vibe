@@ -5263,6 +5263,18 @@
       },
       "extractionState": "manual"
     },
+    "error.open_too_slow": {
+      "comment": "iOS: alert message shown when opening a file or folder the user tapped took too long and was given up. The alert's title is the item's name. Nothing changed: the playlist that was playing stays.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This is taking too long to open, so Vibe stopped trying. Its cloud service may be slow or unreachable. Try again in a moment."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "error.playback_generic": {
       "comment": "Inline playback error: fallback for an unrecognized failure.",
       "localizations": {

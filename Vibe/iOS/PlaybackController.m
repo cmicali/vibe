@@ -23,6 +23,7 @@
 #import "CloudTransferRegistry.h"
 #import "DropboxMirror.h"
 #import "FavoritesStore.h"
+#import "NSURLUtil.h"
 #import "PlayerDisplaySettings.h"
 #import "PlaybackDeliveryRules.h"
 #import "SettingsRules.h"
@@ -393,6 +394,7 @@ static const NSUInteger kUIUpdateHz = 3;
 // guards drop any callback already in flight.
 - (void)clearPlaylist {
     _replaceRequestSerial++;
+    [self endOpening];
     [_player stop];
     [self endLoadingProgress];
     // TRAP: the session goes BEFORE the model. Clearing the model fires
@@ -708,13 +710,13 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 }
 
 - (void)openURLs:(NSArray<NSURL *> *)urls openInPlace:(BOOL)openInPlace {
-    _replaceRequestSerial++;
+    [self submitReplaceOpening:urls.count == 1 ? urls.firstObject : nil];
     [_folderSession openURLs:urls openInPlace:openInPlace];
 }
 
 - (void)openSheetURL:(NSURL *)sheetURL inGrantedFolder:(NSURL *)folderURL appending:(BOOL)appending {
     if (!appending) {
-        _replaceRequestSerial++;
+        [self submitReplaceOpening:sheetURL];
     }
     [_folderSession openSheetURL:sheetURL inGrantedFolder:folderURL appending:appending];
 }
@@ -727,8 +729,91 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     return _folderSession.addRequestToken;
 }
 
-- (uint64_t)replaceRequestToken {
-    return ++_replaceRequestSerial;
+- (uint64_t)replaceRequestTokenOpening:(NSURL *)url {
+    _replaceRequestSerial++;
+    [self beginOpening:url];
+    return _replaceRequestSerial;
+}
+
+#pragma mark - The row being opened
+
+// Long enough for a Dropbox folder's listing (FolderSession's bound) and the
+// read after it; past it the user is better told than left watching.
+static const NSTimeInterval kOpeningTimeout = 25;
+
+- (void)submitReplaceOpening:(NSURL *)url {
+    _submittedOpenSerial = [self replaceRequestTokenOpening:url];
+}
+
+- (void)beginOpening:(NSURL *)url {
+    _openingSerial = _replaceRequestSerial;
+    NSString *path = url ? VibeComparablePath(url.path) : nil;
+    if (path != _openingPath && ![path isEqualToString:_openingPath]) {
+        _openingPath = path;
+        [self notifyDidChangeOpening];
+    }
+    if (!path) {
+        return;
+    }
+    uint64_t serial = _openingSerial;
+    __weak PlaybackController *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kOpeningTimeout * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        [weakSelf giveUpOpening:serial];
+    });
+}
+
+- (void)giveUpOpening:(uint64_t)serial {
+    NSString *path = _openingPath;
+    if (serial != _openingSerial || !path) {
+        return;
+    }
+    LogWarn(@"PlaybackController: gave up opening %@ after %.0f s", path.lastPathComponent, kOpeningTimeout);
+    [self cancelOpening];
+    for (id<PlaybackObserver> observer in [self observerSnapshot]) {
+        if ([observer respondsToSelector:@selector(playback:didGiveUpOpeningPath:)]) {
+            [observer playback:self didGiveUpOpeningPath:path];
+        }
+    }
+}
+
+- (void)cancelOpening {
+    if (!_openingPath) {
+        return;
+    }
+    // A resolve still running is dropped by the replace funnel; an open the
+    // session holds, by the session.
+    _replaceRequestSerial++;
+    if (_openingSerial == _submittedOpenSerial) {
+        [_folderSession cancelOpen];
+    }
+    [self endOpening];
+}
+
+- (void)endOpeningForReplaceRequest:(uint64_t)token {
+    if (token == _openingSerial) {
+        [self endOpening];
+    }
+}
+
+- (void)endOpening {
+    if (!_openingPath) {
+        return;
+    }
+    _openingPath = nil;
+    [self notifyDidChangeOpening];
+}
+
+- (void)notifyDidChangeOpening {
+    for (id<PlaybackObserver> observer in [self observerSnapshot]) {
+        if ([observer respondsToSelector:@selector(playbackDidChangeOpening:)]) {
+            [observer playbackDidChangeOpening:self];
+        }
+    }
+}
+
+- (NSString *)openingPath {
+    return _openingPath;
 }
 
 - (BOOL)isCurrentReplaceRequest:(uint64_t)token {
@@ -770,7 +855,7 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 }
 
 - (void)openFileURL:(NSURL *)url inFolder:(BOOL)inFolder {
-    _replaceRequestSerial++;
+    [self submitReplaceOpening:url];
     [_folderSession openURL:url inFolder:inFolder];
 }
 
@@ -863,6 +948,9 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
         [self startPendingMetadataLoad];
     }
     else {
+        // What the session settles is the last replace it was handed; a row
+        // asked for since is still resolving, and stays.
+        [self endOpeningForReplaceRequest:_submittedOpenSerial];
         [self playCurrentTrack];
         for (id<PlaybackObserver> observer in [self observerSnapshot]) {
             if ([observer respondsToSelector:@selector(playbackDidOpenNewFolder:)]) {
@@ -917,6 +1005,7 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 // so the rows the shell lifted for them settle on this event or never.
 - (void)folderSessionDidOpenEmptyFolder:(FolderSession *)session {
     [self settleLaunchOpen];
+    [self endOpeningForReplaceRequest:_submittedOpenSerial];
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {
         if ([observer respondsToSelector:@selector(playbackDidOpenEmptyFolder:)]) {
             [observer playbackDidOpenEmptyFolder:self];

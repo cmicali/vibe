@@ -651,7 +651,8 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
                                     name:(NSString *)name
                                   folder:(NSString *)folder
                                    glyph:(NSString *)glyph
-                           notDownloaded:(BOOL)notDownloaded {
+                           notDownloaded:(BOOL)notDownloaded
+                                 opening:(BOOL)opening {
     static NSString *const identifier = @"hit";
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:identifier];
     if (!cell) {
@@ -665,7 +666,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     content.text = name;
     content.secondaryText = folder;
     VibeApplyFileNameStyle(content);
-    cell.contentConfiguration = content;
+    VibeApplyRowContent(cell, content, opening);
     cell.accessoryView = notDownloaded ? VibeNotDownloadedMark() : nil;
     return cell;
 }
@@ -673,7 +674,13 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 - (UITableViewCell *)fileCellForTableView:(UITableView *)tableView row:(NSUInteger)row {
     FileSearchHit *hit = _fileHits[row];
     return [self hitCellForTableView:tableView name:hit.fileName folder:hit.folderName glyph:@"music.note"
-                       notDownloaded:NO];
+                       notDownloaded:NO opening:[self hitIsOpening:hit]];
+}
+
+// A Dropbox hit has no path on the disk until its resolve, so never spins.
+- (BOOL)hitIsOpening:(id)hit {
+    return [hit isKindOfClass:FileSearchHit.class]
+            && [VibeComparablePath(((FileSearchHit *)hit).url.path) isEqualToString:_playback.openingPath];
 }
 
 - (UITableViewCell *)dropboxCellForTableView:(UITableView *)tableView row:(NSUInteger)row {
@@ -685,7 +692,8 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
                                 name:entry[@"name"]
                               folder:[parent isEqualToString:@"/"] ? VibeNotLocalized(@"Dropbox") : parent
                                glyph:folder ? @"folder" : @"music.note"
-                       notDownloaded:!folder && ![_dropboxDownloaded containsObject:entry[@"path_lower"]]];
+                       notDownloaded:!folder && ![_dropboxDownloaded containsObject:entry[@"path_lower"]]
+                             opening:NO];
 }
 
 // A playlist row selects and stays; a file row plays that file alone, and a
@@ -703,6 +711,11 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
         [self showFolderOfHit:hit];
         return;
     }
+    // A second tap on the row still opening gives it up.
+    if ([self hitIsOpening:hit]) {
+        [_playback cancelOpening];
+        return;
+    }
     [self openHit:hit inFolder:NO];
 }
 
@@ -716,8 +729,10 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     // Resigns the field but keeps the query.
     [_searchController.searchBar resignFirstResponder];
     PlaybackController *playback = _playback;
-    // A Dropbox hit's resolve lists a folder: the newest request wins.
-    uint64_t token = [playback replaceRequestToken];
+    // A Dropbox hit's resolve lists a folder: the newest request wins. A
+    // Dropbox hit has no row on the disk to spin until it does.
+    NSURL *row = [hit isKindOfClass:FileSearchHit.class] ? ((FileSearchHit *)hit).url : nil;
+    uint64_t token = [playback replaceRequestTokenOpening:row];
     __weak SearchViewController *weakSelf = self;
     [self resolveHit:hit completion:^(NSURL *url, BOOL folder) {
         SearchViewController *strongSelf = weakSelf;
@@ -810,6 +825,16 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 }
 
 #pragma mark - PlaybackObserver
+
+- (void)playbackDidChangeOpening:(PlaybackController *)playback {
+    NSMutableArray<NSIndexPath *> *rows = [NSMutableArray array];
+    for (NSIndexPath *path in self.tableView.indexPathsForVisibleRows) {
+        if (path.section == VibeSearchSectionFiles) {
+            [rows addObject:path];
+        }
+    }
+    [self.tableView reloadRowsAtIndexPaths:rows withRowAnimation:UITableViewRowAnimationNone];
+}
 
 // Re-filter, not reload: every match is an index into the old playlist, and
 // the exclusion set and roots may have changed too. Replace and append alike.

@@ -108,6 +108,11 @@ NS_ASSUME_NONNULL_BEGIN
 // any open in flight. Main thread; no delegate call.
 - (void)clearSession;
 
+// Gives up the open in flight: it is dropped when it finishes, and the
+// playlist standing answers for it, as for an open that found nothing. Main
+// thread; no delegate call.
+- (void)cancelOpen;
+
 // NO: nothing was persisted. YES: an attempt is in flight, ending in
 // didOpenTracks:…restored:YES or folderSessionRestoreDidFail:, on main.
 - (BOOL)restorePersistedFolder;
