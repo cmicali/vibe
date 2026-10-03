@@ -388,6 +388,42 @@ static void VibeBenchComponentsRegisterRenderers(void) {
         VibeBenchComponentsUILiveResize(detailed.get());
     });
 
+    // The same resize with Normalize off, as the app ships: the refill
+    // measures no reference, so the bars' level windows are all of it.
+    auto plain = std::make_shared<VibeBenchComponentsUIRenderer>();
+    VibeBenchComponentsAdd("ui-waveform", "detailed-plain-resize", "frame", [plain]() -> double {
+        plain->parent = [CALayer layer];
+        plain->parent.contentsScale = 2;
+        CGRect bounds = CGRectMake(0, 0, 800, 60);
+        plain->parent.bounds = bounds;
+        plain->waveform = VibeBenchComponentsUIWaveform(11);
+        plain->renderer = [[DetailedAudioWaveformRenderer alloc] initWithLayer:plain->parent bounds:bounds
+                                                                        isDark:YES wiggle:NO centered:NO];
+        [plain->renderer updateWaveform:bounds progress:0 waveform:plain->waveform.get()];
+        [plain->renderer settleMorphImmediately];
+        return 60;
+    }, [plain]() {
+        VibeBenchComponentsUILiveResize(plain.get());
+    });
+
+    // Sonic Cirrus through it: a block style, a bar every four points, each
+    // bar's level its own window's and its layers added as the width grows.
+    auto blocks = std::make_shared<VibeBenchComponentsUIRenderer>();
+    VibeBenchComponentsAdd("ui-waveform", "sonic-cirrus-resize", "frame", [blocks]() -> double {
+        blocks->parent = [CALayer layer];
+        blocks->parent.contentsScale = 2;
+        CGRect bounds = CGRectMake(0, 0, 800, 60);
+        blocks->parent.bounds = bounds;
+        blocks->waveform = VibeBenchComponentsUIWaveform(17);
+        blocks->renderer = [[SonicCirrusWaveformRenderer alloc] initWithLayer:blocks->parent bounds:bounds isDark:YES];
+        blocks->renderer.normalizesLevels = YES;
+        [blocks->renderer updateWaveform:bounds progress:0 waveform:blocks->waveform.get()];
+        [blocks->renderer settleMorphImmediately];
+        return 60;
+    }, [blocks]() {
+        VibeBenchComponentsUILiveResize(blocks.get());
+    });
+
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
     // 3-Band through the same live resize as Detailed's: seven painter's
     // layers under the sides' mask, a bar a point.

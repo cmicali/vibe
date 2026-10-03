@@ -292,13 +292,12 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     }];
 }
 
-// Each bar's levels are its own window's (barCountForWidth:). The mean
-// squares land in out first, so Normalize reads them where the bars are its
-// columns. Normalize and Gain apply to all three bands alike.
+// Each bar's levels are its own window's (barCountForWidth:), smoothed so a
+// resize does not ripple them. The mean squares land in out first, so
+// Normalize reads them where the bars are its columns. Normalize and Gain
+// apply to all three bands alike.
 - (void)fillBandLevels:(float *)out count:(NSUInteger)count waveform:(AudioWaveform *)waveform {
-    for (NSUInteger i = 0; i < count; i++) {
-        waveform->getBandMeanSquares(i, count, &out[i * kAudioWaveformBandCount]);
-    }
+    waveform->getSmoothedMeanSquares(count, NULL, out);
     float fullScaleRMS = [self bandFullScaleRMSForWaveform:waveform count:count meanSquares:out];
     float gainDB = self.gainDB;
     for (NSUInteger i = 0; i < count * kAudioWaveformBandCount; i++) {
@@ -312,20 +311,25 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 // reference left every band short of it. It keeps
 // VibeWaveformFullScaleRMSForWaveform's rules — the whole track, the 1,024
 // columns, the fixed ceiling — but is its own so that within the columns it
-// reads the mean squares the fill just merged: measuring them through the
-// waveform again cost a fifth of every resize frame's instructions.
+// reads the mean squares the fill just smoothed: measuring them through the
+// waveform again cost a fifth of every resize frame's instructions. Past the
+// columns it measures them under the same window, so the reference does not
+// step as a resize crosses 1,024 bars.
 - (float)bandFullScaleRMSForWaveform:(AudioWaveform *)waveform count:(NSUInteger)count
                          meanSquares:(const float *)drawn {
     if (!self.normalizesLevels || !waveform->isComplete()) {
         return kVibeWaveformFullScaleRMS;
     }
+    std::vector<float> columns;
+    if (count > kVibeWaveformEnergyColumns) {
+        count = kVibeWaveformEnergyColumns;
+        columns.resize(count * kAudioWaveformBandCount);
+        waveform->getSmoothedMeanSquares(count, NULL, columns.data());
+        drawn = columns.data();
+    }
     float maxima[kAudioWaveformBandCount] = {};
-    if (count <= kVibeWaveformEnergyColumns) {
-        for (NSUInteger i = 0; i < count * kAudioWaveformBandCount; i++) {
-            maxima[i % kAudioWaveformBandCount] = fmaxf(maxima[i % kAudioWaveformBandCount], drawn[i]);
-        }
-    } else {
-        waveform->getMaxBandMeanSquares(kVibeWaveformEnergyColumns, maxima);
+    for (NSUInteger i = 0; i < count * kAudioWaveformBandCount; i++) {
+        maxima[i % kAudioWaveformBandCount] = fmaxf(maxima[i % kAudioWaveformBandCount], drawn[i]);
     }
     float loudest = 0;
     for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {

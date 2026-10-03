@@ -70,12 +70,6 @@ struct AudioWaveformCacheChunk {
     inline void set(float min, float max, float sumSquares, float frameCount) noexcept {
         values[0] = min; values[1] = max; values[2] = sumSquares; values[3] = frameCount;
     }
-    inline void merge(AudioWaveformCacheChunk* chunk) noexcept {
-        if (chunk->values[0] < values[0]) values[0] = chunk->values[0];
-        if (chunk->values[1] > values[1]) values[1] = chunk->values[1];
-        values[2] += chunk->values[2];
-        values[3] += chunk->values[3];
-    }
 
     inline void mergeFromMonoBuffer(const float* mono, NSUInteger numFrames) {
         if (numFrames == 0) return;
@@ -125,12 +119,16 @@ public:
     // reads no band merges none.
     void getBandMeanSquares(NSUInteger index, NSUInteger size, float* meanSquares);
     inline bool hasBands() const noexcept { return bandSums != nullptr; }
-    // The loudest of the track's energy columns at this resolution — its mean
-    // square, as getMeanSquare — which the renderers' Normalize draws at
-    // full height. 0 for an empty or silent waveform.
-    float getMaxMeanSquare(NSUInteger columns);
-    // Each band's loudest column at this resolution, low to high.
-    void getMaxBandMeanSquares(NSUInteger columns, float* maxima);
+    // Every one of size bars' mean squares at once, each over a window three
+    // bars wide that fades toward its edges: the full mix's into meanSquares,
+    // size of them, and the bands', low to high per bar, into
+    // bandMeanSquares; either may be null, and the bands are zeros without
+    // bands. What a bar's level is drawn from. A column's hard edges
+    // (getChunkAtIndex) take a kick whole or not at all, so bars about a beat
+    // long beat against the kicks, and the pattern runs along the waveform as
+    // a resize moves the edges; under this window a kick crosses from one bar
+    // to the next gradually and the levels hold still.
+    void getSmoothedMeanSquares(NSUInteger size, float* meanSquares, float* bandMeanSquares);
     // The loader's own verdict, carried on the data: a decode it accepts can
     // end a chunk or two short, so the chunks cannot answer this. A fresh
     // waveform is a load still streaming, and a snapshot copies the answer;

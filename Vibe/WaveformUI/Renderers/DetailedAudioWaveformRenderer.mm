@@ -305,28 +305,27 @@ static const CGFloat kDetailedBarPitch = 0.5;
         for (NSUInteger i = 0; i < count; i++) out[i * 2] = 0;
         return;
     }
-    // Scaled by the column's peak extent, keeping DC-offset asymmetry and fine
-    // texture.
-    NSUInteger lastColumnIndex = NSNotFound;
-    float columnExtent = 0, columnLevel = 0;
-    float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels, count);
-    float gainDB = self.gainDB;
-    for (NSUInteger i = 0; i < count; i++) {
-        AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
-        NSUInteger columnIndex = VibeWaveformEnergyColumnIndexForBar(i, count);
-        if (lastColumnIndex != columnIndex) {
-            AudioWaveformCacheChunk c = count > kVibeWaveformEnergyColumns
-                    ? VibeWaveformEnergyColumnForBar(waveform, i, count) : m;
-            lastColumnIndex = columnIndex;
-            columnExtent = fmaxf(fabsf(c.getMin()), fabsf(c.getMax()));
-            columnLevel = VibeWaveformBarLevel(c.getMeanSquare(), fullScaleRMS, gainDB);
+    // Each bar keeps its own min and max, scaled so the tallest of the bars
+    // sharing an energy column draws that column's level: DC-offset asymmetry
+    // and fine texture survive, and no bar passes the envelope.
+    std::vector<float> levels = [self energyColumnLevelsForBarCount:count waveform:waveform];
+    NSUInteger columns = levels.size();
+    for (NSUInteger column = 0, bar = 0; column < columns; column++) {
+        // Past the column's last bar: VibeWaveformEnergyColumnIndexForBar,
+        // read from the column's side.
+        NSUInteger end = ((column + 1) * count + columns - 1) / columns;
+        float extent = 0;
+        for (NSUInteger i = bar; i < end; i++) {
+            AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
+            out[i * 2] = m.getMin();
+            out[i * 2 + 1] = m.getMax();
+            extent = fmaxf(extent, fmaxf(fabsf(m.getMin()), fabsf(m.getMax())));
         }
-        // A bar straddling two columns may carry a peak its mapped column
-        // lacks; the wider extent keeps it on the envelope rather than past it.
-        float extent = fmaxf(columnExtent, fmaxf(fabsf(m.getMin()), fabsf(m.getMax())));
-        float scale = extent > 0 ? columnLevel / extent : 0;
-        out[i * 2] = m.getMin() * scale;
-        out[i * 2 + 1] = m.getMax() * scale;
+        float scale = extent > 0 ? levels[column] / extent : 0;
+        for (; bar < end; bar++) {
+            out[bar * 2] *= scale;
+            out[bar * 2 + 1] *= scale;
+        }
     }
 }
 

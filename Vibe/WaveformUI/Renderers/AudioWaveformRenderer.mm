@@ -70,14 +70,23 @@
     [_morph invalidateTarget];
 }
 
+- (std::vector<float>)energyColumnLevelsForBarCount:(NSUInteger)count waveform:(AudioWaveform *)waveform {
+    std::vector<float> levels(MIN(count, kVibeWaveformEnergyColumns));
+    waveform->getSmoothedMeanSquares(levels.size(), levels.data(), NULL);
+    float fullScaleRMS = VibeWaveformFullScaleRMSForColumns(waveform, self.normalizesLevels,
+                                                            levels.data(), levels.size());
+    float gainDB = self.gainDB;
+    for (float &level : levels) {
+        level = VibeWaveformBarLevel(level, fullScaleRMS, gainDB);
+    }
+    return levels;
+}
+
 - (void)fillEnergyLevels:(float *)out count:(NSUInteger)count stride:(NSUInteger)stride
                waveform:(AudioWaveform *)waveform {
-    float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels, count);
-    float gainDB = self.gainDB;
+    std::vector<float> levels = [self energyColumnLevelsForBarCount:count waveform:waveform];
     for (NSUInteger i = 0; i < count; i++) {
-        out[i * stride] = VibeWaveformBarLevel(
-                VibeWaveformEnergyColumnForBar(waveform, i, count).getMeanSquare(),
-                fullScaleRMS, gainDB);
+        out[i * stride] = levels[VibeWaveformEnergyColumnIndexForBar(i, count)];
     }
 }
 

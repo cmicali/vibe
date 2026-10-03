@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <numeric>
 #include <vector>
 
 @interface AudioWaveformTests : XCTestCase
@@ -31,6 +32,13 @@
 
 - (AudioWaveform *)waveform {
     return new AudioWaveform(_source.size(), _source.data());
+}
+
+// Normalize's reference as a fill reads it: off the energy columns it drew.
+static float VibeTestFullScaleRMS(AudioWaveform *waveform, BOOL normalize, NSUInteger columns) {
+    std::vector<float> meanSquares(columns);
+    if (waveform) waveform->getSmoothedMeanSquares(columns, meanSquares.data(), nullptr);
+    return VibeWaveformFullScaleRMSForColumns(waveform, normalize, meanSquares.data(), columns);
 }
 
 - (AudioWaveformRenderer *)rendererForStyle:(NSString *)identifier {
@@ -212,13 +220,13 @@
 }
 
 - (void)testNormalizationOnlyRaisesLevelsAndKeepsSilenceFinite {
-    XCTAssertEqual(VibeWaveformFullScaleRMSForWaveform(nullptr, YES, 1024), kVibeWaveformFullScaleRMS);
+    XCTAssertEqual(VibeTestFullScaleRMS(nullptr, YES, 1024), kVibeWaveformFullScaleRMS);
     for (float rms : {0.0f, 0.000001f, 0.035f, 0.35f, 0.7f, 1.0f}) {
         AudioWaveformCacheChunk chunk;
         chunk.set(-rms, rms, rms * rms, 1);
         AudioWaveform waveform(1, &chunk);
-        float plain = VibeWaveformFullScaleRMSForWaveform(&waveform, NO, 1024);
-        float normalized = VibeWaveformFullScaleRMSForWaveform(&waveform, YES, 1024);
+        float plain = VibeTestFullScaleRMS(&waveform, NO, 1024);
+        float normalized = VibeTestFullScaleRMS(&waveform, YES, 1024);
         XCTAssertGreaterThan(normalized, 0);
         XCTAssertLessThanOrEqual(normalized, plain);
         if (rms == 0 || rms >= kVibeWaveformFullScaleRMS) XCTAssertEqual(normalized, plain);
@@ -442,12 +450,12 @@
     }
     AudioWaveform snapshot(loading);
     XCTAssertFalse(snapshot.isComplete());
-    XCTAssertEqual(VibeWaveformFullScaleRMSForWaveform(&snapshot, YES, 1024), kVibeWaveformFullScaleRMS);
+    XCTAssertEqual(VibeTestFullScaleRMS(&snapshot, YES, 1024), kVibeWaveformFullScaleRMS);
 
     loading.markComplete();
     AudioWaveform whole(loading);
     XCTAssertTrue(whole.isComplete());
-    XCTAssertEqualWithAccuracy(VibeWaveformFullScaleRMSForWaveform(&whole, YES, 1024), 0.1f, 1e-6);
+    XCTAssertEqualWithAccuracy(VibeTestFullScaleRMS(&whole, YES, 1024), 0.1f, 1e-6);
 
     // An archive is only written complete.
     AudioWaveform archived(1, &quiet);
@@ -628,12 +636,13 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
         for (NSUInteger i = 0; i < levels.size(); i += kAudioWaveformBandCount) low.push_back(levels[i]);
         return low;
     };
+    // Past the first and last bars, whose windows hang off the track.
     std::vector<float> overview = lowLevels(1024);
-    XCTAssertEqualWithAccuracy(*std::max_element(overview.begin(), overview.end()),
-                               *std::min_element(overview.begin(), overview.end()), 1e-6);
+    XCTAssertEqualWithAccuracy(*std::max_element(overview.begin() + 1, overview.end() - 1),
+                               *std::min_element(overview.begin() + 1, overview.end() - 1), 1e-5);
     std::vector<float> zoomed = lowLevels(8192);
-    XCTAssertGreaterThan(zoomed[0], 3 * zoomed[4]);
-    XCTAssertEqualWithAccuracy(zoomed[0], zoomed[8], 1e-6);
+    XCTAssertGreaterThan(zoomed[8], 3 * zoomed[12]);
+    XCTAssertEqualWithAccuracy(zoomed[8], zoomed[16], 1e-6);
 }
 
 // Each layer is one outline through the bars, never a shape per bar.
@@ -761,24 +770,97 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     XCTAssertFalse([WaveformRendererRegistry readsBandsForIdentifier:@"missing-style"]);
 }
 
-#pragma mark - getMaxMeanSquare
+#pragma mark - getSmoothedMeanSquares
 
-// 64 chunks whose mean square is their index, so the loudest column at any
-// resolution is the mean of the last chunks it covers.
-- (void)testMaxMeanSquareIsTheLoudestColumnAtThatResolution {
-    std::vector<AudioWaveformCacheChunk> source(64, AudioWaveformCacheChunk());
-    for (NSUInteger i = 0; i < 64; i++) {
-        source[i].set(0, 0, (float)i * 4, 4);
+// Chunk i carries mean square i, and bands i, 2i and 3i, over one frame.
+static AudioWaveform VibeRampWaveform(NSUInteger count) {
+    std::vector<AudioWaveformCacheChunk> chunks(count);
+    std::vector<float> bands;
+    for (NSUInteger i = 0; i < count; i++) {
+        chunks[i].set(0, 0, (float)i, 1);
+        bands.insert(bands.end(), {(float)i, (float)i * 2, (float)i * 3});
     }
-    AudioWaveform *w = new AudioWaveform(source.size(), source.data());
-    XCTAssertEqualWithAccuracy(w->getMaxMeanSquare(64), 63, 1e-5);
-    XCTAssertEqualWithAccuracy(w->getMaxMeanSquare(8), 59.5, 1e-5);   // chunks 56..63
-    XCTAssertEqualWithAccuracy(w->getMaxMeanSquare(1), 31.5, 1e-5);   // the whole track
-    XCTAssertEqualWithAccuracy(w->getMaxMeanSquare(1024), 63, 1e-5); // finer than the source repeats
-    delete w;
-    AudioWaveform *empty = new AudioWaveform();
-    XCTAssertEqual(empty->getMaxMeanSquare(64), 0);
-    delete empty;
+    return AudioWaveform(chunks.size(), chunks.data(), bands.data());
+}
+
+// A bar's window weighs both sides of its center alike, so a ramp reads its
+// own value there, in the mix and in every band, and never runs backwards.
+- (void)testSmoothedMeanSquaresReadARampAtEachBarsCenter {
+    AudioWaveform w = VibeRampWaveform(64);
+    for (NSUInteger size : {(NSUInteger)64, (NSUInteger)32, (NSUInteger)8}) {
+        std::vector<float> mix(size), bands(size * kAudioWaveformBandCount);
+        w.getSmoothedMeanSquares(size, mix.data(), bands.data());
+        // Past the first and last bars, whose windows hang off the track.
+        for (NSUInteger i = 1; i + 1 < size; i++) {
+            float center = ((float)i + 0.5f) * 64 / (float)size - 0.5f;
+            XCTAssertEqualWithAccuracy(mix[i], center, 1e-4, @"size %lu bar %lu", size, i);
+            for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+                XCTAssertEqualWithAccuracy(bands[i * kAudioWaveformBandCount + b], center * (b + 1), 1e-3,
+                                           @"size %lu bar %lu band %lu", size, i, b);
+            }
+        }
+    }
+    for (NSUInteger size = 1; size <= 200; size++) {
+        std::vector<float> mix(size);
+        w.getSmoothedMeanSquares(size, mix.data(), nullptr);
+        for (NSUInteger i = 0; i < size; i++) {
+            XCTAssertTrue(mix[i] >= 0 && mix[i] <= 63 + 1e-3f, @"size %lu bar %lu", size, i);
+            if (i > 0) XCTAssertGreaterThanOrEqual(mix[i], mix[i - 1] - 1e-4f, @"size %lu bar %lu", size, i);
+        }
+    }
+}
+
+// The frames take the window's weights too, so a steady level reads as itself
+// at every width, the bars whose windows hang off the track included, and a
+// load still streaming is the mean of the frames it has: its front bar is not
+// dragged toward the silence past it.
+- (void)testSmoothedMeanSquaresAreTheMeanOfTheFramesTheWindowCovers {
+    std::vector<AudioWaveformCacheChunk> chunks(64);
+    for (NSUInteger i = 0; i < 32; i++) chunks[i].set(-0.5f, 0.5f, 0.25f * 4, 4);
+    AudioWaveform half(chunks.size(), chunks.data());
+    for (NSUInteger i = 32; i < 64; i++) chunks[i].set(-0.5f, 0.5f, 0.25f * 4, 4);
+    AudioWaveform whole(chunks.size(), chunks.data());
+    for (NSUInteger size = 1; size <= 200; size++) {
+        std::vector<float> loaded(size), level(size), bands(size * kAudioWaveformBandCount, 1);
+        whole.getSmoothedMeanSquares(size, level.data(), bands.data());
+        half.getSmoothedMeanSquares(size, loaded.data(), nullptr);
+        for (NSUInteger i = 0; i < size; i++) {
+            XCTAssertEqualWithAccuracy(level[i], 0.25f, 1e-5, @"size %lu bar %lu", size, i);
+            XCTAssertTrue(loaded[i] == 0 || fabsf(loaded[i] - 0.25f) < 1e-5f, @"size %lu bar %lu", size, i);
+            XCTAssertEqual(bands[i * kAudioWaveformBandCount], 0, @"no bands read as silence");
+        }
+        XCTAssertEqualWithAccuracy(loaded[0], 0.25f, 1e-5, @"size %lu", size);
+        if (size >= 4) XCTAssertEqual(loaded[size - 1], 0, @"size %lu", size);
+    }
+    AudioWaveform empty(0, nullptr);
+    float untouched = 7;
+    empty.getSmoothedMeanSquares(1, &untouched, nullptr);
+    XCTAssertEqual(untouched, 0);
+}
+
+// What the window is for. A kick in two chunks of every ten, drawn at about a
+// thousand bars: a bar is 0.8 of a beat, so a hard-edged column holds one kick
+// or two and the bars beat against the kicks, in a pattern that runs along
+// the waveform as a resize moves the edges. The window holds them near the
+// track's steady level.
+- (void)testSmoothedBarsHoldStillAgainstABeatAboutABarLong {
+    std::vector<AudioWaveformCacheChunk> chunks(8192);
+    for (NSUInteger i = 0; i < chunks.size(); i++) {
+        chunks[i].set(-1, 1, i % 10 < 2 ? 1.0f : 0.01f, 1);
+    }
+    AudioWaveform w(chunks.size(), chunks.data());
+    auto spread = [](const std::vector<float> &bars) {
+        auto [low, high] = std::minmax_element(bars.begin() + 1, bars.end() - 1);
+        float mean = std::accumulate(bars.begin() + 1, bars.end() - 1, 0.0f) / (float)(bars.size() - 2);
+        return (*high - *low) / mean;
+    };
+    for (NSUInteger size : {(NSUInteger)1000, (NSUInteger)1001, (NSUInteger)1010}) {
+        std::vector<float> smoothed(size), columns(size);
+        w.getSmoothedMeanSquares(size, smoothed.data(), nullptr);
+        for (NSUInteger i = 0; i < size; i++) columns[i] = w.getChunkAtIndex(i, size).getMeanSquare();
+        XCTAssertGreaterThan(spread(columns), 1.0f, @"size %lu", size);
+        XCTAssertLessThan(spread(smoothed), 0.3f, @"size %lu", size);
+    }
 }
 
 #pragma mark - getChunkAtIndex
@@ -794,7 +876,7 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
 }
 
 - (void)testSmallColumnsCombineTheirWholeRange {
-    // 64 → 8 columns: 8 chunks each, under the 16-chunk vDSP threshold.
+    // 64 → 8 columns: 8 chunks each.
     AudioWaveform *w = [self waveform];
     AudioWaveformCacheChunk first = w->getChunkAtIndex(0, 8);
     XCTAssertEqual(first.getMin(), -7.0f, @"column 0 covers chunks [0,8)");
@@ -807,7 +889,7 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
 }
 
 - (void)testLargeColumnsCombineTheirWholeRange {
-    // 64 → 4 columns: 16 chunks each, on the vDSP path.
+    // 64 → 4 columns: 16 chunks each.
     AudioWaveform *w = [self waveform];
     AudioWaveformCacheChunk first = w->getChunkAtIndex(0, 4);
     XCTAssertEqual(first.getMin(), -15.0f, @"column 0 covers chunks [0,16)");
@@ -819,9 +901,9 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     delete w;
 }
 
-- (void)testBothCombinePathsAgree {
-    // 64→5 (12.8 chunks/column) takes the <16 plain loop, 64→3 (21.3) the vDSP
-    // path; both against an independent scalar reduction.
+- (void)testUnevenColumnsCombineTheirWholeRange {
+    // 64→5 (12.8 chunks/column) and 64→3 (21.3), against an independent
+    // scalar reduction.
     AudioWaveform *w = [self waveform];
     for (NSUInteger size : {(NSUInteger)5, (NSUInteger)3}) {
         for (NSUInteger i = 0; i < size; i++) {
@@ -955,22 +1037,19 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
 
 #pragma mark - AudioWaveformCacheChunk
 
-- (void)testMergeWidensToTheExtremesOfBoth {
-    AudioWaveformCacheChunk a, b;
-    a.set(-1.0f, 2.0f);
-    b.set(-3.0f, 1.0f);
-    a.merge(&b);
-    XCTAssertEqual(a.getMin(), -3.0f);
-    XCTAssertEqual(a.getMax(), 2.0f);
-}
+- (void)testAColumnWidensToTheExtremesOfItsChunks {
+    AudioWaveformCacheChunk chunks[2];
+    chunks[0].set(-1.0f, 2.0f);
+    chunks[1].set(-3.0f, 1.0f);
+    AudioWaveformCacheChunk widened = AudioWaveform(2, chunks).getChunkAtIndex(0, 1);
+    XCTAssertEqual(widened.getMin(), -3.0f);
+    XCTAssertEqual(widened.getMax(), 2.0f);
 
-- (void)testMergeIgnoresNarrowerRanges {
-    AudioWaveformCacheChunk a, b;
-    a.set(-5.0f, 5.0f);
-    b.set(-1.0f, 1.0f);
-    a.merge(&b);
-    XCTAssertEqual(a.getMin(), -5.0f);
-    XCTAssertEqual(a.getMax(), 5.0f);
+    chunks[0].set(-5.0f, 5.0f);
+    chunks[1].set(-1.0f, 1.0f);
+    AudioWaveformCacheChunk unmoved = AudioWaveform(2, chunks).getChunkAtIndex(0, 1);
+    XCTAssertEqual(unmoved.getMin(), -5.0f);
+    XCTAssertEqual(unmoved.getMax(), 5.0f);
 }
 
 - (void)testChunkFromMonoBufferTakesTheExtremes {
@@ -1015,22 +1094,19 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     XCTAssertEqualWithAccuracy(c.getMeanSquare(), (0.25f * 2 + 1.0f) / 3.0f, 1e-6);
 }
 
-- (void)testMergeCombinesEnergyExactlyWhateverTheOrder {
-    // Sequential pairwise merges must equal one flat combine: energy is a sum
-    // plus a frame count, not a stored mean, or the first chunk's weight
-    // would halve with every later merge.
-    AudioWaveformCacheChunk a, b, c;
-    a.set(0, 0, 4.0f, 2.0f);
-    b.set(0, 0, 1.0f, 1.0f);
-    c.set(0, 0, 10.0f, 5.0f);
-    a.merge(&b);
-    a.merge(&c);
-    XCTAssertEqualWithAccuracy(a.getMeanSquare(), 15.0f / 8.0f, 1e-6);
+- (void)testAColumnWeighsEachChunksEnergyByItsFrames {
+    // Energy is a sum plus a frame count, not a stored mean, or a column of
+    // uneven chunks would count a short chunk as much as a long one.
+    AudioWaveformCacheChunk chunks[3];
+    chunks[0].set(0, 0, 4.0f, 2.0f);
+    chunks[1].set(0, 0, 1.0f, 1.0f);
+    chunks[2].set(0, 0, 10.0f, 5.0f);
+    XCTAssertEqualWithAccuracy(AudioWaveform(3, chunks).getChunkAtIndex(0, 1).getMeanSquare(), 15.0f / 8.0f, 1e-6);
 }
 
-- (void)testColumnsCombineEnergyOnBothCombinePaths {
+- (void)testColumnsCombineEnergy {
     // Chunk i carries meanSquare i over one frame, so a column's meanSquare is
-    // the mean of its chunk indexes. 8 per column is the plain loop, 16 vDSP.
+    // the mean of its chunk indexes.
     std::vector<AudioWaveformCacheChunk> chunks(64, AudioWaveformCacheChunk());
     for (NSUInteger i = 0; i < 64; i++) {
         chunks[i].set(0, 0, (float)i, 1.0f);
