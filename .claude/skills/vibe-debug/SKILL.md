@@ -142,6 +142,7 @@ Stream, never `log show` — the one-liner above. TRAP: a stream never ends by i
 ```bash
 .claude/skills/vibe-debug/scripts/launch-ios.sh [audio-file ...]   # create+boot this session's device, install if stale, seed files, relaunch, wait for the channel
 .claude/skills/vibe-debug/scripts/debug-ios.sh dump_state          # the channel: same JSON contract and jq rules as the mac; waits 10 s or the verb's own longer window, VIBE_DEBUG_TIMEOUT overrides
+.claude/skills/vibe-debug/scripts/debug-ios.sh --all dump_state dump_row_loading   # several dumps in one round trip, a JSON array in order
 .claude/skills/vibe-debug/scripts/drive-ios.sh start|status|tap|drag|pinch|type|rotate|stop   # real touches via the resident XCUITest driver
 xcrun simctl io "$(.claude/skills/vibe-debug/scripts/sim-udid.sh)" screenshot shot.png   # ground-truth pixels (3x, top-left)
 ```

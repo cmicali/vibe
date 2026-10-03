@@ -63,6 +63,13 @@ for _ in $(seq 1 15); do
 done
 [ -n "$READY" ] || sleep 2
 
+# A live touch driver holds the process just killed: without a re-attach its
+# next gesture waits a minute and then relaunches the app itself (the TRAP in
+# Tests/iOSDriver/VibeiOSDriverTests.m). No driver: nothing to do.
+if [ -f "$ROOT/build/ios-driver/$UDID/vibe-driver-ready" ]; then
+    VIBE_SIM_UDID="$UDID" VIBE_DEBUG_TIMEOUT=30 "$DIR/drive-ios.sh" attach >/dev/null 2>&1 || true
+fi
+
 if [ "$#" -gt 0 ]; then
     FIRST="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
     DATA="$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)"

@@ -5,7 +5,14 @@
 # the debug channel, polls dump_state, dump_row_loading, dump_dropbox,
 # dump_fake_dropbox, dump_art and dump_cloud_health, and asserts on the JSON.
 #
-# Usage: dropbox-streaming.sh [-o <out-dir>] [scenario ...]   (default: all)
+# Usage: dropbox-streaming.sh [-o <out-dir>] [-j <simulators>] [scenario ...]
+#   (default: all, on 3 simulators, VIBE_STREAMING_JOBS overriding)
+# -j: this session's simulator and N-1 more (its name plus -2, -3, ...),
+#   which this run creates, boots, installs and launches as launch-ios.sh
+#   does, and shuts down after (VIBE_STREAMING_KEEP=1 leaves them booted for
+#   the next run). Each simulator takes the next unclaimed scenario, so the
+#   run takes about as long as its longest share. -j 1 is this session's
+#   simulator alone.
 # Scenarios: stream-wav stream-flac stream-m4a stream-m4a-moovlast stream-mp3
 #   stream-adts small-mp3 seek seek-ahead-mp3 seek-ahead-flac
 #   seek-ahead-m4a skip quick-skip pause-replay gapless buffering
@@ -28,17 +35,41 @@ ROOT="$(cd "$DIR/../../../.." && pwd)"
 S="$DIR/debug-ios.sh"
 FIX="${VIBE_STREAMING_FIXTURES:-$ROOT/build/streaming-fixtures}"
 OUT="$ROOT/build/streaming-scenarios/$(date +%Y%m%d-%H%M%S)"
-if [ "${1:-}" = "-o" ]; then OUT="$2"; shift 2; fi
-ALL="stream-wav stream-flac stream-m4a stream-m4a-moovlast stream-mp3 stream-adts small-mp3 seek seek-ahead-mp3 seek-ahead-flac seek-ahead-m4a skip quick-skip pause-replay gapless buffering pause-buffering scrub-buffering stall drop throttle expired-token rev-change tail-fail slow-tail latency sign-out reupload"
+JOBS="${VIBE_STREAMING_JOBS:-3}"
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -o) OUT="$2"; shift 2 ;;
+        -j) JOBS="$2"; shift 2 ;;
+        *) break ;;
+    esac
+done
+# Set only for a worker this script started: the claims directory it shares
+# with the others, and the name of its own summary.
+CLAIMS="${VIBE_STREAMING_CLAIMS:-}"
+SUMMARY="${VIBE_STREAMING_SUMMARY:-summary.json}"
+# Seconds between polls: a dump costs the app's main thread, and a tighter
+# poll only crowds the log.
+POLL="${VIBE_STREAMING_POLL:-0.25}"
+# Longest first, so the simulators' shares end together.
+ALL="stall seek gapless seek-ahead-flac seek-ahead-mp3 seek-ahead-m4a buffering stream-wav stream-flac stream-m4a stream-m4a-moovlast stream-mp3 stream-adts drop reupload tail-fail pause-buffering scrub-buffering pause-replay slow-tail sign-out skip rev-change small-mp3 throttle latency quick-skip expired-token"
 SCENARIOS="${*:-$ALL}"
 mkdir -p "$OUT"
 VIBE_SIM_UDID="$("$DIR/sim-udid.sh")" || { echo "no simulator: run launch-ios.sh first" >&2; exit 1; }
 export VIBE_SIM_UDID
+for s in $SCENARIOS; do
+    case " $ALL stream-mp3-noxing " in *" $s "*) ;; *) echo "unknown scenario: $s (known: $ALL)" >&2; exit 64 ;; esac
+done
+# Once per run, not per command: the container lookup is most of a round trip.
+VIBE_APP_TMP="$(xcrun simctl get_app_container "$VIBE_SIM_UDID" com.commonwealthrecordings.Vibe data 2>/dev/null)/tmp"
+[ -d "$VIBE_APP_TMP" ] || { echo "the app is not installed on $VIBE_SIM_UDID: run launch-ios.sh first" >&2; exit 1; }
+export VIBE_APP_TMP
 
 dbg() { "$S" "$@"; }
-now() { python3 -c 'import time; print(time.time())'; }
+now() { jq -n now; }
 
 # ---- Fixtures, once: six minutes of tone-long.wav in every streaming shape.
+# A worker's parent has made them, and its siblings' folders are live.
+if [ -z "$CLAIMS" ]; then
 SOURCE="$ROOT/Assets/test_audio_files/tone-long.wav"
 [ -f "$SOURCE" ] || { echo "missing $SOURCE: run generate-test-audio.sh" >&2; exit 1; }
 mkdir -p "$FIX/source"
@@ -62,6 +93,7 @@ make_fixture g1.wav cp -c "$FIX/source/short.wav" "$FIX/source/g1.wav"
 make_fixture g2.mp3 cp -c "$FIX/source/long.mp3" "$FIX/source/g2.mp3"
 # Earlier runs' folders, here and in the mirror, so the fake's index stays small.
 rm -rf "$FIX"/run-*
+fi
 
 ACCOUNT=""
 F0=""
@@ -101,12 +133,11 @@ open_folder() { T0="$(now)"; dbg open "$ACCOUNT/$1" >/dev/null; }
 # the scenario's log. t is seconds since the folder was opened.
 SNAP=""
 snap() {
-    local st rl db fd ar ch
-    st="$(dbg dump_state)"; rl="$(dbg dump_row_loading)"; db="$(dbg dump_dropbox)"
-    fd="$(dbg dump_fake_dropbox)"; ar="$(dbg dump_art)"; ch="$(dbg dump_cloud_health)"
-    SNAP="$(jq -cn --argjson t "$(now)" --argjson t0 "$T0" --argjson st "${st:-null}" --argjson rl "${rl:-null}" \
-        --argjson db "${db:-null}" --argjson fd "${fd:-null}" --argjson ar "${ar:-null}" --argjson ch "${ch:-null}" '{
-        t: ($t - $t0), state: $st.player.state, pos: $st.player.position, buf: $st.player.buffering,
+    local all
+    all="$(dbg --all dump_state dump_row_loading dump_dropbox dump_fake_dropbox dump_art dump_cloud_health)"
+    SNAP="$(printf '%s' "${all:-[]}" | jq -c --argjson t0 "$T0" '
+        .[0] as $st | .[1] as $rl | .[2] as $db | .[3] as $fd | .[4] as $ar | .[5] as $ch | {
+        t: (now - $t0), state: $st.player.state, pos: $st.player.position, buf: $st.player.buffering,
         gapless: $st.player.gaplessArmed, br: $st.player.bufferingRecord, idx: $st.playlist.currentIndex, err: $st.ui.error,
         url: ($st.currentTrack.url // ""), rows: [$rl.loadingRows[]? | {i: .index, p: .progress}],
         tracks: [$db.playlistTracks[]? | {ph: .placeholder, s: .stream}],
@@ -124,6 +155,7 @@ wait_for() {   # <timeout-seconds> <predicate>
     while [ "$(date +%s)" -le "$deadline" ]; do
         snap
         printf '%s' "$SNAP" | jq -e --arg f "$FOLDER" "(.url | contains(\$f)) and ($2)" >/dev/null && return 0
+        sleep "$POLL"
     done
     return 1
 }
@@ -199,13 +231,13 @@ stream() {   # <file> <seconds> <expect-tail 0|1>
     check "the tag read took the stream's bytes: at most one request" '.tagRequests <= 1' "$m"
 }
 
-scenario_stream-wav() { stream long.wav 30 1; }
-scenario_stream-flac() { stream long.flac 30 0; }
-scenario_stream-m4a() { stream long.m4a 30 1; }
-scenario_stream-m4a-moovlast() { stream moovlast.m4a 30 1; }
-scenario_stream-mp3() { stream long.mp3 30 1; }
+scenario_stream-wav() { stream long.wav 12 1; }
+scenario_stream-flac() { stream long.flac 12 0; }
+scenario_stream-m4a() { stream long.m4a 12 1; }
+scenario_stream-m4a-moovlast() { stream moovlast.m4a 12 1; }
+scenario_stream-mp3() { stream long.mp3 12 1; }
 
-scenario_stream-mp3-noxing() { stream noxing.mp3 30 1; }
+scenario_stream-mp3-noxing() { stream noxing.mp3 12 1; }
 
 # Opens over a transfer of `seconds` and reports when it started against when
 # the download completed: the formats whose open needs the whole file.
@@ -224,18 +256,18 @@ starts() {   # <file> <seconds>
 # A 3 MB MP3 takes the small window, so its open's ID3v1 check is answered
 # from it and the file streams.
 scenario_small-mp3() {
-    starts small.mp3 30
-    check "one tail read; it plays before a quarter of the transfer" '.tailReads == 1 and .startedAt < 7.5' "$(printf '%s' "$RESULTS" | jq -c '.["small-mp3"]')"
+    starts small.mp3 12
+    check "one tail read; it plays before a quarter of the transfer" '.tailReads == 1 and .startedAt < .transferSeconds / 4' "$(printf '%s' "$RESULTS" | jq -c '.["small-mp3"]')"
 }
 # ADTS reads the whole file in order at its open (the spike): no streaming.
 scenario_stream-adts() {
-    starts adts.aac 30
-    check "the open waits for the whole download" '.startedAt >= 25' "$(printf '%s' "$RESULTS" | jq -c '.["stream-adts"]')"
+    starts adts.aac 12
+    check "the open waits for the whole download" '.startedAt >= .transferSeconds * 0.8' "$(printf '%s' "$RESULTS" | jq -c '.["stream-adts"]')"
 }
 
 # A seek past the download's edge, per format: lands once the bytes arrive.
 seek_ahead() {   # <file> <fraction>
-    fixture 60 "$1" short.wav
+    fixture 24 "$1" short.wav
     open_folder "$FOLDER"
     wait_for 30 '.state == "playing" and .pos > 2' || true
     local duration; duration="$(dbg dump_state | jq .player.duration)"
@@ -262,7 +294,7 @@ scenario_seek-ahead-flac() { seek_ahead long.flac 0.6; }
 scenario_seek-ahead-m4a() { seek_ahead long.m4a 0.6; }
 
 scenario_seek() {
-    fixture 60 long.wav short.wav
+    fixture 24 long.wav short.wav
     open_folder "$FOLDER"
     wait_for 20 '.state == "playing" and .pos > 4' || true
     local before="$SNAP"
@@ -484,7 +516,7 @@ scenario_stall() {
 
 # The last whole download in the log, and the requests after it.
 scenario_drop() {
-    fixture 30 long.wav short.wav
+    fixture 12 long.wav short.wav
     dbg fake_dropbox_fault drop after=2M file=$F0 >/dev/null
     open_folder "$FOLDER"
     wait_for 50 '.tracks[0].ph == false' || true
@@ -548,7 +580,7 @@ scenario_rev-change() {
 # No tail window: an MP3 (its open reads the last 128 bytes) waits for the
 # whole download.
 scenario_tail-fail() {
-    fixture 30 long.mp3 short.wav
+    fixture 12 long.mp3 short.wav
     dbg fake_dropbox_fault tail-fail file=$F0 >/dev/null
     open_folder "$FOLDER"
     wait_for 50 '.state == "playing" and .pos > 0.3' || true
@@ -558,7 +590,7 @@ scenario_tail-fail() {
     record "$m"
     dbg fake_dropbox_fault clear >/dev/null
     check "the tail read answered 500" '.tailStatuses == [500]' "$m"
-    check "the MP3 opened only at the end of the download" '.startedAt >= 25 and .installed' "$m"
+    check "the MP3 opened only at the end of the download" '.startedAt >= 10 and .installed' "$m"
     check "no error" '.errors == []' "$m"
 }
 
@@ -617,7 +649,7 @@ scenario_sign-out() {
 # download's metadata names the new version (size and mtime), and the
 # installed file and its cache key follow it.
 scenario_reupload() {
-    fixture 20 long.wav short.wav
+    fixture 10 long.wav short.wav
     local fake="$FIX/$FOLDER/$F0"
     # Listed first: open, then pause straight away, before anything plays.
     open_folder "$FOLDER"
@@ -638,18 +670,58 @@ scenario_reupload() {
     check "the new version installed and plays" '.installedSize == .hostSize and .state == "playing" and .errors == []' "$m"
 }
 
-for SCENARIO in $SCENARIOS; do
-    if ! declare -F "scenario_$SCENARIO" >/dev/null; then
-        echo "unknown scenario: $SCENARIO (known: $ALL)" >&2
-        exit 64
+# ---- Several simulators: this one and JOBS-1 more, each a worker running
+# this script over a shared claims directory, the summaries merged here.
+NSCENARIOS="$(printf '%s\n' $SCENARIOS | wc -l | tr -d ' ')"
+[ "$JOBS" -le "$NSCENARIOS" ] || JOBS="$NSCENARIOS"
+if [ -z "$CLAIMS" ] && [ "$JOBS" -gt 1 ]; then
+    BASE="$(xcrun simctl list devices -j | jq -r --arg u "$VIBE_SIM_UDID" '[.devices[][] | select(.udid == $u)][0].name // "Vibe-streaming"')"
+    UDIDS=("$VIBE_SIM_UDID")
+    PIDS=()
+    for k in $(seq 2 "$JOBS"); do
+        ( VIBE_SIM_UDID="" VIBE_SIM_NAME="$BASE-$k" "$DIR/launch-ios.sh" > "$OUT/launch-$k.log" 2>&1 ) &
+        PIDS+=($!)
+    done
+    for k in $(seq 2 "$JOBS"); do
+        wait "${PIDS[$((k - 2))]}" || { echo "simulator $k did not launch: $OUT/launch-$k.log" >&2; exit 1; }
+        UDIDS+=("$(VIBE_SIM_UDID="" VIBE_SIM_NAME="$BASE-$k" "$DIR/sim-udid.sh")")
+    done
+    mkdir -p "$OUT/claims"
+    PIDS=()
+    for k in $(seq 1 "$JOBS"); do
+        VIBE_SIM_UDID="${UDIDS[$((k - 1))]}" VIBE_APP_TMP="" VIBE_STREAMING_CLAIMS="$OUT/claims" \
+            VIBE_STREAMING_SUMMARY="summary-$k.json" "$0" -o "$OUT" $SCENARIOS &
+        PIDS+=($!)
+    done
+    for pid in "${PIDS[@]}"; do wait "$pid"; done
+    if [ "${VIBE_STREAMING_KEEP:-}" != 1 ]; then
+        for udid in "${UDIDS[@]:1}"; do xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true; done
     fi
-    echo "== $SCENARIO"
+    jq -s '{scenarios: (map(.scenarios) | add), failed: (map(.failed) | add)}' "$OUT"/summary-*.json > "$OUT/summary.json"
+    echo "summary: $OUT/summary.json"
+    MISSING="$(jq -r --arg all "$SCENARIOS" '($all | split(" ") | map(select(. != ""))) - (.scenarios | keys) | join(" ")' "$OUT/summary.json")"
+    [ -z "$MISSING" ] || echo "NOT RUN (a worker died): $MISSING"
+    if [ "$(jq '.failed | length' "$OUT/summary.json")" -gt 0 ] || [ -n "$MISSING" ]; then
+        jq -r '.failed[] | "FAILED: \(.)"' "$OUT/summary.json"
+        exit 1
+    fi
+    echo "PASSED"
+    exit 0
+fi
+
+# A scenario's lines are printed whole once it ends, so workers' never mix.
+for SCENARIO in $SCENARIOS; do
+    if [ -n "$CLAIMS" ]; then mkdir "$CLAIMS/$SCENARIO" 2>/dev/null || continue; fi
     FOLDER=""
-    "scenario_$SCENARIO"
+    STARTED="$(date +%s)"
+    "scenario_$SCENARIO" > "$OUT/$SCENARIO.out" 2>&1
+    echo "== $SCENARIO ($(( $(date +%s) - STARTED )) s${CLAIMS:+, $VIBE_SIM_UDID})"
+    cat "$OUT/$SCENARIO.out"
 done
 dbg fake_dropbox_fault clear >/dev/null
 printf '%s' "$RESULTS" | jq --argjson failed "$(printf '%s\n' "${FAILED[@]+"${FAILED[@]}"}" | jq -R . | jq -s 'map(select(. != ""))')" \
-    '{scenarios: ., failed: $failed}' > "$OUT/summary.json"
+    '{scenarios: ., failed: $failed}' > "$OUT/$SUMMARY"
+[ -n "$CLAIMS" ] && exit 0
 echo "summary: $OUT/summary.json"
 if [ "${#FAILED[@]}" -gt 0 ]; then
     printf 'FAILED: %s\n' "${FAILED[@]}"
