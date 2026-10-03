@@ -43,6 +43,10 @@ static const NSTimeInterval kEnvelopeBakeDelay = 0.6;
 // shape always wins.
 static const NSTimeInterval kLoadBakeMinInterval = 0.25;
 
+// The completing bake's crossfade over a partial one: Normalize raises the
+// reference only for the whole track, so without it the bars jump taller.
+static const CFTimeInterval kCompletionFadeDuration = 0.3;
+
 @interface WaveformScrubberView () <UIScrollViewDelegate, UIGestureRecognizerDelegate>
 @property (nonatomic, strong, nullable) CodableAudioWaveform *waveform;
 @end
@@ -75,6 +79,10 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     CALayer                 *_bakedHost;
     CALayer                 *_bakedUnplayed;
     CALayer                 *_bakedPlayed;
+    // Whether the standing bake drew a complete waveform, and the partial one
+    // a completing bake fades in over, gone when the fade ends.
+    BOOL                    _bakedComplete;
+    CALayer                 *_bakedOutgoing;
     // The theme's playhead line, hidden until a theme asks for it: fixed at
     // center in self.layer, since it is the content that moves.
     CALayer                 *_playheadLine;
@@ -649,6 +657,8 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     // waveform for a frame.
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
+    [_bakedOutgoing removeFromSuperlayer];
+    _bakedOutgoing = nil;
     [_bakedHost removeFromSuperlayer];
     _bakedHost = nil;
     _bakedUnplayed = nil;
@@ -706,6 +716,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     VibeSignpostBegin(waveform_samples);
     NSData *samples = [renderer envelopeSamplesForWaveform:self.waveform.waveform];
     VibeSignpostEnd(waveform_samples);
+    BOOL complete = self.waveform.waveform->isComplete();
     NSUInteger epoch = _bakeEpoch;
     _bakeInFlight = YES;
     _bakeWanted = NO;
@@ -719,7 +730,8 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
             WaveformScrubberView *strongSelf = weakSelf;
             if (strongSelf) {
                 strongSelf->_bakeInFlight = NO;
-                [strongSelf installEnvelopeImage:image unplayedImage:unplayedImage size:size epoch:epoch];
+                [strongSelf installEnvelopeImage:image unplayedImage:unplayedImage size:size
+                                           epoch:epoch complete:complete];
                 if (strongSelf->_bakeWanted) {
                     strongSelf->_bakeWanted = NO;
                     [strongSelf scheduleEnvelopeBakeAfter:[strongSelf throttledBakeDelay]];
@@ -735,7 +747,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 }
 
 - (void)installEnvelopeImage:(CGImageRef)image unplayedImage:(nullable CGImageRef)unplayedImage
-                        size:(CGSize)size epoch:(NSUInteger)epoch {
+                        size:(CGSize)size epoch:(NSUInteger)epoch complete:(BOOL)complete {
     CGSize currentSize = [self virtualBounds].size;
     BOOL stretchForPinch = _isPinching && size.height == currentSize.height;
     if (!image || epoch != _bakeEpoch || !self.waveform ||
@@ -750,8 +762,16 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     [CATransaction setDisableActions:YES];
     // TRAP: a bake may still be standing — a non-eased delivery and the
     // pinch's stretch path both leave one up — and without this removal the
-    // old layer stays in the scroll's tree for the life of the view.
-    [_bakedHost removeFromSuperlayer];
+    // old layer stays in the scroll's tree for the life of the view. The one
+    // a completing bake fades over goes when the fade ends.
+    [_bakedOutgoing removeFromSuperlayer];
+    _bakedOutgoing = nil;
+    if (_bakedHost && !_bakedComplete && complete && !stretchForPinch) {
+        _bakedOutgoing = _bakedHost;
+    }
+    else {
+        [_bakedHost removeFromSuperlayer];
+    }
     // No geometryFlipped here: the bake draws in CG's y-up space, whose top
     // row lands at the layer's top, matching what the flipped live tree shows.
     _bakedHost = [CALayer layer];
@@ -772,8 +792,26 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     _bakedPlayed.position = CGPointZero;
     _bakedPlayed.contents = (__bridge id)image;
     [_bakedHost addSublayer:_bakedPlayed];
-    [_scroll.layer insertSublayer:_bakedHost above:_rendererHost];
+    [_scroll.layer insertSublayer:_bakedHost above:_bakedOutgoing ?: _rendererHost];
     _rendererHost.hidden = YES;
+    _bakedComplete = complete;
+    if (_bakedOutgoing) {
+        // Set before the animation, which it then waits for.
+        CALayer *outgoing = _bakedOutgoing;
+        __weak WaveformScrubberView *weakSelf = self;
+        [CATransaction setCompletionBlock:^{
+            WaveformScrubberView *strongSelf = weakSelf;
+            if (strongSelf && strongSelf->_bakedOutgoing == outgoing) {
+                [outgoing removeFromSuperlayer];
+                strongSelf->_bakedOutgoing = nil;
+            }
+        }];
+        CABasicAnimation *fade = [CABasicAnimation animationWithKeyPath:@"opacity"];
+        fade.fromValue = @0;
+        fade.toValue = @1;
+        fade.duration = kCompletionFadeDuration;
+        [_bakedHost addAnimation:fade forKey:@"completionFade"];
+    }
     [CATransaction commit];
     [self applyScrollAndProgress];
     VibeSignpostEnd(waveform_install);
