@@ -118,10 +118,12 @@
     XCTAssertEqual(VibeDropboxEntryKindOf(@{}), VibeDropboxEntryKindUnknown);
 }
 
-- (void)testOnlyAudioAndCueSheetsAreMirrored {
+- (void)testOnlyAudioAndPlaylistFilesAreMirrored {
     NSSet *playable = [NSSet setWithArray:@[@"flac", @"mp3"]];
     XCTAssertTrue(VibeDropboxNameIsMirrored(@"01 Song.FLAC", playable));
     XCTAssertTrue(VibeDropboxNameIsMirrored(@"Album.cue", playable));
+    XCTAssertTrue(VibeDropboxNameIsMirrored(@"Mix.M3U", playable));
+    XCTAssertTrue(VibeDropboxNameIsMirrored(@"Mix.m3u8", playable));
     XCTAssertFalse(VibeDropboxNameIsMirrored(@"cover.jpg", playable));
     XCTAssertFalse(VibeDropboxNameIsMirrored(@".hidden.mp3", playable));
     XCTAssertFalse(VibeDropboxNameIsMirrored(@"notes", playable));

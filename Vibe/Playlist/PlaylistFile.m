@@ -54,10 +54,12 @@ NSString *const kVibeLastPlaylistCurrentIndexKey = @"VibeLastPlaylistCurrentInde
     return [extension isEqualToString:@"cue"];
 }
 
++ (BOOL)isM3UExtension:(NSString *)extension {
+    return [extension isEqualToString:@"m3u"] || [extension isEqualToString:@"m3u8"];
+}
+
 + (BOOL)isPlaylistExtension:(NSString *)extension {
-    return [self isCueExtension:extension]
-            || [extension isEqualToString:@"m3u"]
-            || [extension isEqualToString:@"m3u8"];
+    return [self isCueExtension:extension] || [self isM3UExtension:extension];
 }
 
 // The file decoded as playlist text; nil when unreadable.

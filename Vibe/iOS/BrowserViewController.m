@@ -122,10 +122,10 @@ static const CGFloat kFileTileSide = 40;
 static const CGFloat kFileTileCornerRadius = 8;
 
 // A file row's icon where it has no art to draw: a rounded tile holding a
-// waveform, or a note list for a CUE sheet. Drawn once, in both appearances:
+// waveform, or a note list for a CUE sheet or an M3U. Drawn once, in both appearances:
 // an image asset holding the light and the dark tile follows the trait
 // collection by itself, which a single rendered image would not.
-static UIImage *VibeFileTileImage(BOOL sheet) {
+static UIImage *VibeFileTileImage(BOOL playlist) {
     static UIImage *tiles[2];
     static dispatch_once_t once;
     dispatch_once(&once, ^{
@@ -154,7 +154,7 @@ static UIImage *VibeFileTileImage(BOOL sheet) {
             tiles[kind] = tile;
         }
     });
-    return tiles[sheet ? 1 : 0];
+    return tiles[playlist ? 1 : 0];
 }
 
 @implementation BrowserViewController {
@@ -164,9 +164,11 @@ static UIImage *VibeFileTileImage(BOOL sheet) {
 
     // A directory's whole listing, sorted as the Files app sorts names; which
     // of the files are Dropbox placeholders and each file's size — found with
-    // the listing, off main.
+    // the listing, off main. The M3U playlists lead the files, and a folder
+    // holding nothing else has no song for the play button to play.
     NSArray<NSURL *> *_allFolders;
     NSArray<NSURL *> *_allFiles;
+    BOOL _hasSongs;
     NSSet<NSURL *> *_placeholders;
     NSDictionary<NSURL *, NSString *> *_fileSizes;
     // The directory's standardized path, so a row's is one append away.
@@ -505,8 +507,9 @@ static UIImage *VibeFileTileImage(BOOL sheet) {
     // is IPC that can take seconds.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSArray<NSURL *> *folders = @[];
+        NSArray<NSURL *> *playlists = @[];
         NSArray<NSURL *> *files = @[];
-        [NSURLUtil listDirectory:directory sortedBy:sort folders:&folders audio:&files];
+        [NSURLUtil listDirectory:directory sortedBy:sort folders:&folders playlists:&playlists audio:&files];
         NSMutableSet<NSURL *> *placeholders = [NSMutableSet set];
         NSMutableDictionary<NSURL *, NSString *> *sizes = [NSMutableDictionary dictionary];
         // The audio whose bytes are here: what art may be read from.
@@ -534,7 +537,8 @@ static UIImage *VibeFileTileImage(BOOL sheet) {
                 return;
             }
             strongSelf->_allFolders = folders;
-            strongSelf->_allFiles = files;
+            strongSelf->_allFiles = [playlists arrayByAddingObjectsFromArray:files];
+            strongSelf->_hasSongs = files.count > 0;
             strongSelf->_placeholders = placeholders;
             strongSelf->_fileSizes = sizes;
             strongSelf->_localFiles = [NSSet setWithArray:local];
@@ -691,8 +695,8 @@ static UIImage *VibeFileTileImage(BOOL sheet) {
         [items addObject:_selectItem];
         // With no song directly inside, the tap has nothing to play and the
         // button is its menu alone.
-        _playItem.target = _allFiles.count > 0 ? self : nil;
-        _playItem.action = _allFiles.count > 0 ? @selector(openDirectory) : NULL;
+        _playItem.target = _hasSongs ? self : nil;
+        _playItem.action = _hasSongs ? @selector(openDirectory) : NULL;
         [items addObject:_playItem];
         // Not in the add sheet: with Close the bar has no room, and the
         // order is a setting the Files tab changes.
@@ -892,7 +896,7 @@ static UIImage *VibeFileTileImage(BOOL sheet) {
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
             NSArray<NSURL *> *subfolders = @[];
             NSArray<NSURL *> *audio = @[];
-            [NSURLUtil listDirectory:directory sortedBy:sort folders:&subfolders audio:&audio];
+            [NSURLUtil listDirectory:directory sortedBy:sort folders:&subfolders playlists:NULL audio:&audio];
             NSUInteger songs = audio.count;
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (songs > 0) {
@@ -1139,7 +1143,7 @@ static UIImage *VibeFileTileImage(BOOL sheet) {
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
     }
     else {
-        BOOL sheet = [PlaylistFile isCueExtension:url.pathExtension.lowercaseString];
+        BOOL playlist = [PlaylistFile isPlaylistExtension:url.pathExtension.lowercaseString];
         BOOL playing = _playingPath
                 && [[_standardizedPath stringByAppendingPathComponent:url.lastPathComponent]
                         isEqualToString:_playingPath];
@@ -1149,7 +1153,7 @@ static UIImage *VibeFileTileImage(BOOL sheet) {
         }
         else {
             // Its art when the file is here and has some; else the tile.
-            content.image = [_artTracks[url] cachedThumbnail] ?: VibeFileTileImage(sheet);
+            content.image = [_artTracks[url] cachedThumbnail] ?: VibeFileTileImage(playlist);
             content.imageProperties.cornerRadius = kFileTileCornerRadius;
         }
         // From the stat alone: what the file takes, or would download.
@@ -1386,7 +1390,9 @@ static UIImage *VibeFileTileImage(BOOL sheet) {
             [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY, @"play.fill", ^{
                 [weakSelf openURLs:@[url] inFolder:NO];
             })];
-            if (!folder) {
+            // An M3U is never a row of its folder, so there is nothing to
+            // select in it.
+            if (!folder && ![PlaylistFile isM3UExtension:url.pathExtension.lowercaseString]) {
                 [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"play.square.stack", ^{
                     [weakSelf openURLs:@[url] inFolder:YES];
                 })];
@@ -1537,7 +1543,7 @@ static UIImage *VibeFileTileImage(BOOL sheet) {
     }
     else {
         content.image = VibeFileTileImage(
-                [PlaylistFile isCueExtension:[item[@"path"] pathExtension].lowercaseString]);
+                [PlaylistFile isPlaylistExtension:[item[@"path"] pathExtension].lowercaseString]);
     }
     cell.contentConfiguration = content;
     return cell;
@@ -1570,7 +1576,7 @@ static UIImage *VibeFileTileImage(BOOL sheet) {
             [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY, @"play.fill", ^{
                 [weakSelf openItem:item appending:NO inFolder:NO];
             })];
-            if (!folder) {
+            if (!folder && ![PlaylistFile isM3UExtension:[item[@"path"] pathExtension].lowercaseString]) {
                 [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"play.square.stack", ^{
                     [weakSelf openItem:item appending:NO inFolder:YES];
                 })];

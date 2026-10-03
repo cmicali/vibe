@@ -216,7 +216,7 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
     [DropboxMirror.shared refreshDropboxFolder:dropboxPath completion:^(NSURL *listedURL, NSError *error) {
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
             NSArray<NSURL *> *audio = @[];
-            [NSURLUtil listDirectory:folderURL sortedBy:sort folders:NULL audio:&audio];
+            [NSURLUtil listDirectory:folderURL sortedBy:sort folders:NULL playlists:NULL audio:&audio];
             dispatch_async(dispatch_get_main_queue(), ^{
                 FavoritesViewController *strongSelf = weakSelf;
                 if (audio.count > 0) {

@@ -182,6 +182,32 @@
                           (@[@"a.mp3", @"mix.flac#0-4500", @"mix.flac#4500-0"]));
 }
 
+// An M3U is listed apart and never plays as part of its folder, which would
+// double every track it names; opened alone it is its playable entries.
+- (void)testAnM3UIsListedApartAndOpensAsItsEntries {
+    [self makeFile:@"b.mp3"];
+    [self makeFile:@"a.flac"];
+    [self makeFile:@"notes.txt"];
+    [self makeEmptyFile:@"empty.mp3"];
+    [self makeEmptyFile:@"blank.m3u"];
+    NSURL *m3u = [_dir URLByAppendingPathComponent:@"Mix.M3U"];
+    XCTAssertTrue([[@"#EXTM3U\nb.mp3\nmissing.mp3\nnotes.txt\nempty.mp3\na.flac\n"
+                     dataUsingEncoding:NSUTF8StringEncoding] writeToURL:m3u atomically:YES]);
+
+    NSArray<NSURL *> *playlists = nil;
+    NSArray<NSURL *> *audio = nil;
+    [NSURLUtil listDirectory:_dir sortedBy:VibeFolderOpenSortName folders:NULL playlists:&playlists audio:&audio];
+    XCTAssertEqualObjects([playlists valueForKey:@"lastPathComponent"], @[@"Mix.M3U"]);
+    XCTAssertEqualObjects([audio valueForKey:@"lastPathComponent"], (@[@"a.flac", @"b.mp3"]));
+    XCTAssertEqualObjects([self listedNamesSortedBy:VibeFolderOpenSortName], (@[@"a.flac", @"b.mp3"]));
+
+    NSMutableArray<NSString *> *entries = [NSMutableArray array];
+    for (AudioTrack *row in [NSURLUtil rowsForFile:m3u]) {
+        [entries addObject:row.url.lastPathComponent];
+    }
+    XCTAssertEqualObjects(entries, (@[@"b.mp3", @"a.flac"]));
+}
+
 - (void)testASheetCannotAddUnsupportedEmptyOrDirectoryEntries {
     [self makeFile:@"real.mp3"];
     [self makeFile:@"data.bin"];
