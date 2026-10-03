@@ -273,6 +273,28 @@ static float VibeTestFullScaleRMS(AudioWaveform *waveform, BOOL normalize, NSUIn
     }
 }
 
+// Past 1,024 bars a column's bars need not cover its chunks. A transient one
+// of them misses must still set the column's peak, or the quiet bars beside it
+// are scaled up to its level.
+- (void)testDetailedQuietBarsBesideATransientStayQuiet {
+    std::vector<AudioWaveformCacheChunk> chunks(8192);
+    for (auto &chunk : chunks) chunk.set(-0.01f, 0.01f, 0.0001f, 1);
+    chunks[816].set(-0.5f, 0.5f, 0.25f, 1);
+    AudioWaveform waveform(chunks.size(), chunks.data());
+    DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)[self rendererForStyle:@"detailed"];
+    for (CGFloat width : {930.0, 931.0, 1200.0}) {
+        NSUInteger count = [renderer numBarsForWidth:width];
+        XCTAssertGreaterThan(count, kVibeWaveformEnergyColumns);
+        std::vector<float> envelope(count * 2);
+        [renderer fillEnvelope:envelope.data() barCount:count waveform:&waveform];
+        for (NSUInteger i = 0; i < count; i++) {
+            if (waveform.getChunkAtIndex(i, count).getMax() < 0.1f) {
+                XCTAssertLessThan(envelope[i * 2 + 1], 0.05f, @"width %g bar %lu", width, i);
+            }
+        }
+    }
+}
+
 - (void)testLayerStylesOnlyGrowUnderNormalization {
     std::vector<AudioWaveformCacheChunk> chunks(1024);
     for (auto &chunk : chunks) chunk.set(-0.1f, 0.1f, 0.01f, 1);

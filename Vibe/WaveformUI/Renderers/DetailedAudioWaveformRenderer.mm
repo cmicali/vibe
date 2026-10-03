@@ -305,14 +305,22 @@ static const CGFloat kDetailedBarPitch = 0.5;
         for (NSUInteger i = 0; i < count; i++) out[i * 2] = 0;
         return;
     }
-    // Each bar keeps its own min and max, scaled so the tallest of the bars
-    // sharing an energy column draws that column's level: DC-offset asymmetry
-    // and fine texture survive, and no bar passes the envelope.
+    // Each bar keeps its own min and max, scaled so the column's peak draws
+    // the column's level: DC-offset asymmetry and fine texture survive.
+    // TRAP: the peak is the energy column's own, widened by its bars'. Past
+    // 1,024 bars a column's bars need not cover its chunks, so their peaks
+    // alone can miss a transient its energy holds, and quiet bars beside it
+    // would be scaled up to the transient's level. The bars' widen it for one
+    // straddling into the next column, so no bar passes the envelope.
     std::vector<float> levels = [self energyColumnLevelsForBarCount:count waveform:waveform];
     NSUInteger columns = levels.size();
     for (NSUInteger column = 0, bar = 0; column < columns; column++) {
         NSUInteger end = VibeWaveformBarEndForEnergyColumn(column, count);
         float extent = 0;
+        if (count > columns) {
+            AudioWaveformCacheChunk c = waveform->getChunkAtIndex(column, columns);
+            extent = fmaxf(fabsf(c.getMin()), fabsf(c.getMax()));
+        }
         for (NSUInteger i = bar; i < end; i++) {
             AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
             out[i * 2] = m.getMin();
