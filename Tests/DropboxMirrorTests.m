@@ -1056,6 +1056,17 @@ static BOOL IsClosedRange(NSURLRequest *request) {
     return range && ![range hasSuffix:@"-"];
 }
 
+// This test's downloads, whole and resumed, in order. TRAP: not every
+// files/download request: an earlier test's mirror fetch reads its tail by a
+// closed range beside the download, and on a loaded machine that read can
+// start after this test's setUp, landing in this test's log.
+- (NSArray<NSURLRequest *> *)downloadRequests {
+    return [[self requestsToPath:@"/2/files/download"] filteredArrayUsingPredicate:
+            [NSPredicate predicateWithBlock:^BOOL(NSURLRequest *request, NSDictionary *bindings) {
+        return !IsClosedRange(request);
+    }]];
+}
+
 // Files/download's answers by request, counted from 0; the rest as default,
 // closed ranges through _rangeScript.
 - (void)scriptDownloads:(DropboxStubResponse (^)(NSInteger index, NSURLRequest *request))script {
@@ -1100,10 +1111,10 @@ static BOOL IsClosedRange(NSURLRequest *request) {
 
 - (void)waitForDownloadRequests:(NSUInteger)count {
     NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
-    while ([self requestsToPath:@"/2/files/download"].count < count && deadline.timeIntervalSinceNow > 0) {
+    while ([self downloadRequests].count < count && deadline.timeIntervalSinceNow > 0) {
         [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
     }
-    XCTAssertEqual([self requestsToPath:@"/2/files/download"].count, count);
+    XCTAssertEqual([self downloadRequests].count, count);
 }
 
 - (void)testAThrottledResumeAppendsToTheSameFile {
@@ -1129,7 +1140,7 @@ static BOOL IsClosedRange(NSURLRequest *request) {
     XCTAssertNil([self downloadSong:&metadata]);
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:part], bytes);
     XCTAssertEqualObjects(metadata[@"server_modified"], kStamp);
-    NSArray<NSURLRequest *> *requests = [self requestsToPath:@"/2/files/download"];
+    NSArray<NSURLRequest *> *requests = [self downloadRequests];
     XCTAssertEqual(requests.count, 3u);
     XCTAssertNil([requests[0] valueForHTTPHeaderField:@"Range"]);
     XCTAssertEqualObjects([requests[1] valueForHTTPHeaderField:@"Range"], @"bytes=1600-");
@@ -1156,7 +1167,7 @@ static BOOL IsClosedRange(NSURLRequest *request) {
     XCTAssertNil([self downloadSong:NULL]);
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:[self partURL]], bytes);
     XCTAssertEqual([self requestsToPath:@"/oauth2/token"].count, 2u);
-    NSURLRequest *resumed = [self requestsToPath:@"/2/files/download"].lastObject;
+    NSURLRequest *resumed = [self downloadRequests].lastObject;
     XCTAssertEqualObjects([resumed valueForHTTPHeaderField:@"Authorization"], @"Bearer A2");
     XCTAssertEqualObjects([resumed valueForHTTPHeaderField:@"Range"], @"bytes=1200-");
     XCTAssertTrue(_client.isLinked);
@@ -1173,7 +1184,7 @@ static BOOL IsClosedRange(NSURLRequest *request) {
 
     XCTAssertNil([self downloadSong:NULL]);
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:[self partURL]], bytes);
-    NSArray<NSURLRequest *> *requests = [self requestsToPath:@"/2/files/download"];
+    NSArray<NSURLRequest *> *requests = [self downloadRequests];
     XCTAssertEqual(requests.count, 4u);
     XCTAssertEqualObjects([requests[3] valueForHTTPHeaderField:@"Range"], @"bytes=3000-");
 }
@@ -1197,7 +1208,7 @@ static BOOL IsClosedRange(NSURLRequest *request) {
     NSError *error = [self downloadSong:NULL];
     XCTAssertEqualObjects(error.domain, NSURLErrorDomain);
     XCTAssertEqual(error.code, NSURLErrorNotConnectedToInternet);
-    XCTAssertEqual([self requestsToPath:@"/2/files/download"].count, 3u, @"the first, then two resumes");
+    XCTAssertEqual([self downloadRequests].count, 3u, @"the first, then two resumes");
     XCTAssertEqual(StatOf([self partURL]).st_size, 1000, @"kept for the next download");
 }
 
@@ -1253,7 +1264,7 @@ static BOOL IsClosedRange(NSURLRequest *request) {
 
     XCTAssertNil([self downloadSong:NULL]);
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:[self partURL]], bytes);
-    XCTAssertEqualObjects([[self requestsToPath:@"/2/files/download"].lastObject valueForHTTPHeaderField:@"Range"],
+    XCTAssertEqualObjects([[self downloadRequests].lastObject valueForHTTPHeaderField:@"Range"],
                           @"bytes=1600-");
 }
 
@@ -1299,7 +1310,7 @@ static BOOL IsClosedRange(NSURLRequest *request) {
 
     XCTAssertNil([self downloadSong:NULL]);
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:[self partURL]], bytes);
-    NSArray<NSURLRequest *> *requests = [self requestsToPath:@"/2/files/download"];
+    NSArray<NSURLRequest *> *requests = [self downloadRequests];
     XCTAssertEqual(requests.count, 1u);
     XCTAssertEqualObjects([requests[0] valueForHTTPHeaderField:@"Range"], @"bytes=1600-");
 }
@@ -1318,7 +1329,7 @@ static BOOL IsClosedRange(NSURLRequest *request) {
     XCTAssertNil([self downloadSong:&metadata]);
     XCTAssertEqualObjects(metadata[@"rev"], @"0200beef");
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:[self partURL]], newer);
-    NSArray<NSURLRequest *> *requests = [self requestsToPath:@"/2/files/download"];
+    NSArray<NSURLRequest *> *requests = [self downloadRequests];
     XCTAssertEqual(requests.count, 2u, @"the resume, then the whole file");
     XCTAssertEqualObjects([requests[0] valueForHTTPHeaderField:@"Range"], @"bytes=1600-");
     XCTAssertNil([requests[1] valueForHTTPHeaderField:@"Range"]);
@@ -1339,7 +1350,7 @@ static BOOL IsClosedRange(NSURLRequest *request) {
     XCTAssertNil([self downloadSong:&metadata]);
     XCTAssertEqualObjects(metadata[@"rev"], @"0200beef");
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:[self partURL]], shorter);
-    NSArray<NSURLRequest *> *requests = [self requestsToPath:@"/2/files/download"];
+    NSArray<NSURLRequest *> *requests = [self downloadRequests];
     XCTAssertEqual(requests.count, 2u, @"the resume, then the whole file");
     XCTAssertEqualObjects([requests[0] valueForHTTPHeaderField:@"Range"], @"bytes=1600-");
     XCTAssertNil([requests[1] valueForHTTPHeaderField:@"Range"]);
@@ -1377,7 +1388,7 @@ static BOOL IsClosedRange(NSURLRequest *request) {
 
     XCTAssertNil([self downloadSong:NULL]);
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:[self partURL]], bytes);
-    XCTAssertEqual([self requestsToPath:@"/2/files/download"].count, 1u);
+    XCTAssertEqual([self downloadRequests].count, 1u);
 }
 
 // Short or long against its version's size, a file is not that version.
