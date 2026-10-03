@@ -12,7 +12,7 @@
 
 Loading and empty are mutually exclusive, and `prepareForWaveformLoad` clears both.
 
-**A load fills in the way the iOS scrubber's does** (`iOS/AGENTS.md`, "The bitmap is the only picture"), in the live tree since this view never scrolls: the first waveform eases up from the midline, a streaming load's partials land settled at the same steady pace (`kPartialWaveformInterval`), and the complete one eases to its normalized heights. Easing every partial kept the whole load repainting the full mask each frame and read as flicker.
+**A load fills in the way the iOS scrubber's does** (`iOS/AGENTS.md`, "The bitmap is the only picture"), in the live tree since this view never scrolls: a waveform eases up from the midline once, at its final heights if its load completes within `kFirstPartialDelay`; a slower load's partials land settled at the same steady pace (`kPartialWaveformInterval`), and the complete one eases to its normalized heights. Easing every partial kept the whole load repainting the full mask each frame and read as flicker.
 
 ## Progress
 
