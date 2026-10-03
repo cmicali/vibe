@@ -26,12 +26,15 @@ static _Atomic bool VibeSceneActive = true;
 
 // Anything above user space's address bits is a pointer-authentication
 // signature on a return address saved by an arm64e system frame. macOS gives
-// user space 47 bits; iOS 43, which its SDK names. The simulator runs on the
-// macOS kernel, and its SDK does not name the device's.
+// user space 47 bits; iOS 43, which older SDKs name and the 26.5 SDK no
+// longer does. The simulator runs on the macOS kernel, and its SDK does not
+// name the device's.
 #if TARGET_OS_OSX || TARGET_OS_SIMULATOR
 static const uintptr_t kVibeReturnAddressMask = 0x00007FFFFFFFFFFFULL;
-#else
+#elif defined(MACH_VM_ADDRESS_MASK)
 static const uintptr_t kVibeReturnAddressMask = MACH_VM_ADDRESS_MASK;
+#else
+static const uintptr_t kVibeReturnAddressMask = 0x000007FFFFFFFFFFULL;
 #endif
 
 // A stack of any depth keeps its first and last kVibeStackEnd frames: where
