@@ -728,38 +728,59 @@ static SInt64 VibeUncountedMPEGPackets(AudioFileHandle *handle, AudioStreamBasic
         start = VibeID3v2TagBytes(tag);
     }
     const SInt64 span = 48; // a header, a CRC, side information and a header's tag
-    SInt64 onDisk = MIN(handle->_size, (SInt64)handle->_availability.writtenBytes);
-    if (start > offset || offset - start + span > kVibeReadBlock || onDisk < offset + span) {
+    if (start > offset || offset - start + span > kVibeReadBlock) {
         return 0;
     }
-    UInt32 length = (UInt32)(offset - start + MIN(onDisk - offset, (SInt64)kVibeMPEGEstimateBytes));
-    uint8_t *region = malloc(length);
-    UInt32 header = (UInt32)(offset - start + span), frames = 0, walked = 0, first = 0;
+    // The frames walked are waited for as any read is: a header's worth
+    // first, then, their size known, sixteen. TRAP: a tag past the readable
+    // edge, cover art's, left too few frames on disk to walk, and the open
+    // went to the parser's whole-file count, which waits for the entire
+    // download.
+    UInt32 frames = 0, walked = 0, first = 0;
     BOOL constant = YES;
-    if (region && VibeHandleRead((__bridge void *)handle, start, length, region, &got) == noErr && got == length
-            && !memmem(region, header, "Xing", 4) && !memmem(region, header, "Info", 4) && !memmem(region, header, "VBRI", 4)) {
-        const uint8_t *head = region + (offset - start);
-        UInt32 available = length - (UInt32)(offset - start);
-        int layer = description.mFormatID == kAudioFormatMPEGLayer1 ? 1 : description.mFormatID == kAudioFormatMPEGLayer2 ? 2 : 3;
-        drmp3dec parser;
-        drmp3dec_init(&parser);
-        for (;;) {
-            drmp3dec_frame_info info = {0};
-            drmp3dec_decode_frame(&parser, head + walked, (int)(available - walked), NULL, &info);
-            // A whole frame of this stream exactly here, its header the one
-            // parsed (the parser skips what is not a frame, and forgets its
-            // header on a damaged one); free format, no bit rate, is counted
-            // at open. A frame layer III's reservoir cannot decode still counts.
-            if (info.frame_bytes <= 0 || memcmp(parser.header, head + walked, sizeof(parser.header)) != 0
-                    || info.layer != layer || info.sample_rate != description.mSampleRate || info.bitrate_kbps == 0) {
-                break;
-            }
-            first = frames++ ? first : (UInt32)info.bitrate_kbps;
-            constant = constant && (UInt32)info.bitrate_kbps == first;
-            walked += (UInt32)info.frame_bytes;
+    SInt64 need = span;
+    for (int pass = 0; pass < 2; pass++) {
+        if (!VibeHandleAwait(handle, offset, MIN(need, handle->_size - offset), NULL, 0, NULL)) {
+            return 0;
         }
+        SInt64 onDisk = MIN(handle->_size, (SInt64)handle->_availability.writtenBytes);
+        if (onDisk < offset + span) {
+            return 0;
+        }
+        UInt32 length = (UInt32)(offset - start + MIN(onDisk - offset, (SInt64)kVibeMPEGEstimateBytes));
+        uint8_t *region = malloc(length);
+        UInt32 header = (UInt32)(offset - start + span);
+        frames = walked = first = 0;
+        constant = YES;
+        if (region && VibeHandleRead((__bridge void *)handle, start, length, region, &got) == noErr && got == length
+                && !memmem(region, header, "Xing", 4) && !memmem(region, header, "Info", 4) && !memmem(region, header, "VBRI", 4)) {
+            const uint8_t *head = region + (offset - start);
+            UInt32 available = length - (UInt32)(offset - start);
+            int layer = description.mFormatID == kAudioFormatMPEGLayer1 ? 1 : description.mFormatID == kAudioFormatMPEGLayer2 ? 2 : 3;
+            drmp3dec parser;
+            drmp3dec_init(&parser);
+            for (;;) {
+                drmp3dec_frame_info info = {0};
+                drmp3dec_decode_frame(&parser, head + walked, (int)(available - walked), NULL, &info);
+                // A whole frame of this stream exactly here, its header the one
+                // parsed (the parser skips what is not a frame, and forgets its
+                // header on a damaged one); free format, no bit rate, is counted
+                // at open. A frame layer III's reservoir cannot decode still counts.
+                if (info.frame_bytes <= 0 || memcmp(parser.header, head + walked, sizeof(parser.header)) != 0
+                        || info.layer != layer || info.sample_rate != description.mSampleRate || info.bitrate_kbps == 0) {
+                    break;
+                }
+                first = frames++ ? first : (UInt32)info.bitrate_kbps;
+                constant = constant && (UInt32)info.bitrate_kbps == first;
+                walked += (UInt32)info.frame_bytes;
+            }
+        }
+        free(region);
+        if (frames == 0 || frames >= kVibeMPEGEstimateFrames || onDisk >= handle->_size) {
+            break;
+        }
+        need = walked + (SInt64)(kVibeMPEGEstimateFrames - frames) * (walked / frames) + span;
     }
-    free(region);
     if (frames < kVibeMPEGEstimateFrames) {
         return 0;
     }

@@ -413,7 +413,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 }
 
 - (void)retireCurrentVoiceOnQueueWithDeclick:(BOOL)declick {
-    BOOL replacingAudibleTrack = _voice != 0 && [self renderingOnQueue] && _state == VibePlayerStatePlaying;
+    // A voice held buffering is silent, so replacing it is no crossfade: the
+    // declick, which also ends its reads, and its stream, at once.
+    BOOL replacingAudibleTrack = _voice != 0 && [self renderingOnQueue] && _state == VibePlayerStatePlaying && !_buffering;
     // The mode can land before main holds the crossfade at the declick.
     declick |= [self bitPerfectOnQueue];
     _incomingFadeMilliseconds = VibeIncomingFadeMilliseconds(self.crossfadeMilliseconds, replacingAudibleTrack, declick);
@@ -979,9 +981,11 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     }
     [self publishPausedWithoutVoiceOnQueueAtSeconds:seconds];
     [self scheduleOutputIdleStopOnQueue];
-    run_on_main_thread({
+    // Matched as the error is: a play submitted meanwhile, the same row's
+    // included, must not receive the stalled one's pause.
+    [self deliverOnMainForSubmittedPlay:submittedPlay named:@"didPausePlaying" block:^{
         [self.delegate audioPlayer:self didPausePlaying:track];
-    });
+    }];
     [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorConnectionLost,
             [NSString stringWithFormat:@"No data arrived for %@; paused at %.1f s", track.url.lastPathComponent, seconds],
             nil, track.url)

@@ -761,6 +761,60 @@ static NSData *VibeWithoutVBRHeader(NSData *mp3) {
     [self assertPCM:VibeDecode(handle, 4096, INT64_MAX, NULL) equals:reference context:@"the whole stream"];
 }
 
+// An open that must never wait for a download — the metadata parse's
+// fallback for a file TagLib refuses (W64, CAF, ADTS), whose facts come once
+// the file is on disk, as they did when the placeholder refused the open —
+// passes an `interrupted` that answers YES, and fails at once where it would
+// have blocked, so no metadata worker is held for the rest of a transfer.
+- (void)testAnOpenThatNeverWaitsFailsAtOnceWhereItWouldBlock {
+    NSError *error = nil;
+    NSURL *source = VibeWriteFixture([self sourceNamed:@"facts.w64"], VibeNoiseBuffer(88200), &error);
+    XCTAssertNil(error);
+    VibeGrowingFile *file = [self stream:source prefix:40];
+    __block AudioFileHandle *handle = nil;
+    __block NSError *openError = nil;
+    NSUInteger waits = [self drive:file step:0 reader:^{
+        handle = [[AudioFileHandle alloc] initParserForReading:file.url interrupted:^BOOL { return YES; } error:&openError];
+    }];
+    XCTAssertEqual(waits, 0u, @"refused where it would have waited");
+    XCTAssertNil(handle);
+    XCTAssertTrue([AudioFileHandle isInterruption:openError], @"%@", openError);
+    [file complete];
+    handle = [[AudioFileHandle alloc] initParserForReading:file.url interrupted:^BOOL { return YES; } error:&openError];
+    XCTAssertNotNil(handle, @"on disk, nothing waits: %@", openError);
+}
+
+// A headerless MP3 whose ID3v2 tag, cover art's, reaches past the readable
+// edge still opens on an estimate: the head walk waits for its frames as a
+// read does, rather than finding none on disk and handing the open to the
+// parser's whole-file count, which waits for the entire download.
+- (void)testAHeadBehindALargeTagStillOpensOnAnEstimate {
+    NSURL *source = [self sourceNamed:@"tagged-head.mp3"];
+    const uint32_t tagBytes = 300 * 1024;
+    NSMutableData *data = [NSMutableData dataWithLength:tagBytes];
+    uint8_t *tag = data.mutableBytes;
+    memcpy(tag, "ID3\x04\x00\x00", 6);
+    uint32_t payload = tagBytes - 10;
+    tag[6] = (payload >> 21) & 0x7F; tag[7] = (payload >> 14) & 0x7F; tag[8] = (payload >> 7) & 0x7F; tag[9] = payload & 0x7F;
+    [data appendData:VibeMP3WithoutVBRHeader(2000, 44100, ^uint8_t(uint32_t frame) { return 14; })];
+    XCTAssertTrue([data writeToURL:source atomically:YES]);
+    AudioFileHandle *whole = [self openWhole:source];
+    // The download is just past the tag when the open runs, and each wait
+    // lands 8 KB more: a few frames, not the sixteen the walk needs.
+    VibeGrowingFile *file = [self stream:source prefix:tagBytes + 2048 window:80 * 1024];
+    __block AudioFileHandle *handle = nil;
+    NSUInteger waits = [self drive:file step:8 * 1024 reader:^{
+        handle = [[AudioFileHandle alloc] initForReading:file.url error:NULL];
+    }];
+    XCTAssertNotNil(handle);
+    XCTAssertLessThanOrEqual(waits, 8u, @"waited for the head's frames, not the whole file");
+    XCTAssertLessThan(file.written, (uint64_t)data.length, @"opened before the download ended");
+    XCTAssertTrue(handle.lengthIsEstimated, @"estimated from the head behind the tag");
+    [file complete];
+    XCTAssertTrue([handle awaitExactLength:NULL]);
+    XCTAssertEqual(handle.length, whole.length);
+}
+
 // A VBR MP3 stream with no VBR header opens on its head and the tail window
 // without waiting, its length estimated from its head's frames, within 2% for
 // one whose rate varies evenly; a seek inside what has arrived lands exactly
