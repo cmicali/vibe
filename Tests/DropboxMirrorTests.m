@@ -548,6 +548,41 @@ static struct stat StatOf(NSURL *url) {
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:[folder URLByAppendingPathComponent:@"one.cue"]], sheet);
 }
 
+// A cancel while the token refresh hangs settles the transfer now, not when
+// the refresh returns: the lane it holds is freed at once.
+- (void)testCancellingWhileTheRefreshHangsSettlesAtOnce {
+    [self installHandler:^DropboxStubResponse(NSURLRequest *request, NSDictionary *json) {
+        if ([request.URL.path isEqualToString:@"/oauth2/token"]) {
+            return (DropboxStubResponse){0, nil, nil, YES};
+        }
+        return [self defaultResponseFor:request json:json];
+    }];
+    XCTestExpectation *read = [self expectationWithDescription:@"read"];
+    dispatch_block_t cancelRead = [_client readPath:@"/Music/a.flac" offset:0 length:8
+                                         completion:^(NSData *data, NSError *error) {
+        XCTAssertNil(data);
+        XCTAssertEqual(error.code, VibeDropboxErrorCancelled);
+        [read fulfill];
+    }];
+    XCTestExpectation *download = [self expectationWithDescription:@"download"];
+    dispatch_block_t cancelDownload = [_client downloadPath:@"/Music/a.flac"
+                                                      toURL:[_root URLByAppendingPathComponent:@"a.part"]
+                                                 completion:^(NSDictionary *metadata, NSError *error) {
+        XCTAssertNil(metadata);
+        XCTAssertEqual(error.code, VibeDropboxErrorCancelled);
+        [download fulfill];
+    }];
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
+    while ([self requestsToPath:@"/oauth2/token"].count == 0 && deadline.timeIntervalSinceNow > 0) {
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+    }
+    XCTAssertEqual([self requestsToPath:@"/oauth2/token"].count, 1u);
+    cancelRead();
+    cancelDownload();
+    [self waitForExpectations:@[read, download] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertEqual([self requestsToPath:@"/2/files/download"].count, 0u);
+}
+
 - (void)testCancellingAFetchStopsTheTransferAndLeavesThePlaceholder {
     _listings[@"/music"] = @[FileEntry(@"/Music", @"slow.flac", 5, kStamp)];
     NSURL *track = [[self refresh:@"/Music"] URLByAppendingPathComponent:@"slow.flac"];
@@ -645,6 +680,30 @@ static struct stat StatOf(NSURL *url) {
     [self waitForExpectations:@[done, unlinked] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertFalse(_client.isLinked);
     XCTAssertNil(_mirror.accountURL);
+}
+
+- (void)testSigningOutWithAnExpiredAccessTokenRefreshesBeforeRevoking {
+    __block BOOL expiresAtOnce = YES;
+    [self installHandler:^DropboxStubResponse(NSURLRequest *request, NSDictionary *json) {
+        if ([request.URL.path isEqualToString:@"/oauth2/token"]) {
+            return DropboxStubJSON(200, @{@"access_token": expiresAtOnce ? @"A1" : @"A2",
+                                          @"expires_in": expiresAtOnce ? @0 : @14400});
+        }
+        return [self defaultResponseFor:request json:json];
+    }];
+    _listings[@"/a"] = @[];
+    XCTAssertNotNil([self refresh:@"/A"]);
+    expiresAtOnce = NO;
+    [_client signOut];
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
+    while ([self requestsToPath:@"/2/auth/token/revoke"].count == 0 && deadline.timeIntervalSinceNow > 0) {
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+    }
+    NSArray<NSURLRequest *> *revokes = [self requestsToPath:@"/2/auth/token/revoke"];
+    XCTAssertEqual(revokes.count, 1u);
+    XCTAssertEqualObjects([revokes.firstObject valueForHTTPHeaderField:@"Authorization"], @"Bearer A2");
+    XCTAssertEqual([self requestsToPath:@"/oauth2/token"].count, 2u);
+    XCTAssertFalse(_client.isLinked);
 }
 
 - (void)testARefusedRefreshTokenUnlinksTheAccount {

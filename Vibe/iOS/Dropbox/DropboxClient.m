@@ -57,9 +57,10 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 @property (nonatomic, nullable) NSURLSessionDataTask *task;
 @property (nonatomic, copy, nullable) NSString *accessToken;
 @property (nonatomic) uint64_t accountGeneration;
+// The download's metadata, or the read's bytes; finishTransfer: calls it once.
+@property (nonatomic, copy, nullable) void (^completion)(id _Nullable, NSError *_Nullable);
 // A download's only.
 @property (nonatomic, copy, nullable) NSURL *destination;
-@property (nonatomic, copy, nullable) void (^completion)(NSDictionary *_Nullable, NSError *_Nullable);
 @property (nonatomic) NSInteger status;
 @property (nonatomic, nullable) NSDictionary *metadata;
 @property (nonatomic, nullable) NSFileHandle *file;
@@ -420,7 +421,8 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 - (void)signOut {
     os_unfair_lock_lock(&_lock);
     NSString *refresh = _refreshToken;
-    NSString *access = _accessToken;
+    // An expired one is refused and the grant would outlive the sign-out.
+    NSString *access = _accessTokenExpiry - kAccessTokenMargin > CFAbsoluteTimeGetCurrent() ? _accessToken : nil;
     [self replaceAccountLockedWithRefreshToken:nil accessToken:nil expiresIn:0 accountID:nil];
     os_unfair_lock_unlock(&_lock);
     if (!refresh) {
@@ -648,13 +650,36 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 
 #pragma mark - Transfers
 
-// Any thread. With no task yet, whichever step runs next sees the flag.
+// Any thread. A transfer with a task in flight completes through that task's
+// cancel. One with none — waiting on a token refresh, or on a retry's delay
+// after a task that already ended — settles here, at once: a cancel frees
+// the caller's lane now, never when the refresh or the delay comes back
+// (System/AGENTS.md). Whichever step runs next sees the flag.
 - (void)cancelTransfer:(DropboxTransfer *)transfer {
     os_unfair_lock_lock(&_lock);
     transfer.cancelled = YES;
     NSURLSessionDataTask *task = transfer.task;
     os_unfair_lock_unlock(&_lock);
-    [task cancel];
+    if (task && task.state != NSURLSessionTaskStateCompleted) {
+        [task cancel];
+        return;
+    }
+    [self finishTransfer:transfer result:nil error:VibeCancelledError()];
+}
+
+// Exactly once per transfer, whichever path gets here first.
+- (void)finishTransfer:(DropboxTransfer *)transfer result:(id)result error:(NSError *)error {
+    os_unfair_lock_lock(&_lock);
+    BOOL first = !transfer.finished;
+    transfer.finished = YES;
+    os_unfair_lock_unlock(&_lock);
+    if (!first) {
+        return;
+    }
+    if (error && transfer.destination) {
+        [NSFileManager.defaultManager removeItemAtURL:transfer.destination error:NULL];
+    }
+    transfer.completion(result, error);
 }
 
 // The transfer's task, unless a cancel came first. Under the lock, so a
@@ -684,18 +709,16 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
                   completion:(void (^)(NSData *, NSError *))completion {
     DropboxTransfer *read = [[DropboxTransfer alloc] init];
     read.path = path;
+    read.completion = completion;
     read.attempts = 1;
-    [self startRead:read offset:offset length:length completion:completion];
+    [self startRead:read offset:offset length:length];
     return [self cancelBlockForTransfer:read];
 }
 
-- (void)startRead:(DropboxTransfer *)read
-           offset:(uint64_t)offset
-           length:(uint64_t)length
-       completion:(void (^)(NSData *, NSError *))completion {
+- (void)startRead:(DropboxTransfer *)read offset:(uint64_t)offset length:(uint64_t)length {
     [self withAccessToken:^(NSString *token, uint64_t generation, NSError *tokenError) {
         if (tokenError) {
-            completion(nil, tokenError);
+            [self finishTransfer:read result:nil error:tokenError];
             return;
         }
         NSMutableURLRequest *request = [self downloadRequestForPath:read.path token:token];
@@ -705,8 +728,9 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
                                                            completionHandler:^(NSData *data, NSURLResponse *response,
                                                                                NSError *error) {
             if (error) {
-                completion(nil, [error.domain isEqualToString:NSURLErrorDomain] && error.code == NSURLErrorCancelled
-                        ? VibeCancelledError() : error);
+                [self finishTransfer:read result:nil
+                               error:[error.domain isEqualToString:NSURLErrorDomain] && error.code == NSURLErrorCancelled
+                                       ? VibeCancelledError() : error];
                 return;
             }
             NSHTTPURLResponse *http = (NSHTTPURLResponse *)response;
@@ -719,7 +743,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
                     bytes = [bytes subdataWithRange:NSMakeRange(start,
                             (NSUInteger)MIN((uint64_t)(bytes.length - start), length))];
                 }
-                completion(bytes, nil);
+                [self finishTransfer:read result:bytes error:nil];
                 return;
             }
             [self handleFailureStatus:http.statusCode data:data
@@ -728,13 +752,13 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
                                resend:^(BOOL nowRefreshed, NSInteger nextAttempt) {
                 read.refreshed = nowRefreshed;
                 read.attempts = nextAttempt;
-                [self startRead:read offset:offset length:length completion:completion];
+                [self startRead:read offset:offset length:length];
             } fail:^(NSError *failure) {
-                completion(nil, failure);
+                [self finishTransfer:read result:nil error:failure];
             }];
         }];
         if (![self adoptTask:task forTransfer:read]) {
-            completion(nil, VibeCancelledError());
+            [self finishTransfer:read result:nil error:VibeCancelledError()];
             return;
         }
         [task resume];
@@ -755,25 +779,10 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     return [self cancelBlockForTransfer:download];
 }
 
-// Exactly once per download, whichever path gets here first.
-- (void)finishDownload:(DropboxTransfer *)download metadata:(NSDictionary *)metadata error:(NSError *)error {
-    os_unfair_lock_lock(&_lock);
-    BOOL first = !download.finished;
-    download.finished = YES;
-    os_unfair_lock_unlock(&_lock);
-    if (!first) {
-        return;
-    }
-    if (error) {
-        [NSFileManager.defaultManager removeItemAtURL:download.destination error:NULL];
-    }
-    download.completion(metadata, error);
-}
-
 - (void)startDownload:(DropboxTransfer *)download {
     [self withAccessToken:^(NSString *token, uint64_t generation, NSError *tokenError) {
         if (tokenError) {
-            [self finishDownload:download metadata:nil error:tokenError];
+            [self finishTransfer:download result:nil error:tokenError];
             return;
         }
         NSURLSessionDataTask *task = [self->_downloadSession dataTaskWithRequest:
@@ -781,7 +790,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
         download.accessToken = token;
         download.accountGeneration = generation;
         if (![self adoptTask:task forTransfer:download]) {
-            [self finishDownload:download metadata:nil error:VibeCancelledError()];
+            [self finishTransfer:download result:nil error:VibeCancelledError()];
             return;
         }
         os_unfair_lock_lock(&self->_lock);
@@ -875,15 +884,15 @@ didCompleteWithError:(NSError *)error {
     download.file = nil;
 
     if (cancelled) {
-        [self finishDownload:download metadata:nil error:VibeCancelledError()];
+        [self finishTransfer:download result:nil error:VibeCancelledError()];
         return;
     }
     if (download.writeError || error) {
-        [self finishDownload:download metadata:nil error:download.writeError ?: error];
+        [self finishTransfer:download result:nil error:download.writeError ?: error];
         return;
     }
     if (download.status == 200) {
-        [self finishDownload:download metadata:download.metadata ?: @{} error:nil];
+        [self finishTransfer:download result:download.metadata ?: @{} error:nil];
         return;
     }
     [self handleFailureStatus:download.status data:download.errorData retryAfter:download.retryAfter
@@ -894,7 +903,7 @@ didCompleteWithError:(NSError *)error {
         download.attempts = nextAttempt;
         [self startDownload:download];
     } fail:^(NSError *failure) {
-        [self finishDownload:download metadata:nil error:failure];
+        [self finishTransfer:download result:nil error:failure];
     }];
 }
 

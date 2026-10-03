@@ -60,12 +60,14 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     [self updatePlayButton];
 }
 
-// A track not on disk yet is not asked for: its decode would fail at once
-// (a Dropbox placeholder) or hold a decode slot through the download (a
-// provider's), and playbackDidFinishLoading: asks again once the open lands.
+// A provider's dataless file is not asked for: its decode would hold a slot
+// through the download, and playbackDidFinishLoading: asks again once the
+// open lands. A remote placeholder is: its stat is the file's, so the cache
+// answers for an evicted track parked at relaunch, and a miss refuses the
+// open at once (the page keeps its indicator; didFailWaveformForIndex:).
 - (void)requestWaveformForIndex:(NSUInteger)index {
     AudioTrack *track = [_playlist trackAtIndex:index];
-    if (!track || [NSURLUtil isDatalessFile:track.url]) {
+    if (!track || ([NSURLUtil isDatalessFile:track.url] && ![NSURLUtil isRemotePlaceholderFile:track.url])) {
         return;
     }
     [_waveformCoordinator requestIndex:index track:track];

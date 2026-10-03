@@ -141,6 +141,10 @@ UIView *VibeNotDownloadedMark(void) {
     CFAbsoluteTime _listedAt;
     // Open Folder's file, shown and briefly selected once the listing lands.
     NSURL *_highlightURL;
+    // Open Folder on a folder no persistent root covers (a one-off pick in
+    // Recents): this screen holds its scope, and the subfolders pushed above
+    // it read under it. The session's hold may be gone with the playlist.
+    BOOL _holdsScope;
 
     // Which picker is up: a location grant, or a one-off pick.
     BOOL _pickingLocation;
@@ -271,6 +275,9 @@ UIView *VibeNotDownloadedMark(void) {
 
 - (void)dealloc {
     [NSNotificationCenter.defaultCenter removeObserver:self];
+    if (_holdsScope) {
+        [_directoryURL stopAccessingSecurityScopedResource];
+    }
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -774,7 +781,10 @@ UIView *VibeNotDownloadedMark(void) {
     NSUInteger index = VibeSearchFolderCoveringRootIndex(sourcePaths, standardized.path);
     NSMutableArray<UIViewController *> *stack = [NSMutableArray arrayWithObject:self];
     if (index == NSNotFound) {
-        [stack addObject:[self browserForDirectory:directory]];
+        BrowserViewController *browser = [self browserForDirectory:directory];
+        // A bookmark's URL carries the grant; a path-derived one answers NO.
+        browser->_holdsScope = [directory startAccessingSecurityScopedResource];
+        [stack addObject:browser];
     }
     else {
         NSURL *step = sources[index];
