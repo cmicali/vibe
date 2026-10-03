@@ -108,21 +108,22 @@ static CGFloat VibeDecodedFraction(AudioWaveform *waveform) {
     BOOL                    _seekPending;
     // Where the pending scrub began, so a pinch can tell a scrub from drift.
     CGFloat                 _scrubStartProgress;
-    // The one picture: unplayed full width, played on top cropped by
-    // contentsRect. Anchored at the midline, which the arrival grows from.
+    // The one picture, anchored at the midline, which the arrival grows from.
+    // It is made of segments, each a stretch of the track drawn as the played
+    // image up to the playhead over the unplayed one: one for the whole track,
+    // three while a newly decoded stretch grows in (newSegmentFrom:to:).
     CALayer                 *_bakedHost;
-    CALayer                 *_bakedUnplayed;
-    CALayer                 *_bakedPlayed;
+    id                      _bakedPlayedImage;
+    id                      _bakedUnplayedImage;
+    float                   _bakedUnplayedOpacity;
     // Whether the standing bake drew a complete waveform, and the partial one
     // a completing bake fades in over, gone when the fade ends.
     BOOL                    _bakedComplete;
     CALayer                 *_bakedOutgoing;
-    // How far the standing bitmap's decode reached, and the newest stretch
-    // growing in over it: the unplayed layer is cropped short of it meanwhile
-    // and the undecoded rest drawn by a tail of its own.
+    // How far the standing bitmap's decode reached, and the segment of the
+    // newest stretch while it grows in.
     CGFloat                 _bakedDecodedFraction;
     CALayer                 *_revealLayer;
-    CALayer                 *_revealTail;
     // The theme's playhead line, hidden until a theme asks for it: fixed at
     // center in self.layer, since it is the content that moves.
     CALayer                 *_playheadLine;
@@ -468,17 +469,23 @@ static CGFloat VibeDecodedFraction(AudioWaveform *waveform) {
 // The playhead marker unless the theme draws a line. In CONTENT space, so the
 // scroll carries it to the center and nothing here reads the offset.
 - (void)applyPlayedClip {
-    CGFloat virtualWidth = [self virtualWidth];
-    if (virtualWidth <= 0 || !_bakedHost) {
+    CGFloat width = _bakedHost.bounds.size.width;
+    if (width <= 0) {
         return;
     }
     // Its actions are off, so no transaction: see setContentOffsetX:.
     CGFloat progress = [self playedProgress];
-    _bakedPlayed.bounds = CGRectMake(0, 0, progress * virtualWidth, _bakedHost.bounds.size.height);
-    _bakedPlayed.contentsRect = CGRectMake(0, 0, progress, 1);
+    CGFloat height = _bakedHost.bounds.size.height;
+    for (CALayer *segment in _bakedHost.sublayers) {
+        CGFloat start = segment.position.x / width;
+        CGFloat end = start + segment.bounds.size.width / width;
+        CGFloat cut = MAX(start, MIN(end, progress));
+        CALayer *played = segment.sublayers.lastObject;
+        played.bounds = CGRectMake(0, 0, (cut - start) * width, height);
+        played.contentsRect = CGRectMake(start, 0, cut - start, 1);
+    }
     VibeTallyCount(waveform_progress_baked);
 }
-
 // The play position IS the view's center, so the line never moves: it follows
 // only the theme, the layout and whether there is a waveform to mark.
 - (void)layoutPlayheadLine {
@@ -651,10 +658,9 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     _bakedOutgoing = nil;
     [_bakedHost removeFromSuperlayer];
     _bakedHost = nil;
-    _bakedUnplayed = nil;
-    _bakedPlayed = nil;
+    _bakedPlayedImage = nil;
+    _bakedUnplayedImage = nil;
     _revealLayer = nil;
-    _revealTail = nil;
     _bakedDecodedFraction = 0;
     [CATransaction commit];
 }
@@ -759,12 +765,43 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 // (resize gravity) until the re-bake the change asked for lands, so a resize,
 // a rotation or a pinch never blanks the strip.
 - (void)placeBakedLayer:(CALayer *)host {
+    CGFloat oldWidth = host.bounds.size.width;
     CGRect bounds = [self virtualBounds];
     host.bounds = bounds;
     host.position = CGPointMake(0, bounds.size.height / 2);
-    host.sublayers.firstObject.frame = bounds;
+    for (CALayer *segment in host.sublayers) {
+        CGFloat start = oldWidth > 0 ? segment.position.x / oldWidth : 0;
+        CGFloat length = oldWidth > 0 ? segment.bounds.size.width / oldWidth : 1;
+        segment.bounds = CGRectMake(0, 0, length * bounds.size.width, bounds.size.height);
+        segment.position = CGPointMake(start * bounds.size.width, bounds.size.height / 2);
+        segment.sublayers.firstObject.frame = segment.bounds;
+    }
 }
 
+// [start, end) of the track, in the standing images. Anchored at the midline,
+// so a reveal grows it from there.
+- (CALayer *)newSegmentFrom:(CGFloat)start to:(CGFloat)end {
+    CGRect bounds = _bakedHost.bounds;
+    CALayer *segment = [CALayer layer];
+    segment.anchorPoint = CGPointMake(0, 0.5);
+    segment.bounds = CGRectMake(0, 0, (end - start) * bounds.size.width, bounds.size.height);
+    segment.position = CGPointMake(start * bounds.size.width, bounds.size.height / 2);
+    CALayer *unplayed = [CALayer layer];
+    unplayed.frame = segment.bounds;
+    unplayed.contents = _bakedUnplayedImage;
+    unplayed.opacity = _bakedUnplayedOpacity;
+    unplayed.contentsRect = CGRectMake(start, 0, end - start, 1);
+    [segment addSublayer:unplayed];
+    CALayer *played = [CALayer layer];
+    played.actions = @{@"bounds": NSNull.null, @"position": NSNull.null,
+                       @"contentsRect": NSNull.null};
+    played.anchorPoint = CGPointZero;
+    played.position = CGPointZero;
+    played.contents = _bakedPlayedImage;
+    [segment addSublayer:played];
+    [_bakedHost addSublayer:segment];
+    return segment;
+}
 - (void)installEnvelopeImage:(CGImageRef)image unplayedImage:(nullable CGImageRef)unplayedImage
                        epoch:(NSUInteger)epoch complete:(BOOL)complete
            normalizationGain:(CGFloat)normalizationGain
@@ -776,13 +813,10 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     BOOL arrival = !_bakedHost;
     CGFloat revealFrom = _bakedDecodedFraction;
     _revealLayer = nil;
-    _revealTail = nil;
     BOOL completes = _bakedHost && !_bakedComplete && complete;
     // A style that cannot name its gain crossfades over the partial instead.
     BOOL fades = completes && normalizationGain == 0;
-    // No unplayed bake: the played bitmap dimmed. Otherwise the unplayed
-    // side's own, already at its resting alphas.
-    CGFloat unplayedOpacity = unplayedImage ? 1 : [_renderer unplayedOverPlayedOpacity];
+    BOOL reveals = !arrival && !fades && !_isPinching && decodedFraction > revealFrom;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     // TRAP: drop the standing bitmap first, or it stays in the scroll's tree
@@ -793,23 +827,22 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     if (!fades) {
         [_bakedHost removeFromSuperlayer];
     }
+    _bakedPlayedImage = (__bridge id)image;
+    _bakedUnplayedImage = (__bridge id)(unplayedImage ?: image);
+    // No unplayed bake: the played bitmap dimmed. Otherwise the unplayed
+    // side's own, already at its resting alphas.
+    _bakedUnplayedOpacity = (float)(unplayedImage ? 1 : [_renderer unplayedOverPlayedOpacity]);
     // No geometryFlipped here: the bake draws in CG's y-up space, whose top
     // row lands at the layer's top.
     _bakedHost = [CALayer layer];
     _bakedHost.anchorPoint = CGPointMake(0, 0.5);
-    _bakedUnplayed = [CALayer layer];
-    _bakedUnplayed.anchorPoint = CGPointZero;
-    _bakedUnplayed.contents = (__bridge id)(unplayedImage ?: image);
-    _bakedUnplayed.opacity = (float)unplayedOpacity;
-    [_bakedHost addSublayer:_bakedUnplayed];
-    _bakedPlayed = [CALayer layer];
-    _bakedPlayed.actions = @{@"bounds": NSNull.null, @"position": NSNull.null,
-                             @"contentsRect": NSNull.null};
-    _bakedPlayed.anchorPoint = CGPointZero;
-    _bakedPlayed.position = CGPointZero;
-    _bakedPlayed.contents = (__bridge id)image;
-    [_bakedHost addSublayer:_bakedPlayed];
     [self placeBakedLayer:_bakedHost];
+    if (reveals) {
+        [self revealDecodedFrom:revealFrom to:decodedFraction];
+    }
+    else {
+        [self newSegmentFrom:0 to:1];
+    }
     [_scroll.layer insertSublayer:_bakedHost above:_bakedOutgoing ?: _rendererHost];
     // TRAP: crop the played side inside this transaction. Called from a block
     // on main, it is top-level and commits at once, and a played layer left at
@@ -829,6 +862,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
         [_bakedHost addAnimation:grow forKey:@"arrival"];
     }
     else if (completes && normalizationGain > 1.001) {
+        // Over the last stretch's own reveal, which it carries up with it.
         CABasicAnimation *grow = [CABasicAnimation animationWithKeyPath:@"transform.scale.y"];
         grow.fromValue = @(1 / normalizationGain);
         grow.toValue = @1;
@@ -836,10 +870,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
         grow.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
         [_bakedHost addAnimation:grow forKey:@"completionGrow"];
     }
-    else if (!completes && !_isPinching && decodedFraction > revealFrom) {
-        [self revealDecodedFrom:revealFrom to:decodedFraction];
-    }
-    else if (_bakedOutgoing) {
+    else if (fades) {
         // Set before the animation, which it then waits for.
         CALayer *outgoing = _bakedOutgoing;
         __weak WaveformScrubberView *weakSelf = self;
@@ -861,48 +892,40 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     [self applyScrollAndProgress];
     VibeSignpostEnd(waveform_install);
 }
-
-// Inside the install's transaction. The unplayed side is three pieces of one
-// image for the reveal's length — the old part, the new stretch growing from
-// the midline, and the undecoded tail — then one again: no mask, so no
-// offscreen pass, and the played layer is untouched, since what decodes is
-// almost always ahead of the playhead.
+// Inside the install's transaction: the picture as three segments for the
+// reveal's length — before the new stretch, the stretch growing up from the
+// midline, and the undecoded rest — then one again. No mask, so no offscreen
+// pass, and each segment crops its own played side, so the stretch grows the
+// same on either side of the playhead.
 //
-// TRAP: the tail must stay drawn. Cropping the unplayed layer at the old edge
-// alone hid the undecoded midline for the reveal, so it blinked off and on
-// at every swap of a slow load.
+// TRAP: every stretch outside the new one must stay drawn. Cropping one layer
+// at the old edge hid the undecoded midline for each reveal, and it blinked at
+// every swap; growing only the unplayed side popped a stretch the playhead had
+// passed.
 - (void)revealDecodedFrom:(CGFloat)from to:(CGFloat)to {
-    CGRect bounds = _bakedHost.bounds;
-    CGFloat width = bounds.size.width;
-    CALayer *(^piece)(CGFloat, CGFloat) = ^CALayer *(CGFloat start, CGFloat end) {
-        CALayer *layer = [CALayer layer];
-        layer.contents = self->_bakedUnplayed.contents;
-        layer.opacity = self->_bakedUnplayed.opacity;
-        layer.anchorPoint = CGPointMake(0, 0.5);
-        layer.bounds = CGRectMake(0, 0, (end - start) * width, bounds.size.height);
-        layer.position = CGPointMake(start * width, bounds.size.height / 2);
-        layer.contentsRect = CGRectMake(start, 0, end - start, 1);
-        [self->_bakedHost insertSublayer:layer below:self->_bakedPlayed];
-        return layer;
-    };
-    _bakedUnplayed.frame = CGRectMake(0, 0, from * width, bounds.size.height);
-    _bakedUnplayed.contentsRect = CGRectMake(0, 0, from, 1);
-    _revealTail = to < 1 ? piece(to, 1) : nil;
-    CALayer *reveal = piece(from, to);
+    if (from > 0) {
+        [self newSegmentFrom:0 to:from];
+    }
+    if (to < 1) {
+        [self newSegmentFrom:to to:1];
+    }
+    CALayer *reveal = [self newSegmentFrom:from to:to];
     _revealLayer = reveal;
-    // Set before the animation, which it then waits for.
+    // Set before the animations, which it then waits for: the last stretch's
+    // and, at completion, the whole picture's.
     __weak WaveformScrubberView *weakSelf = self;
     [CATransaction setCompletionBlock:^{
         [weakSelf finishRevealOf:reveal];
     }];
+    // From a hairline, not from nothing: at zero the stretch left a gap in
+    // the midline it grows out of.
     CABasicAnimation *grow = [CABasicAnimation animationWithKeyPath:@"transform.scale.y"];
-    grow.fromValue = @0;
+    grow.fromValue = @(MIN(1.0, 1 / MAX(1.0, _bakedHost.bounds.size.height * [self displayScale])));
     grow.toValue = @1;
     grow.duration = kChunkGrowDuration;
     grow.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
     [reveal addAnimation:grow forKey:@"chunkGrow"];
 }
-
 // A stale reveal is a no-op: a newer install or a reset replaced it.
 - (void)finishRevealOf:(CALayer *)reveal {
     if (!reveal || reveal != _revealLayer) {
@@ -910,15 +933,14 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     }
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    [_revealLayer removeFromSuperlayer];
     _revealLayer = nil;
-    [_revealTail removeFromSuperlayer];
-    _revealTail = nil;
-    _bakedUnplayed.frame = _bakedHost.bounds;
-    _bakedUnplayed.contentsRect = CGRectMake(0, 0, 1, 1);
+    for (CALayer *segment in [_bakedHost.sublayers copy]) {
+        [segment removeFromSuperlayer];
+    }
+    [self newSegmentFrom:0 to:1];
+    [self applyPlayedClip];
     [CATransaction commit];
 }
-
 - (void)showLoadingIndicator {
     if (_loadingIndicator) {
         return;
