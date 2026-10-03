@@ -633,11 +633,19 @@ static struct stat StatOf(NSURL *url) {
     [self installMirrorFetch];
     XCTAssertTrue([self materialize:[folder URLByAppendingPathComponent:@"one.flac"]]);
 
+    // The readers of a row's downloaded state (Search, the browser,
+    // Settings) hear the removal, with nothing left counted. The fetch's own
+    // post may still be in flight, so the handler waits for the empty one.
+    XCTestExpectation *told = [self expectationForNotification:VibeDropboxDownloadsDidChangeNotification
+                                                        object:_mirror
+                                                       handler:^BOOL(NSNotification *notification) {
+        return [notification.userInfo[VibeDropboxDownloadsBytesKey] longLongValue] == 0;
+    }];
     XCTestExpectation *removed = [self expectationWithDescription:@"remove"];
     [_mirror removeDownloadsWithCompletion:^{
         [removed fulfill];
     }];
-    [self waitForExpectations:@[removed] timeout:VIBE_TEST_HANG_TIMEOUT];
+    [self waitForExpectations:@[told, removed] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual([self measuredDownloads], 0);
     XCTAssertEqual(StatOf([folder URLByAppendingPathComponent:@"one.flac"]).st_mode & 0777, 0);
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:[folder URLByAppendingPathComponent:@"one.cue"]], sheet);

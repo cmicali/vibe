@@ -660,11 +660,24 @@ static BOOL VibeInstallPart(NSURL *part, NSURL *url, NSDictionary *metadata, NSE
     dispatch_async(_diskQueue, ^{
         NSURL *account = self.accountURL;
         NSUInteger removed = 0;
+        long long kept = 0;
         for (NSDictionary *download in account ? [self downloadsUnder:account] : @[]) {
-            removed += [self evictDownload:download] ? 1 : 0;
+            if ([self evictDownload:download]) {
+                removed++;
+            }
+            else {
+                kept += [download[@"size"] longLongValue];
+            }
         }
         LogInfo(@"Dropbox: removed %lu downloads", (unsigned long)removed);
-        dispatch_async(dispatch_get_main_queue(), completion);
+        // Every reader of a row's downloaded state hears it — Search's marks,
+        // a mirrored folder on screen, the size in Settings — as on a fetch.
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [NSNotificationCenter.defaultCenter postNotificationName:VibeDropboxDownloadsDidChangeNotification
+                                                              object:self
+                                                            userInfo:@{VibeDropboxDownloadsBytesKey: @(kept)}];
+            completion();
+        });
     });
 }
 
