@@ -43,7 +43,7 @@ make torture PLAYLIST=~/Music/big                      # APP= defaults to the De
 make torture PLAYLIST=~/Music/big ARGS="--rounds 40 --burst 40 --seed N"
 ```
 
-**Run it through `run-torture.sh`, never `torture.py` by hand.** Three things must be true before a result means anything and the wrapper asserts each: exactly one mac instance is up, it is the binary you intended, and the caches are cold. **Cold caches are the point, not hygiene**: the delivery races only open while a scan is in flight as playback starts, so a warm 6400-op pass has proven far less than it looks.
+**Run it through `run-torture.sh`, never `torture.py` by hand.** Three things must be true before a result means anything and the wrapper asserts each: exactly one mac instance is up, it is the binary you intended, and the caches are cold. The app outlives the run, so its own output (an assertion, a sanitizer report) goes to `build/stress/torture-app.log`, never your terminal, where it would hold your pipe open. **Cold caches are the point, not hygiene**: the delivery races only open while a scan is in flight as playback starts, so a warm 6400-op pass has proven far less than it looks.
 
 **Cloud scenarios.** One fresh app launch per scenario; budget several minutes. Run `make check-cloud-scenarios` (the runner's trace-helper tests, also part of `make test`) first.
 

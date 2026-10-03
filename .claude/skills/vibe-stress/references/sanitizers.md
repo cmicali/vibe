@@ -32,7 +32,7 @@ launchctl setenv TSAN_OPTIONS "log_path=$C/tsan:halt_on_error=0:external_symboli
 launchctl unsetenv TSAN_OPTIONS
 ```
 
-`stress.py` always relaunches through `launch.sh`, so options set in the shell never reach the app; `run-torture.sh` direct-execs and takes them from its environment (`TSAN_OPTIONS=… run-torture.sh …`), its report on its stderr.
+`stress.py` always relaunches through `launch.sh`, so options set in the shell never reach the app; `run-torture.sh` direct-execs and takes them from its environment (`TSAN_OPTIONS=… run-torture.sh …`), its report in `build/stress/torture-app.log`, the app's stderr.
 
 Build to a **separate** derived-data path so the plain Debug build stays usable, and hand it to the driver with `--app` (which sets `VIBE_APP` for `launch.sh`). Reports land as `log_path.<pid>`; TSan creates the file only on the first report, so **no file means no race**. Raise `--max-stalls`: instrumentation makes ordinary verbs slow enough to trip the liveness oracle.
 

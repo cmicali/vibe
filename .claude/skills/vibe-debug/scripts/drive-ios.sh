@@ -78,23 +78,29 @@ start)
     pkill -f "Devices/$UDID/.*VibeiOSDriver-Runner" 2>/dev/null || true
     mkdir -p "$TMP"
     rm -f "$TMP/$READY_NAME" "$TMP"/vibe-touch-*
-    # TRAP: without -collect-test-diagnostics never, xcodebuild's teardown
-    # after `stop` can run `simctl diagnose` for minutes, and this script,
-    # which holds the caller's pipe until xcodebuild is gone, hangs with it.
     # The build tree is shared by the checkout's sessions: hold the lock across
     # the generate, the build and the install (released when this script
     # exits), or xcodegen rewrites Vibe.xcodeproj under another session's
     # xcodebuild and two builds clobber one products directory.
     vibe_build_lock_acquire
-    ( cd "$ROOT" && xcodegen generate >/dev/null )
+    cd "$ROOT"
+    xcodegen generate >/dev/null
     SIGNING=(CODE_SIGNING_ALLOWED=NO)
     [ "${VIBE_SIGN_SIM:-}" != 1 ] || SIGNING=(CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=- GENERATE_INFOPLIST_FILE=YES)
-    ( cd "$ROOT" && TEST_RUNNER_VIBE_DRIVER_DIR="$TMP" \
+    # TRAP: the driver outlives this script by hours, so it must hold none of
+    # the caller's stdin, stdout or stderr: a pipe (`start | tail`, `$(start)`)
+    # ends only when its last writer exits. Background ONE simple command
+    # carrying all three redirections: under `( cd … && xcodebuild > LOG & )`
+    # bash 3.2 keeps a subshell waiting on xcodebuild with the caller's pipe
+    # still open, and a piped `start` never returns.
+    # -collect-test-diagnostics never: otherwise the teardown after `stop`
+    # runs `simctl diagnose` for minutes.
+    TEST_RUNNER_VIBE_DRIVER_DIR="$TMP" \
         nohup xcodebuild test -project Vibe.xcodeproj -scheme VibeiOSDriver \
             -destination "id=$UDID" -derivedDataPath build/DerivedData \
             -collect-test-diagnostics never \
-            "${SIGNING[@]}" > "$LOG" 2>&1 & echo $! > "$TMP/xcodebuild.pid" )
-    BUILD_PID="$(cat "$TMP/xcodebuild.pid")"
+            "${SIGNING[@]}" > "$LOG" 2>&1 < /dev/null &
+    BUILD_PID=$!
     for _ in $(seq 1 240); do
         if [ -f "$TMP/$READY_NAME" ]; then
             # TRAP: `xcodebuild test` builds the app without installing it, so
