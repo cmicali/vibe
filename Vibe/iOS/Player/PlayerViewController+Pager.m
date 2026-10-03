@@ -498,6 +498,10 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     // User hold first, so pending deliveries never flash through between.
     [self holdForPagerScrolling:YES];
     [self holdForProgrammaticPagerScrolling:NO];
+    // The settled page's intro morph would ride the swipe on its live tree.
+    for (TrackPageCell *cell in _pagesView.visibleCells) {
+        [cell.waveformView bakeNowForGesture];
+    }
 }
 
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView {

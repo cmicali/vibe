@@ -946,10 +946,12 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 
 // TRAP: a gesture moves the content every frame, and on the live tree each
 // frame re-composites a multi-screen layer under a mask of thousands of rects
-// — a morph rebuilds that mask per frame on top. The render server falls
-// behind, and the time labels' per-frame redraws then wait on it in
-// CABackingStoreSynchronize: a scrub at a track's start ran at 30 Hz or less.
-// So a gesture lands the morph and bakes now rather than after the ease.
+// — a morph rebuilds that mask per frame on top, which the render server
+// scan-converts on the CPU each time. It falls behind, and the time labels'
+// per-frame redraws then wait on it in CABackingStoreSynchronize: a scrub at a
+// track's start ran at 30 Hz or less, and a page swiped while the settled
+// page's intro morph ran cost the render server most of a core. So a gesture
+// lands the morph and bakes now rather than after the ease.
 - (void)bakeNowForGesture {
     if (!_bakedHost && _renderer) {
         [self drawWaveformSettled];
