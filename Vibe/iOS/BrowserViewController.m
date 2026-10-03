@@ -232,10 +232,13 @@ static UIImage *VibeFileTileImage(BOOL sheet) {
         _files = @[];
         _placeholders = [NSSet set];
         _fileSizes = @{};
+        // TRAP: nothing here may touch the disk. A screen is made on main as
+        // a folder opens, and for a provider's folder a stat or a name lookup
+        // is IPC that can block.
         _dropboxPath = directoryURL ? [DropboxMirror.shared dropboxPathForURL:directoryURL] : nil;
-        _standardizedPath = directoryURL.URLByStandardizingPath.path;
+        _standardizedPath = VibeComparablePath(directoryURL.path);
         _title = directoryURL ? [SearchFolderStore displayNameForFolderURL:directoryURL] : nil;
-        _playingPath = playback.currentTrack.url.URLByStandardizingPath.path;
+        _playingPath = VibeComparablePath(playback.currentTrack.url.path);
     }
     return self;
 }
@@ -977,10 +980,10 @@ static UIImage *VibeFileTileImage(BOOL sheet) {
     [sources addObjectsFromArray:SearchFolderStore.shared.searchRoots];
     NSMutableArray<NSString *> *sourcePaths = [NSMutableArray arrayWithCapacity:sources.count];
     for (NSURL *source in sources) {
-        [sourcePaths addObject:source.URLByStandardizingPath.path ?: @""];
+        [sourcePaths addObject:VibeComparablePath(source.path) ?: @""];
     }
-    NSURL *standardized = directory.URLByStandardizingPath;
-    NSUInteger index = VibeSearchFolderCoveringRootIndex(sourcePaths, standardized.path);
+    NSString *standardized = VibeComparablePath(directory.path);
+    NSUInteger index = VibeSearchFolderCoveringRootIndex(sourcePaths, standardized);
     NSMutableArray<UIViewController *> *stack = [NSMutableArray arrayWithObject:self];
     if (index == NSNotFound) {
         BrowserViewController *browser = [self browserForDirectory:directory];
@@ -992,7 +995,7 @@ static UIImage *VibeFileTileImage(BOOL sheet) {
         NSURL *step = sources[index];
         [stack addObject:[self browserForDirectory:step]];
         NSArray<NSString *> *components = standardized.pathComponents;
-        NSUInteger depth = step.URLByStandardizingPath.pathComponents.count;
+        NSUInteger depth = sourcePaths[index].pathComponents.count;
         for (NSUInteger i = depth; i < components.count; i++) {
             step = [step URLByAppendingPathComponent:components[i] isDirectory:YES];
             [stack addObject:[self browserForDirectory:step]];
@@ -1041,7 +1044,7 @@ static UIImage *VibeFileTileImage(BOOL sheet) {
 
 // The playing file's row carries the mark.
 - (void)playbackDidMoveToCurrentTrack:(PlaybackController *)playback animated:(BOOL)animated {
-    _playingPath = playback.currentTrack.url.URLByStandardizingPath.path;
+    _playingPath = VibeComparablePath(playback.currentTrack.url.path);
     if (self.viewIfLoaded.window && ![self isSelecting]) {
         [self.tableView reloadData];
     }
