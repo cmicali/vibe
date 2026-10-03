@@ -1729,6 +1729,11 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     [self makeBusAtRate:kRate channels:2 inlineDecoding:NO];
     @try {
         VibeVoiceID voice = [self startFile:[self open:url] gain:1 ramp:[self unity] paused:YES];
+        // Settled before the successor is named: one named while the file's
+        // last turn is still inside is taken by no turn until a drain, which
+        // this test never runs.
+        XCTAssertTrue([self waitUntil:^BOOL { return [self->_bus snapshotOfVoice:voice].endOfStream == 2000; }]);
+        dispatch_sync([_bus decodeQueueAtIndex:0], ^{});
         XCTAssertTrue([_bus queueSuccessor:[self open:url] startFrame:0 endFrame:0 forVoice:voice]);
         XCTAssertTrue([self waitUntil:^BOOL { return [self->_bus snapshotOfVoice:voice].boundary == 2000; }]);
         [self startFile:busy gain:1 ramp:[self unity] paused:YES]; // reads it on another queue
