@@ -47,7 +47,7 @@ static inline NSString *VibeStandardizedAudioOpenPath(NSURL *url) {
 // The bytes at a file's end its open reads, with room, for a stream to fetch
 // ahead of its download (the Dropbox mirror's tail window); 0 for none. Every
 // open that reads past its head reads one region at the end (measured,
-// docs/future/dropbox-streaming.md): an MP3's ID3v1 check 4–128 bytes, an APE
+// docs/future/streaming-any-source.md): an MP3's ID3v1 check 4–128 bytes, an APE
 // footer a few KB more, a WAV or AIFF with its fmt last 24 bytes, a FLAC with
 // no length 64 KB, so 128 KB is twice the largest. An MP4's is its moov, which
 // grows with the length: 4 bytes per 1024-sample AAC frame, ~10 KB a minute

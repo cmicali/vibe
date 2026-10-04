@@ -1,6 +1,8 @@
-# iCloud Drive on iOS: folder setup and cached artwork
+# iCloud Drive on iOS: folder setup, cached artwork and browser follow-ups
 
 Two proposed improvements to make an iCloud music folder feel at home in Vibe: make the system picker a setup step, and keep showing previously cached artwork when the audio is no longer downloaded. Neither change is implemented by this document.
+
+The same Files browser also owns the unresolved usability follow-ups below. They apply across local folders, Dropbox and granted provider folders; they do not depend on the two iCloud improvements.
 
 ## Make the picker a setup step
 
@@ -58,6 +60,21 @@ Match asynchronous results to the browser's current listing and track before app
 
 The cache-only behavior is useful for Dropbox placeholders and other Files providers too. Apply the same rule wherever the browser already has a usable file identity, without an iCloud-specific artwork path. If implementation changes the `TRAP:` beside `loadArtForVisibleRows`, update its counterpart in `Vibe/iOS/AGENTS.md` in the same change.
 
+## Other browser follow-ups
+
+These unresolved items come from the 2026-10-02 iPhone simulator audit of PR #132, reviewed against code on 2026-10-04. The completed audit checklist is retired; current behavior belongs in [the iOS subsystem doc](../../Vibe/iOS/AGENTS.md), and its regression cases are retained in [the shell test plan](ios-shell-unit-tests.md#browser-regression-cases).
+
+| Follow-up | Current behavior and decision still needed |
+| --- | --- |
+| Empty folder Add or Play | A swipe, context-menu or multi-select Add of a folder containing only subfolders adds nothing; a nonrecursive context-menu Play can also land nothing silently. Play/Add with Subfolders already exists, bounded at about 2,000 songs or 500 folders. Decide how an empty result should explain or offer that action without making an ordinary folder action recurse automatically. |
+| Duplicate additions | Files already in the playlist are skipped without a message or a row mark. Decide how to distinguish an all-duplicate Add from an empty folder, and whether rows should show playlist membership. |
+| Download-progress legibility | The card already draws transfer progress along the waveform line. The audit saw a download lasting less than a second and did not establish whether that line is readable during a slow transfer. Measure with a constrained link before changing it. |
+| Add feedback outside Files | Files rows animate when added; Recents and Search adds do not, while iPad rows fade in place. Decide whether those surfaces need additional confirmation, including empty and duplicate results. |
+| Replace confirmation | The Replace / Add Instead / Cancel guard for a hand-built playlist is implemented. Removing it remains a product proposal, not a pending fix; retain the current behavior unless that decision changes. |
+| Older Recents names | New records save their folder's display name. Records predating that field still derive it from the stored path and can expose an old container or account name. Decide whether to migrate or improve that fallback without requiring a fresh grant or remote lookup merely to draw a row. |
+
+The original audit did not cover iPad, Dynamic Type, VoiceOver, offline/error paths, the system pickers, Location removal or a slow transfer. It is not evidence that those cases pass. Check the affected cases when implementing a follow-up, and update the corresponding regression expectation when a product decision changes.
+
 ## Verification when implemented
 
 - Connect an iCloud folder, browse a descendant, relaunch, and open the saved Location without another picker. Check cancellation, duplicate coverage, revoked access and a temporarily unavailable provider. Connecting must leave playback alone.
@@ -66,9 +83,10 @@ The cache-only behavior is useful for Dropbox placeholders and other Files provi
 - Scroll, filter, refresh and navigate away while cache reads and thumbnail decodes complete. Check row identity and that revisiting the listing does not accumulate retained tracks or repeated cache work.
 - Exercise the same cache-hit and cache-miss cases with Dropbox placeholders. Use the debug command channel for running-app checks and a real device for iCloud behavior; a simulator alone does not establish provider behavior.
 - Add focused coverage for the cache-only miss never reaching a parse or materialization, after reading `Tests/AGENTS.md`. Read `vibe-perf` and measure the affected browse/cache work before and after implementation.
+- For a browser feedback change, exercise an empty folder, a folder of subfolders, an all-duplicate Add and a mixed selection in Files, Recents and Search. Check a hand-built and a restored playlist, older Recents records and slow transfers as relevant; distinguish retained behavior from any newly chosen policy.
 
 ## Scope and complexity
 
 Implementation budget: zero new source files and zero new types. The picker work shares the existing Location flow; the artwork work reuses the existing archive reader and thumbnail pipeline. Neither needs a new cross-directory guarantee. Report the actual net line count and what was consolidated when each change lands.
 
-Offline album downloads, a persistent folder-listing cache and streaming are separate proposals. These two changes improve setup and browsing without requiring a new iCloud transport.
+Offline album downloads, a persistent folder-listing cache and streaming are separate proposals. The two iCloud changes improve setup and browsing without requiring a new iCloud transport; the other follow-ups stay in the existing browser, session and presentation owners.

@@ -1,6 +1,6 @@
 # Future: streaming from any source
 
-**Status: planned 2026-10-03, not started.** Builds on the implemented [Dropbox streaming](dropbox-streaming.md) from PR #134. Its general read-ahead and availability changes remain proposals; Google Drive now has a [separate feasibility study](ios-google-drive.md).
+**Status: planned 2026-10-03, not started.** Builds on Dropbox streaming, implemented in [PR #134](https://github.com/cmicali/vibe/pull/134). Current behavior lives in the [Dropbox](../../Vibe/iOS/Dropbox/AGENTS.md), [file-loading](../../Vibe/Audio/Loading/AGENTS.md), [System](../../Vibe/System/AGENTS.md) and [waveform-loading](../../Vibe/Audio/Waveform/AGENTS.md) docs. Its general read-ahead and availability changes remain proposals; Google Drive now has a [separate feasibility study](ios-google-drive.md).
 
 Today the streaming model serves one source: a file Vibe's own Dropbox client is downloading on iOS. Every other open is a whole-file open, whose reads block in the kernel for as long as the volume takes.
 
@@ -19,7 +19,7 @@ The model is four things, each built for Dropbox and each missing on a slow volu
 
 ## The platform facts, measured
 
-`dropbox-streaming.md` says other File Providers have "no public partial-read API". That sentence is imprecise, and this section replaces it.
+Vibe currently materializes File Provider files whole before opening them. Partial reads depend on the platform and provider; these probes establish what the tested versions actually delivered.
 
 Measured on macOS 27 with a probe that opens a dataless file, reads 64 KB with a plain `pread`, and then `fstat`s it:
 
@@ -40,13 +40,36 @@ Measured on macOS 27 with a probe that opens a dataless file, reads 64 KB with a
 - **A network filesystem already reads by range.** An SMB, NFS, AFP, or WebDAV mount holds ordinary files, not dataless ones, and each `pread` fetches its bytes over the wire. No whole-file transfer happens, so nothing needs downloading: what is missing is the four rows above. Not measured here, since no share was mounted.
 - **Unverified: what the Files app's SMB and USB volumes are on iOS.** They may be live mounts read in place (paths under `LiveFiles/`) rather than provider copies. Phase 0 settles it with the probe on a device, and the design below needs no answer: a mount is read ahead, a dataless file takes the provider road.
 
+## Recorded decoder probes (2026-10-02)
+
+The original spike logged every requested read of `VibeHandleRead` and `VibeStreamRead` through the production `AudioFileHandle` while opening, decoding the first ten seconds, and seeking (to 10 %, 50 %, 90 %, and back), over 69 files: the fixtures plus generated 6-minute and 60-minute files from ffmpeg, LAME, and afconvert. Measured on macOS 27; the same harness in the iOS 27 simulator gave identical read sequences for every file it opens. The initial probe did not cover device CoreAudio, files from Apple's own encoders, VBRI, APE tags, or RF64; later MP3 device observations are recorded below.
+
+| Format | The open reads | A seek reads |
+| --- | --- | --- |
+| M4A/ALAC with `moov` first (afconvert's default, ffmpeg `+faststart`), CAF, WAV, W64, AIFF | the head only, at most 354 KB | one region at the target |
+| FLAC with a known total | the head only | with a seek table, 2 to 4 regions just before the target; **without one (ffmpeg and afconvert write none), a bisection of 3 to 10 regions reaching 11 % of the file past the target** |
+| MP3 with a Xing or Info frame | the head, plus 4 to 128 bytes at the end (an ID3v1 check on every open) | **every frame header between the furthest byte read and the target**: the parser ignores the Xing table |
+| M4A with `moov` last (ffmpeg's default) | the head, plus one tail region: 61 KB at 6 minutes, 608 KB at 60 | one region at the target |
+| FLAC with an unknown total | the head, plus 64 KB at the end | as FLAC |
+| WAV with `fmt ` after `data` | the head, plus 24 bytes at the end | one region |
+| Ogg Vorbis and Opus, ADTS AAC, MP3 with no Xing or Info frame | **the whole file, in order** | direct |
+
+The last row's MP3 is no longer the open's but the count's: CoreAudio answers the packet count, ExtAudioFile's length and the maximum packet size of an MP3 with no Xing, Info or VBRI frame by reading every frame header to the end, while the bit rate, the data offset and size, the packet table and the packet size bound read a few frames. On a device, eight of ten long DJ mixes opened only when their download completed for this reason. Such a stream now opens uncounted on a count from its head's frames (`Audio/AGENTS.md`): a constant-rate head's from its bit rate, a VBR one's from the frames' average size, either an estimate, since a headerless file can change rate after its intro, settled where the reads reach the stream's end or at the first read once the download is complete, where the parser's count reads every frame header from disk. Measured on an M-class Mac with a 151 MB VBR file through the handle's 64 KB block cache, that count reads the file once, 2,447 fills: 36 ms warm, 140 ms from a cold APFS clone (without the block cache, 919,000 reads and 270 ms). The estimate's error is the head's: within 2% for an encode of steady material, but a quiet intro estimates long and a loud one short, so the decode reads past or short of it, and the player republishes the settled duration once. A device run's `MP3 stream:` lines say which files took the estimate, how far off it was, and how long the count took.
+
+### Tail-window tests and latency
+
+Recorded host-less tests opened an MP3 with an Info frame and ID3v1 tag, LAME CBR and VBR files, an index-last ALAC M4A and a FLAC with no STREAMINFO sample count on a 64 KB head and an 80 KB test window, then decoded the same PCM as the local file. A WAV did not read the window. Production uses larger windows, sized by `VibeAudioFileTailWindowBytes` in `AudioFileOpenRules.h`; its current policy is documented with the Dropbox mirror.
+
+A device experiment that delayed the tail request until the first download response added 1.0–2.4 seconds to its arrival. Starting the tail and download together removed that extra round trip. A tail costs one extra request for eligible transfers and up to one window downloaded twice; an index larger than the window still waits for the sequential download.
+
+The recorded probes found backward seeks stayed within bytes already read. MP3 seeks ahead scan intervening frame headers, and FLAC without a seek table probes beyond the target. Measure an actual library before paying for arbitrary range fetching. These are historical results, not measurements repeated when this plan was consolidated on 2026-10-04.
+
 ## What already exists
 
 - **The wait is already source-blind.** `AudioFileHandle` asks one question, `waitForBytesAt:length:windowInto:capacity:copied:interrupted:error:`, and knows nothing of Dropbox. Its header says so: "a source of bytes changes what answers it, not who asks".
 - **A wait can already be answered from memory.** The tail window is copied into the reader's buffer by the wait itself, with no `pread` (`VibeHandleAwait`, the three read paths). A source that serves every byte that way needs no new read path.
 - **Interruption, buffering, the stall's pause, and the estimated MP3 length** are all keyed on the handle having an availability, not on Dropbox (`_availability`, `waitingForBytes`, `updateBufferingOnQueue`, `VibeUncountedMPEGPackets`).
 - **The coordinator already passes every open an `interrupted:` block** and wakes the file's waiters on cancel. For a whole file it has nothing to interrupt.
-- **The Dropbox follow-ups already name the next shape:** an offset-keyed range cache behind the same wait.
 
 ## What the code makes hard
 
@@ -60,6 +83,7 @@ Each was found reading the code, and each is a way the feature fails if missed.
 - **Classifying the volume must not touch it.** `statfs` on a path under a dead mount blocks, which is the very hang being removed. The mount table read with `getfsstat(MNT_NOWAIT)` does not.
 - **`open`, `fstat`, and `close` block on a dead mount too.** Moving only `pread` off the opening thread leaves the open strandable.
 - **CoreAudio's QuickTime reader has no callback open** (the `TRAP:` in `initParserForReading:`): MooV and `.qta` parse through the URL, so CoreAudio reads the file itself and nothing can wait on Vibe's terms. Mac only.
+- **The tail window and TagLib's range cache serve different lifetimes.** `CloudFileAvailability` holds one contiguous region shared by stream handles; `VibeRangedStream` fetches 64 KB blocks on demand for one metadata parse. Re-evaluate that overlap before adding a cache for arbitrary reads.
 - **Two readers of one file read different places.** A play at 1:00 and its waveform decode at 40:00 share a transfer's part file happily, since every byte behind the edge is on disk. They cannot share one sliding window.
 - **The mac shell implements no buffering.** Only iOS answers `didChangeBuffering:forTrack:` and draws `VibeAudioErrorConnectionLost`, whose string names a download.
 - **TagLib opens a local file by path.** The metadata sweep's reads on a slow share stay blocking reads on sweep workers.
@@ -142,9 +166,16 @@ Done when a throttled file plays through the render pump sample-identical to the
 
 ### Phase 4: writers that serve the wanted range, each on evidence
 
-- **Dropbox seeks ahead by range.** A ranged read answers the wanted range into a block, by the pinned `rev`. It helps M4A, WAV, and FLAC with a seek table, and not MP3 or seek-table-less FLAC (the Dropbox plan's spike). This is the in-memory alternative to that document's sparse-storage option.
+- **Dropbox seeks ahead by range.** A ranged read answers the wanted range into a block, by the pinned `rev`. It helps M4A, WAV, and FLAC with a seek table, and offers little benefit for the MP3 and seek-table-less FLAC behavior in the [recorded decoder probes](#recorded-decoder-probes-2026-10-02). Compare the in-memory approach with sparse storage below before adding another mechanism.
 - **A File Provider that delivers ranges.** The file read-ahead over a dataless file, skipping the `NSFileCoordinator` download, which is the only way the system hands out a range. Only for a provider the probe has shown to stream, since on any other the first read downloads the whole file with no cancel. Dropbox's Mac extension is the likeliest first: the code is shipped and gated off. Build it when a provider in users' hands passes the probe, not before, and re-run the probe on each Dropbox release until then.
 - **Another service's own client** is a separate product decision. [Google Drive](ios-google-drive.md) is under research; its authorization and version-consistency probes must be resolved before assuming it can publish a stream safely. A sequential client can use today's availability without waiting for this generalization.
+
+## Further options, only on evidence
+
+- **A format-specific pre-scan.** Locate the index before opening: MP4 atoms give `moov`'s offset with 8–16 byte reads; MP3's ID3v2 header and first frame locate the audio and Xing/VBRI data (a headerless file's size/bitrate gives only an estimate); FLAC uses STREAMINFO or its last ~64 KB; Ogg its last ~64 KB; WAV/AIFF a chunk walk. This fetches the exact index, but duplicates five parsers' format knowledge and still needs storage for the fetched bytes. For the measured head-and-tail opens, one tail window avoids that extra format-specific parser. Revisit for files that exceed it.
+- **Sparse storage for seeks ahead.** Write ranged bytes into the part file at their offsets and track coverage, allowing the sequential download to restart from a seek point. It can help formats that seek directly, as can phase 4's in-memory range cache. Sparse storage adds two writers, a cross-thread coverage map, gap filling and persisted-or-discarded coverage. Either option must remain behind the same range wait and justify its cost with measurements.
+- **`AudioFileStream` for ADTS AAC.** Apple's push parser can parse packets as bytes arrive and estimate duration, avoiding the measured whole-file ADTS open. Headerless MP3 already streams by postponing its exact packet count, so it does not need a second parser path; Ogg gains nothing from this option. Keep it in reserve until ADTS files prove common in real libraries.
+- **A separate download-coverage display.** Progressive waveform reveal and streaming prefetch already exist. If the UI also draws downloaded coverage, distinguish it from decoded waveform extent: compression and container indexes mean their fractions need not match.
 
 ## Options weighed and not taken
 
@@ -153,6 +184,8 @@ Done when a throttled file plays through the render pump sample-identical to the
 - **Every file through the read-ahead, one road.** It would delete the whole-file branch from the handle. It costs a thread and a copy on every open of a fast disk, across a library scan's thousands. Phase 0 measures it. Expected answer: no.
 - **Owned by the coordinator as a stage-1 run.** The waveform and metadata opens do not pass through the coordinator, and a slow file is not a transfer: it has no lane to hold and no fraction to show.
 - **A source protocol with a class per writer.** Two new types to express what a missing part file and a writer's loop already say.
+- **Keep metadata head blocks for future plays.** At the measured 230–360 KB per file, a 954-track folder leaves about 300 MB of hidden blocks outside the download budget. The 24-hour part sweep deletes them; keeping them would need version stamps, persisted coverage and eviction, creating another cache to save one round trip per play.
+- **Let `AVPlayer` stream a Dropbox temporary link.** It bypasses the voice bus, r8brain resampling, DJ FX, gapless prefetch, the level meter and the shared engine's bit-perfect output path. A temporary link could still be evaluated as an HTTP transport feeding the existing engine; its lifetime and version-pinning behavior remain unverified.
 
 ## Costs, and the cross-directory guarantees it touches
 
@@ -169,7 +202,7 @@ Done when a throttled file plays through the render pump sample-identical to the
 
 - **Host-less, over the debug seam:** a throttled file reads ahead, waits, and resumes. An interrupt returns a blocked open, read, and seek without ending or failing them. A read error fails for good. A stalled `pread` strands only its read-ahead, and the ninth is refused.
 - **`make test-audio`:** every format through a throttled read-ahead against the direct open, PCM-identical, with seeks behind, inside, and beyond the blocks held.
-- **The Dropbox suite, unchanged,** at every phase.
+- **The Dropbox suite, unchanged,** at every phase: `DropboxMirrorTests`, streaming handles and streaming PCM comparisons, including changed revisions, cancelled waits, short/error responses, failed tails, same-inode resume and install races. Run `dropbox-streaming.sh` with `set_fake_dropbox` and `fake_dropbox_fault`; `set_fake_cloud` covers the separate File Provider materialization path.
 - **`vibe-stress`:** skip, seek, and stop during a stall. A hang on any of them is the interrupt rule broken.
-- **On hardware:** pull the cable mid-play, let a disk sleep, wake the Mac with the share gone, and eject a volume under a playing track.
+- **On hardware:** pull the cable mid-play, let a disk sleep, wake the Mac with the share gone, and eject a volume under a playing track. On iOS over a constrained link, recheck tap-to-audio, one resume per stall, the lock-screen clock, background buffering, skip/seek cancellation, gapless prefetch and progressive waveform growth.
 - **`make bench-components`** before and after, so the direct road is shown not to have moved.

@@ -44,12 +44,29 @@ The tests to write first are the ones the doc's `TRAP:`s describe, since each is
 
 The repository's own mechanism for "rendering is the whole class" (`Tests/AGENTS.md`): a header-only seam the shipping class **calls**, tested from the Mac. A new seam is a new file, so under the complexity budget each is a request argued on its own terms; the argument for each below is a bug that would have been a one-line test.
 
-- **The browser's row actions.** What a tap and a long press offer per row kind — file, folder, Dropbox placeholder, CUE sheet — in the picker and in the Add sheet; the replace-confirm rule (`+confirmReplacingPlaylistOf:…`: ask only when the playlist was built by hand); Select mode's glyphs; the filter field's threshold; the subfolder walk's caps. All of C1 through C8 in `ios-dropbox-ui-feedback.md` were changes to these rules, verified by tapping.
+- **The browser's row actions.** What a tap and a long press offer per row kind — file, folder, Dropbox placeholder, CUE sheet or M3U — in the browser and in the Add sheet; the replace-confirm rule (`+confirmReplacingPlaylistOf:…`: ask only when the playlist was built by hand); Select mode's glyphs; the filter field's threshold; the subfolder walk's caps. The regression cases below retain the decisions from the original browser audit.
 - **The card fold in `RootViewController`.** `expanded`, `cardAnimating` and `interactiveDrag` resolve to: tabs hidden, snapshot present, strip wanted, and whether lifted rows settle. The strip bug of 2026-10-02 (the accessory removed on expand clamped a bottom-scrolled playlist by its height) was a wrong answer from this fold; `updateBackdropVisibility`, `refreshMiniPlayer` and `syncTabSurfaces` each restate a part of it today.
 - **The library's follow rule.** A track change scrolls to the playing row, or defers it while hidden, except under shuffle. Three inputs, one answer.
 - **The pager's waveform gate.** Ask for a waveform unless the file is a provider's dataless file; a Dropbox placeholder is asked (the cache answers from its stat). Two inputs; a review finding in #132.
 
 Each seam also retires a sentence of prose from `Vibe/iOS/AGENTS.md`, since the test states the rule.
+
+#### Browser regression cases
+
+These cases carry forward the original browser audit's decisions and current shell behavior. The proposed host-less coverage must call shipping decisions, while drawing and navigation stay in the simulator. Product changes still under consideration live with the [browser follow-ups](ios-icloud-improvements.md#other-browser-follow-ups).
+
+| Case | Expected behavior |
+| --- | --- |
+| File and folder actions | An audio-file tap plays that file alone; a folder tap browses it, in Files, Recents and Search. Play in Folder remains a separate long-press action. Cover local files and remote placeholders, and CUE/M3U expansion separately. |
+| Add sheet | Taps append and dismiss; the root title and pushed-level prompt identify Add to Playlist. Verify the action decision separately from the UIKit presentation. |
+| Replacing a playlist | Ask only after an Add has landed, including restored additions. Cover Replace, Add Instead and Cancel; a playlist without additions replaces directly. |
+| Folder commands | Ordinary Play never recurses. Play/Add with Subfolders respects the track/folder caps and reports an early stop; a folder with no direct songs offers the subfolder menu. Empty results still settle an Add exactly once. |
+| Sort | The browser writes the shared folder-open sort setting; it does not keep a separate per-folder ordering preference. |
+| Search state | Scope order is All, Playlist, Local, Dropbox; an appearance with an empty query resets to All. No Results waits for every scoped source; a Dropbox error remains distinct from no matches. |
+| Folder navigation | Open Folder highlights the originating file after listing. A folder search hit browses instead of trying to play an empty parent; a failed resolve shows an error. |
+| Connect flow | Signing in from the Files Connect row opens the account root; cancelling sign-in is quiet. |
+| Display names | Browser, playlist and favorites share the folder-name rule, including the Dropbox account root. New Recents records retain the display name instead of deriving it from a later container path. |
+| Selection and filtering | A row swipe must not enter Select mode. Explicit Select offers Select All and a count; the filter appears at the row threshold without changing visibility merely because the list scrolls. |
 
 ### 3. `PlaybackController`, by seams rather than whole
 
@@ -63,7 +80,7 @@ Layout and the safe area, animations and their frame rate, `UITabAccessory`'s fi
 
 1. `FolderSession` into `VibeTests` with the six tests above; this is where the dependency pull is learned, so report it before moving anything.
 2. The card fold seam, since it is the smallest and the most recently wrong.
-3. The browser's row-action seam, against the decision list in `ios-dropbox-ui-feedback.md`.
+3. The browser's row-action seam, against the regression cases above.
 4. The library follow rule and the waveform gate, as their files are next touched.
 5. The follow-up noted in #132: the tests' `DropboxStubProtocol` and the debug channel's `VibeFakeDropbox` stand on the same two `DropboxClientInternal.h` methods. Evaluate the merged streaming fixtures before deciding whether one can serve both. They differ on purpose today — the tests script inconsistencies a fixture directory cannot express.
 
