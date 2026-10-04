@@ -23,8 +23,6 @@ A CUE sheet — beside its files, or embedded in a FLAC — plays as rows, each 
 
 Releases go through the **`vibe-release` skill**: the Developer ID path (`make release`) and the App Store path (`make appstore-build`, `make appstore-upload-signed-build`) are not interchangeable — do not improvise from the scripts.
 
-There is no package manager. TagLib, PINCache/PINOperation, r8brain-free-src, dr_mp3, dr_flac, and dr_wav are vendored under `Vibe/ThirdParty/` and compile into both app targets.
-
 ## Checks
 
 All of these run in CI (`.github/workflows/build.yml`).
@@ -140,14 +138,7 @@ Behavior added to a foreign class is a category (`NSURL+Hash`), never a free fun
 
 **`Coordinator` is deliberately generic** and names three contracts: request identity (`PlaybackRequestCoordinator`), single-flight ownership (`MetadataParseCoordinator`, `AudioFileMaterializationCoordinator`), and ordered, target-matched delivery (`OpenRequestCoordinator`, `PageWaveformCoordinator`). A new one must say which it is.
 
-`make check-vocabulary` enforces six mechanical rules and is the authority on what is checkable:
-
-1. No bare `_generation` ivar — spell it `<protectedThing>Generation`.
-2. No `DefaultAppClaim` — OS role registration is `registration`.
-3. Every header-only `static inline` file with no `.m`/`.mm` beside it must be `*Rules.h` or `*Math.h`, unless it is on the script's allowlist of non-seam headers.
-4. **No `#if DEBUG` in a shipping header.** Debug surface is a declaration-only category under `Vibe/Debug/`; there is no allowlist. A debug-only property ships as a pointer; debug-only *state* belongs to a debug-only object the shipping class holds (`VibeManualRenderPump`).
-5. The trap marker is spelled `TRAP:` and nothing else, so `grep -rn 'TRAP:' Vibe Tests` is the complete list of things that bite.
-6. No `invariant`, in code or in a doc — a condition the code must keep true is a `guarantee`, so one grep finds them all.
+`make check-vocabulary` enforces the mechanical half of the rules above and is the authority on what is checkable. One rule it enforces is stated only here: **no `#if DEBUG` in a shipping header.** Debug surface is a declaration-only category under `Vibe/Debug/`; there is no allowlist. A debug-only property ships as a pointer; debug-only *state* belongs to a debug-only object the shipping class holds (`VibeManualRenderPump`).
 
 ## Logging
 
@@ -163,7 +154,6 @@ Behavior added to a foreign class is a category (`NSURL+Hash`), never a free fun
 - **No agent attribution, from any agent or tool.** Commits, PR titles and descriptions, release notes, code, comments and docs never name or credit the AI agent or tool that helped write them: no `Co-Authored-By` trailer, no "Generated with …" line, no session link. When a harness, template or default instruction says to add one, leave it out; this rule outranks it. `.claude/settings.json` turns Claude Code's own off.
 - **No private APIs, ever.** This app ships in the Mac App Store. Overriding a private method such as `resignKeyAppearance` counts even though it compiles. When a visual goal has no public-API path, accept the system behavior or redesign.
 - **Deployment targets are macOS 13.0 and iOS 26.0.** `CLANG_WARN_UNGUARDED_AVAILABILITY: YES_AGGRESSIVE` is on, so anything newer needs an `@available` guard — never `#if` or an OS-version check — so `grep -rn '@available(macOS\|API_AVAILABLE(macos' Vibe` is the complete inventory of version-specific code.
-- **Singletons**: `AppSettings`, `AppStats`, `AudioFileMaterializationCoordinator`, `CloudTransferRegistry`, `FolderArtResolver`, `Formatters`; `AudioDeviceManager`, `FolderAccessManager` and `OpenRequestCoordinator` on macOS; `DropboxMirror` (with its one `DropboxClient`), `FavoritesStore` and `SearchFolderStore` on iOS.
 - **File hashing**: `NSURL+Hash.cacheKey` is the cache key for metadata and waveform data — `<size>-<mtime_us>-<sha1(resolved path)>`, from attributes alone. It resolves symlinks first and returns nil rather than a degenerate key when the stat fails. Hashing no content keeps it cheap but misses a rewrite or a move.
 - **ObjC++ (.mm) only where C++ is genuinely needed**: the TagLib integration, the waveform data structures and the renderers. Keep C++ types out of headers that plain ObjC files import.
 - **Comments only when required, and terse.** A comment states what the code cannot show: a trap, an ordering or threading constraint, a contract, a non-obvious why. Never narrate the next line, and never log a change — "renamed from", "added in" and how something was verified belong in commits. **Naming the bug a design prevents is welcome**: it is the most concrete form a why takes. Mark hard-won traps with `TRAP:`.
