@@ -23,6 +23,11 @@ typedef struct {
     BOOL bands;
 } VibeWaveformAnalysis;
 
+// Whether what a decode has (or ran) answers everything a request asks for.
+static inline BOOL VibeWaveformAnalysisCovers(VibeWaveformAnalysis have, VibeWaveformAnalysis want) {
+    return (!want.bpm || have.bpm) && (!want.key || have.key) && (!want.bands || have.bands);
+}
+
 @interface AudioWaveformLoader : NSObject
 
 @property (nullable, weak) id <AudioWaveformLoaderDelegate> delegate;

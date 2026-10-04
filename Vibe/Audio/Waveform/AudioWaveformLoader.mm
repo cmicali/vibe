@@ -174,11 +174,13 @@
 
     if (self.isComplete && bpmAnalyzer) {
         uint64_t phaseStart = VibeLoadClockNow();
+        result.bpmAnalyzed = YES;
         result.bpm = [bpmAnalyzer finish];
         nanos.bpmFinish = VibeLoadClockNow() - phaseStart;
     }
     if (self.isComplete && keyAnalyzer) {
         uint64_t phaseStart = VibeLoadClockNow();
+        result.keyAnalyzed = YES;
         result.key = [keyAnalyzer finish];
         nanos.keyFinish = VibeLoadClockNow() - phaseStart;
     }

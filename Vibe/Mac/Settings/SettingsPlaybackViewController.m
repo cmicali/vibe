@@ -20,8 +20,7 @@ static NSString *const kOnEndPause = @"pause";
 
 @implementation SettingsPlaybackViewController {
     NSPopUpButton *_onEndPopUp;
-    NSButton *_pitchRange8;
-    NSButton *_pitchRange16;
+    NSSegmentedControl *_pitchRangeControl;
     NSPopUpButton *_skipStepsPopUp;
     NSSlider *_crossfadeSlider;
     NSTextField *_crossfadeValueLabel;
@@ -38,15 +37,14 @@ static NSString *const kOnEndPause = @"pause";
     [self addItem:STR_SETTINGS_ON_END_PLAY_NEXT value:kOnEndPlayNext to:_onEndPopUp];
     [self addItem:STR_SETTINGS_ON_END_PAUSE value:kOnEndPause to:_onEndPopUp];
 
-    // Radio buttons group by shared action.
-    _pitchRange8 = [NSButton radioButtonWithTitle:STR_MENU_PITCH_RANGE_8
-                                           target:self action:@selector(pitchRangeChanged:)];
-    _pitchRange8.tag = 8;
-    _pitchRange16 = [NSButton radioButtonWithTitle:STR_MENU_PITCH_RANGE_16
-                                            target:self action:@selector(pitchRangeChanged:)];
-    _pitchRange16.tag = 16;
-    NSStackView *pitchRadios = [NSStackView stackViewWithViews:@[_pitchRange8, _pitchRange16]];
-    pitchRadios.spacing = 12;
+    // Segment tags are the range in percent.
+    _pitchRangeControl = [NSSegmentedControl segmentedControlWithLabels:@[STR_MENU_PITCH_RANGE_8,
+                                                                          STR_MENU_PITCH_RANGE_16]
+                                                           trackingMode:NSSegmentSwitchTrackingSelectOne
+                                                                 target:self
+                                                                 action:@selector(pitchRangeChanged:)];
+    [_pitchRangeControl.cell setTag:8 forSegment:0];
+    [_pitchRangeControl.cell setTag:16 forSegment:1];
 
     _skipStepsPopUp = [self popUpButtonWithWidth:kPlaybackPopUpWidth action:@selector(skipStepsChanged:)];
     for (size_t i = 0; i < kVibeSkipBasePresetCount; i++) {
@@ -67,21 +65,27 @@ static NSString *const kOnEndPause = @"pause";
     _detectBPMSwitch = [self switchWithAction:@selector(toggleDetectBPM:)];
     _detectKeySwitch = [self switchWithAction:@selector(toggleDetectKey:)];
 
-    _crossfadeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_CROSSFADE_LABEL control:crossfadeCluster];
-    _enableFXRow = [SettingsRowView rowWithTitle:STR_SETTINGS_ENABLE_FX control:_enableFXSwitch];
+    _crossfadeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_CROSSFADE_LABEL
+                                          caption:STR_SETTINGS_CROSSFADE_CAPTION control:crossfadeCluster];
+    _enableFXRow = [SettingsRowView rowWithTitle:STR_SETTINGS_ENABLE_FX
+                                         caption:STR_SETTINGS_ENABLE_FX_CAPTION control:_enableFXSwitch];
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_TRANSITIONS_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_ON_END_LABEL control:_onEndPopUp],
             _crossfadeRow,
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_CONTROLS_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_PITCH_RANGE_LABEL control:pitchRadios],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_SKIP_STEPS_LABEL control:_skipStepsPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_PITCH_RANGE_LABEL
+                                  caption:STR_SETTINGS_PITCH_RANGE_CAPTION control:_pitchRangeControl],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_SKIP_STEPS_LABEL
+                                  caption:STR_SETTINGS_SKIP_STEPS_CAPTION control:_skipStepsPopUp],
             _enableFXRow,
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_ANALYSIS_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_DETECT_BPM control:_detectBPMSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_DETECT_KEY control:_detectKeySwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_DETECT_BPM
+                                  caption:STR_SETTINGS_DETECT_BPM_CAPTION control:_detectBPMSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_DETECT_KEY
+                                  caption:STR_SETTINGS_DETECT_KEY_CAPTION control:_detectKeySwitch],
         ]],
     ]];
 }
@@ -89,9 +93,7 @@ static NSString *const kOnEndPause = @"pause";
 - (void)refreshFromSettings {
     NSString *onEnd = AppSettings.sharedInstance.pauseAtTrackEnd ? kOnEndPause : kOnEndPlayNext;
     [self selectValue:onEnd in:_onEndPopUp];
-    NSInteger range = AppSettings.sharedInstance.pitchRange;
-    _pitchRange8.state = range != 16 ? NSControlStateValueOn : NSControlStateValueOff;
-    _pitchRange16.state = range == 16 ? NSControlStateValueOn : NSControlStateValueOff;
+    [_pitchRangeControl selectSegmentWithTag:AppSettings.sharedInstance.pitchRange == 16 ? 16 : 8];
     // The getters snap to a preset or a step, so these always match one.
     [_skipStepsPopUp selectItemWithTag:AppSettings.sharedInstance.skipBaseBars];
     [self renderCrossfade:AppSettings.sharedInstance.crossfadeMilliseconds];
@@ -101,8 +103,9 @@ static NSString *const kOnEndPause = @"pause";
     BOOL bitPerfect = AppSettings.sharedInstance.bitPerfectOutput;
     [SettingsRowView setControl:_crossfadeSlider enabled:!bitPerfect];
     [SettingsRowView setControl:_enableFXSwitch enabled:!bitPerfect];
-    [_crossfadeRow setCaption:(bitPerfect ? STR_SETTINGS_OFF_WHILE_BIT_PERFECT : nil)];
-    [_enableFXRow setCaption:(bitPerfect ? STR_SETTINGS_OFF_WHILE_BIT_PERFECT : nil)];
+    NSString *reason = bitPerfect ? STR_SETTINGS_OFF_WHILE_BIT_PERFECT : nil;
+    [_crossfadeRow setCaption:STR_SETTINGS_CROSSFADE_CAPTION detail:reason];
+    [_enableFXRow setCaption:STR_SETTINGS_ENABLE_FX_CAPTION detail:reason];
     _detectBPMSwitch.state = AppSettings.sharedInstance.analyzeBPM ? NSControlStateValueOn : NSControlStateValueOff;
     _detectKeySwitch.state = AppSettings.sharedInstance.analyzeKey ? NSControlStateValueOn : NSControlStateValueOff;
 }
@@ -114,8 +117,8 @@ static NSString *const kOnEndPause = @"pause";
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
 }
 
-- (void)pitchRangeChanged:(NSButton *)sender {
-    AppSettings.sharedInstance.pitchRange = sender.tag;
+- (void)pitchRangeChanged:(NSSegmentedControl *)sender {
+    AppSettings.sharedInstance.pitchRange = sender.selectedTag;
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectPitchRange];
 }
 
@@ -147,10 +150,12 @@ static NSString *const kOnEndPause = @"pause";
 
 - (void)toggleDetectBPM:(id)sender {
     AppSettings.sharedInstance.analyzeBPM = (_detectBPMSwitch.state == NSControlStateValueOn);
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrackAnalysis];
 }
 
 - (void)toggleDetectKey:(id)sender {
     AppSettings.sharedInstance.analyzeKey = (_detectKeySwitch.state == NSControlStateValueOn);
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrackAnalysis];
 }
 
 @end

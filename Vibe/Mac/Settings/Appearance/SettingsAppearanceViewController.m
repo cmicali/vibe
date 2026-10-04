@@ -23,6 +23,7 @@
 #import "MainPlayerController+Settings.h"
 #import "SettingsWindowController.h" // the toolbar navigation control follows the pane's pages
 #import "Formatters.h"
+#import "SettingsRules.h"
 #import "VibeStrings.h"
 
 static const NSUInteger kThemeListRowCount = 10;
@@ -50,8 +51,8 @@ static const double kWaveformGainDetentDB = 0.75;
     NSSlider *_waveformGainSlider; // a VibeDetentSlider
     NSTextField *_waveformGainValue;
     BOOL _editorShown;
-    // Armed by a Back pop.
-    BOOL _editorForwardAvailable;
+    // Theme list swatches by "identifier|dark" or "|light", the active theme's excepted.
+    NSMutableDictionary<NSString *, NSImage *> *_swatches;
     // TRAP: reloadData and the programmatic reselect both post
     // selection-changed; treated as activations, they recurse
     // refreshFromSettings into a stack overflow.
@@ -75,11 +76,8 @@ static const double kWaveformGainDetentDB = 0.75;
 
     _trafficLightsSwitch = [self switchWithAction:@selector(toggleTrafficLights:)];
 
-    _themeTable = [SettingsRowView listTableWithColumnIdentifiers:@[@"icon", kThemeCellIdentifier] delegate:self];
-    NSTableColumn *name = _themeTable.tableColumns[1];
-    name.title = STR_SETTINGS_THEME_NAME_LABEL;
-    name.width = 440;
-    name.minWidth = 160;
+    // One column, so no header: each name carries its theme's swatch.
+    _themeTable = [SettingsRowView listTableWithColumnIdentifiers:@[kThemeCellIdentifier] delegate:self];
     _themeTable.allowsMultipleSelection = NO;
     _themeTable.allowsEmptySelection = NO;
     _themeTable.target = self;
@@ -149,7 +147,8 @@ static const double kWaveformGainDetentDB = 0.75;
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_DISPLAY_PREFERENCES rows:@[
             _appearanceRow,
-            [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_TRAFFIC_LIGHTS control:_trafficLightsSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_TRAFFIC_LIGHTS
+                                  caption:STR_SETTINGS_SHOW_TRAFFIC_LIGHTS_CAPTION control:_trafficLightsSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_SECTION
                     caption:STR_SETTINGS_WAVEFORM_LEVELS_CAPTION control:_waveformLevelsDisclosure],
             _waveformLevelRows[0], _waveformLevelRows[1],
@@ -171,7 +170,7 @@ static const double kWaveformGainDetentDB = 0.75;
     [self applyEditorTitle];
 }
 
-// Sets only the pane's title; updateThemeNavigation pushes it to the window.
+// Sets only the pane's title; updateNavigation pushes it to the window.
 // The sidebar reads the tab item, so it keeps saying Appearance.
 - (void)applyEditorTitle {
     NSString *name = nil;
@@ -182,16 +181,11 @@ static const double kWaveformGainDetentDB = 0.75;
     }
     self.title = name ? [NSString stringWithFormat:STR_SETTINGS_THEME_EDITOR_TITLE, name]
                       : STR_MENU_VIEW_APPEARANCE;
-    [(SettingsWindowController *)self.view.window.windowController updateThemeNavigation];
-}
-
-- (BOOL)canRandomize {
-    return _editorShown
-            && ![AppTheme isBuiltInIdentifier:AppSettings.sharedInstance.activeThemeIdentifier];
+    [(SettingsWindowController *)self.view.window.windowController updateNavigation];
 }
 
 - (void)randomizeThemeSettings {
-    if (!self.canRandomize) {
+    if (!_editorShown) {
         return;
     }
     [AppSettings.sharedInstance.currentTheme
@@ -201,7 +195,7 @@ static const double kWaveformGainDetentDB = 0.75;
 }
 
 - (void)randomizeThemeColors {
-    if (!self.canRandomize) {
+    if (!_editorShown) {
         return;
     }
     [AppSettings.sharedInstance.currentTheme randomizeColors];
@@ -226,35 +220,51 @@ static const double kWaveformGainDetentDB = 0.75;
     [self refreshFromSettings];
 }
 
-- (BOOL)canGoBack {
+- (BOOL)editorShown {
     return _editorShown;
 }
 
-- (BOOL)canGoForward {
-    return _editorForwardAvailable && !_editorShown;
-}
-
-- (void)navigateBack {
-    _editorShown = NO;
-    _editorForwardAvailable = YES;
-    [self closeEditorPanels];
-    [self refreshFromSettings]; // reaches applyEditorVisibility via the resolver
-}
-
-- (void)navigateForward {
-    if (self.canGoForward) {
-        [self showThemeEditorForActiveTheme];
-    }
-}
-
-- (void)showThemeEditorForActiveTheme {
-    if ([AppTheme isBuiltInIdentifier:AppSettings.sharedInstance.activeThemeIdentifier]) {
-        [self duplicateTheme:nil];
+- (void)setEditorShown:(BOOL)shown {
+    if (shown == _editorShown) {
         return;
     }
-    _editorShown = YES;
-    _editorForwardAvailable = NO;
+    _editorShown = shown;
+    if (!shown) {
+        [self closeEditorPanels];
+    }
     [self refreshFromSettings]; // reaches applyEditorVisibility via the resolver
+}
+
+// A hit only the editor holds opens it, so the row it names is on screen.
+- (void)revealSearchHits {
+    if (!_editorShown && self.searchQuery) {
+        NSArray<SettingsRowView *> *hits = [self rowsMatchingSearch:self.searchQuery];
+        BOOL listHit = NO;
+        for (SettingsRowView *row in hits) {
+            listHit |= ![row isDescendantOf:_detailContainer];
+        }
+        if (hits.count && !listHit) {
+            [self setEditorShown:YES];
+        }
+    }
+    [super revealSearchHits];
+}
+
+// The editor's first edit of a built-in: the edit already sits in the working
+// record, so a copy of it becomes the active theme and the built-in stays
+// pristine. Answers whether it forked.
+- (BOOL)forkBuiltInForEdit {
+    AppSettings *settings = AppSettings.sharedInstance;
+    NSString *active = settings.activeThemeIdentifier;
+    if (!_editorShown || ![AppTheme isBuiltInIdentifier:active]) {
+        return NO;
+    }
+    NSString *copy = [settings duplicateThemeWithIdentifier:active];
+    if (!copy) {
+        return NO;
+    }
+    [settings applyThemeWithIdentifier:copy];
+    return YES;
 }
 
 - (void)previewAppearanceDark:(BOOL)dark {
@@ -264,7 +274,7 @@ static const double kWaveformGainDetentDB = 0.75;
                  : SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT;
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
     // For callers other than the toggle (the debug channel).
-    [(SettingsWindowController *)self.view.window.windowController updateThemeNavigation];
+    [(SettingsWindowController *)self.view.window.windowController updateNavigation];
 }
 
 // Leaving the pane and closing the window both end the preview here.
@@ -311,20 +321,24 @@ static const double kWaveformGainDetentDB = 0.75;
 
     NSString *active = settings.activeThemeIdentifier;
     _themeIdentifiers = settings.orderedThemeIdentifiers;
-    _refreshingThemeList = YES;
-    [_themeTable reloadData];
-    NSInteger activeRow = [self rowForIdentifier:active];
-    if (activeRow >= 0) {
-        [_themeTable selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)activeRow]
-                 byExtendingSelection:NO];
-        // A programmatic selection does not scroll; an imported theme would
-        // land selected past the fold.
-        [_themeTable scrollRowToVisible:activeRow];
+    // The editor covers the list; leaving it refreshes through here again.
+    if (!_editorShown) {
+        _refreshingThemeList = YES;
+        [_themeTable reloadData];
+        NSInteger activeRow = [self rowForIdentifier:active];
+        if (activeRow >= 0) {
+            [_themeTable selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)activeRow]
+                     byExtendingSelection:NO];
+            // A programmatic selection does not scroll; an imported theme would
+            // land selected past the fold.
+            [_themeTable scrollRowToVisible:activeRow];
+        }
+        _refreshingThemeList = NO;
     }
-    _refreshingThemeList = NO;
     BOOL builtIn = [AppTheme isBuiltInIdentifier:active];
     _editThemeButton.title = builtIn ? STR_SETTINGS_THEME_CUSTOMIZE : STR_SETTINGS_THEME_EDIT;
     [SettingsRowView setControl:_removeThemeButton enabled:!builtIn];
+    _removeThemeButton.toolTip = builtIn ? STR_SETTINGS_THEME_REMOVE_BUILT_IN_TIP : nil;
 
     [self refreshWaveformPreviews];
     // Every way onto the editor refreshes through here with _editorShown set.
@@ -341,13 +355,17 @@ static const double kWaveformGainDetentDB = 0.75;
 }
 
 - (void)themeFieldDidChange:(VibeSettingsLiveEffect)effect continuous:(BOOL)continuous {
+    BOOL forked = [self forkBuiltInForEdit];
     [AppSettings.sharedInstance currentThemeDidChangeContinuous:continuous];
     [self.playerController applySettingsLiveEffects:effect];
+    if (forked) {
+        [self refreshFromSettings]; // the list, the Name field and the title
+    }
     if (effect & (VibeSettingsLiveEffectWaveformStyle | VibeSettingsLiveEffectWaveformTheme)) {
         [self refreshWaveformPreviews];
     }
     // The toolbar alone, so a drag's ticks never re-read the page under it.
-    [(SettingsWindowController *)self.view.window.windowController updateThemeNavigation];
+    [(SettingsWindowController *)self.view.window.windowController updateNavigation];
 }
 
 #pragma mark - Waveform style, on both pages
@@ -451,26 +469,61 @@ static const double kWaveformGainDetentDB = 0.75;
 
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
     NSString *identifier = [self identifierForRow:row];
-    if ([tableColumn.identifier isEqualToString:@"icon"]) {
-        NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:tableColumn.identifier
-                inTableView:tableView imagePosition:NSImageOnly];
-        BOOL builtIn = identifier && [AppTheme isBuiltInIdentifier:identifier];
-        NSString *kind = builtIn ? STR_SETTINGS_THEME_GROUP_BUILT_IN : STR_SETTINGS_THEME_GROUP_USER;
-        cell.imageView.image = identifier ? [NSImage imageWithSystemSymbolName:builtIn ? @"paintpalette" : @"person"
-                accessibilityDescription:kind] : nil;
-        cell.toolTip = identifier ? kind : nil;
-        return cell;
-    }
     if (!identifier) {
         return [SettingsRowView listGroupCellWithIdentifier:kThemeGroupCellIdentifier inTableView:tableView title:
                 (row == 0 ? STR_SETTINGS_THEME_GROUP_BUILT_IN : STR_SETTINGS_THEME_GROUP_USER)];
     }
     NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:kThemeCellIdentifier
-                                                        inTableView:tableView imagePosition:NSNoImage];
+                                                        inTableView:tableView imagePosition:NSImageLeft];
     cell.textField.stringValue =
             [AppSettings.sharedInstance displayNameForThemeIdentifier:identifier] ?: identifier;
+    cell.imageView.image = [self swatchForThemeIdentifier:identifier dark:tableView.isDark];
     cell.toolTip = cell.textField.stringValue;
     return cell;
+}
+
+// The theme at a glance: its window color behind three bars of its waveform
+// color. Only the active theme changes, so it is drawn from its working record
+// every time and its cached entries dropped; every other theme's is cached.
+- (NSImage *)swatchForThemeIdentifier:(NSString *)identifier dark:(BOOL)dark {
+    AppSettings *settings = AppSettings.sharedInstance;
+    NSString *key = [identifier stringByAppendingString:dark ? @"|dark" : @"|light"];
+    BOOL active = [identifier isEqualToString:settings.activeThemeIdentifier];
+    if (active) {
+        [_swatches removeObjectForKey:[identifier stringByAppendingString:@"|dark"]];
+        [_swatches removeObjectForKey:[identifier stringByAppendingString:@"|light"]];
+    } else if (_swatches[key]) {
+        return _swatches[key];
+    }
+    AppTheme *theme = active ? settings.currentTheme
+            : [[AppTheme alloc] initWithRecord:[settings recordForThemeIdentifier:identifier]];
+    NSColor *fill = VibeWindowBackgroundTakesColor(theme.windowBackgroundStyle)
+            ? [theme displayColorForBase:kVibeThemeColorWindowBackground dark:dark]
+            : [theme.windowTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM]
+            ? [theme displayColorForBase:kVibeThemeColorWindowTint dark:dark]
+            : [NSColor colorWithWhite:dark ? 0.2 : 0.92 alpha:1];
+    NSColor *bars = [WaveformTheme themeForAppTheme:theme isDark:dark artworkColor:nil].playedColor;
+    NSColor *edge = [NSColor colorWithWhite:dark ? 1 : 0 alpha:0.2];
+    NSImage *swatch = [NSImage imageWithSize:NSMakeSize(16, 16) flipped:NO drawingHandler:^BOOL(NSRect rect) {
+        NSBezierPath *tile = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(rect, 0.5, 0.5)
+                                                             xRadius:4 yRadius:4];
+        [fill setFill];
+        [tile fill];
+        [edge setStroke];
+        [tile stroke];
+        [bars setFill];
+        const CGFloat heights[] = {0.45, 0.8, 0.55};
+        for (int i = 0; i < 3; i++) {
+            CGFloat height = heights[i] * 11;
+            NSRectFill(NSMakeRect(4 + i * 3.25, NSMidY(rect) - height / 2, 2, height));
+        }
+        return YES;
+    }];
+    if (!active) {
+        if (!_swatches) _swatches = [NSMutableDictionary dictionary];
+        _swatches[key] = swatch;
+    }
+    return swatch;
 }
 
 - (NSTableRowView *)tableView:(NSTableView *)tableView rowViewForRow:(NSInteger)row {
@@ -543,7 +596,7 @@ static const double kWaveformGainDetentDB = 0.75;
         return;
     }
     [self activateThemeWithIdentifier:identifier];
-    [self showThemeEditorForActiveTheme];
+    [self setEditorShown:YES];
     [self.view.window makeFirstResponder:_nameField];
     [_nameField selectText:nil];
 }
@@ -587,7 +640,7 @@ static const double kWaveformGainDetentDB = 0.75;
         ![selected isEqualToString:AppSettings.sharedInstance.activeThemeIdentifier]) {
         [self activateThemeWithIdentifier:selected];
     }
-    [self showThemeEditorForActiveTheme];
+    [(SettingsWindowController *)self.view.window.windowController showThemeEditor];
 }
 
 #pragma mark - Import and export
@@ -727,7 +780,7 @@ static const double kWaveformGainDetentDB = 0.75;
     AppSettings.sharedInstance.windowAppearanceStyle =
             _appearancePopUp.selectedItem.representedObject;
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
-    [(SettingsWindowController *)self.view.window.windowController updateThemeNavigation];
+    [(SettingsWindowController *)self.view.window.windowController updateNavigation];
 }
 
 @end

@@ -5,6 +5,7 @@
 
 #import "MainPlayerController+Convert.h"
 #import "MainPlayerControllerInternal.h"
+#import "MainPlayerController+PlayerEvents.h"
 
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
@@ -123,7 +124,7 @@
     // duplicate made current mid-encode would otherwise be swapped out from
     // under the player with no replay.
     BOOL wasCurrent = [rows containsIndex:currentRow];
-    VibePendingPlaybackIntent intent;
+    VibePendingPlaybackIntent intent = {0};
     BOOL wasLoaded = wasCurrent && [self.audioPlayer getPlaybackIntent:&intent
                                                forTrack:self.playlistController.currentTrack];
 
@@ -152,12 +153,9 @@
     }
 
     if (wasLoaded) {
-        // Or Now Playing rewinds to 0 through the replay's Loading gap.
-        self.convertSwapResumeTrack = converted;
-        self.convertSwapResumePosition = intent.position;
         // The entry is already swapped, so didStartPlaying:'s identity guard
         // passes and the per-track refresh comes free.
-        [self.audioPlayer play:converted atPosition:intent.position startPaused:intent.paused];
+        [self replayTrack:converted intent:intent];
     }
     else if (wasCurrent) {
         // Parked: nothing to replay, but the header describes this row.

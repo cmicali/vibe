@@ -108,9 +108,9 @@ static const NSInteger kVibeCrossfadeMaxMilliseconds = 3000;
 - (void)setAudioFXEnabled:(BOOL)enabled;
 
 // Settings > Playback > Detect BPM automatically, both platforms, default
-// YES. NO skips tempo detection. A file scanned while off caches no BPM, so
-// re-enabling reaches only uncached files. The loader is told through its
-// analysis provider rather than reading this. Key detection is macOS-only
+// YES. NO skips tempo detection. A file decoded while off is decoded again
+// when next asked for with it on (the waveform cache's bpmAnalyzed). The
+// loader is told through its analysis provider rather than reading this. Key detection is macOS-only
 // (analyzeKey, Mac/AppSettings+Mac.h).
 - (BOOL)analyzeBPM;
 - (void)setAnalyzeBPM:(BOOL)analyze;

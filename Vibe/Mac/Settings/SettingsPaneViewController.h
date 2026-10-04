@@ -97,6 +97,23 @@ static const CGFloat kPanePadding = 20;
 // store-writing verbs run it.
 - (void)refreshSettingsAndPaneSize;
 
+// The sidebar's search. A pane matches on its own title or on a searchable
+// row's title, caption or section header, ignoring case and diacritics.
+- (BOOL)matchesSearch:(NSString *)query;
+- (NSArray<SettingsRowView *> *)rowsMatchingSearch:(NSString *)query;
+// Every row not hidden itself; a pane whose section hides for another reason
+// than a page swap excludes it here.
+- (BOOL)isRowSearchable:(SettingsRowView *)row;
+// Marks the matching rows (nil clears) and, on screen, reveals the first.
+- (void)setSearchHighlight:(nullable NSString *)query;
+@property (readonly, nonatomic, copy, nullable) NSString *searchQuery;
+// Scrolls the first marked row into view; the pane's appearance repeats it.
+- (void)revealSearchHits;
+
+// A pane that keeps its own undo stack; Edit > Undo reaches it while the pane
+// is selected.
+@property (readonly, nonatomic, nullable) NSUndoManager *paneUndoManager;
+
 @end
 
 NS_ASSUME_NONNULL_END

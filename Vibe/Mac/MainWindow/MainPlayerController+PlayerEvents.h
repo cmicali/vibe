@@ -18,6 +18,11 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @interface MainPlayerController (PlayerEvents) <AudioPlayerDelegate, CloudTransferRegistryObserver>
+
+// Reopens the current track where the intent left it, paused or playing,
+// through the replay resume hint (the convert swap, an MP3 decoder change).
+- (void)replayTrack:(AudioTrack *)track intent:(VibePendingPlaybackIntent)intent;
+
 @end
 
 NS_ASSUME_NONNULL_END

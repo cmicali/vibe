@@ -23,8 +23,6 @@ static const CGFloat kAppearancePopUpWidth = 220;
 
 @interface SettingsAppearanceViewController () <NSTableViewDataSource, NSTableViewDelegate> {
     NSView *_detailContainer;
-    NSButton *_duplicateButton;
-    SettingsRowView *_builtInRow;
     NSStackView *_editorStack;
     SettingsSectionView *_transportSection, *_timeSection;
     SettingsRowView *_infoFontRow;
@@ -52,7 +50,8 @@ static const CGFloat kAppearancePopUpWidth = 220;
     NSPopUpButton *_modePopUp;
     NSPopUpButton *_dockIconPopUp;
     VibeSwitch *_appIconShapeSwitch;
-    VibeSwitch *_customCornerRadiusSwitch;
+    NSPopUpButton *_cornerRadiusPopUp;
+    NSStackView *_cornerRadiusCluster;
     NSPopUpButton *_buttonGradientPopUp;
     // The image fields' preview clusters by field key (kVibeThemeImage*).
     NSMutableDictionary<NSString *, NSButton *> *_imagePreviews;
@@ -64,8 +63,8 @@ static const CGFloat kAppearancePopUpWidth = 220;
     NSMutableDictionary<NSString *, NSArray<SettingsRowView *> *> *_buttonImageRows;
     VibeSwitch *_playlistDurationSwitch;
     // The playlist columns' text colors by pair base.
-    NSMutableDictionary<NSString *, VibeSwitch *> *_playlistColorSwitches;
-    NSMutableDictionary<NSString *, SettingsRowView *> *_playlistColorRows;
+    NSMutableDictionary<NSString *, NSPopUpButton *> *_playlistColorPopUps;
+    NSMutableDictionary<NSString *, NSStackView *> *_playlistColorPairs;
     // Every Dark/Light well pair, for Single Mode's collapse to one well.
     NSMutableArray<NSStackView *> *_darkLightPairs;
     // Every themed color well → its pair's base key, side and effect.
@@ -114,6 +113,10 @@ static const CGFloat kAppearancePopUpWidth = 220;
 
 // Copies the active working record, built-in changes included, and edits it.
 - (IBAction)duplicateTheme:(nullable id)sender;
+
+// The editor's first edit of a built-in copies it into a new active theme.
+// Answers whether it did; every edit path runs it before persisting.
+- (BOOL)forkBuiltInForEdit;
 
 @end
 

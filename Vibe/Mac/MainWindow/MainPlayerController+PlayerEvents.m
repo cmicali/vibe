@@ -109,10 +109,17 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [self performPerTrackRefreshForStartedTrack:track];
 }
 
+- (void)replayTrack:(AudioTrack *)track intent:(VibePendingPlaybackIntent)intent {
+    // Or Now Playing rewinds to 0 through the replay's Loading gap.
+    self.replayResumeTrack = track;
+    self.replayResumePosition = intent.position;
+    [self.audioPlayer play:track atPosition:intent.position startPaused:intent.paused];
+}
+
 // Callers own didStartPlaying:'s identity guard: the playlist must already
 // point at the started track.
 - (void)performPerTrackRefreshForStartedTrack:(AudioTrack *)track {
-    self.convertSwapResumeTrack = nil; // the live position publishes from here
+    self.replayResumeTrack = nil; // the live position publishes from here
     // First, so a quick second Next finds the park. nil past the end drops
     // it. The prefetch's registration preempts any background transfer.
     [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];

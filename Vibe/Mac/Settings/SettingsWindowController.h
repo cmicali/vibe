@@ -33,9 +33,22 @@ NS_ASSUME_NONNULL_BEGIN
 // The same funnel in content points, top-anchored.
 - (void)applyContentSize:(NSSize)size;
 
-// Re-reads the Appearance pane's navigation and history state into the
-// toolbar. Called on every page swap and pane switch.
-- (void)updateThemeNavigation;
+// Records the location in the back/forward history and re-reads the
+// Appearance pane's state into the toolbar. Called on every page swap and
+// pane switch.
+- (void)updateNavigation;
+
+// The toolbar's back/forward pill, across panes and the theme editor.
+- (BOOL)canNavigateForward:(BOOL)forward;
+- (void)navigateForward:(BOOL)forward;
+
+// Edit > Undo's target while the window is key: the theme history on
+// Appearance, the selected pane's own undo stack elsewhere.
+- (IBAction)undo:(nullable id)sender;
+
+// Types query into the sidebar's search field, as a user would; answers the
+// identifiers of the panes left in the sidebar.
+- (NSArray<NSString *> *)searchSettingsFor:(NSString *)query;
 
 @end
 

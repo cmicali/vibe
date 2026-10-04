@@ -13,6 +13,7 @@
 #import "MainWindow.h"             // FileDropDelegate, adopted below
 #import "PitchControlPanel.h"      // PitchControlPanelDelegate, adopted below
 #import "EqualizerLevelSource.h"
+#import "AudioWaveformLoader.h"    // VibeWaveformAnalysis, held below
 
 @class ArtworkDisplayController;
 @class AudioTrack;
@@ -45,9 +46,9 @@ NS_ASSUME_NONNULL_BEGIN
     __weak AudioTrack*          _lastReloadedTrack;
     PitchControlPanel*          _pitchPanel;
     ArtworkDisplayController*   _artworkController;
-    // The waveform provider's bands answer as of the last style change, so
-    // only the change into a style reading them asks for the track again.
-    BOOL                        _waveformBandsWanted;
+    // The waveform provider's answer as of the last style or detection change,
+    // so only a widened ask (the bands, a tempo, a key) requests the track again.
+    VibeWaveformAnalysis        _waveformAnalysisWanted;
 }
 
 @property (readwrite, strong) OutputDevicesMenuController *devicesMenuController;
@@ -76,12 +77,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property (copy, nullable) void (^conversionUndoRedoSettledHandler)(
         BOOL committed, NSString *_Nullable reason);
 
-// The convert swap's resume hint, so Now Playing in the swap's Loading gap
-// shows the resume position rather than 0. Written at the swap, read gated on
+// A same-track replay's resume hint (the convert swap, an MP3 decoder change),
+// so Now Playing in its Loading gap shows the resume position rather than 0.
+// Written at the replay, read gated on
 // track identity, cleared by the per-track refresh. Weak, so a replaced
 // playlist dissolves it.
-@property (weak, nullable) AudioTrack *convertSwapResumeTrack;
-@property NSTimeInterval convertSwapResumePosition;
+@property (weak, nullable) AudioTrack *replayResumeTrack;
+@property NSTimeInterval replayResumePosition;
 
 #pragma mark - The refresh funnel
 

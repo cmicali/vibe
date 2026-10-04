@@ -36,6 +36,8 @@ static const CGFloat kShortcutColumnWidth = 120;
     NSString *_recordingIdentifier;
     id _recordingMonitor;
     NSArray<id> *_recordingObservers;
+    // Every write here is undoable through Edit > Undo while the pane shows.
+    NSUndoManager *_undoManager;
 }
 
 #pragma mark - Building
@@ -49,17 +51,22 @@ static const CGFloat kShortcutColumnWidth = 120;
     shortcutColumn.resizingMask = NSTableColumnNoResizing;
     _table.columnAutoresizingStyle = NSTableViewFirstColumnOnlyAutoresizingStyle;
     _table.target = self;
+    _table.action = @selector(tableClicked:);
     _table.doubleAction = @selector(recordShortcut:);
     SettingsRowView *listRow = [SettingsRowView rowWithTableView:_table rowCount:kShortcutListRowCount];
 
     _recordButton = [NSButton buttonWithTitle:STR_SETTINGS_SHORTCUTS_RECORD target:self action:@selector(recordShortcut:)];
     _clearButton = [NSButton buttonWithTitle:STR_BUTTON_CLEAR target:self action:@selector(clearShortcut:)];
     _resetAllButton = [NSButton buttonWithTitle:STR_SETTINGS_SHORTCUTS_RESET_ALL target:self action:@selector(resetAllShortcuts:)];
-    NSStackView *buttons = [NSStackView stackViewWithViews:@[_recordButton, _clearButton, _resetAllButton]];
+    // Reset All acts on the whole list, so it stands apart from the row's two.
+    NSStackView *buttons = [NSStackView stackViewWithViews:@[_recordButton, _clearButton]];
+    [buttons addView:_resetAllButton inGravity:NSStackViewGravityTrailing];
     buttons.spacing = 8;
     SettingsRowView *buttonRow = [SettingsRowView rowWithContentView:buttons];
 
     _captionLabel = [self wrappingLabelWithString:STR_SETTINGS_SHORTCUTS_EXPLAIN];
+    _captionLabel.toolTip = STR_SETTINGS_SHORTCUTS_LAYOUT_NOTE;
+    _undoManager = [[NSUndoManager alloc] init];
 
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithRows:@[
@@ -162,10 +169,14 @@ static const CGFloat kShortcutColumnWidth = 120;
     NSString *identifier = [self selectedIdentifier];
     BOOL recording = _recordingIdentifier != nil;
     NSDictionary *overrides = AppSettings.sharedInstance.shortcutOverrides;
+    BOOL hasShortcut = identifier && VibeShortcutEffective(identifier, overrides) != kVibeShortcutNone;
     [SettingsRowView setControl:_recordButton enabled:identifier && !recording];
-    [SettingsRowView setControl:_clearButton enabled:identifier && !recording
-            && VibeShortcutEffective(identifier, overrides) != kVibeShortcutNone];
+    [SettingsRowView setControl:_clearButton enabled:hasShortcut && !recording];
     [SettingsRowView setControl:_resetAllButton enabled:!recording && overrides.count > 0];
+    _recordButton.toolTip = identifier ? nil : STR_SETTINGS_SHORTCUTS_SELECT_TIP;
+    _clearButton.toolTip = !identifier ? STR_SETTINGS_SHORTCUTS_SELECT_TIP
+            : hasShortcut ? nil : STR_SETTINGS_SHORTCUTS_NONE_TIP;
+    _resetAllButton.toolTip = overrides.count > 0 ? nil : STR_SETTINGS_SHORTCUTS_DEFAULTS_TIP;
     NSString *caption = recording
             ? [NSString stringWithFormat:STR_SETTINGS_SHORTCUTS_RECORDING, [self labelForCommand:_recordingIdentifier]]
             : _status ?: STR_SETTINGS_SHORTCUTS_EXPLAIN;
@@ -176,6 +187,37 @@ static const CGFloat kShortcutColumnWidth = 120;
 }
 
 #pragma mark - Actions
+
+- (NSUndoManager *)paneUndoManager {
+    return _undoManager;
+}
+
+// Every write runs through here: one undo entry restoring the whole override
+// set from before it, so a reassignment's loser comes back with the winner.
+- (void)undoablyWriteShortcuts:(void (^)(void))write {
+    NSDictionary *previous = AppSettings.sharedInstance.shortcutOverrides;
+    write();
+    if (![previous isEqualToDictionary:AppSettings.sharedInstance.shortcutOverrides]) {
+        [[_undoManager prepareWithInvocationTarget:self] restoreShortcutOverrides:previous];
+        [_undoManager setActionName:STR_SETTINGS_SHORTCUTS_UNDO_ACTION];
+    }
+}
+
+- (void)restoreShortcutOverrides:(NSDictionary *)overrides {
+    [self endRecording];
+    [self undoablyWriteShortcuts:^{ [self.playerController setShortcutOverrides:overrides]; }];
+    _status = nil;
+    [self refreshFromSettings];
+}
+
+// A click on a command's shortcut records it, as System Settings does.
+- (void)tableClicked:(id)sender {
+    if (_table.clickedColumn == [_table columnWithIdentifier:kShortcutColumn]
+            && [self identifierForRow:_table.clickedRow]
+            && _table.clickedRow == _table.selectedRow) {
+        [self recordShortcut:sender];
+    }
+}
 
 - (void)recordShortcut:(id)sender {
     NSString *identifier = [self selectedIdentifier];
@@ -228,8 +270,14 @@ static const CGFloat kShortcutColumnWidth = 120;
         return;
     }
     VibeShortcut shortcut = VibeShortcutMake(VibeShortcutCanonicalKeyCode(event.keyCode), modifiers);
-    NSString *loser = nil;
-    switch ([self.playerController assignShortcut:shortcut toCommand:identifier loser:&loser]) {
+    __block NSString *loser = nil;
+    __block VibeShortcutAssignment assignment;
+    [self undoablyWriteShortcuts:^{
+        NSString *taken = nil;
+        assignment = [self.playerController assignShortcut:shortcut toCommand:identifier loser:&taken];
+        loser = taken;
+    }];
+    switch (assignment) {
         case VibeShortcutAssignmentReserved:
             _status = [NSString stringWithFormat:STR_SETTINGS_SHORTCUTS_RESERVED,
                                                  [MainMenuBuilder displayStringForShortcut:shortcut]];
@@ -263,14 +311,16 @@ static const CGFloat kShortcutColumnWidth = 120;
 - (void)clearShortcut:(id)sender {
     NSString *identifier = [self selectedIdentifier];
     if (identifier) {
-        [self.playerController assignShortcut:kVibeShortcutNone toCommand:identifier loser:NULL];
+        [self undoablyWriteShortcuts:^{
+            [self.playerController assignShortcut:kVibeShortcutNone toCommand:identifier loser:NULL];
+        }];
         _status = nil;
         [self refreshFromSettings];
     }
 }
 
 - (void)resetAllShortcuts:(id)sender {
-    [self.playerController resetShortcuts];
+    [self undoablyWriteShortcuts:^{ [self.playerController resetShortcuts]; }];
     _status = nil;
     [self refreshFromSettings];
 }

@@ -288,7 +288,7 @@ static const double kVibeWaveformGainMaxDB = 12;
 // Not bitPerfectOutput, which hosts no varispeed for the fader to drive.
 - (BOOL)pitchControlAllowed;
 
-// NO skips key detection; same caching caveat as the shared analyzeBPM.
+// NO skips key detection; re-enabling re-decodes as the shared analyzeBPM does.
 // Defaults off: detection is right about half the time on real dance music
 // (Audio/Analysis/AGENTS.md).
 - (BOOL)analyzeKey;
