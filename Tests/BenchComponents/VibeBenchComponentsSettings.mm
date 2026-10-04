@@ -50,6 +50,19 @@ static NSString *VibeBenchComponentsSettingsUserTheme(void) {
     return VibeBenchComponentsSettingsUserThemes(1);
 }
 
+// Sixty ticks of the slider in `ivar`, 1/120 s apart with the main queue
+// serviced between them, then a beat for anything a tick left queued.
+static void VibeBenchComponentsSettingsDrag(SettingsAppearanceViewController *pane, NSString *ivar,
+                                            double from, double step) {
+    NSSlider *slider = [pane valueForKey:ivar];
+    for (int i = 0; i < 60; i++) {
+        slider.doubleValue = from + i * step;
+        [NSApp sendAction:slider.action to:slider.target from:slider];
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:1.0 / 120]];
+    }
+    [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.1]];
+}
+
 static void VibeBenchComponentsSettingsEnsureWindow(VibeBenchComponentsSettingsState *state) {
     [NSApplication sharedApplication];
     if (!state->controller) {
@@ -89,18 +102,28 @@ static void VibeBenchComponentsRegisterSettings(void) {
         }
     });
 
-    // The waveform gain slider dragged across sixty ticks: the setting, the
-    // levels effect (no player here) and the preview the pane redraws.
+    // The waveform gain slider dragged across sixty ticks at a 120 Hz mouse's
+    // pace, the main queue serviced between them as a drag's tracking loop
+    // does: the setting, the levels effect (no player here) and the preview
+    // the pane redraws. CPU, not wall, is the measure; the pace sets the wall.
     auto gain = std::make_shared<VibeBenchComponentsSettingsState>();
     VibeBenchComponentsAdd("settings", "waveform-gain-drag", "tick", [gain]() -> double {
         VibeBenchComponentsSettingsEnsureWindow(gain.get());
         return gain->appearance ? 60 : -1;
     }, [gain]() {
-        NSSlider *slider = [gain->appearance valueForKey:@"_waveformGainSlider"];
-        for (int i = 0; i < 60; i++) {
-            slider.doubleValue = -6 + i * 0.2;
-            [NSApp sendAction:slider.action to:slider.target from:slider];
-        }
+        VibeBenchComponentsSettingsDrag(gain->appearance, @"_waveformGainSlider", -6, 0.2);
+    });
+
+    // The theme editor's bar density slider dragged the same way over a user
+    // theme: each tick persists the theme and redraws the preview.
+    auto density = std::make_shared<VibeBenchComponentsSettingsState>();
+    VibeBenchComponentsAdd("settings", "theme-slider-drag", "tick", [density]() -> double {
+        VibeBenchComponentsSettingsEnsureWindow(density.get());
+        VibeBenchComponentsSettingsUserTheme();
+        [density->appearance setEditorShown:YES];
+        return density->appearance ? 60 : -1;
+    }, [density]() {
+        VibeBenchComponentsSettingsDrag(density->appearance, @"_waveformBarDensitySlider", 0.5, 0.025);
     });
 
     // Every pane but the two that read the player (Audio Output, Advanced),
