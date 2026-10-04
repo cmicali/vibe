@@ -110,12 +110,14 @@ static const double kWaveformGainDetentDB = 0.75;
             [SettingsRowView rowWithTitle:STR_SETTINGS_REOPEN_PLAYLIST
                                   caption:STR_SETTINGS_REOPEN_PLAYLIST_CAPTION
                                   control:_reopenPlaylistSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_DRAG_LABEL control:_waveformDragPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_ARTWORK_DRAG_LABEL control:_artworkDragPopUp],
+        ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_ALWAYS_ON_TOP
                                   caption:STR_SETTINGS_ALWAYS_ON_TOP_CAPTION control:_alwaysOnTopSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_LOCK_WINDOW_POSITION
                                   caption:STR_SETTINGS_LOCK_WINDOW_POSITION_CAPTION control:_lockWindowPositionSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_DRAG_LABEL control:_waveformDragPopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_ARTWORK_DRAG_LABEL control:_artworkDragPopUp],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_SYSTEM_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_DEFAULT_PLAYER_LABEL control:_defaultPlayerButton],

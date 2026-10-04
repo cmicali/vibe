@@ -617,8 +617,8 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYER_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_ALBUM_ART control:artPair],
-            [SettingsRowView rowWithContentView:[self waveformPreviewView]],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_STYLE control:_waveformPopUp],
+            [SettingsRowView rowWithContentView:[self waveformPreviewView]],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_BAR_DENSITY control:densityCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_BAR_WIDTH control:widthCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_COLOR control:_waveformThemePopUp],

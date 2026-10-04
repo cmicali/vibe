@@ -80726,7 +80726,7 @@
       "extractionState": "manual"
     },
     "settings.general.behavior_section": {
-      "comment": "Settings, General pane: heading above the rows for how the player behaves: reopening the playlist at launch, staying on top, locking its position and what dragging does.",
+      "comment": "Settings, General pane: heading above the rows for how the player behaves: reopening the playlist at launch and what dragging the waveform or the artwork does.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -88166,7 +88166,7 @@
       "extractionState": "manual"
     },
     "settings.general.window_section": {
-      "comment": "Settings: heading above the window rows — always on top and waveform drag in the General pane; window appearance, window controls and the Dock icon in the Appearance pane; the window's look in the theme editor. One key for all, the word being the same; the key keeps its historical settings.general prefix.",
+      "comment": "Settings: heading above the window rows — always on top and lock window position in the General pane; window appearance, window controls and the Dock icon in the Appearance pane; the window's look in the theme editor. One key for all, the word being the same; the key keeps its historical settings.general prefix.",
       "localizations": {
         "bg": {
           "stringUnit": {
