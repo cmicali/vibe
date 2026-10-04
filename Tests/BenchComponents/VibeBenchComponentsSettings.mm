@@ -182,6 +182,22 @@ static void VibeBenchComponentsRegisterSettings(void) {
         });
     }
 
+    // The window closed and opened again, parked off every display: opening
+    // settles every pane's size.
+    auto reopen = std::make_shared<VibeBenchComponentsSettingsState>();
+    VibeBenchComponentsAdd("settings", "reopen-window", "open", [reopen]() -> double {
+        VibeBenchComponentsSettingsEnsureWindow(reopen.get());
+        reopen->controller.window.alphaValue = 0;
+        return 10;
+    }, [reopen]() {
+        NSWindow *window = reopen->controller.window;
+        for (int i = 0; i < 10; i++) {
+            [window orderOut:nil];
+            [reopen->controller showWindow:nil];
+            [window setFrameOrigin:NSMakePoint(-30000, -30000)];
+        }
+    });
+
     // A query typed a letter at a time and cleared, five times over.
     auto search = std::make_shared<VibeBenchComponentsSettingsState>();
     VibeBenchComponentsAdd("settings", "search-typing", "keystroke", [search]() -> double {
