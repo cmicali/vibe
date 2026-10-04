@@ -116,6 +116,14 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     buttonRow.showsTopSeparator = NO;
 }
 
+// A folder appearing or vanishing is rare and each probe can block a
+// worker on a provider root, so the probe runs once per appearance; every
+// other refresh redraws from its answer.
+- (void)viewWillAppear {
+    [super viewWillAppear];
+    [self probeCommonFolders];
+}
+
 // Observed only while on screen: the pane outlives the window, and each
 // appearance's refresh covers what changed while hidden.
 - (void)viewDidAppear {
@@ -148,7 +156,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     _folders = FolderAccessManager.sharedInstance.grantedFolders;
     [_tableView reloadData];
     [self updateRemoveButton];
-    [self refreshCommonFolderMenu];
+    [self rebuildCommonFolderMenu];
     NSString *albumArtSource = AppSettings.sharedInstance.useFolderArt ? kAlbumArtFolder : kAlbumArtFileOnly;
     [self selectValue:albumArtSource in:_albumArtPopUp];
     [self selectValue:@(AppSettings.sharedInstance.folderOpenSort) in:_folderSortPopUp];
@@ -161,8 +169,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
 }
 
 // Separate from rebuildCommonFolderMenu so the redraw cannot re-trigger the probe.
-- (void)refreshCommonFolderMenu {
-    [self rebuildCommonFolderMenu];
+- (void)probeCommonFolders {
     uint64_t generation = ++_commonFolderProbeGeneration;
     NSArray<NSString *> *paths = SettingsFilesViewController.commonFolderCandidatePaths;
     __weak SettingsFilesViewController *weakSelf = self;
