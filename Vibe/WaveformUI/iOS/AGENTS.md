@@ -50,7 +50,7 @@ The played/unplayed gradient boundary is the playhead marker, and it stays pinne
 
 **TRAP: keep the "did the span actually move" test in `syncLoadingTrackToProgress`.** It is the one relayout that can land mid-download, and a duration-0 relayout snaps an easing fill to its target; while the provider materializes the file progress is parked, so the test declines.
 
-**`cancelInteraction` ends a drag or pinch without seeking or discarding pixels.** A cursor change calls it for held scrubbers; reuse calls it through the content reset. The pending seek is dropped before disabling recognizers, since cancellation can send their end callbacks.
+**`cancelInteraction` ends a drag or pinch without seeking or discarding pixels.** A cursor change calls it for held scrubbers; reuse calls it through the content reset. The pending seek is dropped before disabling recognizers, since cancellation can send their end callbacks. A pinch still active afterward is ended explicitly through `endZoomGesture`, so a delayed cancel callback cannot skip the final bake or the shared zoom update.
 
 **Showing a loading indicator preserves an existing waveform.** Cell reuse clears the previous track explicitly; starting playback on a prepared page must keep its pixels. A positive transfer update creates the indicator if needed, ending its shimmer when a waveform is already drawn. The shell's `playbackLoading` keeps the shimmer through a slow open, including a non-transfer open; settlement or a cursor change clears it. Reuse clears that state too.
 

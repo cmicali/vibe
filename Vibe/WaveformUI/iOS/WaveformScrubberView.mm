@@ -566,7 +566,10 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     [_scroll setContentOffset:_scroll.contentOffset animated:NO];
     _scroll.scrollEnabled = NO;
     _pinch.enabled = NO;
-    _isPinching = NO;
+    // Cancellation need not deliver its recognizer callback synchronously.
+    if (_isPinching) {
+        [self endZoomGesture];
+    }
     _scroll.scrollEnabled = self.waveform != nil;
     _pinch.enabled = YES;
     [self parkContentOffsetAtProgress];

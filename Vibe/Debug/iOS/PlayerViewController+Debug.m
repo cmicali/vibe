@@ -73,6 +73,7 @@
         @"waveformScrollGeom": _waveformView.scrollGeometry ?: @[],
         @"waveformBaked": @(_waveformView.isShowingBakedWaveform),
         @"isScrubbing": @(_waveformView.isScrubbing),
+        @"isPinching": @([[_waveformView valueForKey:@"isPinching"] boolValue]),
         // The request is persisted and survives rotation; the effective one
         // is drawn. Differing means this geometry could not afford the depth.
         @"waveformZoomRequested": @(_waveformZoom),
@@ -109,6 +110,9 @@
             @"waveformComplete": @([_waveformCoordinator isCompleteAtIndex:index]),
             @"waveformPrepared": @(_preparedWaveforms[@(index)].isShowingBakedWaveform),
             @"waveformBaked": @(cell.waveformView.isShowingBakedWaveform),
+            @"waveformBakeCurrent": @(cell.waveformView.isShowingBakedWaveform
+                    && [[cell.waveformView valueForKey:@"bakedEpoch"]
+                            isEqual:[cell.waveformView valueForKey:@"bakeEpoch"]]),
             @"waveformArriving": @(cell.waveformView.isAnimatingWaveformArrival),
         }];
     }
@@ -156,15 +160,24 @@
     }
     if ([scenario isEqualToString:@"interaction"]) {
         WaveformScrubberView *view = _waveformView;
+        CGFloat originalZoom = view.visibleFraction;
         [view beginZoomGesture];
+        view.visibleFraction = originalZoom > 0.5 ? originalZoom / 2 : originalZoom * 1.5;
+        CGFloat cancelledZoom = view.visibleFraction;
+        NSUInteger bakeRequest = [[view valueForKey:@"bakeRequest"] unsignedIntegerValue];
         [view setValue:@YES forKey:@"seekPending"];
         [self playback:_playback didChangeCurrentIndexFromIndex:current];
         BOOL cancelled = ![[view valueForKey:@"isPinching"] boolValue]
                 && ![[view valueForKey:@"seekPending"] boolValue] && _pagesView.scrollEnabled;
         BOOL kept = view.isShowingBakedWaveform;
+        BOOL zoomSettled = _waveformZoom == cancelledZoom;
+        BOOL bakeRequested = [[view valueForKey:@"bakeRequest"] unsignedIntegerValue] > bakeRequest;
         [view setValue:@NO forKey:@"seekPending"];
         [view endZoomGesture];
-        completion(@{@"ok": @(cancelled && kept), @"gestureCancelled": @(cancelled), @"waveformKept": @(kept)});
+        [self debugSetWaveformZoom:originalZoom];
+        completion(@{@"ok": @(cancelled && kept && zoomSettled && bakeRequested),
+                     @"gestureCancelled": @(cancelled), @"waveformKept": @(kept),
+                     @"zoomSettled": @(zoomSettled), @"bakeRequested": @(bakeRequested)});
         return;
     }
     if ([scenario isEqualToString:@"loading"]) {
@@ -173,19 +186,61 @@
         BOOL kept = _waveformView.isShowingBakedWaveform;
         [_waveformView setLoadingProgress:-1];
         BOOL held = [_waveformView valueForKey:@"loadingIndicator"] != nil;
+        TrackPageCell *livePage = _boundPage;
+        TrackPageCell *returning = [[TrackPageCell alloc] initWithFrame:livePage.frame];
+        NSIndexPath *path = [NSIndexPath indexPathForItem:(NSInteger)current inSection:0];
+        [self collectionView:_pagesView willDisplayCell:returning forItemAtIndexPath:path];
+        BOOL lateAppearanceLoading = returning.waveformView.playbackLoading;
+        // The cell misses settlement, then appears again without reuse.
+        returning.waveformView.playbackLoading = YES;
         [self playbackDidFinishLoading:_playback];
+        [self collectionView:_pagesView willDisplayCell:returning forItemAtIndexPath:path];
+        BOOL reappearanceCleared = !returning.waveformView.playbackLoading;
+        [self bindChromeToCell:livePage];
+        [returning.waveformView prepareForWaveformLoad];
         BOOL ended = [_waveformView valueForKey:@"loadingIndicator"] == nil;
         [self playbackDidBeginLoading:_playback];
         [self playback:_playback didChangeCurrentIndexFromIndex:current];
         BOOL cancelled = !_waveformView.playbackLoading
                 && [_waveformView valueForKey:@"loadingIndicator"] == nil;
-        completion(@{@"ok": @(visible && kept && held && ended && cancelled), @"loadingVisible": @(visible),
+        completion(@{@"ok": @(visible && kept && held && ended && cancelled && lateAppearanceLoading && reappearanceCleared), @"loadingVisible": @(visible),
                      @"waveformKept": @(kept), @"loadingHeldUntilSettlement": @(held),
-                     @"loadingEnded": @(ended), @"trackChangeClearedLoading": @(cancelled)});
+                     @"loadingEnded": @(ended), @"trackChangeClearedLoading": @(cancelled),
+                     @"lateAppearanceLoading": @(lateAppearanceLoading), @"reappearanceCleared": @(reappearanceCleared)});
+        return;
+    }
+    if ([scenario isEqualToString:@"work_inputs"]) {
+        NSMutableDictionary *snapshots = [_waveformCoordinator valueForKey:@"snapshots"];
+        NSMutableDictionary *fractions = [_waveformCoordinator valueForKey:@"percentLoaded"];
+        NSDictionary *savedSnapshots = snapshots.copy, *savedFractions = fractions.copy;
+        __block BOOL partialRefused = NO, missingRefused = NO;
+        @try {
+            fractions[@(current)] = @0.5;
+            [self debugCheckWaveformPreparation:@"work" completion:^(NSDictionary *result) {
+                partialRefused = result[@"error"] != nil && [fractions[@(current)] floatValue] == 0.5f;
+            }];
+            [snapshots removeObjectForKey:@(current)];
+            [fractions removeObjectForKey:@(current)];
+            [self debugCheckWaveformPreparation:@"work" completion:^(NSDictionary *result) {
+                missingRefused = result[@"error"] != nil && !snapshots[@(current)] && !fractions[@(current)];
+            }];
+        }
+        @finally {
+            [snapshots setDictionary:savedSnapshots];
+            [fractions setDictionary:savedFractions];
+        }
+        completion(@{@"ok": @(partialRefused && missingRefused),
+                     @"partialRefusedWithoutMutation": @(partialRefused),
+                     @"missingRefusedWithoutMutation": @(missingRefused)});
         return;
     }
     if ([scenario isEqualToString:@"work"]) {
         CodableAudioWaveform *waveform = [_waveformCoordinator snapshotAtIndex:current];
+        if (!waveform || ![_waveformCoordinator isCompleteAtIndex:current]
+                || _waveformCoordinator.targetIndex != current) {
+            completion(@{@"error": @"Wait for the current waveform to finish loading"});
+            return;
+        }
         CFTimeInterval start = CACurrentMediaTime();
         for (NSUInteger i = 0; i < 1000; i++) {
             [(id<AudioWaveformCacheDelegate>)_waveformCoordinator audioWaveform:waveform
@@ -284,7 +339,7 @@
         });
         return;
     }
-    completion(@{@"error": @"Expected refresh, transition, artwork, widget, interaction, loading or work"});
+    completion(@{@"error": @"Expected refresh, transition, artwork, widget, interaction, loading, work or work_inputs"});
 }
 
 - (void)debugSetWaveformZoom:(CGFloat)fraction {

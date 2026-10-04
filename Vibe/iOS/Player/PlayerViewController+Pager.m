@@ -226,6 +226,11 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     [page.waveformView syncWaveformStyle];
     [page.waveformView syncWaveformTheme];
 
+    BOOL loading = _playbackLoadingTrack && index == _playlist.currentIndex
+            && [_playlist trackAtIndex:index] == _playbackLoadingTrack;
+    if (page.waveformView.playbackLoading != loading) {
+        page.waveformView.playbackLoading = loading;
+    }
     [self hydrateWaveformInCell:page atIndex:index];
     if (index == _playlist.currentIndex && ![_waveformCoordinator isCompleteAtIndex:index]) {
         [self requestWaveformForIndex:index];
