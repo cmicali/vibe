@@ -335,6 +335,11 @@ static const CGFloat kInlineTitleInset = 10;
     if ([[self layoutSignature] isEqualToString:_measuredLayoutSignature]) {
         return;
     }
+    // Rows shown or hidden on screen: a live search marks what just appeared.
+    _searchHitsQuery = nil;
+    if (_searchQuery) {
+        [self applySearchMarks];
+    }
     // Capture the old frames before hidden changes replace the stack's
     // constraints, so the animated pass below moves rows with the window.
     [self.view layoutSubtreeIfNeeded];
