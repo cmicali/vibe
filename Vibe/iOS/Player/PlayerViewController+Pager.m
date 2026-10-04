@@ -100,6 +100,10 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
             [cell.waveformView showWaveform:snapshot
                                   animated:![_waveformCoordinator isCompleteAtIndex:index]];
         }
+        if (cell && index == _playlist.currentIndex) {
+            [_preparedWaveforms[@(index)] removeFromSuperview];
+            [_preparedWaveforms removeObjectForKey:@(index)];
+        }
         return;
     }
     NSURL *url = [_playlist trackAtIndex:index].url;
@@ -130,15 +134,15 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     NSUInteger first = current > 0 ? current - 1 : 0;
     NSUInteger last = MIN(current + 1, _playlist.count - 1);
     for (NSNumber *key in _preparedWaveforms.allKeys) {
-        if (key.unsignedIntegerValue == current
-                || key.unsignedIntegerValue < first || key.unsignedIntegerValue > last) {
+        // Next updates the cursor before the arriving cell can adopt its image.
+        if (key.unsignedIntegerValue < first || key.unsignedIntegerValue > last) {
             [_preparedWaveforms[key] removeFromSuperview];
             [_preparedWaveforms removeObjectForKey:key];
         }
     }
     for (NSUInteger index = first; index <= last; index++) {
         AudioTrack *track = [_playlist trackAtIndex:index];
-        if (index != current && !WaveformWaitsForOpen(track.url)) {
+        if (index != current) {
             [_waveformCoordinator prefetchIndex:index track:track];
         }
         if (index == current || ![_waveformCoordinator isCompleteAtIndex:index]) {
@@ -428,6 +432,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
         }
         [self->_artHeldPages addIndex:index];
         [self refreshPageAtIndex:index];
+        [self refreshWaveformWindow];
         if ([self->_playlist isCurrentTrack:track]) {
             [self->_playback publishNowPlaying];
         }
