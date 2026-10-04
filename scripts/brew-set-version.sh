@@ -47,8 +47,8 @@ RELEASE="$(gh api "repos/$REPO/releases/tags/v$VERSION")" || {
     echo "error: no published release v$VERSION on $REPO" >&2
     exit 1
 }
-[[ "$(jq -r '.prerelease' <<< "$RELEASE")" == "false" ]] || {
-    echo "error: v$VERSION is a prerelease — the tap only carries stable releases" >&2
+[[ "$(jq -r '.prerelease == false and .draft == false' <<< "$RELEASE")" == "true" ]] || {
+    echo "error: v$VERSION is not a published stable release — the tap refuses drafts and prereleases" >&2
     exit 1
 }
 
