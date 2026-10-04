@@ -577,8 +577,19 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     [self scrollToCurrentPageAnimated:NO];
 }
 
+// Inserted, not reloaded: a reload re-dequeues the visible pages, which blanks
+// their waveforms and regrows them. Only when the view's count is the one
+// before the append; one not yet counted already reads the new count.
 - (void)playback:(PlaybackController *)playback didAppendTracksAtIndexes:(NSIndexSet *)indexes {
-    [_pagesView reloadData];
+    if ((NSUInteger)[_pagesView numberOfItemsInSection:0] + indexes.count != _playlist.count) {
+        [_pagesView reloadData];
+        return;
+    }
+    NSMutableArray<NSIndexPath *> *paths = [NSMutableArray arrayWithCapacity:indexes.count];
+    [indexes enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
+        [paths addObject:[NSIndexPath indexPathForItem:(NSInteger)index inSection:0]];
+    }];
+    [_pagesView insertItemsAtIndexPaths:paths];
 }
 
 // No cursor-move handler, and no art discarded on a move: the departing page

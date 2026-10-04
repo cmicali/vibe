@@ -54,17 +54,6 @@ NS_ASSUME_NONNULL_BEGIN
 // page-swipe surface.
 @property (nonatomic, readonly, getter=isScrubbingEnabled) BOOL scrubbingEnabled;
 
-// The settled fast path is up. Diagnostic (dump_state).
-@property (nonatomic, readonly) BOOL isShowingBakedWaveform;
-
-// Points past either end: positive past the start, negative past the end.
-// Diagnostic (dump_state).
-@property (nonatomic, readonly) CGFloat overscroll;
-
-// {offset, min, max, contentWidth}, for the debug dump: tells "resting at an
-// end" from "pinned against one", which overscroll cannot.
-@property (nonatomic, readonly) NSArray<NSNumber *> *scrollGeometry;
-
 // So the pager can require it to fail; the inner scroll view owns it.
 @property (nonatomic, readonly) UIPanGestureRecognizer *scrubPanRecognizer;
 
@@ -96,8 +85,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The mac view's contract. Every delivery, partial or complete, goes through
 // showWaveform:, and the view decides the entrance from its own state: the
-// first bitmap grows from the midline, the complete one crossfades over a
-// partial one, and a streaming load's partials swap at a steady pace.
+// first bitmap grows from the midline, the complete one grows from a partial
+// one's heights to its own, and a streaming load's partials swap at a steady pace.
 - (void)prepareForWaveformLoad;
 - (void)showWaveform:(CodableAudioWaveform *)waveform;
 

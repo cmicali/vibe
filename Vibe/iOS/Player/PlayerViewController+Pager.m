@@ -83,14 +83,22 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     }
 }
 
+// A neighbor whose file is dataless shows nothing: requestWaveformForIndex:
+// skips it and only the current page's open would ever take an indicator
+// down. Its open, once current, shows one.
 - (void)hydrateWaveformInCell:(TrackPageCell *)cell atIndex:(NSUInteger)index {
     CodableAudioWaveform *snapshot = [_waveformCoordinator snapshotAtIndex:index];
     if (snapshot) {
         [cell.waveformView showWaveform:snapshot];
+        return;
     }
-    else {
-        [cell.waveformView showLoadingIndicator];
+    NSURL *url = [_playlist trackAtIndex:index].url;
+    if (index != _playback.currentIndex && url && [NSURLUtil isDatalessFile:url]
+            && ![NSURLUtil isRemotePlaceholderFile:url]) {
+        [cell.waveformView hideLoadingIndicator];
+        return;
     }
+    [cell.waveformView showLoadingIndicator];
 }
 
 #pragma mark - Data source
