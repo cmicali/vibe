@@ -6,9 +6,11 @@
 #import "PlaybackSettingsViewController.h"
 
 #import "AppSettings.h"
+#import "Formatters.h"
 #import "PlaybackController.h"
 #import "PlayerDisplaySettings.h"
 #import "SettingsChoiceViewController.h"
+#import "SettingsRules.h"
 #import "VibeStrings.h"
 
 typedef NS_ENUM(NSInteger, VibePlaybackSection) {
@@ -34,6 +36,10 @@ static NSString *const kValueCellIdentifier = @"value";
 
 @implementation PlaybackSettingsViewController {
     PlaybackController *_playback;
+    // The one slider row, built once: the table has no second.
+    UITableViewCell *_crossfadeCell;
+    UISlider *_crossfadeSlider;
+    UILabel *_crossfadeValueLabel;
 }
 
 - (instancetype)initWithPlayback:(PlaybackController *)playback {
@@ -56,26 +62,6 @@ static NSString *const kValueCellIdentifier = @"value";
 }
 
 #pragma mark - Current values
-
-// In preset order, so an index names the same length in both.
-- (NSArray<NSString *> *)crossfadeTitles {
-    NSArray<NSString *> *titles = @[STR_SETTINGS_CROSSFADE_INSTANT,
-                                    STR_SETTINGS_CROSSFADE_SHORT,
-                                    STR_SETTINGS_CROSSFADE_LONG];
-    NSAssert(titles.count == kVibeCrossfadePresetCount, @"Every crossfade preset needs a title");
-    return titles;
-}
-
-// The getter snaps to a preset, so this always finds one.
-- (NSInteger)currentCrossfadeIndex {
-    NSInteger milliseconds = AppSettings.sharedInstance.crossfadeMilliseconds;
-    for (size_t i = 0; i < kVibeCrossfadePresetCount; i++) {
-        if (kVibeCrossfadePresets[i] == milliseconds) {
-            return (NSInteger)i;
-        }
-    }
-    return 0;
-}
 
 - (NSString *)onTrackEndValueText {
     return AppSettings.sharedInstance.pauseAtTrackEnd ? STR_SETTINGS_ON_END_PAUSE
@@ -120,6 +106,9 @@ static NSString *const kValueCellIdentifier = @"value";
                                                                 on:AppSettings.sharedInstance.analyzeBPM
                                                             target:self action:@selector(detectBPMToggled:)];
     }
+    if ((VibePlaybackRow)indexPath.row == VibePlaybackRowCrossfade) {
+        return [self crossfadeCell];
+    }
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kValueCellIdentifier];
     if (!cell) {
         cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
@@ -127,14 +116,8 @@ static NSString *const kValueCellIdentifier = @"value";
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
     }
     UIListContentConfiguration *content = [UIListContentConfiguration valueCellConfiguration];
-    if ((VibePlaybackRow)indexPath.row == VibePlaybackRowCrossfade) {
-        content.text = STR_SETTINGS_CROSSFADE_LABEL;
-        content.secondaryText = [self crossfadeTitles][(NSUInteger)[self currentCrossfadeIndex]];
-    }
-    else {
-        content.text = STR_SETTINGS_ON_END_LABEL;
-        content.secondaryText = [self onTrackEndValueText];
-    }
+    content.text = STR_SETTINGS_ON_END_LABEL;
+    content.secondaryText = [self onTrackEndValueText];
     cell.contentConfiguration = content;
     return cell;
 }
@@ -143,12 +126,10 @@ static NSString *const kValueCellIdentifier = @"value";
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
-    if (indexPath.section == VibePlaybackSectionEffects || indexPath.section == VibePlaybackSectionAnalysis) {
-        return; // the switch rows
+    if (indexPath.section != VibePlaybackSectionTransitions || indexPath.row != VibePlaybackRowOnTrackEnd) {
+        return; // the switch and slider rows
     }
-    UIViewController *next = (VibePlaybackRow)indexPath.row == VibePlaybackRowCrossfade ? [self crossfadePicker]
-                                                                              : [self onTrackEndPicker];
-    [self.navigationController pushViewController:next animated:YES];
+    [self.navigationController pushViewController:[self onTrackEndPicker] animated:YES];
 }
 
 // The store applies no effects (Common/AGENTS.md): every write ends on the
@@ -180,16 +161,58 @@ static NSString *const kValueCellIdentifier = @"value";
     AppSettings.sharedInstance.analyzeBPM = toggle.isOn;
 }
 
-- (SettingsChoiceViewController *)crossfadePicker {
-    PlaybackController *playback = _playback;
-    return [[SettingsChoiceViewController alloc]
-            initWithTitle:STR_SETTINGS_CROSSFADE_LABEL
-                  choices:[self crossfadeTitles]
-            selectedIndex:[self currentCrossfadeIndex]
-                 onSelect:^(NSInteger index) {
-        AppSettings.sharedInstance.crossfadeMilliseconds = kVibeCrossfadePresets[index];
-        [playback applyTrackTransitionSettings];
-    }];
+#pragma mark - Crossfade
+
+- (UITableViewCell *)crossfadeCell {
+    if (!_crossfadeCell) {
+        _crossfadeCell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:nil];
+        _crossfadeCell.selectionStyle = UITableViewCellSelectionStyleNone;
+        UILabel *title = [UILabel new];
+        title.text = STR_SETTINGS_CROSSFADE_LABEL;
+        title.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+        title.adjustsFontForContentSizeCategory = YES;
+        _crossfadeValueLabel = [UILabel new];
+        _crossfadeValueLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+        _crossfadeValueLabel.adjustsFontForContentSizeCategory = YES;
+        _crossfadeValueLabel.textColor = UIColor.secondaryLabelColor;
+        _crossfadeValueLabel.textAlignment = NSTextAlignmentRight;
+        UIStackView *header = [[UIStackView alloc] initWithArrangedSubviews:@[title, _crossfadeValueLabel]];
+        _crossfadeSlider = [UISlider new];
+        _crossfadeSlider.minimumValue = 0;
+        _crossfadeSlider.maximumValue = kVibeCrossfadeMaxMilliseconds;
+        [_crossfadeSlider addTarget:self action:@selector(crossfadeSlid:) forControlEvents:UIControlEventValueChanged];
+        UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[header, _crossfadeSlider]];
+        stack.axis = UILayoutConstraintAxisVertical;
+        stack.spacing = 8;
+        stack.translatesAutoresizingMaskIntoConstraints = NO;
+        [_crossfadeCell.contentView addSubview:stack];
+        UILayoutGuide *margins = _crossfadeCell.contentView.layoutMarginsGuide;
+        [NSLayoutConstraint activateConstraints:@[
+            [stack.leadingAnchor constraintEqualToAnchor:margins.leadingAnchor],
+            [stack.trailingAnchor constraintEqualToAnchor:margins.trailingAnchor],
+            [stack.topAnchor constraintEqualToAnchor:margins.topAnchor],
+            [stack.bottomAnchor constraintEqualToAnchor:margins.bottomAnchor],
+        ]];
+    }
+    [self renderCrossfade:AppSettings.sharedInstance.crossfadeMilliseconds];
+    return _crossfadeCell;
+}
+
+- (void)renderCrossfade:(NSInteger)milliseconds {
+    _crossfadeSlider.value = milliseconds > kVibeCrossfadeOffMilliseconds ? (float)milliseconds : 0;
+    _crossfadeValueLabel.text = [Formatters.sharedInstance crossfadeString:milliseconds];
+}
+
+// The knob snaps to the setting's steps; only a new step is written, since
+// each write re-parks the successor and republishes the play order.
+- (void)crossfadeSlid:(UISlider *)slider {
+    NSInteger milliseconds = VibeNormalizedCrossfadeMilliseconds(lroundf(slider.value));
+    [self renderCrossfade:milliseconds];
+    if (milliseconds == AppSettings.sharedInstance.crossfadeMilliseconds) {
+        return;
+    }
+    AppSettings.sharedInstance.crossfadeMilliseconds = milliseconds;
+    [_playback applyTrackTransitionSettings];
 }
 
 @end

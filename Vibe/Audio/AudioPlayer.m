@@ -1684,6 +1684,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
                    @"renderMeanMicros": unit[@"renderMeanMicros"],
                    @"renderMaxMicros": unit[@"renderMaxMicros"],
                    @"retiredFades": @(self->_retiringVoices.count),
+                   @"parked": @(self->_prefetchedFile != nil),
                    @"renderLeaveWork": @(self->_renderLeaveWork.count),
                    @"renderRefusals": @([self renderRefusalsOnQueue]),
                    @"rendersHeld": @([self debugRendersHeld]),

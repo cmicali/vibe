@@ -27,16 +27,16 @@
 }
 
 // Exercise the persisted getters, not a second copy of the snapping rule.
-// Midpoint ties favor the smaller preset; extreme external values must not
+// Midpoint ties favor the smaller preset or step; extreme external values must not
 // overflow the distance calculation and choose the opposite end of a ladder.
 - (void)testStoredPresetValuesClampAndBreakTiesDownward {
     AppSettings *settings = [self freshSettings];
     NSArray *cases = @[
         @[@"skipBaseBars", @[@[@(NSIntegerMin), @4], @[@6, @4], @[@7, @8],
                             @[@12, @8], @[@13, @16], @[@(NSIntegerMax), @16]]],
-        @[@"crossfadeMilliseconds", @[@[@(NSIntegerMin), @10], @[@255, @10],
-                            @[@256, @500], @[@1250, @500], @[@1251, @2000],
-                            @[@(NSIntegerMax), @2000]]],
+        @[@"crossfadeMilliseconds", @[@[@(NSIntegerMin), @10], @[@0, @10], @[@50, @10],
+                            @[@51, @100], @[@150, @100], @[@151, @200], @[@500, @500],
+                            @[@2000, @2000], @[@3000, @3000], @[@(NSIntegerMax), @3000]]],
         @[@"uiUpdateHzCap", @[@[@(NSIntegerMin), @3], @[@16, @3], @[@17, @30],
                             @[@45, @30], @[@46, @60], @[@(NSIntegerMax), @60]]]
     ];

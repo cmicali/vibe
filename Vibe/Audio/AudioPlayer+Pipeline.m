@@ -1290,6 +1290,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
         [self handleVoiceEventOnQueue:event voice:voice];
     }];
     [self updateBufferingOnQueue];
+    [self maybeCrossfadeIntoParkOnQueueWithLateness:(NSTimeInterval)kDrainSteadyIntervalNanos / NSEC_PER_SEC];
     [self noteDrainOnQueue];
     [self updateDrainTimerOnQueue];
 }

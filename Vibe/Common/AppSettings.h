@@ -29,10 +29,12 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART             @"album_art"
 #define SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM                @"custom"
 
-// The crossfade ladder in milliseconds; 10 is instant, the declick minimum.
-// The getter snaps any other stored value to the nearest preset.
-FOUNDATION_EXPORT const NSInteger kVibeCrossfadePresets[];
-FOUNDATION_EXPORT const size_t kVibeCrossfadePresetCount;
+// The crossfade slider in milliseconds: off is 10, the declick minimum, then
+// tenths of a second up to three. The getter snaps any other stored value to
+// the nearest step.
+static const NSInteger kVibeCrossfadeOffMilliseconds = 10;
+static const NSInteger kVibeCrossfadeStepMilliseconds = 100;
+static const NSInteger kVibeCrossfadeMaxMilliseconds = 3000;
 
 @interface AppSettings : NSObject
 

@@ -21,6 +21,10 @@
 // Digits are clamped to 0–3.
 - (NSString *)decimalString:(double)value fractionDigits:(NSInteger)digits;
 
+// The crossfade setting's readout: "Off" at the declick minimum, else "1.5 s",
+// per locale.
+- (NSString *)crossfadeString:(NSInteger)milliseconds;
+
 // "44.1 kHz", per locale.
 - (NSString *)sampleRateString:(double)hertz;
 // "128.0 BPM": the tempo readout both platforms draw.
