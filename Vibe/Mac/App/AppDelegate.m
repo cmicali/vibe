@@ -335,7 +335,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     panel.canChooseDirectories = YES;
     NSArray<UTType *> *declaredTypes = DocumentTypes.declaredTypes;
     NSMutableOrderedSet<UTType *> *contentTypes = [NSMutableOrderedSet orderedSetWithArray:declaredTypes];
-    // TRAP: another app's CUE/M3U type need not conform to our declaration.
+    // TRAP: another app's type for an extension need not conform to ours.
     // Include every registered type for each declared extension.
     for (UTType *type in declaredTypes) {
         for (NSString *extension in type.tags[UTTagClassFilenameExtension]) {
