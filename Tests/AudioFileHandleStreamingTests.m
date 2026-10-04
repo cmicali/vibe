@@ -1207,7 +1207,7 @@ static NSData *VibeWithoutVBRHeader(NSData *mp3) {
 - (AudioFileOpenToken *)open:(VibeGrowingFile *)file purpose:(VibeAudioFileOpenPurpose)purpose
                   completion:(void (^)(AudioFileHandle *handle, NSError *error))completion {
     return [_coordinator openURL:file.url purpose:purpose
-                 completionQueue:dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0)
+                 completionQueue:dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0) onDataless:nil
                       completion:^(AudioFileHandle *handle, NSError *error, NSTimeInterval elapsed) {
         completion(handle, error);
     }];

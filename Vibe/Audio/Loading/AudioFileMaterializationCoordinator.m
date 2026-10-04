@@ -67,6 +67,7 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
 @property (nonatomic, weak) AudioFileMaterializationCoordinator *coordinator;
 @property (nonatomic, copy) NSString *key;
 @property (nonatomic, strong) dispatch_queue_t completionQueue;
+@property (nonatomic, copy, nullable) dispatch_block_t onDataless;
 - (nullable VibeAudioFileOpenCompletion)takeCompletionForDelivery;
 - (BOOL)deliveryStillWaiting;
 @end
@@ -683,6 +684,13 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     }
     claim.probeToken = nil;
     claim.dataless = dataless;
+    if (dataless) {
+        for (VibeAudioHandleRun *run in _handleRuns.objectEnumerator) {
+            if ([run.path isEqualToString:claim.path]) {
+                [self notifyDatalessForRun:run];
+            }
+        }
+    }
     BOOL metadataOnly = ![self claimServesForeground:claim];
     if (dataless && metadataOnly
             && ([self foregroundTransferActiveLocked]
@@ -1423,9 +1431,24 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
     return [NSString stringWithFormat:@"%ld:%@", (long)purpose, path];
 }
 
+- (void)notifyDatalessForRun:(VibeAudioHandleRun *)run {
+    AudioFileOpenToken *token = run.waiter;
+    dispatch_block_t onDataless = token.onDataless;
+    if (!onDataless || !_claims[run.path].dataless) {
+        return;
+    }
+    token.onDataless = nil;
+    dispatch_async(token.completionQueue, ^{
+        if ([token deliveryStillWaiting]) {
+            onDataless();
+        }
+    });
+}
+
 - (AudioFileOpenToken *)openURL:(NSURL *)url
                          purpose:(VibeAudioFileOpenPurpose)purpose
                  completionQueue:(dispatch_queue_t)completionQueue
+                      onDataless:(dispatch_block_t)onDataless
                       completion:(VibeAudioFileOpenCompletion)completion {
     NSParameterAssert(url);
     NSParameterAssert(completionQueue);
@@ -1434,6 +1457,7 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
     NSString *key = VibeHandleRunKey(purpose, path);
     AudioFileOpenToken *token = [[AudioFileOpenToken alloc] initWithCoordinator:self
             key:key completionQueue:completionQueue completion:completion];
+    token.onDataless = onDataless;
     dispatch_async(_stateQueue, ^{
         if (![token deliveryStillWaiting]) {
             return;
@@ -1441,7 +1465,9 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
         VibeAudioHandleRun *run = self->_handleRuns[key];
         if (run) {
             // Rebind; the superseded token never takes delivery.
+            [run.waiter cancel];
             run.waiter = token;
+            [self notifyDatalessForRun:run];
             return;
         }
         if (self->_handleRuns.count >= kMaximumHandleRunCount) {
@@ -1469,6 +1495,7 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
         run.submittedAt = self->_clock();
         self->_handleRuns[key] = run;
         [self startHandleRunStages:run];
+        [self notifyDatalessForRun:run];
     });
     return token;
 }

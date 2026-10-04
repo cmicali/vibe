@@ -2263,7 +2263,7 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
     [self refresh:@"/Music"];
     _coordinator = [[AudioFileMaterializationCoordinator alloc] init];
     _openToken = [_coordinator openURL:track purpose:VibeAudioFileOpenPurposePlayback
-                      completionQueue:dispatch_get_main_queue()
+                      completionQueue:dispatch_get_main_queue() onDataless:nil
                            completion:^(AudioFileHandle *file, NSError *error, NSTimeInterval elapsed) {
         self->_delivered = file;
     }];

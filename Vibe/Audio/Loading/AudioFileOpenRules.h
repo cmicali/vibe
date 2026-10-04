@@ -4,6 +4,7 @@
 //
 
 #import <Foundation/Foundation.h>
+#import "NSURLUtil.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -33,14 +34,12 @@ static inline BOOL VibeAudioFileOpenDetachDelivery(
     return YES;
 }
 
-// One spelling of a file path for single-flight ownership. Symlinks are not
-// resolved: that would stat the target outside a bounded worker.
-// TRAP: it still stats. URLByStandardizingPath checks the filesystem before
-// dropping a /private prefix, which every iOS cloud path has, so keep it off
-// per-row and per-frame paths (CloudTransferRegistry's entryForURL:).
+// One spelling of a file path for single-flight ownership, without I/O.
+// TRAP: URLByStandardizingPath stats the target, so it can stall the player
+// or state queue before the bounded probe begins. Compare spelling alone.
 static inline NSString *VibeStandardizedAudioOpenPath(NSURL *url) {
     if (url.isFileURL) {
-        return url.URLByStandardizingPath.path ?: url.path ?: @"";
+        return VibeComparablePath(url.path) ?: @"";
     }
     return url.absoluteString ?: @"";
 }

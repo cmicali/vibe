@@ -280,6 +280,7 @@
             openURL:track.url
             purpose:VibeAudioFileOpenPurposePrefetch
             completionQueue:_queue
+            onDataless:nil
             completion:^(AudioFileHandle *file, NSError *error, NSTimeInterval elapsed) {
         AudioPlayer *strongSelf = weakSelf;
         if (!strongSelf) {

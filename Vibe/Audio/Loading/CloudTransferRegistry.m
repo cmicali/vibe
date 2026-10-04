@@ -25,8 +25,6 @@
 
 @implementation CloudTransferRegistry {
     NSMutableDictionary<NSString *, VibeCloudTransferEntry *> *_entries;
-    // Every key's last component, so entryForURL: can rule a URL out cheaply.
-    NSCountedSet<NSString *> *_fileNames;
     VibeCloudTransferMonitorFactory _monitorFactory;
     NSHashTable<id<CloudTransferRegistryObserver>> *_observers;
     BOOL _notifyPending;
@@ -52,7 +50,6 @@
     self = [super init];
     if (self) {
         _entries = [NSMutableDictionary dictionary];
-        _fileNames = [NSCountedSet set];
         _monitorFactory = [monitorFactory copy];
         _observers = [NSHashTable weakObjectsHashTable];
     }
@@ -80,21 +77,11 @@
     return entry ? entry.progress : -1;
 }
 
-// TRAP: VibeStandardizedAudioOpenPath stats every iOS cloud path (its /private
-// prefix), and each row asks on main as it draws. Standardizing never changes
-// a last component other than "." or "..", so a name no key ends in is ruled
-// out without it.
 - (nullable VibeCloudTransferEntry *)entryForURL:(NSURL *)url {
     if (_entries.count == 0) {
         return nil;
     }
-    NSString *name = url.lastPathComponent;
-    if (url.isFileURL && name.length && ![name isEqualToString:@"."] && ![name isEqualToString:@".."]
-            && ![_fileNames containsObject:name]) {
-        return nil;
-    }
-    NSString *path = VibeStandardizedAudioOpenPath(url);
-    return path ? _entries[path] : nil;
+    return _entries[VibeStandardizedAudioOpenPath(url)];
 }
 
 - (NSDictionary<NSString *, NSNumber *> *)transferSnapshot {
@@ -118,7 +105,6 @@
     entry.url = url;
     entry.progress = -1;
     _entries[path] = entry;
-    [_fileNames addObject:path.lastPathComponent];
     __weak CloudTransferRegistry *weakSelf = self;
     entry.monitor = _monitorFactory(url, ^(float fraction) {
         [weakSelf monitorReportedProgress:fraction forPath:path];
@@ -136,7 +122,6 @@
     }
     [entry.monitor cancel];
     [_entries removeObjectForKey:path];
-    [_fileNames removeObject:path.lastPathComponent];
     [self scheduleObserverNotification];
 }
 
