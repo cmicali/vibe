@@ -34,9 +34,14 @@ static NSString *const kEditorLocation = @"themes/editor";
     // "/editor" while the theme editor shows. Back and Forward walk it.
     NSString *_location;
     NSMutableArray<NSString *> *_backLocations, *_forwardLocations;
+    // Set while a location is applied: the pane switch's own refreshes would
+    // otherwise record its half-applied states (the Themes pane with the
+    // previous page) and clear Forward.
+    BOOL _restoringLocation;
     NSSegmentedControl *_appearanceToggle;
     NSSegmentedControl *_randomizeControl;
 }
+- (void)paneWillBecomeSelected:(NSTabViewItem *)item;
 @end
 
 // AppKit re-sizes a contentViewController window to its content's fitting
@@ -399,6 +404,15 @@ static const CGFloat kSidebarSpacerHeight = 12;
 - (void)setPreferredContentSize:(NSSize)preferredContentSize {
 }
 
+- (void)tabView:(NSTabView *)tabView willSelectTabViewItem:(NSTabViewItem *)tabViewItem {
+    SettingsWindowController *controller =
+            (SettingsWindowController *)self.view.window.windowController;
+    if ([controller isKindOfClass:SettingsWindowController.class]) {
+        [controller paneWillBecomeSelected:tabViewItem];
+    }
+    [super tabView:tabView willSelectTabViewItem:tabViewItem];
+}
+
 - (void)tabView:(NSTabView *)tabView didSelectTabViewItem:(NSTabViewItem *)tabViewItem {
     [super tabView:tabView didSelectTabViewItem:tabViewItem];
     NSViewController *pane = tabViewItem.viewController;
@@ -755,6 +769,9 @@ static const NSUInteger kNavigationHistoryLimit = 50;
 // Every pane switch and page swap lands here; a user's move pushes the place
 // it left, as System Settings' history does, and clears what Forward held.
 - (void)noteLocation {
+    if (_restoringLocation) {
+        return;
+    }
     NSString *location = [self currentLocation];
     if (!location || [location isEqualToString:_location]) {
         return;
@@ -769,17 +786,28 @@ static const NSUInteger kNavigationHistoryLimit = 50;
     _location = location;
 }
 
+// The page first, so the pane appears on it.
 - (void)goToLocation:(NSString *)location {
     BOOL editor = [location isEqualToString:kEditorLocation];
     NSTabViewItem *item = editor ? [self themesTabItem] : [self tabItemWithIdentifier:location];
     if (!item) {
         return;
     }
-    [_tabs.tabView selectTabViewItem:item];
+    _restoringLocation = YES;
     if (item == [self themesTabItem]) {
         [self.themesPane setEditorShown:editor];
     }
+    [_tabs.tabView selectTabViewItem:item];
+    _restoringLocation = NO;
     [self updateNavigation];
+}
+
+// A pane picked in the sidebar opens at its top, as System Settings' panes
+// do; only Back and Forward reopen the theme editor where it was left.
+- (void)paneWillBecomeSelected:(NSTabViewItem *)item {
+    if (!_restoringLocation && item == [self themesTabItem]) {
+        [self.themesPane setEditorShown:NO];
+    }
 }
 
 - (BOOL)canNavigateForward:(BOOL)forward {
