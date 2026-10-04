@@ -11,6 +11,7 @@
 #import <Cocoa/Cocoa.h>
 #import "DrawnControls.h"
 #import "SettingsFormViews.h"
+#import "MainPlayerController+Settings.h" // VibeSettingsLiveEffect, coalesced below
 
 @class MainPlayerController;
 
@@ -109,6 +110,15 @@ static const CGFloat kPanePadding = 20;
 @property (readonly, nonatomic, copy, nullable) NSString *searchQuery;
 // Scrolls the first marked row into view; the pane's appearance repeats it.
 - (void)revealSearchHits;
+
+// A drag's live work at a steady cadence: each tick, having written its value,
+// ORs in the effects it needs, and they apply at most every 1/30 s, so a 120 Hz
+// drag re-renders a quarter as often and its last value always lands. The
+// effects read the store, so a later apply carries every tick before it.
+- (void)applyLiveEffectsDuringDrag:(VibeSettingsLiveEffect)effects;
+// Runs after a coalesced apply, with what it applied; a pane redraws what
+// shows the effects (the Appearance pane's waveform preview).
+- (void)didApplyDragEffects:(VibeSettingsLiveEffect)effects;
 
 // A pane that keeps its own undo stack; Edit > Undo reaches it while the pane
 // is selected.

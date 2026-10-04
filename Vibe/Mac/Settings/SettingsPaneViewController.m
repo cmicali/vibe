@@ -160,9 +160,16 @@ static const CGFloat kInlineTitleInset = 10;
     id _windowKeyObserver;
     id _menuTrackingObserver;
     NSHashTable<NSTextField *> *_wrappingLabels;
-    // The search's cache: every row and the header above it, collected once,
-    // and the last query's hits.
-    NSArray<SettingsRowView *> *_searchRows;
+    // Every row and the header above it, collected once: the rows never
+    // change after loadView, only their visibility and text. The layout
+    // signature and the search read them; the search keeps its last hits.
+    NSArray<SettingsRowView *> *_rows;
+    // The layout signature the last measurement was taken at.
+    NSString *_measuredLayoutSignature;
+    // A drag's coalesced effects, waiting for their apply.
+    VibeSettingsLiveEffect _pendingDragEffects;
+    BOOL _dragApplyScheduled;
+    CFTimeInterval _lastDragApply;
     NSArray<NSString *> *_searchHeaders;
     NSString *_searchHitsQuery;
     NSArray<SettingsRowView *> *_searchHits;
@@ -242,6 +249,7 @@ static const CGFloat kInlineTitleInset = 10;
     // Not loaded: the seed inside loadPaneWithSections:.
     CGFloat width = self.isViewLoaded ? self.view.fittingSize.width
                                       : stack.width + 2 * kPanePadding;
+    _measuredLayoutSignature = self.isViewLoaded ? [self layoutSignature] : nil;
     _lastNaturalSize = NSMakeSize(MAX(kSettingsPaneWidth, width),
                       MIN(kSettingsPaneMaxHeight, MAX(kSettingsPaneMinHeight, stack.height + 2 * kPanePadding)));
     return _lastNaturalSize;
@@ -315,6 +323,12 @@ static const CGFloat kInlineTitleInset = 10;
     // window, so measuring would put Auto Layout solves on every later content
     // change, audio events included, for nobody; showWindow: settles every pane.
     if (!self.view.window.isVisible) {
+        return;
+    }
+    // TRAP: measuring is two full solves (11 ms on the theme editor), and every
+    // regained key and closed menu refreshes the pane, so it is taken only when
+    // something that can move the size changed since the last one.
+    if ([[self layoutSignature] isEqualToString:_measuredLayoutSignature]) {
         return;
     }
     // Capture the old frames before hidden changes replace the stack's
@@ -439,10 +453,38 @@ static NSString *SectionHeaderAbove(NSView *view) {
     return @"";
 }
 
-// A pane's rows never change after loadView, only their visibility, so the
-// tree is walked once; each keystroke then reads these.
-- (void)collectSearchRows {
-    if (_searchRows) {
+// Every row's visibility and the text it shows, its controls' included:
+// whatever a refresh can change that moves the pane's natural size. Lists
+// inside a row keep their height whatever they hold, so they are skipped.
+static void AppendLayoutText(NSView *view, NSMutableString *signature) {
+    for (NSView *child in view.subviews) {
+        [signature appendString:child.hidden ? @"\x1f-" : @"\x1f"];
+        if ([child isKindOfClass:NSPopUpButton.class]) {
+            [signature appendString:((NSPopUpButton *)child).titleOfSelectedItem ?: @""];
+        } else if ([child isKindOfClass:NSTextField.class]) {
+            [signature appendString:((NSTextField *)child).stringValue];
+        } else if ([child isKindOfClass:NSButton.class]) {
+            [signature appendString:((NSButton *)child).title];
+        } else if (![child isKindOfClass:NSControl.class] && ![child isKindOfClass:NSScrollView.class]) {
+            AppendLayoutText(child, signature);
+        }
+    }
+}
+
+- (NSString *)layoutSignature {
+    [self collectRows];
+    NSMutableString *signature = [NSMutableString string];
+    for (SettingsRowView *row in _rows) {
+        [signature appendString:row.isHiddenOrHasHiddenAncestor ? @"\x1e-" : @"\x1e"];
+        AppendLayoutText(row, signature);
+    }
+    return signature;
+}
+
+// The rows are walked for once; the signature and each keystroke then read
+// these.
+- (void)collectRows {
+    if (_rows) {
         return;
     }
     NSMutableArray<SettingsRowView *> *rows = [NSMutableArray array];
@@ -451,7 +493,7 @@ static NSString *SectionHeaderAbove(NSView *view) {
     for (SettingsRowView *row in rows) {
         [headers addObject:SectionHeaderAbove(row)];
     }
-    _searchRows = rows;
+    _rows = rows;
     _searchHeaders = headers;
 }
 
@@ -465,9 +507,9 @@ static NSString *SectionHeaderAbove(NSView *view) {
     if ([query isEqualToString:_searchHitsQuery]) {
         return _searchHits;
     }
-    [self collectSearchRows];
+    [self collectRows];
     NSMutableArray<SettingsRowView *> *hits = [NSMutableArray array];
-    [_searchRows enumerateObjectsUsingBlock:^(SettingsRowView *row, NSUInteger i, BOOL *stop) {
+    [_rows enumerateObjectsUsingBlock:^(SettingsRowView *row, NSUInteger i, BOOL *stop) {
         if ([self isRowSearchable:row]
                 && (SettingsTextMatches(row.titleLabel.stringValue, query)
                     || (!row.captionLabel.hidden && SettingsTextMatches(row.captionLabel.stringValue, query))
@@ -501,10 +543,10 @@ static NSString *SectionHeaderAbove(NSView *view) {
 
 - (void)applySearchMarks {
     _searchMarksPending = NO;
-    [self collectSearchRows];
+    [self collectRows];
     NSSet<SettingsRowView *> *hits = _searchQuery
             ? [NSSet setWithArray:[self rowsMatchingSearch:_searchQuery]] : [NSSet set];
-    for (SettingsRowView *row in _searchRows) {
+    for (SettingsRowView *row in _rows) {
         row.searchHighlighted = [hits containsObject:row];
     }
 }
@@ -528,6 +570,36 @@ static NSString *SectionHeaderAbove(NSView *view) {
 
 - (NSUndoManager *)paneUndoManager {
     return nil;
+}
+
+#pragma mark - Drags
+
+static const CFTimeInterval kSettingsDragInterval = 1.0 / 30;
+
+- (void)applyLiveEffectsDuringDrag:(VibeSettingsLiveEffect)effects {
+    _pendingDragEffects |= effects;
+    if (_dragApplyScheduled) {
+        return;
+    }
+    _dragApplyScheduled = YES;
+    CFTimeInterval wait = MAX(0, _lastDragApply + kSettingsDragInterval - CACurrentMediaTime());
+    __weak __typeof(self) weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        [weakSelf applyPendingDragEffects];
+    });
+}
+
+- (void)applyPendingDragEffects {
+    VibeSettingsLiveEffect effects = _pendingDragEffects;
+    _pendingDragEffects = 0;
+    _dragApplyScheduled = NO;
+    _lastDragApply = CACurrentMediaTime();
+    [self.playerController applySettingsLiveEffects:effects];
+    [self didApplyDragEffects:effects];
+}
+
+- (void)didApplyDragEffects:(VibeSettingsLiveEffect)effects {
 }
 
 - (void)refreshFromSettings {

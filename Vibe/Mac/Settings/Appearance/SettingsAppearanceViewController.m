@@ -357,15 +357,25 @@ static const double kWaveformGainDetentDB = 0.75;
 - (void)themeFieldDidChange:(VibeSettingsLiveEffect)effect continuous:(BOOL)continuous {
     BOOL forked = [self forkBuiltInForEdit];
     [AppSettings.sharedInstance currentThemeDidChangeContinuous:continuous];
-    [self.playerController applySettingsLiveEffects:effect];
+    if (continuous) {
+        [self applyLiveEffectsDuringDrag:effect];
+    } else {
+        [self.playerController applySettingsLiveEffects:effect];
+        [self didApplyDragEffects:effect];
+    }
     if (forked) {
         [self refreshFromSettings]; // the list, the Name field and the title
     }
-    if (effect & (VibeSettingsLiveEffectWaveformStyle | VibeSettingsLiveEffectWaveformTheme)) {
-        [self refreshWaveformPreviews];
-    }
     // The toolbar alone, so a drag's ticks never re-read the page under it.
     [(SettingsWindowController *)self.view.window.windowController updateNavigation];
+}
+
+// The preview shows the waveform's style, colors and levels.
+- (void)didApplyDragEffects:(VibeSettingsLiveEffect)effects {
+    if (effects & (VibeSettingsLiveEffectWaveformStyle | VibeSettingsLiveEffectWaveformTheme
+                   | VibeSettingsLiveEffectWaveformLevels)) {
+        [self refreshWaveformPreviews];
+    }
 }
 
 #pragma mark - Waveform style, on both pages
@@ -766,8 +776,7 @@ static const double kWaveformGainDetentDB = 0.75;
     AppSettings.sharedInstance.waveformGainDB = gainDB;
     _waveformGainSlider.doubleValue = AppSettings.sharedInstance.waveformGainDB;
     [self refreshWaveformGainValue];
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWaveformLevels];
-    [self refreshWaveformPreviews];
+    [self applyLiveEffectsDuringDrag:VibeSettingsLiveEffectWaveformLevels];
 }
 
 - (void)refreshWaveformGainValue {

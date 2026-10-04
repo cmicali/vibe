@@ -126,8 +126,8 @@ static NSString *const kOnEndPause = @"pause";
     AppSettings.sharedInstance.skipBaseBars = _skipStepsPopUp.selectedTag;
 }
 
-// Only a new step is written, since each write re-arms or drops the
-// successor.
+// Only a new step is written, and the player told at the drag's cadence,
+// since each apply re-arms or drops the successor.
 - (void)crossfadeChanged:(id)sender {
     NSInteger milliseconds = VibeNormalizedCrossfadeMilliseconds(lround(_crossfadeSlider.doubleValue));
     [self renderCrossfade:milliseconds];
@@ -135,7 +135,7 @@ static NSString *const kOnEndPause = @"pause";
         return;
     }
     AppSettings.sharedInstance.crossfadeMilliseconds = milliseconds;
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectCrossfade];
+    [self applyLiveEffectsDuringDrag:VibeSettingsLiveEffectCrossfade];
 }
 
 - (void)renderCrossfade:(NSInteger)milliseconds {
