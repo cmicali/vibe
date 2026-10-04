@@ -24,7 +24,7 @@
 
 @implementation AudioWaveformLoader {
     // What cancel interrupts, under @synchronized (self): the file the open
-    // asked for, and the handle once it returned.
+    // asked for, and the handle from its return until the load ends.
     NSURL *_url;
     AudioFileHandle *_file;
 }
@@ -67,6 +67,18 @@
 }
 
 - (CodableAudioWaveform *)load:(NSString *)filename {
+    CodableAudioWaveform *result = [self decode:filename];
+    // TRAP: a loader outlives its load (its claim, and the claim's 20 s wait
+    // timer, hold it), and one that kept its handle kept the file open with
+    // it: a row replayed on a cold cache held fourteen descriptors on one
+    // file.
+    @synchronized (self) {
+        _file = nil;
+    }
+    return result;
+}
+
+- (CodableAudioWaveform *)decode:(NSString *)filename {
 
     // Phase timings for this pass. The clock reads compile to constants in
     // Release, where nothing consumes them; see AudioLoadTiming.h.

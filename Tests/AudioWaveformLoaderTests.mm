@@ -414,6 +414,34 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
     XCTAssertFalse(_loader.isComplete);
 }
 
+// The process's descriptors open on this file.
+static NSUInteger DescriptorsOpenOn(NSString *path) {
+    char resolved[PATH_MAX];
+    if (!realpath(path.fileSystemRepresentation, resolved)) {
+        return 0;
+    }
+    NSUInteger count = 0;
+    for (int fd = 0; fd < getdtablesize(); fd++) {
+        char open[PATH_MAX];
+        if (fcntl(fd, F_GETPATH, open) == 0 && strcmp(open, resolved) == 0) {
+            count++;
+        }
+    }
+    return count;
+}
+
+// A loader outlives its load, held by the cache's claim and its wait timer,
+// so a finished one that kept its handle kept the file open.
+- (void)testAFinishedLoadLeavesItsFileClosed {
+    NSString *path = [self writeWAVNamed:@"closed.wav" seconds:1.0];
+    // The pool, so no autoreleased reference of the load's own outlives it.
+    @autoreleasepool {
+        XCTAssertNotNil([_loader load:path]);
+    }
+    XCTAssertTrue(_loader.isComplete);
+    XCTAssertEqual(DescriptorsOpenOn(path), (NSUInteger)0);
+}
+
 - (void)testDetachedLoadFinishesWithoutProgressDeliveries {
     NSString *path = [self writeWAVNamed:@"detached.wav" seconds:1.0];
     XCTestExpectation *progress = [self expectationWithDescription:@"no detached progress"];
