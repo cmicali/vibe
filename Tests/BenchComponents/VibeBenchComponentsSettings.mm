@@ -22,7 +22,8 @@
 
 struct VibeBenchComponentsSettingsState {
     SettingsWindowController *controller = nil;
-    SettingsAppearanceViewController *appearance = nil;
+    SettingsAppearanceViewController *themes = nil;
+    NSViewController *appearance = nil;
     NSString *themeIdentifier = nil;
 };
 
@@ -52,7 +53,7 @@ static NSString *VibeBenchComponentsSettingsUserTheme(void) {
 
 // Sixty ticks of the slider in `ivar`, 1/120 s apart with the main queue
 // serviced between them, then a beat for anything a tick left queued.
-static void VibeBenchComponentsSettingsDrag(SettingsAppearanceViewController *pane, NSString *ivar,
+static void VibeBenchComponentsSettingsDrag(NSViewController *pane, NSString *ivar,
                                             double from, double step) {
     NSSlider *slider = [pane valueForKey:ivar];
     for (int i = 0; i < 60; i++) {
@@ -68,7 +69,14 @@ static void VibeBenchComponentsSettingsEnsureWindow(VibeBenchComponentsSettingsS
     if (!state->controller) {
         state->controller = [[SettingsWindowController alloc]
                 initWithPlayerController:(MainPlayerController *_Nonnull)nil];
-        state->appearance = state->controller.appearancePane;
+        state->themes = state->controller.themesPane;
+        NSTabViewController *tabs = (NSTabViewController *)
+                state->controller.window.contentViewController.childViewControllers.lastObject;
+        for (NSTabViewItem *item in tabs.tabViewItems) {
+            if ([item.identifier isEqual:@"appearance"]) {
+                state->appearance = item.viewController;
+            }
+        }
     }
 }
 
@@ -104,8 +112,8 @@ static void VibeBenchComponentsRegisterSettings(void) {
 
     // The waveform gain slider dragged across sixty ticks at a 120 Hz mouse's
     // pace, the main queue serviced between them as a drag's tracking loop
-    // does: the setting, the levels effect (no player here) and the preview
-    // the pane redraws. CPU, not wall, is the measure; the pace sets the wall.
+    // does: the setting and the levels effect (no player here), on the
+    // Appearance pane. CPU, not wall, is the measure; the pace sets the wall.
     auto gain = std::make_shared<VibeBenchComponentsSettingsState>();
     VibeBenchComponentsAdd("settings", "waveform-gain-drag", "tick", [gain]() -> double {
         VibeBenchComponentsSettingsEnsureWindow(gain.get());
@@ -120,21 +128,21 @@ static void VibeBenchComponentsRegisterSettings(void) {
     VibeBenchComponentsAdd("settings", "theme-slider-drag", "tick", [density]() -> double {
         VibeBenchComponentsSettingsEnsureWindow(density.get());
         VibeBenchComponentsSettingsUserTheme();
-        [density->appearance setEditorShown:YES];
-        return density->appearance ? 60 : -1;
+        [density->themes setEditorShown:YES];
+        return density->themes ? 60 : -1;
     }, [density]() {
-        VibeBenchComponentsSettingsDrag(density->appearance, @"_waveformBarDensitySlider", 0.5, 0.025);
+        VibeBenchComponentsSettingsDrag(density->themes, @"_waveformBarDensitySlider", 0.5, 0.025);
     });
 
     // Every pane but the two that read the player (Audio Output, Advanced),
     // which this tool does not build, refreshed as regaining key or closing a
-    // menu refreshes the one selected, the theme editor shown on Appearance.
+    // menu refreshes the one selected, the theme editor shown on Themes.
     auto refresh = std::make_shared<VibeBenchComponentsSettingsState>();
     VibeBenchComponentsAdd("settings", "pane-refresh", "pane", [refresh]() -> double {
         VibeBenchComponentsSettingsEnsureWindow(refresh.get());
         VibeBenchComponentsSettingsUserTheme();
-        [refresh->appearance setEditorShown:YES];
-        return 6 * 5;
+        [refresh->themes setEditorShown:YES];
+        return 7 * 5;
     }, [refresh]() {
         NSTabViewController *tabs = (NSTabViewController *)
                 refresh->controller.window.contentViewController.childViewControllers.lastObject;
@@ -151,7 +159,7 @@ static void VibeBenchComponentsRegisterSettings(void) {
     // where each refresh remeasures the pane, as regaining key or a menu
     // closing over the window does: Playback, Files, Keyboard Shortcuts, and
     // the theme editor, the largest page.
-    for (NSString *pane in @[@"playback", @"files", @"shortcuts", @"appearance/editor"]) {
+    for (NSString *pane in @[@"playback", @"files", @"shortcuts", @"themes/editor"]) {
         auto shown = std::make_shared<VibeBenchComponentsSettingsState>();
         std::string variant = std::string("shown-refresh-") +
                 [[pane stringByReplacingOccurrencesOfString:@"/" withString:@"-"] UTF8String];
@@ -168,7 +176,7 @@ static void VibeBenchComponentsRegisterSettings(void) {
                     [tabs.tabView selectTabViewItem:item];
                 }
             }
-            [shown->appearance setEditorShown:[pane hasSuffix:@"/editor"]];
+            [shown->themes setEditorShown:[pane hasSuffix:@"/editor"]];
             [window layoutIfNeeded];
             return window.isVisible ? 20 : -1;
         }, [shown]() {

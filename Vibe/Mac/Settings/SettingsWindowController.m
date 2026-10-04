@@ -22,7 +22,7 @@
 static const CGFloat kSettingsSidebarWidth = 200;
 // The theme editor's place in the back/forward history; every other location
 // is a pane identifier.
-static NSString *const kEditorLocation = @"appearance/editor";
+static NSString *const kEditorLocation = @"themes/editor";
 
 @class SettingsSidebarController;
 
@@ -474,11 +474,13 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
     // Grouped in the sidebar by SidebarGroupStarts.
     [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController],
                                   @"general", STR_SETTINGS_GENERAL, @"gearshape")];
+    [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController page:@"appearance"],
+                                  @"appearance", STR_MENU_VIEW_APPEARANCE, @"circle.lefthalf.filled")];
     [tabs addTabViewItem:PaneItem([[SettingsAppearanceViewController alloc] initWithPlayerController:playerController],
-                                  @"appearance", STR_MENU_VIEW_APPEARANCE, @"paintbrush")];
+                                  @"themes", STR_SETTINGS_THEMES_SECTION, @"paintpalette")];
     [tabs addTabViewItem:PaneItem([[SettingsPlaybackViewController alloc] initWithPlayerController:playerController],
                                   @"playback", STR_MENU_PLAYBACK, @"play.circle")];
-    [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController audioPane:YES],
+    [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController page:@"audio"],
                                   @"audio", STR_SETTINGS_AUDIO_SECTION, @"speaker.wave.2")];
     [tabs addTabViewItem:PaneItem([[SettingsFilesViewController alloc] initWithPlayerController:playerController],
                                   @"files", STR_SETTINGS_FILES, @"folder")];
@@ -682,12 +684,12 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
     return nil;
 }
 
-- (NSTabViewItem *)appearanceTabItem {
-    return [self tabItemWithIdentifier:@"appearance"];
+- (NSTabViewItem *)themesTabItem {
+    return [self tabItemWithIdentifier:@"themes"];
 }
 
-- (SettingsAppearanceViewController *)appearancePane {
-    return (SettingsAppearanceViewController *)[self appearanceTabItem].viewController;
+- (SettingsAppearanceViewController *)themesPane {
+    return (SettingsAppearanceViewController *)[self themesTabItem].viewController;
 }
 
 - (SettingsGeneralViewController *)audioPane {
@@ -715,8 +717,8 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
     }
 }
 
-- (BOOL)appearancePaneIsSelected {
-    NSTabViewItem *item = [self appearanceTabItem];
+- (BOOL)themesPaneIsSelected {
+    NSTabViewItem *item = [self themesTabItem];
     return item != nil && _tabs.tabView.selectedTabViewItem == item;
 }
 
@@ -727,7 +729,7 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object
                         change:(NSDictionary *)change context:(void *)context {
     // Selecting the pane or opening the window re-reads it on the way in.
-    if (!self.window.isVisible || ![self appearancePaneIsSelected]) {
+    if (!self.window.isVisible || ![self themesPaneIsSelected]) {
         return;
     }
     [self updateNavigation];
@@ -747,7 +749,7 @@ static const NSUInteger kNavigationHistoryLimit = 50;
 
 - (NSString *)currentLocation {
     NSString *identifier = _tabs.tabView.selectedTabViewItem.identifier;
-    return [self appearancePaneIsSelected] && self.appearancePane.editorShown ? kEditorLocation : identifier;
+    return [self themesPaneIsSelected] && self.themesPane.editorShown ? kEditorLocation : identifier;
 }
 
 // Every pane switch and page swap lands here; a user's move pushes the place
@@ -769,13 +771,13 @@ static const NSUInteger kNavigationHistoryLimit = 50;
 
 - (void)goToLocation:(NSString *)location {
     BOOL editor = [location isEqualToString:kEditorLocation];
-    NSTabViewItem *item = editor ? [self appearanceTabItem] : [self tabItemWithIdentifier:location];
+    NSTabViewItem *item = editor ? [self themesTabItem] : [self tabItemWithIdentifier:location];
     if (!item) {
         return;
     }
     [_tabs.tabView selectTabViewItem:item];
-    if (item == [self appearanceTabItem]) {
-        [self.appearancePane setEditorShown:editor];
+    if (item == [self themesTabItem]) {
+        [self.themesPane setEditorShown:editor];
     }
     [self updateNavigation];
 }
@@ -806,8 +808,8 @@ static const NSUInteger kNavigationHistoryLimit = 50;
 
 - (void)updateNavigation {
     [self noteLocation];
-    SettingsAppearanceViewController *pane = [self appearancePane];
-    BOOL selected = [self appearancePaneIsSelected];
+    SettingsAppearanceViewController *pane = [self themesPane];
+    BOOL selected = [self themesPaneIsSelected];
     // The editor's page swap retitles the pane mid-view.
     NSInteger selectedIndex = _tabs.selectedTabViewItemIndex;
     if (selectedIndex >= 0) {
@@ -854,11 +856,11 @@ static const NSUInteger kNavigationHistoryLimit = 50;
 }
 
 - (void)toggleAppearancePreview:(id)sender {
-    [[self appearancePane] previewAppearanceDark:(_appearanceToggle.selectedSegment == 1)];
+    [[self themesPane] previewAppearanceDark:(_appearanceToggle.selectedSegment == 1)];
 }
 
 - (void)randomizeTheme:(NSSegmentedControl *)sender {
-    SettingsAppearanceViewController *pane = [self appearancePane];
+    SettingsAppearanceViewController *pane = [self themesPane];
     switch (sender.selectedSegment) {
         case 0: [pane randomizeThemeSettings]; break;
         case 1: [pane randomizeThemeColors]; break;
@@ -880,21 +882,21 @@ static const NSUInteger kNavigationHistoryLimit = 50;
 }
 
 - (IBAction)undo:(id)sender {
-    if ([self appearancePaneIsSelected]) [self.appearancePane restoreThemeHistoryForward:NO];
+    if ([self themesPaneIsSelected]) [self.themesPane restoreThemeHistoryForward:NO];
     else [self.selectedPaneUndoManager undo];
 }
 
 - (IBAction)redo:(id)sender {
-    if ([self appearancePaneIsSelected]) [self.appearancePane restoreThemeHistoryForward:YES];
+    if ([self themesPaneIsSelected]) [self.themesPane restoreThemeHistoryForward:YES];
     else [self.selectedPaneUndoManager redo];
 }
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
     if (menuItem.action == @selector(undo:) || menuItem.action == @selector(redo:)) {
         BOOL forward = menuItem.action == @selector(redo:);
-        if ([self appearancePaneIsSelected]) {
+        if ([self themesPaneIsSelected]) {
             menuItem.title = ThemeHistoryTitle(forward);
-            return [self.appearancePane canRestoreThemeHistoryForward:forward];
+            return [self.themesPane canRestoreThemeHistoryForward:forward];
         }
         NSUndoManager *manager = self.selectedPaneUndoManager;
         menuItem.title = forward ? (manager.redoMenuItemTitle ?: STR_MENU_EDIT_REDO)

@@ -2,7 +2,7 @@
 //  SettingsAppearanceViewController+Editor.h
 //  Vibe
 //
-//  The Appearance pane's editor page. It edits whatever theme is active —
+//  The Themes pane's editor page. It edits whatever theme is active —
 //  selection IS activation — so nothing is handed over on the page swap.
 //
 

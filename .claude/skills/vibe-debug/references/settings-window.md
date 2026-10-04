@@ -3,7 +3,7 @@
 `settings_open`, `dump_settings_ui`, `settings_click`, `settings_close` and `settings_resize` in detail: reply keys, how `settings_click` names a control, the control-kind table and the toolbar's reserved names. Read when driving a Settings pane; the traps are in `SKILL.md`'s settings section. The walker is `Vibe/Debug/Mac/DebugSettingsUI.m`, keyed off the pane classes in `Vibe/Mac/Settings/AGENTS.md`.
 
 ```bash
-"$V" --debug-cmd settings_open appearance     # {ok, pane, paneTitle, panes, frame, paneFrame, paneFillsTabView, key, appearance} — opens (creating) the window and selects a pane by identifier (general|audio|playback|shortcuts|appearance|files|advanced|about), index or displayed title; bare settings_open just opens
+"$V" --debug-cmd settings_open appearance     # {ok, pane, paneTitle, panes, frame, paneFrame, paneFillsTabView, key, appearance} — opens (creating) the window and selects a pane by identifier (general|appearance|themes|playback|audio|files|shortcuts|advanced|about), index or displayed title; bare settings_open just opens
 "$V" --debug-cmd dump_settings_ui             # {pane, paneTitle, panes, controls: [{index, kind, name, label, enabled, rect, alpha, effectiveAlpha, hidden, rowTitle?, rowCaption?, + the live value}], toolbar, window, sheet} — the SELECTED pane only
 "$V" --debug-cmd settings_click "Detect key" on  # {ok, control, kind, action, + the live value} — one control of the selected pane BY NAME, no coordinates
 "$V" --debug-cmd settings_reveal "Show key"   # {ok, control, kind, action: "revealed", + the live value} — scrolls that control's card to the top of the pane and acts on nothing: how a screenshot reaches a long page's lower cards
@@ -45,6 +45,6 @@ The wrong value for a kind is an error, never a silent no-op.
 | `pulldown` | same | sends the item's action; `#0` is refused, being the button's title rather than a choice |
 | `table` | `2`, `0,3`, `all`, `none` | sets the selection, delegate and all — what re-enables Remove |
 | `slider` | a number | sets `doubleValue`, then sends the action; the dump carries `value`, `min`, `max` |
-| `colorwell` | `#RRGGBB[AA]` | sets the color, alpha included, then sends the action; the dump's `value` is the same hex. The Appearance pane's wells share row labels, so address them as `#index` |
+| `colorwell` | `#RRGGBB[AA]` | sets the color, alpha included, then sends the action; the dump's `value` is the same hex. The Themes pane's wells share row labels, so address them as `#index` |
 | `field` | the text | focuses, sets the text, moves first responder off — the Tab commit, so end-editing runs: `settings_click Name "New name"` is the editor's rename |
 | `label`, `control` | — | refused: a readout, and the generic bucket the walker does not model yet |

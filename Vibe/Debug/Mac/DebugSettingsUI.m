@@ -454,7 +454,7 @@ static VibeSettingsElement *VibeElementForToken(NSArray<VibeSettingsElement *> *
         }
         if (matches.count > 1) {
             // A hidden page's controls stay in the dump, but a name resolves
-            // against what is on screen: the two-page Appearance pane would
+            // against what is on screen: the two-page Themes pane would
             // otherwise make a name shared across its pages unreachable.
             NSMutableArray<VibeSettingsElement *> *visible = [NSMutableArray array];
             for (VibeSettingsElement *match in matches) {
@@ -854,7 +854,7 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
     // walker's reach; they route by name so scripts keep one addressing
     // scheme, driven through their models rather than through the controls:
     // the history and the search are the window controller's, the rest the
-    // Appearance pane's.
+    // Themes pane's.
     BOOL back = tokens.count == 2 && [tokens[1] caseInsensitiveCompare:@"back"] == NSOrderedSame;
     BOOL forward = tokens.count == 2
             && [tokens[1] caseInsensitiveCompare:@"forward"] == NSOrderedSame;
@@ -896,7 +896,7 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
             return VibeJSONString(@{@"ok": @YES, @"control": @"undo", @"action": @"undone",
                                     @"undid": probe.title});
         }
-        SettingsAppearanceViewController *pane = [controller appearancePane];
+        SettingsAppearanceViewController *pane = [controller themesPane];
         if (pane) {
             if (preview) {
                 BOOL dark = [tokens[2] caseInsensitiveCompare:@"dark"] == NSOrderedSame;

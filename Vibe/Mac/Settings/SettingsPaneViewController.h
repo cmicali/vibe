@@ -26,7 +26,7 @@ static const CGFloat kSettingsPaneMinHeight = 480;
 // A taller pane scrolls rather than raising every pane's floor.
 static const CGFloat kSettingsPaneMaxHeight = 620;
 
-// Shared by the section stack and the Appearance pane's editor page.
+// Shared by the section stack and the Themes pane's editor page.
 static const CGFloat kPanePadding = 20;
 
 // The tab controller. A pane carries no size constraints

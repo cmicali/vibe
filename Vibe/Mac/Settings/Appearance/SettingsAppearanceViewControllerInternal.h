@@ -15,12 +15,6 @@ NS_ASSUME_NONNULL_BEGIN
 // Both pages' popups; a cap, not a size.
 static const CGFloat kAppearancePopUpWidth = 220;
 
-// Ticks above and below the track at detentValue, where its action snaps.
-// NSSlider's own tick marks are evenly spaced and single-sided.
-@interface VibeDetentSlider : NSSlider
-@property (nonatomic) double detentValue;
-@end
-
 @interface SettingsAppearanceViewController () <NSTableViewDataSource, NSTableViewDelegate> {
     NSView *_detailContainer;
     NSStackView *_editorStack;

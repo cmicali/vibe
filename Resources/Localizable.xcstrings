@@ -42223,192 +42223,6 @@
       },
       "extractionState": "manual"
     },
-    "settings.appearance.display_preferences": {
-      "comment": "Appearance pane: group of app-wide display preferences below the current theme and theme library.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Настройки на изгледа"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Předvolby zobrazení"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Visningsindstillinger"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Anzeigeeinstellungen"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Προτιμήσεις εμφάνισης"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Display preferences"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Preferencias de visualización"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Näyttöasetukset"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Préférences d’affichage"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Postavke prikaza"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Megjelenítési beállítások"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Preferensi tampilan"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Preferenze di visualizzazione"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "表示設定"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "표시 설정"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Visningsinnstillinger"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Weergavevoorkeuren"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Preferencje wyświetlania"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Preferências de exibição"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Preferências de visualização"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Preferințe de afișare"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Настройки отображения"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nastavenia zobrazenia"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Visningsinställningar"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "การตั้งค่าการแสดงผล"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Görünüm tercihleri"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Параметри відображення"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tùy chọn hiển thị"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "显示偏好设置"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "顯示偏好設定"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
     "settings.appearance.file_info": {
       "comment": "Settings, Appearance pane, and the iOS settings screen: checkbox showing the header's file-format readout (codec, bitrate, sample rate) and, on macOS, the BPM/key line.",
       "localizations": {
@@ -46315,187 +46129,187 @@
       },
       "extractionState": "manual"
     },
-    "settings.appearance.single_caption": {
-      "comment": "macOS Settings: caption explaining that a single-palette theme keeps the window in dark appearance.",
+    "settings.appearance.single_theme_caption": {
+      "comment": "macOS Settings, Appearance pane: caption under Window appearance when the light/dark choice is unavailable because the active theme uses a single palette, which keeps the window dark. %@ is the theme's name, chosen on the Themes pane.",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The %@ theme uses one palette and keeps the window in dark appearance"
+          }
+        },
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Тази тема използва една палитра и запазва тъмния изглед на прозореца."
+            "value": "Темата „%@“ използва една палитра и запазва тъмния изглед на прозореца."
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tento motiv používá jednu paletu a zachovává tmavý vzhled okna."
+            "value": "Motiv „%@“ používá jednu paletu a zachovává tmavý vzhled okna."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dette tema bruger én palet og holder vinduet mørkt."
+            "value": "Temaet “%@” bruger én palet og holder vinduet mørkt."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dieses Thema verwendet eine Farbpalette und zeigt das Fenster immer dunkel an."
+            "value": "Das Thema „%@“ verwendet eine Farbpalette und zeigt das Fenster immer dunkel an."
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Αυτό το θέμα χρησιμοποιεί μία παλέτα και διατηρεί τη σκούρα εμφάνιση του παραθύρου."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This theme uses one palette and keeps the window in dark appearance"
+            "value": "Το θέμα «%@» χρησιμοποιεί μία παλέτα και διατηρεί τη σκούρα εμφάνιση του παραθύρου."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Este tema usa una sola paleta y mantiene la ventana con apariencia oscura."
+            "value": "El tema “%@” usa una sola paleta y mantiene la ventana con apariencia oscura."
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tämä teema käyttää yhtä palettia ja pitää ikkunan ulkoasun tummana."
+            "value": "Teema ”%@” käyttää yhtä palettia ja pitää ikkunan ulkoasun tummana."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ce thème utilise une seule palette et conserve l’apparence sombre de la fenêtre."
+            "value": "Le thème « %@ » utilise une seule palette et conserve l’apparence sombre de la fenêtre."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ova tema koristi jednu paletu i zadržava tamni izgled prozora."
+            "value": "Tema „%@” koristi jednu paletu i zadržava tamni izgled prozora."
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ez a téma egyetlen palettát használ, és sötéten tartja az ablakot."
+            "value": "A(z) „%@” téma egyetlen palettát használ, és sötéten tartja az ablakot."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tema ini menggunakan satu palet dan mempertahankan tampilan gelap jendela."
+            "value": "Tema “%@” menggunakan satu palet dan mempertahankan tampilan gelap jendela."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Questo tema usa una sola tavolozza e mantiene la finestra con aspetto scuro."
+            "value": "Il tema “%@” usa una sola tavolozza e mantiene la finestra con aspetto scuro."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "このテーマは1つのパレットを使用し、ウインドウをダークの外観に保ちます。"
+            "value": "テーマ「%@」は1つのパレットを使用し、ウインドウをダークの外観に保ちます。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "이 테마는 하나의 팔레트를 사용하며 윈도우를 다크 모드로 유지합니다."
+            "value": "‘%@’ 테마는 하나의 팔레트를 사용하며 윈도우를 다크 모드로 유지합니다."
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dette temaet bruker én palett og beholder mørkt vindusutseende."
+            "value": "Temaet «%@» bruker én palett og beholder mørkt vindusutseende."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dit thema gebruikt één palet en houdt het venster donker."
+            "value": "Het thema ‘%@’ gebruikt één palet en houdt het venster donker."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ten motyw używa jednej palety i zachowuje ciemny wygląd okna."
+            "value": "Motyw „%@” używa jednej palety i zachowuje ciemny wygląd okna."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Este tema usa uma única paleta e mantém a janela com aparência escura."
+            "value": "O tema “%@” usa uma única paleta e mantém a janela com aparência escura."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Este tema usa uma única paleta e mantém a janela com aparência escura."
+            "value": "O tema “%@” usa uma única paleta e mantém a janela com aparência escura."
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Această temă folosește o singură paletă și păstrează aspectul întunecat al ferestrei."
+            "value": "Tema „%@” folosește o singură paletă și păstrează aspectul întunecat al ferestrei."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Эта тема использует одну палитру и сохраняет тёмное оформление окна."
+            "value": "Тема «%@» использует одну палитру и сохраняет тёмное оформление окна."
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tento motív používa jednu paletu a zachováva tmavý vzhľad okna."
+            "value": "Motív „%@“ používa jednu paletu a zachováva tmavý vzhľad okna."
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Det här temat använder en palett och behåller fönstrets mörka utseende."
+            "value": "Temat ”%@” använder en palett och behåller fönstrets mörka utseende."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ธีมนี้ใช้ชุดสีเดียวและคงรูปลักษณ์มืดของหน้าต่างไว้"
+            "value": "ธีม “%@” ใช้ชุดสีเดียวและคงรูปลักษณ์มืดของหน้าต่างไว้"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bu tema tek bir palet kullanır ve pencereyi koyu görünümde tutar."
+            "value": "“%@” teması tek bir palet kullanır ve pencereyi koyu görünümde tutar."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ця тема використовує одну палітру та зберігає темний вигляд вікна."
+            "value": "Тема «%@» використовує одну палітру та зберігає темний вигляд вікна."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chủ đề này dùng một bảng màu và giữ giao diện tối cho cửa sổ."
+            "value": "Chủ đề “%@” dùng một bảng màu và giữ giao diện tối cho cửa sổ."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "此主题使用单一调色板，并保持窗口的深色外观。"
+            "value": "主题“%@”使用单一调色板，并保持窗口的深色外观。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "此主題使用單一調色盤，並保持視窗的深色外觀。"
+            "value": "主題「%@」使用單一調色盤，並保持視窗的深色外觀。"
           }
         }
       },
@@ -54686,7 +54500,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.dock_icon": {
-      "comment": "Settings, Appearance pane, Display preferences group: row beside the dropdown choosing what the Dock shows while a track with artwork plays — the album art, or the app icon.",
+      "comment": "Settings, Appearance pane, Window group: row beside the dropdown choosing what the Dock shows while a track with artwork plays — the album art, or the app icon.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -65288,7 +65102,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.themes_section": {
-      "comment": "Settings, Appearance pane: heading above the theme list and its buttons.",
+      "comment": "macOS Settings: the Themes pane's label in the sidebar and window title, and the heading above the theme list and its buttons.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -69380,7 +69194,7 @@
       "extractionState": "stale"
     },
     "settings.appearance.waveform_levels_caption": {
-      "comment": "macOS Settings: Applies to all themes. Changes the waveform display only. Playback volume is unchanged.",
+      "comment": "macOS Settings, Appearance pane: caption under Normalize waveform. Applies to all themes. Changes the waveform display only. Playback volume is unchanged.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -70124,7 +69938,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_section": {
-      "comment": "Settings, Appearance: the waveform group's title. macOS: the disclosure row revealing waveform normalization and display gain, which apply to all themes, and that disclosure's accessibility label. iOS: the heading above the waveform settings (drawing style, the widget's style, color theme).",
+      "comment": "Settings: the waveform group's title. macOS: the Appearance pane's card holding waveform normalization and display gain, which apply to all themes. iOS: the heading above the waveform settings (drawing style, the widget's style, color theme).",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -88352,7 +88166,7 @@
       "extractionState": "manual"
     },
     "settings.general.window_section": {
-      "comment": "Settings: heading above the window rows — always on top and waveform drag in the General pane, appearance and tint in the Appearance pane. One key for both, the word being the same; the key keeps its historical settings.general prefix.",
+      "comment": "Settings: heading above the window rows — always on top and waveform drag in the General pane; window appearance, window controls and the Dock icon in the Appearance pane; the window's look in the theme editor. One key for all, the word being the same; the key keeps its historical settings.general prefix.",
       "localizations": {
         "bg": {
           "stringUnit": {
