@@ -226,11 +226,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     [page.waveformView syncWaveformStyle];
     [page.waveformView syncWaveformTheme];
 
-    BOOL loading = _playbackLoadingTrack && index == _playlist.currentIndex
-            && [_playlist trackAtIndex:index] == _playbackLoadingTrack;
-    if (page.waveformView.playbackLoading != loading) {
-        page.waveformView.playbackLoading = loading;
-    }
+    [self applyPlaybackLoadingToCell:page atIndex:index];
     [self hydrateWaveformInCell:page atIndex:index];
     if (index == _playlist.currentIndex && ![_waveformCoordinator isCompleteAtIndex:index]) {
         [self requestWaveformForIndex:index];
@@ -246,6 +242,14 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
         [PlayerViewController renderRestingTimesForTrack:[_playlist trackAtIndex:index]
                                                  elapsed:page.elapsedLabel
                                                remaining:page.remainingTimeControl];
+    }
+}
+
+- (void)applyPlaybackLoadingToCell:(TrackPageCell *)cell atIndex:(NSUInteger)index {
+    BOOL loading = _playbackLoadingTrack && index == _playlist.currentIndex
+            && [_playlist trackAtIndex:index] == _playbackLoadingTrack;
+    if (cell.waveformView.playbackLoading != loading) {
+        cell.waveformView.playbackLoading = loading;
     }
 }
 

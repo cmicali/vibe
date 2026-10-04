@@ -23,6 +23,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Header, art and the end-of-playlist state, from the page's own track.
 - (void)configurePage:(TrackPageCell *)cell atIndex:(NSUInteger)index;
+- (void)applyPlaybackLoadingToCell:(TrackPageCell *)cell atIndex:(NSUInteger)index;
 
 - (void)requestWaveformForIndex:(NSUInteger)index;
 - (void)refreshWaveformWindow;

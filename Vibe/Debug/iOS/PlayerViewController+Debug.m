@@ -186,18 +186,12 @@
         BOOL kept = _waveformView.isShowingBakedWaveform;
         [_waveformView setLoadingProgress:-1];
         BOOL held = [_waveformView valueForKey:@"loadingIndicator"] != nil;
-        TrackPageCell *livePage = _boundPage;
-        TrackPageCell *returning = [[TrackPageCell alloc] initWithFrame:livePage.frame];
-        NSIndexPath *path = [NSIndexPath indexPathForItem:(NSInteger)current inSection:0];
-        [self collectionView:_pagesView willDisplayCell:returning forItemAtIndexPath:path];
+        TrackPageCell *returning = [[TrackPageCell alloc] initWithFrame:_boundPage.frame];
+        [self applyPlaybackLoadingToCell:returning atIndex:current];
         BOOL lateAppearanceLoading = returning.waveformView.playbackLoading;
-        // The cell misses settlement, then appears again without reuse.
-        returning.waveformView.playbackLoading = YES;
         [self playbackDidFinishLoading:_playback];
-        [self collectionView:_pagesView willDisplayCell:returning forItemAtIndexPath:path];
+        [self applyPlaybackLoadingToCell:returning atIndex:current];
         BOOL reappearanceCleared = !returning.waveformView.playbackLoading;
-        [self bindChromeToCell:livePage];
-        [returning.waveformView prepareForWaveformLoad];
         BOOL ended = [_waveformView valueForKey:@"loadingIndicator"] == nil;
         [self playbackDidBeginLoading:_playback];
         [self playback:_playback didChangeCurrentIndexFromIndex:current];
