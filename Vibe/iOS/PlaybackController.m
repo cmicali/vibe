@@ -503,7 +503,7 @@ static const NSUInteger kUIUpdateHz = 3;
 // saved before the buttons were hidden is cleared at launch.
 - (void)pushTransportModes {
     AppSettings *settings = AppSettings.sharedInstance;
-    BOOL shown = AppSettings.sharedInstance.showShuffleRepeat;
+    BOOL shown = settings.showShuffleRepeat;
     if (!shown) {
         settings.shuffleEnabled = NO;
         settings.repeatMode = VibeRepeatModeOff;

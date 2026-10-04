@@ -7,7 +7,6 @@
 
 #import "AppSettings.h"
 #import "PlaybackController.h"
-#import "PlayerDisplaySettings.h"
 #import "SettingsChoiceViewController.h"
 #import "VibeStrings.h"
 #import "WaveformRendererRegistry.h"

@@ -21,7 +21,6 @@
 #import "FavoritesStore.h"
 #import "AppSettings.h"
 #import "PlaybackController.h"
-#import "PlayerDisplaySettings.h"
 #import "RootViewController.h"
 #import "RootViewController+Debug.h"
 #import "SearchFolderStore.h"

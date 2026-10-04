@@ -12,7 +12,6 @@
 #import "NSURL+Hash.h"
 #import "NowPlayingRules.h"
 #import "PlatformColor.h"
-#import "PlayerDisplaySettings.h"
 #import "UIImage+DominantColor.h"
 #import "Vibe-Swift.h"                 // WidgetCenter has no ObjC API
 #import "VibeWidgetState.h"

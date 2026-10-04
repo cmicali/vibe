@@ -70,6 +70,13 @@ static const NSInteger kVibeCrossfadeMaxMilliseconds = 3000;
 - (nullable NSNumber *)waveformPlayheadLine;
 - (void)setWaveformPlayheadLine:(BOOL)line;
 
+// Posted on main after a settings screen writes any display setting, the
+// waveform style included; the keep-alive card is the receiver. Every writer
+// ends on VibeNotifyDisplaySettingsChanged, never a hand-composed post. The
+// time label's own tap repaints the pages itself and does not post.
+extern NSNotificationName const VibeDisplaySettingsDidChangeNotification;
+void VibeNotifyDisplaySettingsChanged(void);
+
 #endif  // !TARGET_OS_OSX
 
 // Track transitions. The store never applies either: the mac writer requests
@@ -123,10 +130,10 @@ static const NSInteger kVibeCrossfadeMaxMilliseconds = 3000;
 
 #pragma mark Player display
 
-// What the player shows. Each platform keeps the key it shipped, so the two
-// never share a stored value. The store applies none: the mac writer requests
-// VibeSettingsLiveEffectTrackDisplay, the iOS writer ends on
-// VibeNotifyDisplaySettingsChanged (iOS/PlayerDisplaySettings.h).
+// What the player shows, each platform under the key it shipped, so no stored
+// choice moved when these became shared. The store applies none: a mac writer
+// requests VibeSettingsLiveEffectTrackDisplay, an iOS writer ends on
+// VibeNotifyDisplaySettingsChanged.
 //
 // NO (default) shows the duration on the right, YES the minus-prefixed
 // remaining time.

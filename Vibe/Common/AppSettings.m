@@ -9,6 +9,16 @@
 #import "PlatformColor.h"
 
 
+#if !TARGET_OS_OSX
+NSNotificationName const VibeDisplaySettingsDidChangeNotification =
+        @"VibeDisplaySettingsDidChange";
+
+void VibeNotifyDisplaySettingsChanged(void) {
+    [NSNotificationCenter.defaultCenter
+            postNotificationName:VibeDisplaySettingsDidChangeNotification object:nil];
+}
+#endif
+
 @implementation AppSettings
 
 #pragma mark - Both platforms

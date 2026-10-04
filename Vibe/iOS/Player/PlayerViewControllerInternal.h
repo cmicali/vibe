@@ -13,7 +13,6 @@
 #import "FXPadView.h"
 #import "OutputRouteView.h"
 #import "PlaybackController.h"
-#import "PlayerDisplaySettings.h"
 #import "PlayerScreenRules.h"
 #import "Playlist.h"
 
