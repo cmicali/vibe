@@ -81,7 +81,7 @@
   ]
 }
 </script>
-<link rel="stylesheet" href="styles.css?v=af2c23b6bf">
+<link rel="stylesheet" href="styles.css?v=4baa8af27c">
 </head>
 <body>
 
@@ -128,7 +128,7 @@
       </span>
     </a>
   </div>
-  <p class="meta">macOS 13 Ventura or later &middot; Apple silicon and Intel &middot; Free and open source<br>Also on iPhone and iPad &middot; <code>brew install cmicali/tap/vibe</code></p>
+  <p class="meta">macOS 13 Ventura or later &middot; Apple silicon and Intel &middot; Free and open source<br>Also on iPhone and iPad</p>
   <figure class="shot shot-hero">
     <picture>
       <source srcset="img/player.webp?v=7836dd0d02" type="image/webp">
@@ -180,6 +180,19 @@
   </figure>
 </section>
 
+<section class="brew" aria-labelledby="brew-h">
+  <h2 id="brew-h">Also available via Homebrew</h2>
+  <div class="terminal">
+    <code><span class="prompt" aria-hidden="true">$ </span><span class="cmd" id="brew-cmd">brew install cmicali/tap/vibe</span></code>
+    <!-- Hidden until the script below runs, so no visitor sees a button that does nothing. -->
+    <button type="button" class="copy-btn" id="brew-copy" aria-label="Copy command" hidden>
+      <svg class="copy-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/></svg>
+      <svg class="done-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+    </button>
+    <span class="visually-hidden" id="brew-status" aria-live="polite"></span>
+  </div>
+</section>
+
 <section class="feature-row" aria-labelledby="ios-h">
   <div class="copy">
     <h2 id="ios-h">Also available for iOS</h2>
@@ -199,6 +212,31 @@
 </section>
 
 </main>
+
+<script>
+(() => {
+  const button = document.getElementById("brew-copy");
+  const status = document.getElementById("brew-status");
+  const command = document.getElementById("brew-cmd").textContent;
+  let reset;
+  button.hidden = false;
+  button.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(command);
+    } catch {
+      getSelection().selectAllChildren(document.getElementById("brew-cmd"));
+      return;
+    }
+    button.classList.add("copied");
+    status.textContent = "Copied";
+    clearTimeout(reset);
+    reset = setTimeout(() => {
+      button.classList.remove("copied");
+      status.textContent = "";
+    }, 1600);
+  });
+})();
+</script>
 
 <footer>
   <p class="links">
