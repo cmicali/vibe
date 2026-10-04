@@ -5,6 +5,7 @@
 
 #import "Formatters.h"
 #import "VibeStrings.h"
+#import "AppSettings.h"
 
 enum { kDecimalMaxFractionDigits = 3 };
 
@@ -141,6 +142,13 @@ enum { kDecimalMaxFractionDigits = 3 };
 
 - (NSString *)sampleRateString:(double)hertz {
     return [NSString stringWithFormat:STR_LABEL_SAMPLE_RATE, [self decimalString:hertz / 1000 fractionDigits:1]];
+}
+
+- (NSString *)crossfadeString:(NSInteger)milliseconds {
+    if (milliseconds <= kVibeCrossfadeOffMilliseconds) {
+        return STR_SETTINGS_CROSSFADE_OFF;
+    }
+    return [NSString stringWithFormat:STR_SETTINGS_CROSSFADE_SECONDS, [self decimalString:milliseconds / 1000.0 fractionDigits:1]];
 }
 
 - (NSString *)bpmString:(double)bpm {

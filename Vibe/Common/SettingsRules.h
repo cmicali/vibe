@@ -32,6 +32,16 @@ static inline NSInteger VibeNearestPreset(NSInteger value, const NSInteger *pres
     return best;
 }
 
+// The nearest slider step, ties downward; anything below the first step is
+// off.
+static inline NSInteger VibeNormalizedCrossfadeMilliseconds(NSInteger milliseconds) {
+    // Clamp before rounding: external defaults can contain integer extremes.
+    NSInteger clamped = MAX(0, MIN(kVibeCrossfadeMaxMilliseconds, milliseconds));
+    NSInteger half = kVibeCrossfadeStepMilliseconds / 2;
+    NSInteger stepped = (clamped + half - 1) / kVibeCrossfadeStepMilliseconds * kVibeCrossfadeStepMilliseconds;
+    return stepped > 0 ? stepped : kVibeCrossfadeOffMilliseconds;
+}
+
 static inline NSString *VibeNormalizedWaveformTheme(NSString *_Nullable identifier) {
     if ([identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_ORANGE] ||
         [identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART] ||

@@ -1833,6 +1833,134 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     }
 }
 
+#pragma mark - Track-end crossfade
+
+static NSData *StereoTone(NSUInteger frames, double rate, double frequency, float amplitude) {
+    NSMutableData *data = [NSMutableData dataWithLength:frames * 2 * sizeof(float)];
+    float *p = data.mutableBytes;
+    for (NSUInteger f = 0; f < frames; f++) p[f*2] = p[f*2+1] = amplitude * (float)sin(2 * M_PI * frequency * f / rate);
+    return data;
+}
+
+// Two tones, so each track's level reads apart from the other's in any window.
+- (NSArray<AudioTrack *> *)toneTracksOfSeconds:(double)firstSeconds and:(double)secondSeconds {
+    NSURL *a = [self write:StereoTone((NSUInteger)(firstSeconds * 48000), 48000, 440, 0.5f) rate:48000 channels:2 name:@"tone440.wav"];
+    NSURL *b = [self write:StereoTone((NSUInteger)(secondSeconds * 48000), 48000, 1000, 0.5f) rate:48000 channels:2 name:@"tone1000.wav"];
+    return @[[AudioTrack withURL:a], [AudioTrack withURL:b]];
+}
+
+- (void)playParked:(NSArray<AudioTrack *> *)tracks {
+    [_player play:tracks[0]];
+    [self settleUntil:^BOOL { return [self count:@"start"] == 1; }];
+    [_player prefetchTrack:tracks[1]];
+    [self settleUntil:^BOOL { return [self->_player.debugRenderCounts[@"parked"] boolValue] || self->_player.gaplessArmed; }];
+}
+
+// Each track's tone level per 50 ms window of the capture: 22 and 50 whole cycles.
+- (void)levelsOf:(NSData *)capture first:(NSMutableArray<NSNumber *> *)first second:(NSMutableArray<NSNumber *> *)second {
+    for (NSUInteger at = 0; at + 2400 <= capture.length / 8; at += 2400) {
+        [first addObject:@(ToneAmplitude(capture, 2, 0, 48000, 440, NSMakeRange(at, 2400)))];
+        [second addObject:@(ToneAmplitude(capture, 2, 0, 48000, 1000, NSMakeRange(at, 2400)))];
+    }
+}
+
+// The reported bug: with a crossfade set, continuous play crossfaded nothing,
+// because the track played out and the next play: found nothing audible.
+// The parked track must start its crossfade before the end, the two must
+// overlap at constant power, and the shell hears one auto-advance.
+- (void)testATrackEndCrossfadesIntoTheParkedTrack {
+    for (NSNumber *crossfade in @[@500, @2000]) {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO]; _blockSize = 512;
+        _player.crossfadeMilliseconds = crossfade.integerValue;
+        NSArray<AudioTrack *> *tracks = [self toneTracksOfSeconds:4 and:4];
+        [self playParked:tracks];
+        XCTAssertFalse(_player.gaplessArmed, @"a long crossfade never splices");
+        NSData *capture = [self renderSeconds:5.5];
+        NSMutableArray<NSNumber *> *a = [NSMutableArray array], *b = [NSMutableArray array];
+        [self levelsOf:capture first:a second:b];
+        double fade = crossfade.doubleValue / 1000;
+        NSUInteger firstHeard = NSNotFound, overlapping = 0;
+        for (NSUInteger w = 2; w < a.count; w++) { // past the startup declick
+            double ta = a[w].doubleValue, tb = b[w].doubleValue, t = w * 0.05;
+            XCTAssertEqualWithAccuracy(hypot(ta, tb), 0.5, 0.05, @"%@ ms: power dips at %.2f s (%.3f, %.3f)", crossfade, t, ta, tb);
+            if (tb > 0.05 && firstHeard == NSNotFound) firstHeard = w;
+            if (ta > 0.1 && tb > 0.1) overlapping++;
+            if (t > 4.05) XCTAssertLessThan(ta, 0.01, @"the outgoing track still sounds at %.2f s", t);
+        }
+        XCTAssertNotEqual(firstHeard, NSNotFound);
+        double started = firstHeard * 0.05;
+        XCTAssertGreaterThan(started, 4 - fade - 0.25, @"%@ ms: started too early", crossfade);
+        XCTAssertLessThan(started, 4 - fade + 0.1, @"%@ ms: started at %.2f s, after its crossfade was due", crossfade, started);
+        XCTAssertGreaterThanOrEqual(overlapping * 0.05, fade / 2, @"%@ ms: the tracks barely overlapped", crossfade);
+        XCTAssertEqual([self count:@"advance"], 1u); XCTAssertEqual([self count:@"finish"], 0u);
+        XCTAssertEqual(_player.currentTrack, tracks[1]);
+        XCTAssertTrue(_player.isPlaying);
+        XCTAssertEqualWithAccuracy(_player.position, 5.5 - started, 0.1);
+        XCTAssertEqual([_player.debugRenderCounts[@"retiredFades"] unsignedIntegerValue], 0u, @"the outgoing voice retired");
+    }
+}
+
+// Crossfade off is the splice: the same two tracks continue sample for
+// sample, no overlap and no gap.
+- (void)testATrackEndWithTheCrossfadeOffIsGapless {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO]; _blockSize = 512;
+    NSArray<AudioTrack *> *tracks = [self toneTracksOfSeconds:1 and:1];
+    NSMutableData *reference = [PCM([self read:tracks[0].url]) mutableCopy];
+    [reference appendData:PCM([self read:tracks[1].url])];
+    [self playParked:tracks];
+    XCTAssertTrue(_player.gaplessArmed);
+    [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
+    XCTAssertEqual([self count:@"advance"], 1u); XCTAssertEqual([self count:@"finish"], 1u);
+}
+
+// The setting moves under a playing track: raising it drops the splice and
+// crossfades the end; lowering it again splices.
+- (void)testChangingTheCrossfadeMidTrackSwitchesHowItEnds {
+    for (NSNumber *raise in @[@YES, @NO]) {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO]; _blockSize = 512;
+        _player.crossfadeMilliseconds = raise.boolValue ? 10 : 1000;
+        NSArray<AudioTrack *> *tracks = [self toneTracksOfSeconds:3 and:3];
+        [self playParked:tracks];
+        [self render:48000];
+        _player.crossfadeMilliseconds = raise.boolValue ? 1000 : 10;
+        [self settleUntil:^BOOL { return self->_player.gaplessArmed != raise.boolValue; }];
+        NSData *capture = [self renderSeconds:2.5]; // from 1 s to 3.5 s
+        NSMutableArray<NSNumber *> *a = [NSMutableArray array], *b = [NSMutableArray array];
+        [self levelsOf:capture first:a second:b];
+        NSUInteger overlapping = 0;
+        for (NSUInteger w = 0; w < a.count; w++) if (a[w].doubleValue > 0.1 && b[w].doubleValue > 0.1) overlapping++;
+        if (raise.boolValue) XCTAssertGreaterThanOrEqual(overlapping, 8u, @"raised: the end crossfades");
+        else XCTAssertLessThanOrEqual(overlapping, 1u, @"lowered: the end splices");
+        XCTAssertEqual([self count:@"advance"], 1u, @"raise %@", raise);
+        XCTAssertEqual(_player.currentTrack, tracks[1]);
+    }
+}
+
+// A track shorter than twice the crossfade is still heard: its crossfade
+// takes at most half of it.
+- (void)testAShortTrackIsHeardBeforeItsCrossfade {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO]; _blockSize = 512;
+    _player.crossfadeMilliseconds = 3000;
+    NSArray<AudioTrack *> *tracks = [self toneTracksOfSeconds:1 and:2];
+    [self playParked:tracks];
+    NSData *capture = [self renderSeconds:1.5];
+    XCTAssertEqualWithAccuracy(ToneAmplitude(capture, 2, 0, 48000, 440, NSMakeRange(4800, 12000)), 0.5, 0.02, @"the first 0.35 s is the short track alone");
+    XCTAssertLessThan(ToneAmplitude(capture, 2, 0, 48000, 1000, NSMakeRange(4800, 12000)), 0.01);
+    XCTAssertEqual([self count:@"advance"], 1u);
+}
+
+// Nothing parked — the end of the playlist, or Pause at track end — is the
+// ordinary track end, crossfade or not.
+- (void)testATrackEndWithNothingParkedFinishes {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    _player.crossfadeMilliseconds = 2000;
+    [self play:[self toneTracksOfSeconds:1 and:1][0].url paused:NO position:0];
+    [self render:48000 + 9600];
+    [self settleUntil:^BOOL { return [self count:@"finish"] == 1; }];
+    XCTAssertEqual([self count:@"advance"], 0u);
+    XCTAssertTrue(_player.isStopped);
+}
+
 #pragma mark - Cue rows
 
 static AudioTrack *CueRow(NSURL *url, NSUInteger start, NSUInteger end) {

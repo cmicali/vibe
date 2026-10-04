@@ -61,12 +61,29 @@ static inline uint64_t VibeIncomingFadeMilliseconds(NSInteger crossfadeMilliseco
 }
 
 // Gapless arms only at the declick minimum, which the UI presents as
-// crossfade off; a longer setting crossfades auto-advance instead — except
+// crossfade off; a longer setting crossfades auto-advance instead
+// (VibeTrackEndCrossfadeMilliseconds) — except
 // into the next window of the same file (AudioTrack
 // isFollowedContiguouslyBy:), one recording a crossfade would overlap with
 // itself.
 static inline BOOL VibeGaplessArmAllowed(NSInteger crossfadeMilliseconds, BOOL continuesTheRecording) {
     return continuesTheRecording || crossfadeMilliseconds <= (NSInteger)kFadeDurationMilliseconds;
+}
+
+// The crossfade into the parked successor at a track's end: 0 while it is not
+// due, else its length. The setting is held to half the track, so a short one
+// is still heard, and to what remains, so the outgoing side lands on silence
+// before its file ends. Due `lateness` early, the most the drain that notices
+// can be late; the outgoing side then reaches silence that much before its
+// end. A fade no longer than the declick is no crossfade: the track ends.
+static inline uint64_t VibeTrackEndCrossfadeMilliseconds(NSInteger crossfadeMilliseconds, NSTimeInterval remaining,
+                                                         NSTimeInterval duration, NSTimeInterval lateness) {
+    double fade = MIN((double)crossfadeMilliseconds / 1000.0, duration / 2);
+    if (remaining > fade + lateness) {
+        return 0;
+    }
+    uint64_t milliseconds = (uint64_t)llround(MAX(0, MIN(fade, remaining)) * 1000);
+    return milliseconds > kFadeDurationMilliseconds ? milliseconds : 0;
 }
 
 #pragma mark - Stepped fades (AudioFX's send gates)

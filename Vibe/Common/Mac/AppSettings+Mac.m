@@ -942,7 +942,7 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
 }
 
 - (NSInteger)effectiveCrossfadeMilliseconds {
-    return self.bitPerfectOutput ? kVibeCrossfadePresets[0] : self.crossfadeMilliseconds;
+    return self.bitPerfectOutput ? kVibeCrossfadeOffMilliseconds : self.crossfadeMilliseconds;
 }
 
 #pragma mark Analysis and the key label

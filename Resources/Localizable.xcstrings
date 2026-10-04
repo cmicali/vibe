@@ -87793,566 +87793,380 @@
       },
       "extractionState": "manual"
     },
-    "settings.playback.crossfade.instant": {
-      "comment": "Settings, Playback pane, crossfade choice: no audible blend — the next track starts immediately. The default.",
+    "settings.playback.crossfade.off": {
+      "comment": "Settings, Playback: readout beside the crossfade slider at its left end — no audible blend, the next track starts immediately, gaplessly where the files allow. The default.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Мигновен"
+            "value": "Изкл."
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Okamžité"
+            "value": "Vypnuto"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Øjeblikkelig"
+            "value": "Fra"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sofort"
+            "value": "Aus"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Άμεσο"
+            "value": "Ανενεργό"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Instant"
+            "value": "Off"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Instantáneo"
+            "value": "Desactivado"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Välitön"
+            "value": "Pois"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Instantané"
+            "value": "Désactivé"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Trenutačno"
+            "value": "Isključeno"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Azonnali"
+            "value": "Ki"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Instan"
+            "value": "Nonaktif"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Istantanea"
+            "value": "Disattivo"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "即時"
+            "value": "オフ"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "즉시"
+            "value": "꺼짐"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Øyeblikkelig"
+            "value": "Av"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Direct"
+            "value": "Uit"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Natychmiastowe"
+            "value": "Wyłączone"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Instantâneo"
+            "value": "Desativado"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Instantâneo"
+            "value": "Desativado"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Instantaneu"
+            "value": "Dezactivat"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Мгновенный"
+            "value": "Выкл."
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Okamžité"
+            "value": "Vypnuté"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Direkt"
+            "value": "Av"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ทันที"
+            "value": "ปิด"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Anında"
+            "value": "Kapalı"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Миттєвий"
+            "value": "Вимк."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tức thì"
+            "value": "Tắt"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "立即"
+            "value": "关"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "立即"
+            "value": "關"
           }
         }
       },
       "extractionState": "manual"
     },
-    "settings.playback.crossfade.long": {
-      "comment": "Settings, Playback pane, crossfade choice: a two-second blend into the next track. 's' abbreviates seconds.",
+    "settings.playback.crossfade.seconds": {
+      "comment": "Settings, Playback: readout beside the crossfade slider, how long one track blends into the next. %@ is the length in seconds with one decimal, already in the user's locale (e.g. '1.5'); 's' abbreviates seconds.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Дълъг (2 с)"
+            "value": "%@ с"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dlouhé (2 s)"
+            "value": "%@ s"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lang (2 s)"
+            "value": "%@ s"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lang (2 s)"
+            "value": "%@ s"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Μεγάλο (2 δευτ.)"
+            "value": "%@ δευτ."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Long (2s)"
+            "value": "%@ s"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Largo (2 s)"
+            "value": "%@ s"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pitkä (2 s)"
+            "value": "%@ s"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Long (2 s)"
+            "value": "%@ s"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dugo (2 s)"
+            "value": "%@ s"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hosszú (2 mp)"
+            "value": "%@ mp"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Panjang (2 dtk)"
+            "value": "%@ dtk"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lunga (2 s)"
+            "value": "%@ s"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "長い（2秒）"
+            "value": "%@秒"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "길게(2초)"
+            "value": "%@초"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lang (2 s)"
+            "value": "%@ s"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lang (2 s)"
+            "value": "%@ s"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Długie (2 s)"
+            "value": "%@ s"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Longo (2 s)"
+            "value": "%@ s"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Longo (2 s)"
+            "value": "%@ s"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lung (2 s)"
+            "value": "%@ s"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Длинный (2 с)"
+            "value": "%@ с"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dlhé (2 s)"
+            "value": "%@ s"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lång (2 s)"
+            "value": "%@ s"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ยาว (2 วิ)"
+            "value": "%@ วิ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uzun (2 sn)"
+            "value": "%@ sn"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Довгий (2 с)"
+            "value": "%@ с"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dài (2 giây)"
+            "value": "%@ giây"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "长（2秒）"
+            "value": "%@ 秒"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "長（2秒）"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.playback.crossfade.short": {
-      "comment": "Settings, Playback pane, crossfade choice: a half-second blend into the next track. Localize the decimal separator; 's' abbreviates seconds.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Кратък (0,5 с)"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Krátké (0,5 s)"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kort (0,5 s)"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kurz (0,5 s)"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Μικρό (0,5 δευτ.)"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Short (0.5s)"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Corto (0,5 s)"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lyhyt (0,5 s)"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Court (0,5 s)"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kratko (0,5 s)"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rövid (0,5 mp)"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pendek (0,5 dtk)"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Breve (0,5 s)"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "短い（0.5秒）"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "짧게(0.5초)"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kort (0,5 s)"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kort (0,5 s)"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Krótkie (0,5 s)"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Curto (0,5 s)"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Curto (0,5 s)"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Scurt (0,5 s)"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Короткий (0,5 с)"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Krátke (0,5 s)"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kort (0,5 s)"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "สั้น (0.5 วิ)"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kısa (0,5 sn)"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Короткий (0,5 с)"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ngắn (0,5 giây)"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "短（0.5秒）"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "短（0.5秒）"
+            "value": "%@ 秒"
           }
         }
       },
       "extractionState": "manual"
     },
     "settings.playback.crossfade_label": {
-      "comment": "Settings, Playback pane: label beside the dropdown choosing how long one track blends into the next on a track change.",
+      "comment": "Settings, Playback pane: label beside the slider choosing how long one track blends into the next on a track change.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -89654,7 +89468,7 @@
       "extractionState": "manual"
     },
     "settings.playback.off_while_bit_perfect": {
-      "comment": "Settings, Playback pane: caption under the disabled audio-FX switch and the disabled crossfade dropdown while bit-perfect output (Settings > Audio) is on, which turns both off.",
+      "comment": "Settings, Playback pane: caption under the disabled audio-FX switch and the disabled crossfade slider while bit-perfect output (Settings > Audio) is on, which turns both off.",
       "localizations": {
         "bg": {
           "stringUnit": {

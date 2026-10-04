@@ -7,6 +7,8 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
+#import "Formatters.h"
+#import "SettingsRules.h"
 #import "MainPlayerController+Settings.h"
 #import "VibeStrings.h"
 
@@ -21,7 +23,8 @@ static NSString *const kOnEndPause = @"pause";
     NSButton *_pitchRange8;
     NSButton *_pitchRange16;
     NSPopUpButton *_skipStepsPopUp;
-    NSPopUpButton *_crossfadePopUp;
+    NSSlider *_crossfadeSlider;
+    NSTextField *_crossfadeValueLabel;
     VibeSwitch *_enableFXSwitch;
     // Their captions change with bit-perfect output, which disables both.
     SettingsRowView *_crossfadeRow;
@@ -53,22 +56,24 @@ static NSString *const kOnEndPause = @"pause";
         _skipStepsPopUp.lastItem.tag = base;
     }
 
-    _crossfadePopUp = [self popUpButtonWithWidth:kPlaybackPopUpWidth action:@selector(crossfadeChanged:)];
-    NSArray<NSString *> *crossfadeTitles = @[STR_SETTINGS_CROSSFADE_INSTANT,
-                                             STR_SETTINGS_CROSSFADE_SHORT,
-                                             STR_SETTINGS_CROSSFADE_LONG];
-    NSAssert(crossfadeTitles.count == kVibeCrossfadePresetCount,
-             @"Every crossfade preset needs a title");
-    for (size_t i = 0; i < kVibeCrossfadePresetCount; i++) {
-        [_crossfadePopUp addItemWithTitle:crossfadeTitles[i]];
-        _crossfadePopUp.lastItem.tag = kVibeCrossfadePresets[i];
-    }
+    // Off is the left end. No tick marks: thirty-one would be a smear, so the
+    // action snaps the knob to the setting's steps instead.
+    _crossfadeSlider = [NSSlider sliderWithValue:0 minValue:0 maxValue:kVibeCrossfadeMaxMilliseconds
+                                          target:self action:@selector(crossfadeChanged:)];
+    _crossfadeSlider.continuous = YES;
+    [_crossfadeSlider.widthAnchor constraintEqualToConstant:kPlaybackPopUpWidth - 60].active = YES;
+    _crossfadeValueLabel = [NSTextField labelWithString:@""];
+    _crossfadeValueLabel.textColor = NSColor.secondaryLabelColor;
+    // Fixed width, so a changing readout never nudges the slider.
+    _crossfadeValueLabel.alignment = NSTextAlignmentRight;
+    [_crossfadeValueLabel.widthAnchor constraintEqualToConstant:50].active = YES;
 
     _enableFXSwitch = [self switchWithAction:@selector(toggleEnableFX:)];
     _detectBPMSwitch = [self switchWithAction:@selector(toggleDetectBPM:)];
     _detectKeySwitch = [self switchWithAction:@selector(toggleDetectKey:)];
 
-    _crossfadeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_CROSSFADE_LABEL control:_crossfadePopUp];
+    _crossfadeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_CROSSFADE_LABEL
+                                         controls:@[_crossfadeSlider, _crossfadeValueLabel]];
     _enableFXRow = [SettingsRowView rowWithTitle:STR_SETTINGS_ENABLE_FX control:_enableFXSwitch];
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_TRANSITIONS_SECTION rows:@[
@@ -93,14 +98,14 @@ static NSString *const kOnEndPause = @"pause";
     NSInteger range = AppSettings.sharedInstance.pitchRange;
     _pitchRange8.state = range != 16 ? NSControlStateValueOn : NSControlStateValueOff;
     _pitchRange16.state = range == 16 ? NSControlStateValueOn : NSControlStateValueOff;
-    // The getters snap to a preset, so these always match an item.
+    // The getters snap to a preset or a step, so these always match one.
     [_skipStepsPopUp selectItemWithTag:AppSettings.sharedInstance.skipBaseBars];
-    [_crossfadePopUp selectItemWithTag:AppSettings.sharedInstance.crossfadeMilliseconds];
+    [self renderCrossfade:AppSettings.sharedInstance.crossfadeMilliseconds];
     _enableFXSwitch.state = AppSettings.sharedInstance.audioFXEnabled ? NSControlStateValueOn : NSControlStateValueOff;
     // Bit-perfect output outranks both. The caller of every refresh
     // remeasures the pane, so the captions' answers go unread.
     BOOL bitPerfect = AppSettings.sharedInstance.bitPerfectOutput;
-    [SettingsRowView setControl:_crossfadePopUp enabled:!bitPerfect];
+    [SettingsRowView setControl:_crossfadeSlider enabled:!bitPerfect];
     [SettingsRowView setControl:_enableFXSwitch enabled:!bitPerfect];
     [_crossfadeRow setCaption:(bitPerfect ? STR_SETTINGS_OFF_WHILE_BIT_PERFECT : nil)];
     [_enableFXRow setCaption:(bitPerfect ? STR_SETTINGS_OFF_WHILE_BIT_PERFECT : nil)];
@@ -124,9 +129,21 @@ static NSString *const kOnEndPause = @"pause";
     AppSettings.sharedInstance.skipBaseBars = _skipStepsPopUp.selectedTag;
 }
 
+// Only a new step is written, since each write re-arms or drops the
+// successor.
 - (void)crossfadeChanged:(id)sender {
-    AppSettings.sharedInstance.crossfadeMilliseconds = _crossfadePopUp.selectedTag;
+    NSInteger milliseconds = VibeNormalizedCrossfadeMilliseconds(lround(_crossfadeSlider.doubleValue));
+    [self renderCrossfade:milliseconds];
+    if (milliseconds == AppSettings.sharedInstance.crossfadeMilliseconds) {
+        return;
+    }
+    AppSettings.sharedInstance.crossfadeMilliseconds = milliseconds;
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectCrossfade];
+}
+
+- (void)renderCrossfade:(NSInteger)milliseconds {
+    _crossfadeSlider.doubleValue = milliseconds > kVibeCrossfadeOffMilliseconds ? milliseconds : 0;
+    _crossfadeValueLabel.stringValue = [Formatters.sharedInstance crossfadeString:milliseconds];
 }
 
 - (void)toggleEnableFX:(id)sender {

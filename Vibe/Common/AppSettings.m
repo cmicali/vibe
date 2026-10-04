@@ -8,9 +8,6 @@
 #import "SettingsRules.h"
 #import "PlatformColor.h"
 
-const NSInteger kVibeCrossfadePresets[] = {10, 500, 2000};
-const size_t kVibeCrossfadePresetCount =
-        sizeof(kVibeCrossfadePresets) / sizeof(kVibeCrossfadePresets[0]);
 
 @implementation AppSettings
 
@@ -42,7 +39,7 @@ const size_t kVibeCrossfadePresetCount =
 - (NSDictionary<NSString *, id> *)registeredSettingDefaults {
     NSMutableDictionary *appDefaults = [@{
             SETTING_FOLDER_OPEN_SORT: SETTINGS_VALUE_FOLDER_OPEN_SORT_NAME,
-            SETTING_CROSSFADE_MILLISECONDS: @(10),
+            SETTING_CROSSFADE_MILLISECONDS: @(kVibeCrossfadeOffMilliseconds),
             SETTING_PAUSE_AT_TRACK_END: @(NO),
             SETTING_REPEAT_MODE: SETTINGS_VALUE_REPEAT_MODE_OFF,
             SETTING_SHUFFLE_ENABLED: @(NO),
@@ -138,7 +135,7 @@ const size_t kVibeCrossfadePresetCount =
 
 - (NSInteger)crossfadeMilliseconds {
     NSInteger stored = [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_CROSSFADE_MILLISECONDS];
-    return VibeNearestPreset(stored, kVibeCrossfadePresets, kVibeCrossfadePresetCount);
+    return VibeNormalizedCrossfadeMilliseconds(stored);
 }
 
 - (void)setCrossfadeMilliseconds:(NSInteger)milliseconds {

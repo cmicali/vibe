@@ -50,6 +50,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)clearSuccessorOnQueue;
 // The boundary passed: the successor is sounding. Republishes it as current.
 - (void)promoteSuccessorOnQueue;
+// Under a long crossfade, near the track's end: starts the park crossfading
+// in and republishes it as current. `lateness` is how late the calling drain
+// can be.
+- (void)maybeCrossfadeIntoParkOnQueueWithLateness:(NSTimeInterval)lateness;
 
 @end
 

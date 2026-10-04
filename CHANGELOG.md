@@ -3,6 +3,7 @@
 * Added shuffle, repeat all, and repeat one
 * Added CUE sheet (file and embedded) playback
 * Added Ogg Opus, Ogg Vorbis (mac only), CAF, W64, M4B, M4R, and ADTS playback
+* Added a crossfade slider, from off up to 3 seconds in tenths of a second, in place of the three fixed choices
 * Added the 3-Band waveform style and Record Bin theme (mac only) that uses it
 * Improved FLAC decoding: seeking is now near-instant even for long files, less CPU and memory, and better compatibility
 * Improved WAV and AIFF decoding: 1.4x–3.2x faster, better compatibility
@@ -10,6 +11,7 @@
 * Improved scan performance: tags and artwork 2x faster, library scans use 20% less CPU
 * Improved load performance: metadata cache at launch, large M3U playlists, and editing very large playlists
 * Changed: release builds no longer write diagnostic logging, including file paths, to the system log
+* Fixed crossfade doing nothing when one track plays into the next; it only worked when changing tracks by hand
 * Fixed 24 and 32-bit little-endian AIFF-C files playing at the wrong length
 * Fixed seeks in low-bitrate MPEG-2 MP3 files landing slightly off
 * Fixed FLAC files that don't record their length showing no duration
