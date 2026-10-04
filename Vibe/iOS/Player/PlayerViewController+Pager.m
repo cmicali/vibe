@@ -171,7 +171,7 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     AudioTrack *track = [_playlist trackAtIndex:index];
     NSString *errorText = _playback.errorText;
     BOOL showError = index == _playlist.currentIndex && errorText != nil;
-    BOOL showsInfo = VibeShowsFileInfo();
+    BOOL showsInfo = AppSettings.sharedInstance.showFileInfo;
     // Full-size art or the placeholder, never the soft 128px thumbnail.
     [cell configureWithTitle:track.displayTitle
                   titleColor:[UIColor labelColor]
@@ -187,7 +187,7 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     // The pad follows the setting, which the Playback screen's write carries
     // here through the display notification.
     [cell setFXPadShown:AppSettings.sharedInstance.audioFXEnabled];
-    [cell setShuffleRepeatShown:VibeShowsShuffleRepeat()];
+    [cell setShuffleRepeatShown:AppSettings.sharedInstance.showShuffleRepeat];
 }
 
 // The mac's second info line: the tempo — the tag, or the analysis the

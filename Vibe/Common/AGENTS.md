@@ -10,11 +10,12 @@
 
 The one in-memory value is `windowAppearancePreviewStyle`, an override that `windowAppearance` answers and `setWindowAppearanceStyle:` clears, held by the Settings window's Appearance page while it is open (`Mac/Settings/AGENTS.md`). It lives here because that accessor is where the style-to-appearance ladder already is, so every consumer gets the preview for free.
 
-## The platform split is the directory plus one `#if !TARGET_OS_OSX` block
+## The platform split is the directory, one `#if !TARGET_OS_OSX` block, and per-platform key strings
 
 **Adding a property means choosing a side**; "does the iOS app honor this?" is answered by which header it sits in. Almost everything configures something only macOS has, so it is `Mac/AppSettings+Mac`, and `AppSettings.h` compiles for iOS only:
 
-- the iOS-only keys, in the `#if !TARGET_OS_OSX` block: the loose appearance keys `waveformStyle` and `waveformTheme` with its custom colors (played and unplayed, each per appearance), `waveformPlayheadLine` (nil until chosen and deliberately unregistered, since its default is the style's, `WaveformUI/AGENTS.md`), and the widget's own `widgetWaveformStyle` (Wiggle by default; nil, stored as an empty string, matches the app's). On macOS the theme migration consumed these keys and `currentTheme.<field>` is the store of record, so they are compiled out there — a macOS caller fails to build instead of silently reading the registered default forever;
+- the iOS-only keys, in the `#if !TARGET_OS_OSX` block: the loose appearance keys `waveformStyle` and `waveformTheme` with its custom colors (played and unplayed, each per appearance), `waveformPlayheadLine` (nil until chosen and deliberately unregistered, since its default is the style's, `WaveformUI/AGENTS.md`), and the widget's own `widgetWaveformStyle` (Wiggle by default; nil, stored as an empty string, matches the app's), plus `VibeDisplaySettingsDidChangeNotification`, which the iOS display writers post. On macOS the theme migration consumed these keys and `currentTheme.<field>` is the store of record, so they are compiled out there — a macOS caller fails to build instead of silently reading the registered default forever;
+- the player display switches `showRemainingTime`, `showFileInfo` and `showShuffleRepeat`, shared properties over keys that differ by platform: each reads the key its platform shipped (the `#if TARGET_OS_OSX` pair in `AppSettingsInternal.h`), so none needed a migration. Only iOS draws shuffle and repeat buttons so far;
 - `folderOpenSort`, `pauseAtTrackEnd` and `crossfadeMilliseconds`, genuinely shared: both shells enforce the track-end rule and push the crossfade (root `AGENTS.md`), and the crossfade slider's range and step sit beside its getter. `effectiveCrossfadeMilliseconds`, which bit-perfect output holds down, is the mac's. Normalize and Gain are the mac's too — plain settings rather than `AppTheme` fields because they are set for a library's mastering level, not a look — and the iOS scrubber draws the normalized mapping with no knob;
 - `sharedInstance`. The other store-wide entry points, `applicationDidFinishLaunching`, `allSettingsAtDefaults` and `resetToDefaults`, are the mac's: iOS has no reset and nothing to do at launch. Stored custom themes are content: normal reset preserves them; `factoryReset` removes them before resetting settings.
 
@@ -26,7 +27,7 @@ Reads go straight to `NSUserDefaults` — a CFPreferences lookup apiece, cheap e
 
 **TRAP: `NSUserDefaultsDidChangeNotification` does not fire for a write from another process** — a plain `defaults write`, or the debug channel's CLI-side verbs (`set_analysis`) — so a cache invalidated on it reports the old value for good. A future cache over a stored key must invalidate some other way. `FolderArtResolver` caches `useFolderArt` on the cell-draw path, so a write that skips `VibeSettingsLiveEffectFolderArt` is never observed (`Audio/Metadata/FolderArt/AGENTS.md`).
 
-**TRAP: a stored key never follows a rename of its macro** — changing the string resets every user's setting. `SETTING_FOLDER_ART` keeps `@"Audio.folderArtwork"` (the key list at the top of `Mac/AppSettings+Mac.m`).
+**TRAP: a stored key never follows a rename of its macro** — changing the string resets every user's setting. `SETTING_FOLDER_ART` keeps `@"Audio.folderArtwork"` (the key list at the top of `Mac/AppSettings+Mac.m`; the shared keys are `AppSettingsInternal.h`'s).
 
 ## Single homes
 

@@ -25,6 +25,16 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTING_SHUFFLE_ENABLED                     @"Transport.shuffleEnabled"
 #define SETTING_AUDIO_FX_ENABLED                    @"AudioPlayer.fxEnabled"
 #define SETTING_ANALYZE_BPM                         @"Audio.analyzeBPM"
+// The player display keys, each under the name its platform shipped.
+#if TARGET_OS_OSX
+#define SETTING_SHOW_REMAINING_TIME                 @"MainWindow.showRemainingTime"
+#define SETTING_SHOW_FILE_INFO                      @"MainWindow.showFileInfo"
+#define SETTING_SHOW_SHUFFLE_REPEAT                 @"MainWindow.showShuffleRepeat"
+#else
+#define SETTING_SHOW_REMAINING_TIME                 @"VibeiOSShowRemainingTime"
+#define SETTING_SHOW_FILE_INFO                      @"VibeiOSShowFileInfo"
+#define SETTING_SHOW_SHUFFLE_REPEAT                 @"VibeiOSShowShuffleRepeat"
+#endif
 
 #if TARGET_OS_OSX
 

@@ -9,6 +9,16 @@
 #import "PlatformColor.h"
 
 
+#if !TARGET_OS_OSX
+NSNotificationName const VibeDisplaySettingsDidChangeNotification =
+        @"VibeDisplaySettingsDidChange";
+
+void VibeNotifyDisplaySettingsChanged(void) {
+    [NSNotificationCenter.defaultCenter
+            postNotificationName:VibeDisplaySettingsDidChangeNotification object:nil];
+}
+#endif
+
 @implementation AppSettings
 
 #pragma mark - Both platforms
@@ -46,6 +56,9 @@
             SETTING_SHUFFLE_ENABLED: @(NO),
             SETTING_AUDIO_FX_ENABLED: @(YES),
             SETTING_ANALYZE_BPM: @(YES),
+            SETTING_SHOW_REMAINING_TIME: @(NO),
+            SETTING_SHOW_FILE_INFO: @(YES),
+            SETTING_SHOW_SHUFFLE_REPEAT: @(YES),
     } mutableCopy];
 #if TARGET_OS_OSX
     [self registerMacDefaultsInto:appDefaults];
@@ -181,6 +194,30 @@
 
 - (void)setAnalyzeBPM:(BOOL)analyze {
     [[NSUserDefaults standardUserDefaults] setBool:analyze forKey:SETTING_ANALYZE_BPM];
+}
+
+- (BOOL)showRemainingTime {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_SHOW_REMAINING_TIME];
+}
+
+- (void)setShowRemainingTime:(BOOL)show {
+    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_REMAINING_TIME];
+}
+
+- (BOOL)showFileInfo {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_SHOW_FILE_INFO];
+}
+
+- (void)setShowFileInfo:(BOOL)show {
+    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_FILE_INFO];
+}
+
+- (BOOL)showShuffleRepeat {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_SHOW_SHUFFLE_REPEAT];
+}
+
+- (void)setShowShuffleRepeat:(BOOL)show {
+    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_SHUFFLE_REPEAT];
 }
 
 #if !TARGET_OS_OSX

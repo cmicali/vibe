@@ -22,9 +22,7 @@
 // The display keys predate themes, and themes carried their choices through
 // 1.14 (migrateThemeDisplaySettings).
 #define SETTING_SHOW_TIME_LABELS                    @"MainWindow.showTimeLabels"
-#define SETTING_SHOW_REMAINING_TIME                 @"MainWindow.showRemainingTime"
 #define SETTING_SHOW_STATUS_ICONS                   @"MainWindow.showStatusIcons"
-#define SETTING_SHOW_FILE_INFO                      @"MainWindow.showFileInfo"
 #define SETTING_PLAYLIST_NUMBER_COLUMN              @"Playlist.showNumberColumn"
 #define SETTING_PLAYLIST_ARTWORK_COLUMN             @"Playlist.showArtworkColumn"
 #define SETTING_PLAYLIST_DURATION_COLUMN            @"Playlist.showDurationColumn"
@@ -89,9 +87,7 @@ const size_t kVibeUIUpdateHzCapPresetCount =
             SETTING_WINDOW_POSITION_LOCKED:         @(NO),
             SETTING_SHOW_TRAFFIC_LIGHTS:            @(YES),
             SETTING_SHOW_TIME_LABELS:               @(YES),
-            SETTING_SHOW_REMAINING_TIME:            @(NO),
             SETTING_SHOW_STATUS_ICONS:              @(YES),
-            SETTING_SHOW_FILE_INFO:                 @(YES),
             SETTING_SHOW_BPM:                       @(YES),
             SETTING_SHOW_KEY:                       @(YES),
             SETTING_KEY_NOTATION:                   SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
@@ -820,28 +816,12 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_TIME_LABELS];
 }
 
-- (BOOL)showRemainingTime {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_SHOW_REMAINING_TIME];
-}
-
-- (void)setShowRemainingTime:(BOOL)show {
-    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_REMAINING_TIME];
-}
-
 - (BOOL)showStatusIcons {
     return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_SHOW_STATUS_ICONS];
 }
 
 - (void)setShowStatusIcons:(BOOL)show {
     [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_STATUS_ICONS];
-}
-
-- (BOOL)showFileInfo {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_SHOW_FILE_INFO];
-}
-
-- (void)setShowFileInfo:(BOOL)show {
-    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_FILE_INFO];
 }
 
 - (BOOL)showBPM {

@@ -6,7 +6,6 @@
 #import "WaveformThemeSettingsViewController.h"
 
 #import "AppSettings.h"
-#import "PlayerDisplaySettings.h"
 #import "SettingsRules.h"
 #import "VibeStrings.h"
 

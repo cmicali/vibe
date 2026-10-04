@@ -8,7 +8,6 @@
 #import "AppSettings.h"
 #import "Formatters.h"
 #import "PlaybackController.h"
-#import "PlayerDisplaySettings.h"
 #import "SettingsChoiceViewController.h"
 #import "SettingsRules.h"
 #import "VibeStrings.h"
