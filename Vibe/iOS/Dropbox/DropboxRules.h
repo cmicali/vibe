@@ -159,6 +159,12 @@ static inline BOOL VibeDropboxIsExpiredAccessToken(NSInteger status, NSDictionar
             || ([summary isKindOfClass:NSString.class] && [summary hasPrefix:@"expired_access_token"]);
 }
 
+// The OAuth error a refresh gets once the grant is revoked. Any other 400 (a
+// captive portal, a proxy) must not unlink, which deletes every download.
+static inline BOOL VibeDropboxIsRevokedGrant(NSInteger status, NSDictionary *_Nullable body) {
+    return status == 400 && [body[@"error"] isEqual:@"invalid_grant"];
+}
+
 // Seconds to wait before retrying, or a negative answer for "do not retry".
 // 429 is rate limiting and 503 a transient outage; Retry-After is honored but
 // capped, since a waiting download holds a materialization lane.
@@ -277,7 +283,7 @@ static inline NSArray<NSDictionary *> *VibeDropboxSearchEntries(NSDictionary *_N
         if (kind == VibeDropboxEntryKindFolder
                 || (kind == VibeDropboxEntryKindFile && [name isKindOfClass:NSString.class]
                     && VibeDropboxNameIsMirrored(name, playableExtensions)
-                    && ![PlaylistFile isCueExtension:name.pathExtension])) {
+                    && ![PlaylistFile isCueExtension:name.pathExtension.lowercaseString])) {
             [entries addObject:entry];
         }
     }

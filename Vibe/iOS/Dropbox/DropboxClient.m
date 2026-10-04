@@ -660,8 +660,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
             failure = VibeDropboxMakeError(VibeDropboxErrorNotLinked, @"account changed during refresh");
         }
         else if (!granted) {
-            // 400 invalid_grant: the refresh token itself was revoked.
-            if (!error && status == 400) {
+            if (!error && VibeDropboxIsRevokedGrant(status, body)) {
                 [self unlinkAccountGeneration:generation reason:VibeDropboxErrorSummary(status, body)];
                 failure = VibeDropboxMakeError(VibeDropboxErrorNotLinked, VibeDropboxErrorSummary(status, body));
             }

@@ -96,6 +96,14 @@
     XCTAssertTrue(VibeDropboxIsExpiredAccessToken(401, @{@"error_summary": @"expired_access_token/"}));
 }
 
+- (void)testOnlyARevokedGrantUnlinks {
+    NSDictionary *revoked = @{@"error": @"invalid_grant", @"error_description": @"refresh token is invalid or revoked"};
+    XCTAssertTrue(VibeDropboxIsRevokedGrant(400, revoked));
+    XCTAssertFalse(VibeDropboxIsRevokedGrant(400, nil));
+    XCTAssertFalse(VibeDropboxIsRevokedGrant(400, @{@"error": @"invalid_request"}));
+    XCTAssertFalse(VibeDropboxIsRevokedGrant(401, revoked));
+}
+
 - (void)testThrottlingIsRetriedAfterACappedDelay {
     XCTAssertEqual(VibeDropboxRetryDelay(429, @"3"), 3.0);
     XCTAssertEqual(VibeDropboxRetryDelay(429, nil), 1.0);
@@ -159,6 +167,7 @@
     NSDictionary *result = @{@"matches": @[
         match(@{@".tag": @"file", @"name": @"a.flac", @"path_lower": @"/m/a.flac"}),
         match(@{@".tag": @"file", @"name": @"a.cue", @"path_lower": @"/m/a.cue"}),
+        match(@{@".tag": @"file", @"name": @"B.CUE", @"path_lower": @"/m/b.cue"}),
         match(@{@".tag": @"file", @"name": @"cover.jpg", @"path_lower": @"/m/cover.jpg"}),
         match(@{@".tag": @"folder", @"name": @"m", @"path_lower": @"/m"}),
         match(@{@".tag": @"file", @"name": @"nopath.flac"}),
