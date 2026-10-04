@@ -238,9 +238,10 @@ code {
 /* A one-line terminal: the command in the app's own monospace, and a copy
    button. The type scales with the viewport so the whole command fits on one
    line at phone width rather than scrolling. */
+/* No rule above: it reads as a footnote to the section before it, so it sits
+   on that section's bottom padding rather than adding its own. */
 .brew {
-  border-top: 1px solid var(--line);
-  padding-block: clamp(32px, 5vw, 52px);
+  padding-block: 0 clamp(32px, 5vw, 52px);
   text-align: center;
 }
 .brew h2 {
