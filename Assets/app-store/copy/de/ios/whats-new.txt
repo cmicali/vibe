@@ -1,12 +1,22 @@
-* Neu: FX-Pad – halte den Kreis im Bildschirm „Aktueller Titel“ gedrückt und wische für Low Cut, Reverb und ein temposynchrones Delay
-* Neu: BPM-Erkennung, angezeigt neben Format und Tonart (Einstellungen > Wiedergabe)
-* Neu: Querformat-Layout
-* Neu: eine neu entwickelte Wiedergabe-Engine mit hochwertigerer MP3-Dekodierung und Abtastratenkonvertierung bei geringerer CPU-Last
-* Geändert: die Wellenform im Home-Bildschirm-Widget nutzt standardmäßig den Stil Wiggle
-* Geändert: nur noch die Wiedergabetaste pausiert; Tippen auf das Cover nicht mehr
-* Verbessert: schnelleres Scrollen, Resampling und Neustarten bei großen Mediatheken
-* Verbessert: die Taste für das Ausgabegerät reagiert auf ihrer ganzen Fläche
-* Verbessert: eine normalisierte Wellenform schrumpft beim Laden nicht mehr
-* Behoben: ein Wiedergabefehler konnte sichtbar bleiben, nachdem die Wiedergabe fortgesetzt wurde
-* Behoben: die Wiedergabe konnte als laufend angezeigt werden, obwohl das System den Ton gestoppt hatte
-* Behoben: ein langer Reverb- oder Delay-Ausklang konnte beim Pausieren abgeschnitten werden
+* Neu: Vibes eigener Dateibrowser neben der Dateiauswahl des Systems, mit integriertem Dropbox: melde dich an, um deine Dropbox zu durchsuchen und abzuspielen, wobei die Wiedergabe schon beginnt, während ein Titel noch geladen wird
+* Neu: Zufällige Wiedergabe, Alle wiederholen und Eins wiederholen, mit Tasten neben den Wiedergabetasten (ausblendbar unter Einstellungen > Erscheinungsbild)
+* Neu: Wiedergabe von CUE-Sheets, aus einer .cue-Datei oder einer in eine FLAC-Datei eingebetteten, und M3U-Wiedergabelisten im Dateibrowser
+* Neu: Wiedergabe von Ogg Opus, CAF, W64, M4B, M4R und ADTS
+* Neu: ein Crossfade-Regler von Aus bis 3 Sekunden in Zehntelsekunden
+* Neu: der Wellenform-Stil 3-Band
+* Neu: eine Option für eine Linie an der Abspielposition, bei der die ganze Wellenform in voller Farbe erscheint
+* Neu: kompakte Layouts für „Aktueller Titel“ in niedrigen iPad-Fenstern
+* Verbessert: Spulen in FLAC-Dateien ist auch in langen Dateien fast verzögerungsfrei, mit weniger CPU- und Speicherbedarf und besserer Kompatibilität
+* Verbessert: WAV- und AIFF-Dekodierung ist schneller, mit besserer Kompatibilität
+* Verbessert: die Wiedergabe braucht weniger CPU und Energie, und Tags und Cover werden schneller eingelesen
+* Verbessert: das Öffnen von Ordnern hängt bei langsamen Cloud-Ordnern nicht mehr
+* Verbessert: Scrubben und Wischen zwischen Titeln bleiben flüssig, während eine Wellenform lädt
+* Behoben: Crossfade tat nichts, wenn ein Titel in den nächsten überging; er funktionierte nur beim manuellen Titelwechsel
+* Behoben: Zoomen der Wellenform mit zwei Fingern konnte die Wiedergabe zurückspringen lassen
+* Behoben: beim Zurückwischen zu einem Titel erschien erst seine alte Position, bevor er an den Anfang sprang
+* Behoben: das FX-Pad öffnete sich nach einigen Titelwechseln manchmal nicht größer als sein Kreis
+* Behoben: 24- und 32-Bit-AIFF-C-Dateien in Little-Endian wurden mit falscher Länge abgespielt
+* Behoben: Spulen in MPEG-2-MP3-Dateien mit niedriger Bitrate landete leicht daneben
+* Behoben: FLAC-Dateien, die ihre Länge nicht speichern, zeigten keine Dauer an
+* Behoben: Vibe konnte beim Lesen der Tags bestimmter fehlerhafter M4A- und MP3-Dateien abstürzen
+* Behoben: Vibe schrieb Diagnoseprotokolle ins Systemprotokoll

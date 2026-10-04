@@ -96,7 +96,7 @@ settings:
     # report with nothing logged means the path was not taken. 0 for a stable
     # release: info and debug are stream-only, and only steps over their
     # threshold are recorded.
-    VIBE_VERBOSE_LOGGING: 1
+    VIBE_VERBOSE_LOGGING: 0
     # Nothing else fails on a compiler warning: the analyze gate matches only
     # checker findings. If a toolchain warns on vendored code, give that file a
     # per-file -Wno-* flag beside the PIN caches' entries rather than turning
@@ -794,6 +794,9 @@ targets:
     settings:
       base: &hostless-test-settings
         PRODUCT_NAME: "$(TARGET_NAME)"
+        # Always 1: the signal and diagnostics tests check the instrumentation
+        # a stable release compiles out of the app.
+        VIBE_VERBOSE_LOGGING: 1
         PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.VibeTests
         # Seconds. A hang guard waits for what must happen, so it costs nothing
         # on a pass and only has to outlast a saturated machine (Tests/AGENTS.md).

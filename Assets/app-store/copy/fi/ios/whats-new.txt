@@ -1,12 +1,22 @@
-* Uutta: FX-pad – pidä ympyrää painettuna Toistossa-näkymässä ja liu’uta saadaksesi low cutin, reverbin ja tempoon tahdistetun delayn
-* Uutta: BPM-tunnistus, näytetään formaatin ja sävellajin vieressä (Asetukset > Toisto)
-* Uutta: vaakasuuntainen asettelu
-* Uutta: uudistettu toistomoottori, jonka MP3-dekoodaus ja näytteenottotaajuuden muunnos ovat laadukkaampia ja kuluttavat vähemmän CPU:ta
-* Muutettu: Koti-valikon widgetin aaltomuoto käyttää oletuksena Wiggle-tyyliä
-* Muutettu: vain toistopainike keskeyttää; kansikuvan napauttaminen ei enää keskeytä
-* Parannettu: nopeampi vieritys, näytteenottotaajuuden muunnos ja uudelleenkäynnistys suurilla kirjastoilla
-* Parannettu: ulostulolaitteen painike reagoi missä tahansa kohdassa painiketta
-* Parannettu: normalisoitu aaltomuoto ei enää kutistu latautuessaan
-* Korjattu: toistovirhe saattoi jäädä näytölle toiston jatkuttua
-* Korjattu: toisto saattoi näkyä käynnissä olevana, vaikka järjestelmä oli pysäyttänyt äänen
-* Korjattu: pitkä reverbin tai delayn häntä saattoi katketa keskeytettäessä
+* Uutta: Viben oma tiedostoselain järjestelmän Tiedostot-valitsimen rinnalla, Dropbox sisäänrakennettuna: kirjaudu sisään selataksesi, hakeaksesi ja toistaaksesi Dropboxiasi, ja toisto alkaa jo kappaleen latautuessa
+* Uutta: sekoitus, kaikkien toisto ja yhden kappaleen toisto, painikkeet ohjainten vieressä (piilotettavissa kohdassa Asetukset > Ulkoasu)
+* Uutta: CUE-listan toisto .cue-tiedostosta tai FLAC-tiedostoon upotetusta CUE-listasta sekä M3U-soittolistat tiedostoselaimessa
+* Uutta: Ogg Opus-, CAF-, W64-, M4B-, M4R- ja ADTS-toisto
+* Uutta: Crossfade-liukusäädin, pois päältä aina 3 sekuntiin asti kymmenesosasekunnin askelin
+* Uutta: 3 kaistaa -aaltomuototyyli
+* Uutta: Toistopään viiva -asetus, jossa koko aaltomuoto näkyy täysvärisenä
+* Uutta: tiiviit Toistossa-näkymän asettelut matalille iPad-ikkunoille
+* Parannettu: FLAC-tiedostoissa siirtyminen on lähes välitöntä myös pitkissä tiedostoissa, kuluttaa vähemmän CPU:ta ja muistia ja toimii paremmin eri tiedostojen kanssa
+* Parannettu: WAV- ja AIFF-dekoodaus on nopeampaa ja toimii paremmin eri tiedostojen kanssa
+* Parannettu: toisto kuluttaa vähemmän CPU:ta ja energiaa, ja tunnisteiden ja kansikuvien skannaus on nopeampaa
+* Parannettu: kansioiden avaaminen ei enää jumitu hitaissa pilvikansioissa
+* Parannettu: kelaus ja pyyhkäisy kappaleiden välillä pysyvät sujuvina aaltomuodon latautuessa
+* Korjattu: crossfade ei tehnyt mitään, kun kappale siirtyi seuraavaan; se toimi vain kappaletta vaihdettaessa käsin
+* Korjattu: aaltomuodon nipistyszoomaus saattoi saada toiston hyppäämään taaksepäin
+* Korjattu: kappaleeseen takaisin pyyhkäisy näytti sen vanhan kohdan ennen hyppäämistä alkuun
+* Korjattu: FX-pad avautui joskus vain ympyrän kokoisena muutaman kappaleenvaihdon jälkeen
+* Korjattu: 24- ja 32-bittisten little-endian-AIFF-C-tiedostojen pituus oli väärä toistettaessa
+* Korjattu: siirtyminen matalan bittinopeuden MPEG-2 MP3 -tiedostoissa osui hieman pieleen
+* Korjattu: FLAC-tiedostoille, jotka eivät tallenna pituuttaan, ei näkynyt kestoa
+* Korjattu: Vibe saattoi kaatua luettaessa tunnisteita tietyistä virheellisistä M4A- ja MP3-tiedostoista
+* Korjattu: Vibe kirjoitti diagnostiikkalokia järjestelmälokiin

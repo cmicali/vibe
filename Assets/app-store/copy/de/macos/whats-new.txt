@@ -1,19 +1,24 @@
-* Neu: eine neu entwickelte Wiedergabe-Engine, die jeden Titel direkt an dein Audiogerät ausgibt – schneller, stabiler und souveräner, wenn Geräte kommen und gehen
-* Neu: optionaler Lautstärkeregler (Einstellungen > Audioausgabe), per Theme anpassbar
-* Neu: „Fensterposition sperren“ im Menü „Darstellung“ und unter Einstellungen > Allgemein
-* Neu: Vibe merkt sich dein gewähltes Ausgabegerät, wenn es ausgeschaltet oder getrennt wird, und wechselt samt seiner Einstellungen für bitgenaue und exklusive Ausgabe dorthin zurück, sobald es wieder da ist
-* Neu: ein USB-Audiointerface behält seine Einstellungen für bitgenaue und exklusive Ausgabe auch an einem anderen Anschluss
-* Geändert: hochwertigere MP3-Dekodierung und Abtastratenkonvertierung bei geringerer CPU-Last
-* Geändert: belegt eine andere App dein Audiogerät exklusiv, pausiert Vibe und weist darauf hin
-* Geändert: fällt die Audioausgabe mitten im Titel weg, pausiert die Wiedergabe jetzt, statt weiterzuspringen
-* Verbessert: Abspielen, Pausieren und Springen warten nicht mehr, während ein Audiogerät wechselt oder aufwacht
-* Verbessert: eine hängende Netzwerkfreigabe hält weder andere Titel noch die Tags und Cover von Cloud-Dateien auf
-* Verbessert: Beenden geht sofort; Vibe stellt dein Audiogerät im Hintergrund wieder her
-* Verbessert: eine normalisierte Wellenform schrumpft beim Laden nicht mehr
-* Behoben: beim Starten eines Titels oder Ziehen der Position konnte die Wiedergabe ein, zwei Sekunden einfrieren
-* Behoben: manche MP3-Dateien mit zusätzlichen Daten nach ihren Tags ließen sich nicht abspielen
-* Behoben: ein Audiogerät, das beim Öffnen von Vibe ausgeschaltet war, wird genutzt, sobald du es einschaltest
-* Behoben: „Systemausgabe“ konnte die Wiedergabe stoppen, wenn macOS kurzzeitig kein Standardgerät hatte
-* Behoben: die letzten Millisekunden eines Titels konnten bei hohen Abtastraten abgeschnitten werden
-* Behoben: das Widerrufen einer Umsortierung der Wiedergabeliste konnte eine leere Zeile hinterlassen
-* Behoben: das Platzhalter-Cover im Kontrollzentrum konnte die falsche helle oder dunkle Variante zeigen
+* Neu: Zufällige Wiedergabe, Alle wiederholen und Eins wiederholen im Menü „Wiedergabe“ (⌥⌘S, ⌘R), mit ihren Symbolen in der Dateiinfo-Zeile
+* Neu: Wiedergabe von CUE-Sheets, aus einer .cue-Datei oder einer in eine FLAC-Datei eingebetteten
+* Neu: Wiedergabe von Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R und ADTS
+* Neu: ein Bereich „Tastaturkurzbefehle“ in den Einstellungen, um jeden Kurzbefehl zu ändern
+* Neu: ein Crossfade-Regler von Aus bis 3 Sekunden in Zehntelsekunden
+* Neu: der Wellenform-Stil 3-Band und das Theme Record Bin, das ihn nutzt
+* Neu: eine Option für eine Linie an der Abspielposition, bei der die ganze Wellenform in voller Farbe erscheint
+* Geändert: das Einstellungsfenster ist neu geordnet und hat eine Suche
+* Verbessert: Spulen in FLAC-Dateien ist auch in langen Dateien fast verzögerungsfrei, mit weniger CPU- und Speicherbedarf und besserer Kompatibilität
+* Verbessert: WAV- und AIFF-Dekodierung ist 1,4x–3,2x schneller, mit besserer Kompatibilität
+* Verbessert: die Wiedergabe braucht 20–30 % weniger CPU und 15–25 % weniger Energie
+* Verbessert: Tags und Cover werden 2x schneller eingelesen, und Mediatheksscans brauchen 20 % weniger CPU
+* Verbessert: schnellerer Start, schnellere große M3U-Wiedergabelisten und Bearbeiten sehr großer Wiedergabelisten
+* Verbessert: „Vibe als Standard festlegen“ übernimmt auch CUE- und M3U-Dateien und macht weiter, wenn du einen Dateityp ablehnst
+* Behoben: Crossfade tat nichts, wenn ein Titel in den nächsten überging; er funktionierte nur beim manuellen Titelwechsel
+* Behoben: Einzeltasten-Kurzbefehle funktionierten auf AZERTY-, griechischen, kyrillischen und anderen Nicht-US-Tastaturlayouts nicht
+* Behoben: die Balken der Wellenform wellten sich, während die Fenstergröße geändert wurde
+* Behoben: 24- und 32-Bit-AIFF-C-Dateien in Little-Endian wurden mit falscher Länge abgespielt
+* Behoben: Spulen in MPEG-2-MP3-Dateien mit niedriger Bitrate landete leicht daneben
+* Behoben: FLAC-Dateien, die ihre Länge nicht speichern, zeigten keine Dauer an
+* Behoben: Vibe konnte beim Lesen der Tags bestimmter fehlerhafter M4A- und MP3-Dateien abstürzen
+* Behoben: „In FLAC konvertieren“ fügte bei jeder Vollaussteuerungsspitze einer Float-Datei ein Knacken hinzu
+* Behoben: das Öffnen eines CUE-Sheets oder einer M3U-Wiedergabeliste, deren Dateien alle fehlen, bewirkte nichts; Vibe meldet jetzt, dass sie sich nicht öffnen ließen
+* Behoben: Vibe schrieb Diagnoseprotokolle ins Systemprotokoll

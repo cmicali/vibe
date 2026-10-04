@@ -1,12 +1,22 @@
-* Nové: FX pad – podržte kruh na obrazovke Práve hrá a ťahaním pridajte low cut, reverb a delay synchronizovaný s tempom
-* Nové: zisťovanie BPM, zobrazené vedľa formátu a tóniny (Nastavenia > Prehrávanie)
-* Nové: rozloženie na šírku
-* Nové: prepracovaný prehrávací engine s kvalitnejším dekódovaním MP3 a prevodom vzorkovacej frekvencie a nižšou záťažou CPU
-* Zmena: vlnový priebeh vo widgete na ploche má teraz predvolený štýl Wiggle
-* Zmena: pozastavuje len tlačidlo prehrávania; klepnutie na obal už nie
-* Vylepšenie: rýchlejšie posúvanie, prevod vzorkovacej frekvencie a opätovné spustenie pri veľkých knižniciach
-* Vylepšenie: tlačidlo výstupného zariadenia reaguje na klepnutie kdekoľvek naň
-* Vylepšenie: normalizovaný vlnový priebeh sa pri načítaní už nezmenšuje
-* Opravené: chyba prehrávania mohla zostať na obrazovke aj po obnovení prehrávania
-* Opravené: prehrávanie sa mohlo zobrazovať ako spustené aj po tom, čo systém zvuk zastavil
-* Opravené: dlhý dozvuk reverbu alebo delayu sa mohol pri pozastavení odrezať
+* Nové: vlastný prehliadač súborov Vibe popri systémovom výbere Súborov, s vstavaným Dropboxom: prihláste sa, prehliadajte, vyhľadávajte a prehrávajte svoj Dropbox, pričom prehrávanie sa spustí počas sťahovania skladby
+* Nové: náhodné prehrávanie, opakovanie všetkého a opakovanie jednej skladby s tlačidlami vedľa ovládacích prvkov prehrávania (skryjete ich v Nastavenia > Vzhľad)
+* Nové: prehrávanie CUE zoznamov zo súboru .cue alebo z CUE vloženého v FLAC a playlisty M3U v prehliadači súborov
+* Nové: prehrávanie Ogg Opus, CAF, W64, M4B, M4R a ADTS
+* Nové: posuvník crossfade od vypnutého až do 3 sekúnd po desatinách sekundy
+* Nové: štýl vlnového priebehu 3 pásma
+* Nové: možnosť Čiara prehrávacej hlavy s celým vlnovým priebehom v plnej farbe
+* Nové: kompaktné rozloženia obrazovky Práve hrá pre nízke okná iPadu
+* Vylepšenie: posun vo FLAC je takmer okamžitý aj v dlhých súboroch, s nižšou záťažou CPU a pamäte a lepšou kompatibilitou
+* Vylepšenie: dekódovanie WAV a AIFF je rýchlejšie, s lepšou kompatibilitou
+* Vylepšenie: prehrávanie zaťažuje CPU a spotrebúva energiu menej a tagy a obaly sa skenujú rýchlejšie
+* Vylepšenie: otváranie priečinkov sa už nezasekáva na pomalých cloudových priečinkoch
+* Vylepšenie: posúvanie a potiahnutie medzi skladbami zostáva plynulé, kým sa načítava vlnový priebeh
+* Opravené: crossfade nič nerobil, keď jedna skladba plynule prešla do ďalšej; fungoval iba pri ručnej zmene skladieb
+* Opravené: priblíženie vlnového priebehu štipnutím mohlo spôsobiť skok prehrávania späť
+* Opravené: pri potiahnutí späť na skladbu sa najprv zobrazila jej stará pozícia a až potom skočila na začiatok
+* Opravené: FX pad sa po niekoľkých zmenách skladby občas otvoril len v rozmere svojho kruhu
+* Opravené: 24- a 32-bitové súbory AIFF-C little-endian sa prehrávali so zlou dĺžkou
+* Opravené: posuny v súboroch MP3 MPEG-2 s nízkym dátovým tokom pristáli mierne vedľa
+* Opravené: súbory FLAC, ktoré neuvádzajú dĺžku, nezobrazovali trvanie
+* Opravené: Vibe mohol zlyhať pri čítaní tagov z určitých poškodených súborov M4A a MP3
+* Opravené: Vibe zapisoval diagnostické záznamy do systémového záznamu

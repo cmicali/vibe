@@ -1,19 +1,24 @@
-* Novo: iznova izgrađen mehanizam reprodukcije koji svaku pjesmu šalje izravno na vaš audiouređaj — brži, stabilniji i bolji u radu s uređajima koji se spajaju i odspajaju
-* Novo: opcionalna kontrola glasnoće (Postavke > Audio izlaz), prilagodljiva temama
-* Novo: Zaključaj položaj prozora, u izborniku Prikaz i u odjeljku Postavke > Općenito
-* Novo: Vibe pamti odabrani izlazni uređaj kad se isključi ili odspoji te se na njega vraća, s postavkama Bitovno točan izlaz i Isključivi audioizlaz, kad se ponovno pojavi
-* Novo: USB audiosučelje priključeno u drugi priključak zadržava postavke Bitovno točan izlaz i Isključivi audioizlaz
-* Promijenjeno: kvalitetnije dekodiranje MP3 datoteka i pretvorba frekvencije uzorkovanja, uz manje opterećenje CPU-a
-* Promijenjeno: kad druga aplikacija preuzme isključivo korištenje vašeg audiouređaja, Vibe pauzira i to vam javlja
-* Promijenjeno: gubitak audioizlaza usred pjesme sada pauzira reprodukciju umjesto preskakanja na sljedeću
-* Poboljšano: reprodukcija, pauza i preskakanje više ne čekaju dok se audiouređaj prebacuje ili budi
-* Poboljšano: zaglavljeni mrežni dijeljeni resurs više ne zadržava druge pjesme ni oznake i omote datoteka u oblaku
-* Poboljšano: zatvaranje je trenutačno; Vibe vraća vaš audiouređaj u prethodno stanje u pozadini
-* Poboljšano: normalizirani valni oblik više se ne smanjuje tijekom učitavanja
-* Ispravljeno: pokretanje pjesme ili povlačenje položaja moglo je zamrznuti reprodukciju na sekundu-dvije
-* Ispravljeno: neke MP3 datoteke s dodatnim podacima iza oznaka nisu se reproducirale
-* Ispravljeno: audiouređaj koji je bio isključen pri otvaranju Vibea koristi se čim ga uključite
-* Ispravljeno: Izlaz sustava mogao je zaustaviti reprodukciju dok macOS nakratko nije imao zadani uređaj
-* Ispravljeno: posljednjih nekoliko milisekundi pjesme moglo se odrezati pri visokim frekvencijama uzorkovanja
-* Ispravljeno: poništavanje promjene redoslijeda popisa za reprodukciju moglo je ostaviti prazan redak
-* Ispravljeno: zamjenska slika u Kontrolnom centru mogla se prikazati u pogrešnoj, svijetloj ili tamnoj inačici
+* Novo: nasumična reprodukcija, ponavljanje svega i ponavljanje jedne pjesme u izborniku Reprodukcija (⌥⌘S, ⌘R), s ikonama u retku s podacima o datoteci
+* Novo: reprodukcija CUE listova, iz .cue datoteke ili iz CUE lista ugrađenog u FLAC
+* Novo: reprodukcija formata Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R i ADTS
+* Novo: okno Prečaci tipkovnice u Postavkama za promjenu bilo kojeg prečaca
+* Novo: klizač za crossfade, od isključenog do 3 sekunde u desetinkama sekunde
+* Novo: stil valnog oblika 3 pojasa i tema Record Bin koja ga koristi
+* Novo: opcija linije glave reprodukcije, uz cijeli valni oblik u punoj boji
+* Promijenjeno: prozor Postavke preuređen je i ima pretraživanje
+* Poboljšano: premotavanje u FLAC datotekama gotovo je trenutačno čak i u dugima, uz manje opterećenje CPU-a i memorije te bolju kompatibilnost
+* Poboljšano: dekodiranje WAV i AIFF datoteka 1,4x–3,2x je brže, uz bolju kompatibilnost
+* Poboljšano: reprodukcija troši 20–30 % manje CPU-a i 15–25 % manje energije
+* Poboljšano: oznake i omoti skeniraju se 2x brže, a skeniranje zbirke troši 20 % manje CPU-a
+* Poboljšano: brže pokretanje, veliki M3U popisi za reprodukciju i uređivanje vrlo velikih popisa za reprodukciju
+* Poboljšano: Postavi Vibe kao zadani preuzima i CUE i M3U datoteke te nastavlja kad odbijete jednu vrstu datoteke
+* Ispravljeno: crossfade nije radio kad bi jedna pjesma prelazila u sljedeću; radio je samo pri ručnoj promjeni pjesme
+* Ispravljeno: prečaci s jednom tipkom nisu radili na rasporedima AZERTY, grčkom, ćirilici i drugim ne-američkim rasporedima tipkovnice
+* Ispravljeno: trake valnog oblika titrale su tijekom promjene veličine prozora
+* Ispravljeno: 24-bitne i 32-bitne little-endian AIFF-C datoteke reproducirale su se s pogrešnom duljinom
+* Ispravljeno: premotavanje u MP3 datotekama MPEG-2 niske brzine prijenosa završavalo je malo pokraj cilja
+* Ispravljeno: FLAC datoteke koje ne bilježe svoju duljinu nisu prikazivale trajanje
+* Ispravljeno: Vibe se mogao srušiti pri čitanju oznaka iz određenih neispravnih M4A i MP3 datoteka
+* Ispravljeno: Konvertiraj u FLAC dodavao je pucketanje na svakom vrhuncu pune skale u datoteci s pomičnim zarezom
+* Ispravljeno: otvaranje CUE lista ili M3U popisa čije datoteke sve nedostaju nije radilo ništa; Vibe sada javlja da ih nije mogao otvoriti
+* Ispravljeno: Vibe je upisivao dijagnostičke zapise u sistemski dnevnik

@@ -1,19 +1,24 @@
-* Nou: un motor de redare reconstruit, care trimite fiecare piesă direct către dispozitivul audio — mai rapid, mai stabil și mai bun la gestionarea dispozitivelor conectate și deconectate
-* Nou: control opțional al volumului (Configurări > Ieșire audio), compatibil cu temele
-* Nou: Blocați poziția ferestrei, în meniul Vizualizare și în Configurări > General
-* Nou: Vibe ține minte dispozitivul de ieșire ales atunci când este oprit sau deconectat și revine la el, cu setările Ieșire bit-perfect și Ieșire audio exclusivă, când acesta reapare
-* Nou: o interfață audio USB conectată la alt port își păstrează setările Ieșire bit-perfect și Ieșire audio exclusivă
-* Modificat: decodare MP3 și conversie a ratei de eșantionare de calitate superioară, cu un consum mai mic de CPU
-* Modificat: când altă aplicație preia utilizarea exclusivă a dispozitivului audio, Vibe pune redarea pe pauză și vă anunță
-* Modificat: pierderea ieșirii audio în timpul unei piese pune acum redarea pe pauză în loc să treacă mai departe
-* Îmbunătățit: redarea, pauza și saltul nu mai așteaptă cât timp un dispozitiv audio se comută sau se trezește
-* Îmbunătățit: o partajare de rețea blocată nu mai întârzie alte piese și nici etichetele și coperțile fișierelor din cloud
-* Îmbunătățit: închiderea este instantanee; Vibe restabilește dispozitivul audio în fundal
-* Îmbunătățit: o formă de undă normalizată nu se mai micșorează în timpul încărcării
-* Remediat: pornirea unei piese sau tragerea poziției putea bloca redarea pentru o secundă sau două
-* Remediat: unele fișiere MP3 cu date suplimentare după etichete nu puteau fi redate
-* Remediat: un dispozitiv audio oprit la deschiderea Vibe este folosit imediat ce îl porniți
-* Remediat: Ieșire sistem putea opri redarea cât timp macOS nu avea, pentru scurt timp, un dispozitiv implicit
-* Remediat: ultimele câteva milisecunde ale unei piese puteau fi tăiate la rate de eșantionare mari
-* Remediat: anularea unei reordonări a listei de redare putea lăsa un rând gol
-* Remediat: imaginea substitut din Centrul de control putea apărea în varianta greșită, luminoasă sau întunecată
+* Nou: amestecare, repetare a tuturor și repetarea unei piese, în meniul Redare (⌥⌘S, ⌘R), cu pictogramele lor pe linia cu informațiile fișierului
+* Nou: redarea foilor CUE, dintr-un fișier .cue sau dintr-unul încorporat într-un FLAC
+* Nou: redare Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R și ADTS
+* Nou: un panou Scurtături din tastatură în Configurări pentru a schimba orice scurtătură
+* Nou: un glisor de crossfade, de la dezactivat până la 3 secunde, în zecimi de secundă
+* Nou: stilul de formă de undă 3 benzi și tema Record Bin care îl folosește
+* Nou: o opțiune de linie a capului de redare, cu întreaga formă de undă în culori complete
+* Modificat: fereastra Configurări a fost reorganizată, cu căutare
+* Îmbunătățit: derularea în FLAC este aproape instantanee chiar și în fișiere lungi, cu mai puțin CPU și memorie și compatibilitate mai bună
+* Îmbunătățit: decodarea WAV și AIFF este de 1,4x–3,2x mai rapidă, cu compatibilitate mai bună
+* Îmbunătățit: redarea folosește cu 20–30% mai puțin CPU și cu 15–25% mai puțină energie
+* Îmbunătățit: etichetele și coperțile se scanează de 2x mai repede, iar scanările bibliotecii folosesc cu 20% mai puțin CPU
+* Îmbunătățit: pornire mai rapidă, liste M3U mari și editarea listelor de redare foarte mari
+* Îmbunătățit: „Setează Vibe ca implicit” preia și fișierele CUE și M3U și continuă chiar dacă refuzați un tip de fișier
+* Remediat: crossfade-ul nu făcea nimic când o piesă trecea în următoarea; funcționa doar la schimbarea manuală a pieselor
+* Remediat: scurtăturile cu o singură tastă nu funcționau pe tastaturi AZERTY, grecești, chirilice și alte aranjamente non-US
+* Remediat: barele formei de undă se unduiau în timpul redimensionării ferestrei
+* Remediat: fișierele AIFF-C little-endian pe 24 și 32 de biți se redau cu durata greșită
+* Remediat: derulările în fișiere MP3 MPEG-2 cu rată mică de biți ajungeau ușor pe lângă
+* Remediat: fișierele FLAC care nu înregistrează durata nu afișau nicio durată
+* Remediat: Vibe putea să se blocheze la citirea etichetelor din anumite fișiere M4A și MP3 malformate
+* Remediat: „Convertiți în FLAC” adăuga un clic la fiecare vârf de scară completă al unui fișier în virgulă mobilă
+* Remediat: deschiderea unei foi CUE sau a unei liste M3U ale căror fișiere lipsesc toate nu făcea nimic; acum Vibe spune că nu le-a putut deschide
+* Remediat: Vibe scria jurnale de diagnosticare în jurnalul sistemului

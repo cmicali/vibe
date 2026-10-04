@@ -1,12 +1,22 @@
-* Yeni: FX pedi - Şu Anda Çalıyor ekranındaki daireyi basılı tutup kaydırarak low cut, reverb ve tempoya senkronize delay uygulayın
-* Yeni: biçim ve tonun yanında gösterilen BPM algılama (Ayarlar > Çalma)
-* Yeni: yatay yerleşim
-* Yeni: daha az CPU kullanan, daha yüksek kaliteli MP3 kod çözme ve örnekleme hızı dönüştürme sunan yeniden oluşturulmuş çalma motoru
-* Değişiklik: ana ekran widget’ının dalga biçimi varsayılan olarak Wiggle stilini kullanıyor
-* Değişiklik: yalnızca çalma düğmesi duraklatır; resme dokunmak artık duraklatmıyor
-* İyileştirme: büyük arşivlerde daha hızlı kaydırma, yeniden örnekleme ve yeniden açılış
-* İyileştirme: çıkış aygıtı düğmesi, düğmenin her yerinde dokunmaya yanıt veriyor
-* İyileştirme: normalleştirilmiş dalga biçimi artık yüklenirken küçülmüyor
-* Düzeltme: çalma devam ettikten sonra bir çalma hatası ekranda kalabiliyordu
-* Düzeltme: sistem sesi durdurduktan sonra çalma sürüyormuş gibi görünebiliyordu
-* Düzeltme: duraklatırken uzun bir reverb veya delay kuyruğu kesilebiliyordu
+* Yeni: sistemin Dosyalar seçicisinin yanında Vibe’ın kendi dosya tarayıcısı, Dropbox yerleşik olarak: oturum açıp Dropbox’ınıza göz atın, arama yapın ve çalın; parça inerken çalma başlıyor
+* Yeni: karıştır, tümünü tekrarla ve birini tekrarla, aktarım denetimlerinin yanındaki düğmelerle (Ayarlar > Görünüm’den gizleyebilirsiniz)
+* Yeni: CUE sayfası çalma, bir .cue dosyasından veya bir FLAC’e gömülü olandan ve dosya tarayıcısında M3U çalma listeleri
+* Yeni: Ogg Opus, CAF, W64, M4B, M4R ve ADTS çalma
+* Yeni: kapalıdan 3 saniyeye kadar, saniyenin onda biri adımlarla ayarlanan crossfade kaydırıcısı
+* Yeni: 3 Bant dalga biçimi stili
+* Yeni: oynatma kafası çizgisi seçeneği, dalga biçiminin tamamı renkli olarak
+* Yeni: kısa iPad pencereleri için kompakt Şu Anda Çalıyor yerleşimleri
+* İyileştirme: FLAC’te konum atlama uzun dosyalarda bile neredeyse anında, daha az CPU ve bellek kullanarak ve daha iyi uyumlulukla
+* İyileştirme: WAV ve AIFF kod çözme daha hızlı ve daha iyi uyumlu
+* İyileştirme: çalma daha az CPU ve enerji kullanıyor, etiketler ve resimler daha hızlı taranıyor
+* İyileştirme: klasörleri açmak artık yavaş bulut klasörlerinde takılmıyor
+* İyileştirme: dalga biçimi yüklenirken kaydırma ve parçalar arasında kaydırarak geçiş akıcı kalıyor
+* Düzeltme: bir parça diğerine kendiliğinden geçerken crossfade hiçbir şey yapmıyordu; yalnızca parçalar elle değiştirildiğinde çalışıyordu
+* Düzeltme: dalga biçimini çimdikleyerek yakınlaştırmak çalmanın geri atlamasına neden olabiliyordu
+* Düzeltme: bir parçaya geri kaydırınca başa atlamadan önce eski konumu gösteriliyordu
+* Düzeltme: FX pedi, birkaç parça değişikliğinden sonra bazen yalnızca dairesi kadar büyük açılıyordu
+* Düzeltme: 24 ve 32 bit little-endian AIFF-C dosyaları yanlış uzunlukta çalınıyordu
+* Düzeltme: düşük bit hızlı MPEG-2 MP3 dosyalarında konum atlama hafifçe yanlış yere iniyordu
+* Düzeltme: uzunluğunu kaydetmeyen FLAC dosyaları süre göstermiyordu
+* Düzeltme: Vibe, bozuk biçimli bazı M4A ve MP3 dosyalarının etiketlerini okurken çökebiliyordu
+* Düzeltme: Vibe sistem günlüğüne tanılama kaydı yazıyordu

@@ -1,12 +1,22 @@
-* Nou: pad FX — țineți apăsat cercul de pe ecranul de redare și glisați pentru low cut, reverb și un delay sincronizat cu tempoul
-* Nou: detectare BPM, afișată lângă format și tonalitate (Configurări > Redare)
-* Nou: aspect orizontal
-* Nou: un motor de redare reconstruit, cu decodare MP3 și conversie a ratei de eșantionare de calitate superioară și un consum mai mic de CPU
-* Modificat: forma de undă a widgetului de pe ecranul principal are implicit stilul Wiggle
-* Modificat: doar butonul de redare pune pe pauză; atingerea coperții nu mai face asta
-* Îmbunătățit: derulare, reeșantionare și relansare mai rapide pentru bibliotecile mari
-* Îmbunătățit: butonul dispozitivului de ieșire răspunde oriunde pe pastila sa
-* Îmbunătățit: o formă de undă normalizată nu se mai micșorează în timpul încărcării
-* Remediat: o eroare de redare putea rămâne pe ecran după reluarea redării
-* Remediat: redarea putea apărea ca activă după ce sistemul oprise sunetul
-* Remediat: o coadă lungă de reverb sau delay putea fi tăiată la punerea pe pauză
+* Nou: propriul browser de fișiere al Vibe, alături de selectorul Fișiere al sistemului, cu Dropbox integrat: conectați-vă pentru a naviga, a căuta și a reda din Dropbox, redarea pornind în timp ce piesa se descarcă
+* Nou: amestecare, repetare a tuturor și repetarea unei piese, cu butoane lângă comenzile de redare (ascundeți-le în Configurări > Aspect)
+* Nou: redarea foilor CUE, dintr-un fișier .cue sau dintr-unul încorporat într-un FLAC, și liste M3U în browserul de fișiere
+* Nou: redare Ogg Opus, CAF, W64, M4B, M4R și ADTS
+* Nou: un glisor de crossfade, de la dezactivat până la 3 secunde, în zecimi de secundă
+* Nou: stilul de formă de undă 3 benzi
+* Nou: o opțiune de linie a capului de redare, cu întreaga formă de undă în culori complete
+* Nou: aspecte compacte pentru ecranul de redare în ferestre scurte de iPad
+* Îmbunătățit: derularea în FLAC este aproape instantanee chiar și în fișiere lungi, cu mai puțin CPU și memorie și compatibilitate mai bună
+* Îmbunătățit: decodarea WAV și AIFF este mai rapidă, cu compatibilitate mai bună
+* Îmbunătățit: redarea folosește mai puțin CPU și mai puțină energie, iar etichetele și coperțile se scanează mai repede
+* Îmbunătățit: deschiderea folderelor nu se mai blochează pe foldere lente din cloud
+* Îmbunătățit: derularea și glisarea între piese rămân fluide cât timp se încarcă o formă de undă
+* Remediat: crossfade-ul nu făcea nimic când o piesă trecea în următoarea; funcționa doar la schimbarea manuală a pieselor
+* Remediat: mărirea formei de undă prin ciupire putea face redarea să sară înapoi
+* Remediat: la glisarea înapoi la o piesă se afișa vechea poziție înainte de a sări la început
+* Remediat: padul FX se deschidea uneori doar cât cercul său după câteva schimbări de piesă
+* Remediat: fișierele AIFF-C little-endian pe 24 și 32 de biți se redau cu durata greșită
+* Remediat: derulările în fișiere MP3 MPEG-2 cu rată mică de biți ajungeau ușor pe lângă
+* Remediat: fișierele FLAC care nu înregistrează durata nu afișau nicio durată
+* Remediat: Vibe putea să se blocheze la citirea etichetelor din anumite fișiere M4A și MP3 malformate
+* Remediat: Vibe scria jurnale de diagnosticare în jurnalul sistemului

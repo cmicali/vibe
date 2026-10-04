@@ -1,19 +1,24 @@
-* Novo: um mecanismo de reprodução reconstruído que envia cada faixa diretamente ao seu dispositivo de áudio – mais rápido, mais estável e melhor ao lidar com dispositivos que são conectados e desconectados
-* Novo: controle de volume opcional (Ajustes > Saída de Áudio), personalizável por tema
-* Novo: “Travar a Posição da Janela”, no menu Visualizar e em Ajustes > Geral
-* Novo: o Vibe lembra o dispositivo de saída escolhido quando ele é desligado ou desconectado e volta a usá-lo, com seus ajustes bit-perfect e exclusivo, quando ele retorna
-* Novo: uma interface de áudio USB conectada a outra porta mantém seus ajustes bit-perfect e exclusivo
-* Alterado: decodificação de MP3 e conversão de taxa de amostragem de maior qualidade, usando menos CPU
-* Alterado: quando outro app assume o uso exclusivo do seu dispositivo de áudio, o Vibe pausa e avisa você
-* Alterado: perder a saída de áudio no meio de uma faixa agora pausa em vez de avançar
-* Melhorado: reproduzir, pausar e pular não esperam mais enquanto um dispositivo de áudio troca ou desperta
-* Melhorado: um compartilhamento de rede travado não atrasa mais outras faixas, nem as tags e capas de arquivos na nuvem
-* Melhorado: encerrar é instantâneo; o Vibe restaura seu dispositivo de áudio em segundo plano
-* Melhorado: uma forma de onda normalizada não encolhe mais enquanto carrega
-* Corrigido: iniciar uma faixa ou arrastar a posição podia congelar a reprodução por um ou dois segundos
-* Corrigido: alguns arquivos MP3 com dados extras após as tags não eram reproduzidos
-* Corrigido: um dispositivo de áudio que estava desligado quando o Vibe foi aberto é usado assim que você o liga
-* Corrigido: “Saída do Sistema” podia parar a reprodução quando o macOS ficava brevemente sem dispositivo padrão
-* Corrigido: os últimos milissegundos de uma faixa podiam ser cortados em taxas de amostragem altas
-* Corrigido: desfazer uma reordenação da lista de reprodução podia deixar uma linha em branco
-* Corrigido: a capa provisória na Central de Controle podia mostrar a versão clara ou escura errada
+* Novo: aleatório, repetir tudo e repetir uma faixa, no menu Reprodução (⌥⌘S, ⌘R), com seus ícones na linha de informações do arquivo
+* Novo: reprodução de arquivos CUE, a partir de um arquivo .cue ou de um incorporado em um FLAC
+* Novo: reprodução de Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R e ADTS
+* Novo: um painel Atalhos de Teclado em Ajustes para alterar qualquer atalho
+* Novo: um controle deslizante de crossfade, de desligado até 3 segundos em décimos de segundo
+* Novo: o estilo de forma de onda 3 bandas e o tema Record Bin que o utiliza
+* Novo: uma opção de linha do cabeçote, com toda a forma de onda em cores completas
+* Alterado: a janela Ajustes foi reorganizada e agora tem busca
+* Melhorado: o avanço e retrocesso em FLAC são quase instantâneos, mesmo em arquivos longos, usando menos CPU e memória, com melhor compatibilidade
+* Melhorado: a decodificação de WAV e AIFF é de 1,4x a 3,2x mais rápida, com melhor compatibilidade
+* Melhorado: a reprodução usa 20–30% menos CPU e 15–25% menos energia
+* Melhorado: tags e capas são analisadas 2x mais rápido, e a análise da biblioteca usa 20% menos CPU
+* Melhorado: abertura mais rápida, playlists M3U grandes e edição de playlists muito grandes
+* Melhorado: “Definir Vibe como Padrão” também assume arquivos CUE e M3U e continua quando você recusa um tipo de arquivo
+* Corrigido: o crossfade não fazia nada quando uma faixa passava para a seguinte; só funcionava ao trocar de faixa manualmente
+* Corrigido: atalhos de uma tecla não funcionavam em AZERTY, grego, cirílico e outros layouts de teclado não americanos
+* Corrigido: as barras da forma de onda ondulavam enquanto a janela era redimensionada
+* Corrigido: arquivos AIFF-C little-endian de 24 e 32 bits eram reproduzidos com a duração errada
+* Corrigido: avançar ou retroceder em arquivos MP3 MPEG-2 de baixa taxa de bits parava um pouco fora do ponto
+* Corrigido: arquivos FLAC que não registram a duração não mostravam a duração
+* Corrigido: o Vibe podia travar ao ler tags de certos arquivos M4A e MP3 malformados
+* Corrigido: Converter para FLAC adicionava um estalo em cada pico de escala completa de um arquivo float
+* Corrigido: abrir um arquivo CUE ou uma playlist M3U cujos arquivos estavam todos ausentes não fazia nada; agora o Vibe avisa que não foi possível abri-los
+* Corrigido: o Vibe gravava registros de diagnóstico no log do sistema

@@ -1,19 +1,24 @@
-* Yeni: her parçayı doğrudan ses aygıtınıza çalan, yeniden oluşturulmuş çalma motoru - daha hızlı, daha kararlı ve aygıtların bağlanıp ayrılmasına karşı daha dayanıklı
-* Yeni: isteğe bağlı ses denetimi (Ayarlar > Ses Çıkışı), temalarla özelleştirilebilir
-* Yeni: “Pencere Konumunu Kilitle”, Görüntü menüsünde ve Ayarlar > Genel’de
-* Yeni: Vibe, seçtiğiniz çıkış aygıtı kapatıldığında veya çıkarıldığında onu hatırlar ve aygıt geri geldiğinde bit düzeyinde kusursuz çıkış ve özel çıkış ayarlarıyla birlikte ona geri geçer
-* Yeni: farklı bir bağlantı noktasına takılan USB ses arabirimi, bit düzeyinde kusursuz çıkış ve özel çıkış ayarlarını korur
-* Değişiklik: daha az CPU kullanan, daha yüksek kaliteli MP3 kod çözme ve örnekleme hızı dönüştürme
-* Değişiklik: başka bir uygulama ses aygıtınızı özel olarak kullandığında Vibe duraklar ve bunu bildirir
-* Değişiklik: parça ortasında ses çıkışı kaybolursa artık sonraki parçaya geçmek yerine duraklatılır
-* İyileştirme: bir ses aygıtı değişirken veya uyanırken çalma, duraklatma ve atlama artık beklemiyor
-* İyileştirme: takılan bir ağ paylaşımı artık diğer parçaları ya da bulut dosyalarının etiketlerini ve resimlerini bekletmiyor
-* İyileştirme: çıkış artık anında; Vibe ses aygıtınızı arka planda geri yükler
-* İyileştirme: normalleştirilmiş dalga biçimi artık yüklenirken küçülmüyor
-* Düzeltme: bir parçayı başlatmak veya konumu sürüklemek çalmayı bir iki saniye dondurabiliyordu
-* Düzeltme: etiketlerinden sonra fazladan veri bulunan bazı MP3 dosyaları çalınmıyordu
-* Düzeltme: Vibe açıldığında kapalı olan bir ses aygıtı artık siz onu açar açmaz kullanılıyor
-* Düzeltme: macOS kısa süreliğine varsayılan aygıtsız kaldığında Sistem Çıkışı çalmayı durdurabiliyordu
-* Düzeltme: yüksek örnekleme hızlarında parçanın son birkaç milisaniyesi kesilebiliyordu
-* Düzeltme: çalma listesi yeniden sıralamasını geri almak boş bir satır bırakabiliyordu
-* Düzeltme: Denetim Merkezi’ndeki yer tutucu resim yanlış açık veya koyu sürümü gösterebiliyordu
+* Yeni: Karıştır, Tümünü Tekrarla ve Birini Tekrarla, Çalma menüsünde (⌥⌘S, ⌘R) ve simgeleri dosya bilgisi satırında
+* Yeni: CUE sayfası çalma, bir .cue dosyasından veya bir FLAC’e gömülü olandan
+* Yeni: Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R ve ADTS çalma
+* Yeni: Ayarlar’da, her kestirmeyi değiştirmenizi sağlayan Klavye Kestirmeleri bölümü
+* Yeni: kapalıdan 3 saniyeye kadar, saniyenin onda biri adımlarla ayarlanan crossfade kaydırıcısı
+* Yeni: 3 Bant dalga biçimi stili ve onu kullanan Record Bin teması
+* Yeni: oynatma kafası çizgisi seçeneği, dalga biçiminin tamamı renkli olarak
+* Değişiklik: Ayarlar penceresi yeniden düzenlendi ve arama eklendi
+* İyileştirme: FLAC’te konum atlama uzun dosyalarda bile neredeyse anında, daha az CPU ve bellek kullanarak ve daha iyi uyumlulukla
+* İyileştirme: WAV ve AIFF kod çözme 1,4x–3,2x daha hızlı ve daha iyi uyumlu
+* İyileştirme: çalma %20–30 daha az CPU ve %15–25 daha az enerji kullanıyor
+* İyileştirme: etiketler ve resimler 2 kat hızlı taranıyor, kitaplık taramaları %20 daha az CPU kullanıyor
+* İyileştirme: daha hızlı açılış, büyük M3U çalma listeleri ve çok büyük çalma listelerinin düzenlenmesi
+* İyileştirme: Varsayılan Yap artık CUE ve M3U dosyalarını da kapsıyor ve bir dosya türünü reddettiğinizde devam ediyor
+* Düzeltme: bir parça diğerine kendiliğinden geçerken crossfade hiçbir şey yapmıyordu; yalnızca parçalar elle değiştirildiğinde çalışıyordu
+* Düzeltme: tek tuşlu kestirmeler AZERTY, Yunanca, Kiril ve ABD dışı diğer klavye düzenlerinde çalışmıyordu
+* Düzeltme: pencere yeniden boyutlandırılırken dalga biçimi çubukları dalgalanıyordu
+* Düzeltme: 24 ve 32 bit little-endian AIFF-C dosyaları yanlış uzunlukta çalınıyordu
+* Düzeltme: düşük bit hızlı MPEG-2 MP3 dosyalarında konum atlama hafifçe yanlış yere iniyordu
+* Düzeltme: uzunluğunu kaydetmeyen FLAC dosyaları süre göstermiyordu
+* Düzeltme: Vibe, bozuk biçimli bazı M4A ve MP3 dosyalarının etiketlerini okurken çökebiliyordu
+* Düzeltme: FLAC’e Dönüştür, float dosyalarda tam ölçekli her tepe noktasına bir tıkırtı ekliyordu
+* Düzeltme: tüm dosyaları eksik olan bir CUE sayfasını veya M3U çalma listesini açmak hiçbir şey yapmıyordu; Vibe artık bunları açamadığını söylüyor
+* Düzeltme: Vibe sistem günlüğüne tanılama kaydı yazıyordu

@@ -1,19 +1,24 @@
-* Nytt: en ombygd avspillingsmotor som spiller hvert spor rett til lydenheten din – raskere, mer stabil og bedre på enheter som kommer og går
-* Nytt: valgfri volumkontroll (Innstillinger > Lydutgang), som kan tilpasses med temaer
-* Nytt: Lås vinduets plassering i Vis-menyen og i Innstillinger > Generelt
-* Nytt: Vibe husker utgangsenheten du valgte når den slås av eller kobles fra, og bytter tilbake til den, med innstillingene for bitperfekt utgang og eksklusiv lydutgang, når den kommer tilbake
-* Nytt: et USB-lydgrensesnitt som kobles til en annen port, beholder innstillingene for bitperfekt utgang og eksklusiv lydutgang
-* Endret: MP3-dekoding og samplingsfrekvenskonvertering med høyere kvalitet og lavere CPU-bruk
-* Endret: når en annen app tar eksklusiv tilgang til lydenheten din, setter Vibe på pause og sier ifra
-* Endret: mister du lydutgangen midt i et spor, settes avspillingen nå på pause i stedet for å hoppe videre
-* Forbedret: spill av, pause og hopp venter ikke lenger mens en lydenhet bytter eller våkner
-* Forbedret: en nettverksressurs som henger, holder ikke lenger igjen andre spor eller tagger og bilder for filer i skyen
-* Forbedret: Vibe avsluttes umiddelbart og gjenoppretter lydenheten din i bakgrunnen
-* Forbedret: en normalisert bølgeform krymper ikke lenger mens den lastes inn
-* Rettet: avspillingen kunne fryse i et sekund eller to når et spor startet eller posisjonen ble dratt
-* Rettet: noen MP3-filer med ekstra data etter taggene kunne ikke spilles av
-* Rettet: en lydenhet som var slått av da Vibe ble åpnet, brukes så snart du slår den på
-* Rettet: Systemutgang kunne stoppe avspillingen mens macOS kortvarig ikke hadde noen standardenhet
-* Rettet: de siste millisekundene av et spor kunne kuttes ved høye samplingsfrekvenser
-* Rettet: angring av en endret rekkefølge i spillelisten kunne etterlate en tom rad
-* Rettet: plassholderbildet i Kontrollsenter kunne vise feil lys eller mørk versjon
+* Nytt: bland, gjenta alle og gjenta én i Avspilling-menyen (⌥⌘S, ⌘R), med ikonene på filinfolinjen
+* Nytt: avspilling av CUE-ark, fra en .cue-fil eller en som er innebygd i en FLAC
+* Nytt: avspilling av Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R og ADTS
+* Nytt: et panel for Tastatursnarveier i Innstillinger, der du kan endre alle snarveier
+* Nytt: en crossfade-glidebryter, fra av og opptil 3 sekunder i tideler av et sekund
+* Nytt: bølgeformstilen 3-bånd og temaet Record Bin som bruker den
+* Nytt: et valg for linje for avspillingshode, med hele bølgeformen i full farge
+* Endret: Innstillinger-vinduet er omorganisert og har søk
+* Forbedret: FLAC-spoling er nesten umiddelbar selv i lange filer, med lavere CPU- og minnebruk og bedre kompatibilitet
+* Forbedret: dekoding av WAV og AIFF er 1,4x–3,2x raskere, med bedre kompatibilitet
+* Forbedret: avspilling bruker 20–30 % mindre CPU og 15–25 % mindre energi
+* Forbedret: skanning av tagger og bilder er 2x raskere, og bibliotekskanning bruker 20 % mindre CPU
+* Forbedret: raskere oppstart, store M3U-spillelister og redigering av svært store spillelister
+* Forbedret: Angi Vibe som standard tar også CUE- og M3U-filer og fortsetter selv om du avslår én filtype
+* Rettet: crossfade gjorde ingenting når ett spor gikk over i det neste; den virket bare når du byttet spor for hånd
+* Rettet: enkelttastsnarveier fungerte ikke på AZERTY, gresk, kyrillisk og andre ikke-amerikanske tastaturoppsett
+* Rettet: bølgeformstolpene bølget mens vinduet ble endret i størrelse
+* Rettet: 24- og 32-biters little-endian AIFF-C-filer ble spilt av med feil lengde
+* Rettet: hopp i MP3-filer med lav bitrate (MPEG-2) landet litt ved siden av
+* Rettet: FLAC-filer som ikke registrerer lengden sin, viste ingen varighet
+* Rettet: Vibe kunne krasje ved lesing av tagger fra enkelte ugyldige M4A- og MP3-filer
+* Rettet: Konverter til FLAC la til et klikk ved hver topp i full skala i en flyttallsfil
+* Rettet: åpning av et CUE-ark eller en M3U-spilleliste der alle filene mangler, gjorde ingenting; Vibe sier nå fra at de ikke kunne åpnes
+* Rettet: Vibe skrev diagnoselogging til systemloggen

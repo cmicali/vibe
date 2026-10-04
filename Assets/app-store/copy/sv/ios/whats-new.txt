@@ -1,12 +1,22 @@
-* Nytt: FX-pad – håll på cirkeln på skärmen Spelas nu och dra för low cut, reverb och ett tempo-synkat delay
-* Nytt: BPM-identifiering, visas bredvid format och tonart (Inställningar > Uppspelning)
-* Nytt: liggande layout
-* Nytt: en ombyggd uppspelningsmotor med MP3-avkodning och samplingsfrekvenskonvertering med högre kvalitet och lägre CPU-användning
-* Ändrat: vågformen i widgeten på hemskärmen använder nu stilen Wiggle som standard
-* Ändrat: bara uppspelningsknappen pausar; att trycka på omslagsbilden gör det inte längre
-* Förbättrat: snabbare rullning, samplingsfrekvenskonvertering och omstart med stora bibliotek
-* Förbättrat: knappen för utgångsenhet reagerar var som helst på knappen
-* Förbättrat: en normaliserad vågform krymper inte längre medan den läses in
-* Åtgärdat: ett uppspelningsfel kunde ligga kvar på skärmen efter att uppspelningen återupptagits
-* Åtgärdat: uppspelningen kunde visas som pågående efter att systemet stoppat ljudet
-* Åtgärdat: en lång reverb- eller delaysvans kunde klippas av vid paus
+* Nytt: Vibes egen filbläddrare vid sidan av systemets Filer-väljare, med Dropbox inbyggt: logga in för att bläddra i, söka i och spela upp din Dropbox, med uppspelning som startar medan ett spår laddas ned
+* Nytt: blanda, upprepa alla och upprepa en, med knappar bredvid uppspelningsreglagen (dölj dem i Inställningar > Utseende)
+* Nytt: uppspelning av CUE-filer, från en .cue-fil eller en som är inbäddad i en FLAC, och M3U-spellistor i filbläddraren
+* Nytt: uppspelning av Ogg Opus, CAF, W64, M4B, M4R och ADTS
+* Nytt: ett crossfade-reglage, från av upp till 3 sekunder i tiondels sekunder
+* Nytt: vågformsstilen 3-band
+* Nytt: ett alternativ för Linje för uppspelningshuvud, med hela vågformen i full färg
+* Nytt: kompakta layouter för skärmen Spelas nu i låga iPad-fönster
+* Förbättrat: spolning i FLAC går nästan direkt även i långa filer, med lägre CPU- och minnesanvändning och bättre kompatibilitet
+* Förbättrat: WAV- och AIFF-avkodning är snabbare, med bättre kompatibilitet
+* Förbättrat: uppspelningen använder mindre CPU och energi, och taggar och omslagsbilder skannas snabbare
+* Förbättrat: att öppna mappar hänger sig inte längre på långsamma molnmappar
+* Förbättrat: skrubbning och svepning mellan spår går fortsatt mjukt medan en vågform läses in
+* Åtgärdat: crossfade gjorde ingenting när ett spår spelades vidare till nästa; det fungerade bara när du bytte spår för hand
+* Åtgärdat: att zooma vågformen med nypgest kunde få uppspelningen att hoppa bakåt
+* Åtgärdat: att svepa tillbaka till ett spår visade dess gamla position innan det hoppade till början
+* Åtgärdat: FX-paden öppnades ibland inte större än sin cirkel efter några spårbyten
+* Åtgärdat: 24- och 32-bitars little-endian-AIFF-C-filer spelades upp med fel längd
+* Åtgärdat: spolningar i MP3-filer med MPEG-2 och låg bithastighet hamnade något fel
+* Åtgärdat: FLAC-filer som inte anger sin längd visade ingen speltid
+* Åtgärdat: Vibe kunde krascha när taggar lästes från vissa felaktiga M4A- och MP3-filer
+* Åtgärdat: Vibe skrev diagnostikloggar till systemloggen

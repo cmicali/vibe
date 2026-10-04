@@ -1,12 +1,22 @@
-* Baru: pad FX - tahan lingkaran di layar Sedang Diputar lalu geser untuk low cut, reverb, dan delay yang sinkron dengan tempo
-* Baru: deteksi BPM, ditampilkan di samping format dan kunci nada (Pengaturan > Pemutaran)
-* Baru: tata letak lanskap
-* Baru: mesin pemutaran yang dibangun ulang dengan dekode MP3 dan konversi laju sampel berkualitas lebih tinggi, serta penggunaan CPU lebih rendah
-* Perubahan: bentuk gelombang widget Layar Utama kini menggunakan gaya Wiggle secara default
-* Perubahan: hanya tombol putar yang menjeda; mengetuk gambar sampul tidak lagi menjeda
-* Peningkatan: menggulir, resampling, dan membuka ulang lebih cepat dengan perpustakaan besar
-* Peningkatan: tombol perangkat output merespons ketukan di bagian mana saja pada tombolnya
-* Peningkatan: bentuk gelombang yang dinormalisasi tidak lagi menyusut saat dimuat
-* Perbaikan: kesalahan pemutaran dapat tetap tampil di layar setelah pemutaran dilanjutkan
-* Perbaikan: pemutaran dapat tetap tampil berjalan setelah sistem menghentikan audio
-* Perbaikan: ekor reverb atau delay yang panjang dapat terpotong saat menjeda
+* Baru: penjelajah file milik Vibe, di samping pemilih Files sistem, dengan Dropbox bawaan: masuk untuk menjelajah, mencari, dan memutar Dropbox Anda, dengan pemutaran dimulai saat lagu masih diunduh
+* Baru: acak, ulangi semua, dan ulangi satu lagu, dengan tombol di samping kontrol pemutaran (sembunyikan di Pengaturan > Penampilan)
+* Baru: pemutaran lembar CUE, dari file .cue atau yang tertanam di FLAC, serta daftar putar M3U di penjelajah file
+* Baru: pemutaran Ogg Opus, CAF, W64, M4B, M4R, dan ADTS
+* Baru: penggeser crossfade, dari mati hingga 3 detik dalam kelipatan sepersepuluh detik
+* Baru: gaya bentuk gelombang 3 Pita
+* Baru: opsi garis kepala pemutar, dengan seluruh bentuk gelombang berwarna penuh
+* Baru: tata letak Sedang Diputar yang ringkas untuk jendela iPad yang pendek
+* Peningkatan: pencarian posisi di FLAC hampir instan bahkan di file panjang, dengan CPU dan memori lebih hemat serta kompatibilitas lebih baik
+* Peningkatan: dekode WAV dan AIFF lebih cepat, dengan kompatibilitas lebih baik
+* Peningkatan: pemutaran memakai CPU dan energi lebih sedikit, dan pemindaian tag serta gambar sampul lebih cepat
+* Peningkatan: membuka folder tidak lagi tersendat pada folder cloud yang lambat
+* Peningkatan: menggeser posisi dan menggesek antarlagu tetap mulus saat bentuk gelombang dimuat
+* Perbaikan: crossfade tidak berfungsi saat satu lagu berlanjut ke lagu berikutnya; hanya berfungsi saat lagu diganti manual
+* Perbaikan: mencubit untuk memperbesar bentuk gelombang dapat membuat pemutaran melompat mundur
+* Perbaikan: menggesek kembali ke sebuah lagu menampilkan posisi lamanya sebelum melompat ke awal
+* Perbaikan: pad FX terkadang terbuka tidak lebih besar dari lingkarannya setelah beberapa kali pergantian lagu
+* Perbaikan: file AIFF-C little-endian 24 dan 32-bit diputar dengan durasi yang salah
+* Perbaikan: pencarian posisi di file MP3 MPEG-2 berbitrate rendah meleset sedikit
+* Perbaikan: file FLAC yang tidak mencatat durasinya tidak menampilkan durasi
+* Perbaikan: Vibe dapat mogok saat membaca tag dari file M4A dan MP3 tertentu yang rusak
+* Perbaikan: Vibe menulis log diagnostik ke log sistem

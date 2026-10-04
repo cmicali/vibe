@@ -1,12 +1,22 @@
-* Novo: FX pad — zadržite prst na krugu na zaslonu reprodukcije i povucite za low cut, reverb i delay usklađen s tempom
-* Novo: prepoznavanje BPM-a, prikazano pokraj formata i tonaliteta (Postavke > Reprodukcija)
-* Novo: vodoravni prikaz
-* Novo: iznova izgrađen mehanizam reprodukcije s kvalitetnijim dekodiranjem MP3 datoteka i pretvorbom frekvencije uzorkovanja, uz manje opterećenje CPU-a
-* Promijenjeno: valni oblik widgeta na početnom zaslonu zadano ima stil Wiggle
-* Promijenjeno: reprodukciju pauzira samo tipka za reprodukciju; dodir omota to više ne čini
-* Poboljšano: brže pomicanje, preuzorkovanje i ponovno pokretanje s velikim zbirkama
-* Poboljšano: tipka izlaznog uređaja reagira bilo gdje na svojoj kapsuli
-* Poboljšano: normalizirani valni oblik više se ne smanjuje tijekom učitavanja
-* Ispravljeno: pogreška reprodukcije mogla je ostati na zaslonu nakon nastavka reprodukcije
-* Ispravljeno: reprodukcija se mogla prikazivati kao aktivna nakon što je sustav zaustavio zvuk
-* Ispravljeno: dugi rep reverba ili delaya mogao se odrezati pri pauziranju
+* Novo: Vibeov vlastiti preglednik datoteka uz sistemski birač Datoteke, s ugrađenim Dropboxom: prijavite se za pregledavanje, pretraživanje i reprodukciju svog Dropboxa, a reprodukcija počinje dok se pjesma preuzima
+* Novo: nasumična reprodukcija, ponavljanje svega i ponavljanje jedne pjesme, s tipkama pokraj kontrola reprodukcije (sakrijte ih u Postavke > Izgled)
+* Novo: reprodukcija CUE listova, iz .cue datoteke ili iz CUE lista ugrađenog u FLAC, te M3U popisi za reprodukciju u pregledniku datoteka
+* Novo: reprodukcija formata Ogg Opus, CAF, W64, M4B, M4R i ADTS
+* Novo: klizač za crossfade, od isključenog do 3 sekunde u desetinkama sekunde
+* Novo: stil valnog oblika 3 pojasa
+* Novo: opcija linije glave reprodukcije, uz cijeli valni oblik u punoj boji
+* Novo: kompaktni rasporedi zaslona reprodukcije za niske iPad prozore
+* Poboljšano: premotavanje u FLAC datotekama gotovo je trenutačno čak i u dugima, uz manje opterećenje CPU-a i memorije te bolju kompatibilnost
+* Poboljšano: dekodiranje WAV i AIFF datoteka brže je, uz bolju kompatibilnost
+* Poboljšano: reprodukcija troši manje CPU-a i energije, a oznake i omoti skeniraju se brže
+* Poboljšano: otvaranje mapa više ne zastaje na sporim oblačnim mapama
+* Poboljšano: premotavanje i listanje među pjesmama ostaju glatki dok se valni oblik učitava
+* Ispravljeno: crossfade nije radio kad bi jedna pjesma prelazila u sljedeću; radio je samo pri ručnoj promjeni pjesme
+* Ispravljeno: zumiranje valnog oblika štipanjem moglo je vratiti reprodukciju unatrag
+* Ispravljeno: listanje natrag na pjesmu prikazivalo je njezin stari položaj prije skoka na početak
+* Ispravljeno: FX pad se nakon nekoliko promjena pjesme ponekad otvarao veličine samo svog kruga
+* Ispravljeno: 24-bitne i 32-bitne little-endian AIFF-C datoteke reproducirale su se s pogrešnom duljinom
+* Ispravljeno: premotavanje u MP3 datotekama MPEG-2 niske brzine prijenosa završavalo je malo pokraj cilja
+* Ispravljeno: FLAC datoteke koje ne bilježe svoju duljinu nisu prikazivale trajanje
+* Ispravljeno: Vibe se mogao srušiti pri čitanju oznaka iz određenih neispravnih M4A i MP3 datoteka
+* Ispravljeno: Vibe je upisivao dijagnostičke zapise u sistemski dnevnik

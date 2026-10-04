@@ -1,19 +1,24 @@
-* Uutta: uudistettu toistomoottori, joka toistaa jokaisen kappaleen suoraan äänilaitteeseesi – nopeampi, vakaampi ja parempi käsittelemään laitteita, jotka tulevat ja menevät
-* Uutta: valinnainen äänenvoimakkuuden säädin (Asetukset > Äänilähtö), teemoilla muokattava
-* Uutta: Lukitse ikkunan sijainti Näytä-valikossa ja kohdassa Asetukset > Yleiset
-* Uutta: Vibe muistaa valitsemasi äänilaitteen, kun se sammutetaan tai irrotetaan, ja palaa siihen bittitarkan lähdön ja yksinomaisen äänilähdön asetuksineen, kun laite palaa
-* Uutta: eri porttiin kytketty USB-äänikortti säilyttää bittitarkan lähdön ja yksinomaisen äänilähdön asetuksensa
-* Muutettu: laadukkaampi MP3-dekoodaus ja näytteenottotaajuuden muunnos, jotka kuluttavat vähemmän CPU:ta
-* Muutettu: kun toinen appi ottaa äänilaitteesi yksinomaiseen käyttöön, Vibe keskeyttää toiston ja kertoo siitä
-* Muutettu: jos äänilähtö katoaa kesken kappaleen, toisto nyt keskeytyy eikä hyppää eteenpäin
-* Parannettu: toisto, keskeytys ja ohitus eivät enää odota, kun äänilaite vaihtuu tai herää
-* Parannettu: jumittunut verkkojako ei enää hidasta muita kappaleita eikä pilvitiedostojen tunnisteita ja kansikuvia
-* Parannettu: lopettaminen on välitöntä; Vibe palauttaa äänilaitteesi taustalla
-* Parannettu: normalisoitu aaltomuoto ei enää kutistu latautuessaan
-* Korjattu: kappaleen aloittaminen tai kohdan vetäminen saattoi jäädyttää toiston sekunniksi tai kahdeksi
-* Korjattu: osaa MP3-tiedostoista, joissa on ylimääräistä dataa tunnisteiden jälkeen, ei voitu toistaa
-* Korjattu: äänilaite, joka oli pois päältä Vibeä avattaessa, otetaan käyttöön heti, kun kytket sen päälle
-* Korjattu: Järjestelmän ulostulo saattoi pysäyttää toiston, kun macOS:llä ei hetkeen ollut oletuslaitetta
-* Korjattu: kappaleen viimeiset millisekunnit saattoivat leikkautua pois suurilla näytteenottotaajuuksilla
-* Korjattu: soittolistan järjestyksen muutoksen kumoaminen saattoi jättää tyhjän rivin
-* Korjattu: Ohjauskeskuksen paikkamerkkikuvasta saattoi näkyä väärä vaalea tai tumma versio
+* Uutta: sekoitus, kaikkien toisto ja yhden kappaleen toisto Toisto-valikossa (⌥⌘S, ⌘R), kuvakkeineen tiedostotietorivillä
+* Uutta: CUE-listan toisto .cue-tiedostosta tai FLAC-tiedostoon upotetusta CUE-listasta
+* Uutta: Ogg Opus-, Ogg Vorbis-, CAF-, W64-, M4B-, M4R- ja ADTS-toisto
+* Uutta: Näppäinoikotiet-osio Asetuksissa, jossa minkä tahansa oikotien voi vaihtaa
+* Uutta: Crossfade-liukusäädin, pois päältä aina 3 sekuntiin asti kymmenesosasekunnin askelin
+* Uutta: 3 kaistaa -aaltomuototyyli ja sitä käyttävä Record Bin -teema
+* Uutta: Toistopään viiva -asetus, jossa koko aaltomuoto näkyy täysvärisenä
+* Muutettu: Asetukset-ikkuna on järjestetty uudelleen, ja siinä on haku
+* Parannettu: FLAC-tiedostoissa siirtyminen on lähes välitöntä myös pitkissä tiedostoissa, kuluttaa vähemmän CPU:ta ja muistia ja toimii paremmin eri tiedostojen kanssa
+* Parannettu: WAV- ja AIFF-dekoodaus on 1,4x–3,2x nopeampaa ja toimii paremmin eri tiedostojen kanssa
+* Parannettu: toisto kuluttaa 20–30 % vähemmän CPU:ta ja 15–25 % vähemmän energiaa
+* Parannettu: tunnisteiden ja kansikuvien skannaus on 2x nopeampaa, ja kirjastoskannaukset kuluttavat 20 % vähemmän CPU:ta
+* Parannettu: nopeampi käynnistys, suuret M3U-soittolistat ja erittäin suurten soittolistojen muokkaus
+* Parannettu: Aseta Vibe oletukseksi ottaa haltuunsa myös CUE- ja M3U-tiedostot ja jatkaa, vaikka kieltäytyisit yhdestä tiedostotyypistä
+* Korjattu: crossfade ei tehnyt mitään, kun kappale siirtyi seuraavaan; se toimi vain kappaletta vaihdettaessa käsin
+* Korjattu: yhden näppäimen oikotiet eivät toimineet AZERTY-, kreikkalaisella, kyrillisellä eikä muilla ei-yhdysvaltalaisilla näppäimistöasetteluilla
+* Korjattu: aaltomuodon palkit väreilivät ikkunan kokoa muutettaessa
+* Korjattu: 24- ja 32-bittisten little-endian-AIFF-C-tiedostojen pituus oli väärä toistettaessa
+* Korjattu: siirtyminen matalan bittinopeuden MPEG-2 MP3 -tiedostoissa osui hieman pieleen
+* Korjattu: FLAC-tiedostoille, jotka eivät tallenna pituuttaan, ei näkynyt kestoa
+* Korjattu: Vibe saattoi kaatua luettaessa tunnisteita tietyistä virheellisistä M4A- ja MP3-tiedostoista
+* Korjattu: Muunna FLAC-muotoon lisäsi naksahduksen float-tiedoston jokaiseen täysimittaiseen huippuun
+* Korjattu: sellaisen CUE-listan tai M3U-soittolistan avaaminen, jonka tiedostot puuttuivat kaikki, ei tehnyt mitään; nyt Vibe kertoo, ettei se voinut avata niitä
+* Korjattu: Vibe kirjoitti diagnostiikkalokia järjestelmälokiin

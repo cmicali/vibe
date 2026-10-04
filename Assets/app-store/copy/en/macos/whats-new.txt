@@ -1,19 +1,24 @@
-* New: a rebuilt playback engine that plays every track straight to your audio device - faster, more stable, and better at handling devices coming and going
-* New: optional volume control (Settings > Audio Output), themable
-* New: Lock Window Position, in the View menu and Settings > General
-* New: Vibe remembers the output device you chose when it's switched off or unplugged, and switches back to it, with its Bit-perfect and Exclusive settings, when it returns
-* New: a USB audio interface plugged into a different port keeps its Bit-perfect and Exclusive settings
-* Changed: higher-quality MP3 decoding and sample-rate conversion, using less CPU
-* Changed: when another app takes exclusive use of your audio device, Vibe pauses and says so
-* Changed: losing your audio output mid-track now pauses instead of skipping ahead
-* Improved: play, pause, and skip no longer wait while an audio device switches or wakes up
-* Improved: a stuck network share no longer holds up other tracks, or the tags and artwork of cloud files
-* Improved: quitting is instant; Vibe restores your audio device in the background
-* Improved: a normalized waveform no longer shrinks while it loads
-* Fixed: starting a track or dragging the position could freeze playback for a second or two
-* Fixed: some MP3 files with extra data after their tags would not play
-* Fixed: an audio device that was off when Vibe opened is used as soon as you turn it on
-* Fixed: System Output could stop playback while macOS briefly had no default device
-* Fixed: the last few milliseconds of a track could be cut off at high sample rates
-* Fixed: undoing a playlist reorder could leave a blank row
-* Fixed: the Control Center placeholder art could show the wrong light or dark version
+* New: shuffle, repeat all, and repeat one, in the Playback menu (⌥⌘S, ⌘R), with their icons on the file-info line
+* New: CUE sheet playback, from a .cue file or one embedded in a FLAC
+* New: Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R, and ADTS playback
+* New: a Keyboard Shortcuts pane in Settings to change any shortcut
+* New: a crossfade slider, from off up to 3 seconds in tenths of a second
+* New: the 3-Band waveform style, and the Record Bin theme that uses it
+* New: a playhead line option, with the whole waveform in full color
+* Changed: the Settings window is reorganized, with search
+* Improved: FLAC seeking is near-instant even in long files, using less CPU and memory, with better compatibility
+* Improved: WAV and AIFF decoding is 1.4x–3.2x faster, with better compatibility
+* Improved: playback uses 20–30% less CPU and 15–25% less energy
+* Improved: tags and artwork scan 2x faster, and library scans use 20% less CPU
+* Improved: faster launch, large M3U playlists, and editing of very large playlists
+* Improved: Set as Default also claims CUE and M3U files, and keeps going when you decline one file type
+* Fixed: crossfade did nothing when one track played into the next; it only worked when changing tracks by hand
+* Fixed: single-key shortcuts did not work on AZERTY, Greek, Cyrillic, and other non-US keyboard layouts
+* Fixed: waveform bars rippled while the window was resized
+* Fixed: 24 and 32-bit little-endian AIFF-C files played at the wrong length
+* Fixed: seeks in low-bitrate MPEG-2 MP3 files landed slightly off
+* Fixed: FLAC files that don't record their length showed no duration
+* Fixed: Vibe could crash reading tags from certain malformed M4A and MP3 files
+* Fixed: Convert to FLAC added a click at every full-scale peak of a float file
+* Fixed: opening a CUE sheet or M3U playlist whose files are all missing did nothing; Vibe now says it couldn't open them
+* Fixed: Vibe wrote diagnostic logging to the system log

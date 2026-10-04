@@ -1,19 +1,24 @@
-* Nové: prepracovaný prehrávací engine, ktorý posiela každú skladbu priamo do vášho zvukového zariadenia – rýchlejší, stabilnejší a lepšie si poradí s pripájaním a odpájaním zariadení
-* Nové: voliteľné ovládanie hlasitosti (Nastavenia > Zvukový výstup), prispôsobiteľné motívmi
-* Nové: Zamknúť polohu okna v ponuke Zobraziť a v Nastavenia > Všeobecné
-* Nové: Vibe si pamätá zvolené výstupné zariadenie, keď ho vypnete alebo odpojíte, a keď sa vráti, prepne späť naň aj s nastavením bitovo presného a výhradného zvukového výstupu
-* Nové: zvukové rozhranie USB pripojené do iného portu si zachová nastavenie bitovo presného a výhradného zvukového výstupu
-* Zmena: kvalitnejšie dekódovanie MP3 a prevod vzorkovacej frekvencie s nižšou záťažou CPU
-* Zmena: keď iná aplikácia prevezme výhradný prístup k vášmu zvukovému zariadeniu, Vibe pozastaví prehrávanie a oznámi to
-* Zmena: strata zvukového výstupu uprostred skladby teraz prehrávanie pozastaví namiesto preskočenia ďalej
-* Vylepšenie: prehratie, pozastavenie a preskočenie už nečakajú, kým sa zvukové zariadenie prepne alebo prebudí
-* Vylepšenie: zaseknuté sieťové zdieľanie už nezdržiava ostatné skladby ani tagy a obaly súborov v cloude
-* Vylepšenie: ukončenie je okamžité; Vibe obnoví vaše zvukové zariadenie na pozadí
-* Vylepšenie: normalizovaný vlnový priebeh sa pri načítaní už nezmenšuje
-* Opravené: spustenie skladby alebo potiahnutie pozície mohlo na sekundu či dve zmraziť prehrávanie
-* Opravené: niektoré súbory MP3 s ďalšími dátami za tagmi sa nedali prehrať
-* Opravené: zvukové zariadenie, ktoré bolo pri otvorení Vibe vypnuté, sa použije, hneď ako ho zapnete
-* Opravené: Systémový výstup mohol zastaviť prehrávanie, keď macOS krátko nemal žiadne predvolené zariadenie
-* Opravené: posledných niekoľko milisekúnd skladby sa pri vysokých vzorkovacích frekvenciách mohlo odrezať
-* Opravené: vrátenie zmeny poradia v playliste mohlo zanechať prázdny riadok
-* Opravené: zástupný obal v Ovládacom centre mohol zobraziť nesprávnu svetlú alebo tmavú verziu
+* Nové: náhodné prehrávanie, opakovanie všetkého a opakovanie jednej skladby v ponuke Prehrávanie (⌥⌘S, ⌘R), s ich ikonami na riadku s informáciami o súbore
+* Nové: prehrávanie CUE zoznamov zo súboru .cue alebo z CUE vloženého v FLAC
+* Nové: prehrávanie Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R a ADTS
+* Nové: panel Klávesové skratky v Nastaveniach na zmenu ľubovoľnej skratky
+* Nové: posuvník crossfade od vypnutého až do 3 sekúnd po desatinách sekundy
+* Nové: štýl vlnového priebehu 3 pásma a téma Record Bin, ktorá ho používa
+* Nové: možnosť Čiara prehrávacej hlavy s celým vlnovým priebehom v plnej farbe
+* Zmena: okno Nastavenia je usporiadané nanovo a má vyhľadávanie
+* Vylepšenie: posun vo FLAC je takmer okamžitý aj v dlhých súboroch, s nižšou záťažou CPU a pamäte a lepšou kompatibilitou
+* Vylepšenie: dekódovanie WAV a AIFF je 1,4x–3,2x rýchlejšie, s lepšou kompatibilitou
+* Vylepšenie: prehrávanie zaťažuje CPU o 20–30 % menej a spotrebuje o 15–25 % menej energie
+* Vylepšenie: tagy a obaly sa skenujú 2x rýchlejšie a skenovanie knižnice zaťažuje CPU o 20 % menej
+* Vylepšenie: rýchlejšie spustenie, veľké playlisty M3U a úpravy veľmi veľkých playlistov
+* Vylepšenie: „Nastaviť Vibe ako predvolený“ prevezme aj súbory CUE a M3U a pokračuje, aj keď jeden typ súboru odmietnete
+* Opravené: crossfade nič nerobil, keď jedna skladba plynule prešla do ďalšej; fungoval iba pri ručnej zmene skladieb
+* Opravené: skratky jedným klávesom nefungovali na rozloženiach AZERTY, gréckom, cyrilike a iných nie-US rozloženiach
+* Opravené: stĺpce vlnového priebehu sa pri zmene veľkosti okna vlnili
+* Opravené: 24- a 32-bitové súbory AIFF-C little-endian sa prehrávali so zlou dĺžkou
+* Opravené: posuny v súboroch MP3 MPEG-2 s nízkym dátovým tokom pristáli mierne vedľa
+* Opravené: súbory FLAC, ktoré neuvádzajú dĺžku, nezobrazovali trvanie
+* Opravené: Vibe mohol zlyhať pri čítaní tagov z určitých poškodených súborov M4A a MP3
+* Opravené: „Konvertovať do FLAC“ pridalo kliknutie pri každom špičkovom bode plnej škály súboru s pohyblivou rádovou čiarkou
+* Opravené: otvorenie CUE zoznamu alebo playlistu M3U, ktorých súbory všetky chýbajú, nespravilo nič; Vibe teraz oznámi, že ich nedokázal otvoriť
+* Opravené: Vibe zapisoval diagnostické záznamy do systémového záznamu

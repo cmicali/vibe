@@ -1,19 +1,24 @@
-* Nytt: en ombyggd uppspelningsmotor som spelar varje spår direkt till din ljudenhet – snabbare, stabilare och bättre på enheter som kommer och går
-* Nytt: valfri volymkontroll (Inställningar > Ljudutmatning), som kan anpassas med teman
-* Nytt: Lås fönstrets position i menyn Visa och i Inställningar > Allmänt
-* Nytt: Vibe kommer ihåg ljudenheten du valde när den stängs av eller kopplas från och växlar tillbaka till den, med dess inställningar för bitperfekt utmatning och exklusiv ljudutmatning, när den kommer tillbaka
-* Nytt: ett USB-ljudgränssnitt som ansluts till en annan port behåller sina inställningar för bitperfekt utmatning och exklusiv ljudutmatning
-* Ändrat: MP3-avkodning och samplingsfrekvenskonvertering med högre kvalitet och lägre CPU-användning
-* Ändrat: när en annan app tar exklusiv åtkomst till din ljudenhet pausar Vibe och talar om det
-* Ändrat: om ljudutmatningen försvinner mitt i ett spår pausas nu uppspelningen i stället för att hoppa vidare
-* Förbättrat: spela upp, pausa och hoppa väntar inte längre medan en ljudenhet växlar eller vaknar
-* Förbättrat: en nätverksdelning som hänger sig håller inte längre upp andra spår eller taggar och omslagsbilder för filer i molnet
-* Förbättrat: Vibe avslutas direkt och återställer din ljudenhet i bakgrunden
-* Förbättrat: en normaliserad vågform krymper inte längre medan den läses in
-* Åtgärdat: uppspelningen kunde frysa en sekund eller två när ett spår startade eller positionen drogs
-* Åtgärdat: vissa MP3-filer med extra data efter taggarna kunde inte spelas upp
-* Åtgärdat: en ljudenhet som var avstängd när Vibe öppnades används så fort du slår på den
-* Åtgärdat: Systemutmatning kunde stoppa uppspelningen medan macOS tillfälligt saknade standardenhet
-* Åtgärdat: de sista millisekunderna av ett spår kunde klippas bort vid höga samplingsfrekvenser
-* Åtgärdat: att ångra en ändrad ordning i spellistan kunde lämna en tom rad
-* Åtgärdat: platshållarbilden i Kontrollcenter kunde visa fel ljus eller mörk version
+* Nytt: blanda, upprepa alla och upprepa en i menyn Uppspelning (⌥⌘S, ⌘R), med sina ikoner på filinformationsraden
+* Nytt: uppspelning av CUE-filer, från en .cue-fil eller en som är inbäddad i en FLAC
+* Nytt: uppspelning av Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R och ADTS
+* Nytt: en panel Kortkommandon i Inställningar där du kan ändra vilket kortkommando som helst
+* Nytt: ett crossfade-reglage, från av upp till 3 sekunder i tiondels sekunder
+* Nytt: vågformsstilen 3-band och temat Record Bin som använder den
+* Nytt: ett alternativ för Linje för uppspelningshuvud, med hela vågformen i full färg
+* Ändrat: fönstret Inställningar har fått en ny ordning, med sökning
+* Förbättrat: spolning i FLAC går nästan direkt även i långa filer, med lägre CPU- och minnesanvändning och bättre kompatibilitet
+* Förbättrat: WAV- och AIFF-avkodning är 1,4x–3,2x snabbare, med bättre kompatibilitet
+* Förbättrat: uppspelningen använder 20–30 % mindre CPU och 15–25 % mindre energi
+* Förbättrat: taggar och omslagsbilder skannas 2x snabbare, och biblioteksskanningar använder 20 % mindre CPU
+* Förbättrat: snabbare start, stora M3U-spellistor och redigering av mycket stora spellistor
+* Förbättrat: ”Ange Vibe som standard” tar även över CUE- och M3U-filer och fortsätter när du avböjer en filtyp
+* Åtgärdat: crossfade gjorde ingenting när ett spår spelades vidare till nästa; det fungerade bara när du bytte spår för hand
+* Åtgärdat: kortkommandon med en enda tangent fungerade inte på AZERTY, grekiska, kyrilliska och andra tangentbordslayouter utanför USA
+* Åtgärdat: vågformens staplar böljade medan fönstret ändrade storlek
+* Åtgärdat: 24- och 32-bitars little-endian-AIFF-C-filer spelades upp med fel längd
+* Åtgärdat: spolningar i MP3-filer med MPEG-2 och låg bithastighet hamnade något fel
+* Åtgärdat: FLAC-filer som inte anger sin längd visade ingen speltid
+* Åtgärdat: Vibe kunde krascha när taggar lästes från vissa felaktiga M4A- och MP3-filer
+* Åtgärdat: ”Konvertera till FLAC” lade till ett klick vid varje topp i full skala i en flyttalsfil
+* Åtgärdat: att öppna en CUE-fil eller M3U-spellista där alla filer saknas gjorde ingenting; nu säger Vibe att den inte kunde öppna dem
+* Åtgärdat: Vibe skrev diagnostikloggar till systemloggen

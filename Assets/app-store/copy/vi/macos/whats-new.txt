@@ -1,19 +1,24 @@
-* Mới: công cụ phát được xây dựng lại, phát mọi bài hát thẳng đến thiết bị âm thanh của bạn - nhanh hơn, ổn định hơn và xử lý tốt hơn khi thiết bị được kết nối hoặc ngắt kết nối
-* Mới: điều khiển âm lượng tùy chọn (Cài đặt > Đầu ra âm thanh), có thể tùy chỉnh theo chủ đề
-* Mới: “Khóa vị trí cửa sổ”, trong menu Xem và Cài đặt > Cài đặt chung
-* Mới: Vibe ghi nhớ thiết bị đầu ra bạn đã chọn khi thiết bị bị tắt hoặc rút ra, và chuyển lại sang thiết bị đó cùng các cài đặt bit-perfect và độc quyền khi thiết bị trở lại
-* Mới: giao diện âm thanh USB cắm vào cổng khác vẫn giữ các cài đặt bit-perfect và độc quyền
-* Thay đổi: giải mã MP3 và chuyển đổi tần số lấy mẫu chất lượng cao hơn, dùng ít CPU hơn
-* Thay đổi: khi một ứng dụng khác độc chiếm thiết bị âm thanh của bạn, Vibe sẽ tạm dừng và thông báo
-* Thay đổi: mất đầu ra âm thanh giữa bài giờ sẽ tạm dừng thay vì chuyển sang bài tiếp theo
-* Cải thiện: phát, tạm dừng và bỏ qua không còn phải chờ khi thiết bị âm thanh đang chuyển đổi hoặc thức dậy
-* Cải thiện: ổ chia sẻ mạng bị treo không còn làm chậm các bài hát khác, hay thẻ và ảnh bìa của tệp trên đám mây
-* Cải thiện: thoát ngay lập tức; Vibe khôi phục thiết bị âm thanh của bạn trong nền
-* Cải thiện: dạng sóng đã chuẩn hóa không còn co lại khi đang tải
-* Sửa lỗi: bắt đầu một bài hát hoặc kéo vị trí phát có thể làm việc phát bị đứng một hai giây
-* Sửa lỗi: một số tệp MP3 có dữ liệu thừa sau thẻ không phát được
-* Sửa lỗi: thiết bị âm thanh đang tắt khi mở Vibe giờ được dùng ngay khi bạn bật lên
-* Sửa lỗi: Đầu ra hệ thống có thể dừng phát khi macOS tạm thời không có thiết bị mặc định
-* Sửa lỗi: vài mili giây cuối của bài hát có thể bị cắt ở tần số lấy mẫu cao
-* Sửa lỗi: hoàn tác việc sắp xếp lại danh sách phát có thể để lại một hàng trống
-* Sửa lỗi: ảnh bìa giữ chỗ trong Trung tâm điều khiển có thể hiển thị sai phiên bản sáng hoặc tối
+* Mới: phát ngẫu nhiên, lặp lại tất cả và lặp lại một bài, trong menu Phát lại (⌥⌘S, ⌘R), kèm biểu tượng trên dòng thông tin tệp
+* Mới: phát danh sách CUE, từ tệp .cue hoặc từ tệp nhúng trong FLAC
+* Mới: phát Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R và ADTS
+* Mới: ngăn Phím tắt bàn phím trong Cài đặt để thay đổi bất kỳ phím tắt nào
+* Mới: thanh trượt Crossfade, từ tắt đến tối đa 3 giây, mỗi bước một phần mười giây
+* Mới: kiểu dạng sóng 3 dải và chủ đề Record Bin dùng kiểu này
+* Mới: tùy chọn Đường đầu phát, với toàn bộ dạng sóng hiển thị đủ màu
+* Thay đổi: cửa sổ Cài đặt được sắp xếp lại, có thêm tìm kiếm
+* Cải thiện: tua FLAC gần như tức thì dù tệp dài, dùng ít CPU và bộ nhớ hơn, tương thích tốt hơn
+* Cải thiện: giải mã WAV và AIFF nhanh hơn 1,4x–3,2x, tương thích tốt hơn
+* Cải thiện: phát nhạc dùng ít hơn 20–30% CPU và 15–25% năng lượng
+* Cải thiện: thẻ và ảnh bìa được quét nhanh gấp 2 lần, còn quét thư viện dùng ít hơn 20% CPU
+* Cải thiện: khởi động nhanh hơn, danh sách phát M3U lớn và chỉnh sửa danh sách phát rất lớn nhanh hơn
+* Cải thiện: Đặt làm mặc định giờ cũng áp dụng cho tệp CUE và M3U, và vẫn tiếp tục khi bạn từ chối một loại tệp
+* Sửa lỗi: crossfade không có tác dụng khi bài này tự chuyển sang bài kế tiếp; chỉ hoạt động khi đổi bài thủ công
+* Sửa lỗi: các phím tắt một phím không hoạt động trên bố cục bàn phím AZERTY, Hy Lạp, Cyrillic và các bố cục không phải của Mỹ khác
+* Sửa lỗi: các thanh dạng sóng gợn lên khi đang thay đổi kích thước cửa sổ
+* Sửa lỗi: tệp AIFF-C little-endian 24 và 32 bit phát sai độ dài
+* Sửa lỗi: tua trong tệp MP3 MPEG-2 bitrate thấp bị lệch nhẹ
+* Sửa lỗi: tệp FLAC không ghi độ dài không hiển thị thời lượng
+* Sửa lỗi: Vibe có thể bị lỗi khi đọc thẻ của một số tệp M4A và MP3 bị hỏng định dạng
+* Sửa lỗi: Chuyển đổi sang FLAC thêm tiếng lách cách ở mọi đỉnh toàn thang của tệp dấu phẩy động
+* Sửa lỗi: mở danh sách CUE hoặc danh sách phát M3U mà mọi tệp đều bị thiếu không có phản hồi; giờ Vibe thông báo không thể mở chúng
+* Sửa lỗi: Vibe ghi nhật ký chẩn đoán vào nhật ký hệ thống

@@ -1,19 +1,24 @@
-* Nowość: przebudowany silnik odtwarzania, który wysyła każdy utwór prosto do urządzenia audio – szybszy, stabilniejszy i lepiej radzący sobie z podłączaniem i odłączaniem urządzeń
-* Nowość: opcjonalna regulacja głośności (Ustawienia > Wyjście audio), z obsługą motywów
-* Nowość: Zablokuj położenie okna w menu Widok i w Ustawienia > Ogólne
-* Nowość: Vibe pamięta wybrane urządzenie wyjściowe, gdy zostanie wyłączone lub odłączone, i wraca do niego wraz z ustawieniami wyjścia bit-perfect i wyłącznego wyjścia audio, gdy znów się pojawi
-* Nowość: interfejs audio USB podłączony do innego portu zachowuje ustawienia wyjścia bit-perfect i wyłącznego wyjścia audio
-* Zmiana: wyższa jakość dekodowania MP3 i konwersji częstotliwości próbkowania przy mniejszym użyciu CPU
-* Zmiana: gdy inna aplikacja przejmie wyłączny dostęp do urządzenia audio, Vibe wstrzymuje odtwarzanie i o tym informuje
-* Zmiana: utrata wyjścia audio w trakcie utworu wstrzymuje teraz odtwarzanie zamiast przechodzić dalej
-* Ulepszenie: odtwarzanie, wstrzymywanie i przechodzenie nie czekają już, gdy urządzenie audio się przełącza lub wybudza
-* Ulepszenie: zawieszony udział sieciowy nie blokuje już innych utworów ani tagów i okładek plików w chmurze
-* Ulepszenie: zamykanie jest natychmiastowe; Vibe przywraca urządzenie audio w tle
-* Ulepszenie: znormalizowany kształt fali nie kurczy się już podczas wczytywania
-* Poprawka: rozpoczęcie utworu lub przeciąganie pozycji mogło zamrozić odtwarzanie na sekundę lub dwie
-* Poprawka: niektóre pliki MP3 z dodatkowymi danymi za tagami nie były odtwarzane
-* Poprawka: urządzenie audio wyłączone w chwili otwarcia Vibe jest używane, gdy tylko je włączysz
-* Poprawka: Wyjście systemowe mogło zatrzymać odtwarzanie, gdy macOS przez chwilę nie miał domyślnego urządzenia
-* Poprawka: ostatnie milisekundy utworu mogły zostać ucięte przy wysokich częstotliwościach próbkowania
-* Poprawka: cofnięcie zmiany kolejności na playliście mogło zostawić pusty wiersz
-* Poprawka: zastępcza okładka w Centrum sterowania mogła pokazywać złą, jasną lub ciemną wersję
+* Nowość: tryb losowy, powtarzanie wszystkich i powtarzanie jednego utworu w menu Odtwarzanie (⌥⌘S, ⌘R), z ikonami w wierszu informacji o pliku
+* Nowość: odtwarzanie plików CUE, z pliku .cue lub z pliku osadzonego w FLAC
+* Nowość: odtwarzanie Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R i ADTS
+* Nowość: panel Skróty klawiszowe w Ustawieniach do zmiany dowolnego skrótu
+* Nowość: suwak crossfade, od wyłączenia do 3 sekund co jedną dziesiątą sekundy
+* Nowość: styl kształtu fali 3 pasma oraz motyw Record Bin, który go używa
+* Nowość: opcja linii głowicy, z całym kształtem fali w pełnym kolorze
+* Zmiana: okno Ustawień zostało przeorganizowane i ma wyszukiwanie
+* Ulepszenie: przewijanie w FLAC jest niemal natychmiastowe nawet w długich plikach, przy mniejszym użyciu CPU i pamięci oraz lepszej zgodności
+* Ulepszenie: dekodowanie WAV i AIFF jest 1,4x–3,2x szybsze, z lepszą zgodnością
+* Ulepszenie: odtwarzanie zużywa o 20–30% mniej CPU i o 15–25% mniej energii
+* Ulepszenie: tagi i okładki skanują się 2x szybciej, a skanowanie biblioteki zużywa o 20% mniej CPU
+* Ulepszenie: szybsze uruchamianie, duże playlisty M3U i edycja bardzo dużych playlist
+* Ulepszenie: Ustaw Vibe jako domyślny obejmuje też pliki CUE i M3U i działa dalej, gdy odmówisz jednego typu pliku
+* Poprawka: crossfade nie działał, gdy jeden utwór przechodził w następny; działał tylko przy ręcznej zmianie utworu
+* Poprawka: skróty jednoklawiszowe nie działały na układach AZERTY, greckim, cyrylicy i innych nieamerykańskich układach klawiatury
+* Poprawka: słupki kształtu fali falowały podczas zmiany rozmiaru okna
+* Poprawka: 24- i 32-bitowe pliki AIFF-C little-endian były odtwarzane z błędną długością
+* Poprawka: przewijanie w plikach MP3 MPEG-2 o niskiej przepływności trafiało lekko obok
+* Poprawka: pliki FLAC, które nie zapisują swojej długości, nie pokazywały czasu trwania
+* Poprawka: Vibe mógł ulec awarii podczas odczytu tagów z niektórych uszkodzonych plików M4A i MP3
+* Poprawka: Konwertuj do FLAC dodawało kliknięcie przy każdym szczycie pełnej skali w pliku zmiennoprzecinkowym
+* Poprawka: otwarcie arkusza CUE lub playlisty M3U, w których brakowało wszystkich plików, nie robiło nic; Vibe teraz informuje, że nie udało się ich otworzyć
+* Poprawka: Vibe zapisywał dane diagnostyczne w dzienniku systemowym

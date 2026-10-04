@@ -1,12 +1,22 @@
-* Nouveau : pad FX – maintenez le cercle sur l’écran À l’écoute et faites glisser pour le low cut, la reverb et un delay synchronisé au tempo
-* Nouveau : détection du BPM, affiché à côté du format et de la tonalité (Réglages > Lecture)
-* Nouveau : disposition en mode paysage
-* Nouveau : un moteur de lecture repensé, avec un décodage MP3 et une conversion de fréquence d’échantillonnage de meilleure qualité, et moins de CPU
-* Modifié : la forme d’onde du widget de l’écran d’accueil utilise par défaut le style Wiggle
-* Modifié : seul le bouton de lecture met en pause ; toucher l’illustration ne le fait plus
-* Amélioré : défilement, rééchantillonnage et relance plus rapides avec les grandes bibliothèques
-* Amélioré : le bouton de l’appareil de sortie répond sur toute sa surface
-* Amélioré : une forme d’onde normalisée ne rétrécit plus pendant son chargement
-* Corrigé : une erreur de lecture pouvait rester affichée après la reprise de la lecture
-* Corrigé : la lecture pouvait apparaître en cours alors que le système avait arrêté l’audio
-* Corrigé : une longue queue de reverb ou de delay pouvait être coupée lors de la mise en pause
+* Nouveau : le navigateur de fichiers de Vibe, en plus du sélecteur Fichiers du système, avec Dropbox intégré : connectez-vous pour parcourir, rechercher et lire votre Dropbox, la lecture démarrant pendant le téléchargement d’un morceau
+* Nouveau : lecture aléatoire, répétition de tout et répétition d’un morceau, avec des boutons à côté des commandes de lecture (à masquer dans Réglages > Apparence)
+* Nouveau : lecture des feuilles CUE, depuis un fichier .cue ou une feuille intégrée à un FLAC, et listes de lecture M3U dans le navigateur de fichiers
+* Nouveau : lecture d’Ogg Opus, CAF, W64, M4B, M4R et ADTS
+* Nouveau : un curseur de crossfade, de désactivé jusqu’à 3 secondes par dixièmes de seconde
+* Nouveau : le style de forme d’onde 3 bandes
+* Nouveau : une option de ligne de la tête de lecture, avec toute la forme d’onde en pleine couleur
+* Nouveau : des dispositions compactes de l’écran À l’écoute pour les fenêtres d’iPad peu hautes
+* Amélioré : la navigation dans un FLAC est quasi instantanée, même dans les longs fichiers, avec moins de CPU et de mémoire, et une meilleure compatibilité
+* Amélioré : le décodage WAV et AIFF est plus rapide, avec une meilleure compatibilité
+* Amélioré : la lecture utilise moins de CPU et d’énergie, et les tags et illustrations sont analysés plus vite
+* Amélioré : l’ouverture de dossiers ne se bloque plus sur les dossiers cloud lents
+* Amélioré : le défilement et le balayage entre les morceaux restent fluides pendant le chargement d’une forme d’onde
+* Corrigé : le crossfade ne faisait rien quand un morceau enchaînait le suivant ; il ne fonctionnait qu’en changeant de morceau à la main
+* Corrigé : zoomer sur la forme d’onde en pinçant pouvait faire reculer la lecture
+* Corrigé : revenir à un morceau en balayant affichait son ancienne position avant de sauter au début
+* Corrigé : le pad FX s’ouvrait parfois sans dépasser son cercle après quelques changements de morceau
+* Corrigé : les fichiers AIFF-C little-endian 24 et 32 bits étaient lus avec une mauvaise durée
+* Corrigé : les positionnements dans les fichiers MP3 MPEG-2 à faible débit tombaient légèrement à côté
+* Corrigé : les fichiers FLAC qui n’enregistrent pas leur durée n’en affichaient aucune
+* Corrigé : Vibe pouvait planter en lisant les tags de certains fichiers M4A et MP3 mal formés
+* Corrigé : Vibe écrivait des journaux de diagnostic dans le journal système

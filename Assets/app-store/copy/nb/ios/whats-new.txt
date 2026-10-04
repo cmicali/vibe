@@ -1,12 +1,22 @@
-* Nytt: FX-pad – hold på sirkelen på Spilles nå-skjermen og dra for low cut, reverb og en temposynkronisert delay
-* Nytt: BPM-registrering, vist ved siden av format og toneart (Innstillinger > Avspilling)
-* Nytt: liggende layout
-* Nytt: en ombygd avspillingsmotor med MP3-dekoding og samplingsfrekvenskonvertering med høyere kvalitet og lavere CPU-bruk
-* Endret: bølgeformen i modulen på Hjem-skjermen bruker nå Wiggle-stilen som standard
-* Endret: bare avspillingsknappen setter på pause; et trykk på bildet gjør det ikke lenger
-* Forbedret: raskere rulling, samplingsfrekvenskonvertering og ny oppstart med store biblioteker
-* Forbedret: knappen for utgangsenhet reagerer hvor som helst på knappen
-* Forbedret: en normalisert bølgeform krymper ikke lenger mens den lastes inn
-* Rettet: en avspillingsfeil kunne bli stående på skjermen etter at avspillingen var gjenopptatt
-* Rettet: avspillingen kunne vises som i gang etter at systemet hadde stoppet lyden
-* Rettet: en lang reverb- eller delayhale kunne kuttes ved pause
+* Nytt: Vibes egen filbehandler ved siden av systemets Filer-velger, med Dropbox innebygd: logg inn for å bla gjennom, søke i og spille av Dropbox, og avspillingen starter mens et spor lastes ned
+* Nytt: bland, gjenta alle og gjenta én, med knapper ved siden av avspillingskontrollene (skjul dem i Innstillinger > Utseende)
+* Nytt: avspilling av CUE-ark, fra en .cue-fil eller en som er innebygd i en FLAC, og M3U-spillelister i filbehandleren
+* Nytt: avspilling av Ogg Opus, CAF, W64, M4B, M4R og ADTS
+* Nytt: en crossfade-glidebryter, fra av og opptil 3 sekunder i tideler av et sekund
+* Nytt: bølgeformstilen 3-bånd
+* Nytt: et valg for linje for avspillingshode, med hele bølgeformen i full farge
+* Nytt: kompakte Spilles nå-oppsett for lave iPad-vinduer
+* Forbedret: FLAC-spoling er nesten umiddelbar selv i lange filer, med lavere CPU- og minnebruk og bedre kompatibilitet
+* Forbedret: dekoding av WAV og AIFF er raskere, med bedre kompatibilitet
+* Forbedret: avspilling bruker mindre CPU og energi, og tagger og bilder skannes raskere
+* Forbedret: åpning av mapper stopper ikke lenger opp på trege skymapper
+* Forbedret: skrubbing og sveiping mellom spor går jevnt mens en bølgeform lastes inn
+* Rettet: crossfade gjorde ingenting når ett spor gikk over i det neste; den virket bare når du byttet spor for hånd
+* Rettet: klyping for å zoome bølgeformen kunne få avspillingen til å hoppe tilbake
+* Rettet: sveiping tilbake til et spor viste den gamle posisjonen før det hoppet til starten
+* Rettet: FX-padden åpnet seg av og til ikke større enn sirkelen etter noen sporbytter
+* Rettet: 24- og 32-biters little-endian AIFF-C-filer ble spilt av med feil lengde
+* Rettet: hopp i MP3-filer med lav bitrate (MPEG-2) landet litt ved siden av
+* Rettet: FLAC-filer som ikke registrerer lengden sin, viste ingen varighet
+* Rettet: Vibe kunne krasje ved lesing av tagger fra enkelte ugyldige M4A- og MP3-filer
+* Rettet: Vibe skrev diagnoselogging til systemloggen

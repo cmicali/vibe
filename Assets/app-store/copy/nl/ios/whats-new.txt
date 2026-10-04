@@ -1,12 +1,22 @@
-* Nieuw: FX-pad – houd de cirkel in het scherm Huidig nummer vast en schuif voor low cut, reverb en een op het tempo gesynchroniseerde delay
-* Nieuw: BPM-detectie, getoond naast het formaat en de toonsoort (Instellingen > Afspelen)
-* Nieuw: liggende weergave
-* Nieuw: een vernieuwde afspeelengine met MP3-decodering en samplefrequentieconversie van hogere kwaliteit, met minder CPU-gebruik
-* Gewijzigd: de golfvorm van de beginschermwidget gebruikt standaard de stijl Wiggle
-* Gewijzigd: alleen de afspeelknop pauzeert; tikken op de illustratie doet dat niet meer
-* Verbeterd: sneller scrollen, resamplen en opnieuw openen bij grote bibliotheken
-* Verbeterd: de knop voor het uitvoerapparaat reageert over zijn hele vlak
-* Verbeterd: een genormaliseerde golfvorm krimpt niet meer tijdens het laden
-* Opgelost: een afspeelfout kon in beeld blijven nadat het afspelen was hervat
-* Opgelost: het afspelen kon als actief worden getoond nadat het systeem de audio had gestopt
-* Opgelost: een lange reverb- of delay-staart kon bij het pauzeren worden afgekapt
+* Nieuw: Vibe's eigen bestandsbrowser naast de Bestanden-kiezer van het systeem, met Dropbox ingebouwd: log in om je Dropbox te bladeren, te doorzoeken en af te spelen, waarbij het afspelen begint terwijl een nummer wordt gedownload
+* Nieuw: shuffle, alles herhalen en één herhalen, met knoppen naast de afspeelknoppen (verberg ze in Instellingen > Uiterlijk)
+* Nieuw: afspelen van cuesheets, vanuit een .cue-bestand of een in een FLAC ingebed bestand, en M3U-afspeellijsten in de bestandsbrowser
+* Nieuw: afspelen van Ogg Opus, CAF, W64, M4B, M4R en ADTS
+* Nieuw: een crossfade-schuifregelaar, van uit tot 3 seconden in tienden van een seconde
+* Nieuw: de golfvormstijl 3-bands
+* Nieuw: een optie voor een afspeelkoplijn, met de hele golfvorm in volle kleur
+* Nieuw: compacte weergaven van Huidig nummer voor lage iPad-vensters
+* Verbeterd: spoelen in FLAC gaat bijna direct, ook in lange bestanden, met minder CPU- en geheugengebruik en betere compatibiliteit
+* Verbeterd: WAV- en AIFF-decodering is sneller, met betere compatibiliteit
+* Verbeterd: afspelen gebruikt minder CPU en energie en tags en illustraties worden sneller gescand
+* Verbeterd: het openen van mappen loopt niet meer vast op trage cloudmappen
+* Verbeterd: scrubben en vegen tussen nummers blijft soepel terwijl een golfvorm wordt geladen
+* Opgelost: crossfade deed niets als het ene nummer in het volgende overging; hij werkte alleen als je zelf van nummer wisselde
+* Opgelost: inzoomen op de golfvorm met twee vingers kon het afspelen terug laten springen
+* Opgelost: terugvegen naar een nummer toonde eerst de oude positie voordat het naar het begin sprong
+* Opgelost: het FX-pad opende na een paar nummerwissels soms niet groter dan zijn cirkel
+* Opgelost: 24- en 32-bits little-endian AIFF-C-bestanden werden met de verkeerde lengte afgespeeld
+* Opgelost: spoelen in MPEG-2 MP3-bestanden met een lage bitrate kwam net iets ernaast uit
+* Opgelost: FLAC-bestanden die hun lengte niet vastleggen, toonden geen duur
+* Opgelost: Vibe kon crashen bij het lezen van tags uit bepaalde beschadigde M4A- en MP3-bestanden
+* Opgelost: Vibe schreef diagnostische logging naar het systeemlogboek

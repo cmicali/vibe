@@ -1,12 +1,22 @@
-* New: FX pad - hold the circle on the now-playing screen and slide for low cut, reverb, and a tempo-synced delay
-* New: BPM detection, shown beside the format and key (Settings > Playback)
-* New: landscape layout
-* New: a rebuilt playback engine with higher-quality MP3 decoding and sample-rate conversion, using less CPU
-* Changed: the home-screen widget's waveform defaults to the Wiggle style
-* Changed: only the play button pauses; tapping the artwork no longer does
-* Improved: faster scrolling, resampling, and relaunch with large libraries
-* Improved: the output device button responds anywhere on its pill
-* Improved: a normalized waveform no longer shrinks while it loads
-* Fixed: a playback error could stay on screen after playback resumed
-* Fixed: playback could show as playing after the system stopped the audio
-* Fixed: a long reverb or delay tail could be cut off when pausing
+* New: Vibe's own file browser, alongside the system Files picker, with Dropbox built in: sign in to browse, search, and play your Dropbox, with playback starting while a track downloads
+* New: shuffle, repeat all, and repeat one, with buttons beside the transport controls (hide them in Settings > Appearance)
+* New: CUE sheet playback, from a .cue file or one embedded in a FLAC, and M3U playlists in the file browser
+* New: Ogg Opus, CAF, W64, M4B, M4R, and ADTS playback
+* New: a crossfade slider, from off up to 3 seconds in tenths of a second
+* New: the 3-Band waveform style
+* New: a playhead line option, with the whole waveform in full color
+* New: compact now-playing layouts for short iPad windows
+* Improved: FLAC seeking is near-instant even in long files, using less CPU and memory, with better compatibility
+* Improved: WAV and AIFF decoding is faster, with better compatibility
+* Improved: playback uses less CPU and energy, and tags and artwork scan faster
+* Improved: opening folders no longer stalls on slow cloud folders
+* Improved: scrubbing and swiping between tracks stay smooth while a waveform loads
+* Fixed: crossfade did nothing when one track played into the next; it only worked when changing tracks by hand
+* Fixed: pinch-zooming the waveform could make playback jump back
+* Fixed: swiping back to a track showed its old position before jumping to the start
+* Fixed: the FX pad sometimes opened no bigger than its circle after a few track changes
+* Fixed: 24 and 32-bit little-endian AIFF-C files played at the wrong length
+* Fixed: seeks in low-bitrate MPEG-2 MP3 files landed slightly off
+* Fixed: FLAC files that don't record their length showed no duration
+* Fixed: Vibe could crash reading tags from certain malformed M4A and MP3 files
+* Fixed: Vibe wrote diagnostic logging to the system log

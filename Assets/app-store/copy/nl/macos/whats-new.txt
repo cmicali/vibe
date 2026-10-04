@@ -1,19 +1,24 @@
-* Nieuw: een vernieuwde afspeelengine die elk nummer rechtstreeks naar je audioapparaat stuurt – sneller, stabieler en beter bestand tegen apparaten die komen en gaan
-* Nieuw: optionele volumeregeling (Instellingen > Audio-uitvoer), aan te passen per thema
-* Nieuw: ‘Vergrendel vensterpositie’, in het menu Weergave en in Instellingen > Algemeen
-* Nieuw: Vibe onthoudt het gekozen uitvoerapparaat als het wordt uitgeschakeld of losgekoppeld, en schakelt er zodra het terug is weer naar over, met de instellingen voor bitperfecte en exclusieve uitvoer
-* Nieuw: een USB-audio-interface op een andere poort behoudt zijn instellingen voor bitperfecte en exclusieve uitvoer
-* Gewijzigd: MP3-decodering en samplefrequentieconversie van hogere kwaliteit, met minder CPU-gebruik
-* Gewijzigd: als een andere app je audioapparaat exclusief in gebruik neemt, pauzeert Vibe en meldt het dat
-* Gewijzigd: als de audio-uitvoer midden in een nummer wegvalt, pauzeert het afspelen nu in plaats van door te springen
-* Verbeterd: afspelen, pauzeren en overslaan wachten niet meer terwijl een audioapparaat wisselt of ontwaakt
-* Verbeterd: een vastgelopen netwerkschijf houdt andere nummers en de tags en illustraties van cloudbestanden niet meer op
-* Verbeterd: stoppen gaat direct; Vibe herstelt je audioapparaat op de achtergrond
-* Verbeterd: een genormaliseerde golfvorm krimpt niet meer tijdens het laden
-* Opgelost: het starten van een nummer of verslepen van de positie kon het afspelen een seconde of twee bevriezen
-* Opgelost: sommige MP3-bestanden met extra gegevens na hun tags werden niet afgespeeld
-* Opgelost: een audioapparaat dat uit stond toen Vibe werd geopend, wordt gebruikt zodra je het aanzet
-* Opgelost: ‘Systeemuitvoer’ kon het afspelen stoppen als macOS even geen standaardapparaat had
-* Opgelost: de laatste milliseconden van een nummer konden bij hoge samplefrequenties wegvallen
-* Opgelost: het ongedaan maken van een herschikking van de afspeellijst kon een lege rij achterlaten
-* Opgelost: de tijdelijke illustratie in het Bedieningspaneel kon de verkeerde lichte of donkere versie tonen
+* Nieuw: shuffle, alles herhalen en één herhalen, in het menu Afspelen (⌥⌘S, ⌘R), met hun symbolen op de regel met bestandsinfo
+* Nieuw: afspelen van cuesheets, vanuit een .cue-bestand of een in een FLAC ingebed bestand
+* Nieuw: afspelen van Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R en ADTS
+* Nieuw: een paneel Toetscombinaties in Instellingen om elke toetscombinatie te wijzigen
+* Nieuw: een crossfade-schuifregelaar, van uit tot 3 seconden in tienden van een seconde
+* Nieuw: de golfvormstijl 3-bands en het thema Record Bin dat die gebruikt
+* Nieuw: een optie voor een afspeelkoplijn, met de hele golfvorm in volle kleur
+* Gewijzigd: het venster Instellingen is opnieuw ingedeeld en heeft zoeken
+* Verbeterd: spoelen in FLAC gaat bijna direct, ook in lange bestanden, met minder CPU- en geheugengebruik en betere compatibiliteit
+* Verbeterd: WAV- en AIFF-decodering is 1,4x–3,2x sneller, met betere compatibiliteit
+* Verbeterd: afspelen gebruikt 20–30% minder CPU en 15–25% minder energie
+* Verbeterd: tags en illustraties worden 2x sneller gescand en bibliotheekscans gebruiken 20% minder CPU
+* Verbeterd: sneller opstarten, grote M3U-afspeellijsten en het bewerken van zeer grote afspeellijsten
+* Verbeterd: ‘Stel Vibe in als standaard’ neemt ook CUE- en M3U-bestanden over en gaat door als je één bestandstype weigert
+* Opgelost: crossfade deed niets als het ene nummer in het volgende overging; hij werkte alleen als je zelf van nummer wisselde
+* Opgelost: toetscombinaties met één toets werkten niet op AZERTY, Grieks, Cyrillisch en andere niet-Amerikaanse toetsenbordindelingen
+* Opgelost: golfvormbalken rimpelden terwijl het formaat van het venster werd aangepast
+* Opgelost: 24- en 32-bits little-endian AIFF-C-bestanden werden met de verkeerde lengte afgespeeld
+* Opgelost: spoelen in MPEG-2 MP3-bestanden met een lage bitrate kwam net iets ernaast uit
+* Opgelost: FLAC-bestanden die hun lengte niet vastleggen, toonden geen duur
+* Opgelost: Vibe kon crashen bij het lezen van tags uit bepaalde beschadigde M4A- en MP3-bestanden
+* Opgelost: Converteer naar FLAC voegde bij elke piek op volle schaal een klik toe in een floatbestand
+* Opgelost: het openen van een cuesheet of M3U-afspeellijst waarvan alle bestanden ontbreken, deed niets; Vibe meldt nu dat ze niet geopend konden worden
+* Opgelost: Vibe schreef diagnostische logging naar het systeemlogboek

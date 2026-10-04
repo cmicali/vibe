@@ -1,12 +1,22 @@
-* Novedad: pad de FX: mantén pulsado el círculo en la pantalla Ahora suena y desliza para low cut, reverb y un delay sincronizado con el tempo
-* Novedad: detección de BPM, mostrada junto al formato y la tonalidad (Ajustes > Reproducción)
-* Novedad: diseño en horizontal
-* Novedad: un motor de reproducción renovado con decodificación MP3 y conversión de frecuencia de muestreo de mayor calidad, con menos uso de CPU
-* Cambio: la forma de onda del widget de la pantalla de inicio usa por omisión el estilo Wiggle
-* Cambio: solo el botón de reproducción pausa; tocar la carátula ya no lo hace
-* Mejora: desplazamiento, remuestreo y reapertura más rápidos con bibliotecas grandes
-* Mejora: el botón del dispositivo de salida responde en toda su superficie
-* Mejora: una forma de onda normalizada ya no se encoge mientras carga
-* Corrección: un error de reproducción podía seguir en pantalla después de reanudarse la reproducción
-* Corrección: la reproducción podía mostrarse activa después de que el sistema detuviera el audio
-* Corrección: una cola larga de reverb o delay podía cortarse al pausar
+* Novedad: el explorador de archivos propio de Vibe, junto al selector Archivos del sistema, con Dropbox integrado: inicia sesión para explorar, buscar y reproducir tu Dropbox, y la reproducción empieza mientras la pista se descarga
+* Novedad: reproducción aleatoria, repetir todo y repetir una, con botones junto a los controles de reproducción (ocúltalos en Ajustes > Aspecto)
+* Novedad: reproducción de hojas CUE, desde un archivo .cue o desde una incrustada en un FLAC, y listas M3U en el explorador de archivos
+* Novedad: reproducción de Ogg Opus, CAF, W64, M4B, M4R y ADTS
+* Novedad: un control deslizante de crossfade, desde desactivado hasta 3 segundos en décimas de segundo
+* Novedad: el estilo de forma de onda 3 bandas
+* Novedad: una opción de línea del cabezal, con toda la forma de onda a todo color
+* Novedad: diseños compactos de la pantalla Ahora suena para ventanas bajas del iPad
+* Mejora: el desplazamiento en FLAC es casi instantáneo incluso en archivos largos, con menos uso de CPU y memoria y mejor compatibilidad
+* Mejora: la decodificación de WAV y AIFF es más rápida, con mejor compatibilidad
+* Mejora: la reproducción usa menos CPU y energía, y las etiquetas y carátulas se analizan más rápido
+* Mejora: abrir carpetas ya no se bloquea con carpetas lentas en la nube
+* Mejora: arrastrar la posición y deslizar entre pistas siguen siendo fluidos mientras carga una forma de onda
+* Corrección: el crossfade no hacía nada cuando una pista pasaba a la siguiente; solo funcionaba al cambiar de pista a mano
+* Corrección: hacer zoom con los dedos en la forma de onda podía hacer que la reproducción retrocediera
+* Corrección: al deslizar de vuelta a una pista se veía su posición anterior antes de saltar al inicio
+* Corrección: el pad de FX a veces se abría sin ser más grande que su círculo tras varios cambios de pista
+* Corrección: los archivos AIFF-C little-endian de 24 y 32 bits se reproducían con una duración incorrecta
+* Corrección: los desplazamientos en archivos MP3 MPEG-2 de baja tasa de bits caían ligeramente fuera de lugar
+* Corrección: los archivos FLAC que no registran su duración no mostraban ninguna
+* Corrección: Vibe podía cerrarse inesperadamente al leer las etiquetas de ciertos archivos M4A y MP3 dañados
+* Corrección: Vibe escribía registros de diagnóstico en el registro del sistema

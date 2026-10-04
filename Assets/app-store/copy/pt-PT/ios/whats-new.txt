@@ -1,12 +1,22 @@
-* Novo: pad de FX – mantenha o círculo premido no ecrã A reproduzir e deslize para low cut, reverb e um delay sincronizado com o andamento
-* Novo: deteção de BPM, apresentada ao lado do formato e da tonalidade (Definições > Reprodução)
-* Novo: disposição horizontal
-* Novo: um motor de reprodução reconstruído com descodificação de MP3 e conversão da frequência de amostragem com maior qualidade e menor utilização de CPU
-* Alterado: a forma de onda do widget do ecrã principal usa o estilo Wiggle por omissão
-* Alterado: só o botão de reprodução coloca em pausa; tocar na capa já não o faz
-* Melhorado: deslocamento, reamostragem e reabertura mais rápidos com bibliotecas grandes
-* Melhorado: o botão do dispositivo de saída responde em qualquer ponto da sua área
-* Melhorado: uma forma de onda normalizada já não encolhe enquanto carrega
-* Corrigido: um erro de reprodução podia permanecer no ecrã depois de a reprodução ser retomada
-* Corrigido: a reprodução podia aparecer como ativa depois de o sistema ter parado o áudio
-* Corrigido: uma cauda longa de reverb ou delay podia ser cortada ao colocar em pausa
+* Novo: o navegador de ficheiros do próprio Vibe, ao lado do seletor Ficheiros do sistema, com o Dropbox integrado: inicie sessão para navegar, pesquisar e reproduzir o seu Dropbox, com a reprodução a começar enquanto a faixa é transferida
+* Novo: aleatório, repetir tudo e repetir uma, com botões junto dos controlos de reprodução (oculte-os em Definições > Aspeto)
+* Novo: reprodução de folhas CUE, a partir de um ficheiro .cue ou de um incorporado num FLAC, e listas M3U no navegador de ficheiros
+* Novo: reprodução de Ogg Opus, CAF, W64, M4B, M4R e ADTS
+* Novo: um controlo de deslize de crossfade, de desativado até 3 segundos em décimas de segundo
+* Novo: o estilo de forma de onda 3 bandas
+* Novo: uma opção de linha do cursor de reprodução, com toda a forma de onda a cores
+* Novo: disposições compactas do ecrã A reproduzir para janelas de iPad baixas
+* Melhorado: o avanço e recuo em FLAC são quase instantâneos, mesmo em ficheiros longos, com menos CPU e memória e melhor compatibilidade
+* Melhorado: a descodificação de WAV e AIFF é mais rápida, com melhor compatibilidade
+* Melhorado: a reprodução usa menos CPU e energia, e as etiquetas e capas são analisadas mais depressa
+* Melhorado: abrir pastas já não fica bloqueado em pastas lentas na nuvem
+* Melhorado: deslocar a posição e deslizar entre faixas continuam fluidos enquanto uma forma de onda carrega
+* Corrigido: o crossfade não fazia nada quando uma faixa passava para a seguinte; só funcionava ao mudar de faixa manualmente
+* Corrigido: ao ampliar a forma de onda com o gesto de pinça, a reprodução podia recuar
+* Corrigido: ao deslizar de volta para uma faixa, esta mostrava a posição antiga antes de saltar para o início
+* Corrigido: o pad de FX às vezes abria sem passar do tamanho do círculo depois de algumas mudanças de faixa
+* Corrigido: ficheiros AIFF-C little-endian de 24 e 32 bits eram reproduzidos com a duração errada
+* Corrigido: avançar ou recuar em ficheiros MP3 MPEG-2 de baixo débito parava ligeiramente fora do ponto
+* Corrigido: ficheiros FLAC que não registam a duração não mostravam duração
+* Corrigido: o Vibe podia falhar ao ler etiquetas de certos ficheiros M4A e MP3 malformados
+* Corrigido: o Vibe escrevia registos de diagnóstico no registo do sistema

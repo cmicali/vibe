@@ -1,19 +1,24 @@
-* Nyt: en ombygget afspilningsmotor, der sender hvert nummer direkte til din lydenhed – hurtigere, mere stabil og bedre til enheder, der kommer og går
-* Nyt: valgfri lydstyrkekontrol (Indstillinger > Lydoutput), som kan tilpasses med temaer
-* Nyt: Lås vinduets placering i menuen Oversigt og i Indstillinger > Generelt
-* Nyt: Vibe husker den valgte udgangsenhed, når den slukkes eller frakobles, og skifter tilbage til den med dens indstillinger for bitperfekt output og eksklusiv lydudgang, når den vender tilbage
-* Nyt: et USB-lydinterface, der sættes i en anden port, beholder sine indstillinger for bitperfekt output og eksklusiv lydudgang
-* Ændret: MP3-afkodning og samplingfrekvenskonvertering i højere kvalitet, der bruger mindre CPU
-* Ændret: når en anden app tager eneret på din lydenhed, sætter Vibe på pause og fortæller det
-* Ændret: mister du lydudgangen midt i et nummer, sættes der nu på pause i stedet for at springe videre
-* Forbedret: afspil, pause og spring venter ikke længere, mens en lydenhed skifter eller vågner
-* Forbedret: et netværksdrev, der hænger, forsinker ikke længere andre numre eller tags og illustrationer for filer i skyen
-* Forbedret: Vibe afsluttes med det samme og gendanner din lydenhed i baggrunden
-* Forbedret: en normaliseret bølgeform skrumper ikke længere, mens den indlæses
-* Rettet: start af et nummer eller træk i positionen kunne få afspilningen til at fryse i et sekund eller to
-* Rettet: nogle MP3-filer med ekstra data efter deres tags kunne ikke afspilles
-* Rettet: en lydenhed, der var slukket, da Vibe blev åbnet, bruges, så snart du tænder den
-* Rettet: Systemoutput kunne stoppe afspilningen, mens macOS kortvarigt ikke havde nogen standardenhed
-* Rettet: de sidste millisekunder af et nummer kunne blive skåret af ved høje samplingfrekvenser
-* Rettet: fortrydelse af en ny rækkefølge i afspilningslisten kunne efterlade en tom række
-* Rettet: pladsholderillustrationen i Kontrolcenter kunne vise den forkerte lyse eller mørke version
+* Nyt: bland, gentag alle og gentag ét nummer i menuen Afspilning (⌥⌘S, ⌘R), med deres ikoner på linjen med filoplysninger
+* Nyt: afspilning af CUE-ark, fra en .cue-fil eller et, der er indlejret i en FLAC
+* Nyt: afspilning af Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R og ADTS
+* Nyt: en rude med Tastaturgenveje i Indstillinger, hvor du kan ændre enhver genvej
+* Nyt: en crossfade-skyder fra slukket op til 3 sekunder i tiendedele af et sekund
+* Nyt: bølgeformstilen 3-bånd og temaet Record Bin, der bruger den
+* Nyt: en indstilling for en afspilningshovedlinje, med hele bølgeformen i fuld farve
+* Ændret: vinduet Indstillinger er omorganiseret og har søgning
+* Forbedret: FLAC-spoling er næsten øjeblikkelig selv i lange filer, bruger mindre CPU og hukommelse og har bedre kompatibilitet
+* Forbedret: afkodning af WAV og AIFF er 1,4x–3,2x hurtigere med bedre kompatibilitet
+* Forbedret: afspilning bruger 20–30 % mindre CPU og 15–25 % mindre energi
+* Forbedret: tags og illustrationer scannes 2x hurtigere, og biblioteksscanninger bruger 20 % mindre CPU
+* Forbedret: hurtigere start, store M3U-afspilningslister og redigering af meget store afspilningslister
+* Forbedret: Indstil Vibe som standard tager også CUE- og M3U-filer og fortsætter, selv om du afviser én filtype
+* Rettet: crossfade gjorde ingenting, når ét nummer gik over i det næste; det virkede kun, når du skiftede nummer manuelt
+* Rettet: genveje med én tast virkede ikke på AZERTY-, græske, kyrilliske og andre ikke-amerikanske tastaturlayouts
+* Rettet: bølgeformens streger bølgede, mens vinduet blev ændret i størrelse
+* Rettet: 24- og 32-bit little-endian AIFF-C-filer blev afspillet med forkert længde
+* Rettet: spoling i MPEG-2 MP3-filer med lav bitrate landede en smule ved siden af
+* Rettet: FLAC-filer, der ikke registrerer deres længde, viste ingen varighed
+* Rettet: Vibe kunne gå ned ved læsning af tags fra visse ødelagte M4A- og MP3-filer
+* Rettet: Konverter til FLAC tilføjede et klik ved hver fuldskala-top i en float-fil
+* Rettet: åbning af et CUE-ark eller en M3U-afspilningsliste, hvor alle filerne mangler, gjorde ingenting; nu fortæller Vibe, at filerne ikke kunne åbnes
+* Rettet: Vibe skrev diagnostisk logning til systemloggen

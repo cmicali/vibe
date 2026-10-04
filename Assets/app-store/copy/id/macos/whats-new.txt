@@ -1,19 +1,24 @@
-* Baru: mesin pemutaran yang dibangun ulang, memutar setiap lagu langsung ke perangkat audio Anda - lebih cepat, lebih stabil, dan lebih andal saat perangkat tersambung dan terputus
-* Baru: kontrol volume opsional (Pengaturan > Output Audio), dapat disesuaikan dengan tema
-* Baru: “Kunci Posisi Jendela”, di menu Tampilan dan Pengaturan > Umum
-* Baru: Vibe mengingat perangkat output yang Anda pilih saat perangkat dimatikan atau dicabut, lalu beralih kembali ke perangkat tersebut, beserta pengaturan bit-perfect dan eksklusifnya, saat perangkat kembali
-* Baru: antarmuka audio USB yang dicolokkan ke port lain tetap mempertahankan pengaturan bit-perfect dan eksklusifnya
-* Perubahan: dekode MP3 dan konversi laju sampel berkualitas lebih tinggi, dengan penggunaan CPU lebih rendah
-* Perubahan: saat app lain menggunakan perangkat audio Anda secara eksklusif, Vibe menjeda dan memberi tahu Anda
-* Perubahan: kehilangan output audio di tengah lagu kini menjeda pemutaran, bukan melompat ke lagu berikutnya
-* Peningkatan: putar, jeda, dan lewati tidak lagi menunggu saat perangkat audio beralih atau aktif kembali
-* Peningkatan: berbagi jaringan yang macet tidak lagi menahan lagu lain, atau tag dan gambar sampul file cloud
-* Peningkatan: keluar kini instan; Vibe memulihkan perangkat audio Anda di latar belakang
-* Peningkatan: bentuk gelombang yang dinormalisasi tidak lagi menyusut saat dimuat
-* Perbaikan: memulai lagu atau menyeret posisi putar dapat membekukan pemutaran selama satu atau dua detik
-* Perbaikan: beberapa file MP3 dengan data tambahan setelah tagnya tidak dapat diputar
-* Perbaikan: perangkat audio yang mati saat Vibe dibuka kini langsung digunakan begitu Anda menyalakannya
-* Perbaikan: Output Sistem dapat menghentikan pemutaran saat macOS sesaat tidak memiliki perangkat default
-* Perbaikan: beberapa milidetik terakhir lagu dapat terpotong pada laju sampel tinggi
-* Perbaikan: mengurungkan pengurutan ulang daftar putar dapat meninggalkan baris kosong
-* Perbaikan: gambar sampul pengganti di Pusat Kontrol dapat menampilkan versi terang atau gelap yang salah
+* Baru: acak, ulangi semua, dan ulangi satu lagu, di menu Pemutaran (⌥⌘S, ⌘R), dengan ikonnya di baris info file
+* Baru: pemutaran lembar CUE, dari file .cue atau yang tertanam di FLAC
+* Baru: pemutaran Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R, dan ADTS
+* Baru: panel Pintasan Papan Ketik di Pengaturan untuk mengubah pintasan apa pun
+* Baru: penggeser crossfade, dari mati hingga 3 detik dalam kelipatan sepersepuluh detik
+* Baru: gaya bentuk gelombang 3 Pita, dan tema Record Bin yang menggunakannya
+* Baru: opsi garis kepala pemutar, dengan seluruh bentuk gelombang berwarna penuh
+* Perubahan: jendela Pengaturan ditata ulang, dilengkapi pencarian
+* Peningkatan: pencarian posisi di FLAC hampir instan bahkan di file panjang, dengan CPU dan memori lebih hemat serta kompatibilitas lebih baik
+* Peningkatan: dekode WAV dan AIFF 1,4x–3,2x lebih cepat, dengan kompatibilitas lebih baik
+* Peningkatan: pemutaran memakai CPU 20–30% lebih sedikit dan energi 15–25% lebih sedikit
+* Peningkatan: pemindaian tag dan gambar sampul 2x lebih cepat, dan pemindaian perpustakaan memakai CPU 20% lebih sedikit
+* Peningkatan: peluncuran lebih cepat, daftar putar M3U besar, dan pengeditan daftar putar yang sangat besar
+* Peningkatan: “Jadikan Vibe default” juga mengambil alih file CUE dan M3U, dan tetap berlanjut saat Anda menolak satu jenis file
+* Perbaikan: crossfade tidak berfungsi saat satu lagu berlanjut ke lagu berikutnya; hanya berfungsi saat lagu diganti manual
+* Perbaikan: pintasan satu tombol tidak berfungsi pada tata letak papan ketik AZERTY, Yunani, Sirilik, dan non-AS lainnya
+* Perbaikan: batang bentuk gelombang bergelombang saat ukuran jendela diubah
+* Perbaikan: file AIFF-C little-endian 24 dan 32-bit diputar dengan durasi yang salah
+* Perbaikan: pencarian posisi di file MP3 MPEG-2 berbitrate rendah meleset sedikit
+* Perbaikan: file FLAC yang tidak mencatat durasinya tidak menampilkan durasi
+* Perbaikan: Vibe dapat mogok saat membaca tag dari file M4A dan MP3 tertentu yang rusak
+* Perbaikan: Konversi ke FLAC menambahkan bunyi klik di setiap puncak skala penuh pada file float
+* Perbaikan: membuka lembar CUE atau daftar putar M3U yang semua filenya hilang tidak berbuat apa-apa; kini Vibe memberi tahu bahwa file tersebut tidak dapat dibuka
+* Perbaikan: Vibe menulis log diagnostik ke log sistem

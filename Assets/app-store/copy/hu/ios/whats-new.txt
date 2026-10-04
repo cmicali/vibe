@@ -1,12 +1,22 @@
-* Új: FX pad – tartsd lenyomva a kört a lejátszási képernyőn, és csúsztasd a low cuthoz, a reverbhöz és a tempóhoz igazított delay-hez
-* Új: BPM-észlelés, a formátum és a hangnem mellett megjelenítve (Beállítások > Lejátszás)
-* Új: fekvő elrendezés
-* Új: újraépített lejátszómotor jobb minőségű MP3-dekódolással és mintavételezésifrekvencia-átalakítással, kevesebb CPU-használattal
-* Változás: a Főképernyő-widget hullámformája alapértelmezés szerint Wiggle stílusú
-* Változás: csak a lejátszás gomb szüneteltet; a borítóra koppintás már nem
-* Fejlesztés: gyorsabb görgetés, átmintavételezés és újraindítás nagy könyvtáraknál
-* Fejlesztés: a kimeneti eszköz gombja a kapszula bármely pontján reagál
-* Fejlesztés: a normalizált hullámforma már nem zsugorodik össze betöltés közben
-* Javítás: egy lejátszási hiba a képernyőn maradhatott a lejátszás folytatása után
-* Javítás: a lejátszás folyamatban lévőként látszhatott, miután a rendszer leállította a hangot
-* Javítás: a hosszú reverb- vagy delay-lecsengés levágódhatott szüneteltetéskor
+* Új: a Vibe saját fájlböngészője a rendszer Fájlok választója mellett, beépített Dropbox-támogatással: jelentkezz be, hogy böngészhesd, kereshesd és lejátszhasd a Dropboxod, a lejátszás pedig a szám letöltése közben elindul
+* Új: véletlen sorrend, az összes ismétlése és egy szám ismétlése, a lejátszásvezérlők melletti gombokkal (elrejtheted őket a Beállítások > Megjelenés alatt)
+* Új: CUE-lapok lejátszása .cue fájlból vagy FLAC-ba ágyazott CUE-lapról, valamint M3U-lejátszási listák a fájlböngészőben
+* Új: Ogg Opus, CAF, W64, M4B, M4R és ADTS lejátszása
+* Új: crossfade-csúszka, kikapcsolttól akár 3 másodpercig, tizedmásodperces lépésekben
+* Új: a 3 sávos hullámformastílus
+* Új: lejátszófej-vonal opció, a teljes hullámforma teljes színben
+* Új: kompakt lejátszási képernyő-elrendezések alacsony iPad-ablakokhoz
+* Fejlesztés: a FLAC-fájlokban a tekerés szinte azonnali még hosszú fájloknál is, kevesebb CPU- és memóriahasználattal, jobb kompatibilitással
+* Fejlesztés: a WAV- és AIFF-dekódolás gyorsabb, jobb kompatibilitással
+* Fejlesztés: a lejátszás kevesebb CPU-t és energiát használ, a címkék és borítók beolvasása pedig gyorsabb
+* Fejlesztés: a mappák megnyitása már nem akad el a lassú felhős mappáknál
+* Fejlesztés: a tekerés és a számok közti lapozás sima marad, amíg egy hullámforma betöltődik
+* Javítás: a crossfade nem csinált semmit, amikor egy szám a következőbe ment át; csak a számok kézi váltásakor működött
+* Javítás: a hullámforma csippentéses nagyítása visszaugraszthatta a lejátszást
+* Javítás: egy számra való visszalapozáskor a régi pozíciója látszott, mielőtt az elejére ugrott volna
+* Javítás: az FX pad néha csak a körének méretében nyílt meg néhány számváltás után
+* Javítás: a 24 és 32 bites little-endian AIFF-C fájlok rossz hosszal játszódtak le
+* Javítás: az alacsony bitrátájú MPEG-2 MP3-fájlokban a tekerés kissé mellément
+* Javítás: a FLAC-fájlok, amelyek nem rögzítik a hosszukat, nem mutattak időtartamot
+* Javítás: a Vibe összeomolhatott egyes hibás M4A- és MP3-fájlok címkéinek olvasásakor
+* Javítás: a Vibe diagnosztikai naplót írt a rendszernaplóba
