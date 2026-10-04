@@ -1002,10 +1002,7 @@ NSString *VibeDebugSettingsReveal(NSArray<NSString *> *tokens) {
     if (!element) {
         return errorJSON;
     }
-    NSView *card = element.view;
-    while (card.superview && ![card isKindOfClass:SettingsSectionView.class]) {
-        card = card.superview;
-    }
+    NSView *card = [SettingsSectionView sectionContaining:element.view] ?: element.view;
     // The pane's stack is flipped, so the card's minY is its top.
     NSView *document = card.enclosingScrollView.documentView;
     [document scrollPoint:NSMakePoint(0, NSMinY([card convertRect:card.bounds toView:document]) - 12)];

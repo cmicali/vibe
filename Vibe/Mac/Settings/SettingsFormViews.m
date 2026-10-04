@@ -598,6 +598,13 @@ static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat
     return section;
 }
 
++ (SettingsSectionView *)sectionContaining:(NSView *)view {
+    for (NSView *ancestor = view.superview; ancestor; ancestor = ancestor.superview) {
+        if ([ancestor isKindOfClass:self]) return (SettingsSectionView *)ancestor;
+    }
+    return nil;
+}
+
 - (void)setHeader:(NSString *)header {
     NSString *label = header.vibeFormLabel;
     if (![_headerLabel.stringValue isEqualToString:label]) {

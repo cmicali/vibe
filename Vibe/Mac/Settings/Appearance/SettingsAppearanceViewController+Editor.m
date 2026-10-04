@@ -342,16 +342,6 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     return [theme buttonImageForKey:key] ?: PreviewGlyphImage([self glyphForImageKey:key]);
 }
 
-- (NSStackView *)detentSliderClusterWithDetent:(double)detent min:(double)min max:(double)max
-                                        action:(SEL)action slider:(NSSlider *__strong *)outSlider
-                                    valueLabel:(NSTextField *__strong *)outLabel {
-    VibeDetentSlider *slider = [VibeDetentSlider sliderWithValue:detent minValue:min maxValue:max
-                                                          target:self action:action];
-    slider.detentValue = detent;
-    *outSlider = slider;
-    return [self clusterWithSlider:slider width:kAppearancePopUpWidth valueLabel:outLabel];
-}
-
 - (void)buildEditorPage {
     _imagePreviews = [NSMutableDictionary dictionary];
     _imageClearBadges = [NSMutableDictionary dictionary];
@@ -440,7 +430,7 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
 
     _cornerRadiusCluster = [self detentSliderClusterWithDetent:kVibeThemeCornerRadiusDefault
             min:0 max:kVibeThemeCornerRadiusMax action:@selector(cornerRadiusChanged:)
-            slider:&_cornerRadiusSlider valueLabel:&_cornerRadiusValue];
+            width:kAppearancePopUpWidth slider:&_cornerRadiusSlider valueLabel:&_cornerRadiusValue];
 
     _playlistBackgroundPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
                                                    action:@selector(playlistBackgroundStyleChanged:)];
@@ -463,11 +453,11 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     NSStackView *densityCluster = [self detentSliderClusterWithDetent:kVibeThemeWaveformBarScaleDefault
             min:kVibeThemeWaveformBarScaleMin max:kVibeThemeWaveformBarScaleMax
             action:@selector(waveformBarSizingChanged:)
-            slider:&_waveformBarDensitySlider valueLabel:&_waveformBarDensityValue];
+            width:kAppearancePopUpWidth slider:&_waveformBarDensitySlider valueLabel:&_waveformBarDensityValue];
     NSStackView *widthCluster = [self detentSliderClusterWithDetent:kVibeThemeWaveformBarScaleDefault
             min:kVibeThemeWaveformBarScaleMin max:kVibeThemeWaveformBarScaleMax
             action:@selector(waveformBarSizingChanged:)
-            slider:&_waveformBarWidthSlider valueLabel:&_waveformBarWidthValue];
+            width:kAppearancePopUpWidth slider:&_waveformBarWidthSlider valueLabel:&_waveformBarWidthValue];
     _waveformThemePopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(waveformThemeChanged:)];
     [self addItem:STR_SETTINGS_WAVEFORM_THEME_MONO value:SETTINGS_VALUE_WAVEFORM_THEME_MONO to:_waveformThemePopUp];
     [self addItem:STR_SETTINGS_WAVEFORM_THEME_ORANGE value:SETTINGS_VALUE_WAVEFORM_THEME_ORANGE to:_waveformThemePopUp];

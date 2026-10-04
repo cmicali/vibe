@@ -64,19 +64,23 @@ static void VibeBenchComponentsSettingsDrag(NSViewController *pane, NSString *iv
     [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.1]];
 }
 
+static NSTabViewController *VibeBenchComponentsSettingsTabs(VibeBenchComponentsSettingsState *state) {
+    return (NSTabViewController *)state->controller.window.contentViewController.childViewControllers.lastObject;
+}
+
+static NSTabViewItem *VibeBenchComponentsSettingsPane(VibeBenchComponentsSettingsState *state, NSString *identifier) {
+    NSTabView *tabView = VibeBenchComponentsSettingsTabs(state).tabView;
+    NSInteger index = [tabView indexOfTabViewItemWithIdentifier:identifier];
+    return index == NSNotFound ? nil : [tabView tabViewItemAtIndex:index];
+}
+
 static void VibeBenchComponentsSettingsEnsureWindow(VibeBenchComponentsSettingsState *state) {
     [NSApplication sharedApplication];
     if (!state->controller) {
         state->controller = [[SettingsWindowController alloc]
                 initWithPlayerController:(MainPlayerController *_Nonnull)nil];
         state->themes = state->controller.themesPane;
-        NSTabViewController *tabs = (NSTabViewController *)
-                state->controller.window.contentViewController.childViewControllers.lastObject;
-        for (NSTabViewItem *item in tabs.tabViewItems) {
-            if ([item.identifier isEqual:@"appearance"]) {
-                state->appearance = item.viewController;
-            }
-        }
+        state->appearance = VibeBenchComponentsSettingsPane(state, @"appearance").viewController;
     }
 }
 
@@ -144,8 +148,7 @@ static void VibeBenchComponentsRegisterSettings(void) {
         [refresh->themes setEditorShown:YES];
         return 7 * 5;
     }, [refresh]() {
-        NSTabViewController *tabs = (NSTabViewController *)
-                refresh->controller.window.contentViewController.childViewControllers.lastObject;
+        NSTabViewController *tabs = VibeBenchComponentsSettingsTabs(refresh.get());
         for (int i = 0; i < 5; i++) {
             for (NSTabViewItem *item in tabs.tabViewItems) {
                 if (![@[@"audio", @"advanced"] containsObject:item.identifier]) {
@@ -169,21 +172,15 @@ static void VibeBenchComponentsRegisterSettings(void) {
             window.alphaValue = 0;
             [window setFrameOrigin:NSMakePoint(-30000, -30000)];
             [window orderFront:nil];
-            NSTabViewController *tabs = (NSTabViewController *)window.contentViewController.childViewControllers.lastObject;
-            NSString *identifier = [pane componentsSeparatedByString:@"/"].firstObject;
-            for (NSTabViewItem *item in tabs.tabViewItems) {
-                if ([item.identifier isEqual:identifier]) {
-                    [tabs.tabView selectTabViewItem:item];
-                }
-            }
+            NSTabViewItem *item = VibeBenchComponentsSettingsPane(shown.get(),
+                    [pane componentsSeparatedByString:@"/"].firstObject);
+            [item.tabView selectTabViewItem:item];
             [shown->themes setEditorShown:[pane hasSuffix:@"/editor"]];
             [window layoutIfNeeded];
             return window.isVisible ? 20 : -1;
         }, [shown]() {
-            NSTabViewController *tabs = (NSTabViewController *)
-                    shown->controller.window.contentViewController.childViewControllers.lastObject;
-            SettingsPaneViewController *selected =
-                    (SettingsPaneViewController *)tabs.tabView.selectedTabViewItem.viewController;
+            SettingsPaneViewController *selected = (SettingsPaneViewController *)
+                    VibeBenchComponentsSettingsTabs(shown.get()).tabView.selectedTabViewItem.viewController;
             for (int i = 0; i < 20; i++) {
                 [selected refreshSettingsAndPaneSize];
             }

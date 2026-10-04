@@ -261,23 +261,35 @@ static void StoreBuiltInWorkingRecord(NSDictionary *record, NSString *builtIn) {
         @"showPlaylistDurationColumn": SETTING_PLAYLIST_DURATION_COLUMN,
         @"dockIcon":                   SETTING_DOCK_ICON,
     };
-    NSSet<NSString *> *fields = [NSSet setWithArray:keys.allKeys];
-    NSString *active = [defaults stringForKey:SETTING_ACTIVE_THEME];
+    // Every launch asks, so the common answer, nothing to carry, allocates nothing.
     NSDictionary *diverged = [defaults dictionaryForKey:SETTING_CURRENT_THEME];
-    NSDictionary *working = diverged;
-    BOOL carried = NO;
-    for (id record in [@[diverged ?: @{}] arrayByAddingObjectsFromArray:
-            [defaults arrayForKey:SETTING_USER_THEMES] ?: @[]]) {
+    NSArray *stored = [defaults arrayForKey:SETTING_USER_THEMES];
+    BOOL (^carries)(id) = ^BOOL(id record) {
         if (![record isKindOfClass:NSDictionary.class]) {
-            continue;
+            return NO;
         }
-        carried = carried || [fields intersectsSet:[NSSet setWithArray:[record allKeys]]];
-        if (!working && [record[kVibeThemeRecordIdentifierKey] isEqual:active]) {
-            working = record;
+        for (NSString *field in keys) {
+            if (record[field]) {
+                return YES;
+            }
         }
+        return NO;
+    };
+    BOOL carried = carries(diverged);
+    for (id record in stored) {
+        carried = carried || carries(record);
     }
     if (!carried) {
         return;
+    }
+    // The raw records: the sanitized ones have lost the fields being carried.
+    NSString *active = self.activeThemeIdentifier;
+    NSDictionary *working = diverged;
+    for (id record in stored) {
+        if (!working && [record isKindOfClass:NSDictionary.class]
+                && [record[kVibeThemeRecordIdentifierKey] isEqual:active]) {
+            working = record;
+        }
     }
     for (NSString *field in keys) {
         id value = working[field];
@@ -287,7 +299,7 @@ static void StoreBuiltInWorkingRecord(NSDictionary *record, NSString *builtIn) {
     }
     [self persistUserThemes:[self storedUserThemes]];
     if (diverged) {
-        StoreBuiltInWorkingRecord([AppTheme sanitizedRecord:diverged], active ?: kVibeThemeIdentifierVibe);
+        StoreBuiltInWorkingRecord([AppTheme sanitizedRecord:diverged], active);
     }
 }
 

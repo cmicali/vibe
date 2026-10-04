@@ -5,11 +5,17 @@
 
 #import "SettingsPaneViewController.h"
 
+typedef NS_ENUM(NSInteger, SettingsGeneralPage) {
+    SettingsGeneralPageGeneral,
+    SettingsGeneralPageAudio,
+    SettingsGeneralPageAppearance,
+};
+
 @interface SettingsGeneralViewController : SettingsPaneViewController
 
 // General, Audio Output and Appearance share this controller; each instance
-// builds only its own page, named by its pane identifier.
-- (instancetype)initWithPlayerController:(MainPlayerController *)playerController page:(NSString *)page;
+// builds only its own page.
+- (instancetype)initWithPlayerController:(MainPlayerController *)playerController page:(SettingsGeneralPage)page;
 
 // Outside callers reach both through SettingsWindowController.audioPane, nil
 // unless the pane is on screen.

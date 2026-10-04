@@ -73,6 +73,12 @@ static const CGFloat kPanePadding = 20;
 - (NSStackView *)clusterWithSlider:(NSSlider *)slider width:(CGFloat)width
                         valueLabel:(NSTextField *__strong _Nonnull *_Nonnull)outLabel;
 
+// The same with a VibeDetentSlider starting on, and ticked at, its detent.
+- (NSStackView *)detentSliderClusterWithDetent:(double)detent min:(double)min max:(double)max
+                                        action:(SEL)action width:(CGFloat)width
+                                        slider:(NSSlider *__strong _Nonnull *_Nonnull)outSlider
+                                    valueLabel:(NSTextField *__strong _Nonnull *_Nonnull)outLabel;
+
 // A secondary-colored wrapping label for rowWithContentView:. It measures
 // its height at preferredMaxLayoutWidth, which the pane's viewDidLayout keeps
 // at the row's real width; its compression resistance sits below the fitting

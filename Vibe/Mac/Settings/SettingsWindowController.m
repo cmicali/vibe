@@ -474,13 +474,13 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
     // Grouped in the sidebar by SidebarGroupStarts.
     [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController],
                                   @"general", STR_SETTINGS_GENERAL, @"gearshape")];
-    [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController page:@"appearance"],
+    [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController page:SettingsGeneralPageAppearance],
                                   @"appearance", STR_MENU_VIEW_APPEARANCE, @"circle.lefthalf.filled")];
     [tabs addTabViewItem:PaneItem([[SettingsAppearanceViewController alloc] initWithPlayerController:playerController],
                                   @"themes", STR_SETTINGS_THEMES_SECTION, @"paintpalette")];
     [tabs addTabViewItem:PaneItem([[SettingsPlaybackViewController alloc] initWithPlayerController:playerController],
                                   @"playback", STR_MENU_PLAYBACK, @"play.circle")];
-    [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController page:@"audio"],
+    [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController page:SettingsGeneralPageAudio],
                                   @"audio", STR_SETTINGS_AUDIO_SECTION, @"speaker.wave.2")];
     [tabs addTabViewItem:PaneItem([[SettingsFilesViewController alloc] initWithPlayerController:playerController],
                                   @"files", STR_SETTINGS_FILES, @"folder")];

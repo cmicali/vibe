@@ -110,6 +110,9 @@ static const CGFloat kSettingsRowInset = 16;
 
 @property (readonly, nullable) NSTextField *headerLabel;
 
+// The card a view sits in, or nil outside every card.
++ (nullable SettingsSectionView *)sectionContaining:(NSView *)view;
+
 // Retitles a section built with a header; the label truncates rather than
 // widening every pane.
 - (void)setHeader:(NSString *)header;

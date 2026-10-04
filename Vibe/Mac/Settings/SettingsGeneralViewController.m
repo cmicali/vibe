@@ -15,7 +15,6 @@
 #import "MainPlayerController+Transport.h"
 #import "OutputDevicesMenuController.h"
 #import "OutputFormatRules.h"
-#import "SettingsWindowController.h"
 #import "VibeStrings.h"
 #import "WaveformRendererRegistry.h"
 #import "Formatters.h"
@@ -28,7 +27,7 @@ static const double kWaveformGainDetentDB = 0.75;
 @end
 
 @implementation SettingsGeneralViewController {
-    NSString *_page;
+    SettingsGeneralPage _page;
     NSTableView *_outputTable;
     NSArray<AudioDevice *> *_outputDevices;
     BOOL _refreshingOutputList;
@@ -63,23 +62,23 @@ static const double kWaveformGainDetentDB = 0.75;
 }
 
 - (instancetype)initWithPlayerController:(MainPlayerController *)playerController {
-    return [self initWithPlayerController:playerController page:@"general"];
+    return [self initWithPlayerController:playerController page:SettingsGeneralPageGeneral];
 }
 
-- (instancetype)initWithPlayerController:(MainPlayerController *)playerController page:(NSString *)page {
+- (instancetype)initWithPlayerController:(MainPlayerController *)playerController page:(SettingsGeneralPage)page {
     self = [super initWithPlayerController:playerController];
     if (self) {
-        _page = [page copy];
+        _page = page;
     }
     return self;
 }
 
 - (void)loadView {
-    if ([_page isEqualToString:@"audio"]) {
+    if (_page == SettingsGeneralPageAudio) {
         [self loadAudioPane];
         return;
     }
-    if ([_page isEqualToString:@"appearance"]) {
+    if (_page == SettingsGeneralPageAppearance) {
         [self loadAppearancePane];
         return;
     }
@@ -176,11 +175,11 @@ static const double kWaveformGainDetentDB = 0.75;
 }
 
 - (void)refreshFromSettings {
-    if ([_page isEqualToString:@"audio"]) {
+    if (_page == SettingsGeneralPageAudio) {
         [self refreshOutputDevice];
         return;
     }
-    if ([_page isEqualToString:@"appearance"]) {
+    if (_page == SettingsGeneralPageAppearance) {
         [self refreshAppearancePane];
         return;
     }
@@ -390,14 +389,14 @@ static const double kWaveformGainDetentDB = 0.75;
 // viewWillAppear's refresh covers what changed while hidden.
 - (void)viewDidAppear {
     [super viewDidAppear];
-    if ([_page isEqualToString:@"audio"]) {
+    if (_page == SettingsGeneralPageAudio) {
         [AudioDeviceManager.sharedInstance addObserver:self];
     }
 }
 
 - (void)viewWillDisappear {
     [super viewWillDisappear];
-    if ([_page isEqualToString:@"audio"]) {
+    if (_page == SettingsGeneralPageAudio) {
         [AudioDeviceManager.sharedInstance removeObserver:self];
     }
 }
@@ -426,12 +425,9 @@ static const double kWaveformGainDetentDB = 0.75;
     _waveformNormalizeSwitch = [self switchWithAction:@selector(toggleWaveformNormalize:)];
     _waveformNormalizeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_NORMALIZE
             caption:STR_SETTINGS_WAVEFORM_LEVELS_CAPTION control:_waveformNormalizeSwitch];
-    VibeDetentSlider *gain = [VibeDetentSlider sliderWithValue:0 minValue:-kVibeWaveformGainMaxDB
-            maxValue:kVibeWaveformGainMaxDB target:self action:@selector(waveformGainChanged:)];
-    _waveformGainSlider = gain;
-    NSTextField *gainValue = nil;
-    NSStackView *gainCluster = [self clusterWithSlider:gain width:kGeneralPopUpWidth valueLabel:&gainValue];
-    _waveformGainValue = gainValue;
+    NSStackView *gainCluster = [self detentSliderClusterWithDetent:0
+            min:-kVibeWaveformGainMaxDB max:kVibeWaveformGainMaxDB action:@selector(waveformGainChanged:)
+            width:kGeneralPopUpWidth slider:&_waveformGainSlider valueLabel:&_waveformGainValue];
 
     _timeLabelsSwitch = [self switchWithAction:@selector(trackInfoChanged:)];
     _timeTotalRadio = [NSButton radioButtonWithTitle:STR_SETTINGS_TIME_TOTAL
@@ -523,7 +519,6 @@ static const double kWaveformGainDetentDB = 0.75;
 - (void)appearanceChanged:(id)sender {
     AppSettings.sharedInstance.windowAppearanceStyle = _appearancePopUp.selectedItem.representedObject;
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
-    [(SettingsWindowController *)self.view.window.windowController updateNavigation];
 }
 
 - (void)toggleTrafficLights:(id)sender {
