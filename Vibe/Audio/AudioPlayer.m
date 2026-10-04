@@ -24,6 +24,7 @@
 #import "AudioFileOpenTimeoutMath.h"
 #import "PlaybackDeliveryRules.h"
 #import "FadeMath.h"
+#import "NSURLUtil.h"
 #import <AVFAudio/AVFAudio.h>
 #import <os/lock.h>
 
@@ -58,7 +59,8 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
     return [NSError errorWithDomain:error.domain code:error.code userInfo:info];
 }
 
-// An open still pending after this long is worth a visible loading state.
+// An open still pending after this long is worth a visible loading state;
+// a dataless file's is from the start (submitOpenOnQueueForTrack:).
 static const NSTimeInterval kSlowOpenIndicatorDelaySeconds = 0.5;
 // An open taking this long is logged, apart from the indicator's UI delay.
 static const NSTimeInterval kSlowOpenLogThresholdSeconds = 0.25;
@@ -463,7 +465,13 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(_deadlineTimeouts.noProgressSeconds * NSEC_PER_SEC)), _queue, ^{
         [weakSelf fileOpenDeadlineDueForRequest:openId];
     });
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kSlowOpenIndicatorDelaySeconds * NSEC_PER_SEC)), _queue, ^{
+    // A dataless file waits on its download, so its open is slow from the
+    // start: the shells drop the outgoing track's waveform and art at once
+    // instead of leaving them under the new title for the delay. Not a remote
+    // placeholder, whose stream often opens inside it.
+    BOOL dataless = [NSURLUtil isDatalessFile:openURL] && ![NSURLUtil isRemotePlaceholderFile:openURL];
+    NSTimeInterval slowDelay = dataless ? 0 : kSlowOpenIndicatorDelaySeconds;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(slowDelay * NSEC_PER_SEC)), _queue, ^{
         AudioPlayer *strongSelf = weakSelf;
         if (strongSelf) {
             VibePlaybackRequest *request = [strongSelf->_pendingRequest markSlowForRequest:openId];
