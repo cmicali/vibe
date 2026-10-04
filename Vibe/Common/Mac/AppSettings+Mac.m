@@ -87,7 +87,7 @@ const size_t kVibeUIUpdateHzCapPresetCount =
             SETTING_CONVERT_ENABLED:                @(YES),
             SETTING_SKIP_BASE_BARS:                 @(8),
             SETTING_REOPEN_LAST_PLAYLIST:           @(NO),
-            SETTING_UI_UPDATE_HZ_CAP:               @(30),
+            SETTING_UI_UPDATE_HZ_CAP:               @(60),
             SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE: @(NO),
             SETTING_APPLE_MPEG_DECODER:             @(NO),
             SETTING_DECLICK:                        @(YES),
