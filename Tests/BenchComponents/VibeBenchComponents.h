@@ -99,6 +99,11 @@ void VibeBenchComponentsSpinMainUntil(BOOL (^done)(void));
 // `count` one-byte files in folders of 100, the relative paths returned.
 NSArray<NSString *> *VibeBenchComponentsMakeFiles(NSString *root, NSUInteger count, NSString *extension);
 
+// With VIBE_BENCH_COMPONENTS_UI_DUMP set to a directory, writes what a UI
+// benchmark's subject draws there, so two builds' pictures can be compared
+// byte for byte.
+void VibeBenchComponentsUIDump(NSString *name, NSData *bytes);
+
 // --analyze: every audio file under `root` through the waveform loader with
 // both analyzers, one "path<TAB>bpm<TAB>key" line each, in path order, so two
 // builds' answers can be diffed for exactness. Registered by the file that

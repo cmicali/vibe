@@ -325,6 +325,15 @@ NSString *VibeBenchComponentsTemporaryDirectory(NSString *label) {
     return root;
 }
 
+void VibeBenchComponentsUIDump(NSString *name, NSData *bytes) {
+    const char *directory = getenv("VIBE_BENCH_COMPONENTS_UI_DUMP");
+    if (!directory || !bytes) {
+        return;
+    }
+    NSString *path = [[NSString stringWithUTF8String:directory] stringByAppendingPathComponent:name];
+    [bytes writeToFile:path atomically:YES];
+}
+
 // Set by a wait that ran out, so the driver fails the benchmark it ran in.
 static BOOL sWaitTimedOut;
 
