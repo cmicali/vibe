@@ -32,6 +32,7 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
                     forIndex:(NSUInteger)index {
     BOOL complete = [pipeline isCompleteAtIndex:index];
     [[self cellAtIndex:index].waveformView showWaveform:waveform];
+    [self refreshWaveformWindow];
     // Only a complete one: a widget bake is two renders and two file writes.
     if (complete) {
         [_playback offerWaveformToWidget:waveform
@@ -127,6 +128,7 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
     for (TrackPageCell *cell in _pagesView.visibleCells) {
         [self applyWaveformZoomToCell:cell];
     }
+    [self refreshWaveformWindow];
     // The REQUEST: what a view drew would let a rotation permanently shallow
     // the zoom.
     [NSUserDefaults.standardUserDefaults setDouble:fraction forKey:kWaveformZoomKey];

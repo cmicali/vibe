@@ -96,6 +96,8 @@ static const CFTimeInterval kCompletionGrowDuration = 0.35;
     float                   _bakedUnplayedOpacity;
     // Whether the standing bake drew a complete waveform.
     BOOL                    _bakedComplete;
+    NSUInteger              _bakedEpoch;
+    BOOL                    _animatesArrival;
     // How far the standing bitmap's decode reached, and the segment of the
     // newest stretch while it grows in.
     CGFloat                 _bakedDecodedFraction;
@@ -231,6 +233,10 @@ static const CFTimeInterval kCompletionGrowDuration = 0.35;
     _waveform = waveform;
     _scroll.scrollEnabled = (waveform != nil);
     [self layoutPlayheadLine];
+}
+
+- (BOOL)isAnimatingWaveformArrival {
+    return [_bakedHost animationForKey:@"arrival"] != nil;
 }
 
 - (BOOL)isShowingBakedWaveform {
@@ -580,10 +586,38 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     [self installRendererIfNeeded];
 }
 
-// Every delivery, partial or complete, cached or streaming, takes this one
-// road: nothing shows until its bitmap lands, which then makes the entrance
-// the view's state calls for (installEnvelopeImage:).
+// A neighbor's prepared pixels can be installed before the page appears.
+- (BOOL)showPreparedWaveform:(CodableAudioWaveform *)waveform
+                  fromView:(WaveformScrubberView *)view {
+    [self installRendererIfNeeded];
+    if (!view || view.waveform != waveform || !view->_bakedHost || !view->_bakedComplete
+            || view->_bakedEpoch != view->_bakeEpoch
+            || !CGRectEqualToRect([self virtualBounds], [view virtualBounds])
+            || [self displayScale] != [view displayScale] || self.isDark != view.isDark
+            || ![_styleIdentifier isEqualToString:view->_styleIdentifier]
+            || ![_themeSignature isEqualToString:view->_themeSignature]) {
+        return NO;
+    }
+    if (self.waveform == waveform && _bakedHost && _bakedComplete) {
+        return YES;
+    }
+    self.waveform = waveform;
+    _animatesArrival = NO;
+    _bakeRequest++;
+    _bakeEpoch++;
+    _bakeWanted = NO;
+    [self installEnvelopeImage:(__bridge CGImageRef)view->_bakedPlayedImage
+                unplayedImage:view->_bakedUnplayedOpacity == 1
+                        ? (__bridge CGImageRef)view->_bakedUnplayedImage : nil
+                        epoch:_bakeEpoch complete:YES normalizationGain:1 decodedFraction:1];
+    return YES;
+}
+
 - (void)showWaveform:(CodableAudioWaveform *)waveform {
+    [self showWaveform:waveform animated:YES];
+}
+
+- (void)showWaveform:(CodableAudioWaveform *)waveform animated:(BOOL)animated {
     // A page brought back by a swipe is handed what it already shows.
     if (waveform == self.waveform && _bakedHost && _bakedComplete) {
         return;
@@ -592,6 +626,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     [self installRendererIfNeeded];
     VibeSignpostBegin(waveform_delivery);
     self.waveform = waveform;
+    _animatesArrival = animated;
     CFTimeInterval now = CACurrentMediaTime();
     if (_firstDeliveryAt == 0) {
         _firstDeliveryAt = now;
@@ -830,10 +865,13 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     // the played side blinked at every swap.
     [self applyPlayedClip];
     _bakedComplete = complete;
+    _bakedEpoch = epoch;
     if (arrival) {
         // The picture ends the shimmer, not the data: until it lands the
         // strip would be empty. The fill stays; see hideLoadingShimmer.
         [self hideLoadingShimmer];
+    }
+    if (arrival && _animatesArrival) {
         CABasicAnimation *grow = [CABasicAnimation animationWithKeyPath:@"transform.scale.y"];
         grow.fromValue = @0;
         grow.toValue = @1;
@@ -929,7 +967,9 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     if (_loadingIndicator) {
         return;
     }
-    [self resetWaveformContentState];
+    if (!self.waveform) {
+        [self resetWaveformContentState];
+    }
     _loadingIndicator = [[LoadingIndicator alloc]
             initInLayer:self.layer
                   style:VibeLoadingIndicatorStyleWaveform
@@ -990,8 +1030,14 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 }
 
 - (void)setLoadingProgress:(float)fraction {
+    if (fraction >= 0 && !_loadingIndicator) {
+        [self showLoadingIndicator];
+    }
     _loadingTrackBounds = [self loadingTrackBounds];
     [_loadingIndicator setProgress:fraction inBounds:_loadingTrackBounds];
+    if (_bakedHost) {
+        [self hideLoadingShimmer];
+    }
 }
 
 #pragma mark - Touch scrubbing
@@ -1260,6 +1306,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     // this every playback write during a pinch passes setProgress:'s gate.
     _progressTracker = [self progressBucket];
     if (sizeChanged) {
+        _bakeEpoch++;
         // A pinch re-bakes once, on release (endZoomGesture).
         if (!_isPinching) {
             [self scheduleEnvelopeBakeAfter:0];

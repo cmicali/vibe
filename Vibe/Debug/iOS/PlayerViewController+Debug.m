@@ -23,6 +23,7 @@
 @interface WaveformScrubberView (Debug)
 // The settled fast path is up.
 @property (nonatomic, readonly) BOOL isShowingBakedWaveform;
+@property (nonatomic, readonly) BOOL isAnimatingWaveformArrival;
 // Points past either end: positive past the start, negative past the end.
 @property (nonatomic, readonly) CGFloat overscroll;
 // {offset, min, max, contentWidth}: tells "resting at an end" from "pinned
@@ -94,6 +95,9 @@
             @"waveformFilled": [_waveformCoordinator snapshotAtIndex:index]
                     ? @([_waveformCoordinator percentLoadedAtIndex:index]) : NSNull.null,
             @"waveformComplete": @([_waveformCoordinator isCompleteAtIndex:index]),
+            @"waveformPrepared": @(_preparedWaveforms[@(index)].isShowingBakedWaveform),
+            @"waveformBaked": @(cell.waveformView.isShowingBakedWaveform),
+            @"waveformArriving": @(cell.waveformView.isAnimatingWaveformArrival),
         }];
     }
     NSMutableArray<NSNumber *> *held = [NSMutableArray array];

@@ -83,12 +83,18 @@ NS_ASSUME_NONNULL_BEGIN
 // palette.
 @property (nonatomic, strong, nullable) UIColor *artworkThemeColor;
 
-// The mac view's contract. Every delivery, partial or complete, goes through
-// showWaveform:, and the view decides the entrance from its own state: the
+// Fresh deliveries use showWaveform:; prepared pages pass animated:NO. The
+// view otherwise decides the entrance from its own state: the
 // first bitmap grows from the midline, the complete one grows from a partial
 // one's heights to its own, and a streaming load's partials swap at a steady pace.
 - (void)prepareForWaveformLoad;
 - (void)showWaveform:(CodableAudioWaveform *)waveform;
+- (void)showWaveform:(CodableAudioWaveform *)waveform animated:(BOOL)animated;
+
+// Copies the prepared bitmap only when waveform, geometry and appearance
+// still match. The receiver keeps its own layers and gestures.
+- (BOOL)showPreparedWaveform:(CodableAudioWaveform *)waveform
+                  fromView:(nullable WaveformScrubberView *)view;
 
 - (void)showLoadingIndicator;
 - (void)hideLoadingIndicator;

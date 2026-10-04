@@ -24,6 +24,8 @@
     NSMutableIndexSet *_heldUpdates;
     // Owed after the hold; the target clears at once so the settle can retry.
     NSMutableIndexSet *_heldFailures;
+    NSMutableDictionary<NSNumber *, AudioTrack *> *_prefetchTracks;
+    NSUInteger _prefetchGeneration;
 }
 
 - (instancetype)initWithCache:(AudioWaveformCache *)cache
@@ -38,6 +40,7 @@
         _percentLoaded = [NSMutableDictionary dictionary];
         _heldUpdates = [NSMutableIndexSet indexSet];
         _heldFailures = [NSMutableIndexSet indexSet];
+        _prefetchTracks = [NSMutableDictionary dictionary];
     }
     return self;
 }
@@ -83,12 +86,42 @@
     [_cache loadWaveformForTrack:track];
 }
 
+- (void)prefetchIndex:(NSUInteger)index track:(AudioTrack *)track {
+    if (_held || [self isCompleteAtIndex:index] || _prefetchTracks[@(index)] == track) {
+        return;
+    }
+    _prefetchTracks[@(index)] = track;
+    NSUInteger generation = _prefetchGeneration;
+    __weak PageWaveformCoordinator *weakSelf = self;
+    [_cache cachedWaveformForTrack:track completion:^(CodableAudioWaveform *waveform) {
+        PageWaveformCoordinator *self = weakSelf;
+        if (!self || generation != self->_prefetchGeneration
+                || self->_prefetchTracks[@(index)] != track
+                || !waveform || [self isCompleteAtIndex:index]) {
+            return;
+        }
+        self->_snapshots[@(index)] = waveform;
+        self->_percentLoaded[@(index)] = @1;
+        if (self->_held) {
+            [self->_heldUpdates addIndex:index];
+        }
+        else {
+            [self->_delegate pageWaveformCoordinator:self didUpdateWaveform:waveform forIndex:index];
+        }
+    }];
+}
+
 - (void)pruneAroundIndex:(NSUInteger)index {
     static const NSUInteger kKeepRadius = 2;
-    for (NSNumber *key in _snapshots.allKeys) {
+    NSMutableSet *pages = [NSMutableSet setWithArray:_snapshots.allKeys];
+    [pages addObjectsFromArray:_prefetchTracks.allKeys];
+    for (NSNumber *key in pages) {
         NSUInteger page = key.unsignedIntegerValue;
         if (page != _targetIndex
                 && (page > index + kKeepRadius || index > page + kKeepRadius)) {
+            [_prefetchTracks removeObjectForKey:key];
+            [_heldUpdates removeIndex:page];
+            [_heldFailures removeIndex:page];
             [_snapshots removeObjectForKey:key];
             [_percentLoaded removeObjectForKey:key];
         }
@@ -96,6 +129,8 @@
 }
 
 - (void)reset {
+    _prefetchGeneration++;
+    [_prefetchTracks removeAllObjects];
     _targetIndex = NSNotFound;
     _targetKey = nil;
     [_snapshots removeAllObjects];

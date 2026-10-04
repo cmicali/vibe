@@ -17,6 +17,7 @@
 #import "AudioTrack.h"
 #import "AudioWaveform.h"
 #import "AudioWaveformCache.h"
+#import "AudioWaveformCache+Debug.h"
 #import "CloudFileMaterializer.h"
 #import "NSURL+Hash.h"
 
@@ -788,6 +789,74 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
     AudioWaveformCache *cache = [[AudioWaveformCache alloc] initWithRootPath:root];
     cache.delegate = recorder;
     return cache;
+}
+
+- (void)testCacheOnlyLookupMissesWithoutDecodingAndChecksAnalysisRequirements {
+    NSURL *url = [self writeNoiseWAVNamed:@"preview.wav" seconds:2.0 seed:31];
+    WaveformCacheRecorder *recorder = [[WaveformCacheRecorder alloc] init];
+    AudioWaveformCache *cache = [self cacheWithRecorder:recorder];
+    AudioTrack *track = [AudioTrack withURL:url];
+    __block BOOL settled = NO;
+    [cache cachedWaveformForTrack:track completion:^(CodableAudioWaveform *waveform) {
+        XCTAssertTrue(NSThread.isMainThread);
+        XCTAssertNil(waveform);
+        settled = YES;
+    }];
+    XCTAssertTrue([self eventually:^BOOL { return settled; }]);
+    XCTAssertEqual(recorder.completions, 0u);
+    XCTAssertEqual(recorder.progressions, 0u);
+    XCTAssertEqual(recorder.failures, 0u);
+
+    settled = NO;
+    [cache cacheWaveformForURL:url completion:^(BOOL ok, BOOL wasCached, float bpm, NSInteger key) {
+        XCTAssertTrue(ok);
+        XCTAssertFalse(wasCached, @"the preview miss must not have populated the cache");
+        settled = YES;
+    }];
+    XCTAssertTrue([self eventually:^BOOL { return settled; }]);
+    settled = NO;
+    [cache cachedWaveformForTrack:track completion:^(CodableAudioWaveform *waveform) {
+        XCTAssertNotNil(waveform);
+        XCTAssertTrue(waveform.waveform->isComplete());
+        settled = YES;
+    }];
+    XCTAssertTrue([self eventually:^BOOL { return settled; }]);
+
+    cache.analysisProvider = ^VibeWaveformAnalysis { return (VibeWaveformAnalysis){.bands = YES}; };
+    settled = NO;
+    [cache cachedWaveformForTrack:track completion:^(CodableAudioWaveform *waveform) {
+        XCTAssertNil(waveform, @"a broadband entry cannot prepare a 3-Band page");
+        settled = YES;
+    }];
+    XCTAssertTrue([self eventually:^BOOL { return settled; }]);
+    cache.analysisProvider = nil;
+    AudioTrack *cue = [[AudioTrack alloc] initWithURL:url cueStart:75 cueEnd:150
+                                              title:nil performer:nil sheet:nil trackNumber:0];
+    settled = NO;
+    [cache cachedWaveformForTrack:cue completion:^(CodableAudioWaveform *waveform) {
+        XCTAssertNil(waveform, @"a cue row cannot borrow its whole file's waveform");
+        settled = YES;
+    }];
+    XCTAssertTrue([self eventually:^BOOL { return settled; }]);
+}
+
+- (void)testCacheOnlyLookupDoesNotDetachThePlayingTracksDecode {
+    NSURL *source = [self writeNoiseWAVNamed:@"whole.wav" seconds:3.0 seed:17];
+    NSURL *url = [_tempDirectory URLByAppendingPathComponent:@"stream.wav"];
+    WaveformStreamAvailability *stream = [self stream:source as:url prefix:128 * 1024];
+    WaveformCacheRecorder *recorder = [[WaveformCacheRecorder alloc] init];
+    AudioWaveformCache *cache = [self cacheWithRecorder:recorder];
+    [cache loadWaveformForTrack:[AudioTrack withURL:url]];
+    XCTAssertTrue([self await:stream.event]);
+    __block BOOL settled = NO;
+    [cache cachedWaveformForTrack:[AudioTrack withURL:source] completion:^(CodableAudioWaveform *waveform) {
+        XCTAssertNil(waveform);
+        settled = YES;
+    }];
+    XCTAssertTrue([self eventually:^BOOL { return settled; }]);
+    [self complete:stream from:source as:url];
+    XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 1; }]);
+    XCTAssertEqual(recorder.failures, 0u);
 }
 
 // A streaming load persists under the installed file's key: once the bytes

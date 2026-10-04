@@ -25,6 +25,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)configurePage:(TrackPageCell *)cell atIndex:(NSUInteger)index;
 
 - (void)requestWaveformForIndex:(NSUInteger)index;
+- (void)refreshWaveformWindow;
+- (void)clearPreparedWaveforms;
 
 // Repaints a cell from the latest snapshot, or starts the loading line when
 // there is none yet.

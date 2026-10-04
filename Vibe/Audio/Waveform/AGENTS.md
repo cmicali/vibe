@@ -38,6 +38,8 @@ Cache-key stats, serial cache lookups, opens and decodes pass through **fixed-sl
 
 Pending work is held inside the scheduler — never submitted to `NSOperationQueue` or libdispatch until a slot is free — with an explicit four-item memory bound. Cancellation removes a still-pending block synchronously. If a lane's slots remain occupied for ten seconds, the pending request fails *admission* without pretending its file open ran and timed out. A truly never-returning OS call still owns its fixed slot for the process lifetime; only process restart (or future killable helper-process isolation) can reclaim that thread, but retries cannot multiply it.
 
+`cachedWaveformForTrack:completion:` uses the same bounded lookup lane and entry validation without an audio open, decode, or retarget of the active load. It answers on main, nil on a miss or admission failure, and rejects a hit invalidated while the read was running. The iOS pager uses it only for neighboring previews; cached analysis is delivered through the ordinary track-matched path.
+
 ## A superseded load is detached, not aborted
 
 `cancelLoad` and a new `loadWaveformForTrack:` stop the old load's *deliveries* but let its decode run to completion and persist, so a skip-ahead — or the iOS pager peeking at a neighbour — turns the next request for that file into a disk hit instead of throwing the work away.

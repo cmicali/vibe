@@ -2,8 +2,8 @@
 //  PlayerViewController+Pager.m
 //  Vibe (iOS)
 //
-//  A page coming on screen loads its waveform but does NOT switch playback;
-//  only the settled page commits, in commitVisiblePage.
+//  Neighbor pages preview cached waveforms; only the settled page commits
+//  playback and requests a decode, in commitVisiblePage.
 //
 
 #import "PlayerViewController+Pager.h"
@@ -20,6 +20,7 @@
 #import "TrackPageCell.h"
 #import "WaveformScrubberView.h"
 #import "NSURLUtil.h"
+#import "UIImage+DominantColor.h"
 
 // At one, a quick second swipe outruns the fetch (a file read and a decode)
 // and lands on the placeholder; two gives a whole extra commit of lead.
@@ -58,6 +59,7 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     // A fresh cell's labels are at their defaults, and paused, no tick comes.
     [self updatePlaybackUI];
     [self updatePlayButton];
+    [self refreshWaveformWindow];
 }
 
 // A provider's dataless file is not asked for: its decode would hold a slot
@@ -93,7 +95,11 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
 - (void)hydrateWaveformInCell:(TrackPageCell *)cell atIndex:(NSUInteger)index {
     CodableAudioWaveform *snapshot = [_waveformCoordinator snapshotAtIndex:index];
     if (snapshot) {
-        [cell.waveformView showWaveform:snapshot];
+        [cell layoutIfNeeded];
+        if (![cell.waveformView showPreparedWaveform:snapshot fromView:_preparedWaveforms[@(index)]]) {
+            [cell.waveformView showWaveform:snapshot
+                                  animated:![_waveformCoordinator isCompleteAtIndex:index]];
+        }
         return;
     }
     NSURL *url = [_playlist trackAtIndex:index].url;
@@ -104,6 +110,61 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     [cell.waveformView showLoadingIndicator];
 }
 
+- (void)clearPreparedWaveforms {
+    for (WaveformScrubberView *view in _preparedWaveforms.allValues) {
+        [view removeFromSuperview];
+    }
+    [_preparedWaveforms removeAllObjects];
+}
+
+- (void)refreshWaveformWindow {
+    if (!self.isPresented || _waveformCoordinator.isHeld || !_waveformView || _playlist.count == 0) {
+        return;
+    }
+    [_boundPage layoutIfNeeded];
+    CGSize size = _waveformView.bounds.size;
+    if (size.width <= 0 || size.height <= 0) {
+        return;
+    }
+    NSUInteger current = _playlist.currentIndex;
+    NSUInteger first = current > 0 ? current - 1 : 0;
+    NSUInteger last = MIN(current + 1, _playlist.count - 1);
+    for (NSNumber *key in _preparedWaveforms.allKeys) {
+        if (key.unsignedIntegerValue == current
+                || key.unsignedIntegerValue < first || key.unsignedIntegerValue > last) {
+            [_preparedWaveforms[key] removeFromSuperview];
+            [_preparedWaveforms removeObjectForKey:key];
+        }
+    }
+    for (NSUInteger index = first; index <= last; index++) {
+        AudioTrack *track = [_playlist trackAtIndex:index];
+        if (index != current && !WaveformWaitsForOpen(track.url)) {
+            [_waveformCoordinator prefetchIndex:index track:track];
+        }
+        if (index == current || ![_waveformCoordinator isCompleteAtIndex:index]) {
+            continue;
+        }
+        WaveformScrubberView *view = _preparedWaveforms[@(index)];
+        if (!view) {
+            view = [[WaveformScrubberView alloc] initWithFrame:(CGRect){CGPointZero, size}];
+            view.hidden = YES;
+            // Inherit the card's appearance and display scale offscreen.
+            [self.view addSubview:view];
+            _preparedWaveforms[@(index)] = view;
+        }
+        view.frame = (CGRect){CGPointZero, size};
+        view.visibleFraction = _waveformZoom;
+        view.artworkThemeColor = track.cachedArt.vibeDominantColor;
+        [view syncWaveformStyle];
+        [view syncWaveformTheme];
+        [view layoutIfNeeded];
+        CodableAudioWaveform *snapshot = [_waveformCoordinator snapshotAtIndex:index];
+        if (![view showPreparedWaveform:snapshot fromView:[self cellAtIndex:index].waveformView]) {
+            [view showWaveform:snapshot animated:NO];
+        }
+    }
+}
+
 #pragma mark - Data source
 
 - (NSInteger)collectionView:(UICollectionView *)collectionView
@@ -111,8 +172,8 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     return (NSInteger)_playlist.count;
 }
 
-// Playback does NOT switch here. Mid-drag the coordinator's hold drops the
-// request, or every page swiped past would cancel the one load.
+// UIKit can display prepared neighbors before a swipe settles. Only the
+// current page may retarget the decoder; the others use the cache window.
 - (void)collectionView:(UICollectionView *)collectionView
        willDisplayCell:(UICollectionViewCell *)cell
     forItemAtIndexPath:(NSIndexPath *)indexPath {
@@ -161,7 +222,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     [page.waveformView syncWaveformTheme];
 
     [self hydrateWaveformInCell:page atIndex:index];
-    if (![_waveformCoordinator isCompleteAtIndex:index]) {
+    if (index == _playlist.currentIndex && ![_waveformCoordinator isCompleteAtIndex:index]) {
         [self requestWaveformForIndex:index];
     }
 
@@ -226,6 +287,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
 
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
+    [self refreshWaveformWindow];
     // Only on a real size change: this runs on every root layout pass, and
     // an invalidation re-prepares the whole layout.
     CGSize size = self.view.bounds.size;
@@ -378,6 +440,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
         [self prefetchPageAtIndex:index];
     }
     [self releaseArtBeyondBudget];
+    [self refreshWaveformWindow];
 }
 
 // Zero for a stale entry, which then drops out of the set.
@@ -449,7 +512,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
         [_playback selectTrackAtIndex:page];
     }
     else if (_waveformCoordinator.targetIndex != page) {
-        // A neighbor's preview retargeted the load; point it back.
+        // Retry a request dropped during the hold.
         [self requestWaveformForIndex:page];
     }
 }
@@ -463,6 +526,9 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     BOOL held = _pagerScrolling || _pagerProgrammaticScrolling || _windowResizeInFlight;
     _waveformCoordinator.held = held;
     [self updateScrollLinkState];
+    if (!held) {
+        [self refreshWaveformWindow];
+    }
 }
 
 - (void)holdForPagerScrolling:(BOOL)scrolling {

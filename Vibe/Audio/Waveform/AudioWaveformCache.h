@@ -55,6 +55,11 @@ typedef VibeWaveformAnalysis (^VibeWaveformAnalysisProvider)(void);
 
 // Both main thread only, like the delegate deliveries they gate.
 - (void)loadWaveformForTrack:(AudioTrack *)track;
+
+// Main-thread request and completion. Reads only the disk cache, without
+// opening audio or retargeting the active load. A miss answers nil.
+- (void)cachedWaveformForTrack:(AudioTrack *)track
+                   completion:(void (^)(CodableAudioWaveform * _Nullable waveform))completion;
 // Supersedes the in-flight load: no further waveform deliveries until the
 // next loadWaveformForTrack:. The decode is NOT aborted: it detaches, runs to
 // completion and persists, so the next request for that file is a disk hit;
