@@ -904,6 +904,12 @@ static const CGFloat kLandedRowScale = 0.1;
     }
 }
 
+- (void)playbackDidCancelOpening:(PlaybackController *)playback {
+    for (NSArray<UIView *> *rows in [_liftedRowBatches copy]) {
+        [self settleLiftedRows:rows landed:NO];
+    }
+}
+
 // Over whatever is up: the add sheet, or the card.
 - (UIViewController *)topmostPresenter {
     UIViewController *presenter = self;

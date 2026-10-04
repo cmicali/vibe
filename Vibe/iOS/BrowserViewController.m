@@ -858,6 +858,9 @@ static UIImage *VibeFileTileImage(BOOL playlist) {
         replace();
         return;
     }
+    // The question waits on the user, not the disk: its row stops spinning, so
+    // the give-up timeout cannot fire over the alert. Replace opens anew.
+    [playback endOpeningForReplaceRequest:token];
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:STR_PLAYLIST_REPLACE_TITLE
                                                                    message:STR_PLAYLIST_REPLACE_MESSAGE
                                                             preferredStyle:UIAlertControllerStyleAlert];
@@ -867,13 +870,10 @@ static UIImage *VibeFileTileImage(BOOL playlist) {
     [alert addAction:[UIAlertAction actionWithTitle:STR_PLAYLIST_REPLACE_ADD
                                               style:UIAlertActionStyleDefault
                                             handler:^(UIAlertAction *action) {
-        [playback endOpeningForReplaceRequest:token];
         [playback addURLs:urls];
     }]];
     [alert addAction:[UIAlertAction actionWithTitle:STR_BUTTON_CANCEL style:UIAlertActionStyleCancel
-                                            handler:^(UIAlertAction *action) {
-        [playback endOpeningForReplaceRequest:token];
-    }]];
+                                            handler:nil]];
     [presenter presentViewController:alert animated:YES completion:nil];
 }
 

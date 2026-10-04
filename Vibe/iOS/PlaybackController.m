@@ -783,10 +783,18 @@ static const NSTimeInterval kOpeningTimeout = 25;
     // A resolve still running is dropped by the replace funnel; an open the
     // session holds, by the session.
     _replaceRequestSerial++;
-    if (_openingSerial == _submittedOpenSerial) {
+    BOOL cancelsSession = _openingSerial == _submittedOpenSerial;
+    if (cancelsSession) {
         [_folderSession cancelOpen];
     }
     [self endOpening];
+    if (cancelsSession) {
+        for (id<PlaybackObserver> observer in [self observerSnapshot]) {
+            if ([observer respondsToSelector:@selector(playbackDidCancelOpening:)]) {
+                [observer playbackDidCancelOpening:self];
+            }
+        }
+    }
 }
 
 - (void)endOpeningForReplaceRequest:(uint64_t)token {
@@ -907,10 +915,10 @@ static const NSTimeInterval kOpeningTimeout = 25;
     if (selectedURL) {
         // A file pick that expanded to its directory plays the picked file;
         // a picked sheet, its first track.
-        NSString *selectedPath = selectedURL.URLByStandardizingPath.path;
+        NSString *selectedPath = VibeComparablePath(selectedURL.path);
         for (NSUInteger i = 0; i < rows.count; i++) {
-            if ([rows[i].url.URLByStandardizingPath.path isEqualToString:selectedPath]
-                    || [rows[i].cueSheetURL.URLByStandardizingPath.path isEqualToString:selectedPath]) {
+            if ([VibeComparablePath(rows[i].url.path) isEqualToString:selectedPath]
+                    || [VibeComparablePath(rows[i].cueSheetURL.path) isEqualToString:selectedPath]) {
                 start = i;
                 break;
             }
