@@ -70,7 +70,7 @@ The corpus is the app benchmarks' (`build/bench/corpus`: the play files, a 600-f
 
 ```bash
 make bench-components-releases VERSIONS="1.16"         # a new release: tag v1.16, measured, stored, page redrawn
-make bench-components-releases VERSIONS="HEAD"         # this checkout before its release: "1.15 pre-release" today
+make bench-components-releases VERSIONS="HEAD"         # this checkout before its release: "<MARKETING_VERSION> pre-release"
 make bench-components-releases VERSIONS="1.16=<ref>"   # any commit, under that version
 make bench-components-releases                         # every version already on the page, again
 make bench-components-releases VERSIONS="HEAD" ARGS="--reps 1"   # a quick look; the page uses 5

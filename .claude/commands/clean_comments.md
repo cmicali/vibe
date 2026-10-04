@@ -6,4 +6,4 @@ If `$ARGUMENTS` is non-empty, use it as the focus area. Otherwise, ask the user 
 
 Then:
 
-Clean up all the comments in the code base. Focus on the chosen focus area. Try to cut them down to the essentials: don't document things relating to how things were done in the past, and don't document things that are self-documenting or obvious. Be terse, use active voice.
+Clean up all the comments in the code base. Focus on the chosen focus area. Cut them down to the essentials: don't document things relating to how things were done in the past, and don't document things that are self-documenting or obvious. Be terse, use active voice.
