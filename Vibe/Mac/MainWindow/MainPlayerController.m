@@ -184,7 +184,7 @@
             .bands = [WaveformRendererRegistry readsBandsForIdentifier:settings.currentTheme.waveformStyle],
         };
     };
-    _waveformBandsWanted = self.waveformCache.analysisProvider().bands;
+    _waveformAnalysisWanted = self.waveformCache.analysisProvider();
 
     // A track change mid-conversion stops the sweep at the next report.
     __weak MainPlayerController *weakControllerForConvert = self;

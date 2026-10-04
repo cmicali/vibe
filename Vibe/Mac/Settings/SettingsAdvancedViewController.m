@@ -70,7 +70,7 @@ static const CGFloat kAdvancedPopUpWidth = 200;
 
     _resetButton = [NSButton buttonWithTitle:STR_SETTINGS_RESET_DEFAULTS
                                       target:self action:@selector(resetSettings:)];
-    _factoryResetButton = [NSButton buttonWithTitle:STR_SETTINGS_FACTORY_RESET_LABEL
+    _factoryResetButton = [NSButton buttonWithTitle:STR_SETTINGS_FACTORY_RESET_BUTTON
                                              target:self action:@selector(resetSettings:)];
     _cacheSizeValue = [self valueLabel];
     _clearCacheButton = [NSButton buttonWithTitle:STR_SETTINGS_CLEAR_CACHE
@@ -115,14 +115,17 @@ static const CGFloat kAdvancedPopUpWidth = 200;
             [SettingsRowView rowWithTitle:STR_SETTINGS_DEBUG_INFO_LABEL
                                   caption:STR_SETTINGS_DEBUG_INFO_CAPTION control:_debugInfoButton],
         ]],
-        [SettingsSectionView sectionWithRows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_REFRESH_RATE_LABEL control:_refreshRatePopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_ALLOW_BIT_PERFECT_ANY_DEVICE control:_allowBitPerfectAnyDeviceSwitch],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_ENGINE_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_REFRESH_RATE_LABEL
+                                  caption:STR_SETTINGS_REFRESH_RATE_CAPTION control:_refreshRatePopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_ALLOW_BIT_PERFECT_ANY_DEVICE
+                                  caption:STR_SETTINGS_ALLOW_BIT_PERFECT_ANY_DEVICE_CAPTION
+                                  control:_allowBitPerfectAnyDeviceSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_MP3_DECODER_LABEL
                                   caption:STR_SETTINGS_MP3_DECODER_CAPTION control:_mp3DecoderPopUp],
         ]],
-        [SettingsSectionView sectionWithRows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_CACHE_LABEL
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_MAINTENANCE_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_CACHE_LABEL caption:STR_SETTINGS_CACHE_CAPTION
                                  controls:@[_cacheSizeValue, _clearCacheButton]],
             [SettingsRowView rowWithTitle:STR_SETTINGS_RESET_LABEL
                                  caption:STR_SETTINGS_RESET_CAPTION control:_resetButton],
@@ -135,6 +138,11 @@ static const CGFloat kAdvancedPopUpWidth = 200;
 
 - (void)dealloc {
     [self stopAudioPathTimer];
+}
+
+// The debug readout is not a setting, and hidden it is not there at all.
+- (BOOL)isRowSearchable:(SettingsRowView *)row {
+    return [super isRowSearchable:row] && ![row isDescendantOf:_audioSection];
 }
 
 #pragma mark - The audio path
@@ -446,6 +454,8 @@ static NSString *VibeFlagForLanguage(NSString *language) {
     [SettingsRowView setControl:_resetButton enabled:!AppSettings.sharedInstance.allSettingsAtDefaults];
     [SettingsRowView setControl:_factoryResetButton enabled:_resetButton.enabled
             || AppSettings.sharedInstance.orderedThemeIdentifiers.count > AppTheme.builtInThemeIdentifiers.count];
+    _resetButton.toolTip = _resetButton.enabled ? nil : STR_SETTINGS_RESET_AT_DEFAULTS_TIP;
+    _factoryResetButton.toolTip = _factoryResetButton.enabled ? nil : STR_SETTINGS_RESET_AT_DEFAULTS_TIP;
     [self refreshAudioPath];
 }
 

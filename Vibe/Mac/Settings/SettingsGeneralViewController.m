@@ -33,6 +33,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
     SettingsRowView *_exclusiveOutputRow;
     VibeSwitch *_declickSwitch;
     SettingsRowView *_declickRow;
+    SettingsSectionView *_deviceSection;
     VibeSwitch *_volumeControlSwitch;
     SettingsRowView *_volumeControlRow;
     NSButton *_defaultPlayerButton;
@@ -87,18 +88,18 @@ static const CGFloat kGeneralPopUpWidth = 280;
     [self addItem:STR_SETTINGS_ARTWORK_DRAG_NAME value:SETTINGS_VALUE_ARTWORK_DRAG_COPY_ARTIST_TITLE to:_artworkDragPopUp];
 
     [self loadPaneWithSections:@[
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_STARTUP_SECTION rows:@[
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_BEHAVIOR_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_REOPEN_PLAYLIST
                                   caption:STR_SETTINGS_REOPEN_PLAYLIST_CAPTION
                                   control:_reopenPlaylistSwitch],
-        ]],
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_ALWAYS_ON_TOP control:_alwaysOnTopSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_LOCK_WINDOW_POSITION control:_lockWindowPositionSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_ALWAYS_ON_TOP
+                                  caption:STR_SETTINGS_ALWAYS_ON_TOP_CAPTION control:_alwaysOnTopSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_LOCK_WINDOW_POSITION
+                                  caption:STR_SETTINGS_LOCK_WINDOW_POSITION_CAPTION control:_lockWindowPositionSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_DRAG_LABEL control:_waveformDragPopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_ARTWORK_DRAG_LABEL control:_artworkDragPopUp],
         ]],
-        [SettingsSectionView sectionWithRows:@[
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_SYSTEM_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_DEFAULT_PLAYER_LABEL control:_defaultPlayerButton],
         ]],
     ]];
@@ -138,15 +139,16 @@ static const CGFloat kGeneralPopUpWidth = 280;
                                               caption:STR_SETTINGS_VOLUME_CONTROL_CAPTION
                                               control:_volumeControlSwitch];
 
+    _deviceSection = [SettingsSectionView sectionWithHeader:STR_SETTINGS_DEVICE_SECTION rows:@[
+        _bitPerfectRow,
+        _exclusiveOutputRow,
+    ]];
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_OUTPUT_LABEL rows:@[
             [SettingsRowView rowWithTableView:_outputTable rowCount:7],
         ]],
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_DEVICE_SECTION rows:@[
-            _bitPerfectRow,
-            _exclusiveOutputRow,
-        ]],
-        [SettingsSectionView sectionWithRows:@[
+        _deviceSection,
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_LEVEL_SECTION rows:@[
             _volumeControlRow,
             _declickRow,
         ]],
@@ -188,27 +190,24 @@ static const CGFloat kGeneralPopUpWidth = 280;
     // a transport the mode cannot drive.
     NSString *ineligibleCaption = requestedId < 0 ? STR_SETTINGS_BIT_PERFECT_SYSTEM_OUTPUT
             : STR_SETTINGS_BIT_PERFECT_NEEDS_DEVICE;
-    NSString *caption;
-    if (!eligible) {
-        caption = ineligibleCaption;
-    }
-    else if (on) {
-        caption = [self.playerController bitPerfectStatusText];
-    }
-    else {
-        caption = STR_SETTINGS_BIT_PERFECT_CAPTION_OFF;
-    }
-    BOOL captionChanged = [_bitPerfectRow setCaption:caption];
+    // What the switch does stays on the first line whatever the state; the
+    // second says why it cannot be used, or, on, how the output settled.
+    NSString *status = !eligible ? ineligibleCaption : on ? [self.playerController bitPerfectStatusText] : nil;
+    BOOL captionChanged = [_bitPerfectRow setCaption:STR_SETTINGS_BIT_PERFECT_CAPTION_OFF detail:status];
     BOOL exclusiveSupported = eligible
             && [CoreAudioUtil supportsHogModeForDeviceID:(AudioDeviceID)device.deviceId];
     [SettingsRowView setControl:_exclusiveOutputSwitch enabled:!pending && on && exclusiveSupported];
     _exclusiveOutputSwitch.state = AppSettings.sharedInstance.exclusiveOutput
             ? NSControlStateValueOn : NSControlStateValueOff;
-    NSString *exclusiveCaption = !on ? STR_SETTINGS_EXCLUSIVE_OUTPUT_NEEDS_BIT_PERFECT
+    NSString *exclusiveReason = !on ? STR_SETTINGS_EXCLUSIVE_OUTPUT_NEEDS_BIT_PERFECT
             : !eligible ? ineligibleCaption
-            : !exclusiveSupported ? STR_SETTINGS_EXCLUSIVE_OUTPUT_UNSUPPORTED
-            : STR_SETTINGS_EXCLUSIVE_OUTPUT_CAPTION;
-    captionChanged |= [_exclusiveOutputRow setCaption:exclusiveCaption];
+            : !exclusiveSupported ? STR_SETTINGS_EXCLUSIVE_OUTPUT_UNSUPPORTED : nil;
+    captionChanged |= [_exclusiveOutputRow setCaption:STR_SETTINGS_EXCLUSIVE_OUTPUT_CAPTION
+                                             detail:exclusiveReason];
+    NSString *deviceName = requestedId < 0 ? STR_MENU_OUTPUT_SYSTEM : device.name;
+    [_deviceSection setHeader:deviceName.length
+            ? [NSString stringWithFormat:STR_SETTINGS_DEVICE_SECTION_NAMED, deviceName]
+            : STR_SETTINGS_DEVICE_SECTION];
     _declickSwitch.state = AppSettings.sharedInstance.declick ? NSControlStateValueOn : NSControlStateValueOff;
     _volumeControlSwitch.state = AppSettings.sharedInstance.volumeControl ? NSControlStateValueOn : NSControlStateValueOff;
     if (captionChanged) {

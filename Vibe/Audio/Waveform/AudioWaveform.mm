@@ -385,6 +385,8 @@ static void VibeRestoreArchivedBands(NSCoder *coder, AudioWaveform *waveform) {
     // As an object, not encodeInteger: an absent integer decodes as 0, which
     // as a key means C major, whereas an absent object is unambiguously nil.
     [coder encodeObject:@(self.key) forKey:@"key"];
+    [coder encodeBool:self.bpmAnalyzed forKey:@"bpmAnalyzed"];
+    [coder encodeBool:self.keyAnalyzed forKey:@"keyAnalyzed"];
 }
 
 - (instancetype)initWithCoder:(NSCoder *)coder {
@@ -425,6 +427,8 @@ static void VibeRestoreArchivedBands(NSCoder *coder, AudioWaveform *waveform) {
         id keyValue = [coder decodeObjectForKey:@"key"];
         NSInteger key = [keyValue isKindOfClass:[NSNumber class]] ? [keyValue integerValue] : -1;
         self.key = (key >= 0 && key < 24) ? key : -1;
+        self.bpmAnalyzed = ![coder containsValueForKey:@"bpmAnalyzed"] || [coder decodeBoolForKey:@"bpmAnalyzed"];
+        self.keyAnalyzed = ![coder containsValueForKey:@"keyAnalyzed"] || [coder decodeBoolForKey:@"keyAnalyzed"];
     }
     return self;
 }
@@ -445,6 +449,8 @@ static void VibeRestoreArchivedBands(NSCoder *coder, AudioWaveform *waveform) {
     CodableAudioWaveform *copy = [[CodableAudioWaveform alloc] initWithWaveform:new AudioWaveform(*self.waveform)];
     copy.bpm = self.bpm;
     copy.key = self.key;
+    copy.bpmAnalyzed = self.bpmAnalyzed;
+    copy.keyAnalyzed = self.keyAnalyzed;
     return copy;
 }
 

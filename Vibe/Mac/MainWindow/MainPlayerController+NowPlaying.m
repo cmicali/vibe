@@ -32,9 +32,10 @@
     if (loadingGap) {
         // The player's times still describe the previous file, or read 0.
         duration = track.duration;
-        // A convert swap resumes at the old playhead; no snap to 0 and back.
-        position = (track && track == self.convertSwapResumeTrack)
-                ? self.convertSwapResumePosition : 0;
+        // A same-track replay (a convert swap, a decoder change) resumes at the
+        // old playhead; no snap to 0 and back.
+        position = (track && track == self.replayResumeTrack)
+                ? self.replayResumePosition : 0;
     }
     else {
         duration = self.audioPlayer.duration;

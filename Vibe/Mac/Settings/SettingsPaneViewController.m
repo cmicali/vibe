@@ -59,6 +59,10 @@ static const CGFloat kInlineTitleInset = 10;
     if (!self.selectedItem.image) {
         return 0;
     }
+    // An image-only value (a glyph choice) advances by the image alone.
+    if (self.selectedItem.title.length == 0) {
+        return ceil(self.selectedItem.image.size.width);
+    }
     NSRect probe = NSMakeRect(0, 0, 200, kInlineBezelHeight);
     return NSMinX([self.cell titleRectForBounds:probe]) - NSMinX([self.cell imageRectForBounds:probe]);
 }
@@ -156,6 +160,14 @@ static const CGFloat kInlineTitleInset = 10;
     id _windowKeyObserver;
     id _menuTrackingObserver;
     NSHashTable<NSTextField *> *_wrappingLabels;
+    // The search's cache: every row and the header above it, collected once,
+    // and the last query's hits.
+    NSArray<SettingsRowView *> *_searchRows;
+    NSArray<NSString *> *_searchHeaders;
+    NSString *_searchHitsQuery;
+    NSArray<SettingsRowView *> *_searchHits;
+    BOOL _searchMarksPending;
+    __weak SettingsRowView *_revealedSearchRow;
 }
 
 - (instancetype)initWithPlayerController:(MainPlayerController *)playerController {
@@ -400,12 +412,135 @@ static const CGFloat kWrappingLabelInitialWidth = 408;
 - (void)resolveLayoutStateFromSettings {
 }
 
+#pragma mark - Search
+
+static BOOL SettingsTextMatches(NSString *text, NSString *query) {
+    return text.length && [text rangeOfString:query
+            options:NSCaseInsensitiveSearch | NSDiacriticInsensitiveSearch | NSWidthInsensitiveSearch
+              range:NSMakeRange(0, text.length) locale:NSLocale.currentLocale].location != NSNotFound;
+}
+
+static void CollectRows(NSView *view, NSMutableArray<SettingsRowView *> *rows) {
+    for (NSView *child in view.subviews) {
+        if ([child isKindOfClass:SettingsRowView.class]) {
+            [rows addObject:(SettingsRowView *)child];
+        } else {
+            CollectRows(child, rows);
+        }
+    }
+}
+
+static NSString *SectionHeaderAbove(NSView *view) {
+    for (NSView *ancestor = view.superview; ancestor; ancestor = ancestor.superview) {
+        if ([ancestor isKindOfClass:SettingsSectionView.class]) {
+            return ((SettingsSectionView *)ancestor).headerLabel.stringValue ?: @"";
+        }
+    }
+    return @"";
+}
+
+// A pane's rows never change after loadView, only their visibility, so the
+// tree is walked once; each keystroke then reads these.
+- (void)collectSearchRows {
+    if (_searchRows) {
+        return;
+    }
+    NSMutableArray<SettingsRowView *> *rows = [NSMutableArray array];
+    CollectRows(self.view, rows);
+    NSMutableArray<NSString *> *headers = [NSMutableArray arrayWithCapacity:rows.count];
+    for (SettingsRowView *row in rows) {
+        [headers addObject:SectionHeaderAbove(row)];
+    }
+    _searchRows = rows;
+    _searchHeaders = headers;
+}
+
+- (BOOL)isRowSearchable:(SettingsRowView *)row {
+    return !row.hidden;
+}
+
+// Answered once per query: the sidebar's filter, the marks and the reveal all
+// ask.
+- (NSArray<SettingsRowView *> *)rowsMatchingSearch:(NSString *)query {
+    if ([query isEqualToString:_searchHitsQuery]) {
+        return _searchHits;
+    }
+    [self collectSearchRows];
+    NSMutableArray<SettingsRowView *> *hits = [NSMutableArray array];
+    [_searchRows enumerateObjectsUsingBlock:^(SettingsRowView *row, NSUInteger i, BOOL *stop) {
+        if ([self isRowSearchable:row]
+                && (SettingsTextMatches(row.titleLabel.stringValue, query)
+                    || (!row.captionLabel.hidden && SettingsTextMatches(row.captionLabel.stringValue, query))
+                    || SettingsTextMatches(self->_searchHeaders[i], query))) {
+            [hits addObject:row];
+        }
+    }];
+    _searchHitsQuery = [query copy];
+    _searchHits = hits;
+    return hits;
+}
+
+- (BOOL)matchesSearch:(NSString *)query {
+    return SettingsTextMatches(self.title, query) || [self rowsMatchingSearch:query].count > 0;
+}
+
+// Off screen the query is only kept: the marks land when the pane appears.
+- (void)setSearchHighlight:(NSString *)query {
+    if (!self.isViewLoaded || (!query && !_searchQuery)) {
+        return;
+    }
+    _searchQuery = [query copy];
+    _revealedSearchRow = nil;
+    if (self.view.window) {
+        [self applySearchMarks];
+        [self revealSearchHits];
+    } else {
+        _searchMarksPending = YES;
+    }
+}
+
+- (void)applySearchMarks {
+    _searchMarksPending = NO;
+    [self collectSearchRows];
+    NSSet<SettingsRowView *> *hits = _searchQuery
+            ? [NSSet setWithArray:[self rowsMatchingSearch:_searchQuery]] : [NSSet set];
+    for (SettingsRowView *row in _searchRows) {
+        row.searchHighlighted = [hits containsObject:row];
+    }
+}
+
+- (void)revealSearchHits {
+    if (!_searchQuery) {
+        return;
+    }
+    for (SettingsRowView *row in [self rowsMatchingSearch:_searchQuery]) {
+        if (row.isHiddenOrHasHiddenAncestor) {
+            continue;
+        }
+        if (row != _revealedSearchRow) {
+            _revealedSearchRow = row;
+            [self.view layoutSubtreeIfNeeded];
+            [row scrollRectToVisible:row.bounds];
+        }
+        return;
+    }
+}
+
+- (NSUndoManager *)paneUndoManager {
+    return nil;
+}
+
 - (void)refreshFromSettings {
 }
 
 - (void)viewWillAppear {
     [super viewWillAppear];
     [self refreshSettingsAndPaneSize];
+    // Rows may have shown or hidden since the hits were taken.
+    _searchHitsQuery = nil;
+    if (_searchMarksPending) {
+        [self applySearchMarks];
+    }
 }
 
 - (void)refreshSettingsAndPaneSize {
@@ -419,6 +554,7 @@ static const CGFloat kWrappingLabelInitialWidth = 408;
 // the converter's save panel).
 - (void)viewDidAppear {
     [super viewDidAppear];
+    [self revealSearchHits];
     __weak __typeof(self) weakSelf = self;
     _windowKeyObserver = [NSNotificationCenter.defaultCenter
             addObserverForName:NSWindowDidBecomeKeyNotification

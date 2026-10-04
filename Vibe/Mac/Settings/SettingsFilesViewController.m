@@ -80,7 +80,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     [self rebuildCommonFolderMenu];
     _removeButton = [NSButton buttonWithTitle:STR_SETTINGS_REMOVE_FOLDER
                                        target:self action:@selector(removeFolder:)];
-    [SettingsRowView setControl:_removeButton enabled:NO];
+    [self updateRemoveButton];
     NSStackView *buttons = [NSStackView stackViewWithViews:@[addButton, _addCommonButton, _removeButton]];
     buttons.spacing = 8;
     SettingsRowView *buttonRow = [SettingsRowView rowWithContentView:buttons];
@@ -92,9 +92,11 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     [self addItem:STR_SETTINGS_CONVERT_DEST_ASK value:@YES to:_convertDestinationPopUp];
 
     [self loadPaneWithSections:@[
-        [SettingsSectionView sectionWithRows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_FOLDER_SORT_LABEL control:_folderSortPopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_ALBUM_ART_LABEL control:_albumArtPopUp],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_OPENING_FILES_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_FOLDER_SORT_LABEL
+                                  caption:STR_SETTINGS_FOLDER_SORT_CAPTION control:_folderSortPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_ALBUM_ART_LABEL
+                                  caption:STR_SETTINGS_ALBUM_ART_CAPTION control:_albumArtPopUp],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PERMISSIONS_LABEL rows:@[
             [SettingsRowView rowWithContentView:explainLabel],
@@ -102,9 +104,11 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
             buttonRow,
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_CONVERT_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_CONVERT_ENABLED control:_convertEnabledSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_CONVERT_ENABLED
+                                  caption:STR_SETTINGS_CONVERT_ENABLED_CAPTION control:_convertEnabledSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_CONVERT_DEST_LABEL control:_convertDestinationPopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_DELETE_ORIGINAL control:_deleteOriginalSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_DELETE_ORIGINAL
+                                  caption:STR_SETTINGS_DELETE_ORIGINAL_CAPTION control:_deleteOriginalSwitch],
         ]],
     ]];
     // The list is its own divider; the section's hairlines would double it.
@@ -134,10 +138,16 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     [self refreshFromSettings];
 }
 
+- (void)updateRemoveButton {
+    BOOL selection = _tableView.selectedRowIndexes.count > 0;
+    [SettingsRowView setControl:_removeButton enabled:selection];
+    _removeButton.toolTip = selection ? nil : STR_SETTINGS_REMOVE_FOLDER_TIP;
+}
+
 - (void)refreshFromSettings {
     _folders = FolderAccessManager.sharedInstance.grantedFolders;
     [_tableView reloadData];
-    [SettingsRowView setControl:_removeButton enabled:_tableView.selectedRowIndexes.count > 0];
+    [self updateRemoveButton];
     [self refreshCommonFolderMenu];
     NSString *albumArtSource = AppSettings.sharedInstance.useFolderArt ? kAlbumArtFolder : kAlbumArtFileOnly;
     [self selectValue:albumArtSource in:_albumArtPopUp];
@@ -375,7 +385,7 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
 }
 
 - (void)tableViewSelectionDidChange:(NSNotification *)notification {
-    [SettingsRowView setControl:_removeButton enabled:_tableView.selectedRowIndexes.count > 0];
+    [self updateRemoveButton];
 }
 
 #pragma mark - Dropping folders in

@@ -337,4 +337,35 @@ static NSData *HalfBandBytes(uint16_t half) {
     XCTAssertNil([empty snapshot]);
 }
 
+#pragma mark - Analysis flags
+
+// An entry from before the flags keeps its old meaning, so turning
+// detection on never re-decodes every cached file.
+- (void)testAnArchiveWithoutAnalysisFlagsReadsAnalyzed {
+    CodableAudioWaveform *decoded =
+            DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion, @(kEncodedChunkCount),
+                                          ValidChunkBytes(), 0));
+    XCTAssertNotNil(decoded);
+    XCTAssertTrue(decoded.bpmAnalyzed);
+    XCTAssertTrue(decoded.keyAnalyzed);
+}
+
+- (void)testAnalysisFlagsSurviveTheArchive {
+    CodableAudioWaveform *original =
+            [[CodableAudioWaveform alloc] initWithWaveform:new AudioWaveform(false)];
+    original.bpmAnalyzed = NO;
+    original.keyAnalyzed = YES;
+    NSError *error = nil;
+    NSData *data = [NSKeyedArchiver archivedDataWithRootObject:original requiringSecureCoding:NO error:&error];
+    XCTAssertNotNil(data, @"%@", error);
+    NSKeyedUnarchiver *unarchiver = [[NSKeyedUnarchiver alloc] initForReadingFromData:data error:&error];
+    unarchiver.requiresSecureCoding = NO;
+    CodableAudioWaveform *decoded = [unarchiver decodeObjectForKey:NSKeyedArchiveRootObjectKey];
+    [unarchiver finishDecoding];
+    XCTAssertNotNil(decoded);
+    XCTAssertFalse(decoded.bpmAnalyzed);
+    XCTAssertTrue(decoded.keyAnalyzed);
+    XCTAssertFalse(decoded.snapshot.bpmAnalyzed, @"a snapshot carries the flags");
+}
+
 @end

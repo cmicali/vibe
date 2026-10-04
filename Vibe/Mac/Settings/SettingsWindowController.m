@@ -20,10 +20,20 @@
 #import "VibeStrings.h"
 
 static const CGFloat kSettingsSidebarWidth = 200;
+// The theme editor's place in the back/forward history; every other location
+// is a pane identifier.
+static NSString *const kEditorLocation = @"appearance/editor";
+
+@class SettingsSidebarController;
 
 @interface SettingsWindowController () <NSMenuItemValidation, NSToolbarDelegate> {
     NSTabViewController *_tabs;
+    SettingsSidebarController *_sidebar;
     NSSegmentedControl *_navigationControl;
+    // System Settings' history: a location is a pane identifier, with
+    // "/editor" while the theme editor shows. Back and Forward walk it.
+    NSString *_location;
+    NSMutableArray<NSString *> *_backLocations, *_forwardLocations;
     NSSegmentedControl *_appearanceToggle;
     NSSegmentedControl *_randomizeControl;
 }
@@ -132,10 +142,25 @@ static const CGFloat kSettingsSidebarWidth = 200;
 
 #pragma mark - Sidebar
 
-// Rows come from the tab controller's items, so the two cannot drift.
-@interface SettingsSidebarController : NSViewController <NSTableViewDataSource, NSTableViewDelegate>
+// Rows come from the tab controller's items, so the two cannot drift. A group
+// starts at each of these panes, after a spacer row.
+static NSSet<NSString *> *SidebarGroupStarts(void) {
+    return [NSSet setWithArray:@[@"playback", @"shortcuts", @"advanced"]];
+}
+
+static const CGFloat kSidebarSpacerHeight = 12;
+
+@interface SettingsSidebarController : NSViewController <NSTableViewDataSource, NSTableViewDelegate,
+                                                         NSSearchFieldDelegate>
 @property (weak, nonatomic) NSTabViewController *tabs;
 @property (readonly, nonatomic) NSTableView *tableView;
+@property (readonly, nonatomic) NSSearchField *searchField;
+// Moves the highlighted row; a pane the search hides selects nothing.
+- (void)selectRowForTabItem:(NSTabViewItem *)item;
+// Rebuilds the rows from the search field: matching panes only, ungrouped.
+- (void)reloadRows;
+- (void)searchChanged:(nullable id)sender;
+- (NSArray<NSString *> *)visiblePaneIdentifiers;
 @end
 
 // Tinted through backgroundStyle, which the row view pushes on mouse-down;
@@ -155,6 +180,13 @@ static const CGFloat kSettingsSidebarWidth = 200;
 
 @implementation SettingsSidebarController {
     NSTableView *_tableView;
+    NSSearchField *_searchField;
+    NSTextField *_noResultsLabel;
+    // A tab item per row, NSNull for a group's spacer.
+    NSArray *_rows;
+    // TRAP: the reload and reselection post selection changes; treated as the
+    // user's, one would switch panes under the search being typed.
+    BOOL _reloadingRows;
 }
 
 - (NSTableView *)tableView {
@@ -162,12 +194,17 @@ static const CGFloat kSettingsSidebarWidth = 200;
     return _tableView;
 }
 
+- (NSSearchField *)searchField {
+    (void)self.view;
+    return _searchField;
+}
+
 - (void)loadView {
     NSTableView *table = [[NSTableView alloc] initWithFrame:NSZeroRect];
     table.style = NSTableViewStyleSourceList;
     table.headerView = nil;
     table.rowHeight = 28;
-    table.allowsEmptySelection = NO;
+    table.allowsEmptySelection = YES;
     table.allowsMultipleSelection = NO;
     table.focusRingType = NSFocusRingTypeNone;
     [table addTableColumn:[[NSTableColumn alloc] initWithIdentifier:@"pane"]];
@@ -176,18 +213,127 @@ static const CGFloat kSettingsSidebarWidth = 200;
     _tableView = table;
 
     NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSZeroRect];
+    scroll.translatesAutoresizingMaskIntoConstraints = NO;
     scroll.documentView = table;
     scroll.hasVerticalScroller = YES;
     scroll.autohidesScrollers = YES;
     scroll.drawsBackground = NO;
-    self.view = scroll;
+
+    _searchField = [[NSSearchField alloc] initWithFrame:NSZeroRect];
+    _searchField.translatesAutoresizingMaskIntoConstraints = NO;
+    _searchField.placeholderString = STR_SETTINGS_SEARCH_PLACEHOLDER;
+    _searchField.delegate = self;
+    _searchField.target = self;
+    _searchField.action = @selector(searchChanged:);
+    _searchField.sendsSearchStringImmediately = YES;
+
+    _noResultsLabel = [NSTextField labelWithString:STR_SETTINGS_SEARCH_NO_RESULTS];
+    _noResultsLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    _noResultsLabel.textColor = NSColor.secondaryLabelColor;
+    _noResultsLabel.hidden = YES;
+
+    NSView *view = [[NSView alloc] initWithFrame:NSZeroRect];
+    [view addSubview:_searchField];
+    [view addSubview:scroll];
+    [view addSubview:_noResultsLabel];
+    [NSLayoutConstraint activateConstraints:@[
+        [_searchField.topAnchor constraintEqualToAnchor:view.safeAreaLayoutGuide.topAnchor constant:8],
+        [_searchField.leadingAnchor constraintEqualToAnchor:view.leadingAnchor constant:10],
+        [_searchField.trailingAnchor constraintEqualToAnchor:view.trailingAnchor constant:-10],
+        [scroll.topAnchor constraintEqualToAnchor:_searchField.bottomAnchor constant:8],
+        [scroll.leadingAnchor constraintEqualToAnchor:view.leadingAnchor],
+        [scroll.trailingAnchor constraintEqualToAnchor:view.trailingAnchor],
+        [scroll.bottomAnchor constraintEqualToAnchor:view.bottomAnchor],
+        [_noResultsLabel.topAnchor constraintEqualToAnchor:_searchField.bottomAnchor constant:16],
+        [_noResultsLabel.centerXAnchor constraintEqualToAnchor:view.centerXAnchor],
+    ]];
+    self.view = view;
+    [self reloadRows];
+}
+
+#pragma mark Rows
+
+- (NSString *)query {
+    return [_searchField.stringValue stringByTrimmingCharactersInSet:
+            NSCharacterSet.whitespaceAndNewlineCharacterSet];
+}
+
+- (void)reloadRows {
+    NSString *query = [self query];
+    NSMutableArray *rows = [NSMutableArray array];
+    NSSet<NSString *> *groupStarts = SidebarGroupStarts();
+    for (NSTabViewItem *item in self.tabs.tabViewItems) {
+        if (query.length) {
+            SettingsPaneViewController *pane = (SettingsPaneViewController *)item.viewController;
+            if ([pane isKindOfClass:SettingsPaneViewController.class] && [pane matchesSearch:query]) {
+                [rows addObject:item];
+            }
+            continue;
+        }
+        if (rows.count && [groupStarts containsObject:item.identifier]) {
+            [rows addObject:NSNull.null];
+        }
+        [rows addObject:item];
+    }
+    _rows = rows;
+    _noResultsLabel.hidden = query.length == 0 || rows.count > 0;
+    _reloadingRows = YES;
+    [_tableView reloadData];
+    [self selectRowForTabItem:self.tabs.tabView.selectedTabViewItem];
+    _reloadingRows = NO;
+}
+
+- (void)selectRowForTabItem:(NSTabViewItem *)item {
+    NSUInteger row = item ? [_rows indexOfObjectIdenticalTo:item] : NSNotFound;
+    if (row == NSNotFound) {
+        [_tableView deselectAll:nil];
+    } else if (_tableView.selectedRow != (NSInteger)row) {
+        [_tableView selectRowIndexes:[NSIndexSet indexSetWithIndex:row] byExtendingSelection:NO];
+    }
+}
+
+// Typing narrows the list; the pane on screen stays unless it no longer
+// matches, when the first match takes over so its rows can show the hits.
+- (void)searchChanged:(id)sender {
+    [self reloadRows];
+    NSString *query = [self query];
+    if (query.length && _tableView.selectedRow < 0 && _rows.count) {
+        [self.tabs.tabView selectTabViewItem:_rows.firstObject];
+    }
+    for (NSTabViewItem *item in self.tabs.tabViewItems) {
+        SettingsPaneViewController *pane = (SettingsPaneViewController *)item.viewController;
+        if ([pane isKindOfClass:SettingsPaneViewController.class]) {
+            [pane setSearchHighlight:query.length ? query : nil];
+        }
+    }
+}
+
+- (NSArray<NSString *> *)visiblePaneIdentifiers {
+    NSMutableArray<NSString *> *identifiers = [NSMutableArray array];
+    for (id row in _rows) {
+        if (row != NSNull.null) {
+            [identifiers addObject:((NSTabViewItem *)row).identifier];
+        }
+    }
+    return identifiers;
 }
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
-    return (NSInteger)self.tabs.tabViewItems.count;
+    return (NSInteger)_rows.count;
+}
+
+- (CGFloat)tableView:(NSTableView *)tableView heightOfRow:(NSInteger)row {
+    return _rows[(NSUInteger)row] == NSNull.null ? kSidebarSpacerHeight : tableView.rowHeight;
+}
+
+- (BOOL)tableView:(NSTableView *)tableView shouldSelectRow:(NSInteger)row {
+    return _rows[(NSUInteger)row] != NSNull.null;
 }
 
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
+    if (_rows[(NSUInteger)row] == NSNull.null) {
+        return nil;
+    }
     SettingsSidebarCellView *cell = [tableView makeViewWithIdentifier:@"pane" owner:nil];
     if (!cell) {
         cell = [[SettingsSidebarCellView alloc] initWithFrame:NSZeroRect];
@@ -211,7 +357,7 @@ static const CGFloat kSettingsSidebarWidth = 200;
             [label.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
         ]];
     }
-    NSTabViewItem *item = self.tabs.tabViewItems[(NSUInteger)row];
+    NSTabViewItem *item = _rows[(NSUInteger)row];
     cell.imageView.image = item.image;
     cell.textField.stringValue = item.label ?: @"";
     return cell;
@@ -222,9 +368,18 @@ static const CGFloat kSettingsSidebarWidth = 200;
 }
 
 - (void)tableViewSelectionDidChange:(NSNotification *)notification {
+    if (_reloadingRows) {
+        return;
+    }
     NSInteger row = _tableView.selectedRow;
-    if (row >= 0 && self.tabs.selectedTabViewItemIndex != row) {
-        self.tabs.selectedTabViewItemIndex = row;
+    if (row < 0) {
+        // A click below the rows; the pane on screen keeps its row.
+        [self selectRowForTabItem:self.tabs.tabView.selectedTabViewItem];
+        return;
+    }
+    NSTabViewItem *item = _rows[(NSUInteger)row];
+    if (item != self.tabs.tabView.selectedTabViewItem) {
+        [self.tabs.tabView selectTabViewItem:item];
     }
 }
 
@@ -235,7 +390,7 @@ static const CGFloat kSettingsSidebarWidth = 200;
 // Also syncs the sidebar, so a programmatic selection (settings_open) moves
 // the highlighted row.
 @interface SettingsTabViewController : NSTabViewController <SettingsPaneSizeHost>
-@property (weak, nonatomic) NSTableView *sidebarTable;
+@property (weak, nonatomic) SettingsSidebarController *sidebar;
 @end
 
 @implementation SettingsTabViewController
@@ -250,16 +405,12 @@ static const CGFloat kSettingsSidebarWidth = 200;
     if (!pane) {
         return;
     }
-    NSUInteger index = [self.tabViewItems indexOfObject:tabViewItem];
-    NSTableView *sidebar = self.sidebarTable;
-    if (index != NSNotFound && sidebar && sidebar.selectedRow != (NSInteger)index) {
-        [sidebar selectRowIndexes:[NSIndexSet indexSetWithIndex:index] byExtendingSelection:NO];
-    }
+    [self.sidebar selectRowForTabItem:tabViewItem];
     self.parentViewController.title = pane.title;
     SettingsWindowController *controller =
             (SettingsWindowController *)self.view.window.windowController;
     if ([controller isKindOfClass:SettingsWindowController.class]) {
-        [controller updateThemeNavigation];
+        [controller updateNavigation];
     }
 }
 
@@ -320,18 +471,19 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
     tabs.transitionOptions = NSViewControllerTransitionNone;
     tabs.tabView.tabViewType = NSNoTabsNoBorder;
 
+    // Grouped in the sidebar by SidebarGroupStarts.
     [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController],
                                   @"general", STR_SETTINGS_GENERAL, @"gearshape")];
-    [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController audioPane:YES],
-                                  @"audio", STR_SETTINGS_AUDIO_SECTION, @"speaker.wave.2")];
-    [tabs addTabViewItem:PaneItem([[SettingsPlaybackViewController alloc] initWithPlayerController:playerController],
-                                  @"playback", STR_MENU_PLAYBACK, @"play.circle")];
-    [tabs addTabViewItem:PaneItem([[SettingsShortcutsViewController alloc] initWithPlayerController:playerController],
-                                  @"shortcuts", STR_SETTINGS_SHORTCUTS, @"keyboard")];
     [tabs addTabViewItem:PaneItem([[SettingsAppearanceViewController alloc] initWithPlayerController:playerController],
                                   @"appearance", STR_MENU_VIEW_APPEARANCE, @"paintbrush")];
+    [tabs addTabViewItem:PaneItem([[SettingsPlaybackViewController alloc] initWithPlayerController:playerController],
+                                  @"playback", STR_MENU_PLAYBACK, @"play.circle")];
+    [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController audioPane:YES],
+                                  @"audio", STR_SETTINGS_AUDIO_SECTION, @"speaker.wave.2")];
     [tabs addTabViewItem:PaneItem([[SettingsFilesViewController alloc] initWithPlayerController:playerController],
                                   @"files", STR_SETTINGS_FILES, @"folder")];
+    [tabs addTabViewItem:PaneItem([[SettingsShortcutsViewController alloc] initWithPlayerController:playerController],
+                                  @"shortcuts", STR_SETTINGS_SHORTCUTS, @"keyboard")];
     [tabs addTabViewItem:PaneItem([[SettingsAdvancedViewController alloc] initWithPlayerController:playerController],
                                   @"advanced", STR_SETTINGS_ADVANCED, @"gearshape.2")];
     [tabs addTabViewItem:PaneItem([[SettingsAboutViewController alloc] initWithPlayerController:playerController],
@@ -340,8 +492,9 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
     [SettingsPaneViewController settleSharedSizeForPanes:tabs.childViewControllers];
 
     SettingsSidebarController *sidebar = [[SettingsSidebarController alloc] init];
+    // Before the split controller loads the sidebar, whose rows read the tabs.
     sidebar.tabs = tabs;
-    tabs.sidebarTable = sidebar.tableView;
+    tabs.sidebar = sidebar;
 
     NSSplitViewController *split = [[SettingsSplitViewController alloc] init];
     NSSplitViewItem *sidebarItem = [NSSplitViewItem sidebarWithViewController:sidebar];
@@ -403,7 +556,10 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
 
         // After center, so a saved position wins.
         self.windowFrameAutosaveName = @"SettingsWindow";
-        [sidebar.tableView selectRowIndexes:[NSIndexSet indexSetWithIndex:0] byExtendingSelection:NO];
+        _sidebar = sidebar;
+        _backLocations = [NSMutableArray array];
+        _forwardLocations = [NSMutableArray array];
+        [self updateNavigation];
     }
     return self;
 }
@@ -416,12 +572,7 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
 }
 
 - (void)showThemeEditor {
-    NSTabViewItem *item = [self appearanceTabItem];
-    if (!item) {
-        return;
-    }
-    _tabs.selectedTabViewItemIndex = (NSInteger)[_tabs.tabViewItems indexOfObject:item];
-    [(SettingsAppearanceViewController *)item.viewController showThemeEditorForActiveTheme];
+    [self goToLocation:kEditorLocation];
 }
 
 - (void)applyContentSize:(NSSize)size {
@@ -444,19 +595,19 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
     [self applyWindowFrame:frame];
 }
 
-static NSToolbarItemIdentifier const kThemeNavigationItemIdentifier = @"theme_navigation";
+static NSToolbarItemIdentifier const kNavigationItemIdentifier = @"navigation";
 static NSToolbarItemIdentifier const kAppearanceToggleItemIdentifier = @"appearance_toggle";
 static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomize";
 
 - (NSArray<NSToolbarItemIdentifier> *)toolbarAllowedItemIdentifiers:(NSToolbar *)toolbar {
-    return @[NSToolbarSidebarTrackingSeparatorItemIdentifier, kThemeNavigationItemIdentifier,
+    return @[NSToolbarSidebarTrackingSeparatorItemIdentifier, kNavigationItemIdentifier,
              NSToolbarFlexibleSpaceItemIdentifier, kRandomizeItemIdentifier,
              kAppearanceToggleItemIdentifier];
 }
 
 - (NSArray<NSToolbarItemIdentifier> *)toolbarDefaultItemIdentifiers:(NSToolbar *)toolbar {
-    // The dice and the appearance toggle are inserted by updateThemeNavigation.
-    return @[NSToolbarSidebarTrackingSeparatorItemIdentifier, kThemeNavigationItemIdentifier,
+    // The dice and the appearance toggle are inserted by updateNavigation.
+    return @[NSToolbarSidebarTrackingSeparatorItemIdentifier, kNavigationItemIdentifier,
              NSToolbarFlexibleSpaceItemIdentifier];
 }
 
@@ -501,14 +652,16 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
         [control setToolTip:STR_SETTINGS_THEME_PREVIEW forSegment:1];
         return item;
     }
-    if ([itemIdentifier isEqualToString:kThemeNavigationItemIdentifier]) {
+    if ([itemIdentifier isEqualToString:kNavigationItemIdentifier]) {
         NSSegmentedControl *control = [NSSegmentedControl segmentedControlWithImages:@[
                 [NSImage imageWithSystemSymbolName:@"chevron.backward"
-                          accessibilityDescription:STR_SETTINGS_THEME_BACK],
+                          accessibilityDescription:STR_SETTINGS_NAV_BACK],
                 [NSImage imageWithSystemSymbolName:@"chevron.forward"
-                          accessibilityDescription:STR_SETTINGS_THEME_FORWARD]]
+                          accessibilityDescription:STR_SETTINGS_NAV_FORWARD]]
                 trackingMode:NSSegmentSwitchTrackingMomentary
-                      target:self action:@selector(navigateThemeEditor:)];
+                      target:self action:@selector(navigate:)];
+        [control setToolTip:STR_SETTINGS_NAV_BACK forSegment:0];
+        [control setToolTip:STR_SETTINGS_NAV_FORWARD forSegment:1];
         [control setEnabled:NO forSegment:0];
         [control setEnabled:NO forSegment:1];
         _navigationControl = control;
@@ -564,8 +717,7 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
 
 - (BOOL)appearancePaneIsSelected {
     NSTabViewItem *item = [self appearanceTabItem];
-    return item != nil
-            && _tabs.selectedTabViewItemIndex == (NSInteger)[_tabs.tabViewItems indexOfObject:item];
+    return item != nil && _tabs.tabView.selectedTabViewItem == item;
 }
 
 - (void)dealloc {
@@ -578,7 +730,7 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
     if (!self.window.isVisible || ![self appearancePaneIsSelected]) {
         return;
     }
-    [self updateThemeNavigation];
+    [self updateNavigation];
 }
 
 static NSString *ThemeHistoryTitle(BOOL forward) {
@@ -589,7 +741,71 @@ static NSString *ThemeHistoryTitle(BOOL forward) {
     return settings.themeUndoRemovesTheme ? STR_SETTINGS_THEME_UNDO_REMOVE : STR_SETTINGS_THEME_UNDO_EDIT;
 }
 
-- (void)updateThemeNavigation {
+#pragma mark - Navigation history
+
+static const NSUInteger kNavigationHistoryLimit = 50;
+
+- (NSString *)currentLocation {
+    NSString *identifier = _tabs.tabView.selectedTabViewItem.identifier;
+    return [self appearancePaneIsSelected] && self.appearancePane.editorShown ? kEditorLocation : identifier;
+}
+
+// Every pane switch and page swap lands here; a user's move pushes the place
+// it left, as System Settings' history does, and clears what Forward held.
+- (void)noteLocation {
+    NSString *location = [self currentLocation];
+    if (!location || [location isEqualToString:_location]) {
+        return;
+    }
+    if (_location) {
+        [_backLocations addObject:_location];
+        if (_backLocations.count > kNavigationHistoryLimit) {
+            [_backLocations removeObjectAtIndex:0];
+        }
+        [_forwardLocations removeAllObjects];
+    }
+    _location = location;
+}
+
+- (void)goToLocation:(NSString *)location {
+    BOOL editor = [location isEqualToString:kEditorLocation];
+    NSTabViewItem *item = editor ? [self appearanceTabItem] : [self tabItemWithIdentifier:location];
+    if (!item) {
+        return;
+    }
+    [_tabs.tabView selectTabViewItem:item];
+    if (item == [self appearanceTabItem]) {
+        [self.appearancePane setEditorShown:editor];
+    }
+    [self updateNavigation];
+}
+
+- (BOOL)canNavigateForward:(BOOL)forward {
+    return (forward ? _forwardLocations : _backLocations).count > 0;
+}
+
+- (void)navigateForward:(BOOL)forward {
+    NSMutableArray<NSString *> *from = forward ? _forwardLocations : _backLocations;
+    NSMutableArray<NSString *> *to = forward ? _backLocations : _forwardLocations;
+    NSString *target = from.lastObject;
+    if (!target) {
+        return;
+    }
+    [from removeLastObject];
+    if (_location) {
+        [to addObject:_location];
+    }
+    // Already the location, so arriving there records nothing.
+    _location = target;
+    [self goToLocation:target];
+}
+
+- (void)navigate:(NSSegmentedControl *)sender {
+    [self navigateForward:sender.selectedSegment == 1];
+}
+
+- (void)updateNavigation {
+    [self noteLocation];
     SettingsAppearanceViewController *pane = [self appearancePane];
     BOOL selected = [self appearancePaneIsSelected];
     // The editor's page swap retitles the pane mid-view.
@@ -598,8 +814,8 @@ static NSString *ThemeHistoryTitle(BOOL forward) {
         _tabs.parentViewController.title =
                 _tabs.tabViewItems[(NSUInteger)selectedIndex].viewController.title;
     }
-    [_navigationControl setEnabled:(selected && pane.canGoBack) forSegment:0];
-    [_navigationControl setEnabled:(selected && pane.canGoForward) forSegment:1];
+    [_navigationControl setEnabled:[self canNavigateForward:NO] forSegment:0];
+    [_navigationControl setEnabled:[self canNavigateForward:YES] forSegment:1];
     // Inserted and removed, never hidden: NSToolbarItem.hidden needs macOS 15,
     // and the delegate vends non-inserted copies during enumeration, so a
     // stored item is not reliably the one on screen.
@@ -615,7 +831,7 @@ static NSString *ThemeHistoryTitle(BOOL forward) {
             [toolbar removeItemAtIndex:(NSInteger)index];
         }
     }
-    BOOL canRandomize = selected && pane.canRandomize;
+    BOOL canRandomize = selected && pane.editorShown;
     [_randomizeControl setEnabled:canRandomize forSegment:0];
     [_randomizeControl setEnabled:canRandomize forSegment:1];
     [_randomizeControl setEnabled:(selected && [pane canRestoreThemeHistoryForward:NO]) forSegment:2];
@@ -629,6 +845,12 @@ static NSString *ThemeHistoryTitle(BOOL forward) {
     BOOL canPreview = AppSettings.sharedInstance.currentTheme.requiredWindowAppearance == nil;
     [_appearanceToggle setEnabled:canPreview forSegment:0];
     [_appearanceToggle setEnabled:canPreview forSegment:1];
+}
+
+- (NSArray<NSString *> *)searchSettingsFor:(NSString *)query {
+    _sidebar.searchField.stringValue = query;
+    [_sidebar searchChanged:nil];
+    return [_sidebar visiblePaneIdentifiers];
 }
 
 - (void)toggleAppearancePreview:(id)sender {
@@ -645,36 +867,39 @@ static NSString *ThemeHistoryTitle(BOOL forward) {
     }
 }
 
-- (void)navigateThemeEditor:(NSSegmentedControl *)sender {
-    SettingsAppearanceViewController *pane = [self appearancePane];
-    if (![self appearancePaneIsSelected] || !pane) {
-        return;
-    }
-    if (sender.selectedSegment == 0) {
-        [pane navigateBack];
-    } else {
-        [pane navigateForward];
-    }
-}
-
 // Catches the nil-targeted ⌘W ahead of the player's, which clears the playlist.
 - (IBAction)closeFile:(nullable id)sender {
     [self.window performClose:sender];
 }
 
+// The selected pane's own undo stack, for a pane that keeps one.
+- (NSUndoManager *)selectedPaneUndoManager {
+    SettingsPaneViewController *pane =
+            (SettingsPaneViewController *)_tabs.tabView.selectedTabViewItem.viewController;
+    return [pane isKindOfClass:SettingsPaneViewController.class] ? pane.paneUndoManager : nil;
+}
+
 - (IBAction)undo:(id)sender {
     if ([self appearancePaneIsSelected]) [self.appearancePane restoreThemeHistoryForward:NO];
+    else [self.selectedPaneUndoManager undo];
 }
 
 - (IBAction)redo:(id)sender {
     if ([self appearancePaneIsSelected]) [self.appearancePane restoreThemeHistoryForward:YES];
+    else [self.selectedPaneUndoManager redo];
 }
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
     if (menuItem.action == @selector(undo:) || menuItem.action == @selector(redo:)) {
         BOOL forward = menuItem.action == @selector(redo:);
-        menuItem.title = ThemeHistoryTitle(forward);
-        return [self appearancePaneIsSelected] && [self.appearancePane canRestoreThemeHistoryForward:forward];
+        if ([self appearancePaneIsSelected]) {
+            menuItem.title = ThemeHistoryTitle(forward);
+            return [self.appearancePane canRestoreThemeHistoryForward:forward];
+        }
+        NSUndoManager *manager = self.selectedPaneUndoManager;
+        menuItem.title = forward ? (manager.redoMenuItemTitle ?: STR_MENU_EDIT_REDO)
+                                 : (manager.undoMenuItemTitle ?: STR_MENU_EDIT_UNDO);
+        return forward ? manager.canRedo : manager.canUndo;
     }
     // The one Close item may have been retitled by the player's validation.
     if ([menuItem.identifier isEqualToString:kVibeMenuClose]) {

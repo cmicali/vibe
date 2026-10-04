@@ -147,6 +147,17 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
                  caption:STR_SETTINGS_THEME_ON_LIGHT_ART];
 }
 
+// The other choice is SETTINGS_VALUE_WINDOW_TINT_CUSTOM, every Custom item's.
+static NSString *const kChoiceStandard = @"standard";
+
+// A setting's own value or the theme's custom one, which reveals its controls.
+- (NSPopUpButton *)standardOrCustomPopUpWithAction:(SEL)action standard:(NSString *)standardTitle {
+    NSPopUpButton *popUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:action];
+    [self addItem:standardTitle value:kChoiceStandard to:popUp];
+    [self addItem:STR_SETTINGS_WINDOW_TINT_CUSTOM value:SETTINGS_VALUE_WINDOW_TINT_CUSTOM to:popUp];
+    return popUp;
+}
+
 - (NSStackView *)fontClusterForSlot:(VibeFontSlot)slot valueLabel:(NSTextField **)outLabel {
     NSTextField *value = [NSTextField labelWithString:@""];
     value.textColor = NSColor.secondaryLabelColor;
@@ -244,10 +255,12 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
     NSPopUpButton *popUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
                                                action:@selector(buttonGlyphChanged:)];
     popUp.identifier = imageKey;
-    // Symbol names are identifiers, deliberately not given display names.
+    // The glyph alone: its symbol name is an identifier, never shown. The
+    // system symbol carries its own accessibility description.
     for (NSString *glyph in glyphs) {
-        [self addItem:VibeNotLocalized(glyph) value:glyph to:popUp];
+        [self addItem:@"" value:glyph to:popUp];
         popUp.lastItem.image = [NSImage imageWithSystemSymbolName:glyph accessibilityDescription:nil];
+        popUp.lastItem.toolTip = VibeNotLocalized(glyph);
     }
     [popUp.menu addItem:NSMenuItem.separatorItem];
     [self addItem:STR_SETTINGS_THEME_BUTTON_CUSTOM_IMAGE value:kGlyphChoiceCustomImage to:popUp];
@@ -308,7 +321,8 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
     NSString *glyph = [self glyphForImageKey:key];
     [self selectValue:glyph in:popUp];
     if (popUp.indexOfSelectedItem < 0) {
-        unlisted.title = VibeNotLocalized(glyph);
+        unlisted.title = @"";
+        unlisted.toolTip = VibeNotLocalized(glyph);
         unlisted.representedObject = glyph;
         unlisted.image = [NSImage imageWithSystemSymbolName:glyph accessibilityDescription:nil];
         [popUp selectItem:unlisted];
@@ -369,10 +383,6 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     _nameField.delegate = self;
     [_nameField.widthAnchor constraintEqualToConstant:kAppearancePopUpWidth].active = YES;
     _nameRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_NAME_LABEL control:_nameField];
-    _duplicateButton = [NSButton buttonWithTitle:STR_SETTINGS_THEME_DUPLICATE
-                                          target:self action:@selector(duplicateTheme:)];
-    _builtInRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BUILT_IN_CAPTION
-                                        control:_duplicateButton];
 
     _modePopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
                                      action:@selector(themeModeChanged:)];
@@ -385,8 +395,8 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     [self addItem:STR_SETTINGS_THEME_APP_ICON value:SETTINGS_VALUE_DOCK_ICON_APP_ICON to:_dockIconPopUp];
     _appIconShapeSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectAppIcon
             write:^(AppTheme *theme, BOOL on) { theme.appIconShape = on; }];
-    _customCornerRadiusSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectWindowChrome
-            write:^(AppTheme *theme, BOOL on) { theme.customCornerRadius = on; }];
+    _cornerRadiusPopUp = [self standardOrCustomPopUpWithAction:@selector(cornerRadiusModeChanged:)
+                                                     standard:STR_SETTINGS_THEME_STANDARD];
 
     // Appearance-keyed, so it joins the single-mode collapse.
     NSStackView *artPair = [self darkLightPairWithDark:
@@ -451,7 +461,7 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     _windowTintLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_LIGHT_LABEL
             control:[self wellForDark:NO base:kVibeThemeColorWindowTint effect:VibeSettingsLiveEffectWindowTint]];
 
-    NSStackView *radiusCluster = [self detentSliderClusterWithDetent:kVibeThemeCornerRadiusDefault
+    _cornerRadiusCluster = [self detentSliderClusterWithDetent:kVibeThemeCornerRadiusDefault
             min:0 max:kVibeThemeCornerRadiusMax action:@selector(cornerRadiusChanged:)
             slider:&_cornerRadiusSlider valueLabel:&_cornerRadiusValue];
 
@@ -580,29 +590,25 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     [self addItem:STR_SETTINGS_THEME_VOLUME_LOCATION_TOP_RIGHT value:SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT
                to:_volumeLocationPopUp];
 
-    _playlistColorSwitches = [NSMutableDictionary dictionary];
-    _playlistColorRows = [NSMutableDictionary dictionary];
+    // Automatic or Custom, the wells beside the choice while Custom.
+    _playlistColorPopUps = [NSMutableDictionary dictionary];
+    _playlistColorPairs = [NSMutableDictionary dictionary];
     NSMutableArray<SettingsRowView *> *playlistColorRows = [NSMutableArray array];
     NSArray<NSArray *> *playlistColumns = @[
-        @[kVibeThemeColorPlaylistNumber, STR_SETTINGS_THEME_PLAYLIST_NUMBER_COLOR_CUSTOM,
-          STR_SETTINGS_THEME_PLAYLIST_NUMBER_COLOR],
-        @[kVibeThemeColorPlaylistTitle, STR_SETTINGS_THEME_PLAYLIST_TITLE_COLOR_CUSTOM,
-          STR_SETTINGS_THEME_COLOR_TITLE],
-        @[kVibeThemeColorPlaylistArtist, STR_SETTINGS_THEME_PLAYLIST_ARTIST_COLOR_CUSTOM,
-          STR_SETTINGS_THEME_COLOR_ARTIST],
-        @[kVibeThemeColorPlaylistDuration, STR_SETTINGS_THEME_PLAYLIST_DURATION_COLOR_CUSTOM,
-          STR_SETTINGS_THEME_PLAYLIST_DURATION_COLOR],
+        @[kVibeThemeColorPlaylistNumber, STR_SETTINGS_THEME_PLAYLIST_NUMBER_COLOR],
+        @[kVibeThemeColorPlaylistTitle, STR_SETTINGS_THEME_COLOR_TITLE],
+        @[kVibeThemeColorPlaylistArtist, STR_SETTINGS_THEME_COLOR_ARTIST],
+        @[kVibeThemeColorPlaylistDuration, STR_SETTINGS_THEME_PLAYLIST_DURATION_COLOR],
     ];
     for (NSArray *column in playlistColumns) {
         NSString *base = column[0];
-        VibeSwitch *toggle = [self themeSwitchWithEffect:VibeSettingsLiveEffectPlaylistAppearance
-                write:^(AppTheme *theme, BOOL on) { [theme setPlaylistColorEnabled:on forBase:base]; }];
-        _playlistColorSwitches[base] = toggle;
-        SettingsRowView *pairRow = [SettingsRowView rowWithTitle:column[2]
-                control:[self darkLightPairForBase:base effect:VibeSettingsLiveEffectPlaylistAppearance]];
-        _playlistColorRows[base] = pairRow;
-        [playlistColorRows addObject:[SettingsRowView rowWithTitle:column[1] control:toggle]];
-        [playlistColorRows addObject:pairRow];
+        NSPopUpButton *popUp = [self standardOrCustomPopUpWithAction:@selector(playlistColorModeChanged:)
+                                                           standard:STR_SETTINGS_THEME_AUTOMATIC];
+        popUp.identifier = base;
+        NSStackView *pair = [self darkLightPairForBase:base effect:VibeSettingsLiveEffectPlaylistAppearance];
+        _playlistColorPopUps[base] = popUp;
+        _playlistColorPairs[base] = pair;
+        [playlistColorRows addObject:[SettingsRowView rowWithTitle:column[1] controls:@[pair, popUp]]];
     }
 
     NSStackView *playingRowColors = [self darkLightPairForBase:kVibeThemeColorPlaylistPlayingRow
@@ -679,12 +685,12 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     _transportSection = [SettingsSectionView sectionWithHeader:STR_SETTINGS_TRANSPORT_SECTION rows:transportRows];
 
     NSArray<NSView *> *sections = @[
-        // Exactly one of the pair shows, so the second drops its hairline.
-        [SettingsSectionView sectionWithRows:@[_builtInRow, _nameRow]],
+        [SettingsSectionView sectionWithRows:@[_nameRow]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_THEME_APP_ICON rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_APP_ICON control:appIconCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_DOCK_ICON control:_dockIconPopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_APP_ICON_SHAPE control:_appIconShapeSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_APP_ICON_SHAPE
+                                  caption:STR_SETTINGS_THEME_APP_ICON_SHAPE_CAPTION control:_appIconShapeSwitch],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_APPEARANCE control:_modePopUp],
@@ -693,8 +699,8 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
             [SettingsRowView rowWithTitle:STR_SETTINGS_BACKGROUND_TINT_LABEL control:_windowTintPopUp],
             _windowTintDarkRow,
             _windowTintLightRow,
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_CUSTOM_CORNER_RADIUS control:_customCornerRadiusSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_CORNER_RADIUS control:radiusCluster],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_CORNER_RADIUS
+                                 controls:@[_cornerRadiusCluster, _cornerRadiusPopUp]],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYER_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_ALBUM_ART control:artPair],
@@ -731,7 +737,6 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYLIST_SECTION rows:playlistRows],
     ];
 
-    _nameRow.showsTopSeparator = NO;
     SettingsStackView *editorStack =
             [[SettingsStackView alloc] initWithFrame:NSZeroRect];
     for (NSView *section in sections) {
@@ -787,8 +792,7 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     BOOL builtIn = [AppTheme isBuiltInIdentifier:
             AppSettings.sharedInstance.activeThemeIdentifier];
-    _nameRow.hidden = builtIn;
-    _builtInRow.hidden = !builtIn;
+    [_nameRow setCaption:builtIn ? STR_SETTINGS_THEME_BUILT_IN_COPY_CAPTION : nil];
     // Single mode has one color per field: every pair collapses to its
     // dark-keyed well, and the per-side rows lose their side in the title the
     // debug walker addresses them by.
@@ -828,9 +832,10 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     BOOL customVolumeKnob = [theme.volumeKnob isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
     _volumeKnobDarkRow.hidden = !customVolumeKnob;
     _volumeKnobLightRow.hidden = !customVolumeKnob || single;
-    for (NSString *base in _playlistColorRows) {
-        _playlistColorRows[base].hidden = ![theme playlistColorEnabledForBase:base];
+    for (NSString *base in _playlistColorPairs) {
+        _playlistColorPairs[base].hidden = ![theme playlistColorEnabledForBase:base];
     }
+    _cornerRadiusCluster.hidden = !theme.customCornerRadius;
     for (NSString *key in _glyphPopUps) {
         BOOL hasImage = [self buttonHasImageForKey:key];
         _buttonColorRows[key].hidden = hasImage;
@@ -852,7 +857,6 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     AppSettings *settings = AppSettings.sharedInstance;
     AppTheme *theme = settings.currentTheme;
     NSString *active = settings.activeThemeIdentifier;
-    BOOL builtIn = [AppTheme isBuiltInIdentifier:active];
     // A refresh mid-type (menu tracking, regaining key) must not discard the
     // edit, unless the active theme changed under it: then drop it rather
     // than commit it onto the wrong theme.
@@ -861,7 +865,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
         [_nameField abortEditing];
     }
     if (_nameField.currentEditor == nil) {
-        _nameField.stringValue = builtIn ? @"" : ([settings displayNameForThemeIdentifier:active] ?: @"");
+        _nameField.stringValue = [settings displayNameForThemeIdentifier:active] ?: @"";
         _nameFieldThemeIdentifier = active;
     }
 
@@ -874,7 +878,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
         NSDictionary *binding = [_wellBindings objectForKey:well];
         well.color = [theme displayColorForBase:binding[kWellBase] dark:[binding[kWellDark] boolValue]];
     }
-    _customCornerRadiusSwitch.state = StateForBOOL(theme.customCornerRadius);
+    [self selectValue:(theme.customCornerRadius ? SETTINGS_VALUE_WINDOW_TINT_CUSTOM : kChoiceStandard) in:_cornerRadiusPopUp];
     _cornerRadiusSlider.doubleValue = theme.windowCornerRadius;
     [self refreshCornerRadiusValue];
     for (NSString *key in _glyphPopUps) {
@@ -909,8 +913,9 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
                 ![AppTheme referenceIsMissing:[theme imageReferenceForKey:key]];
     }
     _playlistDurationSwitch.state = StateForBOOL(theme.showPlaylistDurationColumn);
-    for (NSString *base in _playlistColorSwitches) {
-        _playlistColorSwitches[base].state = StateForBOOL([theme playlistColorEnabledForBase:base]);
+    for (NSString *base in _playlistColorPopUps) {
+        [self selectValue:([theme playlistColorEnabledForBase:base] ? SETTINGS_VALUE_WINDOW_TINT_CUSTOM : kChoiceStandard)
+                       in:_playlistColorPopUps[base]];
     }
     [self selectValue:theme.playlistBackgroundStyle in:_playlistBackgroundPopUp];
     [self selectValue:theme.playlistTint in:_playlistTintPopUp];
@@ -921,33 +926,26 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 
     [self refreshFontValueLabels];
 
-    [SettingsRowView setControlsInView:_editorStack enabled:!builtIn];
-    // The built-in page's one live control sits inside the swept stack.
-    [SettingsRowView setControl:_duplicateButton enabled:YES];
-    if (!builtIn) {
-        BOOL info = theme.showFileInfo;
-        for (SettingsRowView *row in _fileInfoRows) {
-            [SettingsRowView setControlsInView:row enabled:info];
-        }
-        // One font shared by three readouts.
-        [SettingsRowView setControlsInView:_infoFontRow
-                                   enabled:info || theme.showStatusIcons || theme.showTimeLabels];
-        [SettingsRowView setControlsInView:_transportSection enabled:theme.showTransportButtons];
-        [SettingsRowView setControl:_transportButtonsSwitch enabled:YES];
-        [SettingsRowView setControlsInView:_timeSection enabled:theme.showTimeLabels];
-        [SettingsRowView setControl:_timeLabelsSwitch enabled:YES];
-        [SettingsRowView setControl:_keyNotationPopUp enabled:info && showKey];
-        [SettingsRowView setControl:_keyColorsSwitch enabled:info && showKey];
-        // The slider governs nothing while the window draws the standard radius.
-        [SettingsRowView setControl:_cornerRadiusSlider enabled:theme.customCornerRadius];
-        NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:theme.waveformStyle];
-        [SettingsRowView setControl:_waveformBarDensitySlider
-                enabled:[WaveformRendererRegistry supportsBarDensityForIdentifier:style]];
-        [SettingsRowView setControl:_waveformBarWidthSlider
-                enabled:[WaveformRendererRegistry supportsBarWidthForIdentifier:style]];
+    BOOL info = theme.showFileInfo;
+    for (SettingsRowView *row in _fileInfoRows) {
+        [SettingsRowView setControlsInView:row enabled:info];
     }
-    if (builtIn || (_fontEditingSlot == VibeFontSlotInfo
-            && !(theme.showFileInfo || theme.showStatusIcons || theme.showTimeLabels))) {
+    // One font shared by three readouts.
+    [SettingsRowView setControlsInView:_infoFontRow
+                               enabled:info || theme.showStatusIcons || theme.showTimeLabels];
+    [SettingsRowView setControlsInView:_transportSection enabled:theme.showTransportButtons];
+    [SettingsRowView setControl:_transportButtonsSwitch enabled:YES];
+    [SettingsRowView setControlsInView:_timeSection enabled:theme.showTimeLabels];
+    [SettingsRowView setControl:_timeLabelsSwitch enabled:YES];
+    [SettingsRowView setControl:_keyNotationPopUp enabled:info && showKey];
+    [SettingsRowView setControl:_keyColorsSwitch enabled:info && showKey];
+    NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:theme.waveformStyle];
+    [SettingsRowView setControl:_waveformBarDensitySlider
+            enabled:[WaveformRendererRegistry supportsBarDensityForIdentifier:style]];
+    [SettingsRowView setControl:_waveformBarWidthSlider
+            enabled:[WaveformRendererRegistry supportsBarWidthForIdentifier:style]];
+    if (_fontEditingSlot == VibeFontSlotInfo
+            && !(theme.showFileInfo || theme.showStatusIcons || theme.showTimeLabels)) {
         [self closeEditorPanels];
     }
 }
@@ -1046,6 +1044,13 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     [self themeFieldDidChange:VibeSettingsLiveEffectAppIcon];
 }
 
+- (void)cornerRadiusModeChanged:(NSPopUpButton *)sender {
+    [self chooseFromPopUp:sender revealing:nil wells:@[] effect:VibeSettingsLiveEffectWindowChrome
+                    write:^(AppTheme *theme, NSString *identifier) {
+        theme.customCornerRadius = [identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
+    }];
+}
+
 - (void)cornerRadiusChanged:(id)sender {
     // The sanitize gate rounds to whole points; the knob re-syncs to it.
     double radius = _cornerRadiusSlider.doubleValue;
@@ -1107,8 +1112,13 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
             return;
         }
         NSError *error = nil;
+        NSString *destination = target;
+        if ([destination isEqualToString:AppSettings.sharedInstance.activeThemeIdentifier]
+                && [self forkBuiltInForEdit]) {
+            destination = AppSettings.sharedInstance.activeThemeIdentifier;
+        }
         BOOL stored = [AppSettings.sharedInstance setCurrentThemeImageForKey:key
-                themeIdentifier:target data:^{
+                themeIdentifier:destination data:^{
             return [NSData dataWithContentsOfURL:panel.URL options:NSDataReadingMappedIfSafe error:NULL];
         } error:&error];
         if (!stored) {
@@ -1212,6 +1222,15 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 
 #pragma mark - Editor: playlist
 
+- (void)playlistColorModeChanged:(NSPopUpButton *)sender {
+    NSString *base = sender.identifier;
+    [self chooseFromPopUp:sender revealing:SETTINGS_VALUE_WINDOW_TINT_CUSTOM wells:@[_playlistColorPairs[base]]
+                   effect:VibeSettingsLiveEffectPlaylistAppearance
+                    write:^(AppTheme *theme, NSString *identifier) {
+        [theme setPlaylistColorEnabled:[identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM] forBase:base];
+    }];
+}
+
 - (void)playlistBackgroundStyleChanged:(id)sender {
     [self chooseFromPopUp:_playlistBackgroundPopUp revealing:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID
                     wells:@[_playlistBackgroundColorsRow] effect:VibeSettingsLiveEffectPlaylistAppearance
@@ -1250,18 +1269,24 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     if (notification.object != _nameField) {
         return;
     }
-    NSString *active = AppSettings.sharedInstance.activeThemeIdentifier;
-    if ([AppTheme isBuiltInIdentifier:active]) {
-        return;
-    }
+    AppSettings *settings = AppSettings.sharedInstance;
+    NSString *active = settings.activeThemeIdentifier;
     // An edit that outlived a theme switch is dropped, never committed onto
     // the theme that is now active (see _nameFieldThemeIdentifier).
     if (![active isEqualToString:_nameFieldThemeIdentifier]) {
         [self refreshFromSettings];
         return;
     }
-    [AppSettings.sharedInstance renameUserThemeWithIdentifier:active
-                                                       toName:_nameField.stringValue];
+    if ([AppTheme isBuiltInIdentifier:active]) {
+        // Retyping the built-in's own name is no edit.
+        if ([_nameField.stringValue isEqualToString:[settings displayNameForThemeIdentifier:active]]
+                || ![self forkBuiltInForEdit]) {
+            [self refreshFromSettings];
+            return;
+        }
+        active = settings.activeThemeIdentifier;
+    }
+    [settings renameUserThemeWithIdentifier:active toName:_nameField.stringValue];
     // The stored name may have been deduped or fallback-named; show what
     // actually landed.
     [self refreshFromSettings];

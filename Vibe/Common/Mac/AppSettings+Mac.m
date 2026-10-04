@@ -84,7 +84,7 @@ const size_t kVibeUIUpdateHzCapPresetCount =
             SETTING_WAVEFORM_DRAG_BEHAVIOR:         SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW,
             SETTING_ARTWORK_DRAG_ACTION:            SETTINGS_VALUE_ARTWORK_DRAG_COPY_FILE,
             SETTING_DELETE_ORIGINAL_AFTER_CONVERT:  @(NO),
-            SETTING_CONVERT_ENABLED:                @(YES),
+            SETTING_CONVERT_ENABLED:                @(NO),
             SETTING_SKIP_BASE_BARS:                 @(8),
             SETTING_REOPEN_LAST_PLAYLIST:           @(NO),
             SETTING_UI_UPDATE_HZ_CAP:               @(60),

@@ -194,6 +194,13 @@ extern const int kCodableAudioWaveformVersion;
 // zero-filled default is C major.
 @property (nonatomic) NSInteger key;
 
+// Whether the decode ran each analyzer, so a request asking for one this
+// entry skipped misses and decodes again: turning detection on reaches files
+// first decoded while it was off. An archive from before the flags reads YES,
+// keeping its old meaning rather than re-decoding every cached file.
+@property (nonatomic) BOOL bpmAnalyzed;
+@property (nonatomic) BOOL keyAnalyzed;
+
 - (id)initWithWaveform:(AudioWaveform *)waveform;
 
 // A deep copy of the current chunk buffer, wrapped in a new object that owns

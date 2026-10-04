@@ -822,10 +822,11 @@ NSString *VibeDebugSettingsDump(void) {
 }
 
 NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
-    // The toolbar sits outside the pane, beyond the walker's reach; its
-    // navigation pill and its light/dark preview toggle route by name so
-    // scripts keep one addressing scheme. Both are the Appearance pane's own
-    // model, so both are driven through it rather than through the control.
+    // The toolbar and the sidebar's search sit outside the pane, beyond the
+    // walker's reach; they route by name so scripts keep one addressing
+    // scheme, driven through their models rather than through the controls:
+    // the history and the search are the window controller's, the rest the
+    // Appearance pane's.
     BOOL back = tokens.count == 2 && [tokens[1] caseInsensitiveCompare:@"back"] == NSOrderedSame;
     BOOL forward = tokens.count == 2
             && [tokens[1] caseInsensitiveCompare:@"forward"] == NSOrderedSame;
@@ -834,14 +835,40 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
     BOOL randomize = tokens.count == 3
             && [tokens[1] caseInsensitiveCompare:@"randomize"] == NSOrderedSame;
     BOOL undo = tokens.count == 2 && [tokens[1] caseInsensitiveCompare:@"undo"] == NSOrderedSame;
-    if (back || forward || preview || randomize || undo) {
+    BOOL search = tokens.count == 3 && [tokens[1] caseInsensitiveCompare:@"search"] == NSOrderedSame;
+    if (back || forward || preview || randomize || undo || search) {
         NSString *tabsError = nil;
         NSTabViewController *tabs = VibeSettingsTabs(&tabsError);
         if (!tabs) {
             return tabsError;
         }
-        SettingsAppearanceViewController *pane =
-                [(SettingsWindowController *)VibeSettingsWindow().windowController appearancePane];
+        SettingsWindowController *controller = (SettingsWindowController *)VibeSettingsWindow().windowController;
+        if (search) {
+            NSArray<NSString *> *panes = [controller searchSettingsFor:tokens[2]];
+            NSTabViewItem *selected = VibeSelectedPane(tabs);
+            return VibeJSONString(@{@"ok": @YES, @"control": @"search", @"query": tokens[2],
+                                    @"panes": panes, @"pane": selected ? VibePaneIdentifier(selected) : @""});
+        }
+        if (back || forward) {
+            if (![controller canNavigateForward:forward]) {
+                return VibeErrorJSON(@"%@ is not available here", tokens[1].lowercaseString);
+            }
+            [controller navigateForward:forward];
+            return VibeJSONString(@{@"ok": @YES, @"control": tokens[1].lowercaseString,
+                                    @"action": @"navigated"});
+        }
+        if (undo) {
+            // Edit > Undo's own road: the theme history on Appearance, the
+            // selected pane's undo stack elsewhere.
+            NSMenuItem *probe = [[NSMenuItem alloc] initWithTitle:@"" action:@selector(undo:) keyEquivalent:@""];
+            if (![(id<NSMenuItemValidation>)controller validateMenuItem:probe]) {
+                return VibeErrorJSON(@"undo is not available here");
+            }
+            [controller undo:nil];
+            return VibeJSONString(@{@"ok": @YES, @"control": @"undo", @"action": @"undone",
+                                    @"undid": probe.title});
+        }
+        SettingsAppearanceViewController *pane = [controller appearancePane];
         if (pane) {
             if (preview) {
                 BOOL dark = [tokens[2] caseInsensitiveCompare:@"dark"] == NSOrderedSame;
@@ -856,29 +883,17 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
                                                 AppSettings.sharedInstance.windowAppearanceStyle
                                                         ?: @""});
             }
-            if (undo) {
-                if (![pane canRestoreThemeHistoryForward:NO]) {
-                    return VibeErrorJSON(@"undo is not available here");
-                }
-                [pane restoreThemeHistoryForward:NO];
-                return VibeJSONString(@{@"ok": @YES, @"control": @"undo", @"action": @"undone"});
-            }
             if (randomize) {
                 BOOL colors = [tokens[2] caseInsensitiveCompare:@"colors"] == NSOrderedSame;
                 if (!colors && [tokens[2] caseInsensitiveCompare:@"settings"] != NSOrderedSame) {
                     return VibeErrorJSON(@"usage: settings_click randomize <settings|colors>");
                 }
-                if (!pane.canRandomize) {
+                if (!pane.editorShown) {
                     return VibeErrorJSON(@"randomize is not available here");
                 }
                 colors ? [pane randomizeThemeColors] : [pane randomizeThemeSettings];
                 return VibeJSONString(@{@"ok": @YES, @"control": @"randomize",
                                         @"action": @"rolled", @"rolled": tokens[2].lowercaseString});
-            }
-            if (back ? pane.canGoBack : pane.canGoForward) {
-                back ? [pane navigateBack] : [pane navigateForward];
-                return VibeJSONString(@{@"ok": @YES, @"control": tokens[1].lowercaseString,
-                                        @"action": @"navigated"});
             }
             return VibeErrorJSON(@"%@ is not available here", tokens[1].lowercaseString);
         }

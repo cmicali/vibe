@@ -7,6 +7,7 @@
 #import "ArtworkDisplayController.h"
 #import "PlaylistController.h"
 #import "MainPlayerControllerInternal.h"
+#import "MainPlayerController+PlayerEvents.h"
 #import "MainPlayerController+Menus.h"
 #import "MainPlayerController+NowPlaying.h"
 #import "MainPlayerController+Transport.h"
@@ -14,7 +15,10 @@
 #import "MainWindow.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
+#import "AudioFileFormat.h"
 #import "AudioFileHandle.h"
+#import "AudioTrack.h"
+#import "AudioTrackMetadata.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+Devices.h"
 #import "AudioWaveformView.h"
@@ -54,7 +58,11 @@
 }
 
 - (void)resetShortcuts {
-    AppSettings.sharedInstance.shortcutOverrides = @{};
+    [self setShortcutOverrides:@{}];
+}
+
+- (void)setShortcutOverrides:(NSDictionary<NSString *, NSNumber *> *)overrides {
+    AppSettings.sharedInstance.shortcutOverrides = overrides;
     [self applySettingsLiveEffects:VibeSettingsLiveEffectShortcuts];
 }
 
@@ -96,11 +104,14 @@
     if (effects & VibeSettingsLiveEffectDeclick) {
         self.audioPlayer.declick = settings.declick;
     }
-    if (effects & VibeSettingsLiveEffectMP3Decoder) {
+    // A reset requests every effect; an unchanged choice reopens nothing.
+    if ((effects & VibeSettingsLiveEffectMP3Decoder)
+            && AudioFileHandle.appleMPEGDecoder != settings.appleMPEGDecoder) {
         AudioFileHandle.appleMPEGDecoder = settings.appleMPEGDecoder;
         // The parked next track was opened with the old decoder: reopen it.
         [self.audioPlayer prefetchTrack:nil];
         [self applyEndOfTrackAction];
+        [self replayCurrentMPEGTrack];
     }
     if (effects & VibeSettingsLiveEffectVolume) {
         self.audioPlayer.volume = (float)settings.effectiveVolume;
@@ -153,13 +164,16 @@
     }
     if (effects & VibeSettingsLiveEffectWaveformStyle) {
         self.waveformView.waveformStyle = settings.currentTheme.waveformStyle;
-        // The track on screen was likely decoded without the bands.
-        BOOL bandsWanted = self.waveformCache.analysisProvider().bands;
+    }
+    if (effects & (VibeSettingsLiveEffectWaveformStyle | VibeSettingsLiveEffectTrackAnalysis)) {
+        // The track on screen was likely decoded without what is now asked
+        // for (the bands, a tempo, a key); its entry misses and decodes again.
+        VibeWaveformAnalysis wanted = self.waveformCache.analysisProvider();
         AudioTrack *track = self.playlistController.currentTrack;
-        if (bandsWanted && !_waveformBandsWanted && track && [self displayState] == TrackDisplayStateTrack) {
+        if (!VibeWaveformAnalysisCovers(_waveformAnalysisWanted, wanted) && track && [self displayState] == TrackDisplayStateTrack) {
             [self.waveformCache loadWaveformForTrack:track];
         }
-        _waveformBandsWanted = bandsWanted;
+        _waveformAnalysisWanted = wanted;
     }
     if (effects & VibeSettingsLiveEffectWaveformTheme) {
         [self refreshWaveformTheme];
@@ -199,6 +213,21 @@
         }
         [self updateFXIndicators];
         [MainMenuBuilder applyFXMenuVisibility];
+    }
+}
+
+// The decoder choice reaches a handle only at its open, so the playing MPEG
+// file reopens where it was. The sniffed codec decides, the extension only
+// before the metadata has landed.
+- (void)replayCurrentMPEGTrack {
+    AudioTrack *track = self.playlistController.currentTrack;
+    VibeAudioFileFormat format = track.metadata.fileType;
+    NSString *extension = track.url.pathExtension.lowercaseString;
+    BOOL mpeg = format ? ([format isEqualToString:VibeAudioFileFormatMP3] || [format isEqualToString:VibeAudioFileFormatMP2])
+                       : ([extension isEqualToString:@"mp3"] || [extension isEqualToString:@"mp2"]);
+    VibePendingPlaybackIntent intent = {0};
+    if (mpeg && [self.audioPlayer getPlaybackIntent:&intent forTrack:track]) {
+        [self replayTrack:track intent:intent];
     }
 }
 

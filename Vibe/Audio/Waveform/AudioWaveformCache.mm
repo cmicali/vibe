@@ -167,10 +167,11 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
     if (existing) {
         existing.deliveryTrack = track;
         _currentLoadTrack = track;
-        // A decode without the bands, as when 3-Band is chosen mid-load, is
-        // stopped rather than reattached or waited out: it would persist an
-        // entry this very request misses on.
-        BOOL answers = !analysis.bands || existing.loader.analysis.bands;
+        // A decode without the bands, a tempo or a key this request asks for,
+        // as when 3-Band is chosen or detection turned on mid-load, is stopped
+        // rather than reattached or waited out: it would persist an entry this
+        // very request misses on.
+        BOOL answers = VibeWaveformAnalysisCovers(existing.loader.analysis, analysis);
         if (!answers) {
             [existing.loader cancel];
         }
@@ -419,10 +420,13 @@ awaitPersist:(BOOL)awaitPersist
         [self->_waveformCache.diskCache removeObjectForKey:cacheKey];
         cachedWaveform = nil;
     }
-    // An entry decoded without the bands is a miss for a request that wants
-    // them, and that decode replaces it with one that has them. Every other
-    // request takes it, so no entry is ever invalidated for the bands.
-    if (cachedWaveform && loader.analysis.bands && !cachedWaveform.waveform->hasBands()) {
+    // An entry decoded without the bands, or without an analyzer this
+    // request runs, is a miss for it, and that decode replaces it with one
+    // that has them. Every other request takes it, so no entry is ever
+    // invalidated for what it lacks.
+    if (cachedWaveform && !VibeWaveformAnalysisCovers((VibeWaveformAnalysis){
+                .bpm = cachedWaveform.bpmAnalyzed, .key = cachedWaveform.keyAnalyzed,
+                .bands = cachedWaveform.waveform->hasBands()}, loader.analysis)) {
         cachedWaveform = nil;
     }
     if (cachedWaveform) {

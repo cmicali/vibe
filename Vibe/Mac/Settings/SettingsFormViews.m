@@ -120,6 +120,7 @@ static SettingsFillView *Hairline(NSView *in) {
 
 @implementation SettingsRowView {
     SettingsFillView *_separator;
+    SettingsFillView *_searchMark;
     NSTableView *_listTable;
     SettingsFillView *_listHeader;
     // Built on first use by setCaption:.
@@ -243,6 +244,11 @@ static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat
     }
     [self refreshControlAppearance];
     return changed;
+}
+
+- (BOOL)setCaption:(NSString *)caption detail:(NSString *)detail {
+    return [self setCaption:detail.length
+            ? [NSString stringWithFormat:VibeNotLocalized(@"%@\n%@"), caption, detail] : caption];
 }
 
 // Measured, not assumed from the text: YES costs the caller a full Auto Layout
@@ -496,6 +502,32 @@ static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat
     return _separator != nil;
 }
 
+- (BOOL)searchHighlighted {
+    return _searchMark != nil;
+}
+
+- (void)setSearchHighlighted:(BOOL)searchHighlighted {
+    if (searchHighlighted == (_searchMark != nil)) {
+        return;
+    }
+    if (!searchHighlighted) {
+        [_searchMark removeFromSuperview];
+        _searchMark = nil;
+        return;
+    }
+    SettingsFillView *mark = [[SettingsFillView alloc] initWithFrame:NSZeroRect];
+    mark.darkColor = mark.lightColor = [NSColor.controlAccentColor colorWithAlphaComponent:0.18];
+    mark.cornerRadius = 6;
+    [self addSubview:mark positioned:NSWindowBelow relativeTo:nil];
+    [NSLayoutConstraint activateConstraints:@[
+        [mark.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:4],
+        [mark.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-4],
+        [mark.topAnchor constraintEqualToAnchor:self.topAnchor constant:2],
+        [mark.bottomAnchor constraintEqualToAnchor:self.bottomAnchor constant:-2],
+    ]];
+    _searchMark = mark;
+}
+
 @end
 
 #pragma mark - Section
@@ -543,6 +575,9 @@ static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat
         headerLabel.translatesAutoresizingMaskIntoConstraints = NO;
         headerLabel.font = [NSFont systemFontOfSize:13 weight:NSFontWeightSemibold];
         headerLabel.textColor = NSColor.labelColor;
+        headerLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+        [headerLabel setContentCompressionResistancePriority:NSLayoutPriorityFittingSizeCompression - 1
+                                              forOrientation:NSLayoutConstraintOrientationHorizontal];
         [section addSubview:headerLabel];
         section->_headerLabel = headerLabel;
         [NSLayoutConstraint activateConstraints:@[
@@ -561,6 +596,13 @@ static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat
         [card.bottomAnchor constraintEqualToAnchor:section.bottomAnchor],
     ]];
     return section;
+}
+
+- (void)setHeader:(NSString *)header {
+    NSString *label = header.vibeFormLabel;
+    if (![_headerLabel.stringValue isEqualToString:label]) {
+        _headerLabel.stringValue = label;
+    }
 }
 
 @end

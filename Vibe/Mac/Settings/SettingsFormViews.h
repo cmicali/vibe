@@ -46,6 +46,9 @@ static const CGFloat kSettingsRowInset = 16;
                      caption:(nullable NSString *)caption
                      control:(NSView *)control;
 + (instancetype)rowWithTitle:(nullable NSString *)title controls:(NSArray<NSView *> *)controls;
++ (instancetype)rowWithTitle:(nullable NSString *)title
+                     caption:(nullable NSString *)caption
+                    controls:(NSArray<NSView *> *)controls;
 // Spans the card's width with no trailing cluster.
 // TRAP: the content is pinned leading-to-trailing, so it must carry no
 // required width, fixed or capped: the pin climbs to the window's content
@@ -85,10 +88,16 @@ static const CGFloat kSettingsRowInset = 16;
 // An empty caption hides the label and recenters the title. Answers whether
 // the row's height changed; the caller remeasures the pane only then.
 - (BOOL)setCaption:(nullable NSString *)caption;
+// What the row does, then on its own line why it is unavailable or how it
+// settled; a nil detail leaves the description alone.
+- (BOOL)setCaption:(NSString *)caption detail:(nullable NSString *)detail;
 
 // Set by the section on every row but its first, so a hidden row takes its
 // separator with it.
 @property (nonatomic) BOOL showsTopSeparator;
+
+// The sidebar search's mark: an accent wash behind the row.
+@property (nonatomic) BOOL searchHighlighted;
 
 @end
 
@@ -100,6 +109,10 @@ static const CGFloat kSettingsRowInset = 16;
                              rows:(NSArray<SettingsRowView *> *)rows;
 
 @property (readonly, nullable) NSTextField *headerLabel;
+
+// Retitles a section built with a header; the label truncates rather than
+// widening every pane.
+- (void)setHeader:(NSString *)header;
 
 @end
 
