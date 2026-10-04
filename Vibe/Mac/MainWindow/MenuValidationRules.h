@@ -43,7 +43,6 @@ typedef NS_ENUM(NSInteger, VibeMenuValidationDomain) {
 // The window-size and theme families are derived below.
 static NSString *const kVibeMenuShowPlaylist = @"menu_show_playlist";
 static NSString *const kVibeMenuShowPitch = @"menu_show_pitch";
-static NSString *const kVibeMenuShowFileInfo = @"menu_show_file_info";
 static NSString *const kVibeMenuAlwaysOnTop = @"menu_always_on_top";
 static NSString *const kVibeMenuLockWindowPosition = @"menu_lock_window_position";
 
@@ -149,7 +148,6 @@ static inline VibeMenuValidationDomain VibeMenuValidationDomainForIdentifier(NSS
     }
     if ([identifier isEqualToString:kVibeMenuShowPlaylist]
             || [identifier isEqualToString:kVibeMenuShowPitch]
-            || [identifier isEqualToString:kVibeMenuShowFileInfo]
             || [identifier isEqualToString:kVibeMenuAlwaysOnTop]
             || [identifier isEqualToString:kVibeMenuLockWindowPosition]) {
         return VibeMenuValidationDomainViewToggle;

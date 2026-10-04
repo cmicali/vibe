@@ -146,15 +146,15 @@ static NSString *CommandForKey(unsigned short keyCode, NSEventModifierFlags modi
     XCTAssertNil(loser);
 
     // Clearing names no loser and needs no character.
-    overrides = VibeShortcutOverridesByAssigning(overrides, kVibeMenuShowFileInfo, kVibeShortcutNone, 0, &loser);
+    overrides = VibeShortcutOverridesByAssigning(overrides, kVibeMenuAlwaysOnTop, kVibeShortcutNone, 0, &loser);
     XCTAssertNil(loser);
-    XCTAssertNil(overrides[kVibeMenuShowFileInfo], @"already None by default");
+    XCTAssertNil(overrides[kVibeMenuAlwaysOnTop], @"already None by default");
 }
 
 - (void)testAKeyCodeCollidesWithACharacterDefaultByCharacter {
     NSString *loser = nil;
     // ⌘O recorded on a QWERTY layout lands on Open's character default.
-    NSDictionary *overrides = VibeShortcutOverridesByAssigning(nil, kVibeMenuShowFileInfo,
+    NSDictionary *overrides = VibeShortcutOverridesByAssigning(nil, kVibeMenuAlwaysOnTop,
             VibeShortcutMake(31, kCmd), 'o', &loser);
     XCTAssertEqualObjects(loser, kVibeMenuOpen);
     XCTAssertEqual(VibeShortcutEffective(kVibeMenuOpen, overrides), kVibeShortcutNone);
@@ -202,7 +202,7 @@ static NSString *CommandForKey(unsigned short keyCode, NSEventModifierFlags modi
     XCTAssertEqual(VibeShortcutEffective(kVibeMenuPlay, stored), VibeShortcutDefault(kVibeMenuPlay));
     XCTAssertEqual(VibeShortcutEffective(kVibeMenuNextTrack, stored), VibeShortcutDefault(kVibeMenuNextTrack));
     XCTAssertEqual(VibeShortcutEffective(kVibeMenuSkipBack, stored), VibeShortcutDefault(kVibeMenuSkipBack));
-    NSDictionary *cleaned = VibeShortcutOverridesByAssigning(stored, kVibeMenuShowFileInfo, kVibeShortcutNone, 0, NULL);
+    NSDictionary *cleaned = VibeShortcutOverridesByAssigning(stored, kVibeMenuAlwaysOnTop, kVibeShortcutNone, 0, NULL);
     XCTAssertEqualObjects(cleaned, @{});
 }
 

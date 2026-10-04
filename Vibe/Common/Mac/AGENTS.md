@@ -30,6 +30,10 @@
 
 **`sweepUnreferencedThemeImages` covers every image field of every record** — stored themes, built-in divergence, and every theme list and working record in both sides of every history entry (`ThemeHistoryRecords`) — keyed on `AppTheme.customImageFilesInRecord:`. An image remains available while undo or redo can restore it. Dropping an image-bearing redo branch or evicting an entry at the cap sweeps even when the latest edit changed no image field, a rename included. Both reset actions clear history and the appearance preview *before* sweeping. Reset to defaults preserves stored user themes and their images; factory reset removes the user-theme key first, then uses the same reset path.
 
+## The display-settings migration
+
+**`migrateThemeDisplaySettings` runs at init beside the loose-settings migration, before `registerDefaults`.** Through 1.14 a theme record carried the display choices (`Theme/AGENTS.md`); the active theme's — the divergence key, else the active user theme's entry — become the app-wide settings so nothing on screen changes, then every stored record drops them, which is what makes it run once. A divergence left equal to its built-in is removed rather than kept as an empty modification. No shipped built-in set a display field, so only stored records are read. The six pre-theme loose keys (`MainWindow.showFileInfo` and friends) are the same keys the settings now use, so the loose-settings migration no longer consumes them.
+
 ## The loose-settings migration
 
 **`migrateLooseAppearanceSettingsToTheme` runs at `AppSettings` init BEFORE `registerDefaults`** — the ordering is load-bearing, since its presence checks must not see the registration domain. `+[AppTheme migratedRecordFromLegacyValues:]` decides the record, after the migration maps an old build's display-name style to its identifier and gives a themeless Sonic Cirrus store the orange it drew (`VibeMigratedWaveformTheme`); the migration consumes the loose keys it reads, the shared-named waveform keys included: this is the Mac store, and iOS is a separate app over a separate one.

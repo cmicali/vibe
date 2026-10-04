@@ -68,17 +68,17 @@ NSString *const kPlaylistColumnLength = @"lengthColumn";
             column.resizingMask = NSTableColumnAutoresizingMask;
             [self addTableColumn:column];
         }
-        [self applyThemedColumnVisibility];
+        [self applyColumnVisibility];
     }
     return self;
 }
 
 // The title column absorbs freed width through sequential autoresizing.
-- (void)applyThemedColumnVisibility {
-    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    [self tableColumnWithIdentifier:kPlaylistColumnNumber].hidden = !theme.showPlaylistNumberColumn;
-    [self tableColumnWithIdentifier:kPlaylistColumnArt].hidden = !theme.showPlaylistArtworkColumn;
-    [self tableColumnWithIdentifier:kPlaylistColumnLength].hidden = !theme.showPlaylistDurationColumn;
+- (void)applyColumnVisibility {
+    AppSettings *settings = AppSettings.sharedInstance;
+    [self tableColumnWithIdentifier:kPlaylistColumnNumber].hidden = !settings.showPlaylistNumberColumn;
+    [self tableColumnWithIdentifier:kPlaylistColumnArt].hidden = !settings.showPlaylistArtworkColumn;
+    [self tableColumnWithIdentifier:kPlaylistColumnLength].hidden = !settings.showPlaylistDurationColumn;
 }
 
 + (NSScrollView *)scrollViewWithFrame:(NSRect)frame {

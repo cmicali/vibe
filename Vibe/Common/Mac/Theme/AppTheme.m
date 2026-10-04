@@ -35,14 +35,6 @@ static NSString *const kFieldWindowBackgroundStyle = @"windowBackgroundStyle";
 static NSString *const kFieldPlaylistBackgroundStyle = @"playlistBackgroundStyle";
 static NSString *const kFieldWindowCornerRadius = @"windowCornerRadius";
 static NSString *const kFieldShowTransportButtons = @"showTransportButtons";
-static NSString *const kFieldShowStatusIcons = @"showStatusIcons";
-static NSString *const kFieldShowTimeLabels = @"showTimeLabels";
-static NSString *const kFieldShowFileInfo = @"showFileInfo";
-static NSString *const kFieldShowRemainingTime = @"showRemainingTime";
-static NSString *const kFieldShowBPM = @"showBPM";
-static NSString *const kFieldShowKey = @"showKey";
-static NSString *const kFieldKeyColorsEnabled = @"keyColorsEnabled";
-static NSString *const kFieldKeyNotation = @"keyNotation";
 static NSString *const kFieldVolumeBar = @"volumeBar";
 static NSString *const kFieldVolumeKnob = @"volumeKnob";
 static NSString *const kFieldShowVolumeLabels = @"showVolumeLabels";
@@ -57,11 +49,7 @@ static NSString *const kFieldPlaylistFontFace = @"playlistFontFace";
 static NSString *const kFieldPlaylistFontSize = @"playlistFontSize";
 static NSString *const kFieldPlaylistDurationFontFace = @"playlistDurationFontFace";
 static NSString *const kFieldPlaylistDurationFontSize = @"playlistDurationFontSize";
-static NSString *const kFieldShowPlaylistNumberColumn = @"showPlaylistNumberColumn";
-static NSString *const kFieldShowPlaylistArtworkColumn = @"showPlaylistArtworkColumn";
-static NSString *const kFieldShowPlaylistDurationColumn = @"showPlaylistDurationColumn";
 static NSString *const kFieldCustomCornerRadius = @"customCornerRadius";
-static NSString *const kFieldDockIcon = @"dockIcon";
 static NSString *const kFieldAppIconShape = @"appIconShape";
 static NSString *const kFieldButtonGradient = @"buttonGradient";
 static NSString *const kFieldPlaylistButtonGlyph = @"playlistButtonGlyph";
@@ -298,8 +286,6 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
                               NumberField(kCornerRadiusMin, kVibeThemeCornerRadiusMax, YES))];
         [rows addObject:Field(kFieldCustomCornerRadius, window, @"customCornerRadius", @NO, BoolField())];
         [rows addObject:ImageFieldSpec(kVibeThemeImageAppIcon, window, @"app_icon")];
-        [rows addObject:Field(kFieldDockIcon, window, @"dockIcon", SETTINGS_VALUE_DOCK_ICON_ALBUM_ART,
-                              LadderField(VibeNormalizedDockIcon))];
         [rows addObject:Field(kFieldAppIconShape, window, @"appIconShape", @YES, BoolField())];
 
         // front/back rather than dark/light: exported archives carry these.
@@ -343,20 +329,11 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
                               @(kVibeThemeArtistFontBaseSize), NumberField(12, 20, NO))];
         AddColorPair(rows, kVibeThemeColorArtist, player, @"artistColor");
 
-        [rows addObject:Field(kFieldShowStatusIcons, info, @"showStatusIcons", @YES, BoolField())];
-        [rows addObject:Field(kFieldShowTimeLabels, info, @"showTimeLabels", @YES, BoolField())];
-        [rows addObject:Field(kFieldShowFileInfo, info, @"showFileInfo", @YES, BoolField())];
         [rows addObject:Field(kFieldInfoFontFace, info, @"fontFace", @"", TextField())];
         [rows addObject:Field(kFieldInfoFontSize, info, @"fontSize",
                               @(kVibeThemeInfoFontBaseSize), NumberField(10, 15, NO))];
         AddColorPair(rows, kVibeThemeColorInfo, info, @"color");
         AddColorPair(rows, kVibeThemeColorTime, info, @"timeColor");
-        [rows addObject:Field(kFieldShowRemainingTime, info, @"showRemainingTime", @NO, BoolField())];
-        [rows addObject:Field(kFieldShowBPM, info, @"showBPM", @YES, BoolField())];
-        [rows addObject:Field(kFieldShowKey, info, @"showKey", @YES, BoolField())];
-        [rows addObject:Field(kFieldKeyNotation, info, @"keyNotation", SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
-                              LadderField(VibeNormalizedKeyNotation))];
-        [rows addObject:Field(kFieldKeyColorsEnabled, info, @"keyColorsEnabled", @NO, BoolField())];
 
         [rows addObject:Field(kFieldVolumeBar, volume, @"bar", SETTINGS_VALUE_VOLUME_WAVEFORM,
                               LadderField(VibeNormalizedVolumeBar))];
@@ -397,9 +374,6 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
         [rows addObject:Field(kFieldPlaylistDurationFontFace, playlist, @"durationFontFace", @"", TextField())];
         [rows addObject:Field(kFieldPlaylistDurationFontSize, playlist, @"durationFontSize",
                               @(kVibeThemePlaylistDurationFontBaseSize), NumberField(10, 14, NO))];
-        [rows addObject:Field(kFieldShowPlaylistNumberColumn, playlist, @"showNumberColumn", @YES, BoolField())];
-        [rows addObject:Field(kFieldShowPlaylistArtworkColumn, playlist, @"showArtworkColumn", @YES, BoolField())];
-        [rows addObject:Field(kFieldShowPlaylistDurationColumn, playlist, @"showDurationColumn", @YES, BoolField())];
         AddSwitchedColorPair(rows, kVibeThemeColorPlaylistNumber, playlist, @"numberColor", kVibeThemeColorArtist);
         AddSwitchedColorPair(rows, kVibeThemeColorPlaylistTitle, playlist, @"titleColor", kVibeThemeColorTitle);
         AddSwitchedColorPair(rows, kVibeThemeColorPlaylistArtist, playlist, @"artistColor", kVibeThemeColorArtist);
@@ -1245,9 +1219,6 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
     return self.customCornerRadius ? self.windowCornerRadius : kVibeThemeCornerRadiusDefault;
 }
 
-- (NSString *)dockIcon { return [self stringForKey:kFieldDockIcon]; }
-- (void)setDockIcon:(NSString *)v { [self storeSanitized:v forKey:kFieldDockIcon]; }
-
 - (BOOL)appIconShape { return [self boolForKey:kFieldAppIconShape]; }
 - (void)setAppIconShape:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldAppIconShape]; }
 
@@ -1268,30 +1239,6 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 
 - (BOOL)showTransportButtons { return [self boolForKey:kFieldShowTransportButtons]; }
 - (void)setShowTransportButtons:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowTransportButtons]; }
-
-- (BOOL)showStatusIcons { return [self boolForKey:kFieldShowStatusIcons]; }
-- (void)setShowStatusIcons:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowStatusIcons]; }
-
-- (BOOL)showTimeLabels { return [self boolForKey:kFieldShowTimeLabels]; }
-- (void)setShowTimeLabels:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowTimeLabels]; }
-
-- (BOOL)showFileInfo { return [self boolForKey:kFieldShowFileInfo]; }
-- (void)setShowFileInfo:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowFileInfo]; }
-
-- (BOOL)showRemainingTime { return [self boolForKey:kFieldShowRemainingTime]; }
-- (void)setShowRemainingTime:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowRemainingTime]; }
-
-- (BOOL)showBPM { return [self boolForKey:kFieldShowBPM]; }
-- (void)setShowBPM:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowBPM]; }
-
-- (BOOL)showKey { return [self boolForKey:kFieldShowKey]; }
-- (void)setShowKey:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowKey]; }
-
-- (BOOL)keyColorsEnabled { return [self boolForKey:kFieldKeyColorsEnabled]; }
-- (void)setKeyColorsEnabled:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldKeyColorsEnabled]; }
-
-- (NSString *)keyNotation { return [self stringForKey:kFieldKeyNotation]; }
-- (void)setKeyNotation:(NSString *)v { [self storeSanitized:v forKey:kFieldKeyNotation]; }
 
 - (NSString *)volumeBar { return [self stringForKey:kFieldVolumeBar]; }
 - (void)setVolumeBar:(NSString *)v { [self storeSanitized:v forKey:kFieldVolumeBar]; }
@@ -1383,15 +1330,6 @@ static void FontSlotKeys(VibeFontSlot slot, NSString **faceKey, NSString **sizeK
                                                                                      : kVibeThemeImageDefaultArtworkLight]];
 }
 
-- (BOOL)showPlaylistNumberColumn { return [self boolForKey:kFieldShowPlaylistNumberColumn]; }
-- (void)setShowPlaylistNumberColumn:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowPlaylistNumberColumn]; }
-
-- (BOOL)showPlaylistArtworkColumn { return [self boolForKey:kFieldShowPlaylistArtworkColumn]; }
-- (void)setShowPlaylistArtworkColumn:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowPlaylistArtworkColumn]; }
-
-- (BOOL)showPlaylistDurationColumn { return [self boolForKey:kFieldShowPlaylistDurationColumn]; }
-- (void)setShowPlaylistDurationColumn:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowPlaylistDurationColumn]; }
-
 #pragma mark Dice
 
 static NSString *const kRandomMonoFontFace = @"Menlo-Regular";
@@ -1440,9 +1378,6 @@ static id RandomPick(NSArray *choices) {
     self.volumeBar = RandomPick([tints arrayByAddingObject:SETTINGS_VALUE_VOLUME_WAVEFORM]);
     self.volumeKnob = RandomPick([tints arrayByAddingObjectsFromArray:
             @[SETTINGS_VALUE_VOLUME_WAVEFORM, SETTINGS_VALUE_VOLUME_KNOB_BAR]]);
-    self.showPlaylistNumberColumn = RandomChance(75);
-    self.showPlaylistArtworkColumn = RandomChance(75);
-    self.showPlaylistDurationColumn = RandomChance(75);
     NSString *face = RandomPick(AppTheme.randomizableFontFaces);
     NSString *numbers = RandomChance(50) ? kRandomMonoFontFace : face;
     [self setFontFace:face size:kVibeThemeTitleFontBaseSize forSlot:VibeFontSlotTitle];

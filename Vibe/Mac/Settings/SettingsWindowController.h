@@ -17,12 +17,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 // audioPane answers nil unless that pane is on screen, so outside refreshes
 // cost nothing for a closed window; the pane catches up when it appears.
-- (nullable SettingsAppearanceViewController *)appearancePane;
+- (nullable SettingsAppearanceViewController *)themesPane;
 - (nullable SettingsGeneralViewController *)audioPane;
 
 - (void)refreshSelectedPane;
 
-// Selects the Appearance pane and opens the active theme's editor. The window
+// Selects the Themes pane and opens the active theme's editor. The window
 // must already be shown.
 - (void)showThemeEditor;
 
@@ -34,7 +34,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)applyContentSize:(NSSize)size;
 
 // Records the location in the back/forward history and re-reads the
-// Appearance pane's state into the toolbar. Called on every page swap and
+// Themes pane's state into the toolbar. Called on every page swap and
 // pane switch.
 - (void)updateNavigation;
 

@@ -598,11 +598,36 @@ static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat
     return section;
 }
 
++ (SettingsSectionView *)sectionContaining:(NSView *)view {
+    for (NSView *ancestor = view.superview; ancestor; ancestor = ancestor.superview) {
+        if ([ancestor isKindOfClass:self]) return (SettingsSectionView *)ancestor;
+    }
+    return nil;
+}
+
 - (void)setHeader:(NSString *)header {
     NSString *label = header.vibeFormLabel;
     if (![_headerLabel.stringValue isEqualToString:label]) {
         _headerLabel.stringValue = label;
     }
+}
+
+@end
+
+@implementation VibeDetentSlider
+
+- (void)drawRect:(NSRect)dirtyRect {
+    [super drawRect:dirtyRect];
+    if (self.maxValue <= self.minValue) {
+        return;
+    }
+    CGFloat knob = ((NSSliderCell *)self.cell).knobThickness;
+    CGFloat fraction = (self.detentValue - self.minValue) / (self.maxValue - self.minValue);
+    CGFloat x = round(knob / 2 + fraction * (NSWidth(self.bounds) - knob));
+    CGFloat midY = NSMidY(self.bounds);
+    [[NSColor.secondaryLabelColor colorWithAlphaComponent:0.6] setFill];
+    NSRectFillUsingOperation(NSMakeRect(x - 0.5, midY + 5, 1, 4), NSCompositingOperationSourceOver);
+    NSRectFillUsingOperation(NSMakeRect(x - 0.5, midY - 9, 1, 4), NSCompositingOperationSourceOver);
 }
 
 @end

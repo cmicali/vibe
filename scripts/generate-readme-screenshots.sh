@@ -85,14 +85,9 @@ SCAN_WAIT="${SCAN_WAIT:-30}"
 # The factory values of two settings the shots show, so a capture never
 # carries its author's own: normalization fills the waveform's height, and the
 # fader reads ±8. Neither has a channel verb, so this drives the Settings
-# window; the switch sits behind a disclosure, and clicking an open one would
-# close it.
+# window.
 pin_settings_defaults() {
     quiet settings_open appearance
-    if [ "$("$V" --debug-cmd dump_settings_ui \
-            | jq -r '.controls[] | select(.name == "Normalize waveform") | .hidden')" = true ]; then
-        quiet settings_click Waveform
-    fi
     quiet settings_click "Normalize waveform" on
     quiet settings_open playback
     quiet settings_click 8%

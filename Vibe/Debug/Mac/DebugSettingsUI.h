@@ -32,6 +32,10 @@ NSString *VibeDebugSettingsDump(void);
 // pane; see the usage text in the implementation for the per-kind values.
 NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens);
 
+// settings_reveal <control>: scrolls that control's card to the top of the
+// pane and acts on nothing, so a screenshot reaches a long page's lower cards.
+NSString *VibeDebugSettingsReveal(NSArray<NSString *> *tokens);
+
 // settings_resize <width> <height>: a user resize by other means. Sets the
 // content size (clamped to contentMinSize like a real drag), flushes layout,
 // and replies with the settled frame, so a constraint snap-back is observable.

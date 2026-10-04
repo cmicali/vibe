@@ -365,6 +365,17 @@ static const CGFloat kInlineTitleInset = 10;
     return cluster;
 }
 
+- (NSStackView *)detentSliderClusterWithDetent:(double)detent min:(double)min max:(double)max
+                                        action:(SEL)action width:(CGFloat)width
+                                        slider:(NSSlider *__strong *)outSlider
+                                    valueLabel:(NSTextField *__strong *)outLabel {
+    VibeDetentSlider *slider = [VibeDetentSlider sliderWithValue:detent minValue:min maxValue:max
+                                                          target:self action:action];
+    slider.detentValue = detent;
+    *outSlider = slider;
+    return [self clusterWithSlider:slider width:width valueLabel:outLabel];
+}
+
 - (NSPopUpButton *)popUpButtonWithWidth:(CGFloat)width action:(SEL)action {
     NSPopUpButton *popUp = [[VibeInlinePopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
     if (action) {
@@ -448,15 +459,6 @@ static void CollectRows(NSView *view, NSMutableArray<SettingsRowView *> *rows) {
     }
 }
 
-static NSString *SectionHeaderAbove(NSView *view) {
-    for (NSView *ancestor = view.superview; ancestor; ancestor = ancestor.superview) {
-        if ([ancestor isKindOfClass:SettingsSectionView.class]) {
-            return ((SettingsSectionView *)ancestor).headerLabel.stringValue ?: @"";
-        }
-    }
-    return @"";
-}
-
 // Every row's visibility and the text it shows, its controls' included:
 // whatever a refresh can change that moves the pane's natural size. Lists
 // inside a row keep their height whatever they hold, so they are skipped.
@@ -495,7 +497,7 @@ static void AppendLayoutText(NSView *view, NSMutableString *signature) {
     CollectRows(self.view, rows);
     NSMutableArray<NSString *> *headers = [NSMutableArray arrayWithCapacity:rows.count];
     for (SettingsRowView *row in rows) {
-        [headers addObject:SectionHeaderAbove(row)];
+        [headers addObject:[SettingsSectionView sectionContaining:row].headerLabel.stringValue ?: @""];
     }
     _rows = rows;
     _searchHeaders = headers;

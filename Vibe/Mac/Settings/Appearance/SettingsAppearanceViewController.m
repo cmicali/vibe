@@ -22,19 +22,14 @@
 #import "WaveformTheme.h"
 #import "MainPlayerController+Settings.h"
 #import "SettingsWindowController.h" // the toolbar navigation control follows the pane's pages
-#import "Formatters.h"
 #import "SettingsRules.h"
 #import "VibeStrings.h"
 
 static const NSUInteger kThemeListRowCount = 10;
 static NSString *const kThemeCellIdentifier = @"themeCell";
 static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
-// Within this many dB of 0 the gain slider snaps to 0.
-static const double kWaveformGainDetentDB = 0.75;
 
 @implementation SettingsAppearanceViewController {
-    NSPopUpButton *_appearancePopUp;
-    VibeSwitch *_trafficLightsSwitch;
     NSTableView *_themeTable;
     NSButton *_removeThemeButton;
     // Store order, built-ins first. Rows include group headers (identifierForRow:).
@@ -42,14 +37,10 @@ static const double kWaveformGainDetentDB = 0.75;
     NSArray<NSView *> *_listSections;
     // The same theme field as the editor's _waveformPopUp.
     NSPopUpButton *_listWaveformPopUp;
-    VibeSwitch *_waveformNormalizeSwitch;
-    SettingsRowView *_appearanceRow, *_currentThemeRow;
-    NSArray<SettingsRowView *> *_waveformLevelRows;
-    NSButton *_waveformLevelsDisclosure, *_editThemeButton, *_revertThemeButton;
+    SettingsRowView *_currentThemeRow;
+    NSButton *_editThemeButton, *_revertThemeButton;
     NSMutableArray<NSImageView *> *_waveformPreviews;
     NSArray *_waveformPreviewKey;
-    NSSlider *_waveformGainSlider; // a VibeDetentSlider
-    NSTextField *_waveformGainValue;
     BOOL _editorShown;
     // Theme list swatches by "identifier|dark" or "|light", the active theme's excepted.
     NSMutableDictionary<NSString *, NSImage *> *_swatches;
@@ -68,14 +59,6 @@ static const double kWaveformGainDetentDB = 0.75;
 }
 
 - (void)buildListControls {
-    _appearancePopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
-                                           action:@selector(appearanceChanged:)];
-    [self addItem:STR_MENU_APPEARANCE_SYSTEM value:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT to:_appearancePopUp];
-    [self addItem:STR_MENU_APPEARANCE_LIGHT value:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT to:_appearancePopUp];
-    [self addItem:STR_MENU_APPEARANCE_DARK value:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK to:_appearancePopUp];
-
-    _trafficLightsSwitch = [self switchWithAction:@selector(toggleTrafficLights:)];
-
     // One column, so no header: each name carries its theme's swatch.
     _themeTable = [SettingsRowView listTableWithColumnIdentifiers:@[kThemeCellIdentifier] delegate:self];
     _themeTable.allowsMultipleSelection = NO;
@@ -111,23 +94,6 @@ static const double kWaveformGainDetentDB = 0.75;
     // A THEME field: over a built-in, an edit lands in the divergence key.
     _listWaveformPopUp = [self waveformStylePopUpButton];
 
-    _waveformNormalizeSwitch = [self switchWithAction:@selector(toggleWaveformNormalize:)];
-    NSStackView *gainCluster = [self detentSliderClusterWithDetent:0
-            min:-kVibeWaveformGainMaxDB max:kVibeWaveformGainMaxDB
-            action:@selector(waveformGainChanged:) slider:&_waveformGainSlider valueLabel:&_waveformGainValue];
-
-    _appearanceRow = [SettingsRowView rowWithTitle:STR_SETTINGS_APPEARANCE_LABEL control:_appearancePopUp];
-    _waveformLevelRows = @[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_NORMALIZE control:_waveformNormalizeSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_GAIN control:gainCluster]];
-    for (SettingsRowView *row in _waveformLevelRows) {
-        row.hidden = YES;
-    }
-    _waveformLevelsDisclosure = [NSButton buttonWithTitle:@""
-            target:self action:@selector(toggleWaveformLevels:)];
-    _waveformLevelsDisclosure.bezelStyle = NSBezelStyleDisclosure;
-    [_waveformLevelsDisclosure setButtonType:NSButtonTypePushOnPushOff];
-    _waveformLevelsDisclosure.accessibilityLabel = STR_SETTINGS_WAVEFORM_SECTION;
     _revertThemeButton = [NSButton buttonWithTitle:STR_SETTINGS_THEME_REVERT
             target:self action:@selector(revertTheme:)];
     NSStackView *themeActions = [NSStackView stackViewWithViews:@[_revertThemeButton, _editThemeButton]];
@@ -144,14 +110,6 @@ static const double kWaveformGainDetentDB = 0.75;
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_THEMES_SECTION rows:@[
             listRow,
             buttonRow,
-        ]],
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_DISPLAY_PREFERENCES rows:@[
-            _appearanceRow,
-            [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_TRAFFIC_LIGHTS
-                                  caption:STR_SETTINGS_SHOW_TRAFFIC_LIGHTS_CAPTION control:_trafficLightsSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_SECTION
-                    caption:STR_SETTINGS_WAVEFORM_LEVELS_CAPTION control:_waveformLevelsDisclosure],
-            _waveformLevelRows[0], _waveformLevelRows[1],
         ]],
     ];
     // The list is its own divider; the section's hairline would double it.
@@ -171,7 +129,7 @@ static const double kWaveformGainDetentDB = 0.75;
 }
 
 // Sets only the pane's title; updateNavigation pushes it to the window.
-// The sidebar reads the tab item, so it keeps saying Appearance.
+// The sidebar reads the tab item, so it keeps saying Themes.
 - (void)applyEditorTitle {
     NSString *name = nil;
     if (_editorShown) {
@@ -180,7 +138,7 @@ static const double kWaveformGainDetentDB = 0.75;
                 displayNameForThemeIdentifier:AppSettings.sharedInstance.activeThemeIdentifier];
     }
     self.title = name ? [NSString stringWithFormat:STR_SETTINGS_THEME_EDITOR_TITLE, name]
-                      : STR_MENU_VIEW_APPEARANCE;
+                      : STR_SETTINGS_THEMES_SECTION;
     [(SettingsWindowController *)self.view.window.windowController updateNavigation];
 }
 
@@ -300,20 +258,7 @@ static const double kWaveformGainDetentDB = 0.75;
     AppSettings *settings = AppSettings.sharedInstance;
     AppTheme *theme = settings.currentTheme;
 
-    [self selectValue:settings.windowAppearanceStyle in:_appearancePopUp];
-    _trafficLightsSwitch.state = StateForBOOL(settings.showTrafficLights);
     [self selectWaveformStyle:theme.waveformStyle in:_listWaveformPopUp];
-    _waveformNormalizeSwitch.state = StateForBOOL(settings.waveformNormalize);
-    _waveformGainSlider.doubleValue = settings.waveformGainDB;
-    [self refreshWaveformGainValue];
-    BOOL levels = [WaveformRendererRegistry supportsLevelsForIdentifier:theme.waveformStyle];
-    [SettingsRowView setControl:_waveformNormalizeSwitch enabled:levels];
-    [SettingsRowView setControl:_waveformGainSlider enabled:levels];
-    [_waveformLevelRows.firstObject setCaption:levels ? nil : [NSString stringWithFormat:STR_SETTINGS_WAVEFORM_LEVELS_UNAVAILABLE,
-            [WaveformRendererRegistry displayNameForIdentifier:theme.waveformStyle]]];
-    BOOL single = theme.requiredWindowAppearance != nil;
-    [SettingsRowView setControl:_appearancePopUp enabled:!single];
-    [_appearanceRow setCaption:single ? STR_SETTINGS_THEME_SINGLE_CAPTION : nil];
     NSString *name = [settings displayNameForThemeIdentifier:settings.activeThemeIdentifier];
     BOOL modified = settings.currentThemeIsModified;
     [_currentThemeRow setRowTitle:modified ? [NSString stringWithFormat:STR_SETTINGS_THEME_MODIFIED, name] : name];
@@ -743,53 +688,6 @@ static const double kWaveformGainDetentDB = 0.75;
                                                           userInfo:nil]]
                 beginSheetModalForWindow:self.view.window completionHandler:nil];
     }];
-}
-
-#pragma mark - Common settings
-
-- (void)toggleWaveformLevels:(NSButton *)sender {
-    for (SettingsRowView *row in _waveformLevelRows) {
-        row.hidden = sender.state != NSControlStateValueOn;
-    }
-    [self paneContentDidChange];
-}
-
-- (void)toggleTrafficLights:(id)sender {
-    AppSettings.sharedInstance.showTrafficLights =
-            (_trafficLightsSwitch.state == NSControlStateValueOn);
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrafficLights];
-}
-
-- (void)toggleWaveformNormalize:(id)sender {
-    AppSettings.sharedInstance.waveformNormalize =
-            (_waveformNormalizeSwitch.state == NSControlStateValueOn);
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWaveformLevels];
-    [self refreshWaveformPreviews];
-}
-
-- (void)waveformGainChanged:(id)sender {
-    // The getter snaps to the half-dB ladder; the knob re-syncs to it.
-    double gainDB = _waveformGainSlider.doubleValue;
-    if (fabs(gainDB) < kWaveformGainDetentDB) {
-        gainDB = 0;
-    }
-    AppSettings.sharedInstance.waveformGainDB = gainDB;
-    _waveformGainSlider.doubleValue = AppSettings.sharedInstance.waveformGainDB;
-    [self refreshWaveformGainValue];
-    [self applyLiveEffectsDuringDrag:VibeSettingsLiveEffectWaveformLevels];
-}
-
-- (void)refreshWaveformGainValue {
-    _waveformGainValue.stringValue = [NSString stringWithFormat:STR_SETTINGS_WAVEFORM_GAIN_VALUE,
-            [Formatters.sharedInstance signedDecimalString:AppSettings.sharedInstance.waveformGainDB]];
-}
-
-// The store drops any titlebar preview on this write.
-- (void)appearanceChanged:(id)sender {
-    AppSettings.sharedInstance.windowAppearanceStyle =
-            _appearancePopUp.selectedItem.representedObject;
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
-    [(SettingsWindowController *)self.view.window.windowController updateNavigation];
 }
 
 @end

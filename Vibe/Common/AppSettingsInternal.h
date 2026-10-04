@@ -51,6 +51,7 @@ NS_ASSUME_NONNULL_BEGIN
 // primary @implementation.
 @interface AppSettings (MacInternal)
 - (void)migrateLooseAppearanceSettingsToTheme;
+- (void)migrateThemeDisplaySettings;
 - (void)registerMacDefaultsInto:(NSMutableDictionary *)defaults;
 - (NSDictionary<NSString *, id> *)registeredSettingDefaults;
 // The edit funnel with an explicit time, so tests exercise coalescing without

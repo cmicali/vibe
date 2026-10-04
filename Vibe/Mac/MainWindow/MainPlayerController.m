@@ -524,18 +524,18 @@
     // The key is not shifted with the fader: varispeed reaches a semitone only
     // at the 16% extreme, and a flickering key would misread as a data change.
     // The notation applies to tagged keys too.
-    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    VibeMusicalKey key = track && theme.showKey ? track.key : VibeMusicalKeyNone;
+    AppSettings *settings = AppSettings.sharedInstance;
+    VibeMusicalKey key = track && settings.showKey ? track.key : VibeMusicalKeyNone;
     NSString *keyText = @"";
     if (VibeMusicalKeyIsValid(key)) {
-        keyText = [theme.keyNotation isEqualToString:SETTINGS_VALUE_KEY_NOTATION_MUSICAL]
+        keyText = [settings.keyNotation isEqualToString:SETTINGS_VALUE_KEY_NOTATION_MUSICAL]
                 ? VibeMusicalKeyMusicalName(key)
                 : VibeMusicalKeyCamelotName(key);
     }
-    float labelBPM = track && theme.showBPM ? scaledBPM : 0;
+    float labelBPM = track && settings.showBPM ? scaledBPM : 0;
     [self.trackDisplay renderBPM:labelBPM
                          keyText:keyText
-                        colorKey:(theme.keyColorsEnabled ? key : VibeMusicalKeyNone)];
+                        colorKey:(settings.keyColorsEnabled ? key : VibeMusicalKeyNone)];
 }
 
 - (IBAction)playPause:(nullable id)sender {
@@ -892,13 +892,6 @@ static NSURL *VibeLastPlaylistURL(void) {
 
 #pragma mark - Actions
 
-- (IBAction) toggleFileInfo:(id)sender {
-    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    theme.showFileInfo = !theme.showFileInfo;
-    [AppSettings.sharedInstance currentThemeDidChange];
-    [self applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
-}
-
 - (void)refreshFolderArt {
     // The resolver caches the setting, so this is what makes a write
     // observable; its settled answers survive.
@@ -1042,9 +1035,7 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 }
 
 - (IBAction)toggleTimeDisplayMode:(id)sender {
-    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    theme.showRemainingTime = !theme.showRemainingTime;
-    [AppSettings.sharedInstance currentThemeDidChange];
+    AppSettings.sharedInstance.showRemainingTime = !AppSettings.sharedInstance.showRemainingTime;
     [self applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
 }
 

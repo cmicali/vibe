@@ -36,26 +36,6 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
     return [key isEqualToString:dark] || [key isEqualToString:light];
 }
 
-
-
-@implementation VibeDetentSlider
-
-- (void)drawRect:(NSRect)dirtyRect {
-    [super drawRect:dirtyRect];
-    if (self.maxValue <= self.minValue) {
-        return;
-    }
-    CGFloat knob = ((NSSliderCell *)self.cell).knobThickness;
-    CGFloat fraction = (self.detentValue - self.minValue) / (self.maxValue - self.minValue);
-    CGFloat x = round(knob / 2 + fraction * (NSWidth(self.bounds) - knob));
-    CGFloat midY = NSMidY(self.bounds);
-    [[NSColor.secondaryLabelColor colorWithAlphaComponent:0.6] setFill];
-    NSRectFillUsingOperation(NSMakeRect(x - 0.5, midY + 5, 1, 4), NSCompositingOperationSourceOver);
-    NSRectFillUsingOperation(NSMakeRect(x - 0.5, midY - 9, 1, 4), NSCompositingOperationSourceOver);
-}
-
-@end
-
 @implementation SettingsAppearanceViewController (Editor)
 
 #pragma mark - Construction
@@ -362,16 +342,6 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     return [theme buttonImageForKey:key] ?: PreviewGlyphImage([self glyphForImageKey:key]);
 }
 
-- (NSStackView *)detentSliderClusterWithDetent:(double)detent min:(double)min max:(double)max
-                                        action:(SEL)action slider:(NSSlider *__strong *)outSlider
-                                    valueLabel:(NSTextField *__strong *)outLabel {
-    VibeDetentSlider *slider = [VibeDetentSlider sliderWithValue:detent minValue:min maxValue:max
-                                                          target:self action:action];
-    slider.detentValue = detent;
-    *outSlider = slider;
-    return [self clusterWithSlider:slider width:kAppearancePopUpWidth valueLabel:outLabel];
-}
-
 - (void)buildEditorPage {
     _imagePreviews = [NSMutableDictionary dictionary];
     _imageClearBadges = [NSMutableDictionary dictionary];
@@ -390,9 +360,6 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     [self addItem:STR_SETTINGS_THEME_MODE_SINGLE value:SETTINGS_VALUE_THEME_MODE_SINGLE to:_modePopUp];
 
     NSView *appIconCluster = [self imageClusterForKey:kVibeThemeImageAppIcon];
-    _dockIconPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(dockIconChanged:)];
-    [self addItem:STR_SETTINGS_THEME_DOCK_ICON_ALBUM_ART value:SETTINGS_VALUE_DOCK_ICON_ALBUM_ART to:_dockIconPopUp];
-    [self addItem:STR_SETTINGS_THEME_APP_ICON value:SETTINGS_VALUE_DOCK_ICON_APP_ICON to:_dockIconPopUp];
     _appIconShapeSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectAppIcon
             write:^(AppTheme *theme, BOOL on) { theme.appIconShape = on; }];
     _cornerRadiusPopUp = [self standardOrCustomPopUpWithAction:@selector(cornerRadiusModeChanged:)
@@ -463,35 +430,13 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
 
     _cornerRadiusCluster = [self detentSliderClusterWithDetent:kVibeThemeCornerRadiusDefault
             min:0 max:kVibeThemeCornerRadiusMax action:@selector(cornerRadiusChanged:)
-            slider:&_cornerRadiusSlider valueLabel:&_cornerRadiusValue];
+            width:kAppearancePopUpWidth slider:&_cornerRadiusSlider valueLabel:&_cornerRadiusValue];
 
     _playlistBackgroundPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
                                                    action:@selector(playlistBackgroundStyleChanged:)];
     [self addItem:STR_SETTINGS_THEME_BACKGROUND_GLASS value:SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS to:_playlistBackgroundPopUp];
     [self addItem:STR_SETTINGS_THEME_BACKGROUND_SOLID value:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID to:_playlistBackgroundPopUp];
     [self addItem:STR_SETTINGS_THEME_BACKGROUND_CLEAR value:SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR to:_playlistBackgroundPopUp];
-
-    _fileInfoSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectTrackDisplay
-            write:^(AppTheme *theme, BOOL on) { theme.showFileInfo = on; }];
-    _statusIconsSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectTrackDisplay
-            write:^(AppTheme *theme, BOOL on) { theme.showStatusIcons = on; }];
-    _timeLabelsSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectTrackDisplay
-            write:^(AppTheme *theme, BOOL on) { theme.showTimeLabels = on; }];
-    _timeTotalRadio = [NSButton radioButtonWithTitle:STR_SETTINGS_TIME_TOTAL
-                                              target:self action:@selector(timeDisplayChanged:)];
-    _timeRemainingRadio = [NSButton radioButtonWithTitle:STR_SETTINGS_TIME_REMAINING
-                                                  target:self action:@selector(timeDisplayChanged:)];
-    NSStackView *timeRadios = [NSStackView stackViewWithViews:@[_timeTotalRadio, _timeRemainingRadio]];
-    timeRadios.spacing = 12;
-    _showBPMSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectTrackDisplay
-            write:^(AppTheme *theme, BOOL on) { theme.showBPM = on; }];
-    _showKeySwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectTrackDisplay
-            write:^(AppTheme *theme, BOOL on) { theme.showKey = on; }];
-    _keyNotationPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(keyNotationChanged:)];
-    [self addItem:STR_SETTINGS_KEY_NOTATION_CAMELOT value:SETTINGS_VALUE_KEY_NOTATION_CAMELOT to:_keyNotationPopUp];
-    [self addItem:STR_SETTINGS_KEY_NOTATION_MUSICAL value:SETTINGS_VALUE_KEY_NOTATION_MUSICAL to:_keyNotationPopUp];
-    _keyColorsSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectTrackDisplay
-            write:^(AppTheme *theme, BOOL on) { theme.keyColorsEnabled = on; }];
 
     // Title and artist paint the playlist rows too; info and time appear only
     // in the header, so their drags skip the table reload.
@@ -508,11 +453,11 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     NSStackView *densityCluster = [self detentSliderClusterWithDetent:kVibeThemeWaveformBarScaleDefault
             min:kVibeThemeWaveformBarScaleMin max:kVibeThemeWaveformBarScaleMax
             action:@selector(waveformBarSizingChanged:)
-            slider:&_waveformBarDensitySlider valueLabel:&_waveformBarDensityValue];
+            width:kAppearancePopUpWidth slider:&_waveformBarDensitySlider valueLabel:&_waveformBarDensityValue];
     NSStackView *widthCluster = [self detentSliderClusterWithDetent:kVibeThemeWaveformBarScaleDefault
             min:kVibeThemeWaveformBarScaleMin max:kVibeThemeWaveformBarScaleMax
             action:@selector(waveformBarSizingChanged:)
-            slider:&_waveformBarWidthSlider valueLabel:&_waveformBarWidthValue];
+            width:kAppearancePopUpWidth slider:&_waveformBarWidthSlider valueLabel:&_waveformBarWidthValue];
     _waveformThemePopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(waveformThemeChanged:)];
     [self addItem:STR_SETTINGS_WAVEFORM_THEME_MONO value:SETTINGS_VALUE_WAVEFORM_THEME_MONO to:_waveformThemePopUp];
     [self addItem:STR_SETTINGS_WAVEFORM_THEME_ORANGE value:SETTINGS_VALUE_WAVEFORM_THEME_ORANGE to:_waveformThemePopUp];
@@ -526,12 +471,6 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     _playheadColorsRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_PLAYHEAD_COLOR
             control:[self darkLightPairForBase:kVibeThemeColorWaveformPlayhead
                                         effect:VibeSettingsLiveEffectWaveformTheme]];
-    _playlistNumberSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectPlaylistAppearance
-            write:^(AppTheme *theme, BOOL on) { theme.showPlaylistNumberColumn = on; }];
-    _playlistArtworkSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectPlaylistAppearance
-            write:^(AppTheme *theme, BOOL on) { theme.showPlaylistArtworkColumn = on; }];
-    _playlistDurationSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectPlaylistAppearance
-            write:^(AppTheme *theme, BOOL on) { theme.showPlaylistDurationColumn = on; }];
     NSStackView *(^customWells)(BOOL) = ^(BOOL dark) {
         return [self wellPair:[self wellForDark:dark base:kVibeThemeColorWaveformPlayed
                                          effect:VibeSettingsLiveEffectWaveformTheme]
@@ -632,25 +571,6 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     _playlistFontValue = playlistFontValue;
     _playlistDurationFontValue = playlistDurationFontValue;
 
-    _infoFontRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_INFO control:infoFontCluster];
-    _fileInfoRows = @[
-        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_INFO control:infoColors],
-        [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_BPM control:_showBPMSwitch],
-        [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_KEY control:_showKeySwitch],
-        [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_NOTATION_LABEL control:_keyNotationPopUp],
-        [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_COLORS control:_keyColorsSwitch],
-    ];
-    NSMutableArray<SettingsRowView *> *infoRows = [NSMutableArray arrayWithArray:@[
-        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SHOW_STATUS_ICONS control:_statusIconsSwitch],
-        [SettingsRowView rowWithTitle:STR_SETTINGS_FILE_INFO control:_fileInfoSwitch],
-        _infoFontRow,
-    ]];
-    [infoRows addObjectsFromArray:_fileInfoRows];
-    _timeSection = [SettingsSectionView sectionWithHeader:STR_SETTINGS_SECTION_TIME rows:@[
-        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SHOW_TIME_LABELS control:_timeLabelsSwitch],
-        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_TIMES control:timeColors],
-        [SettingsRowView rowWithTitle:STR_SETTINGS_TIME_LABEL control:timeRadios],
-    ]];
 
     NSMutableArray<SettingsRowView *> *playlistRows = [NSMutableArray arrayWithArray:@[
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BACKGROUND_LABEL
@@ -663,12 +583,6 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_PLAYLIST control:playlistFontCluster],
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_PLAYLIST_DURATION
                 control:playlistDurationFontCluster],
-        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_NUMBER_COLUMN
-                control:_playlistNumberSwitch],
-        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_ARTWORK
-                control:_playlistArtworkSwitch],
-        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_DURATION_COLUMN
-                control:_playlistDurationSwitch],
     ]];
     [playlistRows addObjectsFromArray:playlistColorRows];
     [playlistRows addObject:[SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYING_ROW control:playingRowColors]];
@@ -688,7 +602,6 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
         [SettingsSectionView sectionWithRows:@[_nameRow]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_THEME_APP_ICON rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_APP_ICON control:appIconCluster],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_DOCK_ICON control:_dockIconPopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_APP_ICON_SHAPE
                                   caption:STR_SETTINGS_THEME_APP_ICON_SHAPE_CAPTION control:_appIconShapeSwitch],
         ]],
@@ -720,7 +633,11 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_ARTIST control:artistColors],
         ]],
         _transportSection,
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_INFO_SECTION rows:infoRows],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_INFO_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_INFO control:infoFontCluster],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_INFO control:infoColors],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_TIMES control:timeColors],
+        ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_VOLUME_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_VOLUME_LOCATION
                                   caption:STR_SETTINGS_THEME_VOLUME_LOCATION_CAPTION
@@ -733,7 +650,6 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
             _volumeKnobDarkRow,
             _volumeKnobLightRow,
         ]],
-        _timeSection,
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYLIST_SECTION rows:playlistRows],
     ];
 
@@ -870,7 +786,6 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     }
 
     [self selectValue:theme.mode in:_modePopUp];
-    [self selectValue:theme.dockIcon in:_dockIconPopUp];
     _appIconShapeSwitch.state = StateForBOOL(theme.appIconShape);
     [self selectValue:theme.windowBackgroundStyle in:_backgroundPopUp];
     [self selectValue:theme.windowTint in:_windowTintPopUp];
@@ -887,32 +802,18 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     [self selectValue:theme.buttonGradient in:_buttonGradientPopUp];
 
     _transportButtonsSwitch.state = StateForBOOL(theme.showTransportButtons);
-    _statusIconsSwitch.state = StateForBOOL(theme.showStatusIcons);
-    _timeLabelsSwitch.state = StateForBOOL(theme.showTimeLabels);
-    _fileInfoSwitch.state = StateForBOOL(theme.showFileInfo);
-    BOOL remaining = theme.showRemainingTime;
-    _timeTotalRadio.state = StateForBOOL(!remaining);
-    _timeRemainingRadio.state = StateForBOOL(remaining);
-    _showBPMSwitch.state = StateForBOOL(theme.showBPM);
-    BOOL showKey = theme.showKey;
-    _showKeySwitch.state = StateForBOOL(showKey);
-    [self selectValue:theme.keyNotation in:_keyNotationPopUp];
-    _keyColorsSwitch.state = StateForBOOL(theme.keyColorsEnabled);
 
     [self selectWaveformStyle:theme.waveformStyle in:_waveformPopUp];
     [self refreshWaveformBarSizing];
     [self selectValue:theme.waveformTheme in:_waveformThemePopUp];
     _waveformGradientSwitch.state = StateForBOOL(theme.waveformGradient);
     _waveformPlayheadSwitch.state = StateForBOOL(theme.waveformPlayheadLine);
-    _playlistNumberSwitch.state = StateForBOOL(theme.showPlaylistNumberColumn);
-    _playlistArtworkSwitch.state = StateForBOOL(theme.showPlaylistArtworkColumn);
     for (NSString *key in AppTheme.imageFieldKeys) {
         _imagePreviews[key].image = [self previewImageForKey:key];
         _imageClearBadges[key].hidden = YES;
         _imageMissingBadges[key].hidden =
                 ![AppTheme referenceIsMissing:[theme imageReferenceForKey:key]];
     }
-    _playlistDurationSwitch.state = StateForBOOL(theme.showPlaylistDurationColumn);
     for (NSString *base in _playlistColorPopUps) {
         [self selectValue:([theme playlistColorEnabledForBase:base] ? SETTINGS_VALUE_WINDOW_TINT_CUSTOM : kChoiceStandard)
                        in:_playlistColorPopUps[base]];
@@ -926,28 +827,13 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 
     [self refreshFontValueLabels];
 
-    BOOL info = theme.showFileInfo;
-    for (SettingsRowView *row in _fileInfoRows) {
-        [SettingsRowView setControlsInView:row enabled:info];
-    }
-    // One font shared by three readouts.
-    [SettingsRowView setControlsInView:_infoFontRow
-                               enabled:info || theme.showStatusIcons || theme.showTimeLabels];
     [SettingsRowView setControlsInView:_transportSection enabled:theme.showTransportButtons];
     [SettingsRowView setControl:_transportButtonsSwitch enabled:YES];
-    [SettingsRowView setControlsInView:_timeSection enabled:theme.showTimeLabels];
-    [SettingsRowView setControl:_timeLabelsSwitch enabled:YES];
-    [SettingsRowView setControl:_keyNotationPopUp enabled:info && showKey];
-    [SettingsRowView setControl:_keyColorsSwitch enabled:info && showKey];
     NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:theme.waveformStyle];
     [SettingsRowView setControl:_waveformBarDensitySlider
             enabled:[WaveformRendererRegistry supportsBarDensityForIdentifier:style]];
     [SettingsRowView setControl:_waveformBarWidthSlider
             enabled:[WaveformRendererRegistry supportsBarWidthForIdentifier:style]];
-    if (_fontEditingSlot == VibeFontSlotInfo
-            && !(theme.showFileInfo || theme.showStatusIcons || theme.showTimeLabels)) {
-        [self closeEditorPanels];
-    }
 }
 
 - (void)refreshFontValueLabels {
@@ -1037,11 +923,6 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     [self chooseFromPopUp:_windowTintPopUp revealing:SETTINGS_VALUE_WINDOW_TINT_CUSTOM
                     wells:@[_windowTintDarkRow, _windowTintLightRow] effect:VibeSettingsLiveEffectWindowTint
                     write:^(AppTheme *theme, NSString *identifier) { theme.windowTint = identifier; }];
-}
-
-- (void)dockIconChanged:(id)sender {
-    AppSettings.sharedInstance.currentTheme.dockIcon = _dockIconPopUp.selectedItem.representedObject;
-    [self themeFieldDidChange:VibeSettingsLiveEffectAppIcon];
 }
 
 - (void)cornerRadiusModeChanged:(NSPopUpButton *)sender {
@@ -1155,18 +1036,6 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     AppSettings.sharedInstance.currentTheme.buttonGradient =
             _buttonGradientPopUp.selectedItem.representedObject;
     [self themeFieldDidChange:VibeSettingsLiveEffectTransportButtons];
-}
-
-#pragma mark - Editor: info display
-
-- (void)timeDisplayChanged:(NSButton *)sender {
-    AppSettings.sharedInstance.currentTheme.showRemainingTime = (sender == _timeRemainingRadio);
-    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
-}
-
-- (void)keyNotationChanged:(id)sender {
-    AppSettings.sharedInstance.currentTheme.keyNotation = _keyNotationPopUp.selectedItem.representedObject;
-    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
 }
 
 #pragma mark - Editor: volume slider

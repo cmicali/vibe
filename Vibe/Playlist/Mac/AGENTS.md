@@ -26,7 +26,7 @@ The `NSTableView` half of `Vibe/Playlist/`: `PlaylistController` (data source an
 
 **The indicator and the loading pill are always white** — set by `PlaylistTableView` at construction; this gutter never inherits artwork color, while iOS keeps the control's default. Both are centered across the visible gutter from the row edge to the artwork's bleed, deriving AppKit's leading full-width padding from the first column rect rather than assuming it.
 
-**The gutter is a themed column (`AppTheme.showPlaylistNumberColumn`, beside the art and duration switches in `applyThemedColumnVisibility`), and hiding it hides all three states** — the playing row keeps its wash, and the hidden column has no cells, so the indicator detaches and its level demand drops to zero by the ordinary attachment rule. Every gutter lookup already tolerates a missing cell. The art column then leads the row and inherits that leading padding, so `cellViewForColumn:` re-derives the cover's leading bleed on every fetch — a reused cell outlives a toggle.
+**The gutter is an optional column (`AppSettings.showPlaylistNumberColumn`, beside the art and duration switches in `applyColumnVisibility`), and hiding it hides all three states** — the playing row keeps its wash, and the hidden column has no cells, so the indicator detaches and its level demand drops to zero by the ordinary attachment rule. Every gutter lookup already tolerates a missing cell. The art column then leads the row and inherits that leading padding, so `cellViewForColumn:` re-derives the cover's leading bleed on every fetch — a reused cell outlives a toggle.
 
 ## Material visibility: the equalizer's macOS fold
 

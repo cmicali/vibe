@@ -26,7 +26,7 @@ static const CGFloat kSettingsPaneMinHeight = 480;
 // A taller pane scrolls rather than raising every pane's floor.
 static const CGFloat kSettingsPaneMaxHeight = 620;
 
-// Shared by the section stack and the Appearance pane's editor page.
+// Shared by the section stack and the Themes pane's editor page.
 static const CGFloat kPanePadding = 20;
 
 // The tab controller. A pane carries no size constraints
@@ -72,6 +72,12 @@ static const CGFloat kPanePadding = 20;
 // the caller fills: a changing value never nudges the slider.
 - (NSStackView *)clusterWithSlider:(NSSlider *)slider width:(CGFloat)width
                         valueLabel:(NSTextField *__strong _Nonnull *_Nonnull)outLabel;
+
+// The same with a VibeDetentSlider starting on, and ticked at, its detent.
+- (NSStackView *)detentSliderClusterWithDetent:(double)detent min:(double)min max:(double)max
+                                        action:(SEL)action width:(CGFloat)width
+                                        slider:(NSSlider *__strong _Nonnull *_Nonnull)outSlider
+                                    valueLabel:(NSTextField *__strong _Nonnull *_Nonnull)outLabel;
 
 // A secondary-colored wrapping label for rowWithContentView:. It measures
 // its height at preferredMaxLayoutWidth, which the pane's viewDidLayout keeps

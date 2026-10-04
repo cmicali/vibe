@@ -52,7 +52,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)applyTrafficLights;
 
-// The theme's app icon, then the Dock tile re-decided from its dockIcon.
+// The theme's app icon, then the Dock tile re-decided from AppSettings.dockIcon.
 - (void)applyAppIcon;
 
 // The WindowChrome effect's body. applyWindowBackground alone is the

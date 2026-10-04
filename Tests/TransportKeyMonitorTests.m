@@ -265,14 +265,14 @@ static const NSEventModifierFlags kCmd = NSEventModifierFlagCommand;
 - (void)testAReservedCharacterBeatsAKeyCodeBinding {
     TransportKeyMonitor *monitor = [[TransportKeyMonitor alloc] initWithController:(id)self];
     AppSettings.sharedInstance.shortcutOverrides = @{
-        kVibeMenuShowFileInfo: @(VibeShortcutMake(kKeyK, NSEventModifierFlagCommand)),
+        kVibeMenuAlwaysOnTop: @(VibeShortcutMake(kKeyK, NSEventModifierFlagCommand)),
     };
     NSEvent *quit = [self key:kKeyK characters:@"q" type:NSEventTypeKeyDown time:10 repeat:NO
                     modifiers:NSEventModifierFlagCommand];
     XCTAssertEqual([monitor handleKeyEvent:quit inWindow:self.window], quit);
     XCTAssertNil([monitor handleKeyEvent:[self key:kKeyK characters:@"k" type:NSEventTypeKeyDown time:10 repeat:NO
             modifiers:NSEventModifierFlagCommand] inWindow:self.window]);
-    XCTAssertEqualObjects(self.commands, @[kVibeMenuShowFileInfo]);
+    XCTAssertEqualObjects(self.commands, @[kVibeMenuAlwaysOnTop]);
 }
 
 // Holding ⌘R must not cycle Off → All → One: a character default goes
@@ -341,9 +341,9 @@ static const NSEventModifierFlags kCmd = NSEventModifierFlagCommand;
     TransportKeyMonitor *monitor = [[TransportKeyMonitor alloc] initWithController:(id)self];
     NSEvent *m = [self down:kKeyM];
     XCTAssertEqual([monitor handleKeyEvent:m inWindow:self.window], m);
-    AppSettings.sharedInstance.shortcutOverrides = @{kVibeMenuShowFileInfo: @(VibeShortcutMake(kKeyM, 0))};
+    AppSettings.sharedInstance.shortcutOverrides = @{kVibeMenuAlwaysOnTop: @(VibeShortcutMake(kKeyM, 0))};
     XCTAssertNil([monitor handleKeyEvent:m inWindow:self.window]);
-    XCTAssertEqualObjects(self.commands, @[kVibeMenuShowFileInfo]);
+    XCTAssertEqualObjects(self.commands, @[kVibeMenuAlwaysOnTop]);
 }
 
 @end

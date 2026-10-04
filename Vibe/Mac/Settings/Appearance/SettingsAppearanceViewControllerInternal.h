@@ -15,18 +15,10 @@ NS_ASSUME_NONNULL_BEGIN
 // Both pages' popups; a cap, not a size.
 static const CGFloat kAppearancePopUpWidth = 220;
 
-// Ticks above and below the track at detentValue, where its action snaps.
-// NSSlider's own tick marks are evenly spaced and single-sided.
-@interface VibeDetentSlider : NSSlider
-@property (nonatomic) double detentValue;
-@end
-
 @interface SettingsAppearanceViewController () <NSTableViewDataSource, NSTableViewDelegate> {
     NSView *_detailContainer;
     NSStackView *_editorStack;
-    SettingsSectionView *_transportSection, *_timeSection;
-    SettingsRowView *_infoFontRow;
-    NSArray<SettingsRowView *> *_fileInfoRows;
+    SettingsSectionView *_transportSection;
     NSTextField *_nameField;
     // The theme the name field was populated for. The active theme can change
     // while the field editor is open (View > Theme), and a commit must not
@@ -39,16 +31,9 @@ static const CGFloat kAppearancePopUpWidth = 220;
     SettingsRowView *_windowTintDarkRow, *_windowTintLightRow;
     NSSlider *_cornerRadiusSlider; // a VibeDetentSlider
     NSTextField *_cornerRadiusValue;
-    VibeSwitch *_fileInfoSwitch;
-    VibeSwitch *_transportButtonsSwitch, *_statusIconsSwitch, *_timeLabelsSwitch;
-    NSButton *_timeTotalRadio, *_timeRemainingRadio;
-    VibeSwitch *_showBPMSwitch, *_showKeySwitch;
-    NSPopUpButton *_keyNotationPopUp;
-    VibeSwitch *_keyColorsSwitch;
+    VibeSwitch *_transportButtonsSwitch;
     VibeSwitch *_waveformGradientSwitch, *_waveformPlayheadSwitch;
-    VibeSwitch *_playlistNumberSwitch, *_playlistArtworkSwitch;
     NSPopUpButton *_modePopUp;
-    NSPopUpButton *_dockIconPopUp;
     VibeSwitch *_appIconShapeSwitch;
     NSPopUpButton *_cornerRadiusPopUp;
     NSStackView *_cornerRadiusCluster;
@@ -61,7 +46,6 @@ static const CGFloat kAppearancePopUpWidth = 220;
     NSMutableDictionary<NSString *, NSPopUpButton *> *_glyphPopUps;
     NSMutableDictionary<NSString *, SettingsRowView *> *_buttonColorRows;
     NSMutableDictionary<NSString *, NSArray<SettingsRowView *> *> *_buttonImageRows;
-    VibeSwitch *_playlistDurationSwitch;
     // The playlist columns' text colors by pair base.
     NSMutableDictionary<NSString *, NSPopUpButton *> *_playlistColorPopUps;
     NSMutableDictionary<NSString *, NSStackView *> *_playlistColorPairs;
