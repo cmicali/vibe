@@ -18,6 +18,7 @@
 #import "AudioFileMaterializationCoordinatorInternal.h"
 #import "CloudFileMaterializer.h"
 #import "NSURLUtil.h"
+#import "NSURLUtil+Debug.h"
 #include <float.h>
 #include <stdatomic.h>
 
@@ -1458,6 +1459,47 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 @interface AudioPlayerRenderTransportTests : AudioPlayerRenderTests
 @end
 @implementation AudioPlayerRenderTransportTests
+
+- (void)testAStalledDatalessProbeDoesNotBlockStopOrTheOpenDeadline {
+    for (NSNumber *timeout in @[@NO, @YES]) {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+        if (timeout.boolValue) [self shortenTheOpenDeadline];
+        NSURL *url = [_temporary URLByAppendingPathComponent:[NSString stringWithFormat:@"held-%@.wav", timeout]];
+        XCTAssertTrue([NSFileManager.defaultManager copyItemAtURL:[self fixture:@"noise-48000-24-2.wav"]
+                                                         toURL:url error:NULL]);
+        dispatch_semaphore_t entered = dispatch_semaphore_create(0);
+        dispatch_semaphore_t release = dispatch_semaphore_create(0);
+        [NSURLUtil setDatalessProbe:^BOOL(NSURL *probed) {
+            if ([probed.lastPathComponent isEqual:url.lastPathComponent]) {
+                dispatch_semaphore_signal(entered);
+                dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW,
+                        (int64_t)(VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC)));
+            }
+            return NO;
+        }];
+        @try {
+            [_player play:[AudioTrack withURL:url] atPosition:0 startPaused:NO];
+            XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW,
+                    (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))), 0);
+            if (timeout.boolValue) {
+                [self settleUntil:^BOOL { return self->_playError != nil; }];
+                XCTAssertEqual(_playError.code, VibeAudioErrorFileOpenTimedOut);
+            } else {
+                [_player stop];
+                [self settleUntil:^BOOL { return self->_player.isStopped; }];
+            }
+            XCTAssertTrue(_player.isStopped);
+            _playError = nil;
+            [self play:[self fixture:@"noise-48000-16-2.wav"] paused:NO position:0];
+            XCTAssertEqual([self count:@"start"], 1u, @"an unrelated file still opens");
+        } @finally {
+            [NSURLUtil setDatalessProbe:nil];
+            // Twice: frees a second probe of this file, should one ever run.
+            dispatch_semaphore_signal(release);
+            dispatch_semaphore_signal(release);
+        }
+    }
+}
 
 - (void)testBitPerfectTransportCutsWithoutChangingSamples {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];

@@ -446,6 +446,13 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     __weak AudioPlayer *weakSelf = self;
     _playOpenToken = [[AudioFileMaterializationCoordinator sharedCoordinator]
             openURL:openURL purpose:VibeAudioFileOpenPurposePlayback completionQueue:_queue
+            onDataless:^{
+        // The coordinator already probed on a bounded worker. The remote
+        // backend can stream promptly, so keep its ordinary indicator delay.
+        if (!VibePathIsUnderRemotePlaceholderRoot(openURL.path)) {
+            [weakSelf markOpenSlowOnQueueForRequest:openId];
+        }
+    }
             completion:^(AudioFileHandle *file, NSError *error, NSTimeInterval openSeconds) {
         // Always logged, so a missing line means the open never happened.
         if (!file) {
@@ -465,21 +472,16 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(_deadlineTimeouts.noProgressSeconds * NSEC_PER_SEC)), _queue, ^{
         [weakSelf fileOpenDeadlineDueForRequest:openId];
     });
-    // A dataless file waits on its download, so its open is slow from the
-    // start: the shells drop the outgoing track's waveform and art at once
-    // instead of leaving them under the new title for the delay. Not a remote
-    // placeholder, whose stream often opens inside it.
-    BOOL dataless = [NSURLUtil isDatalessFile:openURL] && ![NSURLUtil isRemotePlaceholderFile:openURL];
-    NSTimeInterval slowDelay = dataless ? 0 : kSlowOpenIndicatorDelaySeconds;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(slowDelay * NSEC_PER_SEC)), _queue, ^{
-        AudioPlayer *strongSelf = weakSelf;
-        if (strongSelf) {
-            VibePlaybackRequest *request = [strongSelf->_pendingRequest markSlowForRequest:openId];
-            if (request) {
-                [strongSelf notifyDidBeginLoadingForRequest:request];
-            }
-        }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kSlowOpenIndicatorDelaySeconds * NSEC_PER_SEC)), _queue, ^{
+        [weakSelf markOpenSlowOnQueueForRequest:openId];
     });
+}
+
+- (void)markOpenSlowOnQueueForRequest:(uint64_t)openId {
+    VibePlaybackRequest *request = [_pendingRequest markSlowForRequest:openId];
+    if (request) {
+        [self notifyDidBeginLoadingForRequest:request];
+    }
 }
 
 - (void)finishPlayOnQueueWithFile:(AudioFileHandle *)file error:(NSError *)error openRequestId:(uint64_t)openId {

@@ -67,8 +67,11 @@ NSString *VibeComparablePath(NSString *path) {
     // Only a path with something to resolve pays for the URL round trip.
     BOOL resolves = [path containsString:@"/."] || [path containsString:@"//"]
             || (path.length > 1 && [path hasSuffix:@"/"]);
-    NSString *standard = resolves
-            ? ([NSURL fileURLWithPath:path isDirectory:NO].standardizedURL.path ?: path) : path;
+    NSString *standard = path;
+    if (resolves) {
+        standard = [NSURL fileURLWithPath:path isDirectory:NO].standardizedURL.path ?: path;
+        standard = [NSString pathWithComponents:standard.pathComponents];
+    }
     return VibeAliasFreePath(standard);
 }
 

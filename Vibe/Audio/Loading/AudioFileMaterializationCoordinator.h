@@ -129,9 +129,13 @@ typedef void (^VibeAudioFileOpenCompletion)(AudioFileHandle * _Nullable file,
 // saturation can refuse playback. No queue, grace or configuration. Both
 // refusals are VibeAudioFileOpenErrorAdmissionExhausted, distinct from the
 // player's per-file open timeout.
+// The accepted probe's dataless verdict, at most once on completionQueue
+// while delivery is still waiting. Joining a classified claim also reports
+// it; the caller need not probe the filesystem to show loading promptly.
 - (AudioFileOpenToken *)openURL:(NSURL *)url
                          purpose:(VibeAudioFileOpenPurpose)purpose
                  completionQueue:(dispatch_queue_t)completionQueue
+                      onDataless:(nullable dispatch_block_t)onDataless
                       completion:(VibeAudioFileOpenCompletion)completion;
 
 // YES while any claim has a playback or prefetch waiter whose stage 1 has not
