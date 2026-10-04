@@ -18,6 +18,12 @@
 #import "FXPadView.h"
 #import "TrackPageCell.h"
 #import "WaveformScrubberView.h"
+#import "NSURLUtil+Debug.h"
+#import "UIImage+DominantColor.h"
+
+@interface PlayerViewController (DebugPager)
+- (void)prefetchPageAtIndex:(NSUInteger)index;
+@end
 
 // Implemented by the classes themselves; only the dump reads them.
 @interface WaveformScrubberView (Debug)
@@ -116,6 +122,78 @@
 
 - (void)debugSeekToProgress:(float)progress {
     [self waveformScrubberView:_waveformView didSeek:progress];
+}
+
+- (void)debugCheckWaveformPreparation:(NSString *)scenario
+                          completion:(void (^)(NSDictionary *))completion {
+    if (!self.isPresented || _playback.isPlaying || _waveformCoordinator.isHeld || _playlist.count < 2) {
+        completion(@{@"error": @"Expand and pause a playlist with at least two cached waveforms"});
+        return;
+    }
+    NSUInteger current = _playlist.currentIndex;
+    NSUInteger neighbor = current + 1 < _playlist.count ? current + 1 : current - 1;
+    WaveformScrubberView *prepared = _preparedWaveforms[@(neighbor)];
+    if (!prepared.isShowingBakedWaveform) {
+        completion(@{@"error": @"Wait for the neighboring waveform to be prepared"});
+        return;
+    }
+    if ([scenario isEqualToString:@"refresh"]) {
+        BOOL wasEnabled = [[NSURLUtil datalessDiagnostics][@"enabled"] boolValue];
+        [NSURLUtil setDatalessDiagnosticsEnabled:YES];
+        [self refreshWaveformWindow];
+        NSUInteger probes = 0;
+        for (NSDictionary *counts in [[NSURLUtil datalessDiagnostics][@"directories"] allValues]) {
+            probes += [counts[@"local"] unsignedIntegerValue]
+                    + [counts[@"dataless"] unsignedIntegerValue]
+                    + [counts[@"statFailed"] unsignedIntegerValue];
+        }
+        [NSURLUtil setDatalessDiagnosticsEnabled:wasEnabled];
+        completion(@{@"ok": @(probes == 0), @"filesystemProbes": @(probes)});
+        return;
+    }
+    if ([scenario isEqualToString:@"transition"]) {
+        if ([self cellAtIndex:neighbor]) {
+            completion(@{@"error": @"Use a prepared neighbor with no live cell"});
+            return;
+        }
+        // Next renders the new header before scrolling to its cell. Keep
+        // this on one main turn, so an async bake cannot hide a lost handoff.
+        _playlist.currentIndex = neighbor;
+        [self renderHeaderForTrack:_playlist.currentTrack];
+        BOOL retained = _preparedWaveforms[@(neighbor)] == prepared;
+        [self scrollToCurrentPageAnimated:NO];
+        [_pagesView layoutIfNeeded];
+        WaveformScrubberView *arriving = [self cellAtIndex:neighbor].waveformView;
+        BOOL immediate = arriving.isShowingBakedWaveform && !arriving.isAnimatingWaveformArrival;
+        _playlist.currentIndex = current;
+        [self renderHeaderForTrack:_playlist.currentTrack];
+        [self scrollToCurrentPageAnimated:NO];
+        [_pagesView layoutIfNeeded];
+        completion(@{@"ok": @(retained && immediate), @"retainedUntilDisplay": @(retained),
+                     @"immediateWaveform": @(immediate)});
+        return;
+    }
+    if ([scenario isEqualToString:@"artwork"]) {
+        AudioTrack *track = [_playlist trackAtIndex:neighbor];
+        UIColor *color = track.cachedArt.vibeDominantColor;
+        if (!color || [self cellAtIndex:neighbor]) {
+            completion(@{@"error": @"Use a prepared offscreen neighbor with colored artwork"});
+            return;
+        }
+        // Recreate the ordering: waveform ready, display-art decode still
+        // pending. The production completion must refresh the hidden view.
+        [track.metadata discardDecodedArt];
+        prepared.artworkThemeColor = nil;
+        [self prefetchPageAtIndex:neighbor];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+            BOOL loaded = track.cachedArt != nil;
+            BOOL matched = [self->_preparedWaveforms[@(neighbor)].artworkThemeColor isEqual:color];
+            completion(@{@"ok": @(loaded && matched), @"artworkLoaded": @(loaded),
+                         @"preparedPaletteUpdated": @(matched)});
+        });
+        return;
+    }
+    completion(@{@"error": @"Expected refresh, transition or artwork"});
 }
 
 - (void)debugSetWaveformZoom:(CGFloat)fraction {
