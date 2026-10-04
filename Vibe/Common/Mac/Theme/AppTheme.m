@@ -1010,6 +1010,19 @@ static NSDictionary<NSString *, NSArray<NSString *> *> *ThemeJSONFieldLocations(
 // Far above any real theme; a mispicked video fails before the parser.
 static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 
+// 2 from 1.15, when the window's "solid" stopped meaning a color under the
+// glass panes (now "frosted") and began meaning no panes at all.
+static const NSInteger kThemeJSONVersion = 2;
+
++ (NSDictionary<NSString *, id> *)recordUpgradedFromVersion1:(NSDictionary<NSString *, id> *)record {
+    if (![record[kFieldWindowBackgroundStyle] isEqual:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID]) {
+        return record;
+    }
+    NSMutableDictionary *upgraded = [record mutableCopy];
+    upgraded[kFieldWindowBackgroundStyle] = SETTINGS_VALUE_WINDOW_BACKGROUND_FROSTED;
+    return upgraded;
+}
+
 // Trimmed, not sanitized, so a bare archive entry name survives where the
 // gate drops it.
 + (NSDictionary<NSString *, NSString *> *)rawImageReferencesInJSONData:(NSData *)json {
@@ -1067,6 +1080,10 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
             }
         }];
     }
+    id version = parsed[@"version"];
+    if (!([version isKindOfClass:NSNumber.class] && [version integerValue] >= kThemeJSONVersion)) {
+        return [self sanitizedRecord:[self recordUpgradedFromVersion1:flat]];
+    }
     return [self sanitizedRecord:flat];
 }
 
@@ -1094,7 +1111,7 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
         sub[location[1]] = fields[fieldKey];
     }
     // Hand-assembled: NSJSONSerialization cannot order top-level keys.
-    NSMutableString *out = [NSMutableString stringWithString:@"{\n  \"version\" : 1"];
+    NSMutableString *out = [NSMutableString stringWithFormat:@"{\n  \"version\" : %ld", (long)kThemeJSONVersion];
     NSData *nameData = [NSJSONSerialization dataWithJSONObject:(name ?: @"")
             options:NSJSONWritingFragmentsAllowed error:NULL];
     [out appendFormat:@",\n  \"name\" : %@",

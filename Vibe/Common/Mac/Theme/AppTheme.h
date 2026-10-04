@@ -205,6 +205,10 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 + (nullable NSData *)JSONDataForRecord:(NSDictionary<NSString *, id> *)record
                                   name:(NSString *)name;
 
+// A record stored or exported before 1.15 (JSON version 1), in today's terms:
+// its window "solid" is today's "frosted". Raw in, raw out; other keys kept.
++ (NSDictionary<NSString *, id> *)recordUpgradedFromVersion1:(NSDictionary<NSString *, id> *)record;
+
 // Sanitized: unknown keys and malformed values drop, identifiers snap,
 // numbers clamp. nil builds the defaults.
 - (instancetype)initWithRecord:(nullable NSDictionary<NSString *, id> *)record;

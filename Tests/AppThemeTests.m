@@ -628,7 +628,7 @@ static CGFloat Brightness(NSString *hex) {
     NSData *data = [AppTheme JSONDataForRecord:record name:@"Exported"];
     XCTAssertNotNil(data);
     NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
-    XCTAssertEqualObjects(json[@"version"], @1);
+    XCTAssertEqualObjects(json[@"version"], @2);
     XCTAssertEqualObjects(json[@"name"], @"Exported");
     XCTAssertNil(json[@"id"]);
     // The fields travel nested under their editor sections, never flat, and
@@ -1125,7 +1125,7 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
             @"an archive with no theme JSON must be refused");
 
     XCTAssertNil([AppTheme recordFromJSONOrArchiveData:
-            ZipWithBytesReplaced(zip, @"\"version\" : 1", @"\"version\" : X")
+            ZipWithBytesReplaced(zip, @"\"version\" : 2", @"\"version\" : X")
                                                   name:NULL error:NULL],
             @"an archive carrying corrupt JSON must be refused");
 
@@ -1274,7 +1274,7 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
         NSData *data = [NSData dataWithContentsOfURL:url];
         NSDictionary *raw = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
         XCTAssertTrue([raw isKindOfClass:NSDictionary.class], @"%@: not a JSON object", file);
-        XCTAssertEqualObjects(raw[@"version"], @1, @"%@: version must be 1", file);
+        XCTAssertEqualObjects(raw[@"version"], @2, @"%@: version must be 2", file);
         XCTAssertTrue([raw[@"name"] isKindOfClass:NSString.class]
                 && [raw[@"name"] length] > 0, @"%@: name missing", file);
 
@@ -2142,6 +2142,53 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
 
     migrated.showBPM = YES;
     XCTAssertTrue([AppSettings new].showBPM);
+    [settings factoryReset];
+}
+
+// 1.14's window "solid" kept the glass panes, which 1.15 calls frosted.
+- (void)testAVersion1SolidWindowImportsAsFrosted {
+    NSData *(^json)(NSNumber *) = ^NSData *(NSNumber *version) {
+        return [NSJSONSerialization dataWithJSONObject:@{@"version": version, @"name": @"Old",
+                @"window": @{@"backgroundStyle": @"solid"}, @"playlist": @{@"backgroundStyle": @"solid"}}
+                                               options:0 error:NULL];
+    };
+    NSDictionary *old = [AppTheme recordFromJSONData:json(@1) name:NULL error:NULL];
+    XCTAssertEqualObjects(old[@"windowBackgroundStyle"], @"frosted");
+    XCTAssertEqualObjects(old[@"playlistBackgroundStyle"], @"solid", @"the playlist's solid never changed");
+    NSDictionary *current = [AppTheme recordFromJSONData:json(@2) name:NULL error:NULL];
+    XCTAssertEqualObjects(current[@"windowBackgroundStyle"], @"solid");
+    NSDictionary *trip = [AppTheme recordFromJSONData:
+            [AppTheme JSONDataForRecord:current name:@"Trip"] name:NULL error:NULL];
+    XCTAssertEqualObjects(trip[@"windowBackgroundStyle"], @"solid", @"an export keeps its own meaning");
+}
+
+- (void)testStoredThemesFrom114KeepTheirGlassOnce {
+    AppSettings *settings = AppSettings.sharedInstance;
+    [settings factoryReset];
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    // A 1.14 divergence of Technical made by one display toggle, and a user
+    // theme duplicated from it.
+    NSMutableDictionary *working = [[AppTheme builtInRecordForIdentifier:@"technical"] mutableCopy];
+    working[@"windowBackgroundStyle"] = @"solid";
+    working[@"showRemainingTime"] = @YES;
+    NSMutableDictionary *duplicate = [working mutableCopy];
+    duplicate[@"id"] = @"user-1";
+    duplicate[@"name"] = @"Mine";
+    [defaults setObject:@"technical" forKey:@"Appearance.activeTheme"];
+    [defaults setObject:working forKey:@"Appearance.currentTheme"];
+    [defaults setObject:@[duplicate] forKey:@"Appearance.userThemes"];
+    [defaults removeObjectForKey:@"Appearance.themeRecordVersion"];
+
+    AppSettings *migrated = [AppSettings new];
+    XCTAssertTrue(migrated.showRemainingTime);
+    XCTAssertFalse(migrated.currentThemeIsModified, @"only the display choice diverged");
+    XCTAssertEqualObjects([defaults arrayForKey:@"Appearance.userThemes"][0][@"windowBackgroundStyle"], @"frosted");
+
+    // Once: a Solid picked in 1.15 stays Solid.
+    duplicate[@"windowBackgroundStyle"] = @"solid";
+    [defaults setObject:@[duplicate] forKey:@"Appearance.userThemes"];
+    (void)[AppSettings new];
+    XCTAssertEqualObjects([defaults arrayForKey:@"Appearance.userThemes"][0][@"windowBackgroundStyle"], @"solid");
     [settings factoryReset];
 }
 

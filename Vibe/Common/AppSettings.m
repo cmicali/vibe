@@ -40,6 +40,7 @@ void VibeNotifyDisplaySettingsChanged(void) {
         // objectForKey: consults the registration domain, so a registered
         // default would read as stored.
         [self migrateLooseAppearanceSettingsToTheme];
+        [self migrateThemeRecordsToVersion2];
         [self migrateThemeDisplaySettings];
 #endif
         [self registerDefaults];

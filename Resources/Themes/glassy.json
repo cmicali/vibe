@@ -1,5 +1,5 @@
 {
-  "version" : 1,
+  "version" : 2,
   "name" : "Glassy",
   "description" : "The whole window as one sheet of clear glass: a transparent placeholder lets the backdrop through where the artwork would be, the header and playlist take the same clear backdrop, and the waveform draws flat in the playing track's own color.",
   "window" : {

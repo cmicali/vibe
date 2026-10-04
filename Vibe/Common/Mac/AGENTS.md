@@ -32,6 +32,8 @@
 
 ## The display-settings migration
 
+**`migrateThemeRecordsToVersion2` runs just before it.** 1.15 split the window's 1.14 "solid" (a color under the glass panes) into `frosted`, keeping that look, and a new `solid` with no panes; the built-ins moved, so every stored record and the divergence key are rewritten once (`AppTheme recordUpgradedFromVersion1:`), and `Appearance.themeRecordVersion` makes it once, so a Solid picked since stays Solid. Theme JSON carries the same number: an import below version 2 is upgraded the same way, and every export and built-in says 2.
+
 **`migrateThemeDisplaySettings` runs at init beside the loose-settings migration, before `registerDefaults`.** Through 1.14 a theme record carried the display choices (`Theme/AGENTS.md`); the active theme's — the divergence key, else the active user theme's entry — become the app-wide settings so nothing on screen changes, then every stored record drops them, which is what makes it run once. A divergence left equal to its built-in is removed rather than kept as an empty modification. No shipped built-in set a display field, so only stored records are read. The six pre-theme loose keys (`MainWindow.showFileInfo` and friends) are the same keys the settings now use, so the loose-settings migration no longer consumes them.
 
 ## The loose-settings migration
