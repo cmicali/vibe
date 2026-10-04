@@ -56,27 +56,6 @@ static const CFTimeInterval kArrivalGrowDuration = 0.3;
 static const CFTimeInterval kChunkGrowDuration = 0.2;
 static const CFTimeInterval kCompletionGrowDuration = 0.35;
 
-// How far a decode has filled the waveform: chunks fill in order, and an
-// unfilled one has no frames.
-static CGFloat VibeDecodedFraction(AudioWaveform *waveform) {
-    NSUInteger count = waveform->getNumChunks();
-    if (waveform->isComplete() || count == 0) {
-        return 1;
-    }
-    const AudioWaveformCacheChunk *chunks = (const AudioWaveformCacheChunk *)waveform->getBytes();
-    NSUInteger low = 0, high = count;
-    while (low < high) {
-        NSUInteger mid = (low + high) / 2;
-        if (chunks[mid].getFrameCount() > 0) {
-            low = mid + 1;
-        }
-        else {
-            high = mid;
-        }
-    }
-    return (CGFloat)low / (CGFloat)count;
-}
-
 @interface WaveformScrubberView () <UIScrollViewDelegate, UIGestureRecognizerDelegate>
 @property (nonatomic, strong, nullable) CodableAudioWaveform *waveform;
 @end
@@ -701,7 +680,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     CodableAudioWaveform *waveform = self.waveform;
     BOOL complete = waveform.waveform->isComplete();
     CGFloat normalizationGain = complete ? [renderer normalizationGainForWaveform:waveform.waveform] : 1;
-    CGFloat decodedFraction = VibeDecodedFraction(waveform.waveform);
+    CGFloat decodedFraction = waveform.waveform->getDecodedFraction();
     // The fast bake samples on main, like updateWaveform:'s; only the pixel
     // work leaves. A style without one is drawn whole through the registry,
     // as the widget draws it: once all played, once all unplayed.

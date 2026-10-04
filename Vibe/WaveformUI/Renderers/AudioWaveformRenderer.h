@@ -247,6 +247,11 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 // renderer must override it; the base only asserts.
 - (CGRect)seekHitBandForBounds:(CGRect)bounds;
 
+// The band silence draws in, whose middle the mac's streaming reveal grows a
+// newly decoded stretch up from: off the resting line, the bars grow from
+// mid-air. A point either side of the vertical center here.
+- (CGRect)restingBandForBounds:(CGRect)bounds;
+
 - (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 

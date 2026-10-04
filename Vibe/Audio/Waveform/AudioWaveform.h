@@ -137,6 +137,9 @@ public:
     // one built from bytes is an archive, which is only written complete.
     inline bool isComplete() const noexcept { return complete; }
     inline void markComplete() noexcept { complete = true; }
+    // How far a streaming decode has filled the chunks, which fill in order:
+    // the first with no frames is the edge. 1 once complete.
+    double getDecodedFraction();
     inline void setChunkAtIndex(AudioWaveformCacheChunk chunk, NSUInteger index) {
         if (index < numChunks) { chunks[index] = chunk; }
     }

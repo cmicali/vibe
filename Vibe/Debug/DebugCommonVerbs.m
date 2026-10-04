@@ -873,7 +873,18 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 }];
                 return nil; // response written by the completion above
             }),
-            VibeDebugCmd(@"file_clear_cache <file>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+            VibeDebugCmd(@"set_waveform_decode_seconds <seconds>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                                                                 id<VibeDebugPlayerSurface> surface) {
+                // A progressive load on any local file, through the real
+                // loader and deliveries: what a long file's decode looks like.
+                double seconds = 0;
+                if (tokens.count < 2 || !VibeParseDouble(tokens[1], &seconds) || seconds < 0) {
+                    return VibeErrorJSON(@"usage: set_waveform_decode_seconds <seconds, 0 = full speed>");
+                }
+                AudioWaveformCache.debugDecodeSeconds = seconds;
+                return VibeJSONString(@{@"ok": @YES, @"seconds": @(AudioWaveformCache.debugDecodeSeconds)});
+            }),
+            VibeDebugCmd(@"file_clear_cache <file>", 0,^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                                     id<VibeDebugPlayerSurface> surface) {
                 NSString *errorJSON = nil;
                 NSString *path = VibeExistingFileArgument(tokens, &errorJSON);

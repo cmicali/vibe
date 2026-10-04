@@ -508,6 +508,62 @@ static float VibeTestFullScaleRMS(AudioWaveform *waveform, BOOL normalize, NSUIn
     XCTAssertTrue(archived.isComplete());
 }
 
+// The edge is the first chunk with no frames, and a complete waveform is whole
+// even where its decode ended a chunk short.
+- (void)testDecodedFractionIsTheFirstUnfilledChunk {
+    AudioWaveform loading;
+    NSUInteger count = loading.getNumChunks();
+    XCTAssertEqual(loading.getDecodedFraction(), 0);
+    AudioWaveformCacheChunk silent;
+    silent.set(0, 0, 0, 4);
+    for (NSUInteger i = 0; i < count / 4; i++) {
+        loading.setChunkAtIndex(silent, i);
+    }
+    XCTAssertEqual(loading.getDecodedFraction(), 0.25);
+    loading.markComplete();
+    XCTAssertEqual(loading.getDecodedFraction(), 1);
+}
+
+// The mac's streaming reveal grows a stretch up from this band's middle, so
+// it must hold the line an unfilled waveform draws, or the bars grow from
+// mid-air.
+- (void)testRestingBandHoldsEverythingAnUnfilledWaveformDraws {
+    CGSize size = CGSizeMake(512, 80);
+    CGFloat scale = 2;
+    WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
+    CodableAudioWaveform *unfilled = [[CodableAudioWaveform alloc] initWithWaveform:new AudioWaveform()];
+    for (NSString *style in WaveformRendererRegistry.availableIdentifiers) {
+        if (![WaveformRendererRegistry supportsLevelsForIdentifier:style]) {
+            continue;
+        }
+        for (CGFloat barWidth : {1.0, 2.0}) {
+            AudioWaveformRenderer *renderer = [self rendererForStyle:style];
+            renderer.barWidthScale = barWidth;
+            CGRect band = [renderer restingBandForBounds:CGRectMake(0, 0, size.width, size.height)];
+            CGImageRef image = [WaveformRendererRegistry newImageForCodableWaveform:unfilled identifier:style
+                    pointSize:size scale:scale progress:0.5 dark:YES theme:theme
+                    barDensity:1 barWidth:barWidth normalize:NO gainDB:0];
+            XCTAssertTrue(image != NULL, @"%@", style);
+            if (!image) continue;
+            NSData *pixels = CFBridgingRelease(CGDataProviderCopyData(CGImageGetDataProvider(image)));
+            size_t rows = CGImageGetHeight(image), rowBytes = CGImageGetBytesPerRow(image);
+            CGImageRelease(image);
+            const uint8_t *bytes = (const uint8_t *)pixels.bytes;
+            for (size_t row = 0; row < rows; row++) {
+                BOOL drawn = NO;
+                for (size_t x = 0; x < (size_t)(size.width * scale) && !drawn; x++) {
+                    drawn = bytes[row * rowBytes + x * 4 + 3] != 0;
+                }
+                // Row 0 is the top; the layers are y-up.
+                CGFloat bottom = (CGFloat)(rows - row - 1) / scale, top = (CGFloat)(rows - row) / scale;
+                XCTAssertTrue(!drawn || (bottom >= CGRectGetMinY(band) && top <= CGRectGetMaxY(band)),
+                              @"%@ width %.0f draws [%.1f, %.1f] outside its resting band [%.1f, %.1f]",
+                              style, barWidth, bottom, top, CGRectGetMinY(band), CGRectGetMaxY(band));
+            }
+        }
+    }
+}
+
 #pragma mark - 3-Band
 
 // The painter's layers, in order: low, mid, high, low+mid, low+high, mid+high,
