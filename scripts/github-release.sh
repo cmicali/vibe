@@ -12,13 +12,16 @@
 # Separate from release.sh because publishing is irreversible: a deleted
 # release leaves its tag and download links behind.
 #
+# A stable release then points the Homebrew tap at itself (brew-set-version.sh).
+#
 # The version is the built app's, never git's, so the tag names what the image
 # contains. Notes are Assets/app-store/copy/en/macos/whats-new.txt, which the
 # Mac App Store upload also takes, so the two channels cannot drift.
 #
-#   --draft        create it unpublished; the web page is left alone.
-#   --prerelease   publish a beta: not marked Latest, and the web page is not
-#                  repointed, so vibeplayer.app never hands out a test build.
+#   --draft        create it unpublished; the web page and tap are left alone.
+#   --prerelease   publish a beta: not marked Latest, and neither the web page
+#                  nor the Homebrew tap is repointed, so neither hands out a
+#                  test build.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -190,6 +193,7 @@ cp "$ARM64_ZIP" "$ASSET_ARM64_ZIP"
 if [[ -n "$DRAFT" ]]; then
     echo "🔊 draft — leaving the web page pointing at the previous release"
     echo "   once published: scripts/web-set-version.sh $VERSION && make deploy-web"
+    echo "                   scripts/brew-set-version.sh $VERSION"
 elif [[ -n "$PRERELEASE" ]]; then
     echo "🔊 prerelease — leaving the web page on the last stable release"
     echo "   a beta must not become vibeplayer.app/download/latest"
@@ -227,6 +231,15 @@ gh release create "$TAG" \
     --notes-file "$NOTES" \
     --target "$(git rev-parse HEAD)" \
     ${DRAFT:+"$DRAFT"} ${PRERELEASE:+"$PRERELEASE"}
+
+# After the release, since the cask's sha256s are the published assets' digests.
+# The release is already out, so a failure here is a warning with its retry.
+if [[ -z "$DRAFT$PRERELEASE" ]]; then
+    scripts/brew-set-version.sh "$VERSION" || {
+        echo "warning: the Homebrew tap still points at the previous release" >&2
+        echo "         retry: scripts/brew-set-version.sh $VERSION" >&2
+    }
+fi
 
 echo "🔊 done"
 gh release view "$TAG" --json url -q .url
