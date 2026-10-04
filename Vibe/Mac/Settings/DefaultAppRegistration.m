@@ -44,16 +44,16 @@ static void AddResolvedPath(NSMutableSet<NSString *> *paths, NSURL *_Nullable ur
 #pragma mark - Private
 
 // Finder opens a file by the type its extension resolves to, which another
-// app's declaration can make a type of its own, so that type is claimed
-// beside the declared one. Only one conforming to the declaration counts:
-// .mp4 resolves to video, which public.mpeg-4-audio does not claim.
+// app's declaration can make a type of its own — .cue often resolves to one —
+// so that type is claimed beside the declared one. Never video: .mp4 resolves
+// to public.mpeg-4, a movie, which a music player must not take.
 + (NSArray<UTType *> *)claimedTypes {
     NSMutableOrderedSet<UTType *> *types = [NSMutableOrderedSet new];
     for (UTType *declared in DocumentTypes.defaultHandlerTypes) {
         [types addObject:declared];
         for (NSString *extension in declared.tags[UTTagClassFilenameExtension]) {
             UTType *resolved = [UTType typeWithFilenameExtension:extension];
-            if (resolved && [resolved conformsToType:declared]) {
+            if (resolved && !resolved.dynamic && ![resolved conformsToType:UTTypeMovie]) {
                 [types addObject:resolved];
             }
         }

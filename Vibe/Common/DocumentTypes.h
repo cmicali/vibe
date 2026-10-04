@@ -19,8 +19,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (class, readonly) NSArray<UTType *> *declaredFileTypes;
 
 // The Default-rank declarations, in Info.plist order: what the app asks to be
-// the system default for. The Alternate ones — folders, audiobooks, CUE and
-// M3U — it opens without asking for.
+// the system default for. The Alternate ones — folders and audiobooks — it
+// opens without asking for.
 @property (class, readonly) NSArray<UTType *> *defaultHandlerTypes;
 
 @end

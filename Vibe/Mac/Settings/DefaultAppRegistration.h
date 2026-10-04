@@ -13,7 +13,8 @@ NS_ASSUME_NONNULL_BEGIN
 @interface DefaultAppRegistration : NSObject
 
 // YES when Vibe is the default app for every type it claims: each
-// Default-rank declaration, and the type each of its extensions resolves to.
+// Default-rank declaration — the audio, CUE sheets and M3U playlists — and
+// the type each of its extensions resolves to.
 // Walks off main; the completion arrives on main.
 + (void)checkIsDefaultAppForAllFileTypes:(void (^)(BOOL isDefault))completion;
 

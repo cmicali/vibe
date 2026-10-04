@@ -335,15 +335,16 @@ targets:
             LSHandlerRank: "Alternate"
             LSItemContentTypes:
               - "com.apple.protected-mpeg-4-audio-b"
+          # Claimed by the default-player button too, after the audio.
           - &cue-sheet-document-type
             CFBundleTypeName: "CUE Sheet"
             CFBundleTypeRole: "Viewer"
-            LSHandlerRank: "Alternate"
+            LSHandlerRank: "Default"
             LSItemContentTypes:
               - "com.commonwealthrecordings.cue-sheet"
           - CFBundleTypeName: "M3U Playlist"
             CFBundleTypeRole: "Viewer"
-            LSHandlerRank: "Alternate"
+            LSHandlerRank: "Default"
             LSItemContentTypes:
               - "public.m3u-playlist"
           - CFBundleTypeName: "Converted FLAC"
@@ -528,9 +529,9 @@ targets:
         # db-<key> scheme Dropbox grants every app without registration.
         VibeDropboxAppKey: n3d3xw7piaqy2fz
         # The mac target's "Audio Files", "Audiobook" and "CUE Sheet" entries,
-        # so InfoPlist.xcstrings localizes all three. No Folder claim (Launch Services
-        # folder handling is a mac concept), no M3U (iOS reads none) and no
-        # related-item FLAC entry (Convert is not compiled on iOS).
+        # so InfoPlist.xcstrings localizes all three. No Folder claim (Launch
+        # Services folder handling is a mac concept), no M3U (iOS reads none)
+        # and no related-item FLAC entry (Convert is not compiled on iOS).
         CFBundleDocumentTypes:
           - CFBundleTypeName: "Audio Files"
             CFBundleTypeRole: "Viewer"
