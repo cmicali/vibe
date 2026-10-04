@@ -68,6 +68,52 @@ static CGPathRef VibeNewWigglePath(CGSize size, const float *samples, NSUInteger
     return line;
 }
 
+// The bars' mask. Bars that abut, as Detailed's do at a width of their pitch,
+// are one outline along their tops and back along their bottoms, with a step
+// only where the level changes: under the nonzero rule it covers what their
+// rects cover, in at most four path elements a bar where a rect apiece is
+// five, and appending those was nine tenths of a rebuild. Pixel-rounded bars
+// fill byte for byte as their rects do; a morph frame's unrounded ones
+// antialias a few levels apart, neither nearer the exact area. Bars with gaps
+// (Basic's) stay rects. points is the caller's scratch.
+static CGPathRef VibeNewBarMaskPath(const CGRect *rects, NSUInteger count,
+                                    std::vector<CGPoint> &points) CF_RETURNS_RETAINED;
+static CGPathRef VibeNewBarMaskPath(const CGRect *rects, NSUInteger count, std::vector<CGPoint> &points) {
+    CGMutablePathRef path = CGPathCreateMutable();
+    if (count < 2 || rects[0].size.width < rects[1].origin.x - rects[0].origin.x) {
+        CGPathAddRects(path, NULL, rects, count);
+        return path;
+    }
+    points.resize(4 * count);
+    CGPoint *point = points.data();
+    CGFloat left = rects[0].origin.x, right = CGRectGetMaxX(rects[count - 1]);
+    CGFloat level = rects[0].origin.y + rects[0].size.height;
+    *point++ = CGPointMake(left, level);
+    for (NSUInteger i = 1; i < count; i++) {
+        CGFloat next = rects[i].origin.y + rects[i].size.height;
+        if (next != level) {
+            *point++ = CGPointMake(rects[i].origin.x, level);
+            *point++ = CGPointMake(rects[i].origin.x, next);
+            level = next;
+        }
+    }
+    *point++ = CGPointMake(right, level);
+    level = rects[count - 1].origin.y;
+    *point++ = CGPointMake(right, level);
+    for (NSUInteger i = count - 1; i > 0; i--) {
+        CGFloat next = rects[i - 1].origin.y;
+        if (next != level) {
+            *point++ = CGPointMake(rects[i].origin.x, level);
+            *point++ = CGPointMake(rects[i].origin.x, next);
+            level = next;
+        }
+    }
+    *point++ = CGPointMake(left, level);
+    CGPathAddLines(path, NULL, points.data(), (size_t)(point - points.data()));
+    CGPathCloseSubpath(path);
+    return path;
+}
+
 @implementation DetailedAudioWaveformRenderer {
     BOOL _wiggle;
     BOOL _wiggleCentered;
@@ -85,9 +131,9 @@ static CGPathRef VibeNewWigglePath(CGSize size, const float *samples, NSUInteger
     // lit slice is the waveform, not a line over it.
     CALayer *_hoverColumn;
 
-    // Kept across morph frames so the rects reach the path in one
-    // CGPathAddRects call rather than regrowing its buffer per rect.
+    // Kept across morph frames, so a rebuild allocates neither.
     std::vector<CGRect> _barRects;
+    std::vector<CGPoint> _maskPoints;
 }
 
 + (NSString *)styleIdentifier {
@@ -288,7 +334,7 @@ static const CGFloat kDetailedBarPitch = 0.5;
     [self updateProgress:progress waveform:waveform];
     [self setHoverHighlightX:self.hoverHighlightX];
 
-    // The oversampling styles draw more rects than device pixels on purpose:
+    // The oversampling styles draw more bars than device pixels on purpose:
     // the sub-pixel overlap IS their look. Do not clamp to the pixel count.
     NSUInteger count = [self numBarsForWidth:bounds.size.width];
 
@@ -384,9 +430,7 @@ static const CGFloat kDetailedBarPitch = 0.5;
         [self fillBarRects:_barRects size:_morph.size samples:samples.data()
             minimumHeight:_morph.barMinHeight
                     scale:_morph.isSettled ? VibeBackingScaleForLayer(self.parentLayer) : 0];
-        CGMutablePathRef bars = CGPathCreateMutable();
-        CGPathAddRects(bars, NULL, _barRects.data(), count);
-        path = bars;
+        path = VibeNewBarMaskPath(_barRects.data(), count, _maskPoints);
     }
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
@@ -446,9 +490,12 @@ static const CGFloat kDetailedBarPitch = 0.5;
         CGContextSetBlendMode(ctx, kCGBlendModeSourceIn);
     } else {
         std::vector<CGRect> rects(count);
+        std::vector<CGPoint> points;
         [self fillBarRects:rects size:size samples:(const float *)samples.bytes minimumHeight:1 scale:scale];
-        CGContextAddRects(ctx, rects.data(), count);
+        CGPathRef mask = VibeNewBarMaskPath(rects.data(), count, points);
+        CGContextAddPath(ctx, mask);
         CGContextClip(ctx);
+        CGPathRelease(mask);
     }
 
     // The live layers' stops over configureGradient:'s band. Basic re-aims its

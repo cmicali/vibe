@@ -20,7 +20,7 @@ NS_ASSUME_NONNULL_BEGIN
 //
 // The count follows the drawn width at the style's pitch; the oversampling
 // variants keep fixed counts, since their look is the sub-pixel overlap of
-// more rects than pixels. It counts rects in one mask path, not layers.
+// more bars than pixels. It counts bars in one mask path, not layers.
 - (NSUInteger)numBarsForWidth:(CGFloat)width;
 
 // count interleaved, normalized [min, max] pairs: the energy-scaled envelope
