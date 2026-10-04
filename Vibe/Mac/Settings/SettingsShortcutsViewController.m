@@ -53,7 +53,7 @@ static const CGFloat kShortcutColumnWidth = 120;
     SettingsRowView *listRow = [SettingsRowView rowWithTableView:_table rowCount:kShortcutListRowCount];
 
     _recordButton = [NSButton buttonWithTitle:STR_SETTINGS_SHORTCUTS_RECORD target:self action:@selector(recordShortcut:)];
-    _clearButton = [NSButton buttonWithTitle:STR_SETTINGS_SHORTCUTS_CLEAR target:self action:@selector(clearShortcut:)];
+    _clearButton = [NSButton buttonWithTitle:STR_BUTTON_CLEAR target:self action:@selector(clearShortcut:)];
     _resetAllButton = [NSButton buttonWithTitle:STR_SETTINGS_SHORTCUTS_RESET_ALL target:self action:@selector(resetAllShortcuts:)];
     NSStackView *buttons = [NSStackView stackViewWithViews:@[_recordButton, _clearButton, _resetAllButton]];
     buttons.spacing = 8;

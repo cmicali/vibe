@@ -597,9 +597,9 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
         @[kVibeThemeColorPlaylistNumber, STR_SETTINGS_THEME_PLAYLIST_NUMBER_COLOR_CUSTOM,
           STR_SETTINGS_THEME_PLAYLIST_NUMBER_COLOR],
         @[kVibeThemeColorPlaylistTitle, STR_SETTINGS_THEME_PLAYLIST_TITLE_COLOR_CUSTOM,
-          STR_SETTINGS_THEME_PLAYLIST_TITLE_COLOR],
+          STR_SETTINGS_THEME_COLOR_TITLE],
         @[kVibeThemeColorPlaylistArtist, STR_SETTINGS_THEME_PLAYLIST_ARTIST_COLOR_CUSTOM,
-          STR_SETTINGS_THEME_PLAYLIST_ARTIST_COLOR],
+          STR_SETTINGS_THEME_COLOR_ARTIST],
         @[kVibeThemeColorPlaylistDuration, STR_SETTINGS_THEME_PLAYLIST_DURATION_COLOR_CUSTOM,
           STR_SETTINGS_THEME_PLAYLIST_DURATION_COLOR],
     ];
@@ -657,10 +657,10 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     ]];
 
     NSMutableArray<SettingsRowView *> *playlistRows = [NSMutableArray arrayWithArray:@[
-        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_BACKGROUND
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BACKGROUND_LABEL
                 control:_playlistBackgroundPopUp],
         _playlistBackgroundColorsRow,
-        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_TINT
+        [SettingsRowView rowWithTitle:STR_SETTINGS_BACKGROUND_TINT_LABEL
                 control:_playlistTintPopUp],
         _playlistTintDarkRow,
         _playlistTintLightRow,
@@ -691,7 +691,7 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     NSArray<NSView *> *sections = @[
         // Exactly one of the pair shows, so the second drops its hairline.
         [SettingsSectionView sectionWithRows:@[_builtInRow, _nameRow]],
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_ICON_SECTION rows:@[
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_THEME_APP_ICON rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_APP_ICON control:appIconCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_DOCK_ICON control:_dockIconPopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_APP_ICON_SHAPE control:_appIconShapeSwitch],

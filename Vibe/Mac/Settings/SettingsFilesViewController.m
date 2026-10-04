@@ -321,7 +321,7 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
     panel.directoryURL = [NSURL fileURLWithPath:path isDirectory:YES];
     panel.message = [NSString stringWithFormat:STR_SETTINGS_FOLDER_GRANT_MESSAGE,
                                                VibeAppName(), sender.title];
-    panel.prompt = STR_SETTINGS_FOLDER_GRANT_BUTTON;
+    panel.prompt = STR_PLAYLIST_GRANT_BUTTON;
     [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSInteger result) {
         if (result == NSModalResponseOK) {
             [FolderAccessManager.sharedInstance noteOpenedURLs:panel.URLs];
