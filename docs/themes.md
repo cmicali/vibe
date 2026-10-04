@@ -8,13 +8,13 @@ Vibe ships with a few built-in themes, and you can build and share your own.
 
 ## Switching themes
 
-Open **Settings > Appearance** (`⌘,`). Clicking a theme in the list applies it
+Open **Settings > Themes** (`⌘,`). Clicking a theme in the list applies it
 immediately — there is no separate Apply step. The **View > Theme** menu
 switches themes too, without opening Settings.
 
-The **Window appearance** dropdown below the list (Follow System / Light /
-Dark) is separate from the theme: it picks the window's light or dark look, and a theme that has
-both palettes follows it.
+The **Window appearance** dropdown in **Settings > Appearance** (Follow System /
+Light / Dark) picks the window's light or dark look for a theme with both palettes.
+A Single Mode theme pins the window dark and disables that dropdown.
 
 The **Waveform style** dropdown above the list changes the waveform's drawing style
 without opening the theme editor. It is part of the theme — switching themes
@@ -24,7 +24,7 @@ theme; editing your own theme this way simply changes the theme.
 
 ## Creating your own
 
-In **Settings > Appearance**:
+In **Settings > Themes**:
 
 1. Click **Add > New Theme** to start from the player's current look — or
    select the built-in theme closest to what you want and choose
@@ -33,6 +33,9 @@ In **Settings > Appearance**:
 2. Click **Edit Theme…** (or double-click the theme) to open the editor. Changes
    apply live, so keep a track playing and watch the player as you go.
 3. Name it at the top of the editor page.
+
+You can also select a built-in theme and click **Customize…**. The editor opens
+with its current look, and your first edit creates an editable copy.
 
 The editor is organized the way the player is: **App icon** (the app icon and
 its shape), **Window** (color modes, background, tint, corner radius),
@@ -71,7 +74,7 @@ carrying the theme and its images together. Either file is the whole theme —
 send it however you like.
 
 To install a theme someone sent you, drag the file onto the theme list in
-**Settings > Appearance**, or choose **Add > Import…** — both `.json` and
+**Settings > Themes**, or choose **Add > Import…** — both `.json` and
 `.zip` work. Importing never replaces anything: if the name is already taken,
 Vibe suffixes the new one (“My Theme 2”), and imported artwork is re-validated
 on the way in.

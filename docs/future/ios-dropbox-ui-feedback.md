@@ -1,6 +1,6 @@
 # iOS file browser and Dropbox: UI feedback
 
-A usability audit of the UI that PR 132 introduced (the Files tab's browser, Recents, the add sheet, Dropbox browsing and search, and Settings › Files), with a recommended fix for each finding. Nothing here is decided; each recommendation is a proposal to accept, change, or drop.
+A usability audit of the UI that PR 132 introduced (the Files tab's browser, Recents, the add sheet, Dropbox browsing and search, and Settings › Files). Findings describe the original audit; the outcome columns distinguish implemented changes from open proposals.
 
 **How it was audited.** The Debug build was driven in the iPhone simulator with real touches, in light and dark mode, against seeded local folders and a signed-in Dropbox account, on 2026-10-02.
 
@@ -10,11 +10,11 @@ A usability audit of the UI that PR 132 introduced (the Files tab's browser, Rec
 
 ## Status
 
-Sections A and most of B through F are done; each row's last column says what was built. Still open: the rest of **B2** (an Add of a folder whose songs are in subfolders), **B3**, and whether the card's download line (**B7**) is legible enough. **C3** is done and may be reverted. The new and reworded strings are English only.
+Sections A and most of B through F are done; each row's last column says what was built. Still open: the rest of **B2** (an Add of a folder whose songs are in subfolders), **B3**, and whether the card's download line (**B7**) is legible enough. **C3** is done; reverting it remains a proposal. The strings were translated in #147; `make check-translations` passes for all 30 languages as of 2026-10-04. This status review checked code and catalogs, not a new simulator audit.
 
 ## A. Bugs (fixed)
 
-All four are fixed in the working tree and were re-verified in the simulator.
+All four fixes merged in #132 and were re-verified in the simulator during the original audit.
 
 | # | Finding | Fix made |
 | --- | --- | --- |
@@ -47,7 +47,7 @@ All four are fixed in the working tree and were re-verified in the simulator.
 | --- | --- | --- | --- |
 | C1 | high | The same tap means different things by screen. A file in the browser plays its whole folder; in Recents or Search it plays alone. A folder in the browser navigates; in Recents it plays. | **Done, with the rule flipped as decided:** a file tap plays that file alone and a folder tap opens it, in the browser, Search, and Recents. The long press has Play in Folder. |
 | C2 | high | The add sheet is titled "Files" and looks identical to the Files tab, but every tap appends and dismisses. | **Done.** The sheet's root is titled Add to Playlist and every pushed level carries it as a prompt. |
-| C3 | high | Tapping a file replaces a hand-built playlist with no warning. With Add now a first-class action, that loses real work. | **Done, and may be reverted.** A replace asks first (Replace, Add Instead, Cancel) once an Add has landed on the playlist; it is one method, `+confirmReplacingPlaylistOf:from:replace:add:`, and four call sites. |
+| C3 | high | Tapping a file replaces a hand-built playlist with no warning. With Add now a first-class action, that loses real work. | **Done; reversal remains a proposal.** A replace asks first (Replace, Add Instead, Cancel) once an Add has landed on the playlist, through `BrowserViewController`'s `+confirmReplacingPlaylistOf:…` funnel. |
 | C4 | med | The bar's Play button plays only the files directly in the folder. In a folder of three albums and one loose file it plays one track, and it vanishes in folder-only directories so the bar shifts between levels. | **Done, as decided.** A tap plays the folder alone and never recurses. A long press offers Play with Subfolders (Add with Subfolders in the sheet), capped at about 2,000 songs or 500 folders, with an alert when it stops early. In a folder with no song directly inside, the button is that menu alone. |
 | C5 | med | The Sort menu looks like a view option for this folder but writes the global "When opening a folder" setting. | **Done.** The menu is titled "Sort folders by", the same string as the Settings row, and stays in the Files tab's bar. |
 | C6 | med | The scope bar reads All, Files, Dropbox, Playlist; the result sections read Playlist, Files, Dropbox. The chosen scope also persists, so a later search can look empty. | **Done.** The scope bar is All, Playlist, Local, Dropbox, and an appearance with an empty field resets it to All. |
@@ -73,7 +73,7 @@ All four are fixed in the working tree and were re-verified in the simulator.
 
 | # | Sev | Finding | Outcome |
 | --- | --- | --- | --- |
-| E1 | high | Browser rows are bare filenames: no size, duration, artist, or art, and no mark on the playing track. A tap on a 70-minute mix downloads it with no warning. | **Done.** The file's size, and a speaker on the playing file. No tags or art. |
+| E1 | high | Browser rows are bare filenames: no size, duration, artist, or art, and no mark on the playing track. A tap on a 70-minute mix downloads it with no warning. | **Updated since the audit.** Rows show file size and an equalizer for the playing file. Materialized local audio can show embedded-art thumbnails; dataless files retain a tile. Cached art for dataless rows is still proposed in [iCloud improvements](ios-icloud-improvements.md). |
 | E2 | med | Everything in Dropbox is listed, including folders with no music, and a long folder has no way to jump or filter. | **Done.** A filter field in folders of a dozen rows or more, always shown: one that hid on scroll made the folder jump under the now-playing card. |
 | E3 | med | Video `.mp4` files are listed and played as songs with a music note. | **Kept as is.** |
 | E4 | low | Long names wrap without limit in the browser (one took four lines) while Search and Recents cap at one. | **Done.** |

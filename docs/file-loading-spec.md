@@ -1,11 +1,9 @@
 # File loading and metadata: behavioral spec
 
 This documents what the file-load / metadata subsystem **does today**, as observable
-behavior, so the behavior can be reviewed and agreed on before the implementation is
-simplified. Every item is a requirement the new implementation must keep unless it is
-struck or edited here. Items marked **OPEN** are places where current behavior is
-inconsistent, buggy, or a judgment call — each states the current behavior and a
-proposed resolution; edit or strike as needed.
+behavior. Reconciled with the implementation on 2026-10-04, including Dropbox
+streaming. Section J preserves the refactor's decisions and distinguishes resolved
+defects from **OPEN** follow-ups. Dated measurements are not new verification runs.
 
 The spec deliberately does **not** constrain mechanism. Holds vs. preemption, one
 coordinator vs. two, which object owns a timer — all free, so long as every numbered
@@ -21,11 +19,12 @@ H policy numbers · I platform differences · J open items · K non-goals.
 ## A. Definitions
 
 - **A1. Local / dataless.** A file is *local* when its contents are on disk; *dataless*
-  when it is a file-provider placeholder whose read would trigger a provider transfer
+  when it is a File Provider or app-owned remote placeholder needing a transfer
   (`NSURLUtil.isDatalessFile:`). Every rule that bounds or suspends downloads binds
   *transfers*; a local file never starts one and is exempt from all of them.
-- **A2. Materialization.** Making a standardized path local (a provider download, or a
-  no-op for a local file). At most **one materialization operation exists per
+- **A2. Materialization.** Making a standardized path local (a provider or remote
+  download, or a no-op for a local file). A remote stream can become readable before
+  that operation completes. At most **one materialization operation exists per
   standardized path** at any time; every interested party joins it rather than starting
   a second transfer. This is the single most load-bearing rule in the subsystem.
 - **A3. Open.** Producing a usable `AudioFileHandle` for a purpose (playback or
@@ -46,10 +45,13 @@ H policy numbers · I platform differences · J open items · K non-goals.
 - **B1.** Playing a local file starts sound in tens of milliseconds; nothing in this
   subsystem may add a transfer, a permission prompt, or an unbounded wait to the
   local path.
-- **B2.** Playing a dataless file downloads it (one transfer, A2) and then opens it.
-  The UI shows a Loading state if the open takes longer than **0.5 s**
-  (`kSlowOpenIndicatorDelaySeconds`). Play/pause during Loading toggles whether the
-  open lands playing or parked; seek during Loading retargets the start position.
+- **B2.** Playing a dataless file downloads it (one transfer, A2). A provider file
+  opens after materialization; a remote stream may open and play before completion.
+  An accepted dataless classification shows Loading immediately; an otherwise slow
+  open uses the **0.5 s** fallback (`kSlowOpenIndicatorDelaySeconds`). The row's
+  transfer bar appears only while its transfer actually runs, not while queued.
+  Play/pause during Loading toggles whether the open lands playing or parked;
+  seek during Loading retargets the start position.
 - **B3. Progress and the deadline.** Download progress is observable (the loading
   bar), and progress feeds liveness: an open is abandoned after **60 s with no
   progress**, extended to **60 s past each positive byte movement**
@@ -66,11 +68,13 @@ H policy numbers · I platform differences · J open items · K non-goals.
   current track cannot become its own successor.
 - **B6. Gapless.** With the crossfade at minimum (and, under bit-perfect output, the
   formats matching), the parked prefetch handle itself is queued as the current
-  voice's successor; there is no second open. Gapless bypasses materialization: the
-  parked file already proved the bytes local.
-- **B7. Successor prefetch is where "On track end" is enforced.** Every prefetch site
-  asks one function for the track to park; under Pause-at-track-end it answers nil,
-  and with nothing parked no splice can advance the audio by itself.
+  voice's successor; there is no second open. The parked handle is already usable,
+  including when it reads a still-downloading stream.
+- **B7. "On track end" is enforced at prefetch and advance.** Every prefetch site
+  asks `successorPrefetchTrack`; under Pause-at-track-end it answers nil. Each shell
+  also checks `VibePlaybackShouldAdvanceAtTrackEnd` before advancing, and a splice
+  is adopted only while its track remains `Playlist.trackEndSuccessor`. Changing
+  Pause, repeat or shuffle re-evaluates the parked successor.
 - **B8. Admission is bounded end to end.** Concurrent provider transfers, pending
   transfer work, and live handle runs are all bounded (numbers in H). Transfer
   work may wait only within its explicit pending bound and grace. A seventh distinct
@@ -93,33 +97,34 @@ H policy numbers · I platform differences · J open items · K non-goals.
 
 ## C. The foreground/background rule
 
-- **C1. The rule.** From play submission until that play's open settles (success,
-  error, or supersession), **no background work may start a provider transfer.**
-  The scarce resource on a provider folder is the transfer; the user's open gets it.
+- **C1. The rule.** While the coordinator has a foreground claim — a playback or
+  prefetch waiter, or a readable stream still downloading under a handle it served —
+  **metadata-only dataless work yields**. The sweep also defers its remote ranged
+  reads. A successful streaming open does not end this hold: the user's transfer
+  still needs the bandwidth. The coordinator derives the hold from its claim table.
 - **C2. Local work flows through.** While the rule is in force, cache checks, parses
   of local files, and local-file materializations continue unimpeded (A1). On a
   partially downloaded folder, every local row's tags keep landing during a cloud
   open.
 - **C3. Same-path join.** A metadata request for the very file playback is
-  downloading joins that transfer (A2) and parses when it lands — the playing
-  track's tags must not wait for the successor handshake, and the file must never
-  download twice.
-- **C4. Release is exactly-once per submission.** The rule lifts when the open
-  settles — and only the *current* submission's settlement may lift it. A stale
-  settlement (superseded play, replayed row, late error) must not lift a rule a
-  newer play has re-asserted (A5). Under rapid next-next-next, N submissions
-  produce one continuous suspension lifted once, by the last settlement.
-- **C5. Release order on teardown.** When a Close/replacement tears down both the
-  open and the sweep, background work must not start transfers into the dying
-  open's window: pending background work is dropped **before** the rule lifts.
+  downloading joins that materialization and waits for completion. Remote tag
+  parsing instead uses ranged reads, reusing an active stream's available bytes
+  where possible; it does not require a second whole-file download.
+- **C4. The hold follows live claims.** Completing or cancelling one request cannot
+  release another's foreground work. A stream remains foreground while downloading
+  under a served reader; an abandoned stream is cancelled when it has neither
+  waiters nor readers. Shells match play settlements by submission identity (A5)
+  when starting deferred metadata work; they do not maintain a second transfer hold.
+- **C5. Teardown drops the old work.** Close/replacement cancels the old sweep and
+  releases its pending work as well as the old open. An old callback cannot release
+  a new request's claim or start the discarded playlist's sweep.
 - **C6. Preemption at assertion.** Asserting the rule stops a running scan transfer
   (the sweep's own in-flight download is cancelled/yielded, not waited out), and a
   yielded transfer spends no retry budget.
-- **C7. The successor outranks the resumed sweep.** When the rule lifts after a
-  successful play, the successor prefetch's transfer must be admitted ahead of the
-  resumed scan (the prefetch, being foreground, preempts and suspends competing
-  metadata work by the same C1 mechanism); the sweep must not steal the lane the
-  moment it reopens.
+- **C7. The successor is foreground too.** A prefetch waiter or its still-downloading
+  served stream enforces C1 just as playback does. Registering it preempts an
+  existing metadata-only transfer; a scan cannot keep a successor waiting on its
+  own download.
 
 ## D. Metadata loading
 
@@ -128,24 +133,28 @@ H policy numbers · I platform differences · J open items · K non-goals.
   playlist of placeholders, every cached row lands at disk speed before a single
   download is chosen (the two-stage scan: stage 1 checks every row against the
   cache; only stage 2 may download).
-- **D2. The cache key follows the audio file**: `<size>-<mtime_us>-<sha1(path)>`,
-  content never hashed. A rewrite or move misses; a sidecar image cannot move it.
+- **D2. The cache key follows the audio file**: `<size>-<mtime_us>-<sha1(resolved path)>`,
+  content never hashed; a failed stat yields no key. A changed size, mtime or path
+  misses, but a rewrite preserving all three is undetectable. A sidecar image cannot
+  move it. A remote install that changes the placeholder's stamp re-keys its tracks.
 - **D3. Current track first.** The playing/loading track's tags and art are produced
   ahead of the sweep, at user-initiated priority, whether or not a sweep is running
   (mac header, iOS now-playing, Now Playing integration all read them).
 - **D4. The sweep is deferred** until the picked track's open settles, with a **2 s**
-  fallback so a wedged open cannot strand the playlist unpopulated forever.
+  fallback so a wedged open cannot strand the playlist unpopulated forever. A parked
+  restore with no play starts the sweep directly; C1 still gates dataless work.
 - **D5. Sweep order follows the listener.** Among pending misses: **local files
   first** (their materialization is free), then non-deferred before deferred
-  (failed-once sorts last), then neighborhood rank (**next, next+1, previous** of
-  the current row), then playlist index as the stable tie-break. The ordering is
-  re-evaluated on every track change and every submit; selection is one O(n) pass
+  (failed-once sorts last), then neighborhood rank (**next, next+1, previous** in
+  play order, including shuffle), then playlist index as the stable tie-break.
+  The ordering is re-evaluated on every track change and every submit; selection is one O(n) pass
   (real playlists reach 10⁵ misses — no sorting, no per-entry pre-submission).
-- **D6. One scan transfer at a time.** The sweep keeps at most one materialization
-  in flight; everything else stays an app-owned, re-rankable record. (Pending
-  records must never be pre-submitted to a bounded queue — see H for why.)
+- **D6. One scan materialization at a time.** The sweep keeps at most one
+  materialization in flight; pending misses stay app-owned, re-rankable records.
+  Remote ranged parses bypass the materialization claim and enter the bounded parse
+  stage directly. Pending misses must never be pre-submitted to a bounded queue.
   While C1 is in force the sweep submits no dataless record at all — even the
-  file playback is downloading, which C3 would let join for free; the
+  file playback is downloading, which C3 could reuse; the
   current-track request covers that file, and one rule beats two (J4, deliberate).
 - **D7. Retries are result-driven and bounded.** Per path, across lanes: a *yield*
   (suspended by C1) spends nothing; a *failure* spends one of **3 total attempts**
@@ -193,7 +202,8 @@ H policy numbers · I platform differences · J open items · K non-goals.
 
 - **F1. Every delivery lands on main**, names one track, and the receiver can — and
   must — drop it by comparing against the current state: waveform, BPM, key,
-  metadata, and art deliveries all race track changes.
+  metadata, and art deliveries all race track changes. Per-window results match
+  `sourceKey` (CUE rows share a URL); file metadata matches by URL.
 - **F2. Play settlements are matched by submission identity** (A5), decided at
   delivery time on main — never by track or URL.
 - **F3. Metadata installs are atomic and revalidated**: installation and publication
@@ -202,32 +212,33 @@ H policy numbers · I platform differences · J open items · K non-goals.
 
 ## G. Lifecycle edges (sequences that must stay true)
 
-- **G1. Successful cloud play**: rule asserts at submission (C1) → transfer with
-  progress (B3) → current track's tags join/land (C3) → sound → successor prefetch
-  admitted (C7) → rule lifts once (C4) → deferred sweep starts (D4) → sweep walks
-  the neighborhood (D5).
+- **G1. Successful cloud play**: foreground registration (C1) → transfer with
+  progress (B3) → usable handle → sound and successor prefetch (C7). Tags can land
+  alongside this path (C3). The deferred sweep starts at settlement (D4), but its
+  dataless work waits for all foreground claims to end (C4), including streams
+  still downloading after sound starts; it then walks the neighborhood (D5).
 - **G2. Timeout**: deadline fires (B3) → stopped state + error string (B4) → rule
-  lifts once → sweep starts; the failed pick is an ordinary candidate (B4), and its
-  metadata failure spends budget normally (D7).
-- **G3. Rapid next**: N submissions, one continuous suspension (C4); each
-  superseded open is cancelled before the next begins; stale settlements and their
-  prefetch acknowledgements all drop; exactly one release at the end.
+  lifts once no foreground claim remains → sweep's dataless work resumes; the failed
+  pick is an ordinary candidate (B4), and its metadata failure spends budget normally (D7).
+- **G3. Rapid next**: each superseded open is cancelled before the next begins;
+  stale settlements and their prefetch acknowledgements drop. Old work cannot lift
+  the hold belonging to a new claim (C4), and unused streams release their lanes.
 - **G4. Same-row replay**: same track, same URL, new submission identity; every
   stale-settlement rule in F2/C4 still holds (A5 is the reason this is hard).
-- **G5. Close** (macOS): no callbacks (B9); pending background work dropped before
-  the rule lifts (C5); nothing left held — the next folder's sweep starts clean.
+- **G5. Close** (macOS): no transport callbacks (B9); old background work and opens
+  are cancelled (C5); the next folder's sweep starts clean.
 - **G6. Playlist replacement**: D10, plus the same "old transfers must not compete
-  with the new pick" ordering as G5. On iOS, replacement is also the Close edge:
-  any in-force C1 suspension lifts here — a folder that lands parked submits no
-  play, so no settlement would ever lift it otherwise (J3).
+  with the new pick" rule as G5. iOS has explicit Clear Playlist and replacement
+  paths; backgrounding alone does not close the playlist or stop background audio.
+  A restored folder that lands parked starts its sweep without a play settlement.
 
 ## H. Policy numbers (current production values, all reviewable)
 
 | Policy | Value | Where |
 | --- | --- | --- |
-| Slow-open indicator threshold | 0.5 s | `AudioPlayer.m:64` |
-| Open no-progress deadline | 60 s | `AudioFileOpenTimeoutMath.h:15` |
-| Open progress-silence deadline | 60 s past last movement | `AudioFileOpenTimeoutMath.h:16` |
+| Slow-open indicator fallback (dataless classification is immediate) | 0.5 s | `AudioPlayer.m` |
+| Open no-progress deadline | 60 s | `AudioFileOpenTimeoutMath.h` |
+| Open progress-silence deadline | 60 s past last movement | `AudioFileOpenTimeoutMath.h` |
 | Foreground transfers (running / pending / grace) | 3 / 1 / 5 s | `AudioLoadingConfiguration.m` |
 | Background transfers (running / pending / grace) | 1 / 6 / 10 s | same |
 | Initial classification probes (running / pending / grace) | 8 / 16 / 5 s | `AudioFileMaterializationCoordinator.m` |
@@ -237,7 +248,7 @@ H policy numbers · I platform differences · J open items · K non-goals.
 | Admission-exhausted retry delay | 0.25 s → 2 s escalating | `MetadataRetryRules.h` |
 | Parse concurrency | 4 | `AudioLoadingConfiguration.m` |
 | Sweep deferral fallback | 2 s | both shells |
-| Neighborhood offsets | +1, +2, −1 | `AudioTrackMetadataCache.m:174` |
+| Neighborhood offsets | +1, +2, −1 | `Playlist.neighborhoodTracks` |
 | Art requests (running / pending) | 2 / 5 | `ArtworkLoadRegistry` |
 | Art admission backoff | 0.1–1 s, 5 steps | same |
 | Extraction retries / backoff | 3 reads / 2 s | `AudioTrackArtwork.m` |
@@ -249,53 +260,46 @@ H policy numbers · I platform differences · J open items · K non-goals.
 
 ## I. Platform differences
 
-- **I1.** Folder art, BPM/key analysis, and the DJ FX chain are macOS-only, each
-  switched off at one place (root `AGENTS.md`); iOS reads no preference it cannot
-  act on.
-- **I2.** File > Close is macOS-only; iOS tears down via playlist replacement and
-  backgrounding, and every G5 guarantee must hold on those edges instead (see J3).
+- **I1.** Folder art, key analysis, pitch-fader varispeed and the app's volume stage
+  are macOS-only, each switched off at one place (root `AGENTS.md`). BPM detection
+  and DJ FX run on both platforms; iOS uses system volume.
+- **I2.** File > Close is macOS-only; iOS tears down via Clear Playlist and playlist
+  replacement. Background audio keeps its session when the app leaves the foreground.
 - **I3.** Display rendition is 640 px on mac, 1024 px on iOS (E4). The iOS
   now-playing page deliberately draws no thumbnail (full/rendition art only).
-- **I4.** Settings surface (cache size/clear) is macOS-only.
-- **I5.** Analysis (BPM/key) rides the waveform decode pass and is macOS-only; on
-  iOS the tagged value is the whole answer.
+- **I4.** Metadata/waveform cache size and clear controls are macOS-only. iOS has
+  separate Dropbox download storage controls; those files are not these caches.
+- **I5.** Analysis rides the waveform decode pass: BPM on both platforms, key on
+  macOS only. Tags take precedence through `AudioTrack.bpm` and `.key`; a CUE row
+  uses its window's analysis instead of the containing file's tags.
 
 ## J. Open items and decisions
 
-- **J1. Priority-lane retention (defect → DECIDED).** Replayed/replaced playlists
-  accumulate per-track state in the current-track lane; entries from abandoned
-  playlists keep downloading until their budget runs out. **Resolution:** D10
-  applies to the current-track lane too — replacement drops its pending work.
-  (Structural in the simplification: the current track becomes a rank-0 record in
-  the one sweep, so replacement drops everything by construction.)
-- **J2. Unguarded error-path release (defect → DECIDED).** The timeout/error path
-  lifts the C1 rule without checking submission identity; a late generic error
-  (device loss, seek failure — errors that carry no URL) landing between a new
-  play's submission and its Loading state can lift the rule the new play just
-  asserted. iOS has no stopped-state guard at all on this path. **Resolution:**
-  C4 binds *every* release edge, not just the acknowledgement edge — free in the
-  simplified shape, where release is internal to settlement.
-- **J3. iOS hold leak on folder replacement (defect → DECIDED).** Opening a folder
-  that lands parked (the `restored` branch — no play submitted) never lifts a
-  previously asserted C1 rule, suspending the new folder's sweep indefinitely.
-  **Resolution:** G6 lifts the rule on iOS playlist replacement (now normative
-  in G6).
+- **J1. Priority-lane retention (RESOLVED).** Abandoned playlists formerly retained
+  current-track requests. Replacement now cancels the scan and priority work (D10).
+- **J2. Unguarded error-path release (RESOLVED).** Late generic errors formerly
+  released a shell-maintained foreground hold. The coordinator now derives C1 from
+  live claims; a shell error cannot release another open's claim. Play-path
+  settlements also check submission identity before reaching the shell (F2).
+- **J3. iOS hold leak on folder replacement (RESOLVED).** A parked restore formerly
+  left a shell-maintained hold asserted with no play to release it. Replacement
+  cancels the old work, the coordinator derives the hold, and a parked restore
+  starts metadata directly (G6).
 - **J4. Sweep-vs-hold pre-check asymmetry (DECIDED).** The sweep refuses to submit
   any dataless record while C1 is in force — even the very file playback is
-  downloading, which C3 would let join for free; the current-track lane submits
+  downloading, which C3 could reuse; the current-track request submits
   and joins. **Resolution:** keep the sweep conservative — one rule beats two,
   and the current-track request covers the playing file. Now documented in D6.
 - **J5. Abandoned-pick chasing (DECIDED, recorded).** An earlier design re-ranked a
   still-moving abandoned pick to the front of the sweep. Retired: under
   extend-on-movement deadlines (B3) any abandoned transfer has been silent for its
   full 60 s, so there is no "still moving" case; scenario S12b pins not-chased.
-- **J6. Artwork "desired queue" (DECIDED).** A third parking layer (7-deep) above
+- **J6. Artwork "desired queue" (REMOVED).** A third parking layer (7-deep) above
   the art scheduler's own pending queue, added for uncancellable stale reads
   crowding out newly visible iOS pages — but only ~3 art surfaces are ever
-  simultaneously wanted. **Resolution:** delete during the simplification,
-  gated on an on-device iOS pager check against a stuck fake provider (the one
-  failure mode with no host-less test). The simulator pager check was run at the
-  deletion; the on-device iPhone check is not recorded as run.
+  simultaneously wanted. **Resolution:** deleted during the simplification. The
+  simulator pager check against a stuck fake provider was run at deletion; the
+  intended on-device iPhone check is still not recorded as run.
 - **J7. Stacked open admission (DECIDED, superseded by J8).** Handle opens were
   bounded by a second scheduler whose limits duplicated the transfer lane's.
   The original resolution made one lane slot span transfer and handle open, and
@@ -304,8 +308,10 @@ H policy numbers · I platform differences · J open items · K non-goals.
 - **J8. Transfer/open lifetime separation (defect → DECIDED; supersedes J7).** A
   never-returning prefetch or gapless open (then an `AVAudioFile` call; the gapless
   open no longer exists) carried the sole background transfer slot forever, permanently starving dataless metadata and prefetch work.
-  **Resolution:** every transfer slot ends when its stage-1 materialization settles;
-  no slot is carried into stage 2. Independently, at most 6 distinct
+  **Resolution:** every transfer slot ends when its stage-1 materialization settles.
+  Streaming now overlaps stage 2 with a still-running transfer; the slot remains
+  attached to that transfer until completion or failure, never to the handle-open
+  lifetime. Independently, at most 6 distinct
   `(purpose, standardized path)` handle runs may be live per coordinator. Production
   uses the shared coordinator, making that ceiling process-wide in the app. An existing
   key rebinds before the ceiling is checked; a new seventh run is refused immediately
@@ -320,10 +326,12 @@ H policy numbers · I platform differences · J open items · K non-goals.
   Another player or open source, or a multi-flight source, requires re-deriving the
   ceiling and its tests. Foreground and background transfer limits remain 3 and 1.
 - **J9. Running-stage materialization deadline (defect → OPEN).** Once stage 1 is
-  `Running`, pending admission expiry no longer reaches it. A coordinated read stalled
-  on SMB, NFS, or a sleeping external disk can hold its transfer lane indefinitely;
-  metadata and artwork callers have no deadline that guarantees cancellation. A fix
-  needs explicit slow-volume, caller-deadline, and retry policy; see the
+  `Running`, pending admission expiry no longer reaches it. Local reads now hold no
+  transfer lane, so a stalled SMB, NFS or disk read strands only its worker. A
+  dataless provider operation or a delayed classification refresh can still hold
+  its lane indefinitely; metadata and artwork callers have no deadline that
+  guarantees cancellation. The remaining fix needs explicit provider, caller-deadline
+  and retry policy; see the
   [bug record](https://github.com/cmicali/vibe/issues/96).
 - **J10. Deferred readability items (OPEN, no behavior at stake).** Two were set
   aside by the file-load refactor: `AudioTrackArtwork`'s extraction-state

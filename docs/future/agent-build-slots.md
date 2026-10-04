@@ -72,8 +72,10 @@ The build lock around every generate it misses. `generate-git-info.sh`: write a 
 `NSBundle.mainBundle.bundleIdentifier`; app and client are one binary, so both derive the same name.
 Callers: `VibeInstallDebugCommandChannel`, `DebugClient.m`'s `notify_post`,
 `VibeInstallDebugScreenshotHook`'s literal, and the `DebugUtil.h` and `DebugChannel.h` comments.
-`VibeStateDictionary` (`DebugStateDump.m`) gains an `instance` dict (bundle id, path, executable,
-pid, channel), not `app`, which `dump_health` already uses; `VibeLogBuildProvenance` logs the bundle id.
+`dump_build` (`DebugCommonVerbs.m`) already reports version, git revision,
+build time, pid and bundle path on both platforms. Extend that existing command with the
+bundle id, executable and resolved channel when slots are built, instead of adding a second
+instance report to `dump_state`. `VibeLogBuildProvenance` should also log the bundle id.
 
 **Tooling.** The resolver replaces every `APP=`/`V=` preamble and literal `Contents/MacOS/Vibe`:
 the seven scripts above, `run-script.sh`, `scan-bpm.sh`, `scan-key.sh`, `validate-tempo.py`,

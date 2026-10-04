@@ -1,6 +1,6 @@
 # Future: streaming from any source
 
-**Status: planned 2026-10-03, not started. Builds on streaming Dropbox playback (`dropbox-streaming.md`, PR 134), and changes nothing in it until phase 1.**
+**Status: planned 2026-10-03, not started.** Builds on the implemented [Dropbox streaming](dropbox-streaming.md) from PR #134. Its general read-ahead and availability changes remain proposals; Google Drive now has a [separate feasibility study](ios-google-drive.md).
 
 Today the streaming model serves one source: a file Vibe's own Dropbox client is downloading on iOS. Every other open is a whole-file open, whose reads block in the kernel for as long as the volume takes.
 
@@ -46,7 +46,7 @@ Measured on macOS 27 with a probe that opens a dataless file, reads 64 KB with a
 - **A wait can already be answered from memory.** The tail window is copied into the reader's buffer by the wait itself, with no `pread` (`VibeHandleAwait`, the three read paths). A source that serves every byte that way needs no new read path.
 - **Interruption, buffering, the stall's pause, and the estimated MP3 length** are all keyed on the handle having an availability, not on Dropbox (`_availability`, `waitingForBytes`, `updateBufferingOnQueue`, `VibeUncountedMPEGPackets`).
 - **The coordinator already passes every open an `interrupted:` block** and wakes the file's waiters on cancel. For a whole file it has nothing to interrupt.
-- **The Dropbox plan already names the next shape.** "The window generalizes to a block cache keyed by offset, behind the same wait."
+- **The Dropbox follow-ups already name the next shape:** an offset-keyed range cache behind the same wait.
 
 ## What the code makes hard
 
@@ -83,7 +83,7 @@ Each was found reading the code, and each is a way the feature fails if missed.
 | File read-ahead (phase 2) | no | sliding, ahead of the reader | yes | no |
 | Dropbox ranged reads for a seek ahead (phase 4) | yes | on request | yes | yes |
 | A partial-fetch File Provider (phase 4, on evidence) | no | sliding | yes | no |
-| Another service's client (not planned) | either | either | either | either |
+| Google Drive client ([under research](ios-google-drive.md)) | to decide | to decide | to decide | to decide |
 
 ### The file read-ahead
 
@@ -123,7 +123,7 @@ Nothing is built until these are in hand. Each decides something.
 
 The four additions above, with Dropbox the only writer and its behaviour unchanged: the tail becomes the first block, the wanted range is recorded and ignored. The type loses "Cloud" from its name. **One table of live availabilities in shared code**, which a writer registers into, replaces the per-backend lookup block (`setRemoteRoot:`'s fourth argument) if the mirror's own table can go with it.
 
-Done when the streaming tests, `dropbox-streaming.sh`'s 28 scenarios, and the PCM comparisons pass untouched.
+Done when the streaming tests, the full `dropbox-streaming.sh` scenario suite, and the PCM comparisons pass untouched.
 
 ### Phase 2: the file read-ahead, for playback
 
@@ -142,9 +142,9 @@ Done when a throttled file plays through the render pump sample-identical to the
 
 ### Phase 4: writers that serve the wanted range, each on evidence
 
-- **Dropbox seeks ahead by range.** A ranged read answers the wanted range into a block, by the pinned `rev`. It helps M4A, WAV, and FLAC with a seek table, and not MP3 or seek-table-less FLAC (the Dropbox plan's spike). This is that plan's option C without the sparse file.
+- **Dropbox seeks ahead by range.** A ranged read answers the wanted range into a block, by the pinned `rev`. It helps M4A, WAV, and FLAC with a seek table, and not MP3 or seek-table-less FLAC (the Dropbox plan's spike). This is the in-memory alternative to that document's sparse-storage option.
 - **A File Provider that delivers ranges.** The file read-ahead over a dataless file, skipping the `NSFileCoordinator` download, which is the only way the system hands out a range. Only for a provider the probe has shown to stream, since on any other the first read downloads the whole file with no cancel. Dropbox's Mac extension is the likeliest first: the code is shipped and gated off. Build it when a provider in users' hands passes the probe, not before, and re-run the probe on each Dropbox release until then.
-- **Another service's own client** is a product decision, not this plan's. Its transfer would be one more writer.
+- **Another service's own client** is a separate product decision. [Google Drive](ios-google-drive.md) is under research; its authorization and version-consistency probes must be resolved before assuming it can publish a stream safely. A sequential client can use today's availability without waiting for this generalization.
 
 ## Options weighed and not taken
 

@@ -1,6 +1,6 @@
 # Future: unit tests for the iOS app shell
 
-**Status: planned, not started (written 2026-10-02).** Deliberately parked until #134 (Dropbox streaming) lands into #132: it rewrites `DropboxMirrorTests`, the materialization coordinator, the cloud registry and the browser, and adds a streaming file handle with its own 1300-line suite, so the shell's testable surface and the fixtures to reach it both change under this plan. Start it from the merged tree, not from either branch.
+**Status: planned, not started; prerequisites merged (reviewed 2026-10-04).** This was parked on 2026-10-02 pending #134 (Dropbox streaming) and #132 (the iOS browser). Both are now on main. Start from the current streaming fixtures and browser behavior; neither PR is a remaining blocker.
 
 ## The question this started from, and its answer
 
@@ -19,7 +19,7 @@ Two of the four defects a review found in #132 were fixed with unit tests the sa
 | `PageWaveformCoordinator` | its own suite |
 | `PlayerScreenRules.h`, `DropboxRules.h` | `PlayerScreenRulesTests`, `DropboxRulesTests` |
 
-Everything else under `Vibe/iOS/` is reached only through the debug channel and the touch driver. The view controllers hold no `static` logic at all: `BrowserViewController.m` (1400 lines), `RootViewController.m` (900) and `LibraryViewController.m` (750) make every decision inline, beside the UIKit call that acts on it. The three `*Rules.h` seams that exist are the search, the screen state and the Dropbox paths; none covers the shell's own rules.
+The remaining shell orchestration is reached through the debug channel and the touch driver. Most decisions in `BrowserViewController`, `RootViewController` and `LibraryViewController` remain beside the UIKit calls that act on them. Some static helpers exist, including the pager's `WaveformWaitsForOpen`, but they are not independently compiled test seams. The existing rules headers cover search, screen state and Dropbox paths, not the open/Add orchestration below.
 
 ## Three moves, in order of payoff
 
@@ -27,9 +27,9 @@ Everything else under `Vibe/iOS/` is reached only through the debug channel and 
 
 The biggest win. `FolderSession` owns the open and Add orchestration that `Vibe/iOS/AGENTS.md` spends its longest paragraphs and most `TRAP:`s on: `openIntentGeneration` and the Add token, the promotion of the first Add onto nothing and the waiters parked behind it, the empty-open carry of `_landedOpenIntentGeneration`, the base-is-the-first-contributor rule, the bounded restore and its merge order, recents, the settle event every Add ends in, and acquire-before-release on the scope set. Every one of those is a race or an ordering rule, invisible on local files where a resolve takes a millisecond and wide open on a cold provider — exactly what a test with held provider calls makes deterministic.
 
-Its source is UIKit-free except for the header's `#import <UIKit/UIKit.h>` and one device-name lookup on main (the recents' display name). Its imports are `AppSettings`, `AppStats`, `AudioTrack`, `DropboxMirror`, `FavoritesStore`, `FileSearchRules.h`, `NSURLUtil` and `SearchFolderStoreInternal.h`; of these only `FavoritesStore` and `SearchFolderStore` are not in the target yet, and neither draws (`FavoritesStore.m` has no UIKit reference, `SearchFolderStore.m` one, to check). So the dependency pull is two stores, not the shell.
+Its header imports UIKit, but its implementation does not draw. The recents' device-name lookup is delegated to `SearchFolderStore` on main. Its dependencies include `AppSettings`, `AppStats`, `AudioTrack`, `DropboxMirror`, `FavoritesStore`, `FileSearchRules.h`, `NSURLUtil`, `PlaylistFile` and `SearchFolderStoreInternal.h`. The two stores are not in the target yet; `FavoritesStore` has no UIKit reference, while `SearchFolderStore` uses `UIDevice` for its display name. That lookup needs a platform boundary or a test seam before compiling the stores on the Mac.
 
-The shape is `DropboxMirrorTests`': a temp root for the folders, real listings on disk, and the two main-only stores either compiled in with a temp defaults suite or stubbed at their one query each (`grantCoveringURL:`, `resolvedRootCoveringURL:`). Security scopes cannot be exercised on the Mac — `startAccessingSecurityScopedResource` answers NO for a plain file URL, which the session already treats as "not failure" — but the bookkeeping around them can: which URLs are held, that a replace installs the successor set before stopping the previous one, that an append extends rather than replaces.
+The shape is `DropboxMirrorTests`': a temp root for the folders, real listings on disk, and the two main-only stores either compiled in with a temp defaults suite or stubbed at their queries (`grantCoveringURL:`, `resolvedRootCoveringURL:`). Plain temporary file URLs do not exercise iOS picker grants — `startAccessingSecurityScopedResource` answers NO, which the session already treats as "not failure" — but the bookkeeping around them can be tested: which URLs are held, that a replace installs the successor set before stopping the previous one, that an append extends rather than replaces.
 
 The tests to write first are the ones the doc's `TRAP:`s describe, since each is a bug that shipped once:
 
@@ -59,12 +59,12 @@ It is the model, but it pulls the real `AudioPlayer`, `AppSettings`, both stores
 
 Layout and the safe area, animations and their frame rate, `UITabAccessory`'s fixed height, the system document picker and the grants it mints, accessibility focus. `check-layout-stability.sh`, `sample_frame_rate` and `check_consistency` are the oracles for those (`vibe-debug`), and the Recents scope fix from the #132 review can only be checked on a phone, since the simulator cannot make a one-off picker grant.
 
-## Order of work, once #134 is in
+## Order of work
 
 1. `FolderSession` into `VibeTests` with the six tests above; this is where the dependency pull is learned, so report it before moving anything.
 2. The card fold seam, since it is the smallest and the most recently wrong.
 3. The browser's row-action seam, against the decision list in `ios-dropbox-ui-feedback.md`.
 4. The library follow rule and the waveform gate, as their files are next touched.
-5. The follow-up noted in #132: the tests' `DropboxStubProtocol` and the debug channel's `VibeFakeDropbox` stand on the same two `DropboxClientInternal.h` methods; once #134's rewrite of `DropboxMirrorTests` is in, decide whether one can serve both. They differ on purpose today — the tests script inconsistencies a fixture directory cannot express.
+5. The follow-up noted in #132: the tests' `DropboxStubProtocol` and the debug channel's `VibeFakeDropbox` stand on the same two `DropboxClientInternal.h` methods. Evaluate the merged streaming fixtures before deciding whether one can serve both. They differ on purpose today — the tests script inconsistencies a fixture directory cannot express.
 
 Each step reports its net lines, new files and what it deleted, as every feature does.
