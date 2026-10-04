@@ -306,35 +306,45 @@ targets:
             LSHandlerRank: "Alternate"
             LSItemContentTypes:
               - "public.folder"
-          # com.apple.quicktime-audio is .qta, the QuickTime container Voice
-          # Memos exports, and com.apple.protected-mpeg-4-audio-b is .m4b, the
-          # audiobook. Neither conforms to either MPEG-4 claim.
+          # What Settings > General's default-player button claims, in this
+          # order, one system prompt each: the common formats first, so a user
+          # who stops answering still has them. com.apple.quicktime-audio is
+          # .qta, the QuickTime container Voice Memos exports; it conforms to
+          # neither MPEG-4 claim.
           - CFBundleTypeName: "Audio Files"
             CFBundleTypeRole: "Viewer"
             LSHandlerRank: "Default"
             LSItemContentTypes: &audio-content-types
-              - "public.mp2"
               - "public.mp3"
-              - "public.aac-audio"
-              - "public.aiff-audio"
-              - "com.microsoft.waveform-audio"
-              - "com.sony.wave64"
               - "org.xiph.flac"
-              - "com.apple.coreaudio-format"
               - "com.apple.m4a-audio"
+              - "com.microsoft.waveform-audio"
+              - "public.aiff-audio"
+              - "public.aac-audio"
               - "public.mpeg-4-audio"
-              - "com.apple.quicktime-audio"
-              - "com.apple.protected-mpeg-4-audio-b"
               - "org.xiph.ogg-audio"
+              - "com.apple.coreaudio-format"
+              - "com.sony.wave64"
+              - "public.mp2"
+              - "com.apple.quicktime-audio"
+          # .m4b, which conforms to neither MPEG-4 claim either. Alternate:
+          # Vibe plays an audiobook but never asks to take them from Books.
+          - &audiobook-document-type
+            CFBundleTypeName: "Audiobook"
+            CFBundleTypeRole: "Viewer"
+            LSHandlerRank: "Alternate"
+            LSItemContentTypes:
+              - "com.apple.protected-mpeg-4-audio-b"
+          # Claimed by the default-player button too, after the audio.
           - &cue-sheet-document-type
             CFBundleTypeName: "CUE Sheet"
             CFBundleTypeRole: "Viewer"
-            LSHandlerRank: "Alternate"
+            LSHandlerRank: "Default"
             LSItemContentTypes:
               - "com.commonwealthrecordings.cue-sheet"
           - CFBundleTypeName: "M3U Playlist"
             CFBundleTypeRole: "Viewer"
-            LSHandlerRank: "Alternate"
+            LSHandlerRank: "Default"
             LSItemContentTypes:
               - "public.m3u-playlist"
           - CFBundleTypeName: "Converted FLAC"
@@ -518,15 +528,16 @@ targets:
         # PKCE, which needs none, and the redirect it pairs with is the
         # db-<key> scheme Dropbox grants every app without registration.
         VibeDropboxAppKey: n3d3xw7piaqy2fz
-        # The mac target's "Audio Files" and "CUE Sheet" entries, so
-        # InfoPlist.xcstrings localizes both. No Folder claim (Launch Services
-        # folder handling is a mac concept), no M3U (iOS reads none) and no
-        # related-item FLAC entry (Convert is not compiled on iOS).
+        # The mac target's "Audio Files", "Audiobook" and "CUE Sheet" entries,
+        # so InfoPlist.xcstrings localizes all three. No Folder claim (Launch
+        # Services folder handling is a mac concept), no M3U (iOS reads none)
+        # and no related-item FLAC entry (Convert is not compiled on iOS).
         CFBundleDocumentTypes:
           - CFBundleTypeName: "Audio Files"
             CFBundleTypeRole: "Viewer"
             LSHandlerRank: "Default"
             LSItemContentTypes: *audio-content-types
+          - *audiobook-document-type
           - *cue-sheet-document-type
         UTExportedTypeDeclarations: *cue-sheet-export
         UTImportedTypeDeclarations: *ogg-audio-import

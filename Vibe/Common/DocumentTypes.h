@@ -15,9 +15,13 @@ NS_ASSUME_NONNULL_BEGIN
 // Every LSItemContentTypes entry across all declarations, folders included.
 @property (class, readonly) NSArray<UTType *> *declaredTypes;
 
-// The file types alone: the folder declaration is an Alternate handler, never
-// something to become the system default for.
+// The file types alone, without the folder declaration.
 @property (class, readonly) NSArray<UTType *> *declaredFileTypes;
+
+// The Default-rank declarations, in Info.plist order: what the app asks to be
+// the system default for. The Alternate ones — folders and audiobooks — it
+// opens without asking for.
+@property (class, readonly) NSArray<UTType *> *defaultHandlerTypes;
 
 @end
 

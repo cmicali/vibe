@@ -82399,6 +82399,378 @@
       },
       "extractionState": "manual"
     },
+    "settings.general.default_player.refused_message": {
+      "comment": "Settings, General pane: body of the alert shown when macOS refused to make the app the default player. Use the Finder's own localized labels for the Get Info window's 'Open with' section and its 'Change All' button. %@ is the app name.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изберете аудиофайл във Finder и натиснете ⌘I. Под „Отваряне с“ изберете %@, след което щракнете „Промени всички“."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vyberte ve Finderu zvukový soubor a stiskněte ⌘I. V části „Otevřít v aplikaci“ vyberte %@ a klikněte na „Změnit vše“."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vælg en lydfil i Finder, og tryk på ⌘I. Vælg %@ under “Åbn med”, og klik på “Skift alle”."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle im Finder eine Audiodatei aus und drücke ⌘I. Wähle unter „Öffnen mit“ %@ aus und klicke dann auf „Alle ändern“."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Επιλέξτε ένα αρχείο ήχου στο Finder και πατήστε ⌘I. Στην ενότητα «Άνοιγμα με» επιλέξτε %@ και μετά κάντε κλικ στο «Αλλαγή όλων»."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select an audio file in the Finder and press ⌘I. Under “Open With”, choose %@, then click “Change All”."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selecciona un archivo de audio en el Finder y pulsa ⌘I. En “Abrir con”, elige %@ y haz clic en “Cambiar todo”."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Valitse äänitiedosto Finderissa ja paina ⌘I. Valitse %@ kohdassa ”Avaa ohjelmalla” ja klikkaa ”Muuta kaikki”."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sélectionnez un fichier audio dans le Finder et appuyez sur ⌘I. Sous « Ouvrir avec », choisissez %@, puis cliquez sur « Tout modifier »."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odaberite audiodatoteku u Finderu i pritisnite ⌘I. Pod „Otvori pomoću” odaberite %@, a zatim kliknite „Promijeni sve”."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jelölj ki egy hangfájlt a Finderben, és nyomd meg a ⌘I billentyűkombinációt. A „Megnyitás ezzel” résznél válaszd a(z) %@ appot, majd kattints az „Összes módosítása” gombra."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pilih file audio di Finder dan tekan ⌘I. Di bawah “Buka Dengan”, pilih %@, lalu klik “Ubah Semua”."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seleziona un file audio nel Finder e premi ⌘I. In “Apri con”, scegli %@, quindi fai clic su “Modifica tutto”."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finderでオーディオファイルを選択して⌘Iを押し、「このアプリケーションで開く」で%@を選択してから「すべてを変更」をクリックしてください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finder에서 오디오 파일을 선택하고 ⌘I를 누르십시오. ‘다음으로 열기’에서 %@을(를) 선택한 다음 ‘모두 변경’을 클릭하십시오."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marker en lydfil i Finder, og trykk på ⌘I. Velg %@ under «Åpne med», og klikk deretter på «Endre alle»."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selecteer een audiobestand in de Finder en druk op ⌘I. Kies %@ onder ‘Open met’ en klik vervolgens op ‘Wijzig alles’."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zaznacz plik audio w Finderze i naciśnij ⌘I. W sekcji „Otwórz za pomocą” wybierz %@, a następnie kliknij „Zmień wszystko”."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selecione um arquivo de áudio no Finder e pressione ⌘I. Em “Abrir com”, escolha %@ e clique em “Alterar Tudo”."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selecione um ficheiro de áudio no Finder e prima ⌘I. Em “Abrir com”, escolha %@ e clique em “Alterar tudo”."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selectați un fișier audio în Finder și apăsați ⌘I. La „Deschide cu”, alegeți %@, apoi faceți clic pe „Modifică tot”."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите аудиофайл в Finder и нажмите ⌘I. В разделе «Открывать в программе» выберите %@, затем нажмите «Изменить все»."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vyberte vo Finderi zvukový súbor a stlačte ⌘I. V časti „Otvoriť v aplikácii“ vyberte %@ a kliknite na „Zmeniť všetko“."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Markera en ljudfil i Finder och tryck på ⌘I. Välj %@ under ”Öppna med” och klicka sedan på ”Ändra alla”."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เลือกไฟล์เสียงใน Finder แล้วกด ⌘I ใต้ “เปิดด้วย” ให้เลือก %@ แล้วคลิก “เปลี่ยนทั้งหมด”"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finder’da bir ses dosyası seçin ve ⌘I tuşlarına basın. “Birlikte Aç” altında %@ uygulamasını seçin, sonra “Tümünü Değiştir”i tıklayın."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Виберіть аудіофайл у Finder і натисніть ⌘I. У розділі «Відкривати за допомогою» виберіть %@, потім натисніть «Змінити все»."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn một tệp âm thanh trong Finder và nhấn ⌘I. Bên dưới “Mở bằng”, chọn %@, sau đó bấm “Thay đổi tất cả”."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Finder 中选择一个音频文件并按下 ⌘I。在“打开方式”下选择 %@，然后点按“全部更改”。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Finder 中選取一個音訊檔案並按下 ⌘I。在「打開檔案的應用程式」下方選擇 %@，然後按一下「全部更改」。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.default_player.refused_title": {
+      "comment": "Settings, General pane: title of the alert shown when macOS refused every request to make the app the default player, so the user must do it in the Finder. %@ is the app name.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ не можа да бъде зададено по подразбиране"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aplikaci %@ nelze nastavit jako výchozí"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ kunne ikke indstilles som standard"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ konnte nicht als Standard festgelegt werden"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Δεν ήταν δυνατός ο ορισμός της εφαρμογής %@ ως προεπιλογής"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't set %@ as the default"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se ha podido establecer %@ como predeterminada"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kohdetta %@ ei voitu asettaa oletukseksi"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de définir %@ par défaut"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ nije moguće postaviti kao zadano"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A(z) %@ nem állítható be alapértelmezettként"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tidak dapat mengatur %@ sebagai default"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossibile impostare %@ come predefinita"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@をデフォルトに設定できませんでした"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@을(를) 기본값으로 설정할 수 없음"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kunne ikke angi %@ som standard"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kan %@ niet als standaard instellen"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie można ustawić %@ jako domyślnej"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível definir o %@ como padrão"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível definir a %@ como predefinida"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ nu a putut fi setat ca implicit"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось назначить %@ программой по умолчанию"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ nie je možné nastaviť ako predvolenú"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Det gick inte att ställa in %@ som förval"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ไม่สามารถตั้ง %@ เป็นค่าเริ่มต้นได้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ varsayılan olarak ayarlanamadı"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не вдалося призначити %@ програмою за замовчуванням"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể đặt %@ làm mặc định"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法将 %@ 设为默认"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法將 %@ 設為預設"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.general.default_player.set": {
       "comment": "Settings, General pane, 'Default music player' row: button that claims every supported audio type for the app. %@ is the app name.",
       "localizations": {
