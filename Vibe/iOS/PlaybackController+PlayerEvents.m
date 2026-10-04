@@ -55,10 +55,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 }
 
 // A stream holding for its download stops Now Playing's clock
-// (publishNowPlaying) and leaves the card's waveform alone: a slow open's
-// begin-loading resets the scrubber, which wiped the drawn waveform and left
-// nothing to scrub back into the downloaded part. Its end still asks again for
-// a waveform the open skipped.
+// (publishNowPlaying) and leaves the card's waveform scrubbable. Its end
+// still asks again for a waveform the open skipped.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeBuffering:(BOOL)buffering
               forTrack:(AudioTrack *)track {

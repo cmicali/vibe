@@ -12,14 +12,12 @@
 @implementation UIImage (VibeDominantColor)
 
 - (UIColor *)vibeDominantColor {
-    UIColor *memoized = objc_getAssociatedObject(self, _cmd);
+    id memoized = objc_getAssociatedObject(self, _cmd);
     if (memoized) {
-        return memoized;
+        return memoized == NSNull.null ? nil : memoized;
     }
     UIColor *color = VibeDominantColorOfImage(self);
-    if (color) {
-        objc_setAssociatedObject(self, _cmd, color, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
+    objc_setAssociatedObject(self, _cmd, color ?: NSNull.null, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     return color;
 }
 

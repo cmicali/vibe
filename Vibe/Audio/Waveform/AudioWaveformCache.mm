@@ -61,12 +61,10 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
 
 @implementation AudioWaveformCache {
     dispatch_queue_t                _loaderQueue;
-    // Two lanes, because the two stages block on different things and must not
-    // be able to starve each other. stat and AudioFileHandle open have no
-    // cancellation point on a wedged mount, so fixed admission slots are the
-    // resource bound in both. Playback opens use neither.
-    AudioWorkScheduler              *_lookupScheduler;   // cache-key stat + cache lookup
-    AudioWorkScheduler              *_decodeScheduler;   // AudioFileHandle open + decode
+    // Stat and open cannot be interrupted; fixed slots bound blocked workers.
+    AudioWorkScheduler              *_lookupScheduler;
+    AudioWorkScheduler              *_previewScheduler;
+    AudioWorkScheduler              *_decodeScheduler;
     PINCache*                       _waveformCache;
     __weak AudioWaveformLoader*     _currentLoader;
     // The track _currentLoader is decoding for, so the progressive deliveries
@@ -114,6 +112,13 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
                 qualityOfService:QOS_CLASS_UTILITY
                 maximumRunningCount:kMaxRunningWaveformLookups
                 maximumPendingCount:kMaxPendingWaveformWork
+                pendingGrace:kWaveformAdmissionGraceSeconds];
+        // A neighbor's wedged stat must never hold the playing lookup's slots.
+        _previewScheduler = [[AudioWorkScheduler alloc]
+                initWithLabel:@"com.vibe.waveform.preview"
+                qualityOfService:QOS_CLASS_UTILITY
+                maximumRunningCount:1
+                maximumPendingCount:2
                 pendingGrace:kWaveformAdmissionGraceSeconds];
         _decodeScheduler = [[AudioWorkScheduler alloc]
                 initWithLabel:@"com.vibe.waveform.decode"
@@ -289,11 +294,11 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
     return cachedWaveform;
 }
 
-- (void)cachedWaveformForTrack:(AudioTrack *)track
+- (AudioWorkToken *)cachedWaveformForTrack:(AudioTrack *)track
                    completion:(void (^)(CodableAudioWaveform *))completion {
     VibeWaveformAnalysis analysis = self.analysisProvider ? self.analysisProvider() : (VibeWaveformAnalysis){};
     uint64_t generation = _cacheGeneration.load(std::memory_order_relaxed);
-    [_lookupScheduler submitWork:^{
+    return [_previewScheduler submitWork:^{
         NSString *cacheKey = [track keyByAppendingWindowTo:track.cacheKey];
         __block CodableAudioWaveform *waveform = nil;
         if (cacheKey) {

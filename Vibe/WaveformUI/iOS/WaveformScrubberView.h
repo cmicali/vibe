@@ -96,6 +96,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)showPreparedWaveform:(CodableAudioWaveform *)waveform
                   fromView:(nullable WaveformScrubberView *)view;
 
+// Ends a track's gesture without discarding its cached pixels or seeking.
+- (void)cancelInteraction;
+
+// A slow playback open keeps the indicator until settlement, even over cached pixels.
+@property (nonatomic) BOOL playbackLoading;
+
 - (void)showLoadingIndicator;
 - (void)hideLoadingIndicator;
 // The fill can outlive the shimmer, over a disk-cached waveform that landed

@@ -9,6 +9,7 @@
 
 #import <XCTest/XCTest.h>
 #import <AVFoundation/AVFoundation.h>
+#import <objc/runtime.h>
 
 #import "AudioWaveformLoaderInternal.h"
 #import "AudioFileHandle.h"
@@ -838,6 +839,49 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
         settled = YES;
     }];
     XCTAssertTrue([self eventually:^BOOL { return settled; }]);
+}
+
+- (void)testBlockedPreviewStatsLeaveThePlayingLookupFree {
+    NSURL *url = [self writeNoiseWAVNamed:@"foreground.wav" seconds:1.0 seed:17];
+    WaveformCacheRecorder *recorder = [[WaveformCacheRecorder alloc] init];
+    AudioWaveformCache *cache = [self cacheWithRecorder:recorder];
+    AudioTrack *preview = [AudioTrack withURL:[_tempDirectory URLByAppendingPathComponent:@"blocked.wav"]];
+    dispatch_semaphore_t started = dispatch_semaphore_create(0);
+    dispatch_semaphore_t release = dispatch_semaphore_create(0);
+    Method method = class_getInstanceMethod(AudioTrack.class, @selector(cacheKey));
+    IMP original = method_getImplementation(method);
+    IMP held = imp_implementationWithBlock(^NSString *(AudioTrack *track) {
+        if (track == preview) {
+            dispatch_semaphore_signal(started);
+            dispatch_semaphore_wait(release, DISPATCH_TIME_FOREVER);
+            return nil;
+        }
+        return ((NSString *(*)(id, SEL))original)(track, @selector(cacheKey));
+    });
+    __block NSUInteger replies = 0;
+    method_setImplementation(method, held);
+    @try {
+        // More than the lookup lane's running and pending capacity.
+        for (NSUInteger i = 0; i < 8; i++) {
+            [cache cachedWaveformForTrack:preview completion:^(CodableAudioWaveform *waveform) {
+                replies++;
+            }];
+        }
+        XCTAssertTrue([self await:started]);
+        [cache loadWaveformForTrack:[AudioTrack withURL:url]];
+        NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:2];
+        while (!recorder.completions && !recorder.failures && deadline.timeIntervalSinceNow > 0) {
+            [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.005]];
+        }
+        XCTAssertEqual(recorder.completions, 1u, @"preview stats must not occupy the playing lookup lane");
+        XCTAssertEqual(recorder.failures, 0u);
+    }
+    @finally {
+        for (NSUInteger i = 0; i < 8; i++) dispatch_semaphore_signal(release);
+        XCTAssertTrue([self eventually:^BOOL { return replies == 8; }]);
+        method_setImplementation(method, original);
+        imp_removeBlock(held);
+    }
 }
 
 - (void)testCacheOnlyLookupDoesNotDetachThePlayingTracksDecode {

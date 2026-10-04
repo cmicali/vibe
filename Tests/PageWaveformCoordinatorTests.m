@@ -10,6 +10,7 @@
 #import "AudioTrack.h"
 #import "AudioWaveformCache.h"   // AudioWaveformCacheDelegate, which the coordinator adopts
 #import "PageWaveformCoordinator.h"
+#import "AudioWorkScheduler.h"
 
 #pragma mark - Fakes
 
@@ -17,6 +18,7 @@
 @property (nonatomic, weak) id delegate;
 @property (nonatomic) NSUInteger cancelCount;
 @property (nonatomic, strong) NSMutableArray *cacheReads;
+@property (nonatomic, strong) NSMutableArray<FakeWaveformCache *> *readTokens;
 @property (nonatomic, strong) NSMutableArray<NSURL *> *loadedURLs;
 @end
 
@@ -26,11 +28,19 @@
     if (self) {
         _loadedURLs = [NSMutableArray array];
         _cacheReads = [NSMutableArray array];
+        _readTokens = [NSMutableArray array];
     }
     return self;
 }
-- (void)cachedWaveformForTrack:(AudioTrack *)track completion:(void (^)(CodableAudioWaveform *))completion {
+- (AudioWorkToken *)cachedWaveformForTrack:(AudioTrack *)track completion:(void (^)(CodableAudioWaveform *))completion {
     [_cacheReads addObject:[completion copy]];
+    FakeWaveformCache *token = [[FakeWaveformCache alloc] init];
+    [_readTokens addObject:token];
+    return (AudioWorkToken *)token;
+}
+- (BOOL)cancelIfPending {
+    _cancelCount++;
+    return YES;
 }
 - (void)cancelLoad {
     _cancelCount++;
@@ -140,6 +150,42 @@
     XCTAssertNil([_coordinator snapshotAtIndex:4]);
     [_coordinator requestIndex:4 track:_tracks[4]];
     XCTAssertEqual(_cache.loadedURLs.count, 1u);
+}
+
+- (void)testPrefetchMissRetriesAfterCursorMovesButNotRefresh {
+    [_coordinator pruneAroundIndex:3];
+    [_coordinator prefetchIndex:4 track:_tracks[4]];
+    void (^complete)(CodableAudioWaveform *) = _cache.cacheReads[0];
+    complete(nil);
+    [_coordinator pruneAroundIndex:3];
+    [_coordinator prefetchIndex:4 track:_tracks[4]];
+    XCTAssertEqual(_cache.cacheReads.count, 1u);
+    [_coordinator pruneAroundIndex:5];
+    [_coordinator prefetchIndex:4 track:_tracks[4]];
+    XCTAssertEqual(_cache.cacheReads.count, 2u);
+}
+
+- (void)testPrefetchCancellationOnReplacementPruneAndReset {
+    [_coordinator prefetchIndex:4 track:_tracks[4]];
+    [_coordinator prefetchIndex:4 track:_tracks[5]];
+    XCTAssertEqual(_cache.readTokens[0].cancelCount, 1u);
+    [_coordinator pruneAroundIndex:0];
+    XCTAssertEqual(_cache.readTokens[1].cancelCount, 1u);
+    [_coordinator prefetchIndex:1 track:_tracks[1]];
+    [_coordinator reset];
+    XCTAssertEqual(_cache.readTokens[2].cancelCount, 1u);
+}
+
+- (void)testPrunedReadCannotDeliverIntoANewReadForTheSameTrack {
+    [_coordinator prefetchIndex:4 track:_tracks[4]];
+    void (^old)(CodableAudioWaveform *) = _cache.cacheReads[0];
+    [_coordinator pruneAroundIndex:0];
+    [_coordinator prefetchIndex:4 track:_tracks[4]];
+    old((CodableAudioWaveform *)[NSObject new]);
+    XCTAssertNil([_coordinator snapshotAtIndex:4]);
+    void (^current)(CodableAudioWaveform *) = _cache.cacheReads[1];
+    current((CodableAudioWaveform *)[NSObject new]);
+    XCTAssertTrue([_coordinator isCompleteAtIndex:4]);
 }
 
 - (void)testPrefetchLandingDuringSwipeIsHeldUntilItEnds {

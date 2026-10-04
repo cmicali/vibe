@@ -6,6 +6,7 @@
 #import "PageWaveformCoordinator.h"
 #import "AudioTrack.h"
 #import "AudioWaveformCache.h"
+#import "AudioWorkScheduler.h"
 
 @interface PageWaveformCoordinator () <AudioWaveformCacheDelegate>
 @end
@@ -25,7 +26,8 @@
     // Owed after the hold; the target clears at once so the settle can retry.
     NSMutableIndexSet *_heldFailures;
     NSMutableDictionary<NSNumber *, AudioTrack *> *_prefetchTracks;
-    NSUInteger _prefetchGeneration;
+    NSMutableDictionary<NSNumber *, AudioWorkToken *> *_prefetchTokens;
+    NSUInteger _prefetchCursor;
 }
 
 - (instancetype)initWithCache:(AudioWaveformCache *)cache
@@ -41,6 +43,8 @@
         _heldUpdates = [NSMutableIndexSet indexSet];
         _heldFailures = [NSMutableIndexSet indexSet];
         _prefetchTracks = [NSMutableDictionary dictionary];
+        _prefetchTokens = [NSMutableDictionary dictionary];
+        _prefetchCursor = NSNotFound;
     }
     return self;
 }
@@ -90,14 +94,17 @@
     if (_held || [self isCompleteAtIndex:index] || _prefetchTracks[@(index)] == track) {
         return;
     }
+    [_prefetchTokens[@(index)] cancelIfPending];
     _prefetchTracks[@(index)] = track;
-    NSUInteger generation = _prefetchGeneration;
+    __block __weak AudioWorkToken *requestToken;
     __weak PageWaveformCoordinator *weakSelf = self;
-    [_cache cachedWaveformForTrack:track completion:^(CodableAudioWaveform *waveform) {
+    AudioWorkToken *token = [_cache cachedWaveformForTrack:track completion:^(CodableAudioWaveform *waveform) {
         PageWaveformCoordinator *self = weakSelf;
-        if (!self || generation != self->_prefetchGeneration
-                || self->_prefetchTracks[@(index)] != track
-                || !waveform || [self isCompleteAtIndex:index]) {
+        if (!self || !requestToken || self->_prefetchTokens[@(index)] != requestToken) {
+            return;
+        }
+        [self->_prefetchTokens removeObjectForKey:@(index)];
+        if (!waveform || [self isCompleteAtIndex:index]) {
             return;
         }
         self->_snapshots[@(index)] = waveform;
@@ -109,16 +116,29 @@
             [self->_delegate pageWaveformCoordinator:self didUpdateWaveform:waveform forIndex:index];
         }
     }];
+    requestToken = token;
+    _prefetchTokens[@(index)] = token;
 }
 
 - (void)pruneAroundIndex:(NSUInteger)index {
     static const NSUInteger kKeepRadius = 2;
+    if (_prefetchCursor != index) {
+        _prefetchCursor = index;
+        // Retry misses only when the cursor moves, never on repeated refreshes.
+        for (NSNumber *key in _prefetchTracks.allKeys) {
+            if (!_prefetchTokens[key] && ![self isCompleteAtIndex:key.unsignedIntegerValue]) {
+                [_prefetchTracks removeObjectForKey:key];
+            }
+        }
+    }
     NSMutableSet *pages = [NSMutableSet setWithArray:_snapshots.allKeys];
     [pages addObjectsFromArray:_prefetchTracks.allKeys];
     for (NSNumber *key in pages) {
         NSUInteger page = key.unsignedIntegerValue;
         if (page != _targetIndex
                 && (page > index + kKeepRadius || index > page + kKeepRadius)) {
+            [_prefetchTokens[key] cancelIfPending];
+            [_prefetchTokens removeObjectForKey:key];
             [_prefetchTracks removeObjectForKey:key];
             [_heldUpdates removeIndex:page];
             [_heldFailures removeIndex:page];
@@ -129,7 +149,11 @@
 }
 
 - (void)reset {
-    _prefetchGeneration++;
+    for (AudioWorkToken *token in _prefetchTokens.allValues) {
+        [token cancelIfPending];
+    }
+    [_prefetchTokens removeAllObjects];
+    _prefetchCursor = NSNotFound;
     [_prefetchTracks removeAllObjects];
     _targetIndex = NSNotFound;
     _targetKey = nil;

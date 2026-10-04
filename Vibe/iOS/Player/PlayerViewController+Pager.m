@@ -82,8 +82,8 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     // TRAP: a page whose waveform is complete starts no load and DELIVERS
     // NOTHING, and a track change clears the widget's strip, so returning to a
     // played track would leave the widget blank. Offer the cached envelope; the
-    // publisher drops it if it is not the widget's track.
-    if ([_waveformCoordinator isCompleteAtIndex:index]) {
+    // offer must be for the current track, including before its widget publish.
+    if (index == _playlist.currentIndex && [_waveformCoordinator isCompleteAtIndex:index]) {
         [_playback offerWaveformToWidget:[_waveformCoordinator snapshotAtIndex:index]
                                 forTrack:track];
     }
@@ -131,6 +131,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
         return;
     }
     NSUInteger current = _playlist.currentIndex;
+    [_waveformCoordinator pruneAroundIndex:current];
     NSUInteger first = current > 0 ? current - 1 : 0;
     NSUInteger last = MIN(current + 1, _playlist.count - 1);
     for (NSNumber *key in _preparedWaveforms.allKeys) {
@@ -158,7 +159,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
         }
         view.frame = (CGRect){CGPointZero, size};
         view.visibleFraction = _waveformZoom;
-        view.artworkThemeColor = track.cachedArt.vibeDominantColor;
+        view.artworkThemeColor = [self artworkForPageAtIndex:index].vibeDominantColor;
         [view syncWaveformStyle];
         [view syncWaveformTheme];
         [view layoutIfNeeded];
@@ -243,6 +244,10 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     }
 }
 
+- (UIImage *)artworkForPageAtIndex:(NSUInteger)index {
+    return [_playlist trackAtIndex:index].cachedArt ?: [UIImage imageNamed:@"record-bg"];
+}
+
 - (void)configurePage:(TrackPageCell *)cell atIndex:(NSUInteger)index {
     AudioTrack *track = [_playlist trackAtIndex:index];
     NSString *errorText = _playback.errorText;
@@ -256,7 +261,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
                                         : [UIColor secondaryLabelColor])
                     fileInfo:(showsInfo ? track.metadata.fileInfoLine : nil)
                    tempoInfo:(showsInfo ? [self tempoInfoLineForTrack:track] : nil)
-                         art:(track.cachedArt ?: [UIImage imageNamed:@"record-bg"])];
+                         art:[self artworkForPageAtIndex:index]];
     [self applyPlayOrderToCell:cell atIndex:index];
     [cell setOutputRouteKind:_playback.outputRouteKind
                   deviceName:_playback.outputRouteName];
@@ -291,7 +296,6 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
 
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
-    [self refreshWaveformWindow];
     // Only on a real size change: this runs on every root layout pass, and
     // an invalidation re-prepares the whole layout.
     CGSize size = self.view.bounds.size;
@@ -305,6 +309,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     if (!_pagesView.isDragging && !_pagesView.isDecelerating) {
         [self scrollToCurrentPageAnimated:NO];
     }
+    [self refreshWaveformWindow];
 }
 
 // Re-pages alongside the transition. The in-flight flag keeps

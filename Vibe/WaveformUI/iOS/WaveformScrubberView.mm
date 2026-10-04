@@ -559,17 +559,26 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 
 #pragma mark - Presentation states
 
+- (void)cancelInteraction {
+    // Drop the seek before disabling recognizers, which can send end callbacks.
+    _seekPending = NO;
+    _scrubHaptics = nil;
+    [_scroll setContentOffset:_scroll.contentOffset animated:NO];
+    _scroll.scrollEnabled = NO;
+    _pinch.enabled = NO;
+    _isPinching = NO;
+    _scroll.scrollEnabled = self.waveform != nil;
+    _pinch.enabled = YES;
+    [self parkContentOffsetAtProgress];
+    [self.delegate waveformScrubberView:self didChangeScrubbing:NO];
+}
+
 - (void)resetWaveformContentState {
     [self removeBakedWaveform];
     // The new track's first bake must not wait on the old track's rate limit.
     _lastBakeAt = 0;
     _firstDeliveryAt = 0;
-    // Stop a coast, then drop the waveform, which disables the scroll and
-    // cancels any drag: a gesture must not straddle a track change.
-    [_scroll setContentOffset:_scroll.contentOffset animated:NO];
-    _seekPending = NO;
-    _scrubHaptics = nil;
-    [self.delegate waveformScrubberView:self didChangeScrubbing:NO];
+    [self cancelInteraction];
     self.waveform = nil;
     // Force the repaint even when the bucket is already 0.
     _progressTracker = NSUIntegerMax;
@@ -581,6 +590,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 }
 
 - (void)prepareForWaveformLoad {
+    _playbackLoading = NO;
     [self hideLoadingIndicator];
     [self resetWaveformContentState];
     [self installRendererIfNeeded];
@@ -963,6 +973,16 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     [self applyPlayedClip];
     [CATransaction commit];
 }
+- (void)setPlaybackLoading:(BOOL)loading {
+    _playbackLoading = loading;
+    if (loading) {
+        [self showLoadingIndicator];
+    }
+    else {
+        [self setLoadingProgress:-1];
+    }
+}
+
 - (void)showLoadingIndicator {
     if (_loadingIndicator) {
         return;
@@ -1019,6 +1039,9 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 // materializing the audio, and the fill is the only sign of that. It comes
 // down with its monitor, via setLoadingProgress:-1.
 - (void)hideLoadingShimmer {
+    if (_playbackLoading) {
+        return;
+    }
     if (![_loadingIndicator endSweepKeepingFill]) {
         [self hideLoadingIndicator];
     }

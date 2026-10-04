@@ -617,14 +617,16 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     [self renderHeaderForTrack:playback.currentTrack];
 }
 
-// A track change ends an FX hold and dismisses its pad; the model has cut
-// the effects already. The pad may be on any page, the bound one or not, so
-// it is found among the pager's holders, and its release frees the pager
-// through the pad's delegate call.
+// A track change ends every held interaction, including one on an outgoing
+// page. Each view releases its own pager hold without committing a seek.
 - (void)playback:(PlaybackController *)playback didChangeCurrentIndexFromIndex:(NSUInteger)previousIndex {
+    [self cellAtIndex:previousIndex].waveformView.playbackLoading = NO;
     for (UIView *view in _pagerHoldViews.allObjects) {
         if ([view isKindOfClass:[FXPadView class]]) {
             [(FXPadView *)view cancelInteraction];
+        }
+        else if ([view isKindOfClass:[WaveformScrubberView class]]) {
+            [(WaveformScrubberView *)view cancelInteraction];
         }
     }
     // Only the current page reads Next from the play order.
@@ -651,7 +653,9 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 #pragma mark - PlaybackObserver: the current track's open
 
 - (void)playbackDidBeginLoading:(PlaybackController *)playback {
-    [self hydrateWaveformInCell:[self cellAtIndex:playback.currentIndex] atIndex:playback.currentIndex];
+    TrackPageCell *cell = [self cellAtIndex:playback.currentIndex];
+    [self hydrateWaveformInCell:cell atIndex:playback.currentIndex];
+    cell.waveformView.playbackLoading = YES;
 }
 
 - (void)playback:(PlaybackController *)playback didUpdateLoadingProgress:(float)fraction {
@@ -659,20 +663,21 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 }
 
 // Not hideLoadingIndicator: the waveform decode may still be streaming. The
-// download fill is cleared here because showWaveform: leaves it alone (a
-// cached waveform can arrive mid-download).
+// open state and download fill end here; a cached waveform can arrive
+// mid-download and must leave them alone.
 //
 // The waveform request for a track that was not on disk when the cursor
 // moved: the cursor's request skipped it (requestWaveformForIndex:). A page
 // still loading or complete ignores this one.
 - (void)playbackDidFinishLoading:(PlaybackController *)playback {
     TrackPageCell *cell = [self cellAtIndex:playback.currentIndex];
-    [cell.waveformView setLoadingProgress:-1];
+    cell.waveformView.playbackLoading = NO;
     [self hydrateWaveformInCell:cell atIndex:playback.currentIndex];
     [self requestWaveformForIndex:playback.currentIndex];
 }
 
 - (void)playbackDidFailCurrentTrack:(PlaybackController *)playback {
+    _waveformView.playbackLoading = NO;
     [_waveformView hideLoadingIndicator];
 }
 

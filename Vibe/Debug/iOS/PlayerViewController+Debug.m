@@ -10,6 +10,9 @@
 #import "PlayerViewControllerInternal.h"
 #import "PlayerViewController+Delivery.h"
 #import "PlayerViewController+Pager.h"
+#import "PlaybackController+Debug.h"
+#import "AudioPlayer.h"
+#import "AudioFX.h"
 
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
@@ -20,6 +23,7 @@
 #import "WaveformScrubberView.h"
 #import "NSURLUtil+Debug.h"
 #import "UIImage+DominantColor.h"
+#import <objc/runtime.h>
 
 @interface PlayerViewController (DebugPager)
 - (void)prefetchPageAtIndex:(NSUInteger)index;
@@ -29,6 +33,8 @@
 @interface WaveformScrubberView (Debug)
 // The settled fast path is up.
 @property (nonatomic, readonly) BOOL isShowingBakedWaveform;
+- (void)beginZoomGesture;
+- (void)endZoomGesture;
 @property (nonatomic, readonly) BOOL isAnimatingWaveformArrival;
 // Points past either end: positive past the start, negative past the end.
 @property (nonatomic, readonly) CGFloat overscroll;
@@ -126,7 +132,7 @@
 
 - (void)debugCheckWaveformPreparation:(NSString *)scenario
                           completion:(void (^)(NSDictionary *))completion {
-    if (!self.isPresented || _playback.isPlaying || _waveformCoordinator.isHeld || _playlist.count < 2) {
+    if (!self.isPresented || _playback.isPlaying || _waveformCoordinator.isHeld || _pagerHoldViews.allObjects.count || _playlist.count < 2) {
         completion(@{@"error": @"Expand and pause a playlist with at least two cached waveforms"});
         return;
     }
@@ -135,6 +141,72 @@
     WaveformScrubberView *prepared = _preparedWaveforms[@(neighbor)];
     if (!prepared.isShowingBakedWaveform) {
         completion(@{@"error": @"Wait for the neighboring waveform to be prepared"});
+        return;
+    }
+    if ([scenario isEqualToString:@"widget"]) {
+        [self requestWaveformForIndex:current];
+        id publisher = [_playback valueForKey:@"widgetPublisher"];
+        id offered = [publisher valueForKey:@"waveformTrack"];
+        [self pageWaveformCoordinator:_waveformCoordinator
+                   didUpdateWaveform:[_waveformCoordinator snapshotAtIndex:neighbor] forIndex:neighbor];
+        BOOL kept = offered == _playlist.currentTrack && [publisher valueForKey:@"waveformTrack"] == offered;
+        [self requestWaveformForIndex:current];
+        completion(@{@"ok": @(kept), @"currentWidgetWaveformKept": @(kept)});
+        return;
+    }
+    if ([scenario isEqualToString:@"interaction"]) {
+        WaveformScrubberView *view = _waveformView;
+        [view beginZoomGesture];
+        [view setValue:@YES forKey:@"seekPending"];
+        [self playback:_playback didChangeCurrentIndexFromIndex:current];
+        BOOL cancelled = ![[view valueForKey:@"isPinching"] boolValue]
+                && ![[view valueForKey:@"seekPending"] boolValue] && _pagesView.scrollEnabled;
+        BOOL kept = view.isShowingBakedWaveform;
+        [view setValue:@NO forKey:@"seekPending"];
+        [view endZoomGesture];
+        completion(@{@"ok": @(cancelled && kept), @"gestureCancelled": @(cancelled), @"waveformKept": @(kept)});
+        return;
+    }
+    if ([scenario isEqualToString:@"loading"]) {
+        [self playbackDidBeginLoading:_playback];
+        BOOL visible = [_waveformView valueForKey:@"loadingIndicator"] != nil;
+        BOOL kept = _waveformView.isShowingBakedWaveform;
+        [_waveformView setLoadingProgress:-1];
+        BOOL held = [_waveformView valueForKey:@"loadingIndicator"] != nil;
+        [self playbackDidFinishLoading:_playback];
+        BOOL ended = [_waveformView valueForKey:@"loadingIndicator"] == nil;
+        [self playbackDidBeginLoading:_playback];
+        [self playback:_playback didChangeCurrentIndexFromIndex:current];
+        BOOL cancelled = !_waveformView.playbackLoading
+                && [_waveformView valueForKey:@"loadingIndicator"] == nil;
+        completion(@{@"ok": @(visible && kept && held && ended && cancelled), @"loadingVisible": @(visible),
+                     @"waveformKept": @(kept), @"loadingHeldUntilSettlement": @(held),
+                     @"loadingEnded": @(ended), @"trackChangeClearedLoading": @(cancelled)});
+        return;
+    }
+    if ([scenario isEqualToString:@"work"]) {
+        CodableAudioWaveform *waveform = [_waveformCoordinator snapshotAtIndex:current];
+        CFTimeInterval start = CACurrentMediaTime();
+        for (NSUInteger i = 0; i < 1000; i++) {
+            [(id<AudioWaveformCacheDelegate>)_waveformCoordinator audioWaveform:waveform
+                    didLoadData:0.5 forTrack:_playlist.currentTrack];
+        }
+        double deliveryMS = (CACurrentMediaTime() - start) * 1000;
+        [(id<AudioWaveformCacheDelegate>)_waveformCoordinator audioWaveform:waveform
+                didLoadData:1 forTrack:_playlist.currentTrack];
+        UIImage *placeholder = [UIImage imageNamed:@"record-bg"];
+        BOOL placeholderColor = placeholder.vibeDominantColor != nil;
+        UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(64, 64)];
+        UIImage *transparent = [renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
+            [UIColor.clearColor setFill];
+            UIRectFill(CGRectMake(0, 0, 64, 64));
+        }];
+        start = CACurrentMediaTime();
+        for (NSUInteger i = 0; i < 10000; i++) (void)transparent.vibeDominantColor;
+        double colorMS = (CACurrentMediaTime() - start) * 1000;
+        BOOL memoizedNone = objc_getAssociatedObject(transparent, @selector(vibeDominantColor)) == NSNull.null;
+        completion(@{@"ok": @(memoizedNone), @"partialDeliveriesMS": @(deliveryMS), @"transparentColorReadsMS": @(colorMS),
+                     @"placeholderHasColor": @(placeholderColor), @"noneMemoized": @(memoizedNone)});
         return;
     }
     if ([scenario isEqualToString:@"refresh"]) {
@@ -158,19 +230,38 @@
         }
         // Next renders the new header before scrolling to its cell. Keep
         // this on one main turn, so an async bake cannot hide a lost handoff.
-        _playlist.currentIndex = neighbor;
-        [self renderHeaderForTrack:_playlist.currentTrack];
-        BOOL retained = _preparedWaveforms[@(neighbor)] == prepared;
-        [self scrollToCurrentPageAnimated:NO];
-        [_pagesView layoutIfNeeded];
-        WaveformScrubberView *arriving = [self cellAtIndex:neighbor].waveformView;
-        BOOL immediate = arriving.isShowingBakedWaveform && !arriving.isAnimatingWaveformArrival;
-        _playlist.currentIndex = current;
-        [self renderHeaderForTrack:_playlist.currentTrack];
-        [self scrollToCurrentPageAnimated:NO];
-        [_pagesView layoutIfNeeded];
-        completion(@{@"ok": @(retained && immediate), @"retainedUntilDisplay": @(retained),
-                     @"immediateWaveform": @(immediate)});
+        Playlist *livePlaylist = _playlist;
+        NSArray *order = [[livePlaylist valueForKey:@"playOrder"] copy] ?: @[];
+        NSNumber *cursor = [livePlaylist valueForKey:@"playOrderCursor"];
+        NSDictionary *effects = _playback.debugPlayer.fx.intentSnapshot[@"stages"];
+        Playlist *previewPlaylist = [[Playlist alloc] init];
+        [previewPlaylist replaceAllWithTracks:livePlaylist.tracks startingAtIndex:neighbor];
+        BOOL retained = NO, immediate = NO, paletteMatched = NO;
+        @try {
+            // An unobserved cursor leaves playback, FX and shuffle history alone.
+            _playlist = previewPlaylist;
+            [self renderHeaderForTrack:_playlist.currentTrack];
+            retained = _preparedWaveforms[@(neighbor)] == prepared;
+            [self scrollToCurrentPageAnimated:NO];
+            [_pagesView layoutIfNeeded];
+            WaveformScrubberView *arriving = [self cellAtIndex:neighbor].waveformView;
+            immediate = arriving.isShowingBakedWaveform && !arriving.isAnimatingWaveformArrival;
+            paletteMatched = arriving.artworkThemeColor == prepared.artworkThemeColor
+                    || [arriving.artworkThemeColor isEqual:prepared.artworkThemeColor];
+        }
+        @finally {
+            _playlist = livePlaylist;
+            [self renderHeaderForTrack:_playlist.currentTrack];
+            [self scrollToCurrentPageAnimated:NO];
+            [_pagesView layoutIfNeeded];
+        }
+        BOOL stateKept = [order isEqual:([livePlaylist valueForKey:@"playOrder"] ?: @[])]
+                && [cursor isEqual:[livePlaylist valueForKey:@"playOrderCursor"]]
+                && [effects isEqual:_playback.debugPlayer.fx.intentSnapshot[@"stages"]]
+                && livePlaylist.currentIndex == current;
+        completion(@{@"ok": @(retained && immediate && paletteMatched && stateKept), @"retainedUntilDisplay": @(retained),
+                     @"immediateWaveform": @(immediate), @"paletteMatched": @(paletteMatched),
+                     @"playbackStateKept": @(stateKept)});
         return;
     }
     if ([scenario isEqualToString:@"artwork"]) {
@@ -193,7 +284,7 @@
         });
         return;
     }
-    completion(@{@"error": @"Expected refresh, transition or artwork"});
+    completion(@{@"error": @"Expected refresh, transition, artwork, widget, interaction, loading or work"});
 }
 
 - (void)debugSetWaveformZoom:(CGFloat)fraction {

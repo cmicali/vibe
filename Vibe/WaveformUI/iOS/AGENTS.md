@@ -50,9 +50,11 @@ The played/unplayed gradient boundary is the playhead marker, and it stays pinne
 
 **TRAP: keep the "did the span actually move" test in `syncLoadingTrackToProgress`.** It is the one relayout that can land mid-download, and a duration-0 relayout snaps an easing fill to its target; while the provider materializes the file progress is parked, so the test declines.
 
-**Showing a loading indicator preserves an existing waveform.** Cell reuse clears the previous track explicitly; starting playback on a prepared page must keep its pixels. A positive transfer update creates the indicator if needed, ending its shimmer when a waveform is already drawn.
+**`cancelInteraction` ends a drag or pinch without seeking or discarding pixels.** A cursor change calls it for held scrubbers; reuse calls it through the content reset. The pending seek is dropped before disabling recognizers, since cancellation can send their end callbacks.
 
-**The first bitmap landing ends the sweep but not the fill** (not the data arriving, or the strip would sit empty until it lands) — a disk-cached waveform can land while the provider is still materializing the audio, so the fill riding over the drawn waveform is the only remaining sign of the download. That is `endSweepKeepingFill`, whose answer tells the caller whether anything is left to keep. This scrubber is its only caller; the mac view only ever hides the indicator whole.
+**Showing a loading indicator preserves an existing waveform.** Cell reuse clears the previous track explicitly; starting playback on a prepared page must keep its pixels. A positive transfer update creates the indicator if needed, ending its shimmer when a waveform is already drawn. The shell's `playbackLoading` keeps the shimmer through a slow open, including a non-transfer open; settlement or a cursor change clears it. Reuse clears that state too.
+
+**Outside a pending playback open, the first bitmap landing ends the sweep but not the fill** (not the data arriving, or the strip would sit empty until it lands) — a disk-cached waveform can land while the provider is still materializing the audio, so the fill riding over the drawn waveform is the only remaining sign of the download. That is `endSweepKeepingFill`, whose answer tells the caller whether anything is left to keep. This scrubber is its only caller; the mac view only ever hides the indicator whole.
 
 The renderer tree hangs off a `geometryFlipped` sublayer giving the shared math the mac's y-up space. **Do not "fix" coordinates in shared renderer code for iOS.**
 
