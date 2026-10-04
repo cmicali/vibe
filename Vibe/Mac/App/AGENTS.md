@@ -19,7 +19,9 @@ Every way a file can arrive — a Finder double-click, `⌘O`, Open Recent, a dr
 
 The walk itself is `NSURLUtil` (`Vibe/Util/`), on a four-wide queue, so an unreachable mount cannot hold every later open hostage and cannot spawn a thread per drop either.
 
-`DocumentTypes` is **not** here — it is `Vibe/Common/`, since it reads the bundle and touches no AppKit, and both targets declare document types. The `⌘O` panel's filter and `DefaultAppRegistration` (`Mac/Settings/`) both read it, so the two cannot disagree about what a supported file is.
+`DocumentTypes` is **not** here — it is `Vibe/Common/`, since it reads the bundle and touches no AppKit, and both targets declare document types. Its declarations seed both the `⌘O` panel's filter and `DefaultAppRegistration` (`Mac/Settings/`); the panel then widens its filter to every type registered for those filename extensions.
+
+**TRAP: another app's type for an extension need not conform to ours.** Otherwise a supported file can be grayed out depending on which other apps are installed. The panel's expanded type filter does not change the extensions the walk accepts.
 
 ## Sandbox grants
 
