@@ -27,6 +27,7 @@
 #import "AppSettings.h"
 #import "SettingsRules.h"
 #import "AppStats.h"
+#import "NSBundle+BuildInfo.h"
 #import "AudioLoadTiming.h"
 #import "MusicalKey.h"
 #import "AudioPlayer.h"
@@ -180,6 +181,19 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             VibeDebugCmd(@"dump_state", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                        id<VibeDebugPlayerSurface> surface) {
                 return VibeJSONString(surface.debugStateDictionary);
+            }),
+            // Which build answered: two instances race for the channel, and a
+            // stale one replies like a fresh one.
+            VibeDebugCmd(@"dump_build", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                                       id<VibeDebugPlayerSurface> surface) {
+                NSBundle *bundle = NSBundle.mainBundle;
+                return VibeJSONString(@{
+                    @"version": bundle.vibeVersionString,
+                    @"git": bundle.vibeGitString,
+                    @"built": bundle.vibeBuildTimeString,
+                    @"pid": @(NSProcessInfo.processInfo.processIdentifier),
+                    @"path": bundle.bundlePath,
+                });
             }),
             VibeDebugCmd(@"dump_stats", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                        id<VibeDebugPlayerSurface> surface) {
