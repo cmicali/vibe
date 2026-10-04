@@ -390,10 +390,23 @@ static const CGFloat kGeneralPopUpWidth = 280;
 
 #pragma mark - Default music player
 
+// The system's panels ask about each type. When it refused them all without
+// asking, as it can a sandboxed app, the Finder is the way left.
 - (void)makeDefaultPlayer:(id)sender {
-    // The system's panel reports the outcome; the button retitles on the
-    // key-window refresh.
-    [DefaultAppRegistration makeDefaultApp];
+    __weak __typeof(self) weakSelf = self;
+    [DefaultAppRegistration makeDefaultAppWithCompletion:^(BOOL refused) {
+        __typeof(self) strongSelf = weakSelf;
+        if (!strongSelf) {
+            return;
+        }
+        [strongSelf refreshDefaultPlayerButton];
+        if (refused && strongSelf.view.window) {
+            NSAlert *alert = [[NSAlert alloc] init];
+            alert.messageText = [NSString stringWithFormat:STR_SETTINGS_DEFAULT_PLAYER_REFUSED_TITLE, VibeAppName()];
+            alert.informativeText = [NSString stringWithFormat:STR_SETTINGS_DEFAULT_PLAYER_REFUSED_MESSAGE, VibeAppName()];
+            [alert beginSheetModalForWindow:strongSelf.view.window completionHandler:nil];
+        }
+    }];
 }
 
 - (void)refreshDefaultPlayerButton {

@@ -8,6 +8,15 @@
 @implementation DocumentTypes
 
 + (NSArray<UTType *> *)declaredTypes {
+    return [self typesDeclaredWithRank:nil];
+}
+
++ (NSArray<UTType *> *)defaultHandlerTypes {
+    return [self typesDeclaredWithRank:@"Default"];
+}
+
+// nil: every rank.
++ (NSArray<UTType *> *)typesDeclaredWithRank:(nullable NSString *)rank {
     NSMutableArray<UTType *> *types = [NSMutableArray new];
     NSArray *documentTypes = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleDocumentTypes"];
     for (NSDictionary *documentType in documentTypes) {
@@ -15,6 +24,9 @@
         // sibling write); it would double-list a type in the ⌘O filter and
         // the default-player claim.
         if ([documentType[@"NSIsRelatedItemType"] boolValue]) {
+            continue;
+        }
+        if (rank && ![documentType[@"LSHandlerRank"] isEqual:rank]) {
             continue;
         }
         for (NSString *identifier in documentType[@"LSItemContentTypes"]) {
