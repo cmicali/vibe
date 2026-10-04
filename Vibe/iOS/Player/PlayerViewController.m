@@ -159,7 +159,7 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
 
 NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     Formatters *formatters = [Formatters sharedInstance];
-    if (!VibeShowsRemainingTime()) {
+    if (!AppSettings.sharedInstance.showRemainingTime) {
         return [formatters durationStringFromTimeInterval:duration];
     }
     // Arithmetic notation, not prose, so not localized.
@@ -544,7 +544,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 }
 
 - (void)remainingTimeTapped {
-    VibeSetShowsRemainingTime(!VibeShowsRemainingTime());
+    AppSettings.sharedInstance.showRemainingTime = !AppSettings.sharedInstance.showRemainingTime;
     [self repaintTimesOnVisiblePages];
 }
 

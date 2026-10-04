@@ -106,12 +106,11 @@ static const double kVibeWaveformGainMaxDB = 12;
 
 #pragma mark Player display
 
-// What the window shows, whatever the theme. Every header readout's writer
-// requests VibeSettingsLiveEffectTrackDisplay.
+// What the window shows, whatever the theme, with showRemainingTime and
+// showFileInfo in AppSettings.h. Every header readout's writer requests
+// VibeSettingsLiveEffectTrackDisplay.
 @property (nonatomic) BOOL showTimeLabels;
-@property (nonatomic) BOOL showRemainingTime;
 @property (nonatomic) BOOL showStatusIcons;     // the FX and bit-perfect symbols
-@property (nonatomic) BOOL showFileInfo;        // the codec line and the BPM/key line
 @property (nonatomic) BOOL showBPM;
 @property (nonatomic) BOOL showKey;
 @property (nonatomic, copy) NSString *keyNotation;  // camelot/musical

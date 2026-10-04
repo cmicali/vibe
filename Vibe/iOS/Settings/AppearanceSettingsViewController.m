@@ -91,7 +91,7 @@ static NSString *const kValueCellIdentifier  = @"value";
 }
 
 - (NSString *)timeDisplayValueText {
-    return VibeShowsRemainingTime() ? STR_SETTINGS_TIME_REMAINING : STR_SETTINGS_TIME_TOTAL;
+    return AppSettings.sharedInstance.showRemainingTime ? STR_SETTINGS_TIME_REMAINING : STR_SETTINGS_TIME_TOTAL;
 }
 
 #pragma mark - Table
@@ -115,12 +115,12 @@ static NSString *const kValueCellIdentifier  = @"value";
     BOOL nowPlaying = indexPath.section == VibeAppearanceSectionNowPlaying;
     if (nowPlaying && indexPath.row == VibeNowPlayingRowFileInfo) {
         return [SettingsChoiceViewController switchCellInTableView:tableView title:STR_SETTINGS_FILE_INFO
-                                                                on:VibeShowsFileInfo()
+                                                                on:AppSettings.sharedInstance.showFileInfo
                                                             target:self action:@selector(fileInfoToggled:)];
     }
     if (nowPlaying && indexPath.row == VibeNowPlayingRowShuffleRepeat) {
         return [SettingsChoiceViewController switchCellInTableView:tableView title:STR_SETTINGS_SHUFFLE_REPEAT
-                                                                on:VibeShowsShuffleRepeat()
+                                                                on:AppSettings.sharedInstance.showShuffleRepeat
                                                             target:self action:@selector(shuffleRepeatToggled:)];
     }
     if (!nowPlaying && indexPath.row == VibeWaveformRowPlayheadLine) {
@@ -244,15 +244,15 @@ static NSString *const kValueCellIdentifier  = @"value";
     return [[SettingsChoiceViewController alloc]
             initWithTitle:STR_SETTINGS_SECTION_TIME
                   choices:@[STR_SETTINGS_TIME_TOTAL, STR_SETTINGS_TIME_REMAINING]
-            selectedIndex:(VibeShowsRemainingTime() ? kTimeRowRemaining : kTimeRowTotal)
+            selectedIndex:(AppSettings.sharedInstance.showRemainingTime ? kTimeRowRemaining : kTimeRowTotal)
                  onSelect:^(NSInteger index) {
-        VibeSetShowsRemainingTime(index == kTimeRowRemaining);
+        AppSettings.sharedInstance.showRemainingTime = index == kTimeRowRemaining;
         VibeNotifyDisplaySettingsChanged();
     }];
 }
 
 - (void)fileInfoToggled:(UISwitch *)toggle {
-    VibeSetShowsFileInfo(toggle.isOn);
+    AppSettings.sharedInstance.showFileInfo = toggle.isOn;
     VibeNotifyDisplaySettingsChanged();
 }
 
@@ -262,7 +262,7 @@ static NSString *const kValueCellIdentifier  = @"value";
 }
 
 - (void)shuffleRepeatToggled:(UISwitch *)toggle {
-    VibeSetShowsShuffleRepeat(toggle.isOn);
+    AppSettings.sharedInstance.showShuffleRepeat = toggle.isOn;
     // Either way: hidden clears both modes and CarPlay's buttons, shown
     // brings the buttons back.
     [_playback applyTrackTransitionSettings];

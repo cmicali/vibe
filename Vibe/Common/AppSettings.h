@@ -121,6 +121,24 @@ static const NSInteger kVibeCrossfadeMaxMilliseconds = 3000;
 - (VibeFolderOpenSort)folderOpenSort;
 - (void)setFolderOpenSort:(VibeFolderOpenSort)sort;
 
+#pragma mark Player display
+
+// What the player shows. Each platform keeps the key it shipped, so the two
+// never share a stored value. The store applies none: the mac writer requests
+// VibeSettingsLiveEffectTrackDisplay, the iOS writer ends on
+// VibeNotifyDisplaySettingsChanged (iOS/PlayerDisplaySettings.h).
+//
+// NO (default) shows the duration on the right, YES the minus-prefixed
+// remaining time.
+@property (nonatomic) BOOL showRemainingTime;
+// The codec line, default YES. On the mac it also gates the BPM/key line,
+// which has its own switches; on iOS the tempo follows the codec on one line.
+@property (nonatomic) BOOL showFileInfo;
+// The shuffle and repeat buttons beside the transport, default YES. Only iOS
+// draws them: hidden, both modes are off and CarPlay offers neither
+// (PlaybackController.pushTransportModes).
+@property (nonatomic) BOOL showShuffleRepeat;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -24,7 +24,6 @@
 #import "DropboxMirror.h"
 #import "FavoritesStore.h"
 #import "NSURLUtil.h"
-#import "PlayerDisplaySettings.h"
 #import "PlaybackDeliveryRules.h"
 #import "SettingsRules.h"
 #import "SearchFolderStore.h"
@@ -504,7 +503,7 @@ static const NSUInteger kUIUpdateHz = 3;
 // saved before the buttons were hidden is cleared at launch.
 - (void)pushTransportModes {
     AppSettings *settings = AppSettings.sharedInstance;
-    BOOL shown = VibeShowsShuffleRepeat();
+    BOOL shown = AppSettings.sharedInstance.showShuffleRepeat;
     if (!shown) {
         settings.shuffleEnabled = NO;
         settings.repeatMode = VibeRepeatModeOff;
