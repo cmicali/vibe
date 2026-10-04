@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Privacy Policy — Vibe</title>
-<meta name="description" content="Vibe collects nothing. No account, no analytics, no servers, and no network access at all.">
+<meta name="description" content="Vibe collects nothing. No account of its own, no analytics, and no servers. Optional Dropbox on iPhone and iPad talks only to Dropbox.">
 <link rel="canonical" href="https://vibeplayer.app/privacy/">
 <link rel="icon" href="../img/icon-32.png?v=b5a0480490" sizes="32x32">
 <link rel="icon" href="../img/icon-64.png?v=2a2e6cd0a6" sizes="64x64">
 <link rel="apple-touch-icon" href="../img/icon-256.png?v=26cc86a113">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Privacy Policy — Vibe">
-<meta property="og:description" content="Vibe collects nothing. No account, no analytics, no servers, and no network access at all.">
+<meta property="og:description" content="Vibe collects nothing. No account of its own, no analytics, and no servers. Optional Dropbox on iPhone and iPad talks only to Dropbox.">
 <meta property="og:url" content="https://vibeplayer.app/privacy/">
 <meta property="og:image" content="https://vibeplayer.app/img/player.png">
 <meta property="og:site_name" content="Vibe">
@@ -25,11 +25,11 @@
   <p class="back"><a href="../">&larr; Vibe</a></p>
 
   <h1>Privacy Policy</h1>
-  <p class="lede">Vibe collects nothing. It has no account, no analytics, no servers, and no network access at all. Your music, and everything Vibe works out about it, stays on your device.</p>
-  <p class="updated">Last updated 22 August 2026</p>
+  <p class="lede">Vibe collects nothing. It has no account of its own, no analytics, and no servers. Your music, and everything Vibe works out about it, stays on your device. The one exception is Dropbox on iPhone and iPad: if you choose to connect it, Vibe talks to Dropbox directly, and to nothing else.</p>
+  <p class="updated">Last updated 4 October 2026</p>
 
   <h2>What Vibe collects</h2>
-  <p>Nothing. Vibe does not collect, transmit, sell, or share personal information. There is no sign-in, no user profile, no usage tracking, no crash reporting, and no advertising.</p>
+  <p>Nothing. Vibe does not collect, sell, or share personal information, and nothing it handles is ever sent to me. There is no Vibe account, no user profile, no usage tracking, no crash reporting, and no advertising.</p>
 
   <h2>What stays on your device</h2>
   <p>To do its job, Vibe reads and stores things locally, inside its own sandboxed container:</p>
@@ -37,14 +37,20 @@
     <li>The audio files you open, and the folders you grant it access to.</li>
     <li>Tags, artwork, tempo, and waveform data read from those files, cached so the next open is fast.</li>
     <li>Your settings and playback state, plus three local counters &mdash; files opened, folders opened, and total time played &mdash; shown in the About window.</li>
+    <li>On iPhone and iPad, if you connect Dropbox: copies of the Dropbox files you open, limited to the size you set in Settings, and the sign-in token Dropbox issues, kept in the device&rsquo;s Keychain.</li>
   </ul>
-  <p>None of it leaves your Mac or iPhone, and deleting the app removes it.</p>
+  <p>None of it leaves your Mac or iPhone except as described under Dropbox below.</p>
 
   <h2>Network access</h2>
-  <p>Vibe has none. On macOS it runs in Apple&rsquo;s App Sandbox without the network client entitlement, so the operating system will not permit it to open an outbound connection even if it tried. The only links that leave the app are ones you click yourself &mdash; the GitHub links in the About window &mdash; which open in your browser.</p>
+  <p>On the Mac, Vibe has none. It runs in Apple&rsquo;s App Sandbox without the network client entitlement, so the operating system will not let it open an outbound connection even if it tried. On iPhone and iPad, Vibe goes online only to reach Dropbox, and only after you connect a Dropbox account. Otherwise, the only links that leave the app are ones you click or tap yourself &mdash; the GitHub links in the About window &mdash; which open in your browser.</p>
+
+  <h2>Dropbox on iPhone and iPad</h2>
+  <p>Connecting Dropbox is optional. You sign in on Dropbox&rsquo;s own page, so Vibe never sees your password. Dropbox grants Vibe read-only access: it can list, search, and download your files, and read your account&rsquo;s name to show which account is connected. It cannot change, delete, or share anything in your Dropbox.</p>
+  <p>Vibe talks to Dropbox directly from your device, over an encrypted connection; nothing passes through any server of mine. What Vibe sends Dropbox is only what it needs to show you your files: the folders you open, the searches you type, and the files you play. Dropbox&rsquo;s privacy policy governs what Dropbox does with that.</p>
+  <p>Signing out of Dropbox in Vibe ends Vibe&rsquo;s access on Dropbox&rsquo;s side, and deletes the sign-in token and every file Vibe downloaded.</p>
 
   <h2>Files kept in cloud storage</h2>
-  <p>If you play a file stored in iCloud Drive, Dropbox, or another file provider, macOS or iOS downloads it through that provider&rsquo;s own system extension, under the account you have already signed into. Vibe asks the operating system for the file; it never contacts the provider itself and never sees your credentials. That provider&rsquo;s privacy policy governs the transfer.</p>
+  <p>If you play a file from iCloud Drive, or from Dropbox or another provider through the Files app or the Finder, macOS or iOS downloads it through that provider&rsquo;s own system extension, under the account you have already signed into. In that case Vibe asks the operating system for the file; it never contacts the provider itself and never sees your credentials. That provider&rsquo;s privacy policy governs the transfer.</p>
 
   <h2>Now Playing</h2>
   <p>While a track is playing, Vibe hands its title, artist, and artwork to the operating system&rsquo;s Now Playing service, so the track can appear in Control Center, on the Lock Screen, and on connected accessories. That is a system feature, and Vibe is not the one distributing the information.</p>
