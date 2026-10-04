@@ -21,6 +21,8 @@ The walk itself is `NSURLUtil` (`Vibe/Util/`), on a four-wide queue, so an unrea
 
 `DocumentTypes` is **not** here — it is `Vibe/Common/`, since it reads the bundle and touches no AppKit, and both targets declare document types. The `⌘O` panel's filter and `DefaultAppRegistration` (`Mac/Settings/`) both read it, so the two cannot disagree about what a supported file is.
 
+**TRAP: another app's CUE/M3U type need not conform to our declaration.** The open panel includes every registered type for each declared filename extension, not only the declared identifiers; otherwise a supported file can be grayed out depending on which other apps are installed. The default-handler claims remain the bundle's declarations.
+
 ## Sandbox grants
 
 `FolderAccessManager` is the bookmark store: resolve at launch, merge what an open or a drop grants, persist, and answer `canReadInsideDirectory:` for anything that wants to know before it touches the disk. It is here rather than in `Mac/Settings/` because that pane is only its *display* — the readers are the app delegate, the folder-art resolver and the main window.

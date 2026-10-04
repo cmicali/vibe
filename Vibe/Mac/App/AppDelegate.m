@@ -333,10 +333,20 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     panel.allowsMultipleSelection = YES;
     panel.canChooseFiles = YES;
     panel.canChooseDirectories = YES;
-    NSArray<UTType *> *contentTypes = DocumentTypes.declaredTypes;
+    NSArray<UTType *> *declaredTypes = DocumentTypes.declaredTypes;
+    NSMutableOrderedSet<UTType *> *contentTypes = [NSMutableOrderedSet orderedSetWithArray:declaredTypes];
+    // TRAP: another app's CUE/M3U type need not conform to our declaration.
+    // Include every registered type for each declared extension.
+    for (UTType *type in declaredTypes) {
+        for (NSString *extension in type.tags[UTTagClassFilenameExtension]) {
+            [contentTypes addObjectsFromArray:[UTType typesWithTag:extension
+                                                         tagClass:UTTagClassFilenameExtension
+                                                 conformingToType:nil]];
+        }
+    }
     // An empty allowlist would make every file unselectable.
     if (contentTypes.count > 0) {
-        panel.allowedContentTypes = contentTypes;
+        panel.allowedContentTypes = contentTypes.array;
     }
     _openPanel = panel;
     [panel beginWithCompletionHandler:^(NSInteger result){
