@@ -218,11 +218,22 @@ def build(ref=None):
 
 
 def run_binary(binary, filter_re, reps, json_out, quiet=False):
+    """The run's samples by benchmark; empty when it measured nothing, since
+    VibeBenchComponents then writes no JSON and a stale file must not pass for this run's."""
+    json_out = Path(json_out)
+    json_out.unlink(missing_ok=True)
     args = [str(binary), '--corpus', str(CORPUS), '--reps', str(reps), '--json', str(json_out)]
     if filter_re:
         args += ['--filter', filter_re]
     subprocess.run(args, check=True, stdout=subprocess.DEVNULL if quiet else None)
-    return json.loads(Path(json_out).read_text())['benches']
+    return json.loads(json_out.read_text())['benches'] if json_out.exists() else {}
+
+
+def built(binary, filter_re):
+    """The benchmark names a binary has: a ref that could not build a benchmark
+    file lacks that file's."""
+    args = [str(binary), '--list'] + (['--filter', filter_re] if filter_re else [])
+    return set(subprocess.run(args, check=True, capture_output=True, text=True).stdout.split())
 
 
 
@@ -243,11 +254,21 @@ def compare(args):
     md = option(args, '--md', None)
     base_ref, head_ref = args[0], (args[1] if len(args) > 1 else None)
     corpus()
-    base_bin, head_bin = build(base_ref), build(head_ref)
+    head_label = head_ref or 'working tree'
+    binaries = {'base': build(base_ref), 'head': build(head_ref)}
+    names = {side: built(binary, filter_re) for side, binary in binaries.items()}
+    matching = f' matching {filter_re}' if filter_re else ''
+    if not names['base'] and not names['head']:
+        sys.exit(f'compare: no benchmark{matching} at {base_ref} or {head_label}')
+    for side, label in (('base', base_ref), ('head', head_label)):
+        if not names[side]:
+            print(f'compare: {label} built no benchmark{matching}; comparing what both sides have', flush=True)
     samples = {'base': {}, 'head': {}}
     PERF.mkdir(parents=True, exist_ok=True)
     for r in range(rounds):
-        for side, binary in (('base', base_bin), ('head', head_bin)):
+        for side, binary in binaries.items():
+            if not names[side]:
+                continue
             print(f'round {r + 1}/{rounds}: {side}', flush=True)
             got = run_binary(binary, filter_re, reps, PERF / f'{side}.json', quiet=True)
             for name, bench in got.items():
@@ -255,7 +276,6 @@ def compare(args):
                 entry['unit'], entry['units'] = bench['unit'], bench['units']
                 for key in ('wall_ms', 'cpu_ms', 'instructions', 'cycles'):
                     entry[key] += bench[key]
-    head_label = head_ref or 'working tree'
     lines = [f'VibeBenchComponents: {base_ref} → {head_label}, {rounds} rounds × {reps} reps, medians', '',
              '| benchmark | Minstr base | Minstr head | Δ instr | CPU ms base | CPU ms head | Δ CPU | wall ms base | wall ms head | Δ wall |',
              '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |']
@@ -264,6 +284,15 @@ def compare(args):
         bi, hi, bc, hc, bw, hw = b['minstr'], h['minstr'], b['cpu_ms'], h['cpu_ms'], b['wall_ms'], h['wall_ms']
         lines.append(f'| {name} | {bi:.1f} | {hi:.1f} | {pct(bi, hi):+.1f}% | {bc:.1f} | {hc:.1f} | {pct(bc, hc):+.1f}% '
                      f'| {bw:.1f} | {hw:.1f} | {pct(bw, hw):+.1f}% |')
+    # No result: built, but skipped for a missing corpus file or FAILED on a timed-out wait.
+    missing = [name for name in sorted(names['base'] | names['head'])
+               if name not in samples['base'] or name not in samples['head']]
+    if missing:
+        lines += ['', 'Not compared:']
+    for name in missing:
+        reasons = [f'{side}: {"not built" if name not in names[side] else "no result"}'
+                   for side in ('base', 'head') if name not in samples[side]]
+        lines.append(f'- {name}: {", ".join(reasons)}')
     text = '\n'.join(lines) + '\n'
     print(text)
     (PERF / 'last-compare.json').write_text(json.dumps(samples))
