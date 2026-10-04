@@ -40,11 +40,12 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
 }
 
 // A placeholder's refused open is not a failure to draw: its download will
-// land and the open asks again.
+// land and the open asks again. Only the current page's: a neighbor has no
+// open coming to take the indicator down.
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
       didFailWaveformForIndex:(NSUInteger)index {
     AudioTrack *track = [_playlist trackAtIndex:index];
-    if (track && [NSURLUtil isRemotePlaceholderFile:track.url]) {
+    if (track && index == _playback.currentIndex && [NSURLUtil isRemotePlaceholderFile:track.url]) {
         return;
     }
     [[self cellAtIndex:index].waveformView hideLoadingIndicator];

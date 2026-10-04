@@ -1,5 +1,5 @@
 {
-  "version" : 1,
+  "version" : 2,
   "name" : "Cupertino",
   "description" : "The Apple Music look: near-white and charcoal surfaces, system type, legible secondary grays, and a red-pink accent reserved for what is playing. The bundled placeholder pairs a rounded gray tile with the familiar double-note silhouette.",
   "window" : {

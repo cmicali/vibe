@@ -76,8 +76,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Until a prune or reset.
 - (BOOL)isCompleteAtIndex:(NSUInteger)index;
-// The latest snapshot's fraction loaded; 0 with none.
-- (float)percentLoadedAtIndex:(NSUInteger)index;
 
 @end
 

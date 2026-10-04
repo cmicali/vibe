@@ -54,18 +54,18 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [self publishNowPlaying];
 }
 
-// A stream holding for its download draws as a slow open does, and Now
-// Playing's clock stops with it (publishNowPlaying).
+// A stream holding for its download stops Now Playing's clock
+// (publishNowPlaying) and leaves the card's waveform alone: a slow open's
+// begin-loading resets the scrubber, which wiped the drawn waveform and left
+// nothing to scrub back into the downloaded part. Its end still asks again for
+// a waveform the open skipped.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeBuffering:(BOOL)buffering
               forTrack:(AudioTrack *)track {
     if (![_playlist isCurrentTrack:track]) {
         return;
     }
-    if (buffering) {
-        [self notifyDidBeginLoading];
-    }
-    else {
+    if (!buffering) {
         [self notifyDidFinishLoading];
     }
     [self notifyDidChangePlayState];

@@ -63,6 +63,7 @@
 #define SETTING_ACTIVE_THEME                        @"Appearance.activeTheme"
 #define SETTING_USER_THEMES                         @"Appearance.userThemes"
 #define SETTING_CURRENT_THEME                       @"Appearance.currentTheme"
+#define SETTING_THEME_RECORD_VERSION                @"Appearance.themeRecordVersion"
 
 const NSInteger kVibeSkipBasePresets[] = {4, 8, 16};
 const size_t kVibeSkipBasePresetCount =
@@ -234,6 +235,31 @@ static void StoreBuiltInWorkingRecord(NSDictionary *record, NSString *builtIn) {
     } else {
         [defaults setObject:record forKey:SETTING_CURRENT_THEME];
     }
+}
+
+// A record stored before 1.15 meant today's "frosted" by a window "solid"
+// (recordUpgradedFromVersion1:). The stored version makes this run once, so a
+// Solid picked since stays Solid. Raw records, so the display migration after
+// it still finds their 1.14 fields.
+- (void)migrateThemeRecordsToVersion2 {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    if ([defaults integerForKey:SETTING_THEME_RECORD_VERSION] >= kVibeThemeRecordVersion) {
+        return;
+    }
+    NSArray *stored = [defaults arrayForKey:SETTING_USER_THEMES];
+    if (stored) {
+        NSMutableArray *upgraded = [NSMutableArray arrayWithCapacity:stored.count];
+        for (id record in stored) {
+            [upgraded addObject:[record isKindOfClass:NSDictionary.class]
+                    ? [AppTheme recordUpgradedFromVersion1:record] : record];
+        }
+        [defaults setObject:upgraded forKey:SETTING_USER_THEMES];
+    }
+    NSDictionary *diverged = [defaults dictionaryForKey:SETTING_CURRENT_THEME];
+    if (diverged) {
+        StoreBuiltInWorkingRecord([AppTheme recordUpgradedFromVersion1:diverged], self.activeThemeIdentifier);
+    }
+    [defaults setInteger:kVibeThemeRecordVersion forKey:SETTING_THEME_RECORD_VERSION];
 }
 
 // The active theme's display choices become the app-wide settings, so the

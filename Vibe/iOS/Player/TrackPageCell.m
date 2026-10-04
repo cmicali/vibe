@@ -941,6 +941,7 @@ static UIImage *TransportGradientImage(void) {
     _shuffleWidth.constant = shown ? kTransportFlankButtonSide : 0;
     _outerGapWanted.constant = shown ? kTransportButtonGap : 0;
     _outerGapMin.constant = shown ? kTransportFlankMinGap : 0;
+    [self applyFileInfoText];
 }
 
 - (void)setFXPadShown:(BOOL)shown {
@@ -1059,6 +1060,10 @@ static UIImage *TransportGradientImage(void) {
     [self setFlankGlyph:VibeRepeatModeSymbolName(repeatMode) active:repeatMode != VibeRepeatModeOff
                onButton:_repeatButton];
     _repeatButton.accessibilityLabel = VibeRepeatModeTitle(repeatMode);
+    // Shown flanks say it themselves; applyShuffleRepeatShown re-applies on a flip.
+    if (_shuffleButton.hidden) {
+        [self applyFileInfoText];
+    }
 }
 
 // Off is drawn dimmed, as the disabled look is.
@@ -1072,14 +1077,50 @@ static UIImage *TransportGradientImage(void) {
 
 // The codec line and the tempo line: the mac's two lines in landscape, one
 // joined line in portrait, whose band reserves a single line for them.
+//
+// A mode that is on while the layout hides its flank leads the line as a
+// glyph, so the card never hides a mode that is on (compact layouts, a row
+// too narrow for the flanks).
 - (void)applyFileInfoText {
     BOOL stacked = _landscapeActive && _fileInfo.length > 0 && _tempoInfo.length > 0;
     NSString *line = stacked
             ? [NSString stringWithFormat:@"%@\n%@", _fileInfo, _tempoInfo]
             : [[Formatters sharedInstance] infoLineFromFields:@[_fileInfo ?: @"", _tempoInfo ?: @""]];
-    _fileInfoLabel.text = line;
+    BOOL shuffleGlyph = _shuffleButton.hidden && _flankShuffleEnabled;
+    BOOL repeatGlyph = _shuffleButton.hidden && _flankRepeatMode != VibeRepeatModeOff;
+    if (!shuffleGlyph && !repeatGlyph) {
+        _fileInfoLabel.text = line;
+        _fileInfoLabel.accessibilityLabel = nil;
+    }
+    else {
+        static UIImageSymbolConfiguration *configuration;
+        static dispatch_once_t once;
+        dispatch_once(&once, ^{
+            configuration = [UIImageSymbolConfiguration configurationWithTextStyle:UIFontTextStyleFootnote
+                                                                             scale:UIImageSymbolScaleSmall];
+        });
+        NSMutableAttributedString *text = [[NSMutableAttributedString alloc] init];
+        NSMutableArray<NSString *> *spoken = [NSMutableArray array];
+        void (^lead)(NSString *, NSString *) = ^(NSString *symbol, NSString *name) {
+            UIImage *glyph = [UIImage systemImageNamed:symbol withConfiguration:configuration];
+            [text appendAttributedString:[NSAttributedString attributedStringWithAttachment:
+                    [NSTextAttachment textAttachmentWithImage:glyph]]];
+            [text appendAttributedString:[[NSAttributedString alloc] initWithString:@" "]];
+            [spoken addObject:name];
+        };
+        if (shuffleGlyph) {
+            lead(@"shuffle", STR_TRANSPORT_SHUFFLE);
+        }
+        if (repeatGlyph) {
+            lead(VibeRepeatModeSymbolName(_flankRepeatMode), VibeRepeatModeTitle(_flankRepeatMode));
+        }
+        [text appendAttributedString:[[NSAttributedString alloc] initWithString:line]];
+        _fileInfoLabel.attributedText = text;
+        [spoken addObject:line];
+        _fileInfoLabel.accessibilityLabel = [spoken componentsJoinedByString:@", "];
+    }
     // Hidden, not blank: the band reserves a visible label's line.
-    BOOL hideFileInfo = line.length == 0;
+    BOOL hideFileInfo = line.length == 0 && !shuffleGlyph && !repeatGlyph;
     if (hideFileInfo != _fileInfoLabel.hidden) {
         _fileInfoLabel.hidden = hideFileInfo;
         [self setNeedsLayout];

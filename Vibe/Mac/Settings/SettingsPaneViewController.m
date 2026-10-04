@@ -335,6 +335,11 @@ static const CGFloat kInlineTitleInset = 10;
     if ([[self layoutSignature] isEqualToString:_measuredLayoutSignature]) {
         return;
     }
+    // Rows shown or hidden on screen: a live search marks what just appeared.
+    [self searchableRowsDidChange];
+    if (_searchQuery) {
+        [self applySearchMarks];
+    }
     // Capture the old frames before hidden changes replace the stack's
     // constraints, so the animated pass below moves rows with the window.
     [self.view layoutSubtreeIfNeeded];
@@ -507,6 +512,11 @@ static void AppendLayoutText(NSView *view, NSMutableString *signature) {
     return !row.hidden;
 }
 
+// The hits are taken against the rows showing; a change in which show retakes them.
+- (void)searchableRowsDidChange {
+    _searchHitsQuery = nil;
+}
+
 // Answered once per query: the sidebar's filter, the marks and the reveal all
 // ask.
 - (NSArray<SettingsRowView *> *)rowsMatchingSearch:(NSString *)query {
@@ -613,9 +623,9 @@ static const CFTimeInterval kSettingsDragInterval = 1.0 / 30;
 
 - (void)viewWillAppear {
     [super viewWillAppear];
-    [self refreshSettingsAndPaneSize];
     // Rows may have shown or hidden since the hits were taken.
-    _searchHitsQuery = nil;
+    [self searchableRowsDidChange];
+    [self refreshSettingsAndPaneSize];
     if (_searchMarksPending) {
         [self applySearchMarks];
     }

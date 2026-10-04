@@ -80,6 +80,9 @@ NS_ASSUME_NONNULL_BEGIN
 // one — read playlist.count before presenting an empty state — and every
 // Add in flight was superseded.
 - (void)playbackDidOpenEmptyFolder:(PlaybackController *)playback;
+// The open being waited on was cancelled, tapped away or given up; like an
+// empty open it superseded every Add in flight, so none of them settles.
+- (void)playbackDidCancelOpening:(PlaybackController *)playback;
 // FolderSession's needsFolderOfSheetAtURL:, relayed.
 - (void)playback:(PlaybackController *)playback
         needsFolderOfSheetAtURL:(NSURL *)sheetURL

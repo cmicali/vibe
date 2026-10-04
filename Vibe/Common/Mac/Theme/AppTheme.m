@@ -18,6 +18,7 @@ NSString *const kVibeThemeIdentifierVibe = @"vibe";
 
 static const CGFloat kCornerRadiusMin = 0;
 
+const NSInteger kVibeThemeRecordVersion = 2;
 NSString *const kVibeThemeRecordNameKey = @"name";
 NSString *const kVibeThemeRecordIdentifierKey = @"id";
 
@@ -1010,6 +1011,15 @@ static NSDictionary<NSString *, NSArray<NSString *> *> *ThemeJSONFieldLocations(
 // Far above any real theme; a mispicked video fails before the parser.
 static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 
++ (NSDictionary<NSString *, id> *)recordUpgradedFromVersion1:(NSDictionary<NSString *, id> *)record {
+    if (![record[kFieldWindowBackgroundStyle] isEqual:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID]) {
+        return record;
+    }
+    NSMutableDictionary *upgraded = [record mutableCopy];
+    upgraded[kFieldWindowBackgroundStyle] = SETTINGS_VALUE_WINDOW_BACKGROUND_FROSTED;
+    return upgraded;
+}
+
 // Trimmed, not sanitized, so a bare archive entry name survives where the
 // gate drops it.
 + (NSDictionary<NSString *, NSString *> *)rawImageReferencesInJSONData:(NSData *)json {
@@ -1067,7 +1077,9 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
             }
         }];
     }
-    return [self sanitizedRecord:flat];
+    id version = parsed[@"version"];
+    BOOL current = [version isKindOfClass:NSNumber.class] && [version integerValue] >= kVibeThemeRecordVersion;
+    return [self sanitizedRecord:current ? flat : [self recordUpgradedFromVersion1:flat]];
 }
 
 + (NSData *)JSONDataForRecord:(NSDictionary<NSString *, id> *)record name:(NSString *)name {
@@ -1094,7 +1106,7 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
         sub[location[1]] = fields[fieldKey];
     }
     // Hand-assembled: NSJSONSerialization cannot order top-level keys.
-    NSMutableString *out = [NSMutableString stringWithString:@"{\n  \"version\" : 1"];
+    NSMutableString *out = [NSMutableString stringWithFormat:@"{\n  \"version\" : %ld", (long)kVibeThemeRecordVersion];
     NSData *nameData = [NSJSONSerialization dataWithJSONObject:(name ?: @"")
             options:NSJSONWritingFragmentsAllowed error:NULL];
     [out appendFormat:@",\n  \"name\" : %@",

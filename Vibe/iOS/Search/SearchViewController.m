@@ -826,7 +826,12 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 
 #pragma mark - PlaybackObserver
 
+// TRAP: hidden, the file hits are emptied without a reload (playlistDidChange),
+// so reloading the table's cached rows here throws; showing re-filters anyway.
 - (void)playbackDidChangeOpening:(PlaybackController *)playback {
+    if (![self isMateriallyVisible]) {
+        return;
+    }
     NSMutableArray<NSIndexPath *> *rows = [NSMutableArray array];
     for (NSIndexPath *path in self.tableView.indexPathsForVisibleRows) {
         if (path.section == VibeSearchSectionFiles) {

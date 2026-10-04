@@ -126,7 +126,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
 // playlist goes unreadable mid-play.
 - (NSURL *)rootCoveringPath:(NSString *)path in:(NSArray<NSURL *> *)roots {
     for (NSURL *root in roots) {
-        if (VibeSearchRootCoversPath(root.URLByStandardizingPath.path, path)) {
+        if (VibeSearchRootCoversPath(VibeComparablePath(root.path), path)) {
             return root;
         }
     }
@@ -320,7 +320,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             continue;
         }
         NSMutableDictionary *item = [recents[i] mutableCopy];
-        item[@"path"] = url.URLByStandardizingPath.path ?: path;
+        item[@"path"] = VibeComparablePath(url.path) ?: path;
         item[@"bookmark"] = bookmark;
         recents[i] = item;
         [NSUserDefaults.standardUserDefaults setObject:recents forKey:kRecentItemsKey];
@@ -485,7 +485,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         return;
     }
     // The scoped list, not the search roots: see rootCoveringPath:in:.
-    NSURL *scopedURL = [self rootCoveringPath:folderURL.URLByStandardizingPath.path
+    NSURL *scopedURL = [self rootCoveringPath:VibeComparablePath(folderURL.path)
                                            in:_scopedURLs];
     BOOL scopeHoldStarted = [scopedURL startAccessingSecurityScopedResource];
     dispatch_async(_workQueue, ^{
@@ -576,12 +576,12 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     // while holds and grants stay separate lists for lifetime.
     NSMutableArray<NSString *> *coveringRootPaths = [NSMutableArray array];
     for (NSURL *folder in self.searchRoots) {
-        [coveringRootPaths addObject:folder.URLByStandardizingPath.path ?: @""];
+        [coveringRootPaths addObject:VibeComparablePath(folder.path) ?: @""];
     }
     // The app's own trees need no grant, so a file picked in one always
     // reaches its folder: Documents, and the Dropbox mirror.
-    NSString *documents = SearchFolderStore.containerDocumentsURL.URLByStandardizingPath.path;
-    NSString *dropbox = DropboxMirror.shared.accountURL.URLByStandardizingPath.path;
+    NSString *documents = VibeComparablePath(SearchFolderStore.containerDocumentsURL.path);
+    NSString *dropbox = VibeComparablePath(DropboxMirror.shared.accountURL.path);
     if (documents) {
         [coveringRootPaths addObject:documents];
     }
@@ -592,7 +592,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     NSMutableArray<SearchFolderGrant *> *grants = [NSMutableArray array];
     BOOL keepsSessionBookmark = NO;
     for (NSURL *url in urls) {
-        NSString *path = url.URLByStandardizingPath.path;
+        NSString *path = VibeComparablePath(url.path);
         // The scoped list, never the search roots (rootCoveringPath:in:);
         // a derived root would also mask the favorites lookup below.
         NSURL *root = [self rootCoveringPath:path in:_scopedURLs];
@@ -602,7 +602,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             // A removed Settings row: carry the current playlist's retained
             // grant over rather than revoke it when this result wins.
             for (SearchFolderGrant *held in _searchGrants) {
-                if (VibeSearchRootCoversPath(held.rootURL.URLByStandardizingPath.path, path)) {
+                if (VibeSearchRootCoversPath(VibeComparablePath(held.rootURL.path), path)) {
                     grant = held;
                     break;
                 }
@@ -615,22 +615,22 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             root = favoriteRoot;
         }
         if (!root && grantedFolder
-                && VibeSearchRootCoversPath(grantedFolder.URLByStandardizingPath.path, path)) {
+                && VibeSearchRootCoversPath(VibeComparablePath(grantedFolder.path), path)) {
             root = grantedFolder;
         }
         if (sessionRoot && !grant && !favoriteRoot
-                && ![sessionRoot.URLByStandardizingPath.path isEqualToString:path]) {
+                && ![VibeComparablePath(sessionRoot.path) isEqualToString:path]) {
             keepsSessionBookmark = YES;
         }
         // Only a start that returned YES is collected: the worker balances holds.
         if (root && ![holds containsObject:root]
                 && [root startAccessingSecurityScopedResource]) {
             [holds addObject:root];
-            [coveringRootPaths addObject:root.URLByStandardizingPath.path ?: @""];
+            [coveringRootPaths addObject:VibeComparablePath(root.path) ?: @""];
         }
         if (grant && ![grants containsObject:grant]) {
             [grants addObject:grant];
-            [coveringRootPaths addObject:grant.rootURL.URLByStandardizingPath.path ?: @""];
+            [coveringRootPaths addObject:VibeComparablePath(grant.rootURL.path) ?: @""];
         }
     }
     dispatch_async(appending ? _appendQueue : _workQueue, ^{
@@ -723,7 +723,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
                 recentRoots[recentPath] = root ?: (NSURL *)NSNull.null;
             }
             if ([root isKindOfClass:NSURL.class]
-                    && VibeSearchRootCoversPath(root.URLByStandardizingPath.path, coveredPath)) {
+                    && VibeSearchRootCoversPath(VibeComparablePath(root.path), coveredPath)) {
                 return root;
             }
         }
@@ -738,7 +738,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         // are its.
         NSURL *held = url;
         if (!started) {
-            NSString *path = url.URLByStandardizingPath.path;
+            NSString *path = VibeComparablePath(url.path);
             if (VibeSearchFolderCoveringRootIndex(coveringRootPaths, path) == NSNotFound) {
                 NSURL *recentRoot = resolveRecentRootCovering(path);
                 if (recentRoot && [recentRoot startAccessingSecurityScopedResource]) {
@@ -760,7 +760,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         BOOL m3u = !isDir && [PlaylistFile isM3UExtension:url.pathExtension.lowercaseString];
         if (!isDir && expands && !m3u) {
             NSURL *parent = url.URLByDeletingLastPathComponent;
-            NSString *parentPath = parent.URLByStandardizingPath.path;
+            NSString *parentPath = VibeComparablePath(parent.path);
             NSURL *bookmarkRoot = nil;
             BOOL bookmarkScopeStarted = NO;
             BOOL listable = VibeSearchFolderCoveringRootIndex(coveringRootPaths, parentPath) != NSNotFound;
@@ -768,7 +768,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
                 // A cold "Open in Vibe" arrives before any restore ran.
                 NSURL *candidate = resolvePersistedBase();
                 if (!(candidate && VibeSearchRootCoversPath(
-                        candidate.URLByStandardizingPath.path, parentPath))) {
+                        VibeComparablePath(candidate.path), parentPath))) {
                     candidate = resolveRecentRootCovering(parentPath);
                 }
                 if (candidate) {
@@ -871,10 +871,10 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     // is covering its tracks, and there are far fewer of them.
     NSMutableArray<NSString *> *contributorPaths = [NSMutableArray arrayWithCapacity:contributors.count];
     for (NSURL *contributor in contributors) {
-        [contributorPaths addObject:contributor.URLByStandardizingPath.path ?: @""];
+        [contributorPaths addObject:VibeComparablePath(contributor.path) ?: @""];
     }
     for (NSURL *hold in holds) {
-        NSString *holdPath = hold.URLByStandardizingPath.path;
+        NSString *holdPath = VibeComparablePath(hold.path);
         BOOL covers = NO;
         for (NSString *contributorPath in contributorPaths) {
             if (VibeSearchRootCoversPath(holdPath, contributorPath)) {
@@ -953,7 +953,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             NSMutableArray<NSMutableDictionary *> *recents = [NSMutableArray arrayWithCapacity:opened.count];
             for (NSURL *url in opened) {
                 NSMutableDictionary *item = [NSMutableDictionary dictionary];
-                item[@"path"] = url.URLByStandardizingPath.path ?: url.path;
+                item[@"path"] = VibeComparablePath(url.path);
                 item[@"bookmark"] = minted[url] ?: [self bookmarkForURL:url];
                 item[@"folder"] = @(url == shared || url == folderURL || [addedFolders containsObject:url]);
                 [recents addObject:item];
@@ -1044,7 +1044,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         // favorite is walked twice. Reach, not lifetime, so the SEARCH ROOTS
         // answer; its scope is still adopted above.
         for (NSURL *folder in addedFolders) {
-            if (![self rootCoveringPath:folder.URLByStandardizingPath.path
+            if (![self rootCoveringPath:VibeComparablePath(folder.path)
                                      in:self.searchRoots]) {
                 [_addedFolderURLs addObject:folder];
             }

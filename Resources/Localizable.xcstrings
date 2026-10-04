@@ -39992,7 +39992,7 @@
       "extractionState": "manual"
     },
     "settings.advanced.refresh_rate.high": {
-      "comment": "Settings, Advanced pane, playhead refresh choice: up to sixty redraws a second, the smoothest and the most power-hungry. Hz is the international unit symbol for times per second and is not translated.",
+      "comment": "Settings, Advanced pane, playhead refresh choice: up to sixty redraws a second, the smoothest and the most power-hungry. The default. Hz is the international unit symbol for times per second and is not translated.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -40364,7 +40364,7 @@
       "extractionState": "manual"
     },
     "settings.advanced.refresh_rate.normal": {
-      "comment": "Settings, Advanced pane, playhead refresh choice: up to thirty redraws a second. The default. Hz is the international unit symbol for times per second and is not translated.",
+      "comment": "Settings, Advanced pane, playhead refresh choice: up to thirty redraws a second. Hz is the international unit symbol for times per second and is not translated.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -46132,12 +46132,6 @@
     "settings.appearance.single_theme_caption": {
       "comment": "macOS Settings, Appearance pane: caption under Window appearance when the light/dark choice is unavailable because the active theme uses a single palette, which keeps the window dark. %@ is the theme's name, chosen on the Themes pane.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The %@ theme uses one palette and keeps the window in dark appearance"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -46166,6 +46160,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Το θέμα «%@» χρησιμοποιεί μία παλέτα και διατηρεί τη σκούρα εμφάνιση του παραθύρου."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The %@ theme uses one palette and keeps the window in dark appearance"
           }
         },
         "es": {

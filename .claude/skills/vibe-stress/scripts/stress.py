@@ -98,7 +98,7 @@ MENU_IDS = set("""
 menu_play menu_next_track menu_previous_track menu_skip_forward menu_skip_forward_more
 menu_skip_forward_most menu_skip_back menu_skip_back_more menu_skip_back_most
 menu_fx_low_kill menu_fx_low_kill_boost menu_fx_reverb menu_fx_delay menu_fx_short_delay
-pitch_range_8 pitch_range_16 menu_show_playlist menu_show_pitch menu_show_file_info
+pitch_range_8 pitch_range_16 menu_show_playlist menu_show_pitch
 menu_play_selected menu_edit_select_all menu_edit_remove_from_playlist menu_edit_undo menu_edit_redo
 """.split())
 GESTURE_TESTS = ("pitch-reset", "pitch-drag")

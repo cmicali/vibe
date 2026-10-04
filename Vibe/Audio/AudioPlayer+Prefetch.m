@@ -114,16 +114,17 @@
             || [self bitPerfectOnQueue] || ![self renderingOnQueue]) {
         return;
     }
-    NSTimeInterval duration = self.duration;
-    uint64_t milliseconds = VibeTrackEndCrossfadeMilliseconds(self.crossfadeMilliseconds, duration - self.position, duration,
-                                                              (NSTimeInterval)kDrainSteadyIntervalNanos / NSEC_PER_SEC);
-    if (milliseconds == 0) {
-        return;
-    }
     BOOL estimated = NO;
     NSRange window = [startedTrack frameWindowInFile:startedFile estimated:&estimated];
     if (window.length == 0) {
         return; // the shell's play: of it reports the error at the track end
+    }
+    NSTimeInterval duration = self.duration;
+    NSTimeInterval nextDuration = (NSTimeInterval)window.length / startedFile.processingFormat.sampleRate;
+    uint64_t milliseconds = VibeTrackEndCrossfadeMilliseconds(self.crossfadeMilliseconds, duration - self.position, duration,
+                                                              nextDuration, (NSTimeInterval)kDrainSteadyIntervalNanos / NSEC_PER_SEC);
+    if (milliseconds == 0) {
+        return;
     }
     [self clearPrefetchOnQueue];
     VibeVoiceID outgoing = [self unpublishVoiceOnQueue];

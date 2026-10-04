@@ -731,9 +731,7 @@ static NSString *const kTabSearch = @"search";
 - (void)playbackDidReplacePlaylist:(PlaybackController *)playback {
     [self refreshMiniPlayer];
     // An Add onto nothing became an open: the card says so.
-    for (NSArray<UIView *> *rows in [_liftedRowBatches copy]) {
-        [self settleLiftedRows:rows landed:NO];
-    }
+    [self settleEveryLiftedRowUnlanded];
 }
 
 // Every Add ends here; the oldest lift is its.
@@ -790,6 +788,12 @@ static const CGFloat kLandedRowScale = 0.1;
 
 - (NSArray<NSNumber *> *)liftedRowTimes {
     return [_liftedRowBatchTimes copy] ?: @[];
+}
+
+- (void)settleEveryLiftedRowUnlanded {
+    for (NSArray<UIView *> *rows in [_liftedRowBatches copy]) {
+        [self settleLiftedRows:rows landed:NO];
+    }
 }
 
 - (void)settleLiftedRows:(NSArray<UIView *> *)rows landed:(BOOL)landed {
@@ -899,9 +903,11 @@ static const CGFloat kLandedRowScale = 0.1;
     if (playback.playlist.count == 0) {
         [self bringPlaylistTabForward];
     }
-    for (NSArray<UIView *> *rows in [_liftedRowBatches copy]) {
-        [self settleLiftedRows:rows landed:NO];
-    }
+    [self settleEveryLiftedRowUnlanded];
+}
+
+- (void)playbackDidCancelOpening:(PlaybackController *)playback {
+    [self settleEveryLiftedRowUnlanded];
 }
 
 // Over whatever is up: the add sheet, or the card.

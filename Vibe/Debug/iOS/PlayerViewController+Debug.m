@@ -19,6 +19,22 @@
 #import "TrackPageCell.h"
 #import "WaveformScrubberView.h"
 
+// Implemented by the classes themselves; only the dump reads them.
+@interface WaveformScrubberView (Debug)
+// The settled fast path is up.
+@property (nonatomic, readonly) BOOL isShowingBakedWaveform;
+// Points past either end: positive past the start, negative past the end.
+@property (nonatomic, readonly) CGFloat overscroll;
+// {offset, min, max, contentWidth}: tells "resting at an end" from "pinned
+// against one", which overscroll cannot.
+@property (nonatomic, readonly) NSArray<NSNumber *> *scrollGeometry;
+@end
+
+@interface PageWaveformCoordinator (Debug)
+// The latest snapshot's fraction loaded; 0 with none.
+- (float)percentLoadedAtIndex:(NSUInteger)index;
+@end
+
 @implementation PlayerViewController (Debug)
 
 - (NSDictionary *)debugChromeDictionary {

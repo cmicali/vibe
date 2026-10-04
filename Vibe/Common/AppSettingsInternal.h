@@ -61,6 +61,7 @@ NS_ASSUME_NONNULL_BEGIN
 // primary @implementation.
 @interface AppSettings (MacInternal)
 - (void)migrateLooseAppearanceSettingsToTheme;
+- (void)migrateThemeRecordsToVersion2;
 - (void)migrateThemeDisplaySettings;
 - (void)registerMacDefaultsInto:(NSMutableDictionary *)defaults;
 - (NSDictionary<NSString *, id> *)registeredSettingDefaults;

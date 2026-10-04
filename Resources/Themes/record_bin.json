@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "Record Bin",
   "description": "A single-mode charcoal window with no glass: the 3-Band waveform drawn flat and a soft white volume bar.",
   "window": {
