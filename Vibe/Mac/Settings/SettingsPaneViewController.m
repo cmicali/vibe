@@ -279,7 +279,9 @@ static const CGFloat kInlineTitleInset = 10;
 
 // Recomputed, never a high-water mark, so hiding a row gives the height back.
 // measure NO takes each sibling's last measurement: a hidden pane cannot have
-// moved, so a visible pane's change costs one solve, not one per pane.
+// moved, so a visible pane's change costs one solve, not one per pane. Even
+// measuring, a pane whose layout signature holds keeps its last size, so
+// reopening the window solves only for what changed while it was closed.
 + (void)applySharedSizeToPanes:(NSArray<__kindof NSViewController *> *)panes measure:(BOOL)measure {
     NSSize shared = NSMakeSize(kSettingsPaneWidth, kSettingsPaneMinHeight);
     for (NSViewController *pane in panes) {
@@ -287,7 +289,9 @@ static const CGFloat kInlineTitleInset = 10;
             continue;
         }
         SettingsPaneViewController *settingsPane = (SettingsPaneViewController *)pane;
-        NSSize natural = !measure && !NSEqualSizes(settingsPane->_lastNaturalSize, NSZeroSize)
+        BOOL current = !measure || [[settingsPane layoutSignature]
+                isEqualToString:settingsPane->_measuredLayoutSignature];
+        NSSize natural = current && !NSEqualSizes(settingsPane->_lastNaturalSize, NSZeroSize)
                 ? settingsPane->_lastNaturalSize : [settingsPane naturalPaneSize];
         shared.width = MAX(shared.width, natural.width);
         shared.height = MAX(shared.height, natural.height);
