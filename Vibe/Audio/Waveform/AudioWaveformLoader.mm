@@ -16,6 +16,9 @@
 #import "AudioLoadTiming.h"
 #import "CloudFileMaterializer.h"
 #import "PlaybackIntent.h"
+#if DEBUG
+#import "AudioWaveformCache+Debug.h"
+#endif
 #import <AVFAudio/AVFAudio.h>
 
 #include <array>
@@ -389,6 +392,10 @@
     BOOL readError = NO;
     AVAudioFramePosition framesRead = 0;
     NSError *error = nil;
+#if DEBUG
+    const NSTimeInterval debugDecodeSeconds = AudioWaveformCache.debugDecodeSeconds;
+    const CFAbsoluteTime debugDecodeStart = CFAbsoluteTimeGetCurrent();
+#endif
 
     while (framesRead < totalFrames && !self.isCancelled) {
         // Wait for this slot's previous processing to finish before reusing
@@ -421,6 +428,14 @@
         }
         NSUInteger numFrames = buffer.frameLength;
         framesRead += numFrames;
+#if DEBUG
+        // Held to its share of the debug pace, in short sleeps so a cancel
+        // still ends the pass promptly.
+        CFAbsoluteTime due = debugDecodeStart + debugDecodeSeconds * (double)framesRead / (double)totalFrames;
+        while (!self.isCancelled && CFAbsoluteTimeGetCurrent() < due) {
+            [NSThread sleepForTimeInterval:MIN(0.02, due - CFAbsoluteTimeGetCurrent())];
+        }
+#endif
 
         dispatch_semaphore_t slotDone = slotFree[slot];
         dispatch_async(processQueue, ^{

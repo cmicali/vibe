@@ -163,6 +163,20 @@ static const CGFloat kDetailedBarPitch = 0.5;
     return VibeBarSeekHitBand(bounds);
 }
 
+// Wiggle MC's line rests at the foot of the band, and either Wiggle's stroke
+// can outgrow the base's hairline. Half a point over for the antialiasing.
+- (CGRect)restingBandForBounds:(CGRect)bounds {
+    if (!_wiggle) {
+        return [super restingBandForBounds:bounds];
+    }
+    CGFloat stroke = VibeWiggleStrokeForSize(bounds.size, [self numBarsForWidth:bounds.size.width],
+                                             self.barWidthScale);
+    CGFloat height = bounds.size.height;
+    CGFloat baseline = _wiggleCentered ? height / 2 : height / 2 - VibeBarVScale(height) + stroke / 2;
+    CGFloat reach = stroke / 2 + 0.5;
+    return CGRectMake(bounds.origin.x, bounds.origin.y + baseline - reach, bounds.size.width, reach * 2);
+}
+
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
     return [self initWithLayer:parentLayer bounds:bounds isDark:isDark wiggle:NO centered:NO];
 }

@@ -558,6 +558,18 @@ awaitPersist:(BOOL)awaitPersist
 
 #if DEBUG
 
+#pragma mark - Debug: decode pace
+
+static std::atomic<double> sDebugDecodeSeconds{0};
+
++ (NSTimeInterval)debugDecodeSeconds {
+    return sDebugDecodeSeconds;
+}
+
++ (void)setDebugDecodeSeconds:(NSTimeInterval)seconds {
+    sDebugDecodeSeconds = MAX(0.0, seconds);
+}
+
 #pragma mark - Debug: per-file cache control
 
 - (void)cacheWaveformForURL:(NSURL *)url completion:(void (^)(BOOL, BOOL, float, NSInteger))completion {

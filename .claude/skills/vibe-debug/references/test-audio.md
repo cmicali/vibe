@@ -47,6 +47,8 @@ Download progress (fake): 33% (2.0s) tone-long.wav
 Download progress (fake): 42% (5.0s) tone-long.wav   <- the stall, 2s of it
 ```
 
+**On macOS it never streams a waveform.** The fake waits for the whole file, as a real provider's download does there (only iOS's Dropbox mirror streams), so the waveform arrives whole once the open lands. To watch a waveform fill in, pace the decode instead: `file_clear_cache <file>`, `set_waveform_decode_seconds 8`, then open it.
+
 **TRAP: `next` alone often proves nothing** — `didStartPlaying:` prefetches the following track, so the next open is answered from the parked handle and starts instantly however slow the fake provider is. Aim at a track that is not the parked one: `previous`, a double-click on a distant row, or an `open`.
 
 **A blocking file on disk is not an option, and a named pipe is the trap to avoid.** A fifo stats as `st_size == 0`, and `NSURL+AudioOpen.isEmptyOrDirectory` — a stat check the open funnel's list filters apply — drops it before anything opens it, so the command logs "dispatched" and nothing happens at all.

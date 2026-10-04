@@ -117,6 +117,11 @@
     return bounds;
 }
 
+// Covers the Detailed family's 1pt minimum bar, pixel-rounded, at the midline.
+- (CGRect)restingBandForBounds:(CGRect)bounds {
+    return CGRectMake(bounds.origin.x, CGRectGetMidY(bounds) - 1, bounds.size.width, 2);
+}
+
 - (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
 
 }

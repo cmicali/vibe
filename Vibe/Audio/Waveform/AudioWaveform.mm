@@ -50,6 +50,23 @@ AudioWaveform::~AudioWaveform() {
     free(this->bandSums);
 }
 
+double AudioWaveform::getDecodedFraction() {
+    if (complete || numChunks == 0) {
+        return 1;
+    }
+    NSUInteger low = 0, high = numChunks;
+    while (low < high) {
+        NSUInteger mid = (low + high) / 2;
+        if (chunks[mid].getFrameCount() > 0) {
+            low = mid + 1;
+        }
+        else {
+            high = mid;
+        }
+    }
+    return (double)low / (double)numChunks;
+}
+
 // Column i combines [start(i), start(i+1)), so consecutive columns tile the
 // source exactly. A floored fixed width skips a source chunk on most steps of
 // a fractional ratio, which makes transient peaks vanish at some view widths.
