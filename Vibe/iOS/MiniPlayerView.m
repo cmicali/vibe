@@ -43,7 +43,7 @@ static const CGFloat kGlyphPointSize = 19;
     self.backgroundColor = UIColor.clearColor;
 
     _expandButton = [UIButton buttonWithType:UIButtonTypeCustom];
-    _expandButton.accessibilityLabel = STR_A11Y_MINIPLAYER_EXPAND;
+    _expandButton.accessibilityLabel = STR_SETTINGS_NOW_PLAYING_SECTION;
     [_expandButton addTarget:self action:@selector(expandTapped)
             forControlEvents:UIControlEventTouchUpInside];
     _expandButton.translatesAutoresizingMaskIntoConstraints = NO;

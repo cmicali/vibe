@@ -187,378 +187,6 @@
       },
       "extractionState": "manual"
     },
-    "a11y.favorite.remove": {
-      "comment": "iOS: accessibility label for the star button on the playlist screen, when the open folder is already starred; activating it takes the folder off the Favorites tab.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Премахване от любими"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Odebrat z oblíbených"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fjern fra favoritter"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aus Favoriten entfernen"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Αφαίρεση από τα αγαπημένα"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Remove from Favorites"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Eliminar de favoritos"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Poista suosikeista"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Retirer des favoris"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ukloni iz favorita"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Eltávolítás a kedvencekből"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hapus dari Favorit"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rimuovi dai preferiti"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "お気に入りから削除"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "즐겨찾기에서 제거"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fjern fra favoritter"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verwijder uit favorieten"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Usuń z ulubionych"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Remover dos favoritos"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Remover dos favoritos"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Elimină de la favorite"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Удалить из избранного"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Odstrániť z obľúbených"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ta bort från favoriter"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "นำออกจากรายการโปรด"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Favorilerden Kaldır"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Вилучити з вибраного"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Xóa khỏi mục yêu thích"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "从收藏中移除"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "從收藏中移除"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "a11y.miniplayer.expand": {
-      "comment": "iOS: accessibility label for the mini player strip above the tab bar; activating it opens the full-screen player.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сега се възпроизвежда"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Právě hraje"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Spiller nu"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aktueller Titel"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Παίζει τώρα"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Now Playing"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ahora suena"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nyt soi"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "À l’écoute"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sada svira"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Most játszott"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sedang Diputar"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "In riproduzione"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "再生中"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "지금 재생 중"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Spilles nå"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Huidig nummer"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Teraz odtwarzane"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tocando Agora"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A reproduzir"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "În redare"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сейчас играет"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Práve hrá"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Spelas nu"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "กำลังเล่น"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Şu Anda Çalıyor"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Зараз грає"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Đang phát"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在播放"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在播放"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
     "a11y.pitch_fader": {
       "comment": "Accessibility label for the pitch fader, the slider that speeds the track up or slows it down like a turntable's. Read aloud by a screen reader, never drawn on screen; the drawn legend is the separate upper-case 'PITCH'.",
       "localizations": {
@@ -1484,192 +1112,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "輸出裝置"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "a11y.playlist.add": {
-      "comment": "iOS: accessibility label for the plus button on the playlist screen's bar; it opens the system picker to choose files or folders to add to the end of the playlist without interrupting playback.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Добави към плейлиста"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Přidat do playlistu"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilføj til spilleliste"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zur Wiedergabeliste hinzufügen"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Προσθήκη στη λίστα αναπαραγωγής"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add to Playlist"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Añadir a la lista de reproducción"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lisää soittolistaan"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ajouter à la liste de lecture"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dodaj na popis pjesama"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hozzáadás a lejátszási listához"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tambahkan ke Playlist"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aggiungi alla playlist"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "プレイリストに追加"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "재생목록에 추가"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Legg til i spilleliste"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Voeg toe aan afspeellijst"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dodaj do playlisty"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adicionar à Playlist"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adicionar à lista de reprodução"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adăugați la playlist"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Добавить в плейлист"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pridať do playlistu"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lägg till i spellista"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "เพิ่มไปยังเพลย์ลิสต์"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Çalma Listesine Ekle"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Додати до плейлиста"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Thêm vào danh sách phát"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "添加到播放列表"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "加入播放列表"
           }
         }
       },
@@ -3283,18 +2725,6 @@
       },
       "extractionState": "manual"
     },
-    "browser.recents_clear": {
-      "comment": "iOS Files tab: the button in the Recents screen's bar that opens a menu confirming the list should be emptied. A verb.",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Clear"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
     "browser.recents_clear_confirm": {
       "comment": "iOS Files tab: the destructive menu item under the Recents screen's Clear button; empties the Recents list. It deletes no files and leaves the playlist alone.",
       "localizations": {
@@ -3367,18 +2797,6 @@
       },
       "extractionState": "manual"
     },
-    "browser.sort_title": {
-      "comment": "iOS Files tab: title at the top of the sort menu in a folder's bar. The choice applies to every folder, not only the one on screen, which is what 'All' says. The choices follow it: Name, Newest First, Unsorted.",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sort All Folders By"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
     "browser.subfolders_capped": {
       "comment": "iOS Files tab: alert message after Play with Subfolders or Add with Subfolders stopped early because the folder holds more songs than one playlist takes. %lu is the limit, a round number such as 2,000.",
       "localizations": {
@@ -3398,6 +2816,192 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cancel"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "button.clear": {
+      "comment": "A verb. Button that empties something: in the Mac's Keyboard Shortcuts settings, below the list, removes the selected command's shortcut; on iOS, in the Files tab's Recents bar, opens a menu confirming the Recents list should be emptied.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изчистване"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vymazat"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ryd"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Löschen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Εκκαθάριση"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Borrar"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tyhjennä"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effacer"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Očisti"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Törlés"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hapus"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancella"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "消去"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지우기"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tøm"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wis"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wyczyść"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Limpar"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Limpar"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ștergeți"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Очистить"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vymazať"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rensa"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ล้าง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Temizle"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Очистити"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xóa"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除"
           }
         }
       },
@@ -11054,7 +10658,7 @@
       "extractionState": "manual"
     },
     "menu.context.add_to_playlist": {
-      "comment": "iOS: long-press menu item and swipe action on a Favorites row, and the long-press action on a file or folder in the Files tab. Adds that item's tracks to the end of the playlist without interrupting what is playing.",
+      "comment": "iOS: long-press menu item and swipe action on a Favorites row, the long-press action on a file or folder in the Files tab, and the accessibility label of the playlist screen's plus button, which opens the system picker. Adds tracks to the end of the playlist without interrupting what is playing.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -11450,7 +11054,7 @@
       "extractionState": "manual"
     },
     "menu.context.remove_favorite": {
-      "comment": "iOS: destructive long-press menu item on a Favorites row; takes the folder off the Favorites tab. Same wording as the playlist screen's star button label.",
+      "comment": "iOS: destructive long-press menu item on a Favorites row, and the accessibility label of the playlist screen's star button when the open folder is already starred. Both take the folder off the Favorites tab.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -23354,7 +22958,7 @@
       "extractionState": "manual"
     },
     "playlist.grant.button": {
-      "comment": "Confirm button that grants access to a playlist file's folder: of the folder-picker panel on the Mac, of the alert that opens the folder picker on iPhone and iPad.",
+      "comment": "Confirm button that grants the app access to a folder: of the Mac's folder-picker panel, for a playlist file's folder or one from the Add Common Folder menu, and of the alert that opens the folder picker for a playlist file's folder on iPhone and iPad.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -37003,192 +36607,6 @@
       },
       "extractionState": "manual"
     },
-    "settings.appearance.icon_section": {
-      "comment": "Theme editor: heading above the app icon and Dock icon rows, the first card of the page.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Икона на приложението"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ikona aplikace"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App-symbol"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App-Symbol"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Εικονίδιο εφαρμογής"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App icon"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Icono de la app"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apin kuvake"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Icône de l’app"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ikona aplikacije"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alkalmazás ikonja"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ikon app"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Icona dell’app"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Appアイコン"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "앱 아이콘"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App-symbol"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App-symbool"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ikona aplikacji"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ícone do app"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ícone da app"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pictograma aplicației"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Значок приложения"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ikona aplikácie"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Appsymbol"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ไอคอนแอป"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Uygulama simgesi"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Значок програми"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Biểu tượng ứng dụng"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App 图标"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App 圖像"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
     "settings.appearance.info_section": {
       "comment": "Theme editor: heading above the shared readout font, status icons, file info, tempo and key settings.",
       "localizations": {
@@ -38306,7 +37724,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.now_playing_section": {
-      "comment": "iOS settings screen, Appearance: heading above the settings for the now-playing screen (time display, file info, shuffle and repeat buttons).",
+      "comment": "iOS: names the full-screen player — the heading above its settings in Settings, Appearance (time display, file info, shuffle and repeat buttons), and the accessibility label of the mini player strip above the tab bar, which opens it.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -41840,7 +41258,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.app_icon": {
-      "comment": "Theme editor, Window group: row beside the app icon preview (click to pick a square JPEG or PNG that replaces the app's icon in the Dock and app switcher), and the Dock icon dropdown's choice that keeps that icon showing while a track plays.",
+      "comment": "Theme editor: heading above the app icon and Dock icon rows, the first card of the page; the row beside the app icon preview (click to pick a square JPEG or PNG that replaces the app's icon in the Dock and app switcher); and the Dock icon dropdown's choice that keeps that icon showing while a track plays.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -43514,7 +42932,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.background_label": {
-      "comment": "Theme editor, Window group: row beside the dropdown choosing the window background — the glass look, or a solid color.",
+      "comment": "Theme editor: row beside the dropdown choosing a background — the window's in the Window group, the playlist's in the Playlist group: the glass look, or a solid color.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -46862,7 +46280,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.color_artist": {
-      "comment": "Theme editor, Window group: row beside the secondary text's color wells — the artist lines and the playlist's number and length columns.",
+      "comment": "Theme editor: row beside an artist color's wells. In the Window group it governs the secondary text — the artist lines and the playlist's number and length columns; in the Playlist group, shown while its custom color switch is on, the playlist's artist lines alone.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -47606,7 +47024,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.color_title": {
-      "comment": "Theme editor, Window group: row beside the title text's color wells. Governs the header title and the playlist titles.",
+      "comment": "Theme editor: row beside a title color's wells. In the Window group it governs the header title and the playlist titles; in the Playlist group, shown while its custom color switch is on, the playlist's track titles alone.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -53743,192 +53161,6 @@
       },
       "extractionState": "manual"
     },
-    "settings.appearance.theme.playlist_artist_color": {
-      "comment": "Theme editor, Playlist group: row beside the color wells for the playlist's artist lines, shown while their custom color switch is on.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Цвят на изпълнителя"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Barva interpreta"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kunstnerfarve"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Interpretenfarbe"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Χρώμα καλλιτέχνη"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Artist color"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Color de artista"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esittäjän väri"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couleur des artistes"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Boja izvođača"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Előadó színe"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Warna artis"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Colore dell’artista"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "アーティストのカラー"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "아티스트 색상"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Artistfarge"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Artiestkleur"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kolor wykonawcy"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cor do artista"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cor do artista"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Culoarea artistului"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Цвет исполнителя"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Farba interpreta"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Artistfärg"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "สีศิลปิน"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sanatçı rengi"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Колір виконавця"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Màu nghệ sĩ"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "艺术家颜色"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "藝人顏色"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
     "settings.appearance.theme.playlist_artist_color_custom": {
       "comment": "Theme editor, Playlist group: switch giving the playlist's artist lines their own text color instead of the header's artist color they normally share.",
       "localizations": {
@@ -54296,192 +53528,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "顯示封面列"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.appearance.theme.playlist_background": {
-      "comment": "Theme editor, Playlist group: row beside the dropdown choosing the playlist background — the frosted glass look, or a solid color.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Фон"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pozadí"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Baggrund"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hintergrund"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Φόντο"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Background"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fondo"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tausta"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Arrière-plan"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pozadina"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Háttér"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Latar belakang"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sfondo"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "背景"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "배경"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bakgrunn"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Achtergrond"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tło"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fundo"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fundo"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fundal"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Фон"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pozadie"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bakgrund"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "พื้นหลัง"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Arka plan"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Тло"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nền"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "背景"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "背景"
           }
         }
       },
@@ -55784,378 +54830,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "顯示編號列"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.appearance.theme.playlist_tint_label": {
-      "comment": "Theme editor, Playlist group: row beside the dropdown choosing the translucent color wash laid over the playlist background — the same choices as the window's background tint.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Оттенък на фона"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Odstín pozadí"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Baggrundsnuance"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hintergrundtönung"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Απόχρωση φόντου"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Background tint"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tinte de fondo"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Taustan sävy"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Teinte d’arrière-plan"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nijansa pozadine"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Háttér árnyalata"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rona latar belakang"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tonalità dello sfondo"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "背景の色合い"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "배경 색조"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bakgrunnsnyanse"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Achtergrondtint"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Odcień tła"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tonalidade do fundo"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Matiz do fundo"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tenta de fundal"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Оттенок фона"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Odtieň pozadia"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bakgrundston"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "โทนสีพื้นหลัง"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Arka plan renk tonu"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Відтінок тла"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sắc thái màu nền"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "背景色调"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "背景色調"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.appearance.theme.playlist_title_color": {
-      "comment": "Theme editor, Playlist group: row beside the color wells for the playlist's track titles, shown while their custom color switch is on.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Цвят на заглавието"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Barva názvu"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Titelfarve"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Titelfarbe"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Χρώμα τίτλου"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Title color"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Color de título"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nimen väri"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couleur des titres"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Boja naslova"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cím színe"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Warna judul"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Colore del titolo"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "タイトルのカラー"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "제목 색상"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tittelfarge"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Titelkleur"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kolor tytułu"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cor do título"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cor do título"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Culoarea titlului"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Цвет названия"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Farba názvu"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Titelfärg"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "สีชื่อเพลง"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Başlık rengi"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Колір назви"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Màu tiêu đề"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "标题颜色"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "標題顏色"
           }
         }
       },
@@ -60440,7 +59114,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.waveform_style": {
-      "comment": "Settings, theme editor, Player group: row beside the dropdown choosing the waveform drawing style — the same choice as the Appearance pane's Style row, named in full here because the row sits among the player's other rows.",
+      "comment": "The waveform drawing style: in the Mac theme editor's Player group, the row beside its dropdown — the same choice as the Appearance pane's Style row, named in full there because the row sits among the player's other rows; on the iOS settings screen, the heading above the list of styles.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -67322,7 +65996,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.window_tint_label": {
-      "comment": "Settings, Appearance pane, Window group: row beside the dropdown choosing the translucent color wash laid over the player window's header background.",
+      "comment": "Row beside the dropdown choosing a translucent color wash: in the Appearance pane's Window group, laid over the player window's header background; in the theme editor's Playlist group, laid over the playlist background, with the same choices.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -71348,186 +70022,186 @@
       "extractionState": "manual"
     },
     "settings.files.folder_sort_label": {
-      "comment": "Settings, Files pane: label beside the dropdown choosing the order a folder's songs are listed and added to the playlist in. The choices follow it: Name, Newest First, Unsorted. Ends with a colon.",
+      "comment": "The setting choosing the order every folder's songs are listed and added to the playlist in: the label beside its dropdown in the Mac's Settings, Files pane, the heading above it on the iOS settings screen, and the title of the iOS Files tab's sort menu, where the choice applies to every folder, not only the one on screen. The choices follow it: Name, Newest First, Unsorted. No trailing colon.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "При отваряне на папка:"
+            "value": "При отваряне на папка"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Při otevření složky:"
+            "value": "Při otevření složky"
           }
         },
         "da": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Når en mappe åbnes:"
+            "value": "Når en mappe åbnes"
           }
         },
         "de": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Beim Öffnen eines Ordners:"
+            "value": "Beim Öffnen eines Ordners"
           }
         },
         "el": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Κατά το άνοιγμα φακέλου:"
+            "value": "Κατά το άνοιγμα φακέλου"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sort folders by:"
+            "value": "Sort folders by"
           }
         },
         "es": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Al abrir una carpeta:"
+            "value": "Al abrir una carpeta"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Kansiota avattaessa:"
+            "value": "Kansiota avattaessa"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "À l’ouverture d’un dossier :"
+            "value": "À l’ouverture d’un dossier"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Pri otvaranju mape:"
+            "value": "Pri otvaranju mape"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Mappa megnyitásakor:"
+            "value": "Mappa megnyitásakor"
           }
         },
         "id": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Saat membuka folder:"
+            "value": "Saat membuka folder"
           }
         },
         "it": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "All’apertura di una cartella:"
+            "value": "All’apertura di una cartella"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "フォルダを開くとき:"
+            "value": "フォルダを開くとき"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "폴더를 열 때:"
+            "value": "폴더를 열 때"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Når en mappe åpnes:"
+            "value": "Når en mappe åpnes"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Bij het openen van een map:"
+            "value": "Bij het openen van een map"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Przy otwieraniu folderu:"
+            "value": "Przy otwieraniu folderu"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Ao abrir uma pasta:"
+            "value": "Ao abrir uma pasta"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Ao abrir uma pasta:"
+            "value": "Ao abrir uma pasta"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "La deschiderea unui dosar:"
+            "value": "La deschiderea unui dosar"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "При открытии папки:"
+            "value": "При открытии папки"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Pri otvorení priečinka:"
+            "value": "Pri otvorení priečinka"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "När en mapp öppnas:"
+            "value": "När en mapp öppnas"
           }
         },
         "th": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "เมื่อเปิดโฟลเดอร์:"
+            "value": "เมื่อเปิดโฟลเดอร์"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Bir klasör açılırken:"
+            "value": "Bir klasör açılırken"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Під час відкриття папки:"
+            "value": "Під час відкриття папки"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Khi mở thư mục:"
+            "value": "Khi mở thư mục"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "打开文件夹时："
+            "value": "打开文件夹时"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "打開檔案夾時："
+            "value": "打開檔案夾時"
           }
         }
       },
@@ -79916,7 +78590,7 @@
       "extractionState": "manual"
     },
     "settings.permissions.add_folder": {
-      "comment": "Settings, Files pane: button that opens a folder chooser to grant the app access to another folder. Ends with a real ellipsis character (…), not three periods.",
+      "comment": "Button that opens a folder chooser to give the app access to one more folder: in the Mac's Settings, Files pane, and as the row under the iOS Files tab's Locations list. Ends with a real ellipsis character (…), not three periods.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -81398,192 +80072,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "此檔案夾遺失，或位於未連接的磁碟上。%@ 會保留其權限，檔案夾恢復後將繼續使用。"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.permissions.folder_grant.button": {
-      "comment": "Confirm button of the folder-picker panel opened from the Add Common Folder menu.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Разрешаване на достъп"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Povolit přístup"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Giv adgang"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zugriff erlauben"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Παραχώρηση πρόσβασης"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Grant Access"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Permitir acceso"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Salli pääsy"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Autoriser l’accès"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dopusti pristup"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hozzáférés engedélyezése"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beri Akses"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Consenti accesso"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "アクセスを許可"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "접근 허용"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gi tilgang"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verleen toegang"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Udziel dostępu"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Permitir Acesso"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Permitir acesso"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Permiteți accesul"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Разрешить доступ"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Povoliť prístup"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ge åtkomst"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "อนุญาตการเข้าถึง"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Erişim Ver"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Надати доступ"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cấp quyền truy cập"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "允许访问"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "允許取用"
           }
         }
       },
@@ -85867,192 +84355,6 @@
       },
       "extractionState": "manual"
     },
-    "settings.search_folders.add": {
-      "comment": "iOS Files tab: the row under the Locations list that opens the system folder picker to give the app permission to read and search one more folder. Ends with a real ellipsis character (…), not three periods.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Добавяне на папка…"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Přidat složku…"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilføj mappe…"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ordner hinzufügen…"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Προσθήκη φακέλου…"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add Folder…"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Añadir carpeta…"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lisää kansio…"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ajouter un dossier…"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dodaj mapu…"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mappa hozzáadása…"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tambah Folder…"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aggiungi cartella…"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "フォルダを追加…"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "폴더 추가…"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Legg til mappe…"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Voeg map toe…"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dodaj folder…"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adicionar Pasta…"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adicionar pasta…"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adăugați un dosar…"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Добавить папку…"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pridať priečinok…"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lägg till mapp…"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "เพิ่มโฟลเดอร์…"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Klasör Ekle…"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Додати папку…"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Thêm thư mục…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "添加文件夹…"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "加入檔案夾…"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
     "settings.search_folders.covered": {
       "comment": "iOS Files tab: alert message shown when the user adds a location that sits inside a folder already on the Locations list. Permission to a folder covers everything inside it, so nothing needed to be added.",
       "localizations": {
@@ -86239,192 +84541,6 @@
       },
       "extractionState": "manual"
     },
-    "settings.section.folder_sort": {
-      "comment": "iOS settings screen: heading above the choice of what order every folder's songs are listed and added to the playlist in. The choices follow it: Name, Newest First, Unsorted.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "При отваряне на папка"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Při otevření složky"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Når en mappe åbnes"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Beim Öffnen eines Ordners"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Κατά το άνοιγμα φακέλου"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sort folders by"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Al abrir una carpeta"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Kansiota avattaessa"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "À l’ouverture d’un dossier"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Pri otvaranju mape"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Mappa megnyitásakor"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Saat membuka folder"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "All’apertura di una cartella"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "フォルダを開くとき"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "폴더를 열 때"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Når en mappe åpnes"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Bij het openen van een map"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Przy otwieraniu folderu"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Ao abrir uma pasta"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Ao abrir uma pasta"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "La deschiderea unui dosar"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "При открытии папки"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Pri otvorení priečinka"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "När en mapp öppnas"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "เมื่อเปิดโฟลเดอร์"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Bir klasör açılırken"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Під час відкриття папки"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Khi mở thư mục"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "打开文件夹时"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "打開檔案夾時"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
     "settings.section.time": {
       "comment": "Settings and theme editor: heading above the time display settings, including total duration versus remaining time.",
       "localizations": {
@@ -86606,192 +84722,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "時間顯示"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.section.waveform": {
-      "comment": "iOS settings screen: heading above the list of waveform drawing styles.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Стил на вълновата форма"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Styl tvaru vlny"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bølgeformsstil"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wellenform-Stil"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Στιλ κυματομορφής"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Waveform style"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Estilo de forma de onda"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aaltomuodon tyyli"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Style de forme d’onde"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Stil valnog oblika"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hullámforma stílusa"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gaya bentuk gelombang"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Stile della forma d’onda"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "波形スタイル"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "파형 스타일"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bølgeformstil"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Golfvormstijl"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Styl kształtu fali"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Estilo da forma de onda"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Estilo da forma de onda"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Stilul formei de undă"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Стиль волновой формы"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Štýl vlnového priebehu"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vågformsstil"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "สไตล์รูปคลื่น"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dalga biçimi stili"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Стиль хвильової форми"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kiểu dạng sóng"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "波形样式"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "波形樣式"
           }
         }
       },
@@ -87350,192 +85280,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "鍵盤快速鍵"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.shortcuts.clear": {
-      "comment": "Settings, Keyboard Shortcuts pane: button below the list that removes the selected command's shortcut, leaving it with none.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Изчистване"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vymazat"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ryd"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Löschen"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Εκκαθάριση"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Clear"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Borrar"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tyhjennä"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Effacer"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Očisti"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Törlés"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hapus"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cancella"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "消去"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "지우기"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tøm"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wis"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wyczyść"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Limpar"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Limpar"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ștergeți"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Очистить"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vymazať"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rensa"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ล้าง"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Temizle"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Очистити"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Xóa"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "清除"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "清除"
           }
         }
       },

@@ -148,7 +148,7 @@ static NSString *const kValueCellIdentifier  = @"value";
     else {
         switch ((VibeWaveformRow)indexPath.row) {
             case VibeWaveformRowStyle:
-                content.text = STR_SETTINGS_SECTION_WAVEFORM;
+                content.text = STR_SETTINGS_THEME_WAVEFORM_STYLE;
                 content.secondaryText = [self waveformStyleValueText];
                 break;
             case VibeWaveformRowWidgetStyle:
@@ -208,7 +208,7 @@ static NSString *const kValueCellIdentifier  = @"value";
     NSArray<NSString *> *styles = _waveformStyles;
     NSInteger selected = (NSInteger)[styles indexOfObject:[self currentWaveformStyle]];
     return [[SettingsChoiceViewController alloc]
-            initWithTitle:STR_SETTINGS_SECTION_WAVEFORM
+            initWithTitle:STR_SETTINGS_THEME_WAVEFORM_STYLE
                   choices:names
             selectedIndex:selected
                  onSelect:^(NSInteger index) {

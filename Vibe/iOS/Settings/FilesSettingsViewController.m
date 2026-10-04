@@ -147,7 +147,7 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
     return (VibeFilesSection)section == VibeFilesSectionDropbox
-            ? VibeNotLocalized(@"Dropbox") : STR_SETTINGS_SECTION_FOLDER_SORT;
+            ? VibeNotLocalized(@"Dropbox") : STR_SETTINGS_FOLDER_SORT_LABEL;
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {

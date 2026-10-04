@@ -798,7 +798,7 @@ static UIImage *VibeFileTileImage(BOOL playlist) {
         }
         completion(actions);
     }];
-    return [UIMenu menuWithTitle:STR_BROWSER_SORT_TITLE children:@[choices]];
+    return [UIMenu menuWithTitle:STR_SETTINGS_FOLDER_SORT_LABEL children:@[choices]];
 }
 
 - (void)toggleSelecting {
@@ -1358,7 +1358,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
             action = YES;
             break;
         case VibeBrowserRootRowAddFolder:
-            content.text = STR_SETTINGS_SEARCH_FOLDERS_ADD;
+            content.text = STR_SETTINGS_ADD_FOLDER;
             content.image = [UIImage systemImageNamed:@"folder.badge.plus"];
             action = YES;
             break;
@@ -1651,7 +1651,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     }];
     clear.attributes = UIMenuElementAttributesDestructive;
     self.navigationItem.rightBarButtonItem =
-            [[UIBarButtonItem alloc] initWithTitle:STR_BROWSER_RECENTS_CLEAR
+            [[UIBarButtonItem alloc] initWithTitle:STR_BUTTON_CLEAR
                                               menu:[UIMenu menuWithChildren:@[clear]]];
 }
 

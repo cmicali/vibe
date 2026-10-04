@@ -110,7 +110,7 @@ static const CGFloat kArtTextGap = 14;
                                                 style:UIBarButtonItemStylePlain
                                                target:self
                                                action:@selector(addTapped)];
-    _addItem.accessibilityLabel = STR_A11Y_PLAYLIST_ADD;
+    _addItem.accessibilityLabel = STR_MENU_CONTEXT_ADD_TO_PLAYLIST;
     self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeAlways;
     self.navigationController.navigationBar.prefersLargeTitles = YES;
 
@@ -288,7 +288,7 @@ static const CGFloat kArtTextGap = 14;
                     style:UIBarButtonItemStylePlain
                    target:self
                    action:@selector(favoriteTapped)];
-    star.accessibilityLabel = favorited ? STR_A11Y_REMOVE_FAVORITE : STR_A11Y_ADD_FAVORITE;
+    star.accessibilityLabel = favorited ? STR_MENU_CONTEXT_REMOVE_FAVORITE : STR_A11Y_ADD_FAVORITE;
     self.navigationItem.rightBarButtonItems = @[_settingsItem, star];
 }
 
