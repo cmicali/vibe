@@ -1,6 +1,6 @@
 ---
 name: vibe-release
-description: Build, sign, notarize, and ship Vibe on both platforms — the macOS Developer ID (make release) and App Store (make appstore-build) paths, the iOS App Store path (make appstore-build-ios), the GitHub release publish (make github-release), the localized product-page metadata upload (make appstore-upload-metadata), the shared App Store Connect API key and its Admin-role requirement, and the signing traps each script preflights. Use when cutting a release, distributing a build, shipping or TestFlighting the iOS app, updating App Store copy or screenshots, or debugging a signing/notarization/upload failure.
+description: Build, sign, notarize, and ship Vibe on both platforms — the macOS Developer ID (make release) and App Store (make appstore-build) paths, the iOS App Store path (make appstore-build-ios), the GitHub release publish (make github-release), the Homebrew tap bump (make brew-set-version), the localized product-page metadata upload (make appstore-upload-metadata), the shared App Store Connect API key and its Admin-role requirement, and the signing traps each script preflights. Use when cutting a release, distributing a build, shipping or TestFlighting the iOS app, updating App Store copy or screenshots, or debugging a signing/notarization/upload failure.
 ---
 
 # Releasing Vibe
@@ -51,9 +51,7 @@ The page's Download button links the **universal** direct-DMG asset, `Vibe-macOS
 
 **`github-release.sh` runs it before creating the release, not after, and the ordering is the point.** The page update is committed — `index.html` and `_redirects`, by explicit pathspec, so a dirty tree cannot ride along — and pushed, and only then is `gh release create` called with `--target HEAD`. The tag therefore names a tree whose website already advertises that release: checking out `v<version>` gets the page that goes with it. This is the one step that moves `main`, and it happens while everything is still reversible, which is why a failed commit or push here is **fatal** rather than a warning — nothing has been published yet, and a tag on an unpushed commit would dangle. The tag-points-at-HEAD preflight runs after that push, since it is only authoritative once HEAD has stopped moving.
 
-`--draft` and `--prerelease` skip all of it, the tap included. A draft's download is not public and it creates no tag until published, so there is no ordering to preserve; repoint by hand once it goes out (`scripts/web-set-version.sh <version> && make deploy-web`, then `scripts/brew-set-version.sh <version>`). A beta must never become `vibeplayer.app/download/latest`, so the page stays on the last stable release and nothing is deployed.
-
-**The Homebrew tap follows the same rule, after the release rather than before.** `brew install cmicali/tap/vibe` installs from [cmicali/homebrew-tap](https://github.com/cmicali/homebrew-tap), whose one file, `Casks/vibe.rb`, `scripts/brew-set-version.sh <version>` writes whole from its own template and commits through the GitHub contents API — the tap holds nothing edited by hand, so a cask change (the `zap` paths are the sandbox's containers) is made in that template. The two `sha256`s are the digests GitHub computed for the published arm64 and universal DMGs, which is why it runs after `gh release create` and why it can be re-run for any stable release with nothing on disk; `ARGS="--dry-run"` on `make brew-set-version V=<version>` prints the cask. A beta or draft is refused. Its failure is a warning carrying the retry, not fatal, because the release is already out. Validate a template change with `brew tap cmicali/tap <local clone>` and `brew audit --cask --strict --online cmicali/tap/vibe`; `brew install --cask --appdir=<scratch dir>` installs without touching `/Applications`. Homebrew's own homebrew/cask would bump itself, but refuses self-submitted apps below its notability bar (about 225 stars), so the tap is the channel until then.
+`--draft` and `--prerelease` skip all of it, and the Homebrew tap below. A draft's download is not public and it creates no tag until published, so there is no ordering to preserve; repoint by hand once it goes out (`scripts/web-set-version.sh <version> && make deploy-web`, then `scripts/brew-set-version.sh <version>`). A beta must never become `vibeplayer.app/download/latest`, so the page stays on the last stable release and nothing is deployed.
 
 `make deploy-web` then carries the same page to Cloudflare. It refuses to upload a page whose Download button does not return 200 — the check that the rewrite and the release happened in that order — or whose `/download` rules name a different file or a status other than 302, which is checked even under `--skip-link-check` because no page displays where that link lands. `ARGS="--dry-run"` runs both checks and lists the files without credentials.
 
@@ -63,7 +61,25 @@ The page's Download button links the **universal** direct-DMG asset, `Vibe-macOS
 
 **Every asset URL is content-hashed, images included.** `scripts/web-stamp-assets.sh` writes each file's hash into its `?v=`, and `deploy-web.sh` runs it with `--check`. **An unstamped image is not merely a stale picture**: the CDN serves the new bytes at once (`cf-cache-status: REVALIDATED`), while a browser that visited before keeps drawing the old one for the rest of the four-hour TTL — which reads as a deploy that silently failed, and invites a pointless re-deploy that confirms the wrong diagnosis.
 
-So the full sequence, all from a machine with `.release-env`: `make release`, `make github-release`, `make deploy-web`. A beta is `make release`, then `make github-release ARGS="--prerelease"`, and no `make deploy-web`.
+## The Homebrew tap
+
+`brew install cmicali/tap/vibe` installs from [cmicali/homebrew-tap](https://github.com/cmicali/homebrew-tap), and **every stable release must move it**, or `brew upgrade` keeps handing out the previous version with nothing to say so. `make github-release` does it as its last step, so a normal release needs no extra command, but its success line, `🔊 Homebrew tap pointed at <version>`, is a release check like any other. Its failure is a **warning, not fatal**, because the release is already out by then — so a missed warning is a stale tap. The warning prints the retry: `make brew-set-version V=<version>`.
+
+**It runs after the release rather than before, the reverse of the page.** The tap's one file, `Casks/vibe.rb`, is written whole by `scripts/brew-set-version.sh` from its own template and committed through the GitHub contents API — the tap holds nothing edited by hand, so a cask change (the `zap` paths are the sandbox's containers) is made in that template. The two `sha256`s are the digests GitHub computed for the published arm64 and universal DMGs, which is why it cannot run before `gh release create`, and why it can be re-run for any stable release with nothing on disk; a re-run with nothing to change says so and commits nothing. `ARGS="--dry-run"` prints the cask. A beta or a draft is refused, so a published draft is repointed by hand (above).
+
+Validate a template change with `brew tap cmicali/tap <local clone>` and `brew audit --cask --strict --online cmicali/tap/vibe`; `brew install --cask --appdir=<scratch dir>` installs without touching `/Applications`, and `brew untap cmicali/tap` puts the machine back. Homebrew's own homebrew/cask would bump itself, but refuses self-submitted apps below its notability bar (about 225 stars), so the tap is the channel until then.
+
+## The full sequence
+
+All from the main checkout, which has `.release-env`:
+
+1. The release commit (above), pushed.
+2. `make release`.
+3. `make github-release` — tags, publishes, repoints the page, and points the tap. Confirm `🔊 Homebrew tap pointed at <version>`; on its warning, `make brew-set-version V=<version>`.
+4. `make deploy-web`.
+5. Check the tap as a user gets it: `brew update && brew info --cask cmicali/tap/vibe` names the new version.
+
+A beta is `make release`, then `make github-release ARGS="--prerelease"`, and nothing else: no `make deploy-web`, and the tap stays on the last stable release.
 
 **Then the performance charts.** Once the tag exists, `make bench-releases VERSIONS="<version>"` builds that tag, runs the app and component benchmarks and redraws `docs/performance.md`, replacing any `<version> pre-release` point measured before the tag; commit it and `docs/performance/`. It must run on the machine every earlier version was measured on, or the report leaves the new version out and says so ([docs/performance.md](../../../docs/performance.md)). The chart has one point per version, so measuring a version again replaces its point: a final `v1.14` supersedes the beta build that stood in for it (`VERSIONS="1.14=v1.14"`).
 
