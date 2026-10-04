@@ -67,9 +67,13 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
 // once (the page keeps its indicator; didFailWaveformForIndex:) unless a
 // stream is live for it, when the decode rides the download the play holds.
 // Either way the page starts no download of its own.
+static BOOL WaveformWaitsForOpen(NSURL *url) {
+    return [NSURLUtil isDatalessFile:url] && ![NSURLUtil isRemotePlaceholderFile:url];
+}
+
 - (void)requestWaveformForIndex:(NSUInteger)index {
     AudioTrack *track = [_playlist trackAtIndex:index];
-    if (!track || ([NSURLUtil isDatalessFile:track.url] && ![NSURLUtil isRemotePlaceholderFile:track.url])) {
+    if (!track || WaveformWaitsForOpen(track.url)) {
         return;
     }
     [_waveformCoordinator requestIndex:index track:track];
@@ -93,8 +97,7 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
         return;
     }
     NSURL *url = [_playlist trackAtIndex:index].url;
-    if (index != _playback.currentIndex && url && [NSURLUtil isDatalessFile:url]
-            && ![NSURLUtil isRemotePlaceholderFile:url]) {
+    if (index != _playback.currentIndex && url && WaveformWaitsForOpen(url)) {
         [cell.waveformView hideLoadingIndicator];
         return;
     }

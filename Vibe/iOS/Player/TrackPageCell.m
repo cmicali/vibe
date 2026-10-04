@@ -1060,7 +1060,10 @@ static UIImage *TransportGradientImage(void) {
     [self setFlankGlyph:VibeRepeatModeSymbolName(repeatMode) active:repeatMode != VibeRepeatModeOff
                onButton:_repeatButton];
     _repeatButton.accessibilityLabel = VibeRepeatModeTitle(repeatMode);
-    [self applyFileInfoText];
+    // Shown flanks say it themselves; applyShuffleRepeatShown re-applies on a flip.
+    if (_shuffleButton.hidden) {
+        [self applyFileInfoText];
+    }
 }
 
 // Off is drawn dimmed, as the disabled look is.
@@ -1083,38 +1086,41 @@ static UIImage *TransportGradientImage(void) {
     NSString *line = stacked
             ? [NSString stringWithFormat:@"%@\n%@", _fileInfo, _tempoInfo]
             : [[Formatters sharedInstance] infoLineFromFields:@[_fileInfo ?: @"", _tempoInfo ?: @""]];
-    NSMutableArray<NSString *> *symbols = [NSMutableArray array];
-    NSMutableArray<NSString *> *spoken = [NSMutableArray array];
-    if (_shuffleButton.hidden && _flankShuffleEnabled) {
-        [symbols addObject:@"shuffle"];
-        [spoken addObject:STR_TRANSPORT_SHUFFLE];
-    }
-    if (_shuffleButton.hidden && _flankRepeatMode != VibeRepeatModeOff) {
-        [symbols addObject:VibeRepeatModeSymbolName(_flankRepeatMode)];
-        [spoken addObject:VibeRepeatModeTitle(_flankRepeatMode)];
-    }
-    if (symbols.count == 0) {
+    BOOL shuffleGlyph = _shuffleButton.hidden && _flankShuffleEnabled;
+    BOOL repeatGlyph = _shuffleButton.hidden && _flankRepeatMode != VibeRepeatModeOff;
+    if (!shuffleGlyph && !repeatGlyph) {
         _fileInfoLabel.text = line;
         _fileInfoLabel.accessibilityLabel = nil;
     }
     else {
-        UIImageSymbolConfiguration *configuration = [UIImageSymbolConfiguration
-                configurationWithTextStyle:UIFontTextStyleFootnote scale:UIImageSymbolScaleSmall];
+        static UIImageSymbolConfiguration *configuration;
+        static dispatch_once_t once;
+        dispatch_once(&once, ^{
+            configuration = [UIImageSymbolConfiguration configurationWithTextStyle:UIFontTextStyleFootnote
+                                                                             scale:UIImageSymbolScaleSmall];
+        });
         NSMutableAttributedString *text = [[NSMutableAttributedString alloc] init];
-        for (NSString *symbol in symbols) {
+        NSMutableArray<NSString *> *spoken = [NSMutableArray array];
+        void (^lead)(NSString *, NSString *) = ^(NSString *symbol, NSString *name) {
             UIImage *glyph = [UIImage systemImageNamed:symbol withConfiguration:configuration];
             [text appendAttributedString:[NSAttributedString attributedStringWithAttachment:
                     [NSTextAttachment textAttachmentWithImage:glyph]]];
             [text appendAttributedString:[[NSAttributedString alloc] initWithString:@" "]];
+            [spoken addObject:name];
+        };
+        if (shuffleGlyph) {
+            lead(@"shuffle", STR_TRANSPORT_SHUFFLE);
+        }
+        if (repeatGlyph) {
+            lead(VibeRepeatModeSymbolName(_flankRepeatMode), VibeRepeatModeTitle(_flankRepeatMode));
         }
         [text appendAttributedString:[[NSAttributedString alloc] initWithString:line]];
         _fileInfoLabel.attributedText = text;
         [spoken addObject:line];
         _fileInfoLabel.accessibilityLabel = [spoken componentsJoinedByString:@", "];
-        line = text.string;
     }
     // Hidden, not blank: the band reserves a visible label's line.
-    BOOL hideFileInfo = line.length == 0;
+    BOOL hideFileInfo = line.length == 0 && !shuffleGlyph && !repeatGlyph;
     if (hideFileInfo != _fileInfoLabel.hidden) {
         _fileInfoLabel.hidden = hideFileInfo;
         [self setNeedsLayout];

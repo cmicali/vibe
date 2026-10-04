@@ -90,6 +90,10 @@ typedef NS_ENUM(NSInteger, VibeFontSlot) {
 
 // Keys beside the field overrides. The id never leaves the store: export
 // strips it, import mints a fresh one.
+// The record format: theme JSON's "version", and the stored records' too. 2
+// from 1.15, when the window's "solid" stopped meaning a color under the glass
+// panes (now "frosted") and began meaning no panes at all.
+FOUNDATION_EXPORT const NSInteger kVibeThemeRecordVersion;
 FOUNDATION_EXPORT NSString *const kVibeThemeRecordNameKey;
 FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 

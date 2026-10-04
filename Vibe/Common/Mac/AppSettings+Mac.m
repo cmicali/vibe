@@ -243,7 +243,7 @@ static void StoreBuiltInWorkingRecord(NSDictionary *record, NSString *builtIn) {
 // it still finds their 1.14 fields.
 - (void)migrateThemeRecordsToVersion2 {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    if ([defaults integerForKey:SETTING_THEME_RECORD_VERSION] >= 2) {
+    if ([defaults integerForKey:SETTING_THEME_RECORD_VERSION] >= kVibeThemeRecordVersion) {
         return;
     }
     NSArray *stored = [defaults arrayForKey:SETTING_USER_THEMES];
@@ -257,9 +257,9 @@ static void StoreBuiltInWorkingRecord(NSDictionary *record, NSString *builtIn) {
     }
     NSDictionary *diverged = [defaults dictionaryForKey:SETTING_CURRENT_THEME];
     if (diverged) {
-        [defaults setObject:[AppTheme recordUpgradedFromVersion1:diverged] forKey:SETTING_CURRENT_THEME];
+        StoreBuiltInWorkingRecord([AppTheme recordUpgradedFromVersion1:diverged], self.activeThemeIdentifier);
     }
-    [defaults setInteger:2 forKey:SETTING_THEME_RECORD_VERSION];
+    [defaults setInteger:kVibeThemeRecordVersion forKey:SETTING_THEME_RECORD_VERSION];
 }
 
 // The active theme's display choices become the app-wide settings, so the

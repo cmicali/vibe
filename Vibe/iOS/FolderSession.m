@@ -953,7 +953,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             NSMutableArray<NSMutableDictionary *> *recents = [NSMutableArray arrayWithCapacity:opened.count];
             for (NSURL *url in opened) {
                 NSMutableDictionary *item = [NSMutableDictionary dictionary];
-                item[@"path"] = VibeComparablePath(url.path) ?: url.path;
+                item[@"path"] = VibeComparablePath(url.path);
                 item[@"bookmark"] = minted[url] ?: [self bookmarkForURL:url];
                 item[@"folder"] = @(url == shared || url == folderURL || [addedFolders containsObject:url]);
                 [recents addObject:item];

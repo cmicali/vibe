@@ -783,17 +783,10 @@ static const NSTimeInterval kOpeningTimeout = 25;
     // A resolve still running is dropped by the replace funnel; an open the
     // session holds, by the session.
     _replaceRequestSerial++;
-    BOOL cancelsSession = _openingSerial == _submittedOpenSerial;
-    if (cancelsSession) {
-        [_folderSession cancelOpen];
-    }
     [self endOpening];
-    if (cancelsSession) {
-        for (id<PlaybackObserver> observer in [self observerSnapshot]) {
-            if ([observer respondsToSelector:@selector(playbackDidCancelOpening:)]) {
-                [observer playbackDidCancelOpening:self];
-            }
-        }
+    if (_openingSerial == _submittedOpenSerial) {
+        [_folderSession cancelOpen];
+        [self notifyDidCancelOpening];
     }
 }
 
@@ -809,6 +802,14 @@ static const NSTimeInterval kOpeningTimeout = 25;
     }
     _openingPath = nil;
     [self notifyDidChangeOpening];
+}
+
+- (void)notifyDidCancelOpening {
+    for (id<PlaybackObserver> observer in [self observerSnapshot]) {
+        if ([observer respondsToSelector:@selector(playbackDidCancelOpening:)]) {
+            [observer playbackDidCancelOpening:self];
+        }
+    }
 }
 
 - (void)notifyDidChangeOpening {
