@@ -821,6 +821,34 @@ NSString *VibeDebugSettingsDump(void) {
     return VibeJSONString(reply);
 }
 
+// The selected pane's visible control named by token, as a real click would
+// find it: nothing behind a sheet, nothing hidden.
+static VibeSettingsElement *VibeVisibleSettingsElement(NSString *token, NSString **errorJSON) {
+    NSTabViewController *tabs = VibeSettingsTabs(errorJSON);
+    if (!tabs) {
+        return nil;
+    }
+    NSWindow *window = VibeSettingsWindow();
+    if (window.attachedSheet) {
+        // settings_close ends the sheet.
+        *errorJSON = VibeErrorJSON(@"a sheet (%@) is attached; nothing in the pane is reachable",
+                window.attachedSheet.className);
+        return nil;
+    }
+    NSTabViewItem *selected = VibeSelectedPane(tabs);
+    if (!selected) {
+        *errorJSON = VibeErrorJSON(@"no pane is selected");
+        return nil;
+    }
+    VibeSettingsElement *element = VibeElementForToken(VibeElementsForPane(selected.viewController),
+            token, VibePaneIdentifier(selected), errorJSON);
+    if (element.view.isHiddenOrHasHiddenAncestor) {
+        *errorJSON = VibeErrorJSON(@"'%@' is hidden", element.name);
+        return nil;
+    }
+    return element;
+}
+
 NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
     // The toolbar and the sidebar's search sit outside the pane, beyond the
     // walker's reach; they route by name so scripts keep one addressing
@@ -898,36 +926,15 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
             return VibeErrorJSON(@"%@ is not available here", tokens[1].lowercaseString);
         }
     }
-    NSString *usage = @"usage: settings_click <control> [value] — quote names with spaces";
     if (tokens.count < 2 || tokens.count > 3) {
-        return VibeErrorJSON(@"%@", usage);
+        return VibeErrorJSON(@"usage: settings_click <control> [value] — quote names with spaces");
     }
     NSString *errorJSON = nil;
-    NSTabViewController *tabs = VibeSettingsTabs(&errorJSON);
-    if (!tabs) {
-        return errorJSON;
-    }
-    NSWindow *window = VibeSettingsWindow();
-    if (window.attachedSheet) {
-        // A real click could not reach the pane behind a sheet, so neither does
-        // this. settings_close ends the sheet.
-        return VibeErrorJSON(@"a sheet (%@) is attached; nothing in the pane is reachable",
-                window.attachedSheet.className);
-    }
-    NSTabViewItem *selected = VibeSelectedPane(tabs);
-    if (!selected) {
-        return VibeErrorJSON(@"no pane is selected");
-    }
-    NSArray<VibeSettingsElement *> *elements = VibeElementsForPane(selected.viewController);
-    VibeSettingsElement *element = VibeElementForToken(elements, tokens[1],
-            VibePaneIdentifier(selected), &errorJSON);
+    VibeSettingsElement *element = VibeVisibleSettingsElement(tokens[1], &errorJSON);
     if (!element) {
         return errorJSON;
     }
     NSString *value = tokens.count == 3 ? tokens[2] : nil;
-    if (element.view.isHiddenOrHasHiddenAncestor) {
-        return VibeErrorJSON(@"'%@' is hidden", element.name);
-    }
     if ([element.view isKindOfClass:NSControl.class] && !((NSControl *)element.view).isEnabled) {
         return VibeErrorJSON(@"'%@' is disabled", element.name);
     }
@@ -984,6 +991,25 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
         return VibeClickReply(element, @"set");
     }
     return VibeErrorJSON(@"'%@' is a %@, not something to click", element.name, element.kind);
+}
+
+NSString *VibeDebugSettingsReveal(NSArray<NSString *> *tokens) {
+    if (tokens.count != 2) {
+        return VibeErrorJSON(@"usage: settings_reveal <control> — quote names with spaces");
+    }
+    NSString *errorJSON = nil;
+    VibeSettingsElement *element = VibeVisibleSettingsElement(tokens[1], &errorJSON);
+    if (!element) {
+        return errorJSON;
+    }
+    NSView *card = element.view;
+    while (card.superview && ![card isKindOfClass:SettingsSectionView.class]) {
+        card = card.superview;
+    }
+    // The pane's stack is flipped, so the card's minY is its top.
+    NSView *document = card.enclosingScrollView.documentView;
+    [document scrollPoint:NSMakePoint(0, NSMinY([card convertRect:card.bounds toView:document]) - 12)];
+    return VibeClickReply(element, @"revealed");
 }
 
 #endif

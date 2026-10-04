@@ -80,8 +80,6 @@ NS_ASSUME_NONNULL_BEGIN
 // Off, All, One, Off.
 - (IBAction)cycleRepeatMode:(nullable id)sender;
 
-- (IBAction)toggleFileInfo:(nullable id)sender;
-
 - (IBAction)showInFinder:(id)sender;
 - (IBAction)copyFile:(id)sender;
 - (IBAction)copyName:(id)sender;

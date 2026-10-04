@@ -24367,192 +24367,6 @@
       },
       "extractionState": "manual"
     },
-    "menu.view.file_info": {
-      "comment": "View menu item: checkmarked toggle showing the header's file-format readout (codec, bitrate, sample rate) and the BPM/key line.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Покажи информацията за файла"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zobrazit informace o souboru"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vis filinfo"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dateiinfo einblenden"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Εμφάνιση πληροφοριών αρχείου"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show File Info"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostrar información del archivo"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Näytä tiedoston tiedot"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Afficher les infos du fichier"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Prikaži informacije o datoteci"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fájlinformációk megjelenítése"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tampilkan Info File"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostra info file"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ファイル情報を表示"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "파일 정보 보기"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vis filinfo"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Toon bestandsinfo"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pokaż informacje o pliku"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostrar Informações do Arquivo"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostrar informações do ficheiro"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Afișați informațiile fișierului"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Показать информацию о файле"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zobraziť informácie o súbore"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Visa filinfo"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "แสดงข้อมูลไฟล์"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dosya Bilgilerini Göster"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Показати інформацію про файл"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hiện thông tin tệp"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "显示文件信息"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "顯示檔案資訊"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
     "menu.view.lock_window_position": {
       "comment": "View menu item: checkmarked toggle that stops the player window from being moved by dragging it. The same setting as Settings > General's 'Lock window position' switch, in title case per menu convention.",
       "localizations": {
@@ -25112,193 +24926,193 @@
       "extractionState": "manual"
     },
     "menu.view.size": {
-      "comment": "View menu: submenu choosing the window's width preset.",
+      "comment": "View menu: submenu choosing the window's width preset (Small, Default, Large). The window's horizontal extent, not its overall size.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Размер"
+            "value": "Ширина"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Velikost"
+            "value": "Šířka"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Størrelse"
+            "value": "Bredde"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Größe"
+            "value": "Breite"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Μέγεθος"
+            "value": "Πλάτος"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Size"
+            "value": "Width"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tamaño"
+            "value": "Anchura"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Koko"
+            "value": "Leveys"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Taille"
+            "value": "Largeur"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Veličina"
+            "value": "Širina"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Méret"
+            "value": "Szélesség"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ukuran"
+            "value": "Lebar"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dimensione"
+            "value": "Larghezza"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "サイズ"
+            "value": "幅"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "크기"
+            "value": "너비"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Størrelse"
+            "value": "Bredde"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Grootte"
+            "value": "Breedte"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wielkość"
+            "value": "Szerokość"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tamanho"
+            "value": "Largura"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tamanho"
+            "value": "Largura"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dimensiune"
+            "value": "Lățime"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Размер"
+            "value": "Ширина"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Veľkosť"
+            "value": "Šírka"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Storlek"
+            "value": "Bredd"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ขนาด"
+            "value": "ความกว้าง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Büyüklük"
+            "value": "Genişlik"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Розмір"
+            "value": "Ширина"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kích cỡ"
+            "value": "Chiều rộng"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "大小"
+            "value": "宽度"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "大小"
+            "value": "寬度"
           }
         }
       },
       "extractionState": "manual"
     },
     "menu.view.size.default": {
-      "comment": "Size menu item: the standard window width.",
+      "comment": "Width menu item: the standard window width.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -25484,7 +25298,7 @@
       "extractionState": "manual"
     },
     "menu.view.size.large": {
-      "comment": "Size menu item: the widest window width preset.",
+      "comment": "Width menu item: the widest window width preset.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -25670,7 +25484,7 @@
       "extractionState": "manual"
     },
     "menu.view.size.small": {
-      "comment": "Size menu item: the narrowest window width.",
+      "comment": "Width menu item: the narrowest window width.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -42596,7 +42410,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.file_info": {
-      "comment": "Settings, Appearance pane, and the iOS settings screen: checkbox showing the header's file-format readout (codec, bitrate, sample rate) and, on macOS, the BPM/key line. The same setting as the View menu's 'Show File Info' item, in sentence case per checkbox convention.",
+      "comment": "Settings, Appearance pane, and the iOS settings screen: checkbox showing the header's file-format readout (codec, bitrate, sample rate) and, on macOS, the BPM/key line.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -42782,7 +42596,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.info_section": {
-      "comment": "Theme editor: heading above the shared readout font, status icons, file info, tempo and key settings.",
+      "comment": "Settings, Appearance pane: heading above the app-wide time, status icon, file info, tempo and key readout switches; theme editor: heading above the readouts' font and colors.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -44642,7 +44456,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.playlist_section": {
-      "comment": "Theme editor: heading above the playlist background and row-color rows.",
+      "comment": "Settings, Appearance pane: heading above the app-wide playlist column switches; theme editor: heading above the playlist background, font and row-color rows.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -47618,7 +47432,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.app_icon": {
-      "comment": "Theme editor: heading above the app icon and Dock icon rows, the first card of the page; the row beside the app icon preview (click to pick a square JPEG or PNG that replaces the app's icon in the Dock and app switcher); and the Dock icon dropdown's choice that keeps that icon showing while a track plays.",
+      "comment": "Theme editor: heading above the app icon rows, the first card of the page; the row beside the app icon preview (click to pick a square JPEG or PNG that replaces the app's icon in the Dock and app switcher); and, in Settings > Appearance, the Dock icon dropdown's choice that keeps that icon showing while a track plays.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -54872,7 +54686,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.dock_icon": {
-      "comment": "Theme editor, Window group: row beside the dropdown choosing what the Dock shows while a track with artwork plays — the album art, or the app icon.",
+      "comment": "Settings, Appearance pane, Display preferences group: row beside the dropdown choosing what the Dock shows while a track with artwork plays — the album art, or the app icon.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -59708,7 +59522,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.playlist_artwork": {
-      "comment": "Theme editor, Playlist group: switch showing or hiding the playlist's album-art column.",
+      "comment": "Settings, Appearance pane, Playlist group: switch showing or hiding the playlist's album-art column.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -60266,7 +60080,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.playlist_duration_column": {
-      "comment": "Theme editor, Playlist group: switch showing or hiding the playlist's track-duration column.",
+      "comment": "Settings, Appearance pane, Playlist group: switch showing or hiding the playlist's track-duration column.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -60638,7 +60452,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.playlist_number_column": {
-      "comment": "Theme editor, Playlist group: switch showing or hiding the playlist's leading row-number column, which also carries the playing indicator.",
+      "comment": "Settings, Appearance pane, Playlist group: switch showing or hiding the playlist's leading row-number column, which also carries the playing indicator.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -61940,7 +61754,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.show_status_icons": {
-      "comment": "Theme editor, Info group: show or hide the active FX symbols and bit-perfect lock indicator. This changes visibility only, not the audio processing.",
+      "comment": "Settings, Appearance pane, Track information group: show or hide the active FX symbols and bit-perfect lock indicator. This changes visibility only, not the audio processing.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -62126,7 +61940,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.show_time_labels": {
-      "comment": "Theme editor, Time display group: show or hide both the elapsed and total/remaining time readouts.",
+      "comment": "Settings, Appearance pane, Track information group: show or hide both the elapsed and total/remaining time readouts.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -96164,7 +95978,7 @@
       "extractionState": "manual"
     },
     "settings.section.time": {
-      "comment": "Settings and theme editor: heading above the time display settings, including total duration versus remaining time.",
+      "comment": "iOS settings: heading above the choice between total duration and remaining time; also the time readout's accessibility label on the iOS player.",
       "localizations": {
         "bg": {
           "stringUnit": {

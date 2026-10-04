@@ -199,7 +199,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
                rate:(double)rate
         errorStatus:(NSString *)errorStatus
 unplayablePlaylistName:(NSString *)unplayablePlaylistName {
-    BOOL showTime = AppSettings.sharedInstance.currentTheme.showTimeLabels;
+    BOOL showTime = AppSettings.sharedInstance.showTimeLabels;
     self.currentTimeTextField.hidden = !showTime;
     self.totalTimeTextField.hidden = !showTime;
     switch (state) {
@@ -228,7 +228,7 @@ unplayablePlaylistName:(NSString *)unplayablePlaylistName {
             [self setFileMetadataText:errorStatus];
         }
         else {
-            [self setFileMetadataText:(AppSettings.sharedInstance.currentTheme.showFileInfo ? track.metadata.fileInfoLine : @"")];
+            [self setFileMetadataText:(AppSettings.sharedInstance.showFileInfo ? track.metadata.fileInfoLine : @"")];
         }
         break;
 
@@ -300,7 +300,7 @@ unplayablePlaylistName:(NSString *)unplayablePlaylistName {
                                        duration:(NSTimeInterval)duration
                                            rate:(double)rate {
     NSString *text = [[Formatters sharedInstance] durationStringForFileDuration:duration rate:rate
-            elapsedDisplayTime:displayPosition remaining:AppSettings.sharedInstance.currentTheme.showRemainingTime];
+            elapsedDisplayTime:displayPosition remaining:AppSettings.sharedInstance.showRemainingTime];
     setStringValueIfChanged(self.totalTimeTextField, text);
 }
 
@@ -313,7 +313,7 @@ unplayablePlaylistName:(NSString *)unplayablePlaylistName {
 }
 
 - (void)renderBPM:(float)displayBPM keyText:(NSString *)keyText colorKey:(NSInteger)colorKey {
-    if (!AppSettings.sharedInstance.currentTheme.showFileInfo) {
+    if (!AppSettings.sharedInstance.showFileInfo) {
         // The FX symbols are deck state, not file info, and keep rendering.
         displayBPM = 0;
         keyText = @"";
@@ -359,7 +359,7 @@ static BOOL VibeFXDisplayStatesEqual(VibeFXDisplayState a, VibeFXDisplayState b)
 }
 
 - (void)renderBitPerfectToolTip:(NSString *)toolTip {
-    if (!AppSettings.sharedInstance.currentTheme.showStatusIcons) {
+    if (!AppSettings.sharedInstance.showStatusIcons) {
         toolTip = nil;
     }
     NSString *current = self.fileMetadataTextField.toolTip;
@@ -384,7 +384,7 @@ static BOOL VibeFXDisplayStatesEqual(VibeFXDisplayState a, VibeFXDisplayState b)
 // One right-aligned run, FX symbols then codec text: inline symbols stay glued
 // to text whose left edge moves with the codec string.
 - (void)composeFileMetadataLabel {
-    NSArray<NSString *> *symbols = AppSettings.sharedInstance.currentTheme.showStatusIcons
+    NSArray<NSString *> *symbols = AppSettings.sharedInstance.showStatusIcons
             ? fxSymbolNames(_fxState) : @[];
     if (symbols.count == 0) {
         self.fileMetadataTextField.attributedStringValue =

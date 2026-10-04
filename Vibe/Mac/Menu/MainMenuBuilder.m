@@ -301,7 +301,6 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     NSMenu *viewMenu = Submenu(mainMenu, STR_MENU_VIEW).submenu;
     AddSymbolItem(viewMenu, STR_MENU_VIEW_PLAYLIST, @"list.dash", @selector(toggleSize:), player, @"", 0, kVibeMenuShowPlaylist);
     AddSymbolItem(viewMenu, STR_MENU_VIEW_PITCH_CONTROL, @"slider.vertical.3", @selector(togglePitchPanel:), player, @"", 0, kVibeMenuShowPitch);
-    AddSymbolItem(viewMenu, STR_MENU_VIEW_FILE_INFO, @"info.circle", @selector(toggleFileInfo:), player, @"", 0, kVibeMenuShowFileInfo);
     AddSeparator(viewMenu);
 
     NSMenu *themeMenu = Submenu(viewMenu, STR_MENU_VIEW_THEME).submenu;

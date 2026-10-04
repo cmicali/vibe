@@ -13,7 +13,7 @@ static const CGFloat kMainWindowContentWidth = 680;
 // Narrower, the codec and BPM readouts crowd the title.
 static const CGFloat kMainWindowMinContentWidth = 480;
 
-// The wide end of View > Size.
+// The wide end of View > Width.
 static const CGFloat kMainWindowLargeContentWidth = kMainWindowContentWidth * 1.75;
 
 // Collapsed. Anything taller means the playlist is showing.

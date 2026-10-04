@@ -19,8 +19,16 @@
 #define SETTING_WINDOW_POSITION_LOCKED              @"MainWindow.positionLocked"
 #define SETTING_SHOW_TRAFFIC_LIGHTS                 @"Appearance.showTrafficLights"
 #define SETTING_PITCH_RANGE                         @"AudioPlayer.pitchRange"
+// The display keys predate themes, and themes carried their choices through
+// 1.14 (migrateThemeDisplaySettings).
+#define SETTING_SHOW_TIME_LABELS                    @"MainWindow.showTimeLabels"
 #define SETTING_SHOW_REMAINING_TIME                 @"MainWindow.showRemainingTime"
+#define SETTING_SHOW_STATUS_ICONS                   @"MainWindow.showStatusIcons"
 #define SETTING_SHOW_FILE_INFO                      @"MainWindow.showFileInfo"
+#define SETTING_PLAYLIST_NUMBER_COLUMN              @"Playlist.showNumberColumn"
+#define SETTING_PLAYLIST_ARTWORK_COLUMN             @"Playlist.showArtworkColumn"
+#define SETTING_PLAYLIST_DURATION_COLUMN            @"Playlist.showDurationColumn"
+#define SETTING_DOCK_ICON                           @"Appearance.dockIcon"
 #define SETTING_WAVEFORM_NORMALIZE                  @"Appearance.waveformNormalize"
 #define SETTING_WAVEFORM_GAIN_DB                    @"Appearance.waveformGainDB"
 #define SETTING_WAVEFORM_DRAG_BEHAVIOR              @"Settings.waveformDragBehavior"
@@ -80,6 +88,18 @@ const size_t kVibeUIUpdateHzCapPresetCount =
             SETTING_ALWAYS_ON_TOP:                  @(NO),
             SETTING_WINDOW_POSITION_LOCKED:         @(NO),
             SETTING_SHOW_TRAFFIC_LIGHTS:            @(YES),
+            SETTING_SHOW_TIME_LABELS:               @(YES),
+            SETTING_SHOW_REMAINING_TIME:            @(NO),
+            SETTING_SHOW_STATUS_ICONS:              @(YES),
+            SETTING_SHOW_FILE_INFO:                 @(YES),
+            SETTING_SHOW_BPM:                       @(YES),
+            SETTING_SHOW_KEY:                       @(YES),
+            SETTING_KEY_NOTATION:                   SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
+            SETTING_KEY_COLORS:                     @(NO),
+            SETTING_PLAYLIST_NUMBER_COLUMN:         @(YES),
+            SETTING_PLAYLIST_ARTWORK_COLUMN:        @(YES),
+            SETTING_PLAYLIST_DURATION_COLUMN:       @(YES),
+            SETTING_DOCK_ICON:                      SETTINGS_VALUE_DOCK_ICON_ALBUM_ART,
             SETTING_PITCH_RANGE:                    @(8),
             SETTING_WAVEFORM_DRAG_BEHAVIOR:         SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW,
             SETTING_ARTWORK_DRAG_ACTION:            SETTINGS_VALUE_ARTWORK_DRAG_COPY_FILE,
@@ -180,12 +200,6 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
         @"windowTint":                 SETTING_WINDOW_TINT,
         @"windowTintColorDark":        SETTING_WINDOW_TINT_CUSTOM_DARK,
         @"windowTintColorLight":       SETTING_WINDOW_TINT_CUSTOM_LIGHT,
-        @"showFileInfo":               SETTING_SHOW_FILE_INFO,
-        @"showRemainingTime":          SETTING_SHOW_REMAINING_TIME,
-        @"showBPM":                    SETTING_SHOW_BPM,
-        @"showKey":                    SETTING_SHOW_KEY,
-        @"keyColorsEnabled":           SETTING_KEY_COLORS,
-        @"keyNotation":                SETTING_KEY_NOTATION,
     };
     NSMutableDictionary *legacyValues = [NSMutableDictionary dictionary];
     for (NSString *field in legacyKeys) {
@@ -212,6 +226,68 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     }
     for (NSString *field in legacyKeys) {
         [defaults removeObjectForKey:legacyKeys[field]];
+    }
+}
+
+// The divergence key exists only while a built-in's working record differs
+// from the built-in.
+static void StoreBuiltInWorkingRecord(NSDictionary *record, NSString *builtIn) {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    if ([record isEqualToDictionary:[AppTheme builtInRecordForIdentifier:builtIn]]) {
+        [defaults removeObjectForKey:SETTING_CURRENT_THEME];
+    } else {
+        [defaults setObject:record forKey:SETTING_CURRENT_THEME];
+    }
+}
+
+// The active theme's display choices become the app-wide settings, so the
+// window shows what it showed before; storing every record back through the
+// gate, which drops them as unknown keys, makes this run once. Only stored
+// records can carry one: no shipped built-in set a display field.
+- (void)migrateThemeDisplaySettings {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    // The fields a theme record carried through 1.14, and the key each became.
+    NSDictionary<NSString *, NSString *> *keys = @{
+        @"showTimeLabels":             SETTING_SHOW_TIME_LABELS,
+        @"showRemainingTime":          SETTING_SHOW_REMAINING_TIME,
+        @"showStatusIcons":            SETTING_SHOW_STATUS_ICONS,
+        @"showFileInfo":               SETTING_SHOW_FILE_INFO,
+        @"showBPM":                    SETTING_SHOW_BPM,
+        @"showKey":                    SETTING_SHOW_KEY,
+        @"keyNotation":                SETTING_KEY_NOTATION,
+        @"keyColorsEnabled":           SETTING_KEY_COLORS,
+        @"showPlaylistNumberColumn":   SETTING_PLAYLIST_NUMBER_COLUMN,
+        @"showPlaylistArtworkColumn":  SETTING_PLAYLIST_ARTWORK_COLUMN,
+        @"showPlaylistDurationColumn": SETTING_PLAYLIST_DURATION_COLUMN,
+        @"dockIcon":                   SETTING_DOCK_ICON,
+    };
+    NSSet<NSString *> *fields = [NSSet setWithArray:keys.allKeys];
+    NSString *active = [defaults stringForKey:SETTING_ACTIVE_THEME];
+    NSDictionary *diverged = [defaults dictionaryForKey:SETTING_CURRENT_THEME];
+    NSDictionary *working = diverged;
+    BOOL carried = NO;
+    for (id record in [@[diverged ?: @{}] arrayByAddingObjectsFromArray:
+            [defaults arrayForKey:SETTING_USER_THEMES] ?: @[]]) {
+        if (![record isKindOfClass:NSDictionary.class]) {
+            continue;
+        }
+        carried = carried || [fields intersectsSet:[NSSet setWithArray:[record allKeys]]];
+        if (!working && [record[kVibeThemeRecordIdentifierKey] isEqual:active]) {
+            working = record;
+        }
+    }
+    if (!carried) {
+        return;
+    }
+    for (NSString *field in keys) {
+        id value = working[field];
+        if ([value isKindOfClass:NSNumber.class] || [value isKindOfClass:NSString.class]) {
+            [defaults setObject:value forKey:keys[field]];
+        }
+    }
+    [self persistUserThemes:[self storedUserThemes]];
+    if (diverged) {
+        StoreBuiltInWorkingRecord([AppTheme sanitizedRecord:diverged], active ?: kVibeThemeIdentifierVibe);
     }
 }
 
@@ -399,13 +475,7 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
             ?: [self recordForThemeIdentifier:active];
     NSDictionary *before = ThemeStoreSnapshot([self storedUserThemes], active, previous);
     if ([AppTheme isBuiltInIdentifier:active]) {
-        // A built-in stays pristine; the divergence key exists only while
-        // there is one.
-        if ([record isEqualToDictionary:[AppTheme builtInRecordForIdentifier:active]]) {
-            [defaults removeObjectForKey:SETTING_CURRENT_THEME];
-        } else {
-            [defaults setObject:record forKey:SETTING_CURRENT_THEME];
-        }
+        StoreBuiltInWorkingRecord(record, active);
     } else {
         // From the same dictionary, so the entry and working state cannot
         // drift.
@@ -726,6 +796,105 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
 
 - (void)setShowTrafficLights:(BOOL)show {
     [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_TRAFFIC_LIGHTS];
+}
+
+#pragma mark Player display
+
+- (BOOL)showTimeLabels {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_SHOW_TIME_LABELS];
+}
+
+- (void)setShowTimeLabels:(BOOL)show {
+    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_TIME_LABELS];
+}
+
+- (BOOL)showRemainingTime {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_SHOW_REMAINING_TIME];
+}
+
+- (void)setShowRemainingTime:(BOOL)show {
+    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_REMAINING_TIME];
+}
+
+- (BOOL)showStatusIcons {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_SHOW_STATUS_ICONS];
+}
+
+- (void)setShowStatusIcons:(BOOL)show {
+    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_STATUS_ICONS];
+}
+
+- (BOOL)showFileInfo {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_SHOW_FILE_INFO];
+}
+
+- (void)setShowFileInfo:(BOOL)show {
+    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_FILE_INFO];
+}
+
+- (BOOL)showBPM {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_SHOW_BPM];
+}
+
+- (void)setShowBPM:(BOOL)show {
+    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_BPM];
+}
+
+- (BOOL)showKey {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_SHOW_KEY];
+}
+
+- (void)setShowKey:(BOOL)show {
+    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_KEY];
+}
+
+- (NSString *)keyNotation {
+    return VibeNormalizedKeyNotation([[NSUserDefaults standardUserDefaults] stringForKey:SETTING_KEY_NOTATION]);
+}
+
+- (void)setKeyNotation:(NSString *)notation {
+    [[NSUserDefaults standardUserDefaults] setObject:VibeNormalizedKeyNotation(notation)
+                                              forKey:SETTING_KEY_NOTATION];
+}
+
+- (BOOL)keyColorsEnabled {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_KEY_COLORS];
+}
+
+- (void)setKeyColorsEnabled:(BOOL)enabled {
+    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:SETTING_KEY_COLORS];
+}
+
+- (BOOL)showPlaylistNumberColumn {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_PLAYLIST_NUMBER_COLUMN];
+}
+
+- (void)setShowPlaylistNumberColumn:(BOOL)show {
+    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_PLAYLIST_NUMBER_COLUMN];
+}
+
+- (BOOL)showPlaylistArtworkColumn {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_PLAYLIST_ARTWORK_COLUMN];
+}
+
+- (void)setShowPlaylistArtworkColumn:(BOOL)show {
+    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_PLAYLIST_ARTWORK_COLUMN];
+}
+
+- (BOOL)showPlaylistDurationColumn {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_PLAYLIST_DURATION_COLUMN];
+}
+
+- (void)setShowPlaylistDurationColumn:(BOOL)show {
+    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_PLAYLIST_DURATION_COLUMN];
+}
+
+- (NSString *)dockIcon {
+    return VibeNormalizedDockIcon([[NSUserDefaults standardUserDefaults] stringForKey:SETTING_DOCK_ICON]);
+}
+
+- (void)setDockIcon:(NSString *)dockIcon {
+    [[NSUserDefaults standardUserDefaults] setObject:VibeNormalizedDockIcon(dockIcon) forKey:SETTING_DOCK_ICON];
 }
 
 #pragma mark Drag behavior

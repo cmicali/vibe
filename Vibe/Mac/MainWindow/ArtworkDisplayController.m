@@ -448,7 +448,7 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
 // Runs at every install and default, and from the AppIcon effect.
 - (void)applyDockIcon {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    BOOL wantsArt = [theme.dockIcon isEqualToString:SETTINGS_VALUE_DOCK_ICON_ALBUM_ART];
+    BOOL wantsArt = [AppSettings.sharedInstance.dockIcon isEqualToString:SETTINGS_VALUE_DOCK_ICON_ALBUM_ART];
     if (wantsArt && _initialized && !_showingDefaultArt && _artworkView.image) {
         [NSDockTile setDockIcon:_artworkView.image shaped:theme.appIconShape];
     } else {

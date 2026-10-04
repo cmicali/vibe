@@ -114,9 +114,6 @@ static NSImage *MenuSymbolImage(NSString *symbol, NSString *description) {
     else if ([menuItem.identifier isEqualToString:kVibeMenuShowPitch]) {
         menuItem.state = StateForBOOL(window.isPitchPanelShown);
     }
-    else if ([menuItem.identifier isEqualToString:kVibeMenuShowFileInfo]) {
-        menuItem.state = StateForBOOL(AppSettings.sharedInstance.currentTheme.showFileInfo);
-    }
     else if ([menuItem.identifier isEqualToString:kVibeMenuAlwaysOnTop]) {
         menuItem.state = StateForBOOL(AppSettings.sharedInstance.alwaysOnTop);
     }

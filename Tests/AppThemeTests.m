@@ -58,7 +58,6 @@
     XCTAssertEqual(theme.windowCornerRadius, 16);
     XCTAssertFalse(theme.customCornerRadius);
     XCTAssertEqual(theme.resolvedWindowCornerRadius, 16);
-    XCTAssertEqualObjects(theme.dockIcon, @"album_art");
     XCTAssertTrue(theme.appIconShape);
     XCTAssertEqualObjects(theme.buttonGradient, @"always");
     XCTAssertEqualObjects(theme.volumeBar, @"waveform");
@@ -72,28 +71,17 @@
         XCTAssertEqualObjects([theme imageReferenceForKey:key], @"", @"%@", key);
         XCTAssertNil([theme customImageForKey:key], @"%@", key);
     }
-    XCTAssertTrue(theme.showFileInfo);
     XCTAssertTrue(theme.showTransportButtons);
-    XCTAssertTrue(theme.showStatusIcons);
-    XCTAssertTrue(theme.showTimeLabels);
     XCTAssertTrue(theme.waveformGradient);
     XCTAssertFalse(theme.waveformPlayheadLine);
     XCTAssertEqual(theme.waveformBarDensity, 1);
     XCTAssertEqual(theme.waveformBarWidth, 1);
-    XCTAssertTrue(theme.showPlaylistNumberColumn);
-    XCTAssertTrue(theme.showPlaylistArtworkColumn);
-    XCTAssertTrue(theme.showPlaylistDurationColumn);
     XCTAssertEqual([theme fontSizeForSlot:VibeFontSlotPlaylistDuration], 12);
     XCTAssertEqualObjects(theme.mode, @"dual");
-    XCTAssertFalse(theme.showRemainingTime);
-    XCTAssertTrue(theme.showBPM);
-    XCTAssertTrue(theme.showKey);
-    XCTAssertFalse(theme.keyColorsEnabled);
     for (NSString *base in @[kVibeThemeColorPlaylistNumber, kVibeThemeColorPlaylistTitle,
                              kVibeThemeColorPlaylistArtist, kVibeThemeColorPlaylistDuration]) {
         XCTAssertFalse([theme playlistColorEnabledForBase:base], @"%@", base);
     }
-    XCTAssertEqualObjects(theme.keyNotation, @"camelot");
     XCTAssertEqualObjects([theme fontFaceForSlot:VibeFontSlotTitle], @"");
     XCTAssertEqual([theme fontSizeForSlot:VibeFontSlotTitle], 23);
     XCTAssertEqual([theme fontSizeForSlot:VibeFontSlotInfo], 13);
@@ -109,12 +97,8 @@
         @"waveformBarWidth": @1,
         @"customCornerRadius": @NO,
         @"windowCornerRadius": @16,
-        @"showFileInfo": @YES,
         @"showTransportButtons": @YES,
-        @"showStatusIcons": @YES,
-        @"showTimeLabels": @YES,
         @"titleFontFace": @"",
-        @"dockIcon": @"album_art",
         @"playButtonGlyph": @"play.fill",
         @"appIcon": @"",
     }];
@@ -182,13 +166,6 @@
     XCTAssertFalse(theme.customCornerRadius);
     XCTAssertEqual(theme.resolvedWindowCornerRadius, 16);
     XCTAssertEqualObjects([AppTheme sanitizedRecord:theme.dictionaryRepresentation], @{});
-}
-
-- (void)testDockIconSnapsToAlbumArt {
-    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"dockIcon": @"finder"}];
-    XCTAssertEqualObjects(theme.dockIcon, @"album_art");
-    theme.dockIcon = @"app_icon";
-    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{@"dockIcon": @"app_icon"});
 }
 
 // A glyph field is free text in the symbol-name shape, like a font face: the
@@ -303,7 +280,6 @@
         @"windowBackgroundStyle": @"translucent",
         // The window's alone: the playlist has no panes to keep.
         @"playlistBackgroundStyle": @"frosted",
-        @"keyNotation": @"solfege",
     }];
     // Every snap lands on the default, so nothing is stored.
     XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
@@ -312,7 +288,6 @@
     XCTAssertEqualObjects(theme.playlistTint, @"mono");
     XCTAssertEqualObjects(theme.windowBackgroundStyle, @"glass");
     XCTAssertEqualObjects(theme.playlistBackgroundStyle, @"glass");
-    XCTAssertEqualObjects(theme.keyNotation, @"camelot");
     // The third background style is a real choice on both surfaces.
     theme.windowBackgroundStyle = @"clear";
     theme.playlistBackgroundStyle = @"clear";
@@ -371,7 +346,7 @@
     AppTheme *theme = [[AppTheme alloc] initWithRecord:@{
         @"windowCornerRadius": @"big",
         @"titleFontSize": @(NAN),
-        @"showBPM": @"true",
+        @"waveformGradient": @"false",
         @"titleColorDark": @"#GGHHII",
         @"artistColorDark": @123,
         @"waveformStyle": @7,
@@ -379,16 +354,16 @@
         @"waveformBarWidth": @(NAN),
     }];
     XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
-    XCTAssertTrue(theme.showBPM);
+    XCTAssertTrue(theme.waveformGradient);
 }
 
 - (void)testBoolsCoerceFromNumbersOnly {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:@{
-        @"showRemainingTime": @1,
-        @"showKey": @NO,
+        @"waveformPlayheadLine": @1,
+        @"showVolumeLabels": @NO,
     }];
-    XCTAssertTrue(theme.showRemainingTime);
-    XCTAssertFalse(theme.showKey);
+    XCTAssertTrue(theme.waveformPlayheadLine);
+    XCTAssertFalse(theme.showVolumeLabels);
     XCTAssertEqual(theme.dictionaryRepresentation.count, 2u);
 }
 
@@ -513,10 +488,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
     [theme setColor:VibeColorFromHexString(@"#FF000080") forBase:kVibeThemeColorTitle dark:YES];
     [theme setPlaylistColorEnabled:YES forBase:kVibeThemeColorPlaylistTitle];
-    theme.showFileInfo = NO;
     theme.waveformPlayheadLine = YES;
-    theme.keyNotation = @"musical";
-    theme.dockIcon = @"app_icon";
     [theme setImageReference:@"bundled:cupertino_dark.jpg" forKey:kVibeThemeImagePlayButtonDark];
     NSArray<NSString *> *styles = @[@"detailed", @"basic"];
     NSSet<NSString *> *faces = [NSSet setWithArray:AppTheme.randomizableFontFaces];
@@ -525,10 +497,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
         [theme randomizeSettingsWithWaveformStyles:styles];
         XCTAssertEqualObjects(VibeHexStringFromColor([theme colorForBase:kVibeThemeColorTitle dark:YES]), @"#FF000080");
         XCTAssertTrue([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistTitle]);
-        XCTAssertFalse(theme.showFileInfo);
         XCTAssertTrue(theme.waveformPlayheadLine);
-        XCTAssertEqualObjects(theme.keyNotation, @"musical");
-        XCTAssertEqualObjects(theme.dockIcon, @"app_icon");
         XCTAssertEqualObjects([theme imageReferenceForKey:kVibeThemeImagePlayButtonDark],
                               @"bundled:cupertino_dark.jpg");
         XCTAssertTrue([styles containsObject:theme.waveformStyle]);
@@ -794,31 +763,29 @@ static CGFloat Brightness(NSString *hex) {
 
 - (void)testHiddenControlsRoundTripWithoutLosingTheirAppearance {
     NSDictionary *record = @{
-        @"showTransportButtons": @NO, @"showStatusIcons": @NO, @"showTimeLabels": @NO,
+        @"showTransportButtons": @NO, @"showVolumeLabels": @NO,
         @"playButtonGlyph": @"play.circle.fill", @"buttonGradient": @"none",
-        @"showRemainingTime": @YES, @"timeColorDark": @"#123456", @"infoFontSize": @11,
+        @"timeColorDark": @"#123456", @"infoFontSize": @11,
     };
     NSData *data = [AppTheme JSONDataForRecord:record name:@"Hidden"];
     NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
     XCTAssertEqualObjects(json[@"player"][@"showTransportButtons"], @NO);
-    XCTAssertEqualObjects(json[@"info"][@"showStatusIcons"], @NO);
-    XCTAssertEqualObjects(json[@"info"][@"showTimeLabels"], @NO);
+    XCTAssertEqualObjects(json[@"volume"][@"showLabels"], @NO);
     NSDictionary *back = [AppTheme recordFromJSONData:data name:NULL error:NULL];
     XCTAssertEqualObjects(back, record);
     AppTheme *theme = [[AppTheme alloc] initWithRecord:back];
     theme.showTransportButtons = YES;
-    theme.showStatusIcons = YES;
-    theme.showTimeLabels = YES;
+    theme.showVolumeLabels = YES;
     XCTAssertEqualObjects(theme.dictionaryRepresentation, (@{
         @"playButtonGlyph": @"play.circle.fill", @"buttonGradient": @"none",
-        @"showRemainingTime": @YES, @"timeColorDark": @"#123456", @"infoFontSize": @11,
+        @"timeColorDark": @"#123456", @"infoFontSize": @11,
     }));
 }
 
 // The export walks the groups the field table names, so a new group's fields
 // export as surely as they import.
 - (void)testEveryGroupExportsInEditorOrder {
-    NSDictionary *record = @{@"mode": @"single", @"titleFontSize": @24, @"showBPM": @NO,
+    NSDictionary *record = @{@"mode": @"single", @"titleFontSize": @24, @"infoFontSize": @11,
                              @"waveformTheme": @"orange", @"playlistFontSize": @12};
     NSString *text = [[NSString alloc] initWithData:[AppTheme JSONDataForRecord:record name:@"All"]
                                            encoding:NSUTF8StringEncoding];
@@ -1367,7 +1334,7 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
     // Stored-but-default values are no reason to mint a theme either.
     XCTAssertNil(([AppTheme migratedRecordFromLegacyValues:@{
         @"waveformTheme": @"mono",
-        @"showFileInfo": @YES,
+        @"windowTint": @"artwork",
     }]));
 }
 
@@ -1376,14 +1343,12 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
         @"waveformStyle": @"sonic_cirrus",
         @"waveformTheme": @"orange",
         @"windowTint": @"mono",
-        @"showFileInfo": @NO,
         @"waveformPlayedColorDark": @"#FF7300",
     }];
     XCTAssertEqualObjects(record, (@{
         @"waveformStyle": @"sonic_cirrus",
         @"waveformTheme": @"orange",
         @"windowTint": @"mono",
-        @"showFileInfo": @NO,
         @"waveformPlayedColorDark": @"#FF7300",
     }));
 }
@@ -1534,25 +1499,25 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
 - (void)testUserThemeEditsPersistAndUndoRestoresTheSameWorkingObject {
     AppSettings *settings = self.editingSettings;
     AppTheme *working = settings.currentTheme;
-    working.showFileInfo = NO;
+    working.showTransportButtons = NO;
     [settings currentThemeDidChange];
     XCTAssertTrue(settings.canUndoThemeEdit);
     AppSettings *reloaded = [AppSettings new];
     XCTAssertEqualObjects(reloaded.activeThemeIdentifier, settings.activeThemeIdentifier);
-    XCTAssertFalse(reloaded.currentTheme.showFileInfo);
+    XCTAssertFalse(reloaded.currentTheme.showTransportButtons);
     [settings undoThemeEdit];
     XCTAssertEqual(settings.currentTheme, working);
-    XCTAssertTrue(working.showFileInfo);
+    XCTAssertTrue(working.showTransportButtons);
     XCTAssertFalse(settings.canUndoThemeEdit);
     XCTAssertEqualObjects([settings recordForThemeIdentifier:settings.activeThemeIdentifier], @{});
-    XCTAssertTrue([AppSettings new].currentTheme.showFileInfo);
+    XCTAssertTrue([AppSettings new].currentTheme.showTransportButtons);
 }
 
 - (void)testRedoRestoresEditsAndRenamesInOrder {
     AppSettings *settings = self.editingSettings;
     NSString *identifier = settings.activeThemeIdentifier;
     AppTheme *working = settings.currentTheme;
-    working.showFileInfo = NO;
+    working.showTransportButtons = NO;
     [settings currentThemeDidChange];
     [settings renameUserThemeWithIdentifier:identifier toName:@"Renamed"];
     [settings undoThemeEdit];
@@ -1560,7 +1525,7 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     XCTAssertTrue(settings.canRedoThemeEdit);
     [settings redoThemeEdit];
     XCTAssertEqual(settings.currentTheme, working);
-    XCTAssertFalse(working.showFileInfo);
+    XCTAssertFalse(working.showTransportButtons);
     XCTAssertEqualObjects([settings displayNameForThemeIdentifier:identifier], @"Editing");
     [settings redoThemeEdit];
     XCTAssertEqualObjects([[AppSettings new] displayNameForThemeIdentifier:identifier], @"Renamed");
@@ -1574,9 +1539,9 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
         AppSettings *settings = self.editingSettings;
         [settings applyThemeWithIdentifier:@"vibe"];
         AppTheme *working = settings.currentTheme;
-        working.showFileInfo = NO;
+        working.showTransportButtons = NO;
         [settings currentThemeDidChange];
-        working.showTimeLabels = NO;
+        working.showVolumeLabels = NO;
         [settings currentThemeDidChange];
         [settings undoThemeEdit];
         XCTAssertTrue(settings.canUndoThemeEdit);
@@ -1629,15 +1594,15 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
 
 - (void)testDifferentThemeFieldsNeverCoalesce {
     AppSettings *settings = self.editingSettings;
-    settings.currentTheme.showFileInfo = NO;
+    settings.currentTheme.showTransportButtons = NO;
     [settings currentThemeDidChangeContinuous:YES atTime:100];
-    settings.currentTheme.showBPM = NO;
+    settings.currentTheme.waveformGradient = NO;
     [settings currentThemeDidChangeContinuous:YES atTime:100.1];
     [settings undoThemeEdit];
-    XCTAssertTrue(settings.currentTheme.showBPM);
-    XCTAssertFalse(settings.currentTheme.showFileInfo);
+    XCTAssertTrue(settings.currentTheme.waveformGradient);
+    XCTAssertFalse(settings.currentTheme.showTransportButtons);
     [settings undoThemeEdit];
-    XCTAssertTrue(settings.currentTheme.showFileInfo);
+    XCTAssertTrue(settings.currentTheme.showTransportButtons);
     XCTAssertFalse(settings.canUndoThemeEdit);
 }
 
@@ -1677,7 +1642,7 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
 - (void)testThemeHistoryKeepsOnlyFiftyEdits {
     AppSettings *settings = self.editingSettings;
     for (NSUInteger i = 0; i < 55; i++) {
-        settings.currentTheme.showFileInfo = !settings.currentTheme.showFileInfo;
+        settings.currentTheme.showTransportButtons = !settings.currentTheme.showTransportButtons;
         [settings currentThemeDidChangeContinuous:YES atTime:100 + i * 3];
     }
     for (NSUInteger i = 0; i < 50; i++) {
@@ -1685,9 +1650,9 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
         [settings undoThemeEdit];
     }
     XCTAssertFalse(settings.canUndoThemeEdit);
-    XCTAssertFalse(settings.currentTheme.showFileInfo); // five edits remain
+    XCTAssertFalse(settings.currentTheme.showTransportButtons); // five edits remain
     [settings undoThemeEdit];
-    XCTAssertFalse(settings.currentTheme.showFileInfo);
+    XCTAssertFalse(settings.currentTheme.showTransportButtons);
     for (NSUInteger i = 0; i < 50; i++) {
         XCTAssertTrue(settings.canRedoThemeEdit);
         [settings redoThemeEdit];
@@ -1698,38 +1663,38 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
 - (void)testApplyingAnotherThemeClearsUndoWithoutChangingTheOldRecord {
     AppSettings *settings = self.editingSettings;
     NSString *edited = settings.activeThemeIdentifier;
-    settings.currentTheme.showFileInfo = NO;
+    settings.currentTheme.showTransportButtons = NO;
     [settings currentThemeDidChange];
     [settings applyThemeWithIdentifier:@"vibe"];
     XCTAssertFalse(settings.canUndoThemeEdit);
     [settings undoThemeEdit];
-    XCTAssertTrue(settings.currentTheme.showFileInfo);
-    XCTAssertEqualObjects([settings recordForThemeIdentifier:edited][@"showFileInfo"], @NO);
+    XCTAssertTrue(settings.currentTheme.showTransportButtons);
+    XCTAssertEqualObjects([settings recordForThemeIdentifier:edited][@"showTransportButtons"], @NO);
 }
 
 - (void)testBuiltInDivergencePersistsAndUndoKeepsTheBuiltInPristine {
     AppSettings *settings = self.editingSettings;
     [settings applyThemeWithIdentifier:@"vibe"];
-    settings.currentTheme.showFileInfo = NO;
+    settings.currentTheme.showTransportButtons = NO;
     [settings currentThemeDidChange];
     XCTAssertTrue(settings.canUndoThemeEdit);
     XCTAssertTrue(settings.currentThemeIsModified);
-    XCTAssertFalse([AppSettings new].currentTheme.showFileInfo);
+    XCTAssertFalse([AppSettings new].currentTheme.showTransportButtons);
     XCTAssertEqualObjects([settings recordForThemeIdentifier:@"vibe"], @{});
     [settings undoThemeEdit];
     XCTAssertFalse(settings.currentThemeIsModified);
-    XCTAssertTrue([AppSettings new].currentTheme.showFileInfo);
+    XCTAssertTrue([AppSettings new].currentTheme.showTransportButtons);
     XCTAssertFalse(settings.canUndoThemeEdit);
     [settings redoThemeEdit];
     XCTAssertTrue(settings.currentThemeIsModified);
-    XCTAssertFalse([AppSettings new].currentTheme.showFileInfo);
+    XCTAssertFalse([AppSettings new].currentTheme.showTransportButtons);
     XCTAssertEqualObjects([settings recordForThemeIdentifier:@"vibe"], @{});
 }
 
 - (void)testDuplicateAndRenamePreserveRecordsAndDeduplicateNames {
     AppSettings *settings = self.editingSettings;
     NSString *original = settings.activeThemeIdentifier;
-    settings.currentTheme.showFileInfo = NO;
+    settings.currentTheme.showTransportButtons = NO;
     [settings currentThemeDidChange];
     NSString *duplicate = [settings duplicateThemeWithIdentifier:original];
     XCTAssertNotEqualObjects(duplicate, original);
@@ -1761,7 +1726,7 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     AppSettings *settings = self.editingSettings;
     [settings applyThemeWithIdentifier:@"vibe"];
     settings.currentTheme.waveformStyle = @"detailed";
-    settings.currentTheme.showFileInfo = NO;
+    settings.currentTheme.showTransportButtons = NO;
     [settings currentThemeDidChange];
     NSDictionary *workingRecord = settings.currentTheme.dictionaryRepresentation;
 
@@ -1781,13 +1746,13 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
 - (void)testRemovingAnActiveThemeUsesOnlyASurvivingFallback {
     AppSettings *settings = self.editingSettings;
     NSString *first = settings.activeThemeIdentifier;
-    NSString *second = [settings addUserThemeWithRecord:@{@"showFileInfo": @NO} name:@"Second"];
+    NSString *second = [settings addUserThemeWithRecord:@{@"showTransportButtons": @NO} name:@"Second"];
     [settings removeUserThemeWithIdentifier:first fallingBackTo:second];
     XCTAssertEqualObjects(settings.activeThemeIdentifier, second);
-    XCTAssertFalse(settings.currentTheme.showFileInfo);
+    XCTAssertFalse(settings.currentTheme.showTransportButtons);
     [settings removeUserThemeWithIdentifier:second fallingBackTo:second];
     XCTAssertEqualObjects(settings.activeThemeIdentifier, @"vibe");
-    XCTAssertTrue(settings.currentTheme.showFileInfo);
+    XCTAssertTrue(settings.currentTheme.showTransportButtons);
 }
 
 - (NSString *)installEditingImageInSettings:(AppSettings *)settings {
@@ -1806,7 +1771,7 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     NSString *path = [self installEditingImageInSettings:settings];
     [settings.currentTheme setImageReference:@"" forKey:kVibeThemeImageDefaultArtworkDark];
     [settings currentThemeDidChange];
-    settings.currentTheme.showFileInfo = NO;
+    settings.currentTheme.showTransportButtons = NO;
     [settings currentThemeDidChange];
     [settings undoThemeEdit];
     NSDictionary *working = settings.currentTheme.dictionaryRepresentation;
@@ -1847,7 +1812,7 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     NSString *path = [self installEditingImageInSettings:settings];
     NSString *second = [settings addUserThemeWithRecord:@{} name:@"Second"];
     NSArray *order = settings.orderedThemeIdentifiers;
-    settings.currentTheme.showFileInfo = NO;
+    settings.currentTheme.showTransportButtons = NO;
     [settings currentThemeDidChange];
     [settings removeUserThemeWithIdentifier:first fallingBackTo:second];
     XCTAssertTrue(settings.themeUndoRemovesTheme);
@@ -1858,10 +1823,10 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     [settings undoThemeEdit];
     XCTAssertEqualObjects(settings.orderedThemeIdentifiers, order);
     XCTAssertEqualObjects(settings.activeThemeIdentifier, first);
-    XCTAssertFalse(settings.currentTheme.showFileInfo);
+    XCTAssertFalse(settings.currentTheme.showTransportButtons);
     XCTAssertTrue([NSFileManager.defaultManager fileExistsAtPath:path]);
     [settings undoThemeEdit];
-    XCTAssertTrue(settings.currentTheme.showFileInfo);
+    XCTAssertTrue(settings.currentTheme.showTransportButtons);
     XCTAssertFalse(settings.canUndoThemeEdit);
     [settings removeUserThemeWithIdentifier:first fallingBackTo:nil];
     [settings applyThemeWithIdentifier:@"vibe"];
@@ -1872,29 +1837,29 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     AppSettings *settings = self.editingSettings;
     NSString *removed = settings.activeThemeIdentifier;
     [settings applyThemeWithIdentifier:@"vibe"];
-    settings.currentTheme.showTimeLabels = NO;
+    settings.currentTheme.showVolumeLabels = NO;
     [settings currentThemeDidChange];
     [settings removeUserThemeWithIdentifier:removed fallingBackTo:nil];
     [settings undoThemeEdit];
     XCTAssertEqualObjects(settings.activeThemeIdentifier, @"vibe");
-    XCTAssertFalse(settings.currentTheme.showTimeLabels);
+    XCTAssertFalse(settings.currentTheme.showVolumeLabels);
     XCTAssertTrue(settings.currentThemeIsModified);
     XCTAssertTrue([settings.orderedThemeIdentifiers containsObject:removed]);
     [settings redoThemeEdit];
     XCTAssertFalse([settings.orderedThemeIdentifiers containsObject:removed]);
-    XCTAssertFalse(settings.currentTheme.showTimeLabels);
+    XCTAssertFalse(settings.currentTheme.showVolumeLabels);
     [settings undoThemeEdit];
     [settings undoThemeEdit];
-    XCTAssertTrue(settings.currentTheme.showTimeLabels);
+    XCTAssertTrue(settings.currentTheme.showVolumeLabels);
 }
 
 - (void)testRemovalRedoKeepsFallbackOrderImagesAndPreviousEdits {
     AppSettings *settings = self.editingSettings;
     NSString *removed = settings.activeThemeIdentifier;
     NSString *path = [self installEditingImageInSettings:settings];
-    NSString *fallback = [settings addUserThemeWithRecord:@{@"showFileInfo": @NO} name:@"Fallback"];
+    NSString *fallback = [settings addUserThemeWithRecord:@{@"showTransportButtons": @NO} name:@"Fallback"];
     NSArray *order = settings.orderedThemeIdentifiers;
-    settings.currentTheme.showTimeLabels = NO;
+    settings.currentTheme.showVolumeLabels = NO;
     [settings currentThemeDidChange];
     [settings removeUserThemeWithIdentifier:removed fallingBackTo:fallback];
     [settings undoThemeEdit];
@@ -1904,13 +1869,13 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     [settings redoThemeEdit];
     [settings redoThemeEdit];
     XCTAssertEqualObjects(settings.activeThemeIdentifier, fallback);
-    XCTAssertFalse(settings.currentTheme.showFileInfo);
+    XCTAssertFalse(settings.currentTheme.showTransportButtons);
     XCTAssertFalse([settings.orderedThemeIdentifiers containsObject:removed]);
     XCTAssertTrue([NSFileManager.defaultManager fileExistsAtPath:path]);
     [settings undoThemeEdit];
     XCTAssertEqualObjects(settings.orderedThemeIdentifiers, order);
     XCTAssertEqualObjects(settings.activeThemeIdentifier, removed);
-    XCTAssertFalse(settings.currentTheme.showTimeLabels);
+    XCTAssertFalse(settings.currentTheme.showVolumeLabels);
     [settings.currentTheme setImageReference:@"" forKey:kVibeThemeImageDefaultArtworkDark];
     [settings currentThemeDidChange];
     XCTAssertFalse(settings.canRedoThemeEdit);
@@ -1929,14 +1894,14 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     [settings redoThemeEdit];
     XCTAssertEqualObjects([settings.currentTheme imageReferenceForKey:kVibeThemeImageDefaultArtworkDark], reference);
     [settings undoThemeEdit];
-    settings.currentTheme.showFileInfo = NO;
+    settings.currentTheme.showTransportButtons = NO;
     [settings currentThemeDidChange];
     XCTAssertFalse(settings.canRedoThemeEdit);
     XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:path]);
     [settings undoThemeEdit];
     [settings applyThemeWithIdentifier:@"vibe"];
     XCTAssertFalse(settings.canRedoThemeEdit);
-    settings.currentTheme.showFileInfo = NO;
+    settings.currentTheme.showTransportButtons = NO;
     [settings currentThemeDidChange];
     [settings undoThemeEdit];
     [settings factoryReset];
@@ -1965,11 +1930,11 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     [settings.currentTheme setImageReference:@"" forKey:kVibeThemeImageDefaultArtworkDark];
     [settings currentThemeDidChangeContinuous:YES atTime:100];
     for (NSUInteger i = 0; i < 49; i++) {
-        settings.currentTheme.showFileInfo = !settings.currentTheme.showFileInfo;
+        settings.currentTheme.showTransportButtons = !settings.currentTheme.showTransportButtons;
         [settings currentThemeDidChangeContinuous:YES atTime:103 + i * 3];
     }
     XCTAssertTrue([NSFileManager.defaultManager fileExistsAtPath:path]);
-    settings.currentTheme.showFileInfo = !settings.currentTheme.showFileInfo;
+    settings.currentTheme.showTransportButtons = !settings.currentTheme.showTransportButtons;
     [settings currentThemeDidChangeContinuous:YES atTime:250];
     XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:path]);
 }
@@ -2049,9 +2014,9 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     [settings factoryReset];
     // A casual edit over a built-in diverges the working record, not the built-in.
     [settings applyThemeWithIdentifier:@"vibe"];
-    settings.currentTheme.showFileInfo = NO;
+    settings.currentTheme.showTransportButtons = NO;
     [settings currentThemeDidChange];
-    XCTAssertFalse(settings.currentTheme.showFileInfo);
+    XCTAssertFalse(settings.currentTheme.showTransportButtons);
     XCTAssertEqualObjects([AppTheme builtInRecordForIdentifier:@"vibe"], @{});
 
     NSString *identifier = [settings addUserThemeWithRecord:@{} name:@"Doomed"];
@@ -2106,10 +2071,10 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     [settings renameUserThemeWithIdentifier:identifier toName:@"Renamed"];
     XCTAssertEqualObjects([settings displayNameForThemeIdentifier:identifier], @"Renamed");
     [settings renameUserThemeWithIdentifier:identifier toName:@"Renamed"];
-    settings.currentTheme.showFileInfo = NO;
+    settings.currentTheme.showTransportButtons = NO;
     [settings currentThemeDidChange];
     [settings undoThemeEdit];
-    XCTAssertTrue(settings.currentTheme.showFileInfo);
+    XCTAssertTrue(settings.currentTheme.showTransportButtons);
     XCTAssertEqualObjects([settings displayNameForThemeIdentifier:identifier], @"Renamed",
                           @"the field edit undone, the rename still stands");
     [settings undoThemeEdit];
@@ -2145,6 +2110,53 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     AppSettings *reloaded = [AppSettings new];
     NSArray *expected = [[AppTheme builtInThemeIdentifiers] arrayByAddingObject:real];
     XCTAssertEqualObjects([reloaded orderedThemeIdentifiers], expected);
+    [settings factoryReset];
+}
+
+// Themes carried the display choices through 1.14: the active theme's become
+// the app-wide settings, once, and no stored record keeps them.
+- (void)testThemeDisplayChoicesMigrateFromTheActiveThemeOnce {
+    AppSettings *settings = AppSettings.sharedInstance;
+    [settings factoryReset];
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    [defaults setObject:@[
+        @{kVibeThemeRecordIdentifierKey: @"user-active", kVibeThemeRecordNameKey: @"Active",
+          @"showBPM": @NO, @"keyNotation": @"musical", @"showPlaylistArtworkColumn": @NO,
+          @"dockIcon": @"app_icon", @"windowTint": @"mono"},
+        @{kVibeThemeRecordIdentifierKey: @"user-other", kVibeThemeRecordNameKey: @"Other",
+          @"showKey": @NO},
+    ] forKey:@"Appearance.userThemes"];
+    [defaults setObject:@"user-active" forKey:@"Appearance.activeTheme"];
+
+    AppSettings *migrated = [AppSettings new];
+    XCTAssertFalse(migrated.showBPM);
+    XCTAssertEqualObjects(migrated.keyNotation, @"musical");
+    XCTAssertFalse(migrated.showPlaylistArtworkColumn);
+    XCTAssertEqualObjects(migrated.dockIcon, @"app_icon");
+    XCTAssertTrue(migrated.showKey, @"an inactive theme's choice is not the user's");
+    NSArray *stored = [defaults arrayForKey:@"Appearance.userThemes"];
+    XCTAssertEqualObjects(stored[0], (@{kVibeThemeRecordIdentifierKey: @"user-active",
+                                        kVibeThemeRecordNameKey: @"Active", @"windowTint": @"mono"}));
+    XCTAssertEqualObjects(stored[1], (@{kVibeThemeRecordIdentifierKey: @"user-other",
+                                        kVibeThemeRecordNameKey: @"Other"}));
+
+    migrated.showBPM = YES;
+    XCTAssertTrue([AppSettings new].showBPM);
+    [settings factoryReset];
+}
+
+- (void)testABuiltInDivergenceOfOnlyDisplayChoicesMigratesToNone {
+    AppSettings *settings = AppSettings.sharedInstance;
+    [settings factoryReset];
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    [defaults setObject:@"technical" forKey:@"Appearance.activeTheme"];
+    NSMutableDictionary *working = [[AppTheme builtInRecordForIdentifier:@"technical"] mutableCopy];
+    working[@"showFileInfo"] = @NO;
+    [defaults setObject:working forKey:@"Appearance.currentTheme"];
+
+    AppSettings *migrated = [AppSettings new];
+    XCTAssertFalse(migrated.showFileInfo);
+    XCTAssertFalse(migrated.currentThemeIsModified);
     [settings factoryReset];
 }
 

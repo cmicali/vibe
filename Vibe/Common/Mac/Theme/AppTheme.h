@@ -8,6 +8,10 @@
 // the same gate, so an import, a stored record and a UI edit obey one set of
 // rules. Values are plist/JSON types, colors #RRGGBB[AA]. macOS-only.
 //
+// A theme is how the window looks, never what it shows: which readouts,
+// columns and Dock tile appear are app-wide settings (AppSettings+Mac.h), so
+// switching themes cannot hide a readout.
+//
 
 #import <Foundation/Foundation.h>
 #import "PlatformTypes.h"
@@ -32,11 +36,6 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 #define SETTINGS_VALUE_WINDOW_BACKGROUND_FROSTED            @"frosted"
 #define SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID              @"solid"
 #define SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR              @"clear"
-
-// The Dock tile while a track with artwork plays: its cover (default), or the
-// app icon throughout.
-#define SETTINGS_VALUE_DOCK_ICON_ALBUM_ART                  @"album_art"
-#define SETTINGS_VALUE_DOCK_ICON_APP_ICON                   @"app_icon"
 
 #define SETTINGS_VALUE_BUTTON_GRADIENT_NONE                 @"none"
 #define SETTINGS_VALUE_BUTTON_GRADIENT_HOVER                @"hover"
@@ -244,7 +243,6 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 @property (nonatomic) CGFloat windowCornerRadius;
 @property (nonatomic) BOOL customCornerRadius;
 @property (readonly, nonatomic) CGFloat resolvedWindowCornerRadius;
-@property (nonatomic, copy) NSString *dockIcon;             // album_art/app_icon
 // YES (default) composes the Dock's album art and a custom app icon onto the
 // icon grid; NO shows the picture as it is.
 @property (nonatomic) BOOL appIconShape;
@@ -257,17 +255,6 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 @property (nonatomic, copy) NSString *playButtonGlyph;
 @property (nonatomic, copy) NSString *pauseButtonGlyph;
 @property (nonatomic, copy) NSString *nextButtonGlyph;
-@property (nonatomic) BOOL showFileInfo;
-@property (nonatomic) BOOL showStatusIcons;
-@property (nonatomic) BOOL showTimeLabels;
-@property (nonatomic) BOOL showRemainingTime;
-@property (nonatomic) BOOL showBPM;
-@property (nonatomic) BOOL showKey;
-@property (nonatomic) BOOL showPlaylistNumberColumn;              // the playlist's number gutter
-@property (nonatomic) BOOL showPlaylistArtworkColumn;             // the playlist's art column
-@property (nonatomic) BOOL showPlaylistDurationColumn;            // the playlist's length column
-@property (nonatomic) BOOL keyColorsEnabled;
-@property (nonatomic, copy) NSString *keyNotation;          // camelot/musical
 @property (nonatomic, copy) NSString *volumeBar;            // mono/artwork/waveform (default)/custom
 @property (nonatomic, copy) NSString *volumeKnob;           // mono/bar (default)/artwork/waveform/custom
 @property (nonatomic) BOOL showVolumeLabels;                // "Vol" and the percentage
@@ -332,9 +319,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 #pragma mark Dice
 
 // The editor's dice. Settings rolls the appearance choices and fonts, never
-// colors, the playhead line, the column switches, the Info card, the Dock
-// choice or images. The styles are passed in because their registry is the
-// renderer's.
+// colors, the playhead line or images. The styles are passed in because their
+// registry is the renderer's.
 - (void)randomizeSettingsWithWaveformStyles:(NSArray<NSString *> *)styles;
 
 // Resets every pair and paints one hue in one of five schemes, switching on

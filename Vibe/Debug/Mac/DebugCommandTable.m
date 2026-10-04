@@ -235,6 +235,9 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             VibeDebugCmd(@"settings_click <control> [value]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugSettingsClick(tokens);
             }),
+            VibeDebugCmd(@"settings_reveal <control>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeDebugSettingsReveal(tokens);
+            }),
             VibeDebugCmd(@"settings_resize <width> <height>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugSettingsResize(tokens);
             }),
@@ -414,29 +417,6 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                         @"visible": @((BOOL)((window.occlusionState & NSWindowOcclusionStateVisible) != 0)),
                         @"displayAsleep": @((BOOL)(CGDisplayIsAsleep(CGMainDisplayID()) != 0))});
             }),
-            // App-side, not a CLI prefs write: the key display lives on the
-            // current theme, an in-memory object a cross-process defaults
-            // write cannot reach.
-            VibeDebugCmd(@"set_key_display <camelot|musical> <colors|plain>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                NSDictionary<NSString *, NSString *> *notations = @{
-                    @"camelot": SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
-                    @"musical": SETTINGS_VALUE_KEY_NOTATION_MUSICAL,
-                };
-                NSString *notation = tokens.count == 3 ? notations[tokens[1].lowercaseString] : nil;
-                BOOL colorsOn = tokens.count == 3 && [tokens[2] isEqualToString:@"colors"];
-                BOOL colorsOff = tokens.count == 3 && [tokens[2] isEqualToString:@"plain"];
-                if (!notation || (!colorsOn && !colorsOff)) {
-                    return VibeErrorJSON(@"usage: set_key_display <camelot|musical> <colors|plain>");
-                }
-                AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-                theme.keyNotation = notation;
-                theme.keyColorsEnabled = colorsOn;
-                [AppSettings.sharedInstance currentThemeDidChange];
-                [controller applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
-                return VibeJSONString(@{@"ok": @YES, @"keyNotation": notation,
-                                        @"keyColors": @(colorsOn)});
-            }),
-
             // By UID, not HAL device id, which an unplug and replug can
             // change; UID is also what AppSettings keys per-device modes by.
             // Name is the fallback, in resolveOutputDeviceForUID:name:'s

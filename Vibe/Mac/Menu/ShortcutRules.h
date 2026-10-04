@@ -114,7 +114,6 @@ static inline NSArray<NSArray *> *VibeShortcutTable(void) {
             @[kVibeMenuFXShortDelay,      @(VibeShortcutMake(17, 0))],   // T
             @[kVibeMenuShowPlaylist,      @(VibeShortcutMake(48, 0))],   // Tab
             @[kVibeMenuShowPitch,         @(VibeShortcutMake(35, 0))],   // P
-            @[kVibeMenuShowFileInfo,      @(kVibeShortcutNone)],
             @[VibeWindowSizeMenuIdentifier(VibeWindowSizePresetSmall),   @(kVibeShortcutNone)],
             @[VibeWindowSizeMenuIdentifier(VibeWindowSizePresetDefault), @(kVibeShortcutNone)],
             @[VibeWindowSizeMenuIdentifier(VibeWindowSizePresetLarge),   @(kVibeShortcutNone)],

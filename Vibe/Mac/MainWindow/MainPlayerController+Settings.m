@@ -159,7 +159,7 @@
     if (effects & VibeSettingsLiveEffectPlaylistAppearance) {
         [PlaylistTableView invalidateCellAttributes];
         [self.playerContentView applyPlaylistBackground];
-        [self.playlistTableView applyThemedColumnVisibility];
+        [self.playlistTableView applyColumnVisibility];
         [self.playlistTableView reloadData];
     }
     if (effects & VibeSettingsLiveEffectWaveformStyle) {

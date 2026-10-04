@@ -34,12 +34,14 @@ In **Settings > Appearance**:
    apply live, so keep a track playing and watch the player as you go.
 3. Name it at the top of the editor page.
 
-The editor is organized the way the player is: **App icon** (the app and
-Dock icons), **Window** (color modes, background, tint, corner radius),
+The editor is organized the way the player is: **App icon** (the app icon and
+its shape), **Window** (color modes, background, tint, corner radius),
 **Player display** (default artwork, the waveform's style, bars, colors and
 playhead line, title and artist fonts and colors), **Playback buttons**, **Track
-information** (the file-info line, BPM and key), **Time display**, and
-**Playlist** (background, fonts, columns, row highlights).
+information** (the readouts' font and colors), **Volume slider**, and
+**Playlist** (background, fonts, colors, row highlights). What the player
+shows — the readouts, the playlist's columns, the Dock icon — is not part of a
+theme: it is under Settings > Appearance, and stays put when you switch.
 
 Two things worth knowing:
 

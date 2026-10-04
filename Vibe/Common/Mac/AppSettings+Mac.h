@@ -32,6 +32,11 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTINGS_VALUE_KEY_NOTATION_CAMELOT                 @"camelot"
 #define SETTINGS_VALUE_KEY_NOTATION_MUSICAL                 @"musical"
 
+// The Dock tile while a track with artwork plays: its cover (default), or the
+// app icon throughout.
+#define SETTINGS_VALUE_DOCK_ICON_ALBUM_ART                  @"album_art"
+#define SETTINGS_VALUE_DOCK_ICON_APP_ICON                   @"app_icon"
+
 // A drag on the waveform: drag_window (default) moves the window and only a
 // stationary click seeks; seek scrubs.
 #define SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW                 @"drag_window"
@@ -98,6 +103,25 @@ static const double kVibeWaveformGainMaxDB = 12;
 // A writer requests VibeSettingsLiveEffectTrafficLights.
 - (BOOL)showTrafficLights;
 - (void)setShowTrafficLights:(BOOL)show;
+
+#pragma mark Player display
+
+// What the window shows, whatever the theme. Every header readout's writer
+// requests VibeSettingsLiveEffectTrackDisplay.
+@property (nonatomic) BOOL showTimeLabels;
+@property (nonatomic) BOOL showRemainingTime;
+@property (nonatomic) BOOL showStatusIcons;     // the FX and bit-perfect symbols
+@property (nonatomic) BOOL showFileInfo;        // the codec line and the BPM/key line
+@property (nonatomic) BOOL showBPM;
+@property (nonatomic) BOOL showKey;
+@property (nonatomic, copy) NSString *keyNotation;  // camelot/musical
+@property (nonatomic) BOOL keyColorsEnabled;
+// The column writers request VibeSettingsLiveEffectPlaylistAppearance.
+@property (nonatomic) BOOL showPlaylistNumberColumn;
+@property (nonatomic) BOOL showPlaylistArtworkColumn;
+@property (nonatomic) BOOL showPlaylistDurationColumn;
+// album_art/app_icon. A writer requests VibeSettingsLiveEffectAppIcon.
+@property (nonatomic, copy) NSString *dockIcon;
 
 
 #pragma mark Themes

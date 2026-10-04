@@ -502,8 +502,7 @@ THEME_GROUPS = {
     "playlist": ["backgroundColorDark", "backgroundColorLight", "backgroundStyle",
                  "durationFontFace", "fontFace", "fontSize", "durationFontSize",
                  "playingRowColorDark", "playingRowColorLight",
-                 "selectedRowColorDark", "selectedRowColorLight",
-                 "showArtworkColumn", "showDurationColumn", "tint"],
+                 "selectedRowColorDark", "selectedRowColorLight", "tint"],
     "waveform": ["gradient", "playedColorDark", "playedColorLight", "style",
                  "theme", "unplayedColorDark", "unplayedColorLight"],
 }

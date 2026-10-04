@@ -20,7 +20,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setSmallSize:(BOOL)animate;
 - (void)setLargeSize:(BOOL)animate;
 
-// The window minus the pitch panel's slice: what View > Size sets and checks.
+// The window minus the pitch panel's slice: what View > Width sets and checks.
 @property (readonly) CGFloat contentWidth;
 - (void)setContentWidth:(CGFloat)width animate:(BOOL)animate;
 

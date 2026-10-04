@@ -68,7 +68,7 @@ NS_ASSUME_NONNULL_BEGIN
 // would keep the old image.
 - (void)refreshDefaultArtwork;
 
-// The installed crop or the app icon, per the theme's dockIcon.
+// The installed crop or the app icon, per AppSettings.dockIcon.
 - (void)applyDockIcon;
 
 @end
