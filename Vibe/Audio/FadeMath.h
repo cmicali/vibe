@@ -70,14 +70,16 @@ static inline BOOL VibeGaplessArmAllowed(NSInteger crossfadeMilliseconds, BOOL c
 }
 
 // The crossfade into the parked successor at a track's end: 0 while it is not
-// due, else its length. The setting is held to half the track, so a short one
-// is still heard, and to what remains, so the outgoing side lands on silence
+// due, else its length. The setting is held to half of each track, so a short
+// one is still heard whichever side it is on (one fading in for longer than
+// it lasts never reached full gain), and to what remains, so the outgoing side lands on silence
 // before its file ends. Due `lateness` early, the most the drain that notices
 // can be late; the outgoing side then reaches silence that much before its
 // end. A fade no longer than the declick is no crossfade: the track ends.
 static inline uint64_t VibeTrackEndCrossfadeMilliseconds(NSInteger crossfadeMilliseconds, NSTimeInterval remaining,
-                                                         NSTimeInterval duration, NSTimeInterval lateness) {
-    double fade = MIN((double)crossfadeMilliseconds / 1000.0, duration / 2);
+                                                         NSTimeInterval duration, NSTimeInterval nextDuration,
+                                                         NSTimeInterval lateness) {
+    double fade = MIN((double)crossfadeMilliseconds / 1000.0, MIN(duration, nextDuration) / 2);
     if (remaining > fade + lateness) {
         return 0;
     }
