@@ -67,6 +67,11 @@ static const CGFloat kPanePadding = 20;
 // Reads and writes NSControlStateValueOn/Off, like a checkbox.
 - (VibeSwitch *)switchWithAction:(SEL)action;
 
+// The slider made continuous and `width` wide, beside a fixed-width readout
+// the caller fills: a changing value never nudges the slider.
+- (NSStackView *)clusterWithSlider:(NSSlider *)slider width:(CGFloat)width
+                        valueLabel:(NSTextField *__strong _Nonnull *_Nonnull)outLabel;
+
 // A secondary-colored wrapping label for rowWithContentView:. It measures
 // its height at preferredMaxLayoutWidth, which the pane's viewDidLayout keeps
 // at the row's real width; its compression resistance sits below the fitting

@@ -1853,7 +1853,7 @@ static NSData *StereoTone(NSUInteger frames, double rate, double frequency, floa
     [_player play:tracks[0]];
     [self settleUntil:^BOOL { return [self count:@"start"] == 1; }];
     [_player prefetchTrack:tracks[1]];
-    [self settleUntil:^BOOL { return [self->_player.debugRenderCounts[@"parked"] boolValue] || self->_player.gaplessArmed; }];
+    [self settleUntil:^BOOL { return [self->_player.debugRenderCounts[@"prefetched"] boolValue] || self->_player.gaplessArmed; }];
 }
 
 // Each track's tone level per 50 ms window of the capture: 22 and 50 whole cycles.
@@ -1869,10 +1869,11 @@ static NSData *StereoTone(NSUInteger frames, double rate, double frequency, floa
 // The parked track must start its crossfade before the end, the two must
 // overlap at constant power, and the shell hears one auto-advance.
 - (void)testATrackEndCrossfadesIntoTheParkedTrack {
+    NSArray<NSURL *> *urls = [[self toneTracksOfSeconds:4 and:4] valueForKey:@"url"];
     for (NSNumber *crossfade in @[@500, @2000]) {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO]; _blockSize = 512;
         _player.crossfadeMilliseconds = crossfade.integerValue;
-        NSArray<AudioTrack *> *tracks = [self toneTracksOfSeconds:4 and:4];
+        NSArray<AudioTrack *> *tracks = @[[AudioTrack withURL:urls[0]], [AudioTrack withURL:urls[1]]];
         [self playParked:tracks];
         XCTAssertFalse(_player.gaplessArmed, @"a long crossfade never splices");
         NSData *capture = [self renderSeconds:5.5];
@@ -1916,10 +1917,11 @@ static NSData *StereoTone(NSUInteger frames, double rate, double frequency, floa
 // The setting moves under a playing track: raising it drops the splice and
 // crossfades the end; lowering it again splices.
 - (void)testChangingTheCrossfadeMidTrackSwitchesHowItEnds {
+    NSArray<NSURL *> *urls = [[self toneTracksOfSeconds:3 and:3] valueForKey:@"url"];
     for (NSNumber *raise in @[@YES, @NO]) {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO]; _blockSize = 512;
         _player.crossfadeMilliseconds = raise.boolValue ? 10 : 1000;
-        NSArray<AudioTrack *> *tracks = [self toneTracksOfSeconds:3 and:3];
+        NSArray<AudioTrack *> *tracks = @[[AudioTrack withURL:urls[0]], [AudioTrack withURL:urls[1]]];
         [self playParked:tracks];
         [self render:48000];
         _player.crossfadeMilliseconds = raise.boolValue ? 1000 : 10;

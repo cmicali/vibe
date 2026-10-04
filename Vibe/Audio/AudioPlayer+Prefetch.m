@@ -84,7 +84,6 @@
 // new base. The park is consumed with it, so a replay of the promoted row opens
 // its own file.
 - (void)promoteSuccessorOnQueue {
-    AudioTrack *finishedTrack = self.currentTrack;
     AudioTrack *startedTrack = _successorTrack;
     AudioFileHandle *startedFile = _successorFile;
     if (!startedTrack || !startedFile) {
@@ -99,39 +98,25 @@
     // after the window is taken is republished.
     BOOL estimated = NO;
     NSRange window = [startedTrack frameWindowInFile:startedFile estimated:&estimated];
-    _windowEstimated = estimated;
-    [self publishState:_state voice:_voice file:startedFile window:window startSeconds:0 baseFrames:snapshot.boundary];
-    self.currentTrack = startedTrack;
-    startedTrack.duration = self.duration;
-    [self armSignalProbeOnQueue:@"gapless boundary"];
-    uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
-    // A play or stop queued behind this promote rewrites currentTrack before
-    // the hop lands; advancing for a superseded splice strands the playlist a
-    // row ahead.
-    run_on_main_thread({
-        if (self.currentTrack != startedTrack || ![self submittedPlayIsCurrent:owningSubmittedPlayIdentifier]) {
-            return;
-        }
-        [self.delegate audioPlayer:self didAutoAdvanceFromTrack:finishedTrack toTrack:startedTrack];
-    });
+    [self adoptTrack:startedTrack file:startedFile window:window estimated:estimated
+               voice:_voice baseFrames:snapshot.boundary reason:@"gapless boundary"];
 }
 
 // A long crossfade's track end: the park starts as a voice of its own while
 // the current one fades out beside it, the promote's delivery without its
 // splice. Without this a long crossfade only lost gapless: the track played
 // out, and the shell's play: of the next found nothing audible to fade from.
-- (void)maybeCrossfadeIntoParkOnQueueWithLateness:(NSTimeInterval)lateness {
-    AudioTrack *finishedTrack = self.currentTrack;
+- (void)maybeCrossfadeIntoParkOnQueue {
     AudioTrack *startedTrack = _prefetchedTrack;
     AudioFileHandle *startedFile = _prefetchedFile;
-    if (_successorTrack || !startedTrack || !startedFile || startedFile == _file || !finishedTrack
+    if (_successorTrack || !startedTrack || !startedFile || startedFile == _file
             || _state != VibePlayerStatePlaying || _buffering || _windowEstimated
             || [self bitPerfectOnQueue] || ![self renderingOnQueue]) {
         return;
     }
     NSTimeInterval duration = self.duration;
-    uint64_t milliseconds = VibeTrackEndCrossfadeMilliseconds(self.crossfadeMilliseconds, duration - self.position,
-                                                              duration, lateness);
+    uint64_t milliseconds = VibeTrackEndCrossfadeMilliseconds(self.crossfadeMilliseconds, duration - self.position, duration,
+                                                              (NSTimeInterval)kDrainSteadyIntervalNanos / NSEC_PER_SEC);
     if (milliseconds == 0) {
         return;
     }
@@ -146,12 +131,24 @@
     VibeVoiceID voice = [self startVoiceOnQueueForFile:startedFile atFrame:(AVAudioFramePosition)window.location
                                               endFrame:[startedTrack endFrameInFile:startedFile]
                                       fadeMilliseconds:milliseconds paused:NO];
+    [self adoptTrack:startedTrack file:startedFile window:window estimated:estimated
+               voice:voice baseFrames:0 reason:@"track-end crossfade"];
+}
+
+// Both auto-advances end here: the started track is current at its window's
+// start on `voice`, `baseFrames` being the bus frames that voice consumed
+// before it, and the shell is told.
+- (void)adoptTrack:(AudioTrack *)startedTrack file:(AudioFileHandle *)file window:(NSRange)window
+         estimated:(BOOL)estimated voice:(VibeVoiceID)voice baseFrames:(uint64_t)baseFrames reason:(NSString *)reason {
+    AudioTrack *finishedTrack = self.currentTrack;
     _windowEstimated = estimated;
-    [self publishState:VibePlayerStatePlaying voice:voice file:startedFile window:window startSeconds:0 baseFrames:0];
+    [self publishState:_state voice:voice file:file window:window startSeconds:0 baseFrames:baseFrames];
     self.currentTrack = startedTrack;
     startedTrack.duration = self.duration;
-    [self armSignalProbeOnQueue:@"track-end crossfade"];
+    [self armSignalProbeOnQueue:reason];
     uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
+    // A play or stop queued behind this rewrites currentTrack before the hop
+    // lands; advancing for a superseded one strands the playlist a row ahead.
     run_on_main_thread({
         if (self.currentTrack != startedTrack || ![self submittedPlayIsCurrent:owningSubmittedPlayIdentifier]) {
             return;

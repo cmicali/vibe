@@ -30,12 +30,6 @@ static const NSTimeInterval kOutputIdleStopTailIntervalSeconds = 1.0;
 // A system stop's verdict (an interruption's pause, a route's recovery) lands
 // within milliseconds of it; past this, none is coming.
 static const NSTimeInterval kSystemStopVerdictSeconds = 1.0;
-// The hardware drain: the bus reports its events within the prompt interval
-// of their render while anything is due (updateDrainTimerOnQueue); otherwise
-// it only tops up rings at least half a second deep, and a tenth of the
-// wakeups do.
-static const uint64_t kDrainIntervalNanos = 10 * NSEC_PER_MSEC;
-static const uint64_t kDrainSteadyIntervalNanos = 100 * NSEC_PER_MSEC;
 // An output start holding the player queue longer than this is worth a line
 // even in stable builds.
 static const NSTimeInterval kSlowOutputStartLogThresholdSeconds = 0.25;
@@ -1290,7 +1284,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
         [self handleVoiceEventOnQueue:event voice:voice];
     }];
     [self updateBufferingOnQueue];
-    [self maybeCrossfadeIntoParkOnQueueWithLateness:(NSTimeInterval)kDrainSteadyIntervalNanos / NSEC_PER_SEC];
+    [self maybeCrossfadeIntoParkOnQueue];
     [self noteDrainOnQueue];
     [self updateDrainTimerOnQueue];
 }

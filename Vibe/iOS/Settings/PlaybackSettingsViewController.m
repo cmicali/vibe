@@ -181,6 +181,8 @@ static NSString *const kValueCellIdentifier = @"value";
         _crossfadeSlider.minimumValue = 0;
         _crossfadeSlider.maximumValue = kVibeCrossfadeMaxMilliseconds;
         [_crossfadeSlider addTarget:self action:@selector(crossfadeSlid:) forControlEvents:UIControlEventValueChanged];
+        [_crossfadeSlider addTarget:self action:@selector(crossfadeSettled:)
+                   forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside | UIControlEventTouchCancel];
         UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[header, _crossfadeSlider]];
         stack.axis = UILayoutConstraintAxisVertical;
         stack.spacing = 8;
@@ -199,12 +201,14 @@ static NSString *const kValueCellIdentifier = @"value";
 }
 
 - (void)renderCrossfade:(NSInteger)milliseconds {
-    _crossfadeSlider.value = milliseconds > kVibeCrossfadeOffMilliseconds ? (float)milliseconds : 0;
+    _crossfadeSlider.value = (float)milliseconds;
     _crossfadeValueLabel.text = [Formatters.sharedInstance crossfadeString:milliseconds];
 }
 
-// The knob snaps to the setting's steps; only a new step is written, since
-// each write re-parks the successor and republishes the play order.
+// The knob snaps to the setting's steps, each one stored as it is crossed.
+// The model applies once the drag ends: its apply also republishes the play
+// order and Now Playing, which a drag across thirty steps would repeat. An
+// adjustment without a drag — VoiceOver's — applies at once.
 - (void)crossfadeSlid:(UISlider *)slider {
     NSInteger milliseconds = VibeNormalizedCrossfadeMilliseconds(lroundf(slider.value));
     [self renderCrossfade:milliseconds];
@@ -212,6 +216,12 @@ static NSString *const kValueCellIdentifier = @"value";
         return;
     }
     AppSettings.sharedInstance.crossfadeMilliseconds = milliseconds;
+    if (!slider.tracking) {
+        [_playback applyTrackTransitionSettings];
+    }
+}
+
+- (void)crossfadeSettled:(UISlider *)slider {
     [_playback applyTrackTransitionSettings];
 }
 

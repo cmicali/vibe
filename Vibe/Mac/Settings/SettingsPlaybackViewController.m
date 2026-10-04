@@ -60,20 +60,14 @@ static NSString *const kOnEndPause = @"pause";
     // action snaps the knob to the setting's steps instead.
     _crossfadeSlider = [NSSlider sliderWithValue:0 minValue:0 maxValue:kVibeCrossfadeMaxMilliseconds
                                           target:self action:@selector(crossfadeChanged:)];
-    _crossfadeSlider.continuous = YES;
-    [_crossfadeSlider.widthAnchor constraintEqualToConstant:kPlaybackPopUpWidth - 60].active = YES;
-    _crossfadeValueLabel = [NSTextField labelWithString:@""];
-    _crossfadeValueLabel.textColor = NSColor.secondaryLabelColor;
-    // Fixed width, so a changing readout never nudges the slider.
-    _crossfadeValueLabel.alignment = NSTextAlignmentRight;
-    [_crossfadeValueLabel.widthAnchor constraintEqualToConstant:50].active = YES;
+    NSStackView *crossfadeCluster = [self clusterWithSlider:_crossfadeSlider width:kPlaybackPopUpWidth - 60
+                                                 valueLabel:&_crossfadeValueLabel];
 
     _enableFXSwitch = [self switchWithAction:@selector(toggleEnableFX:)];
     _detectBPMSwitch = [self switchWithAction:@selector(toggleDetectBPM:)];
     _detectKeySwitch = [self switchWithAction:@selector(toggleDetectKey:)];
 
-    _crossfadeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_CROSSFADE_LABEL
-                                         controls:@[_crossfadeSlider, _crossfadeValueLabel]];
+    _crossfadeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_CROSSFADE_LABEL control:crossfadeCluster];
     _enableFXRow = [SettingsRowView rowWithTitle:STR_SETTINGS_ENABLE_FX control:_enableFXSwitch];
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_TRANSITIONS_SECTION rows:@[
@@ -142,7 +136,7 @@ static NSString *const kOnEndPause = @"pause";
 }
 
 - (void)renderCrossfade:(NSInteger)milliseconds {
-    _crossfadeSlider.doubleValue = milliseconds > kVibeCrossfadeOffMilliseconds ? milliseconds : 0;
+    _crossfadeSlider.doubleValue = milliseconds;
     _crossfadeValueLabel.stringValue = [Formatters.sharedInstance crossfadeString:milliseconds];
 }
 

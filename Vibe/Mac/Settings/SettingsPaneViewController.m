@@ -321,6 +321,20 @@ static const CGFloat kInlineTitleInset = 10;
     }];
 }
 
+- (NSStackView *)clusterWithSlider:(NSSlider *)slider width:(CGFloat)width
+                        valueLabel:(NSTextField *__strong *)outLabel {
+    slider.continuous = YES;
+    [slider.widthAnchor constraintEqualToConstant:width].active = YES;
+    NSTextField *label = [NSTextField labelWithString:@""];
+    label.textColor = NSColor.secondaryLabelColor;
+    label.alignment = NSTextAlignmentRight;
+    [label.widthAnchor constraintEqualToConstant:50].active = YES;
+    *outLabel = label;
+    NSStackView *cluster = [NSStackView stackViewWithViews:@[slider, label]];
+    cluster.spacing = 10;
+    return cluster;
+}
+
 - (NSPopUpButton *)popUpButtonWithWidth:(CGFloat)width action:(SEL)action {
     NSPopUpButton *popUp = [[VibeInlinePopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
     if (action) {

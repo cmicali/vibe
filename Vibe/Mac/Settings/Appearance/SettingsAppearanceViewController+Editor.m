@@ -354,18 +354,8 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     VibeDetentSlider *slider = [VibeDetentSlider sliderWithValue:detent minValue:min maxValue:max
                                                           target:self action:action];
     slider.detentValue = detent;
-    slider.continuous = YES;
-    [slider.widthAnchor constraintEqualToConstant:kAppearancePopUpWidth].active = YES;
-    NSTextField *label = [NSTextField labelWithString:@""];
-    label.textColor = NSColor.secondaryLabelColor;
-    // Fixed width, so a changing digit count never nudges the slider.
-    label.alignment = NSTextAlignmentRight;
-    [label.widthAnchor constraintEqualToConstant:50].active = YES;
     *outSlider = slider;
-    *outLabel = label;
-    NSStackView *cluster = [NSStackView stackViewWithViews:@[slider, label]];
-    cluster.spacing = 10;
-    return cluster;
+    return [self clusterWithSlider:slider width:kAppearancePopUpWidth valueLabel:outLabel];
 }
 
 - (void)buildEditorPage {
