@@ -258,7 +258,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
 }
 
 - (void)applyPlaybackLoadingToCell:(TrackPageCell *)cell atIndex:(NSUInteger)index {
-    BOOL loading = _playbackOpenLoading && index == _playlist.currentIndex;
+    BOOL loading = _playback.currentOpenSlow && index == _playlist.currentIndex;
     if (cell.waveformView.playbackLoading != loading) {
         cell.waveformView.playbackLoading = loading;
     }

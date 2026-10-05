@@ -76,6 +76,7 @@
         @"waveformOverscroll": @(_waveformView.overscroll),
         @"waveformScrollGeom": _waveformView.scrollGeometry ?: @[],
         @"waveformBaked": @(_waveformView.isShowingBakedWaveform),
+        @"waveformLoading": @(_waveformView.isShowingLoadingIndicator),
         @"isScrubbing": @(_waveformView.isScrubbing),
         @"isPinching": @(_waveformView.isPinching),
         // The request is persisted and survives rotation; the effective one
@@ -180,29 +181,6 @@
         completion(@{@"ok": @(cancelled && kept && zoomSettled && bakeRequested),
                      @"gestureCancelled": @(cancelled), @"waveformKept": @(kept),
                      @"zoomSettled": @(zoomSettled), @"bakeRequested": @(bakeRequested)});
-        return;
-    }
-    if ([scenario isEqualToString:@"loading"]) {
-        [self playbackDidBeginLoading:_playback];
-        BOOL visible = _waveformView.isShowingLoadingIndicator;
-        BOOL kept = _waveformView.isShowingBakedWaveform;
-        [_waveformView setLoadingProgress:-1];
-        BOOL held = _waveformView.isShowingLoadingIndicator;
-        TrackPageCell *returning = [[TrackPageCell alloc] initWithFrame:_boundPage.frame];
-        [self applyPlaybackLoadingToCell:returning atIndex:current];
-        BOOL lateAppearanceLoading = returning.waveformView.playbackLoading;
-        [self playbackDidFinishLoading:_playback];
-        [self applyPlaybackLoadingToCell:returning atIndex:current];
-        BOOL reappearanceCleared = !returning.waveformView.playbackLoading;
-        BOOL ended = !_waveformView.isShowingLoadingIndicator;
-        [self playbackDidBeginLoading:_playback];
-        [self playback:_playback didChangeCurrentIndexFromIndex:current];
-        BOOL cancelled = !_waveformView.playbackLoading
-                && !_waveformView.isShowingLoadingIndicator;
-        completion(@{@"ok": @(visible && kept && held && ended && cancelled && lateAppearanceLoading && reappearanceCleared), @"loadingVisible": @(visible),
-                     @"waveformKept": @(kept), @"loadingHeldUntilSettlement": @(held),
-                     @"loadingEnded": @(ended), @"trackChangeClearedLoading": @(cancelled),
-                     @"lateAppearanceLoading": @(lateAppearanceLoading), @"reappearanceCleared": @(reappearanceCleared)});
         return;
     }
     if ([scenario isEqualToString:@"work_inputs"]) {

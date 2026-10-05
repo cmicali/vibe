@@ -42,13 +42,14 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     if (![_playlist isCurrentTrack:track]) {
         return;
     }
-    [self notifyDidBeginLoading];
+    // Before the notify: observers read currentOpenSlow.
     if (_loadingOpenRequestIdentifier != openRequestIdentifier) {
         _loadingURL = track.url;
         _loadingPath = VibeStandardizedAudioOpenPath(track.url);
         _loadingOpenRequestIdentifier = openRequestIdentifier;
         _loadingProgress = -1;
     }
+    [self notifyDidBeginLoading];
     // The transfer may be well under way by the slow-open threshold.
     [self cloudTransferRegistryDidChange:CloudTransferRegistry.sharedRegistry];
     [self publishNowPlaying];
@@ -82,7 +83,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 #pragma mark - CloudTransferRegistryObserver: the loading open's transfer
 
 - (void)cloudTransferRegistryDidChange:(CloudTransferRegistry *)registry {
-    if (!_loadingURL || ![_playlist.currentTrack.url isEqual:_loadingURL]) {
+    if (!_loadingURL) {
         return;
     }
     float fraction = [registry progressForURL:_loadingURL];

@@ -577,7 +577,6 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 #pragma mark - PlaybackObserver: the playlist
 
 - (void)playbackDidReplacePlaylist:(PlaybackController *)playback {
-    _playbackOpenLoading = NO;
     [_artHeldPages removeAllIndexes];
     [_waveformCoordinator reset];
     [self clearPreparedWaveforms];
@@ -621,7 +620,6 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 // A track change ends every held interaction, including one on an outgoing
 // page. Each view releases its own pager hold without committing a seek.
 - (void)playback:(PlaybackController *)playback didChangeCurrentIndexFromIndex:(NSUInteger)previousIndex {
-    _playbackOpenLoading = NO;
     [self applyPlaybackLoadingToVisiblePages];
     // Every holder is an FXPadView or a WaveformScrubberView.
     [_pagerHoldViews.allObjects makeObjectsPerformSelector:@selector(cancelInteraction)];
@@ -649,7 +647,6 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 #pragma mark - PlaybackObserver: the current track's open
 
 - (void)playbackDidBeginLoading:(PlaybackController *)playback {
-    _playbackOpenLoading = YES;
     [self hydrateWaveformInCell:[self cellAtIndex:playback.currentIndex] atIndex:playback.currentIndex];
     [self applyPlaybackLoadingToVisiblePages];
 }
@@ -666,14 +663,12 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 // moved: the cursor's request skipped it (requestWaveformForIndex:). A page
 // still loading or complete ignores this one.
 - (void)playbackDidFinishLoading:(PlaybackController *)playback {
-    _playbackOpenLoading = NO;
     [self applyPlaybackLoadingToVisiblePages];
     [self hydrateWaveformInCell:[self cellAtIndex:playback.currentIndex] atIndex:playback.currentIndex];
     [self requestWaveformForIndex:playback.currentIndex];
 }
 
 - (void)playbackDidFailCurrentTrack:(PlaybackController *)playback {
-    _playbackOpenLoading = NO;
     [self applyPlaybackLoadingToVisiblePages];
     [_waveformView hideLoadingIndicator];
 }

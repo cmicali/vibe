@@ -361,6 +361,10 @@ static const NSUInteger kUIUpdateHz = 3;
     return _seekInFlight;
 }
 
+- (BOOL)currentOpenSlow {
+    return _loadingOpenRequestIdentifier != 0;
+}
+
 - (float)pendingSeekProgress {
     return _pendingSeekProgress;
 }
@@ -381,6 +385,8 @@ static const NSUInteger kUIUpdateHz = 3;
     // open waits behind neither; the session first, because a parked file
     // settles inline and starts the output unit at once.
     [_audioSession activate];
+    // A replay of the same row moves no cursor.
+    [self endLoadingProgress];
     [_player play:track];
     [self notifyDidRenderCurrentTrack];
     [self notifyDidMoveToCurrentTrackAnimated:YES];
@@ -1042,6 +1048,7 @@ static const NSTimeInterval kOpeningTimeout = 25;
 
 - (void)playlistDidReplaceAllTracks:(Playlist *)playlist {
     // A replacement resets the index without the index-change event.
+    [self endLoadingProgress];
     [self updateMetadataNeighborhood];
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {
         if ([observer respondsToSelector:@selector(playbackDidReplacePlaylist:)]) {
@@ -1082,6 +1089,7 @@ static const NSTimeInterval kOpeningTimeout = 25;
 }
 
 - (void)playlist:(Playlist *)playlist currentIndexDidChangeFromIndex:(NSUInteger)previousIndex {
+    [self endLoadingProgress];
     [self updateMetadataNeighborhood];
     // The effects belong to the track they were played over: a change cuts
     // them, tails ringing out, before the card hears of it and drops its pad.
