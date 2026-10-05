@@ -8,7 +8,7 @@
 //       [--next-file <file>] [--reference <file>] [--idle-resume-at <seconds>]
 //       [--ordinary] [--save-capture <path>]
 //   --acceptance <fixture-dir> [device] --play-app <binary> [--force-volume]
-//       [--switch-device <device>] [--require-driver-fixtures]
+//       [--switch-device <device>] [--require-driver-fixtures] [--rate-switch-iterations <count>]
 //   --blackhole-check  (same arguments): only the driver and lifecycle cases
 //   --device-check <file> [device] --play-app <binary> [--require-exclusive]
 //   --self-test | --compare <reference> <capture>      (no hardware)
@@ -379,6 +379,13 @@ let alternateDevice = option("--switch-device") ?? (requireDriverFixtures && acc
 let capturePath = option("--save-capture")
 let nextFile = option("--next-file").map { URL(fileURLWithPath: $0).standardizedFileURL.path }
 let referenceFile = option("--reference")
+var rateSwitchIterations = 10
+if let raw = option("--rate-switch-iterations") {
+    guard acceptance, let count = Int(raw), (1...1000).contains(count) else {
+        fail("--rate-switch-iterations requires --acceptance and a count from 1 to 1000")
+    }
+    rateSwitchIterations = count
+}
 var resumePosition: Double?
 if let raw = option("--idle-resume-at") {
     guard let value = Double(raw), value.isFinite, value >= 0 else {
@@ -396,7 +403,7 @@ let forceVolume = arguments.contains("--force-volume")
 let setRate = arguments.contains("--set-rate")
 arguments.removeAll { $0 == "--force-volume" || $0 == "--set-rate" }
 guard (2...3).contains(arguments.count), let seconds = Double(arguments[1]), seconds.isFinite, seconds > 0, seconds <= 120 else {
-    fail("usage: verify-bit-perfect <file> <seconds> [device] [--play-app binary] [--set-rate] [--force-volume] [--next-file file] [--reference file] [--idle-resume-at seconds] [--ordinary] [--save-capture path]; or --acceptance|--blackhole-check <fixtures> [device] --play-app binary [--force-volume] [--switch-device device] [--require-driver-fixtures]; or --device-check <file> [device] --play-app binary [--require-exclusive]; or --self-test; or --compare reference capture")
+    fail("usage: verify-bit-perfect <file> <seconds> [device] [--play-app binary] [--set-rate] [--force-volume] [--next-file file] [--reference file] [--idle-resume-at seconds] [--ordinary] [--save-capture path]; or --acceptance|--blackhole-check <fixtures> [device] --play-app binary [--force-volume] [--switch-device device] [--require-driver-fixtures] [--rate-switch-iterations count]; or --device-check <file> [device] --play-app binary [--require-exclusive]; or --self-test; or --compare reference capture")
 }
 let fileURL = URL(fileURLWithPath: arguments[0])
 let deviceName = arguments.count >= 3 ? arguments[2] : "BlackHole 2ch"
@@ -796,24 +803,27 @@ if acceptance || blackholeCheck {
     waitFor("stop unloads") { player(binary)["state"] as? String == "stopped" }
     captureCase("stop-replay", "noise-48000-24-2.wav")
     captureCase("gapless-same-format", "noise-48000-16-2.wav", ["--next-file", second])
-    _ = debug(binary, ["open", playlistPath([first, second])])
-    started(first, active: true)
-    let deadline = Date().addingTimeInterval(6)
-    var switched = false
-    repeat {
-        let state = debug(binary, ["dump_state"]), live = state["player"] as? [String: Any] ?? [:]
-        if (state["currentTrack"] as? [String: Any])?["url"] as? String == second,
-           (live["position"] as? Double ?? 0) > 0,
-           (live["bitPerfect"] as? [String: Any])?["sampleRate"] as? Double == 48000 {
-            switched = true; report(["case": "rate-switch-boundary", "player": live]); break
-        }
-        guard live["gaplessArmed"] as? Bool == false else { fail("a hardware rate switch armed a gapless splice") }
-        pause(0.02)
-    } while Date() < deadline
-    guard switched, nominalRate(device) == 48000 else { fail("track boundary did not switch to 48 kHz") }
-    // A hardware switch interrupts capture; prove the settled destination's
-    // PCM on a fresh replay, without claiming sample continuity at that edge.
-    captureCase("after-rate-switch", "noise-48000-24-2.wav")
+    for iteration in 1...rateSwitchIterations {
+        report(["rateSwitchIteration": iteration])
+        _ = debug(binary, ["open", playlistPath([first, second])])
+        started(first, active: true)
+        let deadline = Date().addingTimeInterval(6)
+        var switched = false
+        repeat {
+            let state = debug(binary, ["dump_state"]), live = state["player"] as? [String: Any] ?? [:]
+            if (state["currentTrack"] as? [String: Any])?["url"] as? String == second,
+               (live["position"] as? Double ?? 0) > 0,
+               (live["bitPerfect"] as? [String: Any])?["sampleRate"] as? Double == 48000 {
+                switched = true; report(["case": "rate-switch-boundary", "iteration": iteration, "player": live]); break
+            }
+            guard live["gaplessArmed"] as? Bool == false else { fail("a hardware rate switch armed a gapless splice") }
+            pause(0.02)
+        } while Date() < deadline
+        guard switched, nominalRate(device) == 48000 else { fail("track boundary did not switch to 48 kHz") }
+        // A hardware switch interrupts capture; prove the settled destination's
+        // PCM on a fresh replay, without claiming sample continuity at that edge.
+        captureCase("after-rate-switch-\(iteration)", "noise-48000-24-2.wav")
+    }
     _ = debug(binary, ["open", first]); started(first, active: true)
     for iteration in 0..<12 {
         let enabled = iteration % 2 != 0
@@ -1058,7 +1068,10 @@ if acceptance || blackholeCheck {
             device = reconnectedDevice()!
             waitFor("remembered device restored after \(state) removal") {
                 let live = player(binary), facts = live["bitPerfect"] as? [String: Any] ?? [:]
-                return live["requestedOutputDeviceId"] as? Int == Int(device)
+                // HAL object IDs can differ between processes after replug.
+                return live["outputDeviceUID"] as? String == uid
+                    && (live["requestedOutputDeviceId"] as? Int ?? -1) >= 0
+                    && live["requestedOutputDeviceId"] as? Int == live["outputDeviceId"] as? Int
                     && facts["pendingDeviceUID"] as? String == ""
                     && facts["bitPerfectWanted"] as? Bool == true
             }

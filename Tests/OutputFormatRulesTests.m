@@ -1216,6 +1216,57 @@ static int32_t VibeGate(AudioOutputUnit *unit) {
     return atomic_load_explicit(&unit.state->gate, memory_order_seq_cst);
 }
 
+- (void)testAConfigurationFinishingAfterStopReplacementOrShutdownCannotStartObsoletePlayback {
+    for (NSNumber *action in @[@0, @1, @2]) {
+        AudioOutputUnit *unit = [[AudioOutputUnit alloc] init];
+        dispatch_semaphore_t entered = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
+        NSMutableArray<NSNumber *> *configured = [NSMutableArray array];
+        NSMutableArray<NSNumber *> *started = [NSMutableArray array];
+        Method configure = class_getInstanceMethod(AudioOutputUnit.class, @selector(halConfigureFormat:renderProc:refCon:));
+        IMP replacement = imp_implementationWithBlock(^(AudioOutputUnit *receiver, AVAudioFormat *format,
+                                                        VibeOutputRenderProc proc, void *refCon) {
+            if (configured.count == 0) {
+                dispatch_semaphore_signal(entered);
+                dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
+            }
+            [configured addObject:@(format.sampleRate)];
+        });
+        IMP original = method_setImplementation(configure, replacement);
+        @try {
+            VibeWithHALStart(^OSStatus {
+                [started addObject:configured.lastObject];
+                return noErr;
+            }, ^{
+                [unit configureFormat:[[AVAudioFormat alloc] initStandardFormatWithSampleRate:44100 channels:2]
+                           renderProc:VibeTestRenderProc refCon:NULL];
+                [unit start];
+                XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
+                uint64_t oldStart = unit.runGeneration;
+                if (action.intValue == 2) [unit markDead];
+                else [unit stop];
+                XCTAssertEqual(VibeGate(unit), 0);
+                XCTAssertNotEqual(unit.runGeneration, oldStart);
+                if (action.intValue == 1) {
+                    [unit configureFormat:[[AVAudioFormat alloc] initStandardFormatWithSampleRate:48000 channels:2]
+                               renderProc:VibeTestRenderProc refCon:NULL];
+                    [unit start];
+                }
+                dispatch_semaphore_signal(release);
+                [unit waitUntilIdle];
+                XCTAssertEqualObjects(started, action.intValue == 1 ? @[@48000] : @[], @"action %@", action);
+                XCTAssertEqual(VibeGate(unit), action.intValue == 1 ? 1 : 0);
+                [unit stop];
+                [unit waitUntilIdle];
+            });
+        } @finally {
+            dispatch_semaphore_signal(release);
+            [unit waitUntilIdle];
+            method_setImplementation(configure, original);
+            imp_removeBlock(replacement);
+        }
+    }
+}
+
 // The device's IO thread is waited for on the unit's own queue, never the
 // player's. A stop closes the gate at once, even mid-wait.
 - (void)testAStartReturnsBeforeTheDeviceHasStartedAndAStopClosesTheGateAtOnce {

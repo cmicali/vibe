@@ -97,8 +97,10 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 #endif
 
 // Stopped only: uninitialize, set the input stream format, remember the
-// proc, initialize. refCon is the caller's to keep valid until the next
-// configure or the unit's end. A refusal fails the next start.
+// proc, initialize. On macOS the HALOutput instance is replaced first and
+// rebound to the last landed device, so it reads that device's current
+// format. refCon is the caller's to keep valid until the next configure or
+// the unit's end. A refusal fails the next start.
 - (void)configureFormat:(AVAudioFormat *)format
              renderProc:(VibeOutputRenderProc)renderProc
                  refCon:(void * _Nullable)refCon;
