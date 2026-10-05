@@ -866,8 +866,8 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
     }
 }
 
-// An estimate within one chunk of the exact length keeps its first pass: the
-// estimate moved no chunk's boundary but the last one's. Here four tail frames
+// An estimate within one chunk of the exact length keeps its first pass: every
+// chunk boundary moved by less than a chunk. Here four tail frames
 // at a higher rate, past the head the estimate walks, make it one packet over
 // on a file long enough that a chunk outspans a packet, and the pass sized by
 // it is delivered complete and persisted under the file's key; eight make it
