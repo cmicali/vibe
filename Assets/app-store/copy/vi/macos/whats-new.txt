@@ -3,7 +3,7 @@
 * Mới: phát Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R và ADTS
 * Mới: ngăn Phím tắt bàn phím trong Cài đặt để thay đổi bất kỳ phím tắt nào
 * Mới: thanh trượt Crossfade, từ tắt đến tối đa 3 giây, mỗi bước một phần mười giây
-* Mới: kiểu dạng sóng 3 dải và chủ đề Record Bin dùng kiểu này
+* Mới: kiểu dạng sóng 3 dải và chủ đề Rekord Bin dùng kiểu này
 * Mới: tùy chọn Đường đầu phát, với toàn bộ dạng sóng hiển thị đủ màu
 * Thay đổi: cửa sổ Cài đặt được sắp xếp lại, có thêm tìm kiếm
 * Cải thiện: tua FLAC gần như tức thì dù tệp dài, dùng ít CPU và bộ nhớ hơn, tương thích tốt hơn

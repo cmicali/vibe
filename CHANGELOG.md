@@ -4,7 +4,7 @@
 * Added CUE sheet (file and embedded) playback
 * Added Ogg Opus, Ogg Vorbis (mac only), CAF, W64, M4B, M4R, and ADTS playback
 * Added a crossfade slider, from off up to 3 seconds in tenths of a second, in place of the three fixed choices
-* Added the 3-Band waveform style and Record Bin theme (mac only) that uses it
+* Added the 3-Band waveform style and Rekord Bin theme (mac only) that uses it
 * Added a playhead line option for waveforms
 * Improved FLAC decoding: seeking is now near-instant even for long files, less CPU and memory, and better compatibility
 * Improved WAV and AIFF decoding: 1.4x–3.2x faster, better compatibility

@@ -3,7 +3,7 @@
 * Nowość: odtwarzanie Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R i ADTS
 * Nowość: panel Skróty klawiszowe w Ustawieniach do zmiany dowolnego skrótu
 * Nowość: suwak crossfade, od wyłączenia do 3 sekund co jedną dziesiątą sekundy
-* Nowość: styl kształtu fali 3 pasma oraz motyw Record Bin, który go używa
+* Nowość: styl kształtu fali 3 pasma oraz motyw Rekord Bin, który go używa
 * Nowość: opcja linii głowicy, z całym kształtem fali w pełnym kolorze
 * Zmiana: okno Ustawień zostało przeorganizowane i ma wyszukiwanie
 * Ulepszenie: przewijanie w FLAC jest niemal natychmiastowe nawet w długich plikach, przy mniejszym użyciu CPU i pamięci oraz lepszej zgodności

@@ -3,7 +3,7 @@
 * Baru: pemutaran Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R, dan ADTS
 * Baru: panel Pintasan Papan Ketik di Pengaturan untuk mengubah pintasan apa pun
 * Baru: penggeser crossfade, dari mati hingga 3 detik dalam kelipatan sepersepuluh detik
-* Baru: gaya bentuk gelombang 3 Pita, dan tema Record Bin yang menggunakannya
+* Baru: gaya bentuk gelombang 3 Pita, dan tema Rekord Bin yang menggunakannya
 * Baru: opsi garis kepala pemutar, dengan seluruh bentuk gelombang berwarna penuh
 * Perubahan: jendela Pengaturan ditata ulang, dilengkapi pencarian
 * Peningkatan: pencarian posisi di FLAC hampir instan bahkan di file panjang, dengan CPU dan memori lebih hemat serta kompatibilitas lebih baik
