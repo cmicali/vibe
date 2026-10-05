@@ -15,15 +15,14 @@
 // A press that travels further than this is a drag, not a click.
 static const CGFloat kWaveformDragHysteresis = 4;
 
-// How often a streaming load's partial waveform lands: it delivers ~10 times a
-// second. The iOS scrubber's pace, so a load fills in alike on both.
-static const NSTimeInterval kPartialWaveformInterval = 0.4;
+// Match the loader's ~10 Hz deliveries. At 0.4 s a local decode often finishes
+// before the second landing, leaving a tiny first fragment until completion.
+static const NSTimeInterval kPartialWaveformInterval = 0.1;
 
 // A landing's newly decoded stretch grows up from the resting line. Under
 // kPartialWaveformInterval, so one reveal ends before the next lands; a steep
-// ease in and out, so it reads as a snap rather than a drift. The iOS
-// scrubber's kChunkGrowDuration.
-static const CFTimeInterval kRevealGrowDuration = 0.2;
+// ease in and out, so it reads as a snap rather than a drift.
+static const CFTimeInterval kRevealGrowDuration = 0.08;
 
 @implementation AudioWaveformView {
     NSString                    *_styleIdentifier;
@@ -395,12 +394,11 @@ static const CFTimeInterval kRevealGrowDuration = 0.2;
     [self drawWaveform];
 }
 
-// The iOS scrubber's pace, in the live tree: a load's first waveform eases up
-// from the midline, and every later one lands at a steady pace, settled, its
-// newly decoded stretch growing in (revealFrom:to:before:after:) — eased one
-// by one they kept the whole load repainting the full mask on every frame.
-// The complete one waits its turn too, so it never cuts the last stretch's
-// grow short.
+// A load's first waveform eases up from the midline. Later ones land settled
+// at the loader's pace, their newly decoded stretch growing in
+// (revealFrom:to:before:after:). Easing each one kept the whole load repainting
+// the full mask on every frame. The complete one waits its turn too, so it
+// never cuts the last stretch's grow short.
 //
 // TRAP: the first waveform lands at once, never held for its load to complete
 // as the scrubber's is. Every track change starts a load here, so holding it
