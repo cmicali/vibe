@@ -68,7 +68,8 @@ static NSCache<NSString *, NSArray *> *VibeBakeStore(void) {
     dispatch_once(&once, ^{
         store = [[NSCache alloc] init];
         store.countLimit = 3;
-        store.totalCostLimit = (NSUInteger)(3 * kVibeMaxBakeImageBytes);
+        // An entry is a played and an unplayed bitmap, each up to the budget.
+        store.totalCostLimit = (NSUInteger)(3 * 2 * kVibeMaxBakeImageBytes);
     });
     return store;
 }

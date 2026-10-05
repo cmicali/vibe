@@ -601,6 +601,8 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     }];
     [_pagesView insertItemsAtIndexPaths:paths];
     [self applyPlayOrderToVisiblePages];
+    // An append onto the last page makes a neighbor with no cursor move.
+    [self fetchNeighborWaveforms];
 }
 
 // No cursor-move handler, and no art discarded on a move: the departing page

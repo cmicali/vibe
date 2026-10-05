@@ -96,7 +96,10 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
 - (void)hydrateWaveformInCell:(TrackPageCell *)cell atIndex:(NSUInteger)index {
     CodableAudioWaveform *snapshot = [_waveformCoordinator snapshotAtIndex:index];
     if (snapshot) {
-        // A bake already stored for this page installs synchronously.
+        // A bake already stored for this page installs synchronously, keyed
+        // by the view's own geometry: a fresh cell's is unset until it lays
+        // out, and the lookup then missed and baked what the store held.
+        [cell layoutIfNeeded];
         [cell.waveformView showWaveform:snapshot
                               animated:![_waveformCoordinator isCompleteAtIndex:index]];
         return;
