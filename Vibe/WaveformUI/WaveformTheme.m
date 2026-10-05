@@ -39,8 +39,8 @@ static const CGFloat kArtworkUnplayedDesaturation = 0.5;
 // are tinted toward what they join, further on light, where the highs are
 // dark; the CDJ palette of hdelplan/three-band-waveform follows this within
 // 13/255. Unshaded, Engine DJ's way: each band painted whole over the ones
-// below, the highs letting about 6% of what they cover through. Opaque, since
-// the layers stack.
+// below, the highs letting about 6% of what they cover through. The bands
+// arrive opaque (AppTheme stores them so), and the blends are.
 static const CGFloat kBandLowMidShade = 0.3;
 static const CGFloat kBandHighTintDark = 0.18;
 static const CGFloat kBandHighTintLight = 0.35;
@@ -49,9 +49,6 @@ static const CGFloat kBandHighTintUnshaded = 0.06;
 
 static NSArray<VibeColor *> *VibeBandColors(VibeColor *low, VibeColor *mid, VibeColor *high, BOOL shade,
                                             BOOL isDark) {
-    low = [low colorWithAlphaComponent:1];
-    mid = [mid colorWithAlphaComponent:1];
-    high = [high colorWithAlphaComponent:1];
     VibeColor *lowMid = shade ? VibeColorBlended(mid, [VibeColor blackColor], kBandLowMidShade) : mid;
     CGFloat tint = !shade ? kBandHighTintUnshaded : isDark ? kBandHighTintDark : kBandHighTintLight;
     return @[low, mid, high, lowMid, VibeColorBlended(high, low, tint), VibeColorBlended(high, mid, tint),

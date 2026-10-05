@@ -254,6 +254,18 @@ static void AddColorPair(NSMutableArray *rows, NSString *base, NSString *group, 
     }
 }
 
+// 3-Band's bands stack, so an alpha would never draw: they store opaque, and
+// a well shows what draws.
+static void AddOpaqueColorPair(NSMutableArray *rows, NSString *base, NSString *group, NSString *jsonBase) {
+    AddColorPair(rows, base, group, jsonBase);
+    FieldSanitizer color = ColorField();
+    FieldSanitizer opaque = ^id(id raw) {
+        return VibeHexStringFromColor([VibeColorFromHexString(color(raw)) colorWithAlphaComponent:1]);
+    };
+    rows[rows.count - 2][kSpecSanitize] = [opaque copy];
+    rows[rows.count - 1][kSpecSanitize] = [opaque copy];
+}
+
 // A playlist column's switch, then its pair, whose rows carry the label pair
 // it inherits.
 static void AddSwitchedColorPair(NSMutableArray *rows, NSString *base, NSString *group,
@@ -366,9 +378,9 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
         AddColorPair(rows, kVibeThemeColorWaveformPlayed, waveform, @"playedColor");
         AddColorPair(rows, kVibeThemeColorWaveformUnplayed, waveform, @"unplayedColor");
         [rows addObject:Field(kFieldWaveformShadeOverlaps, waveform, @"shadeOverlaps", @YES, BoolField())];
-        AddColorPair(rows, kVibeThemeColorWaveformLow, waveform, @"lowColor");
-        AddColorPair(rows, kVibeThemeColorWaveformMid, waveform, @"midColor");
-        AddColorPair(rows, kVibeThemeColorWaveformHigh, waveform, @"highColor");
+        AddOpaqueColorPair(rows, kVibeThemeColorWaveformLow, waveform, @"lowColor");
+        AddOpaqueColorPair(rows, kVibeThemeColorWaveformMid, waveform, @"midColor");
+        AddOpaqueColorPair(rows, kVibeThemeColorWaveformHigh, waveform, @"highColor");
         [rows addObject:Field(kFieldWaveformPlayheadLine, waveform, @"playheadLine", @NO, BoolField())];
         AddColorPair(rows, kVibeThemeColorWaveformPlayhead, waveform, @"playheadColor");
 

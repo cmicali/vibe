@@ -64172,7 +64172,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.waveform_color": {
-      "comment": "Settings, theme editor, Player group: row beside the dropdown choosing the waveform's color palette (as opposed to its drawing style).",
+      "comment": "Settings, theme editor, Player group: row beside the dropdown choosing the waveform's color palette (as opposed to its drawing style), or, for the 3-Band style in a single-color theme, beside its band color wells.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -66404,7 +66404,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_band.high": {
-      "comment": "Settings, theme editor, custom 3-Band waveform colors: caption beside the color well for the high frequency band (treble), as on a DJ mixer's EQ.",
+      "comment": "Settings, theme editor, 3-Band waveform colors: caption beside the color well for the high frequency band (treble), as on a DJ mixer's EQ.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -66590,7 +66590,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_band.low": {
-      "comment": "Settings, theme editor, custom 3-Band waveform colors: caption beside the color well for the low frequency band (bass), as on a DJ mixer's EQ.",
+      "comment": "Settings, theme editor, 3-Band waveform colors: caption beside the color well for the low frequency band (bass), as on a DJ mixer's EQ.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -66776,7 +66776,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_band.mid": {
-      "comment": "Settings, theme editor, custom 3-Band waveform colors: caption beside the color well for the middle frequency band, as on a DJ mixer's EQ.",
+      "comment": "Settings, theme editor, 3-Band waveform colors: caption beside the color well for the middle frequency band, as on a DJ mixer's EQ.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -68264,7 +68264,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_custom_dark_label": {
-      "comment": "Settings, Appearance pane: label beside the custom waveform color wells used while the app is in dark mode.",
+      "comment": "Settings, Appearance pane: label beside the waveform color wells (custom colors, or the 3-Band style's bands) used while the app is in dark mode.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -68450,7 +68450,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_custom_light_label": {
-      "comment": "Settings, Appearance pane: label beside the custom waveform color wells used while the app is in light mode.",
+      "comment": "Settings, Appearance pane: label beside the waveform color wells (custom colors, or the 3-Band style's bands) used while the app is in light mode.",
       "localizations": {
         "bg": {
           "stringUnit": {

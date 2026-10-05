@@ -2213,7 +2213,6 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     NSMutableDictionary *duplicate = [working mutableCopy];
     duplicate[@"id"] = @"user-1";
     duplicate[@"name"] = @"Mine";
-    duplicate[@"waveformStyle"] = @"wiggle";
     [defaults setObject:@"technical" forKey:@"Appearance.activeTheme"];
     [defaults setObject:working forKey:@"Appearance.currentTheme"];
     [defaults setObject:@[duplicate] forKey:@"Appearance.userThemes"];
@@ -2223,9 +2222,6 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     XCTAssertTrue(migrated.showRemainingTime);
     XCTAssertFalse(migrated.currentThemeIsModified, @"only the display choice diverged");
     XCTAssertEqualObjects([defaults arrayForKey:@"Appearance.userThemes"][0][@"windowBackgroundStyle"], @"frosted");
-    XCTAssertEqualObjects([defaults arrayForKey:@"Appearance.userThemes"][0][@"waveformStyle"],
-                          SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE);
-    XCTAssertEqualObjects([defaults arrayForKey:@"Appearance.userThemes"][0][@"waveformCentered"], @NO);
 
     // Once: a Solid picked in 1.15 stays Solid.
     duplicate[@"windowBackgroundStyle"] = @"solid";

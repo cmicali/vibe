@@ -103,8 +103,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeColorWaveformPlayed;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorWaveformUnplayed;
 // The line waveformPlayheadLine draws. Unset, white on dark and black on light.
 FOUNDATION_EXPORT NSString *const kVibeThemeColorWaveformPlayhead;
-// 3-Band's bands, in place of the played and unplayed pair; opaque. Unset,
-// Rekord Bin's.
+// 3-Band's bands, in place of the played and unplayed pair; stored opaque.
+// Unset, Rekord Bin's.
 FOUNDATION_EXPORT NSString *const kVibeThemeColorWaveformLow;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorWaveformMid;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorWaveformHigh;

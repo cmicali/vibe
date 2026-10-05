@@ -241,10 +241,8 @@ static float VibeTestFullScaleRMS(AudioWaveform *waveform, BOOL normalize, NSUIn
     AudioWaveformCacheChunk chunk;
     chunk.set(-0.5f, 0.5f, 0.25f, 1);
     AudioWaveform waveform(1, &chunk);
-    for (NSString *style in @[@"basic", @"cupertino", @"sonic_cirrus", @"wiggle_centered"])
-    for (BOOL centered : {YES, NO}) {
+    for (NSString *style in @[@"basic", @"cupertino", @"sonic_cirrus", @"wiggle_centered"]) {
         AudioWaveformRenderer *renderer = [self rendererForStyle:style];
-        renderer.centered = centered;
         CALayer *host = renderer.parentLayer;
         BOOL sonic = [style isEqualToString:@"sonic_cirrus"];
         BOOL wiggle = [style hasPrefix:@"wiggle"];
@@ -438,19 +436,16 @@ static float VibeTestFullScaleRMS(AudioWaveform *waveform, BOOL normalize, NSUIn
 }
 
 - (void)testWiggleHighlightsWholeLoopsWithoutQuantizingThePlayedFill {
-    for (BOOL centered : {YES, NO}) {
-        DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)[self rendererForStyle:@"wiggle_centered"];
-        renderer.centered = centered;
-        CALayer *host = renderer.parentLayer;
-        CGRect leftStem = [renderer hoverColumnRectForX:2 bounds:host.bounds scale:2];
-        CGRect crest = [renderer hoverColumnRectForX:4 bounds:host.bounds scale:2];
-        CGRect rightStem = [renderer hoverColumnRectForX:6 bounds:host.bounds scale:2];
-        XCTAssertTrue(CGRectEqualToRect(leftStem, crest));
-        XCTAssertTrue(CGRectEqualToRect(leftStem, rightStem));
-        XCTAssertGreaterThanOrEqual(leftStem.size.width, 8);
-        XCTAssertGreaterThan([renderer hoverColumnRectForX:10 bounds:host.bounds scale:2].origin.x, leftStem.origin.x);
-        XCTAssertEqualWithAccuracy([renderer playedClipWidthForProgress:0.137 width:512], 0.137 * 512, 1e-6);
-    }
+    DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)[self rendererForStyle:@"wiggle_centered"];
+    CALayer *host = renderer.parentLayer;
+    CGRect leftStem = [renderer hoverColumnRectForX:2 bounds:host.bounds scale:2];
+    CGRect crest = [renderer hoverColumnRectForX:4 bounds:host.bounds scale:2];
+    CGRect rightStem = [renderer hoverColumnRectForX:6 bounds:host.bounds scale:2];
+    XCTAssertTrue(CGRectEqualToRect(leftStem, crest));
+    XCTAssertTrue(CGRectEqualToRect(leftStem, rightStem));
+    XCTAssertGreaterThanOrEqual(leftStem.size.width, 8);
+    XCTAssertGreaterThan([renderer hoverColumnRectForX:10 bounds:host.bounds scale:2].origin.x, leftStem.origin.x);
+    XCTAssertEqualWithAccuracy([renderer playedClipWidthForProgress:0.137 width:512], 0.137 * 512, 1e-6);
 }
 
 - (void)testWiggleCollapseFadesTheBaselineButKeepsLoadedQuietAudioVisible {
@@ -611,15 +606,6 @@ static uint32_t VibeARGBAt(CGImageRef image, size_t row, size_t column) {
 }
 static uint32_t VibeRGBAt(CGImageRef image, size_t row, size_t column) {
     return VibeARGBAt(image, row, column) & 0xffffff;
-}
-// A pixel the color filled: within a step per channel of its 8-bit sRGB.
-static BOOL VibeNearRGB(uint32_t pixel, VibeColor *color) {
-    NSColor *srgb = [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
-    CGFloat channels[3] = {srgb.redComponent, srgb.greenComponent, srgb.blueComponent};
-    for (int i = 0; i < 3; i++) {
-        if (labs((long)(pixel >> (16 - 8 * i) & 0xff) - lround(channels[i] * 255)) > 1) return NO;
-    }
-    return YES;
 }
 
 // The band layers' host, which the sides' mask covers.
@@ -808,48 +794,11 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     }
 }
 
-// The bake fills the same rings in the palette's colors: the core, the
-// low+mid ring and the low band's own, read at the bitmap's center column.
-- (void)testThreeBandBakePaintsEachRingInItsBandsColor {
-    std::array<float, 3> bands = {1, 0.01f, 0.0001f};
-    AudioWaveform waveform = VibeThreeBandTestWaveform(bands);
-    AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
-    WaveformTheme *flat = [WaveformTheme monochromeThemeIsDark:YES];
-    flat.flatFill = YES;
-    renderer.theme = flat;
-    [renderer updateColors:YES];
-    XCTAssertTrue(renderer.supportsEnvelopeBake);
-    CGSize size = renderer.parentLayer.bounds.size;
-    CGImageRef image = [renderer newEnvelopeImageForSize:size scale:1
-                                                 samples:[renderer envelopeSamplesForWaveform:&waveform]];
-    XCTAssertTrue(image != NULL);
-    XCTAssertTrue([renderer newUnplayedEnvelopeImageForSize:size scale:1 samples:NSData.data] == NULL,
-                  @"the unplayed side is the one bitmap, dimmed");
-    XCTAssertLessThan([renderer unplayedOverPlayedOpacity], 1);
-    size_t center = CGImageGetHeight(image) / 2;
-    std::vector<CGFloat> heights = [self threeBandLayerHeightsForBands:bands];
-    size_t brownRow = center - (size_t)((heights[3] / 2 + heights[6] / 2) / 2);
-    size_t blueRow = center - (size_t)((heights[0] / 2 + heights[3] / 2) / 2);
-    XCTAssertTrue(VibeNearRGB(VibeRGBAt(image, center, 256), flat.bandColors[6]), @"the core: all three bands");
-    XCTAssertTrue(VibeNearRGB(VibeRGBAt(image, brownRow, 256), flat.bandColors[3]), @"low and mid");
-    XCTAssertEqual(VibeRGBAt(image, blueRow, 256), 0x0055e1u, @"low alone");
-    CGImageRelease(image);
-
-    // Light turns the luminance over, so the white-led core goes dark.
-    WaveformTheme *flatLight = [WaveformTheme monochromeThemeIsDark:NO];
-    flatLight.flatFill = YES;
-    renderer.theme = flatLight;
-    [renderer updateColors:NO];
-    CGImageRef light = [renderer newEnvelopeImageForSize:size scale:1
-                                                 samples:[renderer envelopeSamplesForWaveform:&waveform]];
-    XCTAssertTrue(VibeNearRGB(VibeRGBAt(light, center, 256), flatLight.bandColors[6]));
-    XCTAssertLessThan(VibeRGBAt(light, center, 256) >> 16, 0x60u);
-    CGImageRelease(light);
-}
-
-// The band fills are the theme's, live and baked alike.
-- (void)testThreeBandDrawsTheThemesBandColors {
-    AudioWaveform waveform = VibeThreeBandTestWaveform({1, 0.01f, 0.0001f});
+// The band fills are the theme's, live and baked alike: the bake's core,
+// low+mid ring and low band's own, read at the bitmap's center column.
+- (void)testThreeBandPaintsEachRingInTheThemesBandColor {
+    std::array<float, 3> levels = {1, 0.01f, 0.0001f};
+    AudioWaveform waveform = VibeThreeBandTestWaveform(levels);
     AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
     WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
     theme.flatFill = YES;
@@ -865,10 +814,21 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
         XCTAssertTrue(CGColorEqualToColor(stack[layer].fillColor, bands[layer].CGColor), @"layer %lu",
                       (unsigned long)layer);
     }
+    XCTAssertTrue(renderer.supportsEnvelopeBake);
     CGSize size = renderer.parentLayer.bounds.size;
     CGImageRef image = [renderer newEnvelopeImageForSize:size scale:1
                                                  samples:[renderer envelopeSamplesForWaveform:&waveform]];
-    XCTAssertEqual(VibeRGBAt(image, CGImageGetHeight(image) / 2, 256), (uint32_t)(7 * 30) << 8, @"the core");
+    XCTAssertTrue(image != NULL);
+    XCTAssertTrue([renderer newUnplayedEnvelopeImageForSize:size scale:1 samples:NSData.data] == NULL,
+                  @"the unplayed side is the one bitmap, dimmed");
+    XCTAssertLessThan([renderer unplayedOverPlayedOpacity], 1);
+    size_t center = CGImageGetHeight(image) / 2;
+    std::vector<CGFloat> heights = [self threeBandLayerHeightsForBands:levels];
+    size_t lowMidRow = center - (size_t)((heights[3] / 2 + heights[6] / 2) / 2);
+    size_t lowRow = center - (size_t)((heights[0] / 2 + heights[3] / 2) / 2);
+    XCTAssertEqual(VibeRGBAt(image, center, 256), (uint32_t)(7 * 30) << 8, @"the core: all three bands");
+    XCTAssertEqual(VibeRGBAt(image, lowMidRow, 256), (uint32_t)(4 * 30) << 8, @"low and mid");
+    XCTAssertEqual(VibeRGBAt(image, lowRow, 256), (uint32_t)(1 * 30) << 8, @"low alone");
     CGImageRelease(image);
 }
 
